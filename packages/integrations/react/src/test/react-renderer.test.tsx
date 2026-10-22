@@ -24,7 +24,7 @@ import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/
 import { describeRendererContract } from '@ecopages/testing/renderer-contract';
 import React, { type JSX, type ReactNode } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
-import type { ReactRuntime } from '../render/layout-compose.ts';
+import type { ReactRuntimeModules } from '../render/react-runtime.ts';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
 import { Page } from './fixture/test-page';
 
@@ -68,11 +68,6 @@ NonReactHtmlTemplate.config = {
 };
 
 const pageFilePath = path.resolve(__dirname, 'fixture/test-page.tsx');
-
-type TestReactRuntimeModules = {
-	react: ReactRuntime;
-	reactDomServer: typeof import('react-dom/server');
-};
 
 const createAssetProcessingServiceMock = () => ({
 	getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
@@ -140,7 +135,7 @@ class TestReactRenderer extends ReactRenderer {
 	isMdxFileOverride?: boolean;
 	declaredModulesOverride?: string[];
 	pageBrowserGraphOverride?: PageBrowserGraphResult;
-	reactRuntimeModulesOverride?: TestReactRuntimeModules;
+	reactRuntimeModulesOverride?: ReactRuntimeModules;
 
 	constructor(options: ConstructorParameters<typeof ReactRenderer>[0]) {
 		super(options);
@@ -753,11 +748,11 @@ describe('ReactRenderer', () => {
 
 	it('should render boundaries with the app-scoped React runtime', async () => {
 		const appReact = { ...React };
-		const appReactDomServer = { ...(await import('react-dom/server')) };
+		const appReactDomStatic = { ...(await import('react-dom/static')) };
 		const createElement = vi.spyOn(appReact, 'createElement');
-		const renderToString = vi.spyOn(appReactDomServer, 'renderToString');
+		const prerenderToNodeStream = vi.spyOn(appReactDomStatic, 'prerenderToNodeStream');
 		const testRenderer = createRenderer();
-		testRenderer.reactRuntimeModulesOverride = { react: appReact, reactDomServer: appReactDomServer };
+		testRenderer.reactRuntimeModulesOverride = { react: appReact, reactDomStatic: appReactDomStatic };
 
 		const ForeignSubtree = eco.component<{ label: string }, JSX.Element>({
 			integration: 'react',
@@ -771,7 +766,7 @@ describe('ReactRenderer', () => {
 
 		expect(result.html).toBe('<section>Hello</section>');
 		expect(createElement).toHaveBeenCalledWith(ForeignSubtree, { label: 'Hello' });
-		expect(renderToString).toHaveBeenCalledTimes(1);
+		expect(prerenderToNodeStream).toHaveBeenCalledTimes(1);
 	});
 
 	afterAll(() => {
@@ -799,6 +794,7 @@ describe('ReactRenderer', () => {
 
 		const text = await new Response(body as BodyInit).text();
 		expect(text).toContain('<div>Hello World</div>');
+		expect(text.match(/<!DOCTYPE html>/gi)).toHaveLength(1);
 	});
 
 	it('serializes route params and query over conflicting page props', async () => {

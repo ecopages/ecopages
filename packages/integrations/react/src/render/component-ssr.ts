@@ -1,9 +1,5 @@
 /**
- * React component SSR helpers: renderToString, foreign-subtree HTML, island attributes.
- */
-
-/**
- * React component SSR helpers: renderToString, foreign-subtree HTML, island attributes.
+ * React component SSR helpers: component HTML, foreign-subtree HTML, island attributes.
  */
 import type { EcoComponent, EcoPagesElement } from '@ecopages/core';
 import type { ComponentRenderInput } from '@ecopages/core/integration';
@@ -12,7 +8,7 @@ import type { ReactNode } from 'react';
 import { isValidElement } from 'react';
 import { asReactComponent, type SerializableProps } from './component-ownership.ts';
 import { ReactRenderError } from './errors.ts';
-import type { ReactRuntimeModules } from './react-runtime.ts';
+import { renderReactHtml, type ReactRuntimeModules } from './react-runtime.ts';
 
 export type ReactComponentRenderContext = {
 	componentInstanceId?: string;
@@ -67,23 +63,21 @@ export async function renderNonReactShellComponent<P extends SerializableProps>(
  * React would escape it. This helper renders a unique token through React and swaps
  * that token back to the resolved HTML afterward.
  */
-export function renderComponentHtml(options: {
+export async function renderComponentHtml(options: {
 	input: ComponentRenderInput;
 	context: ReactComponentRenderContext;
 	runtimeContext?: ReactForeignSubtreeResolutionContext;
 	runtime: ReactRuntimeModules;
-}): string {
+}): Promise<string> {
 	const { input, context, runtimeContext, runtime } = options;
-	const { react, reactDomServer } = runtime;
+	const component = asReactComponent(input.component);
 
 	if (input.children === undefined) {
-		return reactDomServer.renderToString(react.createElement(asReactComponent(input.component), input.props));
+		return await renderReactHtml(runtime, runtime.react.createElement(component, input.props));
 	}
 
 	if (isValidElement(input.children)) {
-		return reactDomServer.renderToString(
-			react.createElement(asReactComponent(input.component), input.props, input.children),
-		);
+		return await renderReactHtml(runtime, runtime.react.createElement(component, input.props, input.children));
 	}
 
 	const resolvedChildHtml = typeof input.children === 'string' ? input.children : String(input.children ?? '');
@@ -92,9 +86,7 @@ export function renderComponentHtml(options: {
 		runtimeContext.rawChildrenToken = rawChildrenToken;
 		runtimeContext.rawChildrenHtml = resolvedChildHtml;
 	}
-	const html = reactDomServer.renderToString(
-		react.createElement(asReactComponent(input.component), input.props, rawChildrenToken),
-	);
+	const html = await renderReactHtml(runtime, runtime.react.createElement(component, input.props, rawChildrenToken));
 	return html.split(rawChildrenToken).join(resolvedChildHtml);
 }
 

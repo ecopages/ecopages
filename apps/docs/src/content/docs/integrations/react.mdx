@@ -126,6 +126,8 @@ const HeavyComponent = dynamic(() => import('@/components/heavy-chart'), {
 });
 ```
 
+With `ssr: true`, `dynamic` returns a `React.lazy()` component, and the server renders its content into the HTML. Server rendering waits for every `<Suspense>` boundary, so `React.lazy()` and `<Suspense>` work in Pages and Layouts; an import that rejects fails the render instead of serving the fallback.
+
 ### `ClientOnly`
 
 The `ClientOnly` component is useful for parts of the UI that should strictly render in the browser (e.g., accessing `window` or `localStorage`).

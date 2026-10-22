@@ -22,7 +22,7 @@ import {
  *
  * - `NODE_ENV` is `production` from the start, and again before each test, because `unstubEnvs` resets it
  *   before every test. Setting it only inside the test body is too late: `react` would already have
- *   loaded its development build next to a production `react-dom/server`, and every React page fails
+ *   loaded its development build next to a production `react-dom` server build, and every React page fails
  *   with `dispatcher.getOwner is not a function`.
  * - The working directory is the app root. The Lit static render worker reloads `eco.config.ts` with
  *   the working directory as root, and from the repository root it reads `src/includes/html.kita.tsx`

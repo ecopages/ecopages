@@ -1,0 +1,84 @@
+.post-grid {
+	display: grid;
+	gap: var(--space-m);
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+/* Title, date and excerpt line up across a row of cards */
+.post-card {
+	position: relative;
+	display: grid;
+	grid-row: span 3;
+	grid-template-rows: subgrid;
+	row-gap: var(--space-xs);
+	padding: var(--space-m);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-container);
+	background: var(--color-surface-container-lowest);
+}
+
+.post-card__title {
+	margin: 0;
+	font-size: var(--step-1);
+}
+
+.post-card__link {
+	color: var(--color-on-surface);
+	text-decoration: none;
+}
+
+.post-card__link::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+}
+
+.post-card__link:focus-visible {
+	outline: 2px solid transparent;
+}
+
+.post-card:has(.post-card__link:focus-visible) {
+	outline: max(2px, 0.08em) solid var(--color-focus-ring);
+	outline-offset: 2px;
+}
+
+.post-card__date {
+	color: var(--color-muted-text);
+	font-size: var(--step--1);
+}
+
+.post-card__excerpt {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	line-clamp: 3;
+	overflow: clip;
+	margin: 0;
+	color: var(--color-muted-text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.post-card:hover {
+		border-color: color-mix(in oklch, var(--color-primary) 45%, var(--color-border));
+	}
+
+	.post-card:hover .post-card__link {
+		color: var(--color-primary);
+	}
+}
+
+.post-card:active {
+	scale: 0.98;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.post-card {
+		transition:
+			scale 160ms var(--ease-out),
+			border-color 160ms var(--ease-out);
+	}
+}

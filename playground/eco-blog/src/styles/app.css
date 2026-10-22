@@ -1,0 +1,294 @@
+@import 'tailwindcss';
+@import '@ecopages/radiant-ui/themes/default';
+@import '@ecopages/radiant-ui/button/styles.css';
+@import '@ecopages/radiant-ui/input/styles.css';
+@import '@ecopages/radiant-ui/label/styles.css';
+@import '@ecopages/radiant-ui/textarea/styles.css';
+
+/* Reset and base element styles: in the base layer so Radiant UI's component layer wins over them. */
+@layer base {
+	/* Reset */
+
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
+		min-width: 0;
+	}
+
+	:root {
+		interpolate-size: allow-keywords;
+		scrollbar-gutter: stable;
+		text-wrap: pretty;
+		overflow-wrap: break-word;
+		font-synthesis: none;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		-webkit-text-size-adjust: 100%;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	body {
+		margin: 0;
+		min-height: 100svh;
+	}
+
+	h1,
+	h2,
+	h3,
+	h4 {
+		text-wrap: balance;
+	}
+
+	img,
+	svg,
+	video {
+		display: block;
+		max-width: 100%;
+		height: auto;
+	}
+
+	input,
+	textarea,
+	select {
+		font-size: max(16px, 1rem);
+	}
+
+	button,
+	a,
+	[role='button'] {
+		touch-action: manipulation;
+	}
+
+	button,
+	[role='button'] {
+		user-select: none;
+		-webkit-user-select: none;
+	}
+
+	/* Base */
+
+	html {
+		scroll-padding-block-start: calc(var(--header-height) + var(--space-s));
+	}
+
+	body {
+		background: var(--color-background);
+		color: var(--color-on-background);
+		font-family: var(--font-sans);
+		font-size: var(--step-0);
+		line-height: 1.6;
+	}
+
+	h1,
+	h2,
+	h3 {
+		font-family: var(--font-heading);
+		line-height: 1.15;
+		letter-spacing: -0.015em;
+	}
+
+	a {
+		color: var(--color-link);
+	}
+
+	time {
+		font-variant-numeric: tabular-nums;
+	}
+
+	:focus-visible {
+		outline: max(2px, 0.08em) solid var(--color-focus-ring);
+		outline-offset: 0.25em;
+	}
+}
+
+@view-transition {
+	navigation: auto;
+}
+
+/* Tokens */
+
+:root {
+	--narrow: 20;
+	--wide: 77.5;
+	--size-narrow: 1.0625;
+	--size-wide: 1.1875;
+	--ratio-narrow: 1.2;
+	--ratio-wide: 1.25;
+
+	--fluid: clamp(0rem, (100vw - var(--narrow) * 1rem) / (var(--wide) - var(--narrow)), 1rem);
+	--at-narrow: calc(var(--size-narrow) * (1rem - var(--fluid)));
+	--at-wide: calc(var(--size-wide) * var(--fluid));
+
+	--step--1: calc(var(--step-0) / var(--ratio-narrow));
+	--step-0: calc(var(--at-narrow) + var(--at-wide));
+	--step-1: calc(var(--at-narrow) * var(--ratio-narrow) + var(--at-wide) * var(--ratio-wide));
+	--step-2: calc(var(--at-narrow) * pow(var(--ratio-narrow), 2) + var(--at-wide) * pow(var(--ratio-wide), 2));
+	--step-3: calc(var(--at-narrow) * pow(var(--ratio-narrow), 3) + var(--at-wide) * pow(var(--ratio-wide), 3));
+	--step-4: calc(var(--at-narrow) * pow(var(--ratio-narrow), 4) + var(--at-wide) * pow(var(--ratio-wide), 4));
+	--step-5: calc(var(--at-narrow) * pow(var(--ratio-narrow), 5) + var(--at-wide) * pow(var(--ratio-wide), 5));
+
+	--space-2xs: calc(0.25 * var(--step-0));
+	--space-xs: calc(0.5 * var(--step-0));
+	--space-s: var(--step-0);
+	--space-m: calc(1.5 * var(--step-0));
+	--space-l: calc(2 * var(--step-0));
+	--space-xl: calc(3 * var(--step-0));
+	--space-s-l: calc(var(--at-narrow) + 2 * var(--at-wide));
+	--space-l-2xl: calc(2 * var(--at-narrow) + 4 * var(--at-wide));
+
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+	--color-muted-text: color-mix(in oklch, var(--color-on-background) 68%, var(--color-background));
+	--header-height: 4rem;
+}
+
+.visually-hidden {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: clip;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.skip-link {
+	position: absolute;
+	inset-inline-start: var(--space-s);
+	inset-block-start: var(--space-s);
+	z-index: var(--z-overlay);
+	padding: var(--space-xs) var(--space-s);
+	border-radius: var(--radius-control);
+	background: var(--color-primary);
+	color: var(--color-on-primary);
+	translate: 0 -200%;
+}
+
+.skip-link:focus-visible {
+	translate: 0;
+}
+
+/* Content grid with breakouts */
+
+.content-grid {
+	--gutter: var(--space-s-l);
+	--content: 42rem;
+	--breakout: 72rem;
+
+	display: grid;
+	grid-template-columns:
+		[full-width-start] minmax(var(--gutter), 1fr)
+		[breakout-start] minmax(0, calc((var(--breakout) - var(--content)) / 2))
+		[content-start] min(100% - var(--gutter) * 2, var(--content)) [content-end]
+		minmax(0, calc((var(--breakout) - var(--content)) / 2)) [breakout-end]
+		minmax(var(--gutter), 1fr) [full-width-end];
+	align-content: start;
+}
+
+:is(.content-grid, .full-width) > * {
+	grid-column: content;
+}
+
+:is(.content-grid, .full-width) > .breakout {
+	grid-column: breakout;
+}
+
+:is(.content-grid, .full-width) > .full-width {
+	grid-column: full-width;
+	display: grid;
+	grid-template-columns: inherit;
+}
+
+/* Long-form content */
+
+.prose > * {
+	margin-block: 0;
+}
+
+.prose > * + * {
+	margin-block-start: var(--flow-space, 1em);
+}
+
+.prose > :is(h2, h3, h4) {
+	--flow-space: 1.75em;
+}
+
+.prose > :is(h2, h3, h4) + * {
+	--flow-space: 0.5em;
+}
+
+.prose h2 {
+	font-size: var(--step-2);
+}
+
+.prose h3 {
+	font-size: var(--step-1);
+}
+
+.prose :is(ul, ol) {
+	padding-inline-start: 1.25em;
+}
+
+.prose blockquote {
+	margin-inline: 0;
+	padding-inline-start: var(--space-s);
+	border-inline-start: 3px solid var(--color-primary);
+	color: var(--color-muted-text);
+}
+
+.prose :not(pre) > code {
+	padding: 0.1em 0.35em;
+	border-radius: 0.3em;
+	background: var(--color-background-code);
+	color: var(--color-on-background-code);
+	font-family: var(--font-mono);
+	font-size: 0.9em;
+}
+
+.prose pre {
+	overflow-x: auto;
+	padding: var(--space-s);
+	border-radius: var(--radius-md);
+	background: var(--color-background-code);
+	color: var(--color-on-background-code);
+	font-family: var(--font-mono);
+	font-size: var(--step--1);
+}
+
+.prose img {
+	border-radius: var(--radius-md);
+}
+
+.prose hr {
+	border: 0;
+	border-block-start: 1px solid var(--color-border);
+}
+
+/* Error pages */
+
+.error-page {
+	display: grid;
+	justify-items: start;
+	gap: var(--space-s);
+}
+
+.error-page h1 {
+	margin: 0;
+	font-size: var(--step-4);
+}
+
+.error-page p {
+	margin: 0;
+	color: var(--color-muted-text);
+}
+
+.error-page__stack {
+	max-inline-size: 100%;
+	overflow-x: auto;
+	padding: var(--space-s);
+	border-radius: var(--radius-md);
+	background: var(--color-background-code);
+	color: var(--color-on-background-code);
+	font-size: var(--step--1);
+}

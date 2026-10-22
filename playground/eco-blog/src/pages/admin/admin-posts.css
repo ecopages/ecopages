@@ -1,0 +1,88 @@
+.admin-posts {
+	display: grid;
+	gap: var(--space-m);
+}
+
+.admin-posts__header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-s);
+}
+
+.admin-posts__header h1 {
+	margin: 0;
+	font-size: var(--step-3);
+}
+
+.admin-posts__empty {
+	padding: var(--space-xl) var(--space-m);
+	border: 1px dashed var(--color-border);
+	border-radius: var(--radius-container);
+	color: var(--color-muted-text);
+	text-align: center;
+}
+
+.admin-posts__table {
+	container-type: inline-size;
+	overflow-x: auto;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-container);
+	background: var(--color-background);
+}
+
+.admin-posts__table table {
+	inline-size: 100%;
+	border-collapse: collapse;
+}
+
+.admin-posts__table :is(th, td) {
+	padding: var(--space-xs) var(--space-s);
+	text-align: start;
+	vertical-align: middle;
+}
+
+.admin-posts__table th {
+	color: var(--color-muted-text);
+	font-size: var(--step--1);
+	font-weight: 600;
+	background: var(--color-surface-container-low);
+}
+
+.admin-posts__table tbody tr + tr {
+	border-block-start: 1px solid var(--color-border);
+}
+
+.admin-posts__title {
+	display: block;
+	color: var(--color-on-background);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.admin-posts__slug {
+	color: var(--color-muted-text);
+	font-family: var(--font-mono);
+	font-size: var(--step--1);
+	overflow-wrap: anywhere;
+}
+
+.admin-posts__table time {
+	white-space: nowrap;
+	font-size: var(--step--1);
+}
+
+.admin-posts__actions {
+	display: flex;
+	justify-content: end;
+	gap: var(--space-2xs);
+}
+
+/* Narrow tables keep the title and actions; the slug and date move out of the way */
+@container (inline-size < 34rem) {
+	.admin-posts__table :is(th, td):nth-child(2),
+	.admin-posts__slug {
+		display: none;
+	}
+}

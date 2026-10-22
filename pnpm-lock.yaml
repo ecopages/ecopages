@@ -768,9 +768,6 @@ importers:
       '@libsql/client':
         specifier: ^0.17.4
         version: 0.17.4
-      '@mdx-js/mdx':
-        specifier: ^3.1.1
-        version: 3.1.1
       '@tiptap/core':
         specifier: ^3.32.0
         version: 3.32.0(@tiptap/pm@3.32.0)
@@ -789,6 +786,15 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@libsql/client@0.17.4)(bun-types@1.4.2)(kysely@0.29.5)
+      mdast-util-from-markdown:
+        specifier: ~2.0.3
+        version: 2.0.3
+      mdast-util-gfm:
+        specifier: ^3.1.0
+        version: 3.1.0
+      micromark-extension-gfm:
+        specifier: ^3.0.0
+        version: 3.0.0
       tiptap-markdown:
         specifier: ^0.9.0
         version: 0.9.0(@tiptap/core@3.32.0(@tiptap/pm@3.32.0))
@@ -799,30 +805,36 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../packages/integrations/ecopages-jsx
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
-      '@ecopages/kitajs':
-        specifier: workspace:*
-        version: link:../../packages/integrations/kitajs
-      '@ecopages/mdx':
-        specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+      '@ecopages/jsx':
+        specifier: ^0.4.0
+        version: 0.4.0(@ecopages/signals@0.4.0)
       '@ecopages/postcss-processor':
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.4.0
         version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+      '@ecopages/radiant-ui':
+        specifier: ^0.2.1
+        version: 0.2.1(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))(@ecopages/radiant@0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0)))(@ecopages/signals@0.4.0)
+      '@ecopages/signals':
+        specifier: ^0.4.0
+        version: 0.4.0
       '@faker-js/faker':
         specifier: ^10.4.0
         version: 10.6.0
-      '@kitajs/html':
-        specifier: ^4.2.13
-        version: 4.2.13
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11

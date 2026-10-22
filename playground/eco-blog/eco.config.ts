@@ -1,8 +1,7 @@
 import path from 'node:path';
 import { defineConfig } from '@ecopages/core/config';
 import { imageProcessorPlugin, type ImageProcessorConfig } from '@ecopages/image-processor';
-import { kitajsPlugin } from '@ecopages/kitajs';
-import { mdxPlugin } from '@ecopages/mdx';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
@@ -22,18 +21,11 @@ export const imageProcessorConfig: ImageProcessorConfig = {
 };
 
 export default defineConfig({
-	integrations: [
-		kitajsPlugin(),
-		mdxPlugin({
-			compilerOptions: {
-				jsxImportSource: '@kitajs/html',
-			},
-		}),
-	],
+	integrations: [ecopagesJsxPlugin()],
 	processors: [
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
+				referencePath: path.resolve(import.meta.dirname, 'src/styles/app.css'),
 			}),
 		),
 		imageProcessorPlugin({ options: imageProcessorConfig }),

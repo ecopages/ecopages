@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.4.0
+
+### Minor Changes
+
+- [#835](https://github.com/ecopages/ecopages/pull/835) [`fd88c3a`](https://github.com/ecopages/ecopages/commit/fd88c3ab8a07a4c7248b6fbcd8d35a71cb176ac1) Thanks [@andeeplus](https://github.com/andeeplus)! - Serve API routes from files: a file under the pages directory ending in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx` is an endpoint whose URL is its path with the whole `.api.*` ending dropped. `src/pages/api/users/[id].api.ts` answers `/api/users/[id]`, with `index.api.ts` and `[...slug].api.ts` following the Page naming rules. The file exports one handler per method, built with the method helpers without `path` (`export const GET = defineGet({ handler })`), and answers through the same pipeline as `app.add()` routes: params (a catch-all as an array), schema validation, middleware and `app.onError`. A method the file does not export answers `405` with an `Allow` header. In `ecopages dev`, saving the file serves its new handlers without a restart.
+
+    Rules: two files on the same route, whatever the parameter names, fail discovery with the duplicate-route error, which now also catches two Pages such as `[slug].tsx` beside `[id].tsx`, and `users.api.ts` beside `users.api.js`. The `.api.*` endings are reserved: an Integration whose `extensions` include one fails config finalization with an error naming it; `.tsx` itself stays a page extension, and `users.api.tsx` is still an endpoint. An `app.ts` route on an endpoint's route keeps the methods it registers, and startup logs a warning naming both. An endpoint file whose URL ends in a known static file extension, such as `feed.xml.api.ts`, fails discovery; register that URL in `app.ts`. Endpoint files are never statically generated, listed in the sitemap or prebuilt as Pages, even when `.ts` is a registered Page extension.
+
+    Build and production: `ecopages build` imports every endpoint file and checks its exports before bundling, so a file with no method export, a method export built for another method, or one that sets `path` fails the build with an error naming the file and its URL. `--keep-going` does not skip this check. A build whose only handlers are endpoint files now writes `dist/.server/`, so `ecopages start` runs it.
+
+    Helpers: `defineGet`, `definePost` and the other method helpers accept a handler without `path`; with `path` they behave and infer as before. The `api.get` / `api.post` helpers inside `defineGroupHandler` still require `path`, and `app.add()` and `app.group()` throw for a handler without one.
+
+- [#847](https://github.com/ecopages/ecopages/pull/847) [`43e3d43`](https://github.com/ecopages/ecopages/commit/43e3d43d43e5fd585231c84f0f2c2690a2047ad4) Thanks [@andeeplus](https://github.com/andeeplus)! - Type the handler context the same way however a route is defined. A field the route's `schema` declares takes the schema's output type; a field it omits keeps its untyped shape, so a route with only `schema.body` still reads `params` as `PageParams` and `query` as parsed query values instead of `unknown`. Inline routes (`app.get()`, `app.post()` and the other method calls, `app.route()`, and the routes of `app.group()`) now type the handler from their `schema` and middleware, and `api.get()`, `api.post()` and the other method helpers inside `defineGroupHandler` receive the context the group middleware adds.
+
+    API handlers now type `ctx.query` as the parsed query values. Page middleware no longer declares `query`, which it never received; read the query string from `request.url`.
+
+    The handler context now comes from the route's `schema`, its middleware and its group, not from a type annotation on the handler's parameter. A route's handler sees the fields every one of its middleware adds, and a group's routes see what every group middleware adds, so a route with `middleware: [withSession, withLocale]` reads both `ctx.session` and `ctx.locale` without type arguments. A handler annotated with a context that no middleware on its route adds no longer compiles. An inline middleware function in a `middleware` list is typed with the base context.
+
+    TypeScript types the handler against the middleware it has already seen, so in a `define*` call put `middleware` before `handler`. In `app.get()` and the other method calls the handler comes first, so declare every middleware in the list as a `Middleware` or `EcoMiddleware` constant, or annotate an inline function with `ApiHandlerContext` and the now exported `MiddlewareNext`: one unannotated inline function makes the handler lose the context of the whole list, constants included.
+
+    The exported handler context type `TypedGroupHandlerContext` is renamed `RouteHandlerContext`, with no alias. `RouteOptions` now takes the route's schema and middleware list as type parameters instead of a context type.
+
+    To migrate:
+
+    - Replace `RouteOptions<Request, unknown, MyContext>` with `RouteOptions<Request, unknown>`; the context now comes from the `middleware` list.
+    - Remove a handler's context annotation and put the middleware that provides those fields in `middleware`, or keep the annotation and pass the context as the route's explicit type argument.
+    - Rename `TypedGroupHandlerContext` to `RouteHandlerContext`; the type parameters are unchanged.
+
+- [#842](https://github.com/ecopages/ecopages/pull/842) [`9370261`](https://github.com/ecopages/ecopages/commit/9370261c7e68b321b6ccad5feec57e2b1a276857) Thanks [@andeeplus](https://github.com/andeeplus)! - Support the HTTP QUERY method (RFC 10008), a safe, idempotent read whose request body carries the query. Add `defineQuery`, `app.query(path, handler, options)`, `api.query` in `defineGroupHandler` and `query` on the route group builder, and let an endpoint file `export const QUERY = defineQuery({ ... })`. A `schema.body` is validated as for `POST` (`400` on invalid input, `415` for a body with a missing or unsupported `Content-Type`), and without it the handler reads `request` itself. A file that does not export `QUERY` answers a QUERY request with `405` and an `Allow` header that omits it. Ecopages does not cache QUERY responses and does not set `Accept-Query` or `Vary`; handlers set them.
+
+### Patch Changes
+
+- [#846](https://github.com/ecopages/ecopages/pull/846) [`711ae17`](https://github.com/ecopages/ecopages/commit/711ae174bab888f316d7de402174f95620558859) Thanks [@andeeplus](https://github.com/andeeplus)! - Dynamic filesystem routes now match by specificity: segments are compared from the left and a literal segment wins over a parameter, as catch-all routes already did. `src/pages/api/[id].tsx` answers `/api/5` instead of `src/pages/[section]/[slug].tsx`.
+
+- [#856](https://github.com/ecopages/ecopages/pull/856) [`4e4c1c4`](https://github.com/ecopages/ecopages/commit/4e4c1c4a6a55a0b4005e727274b8eb32665e7a5a) Thanks [@andeeplus](https://github.com/andeeplus)! - `ApiHandler.middleware` is typed as the same read-only `MiddlewareList` that `RouteOptions.middleware` and a group's `middleware` use, with no `any`; `MiddlewareList` is now exported. A handler's middleware list can no longer be pushed to after it is built.
+
+- [#836](https://github.com/ecopages/ecopages/pull/836) [`2db3a30`](https://github.com/ecopages/ecopages/commit/2db3a30bc9666b2896d30be3ec623602d2d488ea) Thanks [@andeeplus](https://github.com/andeeplus)! - Correct the documentation of handler Params typing: the `path` string selects the URL and does not type `params`; `schema.params` types and validates them.
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.4.0
+    - @ecopages/file-system@0.4.0
+
 ## 0.3.2
 
 ### Patch Changes

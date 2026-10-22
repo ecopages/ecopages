@@ -205,6 +205,7 @@ export class ServerRequestPipeline {
 				return {
 					staticPaths: pageComponent?.staticPaths ?? module.getStaticPaths,
 					staticProps: pageComponent?.staticProps ?? module.getStaticProps,
+					cache: pageComponent?.cache,
 				};
 			},
 		};

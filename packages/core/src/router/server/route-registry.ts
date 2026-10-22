@@ -65,6 +65,8 @@ export type RouteRegistryPageModule = {
 		paths: Array<{ params: RouteParams }>;
 	}>;
 	readonly staticProps?: unknown;
+	/** The Page's Cache Strategy; `'dynamic'` Pages render per request and are never expanded. */
+	readonly cache?: unknown;
 };
 
 export interface RouteRegistryPageModuleAdapter {
@@ -204,6 +206,10 @@ export class RouteRegistry {
 			}
 
 			const pageModule = await this.pageModuleAdapter.loadPageModule(route.filePath);
+			if (pageModule.cache === 'dynamic') {
+				continue;
+			}
+
 			const staticPaths = pageModule.staticPaths;
 
 			if (this.buildMode) {

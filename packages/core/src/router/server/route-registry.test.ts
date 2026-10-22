@@ -420,6 +420,29 @@ describe('RouteRegistry', () => {
 		expect(pageModuleAdapter.loadPageModule).toHaveBeenCalledWith('/pages/blog/[slug].ts');
 	});
 
+	test('builds a dynamic-route Page with cache dynamic without staticPaths', async () => {
+		const pageModuleAdapter: RouteRegistryPageModuleAdapter = {
+			loadPageModule: vi.fn(async () => ({ cache: 'dynamic' })),
+		};
+
+		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
+		await registry.init();
+
+		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+			{
+				pathname: '/admin/posts/[id]',
+				kind: 'dynamic',
+				role: 'page',
+				filePath: '/pages/admin/posts/[id].ts',
+				paramNames: ['id'],
+			},
+		];
+
+		await expect(registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' })).resolves.toEqual(
+			[],
+		);
+	});
+
 	test('lists static-generation routes through one registry seam', async () => {
 		const pageModuleAdapter: RouteRegistryPageModuleAdapter = {
 			loadPageModule: vi.fn(async () => ({

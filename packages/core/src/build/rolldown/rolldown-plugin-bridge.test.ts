@@ -105,6 +105,28 @@ test('createRolldownPluginBridge resolveId translates EcoBuildOnResolveResult to
 	assert.deepEqual(result, { id: '/vendor/react.js', external: true });
 });
 
+test('createRolldownPluginBridge passes the import kind to onResolve', async () => {
+	const seen: Array<string | undefined> = [];
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'kind',
+			setup(build) {
+				build.onResolve({ filter: /.*/ }, (args) => {
+					seen.push(args.kind);
+					return undefined;
+				});
+			},
+		},
+	];
+
+	const plugin = (await createRolldownPluginBridge(plugins, '/app'))[0]!;
+	const resolveId = hookHandler(plugin.resolveId) as ResolveHook;
+	await resolveId('dep', '/app/index.ts', { kind: 'import-statement' });
+	await resolveId('dep', '/app/index.cjs', { kind: 'require-call' });
+
+	assert.deepEqual(seen, ['import-statement', 'require-call']);
+});
+
 test('createRolldownPluginBridge resolveId resolves relative paths against the importer', async () => {
 	const plugins: EcoBuildPlugin[] = [
 		{

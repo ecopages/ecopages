@@ -2,6 +2,7 @@ export { writeHashedBrowserAsset } from './assets/hashed-browser-asset.ts';
 export type { AssetDefinition, ProcessedAsset } from './types/asset-types.ts';
 export {
 	type EcoBuildOnLoadResult,
+	type EcoBuildImportKind,
 	type EcoBuildOnResolveArgs,
 	type EcoBuildPlugin,
 	type EcoBuildPluginBuilder,

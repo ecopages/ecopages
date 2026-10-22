@@ -57,6 +57,7 @@ import { escapeRegExp } from '../../utils/regex-escaping.ts';
 import type {
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
+	EcoBuildImportKind,
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildOnTransformResult,
@@ -454,7 +455,7 @@ export async function createRolldownPluginBridge(
 	}
 	registrationClosed = true;
 
-	const resolveIdHandler = async (source: string, importer: string | undefined) => {
+	const resolveIdHandler = async (source: string, importer: string | undefined, extraOptions?: { kind?: EcoBuildImportKind }) => {
 		for (const { matches, callback, pluginName } of resolveRegistrations) {
 			if (!matches(source)) {
 				continue;
@@ -462,7 +463,7 @@ export async function createRolldownPluginBridge(
 			const { namespace, path: sourcePath } = splitNamespace(source);
 			let result: EcoBuildOnResolveResult | undefined;
 			try {
-				result = await callback({ path: sourcePath, importer, namespace });
+				result = await callback({ path: sourcePath, importer, namespace, kind: extraOptions?.kind });
 			} catch (error) {
 				throw new EcoBuildPluginError(error, pluginName, importer);
 			}

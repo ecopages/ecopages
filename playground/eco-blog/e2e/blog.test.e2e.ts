@@ -2,16 +2,25 @@ import { expect, test, type Page } from '@playwright/test';
 
 async function signIn(page: Page) {
 	await page.goto('/login');
-	await page.getByPlaceholder('name@example.com').fill('admin@test.com');
-	await page.getByPlaceholder('••••••••').fill('password');
-	await page.getByRole('button', { name: 'Sign In' }).click();
+	await page.getByLabel('Email').fill('admin@test.com');
+	await page.getByLabel('Password').fill('password');
+	await page.getByRole('button', { name: 'Sign in' }).click();
 	await expect(page).toHaveURL(/\/admin$/);
+}
+
+async function findPostId(page: Page, postSlug: string) {
+	await page.goto('/admin');
+	const href = await page
+		.locator('tr', { hasText: postSlug })
+		.getByRole('link', { name: /^Edit/ })
+		.getAttribute('href');
+	return Number(href?.split('/').pop());
 }
 
 test.describe('Public blog', () => {
 	test('lists the seeded posts and opens one', async ({ page }) => {
 		await page.goto('/');
-		const firstPost = page.locator('article h2 a span.relative').first();
+		const firstPost = page.locator('.post-card__link').first();
 		const title = (await firstPost.textContent())?.trim() ?? '';
 
 		await firstPost.click();
@@ -51,11 +60,11 @@ test.describe.serial('Admin', () => {
 
 	test('creates a post that the home page lists at once', async () => {
 		await page.goto('/admin/new');
-		await page.locator('input[name="title"]').fill(`Written in e2e ${slug}`);
-		await page.locator('input[name="slug"]').fill(slug);
+		await page.getByLabel('Title').fill(`Written in e2e ${slug}`);
+		await page.getByLabel('Slug').fill(slug);
 		await page.locator('.ProseMirror').click();
 		await page.keyboard.type('Hello from the e2e suite.');
-		await page.getByRole('button', { name: 'Publish Post' }).click();
+		await page.getByRole('button', { name: 'Publish post' }).click();
 
 		await expect(page).toHaveURL(/\/admin$/);
 		await page.goto('/');
@@ -66,13 +75,37 @@ test.describe.serial('Admin', () => {
 
 	test('edits the post', async () => {
 		await page.goto('/admin');
-		await page.locator('tr', { hasText: slug }).getByRole('link', { name: 'Edit' }).click();
-		await page.locator('input[name="title"]').fill(`Edited in e2e ${slug}`);
-		await page.getByRole('button', { name: 'Update Post' }).click();
+		await page.locator('tr', { hasText: slug }).getByRole('link', { name: /^Edit/ }).click();
+		await page.getByLabel('Title').fill(`Edited in e2e ${slug}`);
+		await page.getByRole('button', { name: 'Update post' }).click();
 
 		await expect(page).toHaveURL(/\/admin$/);
 		await page.goto(`/posts/${slug}`);
 		await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Edited in e2e ${slug}`);
+	});
+
+	test('renders a post body as Markdown without running HTML from it', async () => {
+		const unsafeSlug = `${slug}-unsafe`;
+		await page.request.post('/api/posts', {
+			form: {
+				title: 'Unsafe body',
+				slug: unsafeSlug,
+				content:
+					'# Heading\n\n<script>window.__injected = true</script>\n\n[bad](javascript:alert(1)) [good](https://ecopages.app)',
+			},
+			maxRedirects: 0,
+		});
+
+		await page.goto(`/posts/${unsafeSlug}`);
+		await expect(page.getByRole('heading', { level: 2, name: 'Heading' })).toBeVisible();
+		await expect(page.getByText('<script>window.__injected = true</script>')).toBeVisible();
+		expect(
+			await page.evaluate(() => 'window.__injected' in window && (window as { __injected?: boolean }).__injected),
+		).toBeFalsy();
+		await expect(page.getByRole('link', { name: 'good' })).toHaveAttribute('href', 'https://ecopages.app');
+		await expect(page.locator('.post__body a', { hasText: 'bad' })).not.toHaveAttribute('href', /.*/);
+
+		await page.request.post(`/api/posts/${await findPostId(page, unsafeSlug)}/delete`, { maxRedirects: 0 });
 	});
 
 	test('answers 400 for an invalid slug', async () => {
@@ -86,7 +119,10 @@ test.describe.serial('Admin', () => {
 	test('deletes the post', async () => {
 		await page.goto('/admin');
 		page.once('dialog', (dialog) => dialog.accept());
-		await page.locator('tr', { hasText: slug }).getByRole('button', { name: 'Delete' }).click();
+		await page
+			.locator('tr', { hasText: slug })
+			.getByRole('button', { name: /^Delete/ })
+			.click();
 
 		await expect(page).toHaveURL(/\/admin$/);
 		await expect(page.locator('tr', { hasText: slug })).toHaveCount(0);

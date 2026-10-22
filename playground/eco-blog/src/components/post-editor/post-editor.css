@@ -1,36 +1,62 @@
-.ProseMirror {
-	outline: none;
+.post-editor {
+	display: grid;
+	gap: var(--space-m);
+	max-inline-size: 48rem;
 }
 
-.ProseMirror p.is-editor-empty:first-child::before {
-	content: attr(data-placeholder);
-	float: left;
-	color: #adb5bd;
-	pointer-events: none;
-	height: 0;
+.post-editor__header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-s);
 }
 
-.ProseMirror h1 {
-	font-size: 1.8rem;
-	font-weight: 800;
-	margin-bottom: 1rem;
+.post-editor__header h1 {
+	margin: 0;
+	font-size: var(--step-3);
 }
 
-.ProseMirror h2 {
-	font-size: 1.4rem;
-	font-weight: 700;
-	margin-top: 1.5rem;
-	margin-bottom: 0.8rem;
+.post-editor__actions {
+	display: flex;
+	gap: var(--space-xs);
 }
 
-.ProseMirror ul {
-	list-style-type: disc;
-	padding-left: 1.5rem;
-	margin-bottom: 1rem;
+.post-editor__field {
+	display: grid;
+	gap: var(--space-2xs);
 }
 
-.ProseMirror ol {
-	list-style-type: decimal;
-	padding-left: 1.5rem;
-	margin-bottom: 1rem;
+.post-editor__slug {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2xs);
+}
+
+.post-editor__slug span {
+	flex: none;
+	color: var(--color-muted-text);
+	font-family: var(--font-mono);
+	font-size: var(--step--1);
+}
+
+.post-editor__slug .rui-input {
+	flex: 1;
+}
+
+.post-editor__hint {
+	margin: 0;
+	color: var(--color-muted-text);
+	font-size: var(--step--1);
+}
+
+.post-editor :is(.rui-input, .rui-textarea):user-invalid {
+	border-color: var(--color-error);
+}
+
+.post-editor .rui-textarea {
+	field-sizing: content;
+	min-block-size: 3lh;
+	max-block-size: 12lh;
+	resize: none;
 }

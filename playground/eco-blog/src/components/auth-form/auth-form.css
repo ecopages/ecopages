@@ -1,0 +1,48 @@
+.auth-card {
+	display: grid;
+	gap: var(--space-m);
+	justify-self: center;
+	inline-size: min(100%, 26rem);
+	padding: var(--space-s-l);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-container);
+	background: var(--color-surface-container-lowest);
+}
+
+.auth-card__header {
+	display: grid;
+	gap: var(--space-2xs);
+}
+
+.auth-card__header h1 {
+	margin: 0;
+	font-size: var(--step-3);
+}
+
+.auth-card__header p,
+.auth-card__footer {
+	margin: 0;
+	color: var(--color-muted-text);
+}
+
+.auth-card__form {
+	display: grid;
+	gap: var(--space-s);
+}
+
+.auth-card__field {
+	display: grid;
+	gap: var(--space-2xs);
+}
+
+.auth-card__error {
+	margin: 0;
+	padding: var(--space-xs) var(--space-s);
+	border-radius: var(--radius-control);
+	background: var(--color-error-container);
+	color: var(--color-on-error-container);
+}
+
+.auth-card__error[hidden] {
+	display: none;
+}

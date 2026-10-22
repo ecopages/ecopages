@@ -25,6 +25,7 @@ import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
+import { readEndpointHandlers, type EndpointRouteHandlerOptions } from '../http/endpoint-route-handler.ts';
 
 export interface StaticBuildOptions {
 	baseUrl?: string;
@@ -225,6 +226,12 @@ export class ServerStaticBuilder {
 	 * @param dependencies.router - The initialized router
 	 * @param dependencies.routeRendererFactory - The route renderer factory
 	 * @param dependencies.staticRoutes - Explicit static routes registered via app.static()
+	 * @param dependencies.importServerModule - The server-module loader endpoint requests use
+	 *
+	 * @remarks
+	 * Every endpoint file is imported and its exports checked as its first request would, before the
+	 * server bundle and static generation, so a broken one fails the build with the request's error.
+	 * The import is cached in this process only; `ecopages start` compiles the file again.
 	 */
 	async build(
 		options: StaticBuildOptions | undefined,
@@ -233,6 +240,7 @@ export class ServerStaticBuilder {
 			routeRendererFactory: StaticGenerationRendererResolver;
 			staticRoutes?: StaticRoute[];
 			errorPageLoaders?: ErrorPageLoaders;
+			importServerModule: EndpointRouteHandlerOptions['importServerModule'];
 		},
 	): Promise<void> {
 		const { baseUrl: explicitBaseUrl, force = false } = options ?? {};
@@ -246,7 +254,12 @@ export class ServerStaticBuilder {
 		}
 		this.exportPrepared = false;
 
-		if (this.needsServerBundle || dependencies.router.templateRoutes.some((route) => route.role === 'endpoint')) {
+		const endpointRoutes = dependencies.router.templateRoutes.filter((route) => route.role === 'endpoint');
+		for (const route of endpointRoutes) {
+			readEndpointHandlers(await dependencies.importServerModule(route.filePath), route);
+		}
+
+		if (this.needsServerBundle || endpointRoutes.length > 0) {
 			await this.bundleServerEntry();
 		}
 

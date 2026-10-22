@@ -15,8 +15,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createBuildSuccess } from '../../../__fixtures__/build/build-result.ts';
+import { defineGet } from '../http/define-api-handler.ts';
 
 let tmpDir: string;
+
+const importServerModule = async (): Promise<Record<string, unknown>> => ({});
 
 function createMockDependencies() {
 	const calls = {
@@ -232,7 +235,11 @@ describe('ServerStaticBuilder', () => {
 			});
 
 			builder.setRuntimeBinding({ port: 3001, runtimeOrigin: 'http://localhost:3001' });
-			await builder.build(undefined, { router: Router, routeRendererFactory: RouteRendererFactory });
+			await builder.build(undefined, {
+				router: Router,
+				routeRendererFactory: RouteRendererFactory,
+				importServerModule,
+			});
 
 			expect(calls.staticSiteGeneratorRun[0]).toMatchObject({ baseUrl: 'http://localhost:3001' });
 		});
@@ -262,6 +269,7 @@ describe('ServerStaticBuilder', () => {
 			await builder.build(undefined, {
 				router: Router,
 				routeRendererFactory: RouteRendererFactory,
+				importServerModule,
 			});
 
 			expect(calls.processorSetup).toBe(1);
@@ -283,10 +291,18 @@ describe('ServerStaticBuilder', () => {
 			await builder.prepareExport();
 			expect(calls.processorSetup).toBe(1);
 
-			await builder.build(undefined, { router: Router, routeRendererFactory: RouteRendererFactory });
+			await builder.build(undefined, {
+				router: Router,
+				routeRendererFactory: RouteRendererFactory,
+				importServerModule,
+			});
 			expect(calls.processorSetup).toBe(1);
 
-			await builder.build(undefined, { router: Router, routeRendererFactory: RouteRendererFactory });
+			await builder.build(undefined, {
+				router: Router,
+				routeRendererFactory: RouteRendererFactory,
+				importServerModule,
+			});
 			expect(calls.processorSetup).toBe(2);
 		});
 
@@ -305,6 +321,7 @@ describe('ServerStaticBuilder', () => {
 			await builder.build(undefined, {
 				router: Router,
 				routeRendererFactory: RouteRendererFactory,
+				importServerModule,
 			});
 
 			assert.deepEqual(calls.staticSiteGeneratorRun, [
@@ -340,6 +357,7 @@ describe('ServerStaticBuilder', () => {
 			await builder.build(undefined, {
 				router: Router,
 				routeRendererFactory: RouteRendererFactory,
+				importServerModule,
 			});
 
 			assert.equal((calls.staticSiteGeneratorRun[0] as { baseUrl: string }).baseUrl, 'http://0.0.0.0:8080');
@@ -362,6 +380,7 @@ describe('ServerStaticBuilder', () => {
 				{
 					router: Router,
 					routeRendererFactory: RouteRendererFactory,
+					importServerModule,
 				},
 			);
 
@@ -383,6 +402,7 @@ describe('ServerStaticBuilder', () => {
 			await builder.build(undefined, {
 				router: Router,
 				routeRendererFactory: RouteRendererFactory,
+				importServerModule,
 			});
 
 			assert.equal(calls.integrationSetup, 0);
@@ -403,6 +423,7 @@ describe('ServerStaticBuilder', () => {
 			await builder.build(undefined, {
 				router: Router,
 				routeRendererFactory: RouteRendererFactory,
+				importServerModule,
 			});
 
 			assert.equal(calls.processorSetup, 1);
@@ -434,6 +455,7 @@ describe('ServerStaticBuilder', () => {
 			await builder.build(undefined, {
 				router: Router,
 				routeRendererFactory: RouteRendererFactory,
+				importServerModule,
 			});
 
 			expect(fs.existsSync(path.join(distDir, '.server-modules-meta'))).toBe(false);
@@ -469,6 +491,7 @@ describe('ServerStaticBuilder', () => {
 				await builder.build(undefined, {
 					router: Router,
 					routeRendererFactory: RouteRendererFactory,
+					importServerModule,
 				});
 
 				expect(
@@ -503,10 +526,58 @@ describe('ServerStaticBuilder', () => {
 					logger,
 				});
 
-				await builder.build(undefined, { router, routeRendererFactory: RouteRendererFactory });
+				const importHealthModule = vi.fn(async () => ({
+					GET: defineGet({ handler: async ({ response }) => response.json({ status: 'ok' }) }),
+				}));
 
+				await builder.build(undefined, {
+					router,
+					routeRendererFactory: RouteRendererFactory,
+					importServerModule: importHealthModule,
+				});
+
+				expect(importHealthModule).toHaveBeenCalledWith('health.api.ts');
 				assert.equal(buildCalls.length, 1);
 				assert.ok(fs.existsSync(path.join(distDir, '.server', 'manifest.json')));
+			});
+
+			it('fails the build on an endpoint file without a method export, before the server bundle and static generation', async () => {
+				const { AppConfig, StaticSiteGenerator, ServeOptions, RouteRendererFactory, logger, calls } =
+					createMockDependencies();
+				const distDir = setupBundleFixture('broken-endpoint-route');
+				fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+				const appConfig = {
+					...AppConfig,
+					rootDir: tmpDir,
+					absolutePaths: { ...AppConfig.absolutePaths, distDir },
+				} as EcoPagesAppConfig;
+				const buildCalls = recordServerEntryBuilds(appConfig);
+				const router = {
+					templateRoutes: [
+						{ pathname: '/health', kind: 'exact', role: 'endpoint', filePath: 'src/pages/health.api.ts' },
+					],
+				} as unknown as RouteRegistry;
+
+				const builder = new ServerStaticBuilder({
+					appConfig,
+					runtime: AppConfig.appRuntime!,
+					staticSiteGenerator: StaticSiteGenerator,
+					serveOptions: ServeOptions,
+					logger,
+				});
+
+				await expect(
+					builder.build(undefined, {
+						router,
+						routeRendererFactory: RouteRendererFactory,
+						importServerModule: async () => ({ helper: () => 'not a handler' }),
+					}),
+				).rejects.toThrow(
+					'src/pages/health.api.ts defines the endpoint "/health" but exports no request handler.',
+				);
+				assert.equal(buildCalls.length, 0);
+				assert.equal(calls.staticSiteGeneratorRun.length, 0);
+				assert.equal(fs.existsSync(path.join(distDir, '.server', 'manifest.json')), false);
 			});
 
 			it('skips the server entry when the registry holds only Pages', async () => {
@@ -532,7 +603,11 @@ describe('ServerStaticBuilder', () => {
 					logger,
 				});
 
-				await builder.build(undefined, { router, routeRendererFactory: RouteRendererFactory });
+				await builder.build(undefined, {
+					router,
+					routeRendererFactory: RouteRendererFactory,
+					importServerModule,
+				});
 
 				assert.equal(buildCalls.length, 0);
 			});
@@ -560,6 +635,7 @@ describe('ServerStaticBuilder', () => {
 					builder.build(undefined, {
 						router: Router,
 						routeRendererFactory: RouteRendererFactory,
+						importServerModule,
 					}),
 					/Cannot bundle server entry: file "nonexistent.ts" not found/,
 				);
@@ -609,6 +685,7 @@ describe('ServerStaticBuilder', () => {
 				await builder.build(undefined, {
 					router: Router,
 					routeRendererFactory: RouteRendererFactory,
+					importServerModule,
 				});
 
 				assert.deepEqual(
@@ -644,6 +721,7 @@ describe('ServerStaticBuilder', () => {
 				await builder.build(undefined, {
 					router: Router,
 					routeRendererFactory: RouteRendererFactory,
+					importServerModule,
 				});
 
 				assert.deepEqual(
@@ -678,6 +756,7 @@ describe('ServerStaticBuilder', () => {
 				await builder.build(undefined, {
 					router: Router,
 					routeRendererFactory: RouteRendererFactory,
+					importServerModule,
 				});
 
 				assert.equal(buildCalls.length, 1);

@@ -225,12 +225,13 @@ export class NodeServerAdapter {
 		await this.initialize();
 
 		const baseUrl = resolveServeRuntimeOrigin(this.serveOptions);
-		const { router, routeRendererFactory } = this.requestPipeline.getStaticBuildContext();
+		const { router, routeRendererFactory, importServerModule } = this.requestPipeline.getStaticBuildContext();
 		await this.staticBuilder.build(
 			{ baseUrl, force: options?.force, keepGoing: options?.keepGoing },
 			{
 				router,
 				routeRendererFactory,
+				importServerModule,
 				staticRoutes: this.staticRoutes,
 				errorPageLoaders: this.errorPageLoaders,
 			},

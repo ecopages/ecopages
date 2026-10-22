@@ -41,6 +41,7 @@ import {
 	collectUsedIntegrationDependenciesFromNames,
 } from '../ownership-graph/component-graph-collectors.ts';
 import { collectPageClientPlanFromGraph } from '../ownership-graph/page-client-plan.ts';
+import { collectPreparedGraphComponentIds } from '../ownership-graph/prepared-graph-membership.ts';
 import { buildGlobalInjectorAssets } from '../page-browser-graph/global-injector-assets.service.ts';
 import { mergePageBrowserGraphContributions } from '../page-browser-graph/page-browser-graph-contribution.merge.ts';
 import { PageBrowserGraphService } from '../page-browser-graph/page-browser-graph.service.ts';
@@ -405,6 +406,7 @@ export class RouteRenderOrchestrator {
 			}),
 			sourceDependencyPaths,
 			pageClientPlan: clientPlan,
+			preparedGraphComponentIds: collectPreparedGraphComponentIds(preparedGraph),
 			islandRenderAssetsByFile: clientBrowserAssets.islandRenderAssetsByFile,
 		};
 	}

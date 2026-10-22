@@ -46,6 +46,7 @@ import {
 	type PreparedRouteComponentGraphs,
 } from './ownership-graph/component-graph.ts';
 import { collectComponentGraphWatchPaths } from './ownership-graph/component-graph-collectors.ts';
+import { assertComponentInPreparedGraph } from './ownership-graph/prepared-graph-membership.ts';
 import {
 	collectPageClientPlan,
 	collectPageClientPlanFromGraph,
@@ -1186,6 +1187,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					const renderState = getComponentRenderContext<RouteRenderContextState>()?.renderState;
 					if (renderState) {
 						renderState.pageClientPlan = renderOptions.pageClientPlan;
+						renderState.preparedGraphComponentIds = renderOptions.preparedGraphComponentIds;
 						renderState.islandRenderAssetsByFile = renderOptions.islandRenderAssetsByFile;
 					}
 					session.pagePackage = renderOptions.pagePackage;
@@ -1355,6 +1357,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * renderer's nested foreign-child handoff.
 	 */
 	async renderComponentWithForeignChildren(input: InternalComponentRenderInput): Promise<ComponentRenderResult> {
+		assertComponentInPreparedGraph(
+			input.component,
+			getComponentRenderContext<RouteRenderContextState>()?.renderState?.preparedGraphComponentIds,
+		);
 		return await executeComponentRender({
 			currentIntegrationName: this.name,
 			input,

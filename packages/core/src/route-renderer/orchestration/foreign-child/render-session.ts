@@ -19,6 +19,7 @@ export type RenderSession = {
 /** Renderer-owned state attached to an active Eco component render context. */
 export type RouteRenderContextState = {
 	pageClientPlan?: PageClientPlan;
+	preparedGraphComponentIds?: ReadonlySet<string>;
 	islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
 	session?: RenderSession;
 };

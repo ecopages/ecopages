@@ -72,7 +72,7 @@ Renderer entrypoints:
 
 Domain folders:
 
-- `ownership-graph/`: the prepared route component graph, its page client plan, and ownership validation
+- `ownership-graph/`: the prepared route component graph, its page client plan, ownership validation, and the development check that a rendered component is in the graph
 - `foreign-child/`: foreign-subtree execution, opaque-child checks, deferred template serialization
 - `document-shell/`: shared page/layout/html shell composition, layout prop resolution, and attribute stamping helpers
 - `route-pipeline/`: route preparation, final HTML capture, marker-artifact enforcement
@@ -119,6 +119,12 @@ Static mixed-integration component configs must declare every possible foreign c
 At runtime, renderers still discover actual foreign children through the active component render context.
 
 The render context lives in `AsyncLocalStorage`, so overlapping renders each see their own. Component renders always execute under a render context that names the rendering integration (`executeComponentRender` installs one when none is active). This lets ownership guards such as the content-processor's `getComponent()` detect a foreign render lane even when no foreign-child runtime is installed.
+
+### Prepared Graph Check
+
+Preparation collects the assets of the components in the route's prepared graph. In development (`NODE_ENV=development`), a render fails when a component with `dependencies` and an identity file is rendered through the renderer's component entrypoint but is not in that graph, or sits under a parent without an identity file, where preparation collects no assets. The error names the component's file. Declare it by importing it statically from the module that declares it (a named re-export is followed, `export *` is not), listing it in the parent's `dependencies.components`, or returning it in `components` from a Page `dependencies` function.
+
+The Html shell, Layouts and Page are always graph roots, so the check catches Foreign Children. A Foreign Child is checked only when its parent's render installs a foreign-child runtime, which needs at least one declared Foreign Child descendant; an undeclared one under any other parent renders inline and is not seen. An integration that composes the Page and Layouts into one tree (React) sends only the Html shell and Foreign Children through that entrypoint. Same-integration children a renderer calls inline never pass through it either. Production renders and partial explicit views, which prepare no graph, are not checked.
 
 ## Foreign Subtree Contract
 

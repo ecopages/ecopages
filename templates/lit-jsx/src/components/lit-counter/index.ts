@@ -1,1 +1,1 @@
-export * from './lit-counter.kita';
+export { LitCounter } from './lit-counter.kita';

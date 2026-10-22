@@ -10,6 +10,7 @@ import {
 	type ComponentRenderResult,
 } from '@ecopages/core/integration';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { lazy, Suspense, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ReactRenderer } from '../render/react-renderer.ts';
 
@@ -28,10 +29,18 @@ class TestReactRenderer extends ReactRenderer {
 }
 
 const testDir = mkdtempSync(path.join(os.tmpdir(), 'react-ssr-suspense-'));
-const FALLBACK = '<i>loading</i>';
+const SUSPENSE_FALLBACK = <i>loading</i>;
+const FALLBACK = renderToStaticMarkup(SUSPENSE_FALLBACK);
 
 function Suspended({ children }: { children?: ReactNode }) {
-	return <Suspense fallback={<i>loading</i>}>{children}</Suspense>;
+	return <Suspense fallback={SUSPENSE_FALLBACK}>{children}</Suspense>;
+}
+
+/**
+ * Narrows what `eco.page()`, `eco.layout()` and `eco.component()` return to the renderer's input type in one place.
+ */
+function asEcoComponent(view: object): EcoComponent {
+	return view as unknown as EcoComponent;
 }
 
 afterAll(() => {
@@ -73,15 +82,15 @@ function lazyAfterTick<P extends object>(load: () => ComponentType<P> | Error) {
 	);
 }
 
-async function renderPage(renderer: ReactRenderer, Page: EcoComponent, Layout?: EcoComponent): Promise<string> {
+async function renderPage(renderer: ReactRenderer, Page: object, Layout?: object): Promise<string> {
 	const body = await renderer.render({
 		file: path.join(testDir, 'pages/index.tsx'),
 		params: {},
 		query: {},
 		props: {},
 		metadata: { title: 'Suspense', description: 'Suspense' },
-		Page: Page as IntegrationRendererRenderOptions<ReactNode>['Page'],
-		Layout: Layout as IntegrationRendererRenderOptions<ReactNode>['Layout'],
+		Page: asEcoComponent(Page) as IntegrationRendererRenderOptions<ReactNode>['Page'],
+		Layout: (Layout && asEcoComponent(Layout)) as IntegrationRendererRenderOptions<ReactNode>['Layout'],
 		HtmlTemplate: (({ children }: HtmlTemplateProps) =>
 			children) as IntegrationRendererRenderOptions<ReactNode>['HtmlTemplate'],
 		resolvedDependencies: [],
@@ -93,7 +102,7 @@ async function renderPage(renderer: ReactRenderer, Page: EcoComponent, Layout?: 
 /**
  * Renders like `renderPage` and returns the messages of the errors logged with `console.error` meanwhile.
  */
-async function renderPageCapturingLoggedErrors(renderer: ReactRenderer, Page: EcoComponent) {
+async function renderPageCapturingLoggedErrors(renderer: ReactRenderer, Page: object) {
 	const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 	try {
 		const html = await renderPage(renderer, Page);
@@ -131,7 +140,7 @@ describe('React server rendering waits for Suspense', () => {
 			),
 		});
 
-		const html = await renderPage(await createRenderer(), Page as unknown as EcoComponent);
+		const html = await renderPage(await createRenderer(), Page);
 
 		expect(html).toContain('<p>lazy page content</p>');
 		expect(html).not.toContain(FALLBACK);
@@ -156,11 +165,7 @@ describe('React server rendering waits for Suspense', () => {
 			render: () => <p>page body</p>,
 		});
 
-		const html = await renderPage(
-			await createRenderer(),
-			Page as unknown as EcoComponent,
-			Layout as unknown as EcoComponent,
-		);
+		const html = await renderPage(await createRenderer(), Page, Layout);
 
 		expect(html).toContain('<nav>lazy layout nav</nav>');
 		expect(html).toContain('<p>page body</p>');
@@ -183,7 +188,7 @@ describe('React server rendering waits for Suspense', () => {
 		const renderer = await createRenderer();
 		const { value: result } = await runWithComponentRenderContext({ currentIntegration: 'kitajs' }, async () =>
 			renderer.renderComponent({
-				component: Island as unknown as EcoComponent,
+				component: asEcoComponent(Island),
 				props: {},
 				integrationContext: { componentInstanceId: 'island-lazy' },
 			}),
@@ -211,7 +216,7 @@ describe('React server rendering waits for Suspense', () => {
 			),
 		});
 
-		const html = await renderPage(await createRenderer(), Page as unknown as EcoComponent);
+		const html = await renderPage(await createRenderer(), Page);
 
 		expect(html).toContain('<aside><button data-testid="deferred-widget">Deferred widget</button></aside>');
 		expect(html).not.toContain('eco-marker');
@@ -240,7 +245,7 @@ describe('React server rendering waits for Suspense', () => {
 			),
 		});
 
-		const html = await renderPage(renderer, Page as unknown as EcoComponent);
+		const html = await renderPage(renderer, Page);
 
 		expect(html).toMatch(
 			/<div data-host>(<!--[^>]*-->)*<p>lazy child of a foreign host<\/p>(<!--[^>]*-->)*<\/div>/,
@@ -266,7 +271,7 @@ describe('React server rendering waits for Suspense', () => {
 
 		const renderer = await createRenderer();
 		const result = await renderer.renderComponentWithForeignChildren({
-			component: Frame as unknown as EcoComponent,
+			component: asEcoComponent(Frame),
 			props: {},
 			children: '<b data-raw>raw</b>',
 			integrationContext: { componentInstanceId: 'frame' },
@@ -295,7 +300,7 @@ describe('React server rendering waits for Suspense', () => {
 						</Suspended>
 					</main>
 				),
-			}) as unknown as EcoComponent;
+			});
 
 		const [first, second] = await Promise.all([
 			renderPage(renderer, createPage('first')),
@@ -336,10 +341,7 @@ describe('React server rendering waits for Suspense', () => {
 				),
 			});
 
-			const { html, errors } = await renderPageCapturingLoggedErrors(
-				await createRenderer(),
-				Page as unknown as EcoComponent,
-			);
+			const { html, errors } = await renderPageCapturingLoggedErrors(await createRenderer(), Page);
 
 			expect(html).toContain('<p>rest of the page</p>');
 			expect(html).toContain(FALLBACK);
@@ -366,10 +368,7 @@ describe('React server rendering waits for Suspense', () => {
 			),
 		});
 
-		const { html, errors } = await renderPageCapturingLoggedErrors(
-			await createRenderer(),
-			Page as unknown as EcoComponent,
-		);
+		const { html, errors } = await renderPageCapturingLoggedErrors(await createRenderer(), Page);
 
 		expect(html.split(FALLBACK)).toHaveLength(3);
 		expect(errors.sort()).toEqual(['first boundary failed', 'second boundary failed']);
@@ -385,7 +384,7 @@ describe('React server rendering waits for Suspense', () => {
 
 		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 		try {
-			const render = renderPage(await createRenderer(), Page as unknown as EcoComponent);
+			const render = renderPage(await createRenderer(), Page);
 
 			await expect(render).rejects.toThrow('page failed');
 			await expect(render).rejects.toHaveProperty('cause.message', 'page failed');
@@ -408,7 +407,7 @@ describe('React server rendering waits for Suspense', () => {
 			),
 		});
 
-		const html = await renderPage(await createRenderer(), Page as unknown as EcoComponent);
+		const html = await renderPage(await createRenderer(), Page);
 
 		expect(html).toContain(`<article>${largeText}</article>`);
 		expect(html).not.toContain('<script');

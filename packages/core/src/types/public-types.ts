@@ -35,6 +35,7 @@ export type {
 	LayoutProps,
 	LayoutPropsContext,
 	Middleware,
+	MiddlewareList,
 	MiddlewareNext,
 	OutgoingWebSocketMessage,
 	IncomingWebSocketMessage,

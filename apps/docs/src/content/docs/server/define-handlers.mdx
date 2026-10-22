@@ -483,16 +483,18 @@ interface ApiHandler<TPath, TRequest, TServer> {
   path: TPath;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD' | 'QUERY';
   handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
-  middleware?: Middleware[];
+  middleware?: MiddlewareList;
   schema?: RouteSchema;
 }
 
 interface GroupHandler<TPrefix> {
   prefix: TPrefix;
-  middleware?: Middleware[];
+  middleware?: MiddlewareList;
   routes: ApiHandler[];
 }
 ```
+
+`MiddlewareList` is a read-only list of middleware functions, whatever context each one declares; `app.get()` and the other route options use the same type.
 
 A method helper called without `path` returns `path: ''`; that handler is an endpoint-file export, and `app.add()` and `app.group()` reject it.
 

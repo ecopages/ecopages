@@ -43,6 +43,11 @@ type DefineApiMethod<TContext extends UniversalContext, TPathOptional extends bo
 		(TPathOptional extends true ? { path?: TPath } : { path: TPath }),
 ) => ApiHandler<TPath, Request, unknown>;
 
+/**
+ * @remarks
+ * The returned handler's context is the base context: the typed one, narrowed by the schema and the
+ * middleware, is erased by the cast, as `app.add` would erase it. The middleware list needs no cast.
+ */
 export function defineApiHandler<
 	TPath extends string,
 	TSchema extends RouteSchema = RouteSchema,

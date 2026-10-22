@@ -136,7 +136,7 @@ function createGroupApi<TContext extends UniversalContext>(): GroupDefineHandler
 
 export function defineGroupHandler<
 	TPrefix extends string,
-	const TMiddleware extends MiddlewareList<Request, unknown> = [],
+	const TMiddleware extends MiddlewareList<Request, unknown> = MiddlewareList<Request, unknown>,
 	TContext extends UniversalContext = UniversalContext & MiddlewareContext<TMiddleware>,
 >(config: {
 	prefix: TPrefix;

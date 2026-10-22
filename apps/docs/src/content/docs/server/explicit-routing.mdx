@@ -210,7 +210,7 @@ app.post('/api/posts', createPost, {
 });
 ```
 
-In `app.get()` and its siblings the handler comes before `options`, so declare the middleware the handler relies on as `Middleware` or `EcoMiddleware` constants; an inline function in the `middleware` list is typed with the base context and adds nothing to the handler's.
+In `app.get()` and its siblings the handler comes before `options`, so declare every middleware in the list as a `Middleware` or `EcoMiddleware` constant. One inline function in the `middleware` list makes the handler lose the context of every middleware in that list, constants included; the inline function itself is typed with the base context.
 
 ## Request Validation
 

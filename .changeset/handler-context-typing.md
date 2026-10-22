@@ -8,7 +8,7 @@ API handlers now type `ctx.query` as the parsed query values. Page middleware no
 
 The handler context now comes from the route's `schema`, its middleware and its group, not from a type annotation on the handler's parameter. A route's handler sees the fields every one of its middleware adds, and a group's routes see what every group middleware adds, so a route with `middleware: [withSession, withLocale]` reads both `ctx.session` and `ctx.locale` without type arguments. A handler annotated with a context that no middleware on its route adds no longer compiles. An inline middleware function in a `middleware` list is typed with the base context.
 
-TypeScript types the handler against the middleware it has already seen, so in a `define*` call put `middleware` before `handler`. In `app.get()` and the other method calls the handler comes first, so declare the middleware the handler relies on as `Middleware` or `EcoMiddleware` constants, or annotate an inline function with `ApiHandlerContext` and the now exported `MiddlewareNext`.
+TypeScript types the handler against the middleware it has already seen, so in a `define*` call put `middleware` before `handler`. In `app.get()` and the other method calls the handler comes first, so declare every middleware in the list as a `Middleware` or `EcoMiddleware` constant, or annotate an inline function with `ApiHandlerContext` and the now exported `MiddlewareNext`: one unannotated inline function makes the handler lose the context of the whole list, constants included.
 
 The exported handler context type `TypedGroupHandlerContext` is renamed `RouteHandlerContext`, with no alias. `RouteOptions` now takes the route's schema and middleware list as type parameters instead of a context type.
 

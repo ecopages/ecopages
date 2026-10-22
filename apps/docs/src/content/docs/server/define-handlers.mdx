@@ -209,7 +209,7 @@ export const sensitiveEndpoint = defineApiHandler({
 });
 ```
 
-List `middleware` before `handler`. TypeScript types the handler from the middleware it has already read, so an inline middleware function listed after the handler adds nothing to the handler's context. A middleware declared as an `EcoMiddleware` constant works in either order.
+List `middleware` before `handler`. TypeScript infers a list that holds an inline middleware function only after the arguments before it, so a handler written before such a list sees none of the list's contexts, constants included. A list of `EcoMiddleware` constants works in either order.
 
 ## defineGroupHandler
 

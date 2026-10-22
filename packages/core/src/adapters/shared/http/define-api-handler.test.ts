@@ -282,6 +282,28 @@ describe('middleware context', () => {
 			],
 		});
 	});
+
+	it('accepts an inline middleware function beside a typed constant', () => {
+		defineGroupHandler({
+			prefix: '/account',
+			middleware: [
+				withSession,
+				async (ctx, next) => {
+					expectTypeOf(ctx).toEqualTypeOf<ApiHandlerContext<Request, unknown>>();
+					return next();
+				},
+			],
+			routes: (api) => [
+				api.get({
+					path: '/me',
+					handler: (ctx) => {
+						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+						return json(ctx.session);
+					},
+				}),
+			],
+		});
+	});
 });
 
 describe('json / html / redirect', () => {

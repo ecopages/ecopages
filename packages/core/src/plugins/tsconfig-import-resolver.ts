@@ -187,6 +187,8 @@ function getBrowserPackageResolver(
 /**
  * Resolves a bare npm package entry for browser vendor prebundles.
  *
+ * @param fromDirectory - Where resolution starts. Defaults to `projectRoot`; a vendor's own dependency
+ * resolves from the importing file's directory, since strict installs do not expose it at the root.
  * @returns The entry `path` and the installed package's root `package.json`
  * (`packageJsonPath`), which stays the root manifest when the entry sits below a
  * nested one such as `cjs/package.json`.
@@ -201,11 +203,12 @@ function getBrowserPackageResolver(
 export function resolveBarePackageBrowserEntry(
 	projectRoot: string,
 	specifier: string,
+	fromDirectory: string = projectRoot,
 ): { path: string; packageJsonPath?: string } | undefined {
 	const browserFirst = usesBrowserFirstPackageResolution(specifier);
 	const mainFields = browserFirst ? BROWSER_FIRST_MAIN_FIELDS : MODULE_FIRST_MAIN_FIELDS;
 	const conditionNames = browserFirst ? BROWSER_FIRST_CONDITION_NAMES : MODULE_FIRST_CONDITION_NAMES;
-	const result = getBrowserPackageResolver(projectRoot, mainFields, conditionNames).sync(projectRoot, specifier);
+	const result = getBrowserPackageResolver(projectRoot, mainFields, conditionNames).sync(fromDirectory, specifier);
 	if (result.error || !result.path) {
 		return undefined;
 	}

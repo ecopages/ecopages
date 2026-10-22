@@ -10,6 +10,7 @@ export type {
 	EcoBuildLoader,
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
+	EcoBuildImportKind,
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildPlugin,

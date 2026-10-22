@@ -45,6 +45,7 @@ export {
 	type AnyIntegrationPlugin,
 	type EcoBuildOnLoadArgs,
 	type EcoBuildOnLoadResult,
+	type EcoBuildImportKind,
 	type EcoBuildOnResolveArgs,
 	type EcoBuildOnResolveResult,
 	type EcoBuildPlugin,

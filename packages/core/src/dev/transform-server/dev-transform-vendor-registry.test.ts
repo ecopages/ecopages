@@ -24,6 +24,24 @@ afterEach(() => {
 	}
 });
 
+/** Vendor URLs a vendor bundle imports. */
+function vendorImports(code: string): string[] {
+	return [...code.matchAll(/from\s*["'](\/assets\/vendors\/[^"']+)["']/g)].map((match) => match[1]);
+}
+
+/**
+ * Counts `bundle()` calls for entries under `rootDir`.
+ *
+ * @remarks
+ * Earlier tests leave dependency vendors building in the background, and the prototype spy sees those calls too.
+ */
+function bundleCallsUnder(bundle: { mock: { calls: unknown[][] } }, rootDir: string): number {
+	const realRoot = fs.realpathSync(rootDir);
+	return bundle.mock.calls.filter(([options]) =>
+		(options as { entrypoints: string[] }).entrypoints.some((entry) => entry.startsWith(realRoot)),
+	).length;
+}
+
 describe('DevTransformVendorRegistry', () => {
 	it('resolves @ecopages/core to the browser package entry', () => {
 		const resolved = resolveBarePackageBrowserEntry(docsRoot, '@ecopages/core');
@@ -65,7 +83,7 @@ describe('DevTransformVendorRegistry', () => {
 		expect(url).toMatch(/^\/assets\/vendors\/ecopages-core\.[a-f0-9]+\.js$/);
 		expect(fs.existsSync(path.join(config.absolutePaths.distDir, url.slice('/'.length)))).toBe(false);
 
-		const response = registry.tryHandleVendorRequest(url);
+		const response = await registry.tryHandleVendorRequest(url);
 		assert.ok(response);
 		const code = await response.text();
 		expect(code).not.toMatch(/node:(?:fs|path|async_hooks|crypto)/);
@@ -136,13 +154,14 @@ describe('DevTransformVendorRegistry', () => {
 		const url = await registry.resolveVendorUrl('@ecopages/core');
 		const outputPath = path.join(config.absolutePaths.distDir, url.slice('/'.length));
 		expect(fs.existsSync(outputPath)).toBe(false);
-		const response = registry.tryHandleVendorRequest(url);
+		const response = await registry.tryHandleVendorRequest(url);
 		assert.ok(response);
 		expect(await response.text()).toContain('eco');
 	});
 
 	async function createFixtureLibRegistry() {
 		const rootDir = createTempRoot('dev-transform-vendor-concurrency');
+		lastFixtureRoot = rootDir;
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		fs.writeFileSync(
 			path.join(rootDir, 'package.json'),
@@ -161,6 +180,8 @@ describe('DevTransformVendorRegistry', () => {
 		return new DevTransformVendorRegistry({ appConfig: config });
 	}
 
+	let lastFixtureRoot = '';
+
 	it('builds a vendor bundle once for concurrent requests', async () => {
 		const registry = await createFixtureLibRegistry();
 		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
@@ -172,9 +193,9 @@ describe('DevTransformVendorRegistry', () => {
 		]);
 
 		expect(new Set(urls).size).toBe(1);
-		expect(bundle).toHaveBeenCalledTimes(1);
+		expect(bundleCallsUnder(bundle, lastFixtureRoot)).toBe(1);
 		await registry.resolveVendorUrl('fixture-lib');
-		expect(bundle).toHaveBeenCalledTimes(1);
+		expect(bundleCallsUnder(bundle, lastFixtureRoot)).toBe(1);
 	});
 
 	it('does not cache a build that finished after the registry was invalidated', async () => {
@@ -185,10 +206,10 @@ describe('DevTransformVendorRegistry', () => {
 		registry.invalidateAll();
 		const url = await stale;
 
-		expect(registry.tryHandleVendorRequest(url)).toBeNull();
+		expect(await registry.tryHandleVendorRequest(url)).toBeNull();
 		await registry.resolveVendorUrl('fixture-lib');
-		expect(bundle).toHaveBeenCalledTimes(2);
-		expect(registry.tryHandleVendorRequest(url)).not.toBeNull();
+		expect(bundleCallsUnder(bundle, lastFixtureRoot)).toBe(2);
+		expect(await registry.tryHandleVendorRequest(url)).not.toBeNull();
 	});
 
 	it.each([
@@ -229,7 +250,7 @@ describe('DevTransformVendorRegistry', () => {
 		const newUrl = await restarted.resolveVendorUrl(fixture.importName);
 
 		expect(newUrl).toBe(oldUrl);
-		const response = restarted.tryHandleVendorRequest(newUrl);
+		const response = await restarted.tryHandleVendorRequest(newUrl);
 		assert.ok(response);
 		expect(await response.text()).toContain('release-1.0.1');
 	});
@@ -260,21 +281,27 @@ describe('DevTransformVendorRegistry', () => {
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const createRegistry = () => new DevTransformVendorRegistry({ appConfig: config });
 		const readRelease = async (registry: DevTransformVendorRegistry, url: string) => {
-			const response = registry.tryHandleVendorRequest(url);
+			const response = await registry.tryHandleVendorRequest(url);
 			assert.ok(response);
 			return response.text();
+		};
+
+		const readDependency = async (registry: DevTransformVendorRegistry, url: string) => {
+			const [dependencyUrl] = vendorImports(await readRelease(registry, url));
+			assert.ok(dependencyUrl);
+			return readRelease(registry, dependencyUrl);
 		};
 
 		writeDependency(1);
 		const firstProcess = createRegistry();
 		const url = await firstProcess.resolveVendorUrl('fixture-lib');
-		expect(await readRelease(firstProcess, url)).toContain('release = 1');
+		expect(await readDependency(firstProcess, url)).toContain('release = 1');
 
 		writeDependency(2);
 		const restarted = createRegistry();
 		const restartedUrl = await restarted.resolveVendorUrl('fixture-lib');
 		expect(restartedUrl).toBe(url);
-		expect(await readRelease(restarted, restartedUrl)).toContain('release = 2');
+		expect(await readDependency(restarted, restartedUrl)).toContain('release = 2');
 		expect(fs.existsSync(path.join(config.absolutePaths.distDir, url.slice('/'.length)))).toBe(false);
 	});
 
@@ -308,7 +335,7 @@ describe('DevTransformVendorRegistry', () => {
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const createRegistry = () => new DevTransformVendorRegistry({ appConfig: config });
 		const readServed = async (registry: DevTransformVendorRegistry, url: string) => {
-			const response = registry.tryHandleVendorRequest(url);
+			const response = await registry.tryHandleVendorRequest(url);
 			assert.ok(response);
 			return response.text();
 		};
@@ -331,7 +358,9 @@ describe('DevTransformVendorRegistry', () => {
 		expect(restartedUrl).toBe(oldUrl);
 		const restartedCode = await readServed(restarted, restartedUrl);
 		expect(restartedCode).toContain('button-v3');
-		expect(restartedCode).toContain('ui-dep-code');
+		const [dependencyUrl] = vendorImports(restartedCode);
+		expect(dependencyUrl).toMatch(/^\/assets\/vendors\/ui-dep\.[a-f0-9]+\.js$/);
+		expect(await readServed(restarted, dependencyUrl)).toContain('ui-dep-code');
 	});
 
 	it('serves vendor bundles for revalidation instead of as immutable', async () => {
@@ -352,24 +381,102 @@ describe('DevTransformVendorRegistry', () => {
 		const registry = new DevTransformVendorRegistry({ appConfig: config });
 		const url = await registry.resolveVendorUrl('fixture-lib');
 
-		const response = registry.tryHandleVendorRequest(url);
+		const response = await registry.tryHandleVendorRequest(url);
 		assert.ok(response);
 		expect(response.headers.get('Cache-Control')).toBe('no-cache');
 		const etag = response.headers.get('ETag');
 		assert.ok(etag);
 
-		const revalidated = registry.tryHandleVendorRequest(url, etag);
+		const revalidated = await registry.tryHandleVendorRequest(url, etag);
 		expect(revalidated?.status).toBe(304);
 		for (const ifNoneMatch of [`"other", W/${etag}`, ` ${etag} `, '*']) {
-			expect(registry.tryHandleVendorRequest(url, ifNoneMatch)?.status).toBe(304);
+			expect((await registry.tryHandleVendorRequest(url, ifNoneMatch))?.status).toBe(304);
 		}
-		expect(registry.tryHandleVendorRequest(url, '"other"')?.status).toBe(200);
+		expect((await registry.tryHandleVendorRequest(url, '"other"'))?.status).toBe(200);
 
 		fs.writeFileSync(path.join(rootDir, 'node_modules', 'fixture-lib', 'index.js'), 'export const release = 22;');
 		registry.invalidateAll();
 		const changedUrl = await registry.resolveVendorUrl('fixture-lib');
-		const changed = registry.tryHandleVendorRequest(changedUrl, etag);
+		const changed = await registry.tryHandleVendorRequest(changedUrl, etag);
 		expect(changed?.status).toBe(200);
 		expect(await changed?.text()).toContain('release = 22');
+	});
+
+	function writePackage(dir: string, name: string, manifest: Record<string, unknown>, files: Record<string, string>) {
+		fs.mkdirSync(dir, { recursive: true });
+		fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name, version: '1.0.0', ...manifest }));
+		for (const [file, contents] of Object.entries(files)) fs.writeFileSync(path.join(dir, file), contents);
+	}
+
+	it('loads a package that two vendors import from one shared vendor', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-shared');
+		fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ name: 'app', type: 'module' }));
+		const modules = path.join(rootDir, 'node_modules');
+		writePackage(
+			path.join(modules, 'shared-core'),
+			'shared-core',
+			{ type: 'module', module: 'index.js' },
+			{
+				'index.js': "export const registry = new Map(); export const marker = 'shared-core-code';\n",
+			},
+		);
+		for (const name of ['plugin-a', 'plugin-b']) {
+			writePackage(
+				path.join(modules, name),
+				name,
+				{ type: 'module', module: 'index.js' },
+				{
+					'index.js': `import { registry } from 'shared-core';\nexport const register = () => registry.set('${name}', true);\n`,
+				},
+			);
+		}
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const read = async (url: string) => {
+			const response = await registry.tryHandleVendorRequest(url);
+			assert.ok(response);
+			return response.text();
+		};
+
+		const pluginA = await read(await registry.resolveVendorUrl('plugin-a'));
+		const pluginB = await read(await registry.resolveVendorUrl('plugin-b'));
+		const sharedUrl = await registry.resolveVendorUrl('shared-core');
+
+		expect(vendorImports(pluginA)).toEqual([sharedUrl]);
+		expect(vendorImports(pluginB)).toEqual([sharedUrl]);
+		expect(pluginA).not.toContain('shared-core-code');
+		expect(pluginB).not.toContain('shared-core-code');
+		expect(await read(sharedUrl)).toContain('shared-core-code');
+	});
+
+	it('keeps a required dependency inside the vendor that requires it', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-require');
+		fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ name: 'app', type: 'module' }));
+		const modules = path.join(rootDir, 'node_modules');
+		writePackage(
+			path.join(modules, 'cjs-dep'),
+			'cjs-dep',
+			{ main: 'index.js' },
+			{
+				'index.js': "module.exports = { marker: 'cjs-dep-code' };\n",
+			},
+		);
+		writePackage(
+			path.join(modules, 'cjs-lib'),
+			'cjs-lib',
+			{ main: 'index.js' },
+			{
+				'index.js': "module.exports = require('cjs-dep');\n",
+			},
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+
+		const response = await registry.tryHandleVendorRequest(await registry.resolveVendorUrl('cjs-lib'));
+		assert.ok(response);
+		const code = await response.text();
+
+		expect(code).toContain('cjs-dep-code');
+		expect(vendorImports(code)).toEqual([]);
 	});
 });

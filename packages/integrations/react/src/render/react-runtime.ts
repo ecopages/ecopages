@@ -43,9 +43,10 @@ const DOCTYPE = '<!DOCTYPE html>';
  * Renders a React tree to complete HTML, waiting for every Suspense boundary to resolve.
  *
  * @remarks
- * - No `onError` is passed, so React keeps its default: an error inside a Suspense boundary is
- *   logged with `console.error` and that boundary's fallback is served for the browser to retry,
- *   as `renderToString` did. An error outside every boundary rejects the render.
+ * - No `onError` is passed, so React keeps its default: it logs every error with `console.error`.
+ *   An error inside a Suspense boundary then serves that boundary's fallback for the browser to
+ *   retry, as `renderToString` did, but now logged. An error outside every boundary is logged too
+ *   and rejects the render, so the caller's own log of that failure repeats it.
  * - An unbounded `progressiveChunkSize` keeps resolved boundaries inline. With the default,
  *   React moves a large boundary after its fallback and reveals it with an inline script.
  *   A boundary that renders a `precedence` stylesheet is still moved, whatever its size.

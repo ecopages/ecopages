@@ -91,12 +91,9 @@ async function renderPage(renderer: ReactRenderer, Page: EcoComponent, Layout?: 
 }
 
 /**
- * Renders like `renderPage` and returns the messages of the errors React logged with `console.error`.
- *
- * @remarks
- * Without an `onError`, React logs the error of a failing Suspense boundary itself and serves its fallback.
+ * Renders like `renderPage` and returns the messages of the errors logged with `console.error` meanwhile.
  */
-async function renderPageLoggingErrors(renderer: ReactRenderer, Page: EcoComponent) {
+async function renderPageCapturingLoggedErrors(renderer: ReactRenderer, Page: EcoComponent) {
 	const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 	try {
 		const html = await renderPage(renderer, Page);
@@ -339,7 +336,7 @@ describe('React server rendering waits for Suspense', () => {
 				),
 			});
 
-			const { html, errors } = await renderPageLoggingErrors(
+			const { html, errors } = await renderPageCapturingLoggedErrors(
 				await createRenderer(),
 				Page as unknown as EcoComponent,
 			);
@@ -369,7 +366,10 @@ describe('React server rendering waits for Suspense', () => {
 			),
 		});
 
-		const { html, errors } = await renderPageLoggingErrors(await createRenderer(), Page as unknown as EcoComponent);
+		const { html, errors } = await renderPageCapturingLoggedErrors(
+			await createRenderer(),
+			Page as unknown as EcoComponent,
+		);
 
 		expect(html.split(FALLBACK)).toHaveLength(3);
 		expect(errors.sort()).toEqual(['first boundary failed', 'second boundary failed']);
@@ -383,10 +383,15 @@ describe('React server rendering waits for Suspense', () => {
 			},
 		});
 
-		const render = renderPageLoggingErrors(await createRenderer(), Page as unknown as EcoComponent);
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		try {
+			const render = renderPage(await createRenderer(), Page as unknown as EcoComponent);
 
-		await expect(render).rejects.toThrow('page failed');
-		await expect(render).rejects.toHaveProperty('cause.message', 'page failed');
+			await expect(render).rejects.toThrow('page failed');
+			await expect(render).rejects.toHaveProperty('cause.message', 'page failed');
+		} finally {
+			consoleError.mockRestore();
+		}
 	});
 
 	it('keeps a large resolved boundary inline instead of revealing it with a script', async () => {

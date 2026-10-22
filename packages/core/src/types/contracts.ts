@@ -1590,6 +1590,7 @@ export type ErrorHandler<TRequest extends Request = Request, TServer = any> = (
  * Options for route handlers.
  *
  * @typeParam TMiddleware - The route's middleware; inferred as a tuple so the handler sees what each one adds
+ * @typeParam TSchema - The route's schema; each field it declares types the matching context field
  */
 export interface RouteOptions<
 	TRequest extends Request = Request,

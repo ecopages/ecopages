@@ -210,6 +210,8 @@ app.post('/api/posts', createPost, {
 });
 ```
 
+In `app.get()` and its siblings the handler comes before `options`, so declare the middleware the handler relies on as `Middleware` or `EcoMiddleware` constants; an inline function in the `middleware` list is typed with the base context and adds nothing to the handler's.
+
 ## Request Validation
 
 EcoPages supports [Standard Schema](https://github.com/standard-schema/standard-schema) for type-safe request validation. Use any compatible library: Zod, Valibot, ArkType, or Effect Schema.

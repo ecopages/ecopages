@@ -45,7 +45,7 @@ export const createPostAlt = defineApiHandler({
 });
 ```
 
-`definePost` above is equivalent to `defineApiHandler` with `method: 'POST'`.
+`definePost` above is equivalent to `defineApiHandler` with `method: 'POST'`. In a define call list `middleware` before `handler`; in `app.get()` declare middleware as `Middleware` or `EcoMiddleware` constants, because an inline middleware function the handler cannot see yet adds nothing to its context.
 
 When a route declares `schema.body`, core parses `application/json` and `text/plain` bodies before validation. Malformed JSON returns HTTP 400. A request with no body and no `Content-Type`, or an empty body with either supported type, is validated as `undefined`: required schemas return HTTP 400, and optional schemas can accept it. Unsupported content types and nonempty bodies without a `Content-Type` return HTTP 415.
 

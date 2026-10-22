@@ -209,6 +209,8 @@ export const sensitiveEndpoint = defineApiHandler({
 });
 ```
 
+List `middleware` before `handler`. TypeScript types the handler from the middleware it has already read, so an inline middleware function listed after the handler adds nothing to the handler's context. A middleware declared as an `EcoMiddleware` constant works in either order.
+
 ## defineGroupHandler
 
 Use `defineGroupHandler` when you have multiple routes that share a URL prefix and middleware. This is ideal for authenticated sections or resource-based APIs.

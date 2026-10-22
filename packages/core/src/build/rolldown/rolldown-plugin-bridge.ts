@@ -455,7 +455,11 @@ export async function createRolldownPluginBridge(
 	}
 	registrationClosed = true;
 
-	const resolveIdHandler = async (source: string, importer: string | undefined, extraOptions?: { kind?: EcoBuildImportKind }) => {
+	const resolveIdHandler = async (
+		source: string,
+		importer: string | undefined,
+		extraOptions?: { kind?: EcoBuildImportKind },
+	) => {
 		for (const { matches, callback, pluginName } of resolveRegistrations) {
 			if (!matches(source)) {
 				continue;

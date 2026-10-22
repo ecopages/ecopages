@@ -2,13 +2,7 @@
  * How a module refers to the specifier being resolved.
  */
 export type EcoBuildImportKind =
-	| 'import-statement'
-	| 'dynamic-import'
-	| 'require-call'
-	| 'import-rule'
-	| 'url-token'
-	| 'new-url'
-	| 'hot-accept';
+	'import-statement' | 'dynamic-import' | 'require-call' | 'import-rule' | 'url-token' | 'new-url' | 'hot-accept';
 
 /**
  * Arguments passed to a build plugin `onResolve` callback.

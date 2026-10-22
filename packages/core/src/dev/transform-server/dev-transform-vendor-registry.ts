@@ -4,7 +4,10 @@ import path from 'node:path';
 import { RESOLVED_ASSETS_VENDORS_DIR } from '../../constants.ts';
 import { resolveAppBuildPlugins } from '../../build/runtime/build-request-policy.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
-import { isBarePackageImportSpecifier, resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
+import {
+	isBarePackageImportSpecifier,
+	resolveBarePackageBrowserEntry,
+} from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
@@ -171,7 +174,9 @@ export class DevTransformVendorRegistry {
 
 		const output = result.outputs.find((candidate) => typeof candidate.content === 'string');
 		if (!output || typeof output.content !== 'string') {
-			throw new Error(`[dev-transform] Vendor prebundle produced no in-memory JavaScript for ${record.specifier}`);
+			throw new Error(
+				`[dev-transform] Vendor prebundle produced no in-memory JavaScript for ${record.specifier}`,
+			);
 		}
 		return { url: record.url, content: output.content };
 	}

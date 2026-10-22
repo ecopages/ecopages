@@ -24,7 +24,7 @@
 		"@tailwindcss/postcss": "^4.1.18",
 		"@types/react": "^19.0.0",
 		"@types/react-dom": "^19.0.0",
-		"drizzle-kit": "^1.0.0-rc.2",
+		"drizzle-kit": "^0.31.11",
 		"ecopages": "workspace:*",
 		"rehype-pretty-code": "^0.14.1",
 		"remark-gfm": "^4.0.1",

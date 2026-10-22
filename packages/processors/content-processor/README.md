@@ -132,7 +132,7 @@ Add one import to the app `modules.d.ts`:
 import '@ecopages/content-processor/types';
 ```
 
-That makes `ecopages:content/*`, `/server`, and `/browser` imports resolvable immediately.
+That makes `ecopages:content/*`, `/server`, and `/component` imports resolvable immediately.
 Collection-specific declarations are generated at dev/build time into
 `node_modules/@types/ecopages-content-processor`, which TypeScript loads automatically.
 
@@ -140,24 +140,26 @@ Run `ecopages dev` or `ecopages build` before expecting precise collection entry
 
 ## Virtual module API
 
-Each collection exposes `ecopages:content/<collection>` for metadata, `ecopages:content/<collection>/server` for server-only dependency discovery, and `ecopages:content/<collection>/browser` for a lazy MDX component loader:
+Each collection exposes `ecopages:content/<collection>` for metadata, `ecopages:content/<collection>/server` for server-only dependency discovery, and `ecopages:content/<collection>/component` for a lazy MDX component loader that works on the server and in the browser:
 
 ```typescript
 import { entries, getEntry, getEntryBySegments } from 'ecopages:content/docs';
 import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
-import { loadComponent } from 'ecopages:content/docs/browser';
+import { loadComponent } from 'ecopages:content/docs/component';
 import type { Entry } from 'ecopages:content/docs';
 ```
 
-| Export                         | Module  | Description                                                                                                                                     |
-| :----------------------------- | :------ | :---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `entries`                      | entries | Readonly manifest of all entries, sorted by `orderBy`.                                                                                          |
-| `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/intro'`. Throws `HttpError.NotFound` when missing.                                                |
-| `getEntryBySegments(segments)` | entries | Lookup by segment array, e.g. `['getting-started', 'intro']`. Throws `HttpError.NotFound` when missing.                                         |
-| `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry (lazy-loaded per slug). Throws `HttpError.NotFound` when missing.                                  |
-| `getEntryDependencies(slug)`   | server  | Returns `{ components: [entry] }` so collection walks MDX identity. Does not copy the dependency bag. Throws `HttpError.NotFound` when missing. |
-| `loadComponent(slug)`          | browser | Page Browser Graph loader for one MDX entry. Pair with `createCollectionComponentCache()` when a hydratable React Page renders the component.   |
-| `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`.                                                 |
+| Export                         | Module    | Description                                                                                                                                                                                                                                                                                                     |
+| :----------------------------- | :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entries`                      | entries   | Readonly manifest of all entries, sorted by `orderBy`.                                                                                                                                                                                                                                                          |
+| `getEntry(slug)`               | entries   | Lookup by joined slug, e.g. `'getting-started/intro'`. Throws `HttpError.NotFound` when missing.                                                                                                                                                                                                                |
+| `getEntryBySegments(segments)` | entries   | Lookup by segment array, e.g. `['getting-started', 'intro']`. Throws `HttpError.NotFound` when missing.                                                                                                                                                                                                         |
+| `getComponent(slug)`           | server    | `Promise` of the MDX component for the entry (lazy-loaded per slug). Rejects with `HttpError.NotFound` when missing.                                                                                                                                                                                            |
+| `getEntryDependencies(slug)`   | server    | Returns `{ components: [entry] }` so collection walks MDX identity. Does not copy the dependency bag. Throws `HttpError.NotFound` when missing.                                                                                                                                                                 |
+| `loadComponent(slug)`          | component | `Promise` of the MDX component for the entry. Server graph: the entry wrapped for cross-Integration rendering. Page Browser Graph: the browser-compiled entry. Rejects with `HttpError.NotFound` when missing. Pair with `createCollectionComponentCache()` when a hydratable React Page renders the component. |
+| `Entry`                        | entries   | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`.                                                                                                                                                                                                                 |
+
+`/component` is one specifier with two resolutions. The server graph backs it with the same server module as `/server`, so a Page that imports it shares one component per slug with `getComponent()`. Use it in Pages that also load the entry in the browser, such as a hydratable React Page. `/component` does no asset discovery: a Page that needs the entry's own assets still returns `getEntryDependencies()` from `/server`. The Page Browser Graph backs it with the browser loader and still rejects `/server`, so importing `/component` never makes server code browser-reachable.
 
 **Important:** `Entry` exists only in generated `.d.ts` files, not in the runtime cache module. Keep type imports on a separate `import type` line in page files that get bundled. Mixed imports like `import { entries, type Entry }` can cause the bundler to treat `Entry` as a runtime export and fail with `MISSING_EXPORT`.
 
@@ -202,12 +204,12 @@ Return `getEntryDependencies` alone when the Page has no relative assets of its 
 
 ### Hydratable React Pages
 
-When a React Page must keep the MDX component in its hydrated tree, SSR fills the cache in `staticProps` with `getComponent()` and `prime()`. The Page's named `preload` export then fills it with the `/browser` loader before hydration and router navigation. The cache makes `get()` synchronous after either fill; `getEntryDependencies()` remains server-only and is stripped from the Page Browser Graph.
+When a React Page must keep the MDX component in its hydrated tree, SSR fills the cache in `staticProps` with `getComponent()` and `prime()`. The Page's named `preload` export then fills it with the `/component` loader before hydration and router navigation. The cache makes `get()` synchronous after either fill; `getEntryDependencies()` remains server-only and is stripped from the Page Browser Graph.
 
 ```tsx
 import { createCollectionComponentCache } from '@ecopages/react/collection-component-cache';
 import { getEntry } from 'ecopages:content/docs';
-import { loadComponent } from 'ecopages:content/docs/browser';
+import { loadComponent } from 'ecopages:content/docs/component';
 import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
 
 const docs = createCollectionComponentCache(loadComponent);
@@ -308,12 +310,12 @@ const raw = await scanner.getRawContent('getting-started/intro');
 
 ## Generated artifacts
 
-| Path                                                                 | Purpose                                                                    |
-| :------------------------------------------------------------------- | :------------------------------------------------------------------------- |
-| `.eco/cache/ecopages-content-processor/<collection>.ts`              | Generated collection module (manifest + MDX imports).                      |
-| `.eco/cache/ecopages-content-processor/<collection>.browser.ts`      | Browser-safe MDX loaders. Relative imports resolve from this file on disk. |
-| `.eco/.server-collections/<collection>/<collection>-<identity>.mjs`  | Lazy-built server artifact for one collection.                             |
-| `node_modules/@types/ecopages-content-processor/virtual-module.d.ts` | Generated TypeScript declarations for virtual modules.                     |
+| Path                                                                 | Purpose                                                                                                                  |
+| :------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
+| `.eco/cache/ecopages-content-processor/<collection>.ts`              | Generated collection module (manifest + MDX imports).                                                                    |
+| `.eco/cache/ecopages-content-processor/<collection>.browser.ts`      | Browser-safe MDX loaders behind `/component` in the Page Browser Graph. Relative imports resolve from this file on disk. |
+| `.eco/.server-collections/<collection>/<collection>-<identity>.mjs`  | Lazy-built server artifact for one collection.                                                                           |
+| `node_modules/@types/ecopages-content-processor/virtual-module.d.ts` | Generated TypeScript declarations for virtual modules.                                                                   |
 
 Do not edit generated files manually.
 

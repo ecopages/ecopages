@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { EcoImage } from '@ecopages/image-processor/component/react';
 import { createCollectionComponentCache } from '@ecopages/react/collection-component-cache';
 import { entries, getEntry } from 'ecopages:content/posts';
-import { loadComponent } from 'ecopages:content/posts/browser';
+import { loadComponent } from 'ecopages:content/posts/component';
 import { getComponent, getEntryDependencies } from 'ecopages:content/posts/server';
 import { resolvePostImage } from '@/content/post-image';
 import type { PostEntry } from '@/content/posts';

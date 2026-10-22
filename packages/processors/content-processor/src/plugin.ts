@@ -135,7 +135,6 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 					this.collectionModules,
 					this.collectionServerModules,
 					this.collectionServerCompiledModules,
-					this.collectionBrowserModules,
 					(collectionName) => this.ensureCollectionServerArtifact(collectionName),
 					() => this.ensureCollectionsGenerated(),
 				),

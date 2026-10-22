@@ -7,12 +7,18 @@ export const CONTENT_VIRTUAL_MODULE_PATTERN = /^ecopages:content\/[a-z][a-z0-9-]
 /** Matches `ecopages:content/<collection>/server` component resolver specifiers. */
 export const CONTENT_SERVER_VIRTUAL_MODULE_PATTERN = /^ecopages:content\/[a-z][a-z0-9-]+\/server$/;
 
-/** Matches browser-only `ecopages:content/<collection>/browser` component loader specifiers. */
-export const CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN = /^ecopages:content\/[a-z][a-z0-9-]+\/browser$/;
+/**
+ * Matches `ecopages:content/<collection>/component` loader specifiers.
+ *
+ * @remarks
+ * The server graph resolves this specifier to the `/server` module and the Page Browser Graph
+ * resolves it to the browser-safe loader, so one import serves both sides.
+ */
+export const CONTENT_COMPONENT_VIRTUAL_MODULE_PATTERN = /^ecopages:content\/[a-z][a-z0-9-]+\/component$/;
 
 export type ParsedCollectionSpecifier = {
 	collectionName: string;
-	variant: 'entries' | 'server' | 'browser';
+	variant: 'entries' | 'server' | 'component';
 };
 
 export function parseCollectionSpecifier(specifier: string): ParsedCollectionSpecifier | null {
@@ -33,10 +39,10 @@ export function parseCollectionSpecifier(specifier: string): ParsedCollectionSpe
 		};
 	}
 
-	if (normalized.endsWith('/browser')) {
+	if (normalized.endsWith('/component')) {
 		return {
-			collectionName: normalized.slice(0, -'/browser'.length),
-			variant: 'browser',
+			collectionName: normalized.slice(0, -'/component'.length),
+			variant: 'component',
 		};
 	}
 

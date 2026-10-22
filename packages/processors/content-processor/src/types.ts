@@ -50,14 +50,15 @@ export type ContentCollectionComponentsModule = {
 	getEntryDependencies(slug: string): Promise<PageDependenciesResult>;
 };
 
-/** Runtime shape of a generated `ecopages:content/<collection>/browser` module. */
-export type ContentCollectionBrowserModule = {
+/** Runtime shape of a generated `ecopages:content/<collection>/component` module. */
+export type ContentCollectionLoaderModule = {
 	/**
-	 * Lazy-loads one browser-compiled MDX component for a collection entry.
+	 * Lazy-loads the MDX component for one collection entry.
 	 *
 	 * @remarks
-	 * Use this only from the Page Browser Graph. Server rendering must use
-	 * `ContentCollectionComponentsModule.getComponent()` instead.
+	 * The server graph returns the entry wrapped for cross-Integration rendering and the
+	 * Page Browser Graph returns the browser-compiled entry.
+	 * Rejects with HttpError 404 when the slug is not in the collection.
 	 */
 	loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
 };

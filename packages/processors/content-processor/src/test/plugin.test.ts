@@ -511,6 +511,75 @@ order: 2
 		expect(compiledOutputs).toHaveLength(2);
 	});
 
+	test('resolves /component per graph: compiled server module on the server, browser loader in the Page Browser Graph', async () => {
+		const rootDir = createTempRoot('ecopages-content-component-graphs-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			path.join(contentDir, 'intro.mdx'),
+			'---\ntitle: Intro\ndescription: Test\norder: 1\n---\n# Intro\n',
+		);
+
+		const plugin = createContentProcessorPlugin({ docs: { contentDir: 'content/docs' } });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		const compiledOutput = path.join(rootDir, 'compiled.mjs');
+		const adapter: BuildAdapter = {
+			async build(options) {
+				const entry = Object.values(options.entrypoints)[0] as string;
+				return {
+					success: true,
+					outputs: [{ path: compiledOutput }],
+					warnings: [],
+					loadedInputs: [],
+					loadedInputsByModule: {},
+					dependencyGraph: { entrypoints: {} },
+					entryOutputs: { [entry]: compiledOutput },
+					outputGraph: {},
+				};
+			},
+			resolve: (specifier) => specifier,
+		};
+		appConfig.appRuntime!.buildAdapter = adapter;
+		appConfig.appRuntime!.buildQueue = new BuildQueue(adapter);
+		await setupContentProcessor(plugin, appConfig);
+
+		const resolveIn = async (environment: 'server' | 'browser', specifier: string) => {
+			const resolvers: Array<{ filter: RegExp; callback: (args: { path: string }) => unknown }> = [];
+			for (const candidate of plugin.plugins().filter((entry) => entry.environments?.includes(environment))) {
+				await candidate.setup({
+					onResolve(options, callback) {
+						resolvers.push({
+							filter: options.filter,
+							callback: callback as (args: { path: string }) => unknown,
+						});
+					},
+					onLoad() {},
+					module() {},
+					transform() {},
+				} as EcoBuildPluginBuilder);
+			}
+			return resolvers.find(({ filter }) => filter.test(specifier))?.callback({ path: specifier });
+		};
+		const cacheDir = path.join(appConfig.absolutePaths.workDir, GENERATED_BASE_PATHS.cache, plugin.name);
+
+		expect(await resolveIn('server', 'ecopages:content/docs/component')).toEqual({
+			path: compiledOutput,
+			external: true,
+		});
+		expect(await resolveIn('browser', 'ecopages:content/docs/component')).toEqual({
+			path: path.join(cacheDir, 'docs.browser.ts'),
+		});
+		await expect(resolveIn('browser', 'ecopages:content/docs/server')).rejects.toThrow(
+			'Server-only content module',
+		);
+	});
+
 	test('setup adds collection pathnames to the app devPrewarmPaths', async () => {
 		const rootDir = createTempRoot('ecopages-content-prewarm-');
 		tempRoots.push(rootDir);

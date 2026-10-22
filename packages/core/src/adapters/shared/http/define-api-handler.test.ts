@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import { z } from 'zod';
+import type { ApiHandler, ApiHandlerContext, EcoMiddleware, PageParams } from '../../../types/contracts.ts';
 import { defineGet, definePost, defineGroupHandler, json, html, redirect } from './define-api-handler.ts';
 
 describe('defineGet / definePost', () => {
@@ -15,6 +17,74 @@ describe('defineGet / definePost', () => {
 		expect(getHandler.method).toBe('GET');
 		expect(getHandler.path).toBe('/api/posts');
 		expect(postHandler.method).toBe('POST');
+	});
+});
+
+describe('method helpers without path', () => {
+	it('returns a handler with an empty path for an endpoint file', () => {
+		const getHandler = defineGet({
+			handler: async ({ response }) => response.json([]),
+		});
+
+		expectTypeOf(getHandler).toEqualTypeOf<ApiHandler<'', Request, unknown>>();
+		expect(getHandler.method).toBe('GET');
+		expect(getHandler.path).toBe('');
+	});
+
+	it('keeps the literal path type when a path is given', () => {
+		const getHandler = defineGet({
+			path: '/x',
+			handler: async ({ response }) => response.json([]),
+		});
+
+		expectTypeOf(getHandler).toEqualTypeOf<ApiHandler<'/x', Request, unknown>>();
+		expect(getHandler.path).toBe('/x');
+	});
+
+	it('types params from schema.params', () => {
+		const postHandler = definePost({
+			schema: { params: z.object({ id: z.string() }) },
+			handler: async ({ params, response }) => {
+				expectTypeOf(params).toEqualTypeOf<{ id: string }>();
+				return response.json(params);
+			},
+		});
+
+		expectTypeOf(postHandler).toEqualTypeOf<ApiHandler<'', Request, unknown>>();
+	});
+
+	it('types the context extended by middleware', () => {
+		type AuthContext = ApiHandlerContext<Request, unknown> & { user: string };
+		const auth: EcoMiddleware<AuthContext> = async (_context, next) => next();
+
+		defineGet({
+			middleware: [auth],
+			handler: async ({ user, response }) => {
+				expectTypeOf(user).toEqualTypeOf<string>();
+				return response.json({ user });
+			},
+		});
+	});
+
+	it('types params as PageParams without a schema', () => {
+		defineGet({
+			handler: async ({ params, response }) => {
+				expectTypeOf(params).toEqualTypeOf<PageParams>();
+				return response.json(params);
+			},
+		});
+	});
+
+	it('still requires a path inside a group', () => {
+		defineGroupHandler({
+			prefix: '/admin',
+			routes: (api) => [
+				// @ts-expect-error a group route is an Explicit Route and needs its path
+				api.get({
+					handler: async ({ response }) => response.json({}),
+				}),
+			],
+		});
 	});
 });
 

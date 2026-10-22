@@ -11,6 +11,7 @@ import type {
 	ViewLoader,
 } from '../../types/contracts.ts';
 import type { ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
+import { defineGet } from '../shared/http/define-api-handler.ts';
 import { EcopagesApp } from './create-app.ts';
 import type { RuntimeHost } from './runtime-host.ts';
 import type { NodeServerAdapter, NodeServerAdapterParams } from './server-adapter.ts';
@@ -126,6 +127,32 @@ describe('EcopagesApp route registration', () => {
 			middleware: [groupMiddleware, routeMiddleware],
 			schema,
 		});
+	});
+
+	it('rejects a handler defined without a path', () => {
+		const { app } = createTestApp();
+
+		expect(() => app.add(defineGet({ handler: () => new Response('ok') }))).toThrow(
+			'The GET handler has no path. Export it from a `*.api.ts` file under the pages directory, or give it a `path` to register it with app.add().',
+		);
+	});
+
+	it('keeps the leading-slash error for an empty path passed to app.get', () => {
+		const { app } = createTestApp();
+
+		expect(() => app.get('', () => new Response('ok'))).toThrow(
+			`Invalid route path for GET: "". Route paths must start with '/'.`,
+		);
+	});
+
+	it('rejects a group route defined without a path', () => {
+		const { app } = createTestApp();
+
+		expect(() =>
+			app.group({ prefix: '/admin', routes: [defineGet({ handler: () => new Response('ok') })] }),
+		).toThrow(
+			'The GET handler in group "/admin" has no path. Export it from a `*.api.ts` file under the pages directory, or give it a `path` ("/" for the group root) to register it with app.group().',
+		);
 	});
 
 	it('registers semantic error page loaders', () => {

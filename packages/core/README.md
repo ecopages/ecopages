@@ -281,6 +281,8 @@ Standalone response helpers (`json`, `html`, `redirect`) share the same body emi
 
 Register a prebuilt handler with `app.add()`. Use `app.get(path, handler)` only when defining the route inline in `app.ts`.
 
+The method helpers also accept a handler without `path`, for an export of a `*.api.ts` endpoint file, whose path under the pages directory gives the URL. The `api.get` / `api.post` group helpers still require `path`, and `app.add()` and `app.group()` throw for a handler without one.
+
 ### 6. Error pages
 
 Filesystem `src/pages/404.*` and `500.*` take precedence. For explicit-route apps, register views on the app:

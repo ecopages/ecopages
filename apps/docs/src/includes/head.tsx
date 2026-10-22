@@ -3,7 +3,7 @@ import type { PageHeadProps } from '@ecopages/core';
 import { Seo } from '@/includes/seo';
 import type { JsxRenderable } from '@ecopages/jsx';
 
-export const Head = eco.component<PageHeadProps, JsxRenderable>({
+export const Head = eco.component<PageHeadProps<JsxRenderable>, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['../styles/tailwind.css'],
 	},

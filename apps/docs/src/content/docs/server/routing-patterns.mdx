@@ -1,12 +1,12 @@
 ---
 title: "Routing Patterns"
-description: "Choose architectural patterns for organizing explicit server routes."
-order: 5
+description: "Choose architectural patterns for organizing server routes, in app.ts or as endpoint files."
+order: 6
 ---
 
 # Routing Patterns
 
-Choose the right architectural pattern for your explicit routes. Use these patterns to organize handlers and business logic effectively as your application grows.
+Choose the right architectural pattern for your server routes. Patterns A to E register routes in `app.ts`; Pattern F puts them in endpoint files under `src/pages`. Use these patterns to organize handlers and business logic as your application grows.
 
 ## Pattern Overview
 
@@ -17,6 +17,7 @@ Choose the right architectural pattern for your explicit routes. Use these patte
 | [Factory Functions](#pattern-c-factory-functions) | Testing, dependency injection | Medium | Excellent |
 | [MVC Classes](#pattern-d-mvc-classes) | OOP preference, large teams | High | Good |
 | [Service Layer](#pattern-e-service-layer) | Complex domains, reusability | High | Excellent |
+| [Endpoint Files](#pattern-f-endpoint-files) | APIs that mirror the page tree | Low | Basic |
 
 ## Prerequisites
 
@@ -68,6 +69,8 @@ const PostView = eco.page({
 export default PostView;
 ```
 
+Handlers load views with `ctx.renderServerModule(url, props)`, which compiles the view through the server-module loader. A raw `import()` of a view skips that compile step, so `ctx.render()` cannot tell which Integration owns the view and the request fails.
+
 ## Pattern A: Inline Handlers
 
 For small projects or rapid prototyping, define everything inline in `app.ts`.
@@ -90,21 +93,19 @@ import { db } from './src/db';
 const app = await createApp();
 
 app.get('/posts', async (ctx) => {
-	const { default: PostListView } = await import('./src/views/post-list');
 	const posts = await db.posts.findMany({
 		where: { status: 'published' },
 		orderBy: { createdAt: 'desc' }
 	});
-	return ctx.render(PostListView, { posts });
+	return ctx.renderServerModule(new URL('./src/views/post-list.tsx', import.meta.url), { posts });
 });
 
 app.get('/posts/:slug', async (ctx) => {
-	const { default: PostView } = await import('./src/views/post');
 	const post = await db.posts.findUnique({
 		where: { slug: ctx.params.slug }
 	});
 	if (!post) throw HttpError.NotFound('Post not found');
-	return ctx.render(PostView, post);
+	return ctx.renderServerModule(new URL('./src/views/post.tsx', import.meta.url), post);
 });
 
 app.post(
@@ -167,22 +168,20 @@ import { HttpError } from '@ecopages/core/errors';
 import { db } from '../db';
 
 export async function index(ctx: ApiHandlerContext) {
-	const { default: PostListView } = await import('../views/post-list');
 	const posts = await db.posts.findMany({
 		where: { status: 'published' },
 		orderBy: { createdAt: 'desc' }
 	});
-	return ctx.render(PostListView, { posts });
+	return ctx.renderServerModule(new URL('../views/post-list.tsx', import.meta.url), { posts });
 }
 
 export async function show(ctx: ApiHandlerContext) {
-	const { default: PostView } = await import('../views/post');
 	const post = await db.posts.findUnique({
 		where: { slug: ctx.params.slug },
 		include: { author: true }
 	});
 	if (!post) throw HttpError.NotFound('Post not found');
-	return ctx.render(PostView, post);
+	return ctx.renderServerModule(new URL('../views/post.tsx', import.meta.url), post);
 }
 
 export async function create(ctx: ApiHandlerContext) {
@@ -281,22 +280,20 @@ import { HttpError } from '@ecopages/core/errors';
 export function createPostsHandlers(db: Database) {
 	return {
 		index: async (ctx: ApiHandlerContext) => {
-			const { default: PostListView } = await import('../views/post-list');
 			const posts = await db.posts.findMany({
 				where: { status: 'published' },
 				orderBy: { createdAt: 'desc' }
 			});
-			return ctx.render(PostListView, { posts });
+			return ctx.renderServerModule(new URL('../views/post-list.tsx', import.meta.url), { posts });
 		},
 
 		show: async (ctx: ApiHandlerContext) => {
-			const { default: PostView } = await import('../views/post');
 			const post = await db.posts.findUnique({
 				where: { slug: ctx.params.slug },
 				include: { author: true }
 			});
 			if (!post) throw HttpError.NotFound('Post not found');
-			return ctx.render(PostView, post);
+			return ctx.renderServerModule(new URL('../views/post.tsx', import.meta.url), post);
 		},
 
 		create: async (ctx: ApiHandlerContext) => {
@@ -352,7 +349,7 @@ describe('Posts Handlers', () => {
 
 	test('index returns all posts', async () => {
 		const ctx = {
-			render: (view: any, props: any) => props
+			renderServerModule: (_view: URL, props: any) => props
 		};
 		const result = await posts.index(ctx as any);
 		expect(result.posts).toHaveLength(1);
@@ -360,8 +357,8 @@ describe('Posts Handlers', () => {
 
 	test('show returns single post', async () => {
 		const ctx = {
-			request: { params: { slug: 'test-post' } },
-			render: (view: any, props: any) => props
+			params: { slug: 'test-post' },
+			renderServerModule: (_view: URL, props: any) => props
 		};
 		const result = await posts.show(ctx as any);
 		expect(result.title).toBe('Test Post');
@@ -459,16 +456,14 @@ export class PostsController {
 	constructor(private postsService: PostsService) {}
 
 	async index(ctx: ApiHandlerContext) {
-		const { default: PostListView } = await import('../views/post-list');
 		const posts = await this.postsService.findAll();
-		return ctx.render(PostListView, { posts });
+		return ctx.renderServerModule(new URL('../views/post-list.tsx', import.meta.url), { posts });
 	}
 
 	async show(ctx: PostContext) {
-		const { default: PostView } = await import('../views/post');
 		const post = await this.postsService.findBySlug(ctx.params.slug);
 		if (!post) throw HttpError.NotFound('Post not found');
-		return ctx.render(PostView, post);
+		return ctx.renderServerModule(new URL('../views/post.tsx', import.meta.url), post);
 	}
 
 	async create(ctx: ApiHandlerContext) {
@@ -679,18 +674,16 @@ export function createPostsHandlers(
 ) {
 	return {
 		async index(ctx: ApiHandlerContext) {
-			const { default: PostListView } = await import('../views/post-list');
 			const posts = await service.getAllPublishedPosts();
 			const viewData = adapter.toListView(posts);
-			return ctx.render(PostListView, { posts: viewData });
+			return ctx.renderServerModule(new URL('../views/post-list.tsx', import.meta.url), { posts: viewData });
 		},
 
 		async show(ctx: PostContext) {
-			const { default: PostView } = await import('../views/post');
 			const post = await service.getPostBySlug(ctx.params.slug);
 			if (!post) throw HttpError.NotFound('Post not found');
 			const viewData = adapter.toDetailView(post);
-			return ctx.render(PostView, viewData);
+			return ctx.renderServerModule(new URL('../views/post.tsx', import.meta.url), viewData);
 		},
 
 		async createDraft(ctx: ApiHandlerContext) {
@@ -745,6 +738,112 @@ await app.start();
 - More files to navigate
 - Steeper learning curve
 
+## Pattern F: Endpoint Files
+
+Put each handler in a file under `src/pages`, named `*.api.ts`. The file path gives the URL, so nothing is registered in `app.ts`.
+
+### When to Use
+
+- JSON APIs, form posts and webhooks whose URLs follow the folder tree
+- Handlers that belong beside the Pages they serve
+- Apps that would otherwise register a long list of routes in `app.ts`
+- Routes that need no middleware shared across a URL prefix
+
+### File Structure
+
+```
+src/
+├── pages/
+│   ├── posts/
+│   │   ├── index.tsx            # Page: /posts
+│   │   └── [slug].tsx           # Page: /posts/[slug]
+│   └── api/
+│       └── posts/
+│           ├── index.api.ts     # GET, POST /api/posts
+│           └── [slug].api.ts    # GET, PATCH, DELETE /api/posts/[slug]
+└── db.ts
+app.ts
+```
+
+### Example
+
+```typescript
+// src/pages/api/posts/index.api.ts
+import { defineGet, definePost } from '@ecopages/core';
+import { z } from 'zod';
+import { db } from '../../../db';
+
+export const GET = defineGet({
+	handler: async ({ response }) => response.json(await db.posts.findMany({ where: { status: 'published' } })),
+});
+
+export const POST = definePost({
+	schema: { body: z.object({ title: z.string(), content: z.string() }) },
+	handler: async ({ body, response }) =>
+		response.status(201).json(await db.posts.create({ data: { ...body, status: 'draft' } })),
+});
+```
+
+```typescript
+// src/pages/api/posts/[slug].api.ts
+import { defineDelete, defineGet, definePatch } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
+import { z } from 'zod';
+import { db } from '../../../db';
+
+const params = z.object({ slug: z.string() });
+
+export const GET = defineGet({
+	schema: { params },
+	handler: async ({ params, response }) => {
+		const post = await db.posts.findUnique({ where: { slug: params.slug } });
+		if (!post) throw HttpError.NotFound('Post not found');
+		return response.json(post);
+	},
+});
+
+export const PATCH = definePatch({
+	schema: { params, body: z.object({ title: z.string().optional(), content: z.string().optional() }) },
+	handler: async ({ params, body, response }) =>
+		response.json(await db.posts.update({ where: { slug: params.slug }, data: body })),
+});
+
+export const DELETE = defineDelete({
+	schema: { params },
+	handler: async ({ params, response }) => {
+		await db.posts.delete({ where: { slug: params.slug } });
+		return response.status(204).text('');
+	},
+});
+```
+
+```typescript
+// app.ts
+import { createApp } from '@ecopages/core/create-app';
+
+const app = await createApp();
+
+await app.start();
+```
+
+A `PUT /api/posts/hello` answers `405` with `Allow: GET, DELETE, PATCH`. The handlers can call a service from [Pattern C](#pattern-c-factory-functions) or [Pattern E](#pattern-e-service-layer) instead of `db`; only where the route is declared changes.
+
+### Pros & Cons
+
+**Pros:**
+- No route registration; the folder tree is the route list
+- API routes sit beside the Pages they serve
+- `405` and `Allow` for unexported methods come for free
+- Typed `params` and `body` from the same `schema` as `app.ts` routes
+
+**Cons:**
+- No shared prefix middleware; each method export lists its own
+- `HEAD` and `OPTIONS` are not answered unless exported
+- A URL that ends in a static file extension, such as `/feed.xml`, must stay in `app.ts`
+- Handlers import their dependencies, so tests mock modules instead of injecting them
+
+See [Endpoint Files](/docs/server/endpoint-files) for the full rules.
+
 ## Mixing Patterns
 
 You don't need to pick one pattern for your entire app. Mix patterns based on complexity:
@@ -754,8 +853,7 @@ const app = await createApp();
 
 // Simple inline handler for about page
 app.get('/about', async (ctx) => {
-	const { default: AboutView } = await import('./src/views/about');
-	return ctx.render(AboutView);
+	return ctx.renderServerModule(new URL('./src/views/about.tsx', import.meta.url));
 });
 
 // Grouped handlers for posts (medium complexity)
@@ -790,6 +888,7 @@ app.get('/posts/:slug', posts.show);
 // /about -> pages/about.tsx
 // /contact -> pages/contact.tsx
 // /blog/[slug] -> pages/blog/[slug].tsx (if not overridden)
+// /api/health -> pages/api/health.api.ts (endpoint file)
 
 await app.start();
 ```
@@ -805,9 +904,8 @@ Begin with [inline handlers](#pattern-a-inline-handlers) and refactor only when 
 ```typescript
 // Start here
 app.get('/posts', async (ctx) => {
-	const { default: PostListView } = await import('./src/views/post-list');
 	const posts = await db.posts.findMany();
-	return ctx.render(PostListView, { posts });
+	return ctx.renderServerModule(new URL('./src/views/post-list.tsx', import.meta.url), { posts });
 });
 
 // Refactor when you need testing or reusability
@@ -821,10 +919,9 @@ Handlers should orchestrate, not implement business logic:
 
 ```typescript
 async show(ctx: ApiHandlerContext) {
-	const { default: PostView } = await import('../views/post');
 	const post = await service.getPostBySlug(ctx.params.slug);
 	if (!post) throw HttpError.NotFound();
-	return ctx.render(PostView, adapter.toView(post));
+	return ctx.renderServerModule(new URL('../views/post.tsx', import.meta.url), adapter.toView(post));
 }
 ```
 
@@ -880,5 +977,6 @@ export function createBlogCommands(db: Database, eventBus: EventBus) {
 ## Related Documentation
 
 - [Explicit Routing](./explicit-routing) - API reference for route definitions
+- [Endpoint Files](./endpoint-files) - Handlers declared by files under `src/pages`
 - [API Handlers](./api-handlers) - Building API endpoints
 - [Server API](./server-api) - Core server concepts

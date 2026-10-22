@@ -18,10 +18,9 @@ Defines the overall HTML envelope:
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { HtmlTemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 
-export const Html = eco.html<HtmlTemplateProps<JsxRenderable>, JsxRenderable>({
+export const Html = eco.html<JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./html.css'],
 	},

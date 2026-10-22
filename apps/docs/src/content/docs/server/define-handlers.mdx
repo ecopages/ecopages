@@ -79,39 +79,18 @@ QUERY here is the HTTP method. It is unrelated to the `query` field of the handl
 
 ## Endpoint files
 
-In an endpoint file under `src/pages` (`*.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`), export each method helper under its method name and leave out `path`: the file's location gives the URL. `src/pages/blog/[slug]/comments.api.ts` handles `/blog/[slug]/comments` for every post:
+In an endpoint file under `src/pages` (`*.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`), export each method helper under its method name and leave out `path`: the file's location gives the URL. `schema` and `middleware` work per method, as they do here.
 
 ```typescript
-import { defineGet, definePost } from '@ecopages/core';
-import { z } from 'zod';
-
-const params = z.object({ slug: z.string() });
+// src/pages/api/posts.api.ts
+import { defineGet } from '@ecopages/core';
 
 export const GET = defineGet({
-  schema: { params },
-  handler: async ({ params, response }) => response.json({ slug: params.slug, comments: [] }),
-});
-
-export const POST = definePost({
-  schema: {
-    params,
-    body: z.object({ text: z.string().min(1) }),
-  },
-  handler: async ({ params, body, response }) =>
-    response.status(201).json({ slug: params.slug, text: body.text }),
+  handler: async ({ response }) => response.json(await getPosts()),
 });
 ```
 
-```text
-GET    /blog/hello/comments   -> 200, the GET handler
-POST   /blog/hello/comments   -> 201, the POST handler (body validated, 400 if invalid)
-DELETE /blog/hello/comments   -> 405, Allow: GET, POST
-```
-
-- Each method takes the same `schema` and `middleware` as an `app.ts` route, set per method.
-- Setting `path` fails `ecopages build`, and in `ecopages dev` the file's first request: the file's location is the endpoint's only path.
-
-See [Routing](/docs/core/routing#endpoint-files) for the rest: `405` and `Allow`, load errors, and `app.ts` routes on the same URL.
+Setting `path` in an endpoint file is an error. See [Endpoint Files](/docs/server/endpoint-files) for the full guide.
 
 ## defineApiHandler
 

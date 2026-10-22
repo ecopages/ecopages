@@ -42,10 +42,9 @@ The HTML template defines the overall structure of your pages. Use `eco.html()` 
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { HtmlTemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 
-const Html = eco.html<HtmlTemplateProps<JsxRenderable>, JsxRenderable>({
+const Html = eco.html<JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./html.css'],
 	},

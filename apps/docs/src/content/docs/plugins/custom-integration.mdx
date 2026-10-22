@@ -32,7 +32,7 @@ export const customPlugin = defineIntegration({
 });
 ```
 
-An extension ending in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx` is reserved for [endpoint files](/docs/core/routing#endpoint-files) and cannot be registered; config finalization fails and names the Integration.
+An extension ending in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx` is reserved for [endpoint files](/docs/server/endpoint-files) and cannot be registered; config finalization fails and names the Integration.
 
 `customPlugin()` returns a configured integration instance. `customPlugin.Plugin` exposes the generated class when you need an explicit constructor.
 

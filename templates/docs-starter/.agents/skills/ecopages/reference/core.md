@@ -15,7 +15,7 @@
 ```
 project/
 ├── src/
-│   ├── pages/          # Static routes (eco.page, MDX, .html)
+│   ├── pages/          # Filesystem Routes: Pages (eco.page, MDX, .html) and Endpoints (*.api.ts)
 │   ├── views/          # Handler-rendered views
 │   ├── layouts/
 │   ├── components/
@@ -28,7 +28,7 @@ project/
 └── package.json
 ```
 
-Semantic discovery: `src/includes/html.*`, `src/pages/404.*`, and `src/pages/500.*` resolve by basename and integration extension.
+Semantic discovery: `src/includes/html.*` and the error pages `src/pages/<status>.*` (404 and 500; also 400, 401, 403 and 409) resolve by basename and Integration extension.
 
 ## The eco namespace
 
@@ -40,9 +40,9 @@ Ecopages does not auto-detect script files by name pattern.
 
 ## Pages and views
 
-**Pages (`src/pages/`)** — file-based static routes. A `*.api.ts` (or `.api.tsx`, `.api.js`, `.api.jsx`) file under `src/pages` is an endpoint file instead; see [server.md](server.md#endpoint-files).
+**Pages (`src/pages/`)** — Filesystem Routes, static by default (see Cache Strategy below). A `*.api.ts` (or `.api.tsx`, `.api.js`, `.api.jsx`) file under `src/pages` is an endpoint file instead; see [server.md](server.md#endpoint-files).
 
-**Views (`src/views/`)** — rendered from handlers via `ctx.render()`. Must use `eco.page<Props>()` and dynamic `import()`.
+**Views (`src/views/`)** — rendered from handlers; see [server.md](server.md#pages-vs-views).
 
 ```tsx
 export default eco.page({
@@ -64,8 +64,8 @@ export default eco.page({
 In files declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, as well as MDX documents compiled through `@ecopages/mdx/core`, Ecopages automatically discovers:
 
 - **Child Components:** Direct imports of local `eco.component()` exports (relative, tsconfig aliases, and named `export { X } from` barrels) contribute dependencies transitively.
-- **CSS Stylesheets:** Direct side-effect CSS imports (`import './counter.css'` or `import '@/styles/main.css'`) are extracted into the asset pipeline and stripped from server/browser modules. They are not copied into `config.dependencies.stylesheets`; explicit entries override the same resolved file.
-- **MDX Support:** In MDX files, top-level component and CSS imports are discovered while markdown code blocks and dynamic imports within functions are safely ignored. Combine a catch-all Page's relative assets with `mergePageDependencies(pageAssets, await getEntryDependencies(slug))`.
+- **CSS Stylesheets:** Direct side-effect CSS imports (`import './counter.css'` or `import '@/styles/main.css'`) are extracted into the asset pipeline and stripped from server/browser modules. An explicit `dependencies.stylesheets` entry wins over a discovered import of the same file.
+- **MDX Support:** In MDX files, top-level component and CSS imports are discovered while markdown code blocks and dynamic imports within functions are safely ignored. A catch-all Page that renders content entries combines its own assets with the entry's: `dependencies: async ({ props }) => mergePageDependencies({ stylesheets: ['./page.css'] }, await getEntryDependencies(props.entry.slug))`, with `getEntryDependencies` imported from `ecopages:content/<collection>/server`.
 
 **Best practice:** Author **one `eco.component()` per file**. Co-locating multiple declared components in a single file will cause all components in that file to share discovered dependencies.
 
@@ -76,10 +76,11 @@ In files declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page
 
 ```tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 import { Counter } from './counter';
 import './my-component.css';
 
-export const MyComponent = eco.component({
+export const MyComponent = eco.component<{ title: string }, JsxRenderable>({
 	dependencies: {
 		// scripts remain explicit; Counter and my-component.css are discovered automatically
 		scripts: [{ src: './my-component.script.ts', ssr: true, lazy: { 'on:visible': true } }],
@@ -123,11 +124,13 @@ export default defineConfig({
 });
 ```
 
-Included URLs: successfully exported static pages whose metadata resolves and `robots.index !== false`. Omitted when metadata throws (fail-closed) or `cache: 'dynamic'`. `exclude` filters eligible pathnames; `extraUrls` always append (not filtered by exclude or page robots). Written after every page during `ecopages build` only — not served by `ecopages dev`. Requires correct `baseUrl` / `ECOPAGES_BASE_URL` at build time. Output is sitemap.org 0.9 `<loc>` only (no `lastmod`). Full rules: `/docs/core/sitemap`.
+Included URLs: successfully exported static pages whose metadata resolves and `robots.index !== false`. Omitted when metadata throws (fail-closed) or `cache: 'dynamic'`. `exclude` filters eligible pathnames; `extraUrls` always append (not filtered by exclude or page robots). Written to `dist/` after all pages export, during `ecopages build` only — not served by `ecopages dev`. Requires correct `baseUrl` / `ECOPAGES_BASE_URL` at build time. Output is sitemap.org 0.9 `<loc>` only (no `lastmod`). Full rules: [/docs-llm/core/sitemap.md](/docs-llm/core/sitemap.md).
 
 ## Common patterns
 
-**Dynamic routes:** `src/pages/blog/[slug].tsx` with `staticProps` reading `pathname.params`.
+**Dynamic routes:** `src/pages/blog/[slug].tsx` exports `staticPaths` returning `{ paths: [{ params: { slug } }] }` and `staticProps` reading `pathname.params` and returning `{ props }`. A catch-all `[...path]` captures an array.
+
+**Cache Strategy:** `cache: 'static'` (the default; rendered at build), `cache: 'dynamic'` (rendered per request; Params, Query and Locals arrive as render props, and Page `middleware` / `requires` need it), or `cache: { revalidate: seconds, tags }`.
 
 **Data fetching:** Prefer direct function calls in `staticPaths` / `staticProps` over HTTP to your own API during static generation.
 
@@ -140,4 +143,4 @@ Included URLs: successfully exported static pages whose metadata resolves and `r
 3. Declare browser scripts, `export *` barrels, and external package dependencies explicitly in `dependencies`
 4. Organize by feature
 5. Use CSS variables with Tailwind v4 `@theme`
-6. Match MDX to the owning integration plugin
+6. Match MDX to the owning Integration

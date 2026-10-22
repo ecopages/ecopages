@@ -3,8 +3,9 @@
 ## Contents
 
 - Interactive init
+- Installation
 - Configuration
-- Application entry point
+- Required files
 - Package scripts
 
 ## Interactive init
@@ -25,18 +26,22 @@ npx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && pnpm install &&
 # Blog (React)
 npx ecopages init blog-react --template blog-react && cd blog-react && pnpm install && pnpm dev
 
-# Full-stack (React + Better Auth + Drizzle)
-npx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && pnpm install && pnpm db:generate && pnpm db:migrate && pnpm dev
+# Full-stack (React + Better Auth + Drizzle); set BETTER_AUTH_SECRET in .env
+npx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && pnpm install && cp .env.example .env && pnpm db:generate && pnpm db:migrate && pnpm dev
 ```
 
-The app runs on Node by default. Launch the same commands through Bun (`bunx ecopages init`, `bun dev`) or pass `--runtime bun` to run it on Bun.
+Other `--template` IDs: `jsx` (the default), `html`, `react`, `react-shadcn`, `lit-jsx`, `radiant`, `docs-starter`, `llm-wiki`.
+
+Ecopages needs Node 24 or later. The app runs on Node by default. Launch the same commands through Bun (`bunx ecopages init`, `bun dev`) or pass `--runtime bun` to run it on Bun.
 
 ## Installation
 
 ```bash
-pnpm add @ecopages/core @ecopages/ecopages-jsx
-pnpm add -D @ecopages/postcss-processor @tailwindcss/postcss tailwindcss
+pnpm add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant
+pnpm add -D ecopages @ecopages/postcss-processor @tailwindcss/postcss tailwindcss
 ```
+
+`ecopages` provides the CLI. `@ecopages/jsx` and `@ecopages/radiant` are required peers of `@ecopages/ecopages-jsx`.
 
 ## Configuration
 
@@ -53,7 +58,6 @@ const appRoot = import.meta.dirname;
 
 export default defineConfig({
 	rootDir: appRoot,
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
 	defaultMetadata: {
 		title: 'Your Site Title',
 		description: 'Your site description',
@@ -69,7 +73,11 @@ export default defineConfig({
 });
 ```
 
-## Application entry point
+`baseUrl` defaults to `ECOPAGES_BASE_URL`, then `http://localhost:3000`. Set it to the production URL when canonical links or the Sitemap need it.
+
+## Required files
+
+**`app.ts`** — the entry the CLI runs (change it with `--entry-file`):
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
@@ -79,18 +87,53 @@ const app = await createApp();
 await app.start();
 ```
 
+**`tsconfig.json`** — at least `"jsx": "react-jsx"`, `"jsxImportSource": "@ecopages/jsx"`, `"moduleResolution": "bundler"`, and `"paths": { "@/*": ["./src/*"] }` for the `@/` imports used across this skill.
+
+**`modules.d.ts`** — ambient types for CSS, image and env imports:
+
+```typescript
+import '@ecopages/core/declarations';
+import '@ecopages/core/env';
+```
+
+**`src/includes/html.tsx`** — the Html shell every `eco.page()` renders inside. It also loads the global stylesheet:
+
+```tsx
+import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
+import '../styles/app.css';
+
+export default eco.html<JsxRenderable>({
+	render: ({ children, metadata, headContent, language = 'en' }) => (
+		<html lang={language}>
+			<head>
+				<meta charset="UTF-8" />
+				<meta name="viewport" content="width=device-width, initial-scale=1" />
+				<title>{metadata.title}</title>
+				{headContent as JsxRenderable}
+			</head>
+			{children as JsxRenderable}
+		</html>
+	),
+});
+```
+
+**`src/pages/index.tsx`** — the first Page; see [core.md](core.md#pages-and-views).
+
 ## Package scripts
 
 ```json
 {
 	"scripts": {
 		"dev": "ecopages dev",
-		"build": "NODE_ENV=production ecopages build",
-		"preview": "NODE_ENV=production ecopages preview",
-		"start": "NODE_ENV=production ecopages start",
+		"build": "ecopages build",
+		"preview": "ecopages preview",
+		"start": "ecopages preview",
 		"typecheck": "ecopages types && tsc --noEmit"
 	}
 }
 ```
 
-`ecopages start` runs the server bundle, which only apps with API handlers, WebSocket handlers or endpoint files build. A static-only app has no server bundle: use `ecopages preview` for `start`, or deploy `dist/` to a static host.
+The CLI sets `NODE_ENV=production` for `build`, `preview`, `start` and `types`.
+
+`ecopages start` runs the server bundle, which only apps with API handlers, WebSocket handlers or endpoint files build. Such an app uses `"start": "ecopages build && ecopages start"`. A static-only app has no server bundle: keep `ecopages preview` for `start`, or deploy `dist/` to a static host.

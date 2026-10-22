@@ -8,6 +8,7 @@
 - Registering handlers
 - Endpoint files
 - Pages vs views
+- Client-side routing (React)
 
 ## defineApiHandler
 
@@ -45,7 +46,9 @@ export const createPostAlt = defineApiHandler({
 });
 ```
 
-`definePost` above is equivalent to `defineApiHandler` with `method: 'POST'`. In a define call list `middleware` before `handler`; in `app.get()` declare every middleware as a `Middleware` or `EcoMiddleware` constant, because one inline function in a list the handler cannot see yet costs the handler the context of the whole list.
+`definePost` above is equivalent to `defineApiHandler` with `method: 'POST'`.
+
+A handler written before a middleware list that holds an unannotated inline function sees none of the list's contexts. In define calls, put `middleware` before `handler`. In `app.get/post/…/group`, where options always come last, declare each middleware as a `Middleware` or `EcoMiddleware` constant.
 
 When a route declares `schema.body`, core parses `application/json` and `text/plain` bodies before validation. Malformed JSON returns HTTP 400. A request with no body and no `Content-Type`, or an empty body with either supported type, is validated as `undefined`: required schemas return HTTP 400, and optional schemas can accept it. Unsupported content types and nonempty bodies without a `Content-Type` return HTTP 415.
 
@@ -63,10 +66,8 @@ export const adminGroup = defineGroupHandler({
 	routes: (api) => [
 		api.get({
 			path: '/',
-			handler: async (ctx) => {
-				const { default: AdminView } = await import('@/views/admin');
-				return ctx.render(AdminView, { user: ctx.session.user });
-			},
+			handler: async (ctx) =>
+				ctx.renderServerModule(new URL('../views/admin.tsx', import.meta.url), { user: ctx.session.user }),
 		}),
 		api.post({
 			path: '/items',
@@ -101,11 +102,11 @@ export const loginRedirect = defineGet({
 });
 ```
 
-These helpers share the same body emission path as `context.response.json()` / `context.response.html()`.
+`json` and `html` behave like `ctx.response.json()` / `ctx.response.html()` and take `{ status, headers }`.
 
 ## Registering handlers
 
-Register prebuilt `defineApiHandler` / `defineGet` declarations with `app.add()`. Use `app.get(path, handler)` when defining a route inline in `app.ts`.
+Register prebuilt `defineApiHandler` / `defineGet` declarations with `app.add()` and groups with `app.group()`. Use `app.get(path, handler)` for an Explicit Route defined inline in `app.ts`. For `app.onError`, `HttpError` (`@ecopages/core/errors`), `app.static`, `app.notFound` and `app.serverError`, see [/docs-llm/server/explicit-routing.md](/docs-llm/server/explicit-routing.md).
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
@@ -122,7 +123,7 @@ await app.start();
 
 ## Endpoint files
 
-A file under `src/pages` ending in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx` is an endpoint file: its path gives the URL (`src/pages/api/users/[id].api.ts` answers `/api/users/[id]`), and it needs no `app.add()`. Those endings are reserved; no Integration can register them. Export one handler per method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `HEAD` or `QUERY`, built with the matching method helper and no `path`:
+A file under `src/pages` ending in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx` is an endpoint file: its path gives the URL (`src/pages/api/users/[id].api.ts` answers `/api/users/42` with `params.id === '42'`; declare `schema.params` to type it), and it needs no `app.add()`. Those endings are reserved; no Integration can register them. Export one handler per method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `HEAD` or `QUERY`, built with the matching method helper and no `path`. Other exports are ignored.
 
 ```typescript
 import { defineGet } from '@ecopages/core';
@@ -132,18 +133,23 @@ export const GET = defineGet({
 });
 ```
 
-- A method the file does not export answers `405` with an `Allow` header; export `OPTIONS` for a CORS preflight.
+- A method the file does not export answers `405` with an `Allow` header. `HEAD` is not answered from `GET`, and `OPTIONS` is not added; export `OPTIONS` for a CORS preflight.
+- A missing method export, a non-handler export, a handler built for another method, or a set `path` fails `ecopages build`; in dev, the file's first request answers `500`. The build imports each file, so its top-level code runs at build time.
 - Two files on the same route fail at startup, whatever the parameter names.
-- A URL that ends in a static file extension (`feed.xml`, `report.json`) cannot be an endpoint file; register it in `app.ts`.
-- An `app.ts` route on the same URL answers its methods first, and startup warns.
+- A URL that ends in a static file extension (`feed.xml`, `report.json`) cannot be an endpoint file; register it as an Explicit Route in `app.ts`.
+- An Explicit Route on the same URL answers its methods first, and startup warns.
+- Dev reloads the file on save. The build emits the server bundle (`dist/.server/`) for `ecopages start`; `ecopages preview` does not serve endpoints.
+
+Full rules: [/docs-llm/server/endpoint-files.md](/docs-llm/server/endpoint-files.md).
 
 ## Pages vs views
 
 When rendering from handlers with `ctx.render()`:
 
-- Component must be `eco.page()` (not a plain framework component)
+- Component must be the default export, built with `eco.page()` (not a plain framework component)
 - File lives in `src/views/`, not `src/pages/`
-- Import dynamically: `await import('@/views/dashboard')`
+- Load it with `ctx.renderServerModule(new URL('../views/dashboard.tsx', import.meta.url), props)`, so the server-module loader applies the component-identity transform and dev reload; a raw `import()` skips them
+- Handler renders pass the request's Locals, Params and Query to the view as props. Call `ctx.render(...)` / `ctx.renderServerModule(...)` on the context; destructuring `render` loses Locals
 - A full render uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's page client plan. Props passed to the render are available to the view's `metadata`
 - `ctx.renderPartial()` stays a component fragment
 - The Html shell is not an island, even when its Integration differs from the page owner

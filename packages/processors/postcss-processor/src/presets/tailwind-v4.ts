@@ -2,8 +2,7 @@
  * Tailwind CSS v4 Preset for PostCSS Processor
  * @module @ecopages/postcss-processor/presets/tailwind-v4
  *
- * Requires: @tailwindcss/postcss, cssnano
- * Install: bun add @tailwindcss/postcss cssnano
+ * Install the peers: pnpm add -D @tailwindcss/postcss tailwindcss
  */
 
 import tailwindcss from '@tailwindcss/postcss';
@@ -44,7 +43,7 @@ export interface TailwindV4PresetOptions {
  *
  * // Basic usage
  * postcssProcessorPlugin(tailwindV4Preset({
- *   referencePath: path.resolve(import.meta.dir, 'src/styles/tailwind.css'),
+ *   referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
  * }))
  *
  * // Extend with additional plugins

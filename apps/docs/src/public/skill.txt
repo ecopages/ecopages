@@ -14,9 +14,9 @@ Read only the module relevant to your task:
 | Core | [/skill/reference/core.md](/skill/reference/core.md) | eco.page, eco.component, structure, metadata |
 | Integrations | [/skill/reference/integrations.md](/skill/reference/integrations.md) | JSX, React, Lit, KitaJS, MDX ownership |
 | Processors and plugins | [/skill/reference/processors-and-plugins.md](/skill/reference/processors-and-plugins.md) | PostCSS, images, custom processors, source transforms |
-| Server | [/skill/reference/server.md](/skill/reference/server.md) | API handlers, views, protected routes |
+| Server | [/skill/reference/server.md](/skill/reference/server.md) | API handlers, endpoint files, views |
 | Styling | [/skill/reference/styling.md](/skill/reference/styling.md) | Tailwind v4, CSS imports, layouts |
-| Full-stack | [/skill/reference/full-stack.md](/skill/reference/full-stack.md) | Better Auth, Drizzle |
+| Full-stack | [/skill/reference/full-stack.md](/skill/reference/full-stack.md) | Better Auth, Drizzle, protected Pages |
 
 ## Full documentation
 

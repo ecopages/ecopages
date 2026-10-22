@@ -2,8 +2,7 @@
  * Tailwind CSS v3 Preset for PostCSS Processor
  * @module @ecopages/postcss-processor/presets/tailwind-v3
  *
- * Requires: tailwindcss, postcss-import, autoprefixer, cssnano
- * Install: bun add tailwindcss postcss-import autoprefixer cssnano
+ * Install the peer: pnpm add -D tailwindcss@3
  */
 
 import autoprefixer from 'autoprefixer';

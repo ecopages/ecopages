@@ -1,7 +1,7 @@
 ---
 title: "Explicit Routing"
 description: "Take full control of application routes with explicit server-side routing."
-order: 4
+order: 5
 ---
 
 # Explicit Routing
@@ -43,9 +43,7 @@ await app.start();
 
 ## Rendering Views
 
-The `ctx.render()` method renders `eco.page` views from any route handler. The integration (React, Lit, KitaJS) is automatically detected based on the view's file extension at build time—no manual configuration required.
-
-Load views through the server-module transpiler so Node applies component-identity transforms. `ctx.renderServerModule()` is the usual choice inside route handlers:
+Route handlers render `eco.page` views with `ctx.renderServerModule(url, props)`. It loads the view through the server-module transpiler, which records the view's owning Integration (React, Lit, KitaJS, ...) from its file extension, so no configuration is needed:
 
 ```typescript
 app.get('/posts/:slug', async (ctx) => {
@@ -106,7 +104,10 @@ ctx.json(data, { status: 200, headers: {...} })
 // HTML response
 ctx.html('<h1>Hello</h1>', { status: 200 })
 
-// Full view with layout
+// Full view with layout, loaded from its file
+ctx.renderServerModule(new URL('./src/views/post.tsx', import.meta.url), props, { status: 200 })
+
+// Full view already loaded with ctx.importServerModule()
 ctx.render(View, props, { status: 200 })
 
 // View without layout
@@ -188,7 +189,7 @@ app.group(
 		r.get('/', async (ctx) => {
 			// ctx.session is fully typed automatically!
 			console.log(ctx.session.userId);
-			return ctx.render(AdminDashboard, { user: ctx.session.user });
+			return ctx.renderServerModule(new URL('./src/views/admin-dashboard.tsx', import.meta.url), { user: ctx.session.user });
 		});
 
 		r.post('/posts', async (ctx) => {
@@ -357,7 +358,7 @@ app.get('/posts/:slug', async (ctx) => {
 	if (!post) {
 		throw HttpError.NotFound('Post not found');
 	}
-	return ctx.render(PostView, post);
+	return ctx.renderServerModule(new URL('./src/views/post-view.tsx', import.meta.url), post);
 });
 ```
 

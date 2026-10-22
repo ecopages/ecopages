@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [[`711ae17`](https://github.com/ecopages/ecopages/commit/711ae174bab888f316d7de402174f95620558859), [`fd88c3a`](https://github.com/ecopages/ecopages/commit/fd88c3ab8a07a4c7248b6fbcd8d35a71cb176ac1), [`43e3d43`](https://github.com/ecopages/ecopages/commit/43e3d43d43e5fd585231c84f0f2c2690a2047ad4), [`4e4c1c4`](https://github.com/ecopages/ecopages/commit/4e4c1c4a6a55a0b4005e727274b8eb32665e7a5a), [`2db3a30`](https://github.com/ecopages/ecopages/commit/2db3a30bc9666b2896d30be3ec623602d2d488ea), [`9370261`](https://github.com/ecopages/ecopages/commit/9370261c7e68b321b6ccad5feec57e2b1a276857)]:
+    - @ecopages/core@0.4.0
+    - @ecopages/mdx@0.4.0
+    - @ecopages/file-system@0.4.0
+
 ## 0.3.2
 
 ### Patch Changes

@@ -8,29 +8,20 @@ order: 3
 
 Ecopages provides helpers for defining type-safe API handlers outside your main app file: `defineApiHandler` for individual routes, method-specific helpers such as `defineGet` and `definePost`, and `defineGroupHandler` for related routes that share a prefix and middleware.
 
-These helpers preserve full TypeScript inference for path parameters, middleware context, and request schemas.
+These helpers type the handler context from the route's middleware and request schema. Params are typed by `schema.params`, not by the `path` string.
 
 ## Why Use Define Helpers
 
-When defining handlers inline, TypeScript can infer types from context:
+A handler passed inline to `app.get()` takes its context type from that call. Extracted to a separate file as a plain function, it loses that type:
 
 ```typescript
-app.get('/api/posts/:id', async ({ params }) => {
-  const { id } = params; // TypeScript knows id exists
-  return Response.json({ id });
-});
-```
-
-However, when you extract handlers to separate files, you lose that inference:
-
-```typescript
-// handlers/blog.ts - Type inference is lost
-export const getPost = async ({ params }) => {
-  const { id } = params; // Error: params is { [x: string]: string }
+// handlers/blog.ts
+export const getPost = async ({ params }) => { // Error: Binding element 'params' implicitly has an 'any' type
+  const { id } = params;
 };
 ```
 
-The `defineApiHandler`, method helpers, and `defineGroupHandler` solve this by capturing the path literal type and middleware context at definition time.
+The `defineApiHandler`, method helpers, and `defineGroupHandler` give the handler its context type at definition time: the context its middleware adds, and `body`, `query`, `headers` and `params` typed from the route's `schema`.
 
 ## Method helpers
 
@@ -337,22 +328,31 @@ export const loginRedirect = defineGet({
 
 These helpers share the same body emission path as `context.response.json()` and `context.response.html()`.
 
-## Type Inference Details
+## Context Typing
 
-### Path Parameters
+### Params
 
-Path parameters are inferred from the literal path string:
+The `path` string selects the route's URL; it does not type `params`. Without a schema, `params` is `PageParams`, a record of strings with string arrays for catch-all segments, so any key type-checks. Declare `schema.params` to type and validate Params:
 
 ```typescript
+import { defineApiHandler } from '@ecopages/core';
+import { z } from 'zod';
+
 defineApiHandler({
   path: '/api/users/:userId/posts/:postId',
   method: 'GET',
-  handler: async ({ params }) => {
-    // params is typed as { userId: string; postId: string }
+  schema: {
+    params: z.object({ userId: z.string(), postId: z.string() }),
+  },
+  handler: async ({ params, response }) => {
+    // params is { userId: string; postId: string }
     const { userId, postId } = params;
+    return response.json({ userId, postId });
   },
 });
 ```
+
+Params that fail the schema get a 400 response before the handler runs. A route whose `schema` has no `params` field types `params` as `unknown`, so add `schema.params` whenever the handler reads Params.
 
 ### Middleware Context
 
@@ -385,7 +385,7 @@ When used with `defineGroupHandler`, all routes receive the extended context aut
 
 ```typescript
 // handlers/blog.ts
-import { defineApiHandler, defineGroupHandler } from '@ecopages/core';
+import { defineGet, defineGroupHandler } from '@ecopages/core';
 import { authMiddleware, type AuthenticatedContext } from '../middleware/auth';
 import { z } from 'zod';
 
@@ -397,6 +397,7 @@ const createPostSchema = {
 };
 
 const updatePostSchema = {
+  params: z.object({ id: z.string() }),
   body: z.object({
     title: z.string().min(1).optional(),
     content: z.string().optional(),

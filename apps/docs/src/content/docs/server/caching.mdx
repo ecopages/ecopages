@@ -104,18 +104,22 @@ You can manually invalidate cached pages locally or via an API handler using tag
 
 ### API Handler Example
 
+`services.cache` is `null` when caching is disabled, so guard it before use.
+
 ```typescript
-// src/api/revalidate.ts
-app.post('/api/revalidate', async ({ request, services }) => {
-	const { tags, paths } = await request.json();
+// src/pages/api/revalidate.api.ts
+import { definePost } from '@ecopages/core';
 
-	// Invalidate by tags
-	if (tags) await services.cache.invalidateByTags(tags);
+export const POST = definePost({
+	handler: async ({ request, services, response }) => {
+		if (!services.cache) return response.json({ revalidated: false });
 
-	// Invalidate by path
-	if (paths) await services.cache.invalidateByPaths(paths);
+		const { tags, paths } = await request.json();
+		if (tags) await services.cache.invalidateByTags(tags);
+		if (paths) await services.cache.invalidateByPaths(paths);
 
-	return Response.json({ revalidated: true });
+		return response.json({ revalidated: true });
+	},
 });
 ```
 

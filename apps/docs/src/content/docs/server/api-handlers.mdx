@@ -46,13 +46,13 @@ export const GET = defineGet({
 });
 ```
 
-An app with endpoint files and no `app.add()` call still builds a server bundle, so `ecopages start` runs it. The handler context below, schemas, middleware and `app.onError` work the same in both forms. See [Routing](/docs/core/routing#endpoint-files) for the file rules and [Define Handlers](/docs/server/define-handlers#endpoint-files) for a full example.
+The handler context below, schemas, middleware and `app.onError` work the same in both forms. See [Routing](/docs/core/routing#endpoint-files) for the file rules, including what the build and the server do with the files, and [Define Handlers](/docs/server/define-handlers#endpoint-files) for a full example.
 
 Use an endpoint file when the URL should mirror the folder tree or the handler lives beside a Page; use `app.get()` / `app.add()` for groups with a shared prefix and shared middleware, or URLs that end in a static file extension.
 
 ## Handler Context
 
-Every API handler function receives a `HandlerContext` object as its argument. This object provides access to essential information and utilities for handling the request and constructing the response.
+Every API handler function receives an `ApiHandlerContext` object as its argument. This object provides access to essential information and utilities for handling the request and constructing the response.
 
 ```typescript
 app.get('/api/example/:id', async ({ request, response, params }) => {
@@ -97,15 +97,14 @@ app.get(
 );
 ```
 
-The `HandlerContext` contains:
-
+The `ApiHandlerContext` contains:
 
 - `request`: The incoming Fetch `Request` object.
 	- Standard `Request` properties like `headers`, `method`, `url`, etc.
 	- Methods like `json()`, `text()`, `formData()` to parse the request body.
 - `params`: Route parameters parsed from the path (e.g., `:id` in `/api/users/:id`).
 - `response`: An instance of `ApiResponseBuilder`, a utility for constructing `Response` objects fluently.
-- `server`: The underlying Node `http.Server`, on Node and on Bun alike, which exposes utilities such as `address()`.
+- `server`: The Node `http.Server` once `app.start()` has bound it. Typed `unknown`, and `undefined` for an `app.fetch()` call made before `app.start()`; narrow it before use.
 - `body`: The request body validated by `schema.body` and typed from it. Unset without a body schema; read `request` instead.
 - `query`: The parsed query parameters. With `schema.query`, the validated output, typed from the schema.
 - `headers`: The request headers validated by `schema.headers` and typed from it. Unset without a headers schema; read `request.headers` instead.
@@ -113,16 +112,20 @@ The `HandlerContext` contains:
 
 ### Accessing the Server Instance
 
-You can use the `server` property in the handler context for advanced use cases. For example, to read the address the server is listening on:
+`server` is typed `unknown`, so narrow it with `instanceof Server` before calling Node APIs such as `address()`:
 
 ```typescript
+import { Server } from 'node:http';
+
 app.get('/api/hello', async ({ response, server }) => {
 	return response.json({
 		message: 'Hello world!',
-		listeningOn: server.address(),
+		listeningOn: server instanceof Server ? server.address() : null,
 	});
 });
 ```
+
+See [Server API](/docs/server/server-api#handler-context-accessing-the-server-instance) for when `server` is `undefined` and how `app.fetch()` behaves.
 
 ## The `ApiResponseBuilder`
 

@@ -84,6 +84,7 @@ For small projects or rapid prototyping, define everything inline in `app.ts`.
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
+import { z } from 'zod';
 import { db } from './src/db';
 
 const app = await createApp();
@@ -106,13 +107,17 @@ app.get('/posts/:slug', async (ctx) => {
 	return ctx.render(PostView, post);
 });
 
-app.post('/api/posts', async (ctx) => {
-	const { title, content } = ctx.body;
-	const post = await db.posts.create({
-		data: { title, content, status: 'draft' }
-	});
-	return ctx.json(post, { status: 201 });
-});
+app.post(
+	'/api/posts',
+	async (ctx) => {
+		const { title, content } = ctx.body;
+		const post = await db.posts.create({
+			data: { title, content, status: 'draft' }
+		});
+		return ctx.json(post, { status: 201 });
+	},
+	{ schema: { body: z.object({ title: z.string(), content: z.string() }) } },
+);
 
 await app.start();
 ```
@@ -181,7 +186,7 @@ export async function show(ctx: ApiHandlerContext) {
 }
 
 export async function create(ctx: ApiHandlerContext) {
-	const { title, content } = ctx.body;
+	const { title, content } = await ctx.request.json();
 	const post = await db.posts.create({
 		data: { title, content, status: 'draft' }
 	});
@@ -192,7 +197,7 @@ export async function update(ctx: ApiHandlerContext) {
 	const { slug } = ctx.params;
 	const post = await db.posts.update({
 		where: { slug },
-		data: ctx.body
+		data: await ctx.request.json()
 	});
 	return ctx.json(post);
 }
@@ -203,6 +208,8 @@ export async function destroy(ctx: ApiHandlerContext) {
 	return ctx.json({ deleted: true });
 }
 ```
+
+Without a `schema.body` on the route, `ctx.body` is unset, so these handlers read the request themselves. See [Define Handlers](/docs/server/define-handlers) to validate and type `body` from a schema.
 
 ```typescript
 // app.ts
@@ -293,7 +300,7 @@ export function createPostsHandlers(db: Database) {
 		},
 
 		create: async (ctx: ApiHandlerContext) => {
-			const { title, content } = ctx.body;
+			const { title, content } = await ctx.request.json();
 			const post = await db.posts.create({
 				data: { title, content, status: 'draft' }
 			});
@@ -440,9 +447,13 @@ export class PostsService {
 
 ```typescript
 // src/controllers/posts.controller.ts
-import type { ApiHandlerContext } from '@ecopages/core';
+import type { ApiHandlerContext, RouteHandlerContext } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
+import { z } from 'zod';
 import { PostsService } from '../services/posts.service';
+
+export const postParams = { params: z.object({ slug: z.string() }) };
+type PostContext = RouteHandlerContext<typeof postParams, ApiHandlerContext>;
 
 export class PostsController {
 	constructor(private postsService: PostsService) {}
@@ -453,7 +464,7 @@ export class PostsController {
 		return ctx.render(PostListView, { posts });
 	}
 
-	async show(ctx: ApiHandlerContext) {
+	async show(ctx: PostContext) {
 		const { default: PostView } = await import('../views/post');
 		const post = await this.postsService.findBySlug(ctx.params.slug);
 		if (!post) throw HttpError.NotFound('Post not found');
@@ -461,18 +472,18 @@ export class PostsController {
 	}
 
 	async create(ctx: ApiHandlerContext) {
-		const { title, content } = ctx.body;
+		const { title, content } = await ctx.request.json();
 		const post = await this.postsService.create({ title, content });
 		return ctx.json(post, { status: 201 });
 	}
 
-	async update(ctx: ApiHandlerContext) {
+	async update(ctx: PostContext) {
 		const { slug } = ctx.params;
-		const post = await this.postsService.update(slug, ctx.body);
+		const post = await this.postsService.update(slug, await ctx.request.json());
 		return ctx.json(post);
 	}
 
-	async destroy(ctx: ApiHandlerContext) {
+	async destroy(ctx: PostContext) {
 		const { slug } = ctx.params;
 		await this.postsService.delete(slug);
 		return ctx.json({ deleted: true });
@@ -480,10 +491,12 @@ export class PostsController {
 }
 ```
 
+`schema.params` is what types `ctx.params.slug` as a string; without it, a route parameter is `string | string[]` because a catch-all segment is an array.
+
 ```typescript
 // app.ts
 import { createApp } from '@ecopages/core/create-app';
-import { PostsController } from './src/controllers/posts.controller';
+import { PostsController, postParams } from './src/controllers/posts.controller';
 import { PostsService } from './src/services/posts.service';
 import { db } from './src/db';
 
@@ -493,10 +506,10 @@ const postsService = new PostsService(db);
 const postsController = new PostsController(postsService);
 
 app.get('/posts', (ctx) => postsController.index(ctx));
-app.get('/posts/:slug', (ctx) => postsController.show(ctx));
+app.get('/posts/:slug', (ctx) => postsController.show(ctx), { schema: postParams });
 app.post('/api/posts', (ctx) => postsController.create(ctx));
-app.patch('/api/posts/:slug', (ctx) => postsController.update(ctx));
-app.delete('/api/posts/:slug', (ctx) => postsController.destroy(ctx));
+app.patch('/api/posts/:slug', (ctx) => postsController.update(ctx), { schema: postParams });
+app.delete('/api/posts/:slug', (ctx) => postsController.destroy(ctx), { schema: postParams });
 
 await app.start();
 ```
@@ -652,9 +665,13 @@ export const postAdapter = {
 
 ```typescript
 // src/handlers/posts.ts
-import type { ApiHandlerContext } from '@ecopages/core';
+import type { ApiHandlerContext, RouteHandlerContext } from '@ecopages/core';
 import type { BlogService, PostAdapter } from '../types';
 import { HttpError } from '@ecopages/core/errors';
+import { z } from 'zod';
+
+export const postParams = { params: z.object({ slug: z.string() }) };
+type PostContext = RouteHandlerContext<typeof postParams, ApiHandlerContext>;
 
 export function createPostsHandlers(
 	service: BlogService,
@@ -668,7 +685,7 @@ export function createPostsHandlers(
 			return ctx.render(PostListView, { posts: viewData });
 		},
 
-		async show(ctx: ApiHandlerContext) {
+		async show(ctx: PostContext) {
 			const { default: PostView } = await import('../views/post');
 			const post = await service.getPostBySlug(ctx.params.slug);
 			if (!post) throw HttpError.NotFound('Post not found');
@@ -677,12 +694,12 @@ export function createPostsHandlers(
 		},
 
 		async createDraft(ctx: ApiHandlerContext) {
-			const { title, content, authorId } = ctx.body;
+			const { title, content, authorId } = await ctx.request.json();
 			const post = await service.createDraftPost({ title, content, authorId });
 			return ctx.json(post, { status: 201 });
 		},
 
-		async publish(ctx: ApiHandlerContext) {
+		async publish(ctx: PostContext) {
 			const { slug } = ctx.params;
 			const post = await service.publishPost(slug);
 			if (!post) throw HttpError.NotFound('Post not found');
@@ -697,7 +714,7 @@ export function createPostsHandlers(
 import { createApp } from '@ecopages/core/create-app';
 import { createBlogService } from './src/services/blog.service';
 import { postAdapter } from './src/adapters/post.adapter';
-import { createPostsHandlers } from './src/handlers/posts';
+import { createPostsHandlers, postParams } from './src/handlers/posts';
 import { db } from './src/db';
 
 const app = await createApp();
@@ -706,9 +723,9 @@ const blogService = createBlogService(db);
 const posts = createPostsHandlers(blogService, postAdapter);
 
 app.get('/posts', posts.index);
-app.get('/posts/:slug', posts.show);
+app.get('/posts/:slug', posts.show, { schema: postParams });
 app.post('/api/posts', posts.createDraft);
-app.post('/api/posts/:slug/publish', posts.publish);
+app.post('/api/posts/:slug/publish', posts.publish, { schema: postParams });
 
 await app.start();
 ```

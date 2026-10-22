@@ -108,17 +108,11 @@ const updateUserHandler = defineApiHandler({
 app.add(updateUserHandler);
 ```
 
-A request whose Params fail the schema gets a 400 response before the handler runs.
-
-### Benefits of Using `defineApiHandler`
-
-- Typed context: `params`, `body`, `query` and `headers` take the types of the matching `schema` fields.
-- Improved Readability: Keeps the handler definition concise.
-- Enhanced Organization: Encourages defining handlers as separate, reusable constants before registering them.
+A request whose Params fail the schema gets a 400 response before the handler runs. In the handler, `params`, `body`, `query` and `headers` take the types of the matching `schema` fields.
 
 ## Handler Context: Accessing the Server Instance
 
-For requests received through `app.start()`, the handler context's `server` property is the bound Node HTTP server. Its generic handler type is `unknown`, and it is `undefined` for `app.fetch()`, so narrow it before using Node APIs.
+Once `app.start()` has bound a server, the handler context's `server` property is that Node HTTP server. Its generic handler type is `unknown`, and it is `undefined` for an `app.fetch()` call made before `app.start()`, so narrow it before using Node APIs.
 
 ```typescript
 import { Server } from 'node:http';
@@ -136,7 +130,7 @@ app.get('/api/server', async ({ response, server }) => {
 ```
 
 
-Use `server` when a handler needs Node HTTP server state. A request sent through `app.fetch()` has no network server instance.
+Use `server` when a handler needs Node HTTP server state. `app.fetch()` does not bind one, so a request sent through it before `app.start()` has no server instance.
 
 ## Static Site Generation
 

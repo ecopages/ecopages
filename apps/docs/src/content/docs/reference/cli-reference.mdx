@@ -59,9 +59,11 @@ Starts the development server with restart-on-change behavior.
 
 ### `build`
 
-Generates a static production build of your project.
+Generates the production build of your project.
 
 - Pre-renders all static pages in `src/pages`.
+- Imports each endpoint file (`*.api.ts`, or `.api.tsx`, `.api.js`, `.api.jsx`) and checks its exports before bundling the server; a broken file fails the build, and `--keep-going` does not skip this check.
+- Bundles the server into `dist/.server/` when the app registers API or WebSocket handlers or has endpoint files.
 - Optimizes assets and images.
 - Outputs the build to the `dist` directory.
 - Strips development-only code.
@@ -90,7 +92,7 @@ Writes the types for virtual modules such as `ecopages:images` and `ecopages:con
 - It loads `eco.config.ts` (or the file given with `--config`), as `astro sync` does, and sets the processors up, so image optimization and the first PostCSS pass run too. Your entry file (`app.ts`) does not run.
 - Run it before the type checker: `"typecheck": "ecopages types && tsc --noEmit"`. The official templates ship that script.
 
-> **Note:** Commands that accept `[entry]` default to `app.ts` when omitted.
+> **Note:** The entry file defaults to `app.ts`; override it with `--entry-file <file>`. A positional entry argument is refused.
 
 ---
 
@@ -104,6 +106,7 @@ These flags are supported by server commands and map to environment variables.
 | `-n, --hostname <host>`    | `ECOPAGES_HOSTNAME`     | Server hostname                                           |
 | `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Public base URL                                           |
 | `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enable debug logs                                         |
+| `-e, --entry-file <file>`  | `ECOPAGES_ENTRY_FILE`   | Entry file (default `app.ts`); `start` runs the built bundle and `types` ignores it |
 | `-c, --config <file>`      | `ECOPAGES_CONFIG_FILE`  | Ecopages config file (default `eco.config.ts`)            |
 | `--runtime <runtime>`      | -                       | Force execution via `bun` or `node` |
 | `--dist-dir <dir>`         | -                       | `start` only: select the existing production output directory |

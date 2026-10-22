@@ -89,7 +89,7 @@ function createMockDependencies() {
 		port: 3000,
 	};
 
-	const Router = {} as RouteRegistry;
+	const Router = { templateRoutes: [] } as unknown as RouteRegistry;
 	const RouteRendererFactory = {} as StaticGenerationRendererResolver;
 	const logger: ServerStaticBuilderLogger = {
 		warn: (message: string, detail?: string) => {
@@ -476,6 +476,65 @@ describe('ServerStaticBuilder', () => {
 						(m) => m === 'Bundling server entry file...' || m === 'Reusing cached server entry bundle',
 					),
 				).toBe(false);
+			});
+
+			it('bundles the server entry when the registry holds an endpoint route and nothing else needs a server', async () => {
+				const { AppConfig, StaticSiteGenerator, ServeOptions, RouteRendererFactory, logger } =
+					createMockDependencies();
+				const distDir = setupBundleFixture('endpoint-route');
+				fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+				const appConfig = {
+					...AppConfig,
+					rootDir: tmpDir,
+					absolutePaths: { ...AppConfig.absolutePaths, distDir },
+				} as EcoPagesAppConfig;
+				const buildCalls = recordServerEntryBuilds(appConfig);
+				const router = {
+					templateRoutes: [
+						{ pathname: '/health', kind: 'exact', role: 'endpoint', filePath: 'health.api.ts' },
+					],
+				} as unknown as RouteRegistry;
+
+				const builder = new ServerStaticBuilder({
+					appConfig,
+					runtime: AppConfig.appRuntime!,
+					staticSiteGenerator: StaticSiteGenerator,
+					serveOptions: ServeOptions,
+					logger,
+				});
+
+				await builder.build(undefined, { router, routeRendererFactory: RouteRendererFactory });
+
+				assert.equal(buildCalls.length, 1);
+				assert.ok(fs.existsSync(path.join(distDir, '.server', 'manifest.json')));
+			});
+
+			it('skips the server entry when the registry holds only Pages', async () => {
+				const { AppConfig, StaticSiteGenerator, ServeOptions, RouteRendererFactory, logger } =
+					createMockDependencies();
+				const distDir = setupBundleFixture('page-route');
+				fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+				const appConfig = {
+					...AppConfig,
+					rootDir: tmpDir,
+					absolutePaths: { ...AppConfig.absolutePaths, distDir },
+				} as EcoPagesAppConfig;
+				const buildCalls = recordServerEntryBuilds(appConfig);
+				const router = {
+					templateRoutes: [{ pathname: '/about', kind: 'exact', role: 'page', filePath: 'about.tsx' }],
+				} as unknown as RouteRegistry;
+
+				const builder = new ServerStaticBuilder({
+					appConfig,
+					runtime: AppConfig.appRuntime!,
+					staticSiteGenerator: StaticSiteGenerator,
+					serveOptions: ServeOptions,
+					logger,
+				});
+
+				await builder.build(undefined, { router, routeRendererFactory: RouteRendererFactory });
+
+				assert.equal(buildCalls.length, 0);
 			});
 
 			it('throws when entry file does not exist', async () => {

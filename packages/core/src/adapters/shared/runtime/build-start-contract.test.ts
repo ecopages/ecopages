@@ -196,7 +196,7 @@ describe('build → start contract', () => {
 		});
 
 		await builder.build(undefined, {
-			router: {} as RouteRegistry,
+			router: { templateRoutes: [] } as unknown as RouteRegistry,
 			routeRendererFactory: {} as StaticGenerationRendererResolver,
 		});
 

@@ -61,4 +61,5 @@ The error-pages module owns semantic error-page source selection and rendering. 
 - An endpoint load error (no method export, or a method export that is not a handler, is built for another method, or sets `path`) is checked on request and resolves through `ApiRequestPipeline.handleError`. A method the file does not export answers 405 with an `Allow` header in `API_HANDLER_METHODS` order.
 - An Explicit Route on an endpoint's pathname logs one warning per registration and file pair. Each registry init checks, including a dev route refresh, and a pair already warned about is not repeated.
 - On Node, `attachNodeHttpWebSocketUpgrades` owns the unmatched-upgrade policy. `/_hmr` (dev only) and user routes are handled; anything else is destroyed.
+- The production build bundles the server entry when the app registers an Explicit Route or a WebSocket handler (`ServerStaticBuilderParams.needsServerBundle`, decided at adapter construction) or when the scanned Route Registry holds an endpoint Template Route (decided in `ServerStaticBuilder.build()`, which receives the registry, so the pages directory is scanned once).
 - HMR endpoints follow the `dev` flag only.

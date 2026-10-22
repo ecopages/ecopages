@@ -228,6 +228,12 @@ importers:
         specifier: ^19.2.6
         version: 19.2.8(react@19.2.8)
 
+  e2e/fixtures/endpoints-only:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+
   e2e/fixtures/html-pages:
     devDependencies:
       '@ecopages/browser-router':

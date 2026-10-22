@@ -113,7 +113,7 @@ function readServerBundleDeployManifest(serverDir: string): ServerBundleDeployMa
  * not, and need `--dist-dir`. Guessing between several would run a stale bundle from an earlier build
  * that used another `distDir`.
  *
- * Static-only apps (no API or WebSocket handlers) build no server bundle. When the selected output, or `dist`
+ * Static-only apps (no API handlers, WebSocket handlers or endpoint files) build no server bundle. When the selected output, or `dist`
  * when none is named, holds built HTML but no bundle, the error says so and points to `ecopages preview`
  * instead of asking for another build. A static-only build in a custom `distDir` needs `--dist-dir` to be
  * recognised.

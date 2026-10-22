@@ -1,0 +1,8 @@
+{
+	"name": "@ecopages/e2e-endpoints-only-app",
+	"private": true,
+	"type": "module",
+	"devDependencies": {
+		"@ecopages/core": "workspace:*"
+	}
+}

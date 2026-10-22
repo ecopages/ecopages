@@ -83,6 +83,11 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		use: { ...chrome, baseURL: 'http://localhost:4008' },
 	},
 	{
+		name: 'endpoints-only-e2e',
+		testMatch: 'e2e/fixtures/endpoints-only/**/*.test.e2e.ts',
+		use: { ...chrome, baseURL: 'http://localhost:4621' },
+	},
+	{
 		name: 'html-pages-e2e',
 		testMatch: 'e2e/fixtures/html-pages/**/*.test.e2e.ts',
 		testIgnore: ['e2e/fixtures/html-pages/**/*.dev.test.e2e.ts'],
@@ -183,6 +188,20 @@ const projectWebServers: ProjectWebServer[] = [
 			ECOPAGES_PORT: '4008',
 			ECOPAGES_PREVIEW_SERVE_ONLY: 'true',
 			ECOPAGES_CROSS_INTEGRATION_E2E: 'true',
+		},
+	},
+	{
+		projects: ['endpoints-only-e2e'],
+		command:
+			'node ../../../packages/ecopages/bin/cli.js build --runtime node && node ../../../packages/ecopages/bin/cli.js start --runtime node --port 4621 --dist-dir dist-endpoints-only-e2e',
+		cwd: 'e2e/fixtures/endpoints-only',
+		url: 'http://localhost:4621/health',
+		timeout: 180_000,
+		reuseExistingServer: !process.env.CI,
+		env: {
+			NODE_ENV: 'production',
+			ECOPAGES_PORT: '4621',
+			ECOPAGES_E2E_ARTIFACT_SCOPE: 'endpoints-only-e2e',
 		},
 	},
 	{

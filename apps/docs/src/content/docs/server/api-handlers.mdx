@@ -106,9 +106,9 @@ The `HandlerContext` contains:
 - `params`: Route parameters parsed from the path (e.g., `:id` in `/api/users/:id`).
 - `response`: An instance of `ApiResponseBuilder`, a utility for constructing `Response` objects fluently.
 - `server`: The underlying Node `http.Server`, on Node and on Bun alike, which exposes utilities such as `address()`.
-- `body`: The parsed and optionally validated request body. Automatically typed when using schemas.
-- `query`: Parsed and optionally validated query parameters. Automatically typed when using schemas.
-- `headers`: Parsed and optionally validated request headers. Automatically typed when using schemas.
+- `body`: The request body validated by `schema.body` and typed from it. Unset without a body schema; read `request` instead.
+- `query`: The parsed query parameters. With `schema.query`, the validated output, typed from the schema.
+- `headers`: The request headers validated by `schema.headers` and typed from it. Unset without a headers schema; read `request.headers` instead.
 - `services`: An object containing framework services like `cache`.
 
 ### Accessing the Server Instance

@@ -167,9 +167,9 @@ const logMiddleware: Middleware = async (ctx, next) => {
 Middleware can extend the request context with additional properties (like session data, user info, etc.). Use the `EcoMiddleware` helper type to define middleware that adds properties to the context:
 
 ```typescript
-import type { EcoMiddleware } from '@ecopages/core';
+import type { ApiHandlerContext, EcoMiddleware } from '@ecopages/core';
 
-const authMiddleware: EcoMiddleware<{ session: Session }> = async (ctx, next) => {
+const authMiddleware: EcoMiddleware<ApiHandlerContext & { session: Session }> = async (ctx, next) => {
 	const session = await getSession(ctx.request.headers);
 	if (!session) {
 		return Response.redirect('/login');
@@ -192,10 +192,7 @@ app.group(
 		});
 
 		r.post('/posts', async (ctx) => {
-			const post = await createPost({
-				...ctx.body,
-				authorId: ctx.session.userId
-			});
+			const post = await createPost({ authorId: ctx.session.userId });
 			return ctx.json(post);
 		});
 	},
@@ -212,6 +209,8 @@ app.post('/api/posts', createPost, {
 	middleware: [authMiddleware, logMiddleware]
 });
 ```
+
+In `app.get()` and its siblings the handler comes before `options`, so declare every middleware in the list as a `Middleware` or `EcoMiddleware` constant. One inline function in the `middleware` list makes the handler lose the context of every middleware in that list, constants included; the inline function itself is typed with the base context.
 
 ## Request Validation
 
@@ -244,7 +243,7 @@ app.post('/api/posts', async (ctx) => {
 | `headers` | Request headers | `ctx.headers` |
 | `params` | Route path parameters | `ctx.params` |
 
-These properties contain parsed data. When schemas are provided, they contain validated and type-safe data. For raw access, use `ctx.request.body`, `ctx.request.url`, and `ctx.request.headers`.
+Each target the schema declares holds the validated data, typed from the schema. A target the schema omits keeps its unvalidated value: `ctx.query` holds the parsed query string and `ctx.params` the matched Params, while `ctx.body` and `ctx.headers` are unset. For raw access, use `ctx.request.body`, `ctx.request.url`, and `ctx.request.headers`.
 
 ### Path Params Validation
 
@@ -480,11 +479,11 @@ import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
 import { PostView, PostListView } from './src/views';
-import type { EcoMiddleware } from '@ecopages/core';
+import type { ApiHandlerContext, EcoMiddleware } from '@ecopages/core';
 
 const app = await createApp();
 
-const authMiddleware: EcoMiddleware<{ session: Session }> = async (ctx, next) => {
+const authMiddleware: EcoMiddleware<ApiHandlerContext & { session: Session }> = async (ctx, next) => {
 	const session = await getSession(ctx.request.headers);
 	if (!session) throw HttpError.Unauthorized();
 	ctx.session = session;

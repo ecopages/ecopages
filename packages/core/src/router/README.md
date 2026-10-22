@@ -67,7 +67,7 @@ The public interface is intentionally small:
 - `templateRoutes` — ordered readonly template routes, each with its `role` and `kind`
 - `init()` / `reload()` — rebuild the template route list
 - `matchRequest(requestUrl)` — request-time matching result with requested pathname, matched template route, params, and query; endpoint routes match in the same order as Pages, so `api/[id].api.ts` wins `/api/5` over a `[...slug].tsx` Page; the server answers a matched endpoint through the API pipeline (`adapters/README.md`, Shared Request Contracts)
-- `listStaticPathExpansions()` — build-time expansion for dynamic `page` routes
+- `listStaticPathExpansions()` — build-time expansion for dynamic `page` routes; a Page with `cache: 'dynamic'` renders per request, so it is skipped and needs no `staticPaths`
 - `listStaticGenerationRoutes()` — build-time route planning for static generation across exact and expanded `page` routes
 
 Match priority:

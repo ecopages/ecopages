@@ -52,6 +52,10 @@ export class ServerRouteHandler {
 	 *    dotted route such as `/v1.2` still matches its Page
 	 * 3. Fall back to static file serving from disk
 	 *
+	 * @remarks
+	 * A matched endpoint route counts as no match: the request pipeline does not run endpoint
+	 * handlers yet, and rendering the file as a Page would be wrong.
+	 *
 	 * @param request - The incoming HTTP request
 	 * @returns HTTP response for the matched route
 	 */
@@ -76,7 +80,7 @@ export class ServerRouteHandler {
 			const fsMatch =
 				!ServerUtils.hasKnownStaticExtension(pathname) && this.router.matchRequest(request.url, pathSegments);
 
-			return await (fsMatch
+			return await (fsMatch && fsMatch.templateRoute.role === 'page'
 				? this.fileSystemResponseMatcher.handleMatch(fsMatch, request)
 				: this.handleNoMatch(request));
 		} catch (error) {

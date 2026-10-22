@@ -136,7 +136,7 @@ describe('Kita static export', () => {
 		].map(({ filePath, pathname, requestUrl }) => ({
 			requestUrl,
 			pathname,
-			templateRoute: { pathname, kind: 'exact' as const, filePath, paramNames: [] },
+			templateRoute: { pathname, kind: 'exact' as const, role: 'page' as const, filePath, paramNames: [] },
 			params: {},
 		})) satisfies StaticGenerationRoute[];
 

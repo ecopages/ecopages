@@ -11,23 +11,31 @@ import {
 	buildSegmentPath,
 	matchParsedSegmentPath,
 	parseSegmentPath,
+	segmentPathPatternKey,
 	type ParsedSegmentPath,
 } from './segment-path-matcher.ts';
 
 export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
+/**
+ * What a Template Route file declares: a Page rendered to HTML, or an endpoint file whose
+ * handler exports answer the request once the request pipeline runs them. Only `page` routes
+ * take part in static generation.
+ */
+export type RouteRole = 'page' | 'endpoint';
 export type RouteParams = PageParams;
 export type RouteQuery = PageQuery;
 
 export type TemplateRoute = {
 	readonly pathname: string;
 	readonly kind: RouteKind;
+	readonly role: RouteRole;
 	readonly filePath: string;
 	readonly paramNames: readonly string[];
 };
 
 export type RouteMatch = {
 	readonly requestedPathname: string;
-	readonly templateRoute: Pick<TemplateRoute, 'pathname' | 'kind' | 'filePath'> &
+	readonly templateRoute: Pick<TemplateRoute, 'pathname' | 'kind' | 'role' | 'filePath'> &
 		Partial<Pick<TemplateRoute, 'paramNames'>>;
 	readonly params: RouteParams;
 	readonly query: RouteQuery;
@@ -71,6 +79,12 @@ export type RouteRegistryOptions = {
 	pageModuleAdapter: RouteRegistryPageModuleAdapter;
 };
 
+/**
+ * Marks a file under the pages directory as an endpoint rather than a Page. It is never a
+ * template extension: an endpoint has no Integration owner, Layout or Cache Strategy.
+ */
+const ENDPOINT_EXTENSION = '.api.ts';
+
 const ROUTE_PRIORITY: Record<RouteKind, number> = {
 	exact: 0,
 	dynamic: 1,
@@ -102,6 +116,10 @@ export class RouteRegistry {
 
 	get templateRoutes(): readonly TemplateRoute[] {
 		return this.templateRouteList;
+	}
+
+	private get pageRoutes(): TemplateRoute[] {
+		return this.templateRouteList.filter((route) => route.role === 'page');
 	}
 
 	async init(): Promise<void> {
@@ -185,7 +203,7 @@ export class RouteRegistry {
 	async listStaticPathExpansions(input: { runtimeOrigin: string }): Promise<readonly StaticPathExpansion[]> {
 		const expansions: StaticPathExpansion[] = [];
 
-		for (const route of this.templateRouteList) {
+		for (const route of this.pageRoutes) {
 			if (route.kind === 'exact') {
 				continue;
 			}
@@ -226,7 +244,7 @@ export class RouteRegistry {
 		const staticPathExpansions = await this.listStaticPathExpansions(input);
 
 		return [
-			...this.templateRouteList
+			...this.pageRoutes
 				.filter((route) => route.kind === 'exact')
 				.map((route) => ({
 					requestUrl: `${input.runtimeOrigin}${route.pathname}`,
@@ -249,34 +267,42 @@ export class RouteRegistry {
 		}
 
 		const scannedFiles = await fileSystem.glob(
-			this.templatesExt.map((ext) => `**/*${ext}`),
+			[...this.templatesExt, ENDPOINT_EXTENSION].map((ext) => `**/*${ext}`),
 			{
 				cwd: this.pagesDir,
 			},
 		);
 
 		const templateRoutes: TemplateRoute[] = [];
-		const routeFiles = new Map<string, string>();
+		const routesByKey = new Map<string, { pathname: string; filePath: string }>();
 
 		for await (const file of scannedFiles) {
 			if (file.includes('.ecopages-node.')) {
 				continue;
 			}
 
-			const routePathname = this.getRoutePath(file);
+			const role: RouteRole = file.endsWith(ENDPOINT_EXTENSION) ? 'endpoint' : 'page';
+			const routePathname = this.getRoutePath(file, role);
 			const filePath = path.join(this.pagesDir, file);
 			const kind = this.classifyRouteKind(file);
 
-			const duplicateFile = routeFiles.get(routePathname);
-			if (duplicateFile === filePath) {
+			const routeKey = segmentPathPatternKey(routePathname, 'filesystem');
+			const duplicate = routesByKey.get(routeKey);
+			if (duplicate?.filePath === filePath) {
 				continue;
 			}
-			invariant(
-				duplicateFile === undefined,
-				`${duplicateFile} and ${filePath} both define the route "${routePathname}". Keep one of them.`,
-			);
-			routeFiles.set(routePathname, filePath);
-			const owner = kind === 'exact' ? undefined : findIntegrationForFile(this.appConfig.integrations, filePath);
+			if (duplicate) {
+				const route =
+					duplicate.pathname === routePathname
+						? `the route "${routePathname}"`
+						: `the same route, "${duplicate.pathname}" and "${routePathname}"`;
+				invariant(false, `${duplicate.filePath} and ${filePath} both define ${route}. Keep one of them.`);
+			}
+			routesByKey.set(routeKey, { pathname: routePathname, filePath });
+			const owner =
+				role === 'page' && kind !== 'exact'
+					? findIntegrationForFile(this.appConfig.integrations, filePath)
+					: undefined;
 			invariant(
 				owner?.acceptsParams !== false,
 				`${filePath}: ${findLongestExtension(owner?.extensions ?? [], filePath)} Pages cannot receive Params, so they cannot use dynamic route segments. Rename the file, or use an eco.page() Page from an Integration that supports staticPaths.`,
@@ -285,6 +311,7 @@ export class RouteRegistry {
 			templateRoutes.push({
 				pathname: routePathname,
 				kind,
+				role,
 				filePath,
 				paramNames: this.getParamNames(routePathname),
 			});
@@ -315,10 +342,13 @@ export class RouteRegistry {
 	/**
 	 * @remarks
 	 * Strips the longest template extension the file ends with, so `about.kita.tsx` keeps no
-	 * `.kita` part when `.tsx` is also registered, and `my.html-tips.html` keeps its name.
+	 * `.kita` part when `.tsx` is also registered, and `my.html-tips.html` keeps its name. An
+	 * endpoint strips its marker, so `users.api.ts` is `/users` even when `.ts` is a template
+	 * extension.
 	 */
-	private getRoutePath(file: string): string {
-		const extension = findLongestExtension(this.templatesExt, file) ?? '';
+	private getRoutePath(file: string, role: RouteRole): string {
+		const extension =
+			role === 'endpoint' ? ENDPOINT_EXTENSION : (findLongestExtension(this.templatesExt, file) ?? '');
 		const cleanedRoute = file.slice(0, file.length - extension.length).replace(/\/?index$/, '');
 
 		return normalizePathname(`/${cleanedRoute}`);

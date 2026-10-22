@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import { ServerRouteHandler } from '../../adapters/shared/runtime/server-route-handler.ts';
@@ -56,6 +56,7 @@ describe('RouteRegistry', () => {
 			{
 				pathname,
 				kind: pathname.includes('[...') ? 'catch-all' : 'dynamic',
+				role: 'page',
 				filePath: '/pages/example.ts',
 				paramNames: [],
 			},
@@ -115,7 +116,7 @@ describe('RouteRegistry', () => {
 		await registry.init();
 
 		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
-			{ pathname: '/page', kind: 'exact', filePath: '/pages/page.ts', paramNames: [] },
+			{ pathname: '/page', kind: 'exact', role: 'page', filePath: '/pages/page.ts', paramNames: [] },
 		];
 
 		const result = registry.matchRequest('http://localhost:3000/page?sort=asc&page=2');
@@ -131,8 +132,20 @@ describe('RouteRegistry', () => {
 		await registry.init();
 
 		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
-			{ pathname: '/blog/latest', kind: 'exact', filePath: '/pages/blog/latest.ts', paramNames: [] },
-			{ pathname: '/blog/[slug]', kind: 'dynamic', filePath: '/pages/blog/[slug].ts', paramNames: ['slug'] },
+			{
+				pathname: '/blog/latest',
+				kind: 'exact',
+				role: 'page',
+				filePath: '/pages/blog/latest.ts',
+				paramNames: [],
+			},
+			{
+				pathname: '/blog/[slug]',
+				kind: 'dynamic',
+				role: 'page',
+				filePath: '/pages/blog/[slug].ts',
+				paramNames: ['slug'],
+			},
 		];
 
 		const result = registry.matchRequest('http://localhost:3000/blog/latest');
@@ -179,11 +192,8 @@ describe('RouteRegistry', () => {
 		});
 
 		test('orders dynamic routes of the same shape by pathname', async () => {
-			await discoverInBothOrders(['[section]/[slug].ts', '[a]/[b].ts'], (registry) => {
-				expect(registry.templateRoutes.map((route) => route.pathname)).toEqual([
-					'/[a]/[b]',
-					'/[section]/[slug]',
-				]);
+			await discoverInBothOrders(['news/[id].ts', 'blog/[slug].ts'], (registry) => {
+				expect(registry.templateRoutes.map((route) => route.pathname)).toEqual(['/blog/[slug]', '/news/[id]']);
 			});
 		});
 	});
@@ -377,7 +387,13 @@ describe('RouteRegistry', () => {
 		await registry.init();
 
 		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
-			{ pathname: '/blog/[slug]', kind: 'dynamic', filePath: '/pages/blog/[slug].ts', paramNames: ['slug'] },
+			{
+				pathname: '/blog/[slug]',
+				kind: 'dynamic',
+				role: 'page',
+				filePath: '/pages/blog/[slug].ts',
+				paramNames: ['slug'],
+			},
 		];
 
 		const expansions = await registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' });
@@ -388,6 +404,7 @@ describe('RouteRegistry', () => {
 				templateRoute: {
 					pathname: '/blog/[slug]',
 					kind: 'dynamic',
+					role: 'page',
 					filePath: '/pages/blog/[slug].ts',
 					paramNames: ['slug'],
 				},
@@ -409,8 +426,14 @@ describe('RouteRegistry', () => {
 		await registry.init();
 
 		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
-			{ pathname: '/', kind: 'exact', filePath: '/pages/index.ts', paramNames: [] },
-			{ pathname: '/blog/[slug]', kind: 'dynamic', filePath: '/pages/blog/[slug].ts', paramNames: ['slug'] },
+			{ pathname: '/', kind: 'exact', role: 'page', filePath: '/pages/index.ts', paramNames: [] },
+			{
+				pathname: '/blog/[slug]',
+				kind: 'dynamic',
+				role: 'page',
+				filePath: '/pages/blog/[slug].ts',
+				paramNames: ['slug'],
+			},
 		];
 
 		const routes = await registry.listStaticGenerationRoutes({ runtimeOrigin: 'http://localhost:3000' });
@@ -422,6 +445,7 @@ describe('RouteRegistry', () => {
 				templateRoute: {
 					pathname: '/',
 					kind: 'exact',
+					role: 'page',
 					filePath: '/pages/index.ts',
 					paramNames: [],
 				},
@@ -433,11 +457,160 @@ describe('RouteRegistry', () => {
 				templateRoute: {
 					pathname: '/blog/[slug]',
 					kind: 'dynamic',
+					role: 'page',
 					filePath: '/pages/blog/[slug].ts',
 					paramNames: ['slug'],
 				},
 				params: { slug: 'hello-world' },
 			},
 		]);
+	});
+
+	describe('endpoint files', () => {
+		let pagesDir: string;
+
+		beforeEach(async () => {
+			pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-pages-'));
+		});
+
+		afterEach(async () => {
+			await fs.rm(pagesDir, { recursive: true, force: true });
+		});
+
+		const writePages = async (files: readonly string[]) => {
+			for (const file of files) {
+				const filePath = path.join(pagesDir, file);
+				await fs.mkdir(path.dirname(filePath), { recursive: true });
+				await fs.writeFile(filePath, '');
+			}
+		};
+
+		test('discovers an endpoint file once, as an endpoint route, even when .ts is a template extension', async () => {
+			await writePages(['api/users.api.ts']);
+			const registry = createRegistry({ pagesDir, templatesExt: ['.ts'] });
+			await registry.init();
+
+			expect(registry.templateRoutes).toEqual([
+				{
+					pathname: '/api/users',
+					kind: 'exact',
+					role: 'endpoint',
+					filePath: path.join(pagesDir, 'api/users.api.ts'),
+					paramNames: [],
+				},
+			]);
+			expect(registry.matchRequest('http://localhost:3000/api/users')?.templateRoute.role).toBe('endpoint');
+			expect(registry.matchRequest('http://localhost:3000/api/users.api')).toBeNull();
+		});
+
+		describe.each([['.html'], ['.ts']])('with templatesExt %p', (templateExtension) => {
+			test.each([
+				['api/users/index.api.ts', '/api/users', 'exact', [], '/api/users', {}],
+				['api/users/[id].api.ts', '/api/users/[id]', 'dynamic', ['id'], '/api/users/42', { id: '42' }],
+				[
+					'api/docs/[...slug].api.ts',
+					'/api/docs/[...slug]',
+					'catch-all',
+					['slug'],
+					'/api/docs/a/b',
+					{ slug: ['a', 'b'] },
+				],
+				['newsletter/subscribe.api.ts', '/newsletter/subscribe', 'exact', [], '/newsletter/subscribe', {}],
+			])('maps %p to the endpoint route %p', async (file, pathname, kind, paramNames, requestPath, params) => {
+				await writePages([file]);
+				const registry = createRegistry({ pagesDir, templatesExt: [templateExtension] });
+				await registry.init();
+
+				expect(registry.templateRoutes).toEqual([
+					{ pathname, kind, role: 'endpoint', filePath: path.join(pagesDir, file), paramNames },
+				]);
+				const match = registry.matchRequest(`http://localhost:3000${requestPath}`);
+				expect(match?.templateRoute.role).toBe('endpoint');
+				expect(match?.params).toEqual(params);
+			});
+		});
+
+		test('keeps a Page and an endpoint on different pathnames, with the endpoint in match priority', async () => {
+			await writePages(['blog/[slug].tsx', 'blog/[slug]/comments.api.ts', '[...path].tsx', 'api/users.api.ts']);
+			const registry = createRegistry({ pagesDir, templatesExt: ['.tsx'] });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => [route.pathname, route.role])).toEqual([
+				['/api/users', 'endpoint'],
+				['/blog/[slug]/comments', 'endpoint'],
+				['/blog/[slug]', 'page'],
+				['/[...path]', 'page'],
+			]);
+			expect(registry.matchRequest('http://localhost:3000/api/users')?.templateRoute.role).toBe('endpoint');
+			expect(registry.matchRequest('http://localhost:3000/api/other')?.templateRoute.pathname).toBe('/[...path]');
+		});
+
+		test.each([
+			['users.tsx', 'users.api.ts', '.tsx', ['/users']],
+			['users.ts', 'users.api.ts', '.ts', ['/users']],
+			['index.tsx', 'index.api.ts', '.tsx', ['/']],
+			['users.api.ts', 'users/index.api.ts', '.tsx', ['/users']],
+			['blog/[slug].tsx', 'blog/[id].api.ts', '.tsx', ['/blog/[slug]', '/blog/[id]']],
+			['x/[a].api.ts', 'x/[b].api.ts', '.tsx', ['/x/[a]', '/x/[b]']],
+			['[slug].tsx', '[id].tsx', '.tsx', ['/[slug]', '/[id]']],
+		])('rejects %p beside %p as one route', async (first, second, templateExtension, pathnames) => {
+			await writePages([first, second]);
+
+			const error = await createRegistry({ pagesDir, templatesExt: [templateExtension] })
+				.init()
+				.catch((reason: Error) => reason);
+
+			expect(error).toBeInstanceOf(Error);
+			const { message } = error as Error;
+			expect(message).toContain(path.join(pagesDir, first));
+			expect(message).toContain(path.join(pagesDir, second));
+			expect(message).toContain('Keep one of them.');
+			for (const pathname of pathnames) {
+				expect(message).toContain(`"${pathname}"`);
+			}
+		});
+
+		test('lets a dynamic endpoint through an Integration that refuses Params', async () => {
+			await writePages(['api/[id].api.ts']);
+			const withoutParams = (templatesExt: string[]) =>
+				createRegistry({
+					pagesDir,
+					templatesExt,
+					appConfig: {
+						...appConfig,
+						integrations: [{ name: 'plain', extensions: ['.ts'], acceptsParams: false }],
+					} as EcoPagesAppConfig,
+				});
+
+			await withoutParams(['.ts']).init();
+
+			await writePages(['[id].ts']);
+			await expect(withoutParams(['.ts']).init()).rejects.toThrow('.ts Pages cannot receive Params');
+		});
+
+		test('keeps endpoint routes out of static generation without loading their modules', async () => {
+			await writePages(['index.ts', 'blog/[slug].ts', 'api/users/[id].api.ts', 'api/health.api.ts']);
+			const loadPageModule = vi.fn(async () => ({
+				staticProps: {},
+				staticPaths: async () => ({ paths: [{ params: { slug: 'hello' } }] }),
+			}));
+			const registry = createRegistry({
+				pagesDir,
+				templatesExt: ['.ts'],
+				buildMode: true,
+				pageModuleAdapter: { loadPageModule },
+			});
+			await registry.init();
+
+			const expansions = await registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' });
+			const routes = await registry.listStaticGenerationRoutes({ runtimeOrigin: 'http://localhost:3000' });
+
+			expect(expansions.map((expansion) => expansion.pathname)).toEqual(['/blog/hello']);
+			expect(routes.map((route) => route.pathname)).toEqual(['/', '/blog/hello']);
+			expect(loadPageModule.mock.calls.flat()).toEqual([
+				path.join(pagesDir, 'blog/[slug].ts'),
+				path.join(pagesDir, 'blog/[slug].ts'),
+			]);
+		});
 	});
 });

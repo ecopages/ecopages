@@ -23,7 +23,7 @@ Extensions depend on your active integrations:
 - `.mdx` — [MDX](/docs/integrations/mdx)
 - `.html` — [HTML Pages](/docs/core/pages#html-pages), no integration needed
 
-Each route must come from exactly one file. For example, `about.html` next to `about.tsx`, or `about.tsx` next to `about/index.tsx`, is an error. HTML Pages cannot use dynamic segments such as `[slug].html`.
+Each route must come from exactly one file, whatever its parameter names. For example, `about.html` next to `about.tsx`, `about.tsx` next to `about/index.tsx`, or `blog/[slug].tsx` next to `blog/[id].tsx`, is an error. HTML Pages cannot use dynamic segments such as `[slug].html`.
 
 ### Index Routes
 

@@ -123,6 +123,7 @@ describe('StaticSiteGenerator', () => {
 							templateRoute: {
 								...value,
 								kind: 'exact' as const,
+								role: 'page' as const,
 								paramNames: [],
 							},
 							params: {},
@@ -452,6 +453,7 @@ describe('StaticSiteGenerator', () => {
 									filePath: '/src/pages/broken.tsx',
 									pathname: '/broken',
 									kind: 'exact' as const,
+									role: 'page' as const,
 									paramNames: [],
 								},
 								params: {},
@@ -463,6 +465,7 @@ describe('StaticSiteGenerator', () => {
 									filePath: '/src/pages/works.tsx',
 									pathname: '/works',
 									kind: 'exact' as const,
+									role: 'page' as const,
 									paramNames: [],
 								},
 								params: {},
@@ -534,6 +537,7 @@ describe('StaticSiteGenerator', () => {
 								filePath: '/src/pages/broken.tsx',
 								pathname: '/broken',
 								kind: 'exact' as const,
+								role: 'page' as const,
 								paramNames: [],
 							},
 							params: {},
@@ -545,6 +549,7 @@ describe('StaticSiteGenerator', () => {
 								filePath: '/src/pages/works.tsx',
 								pathname: '/works',
 								kind: 'exact' as const,
+								role: 'page' as const,
 								paramNames: [],
 							},
 							params: {},
@@ -670,6 +675,7 @@ describe('StaticSiteGenerator', () => {
 							templateRoute: {
 								pathname: '/',
 								kind: 'exact' as const,
+								role: 'page' as const,
 								filePath: '/src/pages/index.tsx',
 								paramNames: [],
 							},
@@ -681,6 +687,7 @@ describe('StaticSiteGenerator', () => {
 							templateRoute: {
 								pathname: '/admin',
 								kind: 'exact' as const,
+								role: 'page' as const,
 								filePath: '/src/pages/admin.tsx',
 								paramNames: [],
 							},
@@ -764,6 +771,7 @@ describe('StaticSiteGenerator', () => {
 							templateRoute: {
 								pathname: '/',
 								kind: 'exact' as const,
+								role: 'page' as const,
 								filePath: '/src/pages/index.tsx',
 								paramNames: [],
 							},
@@ -775,6 +783,7 @@ describe('StaticSiteGenerator', () => {
 							templateRoute: {
 								pathname: '/draft',
 								kind: 'exact' as const,
+								role: 'page' as const,
 								filePath: '/src/pages/draft.tsx',
 								paramNames: [],
 							},
@@ -786,6 +795,7 @@ describe('StaticSiteGenerator', () => {
 							templateRoute: {
 								pathname: '/broken',
 								kind: 'exact' as const,
+								role: 'page' as const,
 								filePath: '/src/pages/broken.tsx',
 								paramNames: [],
 							},

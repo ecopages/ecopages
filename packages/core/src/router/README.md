@@ -10,7 +10,7 @@ The router layer determines what route is being handled and how the client runti
 
 It is responsible for:
 
-- filesystem route discovery and classification (`exact`, `dynamic`, `catch-all`)
+- filesystem route discovery, with a role (`page`, `endpoint`) and a kind (`exact`, `dynamic`, `catch-all`) per route
 - matching incoming request URLs to canonical template routes
 - server-side static-path expansion for dynamic template routes
 - client-side navigation ownership and cross-runtime handoff
@@ -41,17 +41,22 @@ router/
 
 Owns the canonical set of filesystem-discovered template routes for one application.
 
-File patterns determine route kind:
+File patterns determine route role and kind:
 
-| Pattern         | Kind        | Example           |
-| --------------- | ----------- | ----------------- |
-| `page.tsx`      | `exact`     | `/about`          |
-| `[slug].tsx`    | `dynamic`   | `/blog/[slug]`    |
-| `[...slug].tsx` | `catch-all` | `/docs/[...slug]` |
+| Pattern            | Role       | Kind        | Example               |
+| ------------------ | ---------- | ----------- | --------------------- |
+| `about.tsx`        | `page`     | `exact`     | `/about`              |
+| `[slug].tsx`       | `page`     | `dynamic`   | `/blog/[slug]`        |
+| `[...slug].tsx`    | `page`     | `catch-all` | `/docs/[...slug]`     |
+| `users.api.ts`     | `endpoint` | `exact`     | `/api/users`          |
+| `[id].api.ts`      | `endpoint` | `dynamic`   | `/api/users/[id]`     |
+| `[...slug].api.ts` | `endpoint` | `catch-all` | `/api/docs/[...slug]` |
 
 Route paths drop the longest registered extension the file ends with, so `about.kita.tsx` becomes `/about` and `v1.2.html` becomes `/v1.2`. Route kinds come from the path inside the pages directory, so brackets in the project path do not make routes dynamic.
 
-Discovery rejects two Page files that produce the same template route (for example `about.html` with `about.tsx` or `about/index.html`) and dynamic filenames such as `[slug].html` whose owning Integration sets `acceptsParams` to `false` (HTML Pages do, because they have no `staticPaths` source).
+A file named `*.api.ts` is an endpoint, discovered by the same scan with `.api.ts` as the dropped marker and `index` stripped like a Page: `api/users/index.api.ts` is `/api/users`, `newsletter/subscribe.api.ts` is `/newsletter/subscribe`, and `api/` is not reserved. The marker is never a template extension, so `users.api.ts` is `/users` and not the Page `/users.api` even when `.ts` is registered. An endpoint has no Integration owner, Layout, Cache Strategy or `staticPaths`: its dynamic segments need no `acceptsParams`, and `listStaticPathExpansions()`, `listStaticGenerationRoutes()`, the sitemap and the browser-graph prebuild read `page` routes only. Like a Page, an endpoint whose pathname ends in a known static extension (`report.json.api.ts`) is never served: the server skips the registry for such paths.
+
+Discovery rejects two files that produce the same route, whatever the parameter names (for example `about.html` with `about.tsx` or `about/index.html`, `users.tsx` with `users.api.ts`, or `blog/[slug].tsx` with `blog/[id].api.ts`); the error names both files, and both pathnames when they differ. `segmentPathPatternKey()` is the one definition of "same route". Discovery also rejects dynamic Page filenames such as `[slug].html` whose owning Integration sets `acceptsParams` to `false` (HTML Pages do, because they have no `staticPaths` source).
 
 The registry stores canonical template routes only. `matchRequest()` parses each template route's pattern against the request pathname on every call; nothing is precompiled during `init()` or `reload()`. The registry does not execute `staticPaths()` during discovery.
 
@@ -59,11 +64,11 @@ Build-time static expansion is a separate operation. The registry invokes `stati
 
 The public interface is intentionally small:
 
-- `templateRoutes` — ordered readonly template routes
+- `templateRoutes` — ordered readonly template routes, each with its `role` and `kind`
 - `init()` / `reload()` — rebuild the template route list
-- `matchRequest(requestUrl)` — request-time matching result with requested pathname, matched template route, params, and query
-- `listStaticPathExpansions()` — build-time expansion for dynamic routes
-- `listStaticGenerationRoutes()` — build-time route planning for static generation across exact and expanded routes
+- `matchRequest(requestUrl)` — request-time matching result with requested pathname, matched template route, params, and query; endpoint routes match in the same order as Pages, so `api/[id].api.ts` wins `/api/5` over a `[...slug].tsx` Page; the server answers a matched endpoint as no match until the request pipeline runs endpoint handlers
+- `listStaticPathExpansions()` — build-time expansion for dynamic `page` routes
+- `listStaticGenerationRoutes()` — build-time route planning for static generation across exact and expanded `page` routes
 
 Match priority:
 

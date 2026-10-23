@@ -47,38 +47,42 @@ describe('EcoRouter programmatic navigation', () => {
 
 	it('pushes a history entry and updates the URL', async () => {
 		const { router } = await mountRouter();
-		const lengthBefore = window.history.length;
+		const pushState = vi.spyOn(window.history, 'pushState');
 
 		await router().navigate('/about?tab=team#section');
 
 		await waitUntil(() => expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: '/about' }));
+		await waitUntil(() => expect(pushState).toHaveBeenCalledOnce());
 		expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe(
 			'/about?tab=team#section',
 		);
-		expect(window.history.length).toBe(lengthBefore + 1);
+		expect(pushState.mock.calls.map(([, , href]) => href)).toEqual(['/about?tab=team#section']);
 	});
 
 	it('replaces the current history entry when asked to', async () => {
 		const { router } = await mountRouter();
-		const lengthBefore = window.history.length;
+		const pushState = vi.spyOn(window.history, 'pushState');
+		const replaceState = vi.spyOn(window.history, 'replaceState');
 
 		await router().navigate('/about', { replace: true });
 
 		await waitUntil(() => expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: '/about' }));
+		await waitUntil(() => expect(replaceState).toHaveBeenCalled());
 		expect(window.location.pathname).toBe('/about');
-		expect(window.history.length).toBe(lengthBefore);
+		expect(pushState).not.toHaveBeenCalled();
 	});
 
 	it('renders the previous page on back without adding a history entry', async () => {
 		const { router } = await mountRouter();
+		const pushState = vi.spyOn(window.history, 'pushState');
 		await router().navigate('/about');
 		await waitUntil(() => expect(window.location.pathname).toBe('/about'));
-		const lengthAfterPush = window.history.length;
+		await waitUntil(() => expect(pushState).toHaveBeenCalledOnce());
 
 		window.history.back();
 
 		await waitUntil(() => expect(window.location.pathname).toBe('/'));
 		await waitUntil(() => expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: '/' }));
-		expect(window.history.length).toBe(lengthAfterPush);
+		expect(pushState).toHaveBeenCalledOnce();
 	});
 });

@@ -35,3 +35,38 @@ test('renders an edited content entry without a reload or restarting the dev ser
 		fs.writeFileSync(postFile, originalPost);
 	}
 });
+
+test('HMR of a collection Page keeps the loaded entry without showing the fallback @hmr', async ({ page, app }) => {
+	const pageFile = path.join(app.dir, 'src/pages/posts/[slug].react.tsx');
+	const originalPage = fs.readFileSync(pageFile, 'utf8');
+	try {
+		await page.addInitScript(() => {
+			const timeline = { fallbackShown: false };
+			(window as Window & { __postPageHmr?: { fallbackShown: boolean } }).__postPageHmr = timeline;
+			new MutationObserver(() => {
+				if (document.querySelector('[data-testid="post-loading"]')) timeline.fallbackShown = true;
+			}).observe(document.documentElement, { childList: true, subtree: true });
+		});
+		const hmrReady = startEcopagesHmrConnectionWatch(page);
+		await gotoPathSimple(page, '/posts/first-post');
+		await hmrReady;
+		await expect(page.getByTestId('post-content-first-post')).toBeVisible();
+		await page.evaluate(() => {
+			(window as Window & { __keptDocument?: boolean }).__keptDocument = true;
+		});
+
+		fs.writeFileSync(pageFile, originalPage.replace('← Back to React Content', '← Back after Page HMR'));
+		await expect(page.getByTestId('back-link')).toContainText('Back after Page HMR', {
+			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+		});
+		await expect(page.getByTestId('post-content-first-post')).toBeVisible();
+		expect(
+			await page.evaluate(
+				() => (window as Window & { __postPageHmr?: { fallbackShown: boolean } }).__postPageHmr?.fallbackShown,
+			),
+		).toBe(false);
+		expect(await page.evaluate(() => (window as Window & { __keptDocument?: boolean }).__keptDocument)).toBe(true);
+	} finally {
+		fs.writeFileSync(pageFile, originalPage);
+	}
+});

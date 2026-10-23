@@ -204,7 +204,7 @@ Return `getEntryDependencies` alone when the Page has no relative assets of its 
 
 ### Hydratable React Pages
 
-When a React Page must keep the MDX component in its hydrated tree, create one lazy component per slug from the `/component` loader and render it inside a `<Suspense>` boundary. The server waits for the entry and sends it in the HTML; hydration keeps that HTML until the browser has loaded the entry. `getEntryDependencies()` remains server-only and is stripped from the Page Browser Graph.
+When a React Page must keep the MDX component in its hydrated tree, create one lazy component per slug from the `/component` loader and render it inside a `<Suspense>` boundary. The server waits for the entry and sends it in the HTML; hydration keeps that HTML until the browser has loaded the entry. `getEntryDependencies()` remains server-only and is stripped from the Page Browser Graph. In development, HMR of the Page module keeps the already-loaded entry on screen. An edited MDX file still updates without a document reload.
 
 ```tsx
 import { Suspense } from 'react';

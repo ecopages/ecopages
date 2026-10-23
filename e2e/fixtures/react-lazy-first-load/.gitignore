@@ -1,0 +1,4 @@
+/node_modules
+.eco
+dist
+.DS_Store

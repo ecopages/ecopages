@@ -42,7 +42,7 @@
 		"test:bench:startup:baseline": "pnpm --filter @ecopages/kitchen-sink exec tsx bench/startup/consolidate-baseline.ts",
 		"test:bench:startup:compare": "ECOPAGES_BENCH=1 node playground/kitchen-sink/bench/startup/run.mjs && pnpm --filter @ecopages/kitchen-sink exec tsx bench/startup/compare-baseline.ts",
 		"test:e2e": "playwright test",
-		"test:e2e:pr": "ECOPAGES_E2E_PR=true playwright test --project=browser-router-e2e --project=core-hmr-dev-e2e --project=core-hmr-postcss-dev-e2e --project=cross-integration-dev-e2e --project=cross-integration-bun-parity-e2e --project=cross-integration-bun-build-e2e --project=cross-integration-hmr-node-e2e --project=cross-integration-preview-e2e --project=endpoints-only-e2e --project=html-pages-e2e --project=html-pages-dev-e2e --project=react-router-runtime-modules-e2e --project=react-router-persist-layouts-dev-e2e",
+		"test:e2e:pr": "ECOPAGES_E2E_PR=true playwright test --project=browser-router-e2e --project=core-hmr-dev-e2e --project=core-hmr-postcss-dev-e2e --project=cross-integration-dev-e2e --project=cross-integration-bun-parity-e2e --project=cross-integration-bun-build-e2e --project=cross-integration-hmr-node-e2e --project=cross-integration-preview-e2e --project=endpoints-only-e2e --project=html-pages-e2e --project=html-pages-dev-e2e --project=react-router-runtime-modules-e2e --project=react-router-persist-layouts-dev-e2e --project=react-lazy-first-load-e2e",
 		"test:e2e:docs": "playwright test --config=playwright.docs.config.ts",
 		"test:e2e:ui": "playwright test --ui",
 		"test:gate": "pnpm run test:vitest && playwright test --project=cross-integration-dev-e2e --grep='@stress'",

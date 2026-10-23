@@ -38,6 +38,8 @@ Kitchen-sink HMR uses one app copy per worker, so source-mutating tests can run 
 
 Add the spec beside its fixture and add the project to the explicit array in `playwright.config.ts`. Put docs site browser checks in the docs config. Use `e2e/app-fixture.ts` when a dev test mutates source files or needs a private dev server; use `webServer` for shared static and preview servers.
 
+`react-lazy-first-load-e2e` (`explicitGraph`, no router) and kitchen-sink `content-lazy.test.e2e.ts` pin first hydration when a `React.lazy` chunk fails: fail-once is not retried by a document reload and the Page is discarded; always-fail leaves the Page testids gone; a Page-level error boundary keeps the rest of the Page and shows the fallback.
+
 Vitest covers unit and browser-level behavior through `pnpm test:vitest`. Playwright covers behavior that needs the wired app and a real browser. On pull requests, repository CI runs `test:ci:fast` alongside the four-shard `test:e2e` suite. Pushes to `develop` and `main` run the sharded E2E suite. Docs e2e runs separately when a pull request or push changes its selected paths.
 
 `pnpm test:e2e:ui` opens Playwright's UI. Tests run headless by default; use `playwright test --headed` or `--debug` for local inspection. Inherited `PWDEBUG` is stripped unless `--debug` is present.

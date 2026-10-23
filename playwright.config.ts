@@ -119,6 +119,16 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 			appOptions: { source: 'e2e/fixtures/react-router', env: { ECOPAGES_PERSIST_LAYOUTS: 'true' } },
 		},
 	},
+	{
+		name: 'react-lazy-first-load-e2e',
+		testMatch: 'e2e/fixtures/react-lazy-first-load/**/*.test.e2e.ts',
+		timeout: 60_000,
+		workers: 1,
+		use: {
+			...chrome,
+			appOptions: { source: 'e2e/fixtures/react-lazy-first-load' },
+		},
+	},
 ];
 
 type ProjectWebServer = {

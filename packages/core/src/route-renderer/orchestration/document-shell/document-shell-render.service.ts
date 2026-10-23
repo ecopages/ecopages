@@ -5,9 +5,6 @@ import type {
 	PageMetadataProps,
 } from '../../../types/contracts.ts';
 import type { InternalComponentRenderInput } from '../../../config/internal-types.ts';
-import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
-import { getComponentOwner } from '../../../eco/component-identity.ts';
-import { HtmlTransformerService, type HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
 import { getComponentRenderContext } from '../../../eco/component-render-context.ts';
 import type { RouteRenderContextState } from '../foreign-child/render-session.ts';
 
@@ -28,14 +25,6 @@ export type DocumentShellComposeChildrenContext = {
 export type DocumentShellComposeChildrenResult = {
 	/** Serialized or element children passed to the HTML template shell. */
 	children: unknown;
-	layoutRenders: ComponentRenderResult[];
-	/**
-	 * Primary/page render assets when the hook performs unified composition.
-	 *
-	 * @remarks
-	 * Omit only when the default sequential string path runs (core renders primary first).
-	 */
-	primaryRender?: ComponentRenderResult;
 };
 
 /**
@@ -43,14 +32,13 @@ export type DocumentShellComposeChildrenResult = {
  *
  * @remarks
  * When provided, core skips the initial primary render and expects the hook to return
- * `children` for the HTML template. Supply `primaryRender` so dependency assets still merge.
+ * `children` for the HTML template.
  */
 export type DocumentShellComposeChildrenHook = (
 	context: DocumentShellComposeChildrenContext,
 ) => Promise<DocumentShellComposeChildrenResult>;
 
 export type DocumentShellComposeInput = {
-	inheritedOwner: string;
 	primaryComponent: EcoComponent;
 	primaryProps: Record<string, unknown>;
 	/** Components whose ownership graphs must join the foreign-child decision. */
@@ -63,7 +51,6 @@ export type DocumentShellComposeInput = {
 };
 
 export type DocumentShellPageRenderInput = {
-	inheritedOwner: string;
 	page: {
 		component: EcoComponent;
 		props: Record<string, unknown>;
@@ -82,12 +69,6 @@ export type DocumentShellPageRenderInput = {
 
 export type DocumentShellRenderDependencies = {
 	renderComponentWithForeignChildren(input: InternalComponentRenderInput): Promise<ComponentRenderResult>;
-	appendProcessedDependencies(...assetGroups: Array<readonly ProcessedAsset[] | undefined>): ProcessedAsset[];
-};
-
-export type DocumentShellAttributeStamping = {
-	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string;
-	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string;
 };
 
 function resolveDocumentShellLayouts(
@@ -98,10 +79,6 @@ function resolveDocumentShellLayouts(
 	}
 
 	return input.layout ? [input.layout] : [];
-}
-
-function resolveComponentIntegrationName(component: EcoComponent, inheritedOwner: string): string {
-	return getComponentOwner(component, inheritedOwner);
 }
 
 /**
@@ -115,7 +92,6 @@ export async function composeSequentialLayoutChildren(
 	}
 
 	let children: unknown = context.primaryRender.html;
-	const layoutRenders: ComponentRenderResult[] = [];
 
 	for (const layout of [...context.layouts].reverse()) {
 		const layoutRender = await context.renderComponentWithForeignChildren({
@@ -124,14 +100,10 @@ export async function composeSequentialLayoutChildren(
 			children,
 			integrationContext: { rendererCache: context.rendererCache },
 		});
-		layoutRenders.push(layoutRender);
 		children = layoutRender.html;
 	}
 
-	return {
-		children,
-		layoutRenders,
-	};
+	return { children };
 }
 
 /**
@@ -147,47 +119,24 @@ export async function composeDocumentShell(
 	const rendererCache = (getComponentRenderContext<RouteRenderContextState>()?.renderState?.session?.rendererCache ??
 		new Map<string, unknown>()) as BaseIntegrationContext['rendererCache'];
 	const layouts = resolveDocumentShellLayouts(input);
-	const composeChildren = input.composeChildren ?? composeSequentialLayoutChildren;
-	const usesCustomComposeChildren = input.composeChildren !== undefined;
-
-	let primaryRender: ComponentRenderResult;
-	let children: unknown;
-	let layoutRenders: ComponentRenderResult[];
-
-	if (usesCustomComposeChildren) {
-		const composed = await composeChildren({
-			primaryComponent: input.primaryComponent,
-			primaryProps: input.primaryProps,
-			layouts,
-			rendererCache,
-			renderComponentWithForeignChildren: dependencies.renderComponentWithForeignChildren,
-		});
-		children = composed.children;
-		layoutRenders = composed.layoutRenders;
-		primaryRender = composed.primaryRender ?? {
-			html: typeof composed.children === 'string' ? composed.children : '',
-			assets: [],
-			canAttachAttributes: true,
-			integrationName: resolveComponentIntegrationName(input.primaryComponent, input.inheritedOwner),
-		};
-	} else {
-		primaryRender = await dependencies.renderComponentWithForeignChildren({
-			component: input.primaryComponent,
-			props: input.primaryProps,
-			foreignChildRoots: input.foreignChildRoots,
-			integrationContext: { rendererCache },
-		});
-		const composed = await composeChildren({
-			primaryComponent: input.primaryComponent,
-			primaryProps: input.primaryProps,
-			primaryRender,
-			layouts,
-			rendererCache,
-			renderComponentWithForeignChildren: dependencies.renderComponentWithForeignChildren,
-		});
-		children = composed.children;
-		layoutRenders = composed.layoutRenders;
-	}
+	const composeContext = {
+		primaryComponent: input.primaryComponent,
+		primaryProps: input.primaryProps,
+		layouts,
+		rendererCache,
+		renderComponentWithForeignChildren: dependencies.renderComponentWithForeignChildren,
+	};
+	const { children } = input.composeChildren
+		? await input.composeChildren(composeContext)
+		: await composeSequentialLayoutChildren({
+				...composeContext,
+				primaryRender: await dependencies.renderComponentWithForeignChildren({
+					component: input.primaryComponent,
+					props: input.primaryProps,
+					foreignChildRoots: input.foreignChildRoots,
+					integrationContext: { rendererCache },
+				}),
+			});
 	const documentRender = await dependencies.renderComponentWithForeignChildren({
 		component: input.htmlTemplate,
 		props: input.documentProps,
@@ -195,40 +144,9 @@ export async function composeDocumentShell(
 		integrationContext: { rendererCache },
 	});
 
-	dependencies.appendProcessedDependencies(
-		primaryRender.assets,
-		...layoutRenders.map((layoutRender) => layoutRender.assets),
-		documentRender.assets,
-	);
-
 	return {
 		documentHtml: documentRender.html,
 	};
-}
-
-/**
- * Applies optional component-root and document-root attribute stamping before HTML
- * transformation runs on explicit renderer-owned paths.
- */
-export function applyDocumentShellAttributeStamping(
-	html: string,
-	stamping: DocumentShellAttributeStamping,
-	options: {
-		componentRootAttributes?: Record<string, string>;
-		documentAttributes?: Record<string, string>;
-	},
-): string {
-	let nextHtml = html;
-
-	if (options.componentRootAttributes && Object.keys(options.componentRootAttributes).length > 0) {
-		nextHtml = stamping.applyAttributesToFirstBodyElement(nextHtml, options.componentRootAttributes);
-	}
-
-	if (options.documentAttributes && Object.keys(options.documentAttributes).length > 0) {
-		nextHtml = stamping.applyAttributesToHtmlElement(nextHtml, options.documentAttributes);
-	}
-
-	return nextHtml;
 }
 
 /**
@@ -240,7 +158,6 @@ export async function renderPageDocumentShell(
 	docType: string,
 ): Promise<string> {
 	const { documentHtml: composedDocumentHtml } = await composeDocumentShell(dependencies, {
-		inheritedOwner: input.inheritedOwner,
 		primaryComponent: input.page.component,
 		primaryProps: input.page.props,
 		foreignChildRoots: input.foreignChildRoots,
@@ -260,49 +177,4 @@ export async function renderPageDocumentShell(
 		: composedDocumentHtml;
 
 	return `${docType}${documentHtml}`;
-}
-
-/**
- * Finalizes already-resolved HTML for explicit renderer-owned paths.
- *
- * @remarks
- * Callers append renderer bootstrap dependencies before invoking this helper.
- * Stamps document/root attributes and runs HTML transformation after nested
- * foreign-subtree resolution without routing back through shared route execution.
- */
-export async function finalizeDocumentShellHtml(
-	htmlTransformer: HtmlTransformerService,
-	options: {
-		html: string;
-		partial?: boolean;
-		componentRootAttributes?: Record<string, string>;
-		documentAttributes?: Record<string, string>;
-		transformHtml?: boolean;
-		htmlContributions?: HtmlDocumentContribution[];
-	},
-): Promise<string> {
-	const html = applyDocumentShellAttributeStamping(
-		options.html,
-		{
-			applyAttributesToFirstBodyElement: (nextHtml, attributes) =>
-				htmlTransformer.applyAttributesToFirstBodyElement(nextHtml, attributes),
-			applyAttributesToHtmlElement: (nextHtml, attributes) =>
-				htmlTransformer.applyAttributesToHtmlElement(nextHtml, attributes),
-		},
-		{
-			componentRootAttributes: options.componentRootAttributes,
-			documentAttributes: options.documentAttributes,
-		},
-	);
-
-	const shouldTransform = options.transformHtml ?? !options.partial;
-	if (!shouldTransform) {
-		return html;
-	}
-
-	const context = getComponentRenderContext<RouteRenderContextState>()?.renderState;
-	return htmlTransformer.injectPageAssets(html, {
-		contributions: options.htmlContributions,
-		pagePackage: context?.session?.pagePackage,
-	});
 }

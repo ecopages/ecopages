@@ -28,7 +28,7 @@ type BuildEntry = {
 	entrypoint: string;
 	dependencies: AssetDefinition[];
 	dependencyRoutes: Map<AssetDefinition, Set<string>>;
-	pageClientRoutes: Map<string, { dependency: AssetDefinition; routes: Map<string, string | undefined> }>;
+	pageClientRoutes: Map<string, { dependency: AssetDefinition; routes: Set<string> }>;
 	cleanup?: () => void;
 };
 
@@ -416,7 +416,6 @@ function registerPageClientEntry(
 	if (!canBundle(dependency)) {
 		instance.prebuiltPageClientBrowserAssets ??= {
 			processedAssets: [],
-			islandRenderAssetsByFile: new Map(),
 			fallbackDependencies: [],
 		};
 		instance.prebuiltPageClientBrowserAssets.fallbackDependencies.push({
@@ -439,9 +438,9 @@ function registerPageClientEntry(
 	}
 	const association = entry.pageClientRoutes.get(identity) ?? {
 		dependency,
-		routes: new Map<string, string | undefined>(),
+		routes: new Set<string>(),
 	};
-	association.routes.set(routeKey, clientEntry.islandFile);
+	association.routes.add(routeKey);
 	entry.pageClientRoutes.set(identity, association);
 	return { ...clientEntry, dependency };
 }
@@ -510,22 +509,9 @@ function prepareRouteBuildPlans(
 	return { routePlans, entries: [...entriesByKey.values()] };
 }
 
-function attachPageClientAsset(
-	instance: GroupedGraphBuildPlanInstance,
-	asset: ProcessedAsset,
-	islandFile: string | undefined,
-): void {
-	const prebuilt = instance.prebuiltPageClientBrowserAssets ?? {
-		processedAssets: [],
-		islandRenderAssetsByFile: new Map<string, ProcessedAsset[]>(),
-		fallbackDependencies: [],
-	};
+function attachPageClientAsset(instance: GroupedGraphBuildPlanInstance, asset: ProcessedAsset): void {
+	const prebuilt = instance.prebuiltPageClientBrowserAssets ?? { processedAssets: [], fallbackDependencies: [] };
 	prebuilt.processedAssets.push(asset);
-	if (islandFile) {
-		const islandAssets = prebuilt.islandRenderAssetsByFile.get(islandFile) ?? [];
-		islandAssets.push(asset);
-		prebuilt.islandRenderAssetsByFile.set(islandFile, islandAssets);
-	}
 	instance.prebuiltPageClientBrowserAssets = prebuilt;
 }
 
@@ -542,7 +528,7 @@ function attachEntryAssetToRoutes(
 				instance.prebuiltGroupedAssets = [...(instance.prebuiltGroupedAssets ?? []), asset];
 			}
 			if (clientAssociation?.routes.has(routeKey)) {
-				attachPageClientAsset(instance, asset, clientAssociation.routes.get(routeKey));
+				attachPageClientAsset(instance, asset);
 			}
 		}
 	}

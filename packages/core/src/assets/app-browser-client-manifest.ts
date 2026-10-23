@@ -43,7 +43,6 @@ export type AppBrowserClientManifestEntry = {
 	groupedAssets: SerializedProcessedAsset[];
 	pageClientAssets: {
 		processedAssets: SerializedProcessedAsset[];
-		islandRenderAssetsByFile: Array<[string, SerializedProcessedAsset[]]>;
 		fallbackPageClientBuildEntryKeys: string[];
 	};
 };
@@ -150,19 +149,6 @@ function isProcessedAssetArray(value: unknown): value is SerializedProcessedAsse
 	return Array.isArray(value) && value.every(isProcessedAsset);
 }
 
-function isIslandRenderAssetEntries(value: unknown): value is Array<[string, SerializedProcessedAsset[]]> {
-	return (
-		Array.isArray(value) &&
-		value.every(
-			(entry) =>
-				Array.isArray(entry) &&
-				entry.length === 2 &&
-				typeof entry[0] === 'string' &&
-				isProcessedAssetArray(entry[1]),
-		)
-	);
-}
-
 function isManifestEntry(value: unknown): value is AppBrowserClientManifestEntry {
 	if (!isRecord(value) || !isRecord(value.pageClientAssets)) return false;
 	const pageClientAssets = value.pageClientAssets;
@@ -177,8 +163,7 @@ function isManifestEntry(value: unknown): value is AppBrowserClientManifestEntry
 		isStringArray(value.pageClientBuildEntryKeys) &&
 		isProcessedAssetArray(value.groupedAssets) &&
 		isProcessedAssetArray(pageClientAssets.processedAssets) &&
-		isStringArray(pageClientAssets.fallbackPageClientBuildEntryKeys) &&
-		isIslandRenderAssetEntries(pageClientAssets.islandRenderAssetsByFile)
+		isStringArray(pageClientAssets.fallbackPageClientBuildEntryKeys)
 	);
 }
 
@@ -235,12 +220,6 @@ function serializeEntry(
 			processedAssets: (pageClientAssets?.processedAssets ?? []).map((asset) =>
 				serializeProcessedAsset(rootDir, asset),
 			),
-			islandRenderAssetsByFile: [...(pageClientAssets?.islandRenderAssetsByFile ?? [])].map(
-				([filePath, assets]) => [
-					toProjectPath(rootDir, filePath),
-					assets.map((asset) => serializeProcessedAsset(rootDir, asset)),
-				],
-			),
 			fallbackPageClientBuildEntryKeys,
 		},
 	};
@@ -272,9 +251,6 @@ function collectInstanceSourceFilepaths(
 	for (const asset of instance.prebuiltPageClientBrowserAssets?.processedAssets ?? []) {
 		addAssetSourceFilepaths(filepaths, asset);
 	}
-	for (const assets of instance.prebuiltPageClientBrowserAssets?.islandRenderAssetsByFile.values() ?? []) {
-		for (const asset of assets) addAssetSourceFilepaths(filepaths, asset);
-	}
 }
 
 function collectSourceFilepaths(plans: readonly GroupedGraphBuildPlan[]): Set<string> {
@@ -297,9 +273,6 @@ function collectInstanceOutputFilepaths(
 ): void {
 	addAssetOutputFilepaths(filepaths, instance.prebuiltGroupedAssets);
 	addAssetOutputFilepaths(filepaths, instance.prebuiltPageClientBrowserAssets?.processedAssets);
-	for (const assets of instance.prebuiltPageClientBrowserAssets?.islandRenderAssetsByFile.values() ?? []) {
-		addAssetOutputFilepaths(filepaths, assets);
-	}
 }
 
 function addHtmlScriptOutputFilepaths(

@@ -407,7 +407,6 @@ export class RouteRenderOrchestrator {
 			sourceDependencyPaths,
 			pageClientPlan: clientPlan,
 			preparedGraphComponents: collectPreparedGraphComponents(preparedGraph),
-			islandRenderAssetsByFile: clientBrowserAssets.islandRenderAssetsByFile,
 		};
 	}
 

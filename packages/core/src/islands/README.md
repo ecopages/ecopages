@@ -23,7 +23,7 @@ browser build, during route preparation. Island entries are components whose Int
 not the page owner's Page, Layout, or nested includes. The page owner collects that
 build from every island-hydrating integration on the plan, so a React island on a
 Kita or Lit route still gets a hydration script. Island grouped entries re-export the
-component module; hydration scripts import those recorded output URLs. SSR stamps those assets onto the host. The host uses
+component module; hydration scripts import those recorded output URLs. Those assets join the page package during preparation, and SSR stamps the host attributes. The host uses
 `display: contents` so it does not introduce a layout box, while the host and
 its children remain in place as the client calls `hydrateRoot()` on that host.
 React island integrations may add `data-eco-hydrated` after the initial client
@@ -37,7 +37,7 @@ commit for development diagnostics.
 2. The render result can attach attributes to a single root element
 3. The component's own assets include at least one client `script`
 
-Own assets are the scripts and stylesheets the component declares, plus those of nested components of the same Integration, excluding Foreign Children (declared in `dependencies.components` or rendered as Foreign Subtrees) and their descendants. They are passed separately from the render result: `result.assets` keeps the merged list for the Page. `IntegrationRenderer` collects them from the component's dependency declarations, so a component without scripts that wraps another Integration's island is not stamped.
+Own assets are the scripts and stylesheets the component declares, plus those of nested components of the same Integration, excluding Foreign Children (declared in `dependencies.components` or rendered as Foreign Subtrees) and their descendants. `IntegrationRenderer` collects them from the component's dependency declarations, so a component without scripts that wraps another Integration's island is not stamped.
 
 Integrations write `data-eco-props` through `buildIslandHostAttributes()`, which encodes the JSON as UTF-8 before base64; plain `btoa` handles Latin-1 only and throws on text such as `€`, CJK or emoji. Browser code that cannot import core (the React hydration lifecycle and the dev toolbar) keeps its own decoder; their tests and core's test use the same encoded fixture, so a format change fails them.
 

@@ -1,4 +1,3 @@
-import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import { applyAttributesToFirstElement } from '../../../html/html-transformer.service.ts';
 import type {
 	BaseIntegrationContext,
@@ -15,7 +14,6 @@ import {
 } from '../../../eco/component-render-context.ts';
 import { isMarkupNodeLike } from '../../../eco/component-render-output.ts';
 import { assertForeignChildrenNotOpaque } from './foreign-child-output.utils.ts';
-import { dedupeProcessedAssets } from '../../../assets/processed-asset-dedupe.ts';
 
 export type QueuedForeignChildDecisionInput = {
 	currentIntegration: string;
@@ -49,9 +47,7 @@ type QueuedForeignSubtreeIntegrationContext = BaseIntegrationContext & Record<st
  * @remarks
  * Set `html` when the host serialized the children, or `children` to pass them
  * to the owning renderer unserialized. Leave both unset when there are no
- * children. Assets are not returned here: the owning renderer reports the
- * foreign component's assets, and host components' assets come from their
- * declared dependencies.
+ * children.
  */
 export type QueuedForeignSubtreeChildRenderResult = {
 	html?: string;
@@ -253,9 +249,7 @@ export function getRuntimeContext<TContext extends QueuedForeignSubtreeResolutio
  * resolved. Structured children pass to the owning renderer unchanged; opaque
  * objects are rejected.
  */
-export async function resolveStringQueuedHtml(
-	options: ForeignSubtreeStringQueuedHtmlOptions,
-): Promise<{ assets: ProcessedAsset[]; html: string }> {
+export async function resolveStringQueuedHtml(options: ForeignSubtreeStringQueuedHtmlOptions): Promise<string> {
 	return resolveQueuedHtml({
 		...options,
 		renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
@@ -281,7 +275,7 @@ export async function resolveStringQueuedHtml(
 
 export async function resolveQueuedHtml<TContext extends QueuedForeignSubtreeResolutionContext>(
 	options: ForeignSubtreeQueuedHtmlOptions<TContext>,
-): Promise<{ assets: ProcessedAsset[]; html: string }> {
+): Promise<string> {
 	return resolveQueuedForeignSubtreeTokens({
 		html: options.html,
 		runtimeContext: options.runtimeContext,
@@ -299,16 +293,15 @@ export async function resolveQueuedHtml<TContext extends QueuedForeignSubtreeRes
 
 export async function resolveQueuedForeignSubtreeTokens<TContext extends QueuedForeignSubtreeResolutionContext>(
 	options: ResolveQueuedForeignSubtreeTokensOptions<TContext>,
-): Promise<{ assets: ProcessedAsset[]; html: string }> {
+): Promise<string> {
 	if (!options.runtimeContext || options.runtimeContext.queuedResolutions.length === 0) {
-		return { assets: [], html: options.html };
+		return options.html;
 	}
 
 	const runtimeContext = options.runtimeContext;
 	const queuedResolutionsByToken = new Map<string, QueuedForeignSubtreeResolution>();
 	const resolvedHtmlByToken = new Map<string, string>();
 	const resolvingTokens = new Set<string>();
-	const collectedAssets: ProcessedAsset[] = [];
 
 	const syncQueuedResolutions = () => {
 		for (const resolution of runtimeContext.queuedResolutions) {
@@ -367,10 +360,6 @@ export async function resolveQueuedForeignSubtreeTokens<TContext extends QueuedF
 				);
 			}
 
-			if ((foreignSubtreeRender.assets?.length ?? 0) > 0) {
-				collectedAssets.push(...(foreignSubtreeRender.assets ?? []));
-			}
-
 			const resolvedHtml =
 				foreignSubtreeRender.canAttachAttributes && foreignSubtreeRender.rootAttributes
 					? applyAttributesToFirstElement(foreignSubtreeRender.html, foreignSubtreeRender.rootAttributes)
@@ -396,10 +385,7 @@ export async function resolveQueuedForeignSubtreeTokens<TContext extends QueuedF
 		resolvedHtml = resolvedHtml.split(resolution.token).join(await resolveToken(resolution.token));
 	}
 
-	return {
-		assets: dedupeProcessedAssets(collectedAssets),
-		html: resolvedHtml,
-	};
+	return resolvedHtml;
 }
 
 /**

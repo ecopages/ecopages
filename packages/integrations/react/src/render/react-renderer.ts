@@ -198,21 +198,16 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 	 * Builds React island and lazy-entry modules in one grouped browser build.
 	 */
 	private async buildPageClientBrowserAssetsHook(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
-		const result = await this.hydrationAssetService.buildPageClientRenderAssets({
+		const processedAssets = await this.hydrationAssetService.buildPageClientRenderAssets({
 			islands: selectHydrationIslandEntries(plan, this.name).map((entry) => ({
 				file: entry.file,
 				config: entry.component.config,
 			})),
 			lazyEntries: plan.lazyClientEntries,
 		});
-		const lazyTriggers = this.getRuntimeState().applyPendingLazyTriggers(
-			result.processedAssets,
-			plan.lazyConfigs ?? [],
-		);
 		return {
-			processedAssets: result.processedAssets,
-			islandRenderAssetsByFile: result.assetsByFile,
-			lazyTriggers,
+			processedAssets,
+			lazyTriggers: this.getRuntimeState().applyPendingLazyTriggers(processedAssets, plan.lazyConfigs ?? []),
 		};
 	}
 
@@ -247,7 +242,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 	private resolveReactQueuedForeignSubtreeHtml(
 		html: string,
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
-	): Promise<{ assets: ProcessedAsset[]; html: string }> {
+	): Promise<string> {
 		return this.resolveQueuedForeignSubtrees(
 			html,
 			runtimeContext,
@@ -320,7 +315,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 	 *   `data-eco-component-id` attribute is attached so island hydration can target it.
 	 * - Without an explicit instance id, component renders remain plain SSR output.
 	 * - When resolved child HTML is provided, that foreign subtree is treated as a pure SSR
-	 *   composition step and does not emit hydration assets for the parent wrapper.
+	 *   composition step and the parent wrapper is not an island host.
 	 *
 	 * This preserves DOM shape for global CSS/layout selectors while keeping a
 	 * deterministic mount target per component instance.
@@ -350,15 +345,11 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			props,
 			'Component',
 		);
-		const assets = input.component.config?.dependencies
-			? await this.processComponentDependencies([input.component])
-			: undefined;
 
 		return {
 			html,
 			canAttachAttributes: true,
 			integrationName: this.name,
-			assets,
 		};
 	}
 
@@ -381,13 +372,11 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		let html = this.normalizeUnresolvedMarkerArtifactHtml(
 			await renderComponentHtml({ input, context, runtimeContext, runtime: this.getReactRuntimeModules() }),
 		);
-		const queuedResolution = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
-		html = queuedResolution.html;
+		html = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
 		const canAttachAttributes = hasSingleRootElement(html);
 		const componentFile = getComponentIdentity(componentConfig)?.file;
 
 		let rootAttributes: Record<string, string> | undefined;
-		let assets: ProcessedAsset[] | undefined;
 		if (canAttachAttributes && componentFile && context.componentInstanceId && !hasResolvedChildHtml) {
 			rootAttributes = buildIslandHostAttributes({
 				integrationName: this.name,
@@ -395,20 +384,14 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 				componentKey: getIslandComponentKey(componentFile, componentConfig),
 				props: buildHydrationProps(input.props),
 			});
-			assets = this.getActiveIslandRenderAssets().get(componentFile);
 			html = `<eco-island style="display:contents">${html}</eco-island>`;
 		}
-		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
-			...(assets ?? []),
-			...queuedResolution.assets,
-		]);
 
 		return {
 			html,
 			canAttachAttributes,
 			integrationName: this.name,
 			rootAttributes,
-			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
 		};
 	}
 
@@ -526,19 +509,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		};
 		const runtimeContext = this.getQueuedForeignSubtreeContext<ReactForeignSubtreeResolutionContext>(runtimeInput);
 		const html = this.normalizeUnresolvedMarkerArtifactHtml(await renderReactHtml(runtime, tree));
-		const resolved = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
-		const primaryRender: ComponentRenderResult = {
-			html: resolved.html,
-			canAttachAttributes: hasSingleRootElement(resolved.html),
-			integrationName: this.name,
-			assets: resolved.assets.length > 0 ? resolved.assets : undefined,
-		};
-
-		return {
-			children: resolved.html,
-			layoutRenders: [],
-			primaryRender,
-		};
+		return { children: await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext) };
 	}
 
 	protected resolveComposeChildren(options: {

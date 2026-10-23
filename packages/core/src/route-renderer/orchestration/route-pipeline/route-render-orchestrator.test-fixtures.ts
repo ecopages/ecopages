@@ -86,7 +86,6 @@ export function createFlowRenderer<C = unknown>(input: FlowRendererInput = {}): 
 		resolvePageDependencyContribution: input.resolvePageDependencyContribution ?? (async () => undefined),
 		buildPageClientBrowserAssets: async () => ({
 			processedAssets: [],
-			islandRenderAssetsByFile: new Map(),
 			lazyTriggers: [],
 		}),
 		buildPageBrowserGraphContributionContext: async (routeFile, routeOptions) => ({

@@ -17,7 +17,6 @@ import type {
 	PageBrowserGraphResult,
 } from '@ecopages/core/integration';
 import { type PageClientPlan, type RouteModuleLoadOptions } from '@ecopages/core/integration';
-import { runWithComponentRenderContext } from '@ecopages/core/integration';
 import type { ProcessedAsset } from '@ecopages/core/integration';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
@@ -306,19 +305,6 @@ describeRendererContract({
 			},
 		}) as unknown as EcoComponent;
 	},
-	async renderIsland(renderer, input) {
-		const islandAssets = await renderer.buildPageClientBrowserAssets(
-			createPageClientPlan('kitajs', input.component),
-		);
-		const { value } = await runWithComponentRenderContext(
-			{
-				currentIntegration: 'kitajs',
-				renderState: { islandRenderAssetsByFile: islandAssets.islandRenderAssetsByFile },
-			},
-			async () => renderer.renderComponent(input),
-		);
-		return value;
-	},
 });
 
 describe('ReactRenderer', () => {
@@ -386,7 +372,7 @@ describe('ReactRenderer', () => {
 			expect(result.html).toContain('<span>One</span>');
 		});
 
-		it('should emit hydration assets for attachable component roots', async () => {
+		it('builds hydration assets before render and stamps the attachable component root as an island host', async () => {
 			const { testRenderer, assetProcessingService } = createRendererWithAssets();
 			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
 				title: string;
@@ -403,19 +389,13 @@ describe('ReactRenderer', () => {
 				createPageClientPlan('kitajs', Component),
 			);
 			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
+			expect(islandAssets.processedAssets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/mock.js' }));
 
-			const { value: result } = await runWithComponentRenderContext(
-				{
-					currentIntegration: 'kitajs',
-					renderState: { islandRenderAssetsByFile: islandAssets.islandRenderAssetsByFile },
-				},
-				async () =>
-					testRenderer.renderComponent({
-						component: Component,
-						props: { title: 'Island' },
-						integrationContext: { componentInstanceId: 'island-1' },
-					}),
-			);
+			const result = await testRenderer.renderComponent({
+				component: Component,
+				props: { title: 'Island' },
+				integrationContext: { componentInstanceId: 'island-1' },
+			});
 
 			expect(result.canAttachAttributes).toBe(true);
 			expect(result.html).toBe('<eco-island style="display:contents"><h3>Island</h3></eco-island>');
@@ -427,7 +407,6 @@ describe('ReactRenderer', () => {
 				getIslandComponentKey(pageFilePath, Component.config),
 			);
 			expect(result.rootAttributes?.['data-eco-props']).toBe(btoa(JSON.stringify({ title: 'Island' })));
-			expect(result.assets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/mock.js' }));
 		});
 
 		it('does not emit island hydration for the page owner React tree', async () => {
@@ -474,7 +453,7 @@ describe('ReactRenderer', () => {
 			]);
 		});
 
-		it('should not emit island assets when no componentInstanceId is provided', async () => {
+		it('does not stamp an island host when no componentInstanceId is provided', async () => {
 			const { testRenderer, assetProcessingService } = createRendererWithAssets({
 				routerAdapter: mockRouterAdapter,
 			});
@@ -496,11 +475,10 @@ describe('ReactRenderer', () => {
 
 			expect(result.canAttachAttributes).toBe(true);
 			expect(result.rootAttributes).toBeUndefined();
-			expect(result.assets).toBeUndefined();
 			expect(assetProcessingService.processDependencies).not.toHaveBeenCalled();
 		});
 
-		it('should preserve resolved child html without escaping and skip parent island hydration', async () => {
+		it('should preserve resolved child html without escaping and skip the parent island host', async () => {
 			const { testRenderer, assetProcessingService } = createRendererWithAssets();
 			const Component = (({ title, children }: { title: string; children?: React.ReactNode }) => (
 				<section>
@@ -529,7 +507,6 @@ describe('ReactRenderer', () => {
 			expect(result.html).toContain('<div data-slot="true"><span data-child="true">Nested child</span></div>');
 			expect(result.html).not.toContain('&lt;span');
 			expect(result.rootAttributes).toBeUndefined();
-			expect(result.assets).toBeUndefined();
 			expect(assetProcessingService.processDependencies).not.toHaveBeenCalled();
 		});
 
@@ -576,14 +553,6 @@ describe('ReactRenderer', () => {
 							(input.integrationContext as { componentInstanceId?: string } | undefined)
 								?.componentInstanceId ?? 'missing',
 					},
-					assets: [
-						{
-							kind: 'script' as const,
-							inline: true,
-							content: 'console.log("deferred-react")',
-							position: 'body' as const,
-						},
-					],
 				}),
 			);
 
@@ -638,13 +607,6 @@ describe('ReactRenderer', () => {
 				'<aside data-slot="true" data-eco-component-id="host_n_1"><span data-child="true">Child</span><button data-testid="deferred-widget">Deferred widget</button></aside>',
 			);
 			expect(result.html).not.toContain('<eco-marker');
-			expect(result.assets).toEqual([
-				expect.objectContaining({
-					kind: 'script',
-					inline: true,
-					position: 'body',
-				}),
-			]);
 			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
 		});
 
@@ -654,7 +616,6 @@ describe('ReactRenderer', () => {
 					html: '<button>Foreign root</button>',
 					canAttachAttributes: true,
 					integrationName: 'deferred',
-					assets: [{ kind: 'script', srcUrl: '/assets/foreign.js', position: 'body' }],
 				}),
 			});
 			const config = await createTestAppConfig({ distDir: testDir, integrations: [deferredPlugin] });
@@ -688,7 +649,6 @@ describe('ReactRenderer', () => {
 
 			expect(result.html).toBe('<eco-island style="display:contents"><button>Foreign root</button></eco-island>');
 			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-foreign-root');
-			expect(result.assets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/foreign.js' }));
 		});
 
 		it('returns island host metadata with the component render result', async () => {

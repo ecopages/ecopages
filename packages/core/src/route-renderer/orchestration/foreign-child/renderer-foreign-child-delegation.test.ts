@@ -29,14 +29,6 @@ describe('renderer foreign-child delegation', () => {
 			canAttachAttributes: true,
 			integrationName: 'test-renderer',
 			rootAttributes: { 'data-eco-component-id': 'root-1' },
-			assets: [
-				{
-					kind: 'script',
-					inline: true,
-					content: 'console.log("foreign-subtree")',
-					position: 'body',
-				},
-			],
 		};
 
 		const result = await renderer.renderComponentWithForeignChildren({
@@ -46,14 +38,6 @@ describe('renderer foreign-child delegation', () => {
 
 		expect(result).toEqual({
 			html: '<main data-root="true">Hello</main>',
-			assets: [
-				{
-					kind: 'script',
-					inline: true,
-					content: 'console.log("foreign-subtree")',
-					position: 'body',
-				},
-			],
 			rootAttributes: { 'data-eco-component-id': 'root-1' },
 			canAttachAttributes: true,
 			integrationName: 'test-renderer',

@@ -86,18 +86,6 @@ export class HtmlTransformerService {
 	}
 
 	/**
-	 * Removes duplicate processed assets while preserving first-seen order.
-	 *
-	 * @remarks
-	 * Dedupe keys include structural asset fields and HTML attributes so repeated
-	 * orchestration passes can merge assets safely without collapsing distinct tag
-	 * variants.
-	 */
-	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
-		return dedupeProcessedAssets(assets);
-	}
-
-	/**
 	 * Injects page assets and document contributions into a streaming HTML response.
 	 */
 	transform(res: Response, input: PageAssetInjection = {}): Response {

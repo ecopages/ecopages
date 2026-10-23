@@ -192,7 +192,6 @@ test('prebuildProductionPageBrowserGraphs skips routes whose preparation failed'
 		pageClientBuildEntries: [],
 		prebuiltPageClientBrowserAssets: {
 			processedAssets: [],
-			islandRenderAssetsByFile: new Map(),
 			fallbackDependencies: [],
 		},
 	};
@@ -297,9 +296,6 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs 
 				prebuiltGroupedAssets: [pageAsset],
 				prebuiltPageClientBrowserAssets: {
 					processedAssets: [islandAsset],
-					islandRenderAssetsByFile: new Map([
-						[path.join(appConfig.rootDir, 'src/island.tsx'), [islandAsset]],
-					]),
 					fallbackDependencies: [fallbackEntry],
 				},
 			},
@@ -322,7 +318,6 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs 
 				pageClientBuildEntries: [fallbackEntry],
 				prebuiltPageClientBrowserAssets: {
 					processedAssets: [],
-					islandRenderAssetsByFile: new Map(),
 					fallbackDependencies: [],
 				},
 			},
@@ -357,10 +352,6 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs 
 	const restoredPageClientAssets = installedInstance.prebuiltPageClientBrowserAssets;
 	assert.ok(restoredPageClientAssets);
 	assert.equal(restoredPageClientAssets.processedAssets[0]?.filepath, islandAsset.filepath);
-	assert.equal(
-		restoredPageClientAssets.islandRenderAssetsByFile.has(path.join(appConfig.rootDir, 'src/island.tsx')),
-		true,
-	);
 	assert.deepEqual(restoredPageClientAssets.fallbackDependencies, [fallbackEntry]);
 });
 
@@ -381,7 +372,6 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores dynamic route tem
 				prebuiltGroupedAssets: [],
 				prebuiltPageClientBrowserAssets: {
 					processedAssets: [],
-					islandRenderAssetsByFile: new Map(),
 					fallbackDependencies: [],
 				},
 			},

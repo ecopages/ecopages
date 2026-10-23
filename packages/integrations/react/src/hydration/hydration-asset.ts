@@ -202,9 +202,9 @@ export class HydrationAssetService {
 	async buildPageClientRenderAssets(input: {
 		islands: Array<{ file: string; config?: EcoComponentConfig }>;
 		lazyEntries?: AssetDefinition[];
-	}): Promise<{ assetsByFile: Map<string, ProcessedAsset[]>; processedAssets: ProcessedAsset[] }> {
+	}): Promise<ProcessedAsset[]> {
 		if (!this.config.assetProcessingService) {
-			return { assetsByFile: new Map(), processedAssets: [] };
+			return [];
 		}
 
 		const uniqueIslands = this.uniqueIslands(input.islands);
@@ -257,7 +257,6 @@ export class HydrationAssetService {
 					},
 					bundleOptions,
 				},
-				islandFile: island.file,
 			});
 		}
 
@@ -284,14 +283,11 @@ export class HydrationAssetService {
 	private async buildHmrPageClientRenderAssets(
 		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
 		lazyEntries?: AssetDefinition[],
-	): Promise<{ assetsByFile: Map<string, ProcessedAsset[]>; processedAssets: ProcessedAsset[] }> {
-		const assetsByFile = new Map<string, ProcessedAsset[]>();
+	): Promise<ProcessedAsset[]> {
 		const processedAssets: ProcessedAsset[] = [];
 		for (const island of uniqueIslands) {
 			this.config.hmrPageMetadataCache?.markOwnedEntrypoint(island.file);
-			const assets = await this.buildHmrIslandRenderAssets(island.file, island.config);
-			assetsByFile.set(island.file, [...(assetsByFile.get(island.file) ?? []), ...assets]);
-			processedAssets.push(...assets);
+			processedAssets.push(...(await this.buildHmrIslandRenderAssets(island.file, island.config)));
 		}
 		if (lazyEntries?.length) {
 			processedAssets.push(
@@ -301,13 +297,13 @@ export class HydrationAssetService {
 				)),
 			);
 		}
-		return { assetsByFile, processedAssets };
+		return processedAssets;
 	}
 
 	private async buildGroupedPageClientRenderAssets(
 		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
 		lazyEntries?: AssetDefinition[],
-	): Promise<{ assetsByFile: Map<string, ProcessedAsset[]>; processedAssets: ProcessedAsset[] }> {
+	): Promise<ProcessedAsset[]> {
 		const islandEntries = await this.createGroupedIslandEntries(uniqueIslands);
 		const clientEntries = [...islandEntries, ...(lazyEntries ?? [])];
 		const processedClientEntries =
@@ -327,10 +323,7 @@ export class HydrationAssetService {
 					)
 				: [];
 
-		return {
-			assetsByFile: this.collectIslandAssetsByFile(uniqueIslands, processedClientEntries, processedHydration),
-			processedAssets: [...processedClientEntries, ...processedHydration],
-		};
+		return [...processedClientEntries, ...processedHydration];
 	}
 
 	private async createGroupedIslandEntries(
@@ -400,41 +393,6 @@ export class HydrationAssetService {
 			);
 		}
 		return hydrationScripts;
-	}
-
-	private collectIslandAssetsByFile(
-		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
-		processedClientEntries: ProcessedAsset[],
-		processedHydration: ProcessedAsset[],
-	): Map<string, ProcessedAsset[]> {
-		const assetsByFile = new Map<string, ProcessedAsset[]>();
-		const hydrationByName = new Map<string, ProcessedAsset[]>();
-		for (const processed of processedHydration) {
-			const name = processed.attributes?.['data-eco-script-id'];
-			if (!name) {
-				continue;
-			}
-			const existing = hydrationByName.get(name) ?? [];
-			existing.push(processed);
-			hydrationByName.set(name, existing);
-		}
-
-		for (const island of uniqueIslands) {
-			const componentName = this.getIslandBundleName(island.file);
-			const hydrationName = this.getIslandHydrationName(
-				componentName,
-				getIslandComponentKey(island.file, island.config),
-			);
-			const islandAsset = processedClientEntries.find(
-				(processed) => processed.groupedBundle?.entryName === componentName,
-			);
-			const fileAssets = assetsByFile.get(island.file);
-			assetsByFile.set(island.file, [
-				...(fileAssets ?? (islandAsset ? [islandAsset] : [])),
-				...(hydrationByName.get(hydrationName) ?? []),
-			]);
-		}
-		return assetsByFile;
 	}
 
 	private async buildHmrIslandRenderAssets(

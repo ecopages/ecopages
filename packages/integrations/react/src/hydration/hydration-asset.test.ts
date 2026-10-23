@@ -150,7 +150,6 @@ describe('HydrationAssetService', () => {
 
 		expect(entries).toHaveLength(2);
 		expect(entries[0]).toMatchObject({
-			islandFile: islandA,
 			dependency: {
 				kind: 'script',
 				bundle: true,
@@ -517,7 +516,7 @@ describe('HydrationAssetService', () => {
 			} as unknown as ConstructorParameters<typeof HydrationAssetService>[0]['bundleService'],
 		});
 
-		const { assetsByFile } = await service.buildPageClientRenderAssets({
+		const processedAssets = await service.buildPageClientRenderAssets({
 			islands: [
 				{
 					file: islandA,
@@ -577,8 +576,12 @@ describe('HydrationAssetService', () => {
 		expect(hydrationCall?.[1]?.content).toContain(
 			`/assets/ecopages-react-island-${BigInt(`0x${contentHash(islandB, 16)}`).toString()}.js`,
 		);
-		expect(assetsByFile.get(islandA)?.length).toBeGreaterThan(0);
-		expect(assetsByFile.get(islandB)?.length).toBeGreaterThan(0);
+		expect(processedAssets.map((asset) => asset.srcUrl)).toEqual(
+			expect.arrayContaining([
+				`/assets/ecopages-react-island-${BigInt(`0x${contentHash(islandA, 16)}`).toString()}.js`,
+				`/assets/ecopages-react-island-${BigInt(`0x${contentHash(islandB, 16)}`).toString()}.js`,
+			]),
+		);
 	});
 
 	it('hydrates two islands declared in one file as themselves', async () => {
@@ -608,7 +611,7 @@ describe('HydrationAssetService', () => {
 		const counter = { identity: { id: 'counter', file, integration: 'react' } };
 		const cart = { identity: { id: 'cart', file, integration: 'react' } };
 
-		const { assetsByFile } = await service.buildPageClientRenderAssets({
+		const processedAssets = await service.buildPageClientRenderAssets({
 			islands: [
 				{ file, config: counter },
 				{ file, config: cart },
@@ -617,7 +620,7 @@ describe('HydrationAssetService', () => {
 
 		const clientEntries = processDependencies.mock.calls[0]?.[0] as unknown[];
 		expect(clientEntries).toHaveLength(1);
-		const hydration = (assetsByFile.get(file) ?? [])
+		const hydration = processedAssets
 			.map((asset) => (asset as { content?: string }).content ?? '')
 			.filter((content) => content.includes('data-eco-component-key'));
 		expect(hydration).toHaveLength(2);

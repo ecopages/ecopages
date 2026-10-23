@@ -37,7 +37,7 @@ export function createLitRenderer(
 ): ReturnType<typeof createIntegrationRenderer<EcoPagesElement>> {
 	return createIntegrationRenderer<EcoPagesElement>(
 		LIT_PLUGIN_NAME,
-		({ appConfig, resolveComponentDependencies, resolveDependencyPath }: IntegrationRendererHookFactoryOptions) => {
+		({ appConfig, resolveDependencyPath }: IntegrationRendererHookFactoryOptions) => {
 			const ssrScriptPreloader = new CustomElementScriptPreloader({
 				cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
 				preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
@@ -98,15 +98,11 @@ export function createLitRenderer(
 						renderedChildren === undefined
 							? renderedHtml
 							: injectLitRenderedChildren(renderedHtml, renderedChildren);
-					const assets = input.component.config?.dependencies
-						? await resolveComponentDependencies([input.component])
-						: undefined;
 
 					return {
 						html,
 						canAttachAttributes: true,
 						integrationName: LIT_PLUGIN_NAME,
-						assets,
 					};
 				},
 				renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {

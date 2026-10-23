@@ -250,12 +250,6 @@ function restoreManifestRouteAssets(
 	instance.prebuiltGroupedAssets = restoreAppBrowserClientAssets(appConfig, entry.groupedAssets);
 	instance.prebuiltPageClientBrowserAssets = {
 		processedAssets: restoreAppBrowserClientAssets(appConfig, entry.pageClientAssets.processedAssets),
-		islandRenderAssetsByFile: new Map(
-			entry.pageClientAssets.islandRenderAssetsByFile.map(([filePath, assets]) => [
-				resolveAppBrowserClientManifestPath(appConfig, filePath),
-				restoreAppBrowserClientAssets(appConfig, assets),
-			]),
-		),
 		fallbackDependencies: restoreFallbackDependencies(appConfig.rootDir, entry, instance),
 	};
 }

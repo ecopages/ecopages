@@ -1002,13 +1002,11 @@ export type PageClientPlan = {
 
 export type PageClientBrowserAssets = {
 	processedAssets: ProcessedAsset[];
-	islandRenderAssetsByFile: Map<string, ProcessedAsset[]>;
 	lazyTriggers: ResolvedLazyTrigger[];
 };
 
 export type PageClientBuildEntry = {
 	dependency: AssetDefinition;
-	islandFile?: string;
 };
 
 /**
@@ -1036,7 +1034,6 @@ export type InternalIntegrationRendererRenderOptions<C = EcoPagesElement> = Inte
 	sourceDependencyPaths?: readonly string[];
 	pageClientPlan?: PageClientPlan;
 	preparedGraphComponents?: ReadonlyMap<string, boolean>;
-	islandRenderAssetsByFile?: Map<string, ProcessedAsset[]>;
 };
 
 /**
@@ -1157,12 +1154,16 @@ export interface ComponentRenderInput<TIntegrationContext extends BaseIntegratio
 	integrationContext?: TIntegrationContext;
 }
 
+/**
+ * @remarks
+ * A render carries no assets. Route preparation builds the page package from the
+ * prepared component graph before any component renders.
+ */
 export interface ComponentRenderResult {
 	html: string;
 	canAttachAttributes: boolean;
 	integrationName: string;
 	rootAttributes?: Record<string, string>;
-	assets?: ProcessedAsset[];
 }
 
 /**

@@ -253,33 +253,6 @@ describe('HtmlTransformerService', () => {
 		).toBe('<lit-x data-eco-island="" data-eco-component-id="c1" data-eco-island-integration="lit">a</lit-x>');
 	});
 
-	it('should deduplicate processed assets while preserving order', () => {
-		const transformer = new HtmlTransformerService();
-		const first = { kind: 'script', srcUrl: '/assets/app.js', position: 'head' } as ProcessedAsset;
-		const duplicate = { kind: 'script', srcUrl: '/assets/app.js', position: 'head' } as ProcessedAsset;
-		const second = { kind: 'stylesheet', srcUrl: '/assets/app.css', position: 'head' } as ProcessedAsset;
-
-		expect(transformer.dedupeProcessedAssets([first, duplicate, second])).toEqual([first, second]);
-	});
-
-	it('should preserve assets with different package roles during dedupe', () => {
-		const transformer = new HtmlTransformerService();
-		const pageScript = {
-			kind: 'script',
-			srcUrl: '/assets/app.js',
-			position: 'head',
-			packageRole: 'page-script',
-		} as ProcessedAsset;
-		const runtimeScript = {
-			kind: 'script',
-			srcUrl: '/assets/app.js',
-			position: 'head',
-			packageRole: 'runtime',
-		} as ProcessedAsset;
-
-		expect(transformer.dedupeProcessedAssets([pageScript, runtimeScript])).toEqual([pageScript, runtimeScript]);
-	});
-
 	it('injects the page package html assets', () => {
 		const transformer = new HtmlTransformerService();
 		const html = transformer.injectPageAssets('<html><head></head><body></body></html>', {

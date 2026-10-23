@@ -4,7 +4,6 @@ import { eco } from '../../../eco/eco.ts';
 import {
 	composeDocumentShell,
 	composeSequentialLayoutChildren,
-	applyDocumentShellAttributeStamping,
 	type DocumentShellComposeChildrenContext,
 } from './document-shell-render.service.ts';
 
@@ -27,7 +26,6 @@ describe('document-shell-render.service', () => {
 				const id = input.component.config?.identity?.id ?? 'unknown';
 				return {
 					html: input.children ? `<${id}>${String(input.children)}</${id}>` : `<${id} />`,
-					assets: [],
 					canAttachAttributes: true,
 					integrationName: 'test',
 				};
@@ -48,12 +46,8 @@ describe('document-shell-render.service', () => {
 		});
 
 		const { documentHtml } = await composeDocumentShell(
+			{ renderComponentWithForeignChildren },
 			{
-				renderComponentWithForeignChildren,
-				appendProcessedDependencies: () => [],
-			},
-			{
-				inheritedOwner: 'kitajs',
 				primaryComponent: Page,
 				primaryProps: { title: 'Hello' },
 				layout: { component: Layout, props: { section: 'docs' } },
@@ -73,7 +67,6 @@ describe('document-shell-render.service', () => {
 				const id = input.component.config?.identity?.id ?? 'node';
 				return {
 					html: `<${id}>${input.children ?? ''}</${id}>`,
-					assets: [],
 					canAttachAttributes: true,
 					integrationName: 'test',
 				};
@@ -85,12 +78,8 @@ describe('document-shell-render.service', () => {
 		const HtmlTemplate = stubComponent('html');
 
 		const { documentHtml } = await composeDocumentShell(
+			{ renderComponentWithForeignChildren },
 			{
-				renderComponentWithForeignChildren,
-				appendProcessedDependencies: () => [],
-			},
-			{
-				inheritedOwner: 'test',
 				primaryComponent: Page,
 				primaryProps: {},
 				layouts: [{ component: Outer }, { component: Inner }],
@@ -106,31 +95,17 @@ describe('document-shell-render.service', () => {
 		const Layout = stubComponent('layout');
 		const Page = stubComponent('page');
 		const composeChildren = vi.fn(async (_context: DocumentShellComposeChildrenContext) => {
-			return {
-				children: '<hooked />',
-				layoutRenders: [],
-				primaryRender: {
-					html: '<hooked />',
-					assets: [],
-					canAttachAttributes: true,
-					integrationName: 'test',
-				},
-			};
+			return { children: '<hooked />' };
 		});
 		const renderComponentWithForeignChildren = vi.fn(async () => ({
 			html: '<page />',
-			assets: [],
 			canAttachAttributes: true,
 			integrationName: 'test',
 		}));
 
 		await composeDocumentShell(
+			{ renderComponentWithForeignChildren },
 			{
-				renderComponentWithForeignChildren,
-				appendProcessedDependencies: () => [],
-			},
-			{
-				inheritedOwner: 'test',
 				primaryComponent: Page,
 				primaryProps: {},
 				layout: { component: Layout },
@@ -159,13 +134,11 @@ describe('document-shell-render.service', () => {
 		const rendererCache = new Map<string, unknown>();
 		const primaryRender = {
 			html: '<page />',
-			assets: [],
 			canAttachAttributes: true,
 			integrationName: 'test',
 		};
 		const layoutRender = {
 			html: '<layout><page /></layout>',
-			assets: [],
 			canAttachAttributes: true,
 			integrationName: 'test',
 		};
@@ -181,44 +154,12 @@ describe('document-shell-render.service', () => {
 			renderComponentWithForeignChildren,
 		});
 
-		expect(result).toEqual({
-			children: '<layout><page /></layout>',
-			layoutRenders: [layoutRender],
-		});
+		expect(result).toEqual({ children: '<layout><page /></layout>' });
 		expect(renderComponentWithForeignChildren).toHaveBeenCalledWith({
 			component: Layout,
 			props: { section: 'docs' },
 			children: '<page />',
 			integrationContext: { rendererCache },
 		});
-	});
-
-	it('stamps component-root and document attributes through applyDocumentShellAttributeStamping', () => {
-		const stamped = applyDocumentShellAttributeStamping(
-			'<html><body><main>Page</main></body></html>',
-			{
-				applyAttributesToFirstBodyElement: (html, attributes) =>
-					html.replace(
-						'<main',
-						`<main ${Object.entries(attributes)
-							.map(([key, value]) => `${key}="${value}"`)
-							.join(' ')}`,
-					),
-				applyAttributesToHtmlElement: (html, attributes) =>
-					html.replace(
-						'<html',
-						`<html ${Object.entries(attributes)
-							.map(([key, value]) => `${key}="${value}"`)
-							.join(' ')}`,
-					),
-			},
-			{
-				componentRootAttributes: { 'data-eco-component-id': 'eco-page-root' },
-				documentAttributes: { 'data-eco-document-owner': 'react-router' },
-			},
-		);
-
-		expect(stamped).toContain('<html data-eco-document-owner="react-router"><body>');
-		expect(stamped).toContain('<main data-eco-component-id="eco-page-root">Page</main>');
 	});
 });

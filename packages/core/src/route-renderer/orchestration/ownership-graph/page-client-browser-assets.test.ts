@@ -27,14 +27,13 @@ describe('buildPageClientBrowserAssets', () => {
 		const ownIsland = asset('own');
 		const buildPageClientBrowserAssetsOfReact = vi.fn(async () => ({
 			processedAssets: [counter],
-			islandRenderAssetsByFile: new Map([['/app/counter.tsx', [counter]]]),
 			lazyTriggers: [],
 		}));
 
 		const result = await buildPageClientBrowserAssets({
 			plan: createPlan(),
 			integrationName: 'kitajs',
-			collectOwnIslandAssets: async () => new Map([['/app/own.kita.tsx', [ownIsland]]]),
+			collectOwnIslandAssets: async () => [ownIsland],
 			resolveContributor: async () => ({
 				contributesAppBrowserClientBuild: () => true,
 				buildPageClientBrowserAssets: buildPageClientBrowserAssetsOfReact,
@@ -44,7 +43,6 @@ describe('buildPageClientBrowserAssets', () => {
 		});
 
 		expect(result.processedAssets).toEqual([ownIsland, counter]);
-		expect([...result.islandRenderAssetsByFile.keys()].sort()).toEqual(['/app/counter.tsx', '/app/own.kita.tsx']);
 	});
 
 	it('skips integrations that do not contribute to the app build and the owner itself', async () => {
@@ -61,7 +59,7 @@ describe('buildPageClientBrowserAssets', () => {
 				],
 			}),
 			integrationName: 'kitajs',
-			collectOwnIslandAssets: async () => new Map(),
+			collectOwnIslandAssets: async () => [],
 			resolveContributor,
 			processLazyEntries: async () => [],
 			applyPendingLazyTriggers: () => [],
@@ -79,7 +77,7 @@ describe('buildPageClientBrowserAssets', () => {
 			buildPageClientBrowserAssets({
 				plan: createPlan({ islandEntries: [], lazyClientEntries: lazyEntries }),
 				integrationName: 'kitajs',
-				collectOwnIslandAssets: async () => new Map([['/app/own.kita.tsx', collected]]),
+				collectOwnIslandAssets: async () => collected,
 				resolveContributor: async () => undefined,
 				processLazyEntries,
 				applyPendingLazyTriggers: () => [],

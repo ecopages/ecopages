@@ -24,8 +24,8 @@ export type BuildPageClientBrowserAssetsInput = {
  *
  * @remarks
  * The page owner asks every other island-hydrating Integration on the plan to contribute its grouped
- * client build. Lazy entries join that grouped build when an
- * Integration includes them; otherwise they are processed here as one grouped batch.
+ * client build. Lazy entries join that grouped build when an Integration includes them; otherwise they
+ * are processed here as one grouped batch.
  */
 export async function buildPageClientBrowserAssets(
 	input: BuildPageClientBrowserAssetsInput,

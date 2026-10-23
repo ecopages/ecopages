@@ -119,7 +119,7 @@ The browser-reachable module graph derived from one Page and its lazy browser en
 _Avoid_: Client bundle, app bundle, vendor graph
 
 **Page Package**:
-Every stylesheet and script one render of a Page emits: the Dependencies of the Components route preparation reached, the Page Browser Graph, island and lazy-entry builds, and Integration runtimes. Route preparation builds it before any Component renders; rendering does not change it.
+The stylesheets and scripts core injects into one render of a Page: the Dependencies of the Components route preparation reached, the Page Browser Graph, island and lazy-entry builds, and Integration runtimes. Route preparation builds it before any Component renders; rendering does not change it. An HTML Page writes its own declared assets into its markup instead.
 _Avoid_: Page assets, render assets
 
 **SSR Policy**:

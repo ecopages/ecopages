@@ -130,7 +130,7 @@ describe('document-shell-render.service', () => {
 		);
 	});
 
-	it('should export composeSequentialLayoutChildren as the default hook implementation', async () => {
+	it('wraps the primary HTML in layouts from innermost to outermost', async () => {
 		const rendererCache = new Map<string, unknown>();
 		const layoutRender = {
 			html: '<layout><page /></layout>',

@@ -122,19 +122,18 @@ export async function composeDocumentShell(
 		rendererCache,
 		renderComponentWithForeignChildren: dependencies.renderComponentWithForeignChildren,
 	};
-	const { children } = input.composeChildren
-		? await input.composeChildren(composeContext)
-		: await composeSequentialLayoutChildren(
-				composeContext,
-				(
-					await dependencies.renderComponentWithForeignChildren({
-						component: input.primaryComponent,
-						props: input.primaryProps,
-						foreignChildRoots: input.foreignChildRoots,
-						integrationContext: { rendererCache },
-					})
-				).html,
-			);
+	let children: unknown;
+	if (input.composeChildren) {
+		({ children } = await input.composeChildren(composeContext));
+	} else {
+		const primaryRender = await dependencies.renderComponentWithForeignChildren({
+			component: input.primaryComponent,
+			props: input.primaryProps,
+			foreignChildRoots: input.foreignChildRoots,
+			integrationContext: { rendererCache },
+		});
+		({ children } = await composeSequentialLayoutChildren(composeContext, primaryRender.html));
+	}
 	const documentRender = await dependencies.renderComponentWithForeignChildren({
 		component: input.htmlTemplate,
 		props: input.documentProps,

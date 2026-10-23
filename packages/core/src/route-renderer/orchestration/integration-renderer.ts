@@ -1431,8 +1431,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * The planning and merging live in `ownership-graph/page-client-browser-assets.ts`; this method
-	 * supplies what only the renderer has: its own island assets, the owning renderers of other
-	 * Integrations, and its asset service.
+	 * supplies what only the renderer has: the owning renderers of other Integrations and its asset service.
 	 */
 	async buildPageClientBrowserAssets(
 		plan: PageClientPlan,

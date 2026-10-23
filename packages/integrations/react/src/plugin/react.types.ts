@@ -82,6 +82,18 @@ export type ReactPluginOptions = {
 	 * ```
 	 */
 	mdx?: ReactMdxOptions;
+	/**
+	 * How long server rendering waits for Suspense before serving unfinished
+	 * boundaries as their fallback.
+	 *
+	 * @remarks
+	 * React's documented prerender abort delay is 10 seconds. A `React.lazy()`
+	 * import or suspending promise that never settles then leaves that boundary
+	 * in its fallback for the browser to retry; the rest of the Page is served.
+	 *
+	 * @default 10000
+	 */
+	renderTimeoutMs?: number;
 };
 
 export type ReactRendererConfig = {
@@ -106,4 +118,12 @@ export type ReactRendererConfig = {
 	 * client-graph AST strip of server-only `eco.page(...)` options.
 	 */
 	forceBrowserGraph?: boolean;
+	/**
+	 * How long server rendering waits for Suspense, in milliseconds.
+	 *
+	 * @remarks
+	 * Mapped from the public `renderTimeoutMs` plugin option. Unfinished
+	 * boundaries are served as their fallback when the limit fires.
+	 */
+	renderTimeoutMs?: number;
 };

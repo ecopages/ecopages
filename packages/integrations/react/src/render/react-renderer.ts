@@ -35,7 +35,7 @@ import { ensurePageConfigLayouts } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
 import { hasSingleRootElement } from './html-boundary.ts';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
-import { REACT_PLUGIN_NAME } from '../plugin/react.constants.ts';
+import { REACT_PLUGIN_NAME, REACT_SSR_RENDER_TIMEOUT_MS } from '../plugin/react.constants.ts';
 import type { ReactRendererConfig } from '../plugin/react.types.ts';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { BundleService } from '../bundling/bundle.ts';
@@ -77,6 +77,7 @@ type ReactRendererRuntimeState = {
 	mdxExtensions: string[];
 	hmrPageMetadataCache?: HmrPageMetadataCache;
 	forceBrowserGraph: boolean;
+	renderTimeoutMs: number;
 	bundleService: BundleService;
 	pageModuleService: PageModuleService;
 	hydrationAssetService: HydrationAssetService;
@@ -238,6 +239,13 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		return this.reactRuntimeModules;
 	}
 
+	private renderReactTree(element: ReactNode, label: string): Promise<string> {
+		return renderReactHtml(this.getReactRuntimeModules(), element, {
+			timeoutMs: this.getRuntimeState().renderTimeoutMs,
+			label,
+		});
+	}
+
 	private resolveReactQueuedForeignSubtreeHtml(
 		html: string,
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
@@ -269,9 +277,9 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 
 		const runtime = this.getReactRuntimeModules();
 		let html = this.normalizeUnresolvedMarkerArtifactHtml(
-			await renderReactHtml(
-				runtime,
+			await this.renderReactTree(
 				runtime.react.createElement(runtime.react.Fragment, null, toReactNode(children, this.name)),
+				'queued children',
 			),
 		);
 		html = restoreRuntimeChildHtml(html, runtimeContext);
@@ -369,7 +377,14 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		};
 		const hasResolvedChildHtml = input.children !== undefined;
 		let html = this.normalizeUnresolvedMarkerArtifactHtml(
-			await renderComponentHtml({ input, context, runtimeContext, runtime: this.getReactRuntimeModules() }),
+			await renderComponentHtml({
+				input,
+				context,
+				runtimeContext,
+				runtime: this.getReactRuntimeModules(),
+				timeoutMs: this.getRuntimeState().renderTimeoutMs,
+				label: getComponentIdentity(input.component)?.file ?? 'component',
+			}),
 		);
 		html = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
 		const canAttachAttributes = hasSingleRootElement(html);
@@ -507,7 +522,9 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			},
 		};
 		const runtimeContext = this.getQueuedForeignSubtreeContext<ReactForeignSubtreeResolutionContext>(runtimeInput);
-		const html = this.normalizeUnresolvedMarkerArtifactHtml(await renderReactHtml(runtime, tree));
+		const html = this.normalizeUnresolvedMarkerArtifactHtml(
+			await this.renderReactTree(tree, getComponentIdentity(page.component)?.file ?? 'page'),
+		);
 		return { children: await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext) };
 	}
 
@@ -639,6 +656,7 @@ function createReactRendererHookFactory(
 			mdxExtensions,
 			hmrPageMetadataCache,
 			forceBrowserGraph,
+			renderTimeoutMs: reactConfig?.renderTimeoutMs ?? REACT_SSR_RENDER_TIMEOUT_MS,
 			bundleService,
 			pageModuleService,
 			hydrationAssetService,

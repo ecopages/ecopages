@@ -130,7 +130,7 @@ With `ssr: true`, `dynamic` returns a `React.lazy()` component, and the server r
 
 ### Suspense on the server
 
-Server rendering waits for every `<Suspense>` boundary before it returns HTML, in Pages, Layouts and every other React component they render, so `React.lazy()` and `<Suspense>` render their content, not their fallback. The document is still sent in one piece, not streamed, and there is no time limit: a suspending child that never settles keeps the render waiting. A component that throws, or an import that rejects, inside a boundary is logged on the server and that boundary's fallback is served for the browser to retry; an error outside every boundary fails the render.
+Server rendering waits for every `<Suspense>` boundary before it returns HTML, in Pages, Layouts and every other React component they render, so `React.lazy()` and `<Suspense>` render their content, not their fallback. The document is still sent in one piece, not streamed. Waiting stops after 10 seconds by default: unfinished boundaries stay in their fallback for the browser to retry, the rest of the Page is served, and one warning names the Page. Pass `reactPlugin({ renderTimeoutMs: 5_000 })` to change the limit. A component that throws, or an import that rejects, inside a boundary is logged on the server and that boundary's fallback is served for the browser to retry; an error outside every boundary fails the render.
 
 ### `ClientOnly`
 

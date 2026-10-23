@@ -15,7 +15,7 @@ import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import path from 'node:path';
 import type React from 'react';
-import { REACT_PLUGIN_NAME } from './react.constants.ts';
+import { REACT_PLUGIN_NAME, REACT_SSR_RENDER_TIMEOUT_MS } from './react.constants.ts';
 import { ReactRenderer } from '../render/react-renderer.ts';
 import type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 import { ReactHmrStrategy } from '../hmr/hmr-strategy.ts';
@@ -55,6 +55,7 @@ const resolveReactMdxCompilerOptions = (mdxOptions: ReactMdxOptions): CompileOpt
  * Defaults:
  * - `extensions`: `['.tsx']`
  * - `explicitGraph`: `false`
+ * - `renderTimeoutMs`: `10000`
  * - MDX is disabled when `mdx` is omitted
  * - `mdx.extensions`: `['.mdx']`
  */
@@ -66,6 +67,7 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 		explicitGraph,
 		dependencies,
 		runtimeModules,
+		renderTimeoutMs,
 		...baseConfig
 	} = options ?? {};
 	const extensions = [...(userExtensions ?? ['.tsx'])];
@@ -83,6 +85,7 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 		mdxExtensions,
 		hmrPageMetadataCache: new HmrPageMetadataCache(),
 		forceBrowserGraph: explicitGraph ?? false,
+		renderTimeoutMs: renderTimeoutMs ?? REACT_SSR_RENDER_TIMEOUT_MS,
 	};
 
 	return {

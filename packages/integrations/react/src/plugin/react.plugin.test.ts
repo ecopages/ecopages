@@ -29,6 +29,17 @@ describe('ReactPlugin', () => {
 
 		expect(plugin.extensions).toEqual(['.tsx']);
 		expect(plugin.bundlesPageDependencies).toBe(true);
+		expect(
+			(plugin as unknown as { rendererConfig: { renderTimeoutMs: number } }).rendererConfig.renderTimeoutMs,
+		).toBe(10_000);
+	});
+
+	it('passes a custom server render timeout to the renderer config', () => {
+		const plugin = reactPlugin({ renderTimeoutMs: 2_500 });
+
+		expect(
+			(plugin as unknown as { rendererConfig: { renderTimeoutMs: number } }).rendererConfig.renderTimeoutMs,
+		).toBe(2_500);
 	});
 
 	it('supports direct construction with MDX public options', () => {

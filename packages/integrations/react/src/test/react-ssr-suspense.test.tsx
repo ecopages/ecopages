@@ -12,7 +12,7 @@ import {
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { lazy, Suspense, type ComponentType, type JSX, type ReactNode } from 'react';
-import { ReactRenderer } from '../render/react-renderer.ts';
+import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
 
 class TestReactRenderer extends ReactRenderer {
 	protected override async getHtmlTemplate() {
@@ -49,6 +49,7 @@ afterAll(() => {
 
 async function createRenderer(
 	renderDeferredComponent?: (input: ComponentRenderInput) => Promise<ComponentRenderResult>,
+	reactConfig?: ReactRendererConfig,
 ) {
 	const appConfig = await createTestAppConfig({
 		distDir: testDir,
@@ -60,12 +61,17 @@ async function createRenderer(
 			processDependencies: vi.fn(async () => []),
 			getHmrManager: vi.fn(() => undefined),
 		} as unknown as AssetProcessingService,
+		reactConfig,
 	});
 }
 
 /**
  * A `lazy` component whose module settles on a later macrotask, so the first render pass always suspends.
  */
+function lazyNever<P extends object>() {
+	return lazy(() => new Promise<{ default: ComponentType<P> }>(() => {}));
+}
+
 function lazyAfterTick<P extends object>(load: () => ComponentType<P> | Error) {
 	return lazy(
 		() =>
@@ -320,6 +326,11 @@ describe('React server rendering waits for Suspense', () => {
 			Failing: lazyAfterTick(() => new Error('lazy import failed')),
 		},
 		{
+			cause: 'a lazy import rejects with AbortError',
+			message: 'lazy import aborted',
+			Failing: lazyAfterTick(() => new DOMException('lazy import aborted', 'AbortError')),
+		},
+		{
 			cause: 'a component inside the boundary throws',
 			message: 'component render failed',
 			Failing: () => {
@@ -413,5 +424,67 @@ describe('React server rendering waits for Suspense', () => {
 		expect(html).not.toContain('<script');
 		expect(html).not.toContain('<template');
 		expect(html).not.toContain(FALLBACK);
+	});
+
+	it('serves the fallback when a lazy import never settles', async () => {
+		const NeverContent = lazyNever();
+		const pageFile = path.join(testDir, 'pages/index.tsx');
+		const Page = eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			identity: { id: 'index', file: pageFile, integration: 'react' },
+			render: () => (
+				<main>
+					<p>rest of the page</p>
+					<Suspended>
+						<NeverContent />
+					</Suspended>
+				</main>
+			),
+		});
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+		const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		const started = Date.now();
+
+		try {
+			const html = await renderPage(await createRenderer(undefined, { renderTimeoutMs: 50 }), Page);
+			const elapsed = Date.now() - started;
+
+			expect(elapsed).toBeGreaterThanOrEqual(50);
+			expect(elapsed).toBeLessThan(2_000);
+			expect(html).toContain('<p>rest of the page</p>');
+			expect(html).toContain(FALLBACK);
+			expect(html).not.toContain('never');
+			expect(warn.mock.calls.flat().join(' ')).toContain(pageFile);
+			expect(warn.mock.calls.flat().join(' ')).toMatch(/did not settle in time/);
+			expect(error).not.toHaveBeenCalled();
+		} finally {
+			warn.mockRestore();
+			error.mockRestore();
+		}
+	});
+
+	it('still renders a lazy component that settles within the render time limit', async () => {
+		const LazyContent = lazyAfterTick(() => () => <p>within limit</p>);
+		const Page = eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			render: () => (
+				<main>
+					<Suspended>
+						<LazyContent />
+					</Suspended>
+				</main>
+			),
+		});
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		try {
+			const html = await renderPage(await createRenderer(undefined, { renderTimeoutMs: 500 }), Page);
+
+			expect(html).toContain('<p>within limit</p>');
+			expect(html).not.toContain(FALLBACK);
+			expect(warn).not.toHaveBeenCalled();
+		} finally {
+			warn.mockRestore();
+		}
 	});
 });

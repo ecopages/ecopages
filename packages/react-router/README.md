@@ -210,6 +210,7 @@ The router relies on **HTML-First** navigation to sync perfectly with SSR:
     - `handoff`: fetched document has no React page module → coordinator hands off to browser-router (hard `assign` if handoff fails).
     - `hard-navigation`: static-asset URL, failed fetch, or a page module that fails to load or evaluate (the error is logged) → `location.assign` / `location.href`.
     - `stale`: a newer navigation superseded this attempt.
+    - A render error after a committed navigation, such as a `React.lazy` chunk that fails to load, also becomes a full navigation to the destination URL, so the document is never left empty (coordinator and HMR reloads count as navigations). The router does not reload when the error happens before its first navigation, such as a failing lazy chunk while the first Page hydrates: reloading there would loop for as long as the failure lasts, so React's own handling applies.
     - `isNavigating` clears on every non-stale terminal (including handoff and hard fallback); stale attempts leave it for the newer owner.
 
 Coordinator-driven reloads fetch the current HTML instead of reusing prefetched navigation content, and keep the active URL fragment. A reload with `clearCache` also removes the current document and redirect target from the shared navigation cache before refreshing persisted layouts.

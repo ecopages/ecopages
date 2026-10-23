@@ -111,4 +111,56 @@ test.describe('Collection Pages render MDX through React.lazy @content', () => {
 		expect(timeline.frames.every((frame) => frame.first || frame.second)).toBe(true);
 		runtime.assertClean();
 	});
+
+	test('a post chunk that fails during client navigation becomes a full navigation', async ({ page }) => {
+		let chunkRequests = 0;
+		let documentRequests = 0;
+		page.on('request', (request) => {
+			if (request.resourceType() === 'document' && request.url().endsWith('/posts/second-post')) {
+				documentRequests += 1;
+			}
+		});
+		await page.route(/\/content\/posts\/second-post\.js/, async (route) => {
+			chunkRequests += 1;
+			if (chunkRequests === 1) {
+				await route.abort();
+				return;
+			}
+			await route.continue();
+		});
+
+		await gotoPath(page, '/posts/first-post');
+		await waitForHydratedPost(page, firstPost);
+		await page.getByTestId('next-post-link').click();
+
+		await expect(page).toHaveURL(/\/posts\/second-post$/);
+		await expect(page.getByTestId(secondPost)).toBeVisible();
+		await expect(page.getByTestId('post-title')).toHaveText('Second Post');
+		await waitForHydratedPost(page, secondPost);
+		expect(chunkRequests).toBe(2);
+		expect(documentRequests).toBe(1);
+	});
+
+	test('a chunk that keeps failing is not reloaded again after the full navigation', async ({ page }) => {
+		let chunkRequests = 0;
+		let documentRequests = 0;
+		await page.route(/\/content\/posts\/second-post\.js/, async (route) => {
+			chunkRequests += 1;
+			await route.abort();
+		});
+		page.on('request', (request) => {
+			if (request.resourceType() === 'document' && request.url().endsWith('/posts/second-post')) {
+				documentRequests += 1;
+			}
+		});
+
+		await gotoPath(page, '/posts/first-post');
+		await waitForHydratedPost(page, firstPost);
+		await page.getByTestId('next-post-link').click();
+
+		await expect.poll(() => chunkRequests).toBeGreaterThanOrEqual(2);
+		await expect(page).toHaveURL(/\/posts\/second-post$/);
+		await page.waitForLoadState('networkidle');
+		expect(documentRequests).toBe(1);
+	});
 });

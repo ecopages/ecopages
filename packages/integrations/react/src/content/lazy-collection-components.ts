@@ -23,9 +23,8 @@ export type LazyCollectionComponents = {
  *
  * Because the lookup is created by the Page module, a Page module reloaded by
  * HMR gets a fresh lookup and therefore loads the edited entry. A failed load
- * throws to the nearest error boundary and is dropped from the lookup, so the
- * next render after that boundary resets retries instead of replaying the
- * rejection. Without an error boundary React unmounts the whole page.
+ * is dropped from the lookup, so a later render retries instead of replaying
+ * the rejection.
  */
 export function createLazyCollectionComponents(
 	loadComponent: (slug: string) => Promise<CollectionComponent>,

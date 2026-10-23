@@ -25,12 +25,14 @@ import {
 	type ComponentType,
 	type FC,
 	type RefObject,
+	type SetStateAction,
 } from 'react';
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types.ts';
 import { RouterContext, type RouterNavigateRequestOptions } from './context.ts';
 import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/client';
 import { invalidateNavigationHtml } from '@ecopages/core/client';
 import { type PageState } from './navigation.ts';
+import { PageErrorBoundary } from './page-error-boundary.ts';
 import { runRouterNavigate, type RouterNavigateOptions } from './router-navigate-runner.ts';
 import { applyViewTransitionNames, ensureRootViewTransitionStyles } from '@ecopages/core/client';
 import { manageWindowScroll } from '@ecopages/core/client';
@@ -152,6 +154,10 @@ export const PageContent: FC = () => {
 			: undefined,
 	});
 };
+
+function reloadCurrentDocument(): void {
+	window.location.reload();
+}
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
@@ -280,6 +286,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	const pendingRenderRef = useRef<PendingRender | null>(null);
 	const activeNavigationRef = useRef<EcoNavigationTransaction | null>(null);
 	const isNavigatingRef = useRef(false);
+	const hasNavigatedRef = useRef(false);
 	const runtimeActiveRef = useRef(true);
 	const isInitialPagePropSyncRef = useRef(true);
 	const pendingPointerNavigationRef = useRef<EcoPendingNavigationIntent | null>(null);
@@ -350,6 +357,11 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		};
 	}, []);
 
+	const commitNavigatedPage = useCallback((page: SetStateAction<RouterPageState>) => {
+		hasNavigatedRef.current = true;
+		setCurrentPage(page);
+	}, []);
+
 	const navigateRef = useRef<(url: string, navigationOptions?: RouterNavigateOptions) => Promise<void>>(
 		async () => {},
 	);
@@ -364,7 +376,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 				queuedNavigationHrefRef,
 				committedPathRef,
 				setIsNavigating,
-				setCurrentPage,
+				setCurrentPage: commitNavigatedPage,
 				startTransition,
 				createDeferred,
 				replayLocalNavigate: (href) => {
@@ -519,7 +531,14 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		createElement(
 			PersistLayoutsContext.Provider,
 			{ value: options.persistLayouts },
-			createElement(PageContext.Provider, { value: currentPage }, children),
+			createElement(
+				PageErrorBoundary,
+				{
+					hasNavigated: () => hasNavigatedRef.current,
+					reloadDocument: reloadCurrentDocument,
+				},
+				createElement(PageContext.Provider, { value: currentPage }, children),
+			),
 		),
 	);
 };

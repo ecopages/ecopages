@@ -205,6 +205,11 @@ export type IntegrationRendererHooks = {
 	beforeRender?: <C>(options: IntegrationRendererRenderOptions<C>) => Promise<void>;
 	beforeImportPageModule?: (file: string) => Promise<void>;
 	transformDocumentHtml?: (html: string) => string;
+	/**
+	 * Optional wrapper around the route render, for scoping such as HMR ownership.
+	 * @remarks Core already wraps whatever this throws with `createRenderError('Error rendering page')`,
+	 * keeping the original error as `cause` and passing an `HttpError` through. Do not catch and re-wrap.
+	 */
 	renderRoute?: <C>(
 		renderOptions: IntegrationRendererRenderOptions<C>,
 		render: () => Promise<RouteRendererBody>,

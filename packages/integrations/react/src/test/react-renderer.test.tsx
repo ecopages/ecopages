@@ -10,6 +10,7 @@ import {
 	type EcoPageFile,
 	type HtmlTemplateProps,
 } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
@@ -243,7 +244,7 @@ const HeadedHtmlTemplate: EcoComponent<HtmlTemplateProps, JSX.Element> = ({ head
 
 describeRendererContract({
 	name: 'react',
-	errorPrefix: 'Failed to render component',
+	errorPrefix: 'Error rendering page',
 	async createRenderer({ integrations, processDependencies }) {
 		const testRenderer = new TestReactRenderer({
 			appConfig: await createTestAppConfig({ distDir: testDir, integrations }),
@@ -763,6 +764,33 @@ describe('ReactRenderer', () => {
 		const text = await new Response(body as BodyInit).text();
 		expect(text).toContain('<div>Hello World</div>');
 		expect(text.match(/<!DOCTYPE html>/gi)).toHaveLength(1);
+	});
+
+	it('keeps a Not Found HttpError thrown by a Page', async () => {
+		const testRenderer = createRenderer();
+		const notFound = HttpError.NotFound('Unknown content entry');
+		const ThrowingPage = eco.page({
+			integration: 'react',
+			render: () => {
+				throw notFound;
+			},
+		});
+
+		await expect(
+			testRenderer.render({
+				params: {},
+				query: {},
+				props: {},
+				resolvedDependencies: [],
+				file: pageFilePath,
+				metadata: {
+					title: 'Test Page',
+					description: 'Test Description',
+				},
+				Page: ThrowingPage,
+				HtmlTemplate,
+			}),
+		).rejects.toBe(notFound);
 	});
 
 	it('serializes route params and query over conflicting page props', async () => {

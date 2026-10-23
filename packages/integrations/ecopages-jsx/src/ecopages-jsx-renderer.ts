@@ -1,6 +1,5 @@
 import type { EcoPageFile } from '@ecopages/core';
 import type { ComponentRenderInput, RouteRendererBody } from '@ecopages/core/integration';
-import { HttpError } from '@ecopages/core/errors';
 import {
 	createIntegrationRenderer,
 	type IntegrationRendererHookFactory,
@@ -106,34 +105,30 @@ export function createEcopagesJsxRendererHookFactory(
 				await ssrScriptPreloader.preloadSsrScripts([input.component]);
 
 				return await withEjsxHmrOwnershipScope(async () => {
-					try {
-						if (typeof input.component !== 'function') {
-							throw new TypeError('JSX renderer expected a callable component.');
-						}
-						const component = input.component as AsyncEcoComponent<Record<string, unknown>>;
-						const componentProps =
-							input.children === undefined
-								? input.props
-								: {
-										...input.props,
-										children:
-											typeof input.children === 'string'
-												? createMarkupNodeLike(input.children)
-												: input.children,
-									};
-						const content = await withCustomElementRenderHook(() => component(componentProps));
-						const html = await renderJsx(content);
-
-						recordEjsxHmrOwnership([input.component]);
-
-						return {
-							html,
-							canAttachAttributes: true,
-							integrationName: ECOPAGES_JSX_PLUGIN_NAME,
-						};
-					} catch (error) {
-						throw createRenderError('Error rendering component', error);
+					if (typeof input.component !== 'function') {
+						throw new TypeError('JSX renderer expected a callable component.');
 					}
+					const component = input.component as AsyncEcoComponent<Record<string, unknown>>;
+					const componentProps =
+						input.children === undefined
+							? input.props
+							: {
+									...input.props,
+									children:
+										typeof input.children === 'string'
+											? createMarkupNodeLike(input.children)
+											: input.children,
+								};
+					const content = await withCustomElementRenderHook(() => component(componentProps));
+					const html = await renderJsx(content);
+
+					recordEjsxHmrOwnership([input.component]);
+
+					return {
+						html,
+						canAttachAttributes: true,
+						integrationName: ECOPAGES_JSX_PLUGIN_NAME,
+					};
 				});
 			},
 			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
@@ -210,12 +205,4 @@ function isJsxSerializableForeignChild(children: unknown): boolean {
 	}
 
 	return 'strings' in children && Array.isArray((children as { strings: unknown }).strings);
-}
-
-function createRenderError(message: string, cause?: unknown): HttpError {
-	if (HttpError.isHttpError(cause)) {
-		return cause;
-	}
-	const errorMessage = cause instanceof Error ? `${message}: ${cause.message}` : message;
-	return HttpError.InternalServerError(errorMessage);
 }

@@ -14,7 +14,6 @@ export type BuildPageClientBrowserAssetsInput = {
 	plan: PageClientPlan;
 	/** Name of the Integration building for the plan. */
 	integrationName: string;
-	collectOwnIslandAssets(plan: PageClientPlan): Promise<ProcessedAsset[]>;
 	resolveContributor(integrationName: string): Promise<PageClientAssetsContributor | undefined>;
 	processLazyEntries(entries: AssetDefinition[]): Promise<ProcessedAsset[]>;
 	applyPendingLazyTriggers(assets: ProcessedAsset[], configs: EcoComponentConfig[]): ResolvedLazyTrigger[];
@@ -24,15 +23,15 @@ export type BuildPageClientBrowserAssetsInput = {
  * Builds island and lazy-entry browser assets from a page client plan.
  *
  * @remarks
- * The page owner collects its own island assets, then asks every other island-hydrating Integration
- * on the plan to contribute its grouped client build. Lazy entries join that grouped build when an
+ * The page owner asks every other island-hydrating Integration on the plan to contribute its grouped
+ * client build. Lazy entries join that grouped build when an
  * Integration includes them; otherwise they are processed here as one grouped batch.
  */
 export async function buildPageClientBrowserAssets(
 	input: BuildPageClientBrowserAssetsInput,
 ): Promise<PageClientBrowserAssets> {
 	const { plan } = input;
-	const combined = [...(await input.collectOwnIslandAssets(plan))];
+	const combined: ProcessedAsset[] = [];
 
 	for (const integrationName of uniqueIslandIntegrationNames(plan)) {
 		if (integrationName === input.integrationName) {

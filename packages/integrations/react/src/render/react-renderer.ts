@@ -198,7 +198,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 	 * Builds React island and lazy-entry modules in one grouped browser build.
 	 */
 	private async buildPageClientBrowserAssetsHook(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
-		const processedAssets = await this.hydrationAssetService.buildPageClientRenderAssets({
+		const processedAssets = await this.hydrationAssetService.buildPageClientAssets({
 			islands: selectHydrationIslandEntries(plan, this.name).map((entry) => ({
 				file: entry.file,
 				config: entry.component.config,

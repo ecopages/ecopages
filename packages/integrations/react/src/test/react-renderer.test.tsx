@@ -372,8 +372,22 @@ describe('ReactRenderer', () => {
 			expect(result.html).toContain('<span>One</span>');
 		});
 
-		it('builds hydration assets before render and stamps the attachable component root as an island host', async () => {
-			const { testRenderer, assetProcessingService } = createRendererWithAssets();
+		it("builds hydration assets for a React island on another Integration's page", async () => {
+			const { testRenderer } = createRendererWithAssets();
+			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
+				title: string;
+			}>;
+			Component.config = { identity: { id: 'component-id', file: pageFilePath, integration: 'react' } };
+
+			const islandAssets = await testRenderer.buildPageClientBrowserAssets(
+				createPageClientPlan('kitajs', Component),
+			);
+
+			expect(islandAssets.processedAssets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/mock.js' }));
+		});
+
+		it('stamps an attachable component root as an island host', async () => {
+			const { testRenderer } = createRendererWithAssets();
 			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
 				title: string;
 			}>;
@@ -384,12 +398,6 @@ describe('ReactRenderer', () => {
 					integration: 'react',
 				},
 			};
-
-			const islandAssets = await testRenderer.buildPageClientBrowserAssets(
-				createPageClientPlan('kitajs', Component),
-			);
-			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
-			expect(islandAssets.processedAssets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/mock.js' }));
 
 			const result = await testRenderer.renderComponent({
 				component: Component,

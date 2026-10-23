@@ -16,7 +16,6 @@ export type DocumentShellLayoutInput = {
 export type DocumentShellComposeChildrenContext = {
 	primaryComponent: EcoComponent;
 	primaryProps: Record<string, unknown>;
-	primaryRender?: ComponentRenderResult;
 	layouts: DocumentShellLayoutInput[];
 	rendererCache: BaseIntegrationContext['rendererCache'];
 	renderComponentWithForeignChildren: DocumentShellRenderDependencies['renderComponentWithForeignChildren'];
@@ -86,12 +85,9 @@ function resolveDocumentShellLayouts(
  */
 export async function composeSequentialLayoutChildren(
 	context: DocumentShellComposeChildrenContext,
+	primaryHtml: string,
 ): Promise<DocumentShellComposeChildrenResult> {
-	if (!context.primaryRender) {
-		throw new Error('[ecopages] composeSequentialLayoutChildren requires primaryRender.');
-	}
-
-	let children: unknown = context.primaryRender.html;
+	let children: unknown = primaryHtml;
 
 	for (const layout of [...context.layouts].reverse()) {
 		const layoutRender = await context.renderComponentWithForeignChildren({
@@ -128,15 +124,17 @@ export async function composeDocumentShell(
 	};
 	const { children } = input.composeChildren
 		? await input.composeChildren(composeContext)
-		: await composeSequentialLayoutChildren({
-				...composeContext,
-				primaryRender: await dependencies.renderComponentWithForeignChildren({
-					component: input.primaryComponent,
-					props: input.primaryProps,
-					foreignChildRoots: input.foreignChildRoots,
-					integrationContext: { rendererCache },
-				}),
-			});
+		: await composeSequentialLayoutChildren(
+				composeContext,
+				(
+					await dependencies.renderComponentWithForeignChildren({
+						component: input.primaryComponent,
+						props: input.primaryProps,
+						foreignChildRoots: input.foreignChildRoots,
+						integrationContext: { rendererCache },
+					})
+				).html,
+			);
 	const documentRender = await dependencies.renderComponentWithForeignChildren({
 		component: input.htmlTemplate,
 		props: input.documentProps,

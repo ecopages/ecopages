@@ -477,7 +477,6 @@ export class RouteRenderOrchestrator {
 						},
 					}),
 					htmlFinalization.htmlContributions,
-					renderOptions.pagePackage,
 					renderOptions,
 				),
 			);
@@ -502,7 +501,6 @@ export class RouteRenderOrchestrator {
 					},
 				}),
 				htmlFinalization.htmlContributions,
-				renderOptions.pagePackage,
 				renderOptions,
 			),
 		);

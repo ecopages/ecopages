@@ -234,11 +234,6 @@ export type IntegrationRendererHookFactoryOptions = Omit<IntegrationRendererOpti
 		components: (EcoComponent | Partial<EcoComponent>)[],
 		options?: { preparedGraph?: true },
 	) => Promise<ProcessedAsset[]>;
-	/** Resolves component-owned assets without prepending Integration-wide dependencies. */
-	resolveComponentDependencies: (
-		components: (EcoComponent | Partial<EcoComponent>)[],
-		options?: { preparedGraph?: true },
-	) => Promise<ProcessedAsset[]>;
 	/** Resolves a declared component asset relative to its owning component file. */
 	resolveDependencyPath: (componentDir: string, pathUrl: string) => string;
 	/** Resolves lazy client triggers from processed assets using the current render session. */
@@ -786,8 +781,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						resolvedIntegrationDependencies,
 						hooks: {},
 						resolveDependencies: (components, options) => this.resolveDependencies(components, options),
-						resolveComponentDependencies: (components, options) =>
-							this.processComponentDependencies(components, options),
 						resolveDependencyPath: (componentDir, pathUrl) =>
 							this.resolveDependencyPath(componentDir, pathUrl),
 						applyPendingLazyTriggers: (assets, configs) =>
@@ -899,12 +892,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	async transformRouteResponse(
 		response: Response,
 		htmlContributions: HtmlDocumentContribution[] | undefined,
-		pagePackage: InternalIntegrationRendererRenderOptions<C>['pagePackage'],
 		renderOptions: InternalIntegrationRendererRenderOptions<C>,
 	): Promise<RouteRendererBody> {
 		const transformedResponse = this.htmlTransformer.transform(response, {
 			contributions: htmlContributions,
-			pagePackage,
+			pagePackage: renderOptions.pagePackage,
 		});
 		const body = (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
 		return this.finalizeDocument(body, renderOptions);
@@ -1427,18 +1419,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Builds island client assets from the page client plan before SSR.
-	 *
-	 * @remarks
-	 * Default is none. Integrations that hydrate islands override this so
-	 * {@link IntegrationRenderer.execute} never starts a browser build during SSR.
-	 * Page owners also call this on other hydrating integrations listed in the plan.
-	 */
-	protected async collectIslandRenderAssets(_plan: PageClientPlan): Promise<ProcessedAsset[]> {
-		return [];
-	}
-
-	/**
 	 * Returns whether this renderer builds island and lazy-entry scripts in the
 	 * app-wide grouped browser build that other page owners should run for the plan.
 	 */
@@ -1474,7 +1454,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return buildPageClientBrowserAssets({
 			plan,
 			integrationName: this.name,
-			collectOwnIslandAssets: (ownPlan) => this.collectIslandRenderAssets(ownPlan),
 			resolveContributor: async (integrationName) => {
 				const owning = await this.resolveOwningRenderer(integrationName, rendererCache);
 				return owning instanceof IntegrationRenderer

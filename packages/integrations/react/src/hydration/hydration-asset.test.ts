@@ -461,7 +461,7 @@ describe('HydrationAssetService', () => {
 			}),
 		});
 
-		await service.buildPageClientRenderAssets({
+		await service.buildPageClientAssets({
 			islands: [
 				{
 					file: '/app/src/components/counter.tsx',
@@ -516,7 +516,7 @@ describe('HydrationAssetService', () => {
 			} as unknown as ConstructorParameters<typeof HydrationAssetService>[0]['bundleService'],
 		});
 
-		const processedAssets = await service.buildPageClientRenderAssets({
+		const processedAssets = await service.buildPageClientAssets({
 			islands: [
 				{
 					file: islandA,
@@ -611,7 +611,7 @@ describe('HydrationAssetService', () => {
 		const counter = { identity: { id: 'counter', file, integration: 'react' } };
 		const cart = { identity: { id: 'cart', file, integration: 'react' } };
 
-		const processedAssets = await service.buildPageClientRenderAssets({
+		const processedAssets = await service.buildPageClientAssets({
 			islands: [
 				{ file, config: counter },
 				{ file, config: cart },
@@ -654,7 +654,7 @@ describe('HydrationAssetService', () => {
 			} as unknown as ConstructorParameters<typeof HydrationAssetService>[0]['bundleService'],
 		});
 
-		await service.buildPageClientRenderAssets({
+		await service.buildPageClientAssets({
 			islands: [
 				{
 					file: '/app/src/components/counter.tsx',
@@ -664,7 +664,7 @@ describe('HydrationAssetService', () => {
 				},
 			],
 		});
-		await service.buildPageClientRenderAssets({
+		await service.buildPageClientAssets({
 			islands: [
 				{
 					file: '/app/src/components/counter.tsx',

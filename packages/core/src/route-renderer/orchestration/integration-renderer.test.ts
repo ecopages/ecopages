@@ -159,7 +159,6 @@ describe('IntegrationRenderer', () => {
 		const resolveDependencies = hookFactoryOptions.resolveDependencies;
 
 		expect(await resolveDependencies([])).toEqual([]);
-		expect(typeof hookFactoryOptions.resolveComponentDependencies).toBe('function');
 		expect(hookFactoryOptions.resolveDependencyPath('/app/pages', './style.css')).toBe('/app/pages/style.css');
 		expect(processDependencies).toHaveBeenCalledOnce();
 		expect(processDependencies).toHaveBeenCalledWith([], assetProcessingIntegration);
@@ -1147,26 +1146,35 @@ describe('IntegrationRenderer', () => {
 
 	it('responds with exactly the assets of the prepared page package', async () => {
 		const processDependencies = vi.fn(async (dependencies: AssetDefinition[]) =>
-			dependencies.flatMap((dependency): ProcessedAsset[] =>
-				dependency.kind === 'stylesheet' && dependency.source === 'file'
+			dependencies.flatMap((dependency): ProcessedAsset[] => {
+				if (dependency.source !== 'file') return [];
+				const srcUrl = `/assets/${dependency.filepath.split('/').at(-1)}`;
+				return dependency.kind === 'stylesheet'
 					? [
 							{
 								kind: 'stylesheet',
 								inline: false,
-								srcUrl: `/assets/${dependency.filepath.split('/').at(-1)}`,
+								srcUrl,
 								position: 'head',
 								attributes: { rel: 'stylesheet' },
 							},
 						]
-					: [],
-			),
+					: [{ kind: 'script', inline: false, srcUrl, position: 'head' }];
+			}),
 		);
 		const integration = 'prepared-package-renderer';
+		const foreignIntegration = 'prepared-package-foreign';
 		const Card = eco.component({
 			integration,
 			identity: { id: 'card', file: '/app/components/card.ts', integration },
 			dependencies: { stylesheets: ['./card.css'] },
 			render: () => '<article>card</article>',
+		});
+		const Widget = eco.component({
+			integration: foreignIntegration,
+			identity: { id: 'widget', file: '/app/components/widget.ts', integration: foreignIntegration },
+			dependencies: { stylesheets: ['./widget.css'], scripts: ['./widget.script.ts'] },
+			render: () => '<aside>widget</aside>',
 		});
 		const Layout = eco.layout({
 			integration,
@@ -1178,13 +1186,23 @@ describe('IntegrationRenderer', () => {
 			integration,
 			identity: { id: 'page', file: '/app/pages/index.ts', integration },
 			layout: Layout,
-			dependencies: { stylesheets: ['./index.css'], components: [Card] },
-			render: () => `<main>${String(Card({}))}</main>`,
+			dependencies: { stylesheets: ['./index.css'], components: [Card, Widget] },
+			render: () => `<main>${String(Card({}))}${String(Widget({}))}</main>`,
 		});
 		const HtmlTemplate = eco.html({
 			integration,
 			identity: { id: 'html', file: '/app/html.ts', integration },
 			render: ({ children }) => `<html><head></head><body>${String(children ?? '')}</body></html>`,
+		});
+		const assetProcessingService = { processDependencies } as unknown as AssetProcessingService;
+		const ForeignRenderer = createIntegrationRenderer(foreignIntegration, {});
+		const appConfig = createMockAppConfig({
+			integrations: [
+				createMockIntegrationPlugin({
+					name: foreignIntegration,
+					getRenderer: () => new ForeignRenderer({ appConfig, assetProcessingService }),
+				}),
+			],
 		});
 		let preparedPagePackage: IntegrationRendererRenderOptions['pagePackage'];
 		const renderer = new (class extends IntegrationRenderer<EcoPagesElement> {
@@ -1202,18 +1220,24 @@ describe('IntegrationRenderer', () => {
 			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 				return HtmlTemplate as EcoComponent<HtmlTemplateProps>;
 			}
-		})({
-			appConfig: createMockAppConfig(),
-			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
-		});
+		})({ appConfig, assetProcessingService });
 
 		const result = await renderer.execute({ file: '/app/pages/index.ts', params: {}, query: {} });
 		const html = await new Response(result.body as BodyInit).text();
-		const linkedStylesheets = [...html.matchAll(/<link [^>]*href="([^"]+)"/g)].map((match) => match[1]).sort();
+		const emittedUrls = [...html.matchAll(/<(?:link|script) [^>]*(?:href|src)="([^"]+)"/g)]
+			.map((match) => match[1])
+			.sort();
 
 		expect(html).toContain('<article>card</article>');
-		expect(linkedStylesheets).toEqual(['/assets/base.css', '/assets/card.css', '/assets/index.css']);
-		expect(linkedStylesheets).toEqual(preparedPagePackage?.assets.map((asset) => asset.srcUrl).sort());
+		expect(html).toMatch(/<aside [^>]*data-eco-island-integration="prepared-package-foreign">widget<\/aside>/);
+		expect(emittedUrls).toEqual([
+			'/assets/base.css',
+			'/assets/card.css',
+			'/assets/index.css',
+			'/assets/widget.css',
+			'/assets/widget.script.ts',
+		]);
+		expect(emittedUrls).toEqual(preparedPagePackage?.assets.map((asset) => asset.srcUrl).sort());
 	});
 
 	it('should extract cache strategy from page component (static property)', async () => {

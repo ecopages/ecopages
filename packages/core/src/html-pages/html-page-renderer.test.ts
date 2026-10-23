@@ -115,7 +115,6 @@ describe('HtmlPageRenderer', () => {
 		const transformed = await renderer.transformRouteResponse(
 			new Response(body as BodyInit),
 			[{ placement: 'head-append', html: '<title>Injected</title>' }],
-			undefined,
 			options,
 		);
 		const html = await new Response(transformed as BodyInit).text();

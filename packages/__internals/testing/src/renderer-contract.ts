@@ -101,10 +101,10 @@ export function describeRendererContract(harness: RendererContractHarness): void
 	const { name, errorPrefix, makeComponent, makeView } = harness;
 	const viewFile = harness.viewFile ?? '/app/views/contract.tsx';
 
-	const createPlainRenderer = (processDependencies?: RendererContractRendererOptions['processDependencies']) =>
+	const createPlainRenderer = () =>
 		harness.createRenderer({
 			integrations: [],
-			processDependencies: processDependencies ?? (vi.fn(async () => []) as never),
+			processDependencies: vi.fn(async () => []) as never,
 		});
 
 	const islandComponent = () =>

@@ -40,7 +40,6 @@ describe('island host attributes', () => {
 			{
 				canAttachAttributes: true,
 				integrationName: 'lit',
-				assets: [{ kind: 'script' }],
 				rootAttributes: {} as Record<string, string>,
 			},
 			[{ kind: 'script' }],
@@ -50,13 +49,12 @@ describe('island host attributes', () => {
 		expect(result.rootAttributes?.[ECO_ISLAND_INTEGRATION_ATTRIBUTE]).toBe('lit');
 	});
 
-	it('does not finalize component renders whose only scripts come from foreign subtrees', () => {
+	it('does not finalize component renders whose own assets ship no client script', () => {
 		const result = finalizeIslandComponentRender(
 			{ integrationContext: { componentInstanceId: 'host_n_3' } },
 			{
 				canAttachAttributes: true,
 				integrationName: 'lit',
-				assets: [{ kind: 'stylesheet' }, { kind: 'script' }],
 				rootAttributes: {} as Record<string, string>,
 			},
 			[{ kind: 'stylesheet' }],

@@ -66,7 +66,8 @@ export function componentRenderHasIslandBootstrap(assets: Array<{ kind: string }
  * Stamps the render result's root as an Island Host when the component ships its own client script.
  *
  * @param ownAssets - Assets of the component and its same-Integration nested components, excluding Foreign Children
- * and the Foreign Subtrees rendered inside it: a component without scripts that wraps an island is not an island itself.
+ * and the Foreign Subtrees rendered inside it.
+ * @remarks A component without scripts that wraps an island is not an island itself.
  */
 export function finalizeIslandComponentRender<
 	T extends {

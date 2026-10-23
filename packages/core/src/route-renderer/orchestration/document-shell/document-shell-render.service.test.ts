@@ -132,11 +132,6 @@ describe('document-shell-render.service', () => {
 
 	it('should export composeSequentialLayoutChildren as the default hook implementation', async () => {
 		const rendererCache = new Map<string, unknown>();
-		const primaryRender = {
-			html: '<page />',
-			canAttachAttributes: true,
-			integrationName: 'test',
-		};
 		const layoutRender = {
 			html: '<layout><page /></layout>',
 			canAttachAttributes: true,
@@ -145,14 +140,16 @@ describe('document-shell-render.service', () => {
 		const renderComponentWithForeignChildren = vi.fn(async () => layoutRender);
 		const Layout = stubComponent('layout');
 
-		const result = await composeSequentialLayoutChildren({
-			primaryRender,
-			primaryComponent: stubComponent('page'),
-			primaryProps: {},
-			layouts: [{ component: Layout, props: { section: 'docs' } }],
-			rendererCache,
-			renderComponentWithForeignChildren,
-		});
+		const result = await composeSequentialLayoutChildren(
+			{
+				primaryComponent: stubComponent('page'),
+				primaryProps: {},
+				layouts: [{ component: Layout, props: { section: 'docs' } }],
+				rendererCache,
+				renderComponentWithForeignChildren,
+			},
+			'<page />',
+		);
 
 		expect(result).toEqual({ children: '<layout><page /></layout>' });
 		expect(renderComponentWithForeignChildren).toHaveBeenCalledWith({

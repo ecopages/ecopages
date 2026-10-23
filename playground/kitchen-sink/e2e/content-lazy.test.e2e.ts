@@ -75,11 +75,11 @@ async function holdFirstPostChunk(page: Page, options?: { failOnce?: boolean }) 
 	};
 }
 
-async function expectPostDiscarded(page: Page) {
-	await expect(page.getByTestId(firstPost)).toHaveCount(0);
+async function expectServerPostVisible(page: Page) {
+	await expect(page.getByTestId('page-post')).toBeVisible();
+	await expect(page.getByTestId(firstPost)).toBeVisible();
+	await expect(page.getByTestId(kitchenSinkShellTestId)).toBeVisible();
 	await expect(page.getByTestId('post-loading')).toHaveCount(0);
-	await expect(page.getByTestId('page-post')).toHaveCount(0);
-	await expect(page.getByTestId(kitchenSinkShellTestId)).toHaveCount(0);
 }
 
 async function expectNoFurtherDocument(page: Page, urlPart: string) {
@@ -214,7 +214,9 @@ test.describe('Collection Pages render MDX through React.lazy @content', () => {
 });
 
 test.describe('First hydration of a collection Page @content', () => {
-	test('a post chunk that fails once during first hydration is not retried by a reload', async ({ page }) => {
+	test('a post chunk that fails once during first hydration keeps the server HTML and is not retried', async ({
+		page,
+	}) => {
 		let documentRequests = 0;
 		page.on('request', (request) => {
 			if (request.resourceType() === 'document' && request.url().includes('/posts/first-post')) {
@@ -224,17 +226,17 @@ test.describe('First hydration of a collection Page @content', () => {
 		const chunk = await holdFirstPostChunk(page, { failOnce: true });
 
 		await gotoPath(page, '/posts/first-post');
-		await expect(page.getByTestId('page-post')).toBeVisible();
-		await expect(page.getByTestId(firstPost)).toBeVisible();
+		await expectServerPostVisible(page);
 		await expect.poll(() => chunk.chunkRequests).toBeGreaterThanOrEqual(1);
 		chunk.release();
 
-		await expectPostDiscarded(page);
+		await expectServerPostVisible(page);
 		await expectNoFurtherDocument(page, '/posts/first-post');
 		expect(documentRequests).toBe(1);
+		expect(chunk.chunkRequests).toBe(1);
 	});
 
-	test('a post chunk that always fails during first hydration leaves no page content', async ({ page }) => {
+	test('a post chunk that always fails during first hydration keeps the server HTML', async ({ page }) => {
 		let documentRequests = 0;
 		page.on('request', (request) => {
 			if (request.resourceType() === 'document' && request.url().includes('/posts/first-post')) {
@@ -244,14 +246,14 @@ test.describe('First hydration of a collection Page @content', () => {
 		const chunk = await holdFirstPostChunk(page);
 
 		await gotoPath(page, '/posts/first-post');
-		await expect(page.getByTestId('page-post')).toBeVisible();
-		await expect(page.getByTestId(firstPost)).toBeVisible();
+		await expectServerPostVisible(page);
 		await expect.poll(() => chunk.chunkRequests).toBeGreaterThanOrEqual(1);
 		chunk.release();
 
-		await expectPostDiscarded(page);
+		await expectServerPostVisible(page);
 		await expectNoFurtherDocument(page, '/posts/first-post');
 		expect(documentRequests).toBe(1);
+		expect(chunk.chunkRequests).toBe(1);
 	});
 });
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createElement, useEffect, type ElementType, type ReactNode } from 'react';
+import { Component, createElement, lazy, Suspense, useEffect, type ElementType, type ReactNode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import {
 	mountIslands,
@@ -18,6 +18,7 @@ type TestHydrationRuntime = {
 	hydrateCalls: Array<{
 		containerTag: string;
 		hasRecoverableErrorHandler: boolean;
+		hasUncaughtErrorHandler: boolean;
 		tree: unknown;
 	}>;
 	renderCalls: unknown[];
@@ -73,11 +74,12 @@ function createPageOptions(
 		hydrateRoot: (
 			target: HTMLElement,
 			tree: unknown,
-			options?: { onRecoverableError?: (error: unknown) => void },
+			options?: { onRecoverableError?: (error: unknown) => void; onUncaughtError?: (error: unknown) => void },
 		) => {
 			runtime.hydrateCalls.push({
 				containerTag: target.tagName,
 				hasRecoverableErrorHandler: typeof options?.onRecoverableError === 'function',
+				hasUncaughtErrorHandler: typeof options?.onUncaughtError === 'function',
 				tree,
 			});
 			return (
@@ -141,6 +143,7 @@ describe('React page lifecycle', () => {
 		expect(testState.hydrateCalls).toHaveLength(1);
 		expect(testState.hydrateCalls[0].containerTag).toBe('BODY');
 		expect(testState.hydrateCalls[0].hasRecoverableErrorHandler).toBe(true);
+		expect(testState.hydrateCalls[0].hasUncaughtErrorHandler).toBe(true);
 		expect(testState.claimedOwners).toEqual(['react-router']);
 		expect(testState.registrations).toHaveLength(1);
 		expect(typeof testWindow.__ECO_PAGES__?.react?.cleanupPageRoot).toBe('function');
@@ -317,6 +320,126 @@ describe('React page lifecycle', () => {
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__!.renderCalls).toEqual([
 			{ Component: options.Page, props: { title: 'Hello React' } },
 		]);
+	});
+});
+
+class EntryErrorBoundary extends Component<{ children?: ReactNode }, { error?: unknown }> {
+	override state: { error?: unknown } = {};
+
+	static getDerivedStateFromError(error: unknown) {
+		return { error };
+	}
+
+	override render(): ReactNode {
+		if (this.state.error) {
+			return createElement('p', { 'data-testid': 'entry-error' }, 'entry failed');
+		}
+		return this.props.children ?? null;
+	}
+}
+
+function createRealPageHydrationOptions(Page: unknown): PageHydrationOptions {
+	return {
+		scriptId: 'ecopages-react-page',
+		pageModuleUrl: '/assets/page.js',
+		Page,
+		pageDataReader: {
+			readPageDataDocument: () => ({ props: {} }),
+			getPageDataFromDocument: () => ({}),
+		},
+		runtime: {
+			hydrateRoot: (target, tree, options) => {
+				const root = hydrateRoot(target, tree as ReactNode, options);
+				return {
+					render: (nextTree: unknown) => root.render(nextTree as ReactNode),
+					unmount: () => root.unmount(),
+				};
+			},
+			createElement: (...args: unknown[]) => args,
+		},
+		createTree: (Component, props) => createElement(Component as ElementType, props),
+		hasRouter: false,
+		isMdx: false,
+	};
+}
+
+describe('React page first hydration keeps server HTML', () => {
+	afterEach(() => {
+		document.body.innerHTML = '';
+		document.querySelectorAll('script[data-eco-script-id="ecopages-react-page"]').forEach((node) => node.remove());
+		delete (window as TestWindow).__ECO_PAGES__;
+		vi.restoreAllMocks();
+	});
+
+	it('keeps the server HTML when a lazy import rejects during first hydration', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const reported = vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});
+		const script = document.createElement('script');
+		script.setAttribute('data-eco-script-id', 'ecopages-react-page');
+		document.head.appendChild(script);
+		document.body.innerHTML = '<main data-testid="page"><p data-testid="heavy">heavy</p></main>';
+
+		const Heavy = lazy(() => Promise.reject(new Error('chunk failed')));
+		const Page = () =>
+			createElement(
+				'main',
+				{ 'data-testid': 'page' },
+				createElement(
+					Suspense,
+					{ fallback: createElement('p', { 'data-testid': 'loading' }, 'loading') },
+					createElement(Heavy),
+				),
+			);
+
+		startPageHydration(createRealPageHydrationOptions(Page));
+
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="heavy"]')?.textContent).toBe('heavy');
+			expect((window as TestWindow).__ECO_PAGES__?.react?.pageRoot).toBeNull();
+		});
+		expect(document.querySelector('[data-testid="page"]')).not.toBeNull();
+		expect(document.querySelector('[data-testid="loading"]')).toBeNull();
+		expect(reported).toHaveBeenCalled();
+	});
+
+	it('lets a Page-level error boundary catch the lazy rejection instead of restoring', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const reported = vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});
+		const script = document.createElement('script');
+		script.setAttribute('data-eco-script-id', 'ecopages-react-page');
+		document.head.appendChild(script);
+		document.body.innerHTML =
+			'<main data-testid="page"><p data-testid="rest">rest of the page</p><p data-testid="heavy">heavy</p></main>';
+
+		const Heavy = lazy(() => Promise.reject(new Error('chunk failed')));
+		const Page = () =>
+			createElement(
+				'main',
+				{ 'data-testid': 'page' },
+				createElement('p', { 'data-testid': 'rest' }, 'rest of the page'),
+				createElement(
+					EntryErrorBoundary,
+					null,
+					createElement(
+						Suspense,
+						{ fallback: createElement('p', { 'data-testid': 'loading' }, 'loading') },
+						createElement(Heavy),
+					),
+				),
+			);
+
+		startPageHydration(createRealPageHydrationOptions(Page));
+
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="entry-error"]')?.textContent).toBe('entry failed');
+		});
+		expect(document.querySelector('[data-testid="rest"]')?.textContent).toBe('rest of the page');
+		expect(document.querySelector('[data-testid="heavy"]')).toBeNull();
+		expect(document.querySelector('[data-testid="loading"]')).toBeNull();
+		expect((window as TestWindow).__ECO_PAGES__?.react?.pageRoot).not.toBeNull();
+		expect(reported).not.toHaveBeenCalled();
 	});
 });
 

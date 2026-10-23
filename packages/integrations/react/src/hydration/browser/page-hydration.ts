@@ -12,12 +12,13 @@ export type PageRoot = {
 	unmount: () => void;
 };
 
+export type PageHydrateRootOptions = {
+	onRecoverableError?: (error: unknown) => void;
+	onUncaughtError?: (error: unknown) => void;
+};
+
 export type PageReactRuntime = {
-	hydrateRoot: (
-		target: HTMLElement,
-		tree: unknown,
-		options?: { onRecoverableError?: (error: unknown) => void },
-	) => PageRoot;
+	hydrateRoot: (target: HTMLElement, tree: unknown, options?: PageHydrateRootOptions) => PageRoot;
 	createElement: (...args: unknown[]) => unknown;
 };
 
@@ -105,6 +106,21 @@ function setPageState(options: PageHydrationOptions, pageData: PageData): void {
 }
 
 /**
+ * Unmounts a page root when it is still mounted.
+ *
+ * @remarks
+ * React may already have unmounted the root for an uncaught first-hydration
+ * error before cleanup runs.
+ */
+function unmountPageRoot(root: PageRoot | null | undefined): void {
+	try {
+		root?.unmount();
+	} catch {
+		return;
+	}
+}
+
+/**
  * Invalidates pending HMR updates, releases the page root, and hands navigation
  * ownership back to the document runtime.
  */
@@ -117,7 +133,7 @@ function cleanupPageRoot(root: PageRoot | null): void {
 	runtime.react!.pageRoot = null;
 	runtime.navigation?.releaseOwnership?.('react-router');
 	delete runtime.page;
-	activeRoot?.unmount();
+	unmountPageRoot(activeRoot);
 }
 
 /** Registers React Router as the page navigation owner when this page uses it. */
@@ -153,6 +169,16 @@ function registerHmr(options: PageHydrationOptions): void {
 		);
 }
 
+/** Copies the hydrate target's children so a failed first hydration can restore them. */
+function cloneChildNodes(target: HTMLElement): Node[] {
+	return Array.from(target.childNodes, (node) => node.cloneNode(true));
+}
+
+/** Replaces the hydrate target's children with clones of a snapshot taken before `hydrateRoot`. */
+function restoreChildNodes(target: HTMLElement, snapshot: Node[]): void {
+	target.replaceChildren(...snapshot.map((node) => node.cloneNode(true)));
+}
+
 /**
  * Hydrates the page, or re-renders it when a root already exists.
  *
@@ -160,6 +186,15 @@ function registerHmr(options: PageHydrationOptions): void {
  * Starting is synchronous, so rerun scripts and DOM-ready callbacks that arrive
  * together cannot call `hydrateRoot` twice for document.body: the second sees
  * the root the first created.
+ *
+ * An uncaught error during this first `hydrateRoot` (a `React.lazy` chunk that
+ * never loads, with no Page-level error boundary) tears the root down after
+ * `onUncaughtError`. This snapshots the target before `hydrateRoot` and puts
+ * that HTML back on a microtask after the callback. Providing the handler
+ * replaces React's default reporter, so it still calls `reportError`.
+ * `React.lazy` caches a rejection, so this path does not retry. A later
+ * `root.render` or `unmount` disables restore so that first snapshot cannot
+ * come back.
  */
 function mount(options: PageHydrationOptions): void {
 	const runtime = getRuntime();
@@ -174,10 +209,36 @@ function mount(options: PageHydrationOptions): void {
 	}
 
 	(window as PageWindow).__ECO_DEV_HYDRATION_STARTED__ = performance.now();
-	const root = options.runtime.hydrateRoot(document.body, options.createTree(options.Page, pageData.props), {
+	const target = document.body;
+	const serverHtml = cloneChildNodes(target);
+	let allowRestore = true;
+	let root: PageRoot | undefined;
+
+	const restoreServerHtml = () => {
+		if (!allowRestore) return;
+		allowRestore = false;
+		cleanupPageRoot(runtime.react?.pageRoot ?? root ?? null);
+		restoreChildNodes(target, serverHtml);
+	};
+
+	root = options.runtime.hydrateRoot(target, options.createTree(options.Page, pageData.props), {
 		onRecoverableError: (error) => console.warn('[ecopages] Hydration error:', error),
+		onUncaughtError: (error) => {
+			reportError(error);
+			queueMicrotask(restoreServerHtml);
+		},
 	});
-	runtime.react!.pageRoot = root;
+
+	runtime.react!.pageRoot = {
+		render: (tree) => {
+			allowRestore = false;
+			root.render(tree);
+		},
+		unmount: () => {
+			allowRestore = false;
+			unmountPageRoot(root);
+		},
+	};
 	recordHydrationTiming();
 }
 

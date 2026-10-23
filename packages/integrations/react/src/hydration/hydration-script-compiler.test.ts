@@ -145,7 +145,7 @@ describe('PageHydrationScriptCompiler', () => {
 		globalScope.window = globalScope;
 		globalScope.document = {
 			readyState: 'complete',
-			body: {},
+			body: { childNodes: [] },
 			querySelector: () => ({}),
 			getElementById: () => null,
 		};

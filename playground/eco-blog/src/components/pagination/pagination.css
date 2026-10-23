@@ -1,0 +1,17 @@
+.pagination {
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	align-items: center;
+	gap: var(--space-s);
+}
+
+.pagination > :last-child {
+	justify-self: end;
+}
+
+.pagination__status {
+	margin: 0;
+	color: var(--color-muted-text);
+	font-size: var(--step--1);
+	font-variant-numeric: tabular-nums;
+}

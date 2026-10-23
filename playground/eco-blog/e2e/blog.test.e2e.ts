@@ -45,6 +45,37 @@ test.describe('Public blog', () => {
 	});
 });
 
+test.describe('Archive and feed', () => {
+	test('pages older posts nine at a time', async ({ page, request }) => {
+		await page.goto('/');
+		await expect(page.locator('.post-card')).toHaveCount(9);
+		await page.getByRole('link', { name: 'Older posts' }).click();
+
+		await expect(page).toHaveURL(/\/page\/2$/);
+		await expect(page.getByRole('heading', { level: 1, name: 'Older posts' })).toBeVisible();
+		await expect(page.locator('.post-card').first()).toBeVisible();
+		expect((await request.get('/page/99')).status()).toBe(404);
+	});
+
+	test('serves the latest posts as a well-formed RSS feed', async ({ page, request }) => {
+		const response = await request.get('/feed.xml');
+		expect(response.headers()['content-type']).toContain('application/rss+xml');
+		const xml = await response.text();
+
+		await page.goto('/');
+		const parsed = await page.evaluate((source) => {
+			const doc = new DOMParser().parseFromString(source, 'application/xml');
+			return { error: doc.querySelector('parsererror') !== null, items: doc.querySelectorAll('item').length };
+		}, xml);
+		expect(parsed.error).toBe(false);
+		expect(parsed.items).toBeGreaterThanOrEqual(9);
+		await expect(page.locator('link[rel="alternate"][type="application/rss+xml"]')).toHaveAttribute(
+			'href',
+			'/feed.xml',
+		);
+	});
+});
+
 test.describe.serial('Admin', () => {
 	const slug = `e2e-${Date.now()}`;
 	let page: Page;
@@ -106,6 +137,26 @@ test.describe.serial('Admin', () => {
 		await expect(page.locator('.post__body a', { hasText: 'bad' })).not.toHaveAttribute('href', /.*/);
 
 		await page.request.post(`/api/posts/${await findPostId(page, unsafeSlug)}/delete`, { maxRedirects: 0 });
+	});
+
+	test('keeps a draft out of the blog until it is published', async () => {
+		const draftSlug = `${slug}-draft`;
+		await page.goto('/admin/new');
+		await page.getByLabel('Title').fill(`Draft in e2e ${draftSlug}`);
+		await page.getByLabel('Slug').fill(draftSlug);
+		await page.getByRole('button', { name: 'Save draft' }).click();
+
+		await expect(page).toHaveURL(/\/admin$/);
+		await expect(page.locator('tr', { hasText: draftSlug }).getByText('Draft', { exact: true })).toBeVisible();
+		expect((await page.request.get(`/posts/${draftSlug}`)).status()).toBe(404);
+		expect(await (await page.request.get('/feed.xml')).text()).not.toContain(draftSlug);
+
+		await page.locator('tr', { hasText: draftSlug }).getByRole('link', { name: /^Edit/ }).click();
+		await page.getByRole('button', { name: 'Publish post' }).click();
+		await expect(page).toHaveURL(/\/admin$/);
+		expect((await page.request.get(`/posts/${draftSlug}`)).status()).toBe(200);
+
+		await page.request.post(`/api/posts/${await findPostId(page, draftSlug)}/delete`, { maxRedirects: 0 });
 	});
 
 	test('answers 400 for an invalid slug', async () => {

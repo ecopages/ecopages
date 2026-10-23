@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@ecopages/radiant-ui/themes/default';
+@import '@ecopages/radiant-ui/badge/styles.css';
 @import '@ecopages/radiant-ui/button/styles.css';
 @import '@ecopages/radiant-ui/input/styles.css';
 @import '@ecopages/radiant-ui/label/styles.css';

@@ -109,7 +109,8 @@ const REVEAL_TIMING_SCRIPT =
  *   below, not a logged error.
  * - An unbounded `progressiveChunkSize` keeps resolved boundaries inline. With the default,
  *   React moves a large boundary after its fallback and reveals it with an inline script.
- *   A boundary that renders a `precedence` stylesheet is still moved, whatever its size.
+ *   A boundary that renders a `precedence` stylesheet is still moved; that HTML fails the
+ *   render so the stylesheet is declared as a Dependency instead.
  * - React prefixes an `<html>` root with a doctype; the document shell writes its own, so
  *   the prefix is dropped.
  * - Waiting is bounded by the active {@link runWithRenderBudget} deadline, or by `timeoutMs` from
@@ -164,6 +165,7 @@ export async function renderReactHtml(
 			);
 		}
 		const markup = html.startsWith(DOCTYPE) ? html.slice(DOCTYPE.length) : html;
+		assertNoOutlinedSuspenseBoundary(markup, options.label);
 		return markup.replace(REVEAL_TIMING_SCRIPT, '');
 	} finally {
 		clearTimeout(timer);
@@ -182,6 +184,21 @@ function renderFallbackHtml(
 		throw new ReactRenderError(
 			`React server rendering of ${label} produced no HTML: its shell did not finish within the ${budget.timeoutMs}ms render time limit.`,
 			{ cause: error },
+		);
+	}
+}
+
+/**
+ * @remarks
+ * React still outlines a boundary that renders a `precedence` stylesheet, even
+ * with an unbounded `progressiveChunkSize`. `<template id="B:` also marks
+ * pending, errored and aborted boundaries that must keep serving their fallback,
+ * so this looks for the completed hidden segment and its reveal script.
+ */
+function assertNoOutlinedSuspenseBoundary(html: string, label: string): void {
+	if (html.includes('id="S:') && html.includes('$RC(')) {
+		throw new ReactRenderError(
+			`React server rendering of ${label} moved a Suspense boundary out of line. Declare the stylesheet as a Dependency instead of rendering a link with rel="stylesheet" and a precedence inside the boundary.`,
 		);
 	}
 }

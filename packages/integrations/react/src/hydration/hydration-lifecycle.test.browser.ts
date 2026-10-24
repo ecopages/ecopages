@@ -415,6 +415,48 @@ describe('React page first hydration keeps server HTML', () => {
 		);
 	});
 
+	it('does not restore the first server HTML once the URL has changed', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const reported = vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});
+		const script = document.createElement('script');
+		script.setAttribute('data-eco-script-id', 'ecopages-react-page');
+		document.head.appendChild(script);
+		document.body.innerHTML = '<main data-testid="page"><p data-testid="heavy">heavy</p></main>';
+		const initialUrl = `${window.location.pathname}${window.location.search}`;
+
+		let rejectChunk: ((error: Error) => void) | undefined;
+		const Heavy = lazy(
+			() =>
+				new Promise<never>((_resolve, reject) => {
+					rejectChunk = reject;
+				}),
+		);
+		const Page = () =>
+			createElement(
+				'main',
+				{ 'data-testid': 'page' },
+				createElement(
+					Suspense,
+					{ fallback: createElement('p', { 'data-testid': 'loading' }, 'loading') },
+					createElement(Heavy),
+				),
+			);
+
+		try {
+			startPageHydration(createRealPageHydrationOptions(Page));
+			await vi.waitFor(() => expect(rejectChunk).toBeDefined());
+			window.history.pushState(null, '', '/navigated-elsewhere');
+			rejectChunk?.(new Error('chunk failed'));
+
+			await vi.waitFor(() => expect(reported).toHaveBeenCalled());
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(document.querySelector('[data-testid="heavy"]')).toBeNull();
+		} finally {
+			window.history.replaceState(null, '', initialUrl);
+		}
+	});
+
 	it('keeps nodes added to the body after mount when it restores the server HTML', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
 		vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});

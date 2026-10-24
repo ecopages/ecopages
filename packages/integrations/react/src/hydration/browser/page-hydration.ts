@@ -213,6 +213,11 @@ function requireReloadForHmr(options: PageHydrationOptions): void {
 	};
 }
 
+/** The path and query of the document, without the fragment, which does not change the Page. */
+function currentDocumentUrl(): string {
+	return `${window.location.pathname}${window.location.search}`;
+}
+
 /** Logs the component stack that React's default uncaught error reporter would print. */
 function logUncaughtError(error: unknown, componentStack: string | null | undefined): void {
 	const message = error instanceof Error ? error.message : String(error);
@@ -235,10 +240,11 @@ function logUncaughtError(error: unknown, componentStack: string | null | undefi
  * `React.lazy` caches a rejection, so nothing is retried.
  *
  * Restore is not limited to hydration itself: it covers any uncaught error on
- * the first-loaded Page until `root.render` (a rerun or HMR update) or
- * `unmount` disarms it, so a stale snapshot cannot come back. With the router,
- * a Page render error after a client navigation becomes a full navigation
- * instead.
+ * the first-loaded Page until `root.render` (a rerun or HMR update), `unmount`
+ * or a change of URL disarms it, so a stale snapshot cannot come back. The
+ * router changes Pages inside the same root, so the URL is what shows it has
+ * navigated; after that a Page render error becomes a full navigation, and an
+ * error outside the Page leaves React's own handling.
  *
  * Providing `onUncaughtError` replaces React's default reporter, so it still
  * calls `reportError` and logs the component stack.
@@ -259,11 +265,12 @@ function mount(options: PageHydrationOptions): void {
 	const target = document.body;
 	const serverNodes = Array.from(target.childNodes);
 	const serverClones = serverNodes.map((node) => node.cloneNode(true));
+	const serverUrl = currentDocumentUrl();
 	let allowRestore = true;
 	let root: PageRoot | undefined;
 
 	const restoreServerHtml = () => {
-		if (!allowRestore) return;
+		if (!allowRestore || currentDocumentUrl() !== serverUrl) return;
 		allowRestore = false;
 		const addedNodes = findAddedNodes(target, serverNodes);
 		cleanupPageRoot(runtime.react?.pageRoot ?? root ?? null);

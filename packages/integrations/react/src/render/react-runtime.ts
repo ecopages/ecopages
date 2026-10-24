@@ -189,14 +189,25 @@ function renderFallbackHtml(
 }
 
 /**
+ * React's call that swaps an outlined boundary's hidden segment in, closing its inline script.
+ *
+ * @remarks
+ * React writes boundary and segment ids as hex counters. The hidden segment's wrapper depends on
+ * where the boundary sits (`<div hidden>`, `<table hidden>`, `<svg>`), so the reveal call is the
+ * one marker every outlined boundary shares.
+ */
+const OUTLINED_BOUNDARY_REVEAL = /\$RC\("B:[0-9a-f]+","S:[0-9a-f]+"\)<\/script>/;
+
+/**
  * @remarks
  * React still outlines a boundary that renders a `precedence` stylesheet, even
  * with an unbounded `progressiveChunkSize`. `<template id="B:` also marks
  * pending, errored and aborted boundaries that must keep serving their fallback,
- * so this looks for the completed hidden segment and its reveal script.
+ * so this looks for the reveal of a completed segment. Matching React's exact
+ * call keeps user markup that mentions `id="S:` or `$RC(` from failing the render.
  */
 function assertNoOutlinedSuspenseBoundary(html: string, label: string): void {
-	if (html.includes('id="S:') && html.includes('$RC(')) {
+	if (OUTLINED_BOUNDARY_REVEAL.test(html)) {
 		throw new ReactRenderError(
 			`React server rendering of ${label} moved a Suspense boundary out of line. Declare the stylesheet as a Dependency instead of rendering a link with rel="stylesheet" and a precedence inside the boundary.`,
 		);

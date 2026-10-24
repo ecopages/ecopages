@@ -68,16 +68,23 @@ export async function renderComponentHtml(options: {
 	context: ReactComponentRenderContext;
 	runtimeContext?: ReactForeignSubtreeResolutionContext;
 	runtime: ReactRuntimeModules;
+	timeoutMs: number;
+	label: string;
 }): Promise<string> {
-	const { input, context, runtimeContext, runtime } = options;
+	const { input, context, runtimeContext, runtime, timeoutMs, label } = options;
 	const component = asReactComponent(input.component);
+	const renderOptions = { timeoutMs, label };
 
 	if (input.children === undefined) {
-		return await renderReactHtml(runtime, runtime.react.createElement(component, input.props));
+		return await renderReactHtml(runtime, runtime.react.createElement(component, input.props), renderOptions);
 	}
 
 	if (isValidElement(input.children)) {
-		return await renderReactHtml(runtime, runtime.react.createElement(component, input.props, input.children));
+		return await renderReactHtml(
+			runtime,
+			runtime.react.createElement(component, input.props, input.children),
+			renderOptions,
+		);
 	}
 
 	const resolvedChildHtml = typeof input.children === 'string' ? input.children : String(input.children ?? '');
@@ -86,7 +93,11 @@ export async function renderComponentHtml(options: {
 		runtimeContext.rawChildrenToken = rawChildrenToken;
 		runtimeContext.rawChildrenHtml = resolvedChildHtml;
 	}
-	const html = await renderReactHtml(runtime, runtime.react.createElement(component, input.props, rawChildrenToken));
+	const html = await renderReactHtml(
+		runtime,
+		runtime.react.createElement(component, input.props, rawChildrenToken),
+		renderOptions,
+	);
 	return html.split(rawChildrenToken).join(resolvedChildHtml);
 }
 

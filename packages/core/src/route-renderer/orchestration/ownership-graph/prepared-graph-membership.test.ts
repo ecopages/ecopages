@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EcoComponent, EcoComponentDependencies } from '../../../types/contracts.ts';
 import { createPreparedComponentGraphBuilder } from './component-graph.ts';
-import { assertComponentInPreparedGraph, collectPreparedGraphComponentIds } from './prepared-graph-membership.ts';
+import { assertComponentInPreparedGraph, collectPreparedGraphComponents } from './prepared-graph-membership.ts';
 
 function createComponent(id: string, file: string, dependencies?: EcoComponentDependencies): EcoComponent<object> {
 	const component = (() => '') as EcoComponent<object>;
@@ -12,7 +12,7 @@ function createComponent(id: string, file: string, dependencies?: EcoComponentDe
 function collectIds(roots: EcoComponent<object>[]) {
 	const builder = createPreparedComponentGraphBuilder('kitajs');
 	builder.addRoots(roots.map((component) => ({ component, source: 'page' as const })));
-	return collectPreparedGraphComponentIds(builder.getGraph());
+	return collectPreparedGraphComponents(builder.getGraph());
 }
 
 describe('prepared graph membership', () => {
@@ -32,7 +32,13 @@ describe('prepared graph membership', () => {
 		const middle = createComponent('middle', '/app/middle.tsx', { components: [leaf] });
 		const page = createComponent('page', '/app/page.tsx', { components: [middle] });
 
-		expect(collectIds([page])).toEqual(new Set(['page', 'middle', 'leaf']));
+		expect(collectIds([page])).toEqual(
+			new Map([
+				['page', true],
+				['middle', true],
+				['leaf', true],
+			]),
+		);
 	});
 
 	it('fails a component in the same file as a declared one but not in the graph', () => {
@@ -42,7 +48,9 @@ describe('prepared graph membership', () => {
 		const ids = collectIds([createComponent('page', '/app/page.tsx', { components: [card] })]);
 
 		expect(() => assertComponentInPreparedGraph(card, ids)).not.toThrow();
-		expect(() => assertComponentInPreparedGraph(badge, ids)).toThrow('/app/card.tsx');
+		expect(() => assertComponentInPreparedGraph(badge, ids)).toThrow(
+			/"\/app\/card\.tsx" was rendered .* Import it statically/,
+		);
 	});
 
 	it('does not collect a component under a parent without an identity file', () => {
@@ -51,11 +59,26 @@ describe('prepared graph membership', () => {
 		const fileless = (() => '') as EcoComponent<object>;
 		fileless.config = { integration: 'kitajs', dependencies: { components: [child] } };
 
-		expect(collectIds([fileless])?.has('child')).toBe(false);
+		const ids = collectIds([fileless]);
+
+		expect(ids?.get('child')).toBe(false);
+		expect(() => assertComponentInPreparedGraph(child, ids)).toThrow(
+			/"\/app\/child\.tsx" was rendered .* only under a parent without an identity file/,
+		);
+	});
+
+	it('collects a component reached under both a fileless and a declared parent', () => {
+		vi.stubEnv('NODE_ENV', 'development');
+		const child = createComponent('child', '/app/child.tsx', { stylesheets: ['./child.css'] });
+		const fileless = (() => '') as EcoComponent<object>;
+		fileless.config = { integration: 'kitajs', dependencies: { components: [child] } };
+		const page = createComponent('page', '/app/page.tsx', { components: [child] });
+
+		expect(() => assertComponentInPreparedGraph(child, collectIds([fileless, page]))).not.toThrow();
 	});
 
 	it('skips a component without dependencies, an identity file or a set', () => {
-		const ids = new Set<string>();
+		const ids = new Map<string, boolean>();
 		const plain = createComponent('plain', '/app/plain.tsx');
 		const anonymous = (() => '') as EcoComponent<object>;
 		anonymous.config = { dependencies: { stylesheets: ['./a.css'] } };

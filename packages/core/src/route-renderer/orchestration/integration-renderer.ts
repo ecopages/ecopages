@@ -1187,7 +1187,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					const renderState = getComponentRenderContext<RouteRenderContextState>()?.renderState;
 					if (renderState) {
 						renderState.pageClientPlan = renderOptions.pageClientPlan;
-						renderState.preparedGraphComponentIds = renderOptions.preparedGraphComponentIds;
+						renderState.preparedGraphComponents = renderOptions.preparedGraphComponents;
 						renderState.islandRenderAssetsByFile = renderOptions.islandRenderAssetsByFile;
 					}
 					session.pagePackage = renderOptions.pagePackage;
@@ -1359,7 +1359,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	async renderComponentWithForeignChildren(input: InternalComponentRenderInput): Promise<ComponentRenderResult> {
 		assertComponentInPreparedGraph(
 			input.component,
-			getComponentRenderContext<RouteRenderContextState>()?.renderState?.preparedGraphComponentIds,
+			getComponentRenderContext<RouteRenderContextState>()?.renderState?.preparedGraphComponents,
 		);
 		return await executeComponentRender({
 			currentIntegrationName: this.name,

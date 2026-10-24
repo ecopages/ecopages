@@ -36,7 +36,6 @@ export {
 	type DocumentShellLayoutResolutionInput,
 	type LayoutShellPropsContext,
 } from './route-renderer/orchestration/document-shell/layout-shell-props.service.ts';
-export { mergePageBrowserGraph } from './route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils.ts';
 export { isRegisteredDevTransformEntrypoint, isRegisteredScriptEntrypoint } from './hmr/hmr-entrypoint-output.ts';
 export { type HmrRegisteredEntrypointsContext } from './hmr/hmr-registered-entrypoints-context.ts';
 export { HmrStrategy, HmrStrategyType } from './hmr/hmr-strategy.ts';

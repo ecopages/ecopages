@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createElement, useEffect, type ElementType, type ReactNode } from 'react';
+import {
+	Component,
+	createElement,
+	lazy,
+	Suspense,
+	useEffect,
+	type ComponentType,
+	type ElementType,
+	type ReactNode,
+} from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import {
 	mountIslands,
@@ -7,7 +16,11 @@ import {
 	updateIslands,
 	type IslandHydrationRuntime,
 } from './browser/island-hydration.ts';
-import { startPageHydration, type PageHydrationOptions } from './browser/page-hydration.ts';
+import {
+	startPageHydration,
+	type PageHydrateRootOptions,
+	type PageHydrationOptions,
+} from './browser/page-hydration.ts';
 
 type TestHydrationRegistration = {
 	owner: string;
@@ -18,6 +31,7 @@ type TestHydrationRuntime = {
 	hydrateCalls: Array<{
 		containerTag: string;
 		hasRecoverableErrorHandler: boolean;
+		hasUncaughtErrorHandler: boolean;
 		tree: unknown;
 	}>;
 	renderCalls: unknown[];
@@ -70,14 +84,11 @@ function createPageOptions(
 	const runtime = testWindow.__ECO_REACT_HYDRATION_TEST__!;
 	const Page = () => null;
 	const reactRuntime = {
-		hydrateRoot: (
-			target: HTMLElement,
-			tree: unknown,
-			options?: { onRecoverableError?: (error: unknown) => void },
-		) => {
+		hydrateRoot: (target: HTMLElement, tree: unknown, options?: PageHydrateRootOptions) => {
 			runtime.hydrateCalls.push({
 				containerTag: target.tagName,
 				hasRecoverableErrorHandler: typeof options?.onRecoverableError === 'function',
+				hasUncaughtErrorHandler: typeof options?.onUncaughtError === 'function',
 				tree,
 			});
 			return (
@@ -141,6 +152,7 @@ describe('React page lifecycle', () => {
 		expect(testState.hydrateCalls).toHaveLength(1);
 		expect(testState.hydrateCalls[0].containerTag).toBe('BODY');
 		expect(testState.hydrateCalls[0].hasRecoverableErrorHandler).toBe(true);
+		expect(testState.hydrateCalls[0].hasUncaughtErrorHandler).toBe(true);
 		expect(testState.claimedOwners).toEqual(['react-router']);
 		expect(testState.registrations).toHaveLength(1);
 		expect(typeof testWindow.__ECO_PAGES__?.react?.cleanupPageRoot).toBe('function');
@@ -317,6 +329,231 @@ describe('React page lifecycle', () => {
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__!.renderCalls).toEqual([
 			{ Component: options.Page, props: { title: 'Hello React' } },
 		]);
+	});
+});
+
+class EntryErrorBoundary extends Component<{ children?: ReactNode }, { error?: unknown }> {
+	override state: { error?: unknown } = {};
+
+	static getDerivedStateFromError(error: unknown) {
+		return { error };
+	}
+
+	override render(): ReactNode {
+		if (this.state.error) {
+			return createElement('p', { 'data-testid': 'entry-error' }, 'entry failed');
+		}
+		return this.props.children ?? null;
+	}
+}
+
+function createRealPageHydrationOptions(Page: unknown): PageHydrationOptions {
+	return {
+		scriptId: 'ecopages-react-page',
+		pageModuleUrl: '/assets/page.js',
+		Page,
+		pageDataReader: {
+			readPageDataDocument: () => ({ props: {} }),
+			getPageDataFromDocument: () => ({}),
+		},
+		runtime: {
+			hydrateRoot: (target, tree, options) => {
+				const root = hydrateRoot(target, tree as ReactNode, options);
+				return {
+					render: (nextTree: unknown) => root.render(nextTree as ReactNode),
+					unmount: () => root.unmount(),
+				};
+			},
+			createElement: (...args: unknown[]) => args,
+		},
+		createTree: (Component, props) => createElement(Component as ElementType, props),
+		hasRouter: false,
+		isMdx: false,
+	};
+}
+
+describe('React page first hydration keeps server HTML', () => {
+	afterEach(() => {
+		document.body.innerHTML = '';
+		document.querySelectorAll('script[data-eco-script-id="ecopages-react-page"]').forEach((node) => node.remove());
+		delete (window as TestWindow).__ECO_PAGES__;
+		vi.restoreAllMocks();
+	});
+
+	it('keeps the server HTML when a lazy import rejects during first hydration', async () => {
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const reported = vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});
+		const script = document.createElement('script');
+		script.setAttribute('data-eco-script-id', 'ecopages-react-page');
+		document.head.appendChild(script);
+		document.body.innerHTML = '<main data-testid="page"><p data-testid="heavy">heavy</p></main>';
+
+		const Heavy = lazy(() => Promise.reject(new Error('chunk failed')));
+		const Page = () =>
+			createElement(
+				'main',
+				{ 'data-testid': 'page' },
+				createElement(
+					Suspense,
+					{ fallback: createElement('p', { 'data-testid': 'loading' }, 'loading') },
+					createElement(Heavy),
+				),
+			);
+
+		startPageHydration(createRealPageHydrationOptions(Page));
+
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="heavy"]')?.textContent).toBe('heavy');
+			expect((window as TestWindow).__ECO_PAGES__?.react?.pageRoot).toBeNull();
+		});
+		expect(document.querySelector('[data-testid="page"]')).not.toBeNull();
+		expect(document.querySelector('[data-testid="loading"]')).toBeNull();
+		expect(reported).toHaveBeenCalled();
+		expect(consoleError).toHaveBeenCalledWith(
+			expect.stringMatching(/^\[ecopages\] Uncaught error in the React Page: chunk failed\n\s+at /),
+		);
+	});
+
+	it('does not restore the first server HTML once the URL has changed', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const reported = vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});
+		const script = document.createElement('script');
+		script.setAttribute('data-eco-script-id', 'ecopages-react-page');
+		document.head.appendChild(script);
+		document.body.innerHTML = '<main data-testid="page"><p data-testid="heavy">heavy</p></main>';
+		const initialUrl = `${window.location.pathname}${window.location.search}`;
+
+		let rejectChunk: ((error: Error) => void) | undefined;
+		const Heavy = lazy(
+			() =>
+				new Promise<never>((_resolve, reject) => {
+					rejectChunk = reject;
+				}),
+		);
+		const Page = () =>
+			createElement(
+				'main',
+				{ 'data-testid': 'page' },
+				createElement(
+					Suspense,
+					{ fallback: createElement('p', { 'data-testid': 'loading' }, 'loading') },
+					createElement(Heavy),
+				),
+			);
+
+		try {
+			startPageHydration(createRealPageHydrationOptions(Page));
+			await vi.waitFor(() => expect(rejectChunk).toBeDefined());
+			window.history.pushState(null, '', '/navigated-elsewhere');
+			rejectChunk?.(new Error('chunk failed'));
+
+			await vi.waitFor(() => expect(reported).toHaveBeenCalled());
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(document.querySelector('[data-testid="heavy"]')).toBeNull();
+		} finally {
+			window.history.replaceState(null, '', initialUrl);
+		}
+	});
+
+	it('keeps nodes added to the body after mount when it restores the server HTML', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});
+		const script = document.createElement('script');
+		script.setAttribute('data-eco-script-id', 'ecopages-react-page');
+		document.head.appendChild(script);
+		document.body.innerHTML = '<main data-testid="page"><!--$--><p data-testid="heavy">heavy</p><!--/$--></main>';
+
+		let rejectChunk!: (error: Error) => void;
+		const Heavy = lazy(
+			() =>
+				new Promise<{ default: ComponentType }>((_resolve, reject) => {
+					rejectChunk = reject;
+				}),
+		);
+		let shellCommitted = false;
+		const Page = () => {
+			useEffect(() => {
+				shellCommitted = true;
+			}, []);
+			return createElement(
+				'main',
+				{ 'data-testid': 'page' },
+				createElement(Suspense, { fallback: createElement('p', null, 'loading') }, createElement(Heavy)),
+			);
+		};
+
+		startPageHydration(createRealPageHydrationOptions(Page));
+		await vi.waitFor(() => expect(shellCommitted).toBe(true));
+		const widget = document.createElement('aside');
+		document.body.appendChild(widget);
+		rejectChunk(new Error('chunk failed'));
+
+		await vi.waitFor(() => expect((window as TestWindow).__ECO_PAGES__?.react?.pageRoot).toBeNull());
+		expect(document.querySelector('[data-testid="heavy"]')?.textContent).toBe('heavy');
+		expect(document.body.lastChild).toBe(widget);
+	});
+
+	it('rejects HMR updates after restoring the server HTML so the client reloads', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});
+		const script = document.createElement('script');
+		script.setAttribute('data-eco-script-id', 'ecopages-react-page');
+		document.head.appendChild(script);
+		document.body.innerHTML = '<main data-testid="page"><p data-testid="heavy">heavy</p></main>';
+
+		const Heavy = lazy(() => Promise.reject(new Error('chunk failed')));
+		const Page = () => createElement('main', { 'data-testid': 'page' }, createElement(Heavy));
+		const options = createRealPageHydrationOptions(Page);
+		options.hmr = { importPath: '/assets/page.js' };
+
+		startPageHydration(options);
+		await vi.waitFor(() => expect((window as TestWindow).__ECO_PAGES__?.react?.pageRoot).toBeNull());
+
+		const handler = (window as TestWindow).__ECO_PAGES__?.hmrHandlers?.['/assets/page.js'];
+		await expect(handler?.('data:text/javascript,export default function UpdatedPage() {}')).rejects.toThrow(
+			'server HTML was restored',
+		);
+	});
+
+	it('lets a Page-level error boundary catch the lazy rejection instead of restoring', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const reported = vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});
+		const script = document.createElement('script');
+		script.setAttribute('data-eco-script-id', 'ecopages-react-page');
+		document.head.appendChild(script);
+		document.body.innerHTML =
+			'<main data-testid="page"><p data-testid="rest">rest of the page</p><p data-testid="heavy">heavy</p></main>';
+
+		const Heavy = lazy(() => Promise.reject(new Error('chunk failed')));
+		const Page = () =>
+			createElement(
+				'main',
+				{ 'data-testid': 'page' },
+				createElement('p', { 'data-testid': 'rest' }, 'rest of the page'),
+				createElement(
+					EntryErrorBoundary,
+					null,
+					createElement(
+						Suspense,
+						{ fallback: createElement('p', { 'data-testid': 'loading' }, 'loading') },
+						createElement(Heavy),
+					),
+				),
+			);
+
+		startPageHydration(createRealPageHydrationOptions(Page));
+
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="entry-error"]')?.textContent).toBe('entry failed');
+		});
+		expect(document.querySelector('[data-testid="rest"]')?.textContent).toBe('rest of the page');
+		expect(document.querySelector('[data-testid="heavy"]')).toBeNull();
+		expect(document.querySelector('[data-testid="loading"]')).toBeNull();
+		expect((window as TestWindow).__ECO_PAGES__?.react?.pageRoot).not.toBeNull();
+		expect(reported).not.toHaveBeenCalled();
 	});
 });
 

@@ -48,11 +48,9 @@ async function expectServerHtmlVisible(page: Page) {
 	await expect(page.getByTestId('loading')).toHaveCount(0);
 }
 
-async function expectPageDiscarded(page: Page) {
-	await expect(page.getByTestId('page')).toHaveCount(0);
-	await expect(page.getByTestId('heavy')).toHaveCount(0);
-	await expect(page.getByTestId('loading')).toHaveCount(0);
-	await expect(page.locator('body [data-testid]')).toHaveCount(0);
+/** Waits until page hydration has handled the uncaught error and dropped the page root. */
+async function waitForPageRootTeardown(page: Page) {
+	await page.waitForFunction(() => window.__ECO_PAGES__?.react?.pageRoot === null);
 }
 
 async function expectNoFurtherDocument(page: Page, pathname: string) {
@@ -83,7 +81,9 @@ test.describe('First hydration of a React Page without the router', () => {
 		expect(html).not.toContain('data-testid="loading"');
 	});
 
-	test('a chunk that fails once during first hydration is not retried by a reload', async ({ page }) => {
+	test('a chunk that fails once during first hydration keeps the server HTML and is not retried', async ({
+		page,
+	}) => {
 		const documentRequests = countDocumentRequests(page, '/');
 		const heavy = await holdHeavyChunk(page, async (route, requestCount) => {
 			if (requestCount === 1) {
@@ -98,12 +98,14 @@ test.describe('First hydration of a React Page without the router', () => {
 		await expect.poll(() => heavy.requestCount).toBe(1);
 		heavy.release();
 
-		await expectPageDiscarded(page);
+		await waitForPageRootTeardown(page);
+		await expectServerHtmlVisible(page);
 		await expectNoFurtherDocument(page, '/');
 		expect(documentRequests()).toBe(1);
+		expect(heavy.requestCount).toBe(1);
 	});
 
-	test('a chunk that always fails during first hydration leaves no page content', async ({ page }) => {
+	test('a chunk that always fails during first hydration keeps the server HTML', async ({ page }) => {
 		const documentRequests = countDocumentRequests(page, '/');
 		const heavy = await holdHeavyChunk(page, async (route) => {
 			await route.abort();
@@ -114,9 +116,11 @@ test.describe('First hydration of a React Page without the router', () => {
 		await expect.poll(() => heavy.requestCount).toBe(1);
 		heavy.release();
 
-		await expectPageDiscarded(page);
+		await waitForPageRootTeardown(page);
+		await expectServerHtmlVisible(page);
 		await expectNoFurtherDocument(page, '/');
 		expect(documentRequests()).toBe(1);
+		expect(heavy.requestCount).toBe(1);
 	});
 });
 

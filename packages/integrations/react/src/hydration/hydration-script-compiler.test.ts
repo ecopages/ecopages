@@ -132,6 +132,7 @@ describe('PageHydrationScriptCompiler', () => {
 		type TestGlobal = {
 			window?: unknown;
 			document?: unknown;
+			location?: unknown;
 			__ecopagesCompiledHydrateCount?: number;
 			__ECO_PAGES__?: unknown;
 		};
@@ -139,16 +140,18 @@ describe('PageHydrationScriptCompiler', () => {
 		const previous = {
 			window: globalScope.window,
 			document: globalScope.document,
+			location: globalScope.location,
 			count: globalScope.__ecopagesCompiledHydrateCount,
 			pages: globalScope.__ECO_PAGES__,
 		};
 		globalScope.window = globalScope;
 		globalScope.document = {
 			readyState: 'complete',
-			body: {},
+			body: { childNodes: [] },
 			querySelector: () => ({}),
 			getElementById: () => null,
 		};
+		globalScope.location = { pathname: '/', search: '' };
 		globalScope.__ecopagesCompiledHydrateCount = 0;
 		delete globalScope.__ECO_PAGES__;
 
@@ -173,6 +176,8 @@ describe('PageHydrationScriptCompiler', () => {
 			else globalScope.window = previous.window;
 			if (previous.document === undefined) delete globalScope.document;
 			else globalScope.document = previous.document;
+			if (previous.location === undefined) delete globalScope.location;
+			else globalScope.location = previous.location;
 			if (previous.count === undefined) delete globalScope.__ecopagesCompiledHydrateCount;
 			else globalScope.__ecopagesCompiledHydrateCount = previous.count;
 			if (previous.pages === undefined) delete globalScope.__ECO_PAGES__;

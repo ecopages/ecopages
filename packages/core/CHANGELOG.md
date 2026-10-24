@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.5.0
+
+### Minor Changes
+
+- [#879](https://github.com/ecopages/ecopages/pull/879) [`febb034`](https://github.com/ecopages/ecopages/commit/febb0347326a0a985c8c1ede038cd325810723f6) Thanks [@andeeplus](https://github.com/andeeplus)! - Load a collection's MDX component through one specifier on both sides. `ecopages:content/<collection>/component` exports `loadComponent(slug)`: the server graph returns the entry wrapped for cross-Integration rendering, and the Page Browser Graph returns the browser-compiled entry. An unknown slug rejects with `HttpError.NotFound` on both. `/server` keeps `getComponent()` and `getEntryDependencies()` and is still rejected in the Page Browser Graph.
+
+    Breaking: `ecopages:content/<collection>/browser` is removed, along with its generated type declarations, the `CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN` export of `@ecopages/core/build` (replaced by `CONTENT_COMPONENT_VIRTUAL_MODULE_PATTERN`), and the `'browser'` variant of `parseCollectionSpecifier()`, which is now `'component'`. The `ContentCollectionBrowserModule` type of `@ecopages/content-processor/types` is renamed `ContentCollectionLoaderModule`.
+
+    To migrate: change `import { loadComponent } from 'ecopages:content/<collection>/browser'` to `'ecopages:content/<collection>/component'`. Run `ecopages types`, `ecopages dev` or `ecopages build` once to regenerate the declarations.
+
+- [#888](https://github.com/ecopages/ecopages/pull/888) [`c143a6e`](https://github.com/ecopages/ecopages/commit/c143a6e3a6c039954c9d094ededb27034c1bddc7) Thanks [@andeeplus](https://github.com/andeeplus)! - Route render errors are wrapped only by core, as `Error rendering page`, keeping the original error as `cause` and passing an `HttpError` through. React no longer prefixes `Failed to render component`; Ecopages JSX no longer prefixes `Error rendering component`.
+
+- [#881](https://github.com/ecopages/ecopages/pull/881) [`fbc00ac`](https://github.com/ecopages/ecopages/commit/fbc00ac4c2d4fdbd856f1fd3bb0d4f4d3ed90f77) Thanks [@andeeplus](https://github.com/andeeplus)! - A development render (`NODE_ENV=development`) now fails when a Foreign Child with Dependencies that the route never declared is rendered under a parent that already has a declared Foreign Child. The error names the component's file. Route preparation does not collect such a component's stylesheets and scripts, and rendering no longer adds them, so in production it renders without them.
+
+    To migrate: import the component statically from the module that declares it with `eco.component()` (a named re-export works, `export *` does not), list it in its parent's `dependencies.components`, or return it in `components` from the Page's `dependencies` function. A component that is declared but reached only under a parent without an identity file (for example a view not declared with `eco.component()` in its own module) fails with its own message: declare that parent with `eco.component()` in its own module, or list the component from a parent that has one. Production renders are not checked.
+
+- [#887](https://github.com/ecopages/ecopages/pull/887) [`09da5cf`](https://github.com/ecopages/ecopages/commit/09da5cf45c20d5cb155c13123f396e98fd4d9d1c) Thanks [@andeeplus](https://github.com/andeeplus)! - A page's stylesheets and scripts are now collected once, before the page renders, from the Dependencies of every component the route declares and from the Page's `dependencies`. Rendering no longer adds assets.
+
+    **Breaking for apps:** a Foreign Child the route never declares now renders in production without its stylesheets and scripts; a development render fails for it when its parent has a declared Foreign Child descendant. To migrate, import the component statically from the module that declares it with `eco.component()`, list it in its parent's `dependencies.components`, or return it in `components` from the Page's `dependencies` function.
+
+    **Breaking for Integration authors:**
+
+    - `ComponentRenderResult` no longer has `assets`. A `renderComponent` hook returns the component's HTML, `canAttachAttributes`, `integrationName` and optional `rootAttributes`; declare the component's files in its Dependencies instead of returning them.
+    - `DocumentShellComposeChildrenResult` is now `{ children }`, and `DocumentShellComposeChildrenContext` no longer has `primaryRender`.
+    - `PageClientBrowserAssets` no longer has `islandRenderAssetsByFile`, and `PageClientBuildEntry` no longer has `islandFile`; a `buildIslandClientAssets` hook returns its island and lazy-entry assets in `processedAssets` only.
+    - The hook factory no longer receives `resolveComponentDependencies()`.
+    - `@ecopages/core/integration` no longer exports `mergePageBrowserGraph()`; the page package is final once prepared, so there is nothing to merge a page browser graph into.
+    - For `IntegrationRenderer` subclasses: `appendProcessedDependencies()`, `getActiveIslandRenderAssets()` and `collectIslandRenderAssets()` are removed, as are `dedupeProcessedAssets()`, `injectPageAssets()` and `applyAttributesToFirstBodyElement()` on `this.htmlTransformer`, `resolveQueuedForeignSubtrees()` resolves to the HTML string, and `transformRouteResponse()` reads the page package from its render options instead of a separate argument.
+
+### Patch Changes
+
+- [#877](https://github.com/ecopages/ecopages/pull/877) [`d551580`](https://github.com/ecopages/ecopages/commit/d55158002bf16b02057eb8b434d60a34a0dd1149) Thanks [@andeeplus](https://github.com/andeeplus)! - In `ecopages dev`, a package that several browser dependencies import loads once. Each dependency was prebundled with its own copy of the packages it imports, so libraries that rely on one module instance broke in development only: for example, a Tiptap editor failed with "Adding different instances of a keyed plugin". Dependencies are now served one package per file, and an `import` of another package points at that package's file. Production builds are unchanged.
+
+    Build plugins' `onResolve` callback also receives `kind`, how the importer refers to the module (`import-statement`, `dynamic-import`, `require-call`, …).
+
+- [#870](https://github.com/ecopages/ecopages/pull/870) [`bf42314`](https://github.com/ecopages/ecopages/commit/bf42314d5369348a99cae49ebb0680505c0fe3d4) Thanks [@andeeplus](https://github.com/andeeplus)! - `ecopages build` accepts a Page on a dynamic route (`[id]`, `[...slug]`) with `cache: 'dynamic'` and no `staticPaths`. Such a Page renders on each request, so the build no longer fails with "Missing getStaticPaths".
+
+- [#869](https://github.com/ecopages/ecopages/pull/869) [`7a2649d`](https://github.com/ecopages/ecopages/commit/7a2649ddf4500f6c9b205ad68b3fb89cd79ba789) Thanks [@andeeplus](https://github.com/andeeplus)! - An `HttpError` thrown from an endpoint file now answers with its status and JSON body, as it does from an `app.ts` route. It answered `500` before, because the endpoint file loads its own copy of `@ecopages/core/errors`.
+
+- [#858](https://github.com/ecopages/ecopages/pull/858) [`92c017e`](https://github.com/ecopages/ecopages/commit/92c017ea24cf86d56c315e0cc56f1b9fef228115) Thanks [@andeeplus](https://github.com/andeeplus)! - Type an `eco.html()` shell's `children` and `headContent` with the element type it is given. `eco.html<JsxRenderable>()` or `eco.html<ReactNode>()` now renders `{children}` and `{headContent}` without a cast; they were typed as the default element type before.
+
+    To migrate: a `Head` component that receives `headContent` as its children declares its props with the same element type, `eco.component<PageHeadProps<JsxRenderable>, JsxRenderable>()` (or `PageHeadProps<ReactNode>` with React) instead of `PageHeadProps`. Casts such as `{children as 'safe'}` can be removed.
+
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.5.0
+    - @ecopages/file-system@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0
+
+### Minor Changes
+
+- [#883](https://github.com/ecopages/ecopages/pull/883) [`63fee34`](https://github.com/ecopages/ecopages/commit/63fee34629467ff52a97f6d06a921feafe6d34a1) Thanks [@andeeplus](https://github.com/andeeplus)! - Render collection MDX in a hydratable React Page through `React.lazy`. `createLazyCollectionComponents(loadComponent)` from `@ecopages/react/lazy-collection-components` returns one lazy component per slug; the Page reads `const Content = posts.get(slug)` and renders `<Content />` inside a `<Suspense>` boundary. The server sends the MDX in the HTML, hydration keeps it, and a client navigation to another entry keeps the current Page on screen until the next entry has loaded. An edited MDX file in development updates the Page without a full reload.
+
+    Breaking: `createCollectionComponentCache()` and the `@ecopages/react/collection-component-cache` export are removed, and so is the Page `preload` export. Hydration, HMR and `@ecopages/react-router` no longer call it.
+
+    `@ecopages/react-router` now falls back to a full navigation to the destination URL when rendering the Page throws after a client navigation, such as when a `React.lazy` chunk fails to load, instead of leaving the document empty. It does not reload for an error while the first Page hydrates.
+
+    To migrate a collection Page: replace `createCollectionComponentCache(loadComponent)` with `createLazyCollectionComponents(loadComponent)`, delete the `preload` export and the `posts.prime(...)` call in `staticProps`, drop the `getComponent` import from `/server` if nothing else uses it, and wrap `<Content />` in a `<Suspense>` boundary that stays at a fixed place in the Page. Load anything else a Page needs before render in `staticProps`.
+
+### Patch Changes
+
+- Updated dependencies [[`febb034`](https://github.com/ecopages/ecopages/commit/febb0347326a0a985c8c1ede038cd325810723f6), [`c143a6e`](https://github.com/ecopages/ecopages/commit/c143a6e3a6c039954c9d094ededb27034c1bddc7), [`d551580`](https://github.com/ecopages/ecopages/commit/d55158002bf16b02057eb8b434d60a34a0dd1149), [`bf42314`](https://github.com/ecopages/ecopages/commit/bf42314d5369348a99cae49ebb0680505c0fe3d4), [`7a2649d`](https://github.com/ecopages/ecopages/commit/7a2649ddf4500f6c9b205ad68b3fb89cd79ba789), [`fbc00ac`](https://github.com/ecopages/ecopages/commit/fbc00ac4c2d4fdbd856f1fd3bb0d4f4d3ed90f77), [`09da5cf`](https://github.com/ecopages/ecopages/commit/09da5cf45c20d5cb155c13123f396e98fd4d9d1c), [`92c017e`](https://github.com/ecopages/ecopages/commit/92c017ea24cf86d56c315e0cc56f1b9fef228115), [`3f9ec27`](https://github.com/ecopages/ecopages/commit/3f9ec275f1b1c3f2c7812dd31c4592bf5d69e2d6), [`b43860d`](https://github.com/ecopages/ecopages/commit/b43860d973792b3161d0ca0c0f3c8b0ef6caea67), [`63fee34`](https://github.com/ecopages/ecopages/commit/63fee34629467ff52a97f6d06a921feafe6d34a1), [`82191bb`](https://github.com/ecopages/ecopages/commit/82191bb9b5ff9b00de23b3a37f0b14a032b123c1), [`314cf32`](https://github.com/ecopages/ecopages/commit/314cf3212de36e4f4febf50cd75cbe4121e36af2), [`b26117e`](https://github.com/ecopages/ecopages/commit/b26117e41f49f34c0437bf322d975e1023f2008e)]:
+    - @ecopages/core@0.5.0
+    - @ecopages/react@0.5.0
+
 ## 0.4.0
 
 ### Patch Changes

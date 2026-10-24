@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.5.0
+
+### Minor Changes
+
+- [#888](https://github.com/ecopages/ecopages/pull/888) [`c143a6e`](https://github.com/ecopages/ecopages/commit/c143a6e3a6c039954c9d094ededb27034c1bddc7) Thanks [@andeeplus](https://github.com/andeeplus)! - Route render errors are wrapped only by core, as `Error rendering page`, keeping the original error as `cause` and passing an `HttpError` through. React no longer prefixes `Failed to render component`; Ecopages JSX no longer prefixes `Error rendering component`.
+
+- [#887](https://github.com/ecopages/ecopages/pull/887) [`09da5cf`](https://github.com/ecopages/ecopages/commit/09da5cf45c20d5cb155c13123f396e98fd4d9d1c) Thanks [@andeeplus](https://github.com/andeeplus)! - A page's stylesheets and scripts are now collected once, before the page renders, from the Dependencies of every component the route declares and from the Page's `dependencies`. Rendering no longer adds assets.
+
+    **Breaking for apps:** a Foreign Child the route never declares now renders in production without its stylesheets and scripts; a development render fails for it when its parent has a declared Foreign Child descendant. To migrate, import the component statically from the module that declares it with `eco.component()`, list it in its parent's `dependencies.components`, or return it in `components` from the Page's `dependencies` function.
+
+    **Breaking for Integration authors:**
+
+    - `ComponentRenderResult` no longer has `assets`. A `renderComponent` hook returns the component's HTML, `canAttachAttributes`, `integrationName` and optional `rootAttributes`; declare the component's files in its Dependencies instead of returning them.
+    - `DocumentShellComposeChildrenResult` is now `{ children }`, and `DocumentShellComposeChildrenContext` no longer has `primaryRender`.
+    - `PageClientBrowserAssets` no longer has `islandRenderAssetsByFile`, and `PageClientBuildEntry` no longer has `islandFile`; a `buildIslandClientAssets` hook returns its island and lazy-entry assets in `processedAssets` only.
+    - The hook factory no longer receives `resolveComponentDependencies()`.
+    - `@ecopages/core/integration` no longer exports `mergePageBrowserGraph()`; the page package is final once prepared, so there is nothing to merge a page browser graph into.
+    - For `IntegrationRenderer` subclasses: `appendProcessedDependencies()`, `getActiveIslandRenderAssets()` and `collectIslandRenderAssets()` are removed, as are `dedupeProcessedAssets()`, `injectPageAssets()` and `applyAttributesToFirstBodyElement()` on `this.htmlTransformer`, `resolveQueuedForeignSubtrees()` resolves to the HTML string, and `transformRouteResponse()` reads the page package from its render options instead of a separate argument.
+
+- [#896](https://github.com/ecopages/ecopages/pull/896) [`3f9ec27`](https://github.com/ecopages/ecopages/commit/3f9ec275f1b1c3f2c7812dd31c4592bf5d69e2d6) Thanks [@andeeplus](https://github.com/andeeplus)! - Keep one lazy collection lookup per collection across Page HMR, so a loaded entry renders again without the Suspense fallback. An edited MDX file re-renders that entry without a document reload. The `/component` loader now carries its collection name as `loadComponent.collection`.
+
+- [#895](https://github.com/ecopages/ecopages/pull/895) [`b43860d`](https://github.com/ecopages/ecopages/commit/b43860d973792b3161d0ca0c0f3c8b0ef6caea67) Thanks [@andeeplus](https://github.com/andeeplus)! - Put the server HTML back when the React Page root fails on the first-loaded Page, such as a `React.lazy` chunk that fails to load while the Page hydrates. React tears the root down and would leave the body empty; the restored Page is readable but no longer interactive, the chunk is not retried, and in development the next edit to the Page reloads the document. This covers any uncaught error on that Page until it re-renders or the router has navigated. A Page-level error boundary around the entry still catches first and shows its fallback. The component stack of the uncaught error is logged.
+
+- [#883](https://github.com/ecopages/ecopages/pull/883) [`63fee34`](https://github.com/ecopages/ecopages/commit/63fee34629467ff52a97f6d06a921feafe6d34a1) Thanks [@andeeplus](https://github.com/andeeplus)! - Render collection MDX in a hydratable React Page through `React.lazy`. `createLazyCollectionComponents(loadComponent)` from `@ecopages/react/lazy-collection-components` returns one lazy component per slug; the Page reads `const Content = posts.get(slug)` and renders `<Content />` inside a `<Suspense>` boundary. The server sends the MDX in the HTML, hydration keeps it, and a client navigation to another entry keeps the current Page on screen until the next entry has loaded. An edited MDX file in development updates the Page without a full reload.
+
+    Breaking: `createCollectionComponentCache()` and the `@ecopages/react/collection-component-cache` export are removed, and so is the Page `preload` export. Hydration, HMR and `@ecopages/react-router` no longer call it.
+
+    `@ecopages/react-router` now falls back to a full navigation to the destination URL when rendering the Page throws after a client navigation, such as when a `React.lazy` chunk fails to load, instead of leaving the document empty. It does not reload for an error while the first Page hydrates.
+
+    To migrate a collection Page: replace `createCollectionComponentCache(loadComponent)` with `createLazyCollectionComponents(loadComponent)`, delete the `preload` export and the `posts.prime(...)` call in `staticProps`, drop the `getComponent` import from `/server` if nothing else uses it, and wrap `<Content />` in a `<Suspense>` boundary that stays at a fixed place in the Page. Load anything else a Page needs before render in `staticProps`.
+
+- [#890](https://github.com/ecopages/ecopages/pull/890) [`82191bb`](https://github.com/ecopages/ecopages/commit/82191bb9b5ff9b00de23b3a37f0b14a032b123c1) Thanks [@andeeplus](https://github.com/andeeplus)! - Fail the React server render when a Suspense boundary renders a `precedence` stylesheet. React moves that boundary out of line; declare the stylesheet as a Dependency instead.
+
+- [#889](https://github.com/ecopages/ecopages/pull/889) [`314cf32`](https://github.com/ecopages/ecopages/commit/314cf3212de36e4f4febf50cd75cbe4121e36af2) Thanks [@andeeplus](https://github.com/andeeplus)! - Server rendering stops waiting for Suspense after 10 seconds by default, one limit for the whole Page render. Unfinished boundaries stay in their fallback for the browser to retry, the rest of the Page is served, and one warning names the Page. A tree still waiting outside every boundary when the limit fires fails the render instead of serving an empty page. Pass `reactPlugin({ renderTimeoutMs })` to change the limit, a whole number of milliseconds from 1 to 2147483647.
+
+- [#873](https://github.com/ecopages/ecopages/pull/873) [`b26117e`](https://github.com/ecopages/ecopages/commit/b26117e41f49f34c0437bf322d975e1023f2008e) Thanks [@andeeplus](https://github.com/andeeplus)! - Wait for `<Suspense>` on the server. React Pages, Layouts and Island Hosts now render a `React.lazy()` component, or any other suspending child, into the HTML instead of its fallback, so `React.lazy()` and `<Suspense>` can be used in `eco.page()` and `eco.layout()` trees. The response is still one complete document; it is not streamed.
+
+    A component that throws, or a `React.lazy()` import that rejects, inside a `<Suspense>` boundary still serves that boundary's fallback and the browser retries it. React now also logs the error on the server.
+
+### Patch Changes
+
+- Updated dependencies [[`febb034`](https://github.com/ecopages/ecopages/commit/febb0347326a0a985c8c1ede038cd325810723f6), [`c143a6e`](https://github.com/ecopages/ecopages/commit/c143a6e3a6c039954c9d094ededb27034c1bddc7), [`d551580`](https://github.com/ecopages/ecopages/commit/d55158002bf16b02057eb8b434d60a34a0dd1149), [`bf42314`](https://github.com/ecopages/ecopages/commit/bf42314d5369348a99cae49ebb0680505c0fe3d4), [`7a2649d`](https://github.com/ecopages/ecopages/commit/7a2649ddf4500f6c9b205ad68b3fb89cd79ba789), [`fbc00ac`](https://github.com/ecopages/ecopages/commit/fbc00ac4c2d4fdbd856f1fd3bb0d4f4d3ed90f77), [`09da5cf`](https://github.com/ecopages/ecopages/commit/09da5cf45c20d5cb155c13123f396e98fd4d9d1c), [`92c017e`](https://github.com/ecopages/ecopages/commit/92c017ea24cf86d56c315e0cc56f1b9fef228115)]:
+    - @ecopages/core@0.5.0
+    - @ecopages/mdx@0.5.0
+    - @ecopages/file-system@0.5.0
+
 ## 0.4.0
 
 ### Patch Changes

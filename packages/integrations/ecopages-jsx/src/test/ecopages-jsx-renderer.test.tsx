@@ -143,7 +143,7 @@ const headedTemplate = ({ children, metadata }: HtmlTemplateProps<JsxRenderable>
 
 describeRendererContract({
 	name: 'ecopages-jsx',
-	errorPrefix: 'Error rendering component',
+	errorPrefix: 'Error rendering page',
 	async createRenderer({ integrations, processDependencies }) {
 		const testRenderer = new TestEcopagesJsxRenderer({
 			appConfig: await createTestAppConfig({ ...outputDirs, integrations }),

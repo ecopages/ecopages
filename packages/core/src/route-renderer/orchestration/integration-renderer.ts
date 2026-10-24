@@ -205,6 +205,11 @@ export type IntegrationRendererHooks = {
 	beforeRender?: <C>(options: IntegrationRendererRenderOptions<C>) => Promise<void>;
 	beforeImportPageModule?: (file: string) => Promise<void>;
 	transformDocumentHtml?: (html: string) => string;
+	/**
+	 * Optional wrapper around the route render, for scoping such as HMR ownership.
+	 * @remarks Core already wraps whatever this throws with `createRenderError('Error rendering page')`,
+	 * keeping the original error as `cause` and passing an `HttpError` through. Do not catch and re-wrap.
+	 */
 	renderRoute?: <C>(
 		renderOptions: IntegrationRendererRenderOptions<C>,
 		render: () => Promise<RouteRendererBody>,
@@ -1229,45 +1234,53 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Renders the route through the shared document shell.
+	 * Renders the route, wrapping whatever it throws as `Error rendering page`.
 	 * Integrations can add preparation and final HTML hooks around core composition.
 	 */
 	async render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
-		const internalOptions = options as InternalIntegrationRendererRenderOptions<C>;
-		const renderRoute = async (): Promise<RouteRendererBody> => {
-			await this.beforeRender(options);
-			const documentShellProps = this.integrationHooks.documentShellProps?.(options);
-			return await this.renderPageWithDocumentShell({
-				page: {
-					component: options.Page,
-					props: {
-						...options.props,
-						params: options.params ?? {},
-						query: options.query ?? {},
-						locals: options.pageLocals,
-					},
-				},
-				layouts: resolveDocumentShellLayouts({
-					layout: options.Layout,
-					layoutEntries: options.layoutEntries,
-					params: options.params,
-					query: options.query,
-					locals: options.locals,
-				}),
-				htmlTemplate: options.HtmlTemplate,
-				metadata: options.metadata,
-				pageProps: documentShellProps?.pageProps ?? options.pageProps ?? options.props ?? {},
-				documentProps: documentShellProps?.documentProps,
-				foreignChildRoots: internalOptions.pageDependencyComponents,
-				transformDocumentHtml: (html) => this.transformDocumentHtml(html),
-			});
-		};
-
+		const renderRoute = () => this.renderRouteDocument(options);
 		try {
 			return await (this.integrationHooks.renderRoute?.(options, renderRoute) ?? renderRoute());
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
 		}
+	}
+
+	/**
+	 * Renders the route document through the shared document shell.
+	 *
+	 * @remarks
+	 * A subclass with its own document model overrides this rather than `render()`,
+	 * so its errors still go through core's wrap.
+	 */
+	protected async renderRouteDocument(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
+		const internalOptions = options as InternalIntegrationRendererRenderOptions<C>;
+		await this.beforeRender(options);
+		const documentShellProps = this.integrationHooks.documentShellProps?.(options);
+		return await this.renderPageWithDocumentShell({
+			page: {
+				component: options.Page,
+				props: {
+					...options.props,
+					params: options.params ?? {},
+					query: options.query ?? {},
+					locals: options.pageLocals,
+				},
+			},
+			layouts: resolveDocumentShellLayouts({
+				layout: options.Layout,
+				layoutEntries: options.layoutEntries,
+				params: options.params,
+				query: options.query,
+				locals: options.locals,
+			}),
+			htmlTemplate: options.HtmlTemplate,
+			metadata: options.metadata,
+			pageProps: documentShellProps?.pageProps ?? options.pageProps ?? options.props ?? {},
+			documentProps: documentShellProps?.documentProps,
+			foreignChildRoots: internalOptions.pageDependencyComponents,
+			transformDocumentHtml: (html) => this.transformDocumentHtml(html),
+		});
 	}
 
 	protected async beforeRender(options: IntegrationRendererRenderOptions<C>): Promise<void> {

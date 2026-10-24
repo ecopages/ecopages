@@ -14,7 +14,6 @@ import type {
 	ComponentRenderResult,
 	IntegrationRendererRenderOptions,
 } from '@ecopages/core/integration';
-import { HttpError } from '@ecopages/core/errors';
 import { buildIslandHostAttributes, getComponentIdentity } from '@ecopages/core';
 import {
 	createIntegrationRenderer,
@@ -677,13 +676,6 @@ function createReactRendererHookFactory(
 				requireReactRendererHookTarget(hookTargets, 'documentContributions')(context),
 			documentAttributes: <C>(options: IntegrationRendererRenderOptions<C>) =>
 				requireReactRendererHookTarget(hookTargets, 'documentAttributes')(options),
-			renderRoute: async (_options, render) => {
-				try {
-					return await render();
-				} catch (error) {
-					throw createReactRenderError('Failed to render component', error);
-				}
-			},
 		} satisfies IntegrationRendererHooks;
 	};
 }
@@ -698,13 +690,4 @@ function requireReactRendererHookTarget<K extends keyof ReactRendererHookTargets
 	}
 
 	return hookTarget;
-}
-
-function createReactRenderError(message: string, cause?: unknown): HttpError {
-	if (HttpError.isHttpError(cause)) {
-		return cause;
-	}
-
-	const errorMessage = cause instanceof Error ? `${message}: ${cause.message}` : message;
-	return HttpError.InternalServerError(errorMessage, { cause });
 }

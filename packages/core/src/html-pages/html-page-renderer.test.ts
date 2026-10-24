@@ -6,6 +6,7 @@ import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { AssetProcessingService } from '../assets/asset-processing-service/asset-processing.service.ts';
 import type { AssetDefinition } from '../assets/asset-processing-service/assets.types.ts';
 import { appLogger } from '../global/app-logger.ts';
+import { HttpError } from '../errors/http-error.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { EcoComponent, HtmlTemplateProps, IntegrationRendererRenderOptions } from '../types/contracts.ts';
 import { getBuiltInHtmlShell, getCompiledHtmlTemplate, loadHtmlPageModule } from './html-page-module.ts';
@@ -95,6 +96,36 @@ describe('HtmlPageRenderer', () => {
 
 		expect(html).toContain('<title>About</title>');
 		expect(html).toContain('<meta property="og:title" content="About">');
+	});
+
+	it('wraps a route render error in core, keeping its cause, and passes an HttpError through', async () => {
+		const file = write('src/pages/about.html', '<main>About</main>');
+		const failure = new Error('shell failed');
+		const notFound = HttpError.NotFound('No such post');
+		const throwingShell = (error: Error) =>
+			Object.assign(
+				() => {
+					throw error;
+				},
+				{ config: {} },
+			) as unknown as EcoComponent<HtmlTemplateProps>;
+		const renderer = createRenderer();
+		const routeOptions = {
+			params: {},
+			query: {},
+			props: {},
+			file,
+			metadata: { title: 'Site', description: 'Site' },
+			Page: loadHtmlPageModule(appConfig, file).default as IntegrationRendererRenderOptions['Page'],
+			resolvedDependencies: [],
+			HtmlTemplate: throwingShell(failure),
+		};
+
+		const wrapped = await renderer.renderRouteBody(routeOptions).catch((error: unknown) => error);
+
+		expect(wrapped).toBeInstanceOf(HttpError);
+		expect(wrapped).toMatchObject({ status: 500, message: 'Error rendering page: shell failed', cause: failure });
+		await expect(renderPage(renderer, file, throwingShell(notFound))).rejects.toBe(notFound);
 	});
 
 	it('reconciles the Page head through document finalization after route transforms', async () => {

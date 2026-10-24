@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type EcoFunctionComponent } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
 import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
 import type { IntegrationRenderer } from '@ecopages/core/integration';
 import type { AssetProcessingService } from '@ecopages/core/integration';
@@ -55,7 +56,7 @@ export type RendererContractRendererOptions = {
 export type RendererContractHarness = {
 	/** Integration name the renderer reports and stamps. */
 	name: string;
-	/** Message prefix the renderer puts on a failed render. */
+	/** Message prefix core puts on a failed route render. */
 	errorPrefix: string;
 	/** File key for filesystem and explicit-view renders. @default '/app/views/contract.tsx' */
 	viewFile?: string;
@@ -95,7 +96,8 @@ function createDeferredWidget(): EcoComponent {
  * renderer must add on top of it: structured output and name, the foreign
  * subtree payload, island stamping, foreign boundaries, a deferred layout that
  * leaves no marker behind, explicit view and filesystem page parity, and a
- * failed render that keeps the Integration's message prefix. Framework-specific cases stay in the Integration's own tests.
+ * failed render that keeps core's message prefix and the original error as
+ * `cause`. Framework-specific cases stay in the Integration's own tests.
  */
 export function describeRendererContract(harness: RendererContractHarness): void {
 	const { name, errorPrefix, makeComponent, makeView } = harness;
@@ -217,9 +219,9 @@ export function describeRendererContract(harness: RendererContractHarness): void
 			expect(explicitHtml).toBe(pageHtml);
 		});
 
-		it('fails a view that throws with the Integration error prefix and the cause', async () => {
+		it('fails a view that throws with the core error prefix and the cause', async () => {
 			const renderer = await createPlainRenderer();
-			const view = makeView({ text: 'Never rendered', fail: 'Contract view failed' });
+			const view = makeView({ text: 'Never rendered', fail: 'page failed' });
 
 			const error = await renderer
 				.renderExplicitView(view as EcoFunctionComponent<Record<string, unknown>, unknown>, {}, {})
@@ -228,9 +230,11 @@ export function describeRendererContract(harness: RendererContractHarness): void
 					(rejection: unknown) => rejection,
 				);
 
-			expect(error).toBeInstanceOf(Error);
-			expect((error as Error).message).toContain(errorPrefix);
-			expect((error as Error).message).toContain('Contract view failed');
+			expect(HttpError.isHttpError(error)).toBe(true);
+			expect((error as HttpError).status).toBe(500);
+			expect((error as Error).message).toBe(`${errorPrefix}: page failed`);
+			expect((error as Error).cause).toBeInstanceOf(Error);
+			expect(((error as Error).cause as Error).message).toBe('page failed');
 		});
 	});
 }

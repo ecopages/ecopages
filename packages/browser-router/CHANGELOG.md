@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+### Patch Changes
+
+- Updated dependencies [[`febb034`](https://github.com/ecopages/ecopages/commit/febb0347326a0a985c8c1ede038cd325810723f6), [`c143a6e`](https://github.com/ecopages/ecopages/commit/c143a6e3a6c039954c9d094ededb27034c1bddc7), [`d551580`](https://github.com/ecopages/ecopages/commit/d55158002bf16b02057eb8b434d60a34a0dd1149), [`bf42314`](https://github.com/ecopages/ecopages/commit/bf42314d5369348a99cae49ebb0680505c0fe3d4), [`7a2649d`](https://github.com/ecopages/ecopages/commit/7a2649ddf4500f6c9b205ad68b3fb89cd79ba789), [`fbc00ac`](https://github.com/ecopages/ecopages/commit/fbc00ac4c2d4fdbd856f1fd3bb0d4f4d3ed90f77), [`09da5cf`](https://github.com/ecopages/ecopages/commit/09da5cf45c20d5cb155c13123f396e98fd4d9d1c), [`92c017e`](https://github.com/ecopages/ecopages/commit/92c017ea24cf86d56c315e0cc56f1b9fef228115)]:
+    - @ecopages/core@0.5.0
+
 ## 0.4.0
 
 ### Patch Changes

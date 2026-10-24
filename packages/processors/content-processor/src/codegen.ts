@@ -13,9 +13,9 @@ function parseEntryTypeImport(entryType: string): { module: string; name: string
 	return { module, name };
 }
 
-/** Emits the shared missing-entry failure used by both generated runtime modules. */
-function renderUnknownContentEntryThrow(): string {
-	return 'throw HttpError.NotFound(`Unknown content entry: ${slug}`)';
+/** Emits the shared missing-entry error expression used by both generated runtime modules. */
+function renderUnknownContentEntryError(): string {
+	return 'HttpError.NotFound(`Unknown content entry: ${slug}`)';
 }
 
 /**
@@ -46,7 +46,7 @@ ${entriesBySlugLines.join('\n')}
 
 export function getEntry(slug: string) {
 	const entry = entriesBySlug[slug];
-	if (!entry) ${renderUnknownContentEntryThrow()};
+	if (!entry) throw ${renderUnknownContentEntryError()};
 	return entry;
 }
 
@@ -163,6 +163,9 @@ ${entrySourceFilesBySlugLines.join('\n')}
  * loads for the same slug. `getEntryDependencies` returns the entry Component
  * so collection can resolve assets from identity. Keeping MDX imports here
  * leaves the metadata virtual module cheap to load during route preparation.
+ * It also exports `getComponent` as `loadComponent`, because the server graph
+ * resolves `ecopages:content/<collection>/component` to this module so both
+ * specifiers share one cache and one wrapped component per slug.
  */
 export function renderCollectionComponentsModule(
 	_collectionName: string,
@@ -194,7 +197,7 @@ export async function getComponent(slug: string): Promise<EcoComponent<Record<st
 
 	const load = loadersBySlug[slug];
 	if (!load) {
-		${renderUnknownContentEntryThrow()};
+		throw ${renderUnknownContentEntryError()};
 	}
 
 	const loadPromise = (async () => {
@@ -216,11 +219,14 @@ export async function getEntryDependencies(slug: string): Promise<PageDependenci
 		components: [component],
 	};
 }
+
+export const loadComponent = getComponent;
 `;
 }
 
 /**
- * Generates the browser-only virtual module for one content collection.
+ * Generates the browser-only virtual module behind `ecopages:content/<collection>/component`
+ * in the Page Browser Graph.
  *
  * @remarks
  * Consumers own any synchronous-after-preload cache policy. This module only
@@ -251,7 +257,7 @@ export function loadComponent(slug: string): Promise<EcoComponent<Record<string,
 
 	const load = loadersBySlug[slug];
 	if (!load) {
-		${renderUnknownContentEntryThrow()};
+		return Promise.reject(${renderUnknownContentEntryError()});
 	}
 
 	const loadPromise = load().then((module) => attachMdxExports(module, entrySourceFilesBySlug[slug]!)).finally(() => {
@@ -335,27 +341,26 @@ function renderCollectionComponentsTypesModule(collectionName: string): string {
 }`;
 }
 
-function renderCollectionBrowserTypesModule(collectionName: string): string {
-	return `declare module "ecopages:content/${collectionName}/browser" {
+function renderCollectionLoaderTypesModule(collectionName: string): string {
+	return `declare module "ecopages:content/${collectionName}/component" {
 	import type { EcoComponent } from '@ecopages/core';
 
 	/**
-	 * Loads the browser-compiled MDX component for one slug.
+	 * Loads the MDX component for one slug on the server and in the browser.
 	 *
-	 * @remarks Use only from the Page Browser Graph.
-	 * @throws HttpError 404 when the slug is not in the collection.
+	 * @remarks Rejects with HttpError 404 when the slug is not in the collection.
 	 */
 	export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
 }`;
 }
 
-/** Generates both ambient virtual-module declarations for one collection. */
+/** Generates the ambient virtual-module declarations for one collection. */
 export function renderCollectionTypesModule(
 	collectionName: string,
 	entryType?: string,
 	typeResolution?: { rootDir: string; typesOutputFile: string },
 ): string {
-	return `${renderCollectionEntriesTypesModule(collectionName, entryType, typeResolution)}\n\n${renderCollectionComponentsTypesModule(collectionName)}\n\n${renderCollectionBrowserTypesModule(collectionName)}`;
+	return `${renderCollectionEntriesTypesModule(collectionName, entryType, typeResolution)}\n\n${renderCollectionComponentsTypesModule(collectionName)}\n\n${renderCollectionLoaderTypesModule(collectionName)}`;
 }
 
 /**

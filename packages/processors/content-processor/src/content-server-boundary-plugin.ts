@@ -6,7 +6,7 @@ import { CONTENT_SERVER_VIRTUAL_MODULE_PATTERN } from './constants.ts';
  *
  * @remarks
  * Server modules lazy-load MDX entries via dynamic `import()` for `getComponent`. Browser builds
- * must never follow that graph; browser-safe MDX is available through `/browser` instead.
+ * must never follow that graph; browser-safe MDX is available through `/component` instead.
  */
 export function createContentServerBoundaryPlugin(): EcoBuildPlugin {
 	return {

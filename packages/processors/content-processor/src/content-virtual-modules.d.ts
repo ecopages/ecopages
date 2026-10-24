@@ -6,7 +6,7 @@
  * external module, these declarations become module augmentations and cannot
  * introduce unresolved `ecopages:content/*` specifiers.
  *
- * Variant patterns (`/server`, `/browser`) must be declared before the catch-all
+ * Variant patterns (`/server`, `/component`) must be declared before the catch-all
  * `ecopages:content/*` pattern so TypeScript pattern matching selects them first.
  */
 
@@ -24,9 +24,10 @@ declare module 'ecopages:content/*/server' {
 	export function getEntryDependencies(slug: string): Promise<PageDependenciesResult>;
 }
 
-declare module 'ecopages:content/*/browser' {
+declare module 'ecopages:content/*/component' {
 	import type { EcoComponent } from '@ecopages/core';
 
+	/** Rejects with HttpError 404 when the slug is not in the collection. */
 	export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
 }
 

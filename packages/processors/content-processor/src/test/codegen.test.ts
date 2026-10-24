@@ -54,6 +54,8 @@ describe('codegen', () => {
 		expect(output).toContain("'intro': '/app/src/content/docs/intro.mdx',");
 		expect(output).toContain('export async function getComponent(slug: string)');
 		expect(output).toContain('export async function getEntryDependencies(slug: string)');
+		expect(output).toContain('export const loadComponent = getComponent;');
+		expect(output).toContain("import { invokeContentEntry } from '@ecopages/content-processor/ownership'");
 		expect(output).toContain('components: [component]');
 		expect(output).not.toContain('...dependencies');
 		expect(output).not.toContain('ownerFile: entrySourceFilesBySlug[slug]');
@@ -70,6 +72,7 @@ describe('codegen', () => {
 
 		expect(output).toContain("'intro': () => import('../../app/src/content/docs/intro.mdx'),");
 		expect(output).toContain('export function loadComponent(slug: string)');
+		expect(output).toContain('return Promise.reject(HttpError.NotFound(');
 		expect(output).toContain('const componentLoadPromises = new Map');
 		expect(output).toContain('attachMdxExports(module, entrySourceFilesBySlug[slug]!)');
 		expect(output).toContain("import type { EcoComponent } from '@ecopages/core'");
@@ -102,12 +105,13 @@ describe('codegen', () => {
 		});
 		expect(output).toContain('declare module "ecopages:content/docs"');
 		expect(output).toContain('declare module "ecopages:content/docs/server"');
-		expect(output).toContain('declare module "ecopages:content/docs/browser"');
+		expect(output).toContain('declare module "ecopages:content/docs/component"');
 		expect(output).toContain(
 			'export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>',
 		);
 		expect(output).toContain('/** @throws HttpError 404 when the slug is not in the collection. */');
 		expect(output).toContain('export function getEntryDependencies(slug: string): Promise<PageDependenciesResult>');
+		expect(output).not.toContain('/browser"');
 		expect(output).toContain('declare module "ecopages:content/blog"');
 		expect(output).toContain('declare module "ecopages:content/blog/server"');
 		expect(output).toContain("import type { ContentEntry } from '@ecopages/content-processor/types'");
@@ -115,20 +119,20 @@ describe('codegen', () => {
 		expect(output).toContain('export type Entry = ContentEntry<BlogFrontmatter>');
 	});
 
-	test('fallback content-virtual-modules.d.ts separates server and browser wildcards and omits them from catch-all', async () => {
+	test('fallback content-virtual-modules.d.ts separates server and component wildcards and omits them from catch-all', async () => {
 		const { readFileSync } = await import('node:fs');
 		const { resolve } = await import('node:path');
 		const dtsContent = readFileSync(resolve(import.meta.dirname, '../content-virtual-modules.d.ts'), 'utf-8');
 
 		const serverIndex = dtsContent.indexOf("declare module 'ecopages:content/*/server'");
-		const browserIndex = dtsContent.indexOf("declare module 'ecopages:content/*/browser'");
+		const componentIndex = dtsContent.indexOf("declare module 'ecopages:content/*/component'");
 		const catchAllIndex = dtsContent.indexOf("declare module 'ecopages:content/*'");
 
 		expect(serverIndex).toBeGreaterThan(-1);
-		expect(browserIndex).toBeGreaterThan(-1);
+		expect(componentIndex).toBeGreaterThan(-1);
 		expect(catchAllIndex).toBeGreaterThan(-1);
 		expect(serverIndex).toBeLessThan(catchAllIndex);
-		expect(browserIndex).toBeLessThan(catchAllIndex);
+		expect(componentIndex).toBeLessThan(catchAllIndex);
 
 		const catchAllBlock = dtsContent.slice(catchAllIndex);
 		expect(catchAllBlock).toContain('export const entries: readonly Entry[];');
@@ -240,6 +244,7 @@ describe('attachMdxExports ownership guard', () => {
 		try {
 			const loaded = (await import(serverModulePath)) as {
 				getComponent: (slug: string) => Promise<EcoComponent<Record<string, unknown>>>;
+				loadComponent: (slug: string) => Promise<EcoComponent<Record<string, unknown>>>;
 			};
 			const reactComponent = await loaded.getComponent('intro-react');
 			const hostComponent = await loaded.getComponent('intro-host');
@@ -276,6 +281,65 @@ describe('attachMdxExports ownership guard', () => {
 			).resolves.toEqual({ value: 'host-entry' });
 
 			expect(await render(reactComponent)).toBe('react-entry');
+
+			expect(await loaded.loadComponent('intro-react')).toBe(reactComponent);
+			await expect(
+				runWithComponentRenderContext({ currentIntegration: 'ecopages-jsx' }, async () =>
+					render(await loaded.loadComponent('intro-react')),
+				),
+			).rejects.toThrow(/owned by the "react" integration/);
+			await expect(loaded.loadComponent('missing')).rejects.toMatchObject({
+				status: 404,
+				message: 'Unknown content entry: missing',
+			});
+		} finally {
+			rmSync(tempDir, { force: true, recursive: true });
+		}
+	});
+});
+
+describe('generated browser loader', () => {
+	test('loads an entry once for concurrent callers and rejects an unknown slug with NotFound', async () => {
+		const { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync, rmSync } = await import('node:fs');
+		const { tmpdir } = await import('node:os');
+		const { join } = await import('node:path');
+
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-codegen-browser-'));
+		mkdirSync(join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
+		const packageRoot = join(import.meta.dirname, '..', '..');
+		symlinkSync(
+			realpathSync(join(packageRoot, 'node_modules', '@ecopages', 'core')),
+			join(tempDir, 'node_modules', '@ecopages', 'core'),
+			'dir',
+		);
+		const cacheDir = join(tempDir, 'cache');
+		mkdirSync(cacheDir, { recursive: true });
+		const entryPath = join(tempDir, 'intro.mjs');
+		writeFileSync(entryPath, 'export default () => "browser-entry";\n');
+
+		const browserModulePath = join(cacheDir, 'docs.browser.mts');
+		writeFileSync(
+			browserModulePath,
+			renderCollectionBrowserModule('docs', cacheDir, [
+				{
+					entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
+					filePath: entryPath,
+				},
+			]),
+		);
+
+		try {
+			const loaded = (await import(browserModulePath)) as {
+				loadComponent: (slug: string) => Promise<EcoComponent<Record<string, unknown>>>;
+			};
+
+			const first = loaded.loadComponent('intro');
+			expect(loaded.loadComponent('intro')).toBe(first);
+			const component = await first;
+			expect((component as unknown as () => unknown)()).toBe('browser-entry');
+
+			const missing = loaded.loadComponent('missing');
+			await expect(missing).rejects.toMatchObject({ status: 404, message: 'Unknown content entry: missing' });
 		} finally {
 			rmSync(tempDir, { force: true, recursive: true });
 		}

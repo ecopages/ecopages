@@ -3,7 +3,7 @@ import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 import { createCollectionComponentCache } from '@ecopages/react/collection-component-cache';
 import { entries, getEntry } from 'ecopages:content/posts';
-import { loadComponent } from 'ecopages:content/posts/browser';
+import { loadComponent } from 'ecopages:content/posts/component';
 import { getComponent, getEntryDependencies } from 'ecopages:content/posts/server';
 import type { PostContentEntry } from '@/content/posts';
 import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout.react';

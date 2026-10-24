@@ -723,7 +723,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 		writeFileSync(
 			filePath,
 			[
-				"import { loadComponent } from 'ecopages:content/posts/browser';",
+				"import { loadComponent } from 'ecopages:content/posts/component';",
 				"import { getEntryDependencies } from 'ecopages:content/posts/server';",
 				'export async function preload({ entry }) { await loadComponent(entry.slug); }',
 				'export default eco.page({',
@@ -738,7 +738,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 			const harness = createPluginTestHarness();
 			const transformed = await harness.transformFile(filePath);
 
-			expect(transformed).toContain("import { loadComponent } from 'ecopages:content/posts/browser';");
+			expect(transformed).toContain("import { loadComponent } from 'ecopages:content/posts/component';");
 			expect(transformed).toContain('export async function preload');
 			expect(transformed).not.toContain('ecopages:content/posts/server');
 			expect(transformed).not.toContain('dependencies:');

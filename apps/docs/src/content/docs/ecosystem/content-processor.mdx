@@ -148,11 +148,12 @@ export default eco.page({
 
 ## Virtual module API
 
-Each collection exposes `ecopages:content/<collection>` for metadata and `ecopages:content/<collection>/server` for MDX components:
+Each collection exposes `ecopages:content/<collection>` for metadata, `ecopages:content/<collection>/server` for server-only dependency discovery, and `ecopages:content/<collection>/component` for a lazy MDX component loader that works on the server and in the browser:
 
 ```typescript
 import { entries, getEntry, getEntryBySegments } from 'ecopages:content/docs';
 import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
+import { loadComponent } from 'ecopages:content/docs/component';
 import type { Entry } from 'ecopages:content/docs';
 ```
 
@@ -163,6 +164,7 @@ import type { Entry } from 'ecopages:content/docs';
 | `getEntryBySegments(segments)` | entries | Lookup by segment array                                      |
 | `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry                 |
 | `getEntryDependencies(slug)`   | server  | Returns `{ components: [entry] }` so collection walks MDX identity. Throws `HttpError.NotFound` when missing. Combine Page-local relative assets with `mergePageDependencies()`. |
+| `loadComponent(slug)`          | component | `Promise` of the MDX component for the entry. Rejects with `HttpError.NotFound` when missing. On the server it returns the entry wrapped for cross-Integration rendering; in the browser it returns the browser-compiled entry. |
 | `Entry`                        | entries | Type only — frontmatter fields plus `slug` and `segments`    |
 
 Keep `Entry` on a separate `import type` line in bundled page files.
@@ -184,7 +186,7 @@ Add one import to the app `modules.d.ts`:
 import '@ecopages/content-processor/types';
 ```
 
-The import makes `ecopages:content/*`, `/server`, and `/browser` specifiers resolvable immediately.
+The import makes `ecopages:content/*`, `/server`, and `/component` specifiers resolvable immediately.
 Run `ecopages dev` or `ecopages build` to generate precise types for configured collections.
 
 ## Related

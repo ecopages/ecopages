@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { EcoBuildPluginBuilder } from '@ecopages/core/processor';
 import {
+	createContentPlugin,
 	createContentPluginBundler,
 	parseCollectionName,
 	parseCollectionSpecifier,
@@ -15,7 +16,7 @@ describe('content-plugins', () => {
 		expect(parseCollectionName('ecopages:content/docs/server')).toBe('docs');
 	});
 
-	test('parseCollectionSpecifier distinguishes entries and server variants', () => {
+	test('parseCollectionSpecifier distinguishes entries, server and component variants', () => {
 		expect(parseCollectionSpecifier('ecopages:content/docs')).toEqual({
 			collectionName: 'docs',
 			variant: 'entries',
@@ -24,9 +25,9 @@ describe('content-plugins', () => {
 			collectionName: 'docs',
 			variant: 'server',
 		});
-		expect(parseCollectionSpecifier('ecopages:content/docs/browser')).toEqual({
+		expect(parseCollectionSpecifier('ecopages:content/docs/component')).toEqual({
 			collectionName: 'docs',
-			variant: 'browser',
+			variant: 'component',
 		});
 	});
 
@@ -44,10 +45,71 @@ describe('content-plugins', () => {
 		expect(resolveCollectionPath('ecopages:content/docs', modules, serverModules)).toBe(modules.docs);
 		expect(resolveCollectionPath('ecopages:content/docs/server', modules, serverModules)).toBe(serverModules.docs);
 		expect(
-			resolveCollectionPath('ecopages:content/docs/browser', modules, serverModules, undefined, browserModules),
+			resolveCollectionPath('ecopages:content/docs/component', modules, serverModules, undefined, browserModules),
+		).toBe(serverModules.docs);
+		expect(
+			resolveCollectionPath(
+				'ecopages:content/docs/component',
+				modules,
+				serverModules,
+				undefined,
+				browserModules,
+				'browser',
+			),
 		).toBe(browserModules.docs);
 		expect(resolveCollectionPath('content/docs', modules, serverModules)).toBe(modules.docs);
 		expect(resolveCollectionPath('ecopages:content/missing', modules, serverModules)).toBeNull();
+	});
+
+	test('server resolver backs /component with the externalized compiled server module', async () => {
+		const serverModules = { docs: '/tmp/cache/docs.server.ts' };
+		const compiledModules = { docs: '/tmp/server-collections/docs.mjs' };
+		const ensured: string[] = [];
+		const plugin = createContentPlugin({}, serverModules, compiledModules, async (name) => {
+			ensured.push(name);
+		});
+		const resolved: Array<{ path?: string; external?: boolean }> = [];
+		const pending: Array<Promise<void>> = [];
+
+		await plugin.setup({
+			onResolve(options, callback) {
+				if (!options.filter.test('ecopages:content/docs/component')) {
+					return;
+				}
+				pending.push(
+					Promise.resolve(callback({ path: 'ecopages:content/docs/component' })).then((result) => {
+						if (result) {
+							resolved.push(result);
+						}
+					}),
+				);
+			},
+			onLoad() {},
+			module() {},
+			transform() {},
+		} as EcoBuildPluginBuilder);
+		await Promise.all(pending);
+
+		expect(resolved).toEqual([{ path: compiledModules.docs, external: true }]);
+		expect(ensured).toEqual(['docs']);
+	});
+
+	test('browser resolver does not resolve /server', async () => {
+		const plugin = createContentPluginBundler({}, { docs: '/tmp/cache/docs.server.ts' });
+		const matched: string[] = [];
+
+		await plugin.setup({
+			onResolve(options) {
+				if (options.filter.test('ecopages:content/docs/server')) {
+					matched.push('server');
+				}
+			},
+			onLoad() {},
+			module() {},
+			transform() {},
+		} as EcoBuildPluginBuilder);
+
+		expect(matched).toEqual([]);
 	});
 
 	test('browser resolver returns generated files as filesystem paths so relative MDX imports resolve', async () => {
@@ -60,11 +122,11 @@ describe('content-plugins', () => {
 
 		await plugin.setup({
 			onResolve(options, callback) {
-				if (!options.filter.test('ecopages:content/docs/browser')) {
+				if (!options.filter.test('ecopages:content/docs/component')) {
 					return;
 				}
 				pending.push(
-					Promise.resolve(callback({ path: 'ecopages:content/docs/browser' })).then((result) => {
+					Promise.resolve(callback({ path: 'ecopages:content/docs/component' })).then((result) => {
 						if (result) {
 							resolved.push(result);
 						}

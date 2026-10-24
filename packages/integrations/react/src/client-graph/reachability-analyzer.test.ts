@@ -59,7 +59,7 @@ describe('analyzeReachability', () => {
 
 	it('keeps the Page preload export and its browser imports reachable', () => {
 		const source = `
-			import { loadComponent } from 'ecopages:content/posts/browser';
+			import { loadComponent } from 'ecopages:content/posts/component';
 
 			export async function preload({ entry }) {
 				await loadComponent(entry.slug);
@@ -71,12 +71,12 @@ describe('analyzeReachability', () => {
 		const result = analyzeReachability(source, 'page.tsx');
 
 		expect(result.isFallbackRoots).toBe(false);
-		expect(result.reachableImports.get('ecopages:content/posts/browser')).toEqual(new Set(['loadComponent']));
+		expect(result.reachableImports.get('ecopages:content/posts/component')).toEqual(new Set(['loadComponent']));
 	});
 
 	it('keeps a locally re-exported Page preload reachable', () => {
 		const source = `
-			import { loadComponent } from 'ecopages:content/posts/browser';
+			import { loadComponent } from 'ecopages:content/posts/component';
 
 			async function loadPost({ entry }) {
 				await loadComponent(entry.slug);
@@ -89,7 +89,7 @@ describe('analyzeReachability', () => {
 		const result = analyzeReachability(source, 'page.tsx');
 
 		expect(result.isFallbackRoots).toBe(false);
-		expect(result.reachableImports.get('ecopages:content/posts/browser')).toEqual(new Set(['loadComponent']));
+		expect(result.reachableImports.get('ecopages:content/posts/component')).toEqual(new Set(['loadComponent']));
 	});
 
 	it('keeps a re-exported Page preload module reachable', () => {

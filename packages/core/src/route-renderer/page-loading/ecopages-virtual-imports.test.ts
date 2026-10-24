@@ -8,6 +8,7 @@ describe('ecopages-virtual-imports', () => {
 	it('isBrowserEcopagesVirtualImport excludes content server resolver modules', () => {
 		expect(isBrowserEcopagesVirtualImport('ecopages:content/docs')).toBe(true);
 		expect(isBrowserEcopagesVirtualImport('ecopages:content/docs/server')).toBe(false);
+		expect(isBrowserEcopagesVirtualImport('ecopages:content/docs/component')).toBe(true);
 		expect(isBrowserEcopagesVirtualImport('ecopages:images')).toBe(true);
 	});
 
@@ -21,6 +22,7 @@ describe('ecopages-virtual-imports', () => {
 				`
 import { entries } from 'ecopages:content/docs';
 import { getComponent } from 'ecopages:content/docs/server';
+import { loadComponent } from 'ecopages:content/docs/component';
 import type { Entry } from 'ecopages:content/docs';
 `,
 			);
@@ -29,6 +31,10 @@ import type { Entry } from 'ecopages:content/docs';
 				{
 					from: 'ecopages:content/docs',
 					imports: ['entries'],
+				},
+				{
+					from: 'ecopages:content/docs/component',
+					imports: ['loadComponent'],
 				},
 			]);
 		} finally {

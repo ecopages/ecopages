@@ -75,6 +75,10 @@ type AttachMdxExportsHelperOptions = {
  * The loader already attributes identity and live dependency getters. This
  * adapter copies that config by reference onto the callable returned to the
  * route renderer. It does not re-bind or snapshot `config`.
+ *
+ * The browser variant returns the module's own default export, so loading an
+ * unchanged module again returns the same component and an edited module
+ * returns a new one.
  */
 function renderAttachMdxExportsHelper(options?: AttachMdxExportsHelperOptions): string {
 	const ownershipImport = options?.ownershipCheck
@@ -98,10 +102,7 @@ import { invokeContentEntry } from '@ecopages/content-processor/ownership';
 	) as EcoComponent<Record<string, unknown>>;
 `
 		: `
-	const component = Object.assign(
-		(props: Record<string, unknown> = {}) => Page(props),
-		Page,
-	) as EcoComponent<Record<string, unknown>>;
+	const component = Page;
 `;
 
 	return `${ownershipImport}type ContentMdxModule = {
@@ -168,7 +169,7 @@ ${entrySourceFilesBySlugLines.join('\n')}
  * specifiers share one cache and one wrapped component per slug.
  */
 export function renderCollectionComponentsModule(
-	_collectionName: string,
+	collectionName: string,
 	outputDir: string,
 	entrySources: Array<{ entry: ContentEntry; filePath: string }>,
 ): string {
@@ -220,7 +221,9 @@ export async function getEntryDependencies(slug: string): Promise<PageDependenci
 	};
 }
 
-export const loadComponent = getComponent;
+export const loadComponent = Object.assign((slug: string) => getComponent(slug), {
+	collection: ${JSON.stringify(collectionName)},
+});
 `;
 }
 
@@ -234,7 +237,7 @@ export const loadComponent = getComponent;
  * requests; it is not a server renderer.
  */
 export function renderCollectionBrowserModule(
-	_collectionName: string,
+	collectionName: string,
 	outputDir: string,
 	entrySources: Array<{ entry: ContentEntry; filePath: string }>,
 ): string {
@@ -249,7 +252,7 @@ ${renderMdxLoaderMaps(outputDir, entrySources)}
 
 const componentLoadPromises = new Map<string, Promise<EcoComponent<Record<string, unknown>>>>();
 
-export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>> {
+function loadEntry(slug: string): Promise<EcoComponent<Record<string, unknown>>> {
 	const pending = componentLoadPromises.get(slug);
 	if (pending) {
 		return pending;
@@ -266,6 +269,8 @@ export function loadComponent(slug: string): Promise<EcoComponent<Record<string,
 	componentLoadPromises.set(slug, loadPromise);
 	return loadPromise;
 }
+
+export const loadComponent = Object.assign(loadEntry, { collection: ${JSON.stringify(collectionName)} });
 `;
 }
 
@@ -343,14 +348,14 @@ function renderCollectionComponentsTypesModule(collectionName: string): string {
 
 function renderCollectionLoaderTypesModule(collectionName: string): string {
 	return `declare module "ecopages:content/${collectionName}/component" {
-	import type { EcoComponent } from '@ecopages/core';
+	import type { ContentCollectionLoader } from '@ecopages/content-processor/types';
 
 	/**
 	 * Loads the MDX component for one slug on the server and in the browser.
 	 *
 	 * @remarks Rejects with HttpError 404 when the slug is not in the collection.
 	 */
-	export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
+	export const loadComponent: ContentCollectionLoader;
 }`;
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { EcoComponent } from '@ecopages/core';
+import type { ContentCollectionLoader } from '../types.ts';
 import {
 	renderCollectionComponentsModule,
 	renderCollectionBrowserModule,
@@ -54,7 +55,8 @@ describe('codegen', () => {
 		expect(output).toContain("'intro': '/app/src/content/docs/intro.mdx',");
 		expect(output).toContain('export async function getComponent(slug: string)');
 		expect(output).toContain('export async function getEntryDependencies(slug: string)');
-		expect(output).toContain('export const loadComponent = getComponent;');
+		expect(output).toContain('export const loadComponent = Object.assign((slug: string) => getComponent(slug), {');
+		expect(output).toContain('collection: "docs",');
 		expect(output).toContain("import { invokeContentEntry } from '@ecopages/content-processor/ownership'");
 		expect(output).toContain('components: [component]');
 		expect(output).not.toContain('...dependencies');
@@ -71,7 +73,7 @@ describe('codegen', () => {
 		]);
 
 		expect(output).toContain("'intro': () => import('../../app/src/content/docs/intro.mdx'),");
-		expect(output).toContain('export function loadComponent(slug: string)');
+		expect(output).toContain('export const loadComponent = Object.assign(loadEntry, { collection: "docs" });');
 		expect(output).toContain('return Promise.reject(HttpError.NotFound(');
 		expect(output).toContain('const componentLoadPromises = new Map');
 		expect(output).toContain('attachMdxExports(module, entrySourceFilesBySlug[slug]!)');
@@ -106,9 +108,7 @@ describe('codegen', () => {
 		expect(output).toContain('declare module "ecopages:content/docs"');
 		expect(output).toContain('declare module "ecopages:content/docs/server"');
 		expect(output).toContain('declare module "ecopages:content/docs/component"');
-		expect(output).toContain(
-			'export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>',
-		);
+		expect(output).toContain('export const loadComponent: ContentCollectionLoader;');
 		expect(output).toContain('/** @throws HttpError 404 when the slug is not in the collection. */');
 		expect(output).toContain('export function getEntryDependencies(slug: string): Promise<PageDependenciesResult>');
 		expect(output).not.toContain('/browser"');
@@ -244,8 +244,9 @@ describe('attachMdxExports ownership guard', () => {
 		try {
 			const loaded = (await import(serverModulePath)) as {
 				getComponent: (slug: string) => Promise<EcoComponent<Record<string, unknown>>>;
-				loadComponent: (slug: string) => Promise<EcoComponent<Record<string, unknown>>>;
+				loadComponent: ContentCollectionLoader;
 			};
+			expect(loaded.loadComponent.collection).toBe('docs');
 			const reactComponent = await loaded.getComponent('intro-react');
 			const hostComponent = await loaded.getComponent('intro-host');
 			const asyncComponent = await loaded.getComponent('intro-async');
@@ -329,9 +330,8 @@ describe('generated browser loader', () => {
 		);
 
 		try {
-			const loaded = (await import(browserModulePath)) as {
-				loadComponent: (slug: string) => Promise<EcoComponent<Record<string, unknown>>>;
-			};
+			const loaded = (await import(browserModulePath)) as { loadComponent: ContentCollectionLoader };
+			expect(loaded.loadComponent.collection).toBe('docs');
 
 			const first = loaded.loadComponent('intro');
 			expect(loaded.loadComponent('intro')).toBe(first);

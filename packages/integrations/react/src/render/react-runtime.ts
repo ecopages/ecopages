@@ -1,5 +1,5 @@
 /**
- * Resolves the React and react-dom/static modules used for SSR, and renders React trees to HTML with them.
+ * Resolves the React, react-dom/static and react-dom/server modules used for SSR, and renders React trees to HTML with them.
  *
  * @remarks
  * Prefers the app's own React install so SSR identity matches the app bundle.
@@ -57,6 +57,7 @@ export function runWithRenderBudget<T>(options: RenderReactHtmlOptions, render: 
 export type ReactRuntimeModules = {
 	react: ReactRuntime;
 	reactDomStatic: typeof import('react-dom/static');
+	reactDomServer: Pick<typeof import('react-dom/server'), 'renderToString'>;
 };
 
 export function resolveReactRuntimeModules(rootDir: string | undefined): ReactRuntimeModules {
@@ -68,6 +69,7 @@ export function resolveReactRuntimeModules(rootDir: string | undefined): ReactRu
 		return {
 			react: requireFromApp('react') as ReactRuntime,
 			reactDomStatic: requireFromApp('react-dom/static'),
+			reactDomServer: requireFromApp('react-dom/server'),
 		};
 	} catch {
 		const requireFromIntegration = createRequire(import.meta.url);
@@ -75,6 +77,7 @@ export function resolveReactRuntimeModules(rootDir: string | undefined): ReactRu
 		return {
 			react: requireFromIntegration('react') as ReactRuntime,
 			reactDomStatic: requireFromIntegration('react-dom/static'),
+			reactDomServer: requireFromIntegration('react-dom/server'),
 		};
 	}
 }
@@ -113,9 +116,13 @@ const REVEAL_TIMING_SCRIPT =
  *   now outside one. Past the deadline the tree still renders what needs no waiting. When the
  *   signal fires, unfinished boundaries stay in their fallback and the rest of the tree is served,
  *   the same outcome as a boundary that throws.
- * - React returns no HTML when the abort lands before the shell finished, which includes a
- *   pending boundary at the root of the tree. That fails the render instead of serving an empty
- *   tree.
+ * - `prerender` returns no HTML when the abort lands while the tree has no finished host element
+ *   around its pending work: a shell still waiting outside every boundary, or a boundary at the
+ *   root of the tree. The tree is then rendered once more with `renderToString`, which serves such
+ *   a boundary's fallback, marked for the browser to render, and throws for a waiting shell. That
+ *   throw fails the render. In development React writes into the marked boundary that
+ *   `renderToString` does not support Suspense; the browser reports it as a recovered hydration
+ *   error.
  * - The Node stream variant is used because the web-stream `prerender` is only in the Node
  *   build from react-dom 19.2, while the peer range allows any React 19.
  */
@@ -147,12 +154,9 @@ export async function renderReactHtml(
 		const timedOut = controller.signal.aborted;
 		clearTimeout(timer);
 
-		const html = await text(prelude);
-		if (timedOut && html === '') {
-			throw new ReactRenderError(
-				`React server rendering of ${options.label} produced no HTML: its shell did not finish within the ${budget.timeoutMs}ms render time limit.`,
-			);
-		}
+		const prerendered = await text(prelude);
+		const html =
+			timedOut && prerendered === '' ? renderFallbackHtml(runtime, element, options.label, budget) : prerendered;
 		if (timedOut && !budget.warned) {
 			budget.warned = true;
 			appLogger.warn(
@@ -163,6 +167,22 @@ export async function renderReactHtml(
 		return markup.replace(REVEAL_TIMING_SCRIPT, '');
 	} finally {
 		clearTimeout(timer);
+	}
+}
+
+function renderFallbackHtml(
+	runtime: ReactRuntimeModules,
+	element: ReactNode,
+	label: string,
+	budget: RenderBudget,
+): string {
+	try {
+		return runtime.reactDomServer.renderToString(element);
+	} catch (error) {
+		throw new ReactRenderError(
+			`React server rendering of ${label} produced no HTML: its shell did not finish within the ${budget.timeoutMs}ms render time limit.`,
+			{ cause: error },
+		);
 	}
 }
 

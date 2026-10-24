@@ -721,7 +721,11 @@ describe('ReactRenderer', () => {
 		const createElement = vi.spyOn(appReact, 'createElement');
 		const prerenderToNodeStream = vi.spyOn(appReactDomStatic, 'prerenderToNodeStream');
 		const testRenderer = createRenderer();
-		testRenderer.reactRuntimeModulesOverride = { react: appReact, reactDomStatic: appReactDomStatic };
+		testRenderer.reactRuntimeModulesOverride = {
+			react: appReact,
+			reactDomStatic: appReactDomStatic,
+			reactDomServer: await import('react-dom/server'),
+		};
 
 		const ForeignSubtree = eco.component<{ label: string }, JSX.Element>({
 			integration: 'react',

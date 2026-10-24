@@ -526,6 +526,45 @@ describe('React server rendering waits for Suspense', () => {
 		}
 	});
 
+	it('waits 10 seconds by default', async () => {
+		const Page = eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			render: () => <main>ready</main>,
+		});
+		const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+
+		try {
+			await renderPage(await createRenderer(), Page);
+			const delays = setTimeoutSpy.mock.calls.map(([, delay]) => delay ?? 0);
+
+			expect(delays.some((delay) => delay > 9_000 && delay <= 10_000)).toBe(true);
+		} finally {
+			setTimeoutSpy.mockRestore();
+		}
+	});
+
+	it('serves the fallback of a timed-out boundary at the root of a tree', async () => {
+		const runtime = resolveReactRuntimeModules(undefined);
+		const NeverContent = lazyNever();
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		try {
+			const html = await renderReactHtml(
+				runtime,
+				<Suspended>
+					<NeverContent />
+				</Suspended>,
+				{ timeoutMs: 50, label: 'root boundary' },
+			);
+
+			expect(html).toContain(FALLBACK);
+			expect(html).toContain('<!--$!-->');
+			expect(html).not.toContain('<script');
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
 	it('shares one deadline and one warning across the React renders of one route', async () => {
 		const runtime = resolveReactRuntimeModules(undefined);
 		const NeverContent = lazyNever();

@@ -6,8 +6,8 @@
  * Error thrown when an error occurs while rendering a React component.
  */
 export class ReactRenderError extends Error {
-	constructor(message: string) {
-		super(message);
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
 		this.name = 'ReactRenderError';
 	}
 }

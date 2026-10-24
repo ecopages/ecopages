@@ -1145,6 +1145,7 @@ describe('IntegrationRenderer', () => {
 	});
 
 	it('responds with exactly the assets of the prepared page package', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
 		const processDependencies = vi.fn(async (dependencies: AssetDefinition[]) =>
 			dependencies.flatMap((dependency): ProcessedAsset[] => {
 				if (dependency.source !== 'file') return [];
@@ -1176,6 +1177,12 @@ describe('IntegrationRenderer', () => {
 			dependencies: { stylesheets: ['./widget.css'], scripts: ['./widget.script.ts'] },
 			render: () => '<aside>widget</aside>',
 		});
+		const UndeclaredBadge = eco.component({
+			integration: foreignIntegration,
+			identity: { id: 'badge', file: '/app/components/badge.ts', integration: foreignIntegration },
+			dependencies: { stylesheets: ['./badge.css'], scripts: ['./badge.script.ts'] },
+			render: () => '<small>badge</small>',
+		});
 		const Layout = eco.layout({
 			integration,
 			identity: { id: 'layout', file: '/app/layouts/base.ts', integration },
@@ -1187,7 +1194,7 @@ describe('IntegrationRenderer', () => {
 			identity: { id: 'page', file: '/app/pages/index.ts', integration },
 			layout: Layout,
 			dependencies: { stylesheets: ['./index.css'], components: [Card, Widget] },
-			render: () => `<main>${String(Card({}))}${String(Widget({}))}</main>`,
+			render: () => `<main>${String(Card({}))}${String(Widget({}))}${String(UndeclaredBadge({}))}</main>`,
 		});
 		const HtmlTemplate = eco.html({
 			integration,
@@ -1230,6 +1237,7 @@ describe('IntegrationRenderer', () => {
 
 		expect(html).toContain('<article>card</article>');
 		expect(html).toMatch(/<aside [^>]*data-eco-island-integration="prepared-package-foreign">widget<\/aside>/);
+		expect(html).toMatch(/<small [^>]*data-eco-island-integration="prepared-package-foreign">badge<\/small>/);
 		expect(emittedUrls).toEqual([
 			'/assets/base.css',
 			'/assets/card.css',

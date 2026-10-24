@@ -138,15 +138,20 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 	 * A direct call reconciles here, so the Page head is never dropped.
 	 */
 	override async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-		const { html, head } = await this.renderHtmlPage(options as InternalIntegrationRendererRenderOptions);
-		return reconcileHtmlPageDocument(html, head);
+		return this.finalizeHtmlPageDocument(await super.render(options), options);
+	}
+
+	override async renderRouteBody(options: InternalIntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+		return super.render(options);
 	}
 
 	/**
 	 * Renders the Page body and retains its head until core document contributions have been applied.
 	 */
-	override async renderRouteBody(options: InternalIntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-		const rendered = await this.renderHtmlPage(options);
+	protected override async renderRouteDocument(
+		options: IntegrationRendererRenderOptions,
+	): Promise<RouteRendererBody> {
+		const rendered = await this.renderHtmlPage(options as InternalIntegrationRendererRenderOptions);
 		this.renderedHeads.set(options, rendered.head);
 		return rendered.html;
 	}

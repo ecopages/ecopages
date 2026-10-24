@@ -267,22 +267,13 @@ describe('LitRenderer', () => {
 							(input.integrationContext as { componentInstanceId?: string } | undefined)
 								?.componentInstanceId ?? 'missing',
 					}),
-					assets: [
-						{
-							kind: 'script' as const,
-							inline: true,
-							content: 'console.log("deferred island")',
-							position: 'body' as const,
-						},
-					],
 				}),
 			});
 			const config = await createTestAppConfig({ integrations: [deferredPlugin] });
 
-			const processDependencies = vi.fn(async (dependencies: Array<{ kind: string }>) => dependencies);
 			const testRenderer = new TestLitRenderer({
 				appConfig: config,
-				assetProcessingService: { processDependencies } as never,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as never,
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -318,16 +309,6 @@ describe('LitRenderer', () => {
 				integrationContext: { componentInstanceId: 'wrapper' },
 			});
 
-			expect(processDependencies).toHaveBeenCalled();
-			expect(result.assets).toEqual(
-				expect.arrayContaining([
-					expect.objectContaining({ kind: 'script', content: 'console.log("deferred island")' }),
-					expect.objectContaining({
-						kind: 'script',
-						filepath: expect.stringContaining('deferred-island.script.ts'),
-					}),
-				]),
-			);
 			expect(result.rootAttributes?.['data-eco-island']).toBeUndefined();
 			expect(result.rootAttributes?.['data-eco-island-integration']).toBeUndefined();
 			expect(result.html).toMatch(/<button[^>]*\sdata-eco-island-integration="deferred"/);

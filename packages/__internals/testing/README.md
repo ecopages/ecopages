@@ -83,15 +83,14 @@ This is test infrastructure, not an application rendering default. Production ap
 
 Rows:
 
-- a component renders as structured output with the Integration's name and root tag
-- the foreign subtree payload of a plain component (empty assets, no root attributes, `first-element` attachment)
-- the assets a component declares are returned
+- a component renders as structured output with the Integration's name
+- the foreign subtree payload of a plain component (no root attributes, `first-element` attachment)
 - island host attributes are stamped when the instance has client scripts
-- a foreign boundary resolves, bubbles its assets and leaves the script-less shell unstamped
+- a foreign boundary resolves and leaves the script-less shell unstamped
 - a deferred foreign layout leaves no `<eco-marker` behind, and the explicit view equals the filesystem page, head included
 - a view that throws fails with the Integration's error prefix and the cause
 
-The harness supplies `name`, `errorPrefix`, `createRenderer({ integrations, processDependencies })`, `makeComponent(spec)` and `makeView(spec)`. The renderer's document shell must print `metadata.title` in `<head>`. Optional `viewFile` sets the file key and `renderIsland()` wraps island renders for an Integration that receives island assets through the render context (React). `createStringMarkupContractFactories(name)` builds `makeComponent` and `makeView` for Integrations whose components return HTML strings (kitajs, mdx, lit).
+The harness supplies `name`, `errorPrefix`, `createRenderer({ integrations, processDependencies })`, `makeComponent(spec)` and `makeView(spec)`. The renderer's document shell must print `metadata.title` in `<head>`. Optional `viewFile` sets the file key. `createStringMarkupContractFactories(name)` builds `makeComponent` and `makeView` for Integrations whose components return HTML strings (kitajs, mdx, lit).
 
 Core owns status, headers, partial views and the shared island and foreign-subtree plumbing against a test renderer (`integration-renderer.test.ts`). Keep framework-specific cases in the Integration's own tests; do not repeat a contract row there.
 

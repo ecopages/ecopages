@@ -88,7 +88,7 @@ For Ecopages JSX, Radiant custom-element hosts are the clearest island-like case
 
 See [Island Hosts](/docs/core/island-hosts) for the shared `data-eco-island` contract stamped on SSR roots.
 
-Important: foreign-child ownership is broader than hydration. Ecopages uses the same foreign-subtree contract to preserve renderer ownership, collect nested assets, and resolve foreign children even when the final output is fully static HTML.
+Important: foreign-child ownership is broader than hydration. Ecopages uses the same foreign-subtree contract to preserve renderer ownership and resolve foreign children even when the final output is fully static HTML.
 
 ## Route Extensions
 
@@ -165,8 +165,8 @@ Important:
 - Foreign children must appear in the owning component's dependency graph. Direct local imports are discovered automatically.
 - Declare `dependencies.components` explicitly for `export *` barrels, package components, or other imports discovery cannot follow.
 - Mixed-renderer ownership is validated from declared dependencies during render preparation.
-- Raw markup preservation and asset collection stay inside the JSX renderer.
-- Nested foreign-subtree assets bubble back through the owning JSX render pass, so the foreign subtree keeps both its HTML and its browser requirements together.
+- Raw markup preservation stays inside the JSX renderer.
+- A foreign subtree's stylesheets and scripts come from its components' declared dependencies, which Ecopages collects for the page before rendering.
 
 ### Cross-integration children
 

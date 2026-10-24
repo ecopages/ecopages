@@ -67,8 +67,7 @@ export function componentRenderHasIslandBootstrap(assets: Array<{ kind: string }
  *
  * @param ownAssets - Assets of the component and its same-Integration nested components, excluding Foreign Children
  * and the Foreign Subtrees rendered inside it.
- * @remarks The decision ignores `result.assets`, which usually also carries Foreign Subtree assets: a component
- * without scripts that wraps an island is not an island itself.
+ * @remarks A component without scripts that wraps an island is not an island itself.
  */
 export function finalizeIslandComponentRender<
 	T extends {

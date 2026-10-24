@@ -45,7 +45,7 @@ Integrations that extend the contract (for example React's component key and pro
 
 ## Using the helpers in custom integrations
 
-If you author a custom integration plugin, call `finalizeIslandComponentRender()` on component render results. Pass the component's own assets as the third argument, excluding those of Foreign Children, separately from the merged list in `assets`, so scripts from nested islands of other integrations do not mark the component as an island:
+If you author a custom integration plugin, call `finalizeIslandComponentRender()` on component render results. Pass the component's own assets as the third argument, excluding those of Foreign Children, so scripts from nested islands of other integrations do not mark the component as an island:
 
 ```typescript
 import { finalizeIslandComponentRender } from '@ecopages/core';
@@ -54,7 +54,6 @@ return finalizeIslandComponentRender(input, {
 	html,
 	canAttachAttributes: true,
 	integrationName: 'my-integration',
-	assets: [...ownAssets, ...foreignSubtreeAssets],
 }, ownAssets);
 ```
 

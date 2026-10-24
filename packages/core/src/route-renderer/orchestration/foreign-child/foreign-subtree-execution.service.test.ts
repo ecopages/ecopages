@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { eco } from '../../../eco/eco.ts';
-import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import type {
 	BaseIntegrationContext,
 	ComponentRenderInput,
@@ -22,15 +21,6 @@ function createComponent(name: string, integration = name): EcoComponent<Record<
 		integration,
 		render: () => `<div data-component="${name}"></div>`,
 	});
-}
-
-function createAsset(content: string): ProcessedAsset {
-	return {
-		kind: 'script',
-		inline: true,
-		content,
-		position: 'body',
-	};
 }
 
 describe('shouldDelegateForeignChild', () => {
@@ -169,7 +159,7 @@ describe('queued foreign-subtree resolution', () => {
 		);
 	});
 
-	it('resolves nested queued foreign subtrees, applies root attributes, and dedupes bubbled assets', async () => {
+	it('resolves nested queued foreign subtrees and applies root attributes', async () => {
 		const shell = createComponent('shell', 'shell');
 		const parentForeignSubtree = createComponent('parent-foreign-subtree', 'deferred');
 		const childForeignSubtree = createComponent('child-foreign-subtree', 'deferred');
@@ -227,7 +217,6 @@ describe('queued foreign-subtree resolution', () => {
 								?.componentInstanceId ?? 'missing',
 						),
 					},
-					assets: [createAsset('shared-asset'), createAsset('child-asset')],
 				};
 			}
 
@@ -238,7 +227,6 @@ describe('queued foreign-subtree resolution', () => {
 				rootAttributes: {
 					'data-owner': 'parent',
 				},
-				assets: [createAsset('shared-asset'), createAsset('parent-asset')],
 			};
 		});
 
@@ -266,14 +254,9 @@ describe('queued foreign-subtree resolution', () => {
 			resolveForeignSubtree,
 		});
 
-		expect(result.html).toBe(
+		expect(result).toBe(
 			'<article><section data-owner="parent"><slot><span data-owner="child" data-instance="host_n_2">child</span></slot></section></article>',
 		);
-		expect(result.assets).toEqual([
-			createAsset('shared-asset'),
-			createAsset('child-asset'),
-			createAsset('parent-asset'),
-		]);
 		expect(resolveForeignSubtree).toHaveBeenCalledTimes(2);
 	});
 
@@ -324,7 +307,6 @@ describe('queued foreign-subtree resolution', () => {
 				},
 				resolveForeignSubtree: async (input) => ({
 					html: `<section>${input.children ?? ''}</section>`,
-					assets: [],
 					canAttachAttributes: true,
 					integrationName: 'deferred',
 				}),
@@ -351,7 +333,6 @@ describe('queued foreign-subtree resolution', () => {
 
 		const resolveForeignSubtree = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
 			html: `<section>${JSON.stringify(input.children)}</section>`,
-			assets: [],
 			canAttachAttributes: true,
 			integrationName: 'deferred',
 		}));
@@ -364,7 +345,7 @@ describe('queued foreign-subtree resolution', () => {
 			resolveForeignSubtree,
 		});
 
-		expect(result.html).toBe('<article><section>{"kind":"structured-child"}</section></article>');
+		expect(result).toBe('<article><section>{"kind":"structured-child"}</section></article>');
 		expect(resolveForeignSubtree).toHaveBeenCalledWith(
 			expect.objectContaining({
 				children: structuredChildren,
@@ -401,7 +382,6 @@ describe('queued foreign-subtree resolution', () => {
 
 				return {
 					html: '<section>__TEST_QUEUE__host__2__</section>',
-					assets: [],
 					canAttachAttributes: true,
 					integrationName: 'deferred',
 				};
@@ -409,7 +389,6 @@ describe('queued foreign-subtree resolution', () => {
 
 			return {
 				html: '<strong>child</strong>',
-				assets: [],
 				canAttachAttributes: true,
 				integrationName: 'deferred',
 			};
@@ -423,7 +402,7 @@ describe('queued foreign-subtree resolution', () => {
 			resolveForeignSubtree,
 		});
 
-		expect(result.html).toBe('<article><section><strong>child</strong></section></article>');
+		expect(result).toBe('<article><section><strong>child</strong></section></article>');
 		expect(resolveForeignSubtree).toHaveBeenCalledTimes(2);
 	});
 });

@@ -43,11 +43,7 @@ export function createEcopagesJsxRendererHookFactory(
 ): IntegrationRendererHookFactory {
 	const mdxExtensions = jsxConfig.mdxExtensions ?? ['.mdx'];
 
-	return ({
-		appConfig,
-		resolveComponentDependencies,
-		resolveDependencyPath,
-	}: IntegrationRendererHookFactoryOptions) => {
+	return ({ appConfig, resolveDependencyPath }: IntegrationRendererHookFactoryOptions) => {
 		const radiantSsrPolicy = new EcopagesJsxRadiantSsrPolicy(jsxConfig.radiantSsrEnabled ?? false);
 		const ssrScriptPreloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
@@ -127,9 +123,6 @@ export function createEcopagesJsxRendererHookFactory(
 									};
 						const content = await withCustomElementRenderHook(() => component(componentProps));
 						const html = await renderJsx(content);
-						const assets = input.component.config?.dependencies
-							? await resolveComponentDependencies([input.component])
-							: undefined;
 
 						recordEjsxHmrOwnership([input.component]);
 
@@ -137,7 +130,6 @@ export function createEcopagesJsxRendererHookFactory(
 							html,
 							canAttachAttributes: true,
 							integrationName: ECOPAGES_JSX_PLUGIN_NAME,
-							assets,
 						};
 					} catch (error) {
 						throw createRenderError('Error rendering component', error);

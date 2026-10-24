@@ -45,6 +45,7 @@ test.describe('React routes interactivity @content', () => {
 		await expect(root.locator('[data-react-value]')).toHaveText('0');
 		await incrementCounter(root.locator('[data-react-inc]'), root.locator('[data-react-value]'), '1');
 		await expect(root.locator('lit-counter')).toHaveCount(1);
+		await expect.poll(() => page.evaluate(() => customElements.get('lit-counter') !== undefined)).toBe(true);
 
 		runtime.assertClean();
 	});

@@ -8,7 +8,6 @@ export type PlannedPageClientBuildEntry = PageClientBuildEntry & {
 
 export type PrebuiltPageClientBrowserAssets = {
 	processedAssets: ProcessedAsset[];
-	islandRenderAssetsByFile: Map<string, ProcessedAsset[]>;
 	fallbackDependencies: Array<{ dependency: PageClientBuildEntry['dependency']; integrationName: string }>;
 };
 

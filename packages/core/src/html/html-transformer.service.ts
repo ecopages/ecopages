@@ -66,49 +66,10 @@ export class HtmlTransformerService {
 	}
 
 	/**
-	 * Sets attributes on the element that directly follows the `<body>` start tag.
-	 *
-	 * @remarks
-	 * Nothing is stamped when text or a comment comes first (whitespace aside).
-	 */
-	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string {
-		let insideBody = false;
-		return stampAttributes(
-			html,
-			attributes,
-			(element) => {
-				if (insideBody) return true;
-				insideBody = element.tagName === 'body';
-				return false;
-			},
-			{ leadingOnly: true },
-		);
-	}
-
-	/**
-	 * Removes duplicate processed assets while preserving first-seen order.
-	 *
-	 * @remarks
-	 * Dedupe keys include structural asset fields and HTML attributes so repeated
-	 * orchestration passes can merge assets safely without collapsing distinct tag
-	 * variants.
-	 */
-	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
-		return dedupeProcessedAssets(assets);
-	}
-
-	/**
 	 * Injects page assets and document contributions into a streaming HTML response.
 	 */
 	transform(res: Response, input: PageAssetInjection = {}): Response {
 		return this.createRewriter(input.contributions ?? [], input.pagePackage).transform(res);
-	}
-
-	/**
-	 * Injects page assets and document contributions into a complete HTML string.
-	 */
-	injectPageAssets(html: string, input: PageAssetInjection = {}): string {
-		return this.createRewriter(input.contributions ?? [], input.pagePackage).transform(html);
 	}
 
 	/**

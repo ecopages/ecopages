@@ -118,6 +118,10 @@ _Avoid_: Cross-integration boundary
 The browser-reachable module graph derived from one Page and its lazy browser entries. It determines which browser code, chunks, and shared runtime code are emitted for that Page.
 _Avoid_: Client bundle, app bundle, vendor graph
 
+**Page Package**:
+The stylesheets and scripts core injects into one render of a Page: the Dependencies of the Components route preparation reached, the Page Browser Graph, island and lazy-entry builds, and Integration runtimes. Route preparation builds it before any Component renders; rendering does not change it. An HTML Page writes its own declared assets into its markup instead.
+_Avoid_: Page assets, render assets
+
 **SSR Policy**:
 Integration-owned rules that decide how a Page or Component is rendered on the server and what browser bootstrap contract that server output requires.
 _Avoid_: SSR flag, hydration mode, server toggle

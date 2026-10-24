@@ -22,19 +22,16 @@ function createPlan(overrides: Partial<PageClientPlan> = {}): PageClientPlan {
 }
 
 describe('buildPageClientBrowserAssets', () => {
-	it('merges the owner islands with the grouped build of another hydrating integration', async () => {
+	it('collects the grouped build of another hydrating integration', async () => {
 		const counter = asset('counter');
-		const ownIsland = asset('own');
 		const buildPageClientBrowserAssetsOfReact = vi.fn(async () => ({
 			processedAssets: [counter],
-			islandRenderAssetsByFile: new Map([['/app/counter.tsx', [counter]]]),
 			lazyTriggers: [],
 		}));
 
 		const result = await buildPageClientBrowserAssets({
 			plan: createPlan(),
 			integrationName: 'kitajs',
-			collectOwnIslandAssets: async () => new Map([['/app/own.kita.tsx', [ownIsland]]]),
 			resolveContributor: async () => ({
 				contributesAppBrowserClientBuild: () => true,
 				buildPageClientBrowserAssets: buildPageClientBrowserAssetsOfReact,
@@ -43,8 +40,7 @@ describe('buildPageClientBrowserAssets', () => {
 			applyPendingLazyTriggers: () => [],
 		});
 
-		expect(result.processedAssets).toEqual([ownIsland, counter]);
-		expect([...result.islandRenderAssetsByFile.keys()].sort()).toEqual(['/app/counter.tsx', '/app/own.kita.tsx']);
+		expect(result.processedAssets).toEqual([counter]);
 	});
 
 	it('skips integrations that do not contribute to the app build and the owner itself', async () => {
@@ -61,7 +57,6 @@ describe('buildPageClientBrowserAssets', () => {
 				],
 			}),
 			integrationName: 'kitajs',
-			collectOwnIslandAssets: async () => new Map(),
 			resolveContributor,
 			processLazyEntries: async () => [],
 			applyPendingLazyTriggers: () => [],
@@ -75,21 +70,23 @@ describe('buildPageClientBrowserAssets', () => {
 	it('processes lazy entries only when no contributed build already carries them', async () => {
 		const lazyEntries = [{ kind: 'script', source: 'content', content: '1' }] as never;
 		const processLazyEntries = vi.fn(async () => [asset('lazy')]);
-		const run = (collected: ProcessedAsset[]) =>
+		const run = (contributed: ProcessedAsset[]) =>
 			buildPageClientBrowserAssets({
-				plan: createPlan({ islandEntries: [], lazyClientEntries: lazyEntries }),
+				plan: createPlan({ lazyClientEntries: lazyEntries }),
 				integrationName: 'kitajs',
-				collectOwnIslandAssets: async () => new Map([['/app/own.kita.tsx', collected]]),
-				resolveContributor: async () => undefined,
+				resolveContributor: async () => ({
+					contributesAppBrowserClientBuild: () => true,
+					buildPageClientBrowserAssets: async () => ({ processedAssets: contributed, lazyTriggers: [] }),
+				}),
 				processLazyEntries,
 				applyPendingLazyTriggers: () => [],
 			});
 
-		const first = await run([asset('own')]);
-		const second = await run([asset('own', { 'data-eco-lazy-key': 'k' })]);
+		const first = await run([asset('island')]);
+		const second = await run([asset('island', { 'data-eco-lazy-key': 'k' })]);
 
 		expect(processLazyEntries).toHaveBeenCalledTimes(1);
-		expect(first.processedAssets.map((entry) => entry.filepath)).toEqual(['/dist/own.js', '/dist/lazy.js']);
-		expect(second.processedAssets.map((entry) => entry.filepath)).toEqual(['/dist/own.js']);
+		expect(first.processedAssets.map((entry) => entry.filepath)).toEqual(['/dist/island.js', '/dist/lazy.js']);
+		expect(second.processedAssets.map((entry) => entry.filepath)).toEqual(['/dist/island.js']);
 	});
 });

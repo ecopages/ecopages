@@ -18,3 +18,23 @@ test('keeps identical bundled assets with different source files in declaration 
 
 	expect(dedupeProcessedAssets([first, second])).toEqual([first, second]);
 });
+
+test('drops repeated assets while keeping first-seen order', () => {
+	const first = { kind: 'script', srcUrl: '/assets/app.js', position: 'head' } as ProcessedAsset;
+	const duplicate = { kind: 'script', srcUrl: '/assets/app.js', position: 'head' } as ProcessedAsset;
+	const second = { kind: 'stylesheet', srcUrl: '/assets/app.css', position: 'head' } as ProcessedAsset;
+
+	expect(dedupeProcessedAssets([first, duplicate, second])).toEqual([first, second]);
+});
+
+test('keeps assets that differ only in package role', () => {
+	const pageScript = {
+		kind: 'script',
+		srcUrl: '/assets/app.js',
+		position: 'head',
+		packageRole: 'page-script',
+	} as ProcessedAsset;
+	const runtimeScript = { ...pageScript, packageRole: 'runtime' } as ProcessedAsset;
+
+	expect(dedupeProcessedAssets([pageScript, runtimeScript])).toEqual([pageScript, runtimeScript]);
+});

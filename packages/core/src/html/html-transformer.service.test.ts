@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createPagePackage, type ProcessedAsset } from '../assets/asset-processing-service/index.js';
 import { buildIslandHostAttributes } from '../islands/island-host.ts';
-import { applyAttributesToFirstElement, HtmlTransformerService } from './html-transformer.service.ts';
+import {
+	applyAttributesToFirstElement,
+	HtmlTransformerService,
+	type PageAssetInjection,
+} from './html-transformer.service.ts';
 
 type InjectionScenario = {
 	label: string;
@@ -80,17 +84,17 @@ const INJECTION_SCENARIOS: InjectionScenario[] = [
 	},
 ];
 
-describe('HtmlTransformerService', () => {
-	it.each(INJECTION_SCENARIOS)('$label', ({ html, dependencies, expected }) => {
-		const transformer = new HtmlTransformerService();
+async function injectPageAssets(html: string, input: PageAssetInjection): Promise<string> {
+	return await new HtmlTransformerService().transform(new Response(html), input).text();
+}
 
-		expect(transformer.injectPageAssets(html, { pagePackage: createPagePackage(dependencies) })).toBe(expected);
+describe('HtmlTransformerService', () => {
+	it.each(INJECTION_SCENARIOS)('$label', async ({ html, dependencies, expected }) => {
+		expect(await injectPageAssets(html, { pagePackage: createPagePackage(dependencies) })).toBe(expected);
 	});
 
-	it('injects html contributions into explicit document slots in array order', () => {
-		const transformer = new HtmlTransformerService();
-
-		const html = transformer.injectPageAssets(
+	it('injects html contributions into explicit document slots in array order', async () => {
+		const html = await injectPageAssets(
 			'<html><head><title>Base</title></head><body><main>Page</main></body></html>',
 			{
 				contributions: [
@@ -133,8 +137,7 @@ describe('HtmlTransformerService', () => {
 		);
 	});
 
-	it('escapes asset URLs and declared attribute values', () => {
-		const transformer = new HtmlTransformerService();
+	it('escapes asset URLs and declared attribute values', async () => {
 		const pagePackage = createPagePackage([
 			{
 				kind: 'script',
@@ -152,16 +155,14 @@ describe('HtmlTransformerService', () => {
 			} as ProcessedAsset,
 		]);
 
-		expect(transformer.injectPageAssets('<html><head></head><body></body></html>', { pagePackage })).toBe(
+		expect(await injectPageAssets('<html><head></head><body></body></html>', { pagePackage })).toBe(
 			'<html><head><script src="/assets/app.js?value=&quot;x&quot;&amp;mode=&lt;fast&gt;" data-config="{&quot;enabled&quot;:true}&amp;"></script><link rel="stylesheet" href="/assets/app.css?theme=&quot;dark&quot;&amp;mode=&lt;fast&gt;" media="screen &amp; print"></head><body></body></html>',
 		);
 	});
 
-	it('skips head injection when the document has no head element', () => {
-		const transformer = new HtmlTransformerService();
-
+	it('skips head injection when the document has no head element', async () => {
 		expect(
-			transformer.injectPageAssets('<body><main>M</main></body>', {
+			await injectPageAssets('<body><main>M</main></body>', {
 				pagePackage: createPagePackage([
 					{ kind: 'stylesheet', inline: false, position: 'head', srcUrl: '/a.css' },
 					{ kind: 'script', inline: false, position: 'body', srcUrl: '/b.js' },
@@ -182,16 +183,6 @@ describe('HtmlTransformerService', () => {
 		expect(result).toContain('<html lang="en" data-eco-document-owner="react-router">');
 	});
 
-	it('should apply attributes to the first body child', () => {
-		const transformer = new HtmlTransformerService();
-		const result = transformer.applyAttributesToFirstBodyElement(
-			'<html><body><main>Hello</main><footer>Footer</footer></body></html>',
-			{ 'data-eco-component-id': 'root-1', role: 'main' },
-		);
-
-		expect(result).toContain('<main data-eco-component-id="root-1" role="main">Hello</main>');
-	});
-
 	it('should apply attributes to the first fragment element', () => {
 		const result = applyAttributesToFirstElement('   <aside>Content</aside><div>Other</div>', {
 			'aria-live': 'polite',
@@ -208,18 +199,11 @@ describe('HtmlTransformerService', () => {
 		).toBe('<div data-eco-component-id="new">x</div>');
 	});
 
-	it('stamps nothing when text or a comment precedes the fragment or body root', () => {
-		const transformer = new HtmlTransformerService();
+	it('stamps nothing when text or a comment precedes the fragment root', () => {
 		const litRender = '<!--lit-part AbC=--><lit-counter count="0"></lit-counter><!--/lit-part-->';
 
 		expect(applyAttributesToFirstElement(litRender, { 'data-a': '1' })).toBe(litRender);
 		expect(applyAttributesToFirstElement('text <span>x</span>', { 'data-a': '1' })).toBe('text <span>x</span>');
-		expect(
-			transformer.applyAttributesToFirstBodyElement('<body><!-- c --><main>M</main></body>', { 'data-a': '1' }),
-		).toBe('<body><!-- c --><main>M</main></body>');
-		expect(
-			transformer.applyAttributesToFirstBodyElement('<body>\n  <main>M</main></body>', { 'data-a': '1' }),
-		).toBe('<body>\n  <main data-a="1">M</main></body>');
 	});
 
 	it('ignores tags in comments and scripts and quoted > when stamping', () => {
@@ -230,11 +214,6 @@ describe('HtmlTransformerService', () => {
 				lang: 'en',
 			}),
 		).toBe('<!-- <html> --><script>"<html>"</script><html data-a="x>y" lang="en">');
-		expect(
-			transformer.applyAttributesToFirstBodyElement('<body data-a="x>y"><main>M</main></body>', {
-				role: 'main',
-			}),
-		).toBe('<body data-a="x>y"><main role="main">M</main></body>');
 	});
 
 	it('escapes quotes in stamped values, keeps empty values and skips empty names', () => {
@@ -253,36 +232,8 @@ describe('HtmlTransformerService', () => {
 		).toBe('<lit-x data-eco-island="" data-eco-component-id="c1" data-eco-island-integration="lit">a</lit-x>');
 	});
 
-	it('should deduplicate processed assets while preserving order', () => {
-		const transformer = new HtmlTransformerService();
-		const first = { kind: 'script', srcUrl: '/assets/app.js', position: 'head' } as ProcessedAsset;
-		const duplicate = { kind: 'script', srcUrl: '/assets/app.js', position: 'head' } as ProcessedAsset;
-		const second = { kind: 'stylesheet', srcUrl: '/assets/app.css', position: 'head' } as ProcessedAsset;
-
-		expect(transformer.dedupeProcessedAssets([first, duplicate, second])).toEqual([first, second]);
-	});
-
-	it('should preserve assets with different package roles during dedupe', () => {
-		const transformer = new HtmlTransformerService();
-		const pageScript = {
-			kind: 'script',
-			srcUrl: '/assets/app.js',
-			position: 'head',
-			packageRole: 'page-script',
-		} as ProcessedAsset;
-		const runtimeScript = {
-			kind: 'script',
-			srcUrl: '/assets/app.js',
-			position: 'head',
-			packageRole: 'runtime',
-		} as ProcessedAsset;
-
-		expect(transformer.dedupeProcessedAssets([pageScript, runtimeScript])).toEqual([pageScript, runtimeScript]);
-	});
-
-	it('injects the page package html assets', () => {
-		const transformer = new HtmlTransformerService();
-		const html = transformer.injectPageAssets('<html><head></head><body></body></html>', {
+	it('injects the page package html assets', async () => {
+		const html = await injectPageAssets('<html><head></head><body></body></html>', {
 			pagePackage: {
 				assets: [
 					{
@@ -308,8 +259,7 @@ describe('HtmlTransformerService', () => {
 		expect(html).not.toContain('/ignored.js');
 	});
 
-	it('injects page browser entry assets while keeping chunk assets out of initial html', () => {
-		const transformer = new HtmlTransformerService();
+	it('injects page browser entry assets while keeping chunk assets out of initial html', async () => {
 		const routeStylesheet = {
 			kind: 'stylesheet',
 			srcUrl: '/route.css',
@@ -328,7 +278,7 @@ describe('HtmlTransformerService', () => {
 			packageRole: 'dynamic-chunk',
 		} as ProcessedAsset;
 
-		const html = transformer.injectPageAssets('<html><head></head><body></body></html>', {
+		const html = await injectPageAssets('<html><head></head><body></body></html>', {
 			pagePackage: {
 				assets: [routeStylesheet, entryScript, chunkScript],
 				pageBrowserGraph: {

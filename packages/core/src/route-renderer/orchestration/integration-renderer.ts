@@ -24,11 +24,7 @@ import type {
 	RouteRendererOptions,
 	RouteRenderResult,
 } from '../../types/contracts.ts';
-import {
-	type AssetProcessingService,
-	createPagePackage,
-	type ProcessedAsset,
-} from '../../assets/asset-processing-service/index.ts';
+import { type AssetProcessingService, type ProcessedAsset } from '../../assets/asset-processing-service/index.ts';
 import type { AssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
 import { resolveAssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
 import { createAppBrowserClientEntryKey } from '../../assets/app-browser-client-build.ts';
@@ -235,11 +231,6 @@ export type IntegrationRendererHookFactoryOptions = Omit<IntegrationRendererOpti
 	hooks?: IntegrationRendererHooks;
 	/** Resolves component assets with this renderer's dependency rules and active render session. */
 	resolveDependencies: (
-		components: (EcoComponent | Partial<EcoComponent>)[],
-		options?: { preparedGraph?: true },
-	) => Promise<ProcessedAsset[]>;
-	/** Resolves component-owned assets without prepending Integration-wide dependencies. */
-	resolveComponentDependencies: (
 		components: (EcoComponent | Partial<EcoComponent>)[],
 		options?: { preparedGraph?: true },
 	) => Promise<ProcessedAsset[]>;
@@ -456,7 +447,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 							pageClientBuildEntries,
 							prebuiltPageClientBrowserAssets: {
 								processedAssets: [],
-								islandRenderAssetsByFile: new Map(),
 								fallbackDependencies: [],
 							},
 						};
@@ -618,45 +608,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Merges component-scoped assets into the active render's page package.
-	 *
-	 * Explicit page, layout, and document shell composition can produce assets at
-	 * each foreign subtree. This helper deduplicates those groups and adds them to the
-	 * render session so downstream HTML finalization sees one canonical asset set.
-	 *
-	 * @param assetGroups - Optional groups of processed assets to merge.
-	 * @returns The deduplicated asset subset contributed by this merge operation.
-	 */
-	protected appendProcessedDependencies(
-		...assetGroups: Array<readonly ProcessedAsset[] | undefined>
-	): ProcessedAsset[] {
-		const nextDependencies = this.htmlTransformer.dedupeProcessedAssets(
-			assetGroups.flatMap((assets) => assets ?? []),
-		);
-
-		if (nextDependencies.length === 0) {
-			return nextDependencies;
-		}
-
-		const session = getComponentRenderContext<RouteRenderContextState>()?.renderState?.session;
-		const existingPackage = session?.pagePackage;
-		const existingDependencies = existingPackage?.assets ?? [];
-		const mergedDependencies = this.htmlTransformer.dedupeProcessedAssets([
-			...existingDependencies,
-			...nextDependencies,
-		]);
-		const pagePackage = createPagePackage(mergedDependencies, {
-			pageBrowserGraph: existingPackage?.pageBrowserGraph,
-		});
-
-		if (session) {
-			session.pagePackage = pagePackage;
-		}
-
-		return nextDependencies;
-	}
-
-	/**
 	 * Renders a route page through optional layout and document shells.
 	 *
 	 * Route rendering and explicit view rendering now share the same renderer-owned
@@ -696,9 +647,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			{
 				renderComponentWithForeignChildren: (renderInput) =>
 					this.renderComponentWithForeignChildren(renderInput),
-				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
 			},
-			{ ...input, layouts, composeChildren, inheritedOwner: this.name },
+			{ ...input, layouts, composeChildren },
 			this.DOC_TYPE,
 		);
 	}
@@ -755,16 +705,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const props = serializedChildren === undefined ? input.props : { ...input.props, children: serializedChildren };
 		const content = await component(props);
 		this.assertStringRenderContent(input, content);
-		const html = content as string;
-		const assets = input.component.config?.dependencies
-			? await this.processComponentDependencies([input.component])
-			: undefined;
 
 		return {
-			html,
+			html: content as string,
 			canAttachAttributes: true,
 			integrationName: this.name,
-			assets,
 		};
 	}
 
@@ -794,22 +739,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
 			) => this.resolveOwningRenderer(integrationName, rendererCache),
 		};
-		const queuedForeignSubtreeResolution = this.integrationHooks.renderQueuedChildren
+		const html = this.integrationHooks.renderQueuedChildren
 			? await resolveQueuedHtml({
 					...queuedOptions,
 					renderQueuedChildren: this.integrationHooks.renderQueuedChildren,
 				})
 			: await resolveStringQueuedHtml(queuedOptions);
-		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
-			...(componentRender.assets ?? []),
-			...queuedForeignSubtreeResolution.assets,
-		]);
 
-		return {
-			...componentRender,
-			html: queuedForeignSubtreeResolution.html,
-			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
-		};
+		return { ...componentRender, html };
 	}
 
 	constructor({
@@ -844,8 +781,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						resolvedIntegrationDependencies,
 						hooks: {},
 						resolveDependencies: (components, options) => this.resolveDependencies(components, options),
-						resolveComponentDependencies: (components, options) =>
-							this.processComponentDependencies(components, options),
 						resolveDependencyPath: (componentDir, pathUrl) =>
 							this.resolveDependencyPath(componentDir, pathUrl),
 						applyPendingLazyTriggers: (assets, configs) =>
@@ -957,14 +892,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	async transformRouteResponse(
 		response: Response,
 		htmlContributions: HtmlDocumentContribution[] | undefined,
-		pagePackage: InternalIntegrationRendererRenderOptions<C>['pagePackage'],
 		renderOptions: InternalIntegrationRendererRenderOptions<C>,
 	): Promise<RouteRendererBody> {
-		const resolvedPagePackage =
-			getComponentRenderContext<RouteRenderContextState>()?.renderState?.session?.pagePackage ?? pagePackage;
 		const transformedResponse = this.htmlTransformer.transform(response, {
 			contributions: htmlContributions,
-			pagePackage: resolvedPagePackage,
+			pagePackage: renderOptions.pagePackage,
 		});
 		const body = (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
 		return this.finalizeDocument(body, renderOptions);
@@ -1188,9 +1120,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					if (renderState) {
 						renderState.pageClientPlan = renderOptions.pageClientPlan;
 						renderState.preparedGraphComponents = renderOptions.preparedGraphComponents;
-						renderState.islandRenderAssetsByFile = renderOptions.islandRenderAssetsByFile;
 					}
-					session.pagePackage = renderOptions.pagePackage;
 					return this.routeRenderOrchestrator.executePrepared(renderOptions, this);
 				},
 			);
@@ -1411,14 +1341,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * `renderQueuedChildren` renders a subtree's children inside this renderer
-	 * before the owning renderer renders the subtree around them. The returned
-	 * assets are the owning renderers' assets, deduplicated.
+	 * before the owning renderer renders the subtree around them.
 	 */
 	protected resolveQueuedForeignSubtrees<TContext extends QueuedForeignSubtreeResolutionContext>(
 		html: string,
 		runtimeContext: TContext | undefined,
 		renderQueuedChildren: RenderQueuedForeignSubtreeChildren<TContext>,
-	): Promise<{ assets: ProcessedAsset[]; html: string }> {
+	): Promise<string> {
 		return resolveQueuedHtml({
 			currentIntegrationName: this.name,
 			html,
@@ -1432,9 +1361,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	/**
 	 * Stamps `result` as an Island Host when the component itself declares a client script.
 	 *
-	 * @remarks Reads the component's own declarations, excluding Foreign Children, instead of `result.assets`,
-	 * which also carries the assets of Foreign Subtrees and of declared Foreign Children. Components without
-	 * `dependencies` emit no assets of their own, so they are never stamped.
+	 * @remarks Reads the component's own declarations, excluding Foreign Children: a component without
+	 * scripts that wraps an island is not an island itself. Components without `dependencies` are never stamped.
 	 */
 	protected finalizeIslandComponentRender(
 		input: ComponentRenderInput,
@@ -1469,16 +1397,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Island assets for the active render.
-	 *
-	 * @remarks
-	 * The render context owns the map; outside a render there are none.
-	 */
-	protected getActiveIslandRenderAssets(): ReadonlyMap<string, ProcessedAsset[]> {
-		return getComponentRenderContext<RouteRenderContextState>()?.renderState?.islandRenderAssetsByFile ?? new Map();
-	}
-
-	/**
 	 * @remarks
 	 * The active plan is the page owner's, but it answers for any renderer: a nested renderer of
 	 * another Integration asks it about its own Integration, so a React leaf under a Kita page has no
@@ -1501,18 +1419,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Builds island client assets from the page client plan before SSR.
-	 *
-	 * @remarks
-	 * Default is none. Integrations that hydrate islands override this so
-	 * {@link IntegrationRenderer.execute} never starts a browser build during SSR.
-	 * Page owners also call this on other hydrating integrations listed in the plan.
-	 */
-	protected async collectIslandRenderAssets(_plan: PageClientPlan): Promise<Map<string, ProcessedAsset[]>> {
-		return new Map();
-	}
-
-	/**
 	 * Returns whether this renderer builds island and lazy-entry scripts in the
 	 * app-wide grouped browser build that other page owners should run for the plan.
 	 */
@@ -1525,8 +1431,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * The planning and merging live in `ownership-graph/page-client-browser-assets.ts`; this method
-	 * supplies what only the renderer has: its own island assets, the owning renderers of other
-	 * Integrations, and its asset service.
+	 * supplies what only the renderer has: the owning renderers of other Integrations and its asset service.
 	 */
 	async buildPageClientBrowserAssets(
 		plan: PageClientPlan,
@@ -1548,7 +1453,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return buildPageClientBrowserAssets({
 			plan,
 			integrationName: this.name,
-			collectOwnIslandAssets: (ownPlan) => this.collectIslandRenderAssets(ownPlan),
 			resolveContributor: async (integrationName) => {
 				const owning = await this.resolveOwningRenderer(integrationName, rendererCache);
 				return owning instanceof IntegrationRenderer
@@ -1608,7 +1512,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const processedAssets = [...prebuilt.processedAssets, ...fallbackAssets];
 		return {
 			processedAssets,
-			islandRenderAssetsByFile: prebuilt.islandRenderAssetsByFile,
 			lazyTriggers: this.dependencyResolverService.applyPendingLazyTriggers(processedAssets, plan.lazyConfigs),
 		};
 	}

@@ -42,11 +42,10 @@ function required<T>(value: T | undefined): T {
 function createIslandEntry(
 	rootDir: string,
 	islandName: string,
-): { integrationName: string; islandFile: string; dependency: Extract<AssetDefinition, { kind: 'script' }> } {
+): { integrationName: string; dependency: Extract<AssetDefinition, { kind: 'script' }> } {
 	const islandFile = path.join(rootDir, 'src', `${islandName}.tsx`);
 	return {
 		integrationName: 'react',
-		islandFile,
 		dependency: {
 			kind: 'script' as const,
 			source: 'content' as const,
@@ -118,28 +117,12 @@ function createRouteInstance(
 	};
 }
 
-function assertRouteBuildAssets(
-	plan: GroupedGraphBuildPlan,
-	routeIndex: number,
-	rootDir: string,
-	routeName: string,
-	pageClientAssetCount = 1,
-): void {
+function assertRouteBuildAssets(plan: GroupedGraphBuildPlan, routeIndex: number, pageClientAssetCount = 1): void {
 	const route = required(plan.instances[routeIndex]);
 	const graphAsset = required(route.prebuiltGroupedAssets?.[0]);
-	const pageClientAssets = route.prebuiltPageClientBrowserAssets ?? {
-		processedAssets: [],
-		islandRenderAssetsByFile: new Map(),
-	};
 	assert.equal(route.prebuiltGroupedAssets?.length, 1);
 	assert.equal(graphAsset.groupedBundle?.id, 'ecopages-app-browser-client');
-	assert.equal(pageClientAssets.processedAssets.length, pageClientAssetCount);
-	if (pageClientAssetCount > 0) {
-		assert.equal(
-			pageClientAssets.islandRenderAssetsByFile.has(path.join(rootDir, 'src', `island-${routeName}.tsx`)),
-			true,
-		);
-	}
+	assert.equal(route.prebuiltPageClientBrowserAssets?.processedAssets.length ?? 0, pageClientAssetCount);
 }
 
 function assertHtmlModuleScriptUrls(): void {
@@ -235,9 +218,9 @@ test('buildAppBrowserClient bundles route entries and HTML module scripts in one
 	assert.equal(required(bundleGroupedEntries.mock.calls[0])[0].length, 6);
 	const plan = required(jsxPlan);
 	const secondRendererPlan = required(litPlan);
-	assertRouteBuildAssets(plan, 0, rootDir, 'a', 2);
-	assertRouteBuildAssets(plan, 1, rootDir, 'b');
-	assertRouteBuildAssets(secondRendererPlan, 0, rootDir, 'c', 0);
+	assertRouteBuildAssets(plan, 0, 2);
+	assertRouteBuildAssets(plan, 1);
+	assertRouteBuildAssets(secondRendererPlan, 0, 0);
 	const lazyAsset = required(
 		plan.instances[0]?.prebuiltPageClientBrowserAssets?.processedAssets.find(
 			(asset) => asset.attributes?.['data-eco-lazy-key'] === 'lazy-route-a',

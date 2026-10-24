@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type EcoFunctionComponent } from '@ecopages/core';
 import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
 import type { IntegrationRenderer } from '@ecopages/core/integration';
-import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/integration';
+import type { AssetProcessingService } from '@ecopages/core/integration';
 import {
 	createDeferredIntegrationPlugin,
 	htmlDocumentHead,
@@ -70,19 +70,7 @@ export type RendererContractHarness = {
 	): IntegrationRenderer<unknown> | Promise<IntegrationRenderer<unknown>>;
 	makeComponent(spec: RendererContractComponentSpec): EcoComponent;
 	makeView(spec: RendererContractViewSpec): EcoComponent;
-	/**
-	 * Renders an island Component the way the Integration receives it in a page.
-	 *
-	 * @remarks
-	 * Defaults to `renderer.renderComponent`, whose assets must include the ones
-	 * the asset service returned. An Integration that hands island assets over
-	 * through the render context supplies the context here and is held only to
-	 * returning script assets.
-	 */
-	renderIsland?(renderer: IntegrationRenderer<unknown>, input: ComponentRenderInput): Promise<ComponentRenderResult>;
 };
-
-const ISLAND_SCRIPT: ProcessedAsset = { kind: 'script', srcUrl: '/assets/contract-island.js', position: 'head' };
 
 const DEFERRED_WIDGET_HTML = '<button data-testid="deferred-widget">Deferred widget</button>';
 
@@ -105,28 +93,19 @@ function createDeferredWidget(): EcoComponent {
  * Core owns the shared render pipeline (status, headers, partial views, island
  * host attributes) against a test renderer. These rows pin what each real
  * renderer must add on top of it: structured output and name, the foreign
- * subtree payload, island stamping and assets, foreign boundaries that bubble
- * their assets, a deferred layout that leaves no marker behind, explicit view
- * and filesystem page parity, and a failed render that keeps the Integration's
- * message prefix. Framework-specific cases stay in the Integration's own tests.
+ * subtree payload, island stamping, foreign boundaries, a deferred layout that
+ * leaves no marker behind, explicit view and filesystem page parity, and a
+ * failed render that keeps the Integration's message prefix. Framework-specific cases stay in the Integration's own tests.
  */
 export function describeRendererContract(harness: RendererContractHarness): void {
 	const { name, errorPrefix, makeComponent, makeView } = harness;
 	const viewFile = harness.viewFile ?? '/app/views/contract.tsx';
-	const renderIsland = harness.renderIsland ?? ((renderer, input) => renderer.renderComponent(input));
 
-	const createPlainRenderer = (processDependencies?: RendererContractRendererOptions['processDependencies']) =>
+	const createPlainRenderer = () =>
 		harness.createRenderer({
 			integrations: [],
-			processDependencies: processDependencies ?? (vi.fn(async () => []) as never),
+			processDependencies: vi.fn(async () => []) as never,
 		});
-
-	const createIslandRenderer = async () => ({
-		renderer: await harness.createRenderer({
-			integrations: [],
-			processDependencies: vi.fn(async () => [ISLAND_SCRIPT]) as never,
-		}),
-	});
 
 	const islandComponent = () =>
 		makeComponent({
@@ -170,26 +149,10 @@ export function describeRendererContract(harness: RendererContractHarness): void
 			expect(result.html).toContain('<section>Foreign subtree</section>');
 		});
 
-		it('returns the assets a component declares', async () => {
-			const { renderer } = await createIslandRenderer();
-
-			const result = await renderIsland(renderer, {
-				component: islandComponent(),
-				props: { text: 'Island' },
-				integrationContext: { componentInstanceId: 'contract-island-1' },
-			});
-
-			expect(result.assets?.length).toBeGreaterThan(0);
-			expect(result.assets?.every((asset) => asset.kind === 'script')).toBe(true);
-			if (!harness.renderIsland) {
-				expect(result.assets).toContainEqual(expect.objectContaining({ srcUrl: ISLAND_SCRIPT.srcUrl }));
-			}
-		});
-
 		it('stamps island host attributes when the instance has client scripts', async () => {
-			const { renderer } = await createIslandRenderer();
+			const renderer = await createPlainRenderer();
 
-			const result = await renderIsland(renderer, {
+			const result = await renderer.renderComponent({
 				component: islandComponent(),
 				props: { text: 'Island' },
 				integrationContext: { componentInstanceId: 'contract-island-1' },
@@ -200,7 +163,7 @@ export function describeRendererContract(harness: RendererContractHarness): void
 			expect(result.rootAttributes?.['data-eco-component-id']).toBe('contract-island-1');
 		});
 
-		it('resolves foreign boundaries and bubbles their assets without marking the shell as an island host', async () => {
+		it('resolves foreign boundaries without marking the shell as an island host', async () => {
 			const renderDeferred = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
 				html: DEFERRED_WIDGET_HTML,
 				canAttachAttributes: true,
@@ -210,7 +173,6 @@ export function describeRendererContract(harness: RendererContractHarness): void
 						(input.integrationContext as { componentInstanceId?: string } | undefined)
 							?.componentInstanceId ?? 'missing',
 				},
-				assets: [{ kind: 'script', inline: true, content: 'console.log("deferred")', position: 'body' }],
 			}));
 			const renderer = await harness.createRenderer({
 				integrations: [createDeferredIntegrationPlugin({ renderComponent: renderDeferred })],
@@ -228,9 +190,6 @@ export function describeRendererContract(harness: RendererContractHarness): void
 				'<button data-testid="deferred-widget" data-eco-component-id="host_n_1">Deferred widget</button>',
 			);
 			expect(result.html).not.toContain('<eco-marker');
-			expect(result.assets).toEqual([
-				expect.objectContaining({ kind: 'script', inline: true, position: 'body' }),
-			]);
 			expect(result.rootAttributes?.['data-eco-island']).toBeUndefined();
 			expect(renderDeferred).toHaveBeenCalledTimes(1);
 		});

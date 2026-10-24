@@ -1,5 +1,4 @@
 import type { ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
-import type { PagePackageResult } from '../../../types/contracts.ts';
 import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
 
 /**
@@ -7,11 +6,10 @@ import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
  *
  * @remarks
  * Integration renderers are cached per Integration. This session keeps one
- * render's assets, integration dependencies, and foreign-renderer cache from
- * leaking into another render on the same instance.
+ * render's integration dependencies and foreign-renderer cache from leaking
+ * into another render on the same instance.
  */
 export type RenderSession = {
-	pagePackage?: PagePackageResult;
 	resolvedIntegrationDependencies: ProcessedAsset[];
 	rendererCache: Map<string, unknown>;
 };
@@ -20,7 +18,6 @@ export type RenderSession = {
 export type RouteRenderContextState = {
 	pageClientPlan?: PageClientPlan;
 	preparedGraphComponents?: ReadonlyMap<string, boolean>;
-	islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
 	session?: RenderSession;
 };
 

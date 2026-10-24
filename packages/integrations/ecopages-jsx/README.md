@@ -123,5 +123,5 @@ Important:
 - Components that may render foreign children must declare those children in `config.dependencies.components`.
 - Ecopages validates mixed-renderer ownership from declared dependencies during render preparation. It does not treat rendered HTML alone as the source of truth.
 - Route-level dependency resolvers can supply Components at request time; Ecopages JSX includes those resolved roots when deciding whether a Foreign Subtree needs handoff.
-- Ecopages JSX keeps raw-markup preservation and asset collection inside the JSX renderer.
+- Ecopages JSX keeps raw-markup preservation inside the JSX renderer.
 - JSX renderers use the required core `AssetProcessingService` to process declared component dependencies.

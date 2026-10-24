@@ -8,7 +8,7 @@ This document maps the rendering logic in core using the ownership, foreign-chil
 - Integration selection happens outside the renderer. Once selected, the integration renderer owns the render pipeline.
 - Ownership is preparation-time metadata. Runtime handoff still happens inside renderer-owned foreign-child interception.
 - Route-level fallback resolution is gone. Unresolved `<eco-marker>` artifacts are now a failure signal.
-- Asset emission converges into one final HTML transformation step.
+- Route preparation builds the page package; the final HTML transformation injects it unchanged.
 
 ## 1) Runtime Request Flow
 
@@ -73,7 +73,7 @@ flowchart TD
   D -- No --> F[delegate to owning renderer]
   F --> G[owning renderer renderComponentWithForeignChildren]
   G --> H[owning renderer returns ComponentRenderResult]
-  H --> I[resolved html plus assets and optional root attributes]
+  H --> I[resolved html plus optional root attributes]
 ```
 
 ## 4) Queued Foreign-Subtree Resolution
@@ -89,7 +89,7 @@ flowchart TD
   E --> F[resolveQueuedHtml function]
   F --> G[resolve nested queued tokens first]
   G --> H[dispatch foreign subtree to owning renderer]
-  H --> I[merge emitted assets and root attributes]
+  H --> I[apply root attributes]
   I --> J[replace token in html]
 ```
 

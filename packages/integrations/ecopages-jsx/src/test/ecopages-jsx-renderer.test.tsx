@@ -800,7 +800,6 @@ describe('EcopagesJsxRenderer', () => {
 			expect(result.html).toContain('data-ssr-mode="plain"');
 			expect(result.html).toContain('data-count="2"');
 			expect(result.html).toContain('data-testid="intrinsic-contract"');
-			expect(result.assets).toBeUndefined();
 		});
 
 		it('server-renders Radiant custom elements with array props without requiring wrapper attribute serialization', async () => {

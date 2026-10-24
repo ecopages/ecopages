@@ -1,0 +1,11 @@
+{
+	"name": "@ecopages/e2e-react-lazy-first-load-app",
+	"private": true,
+	"type": "module",
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/react": "workspace:*",
+		"react": "^19.2.6",
+		"react-dom": "^19.2.6"
+	}
+}

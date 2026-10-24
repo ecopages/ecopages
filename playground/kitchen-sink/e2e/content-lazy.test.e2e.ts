@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from 'playwright-core';
+import { kitchenSinkShellTestId } from '../src/data/primary-links';
 import { gotoPath, requestGetAndWait, trackRuntimeErrors } from './helpers';
 
 type PostTimeline = {
@@ -43,6 +44,53 @@ async function waitForHydratedPost(page: Page, testId: string) {
 				.evaluate((element) => Object.keys(element).some((key) => key.startsWith('__reactFiber'))),
 		)
 		.toBe(true);
+}
+
+/**
+ * Holds the first `first-post` chunk so the test can see the server HTML, then
+ * aborts it. Later requests continue when `failOnce` is set.
+ */
+async function holdFirstPostChunk(page: Page, options?: { failOnce?: boolean }) {
+	let chunkRequests = 0;
+	let release!: () => void;
+	const firstHeld = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await page.route(/\/content\/posts\/first-post\.js/, async (route) => {
+		chunkRequests += 1;
+		if (chunkRequests === 1) {
+			await firstHeld;
+		}
+		if (options?.failOnce && chunkRequests > 1) {
+			await route.continue();
+			return;
+		}
+		await route.abort();
+	});
+	return {
+		release,
+		get chunkRequests() {
+			return chunkRequests;
+		},
+	};
+}
+
+async function expectPostDiscarded(page: Page) {
+	await expect(page.getByTestId(firstPost)).toHaveCount(0);
+	await expect(page.getByTestId('post-loading')).toHaveCount(0);
+	await expect(page.getByTestId('page-post')).toHaveCount(0);
+	await expect(page.getByTestId(kitchenSinkShellTestId)).toHaveCount(0);
+}
+
+async function expectNoFurtherDocument(page: Page, urlPart: string) {
+	const extra = await page
+		.waitForEvent('request', {
+			predicate: (request) => request.resourceType() === 'document' && request.url().includes(urlPart),
+			timeout: 1_500,
+		})
+		.then(() => 'reload')
+		.catch(() => 'none');
+	expect(extra).toBe('none');
 }
 
 test.describe('Collection Pages render MDX through React.lazy @content', () => {
@@ -162,5 +210,89 @@ test.describe('Collection Pages render MDX through React.lazy @content', () => {
 		await expect(page).toHaveURL(/\/posts\/second-post$/);
 		await page.waitForLoadState('networkidle');
 		expect(documentRequests).toBe(1);
+	});
+});
+
+test.describe('First hydration of a collection Page @content', () => {
+	test('a post chunk that fails once during first hydration is not retried by a reload', async ({ page }) => {
+		let documentRequests = 0;
+		page.on('request', (request) => {
+			if (request.resourceType() === 'document' && request.url().includes('/posts/first-post')) {
+				documentRequests += 1;
+			}
+		});
+		const chunk = await holdFirstPostChunk(page, { failOnce: true });
+
+		await gotoPath(page, '/posts/first-post');
+		await expect(page.getByTestId('page-post')).toBeVisible();
+		await expect(page.getByTestId(firstPost)).toBeVisible();
+		await expect.poll(() => chunk.chunkRequests).toBeGreaterThanOrEqual(1);
+		chunk.release();
+
+		await expectPostDiscarded(page);
+		await expectNoFurtherDocument(page, '/posts/first-post');
+		expect(documentRequests).toBe(1);
+	});
+
+	test('a post chunk that always fails during first hydration leaves no page content', async ({ page }) => {
+		let documentRequests = 0;
+		page.on('request', (request) => {
+			if (request.resourceType() === 'document' && request.url().includes('/posts/first-post')) {
+				documentRequests += 1;
+			}
+		});
+		const chunk = await holdFirstPostChunk(page);
+
+		await gotoPath(page, '/posts/first-post');
+		await expect(page.getByTestId('page-post')).toBeVisible();
+		await expect(page.getByTestId(firstPost)).toBeVisible();
+		await expect.poll(() => chunk.chunkRequests).toBeGreaterThanOrEqual(1);
+		chunk.release();
+
+		await expectPostDiscarded(page);
+		await expectNoFurtherDocument(page, '/posts/first-post');
+		expect(documentRequests).toBe(1);
+	});
+});
+
+test.describe('First hydration with a Page-level error boundary around the lazy entry @content', () => {
+	test('a chunk that always fails is caught by the Page error boundary', async ({ page }) => {
+		let documentRequests = 0;
+		page.on('request', (request) => {
+			if (request.resourceType() === 'document' && request.url().includes('/bounded-post')) {
+				documentRequests += 1;
+			}
+		});
+		const chunk = await holdFirstPostChunk(page);
+
+		await gotoPath(page, '/bounded-post');
+		await expect(page.getByTestId('page-post-bounded')).toBeVisible();
+		await expect(page.getByTestId('bounded-rest')).toBeVisible();
+		await expect(page.getByTestId(firstPost)).toBeVisible();
+		await expect.poll(() => chunk.chunkRequests).toBeGreaterThanOrEqual(1);
+		chunk.release();
+
+		await expect(page.getByTestId('page-post-bounded')).toBeVisible();
+		await expect(page.getByTestId('bounded-rest')).toBeVisible();
+		await expect(page.getByTestId('entry-error')).toBeVisible();
+		await expect(page.getByTestId(firstPost)).toHaveCount(0);
+		await expect(page.getByTestId('post-loading')).toHaveCount(0);
+		await expectNoFurtherDocument(page, '/bounded-post');
+		expect(documentRequests).toBe(1);
+	});
+
+	test('a chunk that fails once is still caught by the Page error boundary', async ({ page }) => {
+		const chunk = await holdFirstPostChunk(page, { failOnce: true });
+
+		await gotoPath(page, '/bounded-post');
+		await expect(page.getByTestId('bounded-rest')).toBeVisible();
+		await expect(page.getByTestId(firstPost)).toBeVisible();
+		await expect.poll(() => chunk.chunkRequests).toBeGreaterThanOrEqual(1);
+		chunk.release();
+
+		await expect(page.getByTestId('bounded-rest')).toBeVisible();
+		await expect(page.getByTestId('entry-error')).toBeVisible();
+		await expect(page.getByTestId(firstPost)).toHaveCount(0);
+		await expect(page.getByTestId('post-loading')).toHaveCount(0);
 	});
 });

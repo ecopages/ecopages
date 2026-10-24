@@ -14,7 +14,7 @@ export type PageRoot = {
 
 export type PageHydrateRootOptions = {
 	onRecoverableError?: (error: unknown) => void;
-	onUncaughtError?: (error: unknown) => void;
+	onUncaughtError?: (error: unknown, errorInfo: { componentStack?: string | null }) => void;
 };
 
 export type PageReactRuntime = {
@@ -109,8 +109,8 @@ function setPageState(options: PageHydrationOptions, pageData: PageData): void {
  * Unmounts a page root when it is still mounted.
  *
  * @remarks
- * React may already have unmounted the root for an uncaught first-hydration
- * error before cleanup runs.
+ * React may already have unmounted the root for an uncaught error before
+ * cleanup runs.
  */
 function unmountPageRoot(root: PageRoot | null | undefined): void {
 	try {
@@ -169,14 +169,54 @@ function registerHmr(options: PageHydrationOptions): void {
 		);
 }
 
-/** Copies the hydrate target's children so a failed first hydration can restore them. */
-function cloneChildNodes(target: HTMLElement): Node[] {
-	return Array.from(target.childNodes, (node) => node.cloneNode(true));
+/**
+ * Returns the target's children that were not there before `hydrateRoot`.
+ *
+ * @remarks
+ * Call it before unmounting: unmounting a root React already tore down clears
+ * the body, sparing only scripts, styles and stylesheet links.
+ */
+function findAddedNodes(target: HTMLElement, serverNodes: Node[]): Node[] {
+	return Array.from(target.childNodes).filter((node) => !serverNodes.includes(node));
 }
 
-/** Replaces the hydrate target's children with clones of a snapshot taken before `hydrateRoot`. */
-function restoreChildNodes(target: HTMLElement, snapshot: Node[]): void {
-	target.replaceChildren(...snapshot.map((node) => node.cloneNode(true)));
+/**
+ * Puts the server children back in their original order, followed by `addedNodes`.
+ *
+ * @remarks
+ * A server child still attached (React spares scripts, styles and stylesheet
+ * links when it clears the body) stays as is, so a stylesheet is not fetched
+ * again; every other one comes back as its pre-`hydrateRoot` clone.
+ */
+function restoreChildNodes(target: HTMLElement, serverNodes: Node[], serverClones: Node[], addedNodes: Node[]): void {
+	target.replaceChildren(
+		...serverNodes.map((node, index) => (node.parentNode === target ? node : serverClones[index]!)),
+		...addedNodes,
+	);
+}
+
+/**
+ * Makes this Page's HMR handler reject so the HMR client reloads the document.
+ *
+ * @remarks
+ * Restoring bumps the mount generation, so the registered handler would return
+ * without rendering and the client would count the edit as applied. Deleting
+ * the entry is not enough: the page module is a dev-transform URL, and the
+ * client imports an unhandled one that is not the active page module and also
+ * counts it as applied.
+ */
+function requireReloadForHmr(options: PageHydrationOptions): void {
+	const handlers = getRuntime().hmrHandlers;
+	if (!options.hmr || !handlers) return;
+	handlers[options.hmr.importPath] = async () => {
+		throw new Error('The React Page root failed and its server HTML was restored; reloading to apply the update');
+	};
+}
+
+/** Logs the component stack that React's default uncaught error reporter would print. */
+function logUncaughtError(error: unknown, componentStack: string | null | undefined): void {
+	const message = error instanceof Error ? error.message : String(error);
+	console.error(`[ecopages] Uncaught error in the React Page: ${message}${componentStack ?? ''}`);
 }
 
 /**
@@ -187,14 +227,21 @@ function restoreChildNodes(target: HTMLElement, snapshot: Node[]): void {
  * together cannot call `hydrateRoot` twice for document.body: the second sees
  * the root the first created.
  *
- * An uncaught error during this first `hydrateRoot` (a `React.lazy` chunk that
- * never loads, with no Page-level error boundary) tears the root down after
- * `onUncaughtError`. This snapshots the target before `hydrateRoot` and puts
- * that HTML back on a microtask after the callback. Providing the handler
- * replaces React's default reporter, so it still calls `reportError`.
- * `React.lazy` caches a rejection, so this path does not retry. A later
- * `root.render` or `unmount` disables restore so that first snapshot cannot
- * come back.
+ * React tears the root down after any uncaught error, such as a `React.lazy`
+ * chunk that never loads with no Page-level error boundary, and would leave the
+ * body empty. This snapshots the target before `hydrateRoot` and puts that
+ * server HTML back on a microtask after `onUncaughtError`: the Page stays
+ * readable but not interactive, and an HMR update reloads the document.
+ * `React.lazy` caches a rejection, so nothing is retried.
+ *
+ * Restore is not limited to hydration itself: it covers any uncaught error on
+ * the first-loaded Page until `root.render` (a rerun or HMR update) or
+ * `unmount` disarms it, so a stale snapshot cannot come back. With the router,
+ * a Page render error after a client navigation becomes a full navigation
+ * instead.
+ *
+ * Providing `onUncaughtError` replaces React's default reporter, so it still
+ * calls `reportError` and logs the component stack.
  */
 function mount(options: PageHydrationOptions): void {
 	const runtime = getRuntime();
@@ -210,21 +257,25 @@ function mount(options: PageHydrationOptions): void {
 
 	(window as PageWindow).__ECO_DEV_HYDRATION_STARTED__ = performance.now();
 	const target = document.body;
-	const serverHtml = cloneChildNodes(target);
+	const serverNodes = Array.from(target.childNodes);
+	const serverClones = serverNodes.map((node) => node.cloneNode(true));
 	let allowRestore = true;
 	let root: PageRoot | undefined;
 
 	const restoreServerHtml = () => {
 		if (!allowRestore) return;
 		allowRestore = false;
+		const addedNodes = findAddedNodes(target, serverNodes);
 		cleanupPageRoot(runtime.react?.pageRoot ?? root ?? null);
-		restoreChildNodes(target, serverHtml);
+		requireReloadForHmr(options);
+		restoreChildNodes(target, serverNodes, serverClones, addedNodes);
 	};
 
 	root = options.runtime.hydrateRoot(target, options.createTree(options.Page, pageData.props), {
 		onRecoverableError: (error) => console.warn('[ecopages] Hydration error:', error),
-		onUncaughtError: (error) => {
+		onUncaughtError: (error, errorInfo) => {
 			reportError(error);
+			logUncaughtError(error, errorInfo.componentStack);
 			queueMicrotask(restoreServerHtml);
 		},
 	});

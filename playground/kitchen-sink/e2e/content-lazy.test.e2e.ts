@@ -82,6 +82,11 @@ async function expectServerPostVisible(page: Page) {
 	await expect(page.getByTestId('post-loading')).toHaveCount(0);
 }
 
+/** Waits until page hydration has handled the uncaught error and dropped the page root. */
+async function waitForPageRootTeardown(page: Page) {
+	await page.waitForFunction(() => window.__ECO_PAGES__?.react?.pageRoot === null);
+}
+
 async function expectNoFurtherDocument(page: Page, urlPart: string) {
 	const extra = await page
 		.waitForEvent('request', {
@@ -230,6 +235,7 @@ test.describe('First hydration of a collection Page @content', () => {
 		await expect.poll(() => chunk.chunkRequests).toBeGreaterThanOrEqual(1);
 		chunk.release();
 
+		await waitForPageRootTeardown(page);
 		await expectServerPostVisible(page);
 		await expectNoFurtherDocument(page, '/posts/first-post');
 		expect(documentRequests).toBe(1);
@@ -250,6 +256,7 @@ test.describe('First hydration of a collection Page @content', () => {
 		await expect.poll(() => chunk.chunkRequests).toBeGreaterThanOrEqual(1);
 		chunk.release();
 
+		await waitForPageRootTeardown(page);
 		await expectServerPostVisible(page);
 		await expectNoFurtherDocument(page, '/posts/first-post');
 		expect(documentRequests).toBe(1);

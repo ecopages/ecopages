@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Component, createElement, lazy, Suspense, useEffect, type ElementType, type ReactNode } from 'react';
+import {
+	Component,
+	createElement,
+	lazy,
+	Suspense,
+	useEffect,
+	type ComponentType,
+	type ElementType,
+	type ReactNode,
+} from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import {
 	mountIslands,
@@ -7,7 +16,11 @@ import {
 	updateIslands,
 	type IslandHydrationRuntime,
 } from './browser/island-hydration.ts';
-import { startPageHydration, type PageHydrationOptions } from './browser/page-hydration.ts';
+import {
+	startPageHydration,
+	type PageHydrateRootOptions,
+	type PageHydrationOptions,
+} from './browser/page-hydration.ts';
 
 type TestHydrationRegistration = {
 	owner: string;
@@ -71,11 +84,7 @@ function createPageOptions(
 	const runtime = testWindow.__ECO_REACT_HYDRATION_TEST__!;
 	const Page = () => null;
 	const reactRuntime = {
-		hydrateRoot: (
-			target: HTMLElement,
-			tree: unknown,
-			options?: { onRecoverableError?: (error: unknown) => void; onUncaughtError?: (error: unknown) => void },
-		) => {
+		hydrateRoot: (target: HTMLElement, tree: unknown, options?: PageHydrateRootOptions) => {
 			runtime.hydrateCalls.push({
 				containerTag: target.tagName,
 				hasRecoverableErrorHandler: typeof options?.onRecoverableError === 'function',
@@ -372,7 +381,7 @@ describe('React page first hydration keeps server HTML', () => {
 	});
 
 	it('keeps the server HTML when a lazy import rejects during first hydration', async () => {
-		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 		vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const reported = vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});
 		const script = document.createElement('script');
@@ -401,6 +410,69 @@ describe('React page first hydration keeps server HTML', () => {
 		expect(document.querySelector('[data-testid="page"]')).not.toBeNull();
 		expect(document.querySelector('[data-testid="loading"]')).toBeNull();
 		expect(reported).toHaveBeenCalled();
+		expect(consoleError).toHaveBeenCalledWith(
+			expect.stringMatching(/^\[ecopages\] Uncaught error in the React Page: chunk failed\n\s+at /),
+		);
+	});
+
+	it('keeps nodes added to the body after mount when it restores the server HTML', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});
+		const script = document.createElement('script');
+		script.setAttribute('data-eco-script-id', 'ecopages-react-page');
+		document.head.appendChild(script);
+		document.body.innerHTML = '<main data-testid="page"><!--$--><p data-testid="heavy">heavy</p><!--/$--></main>';
+
+		let rejectChunk!: (error: Error) => void;
+		const Heavy = lazy(
+			() =>
+				new Promise<{ default: ComponentType }>((_resolve, reject) => {
+					rejectChunk = reject;
+				}),
+		);
+		let shellCommitted = false;
+		const Page = () => {
+			useEffect(() => {
+				shellCommitted = true;
+			}, []);
+			return createElement(
+				'main',
+				{ 'data-testid': 'page' },
+				createElement(Suspense, { fallback: createElement('p', null, 'loading') }, createElement(Heavy)),
+			);
+		};
+
+		startPageHydration(createRealPageHydrationOptions(Page));
+		await vi.waitFor(() => expect(shellCommitted).toBe(true));
+		const widget = document.createElement('aside');
+		document.body.appendChild(widget);
+		rejectChunk(new Error('chunk failed'));
+
+		await vi.waitFor(() => expect((window as TestWindow).__ECO_PAGES__?.react?.pageRoot).toBeNull());
+		expect(document.querySelector('[data-testid="heavy"]')?.textContent).toBe('heavy');
+		expect(document.body.lastChild).toBe(widget);
+	});
+
+	it('rejects HMR updates after restoring the server HTML so the client reloads', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(globalThis, 'reportError').mockImplementation(() => {});
+		const script = document.createElement('script');
+		script.setAttribute('data-eco-script-id', 'ecopages-react-page');
+		document.head.appendChild(script);
+		document.body.innerHTML = '<main data-testid="page"><p data-testid="heavy">heavy</p></main>';
+
+		const Heavy = lazy(() => Promise.reject(new Error('chunk failed')));
+		const Page = () => createElement('main', { 'data-testid': 'page' }, createElement(Heavy));
+		const options = createRealPageHydrationOptions(Page);
+		options.hmr = { importPath: '/assets/page.js' };
+
+		startPageHydration(options);
+		await vi.waitFor(() => expect((window as TestWindow).__ECO_PAGES__?.react?.pageRoot).toBeNull());
+
+		const handler = (window as TestWindow).__ECO_PAGES__?.hmrHandlers?.['/assets/page.js'];
+		await expect(handler?.('data:text/javascript,export default function UpdatedPage() {}')).rejects.toThrow(
+			'server HTML was restored',
+		);
 	});
 
 	it('lets a Page-level error boundary catch the lazy rejection instead of restoring', async () => {

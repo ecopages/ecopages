@@ -32,7 +32,7 @@ type PageErrorBoundaryState = {
  * navigation and cannot reload again; within one document the boundary keeps
  * rendering nothing after its first error, so it reloads once. An error before
  * any navigation has committed, such as a failing lazy chunk while the first
- * Page hydrates, is rethrown so page hydration can keep the server HTML:
+ * Page hydrates, is rethrown so page hydration can restore the server HTML:
  * reloading there would loop for as long as the failure lasts.
  */
 export class PageErrorBoundary extends Component<PageErrorBoundaryProps, PageErrorBoundaryState> {

@@ -48,6 +48,11 @@ async function expectServerHtmlVisible(page: Page) {
 	await expect(page.getByTestId('loading')).toHaveCount(0);
 }
 
+/** Waits until page hydration has handled the uncaught error and dropped the page root. */
+async function waitForPageRootTeardown(page: Page) {
+	await page.waitForFunction(() => window.__ECO_PAGES__?.react?.pageRoot === null);
+}
+
 async function expectNoFurtherDocument(page: Page, pathname: string) {
 	const extra = await page
 		.waitForEvent('request', {
@@ -93,6 +98,7 @@ test.describe('First hydration of a React Page without the router', () => {
 		await expect.poll(() => heavy.requestCount).toBe(1);
 		heavy.release();
 
+		await waitForPageRootTeardown(page);
 		await expectServerHtmlVisible(page);
 		await expectNoFurtherDocument(page, '/');
 		expect(documentRequests()).toBe(1);
@@ -110,6 +116,7 @@ test.describe('First hydration of a React Page without the router', () => {
 		await expect.poll(() => heavy.requestCount).toBe(1);
 		heavy.release();
 
+		await waitForPageRootTeardown(page);
 		await expectServerHtmlVisible(page);
 		await expectNoFurtherDocument(page, '/');
 		expect(documentRequests()).toBe(1);

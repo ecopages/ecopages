@@ -36,6 +36,25 @@ test('renders an edited content entry without a reload or restarting the dev ser
 	}
 });
 
+/**
+ * Marks the `React.lazy` type that renders the entry and returns whether it was already marked.
+ *
+ * @remarks
+ * The reloaded Page is a new function type, so React replaces every DOM node below it either way.
+ * Keeping the loaded entry means the Page renders the same resolved lazy type, which only the fiber shows.
+ */
+function markLazyEntryType(element: Element): boolean {
+	type Fiber = { elementType?: { $$typeof?: symbol; __keptLazyEntry?: boolean }; return?: Fiber };
+	const fiberKey = Object.keys(element).find((key) => key.startsWith('__reactFiber$'));
+	let fiber = fiberKey ? (element as unknown as Record<string, Fiber | undefined>)[fiberKey] : undefined;
+	while (fiber && fiber.elementType?.$$typeof !== Symbol.for('react.lazy')) fiber = fiber.return;
+	const lazyType = fiber?.elementType;
+	if (!lazyType) throw new Error('No React.lazy ancestor found for the entry');
+	const wasMarked = lazyType.__keptLazyEntry === true;
+	lazyType.__keptLazyEntry = true;
+	return wasMarked;
+}
+
 test('HMR of a collection Page keeps the loaded entry without showing the fallback @hmr', async ({ page, app }) => {
 	const pageFile = path.join(app.dir, 'src/pages/posts/[slug].react.tsx');
 	const originalPage = fs.readFileSync(pageFile, 'utf8');
@@ -50,16 +69,19 @@ test('HMR of a collection Page keeps the loaded entry without showing the fallba
 		const hmrReady = startEcopagesHmrConnectionWatch(page);
 		await gotoPathSimple(page, '/posts/first-post');
 		await hmrReady;
-		await expect(page.getByTestId('post-content-first-post')).toBeVisible();
+		const postContent = page.getByTestId('post-content-first-post');
+		await expect(postContent).toBeVisible();
 		await page.evaluate(() => {
 			(window as Window & { __keptDocument?: boolean }).__keptDocument = true;
 		});
+		await postContent.evaluate(markLazyEntryType);
 
 		fs.writeFileSync(pageFile, originalPage.replace('← Back to React Content', '← Back after Page HMR'));
 		await expect(page.getByTestId('back-link')).toContainText('Back after Page HMR', {
 			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
 		});
-		await expect(page.getByTestId('post-content-first-post')).toBeVisible();
+		await expect(postContent).toBeVisible();
+		expect(await postContent.evaluate(markLazyEntryType)).toBe(true);
 		expect(
 			await page.evaluate(
 				() => (window as Window & { __postPageHmr?: { fallbackShown: boolean } }).__postPageHmr?.fallbackShown,

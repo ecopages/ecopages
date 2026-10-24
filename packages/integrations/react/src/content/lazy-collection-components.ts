@@ -1,86 +1,72 @@
-import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
-import { getComponentIdentity, type EcoComponent } from '@ecopages/core';
+import { createElement, lazy, useSyncExternalStore, type ComponentType, type LazyExoticComponent } from 'react';
+import type { EcoComponent } from '@ecopages/core';
 
 type CollectionComponent = EcoComponent<Record<string, unknown>>;
-type CollectionLoader = (slug: string) => Promise<CollectionComponent>;
+
+/** Structural copy of the content-processor `ContentCollectionLoader`, which this package does not depend on. */
+type CollectionLoader = {
+	(slug: string): Promise<CollectionComponent>;
+	readonly collection: string;
+};
 
 export type LazyCollectionComponents = {
 	get(slug: string): LazyExoticComponent<ComponentType<Record<string, unknown>>>;
 };
 
-type PageHmrRuntime = {
-	hmrHandlers?: Record<string, (url: string) => Promise<void>>;
+type CollectionLookup = LazyCollectionComponents & {
+	loader: CollectionLoader;
+	refresh(): void;
 };
 
-type PageWindow = Window & { __ECO_PAGES__?: PageHmrRuntime };
+type LoadedEntry = {
+	Host: ComponentType<Record<string, unknown>>;
+	set(component: CollectionComponent): void;
+};
 
-const lookups = new WeakMap<CollectionLoader, LazyCollectionComponents>();
-const dropsByImportPath = new Map<string, Set<() => void>>();
-const installedHandlers = new Map<string, (url: string) => Promise<void>>();
-
-const DEV_TRANSFORM_URL_PREFIX = '/assets/__eco_dev__';
+const lookups = new Map<string, CollectionLookup>();
 
 /**
  * @remarks
- * The HMR client keys handlers by the transformed URL. Identity files are
- * source paths; this takes the substring after the last `/src/` and swaps the
- * extension for `.js`. App folders that are not named `src` do not match.
+ * The lazy type resolves to `Host` once, so React keeps it mounted. A newer component for the
+ * entry re-renders `Host` instead of suspending again, so the Suspense fallback is not shown.
  */
-function sourceFileToDevTransformUrl(file: string): string | undefined {
-	const normalized = file.replaceAll('\\', '/');
-	const marker = '/src/';
-	const index = normalized.lastIndexOf(marker);
-	if (index === -1) return;
-	const relative = normalized.slice(index + marker.length).replace(/\.(tsx?|jsx?|mdx?)$/u, '.js');
-	return `${DEV_TRANSFORM_URL_PREFIX}/${relative}`;
-}
-
-/**
- * Drops the slug when that entry's source module hot-updates so the next `get` loads the new entry.
- *
- * @remarks
- * The Page module is replaced on HMR, but this helper module is not, so the lookup can outlive it.
- * One handler is registered per transform URL. A registered handler is the exclusive owner of that
- * update, so when no previous handler exists the default re-import still runs here.
- */
-function watchEntrySource(file: string | undefined, drop: () => void): void {
-	if (typeof window === 'undefined' || file === undefined) return;
-	const importPath = sourceFileToDevTransformUrl(file);
-	if (!importPath) return;
-	const runtime = ((window as PageWindow).__ECO_PAGES__ ??= {});
-	runtime.hmrHandlers ??= {};
-	const drops = dropsByImportPath.get(importPath) ?? new Set<() => void>();
-	dropsByImportPath.set(importPath, drops);
-	drops.add(drop);
-	const installed = installedHandlers.get(importPath);
-	if (installed !== undefined && runtime.hmrHandlers[importPath] === installed) return;
-
-	const previous = runtime.hmrHandlers[importPath];
-	const handler = async (url: string) => {
-		const pending = [...drops];
-		drops.clear();
-		for (const pendingDrop of pending) pendingDrop();
-		if (previous) await previous(url);
-		else await import(url);
+function createLoadedEntry(initial: CollectionComponent): LoadedEntry {
+	let current = initial;
+	const listeners = new Set<() => void>();
+	const subscribe = (listener: () => void) => {
+		listeners.add(listener);
+		return () => listeners.delete(listener);
 	};
-	installedHandlers.set(importPath, handler);
-	runtime.hmrHandlers[importPath] = handler;
-}
+	const getSnapshot = () => current;
 
-function createLookup(loadComponent: CollectionLoader): LazyCollectionComponents {
-	const components = new Map<string, ReturnType<LazyCollectionComponents['get']>>();
+	function LoadedCollectionEntry(props: Record<string, unknown>) {
+		return createElement(useSyncExternalStore(subscribe, getSnapshot, getSnapshot), props);
+	}
 
 	return {
+		Host: LoadedCollectionEntry,
+		set(component) {
+			if (component === current) return;
+			current = component;
+			for (const listener of listeners) listener();
+		},
+	};
+}
+
+function createLookup(loader: CollectionLoader): CollectionLookup {
+	const components = new Map<string, ReturnType<LazyCollectionComponents['get']>>();
+	const loaded = new Map<string, LoadedEntry>();
+
+	const lookup: CollectionLookup = {
+		loader,
 		get(slug) {
 			let component = components.get(slug);
 			if (!component) {
 				component = lazy(async () => {
 					try {
-						const loaded = await loadComponent(slug);
-						watchEntrySource(getComponentIdentity(loaded)?.file, () => {
-							components.delete(slug);
-						});
-						return { default: loaded };
+						const entry = createLoadedEntry(await lookup.loader(slug));
+						loaded.set(slug, entry);
+						return { default: entry.Host };
 					} catch (error) {
 						components.delete(slug);
 						throw error;
@@ -90,7 +76,19 @@ function createLookup(loadComponent: CollectionLoader): LazyCollectionComponents
 			}
 			return component;
 		},
+		refresh() {
+			const current = lookup.loader;
+			for (const [slug, entry] of loaded) {
+				current(slug).then(
+					(component) => {
+						if (lookup.loader === current) entry.set(component);
+					},
+					() => {},
+				);
+			}
+		},
 	};
+	return lookup;
 }
 
 /**
@@ -102,13 +100,16 @@ function createLookup(loadComponent: CollectionLoader): LazyCollectionComponents
  * Server rendering waits for the entry before sending HTML, and hydration keeps
  * that HTML until the browser entry has loaded.
  *
- * The helper module is not replaced when a Page file hot-updates, and repeated
- * calls with the same loader function reuse the same lookup, so a remounted Page
- * keeps the resolved lazy type. Reuse depends on that function identity, which
- * holds while the collection `/component` module is not replaced. An edited MDX
- * file drops that slug so the next `get` loads the new entry. A failed load is
- * dropped from the lookup, so a later render retries instead of replaying the
- * rejection.
+ * There is one lookup per collection, kept in this module, which Page HMR does not replace.
+ * In the browser, a later call for the same collection with a new loader (a Page module
+ * evaluated again by HMR or another Page sharing the collection) returns that lookup: loaded
+ * entries keep their lazy type and stay on screen without the Suspense fallback, and later
+ * loads use the new loader. Each loaded entry is loaded again through the new loader and
+ * re-renders in place when its module changed, which is how an edited MDX file shows up;
+ * a failed reload keeps the entry on screen.
+ * On the server a new loader means the server module graph was reloaded, so the call
+ * starts a new lookup instead of serving entries from the old graph. A failed load is
+ * dropped from the lookup, so a later render retries instead of replaying the rejection.
  *
  * The component suspends, so a Suspense boundary above it decides what shows
  * meanwhile. Keep the boundary at a stable position in the Page: when a client
@@ -116,9 +117,14 @@ function createLookup(loadComponent: CollectionLoader): LazyCollectionComponents
  * the next entry is ready instead of showing a fallback.
  */
 export function createLazyCollectionComponents(loadComponent: CollectionLoader): LazyCollectionComponents {
-	const existing = lookups.get(loadComponent);
-	if (existing) return existing;
+	const existing = lookups.get(loadComponent.collection);
+	if (existing?.loader === loadComponent) return existing;
+	if (existing && typeof window !== 'undefined') {
+		existing.loader = loadComponent;
+		existing.refresh();
+		return existing;
+	}
 	const created = createLookup(loadComponent);
-	lookups.set(loadComponent, created);
+	lookups.set(loadComponent.collection, created);
 	return created;
 }

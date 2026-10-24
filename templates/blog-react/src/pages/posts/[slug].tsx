@@ -1,10 +1,10 @@
 import { eco } from '@ecopages/core';
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { EcoImage } from '@ecopages/image-processor/component/react';
-import { createCollectionComponentCache } from '@ecopages/react/collection-component-cache';
+import { createLazyCollectionComponents } from '@ecopages/react/lazy-collection-components';
 import { entries, getEntry } from 'ecopages:content/posts';
 import { loadComponent } from 'ecopages:content/posts/component';
-import { getComponent, getEntryDependencies } from 'ecopages:content/posts/server';
+import { getEntryDependencies } from 'ecopages:content/posts/server';
 import { resolvePostImage } from '@/content/post-image';
 import type { PostEntry } from '@/content/posts';
 import { BaseLayout } from '@/layouts/base-layout';
@@ -14,20 +14,14 @@ type PostPageProps = {
 	entry: PostEntry;
 };
 
-const posts = createCollectionComponentCache(loadComponent);
-
-export async function preload({ entry }: PostPageProps): Promise<void> {
-	await posts.preload(entry.slug);
-}
+const posts = createLazyCollectionComponents(loadComponent);
 
 export default eco.page<PostPageProps, ReactNode>({
 	layout: BaseLayout,
 	staticPaths: async () => ({ paths: entries.map((entry) => ({ params: { slug: entry.slug } })) }),
-	staticProps: async ({ pathname }) => {
-		const entry = getEntry(pathname.params.slug as string) as PostEntry;
-		await posts.prime(entry.slug, getComponent(entry.slug));
-		return { props: { entry } };
-	},
+	staticProps: async ({ pathname }) => ({
+		props: { entry: getEntry(pathname.params.slug as string) as PostEntry },
+	}),
 	dependencies: async ({ props }) => await getEntryDependencies(props.entry.slug),
 	metadata: ({ props: { entry } }) => ({
 		title: `${entry.title} | Blog`,
@@ -48,7 +42,9 @@ export default eco.page<PostPageProps, ReactNode>({
 						className="post-image-float"
 						data-view-transition={`hero-image-${entry.slug}`}
 					/>
-					<Content />
+					<Suspense fallback={null}>
+						<Content />
+					</Suspense>
 				</article>
 			</>
 		);

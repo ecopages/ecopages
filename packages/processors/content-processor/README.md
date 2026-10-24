@@ -149,15 +149,15 @@ import { loadComponent } from 'ecopages:content/docs/component';
 import type { Entry } from 'ecopages:content/docs';
 ```
 
-| Export                         | Module    | Description                                                                                                                                                                                                                                                                                                     |
-| :----------------------------- | :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `entries`                      | entries   | Readonly manifest of all entries, sorted by `orderBy`.                                                                                                                                                                                                                                                          |
-| `getEntry(slug)`               | entries   | Lookup by joined slug, e.g. `'getting-started/intro'`. Throws `HttpError.NotFound` when missing.                                                                                                                                                                                                                |
-| `getEntryBySegments(segments)` | entries   | Lookup by segment array, e.g. `['getting-started', 'intro']`. Throws `HttpError.NotFound` when missing.                                                                                                                                                                                                         |
-| `getComponent(slug)`           | server    | `Promise` of the MDX component for the entry (lazy-loaded per slug). Rejects with `HttpError.NotFound` when missing.                                                                                                                                                                                            |
-| `getEntryDependencies(slug)`   | server    | Returns `{ components: [entry] }` so collection walks MDX identity. Does not copy the dependency bag. Throws `HttpError.NotFound` when missing.                                                                                                                                                                 |
-| `loadComponent(slug)`          | component | `Promise` of the MDX component for the entry. Server graph: the entry wrapped for cross-Integration rendering. Page Browser Graph: the browser-compiled entry. Rejects with `HttpError.NotFound` when missing. Pair with `createCollectionComponentCache()` when a hydratable React Page renders the component. |
-| `Entry`                        | entries   | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`.                                                                                                                                                                                                                 |
+| Export                         | Module    | Description                                                                                                                                                                                                                                                                                                                                                       |
+| :----------------------------- | :-------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entries`                      | entries   | Readonly manifest of all entries, sorted by `orderBy`.                                                                                                                                                                                                                                                                                                            |
+| `getEntry(slug)`               | entries   | Lookup by joined slug, e.g. `'getting-started/intro'`. Throws `HttpError.NotFound` when missing.                                                                                                                                                                                                                                                                  |
+| `getEntryBySegments(segments)` | entries   | Lookup by segment array, e.g. `['getting-started', 'intro']`. Throws `HttpError.NotFound` when missing.                                                                                                                                                                                                                                                           |
+| `getComponent(slug)`           | server    | `Promise` of the MDX component for the entry (lazy-loaded per slug). Rejects with `HttpError.NotFound` when missing.                                                                                                                                                                                                                                              |
+| `getEntryDependencies(slug)`   | server    | Returns `{ components: [entry] }` so collection walks MDX identity. Does not copy the dependency bag. Throws `HttpError.NotFound` when missing.                                                                                                                                                                                                                   |
+| `loadComponent(slug)`          | component | `Promise` of the MDX component for the entry. Server graph: the entry wrapped for cross-Integration rendering. Page Browser Graph: the browser-compiled entry. Rejects with `HttpError.NotFound` when missing. Pair with `createLazyCollectionComponents()` from `@ecopages/react/lazy-collection-components` when a hydratable React Page renders the component. |
+| `Entry`                        | entries   | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`.                                                                                                                                                                                                                                                                   |
 
 `/component` is one specifier with two resolutions. The server graph backs it with the same server module as `/server`, so a Page that imports it shares one component per slug with `getComponent()`. Use it in Pages that also load the entry in the browser, such as a hydratable React Page. `/component` does no asset discovery: a Page that needs the entry's own assets still returns `getEntryDependencies()` from `/server`. The Page Browser Graph backs it with the browser loader and still rejects `/server`, so importing `/component` never makes server code browser-reachable.
 
@@ -204,33 +204,32 @@ Return `getEntryDependencies` alone when the Page has no relative assets of its 
 
 ### Hydratable React Pages
 
-When a React Page must keep the MDX component in its hydrated tree, SSR fills the cache in `staticProps` with `getComponent()` and `prime()`. The Page's named `preload` export then fills it with the `/component` loader before hydration and router navigation. The cache makes `get()` synchronous after either fill; `getEntryDependencies()` remains server-only and is stripped from the Page Browser Graph.
+When a React Page must keep the MDX component in its hydrated tree, create one lazy component per slug from the `/component` loader and render it inside a `<Suspense>` boundary. The server waits for the entry and sends it in the HTML; hydration keeps that HTML until the browser has loaded the entry. `getEntryDependencies()` remains server-only and is stripped from the Page Browser Graph.
 
 ```tsx
-import { createCollectionComponentCache } from '@ecopages/react/collection-component-cache';
+import { Suspense } from 'react';
+import { createLazyCollectionComponents } from '@ecopages/react/lazy-collection-components';
 import { getEntry } from 'ecopages:content/docs';
 import { loadComponent } from 'ecopages:content/docs/component';
-import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
+import { getEntryDependencies } from 'ecopages:content/docs/server';
 
-const docs = createCollectionComponentCache(loadComponent);
-
-export async function preload({ entry }) {
-	await docs.preload(entry.slug);
-}
+const docs = createLazyCollectionComponents(loadComponent);
 
 export default eco.page({
-	staticProps: async ({ pathname }) => {
-		const entry = getEntry(pathname.params.slug);
-		await docs.prime(entry.slug, getComponent(entry.slug));
-		return { props: { entry } };
-	},
+	staticProps: async ({ pathname }) => ({ props: { entry: getEntry(pathname.params.slug) } }),
 	dependencies: ({ props }) => getEntryDependencies(props.entry.slug),
 	render: ({ entry }) => {
 		const Content = docs.get(entry.slug);
-		return <Content />;
+		return (
+			<Suspense fallback={null}>
+				<Content />
+			</Suspense>
+		);
 	},
 });
 ```
+
+Keep the boundary at a fixed place in the Page. During client navigation between entries, React keeps the current entry on screen until the next one has loaded, as long as the boundary is not remounted for each slug.
 
 Unknown slugs throw `HttpError.NotFound`, so a catch-all that matches `/docs/[...slug]` still serves the app 404 page instead of a 500.
 

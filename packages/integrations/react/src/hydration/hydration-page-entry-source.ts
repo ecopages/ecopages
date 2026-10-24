@@ -10,17 +10,17 @@ function assertRouterConfiguration(options: CompiledPageHydrationOptions): void 
 }
 
 function buildPageImport(options: CompiledPageHydrationOptions): string {
-	if (options.isMdx || options.hasPagePreload) {
+	if (options.isMdx) {
 		return `import * as PageModule from ${JSON.stringify(options.importPath)};`;
 	}
 	return `import Page from ${JSON.stringify(options.importPath)};`;
 }
 
 function buildInitialPageBinding(options: CompiledPageHydrationOptions): string {
-	if (options.isMdx || options.hasPagePreload) {
-		return `const initialPage = resolvePageModule(PageModule, ${options.isMdx}, ${options.isMdx ? 'ensurePageConfigLayouts' : 'undefined'});`;
+	if (options.isMdx) {
+		return 'const initialPage = resolvePageComponent(PageModule, true, ensurePageConfigLayouts);';
 	}
-	return `const initialPage = resolvePageModule({ default: Page }, false);`;
+	return 'const initialPage = Page;';
 }
 
 function buildRouterImports(options: CompiledPageHydrationOptions): string {
@@ -65,7 +65,7 @@ export function createPageEntrySource(options: CompiledPageHydrationOptions): st
 	return `
 import { hydrateRoot } from ${JSON.stringify(options.reactDomClientImportPath)};
 import { createElement } from ${JSON.stringify(options.reactImportPath)};
-import { resolvePageModule, startPageHydration } from ${JSON.stringify(pageBootstrapId)};
+import { resolvePageComponent, startPageHydration } from ${JSON.stringify(pageBootstrapId)};
 import { readPageDataDocument, getPageDataFromDocument } from ${JSON.stringify(pageDataReaderId)};
 ${options.routerComponents ? '' : `import { composeLayoutPageTree } from ${JSON.stringify(options.layoutComposeImportPath)};`}
 ${buildRouterImports(options)}
@@ -74,20 +74,18 @@ ${buildPageImport(options)}
 const pageModuleUrl = ${options.pageModuleUrlExpression};
 ${buildInitialPageBinding(options)}
 ${buildRouterTree(options)}
-export default initialPage.Page;
-${options.hasPagePreload ? 'export const preload = initialPage.preload;' : ''}
-export const config = initialPage.Page.config;
+export default initialPage;
+export const config = initialPage.config;
 startPageHydration({
   scriptId: ${JSON.stringify(options.scriptId)},
   pageModuleUrl,
-  Page: initialPage.Page,
+  Page: initialPage,
   pageDataReader: { readPageDataDocument, getPageDataFromDocument },
   runtime: { hydrateRoot, createElement },
   createTree,
   hasRouter: ${Boolean(options.routerComponents)},
   isMdx: ${options.isMdx},
   ${options.isMdx ? 'normalizePageConfig: ensurePageConfigLayouts,' : ''}
-  ${options.hasPagePreload ? 'preload: initialPage.preload,' : ''}
   ${buildHmrOptions(options)}
 });
 `.trim();

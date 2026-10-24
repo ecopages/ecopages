@@ -12,6 +12,5 @@ export type CompiledPageHydrationOptions = {
 	routerPropsExpression?: string;
 	hmrEnabled: boolean;
 	isMdx: boolean;
-	hasPagePreload: boolean;
 	minify: boolean;
 };

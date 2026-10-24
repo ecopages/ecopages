@@ -26,8 +26,7 @@ export type PageData = {
 	props: Record<string, unknown>;
 };
 
-export type { PageModule } from './page-hydration-module.ts';
-export { resolvePageModule } from './page-hydration-module.ts';
+export { resolvePageComponent } from './page-hydration-module.ts';
 import { handlePageHmr } from './page-hydration-hmr.ts';
 
 /** Configuration passed from a generated Page hydration entry. */
@@ -48,7 +47,6 @@ export type PageHydrationOptions = {
 		importPath: string;
 		getLayoutStack?: (Page: unknown) => string;
 	};
-	preload?: (props: Record<string, unknown>) => void | Promise<void>;
 };
 
 type PageNavigationRuntime = {
@@ -65,7 +63,6 @@ type PageWindowRuntime = {
 	react?: {
 		cleanupPageRoot?: () => void;
 		pageRoot?: PageRoot | null;
-		mountPromise?: Promise<void>;
 		mountGeneration?: number;
 	};
 	page?: { module: string; props: Record<string, unknown> };
@@ -108,19 +105,13 @@ function setPageState(options: PageHydrationOptions, pageData: PageData): void {
 }
 
 /**
- * Invalidates pending startup, releases the page root, and hands navigation
+ * Invalidates pending HMR updates, releases the page root, and hands navigation
  * ownership back to the document runtime.
- *
- * @remarks
- * Incrementing the generation prevents an already-running preload from
- * hydrating after cleanup. The pending promise is cleared so a later page can
- * start independently while the old preload settles.
  */
 function cleanupPageRoot(root: PageRoot | null): void {
 	const runtime = getRuntime();
 	if (runtime.react) {
 		runtime.react.mountGeneration = (runtime.react.mountGeneration ?? 0) + 1;
-		delete runtime.react.mountPromise;
 	}
 	const activeRoot = runtime.react?.pageRoot || root;
 	runtime.react!.pageRoot = null;
@@ -143,19 +134,7 @@ function registerRouterOwnership(options: PageHydrationOptions): void {
 }
 
 /**
- * Checks whether asynchronous work still belongs to the current page instance.
- *
- * @remarks
- * Cleanup increments this token before unmounting. Any import or preload that
- * settles afterward must leave the document alone, even if a new page has
- * already mounted a root in the same global runtime slot.
- */
-function isCurrentMountGeneration(generation: number): boolean {
-	return (getRuntime().react?.mountGeneration ?? 0) === generation;
-}
-
-/**
- * Registers HMR before initial preload and binds it to this page generation.
+ * Registers HMR before the page mounts and binds it to this page generation.
  *
  * @remarks
  * The global handler index can outlive the page. Capturing the generation here
@@ -175,32 +154,14 @@ function registerHmr(options: PageHydrationOptions): void {
 }
 
 /**
- * Coalesces concurrent page starts into one promise.
+ * Hydrates the page, or re-renders it when a root already exists.
  *
  * @remarks
- * Rerun scripts and DOM-ready callbacks can arrive together. Sharing the
- * pending promise prevents two calls to `hydrateRoot` for document.body.
+ * Starting is synchronous, so rerun scripts and DOM-ready callbacks that arrive
+ * together cannot call `hydrateRoot` twice for document.body: the second sees
+ * the root the first created.
  */
-async function mount(options: PageHydrationOptions): Promise<void> {
-	const runtime = getRuntime();
-	const reactRuntime = runtime.react!;
-	if (reactRuntime.mountPromise) return reactRuntime.mountPromise;
-	const generation = reactRuntime.mountGeneration ?? 0;
-	const pendingMount = mountPage(options, generation);
-	reactRuntime.mountPromise = pendingMount;
-	pendingMount.then(
-		() => {
-			if (reactRuntime.mountPromise === pendingMount) delete reactRuntime.mountPromise;
-		},
-		() => {
-			if (reactRuntime.mountPromise === pendingMount) delete reactRuntime.mountPromise;
-		},
-	);
-	return pendingMount;
-}
-
-/** Performs one page start after the caller has reserved the current generation. */
-async function mountPage(options: PageHydrationOptions, generation: number): Promise<void> {
+function mount(options: PageHydrationOptions): void {
 	const runtime = getRuntime();
 	const pageData = readPageData(options);
 	setPageState(options, pageData);
@@ -212,9 +173,6 @@ async function mountPage(options: PageHydrationOptions, generation: number): Pro
 		return;
 	}
 
-	await options.preload?.(pageData.props);
-	if (!isCurrentMountGeneration(generation)) return;
-	if (runtime.react?.pageRoot) return;
 	(window as PageWindow).__ECO_DEV_HYDRATION_STARTED__ = performance.now();
 	const root = options.runtime.hydrateRoot(document.body, options.createTree(options.Page, pageData.props), {
 		onRecoverableError: (error) => console.warn('[ecopages] Hydration error:', error),
@@ -243,7 +201,7 @@ export function startPageHydration(options: PageHydrationOptions): void {
 		runtime.react!.cleanupPageRoot = () => cleanupPageRoot(runtime.react?.pageRoot ?? null);
 		registerRouterOwnership(options);
 		registerHmr(options);
-		return mount(options);
+		mount(options);
 	};
 
 	runtime.rerunScripts ??= {};
@@ -251,6 +209,6 @@ export function startPageHydration(options: PageHydrationOptions): void {
 	if (document.readyState === 'loading') {
 		document.addEventListener('DOMContentLoaded', activatePage, { once: true });
 	} else {
-		void activatePage();
+		activatePage();
 	}
 }

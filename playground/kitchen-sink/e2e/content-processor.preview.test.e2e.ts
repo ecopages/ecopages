@@ -54,12 +54,12 @@ test.describe('Content processor routes @content', () => {
 		await expect(page.getByTestId('page-post')).toBeVisible();
 		await waitForReactPageHydration(page);
 
-		// Click client-side link to second post (triggers preload and loadComponent browser loader)
+		// Click client-side link to second post (loads the entry through the browser loader)
 		await page.getByTestId('next-post-link').click();
 		await expect(page.getByTestId('post-content-second-post')).toBeVisible({ timeout: 15_000 });
 		await waitForReactPageHydration(page);
 
-		// Verify dynamic component loaded through /browser is interactive on the client
+		// Verify the lazily loaded component is interactive on the client
 		const counter = page.getByTestId('page-post').locator('[data-react-counter]');
 		await expect(counter).toBeVisible();
 		const value = counter.locator('[data-react-value]');

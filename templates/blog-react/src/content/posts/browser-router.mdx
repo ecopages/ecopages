@@ -47,13 +47,13 @@ import { heroJpg } from 'ecopages:images'
 
 ### 3. Import virtual modules
 
-The post Page imports `ecopages:content/posts` for metadata, `/server` for SSR
-components and dependencies, and `/component` to preload the MDX component before
-hydration and client navigation.
+The post Page imports `ecopages:content/posts` for metadata, `/server` for the
+entry's dependencies, and `/component` to load the MDX component as a lazy React
+component, so it renders on the server and in the browser.
 
 ```ts
 import { entries } from 'ecopages:content/posts';
-import { getComponent, getEntryDependencies } from 'ecopages:content/posts/server';
+import { getEntryDependencies } from 'ecopages:content/posts/server';
 import { loadComponent } from 'ecopages:content/posts/component';
 ```
 

@@ -34,8 +34,6 @@ export type PageState = {
 export type LoadedPageModule = {
 	Component: NavigablePageComponent;
 	config?: EcoComponentConfig;
-	/** Completes before the router commits this Page to the existing React root. */
-	preload?: (props: PageProps) => Promise<void>;
 	props: PageProps;
 	doc: Document;
 	finalPath: string;
@@ -151,8 +149,7 @@ export function extractComponentUrl(doc: Document): string | null {
  * The router extracts the page module URL from the document page-data payload or
  * bootstrap marker. Callers can provide `options.moduleUrlOverride` when the
  * document is stale with respect to the active runtime module identity, such as
- * during HMR-driven current-page reloads. The optional Page preload is awaited
- * before the module is returned for rendering.
+ * during HMR-driven current-page reloads.
  */
 export async function loadPageModuleFromDocument(
 	doc: Document,
@@ -177,12 +174,9 @@ export async function loadPageModuleFromDocument(
 		return null;
 	}
 
-	await adapted.preload?.(props);
-
 	return {
 		Component: adapted.Component,
 		config: adapted.config,
-		preload: adapted.preload,
 		props,
 		doc,
 		finalPath,

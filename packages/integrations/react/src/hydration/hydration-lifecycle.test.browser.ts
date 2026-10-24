@@ -185,7 +185,7 @@ describe('React page lifecycle', () => {
 		expect(testWindow.__ECO_PAGES__?.react?.pageRoot).toBe(existingRoot);
 	});
 
-	it('coalesces concurrent startup and cancels a preload after cleanup', async () => {
+	it('re-renders instead of hydrating again when the page script reruns', () => {
 		const testWindow = window as TestWindow;
 		testWindow.__ECO_REACT_HYDRATION_TEST__ = {
 			hydrateCalls: [],
@@ -196,25 +196,14 @@ describe('React page lifecycle', () => {
 			unmountCount: 0,
 		};
 		document.body.innerHTML = '<script data-eco-script-id="ecopages-react-page"></script>';
-		let resolvePreload!: () => void;
-		const preload = new Promise<void>((resolve) => {
-			resolvePreload = resolve;
-		});
 		const options = createPageOptions(testWindow, false);
-		options.preload = () => preload;
 		options.hmr = { importPath: '/assets/page.js' };
 
 		startPageHydration(options);
-		expect(typeof testWindow.__ECO_PAGES__?.hmrHandlers?.['/assets/page.js']).toBe('function');
-		const rerun = testWindow.__ECO_PAGES__?.rerunScripts?.['ecopages-react-page'];
-		rerun?.();
-		await Promise.resolve();
-		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(0);
+		testWindow.__ECO_PAGES__?.rerunScripts?.['ecopages-react-page']?.();
 
-		await testWindow.__ECO_PAGES__?.react?.cleanupPageRoot?.();
-		resolvePreload();
-		await flushTasks();
-		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(0);
+		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(1);
+		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.renderCalls).toHaveLength(1);
 	});
 
 	it('ignores an HMR update that settles after navigation cleanup', async () => {
@@ -231,9 +220,7 @@ describe('React page lifecycle', () => {
 		const options = createPageOptions(testWindow, false);
 		options.hmr = { importPath: '/assets/page.js' };
 		startPageHydration(options);
-		await vi.waitFor(() => expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(1), {
-			interval: 1,
-		});
+		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(1);
 
 		let resolveUpdate!: () => void;
 		(globalThis as Record<string, unknown>).__ECO_TEST_HMR_RELEASE__ = new Promise<void>((resolve) => {
@@ -241,16 +228,14 @@ describe('React page lifecycle', () => {
 		});
 		const source = [
 			'export default function UpdatedPage() {}',
-			'export async function preload() {',
-			'  globalThis.__ECO_TEST_HMR_PRELOAD_STARTED__ = true',
-			'  await globalThis.__ECO_TEST_HMR_RELEASE__',
-			'}',
+			'globalThis.__ECO_TEST_HMR_IMPORT_STARTED__ = true',
+			'await globalThis.__ECO_TEST_HMR_RELEASE__',
 		].join('\n');
 		const hmrHandler = testWindow.__ECO_PAGES__?.hmrHandlers?.['/assets/page.js'];
 		expect(hmrHandler).toBeDefined();
 		const update = hmrHandler?.(`data:text/javascript;charset=utf-8,${encodeURIComponent(source)}`);
 		await vi.waitFor(
-			() => expect((globalThis as Record<string, unknown>).__ECO_TEST_HMR_PRELOAD_STARTED__).toBe(true),
+			() => expect((globalThis as Record<string, unknown>).__ECO_TEST_HMR_IMPORT_STARTED__).toBe(true),
 			{
 				interval: 1,
 			},
@@ -269,7 +254,7 @@ describe('React page lifecycle', () => {
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.renderCalls).toHaveLength(0);
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.unmountCount).toBe(1);
 		delete (globalThis as Record<string, unknown>).__ECO_TEST_HMR_RELEASE__;
-		delete (globalThis as Record<string, unknown>).__ECO_TEST_HMR_PRELOAD_STARTED__;
+		delete (globalThis as Record<string, unknown>).__ECO_TEST_HMR_IMPORT_STARTED__;
 	});
 
 	it('restores HMR handler with updated generation on page reactivation after cleanup', async () => {
@@ -287,9 +272,7 @@ describe('React page lifecycle', () => {
 		options.hmr = { importPath: '/assets/page.js' };
 
 		startPageHydration(options);
-		await vi.waitFor(() => expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(1), {
-			interval: 1,
-		});
+		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(1);
 
 		const initialHmr = testWindow.__ECO_PAGES__?.hmrHandlers?.['/assets/page.js'];
 		expect(initialHmr).toBeDefined();
@@ -310,7 +293,7 @@ describe('React page lifecycle', () => {
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.renderCalls).toHaveLength(1);
 	});
 
-	it('publishes a replacement only after its preload completes', async () => {
+	it('renders the replacement Page when an HMR update arrives', async () => {
 		const testWindow = window as TestWindow;
 		testWindow.__ECO_REACT_HYDRATION_TEST__ = {
 			hydrateCalls: [],
@@ -321,52 +304,19 @@ describe('React page lifecycle', () => {
 			unmountCount: 0,
 		};
 		document.body.innerHTML = '<script data-eco-script-id="ecopages-react-page"></script>';
-		let releaseInitial!: () => void;
-		let releaseUpdate!: () => void;
-		let signalUpdate!: () => void;
-		const initialPreload = new Promise<void>((resolve) => {
-			releaseInitial = resolve;
-		});
-		const updateStarted = new Promise<void>((resolve) => {
-			signalUpdate = resolve;
-		});
-		const updatePreload = new Promise<void>((resolve) => {
-			releaseUpdate = resolve;
-		});
-		const testGlobals = globalThis as Record<string, unknown>;
-		testGlobals.__ECO_TEST_PENDING_PRELOAD__ = () => {
-			signalUpdate();
-			return updatePreload;
-		};
 		const options = createPageOptions(testWindow, false);
 		const initialPage = options.Page;
-		options.preload = () => initialPreload;
 		options.hmr = { importPath: '/assets/page.js' };
-		try {
-			startPageHydration(options);
-			const handler = testWindow.__ECO_PAGES__!.hmrHandlers!['/assets/page.js']!;
-			const source =
-				'export default function ReadyPage() {} export const preload = () => globalThis.__ECO_TEST_PENDING_PRELOAD__();';
-			const update = handler(`data:text/javascript,${encodeURIComponent(source)}`);
-			await updateStarted;
-			expect(options.Page).toBe(initialPage);
-			releaseInitial();
-			await testWindow.__ECO_PAGES__!.rerunScripts!['ecopages-react-page']!();
-			expect(testWindow.__ECO_REACT_HYDRATION_TEST__!.hydrateCalls[0]?.tree).toMatchObject({
-				Component: initialPage,
-			});
-			expect(testWindow.__ECO_REACT_HYDRATION_TEST__!.renderCalls).toHaveLength(0);
-			releaseUpdate();
-			await update;
-			expect(options.Page).not.toBe(initialPage);
-			expect(testWindow.__ECO_REACT_HYDRATION_TEST__!.renderCalls).toEqual([
-				{ Component: options.Page, props: { title: 'Hello React' } },
-			]);
-		} finally {
-			releaseInitial();
-			releaseUpdate();
-			delete testGlobals.__ECO_TEST_PENDING_PRELOAD__;
-		}
+		startPageHydration(options);
+
+		await testWindow.__ECO_PAGES__!.hmrHandlers!['/assets/page.js']!(
+			`data:text/javascript,${encodeURIComponent('export default function ReadyPage() {}')}`,
+		);
+
+		expect(options.Page).not.toBe(initialPage);
+		expect(testWindow.__ECO_REACT_HYDRATION_TEST__!.renderCalls).toEqual([
+			{ Component: options.Page, props: { title: 'Hello React' } },
+		]);
 	});
 });
 

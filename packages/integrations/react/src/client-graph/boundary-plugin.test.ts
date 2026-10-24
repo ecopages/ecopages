@@ -714,7 +714,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
-	it('keeps a named preload root while stripping server-only Page options', async () => {
+	it('keeps the browser collection loader while stripping server-only Page options', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
 		const pagesDir = join(tempDir, 'pages');
 		mkdirSync(pagesDir);
@@ -723,12 +723,13 @@ describe('createClientGraphBoundaryPlugin', () => {
 		writeFileSync(
 			filePath,
 			[
+				"import { createLazyCollectionComponents } from '@ecopages/react/lazy-collection-components';",
 				"import { loadComponent } from 'ecopages:content/posts/component';",
 				"import { getEntryDependencies } from 'ecopages:content/posts/server';",
-				'export async function preload({ entry }) { await loadComponent(entry.slug); }',
+				'const posts = createLazyCollectionComponents(loadComponent);',
 				'export default eco.page({',
 				'\tdependencies: async ({ props }) => await getEntryDependencies(props.entry.slug),',
-				'\trender: ({ entry }) => <article>{entry.slug}</article>,',
+				'\trender: ({ entry }) => { const Content = posts.get(entry.slug); return <Content />; },',
 				'});',
 			].join('\n'),
 			'utf-8',
@@ -739,7 +740,6 @@ describe('createClientGraphBoundaryPlugin', () => {
 			const transformed = await harness.transformFile(filePath);
 
 			expect(transformed).toContain("import { loadComponent } from 'ecopages:content/posts/component';");
-			expect(transformed).toContain('export async function preload');
 			expect(transformed).not.toContain('ecopages:content/posts/server');
 			expect(transformed).not.toContain('dependencies:');
 		} finally {

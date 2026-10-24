@@ -101,7 +101,6 @@ describe('PageHydrationScriptCompiler', () => {
 			pageLayoutNormalizationImportPath: '/assets/page-layout-normalization.js',
 			hmrEnabled: true,
 			isMdx: false,
-			hasPagePreload: false,
 		};
 
 		const readable = await compiler.compile({ ...options, minify: false });
@@ -114,27 +113,6 @@ describe('PageHydrationScriptCompiler', () => {
 		expect(minified).toContain('hydrateRoot');
 		expect(minified).toContain('/assets/page.js');
 		expect(minified.length).toBeLessThan(readable.length);
-	});
-
-	it('preserves a named preload export for non-MDX pages', async () => {
-		const compiler = new PageHydrationScriptCompiler();
-		const script = await compiler.compile({
-			importPath: '/assets/page-with-preload.js',
-			pageModuleUrlExpression: 'import.meta.url',
-			scriptId: 'page-with-preload',
-			reactImportPath: '/assets/react.js',
-			reactDomClientImportPath: '/assets/react-dom-client.js',
-			layoutComposeImportPath: '/assets/layout-compose.js',
-			pageLayoutNormalizationImportPath: '/assets/page-layout-normalization.js',
-			hmrEnabled: false,
-			isMdx: false,
-			hasPagePreload: true,
-			minify: false,
-		});
-
-		expect(script).toContain('import * as PageModule from "/assets/page-with-preload.js"');
-		expect(script).toContain('preload: initialPage.preload');
-		expect(script).toContain('preload');
 	});
 
 	it.each([false, true])('executes the %s output through the browser bootstrap', async (minify) => {
@@ -185,7 +163,6 @@ describe('PageHydrationScriptCompiler', () => {
 				pageLayoutNormalizationImportPath: layoutUrl,
 				hmrEnabled: false,
 				isMdx: false,
-				hasPagePreload: false,
 				minify,
 			});
 			await import(dataUrl(script));

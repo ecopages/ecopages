@@ -15,7 +15,7 @@ import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import path from 'node:path';
 import type React from 'react';
-import { REACT_PLUGIN_NAME, REACT_SSR_RENDER_TIMEOUT_MS } from './react.constants.ts';
+import { REACT_PLUGIN_NAME, REACT_SSR_RENDER_TIMEOUT_MAX_MS } from './react.constants.ts';
 import { ReactRenderer } from '../render/react-renderer.ts';
 import type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 import { ReactHmrStrategy } from '../hmr/hmr-strategy.ts';
@@ -49,13 +49,24 @@ export const PLUGIN_NAME = REACT_PLUGIN_NAME;
 const resolveReactMdxCompilerOptions = (mdxOptions: ReactMdxOptions): CompileOptions =>
 	resolveMdxCompilerOptions(mdxOptions, { jsxImportSource: 'react' });
 
+function assertValidRenderTimeout(renderTimeoutMs: number | undefined): void {
+	if (
+		renderTimeoutMs === undefined ||
+		(Number.isInteger(renderTimeoutMs) && renderTimeoutMs > 0 && renderTimeoutMs <= REACT_SSR_RENDER_TIMEOUT_MAX_MS)
+	) {
+		return;
+	}
+	throw new RangeError(
+		`reactPlugin({ renderTimeoutMs }) must be a whole number of milliseconds from 1 to ${REACT_SSR_RENDER_TIMEOUT_MAX_MS}, got ${renderTimeoutMs}.`,
+	);
+}
+
 /**
  * Resolves user-facing React plugin options into the internal plugin config.
  *
  * Defaults:
  * - `extensions`: `['.tsx']`
  * - `explicitGraph`: `false`
- * - `renderTimeoutMs`: `10000`
  * - MDX is disabled when `mdx` is omitted
  * - `mdx.extensions`: `['.mdx']`
  */
@@ -70,6 +81,7 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 		renderTimeoutMs,
 		...baseConfig
 	} = options ?? {};
+	assertValidRenderTimeout(renderTimeoutMs);
 	const extensions = [...(userExtensions ?? ['.tsx'])];
 	const mdxEnabled = mdx !== undefined;
 	const mdxExtensions = mdx?.extensions ?? ['.mdx'];
@@ -85,7 +97,7 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 		mdxExtensions,
 		hmrPageMetadataCache: new HmrPageMetadataCache(),
 		forceBrowserGraph: explicitGraph ?? false,
-		renderTimeoutMs: renderTimeoutMs ?? REACT_SSR_RENDER_TIMEOUT_MS,
+		renderTimeoutMs,
 	};
 
 	return {

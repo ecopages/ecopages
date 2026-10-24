@@ -13,6 +13,7 @@ import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/
 import { renderToStaticMarkup } from 'react-dom/server';
 import { lazy, Suspense, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
+import { renderReactHtml, resolveReactRuntimeModules, runWithRenderBudget } from '../render/react-runtime.ts';
 
 class TestReactRenderer extends ReactRenderer {
 	protected override async getHtmlTemplate() {
@@ -454,12 +455,106 @@ describe('React server rendering waits for Suspense', () => {
 			expect(html).toContain('<p>rest of the page</p>');
 			expect(html).toContain(FALLBACK);
 			expect(html).not.toContain('never');
+			expect(html).not.toContain('<script');
 			expect(warn.mock.calls.flat().join(' ')).toContain(pageFile);
 			expect(warn.mock.calls.flat().join(' ')).toMatch(/did not settle in time/);
 			expect(error).not.toHaveBeenCalled();
 		} finally {
 			warn.mockRestore();
 			error.mockRestore();
+		}
+	});
+
+	it('fails the render when the shell does not finish within the render time limit', async () => {
+		const NeverContent = lazyNever();
+		const pageFile = path.join(testDir, 'pages/index.tsx');
+		const Page = eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			identity: { id: 'index', file: pageFile, integration: 'react' },
+			render: () => (
+				<main>
+					<NeverContent />
+				</main>
+			),
+		});
+		const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		try {
+			const render = renderPage(await createRenderer(undefined, { renderTimeoutMs: 50 }), Page);
+
+			await expect(render).rejects.toHaveProperty('cause.name', 'ReactRenderError');
+			await expect(render).rejects.toHaveProperty(
+				'cause.message',
+				`React server rendering of ${pageFile} produced no HTML: its shell did not finish within the 50ms render time limit.`,
+			);
+		} finally {
+			error.mockRestore();
+		}
+	});
+
+	it('keeps the Island Host attributes of an island whose boundary timed out', async () => {
+		const NeverContent = lazyNever();
+		const Island = eco.component<Record<string, never>, JSX.Element>({
+			integration: 'react',
+			identity: { id: 'timed-out-island', file: '/app/components/timed-out-island.tsx', integration: 'react' },
+			render: () => (
+				<section>
+					<Suspended>
+						<NeverContent />
+					</Suspended>
+				</section>
+			),
+		});
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		try {
+			const renderer = await createRenderer(undefined, { renderTimeoutMs: 50 });
+			const { value: result } = await runWithComponentRenderContext({ currentIntegration: 'kitajs' }, async () =>
+				renderer.renderComponent({
+					component: asEcoComponent(Island),
+					props: {},
+					integrationContext: { componentInstanceId: 'island-timed-out' },
+				}),
+			);
+
+			expect(result.html).toContain(FALLBACK);
+			expect(result.html).not.toContain('<script');
+			expect(result.canAttachAttributes).toBe(true);
+			expect(result.rootAttributes).toBeDefined();
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it('shares one deadline and one warning across the React renders of one route', async () => {
+		const runtime = resolveReactRuntimeModules(undefined);
+		const NeverContent = lazyNever();
+		const tree = (label: string) => (
+			<div>
+				<p>{label}</p>
+				<Suspended>
+					<NeverContent />
+				</Suspended>
+			</div>
+		);
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+		const started = Date.now();
+
+		try {
+			const [first, second] = await runWithRenderBudget({ timeoutMs: 200, label: 'the route' }, async () => [
+				await renderReactHtml(runtime, tree('first tree'), { timeoutMs: 200, label: 'first' }),
+				await renderReactHtml(runtime, tree('second tree'), { timeoutMs: 200, label: 'second' }),
+			]);
+			const elapsed = Date.now() - started;
+
+			expect(elapsed).toBeLessThan(400);
+			expect(first).toContain('<p>first tree</p>');
+			expect(second).toContain('<p>second tree</p>');
+			expect(second).toContain(FALLBACK);
+			expect(warn).toHaveBeenCalledTimes(1);
+			expect(warn.mock.calls.flat().join(' ')).toContain('the route');
+		} finally {
+			warn.mockRestore();
 		}
 	});
 

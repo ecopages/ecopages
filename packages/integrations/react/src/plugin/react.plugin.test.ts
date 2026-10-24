@@ -29,9 +29,6 @@ describe('ReactPlugin', () => {
 
 		expect(plugin.extensions).toEqual(['.tsx']);
 		expect(plugin.bundlesPageDependencies).toBe(true);
-		expect(
-			(plugin as unknown as { rendererConfig: { renderTimeoutMs: number } }).rendererConfig.renderTimeoutMs,
-		).toBe(10_000);
 	});
 
 	it('passes a custom server render timeout to the renderer config', () => {
@@ -40,6 +37,19 @@ describe('ReactPlugin', () => {
 		expect(
 			(plugin as unknown as { rendererConfig: { renderTimeoutMs: number } }).rendererConfig.renderTimeoutMs,
 		).toBe(2_500);
+	});
+
+	it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2_147_483_648])(
+		'rejects %s as the server render timeout',
+		(renderTimeoutMs) => {
+			expect(() => reactPlugin({ renderTimeoutMs })).toThrow(
+				`reactPlugin({ renderTimeoutMs }) must be a whole number of milliseconds from 1 to 2147483647, got ${renderTimeoutMs}.`,
+			);
+		},
+	);
+
+	it('accepts the longest server render timeout a Node timer allows', () => {
+		expect(() => reactPlugin({ renderTimeoutMs: 2_147_483_647 })).not.toThrow();
 	});
 
 	it('supports direct construction with MDX public options', () => {

@@ -9,7 +9,10 @@ function entry(text: string): EcoComponent<Record<string, unknown>> {
 }
 
 function render(node: ReactNode): Promise<string> {
-	return renderReactHtml(resolveReactRuntimeModules(undefined), node);
+	return renderReactHtml(resolveReactRuntimeModules(undefined), node, {
+		timeoutMs: 1_000,
+		label: 'collection entry',
+	});
 }
 
 describe('createLazyCollectionComponents', () => {

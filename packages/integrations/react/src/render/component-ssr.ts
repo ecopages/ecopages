@@ -68,8 +68,8 @@ export async function renderComponentHtml(options: {
 	context: ReactComponentRenderContext;
 	runtimeContext?: ReactForeignSubtreeResolutionContext;
 	runtime: ReactRuntimeModules;
-	timeoutMs?: number;
-	label?: string;
+	timeoutMs: number;
+	label: string;
 }): Promise<string> {
 	const { input, context, runtimeContext, runtime, timeoutMs, label } = options;
 	const component = asReactComponent(input.component);

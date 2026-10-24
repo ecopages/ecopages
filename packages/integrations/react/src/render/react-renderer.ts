@@ -61,7 +61,12 @@ import {
 	type ReactForeignSubtreeResolutionContext,
 } from './component-ssr.ts';
 import { BundleError, ReactRenderError } from './errors.ts';
-import { renderReactHtml, resolveReactRuntimeModules, type ReactRuntimeModules } from './react-runtime.ts';
+import {
+	renderReactHtml,
+	resolveReactRuntimeModules,
+	runWithRenderBudget,
+	type ReactRuntimeModules,
+} from './react-runtime.ts';
 import { composeReactLayoutPageTree, shouldUseUnifiedReactLayoutComposition } from './unified-layout-composition.ts';
 import { assertComposablePage, resolveLayoutContextFromShell } from './layout-compose.ts';
 
@@ -626,6 +631,7 @@ function createReactRendererHookFactory(
 		const mdxExtensions = reactConfig?.mdxExtensions ?? ['.mdx'];
 		const hmrPageMetadataCache = reactConfig?.hmrPageMetadataCache;
 		const forceBrowserGraph = reactConfig?.forceBrowserGraph ?? false;
+		const renderTimeoutMs = reactConfig?.renderTimeoutMs ?? REACT_SSR_RENDER_TIMEOUT_MS;
 		const bundleService = new BundleService({
 			rootDir: appConfig.rootDir,
 			appConfig,
@@ -656,7 +662,7 @@ function createReactRendererHookFactory(
 			mdxExtensions,
 			hmrPageMetadataCache,
 			forceBrowserGraph,
-			renderTimeoutMs: reactConfig?.renderTimeoutMs ?? REACT_SSR_RENDER_TIMEOUT_MS,
+			renderTimeoutMs,
 			bundleService,
 			pageModuleService,
 			hydrationAssetService,
@@ -694,6 +700,8 @@ function createReactRendererHookFactory(
 				requireReactRendererHookTarget(hookTargets, 'documentContributions')(context),
 			documentAttributes: <C>(options: IntegrationRendererRenderOptions<C>) =>
 				requireReactRendererHookTarget(hookTargets, 'documentAttributes')(options),
+			renderRoute: (options, render) =>
+				runWithRenderBudget({ timeoutMs: renderTimeoutMs, label: options.file }, render),
 		} satisfies IntegrationRendererHooks;
 	};
 }

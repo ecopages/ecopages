@@ -6,24 +6,53 @@
  * Falls back to the integration's React when the app package cannot resolve them.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { text } from 'node:stream/consumers';
 import { Logger } from '@ecopages/logger';
 import type { ReactNode } from 'react';
+import { ReactRenderError } from './errors.ts';
 import type { ReactRuntime } from './layout-compose.ts';
-import { REACT_SSR_RENDER_TIMEOUT_MS } from '../plugin/react.constants.ts';
-
-export { REACT_SSR_RENDER_TIMEOUT_MS };
 
 const appLogger = new Logger('[ReactSSR]');
 
 export type RenderReactHtmlOptions = {
-	/** Abort waiting for Suspense after this many milliseconds. @default {@link REACT_SSR_RENDER_TIMEOUT_MS} */
-	timeoutMs?: number;
-	/** Identity of the tree being rendered, used in the timeout warning. */
-	label?: string;
+	/** Milliseconds to wait for Suspense when no route render budget is active. */
+	timeoutMs: number;
+	/** Identity of the tree being rendered, used in timeout messages. */
+	label: string;
 };
+
+/**
+ * One deadline shared by every React tree rendered for a route.
+ *
+ * @remarks
+ * `warned` keeps the timeout warning to one per budget when several trees run past the deadline.
+ */
+type RenderBudget = {
+	deadline: number;
+	timeoutMs: number;
+	label: string;
+	warned: boolean;
+};
+
+const renderBudgetStorage = new AsyncLocalStorage<RenderBudget>();
+
+/**
+ * Runs `render` with one Suspense deadline shared by every {@link renderReactHtml} call inside it.
+ *
+ * @remarks
+ * A route render makes several sequential React renders (the Page tree, queued children, each
+ * component). Without a shared deadline each would wait the full limit, so a route could wait a
+ * multiple of it.
+ */
+export function runWithRenderBudget<T>(options: RenderReactHtmlOptions, render: () => Promise<T>): Promise<T> {
+	return renderBudgetStorage.run(
+		{ deadline: Date.now() + options.timeoutMs, timeoutMs: options.timeoutMs, label: options.label, warned: false },
+		render,
+	);
+}
 
 export type ReactRuntimeModules = {
 	react: ReactRuntime;
@@ -53,6 +82,19 @@ export function resolveReactRuntimeModules(rootDir: string | undefined): ReactRu
 const DOCTYPE = '<!DOCTYPE html>';
 
 /**
+ * React's inline timing script, written after the root element (inside `<body>` for an `<html>`
+ * root) when a boundary is still pending or moved out of line.
+ *
+ * @remarks
+ * It only feeds React's client reveal timing for streamed boundaries, which a complete document
+ * never uses. Left in, it makes the output two root nodes, so an Island Host loses its host
+ * attributes and never hydrates, and it is an inline script a strict CSP blocks. The pattern is
+ * React's exact output, so user markup is never matched.
+ */
+const REVEAL_TIMING_SCRIPT =
+	/<script(?: id="_R_")?>requestAnimationFrame\(function\(\)\{\$RT=performance\.now\(\)\}\);<\/script>/;
+
+/**
  * Renders a React tree to complete HTML, waiting for every Suspense boundary to resolve.
  *
  * @remarks
@@ -67,19 +109,29 @@ const DOCTYPE = '<!DOCTYPE html>';
  *   A boundary that renders a `precedence` stylesheet is still moved, whatever its size.
  * - React prefixes an `<html>` root with a doctype; the document shell writes its own, so
  *   the prefix is dropped.
- * - Waiting is bounded by `timeoutMs`. When the signal fires, unfinished boundaries stay in
- *   their fallback and the rest of the tree is served, the same outcome as a boundary that throws.
+ * - Waiting is bounded by the active {@link runWithRenderBudget} deadline, or by `timeoutMs` from
+ *   now outside one. Past the deadline the tree still renders what needs no waiting. When the
+ *   signal fires, unfinished boundaries stay in their fallback and the rest of the tree is served,
+ *   the same outcome as a boundary that throws.
+ * - React returns no HTML when the abort lands before the shell finished, which includes a
+ *   pending boundary at the root of the tree. That fails the render instead of serving an empty
+ *   tree.
  * - The Node stream variant is used because the web-stream `prerender` is only in the Node
  *   build from react-dom 19.2, while the peer range allows any React 19.
  */
 export async function renderReactHtml(
 	runtime: ReactRuntimeModules,
 	element: ReactNode,
-	options: RenderReactHtmlOptions = {},
+	options: RenderReactHtmlOptions,
 ): Promise<string> {
-	const timeoutMs = options.timeoutMs ?? REACT_SSR_RENDER_TIMEOUT_MS;
+	const budget = renderBudgetStorage.getStore() ?? {
+		deadline: Date.now() + options.timeoutMs,
+		timeoutMs: options.timeoutMs,
+		label: options.label,
+		warned: false,
+	};
 	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	const timer = setTimeout(() => controller.abort(), Math.max(0, budget.deadline - Date.now()));
 
 	try {
 		const { prelude } = await runtime.reactDomStatic.prerenderToNodeStream(element, {
@@ -92,14 +144,23 @@ export async function renderReactHtml(
 				console.error(error);
 			},
 		});
+		const timedOut = controller.signal.aborted;
+		clearTimeout(timer);
 
 		const html = await text(prelude);
-		if (controller.signal.aborted) {
-			appLogger.warn(
-				`React server rendering of ${options.label ?? 'a React tree'} stopped after ${timeoutMs}ms: a Suspense boundary did not settle in time.`,
+		if (timedOut && html === '') {
+			throw new ReactRenderError(
+				`React server rendering of ${options.label} produced no HTML: its shell did not finish within the ${budget.timeoutMs}ms render time limit.`,
 			);
 		}
-		return html.startsWith(DOCTYPE) ? html.slice(DOCTYPE.length) : html;
+		if (timedOut && !budget.warned) {
+			budget.warned = true;
+			appLogger.warn(
+				`React server rendering of ${budget.label} stopped after ${budget.timeoutMs}ms: a Suspense boundary did not settle in time.`,
+			);
+		}
+		const markup = html.startsWith(DOCTYPE) ? html.slice(DOCTYPE.length) : html;
+		return markup.replace(REVEAL_TIMING_SCRIPT, '');
 	} finally {
 		clearTimeout(timer);
 	}

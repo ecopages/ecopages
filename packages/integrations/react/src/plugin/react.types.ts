@@ -87,9 +87,12 @@ export type ReactPluginOptions = {
 	 * boundaries as their fallback.
 	 *
 	 * @remarks
-	 * React's documented prerender abort delay is 10 seconds. A `React.lazy()`
-	 * import or suspending promise that never settles then leaves that boundary
-	 * in its fallback for the browser to retry; the rest of the Page is served.
+	 * React's documented prerender abort delay is 10 seconds. One limit covers
+	 * every React tree of a Page render. A `React.lazy()` import or suspending
+	 * promise that never settles then leaves that boundary in its fallback for
+	 * the browser to retry; the rest of the Page is served. A tree still waiting
+	 * outside every boundary fails the render. Must be a whole number from 1 to
+	 * 2147483647, the longest Node timer delay.
 	 *
 	 * @default 10000
 	 */

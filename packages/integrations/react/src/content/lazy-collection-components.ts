@@ -83,7 +83,12 @@ function createLookup(loader: CollectionLoader): CollectionLookup {
 					(component) => {
 						if (lookup.loader === current) entry.set(component);
 					},
-					() => {},
+					(error: unknown) => {
+						console.error(
+							`[ecopages] Reloading collection entry "${slug}" failed; keeping the loaded entry:`,
+							error,
+						);
+					},
 				);
 			}
 		},

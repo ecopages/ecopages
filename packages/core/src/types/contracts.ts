@@ -1035,6 +1035,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 export type InternalIntegrationRendererRenderOptions<C = EcoPagesElement> = IntegrationRendererRenderOptions<C> & {
 	sourceDependencyPaths?: readonly string[];
 	pageClientPlan?: PageClientPlan;
+	preparedGraphComponents?: ReadonlyMap<string, boolean>;
 	islandRenderAssetsByFile?: Map<string, ProcessedAsset[]>;
 };
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { setResolvedLazyTriggers } from '../../eco/component-internal-state.ts';
 import { eco } from '../../eco/eco.ts';
@@ -27,6 +27,7 @@ import type {
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
 	EcoComponent,
+	EcoComponentDependencies,
 	HtmlTemplateProps,
 	PageBrowserGraphContribution,
 	IHmrManager,
@@ -1750,5 +1751,90 @@ describe('IntegrationRenderer', () => {
 
 		expect(html).toContain('<button>Counter</button>');
 		expect(html).toContain('/assets/react-island-hydration.js');
+	});
+
+	describe('components missing from the prepared graph', () => {
+		const undeclaredFile = '/app/lib/render-only-card.ts';
+
+		afterEach(() => {
+			vi.unstubAllEnvs();
+		});
+
+		const createComponent = (file: string, dependencies?: EcoComponentDependencies) => {
+			const component = (() => `<p>${file}</p>`) as EcoComponent<object>;
+			component.config = {
+				integration: 'test-renderer',
+				identity: { id: file, file, integration: 'test-renderer' },
+				dependencies,
+			};
+			return component;
+		};
+
+		const createRoute = (options: { listed: boolean; withDependencies?: boolean }) => {
+			const rendered = createComponent(
+				undeclaredFile,
+				options.withDependencies === false ? undefined : { stylesheets: ['./card.css'] },
+			);
+			const Page = createComponent('/app/pages/render-only.tsx', {
+				components: options.listed ? [rendered] : [],
+			});
+			const renderer = new TestIntegrationRenderer({
+				appConfig: testAppConfig,
+				assetProcessingService: testAssetService,
+			});
+			renderer.HtmlTemplate = createComponent('/app/includes/html.ts') as EcoComponent<HtmlTemplateProps>;
+			renderer.RenderBodyFactory = async () => {
+				await renderer.renderComponentWithForeignChildren({ component: rendered, props: {} });
+				return '<html><body>ok</body></html>';
+			};
+			return async () => {
+				const result = await renderer.execute({
+					file: '/app/pages/render-only.tsx',
+					pageModule: { default: Page },
+					params: {},
+					query: {},
+				});
+				return new Response(result.body as BodyInit).text();
+			};
+		};
+
+		it('fails a development render and names the component file', async () => {
+			vi.stubEnv('NODE_ENV', 'development');
+
+			await expect(createRoute({ listed: false })()).rejects.toThrow(undeclaredFile);
+		});
+
+		it('renders a component listed in its parent dependencies.components', async () => {
+			vi.stubEnv('NODE_ENV', 'development');
+
+			await expect(createRoute({ listed: true })()).resolves.toContain('<body>ok</body>');
+		});
+
+		it('does not check a production render', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+
+			await expect(createRoute({ listed: false })()).resolves.toContain('<body>ok</body>');
+		});
+
+		it('does not check a component without a dependencies config', async () => {
+			vi.stubEnv('NODE_ENV', 'development');
+
+			await expect(createRoute({ listed: false, withDependencies: false })()).resolves.toContain(
+				'<body>ok</body>',
+			);
+		});
+
+		it('does not check a partial explicit view, which prepares no graph', async () => {
+			vi.stubEnv('NODE_ENV', 'development');
+			const View = createComponent(undeclaredFile, { stylesheets: ['./card.css'] });
+			const renderer = new TestIntegrationRenderer({
+				appConfig: testAppConfig,
+				assetProcessingService: testAssetService,
+			});
+
+			const response = await renderer.renderExplicitView(View, {}, { partial: true });
+
+			expect(await response.text()).toBe(`<p>${undeclaredFile}</p>`);
+		});
 	});
 });

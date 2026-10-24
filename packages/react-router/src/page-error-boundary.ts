@@ -23,6 +23,10 @@ type PageErrorBoundaryState = {
  * empty at the new URL. The URL is already the destination, so reloading it
  * renders the Page on the server, as the router already does when a page
  * module fails to load. Coordinator and HMR reloads count as navigations.
+ * Once a navigation has committed, a later render error in the Page on screen
+ * reloads the same way, and client state in that document is lost. When the
+ * reload is cancelled, for example by a `beforeunload` prompt, the boundary
+ * keeps rendering nothing.
  *
  * The document is replaced, so the next router starts without a committed
  * navigation and cannot reload again; within one document the boundary keeps

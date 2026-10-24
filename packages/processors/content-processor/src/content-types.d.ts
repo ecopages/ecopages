@@ -4,6 +4,7 @@
 export type {
 	ContentCollectionComponentsModule,
 	ContentCollectionEntriesModule,
+	ContentCollectionLoader,
 	ContentCollectionLoaderModule,
 	ContentCollectionModule,
 	ContentEntry,

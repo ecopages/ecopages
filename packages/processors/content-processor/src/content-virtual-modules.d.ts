@@ -25,10 +25,10 @@ declare module 'ecopages:content/*/server' {
 }
 
 declare module 'ecopages:content/*/component' {
-	import type { EcoComponent } from '@ecopages/core';
+	import type { ContentCollectionLoader } from '@ecopages/content-processor/types';
 
 	/** Rejects with HttpError 404 when the slug is not in the collection. */
-	export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
+	export const loadComponent: ContentCollectionLoader;
 }
 
 declare module 'ecopages:content/*' {

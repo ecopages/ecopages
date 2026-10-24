@@ -50,17 +50,29 @@ export type ContentCollectionComponentsModule = {
 	getEntryDependencies(slug: string): Promise<PageDependenciesResult>;
 };
 
-/** Runtime shape of a generated `ecopages:content/<collection>/component` module. */
-export type ContentCollectionLoaderModule = {
+/**
+ * Lazy-loads the MDX component for one collection entry.
+ *
+ * @remarks
+ * The server graph returns the entry wrapped for cross-Integration rendering and the
+ * Page Browser Graph returns the browser-compiled entry.
+ * Rejects with HttpError 404 when the slug is not in the collection.
+ */
+export type ContentCollectionLoader = {
+	(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
 	/**
-	 * Lazy-loads the MDX component for one collection entry.
+	 * The collection name.
 	 *
 	 * @remarks
-	 * The server graph returns the entry wrapped for cross-Integration rendering and the
-	 * Page Browser Graph returns the browser-compiled entry.
-	 * Rejects with HttpError 404 when the slug is not in the collection.
+	 * The Page Browser Graph inlines the loader into each Page module, so HMR of a Page
+	 * creates a new loader function. The name stays the same and identifies the collection.
 	 */
-	loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
+	readonly collection: string;
+};
+
+/** Runtime shape of a generated `ecopages:content/<collection>/component` module. */
+export type ContentCollectionLoaderModule = {
+	loadComponent: ContentCollectionLoader;
 };
 
 /** @deprecated Import entries and server modules separately. */

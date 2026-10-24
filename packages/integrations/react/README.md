@@ -326,9 +326,9 @@ Server rendering waits for every `<Suspense>` boundary before it returns HTML, i
 
 React's own error handling applies. A component that throws, or a `React.lazy()` import that rejects, inside a boundary is logged on the server with `console.error`, and that boundary's fallback is served for the browser to retry. The rest of the Page renders normally. An error outside every boundary fails the render.
 
-One case still ships a fallback without an error: React moves a boundary that renders a `<link rel="stylesheet" precedence>` after its fallback, and an inline script swaps the content in. Without JavaScript, or under a CSP that blocks inline scripts, that boundary shows its fallback.
+A boundary that renders a `<link rel="stylesheet" precedence>` also fails the render: React moves that content after its fallback and reveals it with an inline script. Declare the stylesheet as a Dependency instead.
 
-- [src/test/react-ssr-suspense.test.tsx](src/test/react-ssr-suspense.test.tsx): lazy content in Pages, Layouts, Island Hosts and around Foreign Children, concurrent renders, and failing boundaries and shells.
+- [src/test/react-ssr-suspense.test.tsx](src/test/react-ssr-suspense.test.tsx): lazy content in Pages, Layouts, Island Hosts and around Foreign Children, concurrent renders, failing boundaries and shells, the render time limit, and a precedence stylesheet that fails the render.
 
 ### Client-only code in SSR trees
 

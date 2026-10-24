@@ -597,6 +597,62 @@ describe('React server rendering waits for Suspense', () => {
 		}
 	});
 
+	it('fails the render when a boundary renders a precedence stylesheet', async () => {
+		const pageFile = path.join(testDir, 'pages/index.tsx');
+		const Page = eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			identity: { id: 'index', file: pageFile, integration: 'react' },
+			render: () => (
+				<main>
+					<p>rest of the page</p>
+					<Suspended>
+						<>
+							<link rel="stylesheet" href="/theme.css" precedence="default" />
+							<p>styled</p>
+						</>
+					</Suspended>
+				</main>
+			),
+		});
+
+		const render = renderPage(await createRenderer(), Page);
+
+		await expect(render).rejects.toThrow(pageFile);
+		await expect(render).rejects.toThrow(/Dependency/);
+	});
+
+	it('fails the render when a boundary inside a table renders a precedence stylesheet', async () => {
+		const Page = eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			render: () => (
+				<table>
+					<Suspense fallback={<tbody />}>
+						<link rel="stylesheet" href="/table.css" precedence="default" />
+						<tbody>
+							<tr>
+								<td>styled cell</td>
+							</tr>
+						</tbody>
+					</Suspense>
+				</table>
+			),
+		});
+
+		await expect(renderPage(await createRenderer(), Page)).rejects.toThrow(/Dependency/);
+	});
+
+	it('renders user markup that mentions an outlined segment id and the reveal function', async () => {
+		const userMarkup = '<p id="S:1">Call $RC("B:1") to reveal</p><div hidden id="S:2"></div>';
+		const Page = eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			render: () => <main dangerouslySetInnerHTML={{ __html: userMarkup }} />,
+		});
+
+		const html = await renderPage(await createRenderer(), Page);
+
+		expect(html).toContain(userMarkup);
+	});
+
 	it('still renders a lazy component that settles within the render time limit', async () => {
 		const LazyContent = lazyAfterTick(() => () => <p>within limit</p>);
 		const Page = eco.page<Record<string, unknown>, JSX.Element>({

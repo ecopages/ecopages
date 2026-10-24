@@ -8,17 +8,6 @@
  *
  * @module
  */
-
-/**
- * React IntegrationRenderer orchestrator.
- *
- * @remarks
- * Wires services and delegates SSR / layout composition / ownership details to
- * focused modules under `render/`. Prefer changing those modules for
- * implementation work; keep this file as the IntegrationRenderer seam.
- *
- * @module
- */
 import type { EcoComponent, EcoComponentConfig, EcoPageFile } from '@ecopages/core';
 import type {
 	ComponentRenderInput,
@@ -73,7 +62,7 @@ import {
 	type ReactForeignSubtreeResolutionContext,
 } from './component-ssr.ts';
 import { BundleError, ReactRenderError } from './errors.ts';
-import { resolveReactRuntimeModules, type ReactRuntimeModules } from './react-runtime.ts';
+import { renderReactHtml, resolveReactRuntimeModules, type ReactRuntimeModules } from './react-runtime.ts';
 import { composeReactLayoutPageTree, shouldUseUnifiedReactLayoutComposition } from './unified-layout-composition.ts';
 import { assertComposablePage, resolveLayoutContextFromShell } from './layout-compose.ts';
 
@@ -284,9 +273,12 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			return undefined;
 		}
 
-		const { react, reactDomServer } = this.getReactRuntimeModules();
+		const runtime = this.getReactRuntimeModules();
 		let html = this.normalizeUnresolvedMarkerArtifactHtml(
-			reactDomServer.renderToString(react.createElement(react.Fragment, null, toReactNode(children, this.name))),
+			await renderReactHtml(
+				runtime,
+				runtime.react.createElement(runtime.react.Fragment, null, toReactNode(children, this.name)),
+			),
 		);
 		html = restoreRuntimeChildHtml(html, runtimeContext);
 
@@ -387,7 +379,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		};
 		const hasResolvedChildHtml = input.children !== undefined;
 		let html = this.normalizeUnresolvedMarkerArtifactHtml(
-			renderComponentHtml({ input, context, runtimeContext, runtime: this.getReactRuntimeModules() }),
+			await renderComponentHtml({ input, context, runtimeContext, runtime: this.getReactRuntimeModules() }),
 		);
 		const queuedResolution = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
 		html = queuedResolution.html;
@@ -520,10 +512,10 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			component: layout.component,
 			props: layout.props,
 		}));
-		const { react, reactDomServer } = this.getReactRuntimeModules();
+		const runtime = this.getReactRuntimeModules();
 		const tree = composeReactLayoutPageTree(pageComponent, page.props, shellEntries, {
 			context: resolveLayoutContextFromShell(page.props, shellEntries),
-			react,
+			react: runtime.react,
 		});
 		const runtimeInput: ComponentRenderInput = {
 			component: page.component,
@@ -533,7 +525,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			},
 		};
 		const runtimeContext = this.getQueuedForeignSubtreeContext<ReactForeignSubtreeResolutionContext>(runtimeInput);
-		const html = this.normalizeUnresolvedMarkerArtifactHtml(reactDomServer.renderToString(tree));
+		const html = this.normalizeUnresolvedMarkerArtifactHtml(await renderReactHtml(runtime, tree));
 		const resolved = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
 		const primaryRender: ComponentRenderResult = {
 			html: resolved.html,
@@ -743,5 +735,5 @@ function createReactRenderError(message: string, cause?: unknown): HttpError {
 	}
 
 	const errorMessage = cause instanceof Error ? `${message}: ${cause.message}` : message;
-	return HttpError.InternalServerError(errorMessage);
+	return HttpError.InternalServerError(errorMessage, { cause });
 }

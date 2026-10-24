@@ -223,7 +223,7 @@ If you change the AST transform or hydration flow, update the corresponding test
 
 Pages may declare `layout` as a single component or an **outer → inner** array on `eco.page()`. On the server, React-managed layout stacks compose through `composeDocumentShell` + `composeLayoutPageTree` so provider context reaches nested pages during SSR. On the client, `@ecopages/react-router` `PageContent` uses the same `composeLayoutPageTree` helper unless `persistLayouts` is enabled (then each tier is cached independently).
 
-During SSR, `ReactRenderer` passes the app-resolved React runtime into `composeLayoutPageTree` via `options.react` so layout trees are built with the same module instance as `renderToString`. App code should import hooks and context from `react` normally; keep a single React version in the app dependency graph (avoid duplicate `react` copies in monorepos).
+During SSR, `ReactRenderer` passes the app-resolved React runtime into `composeLayoutPageTree` via `options.react` so layout trees are built with the same module instance the server renders them with. App code should import hooks and context from `react` normally; keep a single React version in the app dependency graph (avoid duplicate `react` copies in monorepos).
 
 Layout prop factories receive `LayoutPropsContext` (`params`, `query`, `locals`). Route-scoped `locals` are passed to layout tiers via document-shell props during SSR; serialized `pageProps.locals` follow `Page.requires` and are intended for the page component.
 
@@ -320,9 +320,17 @@ Use the dev toolbar **Deps** panel to inspect vendor URLs loaded by the active P
 - `../../core/src/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts`: ESM entry resolution and default-export policy for React vs TanStack Query.
 - `../../../e2e/fixtures/react-router/persist-layouts.test.e2e.ts`: one QueryClient shared across Page navigation with an explicit `runtimeModules` entry.
 
-### Client-only code in SSR trees
+### Suspense on the server
 
-Pages and layouts SSR through `renderToString`, which does not support `<Suspense>`. Do not use `React.lazy()` + `<Suspense>` in `eco.page()` or `eco.layout()` trees.
+Server rendering waits for every `<Suspense>` boundary before it returns HTML, in Pages, Layouts and every other React component they render. A `React.lazy()` component or any other suspending child renders its content into the HTML, not its fallback. Foreign Children inside a suspended subtree resolve as they do anywhere else. The response is still sent as one complete document; it is not streamed. There is no time limit: a suspending child that never settles keeps the render waiting.
+
+React's own error handling applies. A component that throws, or a `React.lazy()` import that rejects, inside a boundary is logged on the server with `console.error`, and that boundary's fallback is served for the browser to retry. The rest of the Page renders normally. An error outside every boundary fails the render.
+
+One case still ships a fallback without an error: React moves a boundary that renders a `<link rel="stylesheet" precedence>` after its fallback, and an inline script swaps the content in. Without JavaScript, or under a CSP that blocks inline scripts, that boundary shows its fallback.
+
+- [src/test/react-ssr-suspense.test.tsx](src/test/react-ssr-suspense.test.tsx): lazy content in Pages, Layouts, Island Hosts and around Foreign Children, concurrent renders, and failing boundaries and shells.
+
+### Client-only code in SSR trees
 
 Wrap browser-only UI in `ClientOnly`:
 
@@ -342,4 +350,4 @@ export const RootLayout = eco.layout({
 });
 ```
 
-For code-split client-only modules, `import()` inside `useEffect` within `ClientOnly` — not `lazy()`. `dynamic({ ssr: false })` must also stay inside `ClientOnly`; it renders `null` on the server and `lazy()` in the browser.
+For code-split client-only modules, `import()` inside `useEffect` within `ClientOnly` — not `lazy()`, which loads and renders the module on the server. `dynamic({ ssr: false })` must also stay inside `ClientOnly`; it renders `null` on the server and `lazy()` in the browser.

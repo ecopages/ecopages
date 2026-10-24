@@ -6,6 +6,7 @@ import type { IntegrationRendererRenderOptions } from '@ecopages/core/integratio
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import type { AssetProcessingService } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
+import { renderToString } from 'react-dom/server';
 import { composeLayoutPageTree, assertComposablePage } from '../render/layout-compose.ts';
 import { ReactRenderer } from '../render/react-renderer.ts';
 
@@ -46,7 +47,7 @@ describe('React SSR and hydration layout parity', () => {
 			appConfig,
 			assetProcessingService: assetService,
 		});
-		const { react, reactDomServer } = renderer.getRuntime();
+		const { react } = renderer.getRuntime();
 
 		const Outer = ({ children }: { children?: ReactNode }) => <div data-layout="outer">{children}</div>;
 		const Inner = ({ children }: { children?: ReactNode }) => <div data-layout="inner">{children}</div>;
@@ -58,7 +59,7 @@ describe('React SSR and hydration layout parity', () => {
 		};
 
 		const clientTree = composeLayoutPageTree(assertComposablePage(Page), {}, { react });
-		const clientHtml = reactDomServer.renderToString(clientTree);
+		const clientHtml = renderToString(clientTree);
 
 		const serverHtml = String(
 			await renderer.render({

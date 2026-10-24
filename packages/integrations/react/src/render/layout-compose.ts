@@ -9,7 +9,7 @@ export type ReactRuntime = typeof bundledReact;
 
 export type LayoutComposeOptions = {
 	context?: LayoutComposeContext;
-	/** @remarks Pass the app-resolved React runtime during SSR so composition matches `renderToString`. */
+	/** @remarks Pass the app-resolved React runtime during SSR so composition uses the same React instance as server rendering. */
 	react?: ReactRuntime;
 	/**
 	 * Optional resolver that substitutes cached layout instances and React keys

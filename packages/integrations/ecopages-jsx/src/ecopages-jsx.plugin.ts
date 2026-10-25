@@ -25,6 +25,7 @@ import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
 import { EcopagesJsxDevTransformContributor } from './dev-transform/ecopages-jsx-dev-transform-contributor.ts';
 import { assignPageOwnedContentScriptGroupedBundles } from './page-owned-content-script-grouping.ts';
 import { invalidateRadiantRegisteredScriptSsrRegistration } from './radiant-registered-script-ssr-invalidation.ts';
+import { installRadiantLightDomShim } from './ecopages-jsx-radiant-ssr-policy.ts';
 import type { EcopagesJsxPluginOptions } from './ecopages-jsx.types.ts';
 
 export type {
@@ -119,6 +120,23 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 
 		renderer.name ||= this.name;
 		return renderer;
+	}
+
+	/**
+	 * Installs Radiant light-DOM constructors after asset setup.
+	 *
+	 * @remarks
+	 * Production emit imports compiled server modules to discover SSR scripts before
+	 * any Page renders. `RadiantElement` throws at module evaluation without the
+	 * light-DOM shim, so setup installs it here instead of waiting for the renderer.
+	 */
+	override async setup(context: IntegrationRuntimeContext): Promise<void> {
+		await super.setup(context);
+		if (!this.includeRadiant) {
+			return;
+		}
+
+		await installRadiantLightDomShim();
 	}
 
 	constructor(options?: EcopagesJsxPluginOptions) {

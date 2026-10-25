@@ -173,6 +173,34 @@ test('EcopagesJsxPlugin enables page dependency bundling', () => {
 	assert.equal(new EcopagesJsxPlugin({ radiant: false }).bundlesPageDependencies, true);
 });
 
+test('setup installs Radiant light-DOM so element modules can load during production emit', async () => {
+	await withClearedLightDomGlobals(async () => {
+		const plugin = new EcopagesJsxPlugin();
+		const appConfig = await createTestAppConfig({
+			rootDir: '/tmp/ecopages-jsx-setup-shim',
+			integrations: [],
+		});
+		await setupTestIntegration(plugin, appConfig);
+
+		assert.equal(typeof globalThis.HTMLElement, 'function');
+		class EmitProbe extends HTMLElement {}
+		assert.equal(typeof EmitProbe, 'function');
+	});
+});
+
+test('setup leaves light-DOM unset when Radiant SSR is disabled', async () => {
+	await withClearedLightDomGlobals(async () => {
+		const plugin = new EcopagesJsxPlugin({ radiant: false });
+		const appConfig = await createTestAppConfig({
+			rootDir: '/tmp/ecopages-jsx-setup-shim-disabled',
+			integrations: [],
+		});
+		await setupTestIntegration(plugin, appConfig);
+
+		assert.equal(typeof globalThis.HTMLElement, 'undefined');
+	});
+});
+
 test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabled', async () => {
 	const appConfig = await createTestAppConfig({ rootDir: '/tmp/ecopages-jsx-radiant-enabled', integrations: [] });
 	const plugin = new EcopagesJsxPlugin();

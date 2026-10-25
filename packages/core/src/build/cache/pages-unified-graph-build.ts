@@ -11,6 +11,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { isEcopagesEnvDisabled } from '../../env.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
+import { setupAppRuntimeIntegrations } from '../app-build-manifest-runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { buildOrThrow } from '../runtime/build-queue.ts';
@@ -216,6 +217,11 @@ function storeProductionServerModules(appConfig: EcoPagesAppConfig, manifest: Pr
 
 /**
  * Emits every production server entry into `outdir` and writes `server-modules.json`.
+ *
+ * @remarks
+ * Imports the emitted Rolldown modules to discover extra `ssr: true` scripts, so
+ * Integrations are activated first. An Integration that needs process globals
+ * before those imports installs them in `setup()`.
  */
 export async function emitProductionServerModules(options: {
 	appConfig: EcoPagesAppConfig;
@@ -226,6 +232,7 @@ export async function emitProductionServerModules(options: {
 }): Promise<ProductionServerModulesManifest> {
 	const appConfig = options.appConfig;
 	requireAppRuntime(appConfig);
+	await setupAppRuntimeIntegrations({ appConfig });
 	const outdir = path.resolve(options.outdir ?? getServerBundleOutputPaths(appConfig).serverOutdir);
 	fileSystem.ensureDir(outdir);
 

@@ -137,7 +137,7 @@ export class ServerStaticBuilder {
 	 *
 	 * @remarks
 	 * Call it before the router reads any Page, so a Page module that resolves what a Processor generates in
-	 * `setup()` finds it. Integrations are set up later, when the static site generator starts rendering. The next
+	 * `setup()` finds it. Integrations are activated when production emit imports their modules. The next
 	 * {@link build} then skips this work once; a build without a prior call prepares the export itself.
 	 */
 	async prepareExport(): Promise<void> {

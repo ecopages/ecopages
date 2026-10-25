@@ -214,6 +214,42 @@ describe('pages-unified-graph-build', () => {
 		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
 	});
 
+	it('activates Integrations before importing emitted modules', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+
+		const setupFlag = '__ecoEmitIntegrationSetup';
+		Reflect.deleteProperty(globalThis, setupFlag);
+		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
+		for (const integration of appConfig.integrations) {
+			const originalSetup = integration.setup.bind(integration);
+			integration.setup = async (context) => {
+				Object.assign(globalThis, { [setupFlag]: true });
+				await originalSetup(context);
+			};
+		}
+
+		const pagePath = path.join(appDir, 'src/pages/needs-setup.ts');
+		writeFileSync(
+			pagePath,
+			[
+				`if (!globalThis.${setupFlag}) {`,
+				`	throw new Error('Integration setup must run before this module is imported');`,
+				'}',
+				`export default () => 'ok';`,
+				'',
+			].join('\n'),
+		);
+
+		try {
+			await emitProductionServerModules({
+				appConfig,
+				router: { templateRoutes: [{ filePath: pagePath }] },
+			});
+		} finally {
+			Reflect.deleteProperty(globalThis, setupFlag);
+		}
+	});
+
 	it('emits distinct modules for HTML Pages whose sanitized names would collide', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 

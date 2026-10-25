@@ -218,7 +218,7 @@ Only installs whose package paths contain a `node_modules` folder are kept exter
 
 `ecopages build` emits every server entry into `dist/.server/` and writes `server-modules.json`, mapping each entry's root-relative source path to its emitted module. `ecopages start` imports that map and never compiles. Development still compiles from source with watcher invalidation.
 
-Entries: Page templates including dynamic ones, Layouts, the Html shell, Endpoints, `app.static` views, error pages, and `ssr: true` custom-element scripts. There is no second planner for these entries. Collection server modules stay with the content processor. HTML Pages compile through their Integration's `compilePageModule` and join the same map as `-html.json` records that the Integration's `reviveCompiledPageModule` restores.
+Entries: Page templates including dynamic ones, Layouts, the Html shell, Endpoints, `app.static` views, error pages, and `ssr: true` custom-element scripts. There is no second planner for these entries. Collection server modules stay with the content processor. HTML Pages compile through their Integration's `compilePageModule` and join the same map as `-html.json` records that the Integration's `reviveCompiledPageModule` restores. Emit imports the Rolldown modules after Integration `setup()` to discover extra `ssr: true` scripts, so an Integration that needs process globals before those imports (Radiant light-DOM) installs them in `setup()`, not in the renderer.
 
 | Artifact                 | Location                           |
 | ------------------------ | ---------------------------------- |

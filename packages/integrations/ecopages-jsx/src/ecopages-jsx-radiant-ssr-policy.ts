@@ -117,12 +117,11 @@ export class EcopagesJsxRadiantSsrPolicy {
 
 	private async ensureRuntimeInstalled(): Promise<void> {
 		if (!this.runtimeModulesPromise) {
-			const radiantLightDomShimEntry = import.meta.resolve('@ecopages/radiant/server/light-dom-shim');
 			const radiantElementSsrRuntimeModuleUrl = import.meta
 				.resolve('@ecopages/radiant/server/radiant-element-ssr');
 
 			this.runtimeModulesPromise = (async () => {
-				const lightDomShimModule = await import(/* @vite-ignore */ radiantLightDomShimEntry);
+				const lightDomShimModule = await loadRadiantLightDomShim();
 				ensureRadiantLightDomGlobals(lightDomShimModule.ensureLightDomShim);
 
 				const radiantElementSsrRuntimeModule = (await import(
@@ -158,6 +157,25 @@ export class EcopagesJsxRadiantSsrPolicy {
 			ensureRadiantLightDomGlobals(lightDomShimModule.ensureLightDomShim);
 		}
 	}
+}
+
+/**
+ * Loads Radiant's light-DOM shim and installs its constructors on `globalThis`.
+ *
+ * @remarks
+ * Production emit imports Radiant element modules before any Page renders, so
+ * Integration `setup()` calls this without constructing a renderer policy.
+ */
+export async function installRadiantLightDomShim(): Promise<void> {
+	const lightDomShimModule = await loadRadiantLightDomShim();
+	ensureRadiantLightDomGlobals(lightDomShimModule.ensureLightDomShim);
+}
+
+async function loadRadiantLightDomShim(): Promise<{
+	ensureLightDomShim: () => RadiantLightDomShimWindow | undefined;
+}> {
+	const radiantLightDomShimEntry = import.meta.resolve('@ecopages/radiant/server/light-dom-shim');
+	return await import(/* @vite-ignore */ radiantLightDomShimEntry);
 }
 
 /**

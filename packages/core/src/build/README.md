@@ -54,7 +54,7 @@ build/
   runtime/                        build queue, request policy/identity
   server-bundle-publication.ts   staged server/config artifact publication
   rolldown/                       bundler adapter, plugin bridge, package externalization
-  cache/                          fingerprints, build-input reverse index, unified pages graph
+  cache/                          fingerprints, build-input reverse index, production server-module graph
   browser/                        client runtime rewrites, JSX ownership, Lit worker guard
 ```
 
@@ -65,6 +65,7 @@ build/
 - `runtime/build-request-identity.ts` / `cache/cache-keys.ts`: canonical request identity and shared cache fingerprints.
 - `server/README.md`: app-scoped module imports, route-module caches, dependency tracking, and development invalidation.
 - `contracts/build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors. `onLoad` receives the loaded `path` and `namespace`, and `loader` is one of `js`, `jsx`, `ts`, `tsx` or `object`.
+- `cache/server-module-entries.ts` and `server/server-modules-manifest.ts`: production server-entry collection and `dist/.server/server-modules.json`.
 - `cache/build-input-dependency-index.ts`: one reverse index from recorded filesystem inputs to Page Browser Graphs, HTML cache entries, browser entrypoints, and server route modules. Plugin loads and module closures travel on each `BuildResult`; cache owners bind those inputs to the result they retain. Processor watch roots also feed the index. The Project Watcher subscribes to that set plus `additionalWatchPaths`. The Rolldown adapter captures the active index before handing hooks to Rolldown, then passes an explicit per-build recorder through the bridge because hook callbacks do not inherit the caller's AsyncLocalStorage context.
 - `contracts.ts`: the stable, dependency-light build contracts. Import `@ecopages/core/build/contracts` when a browser graph needs contract helpers such as the `.server` naming predicate; the broader `@ecopages/core/build` entry also exposes Node-only build tools.
 - `rolldown/rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler and exposes a normalized `BuildResult`. With `externalPackages`, compiled packages the app declares stay bare imports, so Integration renderers and server bundles share one instance (one React). Source code is bundled: the app, workspace packages and TypeScript or JSX packages, including Core when it resolves to its TypeScript source. Every other compiled package installed in `node_modules` stays external as a `./` or `../` path from the output directory to the installed file, whichever source package imports it, because a compiled package may find files relative to itself at runtime (a native binding such as `sharp`, a platform package, a sibling file loaded through `createRequire(import.meta.url)`), which fails once it is bundled into another folder. A Rolldown `resolveId` hook resolves these packages through Rolldown with the `node` and `import` conditions and writes the path; a build whose chunk lands in a subdirectory of the output directory and imports such a path fails. The exceptions are the runtime packages that need CommonJS named-export interop (`ws`), which are bundled. Isolated package-manager installs do not expose undeclared packages as bare specifiers to the app, so a path is used instead. Server output therefore needs no app-level framework dependencies and its code holds no absolute paths of the build machine: `dist` keeps working after it moves together with `node_modules`. Named output hashes cover the bytes that are written; the adapter does not rewrite emitted files after `bundle.write()`.
@@ -178,7 +179,9 @@ Set `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` to log Rolldown invocation counts during
 
 ## Production builds
 
-Every new process compiles from source. Route-module transpile, the unified pages graph, and static HTML reuse stay in memory for the current process. They are keyed by a hash of the config module and the project files it imports, and by hashes of every local module each entry loads, including modules in shared chunks and in chunks loaded through `import()`. Editing any of them rebuilds in this process. A later `ecopages build` does not read `.build-cache.json` files from an earlier run.
+`ecopages build` emits every server entry into `dist/.server/` and writes `server-modules.json`. `ecopages start` of that build imports those modules and never compiles. Development still compiles from source.
+
+Route-module transpile reuse stays in memory for the current development process. It is keyed by a hash of the config module and the project files it imports, and by hashes of every local module each entry loads, including modules in shared chunks and in chunks loaded through `import()`. Editing any of them rebuilds in this process. A later `ecopages build` does not read `.build-cache.json` files from an earlier run.
 
 The adapter records source closures from Rolldown's module graph and all emitted chunk edges separately. `BuildResult.entryOutputs` is keyed by the path or grouped name the caller passed, plus the bundler's facade path when that spelling differs, so a symlink root or Windows drive casing still finds the chunk. Consumers look entries up through `getBuildEntryOutput` rather than by filename prefix. `outputGraph` supplies static and dynamic output reachability without parsing emitted JavaScript.
 
@@ -190,18 +193,18 @@ The deploy manifest (`dist/.server/manifest.json`) names the server entry and th
 
 The server entry and emitted config are built in a sibling staging directory; the deploy manifest joins that generation before the directory is published. A failed build therefore leaves the previous server generation intact.
 
-The route-module registry (`route-module-build-cache-registry.ts`) shares one `RouteModuleBuildCache` per `(app, outdir)` pair on `AppRuntime.routeModuleBuildCaches`. Compiled chunks go to `.eco/.server-modules`.
+The route-module registry (`route-module-build-cache-registry.ts`) shares one `RouteModuleBuildCache` per `(app, outdir)` pair on `AppRuntime.routeModuleBuildCaches`. Development compiled chunks go to `.eco/.server-modules`. Production emit is `dist/.server/`.
 
 ## Server bundle deploy layout
 
-An app with API handlers, WebSocket handlers or endpoint files (`.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx` under the pages directory, read from the scanned Route Registry at build time by `role`) builds a server bundle into `dist/.server/` (`app.mjs`, its chunks, `eco.config.mjs` and `manifest.json`). Before bundling, the build imports each endpoint file through the server-module loader its requests use and checks its exports, so a broken one fails the build with the error its first request would log, naming the file and its pathname. The bundle imports the compiled packages the app declares as bare specifiers and every other compiled package, such as the dependencies of bundled Core and of workspace processors and integrations, as paths relative to `dist/.server/`. Every server build (the server entry, the emitted config, route modules in `.eco/.server-modules/`, the unified pages graph and collections) rewrites `import.meta.url`, `import.meta.dirname` and `import.meta.filename` of bundled `.ts`, `.tsx`, `.js` and `.jsx` modules to paths relative to the output that point at their source files, so bundled Core reads its own `package.json` and a page that globs `import.meta.dirname` scans `src/pages`. Bundled `.mjs`, `.cjs`, `.mts` and `.cts` modules are not rewritten in this release, because the `import.meta` transform only runs on those four extensions, and `import.meta.resolve()` is not rewritten anywhere and resolves from the output folder. The bundle holds no absolute paths of the build machine, so it runs from any root as long as these entries of the app folder keep their relative positions:
+An app with API handlers, WebSocket handlers or endpoint files (`.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx` under the pages directory, read from the scanned Route Registry at build time by `role`) builds a server bundle into `dist/.server/` (`app.mjs`, its chunks, `eco.config.mjs` and `manifest.json`). After publishing that bundle and emitting server modules, the build imports each endpoint through the server-module loader its requests use and checks its exports, so a broken one fails the build with the error its first request would log, naming the file and its pathname. The bundle imports the compiled packages the app declares as bare specifiers and every other compiled package, such as the dependencies of bundled Core and of workspace processors and integrations, as paths relative to `dist/.server/`. Every server build (the server entry, the emitted config, production server modules in `dist/.server/`, development route modules in `.eco/.server-modules/`, and collections) rewrites `import.meta.url`, `import.meta.dirname` and `import.meta.filename` of bundled `.ts`, `.tsx`, `.js` and `.jsx` modules to paths relative to the output that point at their source files, so bundled Core reads its own `package.json` and a page that globs `import.meta.dirname` scans `src/pages`. Bundled `.mjs`, `.cjs`, `.mts` and `.cts` modules are not rewritten in this release, because the `import.meta` transform only runs on those four extensions, and `import.meta.resolve()` is not rewritten anywhere and resolves from the output folder. The bundle holds no absolute paths of the build machine, so it runs from any root as long as these entries of the app folder keep their relative positions:
 
-| Entry           | Why the server needs it                                                                                   |
-| --------------- | --------------------------------------------------------------------------------------------------------- |
-| `dist/`         | Server bundle, emitted config and the static export.                                                      |
-| `src/`          | The server reads routes from `src/pages` at startup and compiles each endpoint file on its first request. |
-| `node_modules/` | The install the build ran against, on the server's operating system and CPU architecture.                 |
-| `package.json`  | Declares `"type": "module"` for the `.js` chunks.                                                         |
+| Entry           | Why the server needs it                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------ |
+| `dist/`         | Server bundle, emitted config, `server-modules.json`, emitted server modules, and the static export.   |
+| `src/`          | The server reads routes from `src/pages` at startup and imports compiled modules from `dist/.server/`. |
+| `node_modules/` | The install the build ran against, on the server's operating system and CPU architecture.              |
+| `package.json`  | Declares `"type": "module"` for the `.js` chunks.                                                      |
 
 Start the server from that folder with `node dist/.server/app.mjs`. A server started from a `.server` folder loads the `eco.config.mjs` beside its entry, even when `eco.config.ts` is present, so the deploy may include the source config. `ecopages start` passes the emitted config explicitly.
 
@@ -213,19 +216,25 @@ Only installs whose package paths contain a `node_modules` folder are kept exter
 
 ## Unified pages graph
 
-Production static exports compile all template pages in one Rolldown invocation when `shouldBuildPagesUnifiedGraph()` is true (default in production; opt out with `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0`). Pages of an Integration that implements `compilePageModule()`, such as [HTML Pages](../html-pages/README.md), are compiled in-process and stay out of the graph.
+`ecopages build` emits every server entry into `dist/.server/` and writes `server-modules.json`, mapping each entry's root-relative source path to its emitted module. `ecopages start` imports that map and never compiles. Development still compiles from source with watcher invalidation.
 
-| Artifact      | Location                                              |
-| ------------- | ----------------------------------------------------- |
-| Chunk outputs | `.eco/.server-modules/` (shared with per-route cache) |
+Entries: Page templates including dynamic ones, Layouts, the Html shell, Endpoints, `app.static` views, error pages, and `ssr: true` custom-element scripts. There is no second planner for these entries. Collection server modules stay with the content processor. HTML Pages compile through their Integration's `compilePageModule` and join the same map as `-html.json` records that the Integration's `reviveCompiledPageModule` restores.
 
-`StaticSiteGenerator` calls `ensurePagesUnifiedGraphBuilt()` before the export loop. `PageModuleImportService` imports prebuilt chunks via `importPagesUnifiedGraphModule()` and falls back to per-page Rolldown on miss.
+| Artifact                 | Location                           |
+| ------------------------ | ---------------------------------- |
+| Emitted server modules   | `dist/.server/`                    |
+| Server-modules map       | `dist/.server/server-modules.json` |
+| Deploy manifest (bundle) | `dist/.server/manifest.json`       |
 
-The graph is reused only in this process, and only when it matches the build key (output directory, config module hash, template extensions and build plugins), every local file reachable from its outputs still exists, every recorded source-file hash still matches, and the exact active template route set matches recorded outputs. `importPagesUnifiedGraphModule()` applies the same check, because pages can be imported before the export loop runs. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
+`ServerStaticBuilder` calls `emitProductionServerModules()` after it publishes the server bundle, so publication cannot wipe the modules. A missing map entry or missing file is an error that names the source and says to run `ecopages build`. `bypassCache` only skips the in-memory import promise.
+
+`shouldBuildPagesUnifiedGraph()` is true by default in production. `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0` opts out, which the bench parity suite uses as its per-page build oracle. A production `ecopages start` after a normal build still requires the emitted map.
+
+Same-process reuse keeps the emitted files when every requested source key is already in the map. Source hashes are not checked: the next `ecopages build` empties `dist/` and emits again. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
 
 `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` enables `rolldown/rolldown-build-invocation-metrics.ts` counters used by bench and parity tests.
 
-`cache/app-config-hash.ts` hashes the config module and the project files it imports. The unified pages graph and the route-module cache key on it.
+`cache/app-config-hash.ts` hashes the config module and the project files it imports. The development route-module cache keys on it.
 
 ## JSX Ownership Plugins
 

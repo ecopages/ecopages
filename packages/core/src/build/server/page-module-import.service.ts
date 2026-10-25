@@ -7,6 +7,7 @@ import { type BuildOptions, type BuildResult, type BuildSuccess } from '../../bu
 import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import {
+	importEmittedServerModule,
 	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphPage,
 	shouldBuildPagesUnifiedGraph,
@@ -20,7 +21,10 @@ import { createRouteModuleReuseIdentity, resolvePageModuleOutputFileName } from 
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import { resolveRouteModuleDependencyPaths } from './route-module-dependency-hasher.ts';
 import { assertBuildSucceeded } from '../../build/build-log.ts';
+import { isEcopagesEnvEnabled } from '../../env.ts';
 import { isDevelopmentRuntime, isProductionRuntime } from '../../utils/runtime.ts';
+import { toRootRelativePath } from '../../utils/root-relative-path.ts';
+import { loadProductionServerModules, missingProductionServerModuleError } from './server-modules-manifest.ts';
 
 interface PageModuleImportBaseOptions {
 	filePath: string;
@@ -80,19 +84,15 @@ type LoadModuleOptions = PageModuleBuildImportOptions & {
 };
 
 /**
- * Loads page-like modules through the Ecopages build pipeline.
+ * Loads page-like modules for route scanning, page data loading, and request-time inspection.
  *
- * This service centralizes the shared build-first import strategy used by route
- * scanning, page data loading, and request-time page inspection.
- *
- * Keeping this logic in one place prevents subtle drift in cache-busting,
- * transpilation settings, and error semantics across the different callers.
+ * Production imports the module `ecopages build` emitted. Development compiles
+ * from source through the Ecopages build pipeline.
  */
 export class PageModuleImportService {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly dependencies: PageModuleImportDependencies;
 	private readonly importCache = new Map<string, ImportCacheEntry>();
-	private readonly productionFileHashes = new Map<string, string>();
 
 	private recordPipelineLoad(outcome: Parameters<typeof recordPageModuleLoad>[1], artifactCount = 0): void {
 		recordPageModuleLoad(requireAppRuntime(this.appConfig).requestPipelineMetrics, outcome, artifactCount);
@@ -131,42 +131,87 @@ export class PageModuleImportService {
 	}
 
 	/**
-	 * Imports a page-like module from source.
+	 * Imports a page-like module.
 	 *
-	 * The caller controls the output directory and error wording so different
-	 * subsystems can reuse the same loading mechanism while preserving their
-	 * current diagnostics. Module identities stay stable for unchanged files and
-	 * roll forward automatically when the source hash changes during watch mode.
+	 * Production loads the module `ecopages build` emitted. Development compiles
+	 * from source. The caller controls the output directory and error wording so
+	 * different subsystems can reuse the same loading mechanism while preserving
+	 * their current diagnostics. Development module identities stay stable for
+	 * unchanged files and roll forward automatically when the source hash changes
+	 * during watch mode.
 	 *
 	 * @typeParam T Expected module shape.
 	 * @param options Runtime-specific import settings.
 	 * @returns The loaded module.
 	 */
 	async importModule<T = unknown>(options: PageModuleBuildImportOptions): Promise<T> {
-		const { filePath } = options;
-
-		if (!options.bypassCache && isProductionRuntime()) {
-			return this.importUnchangedModule<T>(options);
+		if (
+			isProductionRuntime() &&
+			shouldBuildPagesUnifiedGraph() &&
+			!isEcopagesEnvEnabled('ECOPAGES_LIT_STATIC_RENDER_WORKER')
+		) {
+			return this.importFromProductionManifest<T>(options);
 		}
 
-		const fileHash = this.dependencies.hashFile(filePath);
-
+		const fileHash = this.dependencies.hashFile(options.filePath);
 		return this.importWithCache<T>(options, fileHash, !options.bypassCache);
 	}
 
 	/**
-	 * Imports a module whose sources cannot change while the process runs.
+	 * Imports a compiled server module emitted by `ecopages build`.
 	 *
 	 * @remarks
-	 * In production nothing edits the sources and no watcher invalidates them: every build
-	 * compiles from source in a fresh process. The entry source hash is read once per service and
-	 * memoized for the build identity. An in-memory hit therefore avoids file hashing; after that
-	 * cache is cleared, the route-module cache may still hash tracked dependencies to validate its
-	 * compiled output.
+	 * Production never compiles: a missing map entry or missing file is an error
+	 * that names the source and says to run `ecopages build`. `bypassCache` only
+	 * skips the in-memory import promise, not the manifest.
 	 */
-	private async importUnchangedModule<T>(options: PageModuleBuildImportOptions): Promise<T> {
-		const fileHash = this.getProductionFileHash(options.filePath);
-		return this.importWithCache<T>(options, fileHash, true);
+	private async importFromProductionManifest<T>(options: PageModuleBuildImportOptions): Promise<T> {
+		const sourceKey = toRootRelativePath(this.appConfig.rootDir, options.filePath);
+		const cacheKey = `production::${sourceKey}`;
+		if (!options.bypassCache) {
+			const cachedModule = this.importCache.get(cacheKey);
+			if (cachedModule) {
+				const loadedModule = (await cachedModule.promise) as T;
+				this.recordPipelineLoad('import-cache-hit');
+				return loadedModule;
+			}
+		}
+
+		const importPromise = this.loadProductionManifestModule<T>(sourceKey);
+		if (!options.bypassCache) {
+			this.importCache.set(cacheKey, { promise: importPromise });
+		}
+
+		try {
+			return await importPromise;
+		} catch (error) {
+			this.importCache.delete(cacheKey);
+			throw error;
+		}
+	}
+
+	private async loadProductionManifestModule<T>(sourceKey: string): Promise<T> {
+		const manifest = loadProductionServerModules(this.appConfig);
+		if (!manifest) {
+			throw missingProductionServerModuleError(sourceKey);
+		}
+
+		const relativePath = manifest.modules[sourceKey];
+		if (!relativePath) {
+			throw missingProductionServerModuleError(sourceKey);
+		}
+
+		const outputPath = path.join(manifest.outdir, relativePath);
+		if (!fileSystem.exists(outputPath)) {
+			throw missingProductionServerModuleError(sourceKey);
+		}
+
+		this.recordPipelineLoad('unified-graph');
+		return importEmittedServerModule<T>(
+			this.appConfig,
+			path.resolve(this.appConfig.rootDir, sourceKey),
+			outputPath,
+		);
 	}
 
 	private async importWithCache<T>(
@@ -212,17 +257,6 @@ export class PageModuleImportService {
 			this.importCache.delete(cacheKey);
 			throw error;
 		}
-	}
-
-	private getProductionFileHash(filePath: string): string {
-		const cached = this.productionFileHashes.get(filePath);
-		if (cached !== undefined) {
-			return cached;
-		}
-
-		const fileHash = this.dependencies.hashFile(filePath);
-		this.productionFileHashes.set(filePath, fileHash);
-		return fileHash;
 	}
 
 	private resolveRouteModuleOutputNaming(filePath: string, fileHash: string): string {

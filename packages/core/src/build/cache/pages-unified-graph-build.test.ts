@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
@@ -9,6 +9,7 @@ import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-confi
 import { AppModuleLoader } from '../server/app-module-loader.service.ts';
 import { PageModuleImportService } from '../server/page-module-import.service.ts';
 import {
+	emitProductionServerModules,
 	ensurePagesUnifiedGraphBuilt,
 	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphPage,
@@ -20,6 +21,7 @@ import {
 	resetRolldownBuildInvocationCounts,
 } from '../rolldown/rolldown-build-invocation-metrics.ts';
 import { getServerModuleBuildCacheOutdir } from '../server/route-module-build-cache-registry.ts';
+import { getServerBundleOutputPaths } from '../server-bundle-deploy-manifest.ts';
 
 function snapshotFixtureSources(): Map<string, Buffer> {
 	const sourceDir = path.join(FIXTURE_APP_PROJECT_DIR, 'src');
@@ -182,46 +184,63 @@ describe('pages-unified-graph-build', () => {
 		assert.equal(getPageModuleRolldownBuildInvocations(), 0);
 	});
 
-	it('keeps the graph in memory, so another app config cannot import it', async () => {
+	it('lets a later runtime import the emitted map from disk', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+
+		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
+		const entryPath = path.join(appDir, 'src/pages/index.ts');
+		const outdir = getServerBundleOutputPaths(appConfig).serverOutdir;
+		await ensurePagesUnifiedGraphBuilt({ appConfig, entryPaths: [entryPath], outdir, force: true });
+		assert.ok(await importPagesUnifiedGraphModule(appConfig, entryPath));
+
+		const laterRuntime = await createFixtureAppConfig({ rootDir: appDir });
+		assert.ok(await importPagesUnifiedGraphModule(laterRuntime, entryPath));
+	});
+
+	it('rejects import when the emitted entry module is deleted', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
 		const entryPath = path.join(appDir, 'src/pages/index.ts');
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);
-		await ensurePagesUnifiedGraphBuilt({ appConfig, entryPaths: [entryPath], outdir, force: true });
-		assert.ok(await importPagesUnifiedGraphModule(appConfig, entryPath));
-
-		const otherProcess = await createFixtureAppConfig({ rootDir: appDir });
-		assert.equal(await importPagesUnifiedGraphModule(otherProcess, entryPath), undefined);
-	});
-
-	it('records nested local imports so a deleted shared chunk invalidates the graph', async () => {
-		vi.stubEnv('NODE_ENV', 'production');
-
-		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
-		const entryPaths = [
-			path.join(appDir, 'src/pages/index.ts'),
-			path.join(appDir, 'src/pages/404.ts'),
-			path.join(appDir, 'src/pages/postcss-hmr.ts'),
-		];
-		const outdir = getServerModuleBuildCacheOutdir(appConfig);
 		const manifest = await ensurePagesUnifiedGraphBuilt({
 			appConfig,
-			entryPaths,
+			entryPaths: [entryPath],
 			outdir,
 			force: true,
 		});
 		assert.ok(manifest);
-
-		const nestedImport = manifest.outputImports.find(
-			(importPath) => !Object.values(manifest.outputs).includes(importPath),
-		);
-		assert.ok(nestedImport, 'pages sharing a layout produce a shared chunk');
-		fileSystem.remove(nestedImport);
-		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPaths[0]), undefined);
+		fileSystem.remove(manifest.outputs[entryPath]!);
+		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
 	});
 
-	it('rebuilds the graph when a file the config imports changes', async () => {
+	it('emits distinct modules for HTML Pages whose sanitized names would collide', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+
+		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
+		const hyphenPage = path.join(appDir, 'src/pages/foo-bar.html');
+		const nestedPage = path.join(appDir, 'src/pages/foo/bar.html');
+		mkdirSync(path.dirname(nestedPage), { recursive: true });
+		writeFileSync(hyphenPage, '<main>hyphen-page</main>');
+		writeFileSync(nestedPage, '<main>nested-page</main>');
+
+		const manifest = await emitProductionServerModules({
+			appConfig,
+			router: { templateRoutes: [{ filePath: hyphenPage }, { filePath: nestedPage }] },
+		});
+
+		const hyphenOutput = manifest.modules['src/pages/foo-bar.html'];
+		const nestedOutput = manifest.modules['src/pages/foo/bar.html'];
+		assert.ok(hyphenOutput);
+		assert.ok(nestedOutput);
+		assert.notEqual(hyphenOutput, nestedOutput);
+		assert.notEqual(
+			fileSystem.readFileSync(path.join(manifest.outdir, hyphenOutput)).toString(),
+			fileSystem.readFileSync(path.join(manifest.outdir, nestedOutput)).toString(),
+		);
+	});
+
+	it('reuses emitted modules when a file the config imports changes', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
@@ -236,17 +255,13 @@ describe('pages-unified-graph-build', () => {
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);
 		await ensurePagesUnifiedGraphBuilt({ appConfig, entryPaths, outdir, force: true });
 
-		resetRolldownBuildInvocationCounts();
-		await ensurePagesUnifiedGraphBuilt({ appConfig, entryPaths, outdir });
-		assert.equal(getTotalRolldownBuildInvocations(), 0, 'unchanged config files reuse the graph');
-
 		fileSystem.write(optionsPath, 'export const mdxPluginOptions = { remarkPlugins: ["changed"] };\n');
 		resetRolldownBuildInvocationCounts();
 		await ensurePagesUnifiedGraphBuilt({ appConfig, entryPaths, outdir });
-		assert.equal(getTotalRolldownBuildInvocations(), 1);
+		assert.equal(getTotalRolldownBuildInvocations(), 0);
 	});
 
-	it('rebuilds the graph when template extensions change', async () => {
+	it('reuses emitted modules when template extensions change', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
@@ -273,13 +288,13 @@ describe('pages-unified-graph-build', () => {
 			outdir,
 		});
 
-		assert.equal(getTotalRolldownBuildInvocations(), 1);
+		assert.equal(getTotalRolldownBuildInvocations(), 0);
 	});
 
 	it.each([
 		{ layoutPlacement: 'in the entry chunk', pages: ['index.ts'] },
 		{ layoutPlacement: 'in a chunk shared by several pages', pages: ['index.ts', '404.ts'] },
-	])('rebuilds the graph when a layout $layoutPlacement changes', async ({ pages }) => {
+	])('reuses emitted modules when a layout $layoutPlacement changes', async ({ pages }) => {
 		vi.stubEnv('NODE_ENV', 'production');
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
@@ -298,10 +313,6 @@ describe('pages-unified-graph-build', () => {
 			force: true,
 		});
 		assert.ok(manifest);
-		assert.ok(
-			Object.keys(manifest.dependencyHashes).some((filePath) => filePath.endsWith('base-layout.ts')),
-			'graph records the layout source hash',
-		);
 		assert.equal(getTotalRolldownBuildInvocations(), 1);
 
 		fileSystem.write(layoutPath, `${originalLayout}\nexport const cacheBust = 1;\n`);
@@ -311,10 +322,10 @@ describe('pages-unified-graph-build', () => {
 			entryPaths,
 			outdir,
 		});
-		assert.equal(getTotalRolldownBuildInvocations(), 1);
+		assert.equal(getTotalRolldownBuildInvocations(), 0);
 	});
 
-	it('rebuilds the graph and rejects module import when a reachable source file is deleted', async () => {
+	it('still imports the emitted module after a reachable source file is deleted', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
@@ -340,37 +351,23 @@ describe('pages-unified-graph-build', () => {
 			force: true,
 		});
 		assert.ok(manifest);
-		assert.ok(
-			Object.keys(manifest.dependencyHashes).some((filePath) => filePath.endsWith('temp-helper.ts')),
-			'graph records the imported helper source hash',
-		);
 		assert.equal(getTotalRolldownBuildInvocations(), 1);
 
 		fileSystem.remove(helperPath);
 		fileSystem.write(layoutPath, originalLayout);
 
-		assert.equal(
-			await importPagesUnifiedGraphModule(appConfig, entryPaths[0]),
-			undefined,
-			'rejects stale graph import when dependency source is deleted',
-		);
+		assert.ok(await importPagesUnifiedGraphModule(appConfig, entryPaths[0]));
 
 		resetRolldownBuildInvocationCounts();
-		const rebuiltManifest = await ensurePagesUnifiedGraphBuilt({
+		await ensurePagesUnifiedGraphBuilt({
 			appConfig,
 			entryPaths,
 			outdir,
 		});
-		assert.ok(rebuiltManifest);
-		assert.equal(getTotalRolldownBuildInvocations(), 1);
-		assert.equal(
-			Object.keys(rebuiltManifest.dependencyHashes).some((filePath) => filePath.endsWith('temp-helper.ts')),
-			false,
-			'rebuilt manifest no longer references the deleted helper',
-		);
+		assert.equal(getTotalRolldownBuildInvocations(), 0);
 	});
 
-	it('invalidates cache when route entries are added or removed (exact route set match)', async () => {
+	it('reuses a superset map and rebuilds when a new entry is added', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
@@ -398,16 +395,7 @@ describe('pages-unified-graph-build', () => {
 			outdir,
 		});
 		assert.ok(manifestOneEntry);
-		assert.equal(Object.keys(manifestOneEntry.outputs).length, 1);
-		assert.equal(getTotalRolldownBuildInvocations(), 1, 'rebuilds when an entry is removed from active routes');
-
-		resetRolldownBuildInvocationCounts();
-		await ensurePagesUnifiedGraphBuilt({
-			appConfig,
-			entryPaths: [indexEntry],
-			outdir,
-		});
-		assert.equal(getTotalRolldownBuildInvocations(), 0, 'reuses cache when entry set is identical');
+		assert.equal(getTotalRolldownBuildInvocations(), 0, 'reuses when requested entries are already emitted');
 
 		resetRolldownBuildInvocationCounts();
 		const manifestRestored = await ensurePagesUnifiedGraphBuilt({
@@ -416,8 +404,17 @@ describe('pages-unified-graph-build', () => {
 			outdir,
 		});
 		assert.ok(manifestRestored);
-		assert.equal(Object.keys(manifestRestored.outputs).length, 2);
-		assert.equal(getTotalRolldownBuildInvocations(), 1, 'rebuilds when an entry is re-added');
+		assert.equal(getTotalRolldownBuildInvocations(), 0, 'reuses when both entries are already emitted');
+
+		const extraEntry = path.join(appDir, 'src/pages/postcss-hmr.ts');
+		resetRolldownBuildInvocationCounts();
+		const manifestWithExtra = await ensurePagesUnifiedGraphBuilt({
+			appConfig,
+			entryPaths: [indexEntry, extraEntry],
+			outdir,
+		});
+		assert.ok(manifestWithExtra);
+		assert.equal(getTotalRolldownBuildInvocations(), 1, 'rebuilds when a new entry is requested');
 	});
 
 	it('deduplicates duplicate entry paths caused by dynamic routes', async () => {

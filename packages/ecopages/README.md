@@ -32,14 +32,14 @@ The commands above run on Node. Bun is optional: launch them through Bun (`bunx 
 | `ecopages dev`        | Starts the dev server (supervises config/.env restarts) | `[entry] --dev` through tsx on Node, `bun run [entry] --dev` on Bun  |
 | `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Node: `node --watch …`; Bun: `bun --watch run [entry] --dev`         |
 | `ecopages build`      | Creates a production build                              | `[entry] --build` through tsx on Node, `bun run [entry] --build`     |
-| `ecopages start`      | Starts the production server from the built output      | Runs the emitted server bundle                                       |
+| `ecopages start`      | Starts the production server from the built output      | Runs the emitted server bundle and imports `dist/.server/` modules   |
 | `ecopages preview`    | Previews the production build locally                   | `[entry] --preview` through tsx on Node, `bun run [entry] --preview` |
 | `ecopages types`      | Writes virtual-module types for `tsc`, then exits       | Loads `eco.config.ts` and sets processors up; the entry does not run |
 
 > [!NOTE]
 > The entry file defaults to `app.ts`. Override it with `--entry-file`.
 
-`ecopages start` does not load `eco.config.ts`, so it finds the build output by looking for `.server/manifest.json` one level below the app root (dot-prefixed directories included). It uses the only match, fails with the matches listed when there are several, and fails with "run `ecopages build`" when there is none. Only apps that register API or WebSocket handlers or have endpoint files build a server bundle. For a static-only app, `start` instead reports that the build has no server bundle when `dist` (or the `--dist-dir` directory) holds built HTML; serve that output with `ecopages preview` or deploy `dist/` to a static host. Pass `--dist-dir <dir>` to select a directory, which is required for nested (`out/web`) and symlinked outputs and whenever the app builds several outputs, such as `dist-<scope>` per build target.
+`ecopages start` does not load `eco.config.ts`, so it finds the build output by looking for `.server/manifest.json` one level below the app root (dot-prefixed directories included). It uses the only match, fails with the matches listed when there are several, and fails with "run `ecopages build`" when there is none. Pages, Layouts, Html shells, Endpoints, `app.static` views, error pages, and `ssr: true` scripts load from `.server/server-modules.json`; a missing entry names the source file and says to run `ecopages build`. Only apps that register API or WebSocket handlers or have endpoint files build a server bundle. For a static-only app, `start` instead reports that the build has no server bundle when `dist` (or the `--dist-dir` directory) holds built HTML; serve that output with `ecopages preview` or deploy `dist/` to a static host. Pass `--dist-dir <dir>` to select a directory, which is required for nested (`out/web`) and symlinked outputs and whenever the app builds several outputs, such as `dist-<scope>` per build target.
 
 ### Templates
 
@@ -67,19 +67,19 @@ Server and build commands accept the following shared options. They automaticall
 
 Boolean environment settings accept `true` or `1` to enable, and `false` or `0` to disable.
 
-| Environment variable                               | Description                                                            |
-| :------------------------------------------------- | :--------------------------------------------------------------------- |
-| `ECOPAGES_CONFIG_FILE`                             | Config path, equivalent to `--config`.                                 |
-| `ECOPAGES_PREVIEW_SERVE_ONLY`                      | For `ecopages preview`, serve existing output without rebuilding.      |
-| `ECOPAGES_DEV_TOOLBAR=false`                       | Disable the configured development toolbar for this process.           |
-| `ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS=<milliseconds>` | Set the quiet period used to batch development file changes.           |
-| `ECOPAGES_DEV_PREWARM_STATIC_ROUTES_PARALLELISM`   | Limit concurrent development prewarm renders to this positive integer. |
-| `ECOPAGES_UNIFIED_PAGES_GRAPH=0`                   | Opt out of the shared production static-page browser build.            |
-| `ECOPAGES_REQUEST_PIPELINE_METRICS=1`              | Add request-pipeline measurements to development responses.            |
-| `ECOPAGES_ROLLDOWN_BUILD_METRICS=1`                | Log Rolldown build invocation counts.                                  |
-| `ECOPAGES_PROFILE_BUILD=1`                         | Include build profiling data in debug output.                          |
-| `ECOPAGES_STARTUP_TRACE_JSON=<path>`               | Write the startup trace report to this JSON file.                      |
-| `ECOPAGES_DEBUG=1`                                 | Log when SSR skips a browser-only custom-element script preload.       |
+| Environment variable                               | Description                                                                                                                                                                                |
+| :------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ECOPAGES_CONFIG_FILE`                             | Config path, equivalent to `--config`.                                                                                                                                                     |
+| `ECOPAGES_PREVIEW_SERVE_ONLY`                      | For `ecopages preview`, serve existing output without rebuilding.                                                                                                                          |
+| `ECOPAGES_DEV_TOOLBAR=false`                       | Disable the configured development toolbar for this process.                                                                                                                               |
+| `ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS=<milliseconds>` | Set the quiet period used to batch development file changes.                                                                                                                               |
+| `ECOPAGES_DEV_PREWARM_STATIC_ROUTES_PARALLELISM`   | Limit concurrent development prewarm renders to this positive integer.                                                                                                                     |
+| `ECOPAGES_UNIFIED_PAGES_GRAPH=0`                   | Opt out of emitting and loading `dist/.server/server-modules.json`. The bench oracle uses this so production still compiles per Page. A start after a normal build still requires the map. |
+| `ECOPAGES_REQUEST_PIPELINE_METRICS=1`              | Add request-pipeline measurements to development responses.                                                                                                                                |
+| `ECOPAGES_ROLLDOWN_BUILD_METRICS=1`                | Log Rolldown build invocation counts.                                                                                                                                                      |
+| `ECOPAGES_PROFILE_BUILD=1`                         | Include build profiling data in debug output.                                                                                                                                              |
+| `ECOPAGES_STARTUP_TRACE_JSON=<path>`               | Write the startup trace report to this JSON file.                                                                                                                                          |
+| `ECOPAGES_DEBUG=1`                                 | Log when SSR skips a browser-only custom-element script preload.                                                                                                                           |
 
 ### Runtime Detection
 

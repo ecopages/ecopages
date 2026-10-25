@@ -13,6 +13,7 @@ import type { BuildAdapter } from '../../build/build-adapter.ts';
 import type { PagesUnifiedGraphCacheManifest } from '../../build/cache/pages-unified-graph-build.ts';
 import type { AppBuildManifest } from '../../build/contracts/build-manifest.ts';
 import type { AppModuleLoaderContract } from '../../build/server/app-module-loader.service.ts';
+import type { ProductionServerModulesManifest } from '../../build/server/server-modules-manifest.ts';
 import type { RouteModuleBuildCache } from '../../build/server/route-module-build-cache.store.ts';
 import type { RequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
 import type { HtmlPageWarningState } from '../../html-pages/html-page-warning-state.ts';
@@ -61,6 +62,7 @@ export interface AppRuntime {
 	buildQueue: BuildQueue;
 	buildInputIndex: BuildInputDependencyIndex;
 	pagesUnifiedGraphManifest: PagesUnifiedGraphCacheManifest | null;
+	productionServerModules: ProductionServerModulesManifest | null;
 	pageBrowserGraphSession: SessionPageBrowserGraphCache;
 	serverInvalidation: ServerInvalidationState;
 	developmentInvalidation: DevelopmentInvalidationService | null;
@@ -109,6 +111,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		buildQueue,
 		buildInputIndex,
 		pagesUnifiedGraphManifest: null,
+		productionServerModules: null,
 		pageBrowserGraphSession: new SessionPageBrowserGraphCache(buildInputIndex),
 		serverInvalidation: new ServerInvalidationState(),
 		developmentInvalidation: null,

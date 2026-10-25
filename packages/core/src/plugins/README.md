@@ -28,7 +28,7 @@ These contracts are responsible for:
 
 - Integrations own rendering semantics, hydration behavior, and integration-specific HMR strategy.
 - `createIntegrationRenderer()` supplies the shared route render path. Integrations add framework behavior through optional hooks; use a renderer subclass only when the integration needs its own renderer state or lower-level lifecycle.
-- An Integration whose files are not JavaScript modules can compile them itself with `compilePageModule()`, and one whose Pages cannot receive Params overrides `acceptsParams` with `false`. Core asks the owning Integration instead of checking Integration names.
+- An Integration whose files are not JavaScript modules can compile them itself with `compilePageModule()`, record that result for production with `serializeCompiledPageModule()` / `reviveCompiledPageModule()`, and one whose Pages cannot receive Params overrides `acceptsParams` with `false`. Core asks the owning Integration instead of checking Integration names.
 - Core resolves component ownership through `getComponentOwner()`: explicit `config.integration`, build-time identity, then the inherited owner. Integrations set `bundlesPageDependencies` when core may collapse their eligible Page assets into page-owned output bundles.
 - Processors own asset semantics, cache ownership, and processor-specific watch behavior.
 - A Processor's `watch.onChanges` callback runs once per debounced file batch with matching `created`, `changed`, and `deleted` paths plus the client bridge. Watch extensions select notifications; capabilities continue to declare asset ownership.

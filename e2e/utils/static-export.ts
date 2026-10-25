@@ -1,8 +1,8 @@
 import { rmSync } from 'node:fs';
-import path from 'node:path';
 import { vi } from 'vitest';
 import { createApp, type EcopagesApp } from '../../packages/core/src/adapters/create-app.ts';
 import { copyFixtureApp } from '../../packages/core/__fixtures__/app/copy-fixture-app.ts';
+import { emitCopiedFixtureServerModules } from './emit-copied-fixture-server-modules.ts';
 
 export type StaticExport = {
 	/** Origin of a preview server that serves the exported files. */
@@ -25,9 +25,9 @@ export type StaticExport = {
 export async function startStaticExport(fixtureDir: string): Promise<StaticExport> {
 	vi.stubEnv('NODE_ENV', 'production');
 	const appDir = copyFixtureApp(fixtureDir);
-	const configFile = path.join(appDir, 'eco.config.ts');
+	const appConfig = await emitCopiedFixtureServerModules(appDir);
 
-	const app = await createApp({ configFile, serverOptions: { hostname: '127.0.0.1', port: 0 } });
+	const app = await createApp({ appConfig, serverOptions: { hostname: '127.0.0.1', port: 0 } });
 	await app.fetch(new Request('http://localhost:3000/'));
 	await app.serverAdapter!.buildStatic();
 	const origin = await app.serverAdapter!.servePreviewOnly();

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { appLogger } from '../global/app-logger.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { resolveBuildParallelism } from '../build/build-parallelism.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type {
@@ -31,6 +32,7 @@ import {
 	teardownAppRuntimeIntegrations,
 } from '../build/app-build-manifest-runtime.ts';
 import {
+	emitProductionServerModules,
 	ensurePagesUnifiedGraphBuilt,
 	shouldBuildPagesUnifiedGraph,
 } from '../build/cache/pages-unified-graph-build.ts';
@@ -428,10 +430,33 @@ export class StaticSiteGenerator {
 		}
 	}
 
+	private async emitProductionServerModulesForStaticGeneration(input: {
+		router: StaticGenerationRouteSource;
+		staticRoutes?: StaticRoute[];
+		errorPageLoaders?: ErrorPageLoaders;
+	}): Promise<void> {
+		if (requireAppRuntime(this.appConfig).productionServerModules || !shouldBuildPagesUnifiedGraph()) {
+			return;
+		}
+		const templateRoutes = input.router.templateRoutes;
+		if (!templateRoutes?.length) {
+			return;
+		}
+		await emitProductionServerModules({
+			appConfig: this.appConfig,
+			router: { templateRoutes },
+			staticRoutes: input.staticRoutes,
+			errorPageLoaders: input.errorPageLoaders,
+		});
+	}
+
 	private async ensureUnifiedGraphForStaticGeneration(
 		routes: readonly StaticGenerationRoute[],
 		force: boolean,
 	): Promise<void> {
+		if (requireAppRuntime(this.appConfig).productionServerModules) {
+			return;
+		}
 		if (!shouldBuildPagesUnifiedGraph()) {
 			return;
 		}
@@ -561,6 +586,7 @@ export class StaticSiteGenerator {
 		let generationError: unknown;
 		try {
 			await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
+			await this.emitProductionServerModulesForStaticGeneration({ router, staticRoutes, errorPageLoaders });
 			const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
 			const exportRoutes = routes.map((route) => toEcopagesRouteInfo(route));
 			await this.ensureUnifiedGraphForStaticGeneration(routes, force);

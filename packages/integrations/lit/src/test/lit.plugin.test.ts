@@ -36,6 +36,10 @@ vi.mock('@ecopages/core/integration', async (importOriginal) => {
 });
 
 describe('LitPlugin', () => {
+	it('repairs the server DOM after a complete surface', () => {
+		expect(new LitPlugin().serverDom?.kind).toBe('repair');
+	});
+
 	it('keeps the global hydrate-support bootstrap stable across browser-router swaps', () => {
 		const plugin = new LitPlugin();
 		const [dependency] = plugin.getDependencies();

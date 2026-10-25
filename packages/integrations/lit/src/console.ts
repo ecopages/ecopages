@@ -1,3 +1,5 @@
+export {};
+
 const originalConsoleWarn = console.warn;
 
 /**

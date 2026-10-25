@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { html as litHtml } from 'lit';
+import { ensureLitDomShim } from '../dom-shim.ts';
+
+ensureLitDomShim();
 import {
 	injectLitRenderedChildren,
 	LIT_COMPONENT_CHILDREN_SLOT_MARKER,

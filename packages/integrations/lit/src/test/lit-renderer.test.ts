@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildIslandHostAttributes, eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
@@ -8,8 +8,11 @@ import { IntegrationRenderer } from '@ecopages/core/integration';
 import { LitElement, html as litHtml } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';
+import { ensureLitDomShim } from '../dom-shim.ts';
 import { createLitRenderer, LitRenderer } from '../lit-renderer.ts';
 import type { LitStaticRenderSession } from '../lit-static-render-session.ts';
+
+ensureLitDomShim();
 
 let customElementIndex = 0;
 
@@ -755,6 +758,10 @@ describe('LitRenderer', () => {
 	});
 
 	describe('ensureLitDomShim', () => {
+		beforeEach(() => {
+			ensureLitDomShim();
+		});
+
 		it('keeps the existing global custom element registry', async () => {
 			const { ensureLitDomShim } = await import('../dom-shim.ts');
 			const registry = globalThis.customElements;
@@ -767,6 +774,13 @@ describe('LitRenderer', () => {
 
 		it('repairs Element and HTMLElement when foreign shim lacks attributes and attachShadow', async () => {
 			const { ensureLitDomShim } = await import('../dom-shim.ts');
+			if (typeof globalThis.Element === 'undefined') {
+				class ShimElement {}
+				Object.assign(globalThis, {
+					Element: ShimElement,
+					HTMLElement: class extends ShimElement {},
+				});
+			}
 			const originalAttributes = Object.getOwnPropertyDescriptor(globalThis.Element.prototype, 'attributes');
 			const originalAttachShadow = Object.getOwnPropertyDescriptor(globalThis.Element.prototype, 'attachShadow');
 

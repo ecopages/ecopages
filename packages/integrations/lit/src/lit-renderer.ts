@@ -13,7 +13,6 @@ import {
 } from '@ecopages/core/integration';
 import { requireAppRuntime } from '@ecopages/core/integration';
 import { createCustomElementServerModuleImporter } from '@ecopages/core/integration';
-import { ensureLitDomShim } from './dom-shim.ts';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import {
@@ -50,7 +49,6 @@ export function createLitRenderer(
 			const preloadSsrScripts = async (
 				components: Array<CustomElementSsrPreloadComponent | undefined>,
 			): Promise<void> => {
-				ensureLitDomShim();
 				const renderSession = getRenderSession();
 				if (renderSession) {
 					await renderSession.preloadSsrScripts(components);

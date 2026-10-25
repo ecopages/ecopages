@@ -18,9 +18,9 @@ allowBuilds:
     sharp: true
 
 minimumReleaseAgeExclude:
-    - '@ecopages/jsx@0.4.0'
-    - '@ecopages/radiant@0.4.0'
-    - '@ecopages/signals@0.4.0'
+    - '@ecopages/jsx@0.5.1'
+    - '@ecopages/radiant@0.5.1'
+    - '@ecopages/signals@0.5.1'
     - postcss-nested@8.0.1
-    - '@ecopages/radiant-ui@0.2.1'
-    - '@ecopages/radiant-themes@0.2.1'
+    - '@ecopages/radiant-ui@0.2.5'
+    - '@ecopages/radiant-themes@0.2.5'

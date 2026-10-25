@@ -137,6 +137,18 @@ async function getAvailablePort(): Promise<number> {
 	return address.port;
 }
 
+function setTreeMode(root: string, directoryMode: number, fileMode: number): void {
+	for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+		const fullPath = path.join(root, entry.name);
+		if (entry.isDirectory()) {
+			setTreeMode(fullPath, directoryMode, fileMode);
+		} else {
+			fs.chmodSync(fullPath, fileMode);
+		}
+	}
+	fs.chmodSync(root, directoryMode);
+}
+
 describe('NodeServerAdapter', () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
@@ -209,6 +221,73 @@ describe('NodeServerAdapter', () => {
 			expect(response.status).toBe(200);
 			expect(await response.text()).toBe('<h1>About</h1>');
 		} finally {
+			await adapter.dispose();
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	it('previewing a finished build leaves it untouched', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-serve-only-untouched-'));
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const distDir = appConfig.absolutePaths.distDir;
+		const publicDir = appConfig.absolutePaths.publicDir;
+		const builtRobots = 'User-agent: *\nDisallow:';
+		fs.mkdirSync(distDir, { recursive: true });
+		fs.mkdirSync(publicDir, { recursive: true });
+		fs.writeFileSync(path.join(distDir, 'robots.txt'), builtRobots);
+		fs.writeFileSync(path.join(distDir, 'about.html'), '<h1>About</h1>');
+		fs.writeFileSync(path.join(publicDir, 'robots.txt'), 'User-agent: *\nAllow: /');
+		fs.writeFileSync(path.join(publicDir, 'extra.txt'), 'after-build');
+		const adapter = makeNodeServerAdapter({
+			appConfig,
+			serveOptions: { hostname: '127.0.0.1', port: await getAvailablePort() },
+			options: { watch: false },
+			runtimeAssetSetup: 'none',
+		});
+
+		try {
+			const previewOrigin = await adapter.servePreviewOnly();
+			if (!previewOrigin) throw new Error('Expected a preview origin');
+			const robots = await fetch(`${previewOrigin}/robots.txt`);
+			const about = await fetch(`${previewOrigin}/about`);
+
+			expect(fs.readFileSync(path.join(distDir, 'robots.txt'), 'utf8')).toBe(builtRobots);
+			expect(fs.existsSync(path.join(distDir, 'extra.txt'))).toBe(false);
+			expect(robots.status).toBe(200);
+			expect(await robots.text()).toBe(builtRobots);
+			expect(about.status).toBe(200);
+			expect(await about.text()).toBe('<h1>About</h1>');
+		} finally {
+			await adapter.dispose();
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	it('serves a page from a read-only dist in serve-only preview', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-serve-only-readonly-'));
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const distDir = appConfig.absolutePaths.distDir;
+		fs.mkdirSync(distDir, { recursive: true });
+		fs.mkdirSync(appConfig.absolutePaths.publicDir, { recursive: true });
+		fs.writeFileSync(path.join(distDir, 'about.html'), '<h1>About</h1>');
+		fs.writeFileSync(path.join(appConfig.absolutePaths.publicDir, 'robots.txt'), 'User-agent: *\nAllow: /');
+		setTreeMode(distDir, 0o555, 0o444);
+		const adapter = makeNodeServerAdapter({
+			appConfig,
+			serveOptions: { hostname: '127.0.0.1', port: await getAvailablePort() },
+			options: { watch: false },
+			runtimeAssetSetup: 'none',
+		});
+
+		try {
+			const previewOrigin = await adapter.servePreviewOnly();
+			if (!previewOrigin) throw new Error('Expected a preview origin');
+			const response = await fetch(`${previewOrigin}/about`);
+
+			expect(response.status).toBe(200);
+			expect(await response.text()).toBe('<h1>About</h1>');
+		} finally {
+			setTreeMode(distDir, 0o755, 0o644);
 			await adapter.dispose();
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}
@@ -386,6 +465,12 @@ describe('NodeServerAdapter', () => {
 			},
 		);
 
+		it('copies the public directory in start mode', async () => {
+			const { rootDir } = await initializeWith('start');
+
+			expect(fs.readFileSync(path.join(rootDir, 'dist', 'logo.svg'), 'utf8')).toBe('<svg />');
+		});
+
 		it('copies the public directory once when export preparation clears dist', async () => {
 			const { rootDir, copyFile, publicAsset } = await initializeWith('export');
 			const publicAssetCopies = copyFile.mock.calls.filter(([source]) => source === publicAsset);
@@ -478,6 +563,8 @@ describe('NodeServerAdapter', () => {
 
 			expect(events).toEqual(['routes read']);
 			expect(fs.existsSync(path.join(rootDir, 'dist', 'stale.txt'))).toBe(true);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'logo.svg'))).toBe(false);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'assets'))).toBe(false);
 		});
 	});
 

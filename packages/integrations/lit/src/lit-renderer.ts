@@ -28,8 +28,9 @@ export type LitRenderer = InstanceType<ReturnType<typeof createLitRenderer>>;
  * Creates the Lit renderer class with a lazy worker-session lookup.
  *
  * @remarks
- * The plugin may create its renderer before `setup()` assigns the static render session, so hooks read the
- * session when they run instead of capturing its construction-time value.
+ * Serving has no session, so page SSR and `ssr: true` preloads run in-process. Static export may create the
+ * renderer before `staticExport()` assigns the session, so hooks read it when they run instead of capturing
+ * its construction-time value.
  */
 export function createLitRenderer(
 	getRenderSession: () => LitStaticRenderSession | undefined = () => undefined,
@@ -128,10 +129,11 @@ function isFunctionComponent(
 }
 
 /**
- * Renders a Lit page route in its build-scoped worker when request data can cross the worker boundary.
+ * Renders a Lit page route in the static-export worker when a session exists and request data can cross the boundary.
  *
  * @remarks
- * Locals and explicit props stay in-process: locals are request objects, and the worker re-imports the route module.
+ * Serving has no session, so this hook declines and core renders in-process. Locals and explicit props also stay
+ * in-process during export: locals are request objects, and the worker re-imports the route module.
  */
 async function renderLitPageInWorker(
 	options: RouteRendererOptions,

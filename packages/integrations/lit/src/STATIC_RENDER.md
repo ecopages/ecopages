@@ -1,6 +1,6 @@
 # Lit static render worker
 
-Lit-first page routes (`.lit.tsx`) render through a dedicated worker thread during static export and runtime when the Lit plugin is active.
+Lit-first page routes (`.lit.tsx`) render through a dedicated worker thread during static export. Serving (`ecopages start` and `ecopages dev`) renders every Lit Page in-process; `setup()` does not start a worker.
 
 ## Flow
 
@@ -8,46 +8,43 @@ Lit-first page routes (`.lit.tsx`) render through a dedicated worker thread duri
 Main thread                          Worker thread
 ───────────                          ─────────────
 LitPlugin.setup()
+  └─ no worker
+
+Serving: IntegrationRenderer.execute()
+  └─ getRenderSession() is unset
+       └─ remote hook declines; core renders in-process
+          Lit's preload hook uses the in-process preloader
+
+staticExport
   └─ LitStaticRenderSession.ensureWorker()
        └─ LitStaticRenderWorkerClient.start()
             └─ postMessage(init) ──► setupAppRuntimePlugins()
                                      setupAppRuntimeIntegrations()
                                      RouteRendererFactory
-
-LitPlugin.getRenderer()  (creates it through createRenderer(base) on first use after setup(ctx))
-  └─ createLitRenderer(() => renderSession)  hook factory closes over lazy accessor
-
-IntegrationRenderer.execute() (main)
-  └─ ensureIntegrationRuntimeActivated()
-  └─ getRenderSession()
-       ├─ locals or explicit props ─► remote hook declines; core renders in-process
-       └─ session.renderPageInWorker()
-            └─ postMessage(render) ─────► RouteRendererFactory.execute()
-                                          (no active session in worker)
-                                          Lit's preload hook uses
-                                          importServerModule (no entrypoint resolver)
-
-staticExport
-  └─ ensureWorker() with the export base URL; matching identity is reused
-       └─ a different origin restarts the worker
   └─ preloadStaticRoutes()
        └─ preload SSR lazy scripts for Lit pages
+  └─ IntegrationRenderer.execute() (main)
+       └─ getRenderSession()
+            ├─ locals or explicit props ─► remote hook declines; core renders in-process
+            └─ session.renderPageInWorker()
+                 └─ postMessage(render) ─────► RouteRendererFactory.execute()
+                                               (no active session in worker)
+                                               Lit's preload hook uses
+                                               importServerModule (no entrypoint resolver)
   └─ returns a release that disposes the session once the export ends
 ```
 
-`ECOPAGES_LIT_STATIC_RENDER_WORKER=true` in the worker environment prevents nested worker creation during `LitPlugin.setup()` and skips processor `.setup()` inside `setupAppRuntimePlugins` (the main thread already prepared artifacts). Integration setup still runs in the worker isolate before `RouteRendererFactory` creates route renderers.
+`ECOPAGES_LIT_STATIC_RENDER_WORKER=true` in the worker environment skips processor `.setup()` inside `setupAppRuntimePlugins` (the main thread already prepared artifacts). Integration setup still runs in the worker isolate before `RouteRendererFactory` creates route renderers. That processor skip stays necessary because the worker still bootstraps a second app during export.
 
 ## Ownership
 
 | Concern                    | Owner                                                                                                                                                                  |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session + worker lifecycle | `LitPlugin` (`renderSession`)                                                                                                                                          |
+| Session + worker lifecycle | `LitPlugin` (`renderSession`), started only from `staticExport()`                                                                                                      |
 | Lazy session lookup        | `createLitRenderer()` hook factory via `getRenderSession`                                                                                                              |
 | Worker identity            | First `{ configModulePath, runtimeOrigin }` passed to `ensureWorker`; same identity is sticky; a later `ensureWorker` with a different identity disposes and recreates |
 
-Renderers created before plugin `setup()` still use the worker after setup assigns the session, because `execute` activates the integration runtime then reads the accessor.
-
-`staticExport` calls `ensureWorker` with `context.baseUrl` even when setup already created the session. A matching identity is reused; a different export origin replaces the worker before routes are preloaded. Its release disposes the session and clears `renderSession`, so an in-process export leaves no worker thread; renders after the export run in-process.
+`staticExport` requires `appConfig.absolutePaths.config` and starts the worker with `context.baseUrl`. Its release disposes the session and clears `renderSession`, so an in-process export leaves no worker thread; serving never had one.
 
 ## Locals policy
 

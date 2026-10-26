@@ -123,6 +123,50 @@ function makeNodeServerAdapter(
 	});
 }
 
+async function requestApiAndPageWithBuildScopeCapture(watch: boolean) {
+	const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-request-build-scope-'));
+	onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+	fs.mkdirSync(path.join(rootDir, 'src', 'pages'), { recursive: true });
+	const appConfig = await finalizeEcoPagesConfig({ rootDir });
+	const runtime = requireAppRuntime(appConfig);
+	const withRequestScope = vi.spyOn(runtime.buildQueue, 'withRequestScope');
+	const recordingIndexes: unknown[] = [];
+	const captureIndex = () => {
+		recordingIndexes.push(getBuildInputRecordingContext().index);
+	};
+	const handleResponse = vi.spyOn(ServerRouteHandler.prototype, 'handleResponse').mockImplementation(async () => {
+		captureIndex();
+		return new Response('page');
+	});
+	onTestFinished(() => handleResponse.mockRestore());
+	const adapter = makeNodeServerAdapter({
+		appConfig,
+		options: { watch },
+		apiHandlers: [
+			{
+				path: '/api/health',
+				method: 'GET',
+				handler: () => {
+					captureIndex();
+					return new Response('ok');
+				},
+			},
+		],
+	});
+
+	try {
+		const api = await adapter.handleRequest(new Request('http://localhost:3000/api/health'));
+		const page = await adapter.handleRequest(new Request('http://localhost:3000/'));
+		expect(api.status).toBe(200);
+		expect(await api.text()).toBe('ok');
+		expect(page.status).toBe(200);
+		expect(await page.text()).toBe('page');
+		return { withRequestScope, recordingIndexes, appConfig };
+	} finally {
+		await adapter.dispose();
+	}
+}
+
 async function getAvailablePort(): Promise<number> {
 	const server = net.createServer();
 	await new Promise<void>((resolve, reject) => {
@@ -819,6 +863,23 @@ describe('NodeServerAdapter', () => {
 		const { errors } = (await disposal.catch((error: unknown) => error)) as AggregateError;
 		expect(errors.map((error: Error) => error.message)).toEqual(['bridge destroy failed', 'preview close failed']);
 		expect(teardown).toHaveBeenCalledOnce();
+	});
+
+	it('does not enter a build queue scope or record build inputs on production API and Page requests', async () => {
+		const { withRequestScope, recordingIndexes } = await requestApiAndPageWithBuildScopeCapture(false);
+
+		expect(withRequestScope).not.toHaveBeenCalled();
+		expect(recordingIndexes).toEqual([undefined, undefined]);
+	});
+
+	it('enters a build queue scope and records build inputs on development API and Page requests', async () => {
+		const { withRequestScope, recordingIndexes, appConfig } = await requestApiAndPageWithBuildScopeCapture(true);
+		const buildInputIndex = requireAppRuntime(appConfig).buildInputIndex;
+
+		expect(withRequestScope).toHaveBeenCalledTimes(2);
+		expect(recordingIndexes).toHaveLength(2);
+		expect(recordingIndexes[0]).toBe(buildInputIndex);
+		expect(recordingIndexes[1]).toBe(buildInputIndex);
 	});
 
 	it('prewarms the paths a Processor added after finalization and records the build inputs the render reads', async () => {

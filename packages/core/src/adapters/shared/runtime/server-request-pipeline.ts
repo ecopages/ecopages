@@ -5,8 +5,6 @@ import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts'
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticGenerationRoute } from '../../../router/server/route-registry.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
-import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';
-import { runWithBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { MemoryCacheStore } from '../../../page-cache/memory-cache-store.ts';
 import { PageCacheService } from '../../../page-cache/page-cache-service.ts';
@@ -50,16 +48,22 @@ export type ServerRequestContext<TServer = unknown> = {
 	serverInstance?: TServer;
 };
 
+/** Runs one request or prewarm. */
+export type RequestBuildScope = <T>(operation: () => Promise<T>) => Promise<T>;
+
 export type ServerRequestPipelineOptions = {
 	appConfig: EcoPagesAppConfig;
 	runtime: AppRuntime;
 	watch?: boolean;
+	/** When omitted, there is no build-queue scope and no build-input recording. */
+	runInRequestBuildScope?: RequestBuildScope;
 };
 
 export class ServerRequestPipeline {
 	protected readonly appConfig: EcoPagesAppConfig;
 	protected readonly runtime: AppRuntime;
 	private readonly watchMode: boolean;
+	private readonly runInRequestBuildScope: RequestBuildScope;
 	protected router!: RouteRegistry;
 	protected fileSystemResponseMatcher!: FileSystemResponseMatcher;
 	protected routeRendererFactory!: RouteRendererFactory;
@@ -83,6 +87,7 @@ export class ServerRequestPipeline {
 		this.appConfig = options.appConfig;
 		this.runtime = options.runtime;
 		this.watchMode = options.watch ?? false;
+		this.runInRequestBuildScope = options.runInRequestBuildScope ?? ((operation) => operation());
 	}
 
 	/**
@@ -96,15 +101,13 @@ export class ServerRequestPipeline {
 		runtimeOrigin: string,
 		requestContext: EndpointRequestContext,
 	): Promise<void> {
-		await requireBuildQueue(this.appConfig).withRequestScope(() =>
-			runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, async () => {
-				const response = await this.routeHandler.handleResponse(
-					new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
-					requestContext,
-				);
-				await response.arrayBuffer();
-			}),
-		);
+		await this.runInRequestBuildScope(async () => {
+			const response = await this.routeHandler.handleResponse(
+				new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
+				requestContext,
+			);
+			await response.arrayBuffer();
+		});
 	}
 
 	public async initializeRouteHandling(options: {
@@ -403,39 +406,37 @@ export class ServerRequestPipeline {
 	 * The Node host maps its native HTTP request into a Web Request before calling this method.
 	 */
 	public async handleSharedRequest(request: Request, context: ServerRequestContext): Promise<Response> {
-		return requireBuildQueue(this.appConfig).withRequestScope(() =>
-			runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, () =>
-				startupTrace.traceFirstRequest(request, async () => {
-					let parsedPathSegments: ParsedSegmentPath;
-					try {
-						parsedPathSegments = parseSegmentPath(new URL(request.url).pathname);
-					} catch (error) {
-						return await this.apiRequestPipeline.handleError(error, {
-							request,
-							serverInstance: context.serverInstance,
-							errorHandler: context.errorHandler,
-						});
-					}
+		return this.runInRequestBuildScope(() =>
+			startupTrace.traceFirstRequest(request, async () => {
+				let parsedPathSegments: ParsedSegmentPath;
+				try {
+					parsedPathSegments = parseSegmentPath(new URL(request.url).pathname);
+				} catch (error) {
+					return await this.apiRequestPipeline.handleError(error, {
+						request,
+						serverInstance: context.serverInstance,
+						errorHandler: context.errorHandler,
+					});
+				}
 
-					const devClientResponse = await this.tryHandleSharedDevClientRequest(request);
-					if (devClientResponse) {
-						return devClientResponse;
-					}
+				const devClientResponse = await this.tryHandleSharedDevClientRequest(request);
+				if (devClientResponse) {
+					return devClientResponse;
+				}
 
-					const hmrResponse = this.tryHandleSharedHmrRequest(request);
-					if (hmrResponse) {
-						return hmrResponse;
-					}
+				const hmrResponse = this.tryHandleSharedHmrRequest(request);
+				if (hmrResponse) {
+					return hmrResponse;
+				}
 
-					const apiResponse = await this.tryHandleSharedApiRequest(request, context, parsedPathSegments);
-					if (apiResponse) {
-						return await this.injectSharedHmrHtmlResponse(apiResponse);
-					}
+				const apiResponse = await this.tryHandleSharedApiRequest(request, context, parsedPathSegments);
+				if (apiResponse) {
+					return await this.injectSharedHmrHtmlResponse(apiResponse);
+				}
 
-					const routeResponse = await this.routeHandler.handleResponse(request, context, parsedPathSegments);
-					return await this.injectSharedHmrHtmlResponse(routeResponse);
-				}),
-			),
+				const routeResponse = await this.routeHandler.handleResponse(request, context, parsedPathSegments);
+				return await this.injectSharedHmrHtmlResponse(routeResponse);
+			}),
 		);
 	}
 }

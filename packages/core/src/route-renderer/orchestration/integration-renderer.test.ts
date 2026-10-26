@@ -13,6 +13,7 @@ import {
 import { collectPageClientPlan } from './ownership-graph/page-client-plan.ts';
 import type { PreparedComponentGraphNode } from './ownership-graph/component-graph.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
@@ -565,6 +566,90 @@ describe('IntegrationRenderer', () => {
 		expect(fallbackAssets.processedAssets).not.toContainEqual(
 			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
 		);
+	});
+
+	it('fails a production request whose page-client graph is missing from the manifest, naming the route', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const runtime = requireAppRuntime(testAppConfig);
+		runtime.productionBrowserGraphsSealed = true;
+		try {
+			const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
+			lazyComponent.config = {
+				identity: {
+					id: 'lazy-template-component',
+					file: '/app/components/lazy-template.tsx',
+					integration: 'lit',
+				},
+			};
+			const otherComponent = (() => '<button>other</button>') as EcoComponent;
+			otherComponent.config = {
+				identity: {
+					id: 'other-template-component',
+					file: '/app/components/other-template.tsx',
+					integration: 'lit',
+				},
+			};
+			const dependency: AssetDefinition = {
+				kind: 'script',
+				source: 'content',
+				content: 'window.lazyTemplate = true;',
+				name: 'lazy-template',
+			};
+			const otherDependency: AssetDefinition = {
+				kind: 'script',
+				source: 'content',
+				content: 'window.otherTemplate = true;',
+				name: 'other-template',
+			};
+			const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+			Page.resolveDependencies = async () => ({ components: [lazyComponent] });
+			const routeFile = '/app/pages/products/[slug].tsx';
+			const appConfig = {
+				...testAppConfig,
+				integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
+			} as EcoPagesAppConfig;
+			const renderer = new TestIntegrationRenderer({
+				appConfig,
+				assetProcessingService: testAssetService,
+				hooks: {
+					collectAppBrowserClientBuildEntries: async (plan) =>
+						plan.sourceComponents.includes(otherComponent)
+							? [{ dependency: otherDependency }]
+							: plan.sourceComponents.includes(lazyComponent)
+								? [{ dependency }]
+								: [],
+				},
+			});
+			renderer.PageModule = { default: Page };
+			renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+			const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([
+				{ routeFile, skipStaticProps: true, isRouteTemplate: true },
+			]);
+			const instance = groupedBuildPlan.instances[0];
+			if (!instance) throw new Error('Expected a dynamic route template plan');
+			instance.prebuiltPageClientBrowserAssets = {
+				processedAssets: [{ kind: 'script', srcUrl: '/assets/template-client.js' } as ProcessedAsset],
+				fallbackDependencies: [],
+			};
+			await renderer.prebuildProductionPageBrowserGraph(routeFile, {
+				skipStaticProps: true,
+				isRouteTemplate: true,
+				groupedBuildPlan,
+			});
+			const changedPlan = collectPageClientPlan([{ component: otherComponent }], 'test-renderer');
+
+			await expect(
+				renderer.buildPageClientBrowserAssets(changedPlan, {
+					file: routeFile,
+					params: { slug: 'new-product' },
+				}),
+			).rejects.toThrow(
+				'The production Page Browser Graph for /app/pages/products/[slug].tsx is missing from the manifest (entry slug=new-product). Run `ecopages build` again.',
+			);
+		} finally {
+			runtime.productionBrowserGraphsSealed = false;
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it('keeps metadata active for route plans that only skip static props', async () => {

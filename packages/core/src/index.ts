@@ -16,6 +16,8 @@ export {
 	redirect,
 	type GroupHandler,
 } from './adapters/shared/http/define-api-handler.ts';
+export { createViewReference } from './build/server/view-reference.ts';
+export { VIEW_REFERENCE, isViewReference } from './types/view-reference.ts';
 export { attributeMdxComponentIdentity } from './plugins/eco-component-meta-plugin.ts';
 export {
 	bindComponentIdentity,

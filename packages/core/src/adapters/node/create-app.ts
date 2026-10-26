@@ -14,7 +14,6 @@ import type {
 	RouteSchema,
 	RouteHandlerContext,
 	StaticRoute,
-	ViewLoader,
 	ErrorPageLoaders,
 	ErrorPageTemplateProps,
 	EcopagesRouteInfo,
@@ -37,7 +36,7 @@ import { NodeRuntimeHost, type RuntimeHost } from './runtime-host.ts';
 import { NodeServerAdapter, type NodeServerAdapterParams, type NodeServerInstance } from './server-adapter.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
-import { createViewModuleLoader } from '../../build/server/view-module-loader.ts';
+import { resolveStaticView, type StaticViewInput } from '../../build/server/resolve-static-view.ts';
 import { invariant } from '../../utils/invariant.ts';
 
 export interface AppStartInfo {
@@ -302,68 +301,60 @@ export class EcopagesApp implements AsyncDisposable {
 	 * Register a view for static generation at build time.
 	 * The view must have staticPaths defined for dynamic routes.
 	 *
-	 * String and URL inputs load through the server-module transpiler so HMR and
-	 * component identity transforms remain active in development.
-	 *
 	 * @param path - URL path pattern (e.g., '/posts/:slug')
-	 * @param loader - A view loader function, source path, or URL for the eco.page view module
+	 * @param view - An imported view, an `eco.page` component, or a view loader
 	 * @example
 	 * ```typescript
-	 * app.static('/login', './src/views/login.kita')
-	 * app.static('/posts/:slug', './src/views/post-view.kita')
+	 * import LoginView from './src/views/login.kita';
+	 * import PostView from './src/views/post-view.kita';
+	 *
+	 * app.static('/login', LoginView)
+	 * app.static('/posts/:slug', PostView)
 	 * ```
 	 */
-	static<P>(path: string, loader: ViewLoader<P> | string | URL): this {
-		const resolvedLoader = this.resolveViewLoader(loader);
-		this.staticRoutes.push({ path, loader: resolvedLoader });
+	static<P>(path: string, view: StaticViewInput<P>): this {
+		this.staticRoutes.push({ path, loader: resolveStaticView(this.appConfig, view) });
 		return this;
-	}
-
-	private resolveViewLoader<P>(loader: ViewLoader<P> | string | URL): ViewLoader<P> {
-		return typeof loader === 'string' || loader instanceof URL
-			? createViewModuleLoader<P>(this.appConfig, loader)
-			: loader;
 	}
 
 	/**
 	 * Registers a semantic HTML error page used when no filesystem `pages/{status}.*`
 	 * file exists.
 	 */
-	errorPage(status: HttpErrorPageStatus, loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+	errorPage(status: HttpErrorPageStatus, view: StaticViewInput<ErrorPageTemplateProps>): this {
 		const kind = ERROR_PAGE_KIND_BY_STATUS[status];
-		const resolvedLoader = this.resolveViewLoader<ErrorPageTemplateProps>(loader);
-		this.errorPageLoaders = { ...this.errorPageLoaders, [kind]: resolvedLoader };
+		this.errorPageLoaders = { ...this.errorPageLoaders, [kind]: resolveStaticView(this.appConfig, view) };
 		return this;
 	}
 
-	badRequest(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
-		return this.errorPage(400, loader);
+	badRequest(view: StaticViewInput<ErrorPageTemplateProps>): this {
+		return this.errorPage(400, view);
 	}
 
-	unauthorized(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
-		return this.errorPage(401, loader);
+	unauthorized(view: StaticViewInput<ErrorPageTemplateProps>): this {
+		return this.errorPage(401, view);
 	}
 
-	forbidden(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
-		return this.errorPage(403, loader);
+	forbidden(view: StaticViewInput<ErrorPageTemplateProps>): this {
+		return this.errorPage(403, view);
 	}
 
 	/**
 	 * Registers the not-found page used when no filesystem `pages/404.*` file exists.
 	 */
-	notFound(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
-		return this.errorPage(404, loader);
+	notFound(view: StaticViewInput<ErrorPageTemplateProps>): this {
+		return this.errorPage(404, view);
 	}
 
-	conflict(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
-		return this.errorPage(409, loader);
+	conflict(view: StaticViewInput<ErrorPageTemplateProps>): this {
+		return this.errorPage(409, view);
 	}
 
 	/**
 	 * Registers the server-error page used when no filesystem `pages/500.*` file exists.
 	 */
-	serverError(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
-		return this.errorPage(500, loader);
+	serverError(view: StaticViewInput<ErrorPageTemplateProps>): this {
+		return this.errorPage(500, view);
 	}
 
 	getErrorPageLoaders(): ErrorPageLoaders {

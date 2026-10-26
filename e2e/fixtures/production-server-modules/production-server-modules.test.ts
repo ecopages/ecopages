@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '@ecopages/core/create-app';
 import { loadEcoPagesConfig } from '@ecopages/core/config';
+import { createViewReference } from '@ecopages/core/view-reference';
 import { BuildQueue } from '../../../packages/core/src/build/runtime/build-queue.ts';
 import type { BuildAdapter } from '../../../packages/core/src/build/build-adapter.ts';
 import { SERVER_MODULES_MANIFEST_FILENAME } from '../../../packages/core/src/build/server/server-modules-manifest.ts';
@@ -80,11 +81,11 @@ function throwingServerBuildAdapter(original: BuildAdapter): BuildAdapter {
 	};
 }
 
-function registerStaticViews(app: Awaited<ReturnType<typeof createApp>>): void {
-	app.static('/kita-view', './src/views/kita-view.kita');
-	app.static('/react-view', './src/views/react-view.react');
-	app.static('/lit-view', './src/views/lit-view.lit');
-	app.static('/jsx-view', './src/views/jsx-view.eco');
+function registerStaticViews(app: Awaited<ReturnType<typeof createApp>>, appDir: string): void {
+	app.static('/kita-view', createViewReference(path.join(appDir, 'src/views/kita-view.kita.tsx'), 'kitajs'));
+	app.static('/react-view', createViewReference(path.join(appDir, 'src/views/react-view.react.tsx'), 'react'));
+	app.static('/lit-view', createViewReference(path.join(appDir, 'src/views/lit-view.lit.tsx'), 'lit'));
+	app.static('/jsx-view', createViewReference(path.join(appDir, 'src/views/jsx-view.eco.tsx'), 'ecopages-jsx'));
 }
 
 function runCliBuild(appDir: string): ReturnType<typeof spawnSync> {
@@ -122,7 +123,7 @@ describe('production server modules', () => {
 
 		const appConfig = await loadEcoPagesConfig({ configFile: path.join(appDir, 'eco.config.ts') });
 		const app = await createApp({ appConfig });
-		registerStaticViews(app);
+		registerStaticViews(app, appDir);
 
 		const runtime = requireAppRuntime(appConfig);
 		const throwing = throwingServerBuildAdapter(runtime.buildAdapter);
@@ -201,7 +202,7 @@ export default eco.page({
 
 			const appConfig = await loadEcoPagesConfig({ configFile: path.join(appDir, 'eco.config.ts') });
 			const app = await createApp({ appConfig });
-			registerStaticViews(app);
+			registerStaticViews(app, appDir);
 
 			const throwing = throwingServerBuildAdapter(requireAppRuntime(appConfig).buildAdapter);
 			const runtime = requireAppRuntime(appConfig);

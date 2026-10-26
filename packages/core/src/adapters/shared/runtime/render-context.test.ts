@@ -67,33 +67,7 @@ describe('createRenderContext', () => {
 		expect(events).toEqual(['setup -integration', 'renderer']);
 	});
 
-	it('should delegate importServerModule to the active render-context loader', async () => {
-		const ImportServerModule = vi.fn(async (filePath: string) => ({ filePath }));
-		const delegatedContext = createRenderContext({
-			integrations: [Plugin, ExplicitPlugin],
-			importServerModule: ImportServerModule,
-		});
-
-		const result = await delegatedContext.importServerModule('/tmp/view.kita.tsx');
-
-		expect(ImportServerModule).toHaveBeenCalledWith('/tmp/view.kita.tsx');
-		expect(result).toEqual({ filePath: '/tmp/view.kita.tsx' });
-	});
-
-	it('should accept file URLs for importServerModule', async () => {
-		const ImportServerModule = vi.fn(async (filePath: string) => ({ filePath }));
-		const delegatedContext = createRenderContext({
-			integrations: [Plugin, ExplicitPlugin],
-			importServerModule: ImportServerModule,
-		});
-
-		const result = await delegatedContext.importServerModule(new URL('file:///tmp/view.kita.tsx'));
-
-		expect(ImportServerModule).toHaveBeenCalledWith('/tmp/view.kita.tsx');
-		expect(result).toEqual({ filePath: '/tmp/view.kita.tsx' });
-	});
-
-	it('should import and render a default-exported server view in one call', async () => {
+	it('loads an imported view through the server-module loader before rendering', async () => {
 		RenderToResponse.mockClear();
 		const importedView = (() => '<div></div>') as EcoFunctionComponent<{ slug: string }, string>;
 		importedView.config = {
@@ -109,11 +83,16 @@ describe('createRenderContext', () => {
 			integrations: [Plugin, ExplicitPlugin],
 			importServerModule: ImportServerModule,
 		});
+		const { createViewReference } = await import('../../../build/server/view-reference.ts');
+		const view = createViewReference('/tmp/view.kita.tsx', '-integration');
 
-		await delegatedContext.renderServerModule('/tmp/view.kita.tsx', { slug: 'release' });
+		await delegatedContext.render(view, { slug: 'release' });
+		await delegatedContext.renderPartial(view, { slug: 'release' });
 
-		expect(ImportServerModule).toHaveBeenCalledWith('/tmp/view.kita.tsx');
-		expect(RenderToResponse).toHaveBeenCalledWith(
+		expect(ImportServerModule).toHaveBeenCalledTimes(2);
+		expect(ImportServerModule).toHaveBeenCalledWith(view.filePath);
+		expect(RenderToResponse).toHaveBeenNthCalledWith(
+			1,
 			importedView,
 			{ slug: 'release' },
 			{
@@ -122,33 +101,12 @@ describe('createRenderContext', () => {
 				headers: undefined,
 			},
 		);
-	});
-
-	it('should accept file URLs for renderServerModule', async () => {
-		RenderToResponse.mockClear();
-		const importedView = (() => '<div></div>') as EcoFunctionComponent<{ slug: string }, string>;
-		importedView.config = {
-			identity: {
-				id: 'imported-view-url',
-				file: '/tmp/imported-view-url.kita.tsx',
-				integration: '-integration',
-			},
-		};
-
-		const ImportServerModule = vi.fn(async (_filePath: string) => ({ default: importedView }));
-		const delegatedContext = createRenderContext({
-			integrations: [Plugin, ExplicitPlugin],
-			importServerModule: ImportServerModule,
-		});
-
-		await delegatedContext.renderServerModule(new URL('file:///tmp/view.kita.tsx'), { slug: 'release' });
-
-		expect(ImportServerModule).toHaveBeenCalledWith('/tmp/view.kita.tsx');
-		expect(RenderToResponse).toHaveBeenCalledWith(
+		expect(RenderToResponse).toHaveBeenNthCalledWith(
+			2,
 			importedView,
 			{ slug: 'release' },
 			{
-				partial: false,
+				partial: true,
 				status: undefined,
 				headers: undefined,
 			},

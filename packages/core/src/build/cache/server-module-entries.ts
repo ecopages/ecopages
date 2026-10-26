@@ -5,6 +5,7 @@ import { isEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { EcoComponent, ErrorPageLoaders, StaticRoute, ViewLoader } from '../../types/contracts.ts';
+import { getImportedViewPaths } from '../server/imported-view-plugin.ts';
 
 export type ServerModuleEntryRouteSource = {
 	templateRoutes: readonly { filePath: string }[];
@@ -54,7 +55,8 @@ async function collectLayoutFiles(appConfig: EcoPagesAppConfig, entries: Set<str
  * @remarks
  * Processor `listProductionServerModuleEntries()` files, such as generated content
  * collection modules, join the same map so production start can import them without
- * calling Processor `setup()`.
+ * calling Processor `setup()`. Views imported into the server entry (`ctx.render`,
+ * `ctx.renderPartial`) are recorded by the imported-view plugin during that bundle.
  */
 export async function collectServerModuleEntries(options: {
 	appConfig: EcoPagesAppConfig;
@@ -78,6 +80,10 @@ export async function collectServerModuleEntries(options: {
 
 	for (const loader of Object.values(options.errorPageLoaders ?? {})) {
 		addViewLoader(entries, loader);
+	}
+
+	for (const filePath of getImportedViewPaths(appConfig)) {
+		addExistingPath(entries, filePath);
 	}
 
 	for (const processor of appConfig.processors.values()) {

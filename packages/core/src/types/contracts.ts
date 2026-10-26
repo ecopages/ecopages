@@ -1,5 +1,6 @@
 import type { Readable } from 'node:stream';
 import type { ComponentIdentity } from './component-identity.ts';
+import type { ViewReference } from './view-reference.ts';
 import type { ApiResponseBuilder } from './api-response.ts';
 import type { AssetDefinition, ProcessedAsset } from './asset-types.ts';
 import type { CacheStats, CacheStrategy } from './cache-types.ts';
@@ -1191,45 +1192,27 @@ export interface RenderOptions {
  */
 export interface RenderContext {
 	/**
-	 * Import a server-executed module through the active Ecopages module loader.
+	 * Render an eco.page view with full layout and includes.
 	 *
-	 * This applies the runtime's cache-busting and source-transpilation rules so
-	 * request-time lazy imports participate in development invalidation.
-	 *
-	 * @param filePath - Absolute filesystem path or file URL for the server module
+	 * @remarks
+	 * Pass an imported view. Core resolves Integration-owned imports at render
+	 * time so a save reloads in development and production reads the built module.
 	 */
-	importServerModule<T = unknown>(filePath: string | URL): Promise<T>;
-
-	/**
-	 * Import a server module through the active Ecopages module loader and render
-	 * its default-exported eco.page view.
-	 *
-	 * @param filePath - Absolute filesystem path or file URL for the server module
-	 * @param props - Props to pass to the default-exported view
-	 * @param options - Optional status code and headers
-	 */
-	renderServerModule<P = Record<string, unknown>>(
-		filePath: string | URL,
+	render<P = Record<string, unknown>>(
+		view: EcoComponent<P> | ViewReference<P>,
 		props?: P,
 		options?: RenderOptions,
 	): Promise<Response>;
 
 	/**
-	 * Render an eco.page view with full layout and includes.
-	 * @param view - The eco.page component to render
-	 * @param props - Props to pass to the view
-	 * @param options - Optional status code and headers
-	 */
-	render<P = Record<string, unknown>>(view: EcoComponent<P>, props?: P, options?: RenderOptions): Promise<Response>;
-
-	/**
 	 * Render an eco.page view without layout (for partials/fragments).
-	 * @param view - The eco.page component to render
-	 * @param props - Props to pass to the view
-	 * @param options - Optional status code and headers
+	 *
+	 * @remarks
+	 * Pass an imported view. Core resolves Integration-owned imports at render
+	 * time so a save reloads in development and production reads the built module.
 	 */
 	renderPartial<P = Record<string, unknown>>(
-		view: EcoComponent<P>,
+		view: EcoComponent<P> | ViewReference<P>,
 		props: P,
 		options?: RenderOptions,
 	): Promise<Response>;
@@ -1416,7 +1399,7 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
  */
 export interface FileRouteMiddlewareContext<TRequest extends Request = Request, TServer = any> extends Omit<
 	ApiHandlerContext<TRequest, TServer>,
-	'render' | 'renderPartial' | 'importServerModule' | 'renderServerModule' | 'query'
+	'render' | 'renderPartial' | 'query'
 > {}
 
 /**
@@ -1721,10 +1704,10 @@ export type RouteGroupBuilder<
  * Used by `app.static()` and the HTML error-page helpers (`app.notFound()`,
  * `app.forbidden()`, `app.serverError()`, `app.errorPage()`, …). Production emit
  * reads `filePath` so the view joins `dist/.server/`. Development compiles from
- * source so HMR can reload it.
+ * source so an edit reloads it.
  */
 export type ViewLoader<P = any> = (() => Promise<{ default: EcoPageComponent<P> }>) & {
-	/** Absolute source path when the loader was created from a string or URL. */
+	/** Absolute source path of the imported view. */
 	filePath?: string;
 };
 

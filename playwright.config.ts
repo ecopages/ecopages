@@ -129,6 +129,31 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 			appOptions: { source: 'e2e/fixtures/react-lazy-first-load' },
 		},
 	},
+	{
+		name: 'imported-views-dev-e2e',
+		testMatch: 'e2e/fixtures/imported-views/**/*.test.e2e.ts',
+		timeout: 90_000,
+		use: {
+			...chrome,
+			appOptions: {
+				source: 'e2e/fixtures/imported-views',
+				env: { ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS: '0' },
+			},
+		},
+	},
+	{
+		name: 'imported-views-bun-parity-e2e',
+		testMatch: 'e2e/fixtures/imported-views/**/*.test.e2e.ts',
+		timeout: 90_000,
+		use: {
+			...chrome,
+			appOptions: {
+				source: 'e2e/fixtures/imported-views',
+				runtime: 'bun',
+				env: { ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS: '0' },
+			},
+		},
+	},
 ];
 
 type ProjectWebServer = {

@@ -7,7 +7,9 @@ Server-side source loading for framework-owned page modules, includes, and relat
 ## Import stack
 
 ```
-Call site (route scan, renderer, SSG, API)
+Call site (route scan, renderer, SSG, API, ctx.render)
+  ├─ Server-entry Integration import → View Reference (CLI preload / imported-view-plugin)
+  │    then AppModuleLoader.importModule() at render time
   └─ AppModuleLoader.importModule()          app-module-loader.service.ts
        ├─ uses the app root and BuildQueue
        └─ PageModuleImportService.importModule()
@@ -36,16 +38,19 @@ The content processor owns compiled collection server modules and their cache. O
 
 ## Files
 
-| File                                   | Role                                                             |
-| -------------------------------------- | ---------------------------------------------------------------- |
-| `page-module-import.service.ts`        | Core import/cache/build orchestration                            |
-| `route-module-build-manifest.ts`       | Content-derived reuse identity and in-process cache shape        |
-| `route-module-build-cache.store.ts`    | In-process route-module transpile cache store                    |
-| `route-module-build-cache-registry.ts` | Shared cache instance registry per `(appConfig, outdir)` pair    |
-| `route-module-dependency-hasher.ts`    | Dependency graph source file hashing and staleness validation    |
-| `app-module-loader.service.ts`         | App-scoped server module loader                                  |
-| `view-module-loader.ts`                | Normalizes string/URL view registrations into app-module loaders |
-| `server-modules-manifest.ts`           | Production map at `dist/.server/server-modules.json`             |
+| File                                   | Role                                                            |
+| -------------------------------------- | --------------------------------------------------------------- |
+| `page-module-import.service.ts`        | Core import/cache/build orchestration                           |
+| `route-module-build-manifest.ts`       | Content-derived reuse identity and in-process cache shape       |
+| `route-module-build-cache.store.ts`    | In-process route-module transpile cache store                   |
+| `route-module-build-cache-registry.ts` | Shared cache instance registry per `(appConfig, outdir)` pair   |
+| `route-module-dependency-hasher.ts`    | Dependency graph source file hashing and staleness validation   |
+| `app-module-loader.service.ts`         | App-scoped server module loader                                 |
+| `view-reference.ts`                    | One view reference per Integration-owned import                 |
+| `imported-view-plugin.ts`              | Server-entry plugin that emits view references instead of views |
+| `import-view-module.ts`                | Loads a view through the app module loader                      |
+| `resolve-static-view.ts`               | Turns an imported view into the loader `app.static` stores      |
+| `server-modules-manifest.ts`           | Production map at `dist/.server/server-modules.json`            |
 
 ## Development invalidation
 

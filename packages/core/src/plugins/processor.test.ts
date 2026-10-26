@@ -59,6 +59,12 @@ describe('Processor', () => {
 			paths: ['/test'],
 		});
 	});
+
+	test('setContext does not create the cache directory', () => {
+		const cacheDir = path.join(testRoots[0]!, '.eco', 'cache', 'test-processor');
+		expect(fs.existsSync(cacheDir)).toBe(false);
+		expect(processor.listProductionServerModuleEntries()).toEqual([]);
+	});
 });
 
 describe('Processor capability matching', () => {

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { shouldBuildPagesUnifiedGraph } from '@ecopages/core/build';
 import type { EcoBuildPlugin } from '@ecopages/core/processor';
 import {
 	CONTENT_COMPONENT_VIRTUAL_MODULE_PATTERN,
@@ -101,12 +102,13 @@ function createContentResolvePlugin(
 				const resolveServerBackedModule = async (args: { path: string }) => {
 					await ensureCollectionsGenerated?.();
 					const parsed = parseCollectionSpecifier(args.path);
-					if (parsed) {
+					const inlineInUnifiedGraph = shouldBuildPagesUnifiedGraph();
+					if (parsed && !inlineInUnifiedGraph) {
 						await ensureCollectionServerArtifact?.(parsed.collectionName);
 					}
 
 					const compiledPath = parsed ? collectionServerCompiledModules?.[parsed.collectionName] : undefined;
-					if (compiledPath && options.externalizeCompiledServerModules) {
+					if (compiledPath && options.externalizeCompiledServerModules && !inlineInUnifiedGraph) {
 						return { path: compiledPath, external: true };
 					}
 
@@ -138,10 +140,11 @@ function createContentResolvePlugin(
  * Creates the server graph resolver for collection virtual modules.
  *
  * @remarks
- * Compiled `/server` and `/component` modules are externalized so Node can load the collection
- * artifact directly; both specifiers share one module instance and one component cache. Every
- * resolve waits for `ensureCollectionsGenerated`, so a build that runs before the Processor's
- * `setup()` still finds the generated modules. The Page Browser Graph uses
+ * Compiled `/server` and `/component` modules are externalized in development so Node can load
+ * the collection artifact directly; both specifiers share one module instance and one component
+ * cache. Production emit inlines those generated files in the unified graph and writes them to
+ * `dist/.server/`. Every resolve waits for `ensureCollectionsGenerated`, so a build that runs
+ * before the Processor's `setup()` still finds the generated modules. The Page Browser Graph uses
  * `createContentPluginBundler`, where the content boundary rejects `/server` and `/component`
  * resolves to the browser-safe loader.
  */

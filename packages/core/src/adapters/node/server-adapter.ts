@@ -27,6 +27,7 @@ import { DevSession } from './dev-session.ts';
 import { prebuildProductionPageBrowserGraphsFromManifest } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
 import { shouldBuildPagesUnifiedGraph } from '../../build/cache/pages-unified-graph-build.ts';
 import { requireProductionServerModules } from '../../build/server/server-modules-manifest.ts';
+import { isProductionRuntime } from '../../env.ts';
 
 export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
@@ -51,10 +52,11 @@ export interface NodeServerAdapterParams {
 	 * When Processors and Integrations set up.
 	 *
 	 * @remarks
-	 * `start` sets Processors up before routes are read and activates Integrations before a network server handles
-	 * requests. Request-only `app.fetch()` activates only the Integrations used by that request. `export` empties
-	 * `dist/` first and prepares the export runtime; `none` leaves runtime assets alone for a preview that serves an
-	 * earlier export.
+	 * `start` sets Processors up before routes are read, except production `ecopages start` with the unified
+	 * graph, which restores from `dist/.server/` and does not call Processor `setup()`. It activates Integrations
+	 * before a network server handles requests. Request-only `app.fetch()` activates only the Integrations used by
+	 * that request. `export` empties `dist/` first and prepares the export runtime; `none` leaves runtime assets
+	 * alone for a preview that serves an earlier export.
 	 */
 	runtimeAssetSetup?: 'start' | 'export' | 'none';
 	allowPortFallback?: boolean;
@@ -192,8 +194,13 @@ export class NodeServerAdapter {
 		if (this.runtimeAssetSetup === 'export') {
 			await this.staticBuilder.prepareExport();
 		} else if (this.runtimeAssetSetup === 'start') {
+			const skipProcessorSetup = isProductionRuntime() && shouldBuildPagesUnifiedGraph();
+			if (skipProcessorSetup) {
+				requireProductionServerModules(this.appConfig);
+			}
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
+				skipProcessorSetup,
 			});
 		}
 		await this.requestPipeline.initializeRouteHandling({

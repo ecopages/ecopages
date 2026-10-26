@@ -50,6 +50,11 @@ async function collectLayoutFiles(appConfig: EcoPagesAppConfig, entries: Set<str
 /**
  * Collects every production server entry except `ssr: true` scripts, which are
  * discovered from compiled modules after the first graph emit.
+ *
+ * @remarks
+ * Processor `listProductionServerModuleEntries()` files, such as generated content
+ * collection modules, join the same map so production start can import them without
+ * calling Processor `setup()`.
  */
 export async function collectServerModuleEntries(options: {
 	appConfig: EcoPagesAppConfig;
@@ -73,6 +78,12 @@ export async function collectServerModuleEntries(options: {
 
 	for (const loader of Object.values(options.errorPageLoaders ?? {})) {
 		addViewLoader(entries, loader);
+	}
+
+	for (const processor of appConfig.processors.values()) {
+		for (const entryPath of processor.listProductionServerModuleEntries?.() ?? []) {
+			addExistingPath(entries, entryPath);
+		}
 	}
 
 	return [...entries];

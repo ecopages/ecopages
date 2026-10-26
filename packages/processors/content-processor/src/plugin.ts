@@ -6,6 +6,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
+import { loadProductionServerModules, missingProductionServerModuleError } from '@ecopages/core/build';
 import { requireAppRuntime } from '@ecopages/core/integration';
 import {
 	mergeProcessorOptions,
@@ -142,6 +143,63 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			},
 			...this.browserPlugins,
 		];
+	}
+
+	override listProductionServerModuleEntries(): string[] {
+		return [...Object.values(this.collectionModules), ...Object.values(this.collectionServerModules)];
+	}
+
+	/**
+	 * Points collection virtual modules at the files `ecopages build` emitted.
+	 *
+	 * @remarks
+	 * Production `ecopages start` skips `setup()`, so this must not scan sources or write under `.eco/`.
+	 */
+	override async restoreProductionRuntime(): Promise<void> {
+		if (!this.context?.cache) {
+			return;
+		}
+
+		const manifest = loadProductionServerModules(this.context.config);
+		if (!manifest) {
+			return;
+		}
+
+		this.initializeWatchPaths();
+
+		for (const collectionName of Object.keys(this.getCollectionsConfig())) {
+			const entriesSource = getCollectionCachePath(this.context.cache, collectionName);
+			const serverSource = getCollectionServerCachePath(this.context.cache, collectionName);
+			const entriesKey = this.toSourceKey(entriesSource);
+			const serverKey = this.toSourceKey(serverSource);
+			const entriesOutput = this.resolveEmittedModule(manifest, entriesKey);
+			const serverOutput = this.resolveEmittedModule(manifest, serverKey);
+			if (!entriesOutput || !serverOutput) {
+				throw missingProductionServerModuleError(entriesOutput ? serverKey : entriesKey);
+			}
+
+			this.collectionModules[collectionName] = entriesOutput;
+			this.collectionServerModules[collectionName] = serverOutput;
+			this.collectionServerCompiledModules[collectionName] = serverOutput;
+		}
+
+		this.collectionsGeneration = Promise.resolve();
+	}
+
+	private toSourceKey(filePath: string): string {
+		if (!this.context) {
+			throw new Error('Content processor requires context to be set');
+		}
+
+		return path.relative(this.context.rootDir, filePath).split(path.sep).join('/');
+	}
+
+	private resolveEmittedModule(
+		manifest: { outdir: string; modules: Record<string, string> },
+		sourceKey: string,
+	): string | undefined {
+		const relativePath = manifest.modules[sourceKey];
+		return relativePath ? path.join(manifest.outdir, relativePath) : undefined;
 	}
 
 	private getCollectionsConfig(): ContentProcessorConfig['collections'] {
@@ -471,9 +529,8 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			return;
 		}
 
-		if (
-			this.collectionServerArtifacts.get(collectionName)?.invalidationVersion !== this.getServerSourceGeneration()
-		) {
+		const artifact = this.collectionServerArtifacts.get(collectionName);
+		if (artifact && artifact.invalidationVersion !== this.getServerSourceGeneration()) {
 			delete this.collectionServerCompiledModules[collectionName];
 		}
 

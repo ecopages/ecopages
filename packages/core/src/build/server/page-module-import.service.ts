@@ -148,7 +148,8 @@ export class PageModuleImportService {
 		if (
 			isProductionRuntime() &&
 			shouldBuildPagesUnifiedGraph() &&
-			!isEcopagesEnvEnabled('ECOPAGES_LIT_STATIC_RENDER_WORKER')
+			!isEcopagesEnvEnabled('ECOPAGES_LIT_STATIC_RENDER_WORKER') &&
+			loadProductionServerModules(this.appConfig)
 		) {
 			return this.importFromProductionManifest<T>(options);
 		}
@@ -161,9 +162,11 @@ export class PageModuleImportService {
 	 * Imports a compiled server module emitted by `ecopages build`.
 	 *
 	 * @remarks
-	 * Production never compiles: a missing map entry or missing file is an error
-	 * that names the source and says to run `ecopages build`. `bypassCache` only
-	 * skips the in-memory import promise, not the manifest.
+	 * Production serving never compiles: a missing map entry or missing file is an
+	 * error that names the source and says to run `ecopages build`. During
+	 * `ecopages build`, before the map exists on disk, listing routes still compiles
+	 * from source. `bypassCache` only skips the in-memory import promise, not the
+	 * manifest.
 	 */
 	private async importFromProductionManifest<T>(options: PageModuleBuildImportOptions): Promise<T> {
 		const sourceKey = toRootRelativePath(this.appConfig.rootDir, options.filePath);

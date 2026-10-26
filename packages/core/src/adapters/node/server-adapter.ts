@@ -25,6 +25,8 @@ import { serveDistFile } from '../shared/http/dist-file-handler.ts';
 import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import { DevSession } from './dev-session.ts';
 import { prebuildProductionPageBrowserGraphsFromManifest } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
+import { shouldBuildPagesUnifiedGraph } from '../../build/cache/pages-unified-graph-build.ts';
+import { requireProductionServerModules } from '../../build/server/server-modules-manifest.ts';
 
 export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
@@ -451,6 +453,9 @@ export class NodeServerAdapter {
 			} else {
 				if (this.runtimeAssetSetup === 'start') {
 					await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
+					if (shouldBuildPagesUnifiedGraph()) {
+						requireProductionServerModules(this.appConfig);
+					}
 					const { routeRendererFactory } = this.requestPipeline.getStaticBuildContext();
 					await prebuildProductionPageBrowserGraphsFromManifest(this.appConfig, routeRendererFactory);
 				}

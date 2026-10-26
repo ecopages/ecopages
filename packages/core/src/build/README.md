@@ -226,7 +226,7 @@ Entries: Page templates including dynamic ones, Layouts, the Html shell, Endpoin
 | Server-modules map       | `dist/.server/server-modules.json` |
 | Deploy manifest (bundle) | `dist/.server/manifest.json`       |
 
-`ServerStaticBuilder` calls `emitProductionServerModules()` after it publishes the server bundle, so publication cannot wipe the modules. A missing map entry or missing file is an error that names the source and says to run `ecopages build`. `bypassCache` only skips the in-memory import promise.
+`ServerStaticBuilder` calls `emitProductionServerModules()` after it publishes the server bundle, so publication cannot wipe the modules. Listing routes during `ecopages build` still compiles from source until `dist/.server/server-modules.json` exists. After that, and on `ecopages start`, a missing map entry or missing file is an error that names the source and says to run `ecopages build`. `bypassCache` only skips the in-memory import promise.
 
 `shouldBuildPagesUnifiedGraph()` is true by default in production. `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0` opts out, which the bench parity suite uses as its per-page build oracle. A production `ecopages start` after a normal build still requires the emitted map.
 

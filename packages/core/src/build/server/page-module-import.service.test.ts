@@ -452,7 +452,6 @@ describe('PageModuleImportService', () => {
 			`${JSON.stringify({ modules: { 'src/pages/page.tsx': 'page.mjs' } })}\n`,
 			'utf8',
 		);
-
 		const loaded = await service.importModule<{ default: { from: string } }>({
 			filePath,
 			rootDir: appRootDir,
@@ -471,9 +470,35 @@ describe('PageModuleImportService', () => {
 		assert.deepEqual(fakeDependencies.calls.hashFile, []);
 	});
 
+	it('compiles a production module from source when the map has not been loaded', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-build-'));
+		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		writeFileSync(compiledOutput, 'export default { from: "compiled" };', 'utf8');
+		const filePath = join(appRootDir, 'src/pages/page.tsx');
+		mkdirSync(join(appRootDir, 'src/pages'), { recursive: true });
+		writeFileSync(filePath, 'export default { from: "source" };', 'utf8');
+		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }, filePath));
+
+		try {
+			const loaded = await service.importModule<{ default: { from: string } }>({
+				filePath,
+				rootDir: appRootDir,
+				outdir: tempDir,
+			});
+			assert.equal(loaded.default.from, 'compiled');
+			assert.equal(fakeDependencies.calls.buildModule.length, 1);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('errors when a production module is missing from the map and does not compile', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const filePath = join(appRootDir, 'src/pages/missing.tsx');
+		const serverOutdir = join(appRootDir, 'dist/.server');
+		mkdirSync(serverOutdir, { recursive: true });
+		writeFileSync(join(serverOutdir, 'server-modules.json'), `${JSON.stringify({ modules: {} })}\n`, 'utf8');
 
 		await assert.rejects(
 			() =>

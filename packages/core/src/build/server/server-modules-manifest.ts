@@ -71,6 +71,17 @@ export function loadProductionServerModules(appConfig: EcoPagesAppConfig): Produ
 }
 
 /**
+ * Loads the production server-modules map or throws if `ecopages build` has not written it.
+ */
+export function requireProductionServerModules(appConfig: EcoPagesAppConfig): ProductionServerModulesManifest {
+	const manifest = loadProductionServerModules(appConfig);
+	if (!manifest) {
+		throw new Error('No production server-modules map. Run `ecopages build`.');
+	}
+	return manifest;
+}
+
+/**
  * Error when production cannot resolve a compiled server module.
  *
  * @remarks

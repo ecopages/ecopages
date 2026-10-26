@@ -16,6 +16,16 @@ type PendingRender = {
 const workerShutdownTimeoutMs = 30_000;
 const workerExitTimeoutMs = 1_000;
 
+/**
+ * @remarks
+ * The package export keeps the worker in `@ecopages/lit` under `node_modules`
+ * after production emit, instead of a sibling of the bundled file in
+ * `dist/.server/`.
+ */
+function resolveLitStaticRenderWorkerUrl(): URL {
+	return new URL(import.meta.resolve('@ecopages/lit/static-render-worker'));
+}
+
 export class LitStaticRenderWorkerClient {
 	private readonly configModulePath: string;
 	private readonly runtimeOrigin: string;
@@ -45,7 +55,7 @@ export class LitStaticRenderWorkerClient {
 		}
 
 		this.readyPromise = new Promise<void>((resolveReady, rejectReady) => {
-			const worker = new Worker(new URL('./lit-static-render-worker.ts', import.meta.url), {
+			const worker = new Worker(resolveLitStaticRenderWorkerUrl(), {
 				execArgv: [...process.execArgv],
 				env: {
 					...process.env,
@@ -220,4 +230,4 @@ export class LitStaticRenderWorkerClient {
 	}
 }
 
-export const litStaticRenderWorkerEntryPath = fileURLToPath(new URL('./lit-static-render-worker.ts', import.meta.url));
+export const litStaticRenderWorkerEntryPath = fileURLToPath(resolveLitStaticRenderWorkerUrl());

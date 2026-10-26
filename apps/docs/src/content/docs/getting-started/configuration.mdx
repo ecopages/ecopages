@@ -110,6 +110,12 @@ Ecopages now discovers the document shell and error pages semantically:
 	change invalidates server modules, notifies processors, and reloads the browser.
 </ApiField>
 
+<ApiField name="serverFiles" type="string[]">
+	Globs, relative to the project root, of files copied into `dist/.server/` at build so production code can read
+	them next to `import.meta`. Two matches that share a basename fail the build. Prefer `public/` for static files
+	the browser should fetch.
+</ApiField>
+
 <ApiField
 	name="robotsTxt"
 	type="{ preferences: RobotsPreference }"

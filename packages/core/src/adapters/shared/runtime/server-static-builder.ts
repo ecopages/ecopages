@@ -13,6 +13,8 @@ import { createImportedViewPlugin } from '../../../build/server/imported-view-pl
 import { createServerBuildRequest } from '../../../build/runtime/build-request-policy.ts';
 import { buildOrThrow } from '../../../build/runtime/build-queue.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
+import { copyDeclaredServerFiles } from '../../../build/copy-server-files.ts';
+import { writeProductionRouteList } from '../../../build/production-route-list.ts';
 import {
 	getServerBundleOutputPaths,
 	writeServerBundleDeployManifest,
@@ -174,9 +176,8 @@ export class ServerStaticBuilder {
 	 * TypeScript packages such as Core. Compiled packages from `node_modules`
 	 * stay external (bare when the app declares them, otherwise relative to
 	 * `dist/.server/`), so native bindings load from the installed tree. The
-	 * entry is written to a staging directory, so the request passes
-	 * `runtimeOutdir` and bundled `import.meta` reads resolve against the
-	 * sources from `dist/.server/`.
+	 * entry is written to a staging directory, then published. Production
+	 * `import.meta` points at the emitted files in `dist/.server/`.
 	 *
 	 * Throws if the build adapter is unavailable or bundling fails.
 	 *
@@ -273,6 +274,9 @@ export class ServerStaticBuilder {
 				errorPageLoaders: dependencies.errorPageLoaders,
 			});
 		}
+
+		writeProductionRouteList(this.appConfig, dependencies.router.templateRoutes);
+		await copyDeclaredServerFiles(this.appConfig);
 
 		for (const route of endpointRoutes) {
 			readEndpointHandlers(await dependencies.importServerModule(route.filePath), route);

@@ -256,6 +256,49 @@ describe('loadEcoPagesConfig', () => {
 		expect(appConfig.rootDir).toBe(tempDir);
 	});
 
+	it('loads an emitted config against the directory that contains dist/ even when cwd differs', async () => {
+		const configDir = path.join(tempDir, 'dist', '.server');
+		const configPath = path.join(configDir, 'eco.config.mjs');
+		const otherCwd = path.join(tempDir, 'elsewhere');
+		fs.mkdirSync(configDir, { recursive: true });
+		fs.mkdirSync(otherCwd, { recursive: true });
+		fs.writeFileSync(configPath, `export default { rootDir: ${JSON.stringify(configDir)} };\n`);
+
+		const appConfig = await loadEcoPagesConfig({ cwd: otherCwd, configFile: configPath });
+		expect(appConfig.rootDir).toBe(tempDir);
+	});
+
+	it('loads an emitted config when distDir is nested and cwd differs', async () => {
+		const configDir = path.join(tempDir, 'build', 'web', '.server');
+		const configPath = path.join(configDir, 'eco.config.mjs');
+		const otherCwd = path.join(tempDir, 'elsewhere');
+		fs.mkdirSync(configDir, { recursive: true });
+		fs.mkdirSync(otherCwd, { recursive: true });
+		fs.writeFileSync(
+			configPath,
+			`export default { rootDir: ${JSON.stringify(configDir)}, distDir: 'build/web' };\n`,
+		);
+
+		const appConfig = await loadEcoPagesConfig({ cwd: otherCwd, configFile: configPath });
+		expect(appConfig.rootDir).toBe(tempDir);
+		expect(appConfig.distDir).toBe('build/web');
+	});
+
+	it('loads an emitted config when distDir is a dotted relative nested path and cwd differs', async () => {
+		const configDir = path.join(tempDir, 'build', 'web', '.server');
+		const configPath = path.join(configDir, 'eco.config.mjs');
+		const otherCwd = path.join(tempDir, 'elsewhere');
+		fs.mkdirSync(configDir, { recursive: true });
+		fs.mkdirSync(otherCwd, { recursive: true });
+		fs.writeFileSync(
+			configPath,
+			`export default { rootDir: ${JSON.stringify(configDir)}, distDir: './build/web' };\n`,
+		);
+
+		const appConfig = await loadEcoPagesConfig({ cwd: otherCwd, configFile: configPath });
+		expect(appConfig.rootDir).toBe(tempDir);
+	});
+
 	it('rejects an invalid rootDir value when provided', async () => {
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		fs.writeFileSync(configPath, 'export default { rootDir: 42 };');

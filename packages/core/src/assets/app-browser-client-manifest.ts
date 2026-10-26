@@ -1,9 +1,9 @@
 import path from 'node:path';
 import { isPathStrictlyInside } from '../utils/path-containment.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { contentHash } from '../utils/content-hash.ts';
 import type { PageParams } from '../types/contracts.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import { ensureProductionBuildId } from '../build/production-build-id.ts';
 import {
 	collectHtmlPageModuleScriptBuildInputs,
 	getPrebuiltHtmlPageModuleScriptUrls,
@@ -49,10 +49,10 @@ export type AppBrowserClientManifestEntry = {
 
 export type AppBrowserClientManifest = {
 	version: 1;
+	buildId?: string;
 	entries: AppBrowserClientManifestEntry[];
 	htmlPageModuleScriptUrls: Record<string, string>;
 	htmlPageModuleScriptFingerprint: string;
-	sourceFingerprints: Record<string, string>;
 	browserOutputPaths: string[];
 };
 
@@ -171,11 +171,11 @@ function isManifest(value: unknown): value is AppBrowserClientManifest {
 	return (
 		isRecord(value) &&
 		value.version === 1 &&
+		isOptionalString(value, 'buildId') &&
 		Array.isArray(value.entries) &&
 		value.entries.every(isManifestEntry) &&
 		isStringRecord(value.htmlPageModuleScriptUrls) &&
 		typeof value.htmlPageModuleScriptFingerprint === 'string' &&
-		isStringRecord(value.sourceFingerprints) &&
 		isStringArray(value.browserOutputPaths)
 	);
 }
@@ -225,42 +225,6 @@ function serializeEntry(
 	};
 }
 
-function addDependencySourceFilepaths(
-	filepaths: Set<string>,
-	dependency: { source?: string; filepath?: string; bundledSourceFilepaths?: string[] },
-): void {
-	if (dependency.source === 'file' && dependency.filepath) filepaths.add(path.resolve(dependency.filepath));
-	for (const filepath of dependency.bundledSourceFilepaths ?? []) filepaths.add(path.resolve(filepath));
-}
-
-function addAssetSourceFilepaths(filepaths: Set<string>, asset: ProcessedAsset): void {
-	if (asset.sourceFilepath) filepaths.add(path.resolve(asset.sourceFilepath));
-	for (const filepath of asset.bundledSourceFilepaths ?? []) filepaths.add(path.resolve(filepath));
-}
-
-function collectInstanceSourceFilepaths(
-	filepaths: Set<string>,
-	instance: GroupedGraphBuildPlan['instances'][number],
-): void {
-	for (const dependency of instance.contribution?.dependencies ?? [])
-		addDependencySourceFilepaths(filepaths, dependency);
-	for (const clientEntry of instance.pageClientBuildEntries ?? []) {
-		addDependencySourceFilepaths(filepaths, clientEntry.dependency);
-	}
-	for (const asset of instance.prebuiltGroupedAssets ?? []) addAssetSourceFilepaths(filepaths, asset);
-	for (const asset of instance.prebuiltPageClientBrowserAssets?.processedAssets ?? []) {
-		addAssetSourceFilepaths(filepaths, asset);
-	}
-}
-
-function collectSourceFilepaths(plans: readonly GroupedGraphBuildPlan[]): Set<string> {
-	const filepaths = new Set<string>();
-	for (const plan of plans) {
-		for (const instance of plan.instances) collectInstanceSourceFilepaths(filepaths, instance);
-	}
-	return filepaths;
-}
-
 function addAssetOutputFilepaths(filepaths: Set<string>, assets: readonly ProcessedAsset[] = []): void {
 	for (const asset of assets) {
 		if (asset.filepath) filepaths.add(path.resolve(asset.filepath));
@@ -298,15 +262,6 @@ function collectOutputFilepaths(
 	}
 	addHtmlScriptOutputFilepaths(filepaths, appConfig.absolutePaths.distDir, htmlPageModuleScriptUrls);
 	return filepaths;
-}
-
-function fingerprintSources(rootDir: string, filepaths: Iterable<string>): Record<string, string> {
-	return Object.fromEntries(
-		[...new Set(filepaths)]
-			.filter((filepath) => fileSystem.exists(filepath))
-			.sort()
-			.map((filepath) => [toProjectPath(rootDir, filepath), contentHash(fileSystem.readFileSync(filepath))]),
-	);
 }
 
 /** Persists the browser outputs built for production routes so `ecopages start` can reuse them. */
@@ -354,19 +309,12 @@ export async function writeAppBrowserClientManifest(
 		]),
 	);
 	const htmlBuildInputs = collectHtmlPageModuleScriptBuildInputs(appConfig);
-	const sourceFilepaths = collectSourceFilepaths(plans);
-	for (const filepath of [...htmlBuildInputs.htmlFiles, ...htmlBuildInputs.files]) {
-		sourceFilepaths.add(path.resolve(filepath));
-	}
-	for (const filepath of browserBuild.sourceFiles) {
-		sourceFilepaths.add(path.resolve(filepath));
-	}
 	const manifest: AppBrowserClientManifest = {
 		version: 1,
+		buildId: ensureProductionBuildId(appConfig),
 		entries,
 		htmlPageModuleScriptUrls,
 		htmlPageModuleScriptFingerprint: htmlBuildInputs.fingerprint,
-		sourceFingerprints: fingerprintSources(appConfig.rootDir, sourceFilepaths),
 		browserOutputPaths: [
 			...collectOutputFilepaths(appConfig, plans, htmlPageModuleScriptUrls, browserBuild.outputPaths),
 		]
@@ -453,21 +401,6 @@ export function restoreAppBrowserClientAssets(
 			),
 		};
 	});
-}
-
-/** Ensures the source files used by the browser build have not changed since export. */
-export function assertAppBrowserClientSourcesMatch(
-	appConfig: EcoPagesAppConfig,
-	sourceFingerprints: Readonly<Record<string, string>>,
-): void {
-	for (const [relativePath, expectedFingerprint] of Object.entries(sourceFingerprints)) {
-		const filepath = path.resolve(appConfig.rootDir, relativePath);
-		if (!fileSystem.exists(filepath) || contentHash(fileSystem.readFileSync(filepath)) !== expectedFingerprint) {
-			throw new Error(
-				`The app browser build manifest is stale because ${relativePath} changed or is missing. Run \`ecopages build\` again.`,
-			);
-		}
-	}
 }
 
 /** Resolves an app-relative file path stored in the build manifest. */

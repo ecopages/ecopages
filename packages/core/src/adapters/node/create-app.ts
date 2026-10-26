@@ -25,7 +25,7 @@ import {
 	type EcopagesRuntimeLabel,
 	resolveProcessRuntimeLabel,
 } from '../../dev/runtime-server-started-message.ts';
-import type { ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
+import { isEcopagesStartCli, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { ECOPAGES_DEV_RESTART_EXIT_CODE, ECOPAGES_DEV_RESTART_REASON_ENV } from '../../dev/development-restart.ts';
 import { getEcopagesEnv } from '../../env.ts';
@@ -483,6 +483,7 @@ export class EcopagesApp implements AsyncDisposable {
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
 			runtimeAssetSetup: this.resolveRuntimeAssetSetup(),
+			requireCompleteDist: isEcopagesStartCli(),
 			allowPortFallback: binding.allowPortFallback,
 			onDevelopmentRestart: this.createDevelopmentRestartHandler(),
 		});

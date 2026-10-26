@@ -1,6 +1,7 @@
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
 import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
+import { hasProductionServerModule } from '../../build/server/server-modules-manifest.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { ErrorPageLoaders, RouteRendererBody, ViewLoader } from '../../types/contracts.ts';
@@ -48,10 +49,12 @@ function resolveRenderTarget(input: ErrorPageRenderInput): { status: number; kin
  * Owns error-page source precedence and rendering for runtime and static paths.
  *
  * @remarks
- * Filesystem semantic pages win over explicitly registered views. A missing
- * custom source is the only case that uses a framework default; rendering
- * failures are intentionally propagated so callers can apply their own retry
- * or fallback policy without hiding the original failure.
+ * Filesystem semantic pages win over explicitly registered views. A recorded
+ * production server-modules entry counts as a filesystem source when the
+ * original file is gone. A missing custom source is the only case that uses a
+ * framework default; rendering failures are intentionally propagated so
+ * callers can apply their own retry or fallback policy without hiding the
+ * original failure.
  */
 export class ErrorPageRenderer {
 	private readonly appConfig: EcoPagesAppConfig;
@@ -105,7 +108,10 @@ export class ErrorPageRenderer {
 
 	private resolveCustomSource(kind: ErrorPageKind): CustomErrorPageSource | undefined {
 		const templatePath = this.getTemplatePath(kind);
-		if (templatePath && fileSystem.exists(templatePath)) {
+		if (
+			templatePath &&
+			(fileSystem.exists(templatePath) || hasProductionServerModule(this.appConfig, templatePath))
+		) {
 			return { kind: 'filesystem', templatePath };
 		}
 

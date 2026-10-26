@@ -213,7 +213,7 @@ describe('build → start contract', () => {
 		assert.equal(resolvedEntry, undefined);
 	});
 
-	it('preserves import.meta.dirname semantics in emitted dist/.server/eco.config.mjs', async () => {
+	it('leaves production import.meta on the emitted config and remaps rootDir to the deploy root', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-import-meta-'));
 		tempDirs.push(rootDir);
@@ -257,8 +257,15 @@ describe('build → start contract', () => {
 		const configObj = importedModule.default;
 		assert.equal(
 			configObj.rootDir,
+			realpathSync(serverOutdir),
+			'production import.meta.dirname is dist/.server, not the source root',
+		);
+
+		const loaded = await loadEcoPagesConfig({ configFile: emittedConfigPath, cwd: rootDir });
+		assert.equal(
+			realpathSync(loaded.rootDir),
 			realpathSync(rootDir),
-			'emitted config rootDir must resolve to source rootDir, not dist/.server',
+			'finalization remaps the emitted config root to the directory that contains dist/',
 		);
 	});
 
@@ -298,10 +305,13 @@ describe('build → start contract', () => {
 		const expectedEmittedConfig = path.join(rootDir, 'dist', '.server', EMITTED_ECO_CONFIG_FILENAME);
 		const emittedConfigSource = readFileSync(expectedEmittedConfig, 'utf8');
 
-		writeFileSync(configPath, `${configSource}\nexport const changedAfterBuild = true;\n`, 'utf8');
 		assert.throws(() => {
-			assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist', isExplicitOverride: true });
+			assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist' });
 		}, /Ecopages config mismatch/);
+		writeFileSync(configPath, `${configSource}\nexport const changedAfterBuild = true;\n`, 'utf8');
+		assert.doesNotThrow(() => {
+			assertProductionConfigIdentity(rootDir, expectedEmittedConfig, { distDir: 'dist' });
+		});
 		writeFileSync(configPath, configSource, 'utf8');
 
 		writeFileSync(expectedEmittedConfig, `${emittedConfigSource}\nexport const tampered = true;\n`, 'utf8');
@@ -326,7 +336,6 @@ describe('build → start contract', () => {
 		assert.throws(() => {
 			assertProductionConfigIdentity(rootDir, path.join(rootDir, 'other.config.ts'), {
 				distDir: 'dist',
-				isExplicitOverride: true,
 			});
 		}, /Ecopages config mismatch/);
 	});

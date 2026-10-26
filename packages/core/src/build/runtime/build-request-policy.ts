@@ -7,6 +7,7 @@ import { createAliasResolverPlugin } from '../../plugins/alias-resolver-plugin.t
 import { resolveBuildEnvironmentOptions } from './build-environment-options.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
 import { createEcoComponentMetaPlugin } from '../../plugins/eco-component-meta-plugin.ts';
+import { isProductionRuntime } from '../../env.ts';
 import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transform.ts';
 
 /**
@@ -110,14 +111,15 @@ export type BrowserBuildRequestInput = Partial<BuildOptions> & {
  * themselves. Plugins follow {@link resolveBuildPluginOrder}, so server module loading shares browser
  * attribution. Every server request
  * also gets {@link createPreserveImportMetaPlugin} for `runtimeOutdir` (or
- * `outdir`), so bundled modules, Core included, keep reading files relative to
- * their sources from `dist/.server/` and `.eco/.server-modules/`.
+ * `outdir`) in development, so compiled modules in `.eco/.server-modules/`
+ * keep reading files next to their sources. Production emit leaves
+ * `import.meta` pointing at the files in `dist/.server/`.
  */
 export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: ServerBuildRequestInput): BuildOptions {
 	const importMetaDir = input.runtimeOutdir ?? input.outdir;
 	const plugins = resolveBuildPluginOrder(appConfig, 'server', {
 		callerPlugins: input.plugins,
-		coreTransforms: importMetaDir ? [createPreserveImportMetaPlugin(importMetaDir)] : [],
+		coreTransforms: importMetaDir && !isProductionRuntime() ? [createPreserveImportMetaPlugin(importMetaDir)] : [],
 	});
 	const { plugins: _callerPlugins, ...overrides } = input;
 

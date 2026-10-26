@@ -8,6 +8,7 @@ import { ServerRouteHandler } from '../../adapters/shared/runtime/server-route-h
 import type { FileSystemResponseMatcher } from '../../adapters/shared/http/fs-server-response-matcher.ts';
 import type { EndpointRouteHandler } from '../../adapters/shared/http/endpoint-route-handler.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.js';
+import { writeProductionRouteList } from '../../build/production-route-list.ts';
 import { RouteRegistry, type RouteRegistryPageModuleAdapter, type TemplateRoute } from './route-registry.ts';
 
 const {
@@ -680,5 +681,73 @@ describe('RouteRegistry', () => {
 				path.join(pagesDir, 'blog/[slug].ts'),
 			]);
 		});
+	});
+
+	test('loads production filesystem routes from dist/.server/routes.json', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-list-'));
+		try {
+			const pagesDir = path.join(rootDir, 'src/pages');
+			const distDir = path.join(rootDir, 'dist');
+			await fs.mkdir(pagesDir, { recursive: true });
+			await fs.writeFile(path.join(pagesDir, 'orphan.tsx'), 'export default {};\n');
+			const productionConfig = {
+				rootDir,
+				distDir: 'dist',
+				absolutePaths: { distDir },
+			} as unknown as EcoPagesAppConfig;
+			writeProductionRouteList(productionConfig, [
+				{
+					pathname: '/from-list',
+					kind: 'exact',
+					role: 'page',
+					filePath: path.join(pagesDir, 'from-list.tsx'),
+					paramNames: [],
+				},
+			]);
+
+			const registry = createRegistry({ pagesDir, appConfig: productionConfig });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.pathname)).toEqual(['/from-list']);
+		} finally {
+			vi.unstubAllEnvs();
+			await fs.rm(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	test('scans the pages directory in development even when dist/.server/routes.json exists', async () => {
+		const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-scan-'));
+		try {
+			const pagesDir = path.join(rootDir, 'src/pages');
+			const distDir = path.join(rootDir, 'dist');
+			await fs.mkdir(pagesDir, { recursive: true });
+			await fs.writeFile(path.join(pagesDir, 'orphan.ts'), 'export default {};\n');
+			const developmentConfig = {
+				rootDir,
+				distDir: 'dist',
+				absolutePaths: { distDir },
+			} as unknown as EcoPagesAppConfig;
+			writeProductionRouteList(developmentConfig, [
+				{
+					pathname: '/from-list',
+					kind: 'exact',
+					role: 'page',
+					filePath: path.join(pagesDir, 'from-list.ts'),
+					paramNames: [],
+				},
+			]);
+
+			const registry = createRegistry({
+				pagesDir,
+				templatesExt: ['.ts'],
+				appConfig: developmentConfig,
+			});
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.pathname)).toEqual(['/orphan']);
+		} finally {
+			await fs.rm(rootDir, { recursive: true, force: true });
+		}
 	});
 });

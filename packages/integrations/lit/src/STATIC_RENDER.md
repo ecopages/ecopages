@@ -65,11 +65,11 @@ When `RouteRendererOptions.locals` or `RouteRendererOptions.props` is present, t
 
 ## Protocol
 
-| Message             | Direction     | Purpose                                                                                                                                                 |
-| ------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init`              | main → worker | Load `eco.config.ts`, bootstrap runtime (`configModulePath`, `runtimeOrigin`)                                                                           |
-| `ready`             | worker → main | Worker initialized                                                                                                                                      |
-| `render`            | main → worker | Render one Lit page route (`filePath`, `PageParams`, optional `PageQuery`)                                                                              |
-| `result` / `error`  | worker → main | HTML body plus optional `cacheStrategy`, `sourceDependencyPaths` and resolved `metadata`, or an error message (with the status of a thrown `HttpError`) |
-| `shutdown`          | main → worker | Wait for active renders, tear down activated Integrations, and close the worker message port                                                            |
-| `shutdown-complete` | worker → main | Confirm Integration teardown completed; the client waits for worker exit and force-terminates after timeout                                             |
+| Message             | Direction     | Purpose                                                                                                                                                                      |
+| ------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init`              | main → worker | Load the app config module (`configModulePath`, usually `eco.config.ts` in development and `dist/.server/eco.config.mjs` in production), bootstrap runtime (`runtimeOrigin`) |
+| `ready`             | worker → main | Worker initialized                                                                                                                                                           |
+| `render`            | main → worker | Render one Lit page route (`filePath`, `PageParams`, optional `PageQuery`)                                                                                                   |
+| `result` / `error`  | worker → main | HTML body plus optional `cacheStrategy`, `sourceDependencyPaths` and resolved `metadata`, or an error message (with the status of a thrown `HttpError`)                      |
+| `shutdown`          | main → worker | Wait for active renders, tear down activated Integrations, and close the worker message port                                                                                 |
+| `shutdown-complete` | worker → main | Confirm Integration teardown completed; the client waits for worker exit and force-terminates after timeout                                                                  |

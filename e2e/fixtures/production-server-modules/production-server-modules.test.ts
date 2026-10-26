@@ -1,11 +1,25 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	symlinkSync,
+	unlinkSync,
+	writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '@ecopages/core/create-app';
 import { loadEcoPagesConfig } from '@ecopages/core/config';
 import { createViewReference } from '@ecopages/core/view-reference';
+import { createRecordingFileSystem, installFileSystem, nodeFs } from '../../../packages/file-system/src/index.ts';
 import { BuildQueue } from '../../../packages/core/src/build/runtime/build-queue.ts';
 import type { BuildAdapter } from '../../../packages/core/src/build/build-adapter.ts';
 import { SERVER_MODULES_MANIFEST_FILENAME } from '../../../packages/core/src/build/server/server-modules-manifest.ts';
@@ -81,6 +95,91 @@ function throwingServerBuildAdapter(original: BuildAdapter): BuildAdapter {
 	};
 }
 
+function findPackageDir(fromDir: string, name: string): string | undefined {
+	for (let dir = fromDir; ; dir = path.dirname(dir)) {
+		const candidate = path.join(dir, 'node_modules', name);
+		if (existsSync(path.join(candidate, 'package.json'))) return realpathSync(candidate);
+		if (path.dirname(dir) === dir) return undefined;
+	}
+}
+
+/**
+ * Copies the fixture install and its runtime dependencies into `deployDir`,
+ * so the emitted config's bare imports resolve without the workspace tree.
+ *
+ * @remarks
+ * Workspace packages are symlinked so Node can load their TypeScript. Reads
+ * through those links are still the production `node_modules` tree, so their
+ * real paths are allowed roots for the recording assertion.
+ */
+function installProductionNodeModules(appDir: string, deployDir: string, allowedRoots: Set<string>): void {
+	const destRoot = path.join(deployDir, 'node_modules');
+	const linked = new Set<string>();
+	const linkPackage = (name: string, sourceDir: string): void => {
+		if (linked.has(name)) return;
+		linked.add(name);
+		const dest = path.join(destRoot, name);
+		mkdirSync(path.dirname(dest), { recursive: true });
+		symlinkSync(sourceDir, dest, 'dir');
+		allowedRoots.add(realpathSync(sourceDir));
+		const packageJson = JSON.parse(readFileSync(path.join(sourceDir, 'package.json'), 'utf8')) as {
+			dependencies?: Record<string, string>;
+			optionalDependencies?: Record<string, string>;
+			peerDependencies?: Record<string, string>;
+		};
+		for (const dependency of Object.keys({
+			...packageJson.dependencies,
+			...packageJson.optionalDependencies,
+			...packageJson.peerDependencies,
+		})) {
+			const dependencyDir = findPackageDir(sourceDir, dependency);
+			if (dependencyDir) linkPackage(dependency, dependencyDir);
+		}
+	};
+	const sourceRoot = path.join(appDir, 'node_modules');
+	for (const entry of readdirSync(sourceRoot)) {
+		if (entry.startsWith('.')) continue;
+		const entryPath = path.join(sourceRoot, entry);
+		if (entry.startsWith('@')) {
+			for (const child of readdirSync(entryPath)) {
+				linkPackage(`${entry}/${child}`, realpathSync(path.join(entryPath, child)));
+			}
+			continue;
+		}
+		linkPackage(entry, realpathSync(entryPath));
+	}
+}
+
+function isInsideRoot(roots: Iterable<string>, candidate: string): boolean {
+	const resolved = path.resolve(candidate);
+	return [...roots].some((root) => resolved === root || resolved.startsWith(`${root}${path.sep}`));
+}
+
+async function expectEveryRouteServes(app: Awaited<ReturnType<typeof createApp>>): Promise<void> {
+	for (const route of PAGE_ROUTES) {
+		const response = await app.fetch(new Request(`${ORIGIN}${route.path}`));
+		const body = await response.text();
+		expect(response.status, `${route.path}: ${body}`).toBe(200);
+		expect(body).toContain(route.marker);
+		expect(body).toContain('data-html="kita"');
+		if ('layout' in route) {
+			expect(body).toContain(`data-layout="${route.layout}"`);
+		}
+	}
+
+	expect(await (await app.fetch(new Request(`${ORIGIN}/lit`))).text()).toContain('<span>hello-ssr</span>');
+
+	const notFound = await app.fetch(new Request(`${ORIGIN}/missing-page`));
+	expect(await notFound.text()).toContain('html-404');
+	expect(notFound.status).toBe(404);
+
+	for (const route of ENDPOINT_ROUTES) {
+		const response = await app.fetch(new Request(`${ORIGIN}${route.path}`));
+		expect(response.status, route.path).toBe(200);
+		expect(await response.json()).toEqual({ integration: route.integration });
+	}
+}
+
 function registerStaticViews(app: Awaited<ReturnType<typeof createApp>>, appDir: string): void {
 	app.static('/kita-view', createViewReference(path.join(appDir, 'src/views/kita-view.kita.tsx'), 'kitajs'));
 	app.static('/react-view', createViewReference(path.join(appDir, 'src/views/react-view.react.tsx'), 'react'));
@@ -130,31 +229,58 @@ describe('production server modules', () => {
 		runtime.buildAdapter = throwing;
 		runtime.buildQueue = new BuildQueue(throwing);
 
-		for (const route of PAGE_ROUTES) {
-			const response = await app.fetch(new Request(`${ORIGIN}${route.path}`));
-			const body = await response.text();
-			expect(response.status, `${route.path}: ${body}`).toBe(200);
-			expect(body).toContain(route.marker);
-			expect(body).toContain('data-html="kita"');
-			if ('layout' in route) {
-				expect(body).toContain(`data-layout="${route.layout}"`);
-			}
-		}
-
-		expect(await (await app.fetch(new Request(`${ORIGIN}/lit`))).text()).toContain('<span>hello-ssr</span>');
-
-		const notFound = await app.fetch(new Request(`${ORIGIN}/missing-page`));
-		expect(await notFound.text()).toContain('html-404');
-		expect(notFound.status).toBe(404);
-
-		for (const route of ENDPOINT_ROUTES) {
-			const response = await app.fetch(new Request(`${ORIGIN}${route.path}`));
-			expect(response.status, route.path).toBe(200);
-			expect(await response.json()).toEqual({ integration: route.integration });
-		}
+		await expectEveryRouteServes(app);
 
 		await app.stop();
 	});
+
+	it(
+		'serves every route from a copied dist/ and node_modules/ without reading sources',
+		{ timeout: 180_000 },
+		async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const appDir = copyFixtureApp(fixtureDir);
+			appDirs.push(appDir);
+
+			const built = runCliBuild(appDir);
+			expect(built.status, `${built.stdout}\n${built.stderr}`).toBe(0);
+
+			const deployDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-dist-deploy-')));
+			appDirs.push(deployDir);
+			cpSync(path.join(appDir, 'dist'), path.join(deployDir, 'dist'), { recursive: true });
+			const allowedRoots = new Set<string>([deployDir, realpathSync(deployDir)]);
+			installProductionNodeModules(appDir, deployDir, allowedRoots);
+
+			const recording = createRecordingFileSystem(nodeFs);
+			const restoreFileSystem = installFileSystem(recording);
+			try {
+				const appConfig = await loadEcoPagesConfig({
+					configFile: path.join(deployDir, 'dist/.server/eco.config.mjs'),
+					cwd: deployDir,
+				});
+				const app = await createApp({ appConfig });
+				registerStaticViews(app, deployDir);
+
+				const throwing = throwingServerBuildAdapter(requireAppRuntime(appConfig).buildAdapter);
+				const runtime = requireAppRuntime(appConfig);
+				runtime.buildAdapter = throwing;
+				runtime.buildQueue = new BuildQueue(throwing);
+
+				await expectEveryRouteServes(app);
+				await app.stop();
+
+				const outside = recording.recordedPaths.filter(
+					(recordedPath) =>
+						typeof recordedPath === 'string' &&
+						recordedPath.length > 0 &&
+						!isInsideRoot(allowedRoots, recordedPath),
+				);
+				expect(outside).toEqual([]);
+			} finally {
+				restoreFileSystem();
+			}
+		},
+	);
 
 	it('fails the build when a dynamic Page has a type error', { timeout: 180_000 }, async () => {
 		vi.stubEnv('NODE_ENV', 'production');

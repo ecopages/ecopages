@@ -72,6 +72,14 @@ export interface AppRuntime {
 	integrationActivations: Map<string, Promise<void>>;
 	runtimeAssetsPrepared: boolean;
 	hmrAttachedToIntegrations: boolean;
+	/**
+	 * Id shared by every production manifest written during one `ecopages build`.
+	 *
+	 * @remarks
+	 * Null until a production export creates one. `ecopages start` reads the id
+	 * from the files in `dist/` instead of this field.
+	 */
+	productionBuildId: string | null;
 	htmlPageModuleScripts: HtmlPageModuleScriptState;
 	htmlPageWarnings: HtmlPageWarningState;
 	customElementSsrPreloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
@@ -121,6 +129,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		integrationActivations: new Map(),
 		runtimeAssetsPrepared: false,
 		hmrAttachedToIntegrations: false,
+		productionBuildId: null,
 		htmlPageModuleScripts: createHtmlPageModuleScriptState(),
 		htmlPageWarnings: createHtmlPageWarningState(),
 		customElementSsrPreloadScopes: new Map(),

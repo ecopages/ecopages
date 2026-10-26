@@ -112,6 +112,14 @@ export type EcoPagesUserConfig = {
 	additionalWatchPaths?: string[];
 
 	/**
+	 * Globs, relative to `rootDir`, of files copied into `dist/.server/` by
+	 * basename so production code can read them next to `import.meta`. Two
+	 * matches that share a basename fail the build. Prefer `public/` for static
+	 * files the browser should fetch.
+	 */
+	serverFiles?: string[];
+
+	/**
 	 * URL route paths to prewarm in the background when the development server starts.
 	 */
 	devPrewarmPaths?: string[];

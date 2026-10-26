@@ -22,7 +22,7 @@ Call site (route scan, renderer, SSG, API, ctx.render)
 
 Config finalization creates one `AppModuleLoader` for the app runtime. It requires the app config and uses that app's root directory and build queue for every import. Runtime call sites share it through `requireAppRuntime(appConfig).moduleLoader`; callers provide only the module path and request-specific build options.
 
-Production imports the module `ecopages build` emitted. A missing entry is an error that names the source file and says to run `ecopages build`; it is never compiled. Development still goes through the Ecopages build pipeline, and HTML Pages can still compile in process. Bun and Node both use that pipeline.
+Production imports the module `ecopages build` emitted. A missing entry is an error that names the source file and says to run `ecopages build`; it is never compiled. When the requested path sits outside the deploy root, the longest recorded source key that is a suffix of that path still matches, so `identity.file` from the build machine can load. Development still goes through the Ecopages build pipeline, and HTML Pages can still compile in process. Bun and Node both use that pipeline. The Lit static-render worker uses the same production map; `ECOPAGES_LIT_STATIC_RENDER_WORKER` only skips Processor setup and nested worker creation.
 
 ## Caching layers
 
@@ -38,19 +38,19 @@ The content processor owns compiled collection server modules and their cache. O
 
 ## Files
 
-| File                                   | Role                                                            |
-| -------------------------------------- | --------------------------------------------------------------- |
-| `page-module-import.service.ts`        | Core import/cache/build orchestration                           |
-| `route-module-build-manifest.ts`       | Content-derived reuse identity and in-process cache shape       |
-| `route-module-build-cache.store.ts`    | In-process route-module transpile cache store                   |
-| `route-module-build-cache-registry.ts` | Shared cache instance registry per `(appConfig, outdir)` pair   |
-| `route-module-dependency-hasher.ts`    | Dependency graph source file hashing and staleness validation   |
-| `app-module-loader.service.ts`         | App-scoped server module loader                                 |
-| `view-reference.ts`                    | One view reference per Integration-owned import                 |
-| `imported-view-plugin.ts`              | Server-entry plugin that emits view references instead of views |
-| `import-view-module.ts`                | Loads a view through the app module loader                      |
-| `resolve-static-view.ts`               | Turns an imported view into the loader `app.static` stores      |
-| `server-modules-manifest.ts`           | Production map at `dist/.server/server-modules.json`            |
+| File                                   | Role                                                                                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `page-module-import.service.ts`        | Core import/cache/build orchestration                                                                                                        |
+| `route-module-build-manifest.ts`       | Content-derived reuse identity and in-process cache shape                                                                                    |
+| `route-module-build-cache.store.ts`    | In-process route-module transpile cache store                                                                                                |
+| `route-module-build-cache-registry.ts` | Shared cache instance registry per `(appConfig, outdir)` pair                                                                                |
+| `route-module-dependency-hasher.ts`    | Dependency graph source file hashing and staleness validation                                                                                |
+| `app-module-loader.service.ts`         | App-scoped server module loader                                                                                                              |
+| `view-reference.ts`                    | One view reference per Integration-owned import                                                                                              |
+| `imported-view-plugin.ts`              | Server-entry plugin that emits view references instead of views                                                                              |
+| `import-view-module.ts`                | Loads a view through the app module loader                                                                                                   |
+| `resolve-static-view.ts`               | Turns an imported view into the loader `app.static` stores                                                                                   |
+| `server-modules-manifest.ts`           | Production map at `dist/.server/server-modules.json`; config finalization reads its keys to resolve semantic templates when sources are gone |
 
 ## Development invalidation
 

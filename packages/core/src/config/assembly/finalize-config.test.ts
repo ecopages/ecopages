@@ -388,6 +388,34 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(config.absolutePaths.error500TemplatePath).toBe(path.join('/project', 'src', 'pages', '500.html'));
 	});
 
+	test('resolves semantic templates from the production map when sources are gone', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-semantic-from-map-'));
+		try {
+			const serverOutdir = path.join(rootDir, 'dist/.server');
+			fs.mkdirSync(serverOutdir, { recursive: true });
+			fs.writeFileSync(
+				path.join(serverOutdir, 'server-modules.json'),
+				`${JSON.stringify({
+					modules: {
+						'src/includes/html.kita.tsx': 'html.mjs',
+						'src/pages/404.html': '404-html.json',
+					},
+				})}\n`,
+			);
+
+			const config = await finalizeEcoPagesConfig({
+				rootDir,
+				integrations: [createMockIntegration('kitajs', ['.kita.tsx'])],
+			});
+
+			expect(config.absolutePaths.htmlTemplatePath).toBe(path.join(rootDir, 'src/includes/html.kita.tsx'));
+			expect(config.absolutePaths.error404TemplatePath).toBe(path.join(rootDir, 'src/pages/404.html'));
+			expect(config.absolutePaths.error500TemplatePath).toBe(path.join(rootDir, 'src/pages/500.kita.tsx'));
+		} finally {
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
 	test('leaves .html to a user Integration that owns it', async () => {
 		const htmlIntegration = createMockIntegration('custom-html', ['.html']);
 		const config = await finalize({ integrations: [htmlIntegration] });

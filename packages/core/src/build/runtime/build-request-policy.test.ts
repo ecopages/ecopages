@@ -63,6 +63,23 @@ test('mergeCallerBuildPlugins keeps app plugins on collision and prepends unique
 	assert.equal(merged[1]?.setup, appPlugin.setup);
 });
 
+test('createServerBuildRequest omits the import.meta source rewrite in production', () => {
+	vi.stubEnv('NODE_ENV', 'production');
+	try {
+		const request = createServerBuildRequest(createAppConfig(), {
+			entrypoints: ['/app/app.ts'],
+			outdir: '/out',
+		});
+
+		assert.equal(
+			request.plugins?.some((plugin) => plugin.name === 'preserve-import-meta-for-server-output'),
+			false,
+		);
+	} finally {
+		vi.unstubAllEnvs();
+	}
+});
+
 test('createServerBuildRequest includes app server plugins and jsx ownership', () => {
 	const appConfig = createAppConfig();
 	const callerPlugin: EcoBuildPlugin = { name: 'caller-plugin', setup() {} };

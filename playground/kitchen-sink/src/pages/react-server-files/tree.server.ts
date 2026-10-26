@@ -1,4 +1,3 @@
-import { join } from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 
 export type PagesTreeSnapshot = {
@@ -83,8 +82,7 @@ function buildTree(paths: string[], rootLabel: string) {
 	return [rootLabel, ...renderTreeEntries(root)].join('\n');
 }
 
-export async function buildPagesTreeSnapshot(): Promise<PagesTreeSnapshot> {
-	const pagesDir = join(import.meta.dirname, '..');
+export async function buildPagesTreeSnapshot(pagesDir: string): Promise<PagesTreeSnapshot> {
 	const scannedDir = 'src/pages';
 	const files = (
 		await fileSystem.glob(['**/*.ts', '**/*.tsx', '**/*.md', '**/*.mdx', '**/*.css'], {

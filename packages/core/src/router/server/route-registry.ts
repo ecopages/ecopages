@@ -42,11 +42,13 @@ export type RouteMatch = {
 	readonly query: RouteQuery;
 };
 
-export type StaticPathExpansion = {
+export type PathExpansion = {
 	readonly pathname: string;
 	readonly templateRoute: TemplateRoute;
 	readonly params: RouteParams;
 };
+
+export type StaticPathExpansion = PathExpansion;
 
 export type StaticGenerationRoute = {
 	readonly requestUrl: string;
@@ -65,7 +67,13 @@ export type RouteRegistryPageModule = {
 		paths: Array<{ params: RouteParams }>;
 	}>;
 	readonly staticProps?: unknown;
-	/** The Page's Cache Strategy; `'dynamic'` Pages render per request and are never expanded. */
+	/**
+	 * The Page's Cache Strategy.
+	 *
+	 * @remarks
+	 * `'dynamic'` Pages are omitted from Static Path Expansions (no HTML at Build-Time Rendering).
+	 * When they declare `staticPaths`, those Params are still listed for Page Browser Graph planning.
+	 */
 	readonly cache?: unknown;
 };
 
@@ -197,8 +205,30 @@ export class RouteRegistry {
 		return segment.startsWith('[') && segment.endsWith(']');
 	}
 
-	async listStaticPathExpansions(input: { runtimeOrigin: string }): Promise<readonly StaticPathExpansion[]> {
-		const expansions: StaticPathExpansion[] = [];
+	private async expandStaticPaths(
+		route: TemplateRoute,
+		staticPaths: NonNullable<RouteRegistryPageModule['staticPaths']>,
+		runtimeOrigin: string,
+	): Promise<StaticPathExpansion[]> {
+		const result = await staticPaths({
+			appConfig: this.appConfig,
+			runtimeOrigin,
+		});
+		return result.paths.map(({ params }) => ({
+			pathname: buildSegmentPath(route.pathname, params, 'filesystem'),
+			templateRoute: route,
+			params,
+		}));
+	}
+
+	private async listPathExpansions(
+		input: { runtimeOrigin: string },
+		options: {
+			include: (pageModule: RouteRegistryPageModule) => boolean;
+			requireStaticHooks: boolean;
+		},
+	): Promise<readonly PathExpansion[]> {
+		const expansions: PathExpansion[] = [];
 
 		for (const route of this.pageRoutes) {
 			if (route.kind === 'exact') {
@@ -206,13 +236,13 @@ export class RouteRegistry {
 			}
 
 			const pageModule = await this.pageModuleAdapter.loadPageModule(route.filePath);
-			if (pageModule.cache === 'dynamic') {
+			if (!options.include(pageModule)) {
 				continue;
 			}
 
 			const staticPaths = pageModule.staticPaths;
 
-			if (this.buildMode) {
+			if (options.requireStaticHooks && this.buildMode) {
 				invariant(staticPaths !== undefined, `[ecopages] Missing getStaticPaths in ${route.filePath}`);
 				invariant(
 					pageModule.staticProps !== undefined,
@@ -224,21 +254,32 @@ export class RouteRegistry {
 				continue;
 			}
 
-			const result = await staticPaths({
-				appConfig: this.appConfig,
-				runtimeOrigin: input.runtimeOrigin,
-			});
-
-			for (const { params } of result.paths) {
-				expansions.push({
-					pathname: buildSegmentPath(route.pathname, params, 'filesystem'),
-					templateRoute: route,
-					params,
-				});
-			}
+			expansions.push(...(await this.expandStaticPaths(route, staticPaths, input.runtimeOrigin)));
 		}
 
 		return expansions;
+	}
+
+	async listStaticPathExpansions(input: { runtimeOrigin: string }): Promise<readonly StaticPathExpansion[]> {
+		return this.listPathExpansions(input, {
+			include: (pageModule) => pageModule.cache !== 'dynamic',
+			requireStaticHooks: true,
+		});
+	}
+
+	/**
+	 * Params of Dynamic Pages that declare `staticPaths`, for Page Browser Graph planning.
+	 *
+	 * @remarks
+	 * The return shape is {@link PathExpansion}, the same records `staticPaths` produces. They are
+	 * not Static Path Expansions: HTML still uses Request-Time Rendering. The build uses them so
+	 * each Params list's graph is in the browser client manifest.
+	 */
+	async listDynamicPagePathExpansions(input: { runtimeOrigin: string }): Promise<readonly PathExpansion[]> {
+		return this.listPathExpansions(input, {
+			include: (pageModule) => pageModule.cache === 'dynamic' && pageModule.staticPaths !== undefined,
+			requireStaticHooks: false,
+		});
 	}
 
 	async listStaticGenerationRoutes(input: { runtimeOrigin: string }): Promise<readonly StaticGenerationRoute[]> {

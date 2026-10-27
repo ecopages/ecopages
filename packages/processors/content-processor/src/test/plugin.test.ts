@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
-import type { IClientBridge } from '@ecopages/core/integration';
+import { requireAppRuntime, type IClientBridge } from '@ecopages/core/integration';
 import { BuildQueue, GENERATED_BASE_PATHS } from '@ecopages/core/build';
 import type { BuildAdapter } from '@ecopages/core/build';
 import type { EcoBuildPluginBuilder, ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/processor';
@@ -121,6 +121,105 @@ order: 1
 		});
 		expect(plugin.collectionModules.docs).toBe(cacheFile);
 		expect(plugin.collectionServerModules.docs).toBe(serverCacheFile);
+		expect(plugin.listProductionServerModuleEntries().sort()).toEqual([cacheFile, serverCacheFile].sort());
+	});
+
+	test('setup rejects a collection whose frontmatter fails the schema', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-invalid-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(path.join(contentDir, 'intro.mdx'), '---\ndescription: Missing title\n---\n# Intro\n');
+
+		const plugin = createContentProcessorPlugin({
+			docs: { contentDir: 'content/docs' },
+		});
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+
+		await expect(setupContentProcessor(plugin, appConfig)).rejects.toThrow();
+	});
+
+	test('restoreProductionRuntime maps collections to emitted modules without writing cache', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-restore-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			path.join(contentDir, 'intro.mdx'),
+			`---
+title: Intro
+description: Welcome
+order: 1
+---
+# Intro
+`,
+		);
+
+		const plugin = createContentProcessorPlugin({
+			docs: { contentDir: 'content/docs' },
+		});
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
+
+		const workDir = appConfig.absolutePaths.workDir;
+		const entriesKey = path
+			.relative(rootDir, path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts'))
+			.split(path.sep)
+			.join('/');
+		const serverKey = path
+			.relative(rootDir, path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.server.ts'))
+			.split(path.sep)
+			.join('/');
+		const outdir = path.join(rootDir, 'dist', '.server');
+		const entriesOutput = 'docs-entries.mjs';
+		const serverOutput = 'docs-server.mjs';
+		requireAppRuntime(appConfig).productionServerModules = {
+			outdir,
+			modules: {
+				[entriesKey]: entriesOutput,
+				[serverKey]: serverOutput,
+			},
+		};
+
+		await plugin.restoreProductionRuntime();
+
+		expect(plugin.collectionModules.docs).toBe(path.join(outdir, entriesOutput));
+		expect(plugin.collectionServerModules.docs).toBe(path.join(outdir, serverOutput));
+		expect(plugin.collectionServerCompiledModules.docs).toBe(path.join(outdir, serverOutput));
+		expect(fileSystem.exists(path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts'))).toBe(false);
+	});
+
+	test('restoreProductionRuntime names a collection missing from the production map', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-restore-missing-');
+		tempRoots.push(rootDir);
+
+		const plugin = createContentProcessorPlugin({
+			docs: { contentDir: 'content/docs' },
+		});
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
+		requireAppRuntime(appConfig).productionServerModules = {
+			outdir: path.join(rootDir, 'dist', '.server'),
+			modules: {},
+		};
+
+		await expect(plugin.restoreProductionRuntime()).rejects.toThrow(
+			/No compiled server module for .+\. Run `ecopages build`/,
+		);
 	});
 
 	test('co-located helper edits invalidate the compiled collection without rewriting entry modules', async () => {

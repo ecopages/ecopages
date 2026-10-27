@@ -218,7 +218,7 @@ Only installs whose package paths contain a `node_modules` folder are kept exter
 
 `ecopages build` emits every server entry into `dist/.server/` and writes `server-modules.json`, mapping each entry's root-relative source path to its emitted module. `ecopages start` imports that map and never compiles. Development still compiles from source with watcher invalidation.
 
-Entries: Page templates including dynamic ones, Layouts, the Html shell, Endpoints, `app.static` views, error pages, and `ssr: true` custom-element scripts. There is no second planner for these entries. Collection server modules stay with the content processor. HTML Pages compile through their Integration's `compilePageModule` and join the same map as `-html.json` records that the Integration's `reviveCompiledPageModule` restores. Emit imports the Rolldown modules after Integration `setup()` to discover extra `ssr: true` scripts, so an Integration that needs process globals before those imports (Radiant light-DOM) installs them in `setup()`, not in the renderer.
+Entries: Page templates including dynamic ones, Layouts, the Html shell, Endpoints, `app.static` views, error pages, `ssr: true` custom-element scripts, and Processor production entries such as content collection manifests and server modules. There is no second planner for these entries. HTML Pages compile through their Integration's `compilePageModule` and join the same map as `-html.json` records that the Integration's `reviveCompiledPageModule` restores. Emit imports the Rolldown modules after Integration `setup()` to discover extra `ssr: true` scripts, so an Integration that needs process globals before those imports (Radiant light-DOM) installs them in `setup()`, not in the renderer. Production `ecopages start` does not call Processor `setup()`; it restores Processor state from the emitted map.
 
 | Artifact                 | Location                           |
 | ------------------------ | ---------------------------------- |
@@ -299,6 +299,7 @@ Kitchen-sink benchmarks (`ECOPAGES_BENCH=1 pnpm vitest bench`) show Rolldown win
 - `rolldown/rolldown-build-adapter.test.ts` covers the adapter's `build`, `resolve`, and dependency-graph extraction end-to-end.
 - `rolldown/rolldown-plugin-bridge.test.ts` covers the `EcoBuildPlugin[]` → plugin translation in isolation.
 - `build-adapter.test.ts` covers the adapter factories, manifest sealing, and runtime plugin setup.
+- `cache/server-module-entries.test.ts` covers Processor production entries in the emit list.
 - `runtime/build-queue.test.ts` covers lane limits, shared in-flight builds, builds that wait for a child build, and request-scope reuse.
 - `runtime/build-request-policy.test.ts` and `runtime/build-request-identity.test.ts` cover request assembly and dedupe identity.
 - `rolldown/app-package-declarations.test.ts` covers the app `package.json` lookups that decide which packages stay external.

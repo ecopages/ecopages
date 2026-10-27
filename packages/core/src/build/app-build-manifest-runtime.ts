@@ -43,7 +43,17 @@ export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildMani
 	return createAppBuildManifest(registrations, mergeBrowserRuntimeManifests(...browserRuntimeManifests));
 }
 
-export async function setupAppRuntimePlugins(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+/**
+ * Gives each Processor its app config and calls `setup()`.
+ *
+ * @remarks
+ * When `skipProcessorSetup` is set, or this is the Lit static-render worker, each Processor
+ * restores from the production server-modules map instead of scanning sources.
+ */
+export async function setupAppRuntimePlugins(options: {
+	appConfig: EcoPagesAppConfig;
+	skipProcessorSetup?: boolean;
+}): Promise<void> {
 	startupTrace.markPhaseStart('setupAppRuntimePlugins');
 
 	const runtime = requireAppRuntime(options.appConfig);
@@ -60,11 +70,13 @@ export async function setupAppRuntimePlugins(options: { appConfig: EcoPagesAppCo
 	appLogger.debugTime('setupAppRuntimePlugins');
 
 	try {
-		const skipProcessorSetup = isLitStaticRenderWorkerThread();
+		const skipProcessorSetup = options.skipProcessorSetup === true || isLitStaticRenderWorkerThread();
 
 		for (const processor of options.appConfig.processors.values()) {
 			processor.setContext(options.appConfig);
-			if (!skipProcessorSetup) {
+			if (skipProcessorSetup) {
+				await processor.restoreProductionRuntime?.();
+			} else {
 				await processor.setup();
 			}
 		}

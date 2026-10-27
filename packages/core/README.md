@@ -296,7 +296,7 @@ export const GET = defineGet({
 });
 ```
 
-The file's rules (405 and `Allow`, load errors, `app.ts` routes on the same URL) are in the [Endpoint Files docs](https://ecopages.app/docs/server/endpoint-files); the contracts are in `src/router/README.md` and `src/adapters/README.md`. A build of an app with an endpoint file checks each file's exports, then emits the server bundle (`dist/.server/`) even when nothing else registers a handler, so `ecopages start` serves it.
+The file's rules (405 and `Allow`, load errors, `app.ts` routes on the same URL) are in the [Endpoint Files docs](https://ecopages.app/docs/server/endpoint-files); the contracts are in `src/router/README.md` and `src/adapters/README.md`. A build of an app with an endpoint file publishes the server bundle (`dist/.server/`), emits server modules, then checks each file's exports, even when nothing else registers a handler, so `ecopages start` serves it.
 
 ### 6. Error pages
 
@@ -307,7 +307,7 @@ app.notFound('./src/views/not-found.kita');
 app.serverError('./src/views/server-error.kita');
 ```
 
-String and URL view paths passed to `app.static()`, `app.notFound()`, and `app.serverError()` load through the server-module transpiler. Raw dynamic `import()` skips component-identity transforms. A full explicit view renders through the same route pipeline as a filesystem Page, including its layouts, default metadata, robots meta, and page client plan. Props passed to the render are available to the view's `metadata`.
+String and URL view paths passed to `app.static()`, `app.notFound()`, and `app.serverError()` load through the server-module loader. Production imports the emitted `dist/.server/` module; development compiles from source. Raw dynamic `import()` skips component-identity transforms. A full explicit view renders through the same route pipeline as a filesystem Page, including its layouts, default metadata, robots meta, and page client plan. Props passed to the render are available to the view's `metadata`.
 
 When no custom page is configured, built-in HTML defaults are served instead.
 

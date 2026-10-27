@@ -1,50 +1,47 @@
 /**
- * Unified pages Rolldown graph (Phase A build + Phase C import).
+ * Unified production server-module graph.
  *
- * Enabled by default in production builds. Opt out with
- * `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0`. Covers all static page template extensions
- * registered on the app config.
+ * `ecopages build` emits every server entry into `dist/.server/` and writes
+ * `server-modules.json`. `ecopages start` imports those modules and never compiles.
  */
 
 import path from 'node:path';
-import { isEcopagesEnvDisabled } from '../../env.ts';
-import { isProductionRuntime } from '../../utils/runtime.ts';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
+import { isEcopagesEnvDisabled } from '../../env.ts';
+import { isProductionRuntime } from '../../utils/runtime.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
+import { setupAppRuntimeIntegrations } from '../app-build-manifest-runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { buildOrThrow } from '../runtime/build-queue.ts';
-import { createServerBuildRequest, resolveAppBuildPlugins } from '../runtime/build-request-policy.ts';
-import { hashAppConfigFile } from './app-config-hash.ts';
-import { collectBuildOutputImports, getBuildEntryOutput } from '../build-graph.ts';
+import { createServerBuildRequest } from '../runtime/build-request-policy.ts';
+import { getBuildEntryOutput } from '../build-graph.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
-import { getServerModuleBuildCacheOutdir } from '../server/route-module-build-cache-registry.ts';
+import type { ErrorPageLoaders, StaticRoute } from '../../types/contracts.ts';
+import { contentHash } from '../../utils/content-hash.ts';
+import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import {
-	RouteModuleDependencyHasher,
-	resolveRouteModuleDependencyPaths,
-	type RouteModuleDependencyHashes,
-} from '../server/route-module-dependency-hasher.ts';
+	type ProductionServerModulesManifest,
+	loadProductionServerModules,
+	writeProductionServerModulesManifest,
+} from '../server/server-modules-manifest.ts';
+import { getServerBundleOutputPaths } from '../server-bundle-deploy-manifest.ts';
+import {
+	collectServerModuleEntries,
+	collectSsrScriptPaths,
+	isRolldownServerModuleEntry,
+	type ServerModuleEntryRouteSource,
+} from './server-module-entries.ts';
 
+/**
+ * @deprecated In-memory graph shape kept for tests that still inspect outputs.
+ */
 export interface PagesUnifiedGraphCacheManifest {
 	buildKey: string;
 	outputs: Record<string, string>;
-	/**
-	 * Local files reachable from the outputs through local imports, including
-	 * shared chunks. The graph is reused only while all of them exist.
-	 */
 	outputImports: string[];
-	/**
-	 * Content hashes for every trackable source file in the graph.
-	 *
-	 * @remarks
-	 * Compiled chunks can outlive a deleted layout or component. Reuse also
-	 * requires these hashes so a source edit or deletion rebuilds the graph.
-	 */
-	dependencyHashes: RouteModuleDependencyHashes;
-	/**
-	 * Memoized result of {@link isGraphManifestCurrent} for page imports.
-	 */
+	dependencyHashes: Record<string, string>;
 	importable?: boolean;
 }
 
@@ -53,7 +50,8 @@ export interface PagesUnifiedGraphCacheManifest {
  *
  * @remarks
  * Enabled by default in production builds. `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0` opts out, which the
- * bench parity suite uses as its per-page build oracle.
+ * bench parity suite uses as its per-page build oracle. Production `ecopages start` still requires
+ * the emitted server-modules map from a build that did emit.
  */
 export function shouldBuildPagesUnifiedGraph(): boolean {
 	return !isEcopagesEnvDisabled('ECOPAGES_UNIFIED_PAGES_GRAPH') && isProductionRuntime();
@@ -62,105 +60,232 @@ export function shouldBuildPagesUnifiedGraph(): boolean {
 /**
  * @remarks
  * Pages of an Integration that compiles its own modules (`compilePageModule`), such as
- * HTML Pages, are not bundled, so they stay out of the graph.
+ * HTML Pages, are not bundled, so they stay out of the Rolldown graph.
  */
 export function isPagesUnifiedGraphPage(filePath: string, appConfig: EcoPagesAppConfig): boolean {
 	const owner = findIntegrationForFile(appConfig.integrations, path.normalize(filePath));
 	return owner !== undefined && !owner.compilePageModule;
 }
 
-function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: string): string {
-	const pluginNames = resolveAppBuildPlugins(appConfig, 'server')
-		.map((plugin) => plugin.name)
-		.sort()
-		.join('|');
-	const templateExtensions = [...appConfig.templatesExt].sort().join('|');
-	return [
-		path.resolve(outdir),
-		hashAppConfigFile(appConfig),
-		templateExtensions,
-		pluginNames,
-		'node',
-		'esm',
-		'external-packages',
-	].join('::');
-}
-
-function readPagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig): PagesUnifiedGraphCacheManifest | undefined {
-	return requireAppRuntime(appConfig).pagesUnifiedGraphManifest ?? undefined;
-}
-
-function sourceDependenciesAreCurrent(manifest: PagesUnifiedGraphCacheManifest): boolean {
-	return new RouteModuleDependencyHasher().matchesStoredHashes(manifest.dependencyHashes);
-}
-
-function writePagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig, manifest: PagesUnifiedGraphCacheManifest): void {
-	requireAppRuntime(appConfig).pagesUnifiedGraphManifest = manifest;
-}
-
-function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
-	const relativePath = path.relative(rootDir, entryPath).replace(/\.[^.]+$/u, '');
-	const safeKey = relativePath.replace(/[^a-zA-Z0-9]+/gu, '-').replace(/^-+|-+$/gu, '');
-	return safeKey.length > 0 ? safeKey : 'page';
-}
-
 /**
- * Whether `manifest` was built for this graph setup, every file its outputs import
- * still exists, and source hashes still match.
- */
-function isGraphManifestCurrent(
-	manifest: PagesUnifiedGraphCacheManifest,
-	appConfig: EcoPagesAppConfig,
-	outdir: string,
-): boolean {
-	return (
-		manifest.buildKey === createPagesUnifiedGraphBuildKey(appConfig, outdir) &&
-		manifest.outputImports.every((filePath) => fileSystem.exists(filePath)) &&
-		sourceDependenciesAreCurrent(manifest)
-	);
-}
-
-/**
- * @remarks
- * In addition to graph freshness and chunk existence on disk, the manifest must
- * match the exact count of active template entries so removing or adding a page
- * invalidates the graph.
- */
-function isManifestValidForEntries(
-	manifest: PagesUnifiedGraphCacheManifest,
-	appConfig: EcoPagesAppConfig,
-	outdir: string,
-	entryPaths: readonly string[],
-): boolean {
-	return (
-		isGraphManifestCurrent(manifest, appConfig, outdir) &&
-		entryPaths.length === Object.keys(manifest.outputs).length &&
-		entryPaths.every((entryPath) => {
-			const outputPath = manifest.outputs[path.resolve(entryPath)];
-			return outputPath ? fileSystem.exists(outputPath) : false;
-		})
-	);
-}
-
-/**
- * {@link isGraphManifestCurrent} for page imports, memoized per manifest.
+ * Readable output stem unique for every source path.
  *
  * @remarks
- * Page modules can be imported before the static site generator calls
- * {@link ensurePagesUnifiedGraphBuilt} (for example while collecting static
- * paths), so the import path must not trust a graph this process has already
- * invalidated.
+ * Sanitizing `src/pages/foo-bar` and `src/pages/foo/bar` would otherwise yield
+ * the same stem and overwrite one emitted module with the other.
  */
-function isGraphImportable(manifest: PagesUnifiedGraphCacheManifest, appConfig: EcoPagesAppConfig): boolean {
-	if (manifest.importable !== undefined) return manifest.importable;
+function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
+	const sourceKey = toRootRelativePath(rootDir, entryPath);
+	const relativePath = sourceKey.replace(/\.[^.]+$/u, '');
+	const readable = relativePath.replace(/[^a-zA-Z0-9]+/gu, '-').replace(/^-+|-+$/gu, '');
+	return `${readable.length > 0 ? readable : 'page'}-${contentHash(sourceKey, 8)}`;
+}
 
-	const current = isGraphManifestCurrent(manifest, appConfig, getServerModuleBuildCacheOutdir(appConfig));
-	manifest.importable = current;
-	return current;
+function uniqueEntryPaths(entryPaths: readonly string[]): string[] {
+	return [...new Set(entryPaths.map((entryPath) => path.resolve(entryPath)))];
+}
+
+function emittedFilesExist(manifest: ProductionServerModulesManifest, sourceKeys: readonly string[]): boolean {
+	return sourceKeys.every((sourceKey) => {
+		const relativePath = manifest.modules[sourceKey];
+		return relativePath ? fileSystem.exists(path.join(manifest.outdir, relativePath)) : false;
+	});
+}
+
+function canReuseEmittedModules(
+	manifest: ProductionServerModulesManifest | null,
+	outdir: string,
+	sourceKeys: readonly string[],
+): manifest is ProductionServerModulesManifest {
+	if (!manifest || path.resolve(manifest.outdir) !== path.resolve(outdir)) {
+		return false;
+	}
+	return sourceKeys.every((sourceKey) => sourceKey in manifest.modules) && emittedFilesExist(manifest, sourceKeys);
+}
+
+async function emitCompiledPageModule(
+	appConfig: EcoPagesAppConfig,
+	filePath: string,
+	outdir: string,
+): Promise<{ sourceKey: string; relativePath: string; outputPath: string }> {
+	const owner = findIntegrationForFile(appConfig.integrations, path.normalize(filePath));
+	if (!owner?.compilePageModule) {
+		throw new Error(`No compilePageModule implementation for ${filePath}`);
+	}
+	if (!owner.serializeCompiledPageModule) {
+		throw new Error(`No serializeCompiledPageModule implementation for ${filePath}`);
+	}
+
+	const compiled = await owner.compilePageModule(filePath, appConfig);
+	const { contents } = owner.serializeCompiledPageModule(compiled, { rootDir: appConfig.rootDir, filePath });
+
+	const sourceKey = toRootRelativePath(appConfig.rootDir, filePath);
+	const relativePath = `${createSafeGraphEntryKey(filePath, appConfig.rootDir)}-html.json`;
+	const outputPath = path.join(outdir, relativePath);
+	fileSystem.ensureDir(outdir);
+	fileSystem.write(outputPath, contents);
+	return { sourceKey, relativePath, outputPath };
+}
+
+function reviveCompiledPageModuleFromDisk(appConfig: EcoPagesAppConfig, filePath: string, outputPath: string): unknown {
+	const owner = findIntegrationForFile(appConfig.integrations, path.normalize(filePath));
+	if (!owner?.reviveCompiledPageModule) {
+		throw new Error(`No reviveCompiledPageModule implementation for ${filePath}`);
+	}
+	return owner.reviveCompiledPageModule(fileSystem.readFileSync(outputPath).toString(), {
+		rootDir: appConfig.rootDir,
+		filePath,
+	});
+}
+
+export async function importEmittedServerModule<T>(
+	appConfig: EcoPagesAppConfig,
+	filePath: string,
+	outputPath: string,
+): Promise<T> {
+	const owner = findIntegrationForFile(appConfig.integrations, path.normalize(filePath));
+	if (owner?.reviveCompiledPageModule) {
+		return reviveCompiledPageModuleFromDisk(appConfig, filePath, outputPath) as T;
+	}
+	return (await import(/* @vite-ignore */ pathToFileURL(outputPath).href)) as T;
+}
+
+async function emitRolldownServerModules(
+	appConfig: EcoPagesAppConfig,
+	entryPaths: readonly string[],
+	outdir: string,
+): Promise<Record<string, string>> {
+	if (entryPaths.length === 0) {
+		return {};
+	}
+
+	const entryRecord: Record<string, string> = {};
+	for (const entryPath of entryPaths) {
+		entryRecord[createSafeGraphEntryKey(entryPath, appConfig.rootDir)] = entryPath;
+	}
+
+	appLogger.debugTime('pagesUnifiedGraphBuild');
+	const buildOptions = createServerBuildRequest(appConfig, {
+		entrypoints: entryRecord,
+		outdir,
+		splitting: true,
+		naming: '[name]-[hash].[ext]',
+	});
+	const buildResult = await buildOrThrow(appConfig, buildOptions, 'Pages unified graph build failed').finally(() =>
+		appLogger.debugTimeEnd('pagesUnifiedGraphBuild'),
+	);
+
+	const modules: Record<string, string> = {};
+	for (const entryPath of entryPaths) {
+		const compiledOutput = getBuildEntryOutput(buildResult, entryPath, appConfig.rootDir);
+		if (!compiledOutput) {
+			throw new Error(`Pages unified graph build produced no output for ${entryPath}`);
+		}
+		modules[toRootRelativePath(appConfig.rootDir, entryPath)] = path
+			.relative(outdir, compiledOutput)
+			.split(path.sep)
+			.join('/');
+	}
+	return modules;
+}
+
+async function importEmittedModules(
+	manifest: ProductionServerModulesManifest,
+	sourceKeys: readonly string[],
+): Promise<unknown[]> {
+	const modules: unknown[] = [];
+	for (const sourceKey of sourceKeys) {
+		const relativePath = manifest.modules[sourceKey];
+		if (!relativePath) {
+			continue;
+		}
+		modules.push(await import(/* @vite-ignore */ pathToFileURL(path.join(manifest.outdir, relativePath)).href));
+	}
+	return modules;
+}
+
+function assignProductionServerModules(appConfig: EcoPagesAppConfig, manifest: ProductionServerModulesManifest): void {
+	const runtime = requireAppRuntime(appConfig);
+	runtime.productionServerModules = manifest;
+	runtime.pagesUnifiedGraphManifest = null;
+}
+
+function storeProductionServerModules(appConfig: EcoPagesAppConfig, manifest: ProductionServerModulesManifest): void {
+	assignProductionServerModules(appConfig, manifest);
+	writeProductionServerModulesManifest(manifest);
 }
 
 /**
- * Builds eligible static pages in one Rolldown invocation and records outputs for this process.
+ * Emits every production server entry into `outdir` and writes `server-modules.json`.
+ *
+ * @remarks
+ * Imports the emitted Rolldown modules to discover extra `ssr: true` scripts, so
+ * Integrations are activated first. An Integration that needs process globals
+ * before those imports installs them in `setup()`.
+ */
+export async function emitProductionServerModules(options: {
+	appConfig: EcoPagesAppConfig;
+	router: ServerModuleEntryRouteSource;
+	staticRoutes?: readonly StaticRoute[];
+	errorPageLoaders?: ErrorPageLoaders;
+	outdir?: string;
+}): Promise<ProductionServerModulesManifest> {
+	const appConfig = options.appConfig;
+	requireAppRuntime(appConfig);
+	await setupAppRuntimeIntegrations({ appConfig });
+	const outdir = path.resolve(options.outdir ?? getServerBundleOutputPaths(appConfig).serverOutdir);
+	fileSystem.ensureDir(outdir);
+
+	const collected = await collectServerModuleEntries({
+		appConfig,
+		router: options.router,
+		staticRoutes: options.staticRoutes,
+		errorPageLoaders: options.errorPageLoaders,
+	});
+
+	let rolldownEntries = collected.filter((entryPath) => isRolldownServerModuleEntry(entryPath, appConfig));
+	const htmlEntries = collected.filter((entryPath) => !isRolldownServerModuleEntry(entryPath, appConfig));
+
+	const modules: Record<string, string> = {};
+	Object.assign(modules, await emitRolldownServerModules(appConfig, uniqueEntryPaths(rolldownEntries), outdir));
+
+	for (const htmlEntry of uniqueEntryPaths(htmlEntries)) {
+		const emitted = await emitCompiledPageModule(appConfig, htmlEntry, outdir);
+		modules[emitted.sourceKey] = emitted.relativePath;
+	}
+
+	let manifest: ProductionServerModulesManifest = { outdir, modules };
+	assignProductionServerModules(appConfig, manifest);
+
+	const discoveredScripts = collectSsrScriptPaths(
+		await importEmittedModules(
+			manifest,
+			rolldownEntries.map((entryPath) => toRootRelativePath(appConfig.rootDir, entryPath)),
+		),
+	).filter(
+		(scriptPath) =>
+			fileSystem.exists(scriptPath) && !(toRootRelativePath(appConfig.rootDir, scriptPath) in modules),
+	);
+
+	if (discoveredScripts.length > 0) {
+		rolldownEntries = uniqueEntryPaths([...rolldownEntries, ...discoveredScripts]);
+		Object.assign(modules, await emitRolldownServerModules(appConfig, rolldownEntries, outdir));
+		manifest = { outdir, modules };
+		assignProductionServerModules(appConfig, manifest);
+	}
+
+	writeProductionServerModulesManifest(manifest);
+
+	appLogger.debug(`Emitted ${Object.keys(modules).length} production server modules`);
+	return manifest;
+}
+
+/**
+ * Builds eligible server entries in one Rolldown invocation and records outputs.
+ *
+ * @remarks
+ * Production emit writes `dist/.server/server-modules.json`. HTML Pages compile
+ * through `compilePageModule` and join the same map.
  */
 export async function ensurePagesUnifiedGraphBuilt(options: {
 	appConfig: EcoPagesAppConfig;
@@ -173,97 +298,86 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		return undefined;
 	}
 
-	const eligibleEntryPaths = Array.from(
-		new Set(
-			options.entryPaths
-				.map((entryPath) => path.resolve(entryPath))
-				.filter((entryPath) => isPagesUnifiedGraphPage(entryPath, options.appConfig)),
-		),
-	);
-
+	const eligibleEntryPaths = uniqueEntryPaths(options.entryPaths);
 	if (eligibleEntryPaths.length === 0) {
 		return undefined;
 	}
 
 	const outdir = path.resolve(options.outdir);
-	const existingManifest = options.force ? undefined : readPagesUnifiedGraphManifest(options.appConfig);
-	if (
-		existingManifest &&
-		isManifestValidForEntries(existingManifest, options.appConfig, outdir, eligibleEntryPaths)
-	) {
+	const runtime = requireAppRuntime(options.appConfig);
+	const sourceKeys = eligibleEntryPaths.map((entryPath) => toRootRelativePath(options.appConfig.rootDir, entryPath));
+	if (!options.force && canReuseEmittedModules(runtime.productionServerModules, outdir, sourceKeys)) {
 		appLogger.debug('Reusing pages unified graph built in this process');
-		return existingManifest;
+		return {
+			buildKey: outdir,
+			outputs: Object.fromEntries(
+				eligibleEntryPaths.map((entryPath, index) => [
+					entryPath,
+					path.join(outdir, runtime.productionServerModules!.modules[sourceKeys[index]!]!),
+				]),
+			),
+			outputImports: [],
+			dependencyHashes: {},
+		};
 	}
 
-	const entryRecord: Record<string, string> = {};
-
-	for (const entryPath of eligibleEntryPaths) {
-		const entryKey = createSafeGraphEntryKey(entryPath, options.appConfig.rootDir);
-		entryRecord[entryKey] = entryPath;
-	}
-
-	appLogger.debugTime('pagesUnifiedGraphBuild');
-	const buildOptions = createServerBuildRequest(options.appConfig, {
-		entrypoints: entryRecord,
-		outdir,
-		splitting: true,
-		naming: '[name]-[hash].[ext]',
-	});
-	const buildResult = await buildOrThrow(options.appConfig, buildOptions, 'Pages unified graph build failed').finally(
-		() => appLogger.debugTimeEnd('pagesUnifiedGraphBuild'),
+	const rolldownEntries = eligibleEntryPaths.filter((entryPath) =>
+		isRolldownServerModuleEntry(entryPath, options.appConfig),
+	);
+	const htmlEntries = eligibleEntryPaths.filter(
+		(entryPath) => !isRolldownServerModuleEntry(entryPath, options.appConfig),
 	);
 
+	const modules: Record<string, string> = {
+		...(await emitRolldownServerModules(options.appConfig, rolldownEntries, outdir)),
+	};
 	const outputs: Record<string, string> = {};
-	const outputImports = new Set<string>();
-	const dependencyHasher = new RouteModuleDependencyHasher();
-	const dependencyHashes: RouteModuleDependencyHashes = {};
-
-	for (const entryPath of eligibleEntryPaths) {
-		const fileHash = fileSystem.hash(entryPath);
-		const compiledOutput = getBuildEntryOutput(buildResult, entryPath, options.appConfig.rootDir);
-		if (!compiledOutput) {
-			throw new Error(`Pages unified graph build produced no output for ${entryPath}`);
+	for (const entryPath of rolldownEntries) {
+		const sourceKey = toRootRelativePath(options.appConfig.rootDir, entryPath);
+		const relativePath = modules[sourceKey];
+		if (relativePath) {
+			outputs[entryPath] = path.join(outdir, relativePath);
 		}
-
-		outputs[entryPath] = compiledOutput;
-		for (const importPath of collectBuildOutputImports(buildResult, compiledOutput)) outputImports.add(importPath);
-
-		const dependencyModulePaths = resolveRouteModuleDependencyPaths(
-			buildResult,
-			entryPath,
-			options.appConfig.rootDir,
-		);
-		Object.assign(dependencyHashes, dependencyHasher.createDependencyHashes(dependencyModulePaths));
-		dependencyHashes[path.normalize(entryPath)] = fileHash;
 	}
 
-	const manifest: PagesUnifiedGraphCacheManifest = {
-		buildKey: createPagesUnifiedGraphBuildKey(options.appConfig, outdir),
-		outputs,
-		outputImports: [...outputImports],
-		dependencyHashes,
-	};
+	for (const htmlEntry of htmlEntries) {
+		const emitted = await emitCompiledPageModule(options.appConfig, htmlEntry, outdir);
+		modules[emitted.sourceKey] = emitted.relativePath;
+		outputs[htmlEntry] = emitted.outputPath;
+	}
 
-	writePagesUnifiedGraphManifest(options.appConfig, manifest);
+	storeProductionServerModules(options.appConfig, {
+		outdir,
+		modules: { ...runtime.productionServerModules?.modules, ...modules },
+	});
 	appLogger.debug(`Built pages unified graph for ${eligibleEntryPaths.length} entries`);
 
-	return manifest;
+	return {
+		buildKey: outdir,
+		outputs,
+		outputImports: Object.values(outputs),
+		dependencyHashes: {},
+	};
 }
 
 export async function importPagesUnifiedGraphModule<T>(
 	appConfig: EcoPagesAppConfig,
 	filePath: string,
 ): Promise<T | undefined> {
-	const manifest = readPagesUnifiedGraphManifest(appConfig);
-	if (!manifest || !isGraphImportable(manifest, appConfig)) {
+	const manifest = loadProductionServerModules(appConfig);
+	if (!manifest) {
 		return undefined;
 	}
 
-	const resolvedFilePath = path.resolve(filePath);
-	const outputPath = manifest.outputs[resolvedFilePath];
-	if (!outputPath || !fileSystem.exists(outputPath)) {
+	const sourceKey = toRootRelativePath(appConfig.rootDir, filePath);
+	const relativePath = manifest.modules[sourceKey];
+	if (!relativePath) {
+		return undefined;
+	}
+	const outputPath = path.join(manifest.outdir, relativePath);
+	if (!fileSystem.exists(outputPath)) {
 		return undefined;
 	}
 
-	return (await import(/* @vite-ignore */ pathToFileURL(outputPath).href)) as T;
+	return importEmittedServerModule<T>(appConfig, filePath, outputPath);
 }

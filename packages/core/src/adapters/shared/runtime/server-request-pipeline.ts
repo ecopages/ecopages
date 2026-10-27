@@ -69,7 +69,7 @@ export class ServerRequestPipeline {
 		getCacheService: () => this.getCacheService(),
 	});
 	private sharedPageCacheService: PageCacheService | null | undefined;
-	/** The one endpoint loader, shared by requests and the build, so both compile a file the same way. */
+	/** The one endpoint loader, shared by requests and the build. Production imports the emitted module. */
 	private readonly importEndpointModule: EndpointRouteHandlerOptions['importServerModule'] = (filePath) =>
 		this.importServerModule<Record<string, unknown>>(filePath);
 	private readonly endpointRouteHandler = new EndpointRouteHandler({

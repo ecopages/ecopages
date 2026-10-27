@@ -14,11 +14,15 @@ const ensurePagesUnifiedGraphBuiltMock = vi.hoisted(() =>
 	}),
 );
 const shouldBuildPagesUnifiedGraphMock = vi.hoisted(() => vi.fn(() => true));
+const emitProductionServerModulesMock = vi.hoisted(() =>
+	vi.fn(async () => ({ outdir: '/test/project/dist/.server', modules: {} })),
+);
 
 vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('../build/cache/pages-unified-graph-build.ts')>();
 	return {
 		...actual,
+		emitProductionServerModules: emitProductionServerModulesMock,
 		ensurePagesUnifiedGraphBuilt: ensurePagesUnifiedGraphBuiltMock,
 		shouldBuildPagesUnifiedGraph: shouldBuildPagesUnifiedGraphMock,
 	};
@@ -52,6 +56,7 @@ describe('StaticSiteGenerator', () => {
 		ensureDirMock = vi.fn(() => {});
 		writeMock = vi.fn(() => {});
 		resolveBuildParallelismMock.mockClear();
+		emitProductionServerModulesMock.mockClear();
 		fileSystem.ensureDir = ensureDirMock;
 		fileSystem.write = writeMock;
 		vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
@@ -347,6 +352,96 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			expect(listStaticGenerationRoutes).toHaveBeenCalledTimes(1);
+		});
+
+		test('emits explicit views when there are no filesystem Pages', async () => {
+			const view = Object.assign(() => null, {
+				cache: 'static' as const,
+				config: { identity: { ...testInjectedMeta, file: '/src/views/hello.ts' } },
+			});
+			const loader = Object.assign(async () => ({ default: view }), {
+				filePath: '/src/views/hello.ts',
+			});
+			const staticRoutes = [{ path: '/hello', loader }];
+			const ssg = new StaticSiteGenerator({
+				appConfig: createMockConfig({
+					integrations: [
+						{
+							name: 'test',
+							extensions: ['.ts'],
+						},
+					] as unknown as EcoPagesAppConfig['integrations'],
+				}),
+			});
+
+			await ssg.run({
+				router: {
+					templateRoutes: [],
+					listStaticGenerationRoutes: vi.fn(async () => []),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3000',
+				staticRoutes,
+				routeRendererFactory: {
+					getPageRenderer: vi.fn(),
+					getExplicitViewRenderer: vi.fn(() => ({
+						renderExplicitView: vi.fn(),
+						executeExplicitView: vi.fn(async () => ({
+							body: '<html>Hello</html>',
+							metadata: { title: 'Test', description: 'Test site' },
+						})),
+					})),
+				} satisfies StaticGenerationRendererFactory,
+			});
+
+			expect(emitProductionServerModulesMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					router: { templateRoutes: [] },
+					staticRoutes,
+				}),
+			);
+		});
+
+		test('emits Pages listed by the route source when templateRoutes is omitted', async () => {
+			const templateRoute = {
+				filePath: '/src/pages/about.tsx',
+				pathname: '/about',
+				kind: 'exact' as const,
+				role: 'page' as const,
+				paramNames: [],
+			};
+			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => [
+						{
+							requestUrl: 'http://localhost:3000/about',
+							pathname: '/about',
+							templateRoute,
+							params: {},
+						},
+					]),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn(() => ({
+						loadPageModule: vi.fn(async () => ({
+							default: Object.assign(() => null, { cache: 'static' }),
+						})),
+						execute: vi.fn(async () => ({
+							body: '<html>About</html>',
+							metadata: { title: 'Test', description: 'Test site' },
+						})),
+					})),
+					getExplicitViewRenderer: vi.fn(() => null),
+				} satisfies StaticGenerationRendererFactory,
+			});
+
+			expect(emitProductionServerModulesMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					router: { templateRoutes: [templateRoute] },
+				}),
+			);
 		});
 
 		test('should build unified graph before integration static export hooks', async () => {

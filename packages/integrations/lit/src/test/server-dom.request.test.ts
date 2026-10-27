@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createApp } from '@ecopages/core/create-app';
+import { loadEcoPagesConfig } from '../../../../core/src/config/load-eco-config.ts';
+import { createNodeApp } from '../../../../core/src/adapters/node/create-app.ts';
 import type { EcopagesApp } from '@ecopages/core/create-app';
 
 const ORIGIN = 'http://localhost:3000';
@@ -24,9 +25,10 @@ async function requestPage(pathname: string): Promise<{ status: number; html: st
 }
 
 beforeAll(async () => {
-	app = await createApp({
-		configFile: path.join(appDir, 'eco.config.ts'),
+	app = await createNodeApp({
+		appConfig: await loadEcoPagesConfig({ configFile: path.join(appDir, 'eco.config.ts') }),
 		serverOptions: { hostname: '127.0.0.1', port: 0 },
+		cliArgs: { preview: false, build: false, start: false, dev: false, serveOnly: false, keepGoing: false },
 	});
 }, 60_000);
 

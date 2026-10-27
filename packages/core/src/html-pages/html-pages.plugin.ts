@@ -2,7 +2,13 @@ import path from 'node:path';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { EcoPageFile } from '../types/contracts.ts';
-import { HTML_PAGES_INTEGRATION_NAME, loadHtmlPageModule } from './html-page-module.ts';
+import {
+	HTML_PAGES_INTEGRATION_NAME,
+	loadHtmlPageModule,
+	reviveHtmlPageModule,
+	serializeHtmlPageModule,
+	type SerializedHtmlPageModule,
+} from './html-page-module.ts';
 import { HtmlPageRenderer } from './html-page-renderer.ts';
 
 /**
@@ -36,5 +42,16 @@ export class HtmlPagesPlugin extends IntegrationPlugin {
 		}
 
 		return loadHtmlPageModule(appConfig, file);
+	}
+
+	override serializeCompiledPageModule(
+		module: EcoPageFile,
+		context: { rootDir: string; filePath: string },
+	): { contents: string } {
+		return { contents: `${JSON.stringify(serializeHtmlPageModule(module, context.rootDir))}\n` };
+	}
+
+	override reviveCompiledPageModule(contents: string, context: { rootDir: string; filePath: string }): EcoPageFile {
+		return reviveHtmlPageModule(JSON.parse(contents) as SerializedHtmlPageModule, context.rootDir);
 	}
 }

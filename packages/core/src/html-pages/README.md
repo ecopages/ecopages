@@ -8,15 +8,15 @@ This directory owns `.html` Filesystem Routes: plain HTML files under `src/pages
 
 `finalizeEcoPagesConfig()` appends the internal `html-pages` Integration after user Integrations, unless a user Integration already declares `.html`. Appending last keeps the first-extension fallback for missing semantic templates unchanged for existing apps. There is no public plugin factory.
 
-| File                          | Role                                                                                                                  |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `html-pages.plugin.ts`        | `HtmlPagesPlugin`: owns `.html` with `HtmlPageRenderer`, implements `compilePageModule`, sets `acceptsParams = false` |
-| `html-page-template.ts`       | Compiles a Page or Html shell file into template parts, asset declarations, head nodes, metadata, and social tags     |
-| `html-page-module.ts`         | Builds the Page or shell module in-process and owns the built-in shell                                                |
-| `html-page-renderer.ts`       | `StringMarkupRenderer` subclass: emits assets in place, uses the shared shell render, reconciles the head             |
-| `html-page-document.ts`       | Reconciles Page head tags and `<html>`/`<body>` attributes onto the finalized document                                |
-| `html-page-module-scripts.ts` | Collects every HTML Page's and the shell's module scripts, then maps each script to its URL                           |
-| `html-page-classic-script.ts` | Validates a classic `<script src>` and marks it `classic`: module-only code, JSX and compile helpers are rejected     |
+| File                          | Role                                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `html-pages.plugin.ts`        | `HtmlPagesPlugin`: owns `.html` with `HtmlPageRenderer`, implements `compilePageModule` plus serialize/revive, sets `acceptsParams = false` |
+| `html-page-template.ts`       | Compiles a Page or Html shell file into template parts, asset declarations, head nodes, metadata, and social tags                           |
+| `html-page-module.ts`         | Builds the Page or shell module in-process, serializes it for production emit, and owns the built-in shell                                  |
+| `html-page-renderer.ts`       | `StringMarkupRenderer` subclass: emits assets in place, uses the shared shell render, reconciles the head                                   |
+| `html-page-document.ts`       | Reconciles Page head tags and `<html>`/`<body>` attributes onto the finalized document                                                      |
+| `html-page-module-scripts.ts` | Collects every HTML Page's and the shell's module scripts, then maps each script to its URL                                                 |
+| `html-page-classic-script.ts` | Validates a classic `<script src>` and marks it `classic`: module-only code, JSX and compile helpers are rejected                           |
 
 Parsing uses `html/html-source-parser.ts`, a positional parser built on the same tokenizer as `HtmlRewriter` (`html/html-tokenizer.ts`).
 
@@ -24,8 +24,8 @@ Parsing uses `html/html-source-parser.ts`, a positional parser built on the same
 
 Core never checks for HTML Pages by name. It finds a file's owning Integration with `findIntegrationForFile()` (the longest registered extension) and asks it:
 
-- `PageModuleImportService.loadModule()` calls the owner's `compilePageModule()` before bundling. `HtmlPagesPlugin.compilePageModule()` compiles files under the pages directory and `src/includes/html.html` with `loadHtmlPageModule()`, and throws for any other `.html` file; an Integration that implements the hook compiles every file core loads for it. Bun and Node load HTML Pages the same way, and the import cache still keys modules by file hash.
-- `isPagesUnifiedGraphPage()` leaves out Pages whose owner implements `compilePageModule`, so HTML Pages stay out of the production unified graph.
+- `PageModuleImportService.loadModule()` calls the owner's `compilePageModule()` before bundling in development. `HtmlPagesPlugin.compilePageModule()` compiles files under the pages directory and `src/includes/html.html` with `loadHtmlPageModule()`, and throws for any other `.html` file; an Integration that implements the hook compiles every file core loads for it. Bun and Node load HTML Pages the same way, and the import cache still keys modules by file hash.
+- `ecopages build` compiles each HTML Page through `compilePageModule`, records it through `serializeCompiledPageModule` as a `-html.json` file, and maps it in `dist/.server/server-modules.json`. Production restores that record with `reviveCompiledPageModule` and never compiles.
 - Route discovery rejects `[param]` filenames whose owner sets `acceptsParams` to `false`, because HTML Pages have no `staticPaths`.
 
 Each component carries its compiled template on an interned symbol, read with `getCompiledHtmlTemplate()`. Calling the component directly throws, because rendering needs the owning renderer's asset pipeline. A Page component also exposes `metadata`, built from its head tags and merged over `defaultMetadata`, so static export and the Sitemap read it like an `eco.page()` Page.
@@ -96,7 +96,7 @@ Reconciliation runs only for HTML Pages; other routes keep their head output.
 - `html-page-template.test.ts`: extraction, metadata, social tags, asset classification, preload hints, relative-URL and social image warnings, CSS URL extraction, inline module scripts with relative imports, compile errors
 - `html-page-document.test.ts`: head reconciliation and root attribute merging
 - `html-page-module.test.ts`: which `.html` files core loads, warnings once per file revision, inline module script import errors, metadata merge, shell compile errors
-- `html-pages.plugin.test.ts`: which files `compilePageModule()` compiles or rejects
+- `html-pages.plugin.test.ts`: which files `compilePageModule()` compiles or rejects, and serialize/revive without compiling again
 - `html-page-renderer.test.ts`: built-in shell, JSX shells without `<body>`, delegated shells, asset dedupe, preload hints (Page and shell stylesheets, shared-build and HMR module script URLs, kind mismatches, `integrity`, unmatched warnings for a Page and the shell), relative `url()` in processed `<style>`, warned again after an edit, missing assets, head on a direct `render()`, render errors wrapped by core (an `HttpError` passed through), the shared module-script build (one chunk per shared module, stable URLs, no other Page's code, rebuild after an edit, a fix, or a new script, a broken Page left out, entries that differ only by extension)
 - `html-page-classic-script.test.ts`: the classic script rule, including a real build of a TypeScript classic script run as a classic script
 - `html/html-source-parser.test.ts`: source offsets, raw text, implicit head close

@@ -201,12 +201,24 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * calls it for every file of the Integration that it loads as a module, and never bundles
 	 * those files itself.
 	 *
-	 * - Every Page of an Integration that implements this stays out of the production pages
-	 *   graph, so each one builds on first load.
-	 * - The result is cached by the file's content hash, so editing another file it reads does
-	 *   not invalidate it.
+	 * Production emit records the compiled module through {@link serializeCompiledPageModule}.
+	 * Development caches the result by the file's content hash, so editing another file it
+	 * reads does not invalidate it.
 	 */
 	compilePageModule?(filePath: string, appConfig: EcoPagesAppConfig): EcoPageFile | Promise<EcoPageFile>;
+
+	/**
+	 * Records a {@link compilePageModule} result so production can import it without compiling.
+	 */
+	serializeCompiledPageModule?(
+		module: EcoPageFile,
+		context: { rootDir: string; filePath: string },
+	): { contents: string };
+
+	/**
+	 * Restores a {@link serializeCompiledPageModule} record for production import.
+	 */
+	reviveCompiledPageModule?(contents: string, context: { rootDir: string; filePath: string }): EcoPageFile;
 
 	/**
 	 * Returns processed global assets resolved during `setup()`.

@@ -1,13 +1,16 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createApp } from '../adapters/create-app.ts';
+import { createNodeApp } from '../adapters/node/create-app.ts';
 import type { BuildAdapter, BuildResult } from '../build/build-adapter.ts';
 import { BuildQueue } from '../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { loadEcoPagesConfig } from '../config/load-eco-config.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { copyFixtureApp } from '../../__fixtures__/app/copy-fixture-app.ts';
+
+const CLI_ARGS = { preview: false, build: false, start: false, dev: false, serveOnly: false, keepGoing: false };
+const SERVER_OPTIONS = { hostname: '127.0.0.1', port: 0 };
 
 const CACHE_FIXTURE_DIR = path.resolve(import.meta.dirname, '../../../../e2e/fixtures/cache');
 
@@ -104,13 +107,23 @@ describe('production Dynamic collection Page browser graphs', () => {
 		);
 
 		const appConfig = await loadEcoPagesConfig({ configFile: path.join(appDir, 'eco.config.ts') });
-		const app = await createApp({
+		const buildApp = await createNodeApp({
 			appConfig,
-			serverOptions: { hostname: '127.0.0.1', port: 0 },
+			serverOptions: SERVER_OPTIONS,
+			cliArgs: { ...CLI_ARGS, build: true },
 		});
 		try {
-			await app.fetch(new Request('http://localhost:3000/'));
-			await app.serverAdapter!.buildStatic();
+			await buildApp.start();
+		} finally {
+			await buildApp.stop();
+		}
+
+		const app = await createNodeApp({
+			appConfig,
+			serverOptions: SERVER_OPTIONS,
+			cliArgs: { ...CLI_ARGS, start: true },
+		});
+		try {
 			await app.start();
 			installThrowingBuildAdapter(appConfig);
 

@@ -26,6 +26,10 @@ import type { StaticSiteGenerator } from '../../../static-site-generator/static-
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 import { readEndpointHandlers, type EndpointRouteHandlerOptions } from '../http/endpoint-route-handler.ts';
+import {
+	emitProductionServerModules,
+	shouldBuildPagesUnifiedGraph,
+} from '../../../build/cache/pages-unified-graph-build.ts';
 
 export interface StaticBuildOptions {
 	baseUrl?: string;
@@ -133,7 +137,7 @@ export class ServerStaticBuilder {
 	 *
 	 * @remarks
 	 * Call it before the router reads any Page, so a Page module that resolves what a Processor generates in
-	 * `setup()` finds it. Integrations are set up later, when the static site generator starts rendering. The next
+	 * `setup()` finds it. Integrations are activated when production emit imports their modules. The next
 	 * {@link build} then skips this work once; a build without a prior call prepares the export itself.
 	 */
 	async prepareExport(): Promise<void> {
@@ -229,9 +233,9 @@ export class ServerStaticBuilder {
 	 * @param dependencies.importServerModule - The server-module loader endpoint requests use
 	 *
 	 * @remarks
-	 * Every endpoint file is imported and its exports checked as its first request would, before the
-	 * server bundle and static generation, so a broken one fails the build with the request's error.
-	 * The import is cached in this process only; `ecopages start` compiles the file again.
+	 * Every server entry is emitted into `dist/.server/` before endpoints are checked, so a broken
+	 * module fails the build with the error its first request would log. `ecopages start` loads those
+	 * emitted modules and never compiles.
 	 */
 	async build(
 		options: StaticBuildOptions | undefined,
@@ -255,12 +259,21 @@ export class ServerStaticBuilder {
 		this.exportPrepared = false;
 
 		const endpointRoutes = dependencies.router.templateRoutes.filter((route) => route.role === 'endpoint');
-		for (const route of endpointRoutes) {
-			readEndpointHandlers(await dependencies.importServerModule(route.filePath), route);
-		}
-
 		if (this.needsServerBundle || endpointRoutes.length > 0) {
 			await this.bundleServerEntry();
+		}
+
+		if (shouldBuildPagesUnifiedGraph()) {
+			await emitProductionServerModules({
+				appConfig: this.appConfig,
+				router: dependencies.router,
+				staticRoutes: dependencies.staticRoutes,
+				errorPageLoaders: dependencies.errorPageLoaders,
+			});
+		}
+
+		for (const route of endpointRoutes) {
+			readEndpointHandlers(await dependencies.importServerModule(route.filePath), route);
 		}
 
 		await this.staticSiteGenerator.run({

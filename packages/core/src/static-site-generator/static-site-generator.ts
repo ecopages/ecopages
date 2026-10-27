@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { appLogger } from '../global/app-logger.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { resolveBuildParallelism } from '../build/build-parallelism.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type {
@@ -31,6 +32,7 @@ import {
 	teardownAppRuntimeIntegrations,
 } from '../build/app-build-manifest-runtime.ts';
 import {
+	emitProductionServerModules,
 	ensurePagesUnifiedGraphBuilt,
 	shouldBuildPagesUnifiedGraph,
 } from '../build/cache/pages-unified-graph-build.ts';
@@ -429,10 +431,36 @@ export class StaticSiteGenerator {
 		}
 	}
 
+	/**
+	 * @remarks
+	 * An empty `templateRoutes` array still emits explicit views, the Html shell,
+	 * Layouts, and error pages. When the route source omits `templateRoutes`,
+	 * listed Pages are used instead.
+	 */
+	private async emitProductionServerModulesForStaticGeneration(input: {
+		router: StaticGenerationRouteSource;
+		listedTemplateRoutes: readonly { filePath: string }[];
+		staticRoutes?: StaticRoute[];
+		errorPageLoaders?: ErrorPageLoaders;
+	}): Promise<void> {
+		if (requireAppRuntime(this.appConfig).productionServerModules || !shouldBuildPagesUnifiedGraph()) {
+			return;
+		}
+		await emitProductionServerModules({
+			appConfig: this.appConfig,
+			router: { templateRoutes: input.router.templateRoutes ?? input.listedTemplateRoutes },
+			staticRoutes: input.staticRoutes,
+			errorPageLoaders: input.errorPageLoaders,
+		});
+	}
+
 	private async ensureUnifiedGraphForStaticGeneration(
 		routes: readonly StaticGenerationRoute[],
 		force: boolean,
 	): Promise<void> {
+		if (requireAppRuntime(this.appConfig).productionServerModules) {
+			return;
+		}
 		if (!shouldBuildPagesUnifiedGraph()) {
 			return;
 		}
@@ -571,6 +599,12 @@ export class StaticSiteGenerator {
 		try {
 			await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
 			const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
+			await this.emitProductionServerModulesForStaticGeneration({
+				router,
+				listedTemplateRoutes: routes.map((route) => route.templateRoute),
+				staticRoutes,
+				errorPageLoaders,
+			});
 			const exportRoutes = routes.map((route) => toEcopagesRouteInfo(route));
 			await this.ensureUnifiedGraphForStaticGeneration(routes, force);
 

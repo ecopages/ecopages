@@ -1,7 +1,6 @@
 import path from 'node:path';
 import type { EcoComponent, PageParams, PageQuery } from '@ecopages/core';
 import type { AnyIntegrationPlugin, StaticExportContext } from '@ecopages/core/integration';
-import { ensureLitDomShim } from './dom-shim.ts';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,
@@ -119,7 +118,6 @@ export class LitStaticRenderSession {
 	}
 
 	async preloadSsrScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): Promise<void> {
-		ensureLitDomShim();
 		await this.preloader.preloadSsrScripts(components);
 	}
 

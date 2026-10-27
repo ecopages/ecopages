@@ -339,7 +339,9 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 		integrationName: 'react',
 	});
 
-	assert.equal(integration.setup.mock.calls.length, 1);
+	await vi.waitFor(() => {
+		assert.equal(integration.setup.mock.calls.length, 1);
+	});
 	resolveSetup();
 	await Promise.all([first, second]);
 	assert.equal(integration.setup.mock.calls.length, 1);

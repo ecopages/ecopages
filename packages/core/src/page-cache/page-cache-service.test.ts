@@ -4,6 +4,7 @@
 
 import path from 'node:path';
 import { describe, expect, test, beforeEach, vi } from 'vitest';
+import { appLogger } from '../global/app-logger.ts';
 import { PageCacheService, getCacheControlHeader } from './page-cache-service.js';
 import { MemoryCacheStore } from './memory-cache-store.js';
 import { BuildInputDependencyIndex } from '../build/cache/build-input-dependency-index.js';
@@ -123,6 +124,31 @@ describe('PageCacheService', () => {
 			if (startedRenderCount > 0) await allCacheWrites;
 			expect(startedRenderCount).toBe(1);
 			expect(await store.get('/dedup-page')).toMatchObject({ html: '<html>v1</html>' });
+		});
+
+		test('waitForInFlightRegenerations settles when a regeneration fails', async () => {
+			const errorSpy = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
+			const revalidateStrategy = { revalidate: 60 };
+			await store.set('/failing-regen', {
+				html: '<html>stale</html>',
+				createdAt: Date.now() - 120000,
+				revalidateAfter: Date.now() - 60000,
+				tags: [],
+				strategy: revalidateStrategy,
+			});
+			let failRender!: (error: Error) => void;
+			const renderResult = new Promise<never>((_resolve, reject) => {
+				failRender = reject;
+			});
+
+			const stale = await service.getOrCreate('/failing-regen', revalidateStrategy, () => renderResult);
+			expect(stale.status).toBe('stale');
+
+			const waiting = service.waitForInFlightRegenerations();
+			failRender(new Error('regenerate failed'));
+			await expect(waiting).resolves.toBeUndefined();
+
+			errorSpy.mockRestore();
 		});
 	});
 

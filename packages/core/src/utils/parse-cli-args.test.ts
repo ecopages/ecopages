@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { parseCliArgs } from './parse-cli-args.ts';
+import { isEcopagesStartCli, parseCliArgs } from './parse-cli-args.ts';
 import { isDevelopmentRuntime, isProductionRuntime } from './runtime.ts';
 
 const originalArgv = [...process.argv];
@@ -30,6 +30,20 @@ describe('parseCliArgs', () => {
 		process.argv = ['node', '/app/app.ts'];
 
 		expect(parseCliArgs()).toMatchObject({ start: true, dev: false, build: false, preview: false });
+	});
+
+	it('treats only the ecopages CLI as a start invocation', () => {
+		process.argv = ['node', '/usr/local/bin/ecopages.js'];
+		expect(isEcopagesStartCli()).toBe(true);
+
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'start'];
+		expect(isEcopagesStartCli()).toBe(true);
+
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build'];
+		expect(isEcopagesStartCli()).toBe(false);
+
+		process.argv = ['node', '/app/app.ts'];
+		expect(isEcopagesStartCli()).toBe(false);
 	});
 
 	it('forces production NODE_ENV for build when ambient env is development', () => {

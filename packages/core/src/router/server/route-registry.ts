@@ -1,9 +1,11 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
+import { loadProductionTemplateRoutes } from '../../build/production-route-list.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { PageParams, PageQuery } from '../../types/contracts.ts';
 import { invariant } from '../../utils/invariant.ts';
+import { isProductionRuntime } from '../../env.ts';
 import { hasKnownStaticExtension } from '../../utils/static-file-extensions.ts';
 import { ENDPOINT_FILE_EXTENSIONS, findEndpointFileExtension } from '../../utils/endpoint-file-extensions.ts';
 import { normalizePathname } from '../../utils/path-pattern.ts';
@@ -128,7 +130,8 @@ export class RouteRegistry {
 	}
 
 	async init(): Promise<void> {
-		this.templateRouteList = await this.scanTemplateRoutes();
+		const productionRoutes = isProductionRuntime() ? loadProductionTemplateRoutes(this.appConfig) : undefined;
+		this.templateRouteList = productionRoutes ?? (await this.scanTemplateRoutes());
 		appLogger.debug('RouteRegistry initialized', this.templateRouteList);
 	}
 

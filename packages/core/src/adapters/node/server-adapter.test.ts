@@ -500,6 +500,24 @@ describe('NodeServerAdapter', () => {
 			return { events, rootDir, copyFile, publicAsset };
 		}
 
+		it('refuses production start when dist/ is incomplete', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			onTestFinished(() => {
+				vi.unstubAllEnvs();
+			});
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-incomplete-dist-'));
+			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+			const appConfig = await finalizeEcoPagesConfig({ rootDir });
+			const adapter = makeNodeServerAdapter({
+				appConfig,
+				options: { watch: false },
+				requireCompleteDist: true,
+			});
+
+			await expect(adapter.initialize()).rejects.toThrow(/No readable production bundle manifest/);
+			await adapter.dispose();
+		});
+
 		it.each(['start', 'export'] as const)(
 			'sets Processors up before the routes are read in %s mode',
 			async (mode) => {

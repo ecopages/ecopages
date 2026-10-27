@@ -272,7 +272,6 @@ describe('launch-plan', () => {
 					path.join(serverDir, 'manifest.json'),
 					JSON.stringify({
 						serverEntry: SERVER_BUNDLE_FILENAME,
-						sourceConfigRelativePath: 'eco.config.ts',
 						emittedConfigModule: 'eco.config.mjs',
 					}),
 					'utf8',
@@ -489,7 +488,6 @@ describe('launch-plan', () => {
 				fs.writeFileSync(configPath, 'export default {};', 'utf8');
 				writeBundle(tempDir, 'build', {
 					emittedConfigModule: 'eco.config.mjs',
-					configHash: createHash('sha256').update(fs.readFileSync(configPath)).digest('hex'),
 				});
 				fs.writeFileSync(path.join(tempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'), 'export default {}');
 
@@ -503,21 +501,24 @@ describe('launch-plan', () => {
 			}
 		});
 
-		it('checks an explicit config against the manifest of the selected output directory', async () => {
+		it('runs the emitted config of the selected output even when --config names a source file', async () => {
 			const tempDir = setupBundleFixture();
+			const realTempDir = fs.realpathSync(tempDir);
 			try {
-				const sourceConfigPath = path.join(tempDir, 'eco.config.ts');
-				const otherConfigPath = path.join(tempDir, 'other.config.ts');
-				fs.writeFileSync(sourceConfigPath, 'export default {};', 'utf8');
-				fs.writeFileSync(otherConfigPath, 'export default { other: true };', 'utf8');
-				const hashOf = (file: string) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-				writeBundle(tempDir, 'dist', { configHash: hashOf(otherConfigPath) });
-				writeBundle(tempDir, 'build', { configHash: hashOf(sourceConfigPath) });
+				fs.writeFileSync(path.join(tempDir, 'other.config.ts'), 'export default { other: true };', 'utf8');
+				writeBundle(tempDir, 'dist', { emittedConfigModule: 'eco.config.mjs' });
+				writeBundle(tempDir, 'build', { emittedConfigModule: 'eco.config.mjs' });
+				fs.writeFileSync(path.join(tempDir, 'dist', SERVER_BUNDLE_DIR, 'eco.config.mjs'), 'export default {}');
+				fs.writeFileSync(path.join(tempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'), 'export default {}');
 
-				await expect(startPlan({ distDir: 'build', configFile: 'other.config.ts' })).rejects.toThrow(
-					/Ecopages config mismatch/,
+				const buildPlan = await startPlan({ distDir: 'build', configFile: 'other.config.ts' });
+				expect(buildPlan.env.ECOPAGES_CONFIG_FILE).toBe(
+					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'),
 				);
-				await expect(startPlan({ distDir: 'dist', configFile: 'other.config.ts' })).resolves.toBeDefined();
+				const distPlan = await startPlan({ distDir: 'dist', configFile: 'other.config.ts' });
+				expect(distPlan.env.ECOPAGES_CONFIG_FILE).toBe(
+					path.join(realTempDir, 'dist', SERVER_BUNDLE_DIR, 'eco.config.mjs'),
+				);
 			} finally {
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}

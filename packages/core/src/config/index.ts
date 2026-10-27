@@ -13,6 +13,7 @@ export {
 	resolveProductionServerEntry,
 	resolveProductionDistDir,
 } from '../build/server-bundle-deploy-manifest.ts';
+export { assertProductionDistComplete } from '../build/production-dist-complete.ts';
 export type {
 	EcoPagesUserConfig,
 	EcoPagesUserConfigFactory,

@@ -470,6 +470,38 @@ describe('PageModuleImportService', () => {
 		assert.deepEqual(fakeDependencies.calls.hashFile, []);
 	});
 
+	it('loads a production module when identity.file still names the build machine', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const serverOutdir = join(appRootDir, 'dist/.server');
+		mkdirSync(serverOutdir, { recursive: true });
+		writeFileSync(
+			join(serverOutdir, 'hello.mjs'),
+			`const Page = () => null;
+Page.config = { identity: { id: 'hello', file: '/build-machine/app/src/pages/hello.script.ts', integration: 'lit' } };
+export default Page;
+`,
+			'utf8',
+		);
+		writeFileSync(
+			join(serverOutdir, 'server-modules.json'),
+			`${JSON.stringify({ modules: { 'src/pages/hello.script.ts': 'hello.mjs' } })}\n`,
+			'utf8',
+		);
+
+		const loaded = await service.importModule<{
+			default: { config: { identity: { file: string } } };
+		}>({
+			filePath: '/build-machine/app/src/pages/hello.script.ts',
+			rootDir: appRootDir,
+			outdir: join(appRootDir, '.eco'),
+		});
+
+		assert.equal(loaded.default.config.identity.file, join(appRootDir, 'src/pages/hello.script.ts'));
+		assert.notEqual(loaded.default.config.identity.file, '/build-machine/app/src/pages/hello.script.ts');
+		assert.deepEqual(fakeDependencies.calls.buildModule, []);
+		assert.deepEqual(fakeDependencies.calls.hashFile, []);
+	});
+
 	it('compiles a production module from source when the map has not been loaded', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-build-'));

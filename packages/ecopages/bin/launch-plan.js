@@ -153,11 +153,10 @@ export async function createLaunchPlan(args, options, entryFile, launchMode) {
 				`Production server entry not found in ${path.relative(process.cwd(), distDir) || '.'}. Run \`ecopages build\` again.`,
 			);
 		}
-		assertProductionConfigIdentity(process.cwd(), resolvedConfigFile, {
-			isExplicitOverride: isExplicitConfig,
+		const runtimeConfigFile = resolveEmittedEcoConfigPath(process.cwd(), distDir) ?? resolvedConfigFile;
+		assertProductionConfigIdentity(process.cwd(), runtimeConfigFile, {
 			distDir,
 		});
-		const runtimeConfigFile = resolveEmittedEcoConfigPath(process.cwd(), distDir) ?? resolvedConfigFile;
 		if (runtimeConfigFile) {
 			envOverrides.ECOPAGES_CONFIG_FILE = runtimeConfigFile;
 			env.ECOPAGES_CONFIG_FILE = runtimeConfigFile;

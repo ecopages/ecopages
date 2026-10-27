@@ -19,6 +19,9 @@ import {
 import { collectConfigModuleFiles } from '../config-module-files.ts';
 import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from '../resolve-eco-config-path.ts';
 import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from '../user-config-types.ts';
+import { listProductionServerModuleKeysFromDist } from '../../build/server/server-modules-manifest.ts';
+import { toRootRelativePath } from '../../utils/root-relative-path.ts';
+import { SERVER_BUNDLE_DIR } from '../../utils/resolve-entry-file.ts';
 
 const finalizedPluginInstances = new WeakSet<object>();
 
@@ -43,6 +46,43 @@ function assertUserConfig(userConfig: EcoPagesUserConfig, configFilePath: string
 			'finalizeEcoPagesConfig() takes the user config first: finalizeEcoPagesConfig(userConfig, { configFilePath }).',
 		);
 	}
+}
+
+/**
+ * Treats an emitted `dist/.server/eco.config.mjs` as living under the deploy root.
+ *
+ * @remarks
+ * Production no longer rewrites `import.meta` to the source config, so the
+ * emitted file's directory is `dist/.server/`. The app root is the directory
+ * that contains `dist/`, taken from the config path so a worker that reloads
+ * the emitted file does not need `process.cwd()` to be the deploy root.
+ */
+function resolveEmittedConfigRootDir(
+	rootDir: string,
+	configFilePath: string,
+	distDirName: string,
+	cwd: string,
+): string {
+	const resolvedConfig = path.resolve(configFilePath);
+	const serverDir = path.dirname(resolvedConfig);
+	if (path.basename(serverDir) === SERVER_BUNDLE_DIR) {
+		const emittedDistDir = path.dirname(serverDir);
+		const normalizedDistDir = path.normalize(distDirName);
+		const distSegments = normalizedDistDir.split(/[\\/]/u).filter((segment) => segment !== '' && segment !== '.');
+		const deployRoot = path.resolve(emittedDistDir, ...distSegments.map(() => '..'));
+		if (path.resolve(deployRoot, distDirName) === emittedDistDir) {
+			return deployRoot;
+		}
+	}
+	const distCandidates = [path.resolve(cwd, distDirName), path.resolve(rootDir, distDirName)];
+	const isEmitted = distCandidates.some((candidate) => isPathInside(resolvedConfig, candidate));
+	if (!isEmitted) {
+		return rootDir;
+	}
+	if (distCandidates.some((candidate) => isPathInside(rootDir, candidate) || rootDir === candidate)) {
+		return cwd;
+	}
+	return rootDir;
 }
 
 /** An empty string keeps the default, as an omitted field does. */
@@ -163,18 +203,42 @@ function getPluginInstances(userConfig: EcoPagesUserConfig): object[] {
  * Resolves `dirPath/basename` against the registered template extensions.
  *
  * @remarks
- * When no file exists, the path uses the first extension so callers still get a
- * stable, non-existent candidate.
+ * A file on disk wins. When none exists, a unique recorded source key in
+ * `dist/.server/server-modules.json` is the production template, so
+ * `ecopages start` from a copied `dist/` still finds `404.html` instead of the
+ * first Integration extension. Otherwise the path uses the first extension so
+ * callers still get a stable, non-existent candidate.
  *
  * @throws When more than one extension matches, such as `html.tsx` next to `html.html`.
  */
-function resolveSemanticTemplatePath(dirPath: string, basename: string, extensions: string[]): string {
-	const matches = extensions
-		.map((extension) => path.join(dirPath, `${basename}${extension}`))
-		.filter((candidate) => fileSystem.exists(candidate));
+function resolveSemanticTemplatePath(
+	dirPath: string,
+	basename: string,
+	extensions: string[],
+	rootDir: string,
+	distDir: string,
+): string {
+	const candidates = extensions.map((extension) => path.join(dirPath, `${basename}${extension}`));
+	const matches = candidates.filter((candidate) => fileSystem.exists(candidate));
 
 	invariant(matches.length <= 1, `Multiple ${basename} templates found: ${matches.join(', ')}`);
-	return matches[0] ?? path.join(dirPath, `${basename}${extensions[0]}`);
+	if (matches[0]) {
+		return matches[0];
+	}
+
+	const recordedKeys = listProductionServerModuleKeysFromDist(rootDir, distDir) ?? [];
+	const recorded = candidates
+		.map((candidate) => toRootRelativePath(rootDir, candidate))
+		.filter((key) => recordedKeys.includes(key));
+	invariant(
+		recorded.length <= 1,
+		`Multiple ${basename} templates found in the production map: ${recorded.join(', ')}`,
+	);
+	if (recorded[0]) {
+		return path.resolve(rootDir, recorded[0]);
+	}
+
+	return path.join(dirPath, `${basename}${extensions[0]}`);
 }
 
 /**
@@ -203,7 +267,8 @@ function createAbsolutePaths(
 	const srcDir = path.resolve(config.rootDir, config.srcDir);
 	const includesDir = path.join(srcDir, config.includesDir);
 	const pagesDir = path.join(srcDir, config.pagesDir);
-	const errorPage = (status: number) => resolveSemanticTemplatePath(pagesDir, String(status), config.templatesExt);
+	const errorPage = (status: number) =>
+		resolveSemanticTemplatePath(pagesDir, String(status), config.templatesExt, config.rootDir, config.distDir);
 	const errorPageTemplatePaths = {
 		400: errorPage(400),
 		401: errorPage(401),
@@ -225,7 +290,13 @@ function createAbsolutePaths(
 		layoutsDir: path.join(srcDir, config.layoutsDir),
 		pagesDir,
 		publicDir: path.join(srcDir, config.publicDir),
-		htmlTemplatePath: resolveSemanticTemplatePath(includesDir, 'html', config.templatesExt),
+		htmlTemplatePath: resolveSemanticTemplatePath(
+			includesDir,
+			'html',
+			config.templatesExt,
+			config.rootDir,
+			config.distDir,
+		),
 		errorPageTemplatePaths,
 		error404TemplatePath: errorPageTemplatePaths[404],
 		error500TemplatePath: errorPageTemplatePaths[500],
@@ -270,12 +341,16 @@ export async function finalizeEcoPagesConfig(
 	for (const plugin of pluginInstances) finalizedPluginInstances.add(plugin);
 
 	try {
-		const rootDir = resolveUserConfigRootDir(userConfig.rootDir, options.cwd);
+		const cwd = options.cwd ?? process.cwd();
+		const directories = resolveDirectories(userConfig);
+		let rootDir = resolveUserConfigRootDir(userConfig.rootDir, cwd);
+		const configFilePath = options.configFilePath ?? path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
+		rootDir = resolveEmittedConfigRootDir(rootDir, configFilePath, directories.distDir, cwd);
 		const integrations = withHtmlPagesIntegration(userConfig.integrations ?? []);
 		const partialConfig: Omit<EcoPagesAppConfig, 'absolutePaths'> = {
 			baseUrl: resolveBaseUrl(userConfig.baseUrl),
 			rootDir,
-			...resolveDirectories(userConfig),
+			...directories,
 			robotsTxt: userConfig.robotsTxt ?? { preferences: { '*': [] } },
 			sitemap: resolveSitemap(userConfig.sitemap),
 			defaultMetadata: {
@@ -289,10 +364,10 @@ export async function finalizeEcoPagesConfig(
 			loaders: indexByName('Loader', userConfig.loaders),
 			additionalWatchPaths: userConfig.additionalWatchPaths ?? [],
 			devPrewarmPaths: userConfig.devPrewarmPaths ?? [],
+			serverFiles: userConfig.serverFiles,
 			cache: userConfig.cache,
 			devToolbar: userConfig.devToolbar,
 		};
-		const configFilePath = options.configFilePath ?? path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
 		const config: EcoPagesAppConfig = {
 			...partialConfig,
 			absolutePaths: createAbsolutePaths(

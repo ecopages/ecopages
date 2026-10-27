@@ -425,23 +425,27 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores dynamic route tem
 	assert.equal(renderer.prebuildProductionPageBrowserGraph.mock.calls.length, 1);
 });
 
-test('prebuildProductionPageBrowserGraphsFromManifest rejects changed browser sources', async () => {
+test('prebuildProductionPageBrowserGraphsFromManifest reuses outputs after HTML sources change', async () => {
 	const appConfig = await createAppConfig();
 	const htmlPageFile = path.join(appConfig.absolutePaths.pagesDir, 'docs.html');
 	const htmlScriptFile = path.join(appConfig.absolutePaths.srcDir, 'document.ts');
 	writeFile(htmlPageFile, '<script type="module" src="../document.ts"></script>');
 	writeFile(htmlScriptFile, 'export const documentScript = true;');
+	writeFile(path.join(appConfig.absolutePaths.distDir, 'assets/document.js'));
 	setPrebuiltHtmlPageModuleScriptUrls(appConfig, new Map([[htmlScriptFile, '/assets/document.js']]));
 	await writeAppBrowserClientManifest(appConfig, [], [], { sourceFiles: [], outputPaths: [] });
 	writeFile(htmlScriptFile, 'export const documentScript = false;');
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 
-	await expect(
-		prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, { getPageRenderer: () => null as never }),
-	).rejects.toThrow('changed or is missing');
+	assert.equal(
+		await prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, {
+			getPageRenderer: () => null as never,
+		}),
+		true,
+	);
 });
 
-test('prebuildProductionPageBrowserGraphsFromManifest rejects changed route browser sources', async () => {
+test('prebuildProductionPageBrowserGraphsFromManifest reuses outputs after route sources change', async () => {
 	const appConfig = await createAppConfig();
 	const routeFile = path.join(appConfig.rootDir, 'pages/index.tsx');
 	const routeSource = path.join(appConfig.rootDir, 'src/page-client.ts');
@@ -473,10 +477,18 @@ test('prebuildProductionPageBrowserGraphsFromManifest rejects changed route brow
 	});
 	writeFile(routeSource, 'export const pageClient = false;');
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
+	const renderer = {
+		name: 'ecopages-jsx',
+		buildGroupedGraphBuildPlan: vi.fn(async () => plan),
+		prebuildProductionPageBrowserGraph: vi.fn(async () => {}),
+	};
 
-	await expect(
-		prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, { getPageRenderer: () => null as never }),
-	).rejects.toThrow('changed or is missing');
+	assert.equal(
+		await prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, {
+			getPageRenderer: () => renderer as never,
+		}),
+		true,
+	);
 });
 
 test('restoreAppBrowserClientAssets rejects output files missing from dist', async () => {

@@ -106,15 +106,13 @@ describe('server-bundle-deploy-manifest', () => {
 
 		useRuntimeHash(check);
 		assert.doesNotThrow(() => assertProductionConfigIdentity(rootDir, emittedConfigPath, { distDir: 'dist' }));
-		assert.doesNotThrow(() =>
-			assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist', isExplicitOverride: true }),
+		assert.throws(
+			() => assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist' }),
+			/Ecopages config mismatch/,
 		);
 
 		writeFileSync(configPath, 'export default { changed: true };\n', 'utf8');
-		assert.throws(
-			() => assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist', isExplicitOverride: true }),
-			/Ecopages config mismatch/,
-		);
+		assert.doesNotThrow(() => assertProductionConfigIdentity(rootDir, emittedConfigPath, { distDir: 'dist' }));
 	});
 
 	function createBuiltApp(prefix: string, distDirName = 'dist') {
@@ -149,11 +147,12 @@ describe('server-bundle-deploy-manifest', () => {
 
 		assert.deepEqual(manifest, {
 			serverEntry: SERVER_BUNDLE_FILENAME,
-			sourceConfigRelativePath: 'eco.config.ts',
 			emittedConfigModule: EMITTED_ECO_CONFIG_FILENAME,
-			configHash: manifest.configHash,
 			emittedConfigHash: manifest.emittedConfigHash,
+			buildId: manifest.buildId,
 		});
+		assert.equal(typeof manifest.buildId, 'string');
+		assert.ok(manifest.buildId.length > 0);
 		assert.deepEqual(
 			Object.values(manifest).filter((value) => path.isAbsolute(value) || value.includes(appConfig.rootDir)),
 			[],

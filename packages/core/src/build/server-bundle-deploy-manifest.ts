@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../utils/resolve-entry-file.ts';
+import { ensureProductionBuildId } from './production-build-id.ts';
 
 const SERVER_BUNDLE_MANIFEST_FILENAME = 'manifest.json';
 const DEFAULT_DIST_DIR = 'dist';
@@ -11,18 +12,18 @@ const DEFAULT_DIST_DIR = 'dist';
  * Describes the server bundle in `<distDir>/.server/manifest.json`.
  *
  * @remarks
- * Every path is relative, so the bundle runs from any directory that keeps `dist/`
- * and the sources in their relative positions. `serverEntry` and `emittedConfigModule`
- * are relative to the manifest directory, `sourceConfigRelativePath` to the project root.
+ * Every path is relative, so the bundle runs from any directory that holds
+ * `dist/` and `node_modules/`. `serverEntry` and `emittedConfigModule` are
+ * relative to the manifest directory. `buildId` is shared with the other
+ * production manifests so `ecopages start` can refuse a mixed `dist/`.
  */
 export interface ServerBundleDeployManifest {
 	serverEntry: string;
-	sourceConfigRelativePath?: string;
 	emittedConfigModule?: string;
-	/** Content hash of the source config file when built. */
-	configHash?: string;
 	/** Content hash of the emitted production config artifact. */
 	emittedConfigHash?: string;
+	/** Id shared with `routes.json`, `server-modules.json`, and the browser-client manifest. */
+	buildId?: string;
 }
 
 export function getServerBundleOutputPaths(appConfig: EcoPagesAppConfig): {
@@ -45,7 +46,7 @@ export function getServerBundleOutputPaths(appConfig: EcoPagesAppConfig): {
  * @remarks
  * The build may run under Bun while `ecopages start` checks the manifest under Node, so the hash must not depend
  * on the runtime or on the file-system implementation. SHA-256 is computed here rather than through
- * `fileSystem.hash`; it equals that hash today, so manifests written by earlier builds stay valid.
+ * `fileSystem.hash`. Start compares this hash of the emitted config only.
  */
 function hashDeployConfigFile(filePath: string): string {
 	return contentHash(fileSystem.readFileAsBuffer(filePath));
@@ -67,23 +68,22 @@ export function writeServerBundleDeployManifest(
 	options?: { emittedConfigModule?: string; outputDir?: string },
 ): void {
 	const manifestDir = options?.outputDir ?? getServerBundleOutputPaths(appConfig).serverOutdir;
-	const sourceConfigPath = appConfig.absolutePaths?.config;
 	const emittedConfigPath = options?.emittedConfigModule
 		? path.join(manifestDir, options.emittedConfigModule)
 		: undefined;
 
 	const payload: ServerBundleDeployManifest = {
 		serverEntry: path.relative(manifestDir, serverEntryPath),
-		sourceConfigRelativePath: sourceConfigPath ? path.relative(appConfig.rootDir, sourceConfigPath) : undefined,
 		emittedConfigModule: options?.emittedConfigModule,
-		configHash: hashExistingFile(sourceConfigPath),
 		emittedConfigHash: hashExistingFile(emittedConfigPath),
+		buildId: ensureProductionBuildId(appConfig),
 	};
 	fileSystem.ensureDir(manifestDir);
 	fileSystem.write(
 		path.join(manifestDir, SERVER_BUNDLE_MANIFEST_FILENAME),
 		`${JSON.stringify(payload, null, '\t')}\n`,
 	);
+	fileSystem.write(path.join(manifestDir, 'package.json'), `${JSON.stringify({ type: 'module' }, null, '\t')}\n`);
 }
 
 function resolveServerBundleDir(rootDir: string, distDir: string): string {
@@ -196,30 +196,14 @@ function isEmittedConfigArtifact(
 	);
 }
 
-function matchesBuiltConfigHash(manifest: ServerBundleDeployManifest, requestedPath: string): boolean {
-	if (!manifest.configHash || !fileSystem.exists(requestedPath)) {
-		return false;
-	}
-	return hashDeployConfigFile(requestedPath) === manifest.configHash;
-}
-
-function matchesBuiltConfigPath(
-	manifest: ServerBundleDeployManifest,
-	rootDir: string,
-	requestedPath: string,
-	isExplicitOverride?: boolean,
-): boolean {
-	if (manifest.configHash || isExplicitOverride || !manifest.sourceConfigRelativePath) return false;
-	return path.relative(rootDir, requestedPath) === manifest.sourceConfigRelativePath;
-}
-
 function hasConfigIdentity(manifest: ServerBundleDeployManifest): boolean {
-	return Boolean(manifest.emittedConfigModule || manifest.configHash || manifest.sourceConfigRelativePath);
+	return Boolean(manifest.emittedConfigModule || manifest.emittedConfigHash);
 }
 
 /**
  * @remarks
  * Production `start` must not load a different config than the one compiled into the bundle.
+ * It compares only the emitted config artifact; it does not read source files.
  *
  * @param rootDir - Project root; `options.distDir` is relative to it.
  * @param options.distDir - The build output directory whose manifest is checked.
@@ -228,7 +212,7 @@ function hasConfigIdentity(manifest: ServerBundleDeployManifest): boolean {
 export function assertProductionConfigIdentity(
 	rootDir: string,
 	requestedConfigPath: string | undefined,
-	options: { distDir: string; isExplicitOverride?: boolean },
+	options: { distDir: string },
 ): void {
 	if (!requestedConfigPath) {
 		return;
@@ -243,16 +227,11 @@ export function assertProductionConfigIdentity(
 	}
 	if (!hasConfigIdentity(manifest)) return;
 
-	if (
-		isEmittedConfigArtifact(manifest, manifestDir, requestedConfigPath) ||
-		matchesBuiltConfigHash(manifest, requestedConfigPath) ||
-		matchesBuiltConfigPath(manifest, rootDir, requestedConfigPath, options.isExplicitOverride)
-	) {
+	if (isEmittedConfigArtifact(manifest, manifestDir, requestedConfigPath)) {
 		return;
 	}
 
-	const expected = manifest.sourceConfigRelativePath ?? 'bundled config';
 	throw new Error(
-		`Ecopages config mismatch: production bundle was built with ${expected}, but start requested ${requestedConfigPath}.`,
+		`Ecopages config mismatch: production bundle was built with bundled config, but start requested ${requestedConfigPath}.`,
 	);
 }

@@ -21,10 +21,13 @@ import { createRouteModuleReuseIdentity, resolvePageModuleOutputFileName } from 
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import { resolveRouteModuleDependencyPaths } from './route-module-dependency-hasher.ts';
 import { assertBuildSucceeded } from '../../build/build-log.ts';
-import { isEcopagesEnvEnabled } from '../../env.ts';
 import { isDevelopmentRuntime, isProductionRuntime } from '../../utils/runtime.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
-import { loadProductionServerModules, missingProductionServerModuleError } from './server-modules-manifest.ts';
+import {
+	loadProductionServerModules,
+	matchProductionModuleKey,
+	missingProductionServerModuleError,
+} from './server-modules-manifest.ts';
 
 interface PageModuleImportBaseOptions {
 	filePath: string;
@@ -145,12 +148,7 @@ export class PageModuleImportService {
 	 * @returns The loaded module.
 	 */
 	async importModule<T = unknown>(options: PageModuleBuildImportOptions): Promise<T> {
-		if (
-			isProductionRuntime() &&
-			shouldBuildPagesUnifiedGraph() &&
-			!isEcopagesEnvEnabled('ECOPAGES_LIT_STATIC_RENDER_WORKER') &&
-			loadProductionServerModules(this.appConfig)
-		) {
+		if (isProductionRuntime() && shouldBuildPagesUnifiedGraph() && loadProductionServerModules(this.appConfig)) {
 			return this.importFromProductionManifest<T>(options);
 		}
 
@@ -166,10 +164,14 @@ export class PageModuleImportService {
 	 * error that names the source and says to run `ecopages build`. During
 	 * `ecopages build`, before the map exists on disk, listing routes still compiles
 	 * from source. `bypassCache` only skips the in-memory import promise, not the
-	 * manifest.
+	 * manifest. A path outside the deploy root still matches when it ends with a
+	 * recorded source key, so `identity.file` from the build machine can load.
 	 */
 	private async importFromProductionManifest<T>(options: PageModuleBuildImportOptions): Promise<T> {
-		const sourceKey = toRootRelativePath(this.appConfig.rootDir, options.filePath);
+		const manifest = loadProductionServerModules(this.appConfig);
+		const sourceKey =
+			(manifest && matchProductionModuleKey(this.appConfig.rootDir, options.filePath, manifest.modules)) ??
+			toRootRelativePath(this.appConfig.rootDir, options.filePath);
 		const cacheKey = `production::${sourceKey}`;
 		if (!options.bypassCache) {
 			const cachedModule = this.importCache.get(cacheKey);

@@ -11,6 +11,7 @@ import type {
 } from '../types/contracts.ts';
 import { AssetFactory } from '../assets/asset-processing-service/asset.factory.ts';
 import type { AssetDefinition } from '../assets/asset-processing-service/assets.types.ts';
+import { hasProductionServerModule } from '../build/server/server-modules-manifest.ts';
 import { StringMarkupRenderer } from '../route-renderer/orchestration/string-markup-renderer.ts';
 import type { IntegrationRendererOptions } from '../route-renderer/orchestration/integration-renderer.ts';
 import { findElements, parseHtml } from '../html/html-source-parser.ts';
@@ -103,12 +104,19 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 		};
 	}
 
+	/**
+	 * Loads the Html shell from disk, or from the production server-modules map
+	 * when the source file is not in the deploy.
+	 */
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		const htmlTemplatePath = this.appConfig.absolutePaths.htmlTemplatePath;
-		if (!htmlTemplatePath || !fileSystem.exists(htmlTemplatePath)) {
-			return getBuiltInHtmlShell() as EcoComponent<HtmlTemplateProps>;
+		if (
+			htmlTemplatePath &&
+			(fileSystem.exists(htmlTemplatePath) || hasProductionServerModule(this.appConfig, htmlTemplatePath))
+		) {
+			return super.getHtmlTemplate();
 		}
-		return super.getHtmlTemplate();
+		return getBuiltInHtmlShell() as EcoComponent<HtmlTemplateProps>;
 	}
 
 	/**

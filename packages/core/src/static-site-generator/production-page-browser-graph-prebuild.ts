@@ -7,16 +7,12 @@ import type { PageRendererResolver } from '../route-renderer/route-renderer.ts';
 import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
 import { createPageDependencyInstanceKey } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
-import {
-	collectHtmlPageModuleScriptBuildInputs,
-	setPrebuiltHtmlPageModuleScriptUrls,
-} from '../html-pages/html-page-module-scripts.ts';
+import { setPrebuiltHtmlPageModuleScriptUrls } from '../html-pages/html-page-module-scripts.ts';
 import { buildAppBrowserClient } from '../assets/app-browser-client-build.ts';
 import {
 	assertAppBrowserClientOutputsExist,
 	assertAppBrowserClientManifestHtmlOutputsExist,
 	clearAppBrowserClientManifest,
-	assertAppBrowserClientSourcesMatch,
 	createNormalizedAppBrowserClientEntryKey,
 	readAppBrowserClientManifest,
 	restoreAppBrowserClientAssets,
@@ -299,12 +295,6 @@ export async function prebuildProductionPageBrowserGraphsFromManifest(
 	if (!shouldPrebuildProductionPageBrowserGraphs()) return false;
 	const manifest = readAppBrowserClientManifest(appConfig);
 	if (!manifest) return false;
-	assertAppBrowserClientSourcesMatch(appConfig, manifest.sourceFingerprints);
-	if (collectHtmlPageModuleScriptBuildInputs(appConfig).fingerprint !== manifest.htmlPageModuleScriptFingerprint) {
-		throw new Error(
-			`The app browser build manifest does not match the current HTML Page module scripts. Run \`ecopages build\` again.`,
-		);
-	}
 	assertAppBrowserClientOutputsExist(appConfig, manifest.browserOutputPaths);
 	assertAppBrowserClientManifestHtmlOutputsExist(appConfig, manifest.htmlPageModuleScriptUrls);
 

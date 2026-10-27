@@ -27,6 +27,7 @@ import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import { DevSession } from './dev-session.ts';
 import { prebuildProductionPageBrowserGraphsFromManifest } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
 import { shouldBuildPagesUnifiedGraph } from '../../build/cache/pages-unified-graph-build.ts';
+import { assertProductionDistComplete } from '../../build/production-dist-complete.ts';
 import { requireProductionServerModules } from '../../build/server/server-modules-manifest.ts';
 import { isProductionRuntime } from '../../env.ts';
 
@@ -60,6 +61,11 @@ export interface NodeServerAdapterParams {
 	 * alone for a preview that serves an earlier export.
 	 */
 	runtimeAssetSetup?: 'start' | 'export' | 'none';
+	/**
+	 * When true, production `start` refuses to run unless `dist/` is a complete
+	 * export. `ecopages start` sets this; in-process `app.fetch()` tests do not.
+	 */
+	requireCompleteDist?: boolean;
 	allowPortFallback?: boolean;
 	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 }
@@ -101,6 +107,7 @@ export class NodeServerAdapter {
 	private staticBuilder!: ServerStaticBuilder;
 	private devSession: DevSession | undefined;
 	private readonly runtimeAssetSetup: 'start' | 'export' | 'none';
+	private readonly requireCompleteDist: boolean;
 	private readonly allowPortFallback: boolean;
 	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	private readonly runtimeHost: RuntimeHost;
@@ -139,6 +146,7 @@ export class NodeServerAdapter {
 				: undefined,
 		});
 		this.runtimeAssetSetup = options.runtimeAssetSetup ?? 'start';
+		this.requireCompleteDist = options.requireCompleteDist === true;
 		this.allowPortFallback = options.allowPortFallback !== false;
 		this.onDevelopmentRestart = options.onDevelopmentRestart;
 		this.apiHandlers = options.apiHandlers || [];
@@ -202,6 +210,9 @@ export class NodeServerAdapter {
 		if (this.runtimeAssetSetup === 'export') {
 			await this.staticBuilder.prepareExport();
 		} else if (this.runtimeAssetSetup === 'start') {
+			if (isProductionRuntime() && this.requireCompleteDist) {
+				assertProductionDistComplete(this.appConfig.rootDir, this.appConfig.distDir);
+			}
 			const skipProcessorSetup = isProductionRuntime() && shouldBuildPagesUnifiedGraph();
 			if (skipProcessorSetup) {
 				requireProductionServerModules(this.appConfig);

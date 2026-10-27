@@ -156,11 +156,12 @@ export class NodeServerAdapter {
 	 * 1. **Loaders** are registered first so processors and integrations can
 	 *    reference loader-provided file types in their own plugins.
 	 * 2. **Public dir** is copied before any build so static assets are in `distDir`
-	 *    before the first request arrives.
+	 *    before the first request arrives. Serve-only preview (`none`) skips this
+	 *    and leaves `dist/` as the earlier export wrote it.
 	 * 3. **Processors** are set up after the public dir is in place so they can
-	 *    safely reference dist-relative paths. An export (`build`, `preview`)
-	 *    empties `dist/` first. Integrations activate at the runtime boundary that
-	 *    uses them.
+	 *    safely reference dist-relative paths. Serve-only preview skips both.
+	 *    An export (`build`, `preview`) empties `dist/` first. Integrations
+	 *    activate at the runtime boundary that uses them.
 	 * 4. **Router** is initialised last because it may depend on files written by
 	 *    processors during their `setup()` calls, and in build mode it imports Pages.
 	 */
@@ -187,7 +188,7 @@ export class NodeServerAdapter {
 	}
 
 	private async initializeResources(): Promise<void> {
-		if (this.runtimeAssetSetup !== 'export') {
+		if (this.runtimeAssetSetup === 'start') {
 			prepareRuntimePublicDir(this.appConfig);
 		}
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });

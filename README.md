@@ -159,7 +159,7 @@ For repository-local architecture notes and subsystem maps, start with the files
 Verify your site's functionality:
 `pnpm run test:all`
 
-CI runs `test:ci:fast` (lint, format check, typecheck and every Vitest project, including `apps/docs`, the templates and the static-build parity oracle) and the four-shard `test:e2e` suite on every pull request. It also runs `test:e2e:docs` when the docs app or its build dependencies change. Pushes to `develop` and `main` run the same sharded `test:e2e` suite.
+CI runs `test:ci:fast` (lint, format check, typecheck and every Vitest project, including `apps/docs`, the templates and the static-build parity oracle) and the four-shard `test:e2e` suite on every pull request. It also runs `test:e2e:docs` when the docs app or its build dependencies change. Pushes to `next` and `main` run the same sharded `test:e2e` suite.
 
 `pnpm run check:ignored` fails when git tracks a file that an ignore rule matches, because `pnpm pack` leaves such a file out of the published package; `test:ci:fast` runs it. `pnpm run build:npm` also fails when a packed file imports a file that is not in the tarball. `pnpm run smoke:templates` builds the `html`, `jsx` and `lit-jsx` templates from the workspace, and the fast CI job runs it. `pnpm run smoke:packed [template...]` is the slower release check: it packs every public package, installs the `html`, `jsx`, `react` and `lit-jsx` templates from those tarballs, builds each one and serves `html` with `ecopages preview`. Run it locally before a release; CI runs it only for the `changeset-release/main` pull request and on manual dispatch.
 

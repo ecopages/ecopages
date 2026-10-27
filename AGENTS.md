@@ -6,7 +6,7 @@ When behavior changes, update that folder's README and any parent index that lis
 
 ## Board
 
-The GitHub project is [ecopages](https://github.com/orgs/ecopages/projects/2) (organization `ecopages`, number 2). Status field: in progress is `In progress`, in review is `In review`, done is `Done`.
+The GitHub project is [ecopages](https://github.com/orgs/ecopages/projects/2) (organization `ecopages`, number 2). Status field: in progress is `In progress`, in review is `In review`, done is `Done`. Integration branch: `next`; open feature and fix PRs with `--base next`, since `main` stays the GitHub default. GitHub closes `Closes #n` issues only for PRs merged into the default branch, so `.github/workflows/close-issues.yml` closes them when a PR merges into `next`: write one `Closes #n` per issue, and `Refs #n` when the PR does not resolve it. `main` is what is released: a release is a PR from `next` into `main`, and a hotfix branches from `main` and targets it.
 
 ## Comments
 

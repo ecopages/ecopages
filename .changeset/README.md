@@ -6,17 +6,17 @@ PRs that change user-facing package behavior add a changeset. Merging into `main
 
 ## Mental model
 
-`develop` is the default integration branch. Feature work lands there. `main` is production.
+`next` is the integration branch. Feature work lands there. `main` is the GitHub default and what is released; after every push to `main`, the Sync next workflow opens or refreshes a `sync/main-into-next` PR into `next`, merged with a merge commit.
 
 A changeset describes the **final** author-facing behavior, not the implementation steps that got there. Public packages are one **fixed** group, so they always share a version. Private workspace packages (playgrounds, templates, docs, fixtures) are not published. The repo-root `package.json` is not a workspace member, so Changesets cannot bump it. Version Packages runs `pnpm run changeset:version`, which copies the CLI version onto the root manifest after `changeset version`.
 
 ## After a change
 
-1. Open the PR against `develop`. Run `pnpm changeset` and commit the file this folder creates.
-2. When you are ready to release, open a PR that merges `develop` into `main`. Publish runs `test:all`, then opens a Version Packages PR against `main` that bumps versions and writes each package `CHANGELOG.md`.
+1. Open the PR against `next`. Run `pnpm changeset` and commit the file this folder creates.
+2. When you are ready to release, open a PR that merges `next` into `main`. Publish runs `test:all`, then opens a Version Packages PR against `main` that bumps versions and writes each package `CHANGELOG.md`.
 3. Merge the Version Packages PR with a merge commit (`gh pr merge --merge`). Publish runs `test:all` again, builds `dist`, and runs `changeset publish`.
 
-Feature PRs into `develop` may squash. Merging into `main` uses a merge commit so production history stays intact.
+Feature PRs into `next` may squash. Merging into `main` uses a merge commit so production history stays intact.
 
 ## Files of record
 

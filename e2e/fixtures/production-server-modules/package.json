@@ -5,7 +5,7 @@
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/ecopages-jsx": "workspace:*",
-		"@ecopages/jsx": "^0.4.0",
+		"@ecopages/jsx": "^0.6.0",
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/react": "workspace:*",

@@ -31,8 +31,11 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-	await app?.stop();
-	rmSync(appDir, { recursive: true, force: true });
+	try {
+		await app?.stop();
+	} finally {
+		rmSync(appDir, { recursive: true, force: true });
+	}
 });
 
 describe('server DOM across Lit and Radiant', () => {
@@ -84,6 +87,7 @@ describe('server DOM across Lit and Radiant', () => {
 			requestPage('/jsx-with-lit'),
 			requestPage('/kita-with-lit'),
 			requestPage('/jsx-with-radiant'),
+			requestPage('/lit-with-locals'),
 		]);
 
 		for (const response of concurrent) {
@@ -94,5 +98,9 @@ describe('server DOM across Lit and Radiant', () => {
 		expect(concurrent[2].html).toContain('data-server-dom-lit-probe');
 		expect(concurrent[2].html).toContain('<template shadowrootmode="open">');
 		expect(concurrent[3].html).toContain('data-server-dom-radiant-probe');
+		expect(concurrent[4].html).toContain('data-viewer');
+		expect(concurrent[4].html).toContain('ada');
+		expect(concurrent[4].html).toContain('data-server-dom-lit-probe');
+		expect(concurrent[4].html).toContain('<template shadowrootmode="open">');
 	}, 60_000);
 });

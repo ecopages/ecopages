@@ -645,7 +645,31 @@ describe('LitRenderer', () => {
 	});
 
 	describe('lazy worker session', () => {
-		it('uses the worker after plugin setup assigns a session to a pre-created renderer', async () => {
+		it('preloads SSR scripts through the static-export session when one exists', async () => {
+			const sessionPreload = vi.fn(async () => {});
+			const component = (async () => '<div>preload</div>') as EcoComponent<object>;
+			const Renderer = createLitRenderer(
+				() =>
+					({
+						preloadSsrScripts: sessionPreload,
+					}) as Pick<LitStaticRenderSession, 'preloadSsrScripts'> as LitStaticRenderSession,
+			);
+			const renderer = new Renderer({
+				appConfig: Config,
+				assetProcessingService: createTestAssetProcessingService(Config),
+				resolvedIntegrationDependencies: [],
+			});
+
+			const result = await renderer.renderComponent({
+				component,
+				props: {},
+			});
+
+			expect(sessionPreload).toHaveBeenCalledWith([component]);
+			expect(result.html).toContain('<div>preload</div>');
+		});
+
+		it('uses the worker when a static-export session is assigned to a pre-created renderer', async () => {
 			const sessionHolder: { current?: Pick<LitStaticRenderSession, 'renderPageInWorker'> } = {};
 			const renderPageInWorker = vi.fn(async () => ({
 				html: '<html>lazy-worker</html>',

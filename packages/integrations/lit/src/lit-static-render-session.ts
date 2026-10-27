@@ -41,9 +41,9 @@ type LitStaticRenderSessionOptions = {
  * Plugin-runtime-scoped Lit server render session.
  *
  * @remarks
- * Owns worker lifecycle and SSR preload for Lit page routes during static export
- * and runtime/dev requests. Injected into `LitRenderer` via a lazy accessor from
- * `LitPlugin`; there is no process-global coordinator.
+ * Owns worker lifecycle and SSR preload for Lit page routes during static export.
+ * Injected into `LitRenderer` via a lazy accessor from `LitPlugin`; there is no
+ * process-global coordinator. Serving leaves the session unset.
  *
  * Worker init identity is sticky for the first `{ configModulePath, runtimeOrigin }`.
  * Later `ensureWorker` calls with the same identity are no-ops; a different identity

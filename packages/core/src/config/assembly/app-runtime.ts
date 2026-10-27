@@ -76,6 +76,11 @@ export interface AppRuntime {
 	requestPipelineMetrics: RequestPipelineMetricsState;
 	origin: string;
 	hmr: IHmrManager | null;
+	/**
+	 * When true, a production request whose Page Browser Graph is not in the browser client
+	 * manifest is an error. `ecopages start` sets this after it restores the manifest.
+	 */
+	productionBrowserGraphsSealed: boolean;
 }
 
 /**
@@ -124,6 +129,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		requestPipelineMetrics: createRequestPipelineMetricsState(),
 		origin: appConfig.baseUrl,
 		hmr: null,
+		productionBrowserGraphsSealed: false,
 	};
 	appConfig.appRuntime = runtime;
 	try {

@@ -4,6 +4,6 @@
 '@ecopages/image-processor': minor
 ---
 
-Require `@ecopages/jsx`, `@ecopages/radiant`, and `@ecopages/signals` 0.5.1, and `@ecopages/radiant-ui` 0.2.5.
+Require `@ecopages/jsx`, `@ecopages/radiant`, and `@ecopages/signals` 0.6.0, and `@ecopages/radiant-ui` 0.3.0.
 
-Radiant 0.5.1 needs `@ecopages/jsx` 0.5.1. Apps still on 0.4 must upgrade those packages together.
+Radiant 0.6.0 needs `@ecopages/jsx` 0.6.0. Apps still on 0.5 must upgrade those packages together.

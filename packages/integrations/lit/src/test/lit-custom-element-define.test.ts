@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 describe('Lit Integration console.warn', () => {
 	it('leaves console.warn unchanged when the Integration is imported', async () => {
@@ -11,6 +11,10 @@ describe('Lit Integration console.warn', () => {
 });
 
 describe('Lit custom element registration', () => {
+	beforeAll(async () => {
+		await import('@lit-labs/ssr/lib/install-global-dom-shim.js');
+	});
+
 	afterEach(() => {
 		vi.unstubAllEnvs();
 		vi.restoreAllMocks();

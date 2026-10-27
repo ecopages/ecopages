@@ -20,6 +20,7 @@ import path from 'node:path';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/integration';
 import { litElementHydrateScript } from './lit-element-hydrate.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
+import { ensureLitDomShim } from './dom-shim.ts';
 import { createLitRenderer, LitRenderer } from './lit-renderer.ts';
 import { LitStaticRenderSession } from './lit-static-render-session.ts';
 
@@ -39,6 +40,12 @@ export const PLUGIN_NAME = LIT_PLUGIN_NAME;
  */
 export class LitPlugin extends IntegrationPlugin {
 	renderer = LitRenderer;
+	override readonly serverDom = {
+		kind: 'repair' as const,
+		install(): void {
+			ensureLitDomShim();
+		},
+	};
 	private renderSession: LitStaticRenderSession | null = null;
 
 	constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {

@@ -4,6 +4,7 @@ import {
 	type IntegrationRuntimeContext,
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
+	type ServerDomInstaller,
 } from '@ecopages/core/integration';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/integration';
 import { requireAppRuntime } from '@ecopages/core/integration';
@@ -25,7 +26,7 @@ import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
 import { EcopagesJsxDevTransformContributor } from './dev-transform/ecopages-jsx-dev-transform-contributor.ts';
 import { assignPageOwnedContentScriptGroupedBundles } from './page-owned-content-script-grouping.ts';
 import { invalidateRadiantRegisteredScriptSsrRegistration } from './radiant-registered-script-ssr-invalidation.ts';
-import { installRadiantLightDomShim } from './ecopages-jsx-radiant-ssr-policy.ts';
+import { installRadiantServerDom } from './ecopages-jsx-radiant-light-dom.ts';
 import type { EcopagesJsxPluginOptions } from './ecopages-jsx.types.ts';
 
 export type {
@@ -76,6 +77,7 @@ const resolvePluginOptions = (options?: EcopagesJsxPluginOptions): ResolvedJsxPl
 export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	renderer = EcopagesJsxRenderer;
 	override readonly bundlesPageDependencies = true;
+	override readonly serverDom: ServerDomInstaller | undefined;
 
 	private includeRadiant: boolean;
 	private mdxCompilerOptions?: ResolvedMdxCompileOptions;
@@ -122,23 +124,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		return renderer;
 	}
 
-	/**
-	 * Installs Radiant light-DOM constructors after asset setup.
-	 *
-	 * @remarks
-	 * Production emit imports compiled server modules to discover SSR scripts before
-	 * any Page renders. `RadiantElement` throws at module evaluation without the
-	 * light-DOM shim, so setup installs it here instead of waiting for the renderer.
-	 */
-	override async setup(context: IntegrationRuntimeContext): Promise<void> {
-		await super.setup(context);
-		if (!this.includeRadiant) {
-			return;
-		}
-
-		await installRadiantLightDomShim();
-	}
-
 	constructor(options?: EcopagesJsxPluginOptions) {
 		const config = resolvePluginOptions(options);
 		const { extensions, includeRadiant, mdxExtensions, mdxCompilerOptions, ...baseConfig } = config;
@@ -153,6 +138,12 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		this.includeRadiant = includeRadiant;
 		this.mdxExtensions = mdxExtensions;
 		this.mdxCompilerOptions = mdxCompilerOptions;
+		this.serverDom = includeRadiant
+			? {
+					kind: 'complete' as const,
+					install: installRadiantServerDom,
+				}
+			: undefined;
 
 		if (this.includeRadiant) {
 			this.integrationDependencies.unshift(...this.getDependencies());

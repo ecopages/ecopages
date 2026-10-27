@@ -18,8 +18,13 @@ import {
 	type GraphBuildResult,
 	type GraphPolicy,
 } from './page-browser-graph-session.ts';
-import { createRouteGraphLookupKey } from './route-instance-key.ts';
+import { createRouteGraphLookupKey, pageDependencyInstanceParams } from './route-instance-key.ts';
 import type { GroupedGraphBuildPlan } from './grouped-graph-build-plan.ts';
+import {
+	describeProductionBrowserGraphEntry,
+	missingProductionBrowserGraphError,
+	shouldRejectUnplannedProductionBrowserGraph,
+} from './missing-production-browser-graph.ts';
 
 type GroupedContentScriptAsset = Extract<AssetDefinition, { kind: 'script'; source: 'content' }> & {
 	groupedBundle: {
@@ -66,6 +71,71 @@ function applyPrebuiltGroupedDependencyMetadata(
 	};
 }
 
+function groupedKeysMatch(
+	integrationName: string,
+	left: PageBrowserGraphContribution | undefined,
+	right: PageBrowserGraphContribution | undefined,
+): boolean {
+	return (
+		JSON.stringify(groupedDependencyKeys(integrationName, left)) ===
+		JSON.stringify(groupedDependencyKeys(integrationName, right))
+	);
+}
+
+function findPlannedGroupedInstance(
+	input: PageBrowserGraphResolveInput,
+	contribution: PageBrowserGraphContribution,
+	dependencyInstanceKey: string,
+): GroupedGraphBuildPlan['instances'][number] | undefined {
+	const instances = input.groupedBuildPlan?.instances;
+	if (!instances) return undefined;
+	const routeLookupKey = createRouteGraphLookupKey(input.routeFile, dependencyInstanceKey);
+	const exact = instances.find(
+		(instance) =>
+			!instance.isRouteTemplate &&
+			createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey) === routeLookupKey,
+	);
+	if (exact) return exact;
+	const requestParams = pageDependencyInstanceParams(dependencyInstanceKey);
+	const paramsMatch = instances.find((instance) => {
+		if (instance.isRouteTemplate || instance.routeFile !== input.routeFile) return false;
+		if (!groupedKeysMatch(input.integrationName, instance.contribution, contribution)) return false;
+		return (
+			JSON.stringify(pageDependencyInstanceParams(instance.dependencyInstanceKey)) ===
+			JSON.stringify(requestParams)
+		);
+	});
+	if (paramsMatch) return paramsMatch;
+	return instances.find(
+		(instance) =>
+			instance.routeFile === input.routeFile &&
+			instance.isRouteTemplate === true &&
+			instance.prebuiltGroupedAssets !== undefined &&
+			groupedKeysMatch(input.integrationName, instance.contribution, contribution),
+	);
+}
+
+function remapPlannedInstanceKey(
+	plan: GroupedGraphBuildPlan,
+	plannedInstance: GroupedGraphBuildPlan['instances'][number],
+	dependencyInstanceKey: string,
+): GroupedGraphBuildPlan {
+	if (plannedInstance.dependencyInstanceKey === dependencyInstanceKey) return plan;
+	return {
+		...plan,
+		instances: plan.instances.map((instance) =>
+			instance === plannedInstance
+				? {
+						...instance,
+						dependencyInstanceKey,
+						skipStaticProps: false,
+						isRouteTemplate: false,
+					}
+				: instance,
+		),
+	};
+}
+
 function resolveGroupedBuildPlan(
 	input: PageBrowserGraphResolveInput,
 	contribution: PageBrowserGraphContribution,
@@ -83,38 +153,14 @@ function resolveGroupedBuildPlan(
 		};
 	}
 
-	const routeLookupKey = createRouteGraphLookupKey(input.routeFile, dependencyInstanceKey);
-	const exactPlanInstance = input.groupedBuildPlan?.instances.find(
-		(instance) =>
-			!instance.isRouteTemplate &&
-			createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey) === routeLookupKey,
-	);
-	const templatePlanInstance = exactPlanInstance
-		? undefined
-		: input.groupedBuildPlan?.instances.find(
-				(instance) =>
-					instance.routeFile === input.routeFile &&
-					instance.isRouteTemplate === true &&
-					instance.prebuiltGroupedAssets !== undefined &&
-					JSON.stringify(groupedDependencyKeys(input.integrationName, instance.contribution)) ===
-						JSON.stringify(groupedDependencyKeys(input.integrationName, contribution)),
-			);
-	const plannedInstance = exactPlanInstance ?? templatePlanInstance;
-	const groupedBuildPlan = templatePlanInstance
-		? input.groupedBuildPlan && {
-				...input.groupedBuildPlan,
-				instances: input.groupedBuildPlan.instances.map((instance) =>
-					instance === templatePlanInstance
-						? { ...instance, dependencyInstanceKey, skipStaticProps: false, isRouteTemplate: false }
-						: instance,
-				),
-			}
-		: exactPlanInstance
-			? input.groupedBuildPlan
+	const plannedInstance = findPlannedGroupedInstance(input, contribution, dependencyInstanceKey);
+	const groupedBuildPlan =
+		plannedInstance && input.groupedBuildPlan
+			? remapPlannedInstanceKey(input.groupedBuildPlan, plannedInstance, dependencyInstanceKey)
 			: undefined;
 	const usesPrebuiltGroupedAssets = plannedInstance?.prebuiltGroupedAssets !== undefined;
-	const graphContribution = templatePlanInstance
-		? applyPrebuiltGroupedDependencyMetadata(contribution, templatePlanInstance.contribution, input.integrationName)
+	const graphContribution = plannedInstance?.isRouteTemplate
+		? applyPrebuiltGroupedDependencyMetadata(contribution, plannedInstance.contribution, input.integrationName)
 		: usesPrebuiltGroupedAssets
 			? (plannedInstance.contribution ?? contribution)
 			: contribution;
@@ -349,6 +395,16 @@ export class PageBrowserGraphService {
 				dependencyPaths: new Set<string>(),
 				cacheable: true,
 			};
+		}
+		const ungroupedDependencies = (contribution.dependencies ?? []).filter(
+			(dep) => !isGroupedContentScriptAsset(dep),
+		);
+		if (!hasGroupedDependencies && ungroupedDependencies.length === 0) return undefined;
+		if (shouldRejectUnplannedProductionBrowserGraph(this.appConfig)) {
+			throw missingProductionBrowserGraphError(
+				input.routeFile,
+				describeProductionBrowserGraphEntry(undefined, input.dependencyInstanceKey),
+			);
 		}
 		if (!hasGroupedDependencies) return undefined;
 		return this.resolveGroupedPageBrowserAssets(input, contribution);

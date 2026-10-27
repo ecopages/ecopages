@@ -44,10 +44,13 @@ export function shouldPrebuildProductionPageBrowserGraphs(): boolean {
  *
  * @remarks
  * Clears only the `'production'` policy so a failed or force export cannot
- * reuse staged graph output. Development session records are left intact.
+ * reuse staged graph output. Also sets `productionBrowserGraphsSealed` to false so a
+ * retry of `ecopages build` can still emit graphs. Development session records are left intact.
  */
 export function clearProductionPageBrowserGraphSession(appConfig: EcoPagesAppConfig): void {
-	requireAppRuntime(appConfig).pageBrowserGraphSession.clearPolicyRecords('production');
+	const runtime = requireAppRuntime(appConfig);
+	runtime.pageBrowserGraphSession.clearPolicyRecords('production');
+	runtime.productionBrowserGraphsSealed = false;
 	clearAppBrowserClientManifest(appConfig);
 }
 
@@ -279,7 +282,12 @@ async function prebuildManifestEntriesForRenderer(
 	}
 }
 
-/** Reuses the browser outputs written by `ecopages build` while `ecopages start` prepares SSR routes. */
+/**
+ * Reuses the browser outputs written by `ecopages build` while `ecopages start` prepares SSR routes.
+ *
+ * @remarks
+ * A successful restore sets `productionBrowserGraphsSealed` so a missing graph is an error.
+ */
 export async function prebuildProductionPageBrowserGraphsFromManifest(
 	appConfig: EcoPagesAppConfig,
 	routeRendererFactory: PageRendererResolver,
@@ -306,5 +314,6 @@ export async function prebuildProductionPageBrowserGraphsFromManifest(
 	)) {
 		await prebuildManifestEntriesForRenderer(appConfig, renderer, entries);
 	}
+	requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
 	return true;
 }

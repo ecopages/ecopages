@@ -12,7 +12,7 @@ The config starts only web servers used by the selected projects. With `--shard`
 
 ## Pull requests and docs
 
-CI runs the full Playwright suite on every pull request and on pushes to `develop` and `main`. Four shard jobs run in parallel; a final `e2e` check fails if any shard fails. Vitest runs in the `fast` job and does not run again in the E2E shards.
+CI runs the full Playwright suite on every pull request and on pushes to `next` and `main`. Four shard jobs run in parallel; a final `e2e` check fails if any shard fails. Vitest runs in the `fast` job and does not run again in the E2E shards.
 
 Each E2E shard uploads its `test-results/` directory as a GitHub Actions artifact named `playwright-traces-shard-<shard>` for seven days. Download the artifact for the failed shard from the workflow run to inspect its Playwright traces and other test results.
 
@@ -40,7 +40,7 @@ Add the spec beside its fixture and add the project to the explicit array in `pl
 
 `react-lazy-first-load-e2e` (`explicitGraph`, no router) and kitchen-sink `content-lazy.test.e2e.ts` pin first hydration when a `React.lazy` chunk fails: the server HTML is restored once React drops the page root, and the chunk is not retried; a Page-level error boundary keeps the rest of the Page and shows the fallback.
 
-Vitest covers unit and browser-level behavior through `pnpm test:vitest`. Playwright covers behavior that needs the wired app and a real browser. On pull requests, repository CI runs `test:ci:fast` alongside the four-shard `test:e2e` suite. Pushes to `develop` and `main` run the sharded E2E suite. Docs e2e runs separately when a pull request or push changes its selected paths.
+Vitest covers unit and browser-level behavior through `pnpm test:vitest`. Playwright covers behavior that needs the wired app and a real browser. On pull requests, repository CI runs `test:ci:fast` alongside the four-shard `test:e2e` suite. Pushes to `next` and `main` run the sharded E2E suite. Docs e2e runs separately when a pull request or push changes its selected paths.
 
 `pnpm test:e2e:ui` opens Playwright's UI. Tests run headless by default; use `playwright test --headed` or `--debug` for local inspection. Inherited `PWDEBUG` is stripped unless `--debug` is present.
 

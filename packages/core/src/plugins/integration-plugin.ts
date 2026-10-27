@@ -303,8 +303,9 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * Core calls this after static-export releases and when the app stops or restarts,
-	 * after in-flight `setup()` calls and active prewarm renders finish. It then clears
-	 * activation state so the next runtime activation runs `setup()` again.
+	 * after in-flight `setup()` calls finish. On stop or restart it also waits for
+	 * active prewarm renders and page-cache regenerations. It then clears activation
+	 * state so the next runtime activation runs `setup()` again.
 	 * Most integrations do not need custom teardown. Override this only for
 	 * explicit cleanup such as watchers, compiler handles, or runtime registries
 	 * that outlive individual requests.

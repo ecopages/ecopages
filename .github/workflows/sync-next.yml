@@ -1,0 +1,56 @@
+name: Sync next
+
+on:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+
+concurrency: sync-next
+
+permissions:
+    actions: write
+    contents: write
+    pull-requests: write
+
+jobs:
+    sync:
+        name: Open or refresh the PR that merges main into next
+        runs-on: ubuntu-latest
+        env:
+            GH_TOKEN: ${{ github.token }}
+            SYNC_BRANCH: sync/main-into-next
+        steps:
+            - name: Checkout next
+              uses: actions/checkout@v5
+              with:
+                  ref: next
+                  fetch-depth: 0
+
+            - name: Open or refresh the sync PR
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git fetch origin main next
+                  if git merge-base --is-ancestor origin/main origin/next; then
+                      echo "next already contains main"
+                      exit 0
+                  fi
+                  if git ls-remote --exit-code --heads origin "$SYNC_BRANCH" > /dev/null; then
+                      git fetch origin "$SYNC_BRANCH"
+                      git checkout -B "$SYNC_BRANCH" "origin/$SYNC_BRANCH"
+                      if ! git merge --no-edit origin/main; then
+                          git merge --abort
+                          echo "::error::main does not merge into $SYNC_BRANCH. Merge origin/main into it locally, resolve the conflict, and push."
+                          exit 1
+                      fi
+                      git push origin "$SYNC_BRANCH"
+                  else
+                      git push origin "origin/main:refs/heads/$SYNC_BRANCH"
+                  fi
+                  if [ -z "$(gh pr list --base next --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number')" ]; then
+                      gh pr create --base next --head "$SYNC_BRANCH" \
+                          --title "chore: merge main into next" \
+                          --body "Brings the latest main (released versions, consumed changesets and hotfixes) into next. Merge it with a merge commit, not squash or rebase. If GitHub reports a conflict, merge next into $SYNC_BRANCH locally, resolve it there, and push; never push the resolution to main."
+                  fi
+                  gh workflow run ci.yml --ref "$SYNC_BRANCH"

@@ -5,7 +5,10 @@ import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent } from '@ecopages/core';
 import type { AssetDefinition, ProcessedAsset, StaticExportContext } from '@ecopages/core/integration';
+import { ensureLitDomShim } from '../dom-shim.ts';
 import { LitStaticRenderSession } from '../lit-static-render-session.ts';
+
+ensureLitDomShim();
 
 const workerStart = vi.fn(async () => {});
 const workerRenderPage = vi.fn(async () => ({

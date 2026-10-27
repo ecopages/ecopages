@@ -17,7 +17,7 @@
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/radiant": "^0.4.0",
+		"@ecopages/radiant": "^0.6.0",
 		"@ecopages/react": "workspace:*",
 		"@ecopages/scripts-injector": "^0.1.5",
 		"@faker-js/faker": "9.7.0",

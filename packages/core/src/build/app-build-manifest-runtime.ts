@@ -10,6 +10,7 @@ import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
 import { isLitStaticRenderWorkerThread } from './browser/lit-static-render-worker-context.ts';
+import { installConfiguredServerDom } from '../plugins/server-dom.ts';
 
 /**
  * Seals the app's build manifest from its loaders, processors and integrations.
@@ -93,7 +94,9 @@ export async function setupAppRuntimePlugins(options: {
  *
  * @remarks
  * Concurrent callers share a single in-flight promise per integration name.
- * Failed activations are evicted so a later caller can retry.
+ * Server DOM install runs inside that promise, before `setup()`, so a second
+ * caller cannot skip the in-flight activation. Failed activations are evicted
+ * so a later caller can retry.
  */
 export async function ensureIntegrationRuntimeReady(options: {
 	appConfig: EcoPagesAppConfig;
@@ -113,6 +116,7 @@ export async function ensureIntegrationRuntimeReady(options: {
 	}
 
 	const activation = (async () => {
+		await installConfiguredServerDom(options.appConfig.integrations);
 		await integration.setup({ appConfig: options.appConfig, runtime });
 	})();
 

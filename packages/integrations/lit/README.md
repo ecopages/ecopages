@@ -21,6 +21,8 @@ import { litPlugin } from '@ecopages/lit';
 export default defineConfig({ integrations: [litPlugin()] });
 ```
 
+The Integration does not install DOM globals as an import side effect or on first render. Core installs Radiant's complete server DOM first when that Integration is configured, then Lit's `ensureLitDomShim` repairs, so a Lit element defined before a Radiant Page still renders.
+
 Lit also works well alongside an HTML-first renderer such as `@ecopages/kitajs` when you want Lit to own only the nested custom elements:
 
 ```ts

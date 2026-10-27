@@ -75,8 +75,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
@@ -84,14 +84,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@ecopages/radiant-ui':
-        specifier: ^0.2.1
-        version: 0.2.1(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))(@ecopages/radiant@0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0)))(@ecopages/signals@0.4.0)
+        specifier: ^0.3.0
+        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
       '@ecopages/signals':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.6.0
+        version: 0.6.0
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -325,8 +325,8 @@ importers:
         specifier: workspace:*
         version: link:../../core
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
@@ -458,11 +458,11 @@ importers:
   packages/dev-toolbar:
     dependencies:
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       axe-core:
         specifier: ^4.10.3
         version: 4.13.0
@@ -514,14 +514,14 @@ importers:
         specifier: workspace:*
         version: link:../../file-system
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../mdx
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -698,8 +698,8 @@ importers:
         specifier: workspace:*
         version: link:../../core
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.18
@@ -793,8 +793,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
@@ -860,20 +860,20 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@ecopages/postcss-processor':
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@ecopages/radiant-ui':
-        specifier: ^0.2.1
-        version: 0.2.1(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))(@ecopages/radiant@0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0)))(@ecopages/signals@0.4.0)
+        specifier: ^0.3.0
+        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
       '@ecopages/signals':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.6.0
+        version: 0.6.0
       '@faker-js/faker':
         specifier: ^10.4.0
         version: 10.6.0
@@ -955,8 +955,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
@@ -1028,8 +1028,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
@@ -1043,8 +1043,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
@@ -1121,8 +1121,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@faker-js/faker':
         specifier: ^10.4.0
         version: 10.6.0
@@ -1173,8 +1173,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
@@ -1273,8 +1273,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
@@ -1348,8 +1348,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
@@ -1357,11 +1357,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@ecopages/radiant-ui':
-        specifier: ^0.2.1
-        version: 0.2.1(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))(@ecopages/radiant@0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0)))(@ecopages/signals@0.4.0)
+        specifier: ^0.3.0
+        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -1448,8 +1448,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/integrations/ecopages-jsx
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
@@ -1457,11 +1457,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@ecopages/radiant-ui':
-        specifier: ^0.2.1
-        version: 0.2.1(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))(@ecopages/radiant@0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0)))(@ecopages/signals@0.4.0)
+        specifier: ^0.3.0
+        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -1541,8 +1541,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
@@ -1550,8 +1550,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.3
@@ -1622,8 +1622,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/integrations/ecopages-jsx
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@ecopages/logger':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)
@@ -1634,11 +1634,11 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@ecopages/radiant-ui':
-        specifier: ^0.2.1
-        version: 0.2.1(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))(@ecopages/radiant@0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0)))(@ecopages/signals@0.4.0)
+        specifier: ^0.3.0
+        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -1700,8 +1700,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/signals@0.4.0)
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
@@ -1709,14 +1709,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.4.0
-        version: 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@ecopages/radiant-ui':
-        specifier: ^0.2.1
-        version: 0.2.1(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))(@ecopages/radiant@0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0)))(@ecopages/signals@0.4.0)
+        specifier: ^0.3.0
+        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
       '@ecopages/signals':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.6.0
+        version: 0.6.0
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.3
@@ -2341,35 +2341,35 @@ packages:
   '@drizzle-team/brocli@0.12.0':
     resolution: {integrity: sha512-mlUE+rZ8CatQekLhnaiN91Iemdd+e2gFKooGlnRB3oPTL3VghLfX24dx7HrzMNeC1JrIB/0kpsfyty3f5HNfxQ==}
 
-  '@ecopages/jsx@0.4.0':
-    resolution: {integrity: sha512-qqiQC2iOkg6VDtSRuB+fGQDOgJ2C3GBq+nUiOtNhJtUOjrToUGmmxXefrLz0A5wBlyWOPsUTSMtf++lUa6mP4Q==}
+  '@ecopages/jsx@0.6.0':
+    resolution: {integrity: sha512-kFTN6RuRuzQfo3D2cP4j3yy0xwAFSTUFQGEYOKAsB6eLIxX1Op2Cn0DIRTPEBphXsttYPbuWxmxo02UbWilUWA==}
     peerDependencies:
-      '@ecopages/signals': '>=0.4.0'
+      '@ecopages/signals': '>=0.6.0'
 
   '@ecopages/logger@0.2.3':
     resolution: {integrity: sha512-Hkt5H9Kzv6y07aiPZPaDkJ6/Bp7+Aen5ZFuI5zQ6ON7PyeuVu1lMiQy9pL+9Wm8yeO3wnMO44Jmph84Cc0X0lQ==}
     peerDependencies:
       typescript: ^5.0.0
 
-  '@ecopages/radiant-ui@0.2.1':
-    resolution: {integrity: sha512-cSJp9IbIJiC3zhoXaor4o21emdm29/pxB1QXoiAyLOsa8CXso76p4HKRQkC/3VXAC1dbSxyt9zRJItTs+kUrKw==}
+  '@ecopages/radiant-ui@0.3.0':
+    resolution: {integrity: sha512-9Vua6b5oDaQrEVenxOCAefym8am71Mts3XYnBHgvitAGK+0PaVU87VK/sBgc/YyIGGYbIZhZTOq7ucA82o8jaA==}
     peerDependencies:
-      '@ecopages/jsx': '>=0.4.0'
-      '@ecopages/radiant': '>=0.4.0'
-      '@ecopages/signals': '>=0.4.0'
+      '@ecopages/jsx': '>=0.6.0'
+      '@ecopages/radiant': '>=0.6.0'
+      '@ecopages/signals': '>=0.6.0'
 
-  '@ecopages/radiant@0.4.0':
-    resolution: {integrity: sha512-fDMjYIo8LqkEEFuJRGULbGW+rs2PlxJWg72h8Blvt8zngtGx72LH7B1YRpPTxJcI+mMcbq+wGzPNnfMK2zVALQ==}
+  '@ecopages/radiant@0.6.0':
+    resolution: {integrity: sha512-D4NOvKZRqWmJcEP9/JYWc5RIXQOsBsiq5/y+Gvjt6p/GbQJWwXNbepnDr83I0RNAk154PRxxzyNxL9f9iLOkiw==}
     peerDependencies:
-      '@ecopages/jsx': '>=0.4.0'
+      '@ecopages/jsx': '>=0.6.0'
 
   '@ecopages/scripts-injector@0.1.5':
     resolution: {integrity: sha512-4julGcmVkf4G8asK0/vAZ9o9bIWudEyGk4D/rRF/IE2J4ePT5FgmR8QdzRxD+DElzEnkJTnS7gyX2Dj7JeNtdg==}
     peerDependencies:
       typescript: ^5.0.0
 
-  '@ecopages/signals@0.4.0':
-    resolution: {integrity: sha512-NCAJ5NNmYJifBXWEpaHD0YwFTJaGSrQQzeOollN7z4WCg91KeV5URdPeigthBfig5roqEIcp1Uwv1cddzE8ZnA==}
+  '@ecopages/signals@0.6.0':
+    resolution: {integrity: sha512-GdYRehANSJbZO/QC7B5XPmevxBxKKjNu4fI+9fwHAskGkn1GUf3qT6RNtr/QrDeKGEXuWnA9CNk6aerg8FadLw==}
 
   '@emnapi/core@1.11.2':
     resolution: {integrity: sha512-TC8MkTuZUtcTSiFeuC0ksCh9QIJ5+F21MvZ4Wn4ORfYaFJ/0dsiudv5tVkejgwZlwQ39jL9WWDe2lz8x0WglOA==}
@@ -8106,29 +8106,29 @@ snapshots:
 
   '@drizzle-team/brocli@0.12.0': {}
 
-  '@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0)':
+  '@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)':
     dependencies:
-      '@ecopages/signals': 0.4.0
+      '@ecopages/signals': 0.6.0
 
   '@ecopages/logger@0.2.3(typescript@5.9.3)':
     dependencies:
       typescript: 5.9.3
 
-  '@ecopages/radiant-ui@0.2.1(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))(@ecopages/radiant@0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0)))(@ecopages/signals@0.4.0)':
+  '@ecopages/radiant-ui@0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)':
     dependencies:
-      '@ecopages/jsx': 0.4.0(@ecopages/signals@0.4.0)
-      '@ecopages/radiant': 0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))
-      '@ecopages/signals': 0.4.0
+      '@ecopages/jsx': 0.6.0(@ecopages/signals@0.6.0)
+      '@ecopages/radiant': 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+      '@ecopages/signals': 0.6.0
 
-  '@ecopages/radiant@0.4.0(@ecopages/jsx@0.4.0(@ecopages/signals@0.4.0))':
+  '@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))':
     dependencies:
-      '@ecopages/jsx': 0.4.0(@ecopages/signals@0.4.0)
+      '@ecopages/jsx': 0.6.0(@ecopages/signals@0.6.0)
 
   '@ecopages/scripts-injector@0.1.5(typescript@5.9.3)':
     dependencies:
       typescript: 5.9.3
 
-  '@ecopages/signals@0.4.0': {}
+  '@ecopages/signals@0.6.0': {}
 
   '@emnapi/core@1.11.2':
     dependencies:

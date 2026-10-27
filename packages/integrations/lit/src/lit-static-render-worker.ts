@@ -15,7 +15,6 @@ import type {
 } from './lit-static-render-protocol.ts';
 import { toLitStaticRenderErrorMessage } from './lit-static-render-error.ts';
 import { toLitStaticRenderResult } from './lit-static-render-result.ts';
-import './dom-shim.ts';
 
 type LoadedAppConfig = Awaited<ReturnType<typeof loadEcoPagesConfig>>;
 

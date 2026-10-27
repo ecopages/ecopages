@@ -324,3 +324,8 @@ test('EcopagesJsxPlugin declares no build plugin without MDX', () => {
 
 	assert.deepEqual(plugin.plugins({ rootDir: '/tmp/project' } as IntegrationRuntimeContext['appConfig']), []);
 });
+
+test('EcopagesJsxPlugin contributes a complete server DOM surface when Radiant is enabled', () => {
+	assert.equal(ecopagesJsxPlugin().serverDom?.kind, 'complete');
+	assert.equal(ecopagesJsxPlugin({ radiant: false }).serverDom, undefined);
+});

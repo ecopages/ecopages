@@ -14,6 +14,9 @@ import { AssetProcessingService } from '../assets/asset-processing-service/asset
 import type { AssetDefinition, ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
 import type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';
+import { installConfiguredServerDom, type ServerDomInstaller } from './server-dom.ts';
+
+export type { ServerDomInstaller, ServerDomSurfaceKind } from './server-dom.ts';
 
 export type {
 	EcoBuildLoader,
@@ -142,6 +145,15 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly acceptsParams: boolean = true;
 	/** Whether core may collapse this Integration's eligible Page assets into page-owned bundles. */
 	readonly bundlesPageDependencies: boolean = false;
+	/**
+	 * Server DOM installer this Integration contributes, if any.
+	 *
+	 * @remarks
+	 * Core runs every configured `complete` installer, then every `repair`, before
+	 * Integration `setup()` continues. Config order does not change the result.
+	 * Omit this when the Integration does not install DOM globals.
+	 */
+	readonly serverDom?: ServerDomInstaller;
 
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
@@ -277,6 +289,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Performs runtime integration setup, after config finalization has sealed the build manifest.
 	 */
 	async setup(context: IntegrationRuntimeContext): Promise<void> {
+		await installConfiguredServerDom(context.appConfig.integrations);
 		this.appConfig = context.appConfig;
 		this.runtime = context.runtime;
 		this.rendererInstance = undefined;

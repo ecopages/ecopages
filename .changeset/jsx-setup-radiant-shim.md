@@ -2,4 +2,4 @@
 '@ecopages/ecopages-jsx': patch
 ---
 
-JSX Integration `setup()` installs Radiant's light-DOM shim so production emit can import Radiant element modules before any Page renders.
+Core installs the shared server DOM before production emit imports Radiant element modules, so JSX Integration imports do not need to install DOM globals as a side effect.

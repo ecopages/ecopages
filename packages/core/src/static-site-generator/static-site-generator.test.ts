@@ -7,15 +7,12 @@ import { createMockConfig } from './static-site-generator.test-utils.ts';
 
 const graphBuildOrder: string[] = [];
 const resolveBuildParallelismMock = vi.hoisted(() => vi.fn(() => 2));
-const ensurePagesUnifiedGraphBuiltMock = vi.hoisted(() =>
-	vi.fn(async () => {
-		graphBuildOrder.push('ensurePagesUnifiedGraphBuilt');
-		return undefined;
-	}),
-);
 const shouldBuildPagesUnifiedGraphMock = vi.hoisted(() => vi.fn(() => true));
 const emitProductionServerModulesMock = vi.hoisted(() =>
-	vi.fn(async () => ({ outdir: '/test/project/dist/.server', modules: {} })),
+	vi.fn(async () => {
+		graphBuildOrder.push('emitProductionServerModules');
+		return { outdir: '/test/project/dist/.server', modules: {} };
+	}),
 );
 
 vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) => {
@@ -23,7 +20,6 @@ vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) =>
 	return {
 		...actual,
 		emitProductionServerModules: emitProductionServerModulesMock,
-		ensurePagesUnifiedGraphBuilt: ensurePagesUnifiedGraphBuiltMock,
 		shouldBuildPagesUnifiedGraph: shouldBuildPagesUnifiedGraphMock,
 	};
 });
@@ -444,9 +440,9 @@ describe('StaticSiteGenerator', () => {
 			);
 		});
 
-		test('should build unified graph before integration static export hooks', async () => {
+		test('emits production server modules before integration static export hooks', async () => {
 			graphBuildOrder.length = 0;
-			ensurePagesUnifiedGraphBuiltMock.mockClear();
+			emitProductionServerModulesMock.mockClear();
 			const staticExport = vi.fn(async () => {
 				graphBuildOrder.push('staticExport');
 			});
@@ -469,8 +465,8 @@ describe('StaticSiteGenerator', () => {
 				baseUrl: 'http://localhost:3000',
 			});
 
-			expect(ensurePagesUnifiedGraphBuiltMock).toHaveBeenCalled();
-			expect(graphBuildOrder).toEqual(['ensurePagesUnifiedGraphBuilt', 'staticExport']);
+			expect(emitProductionServerModulesMock).toHaveBeenCalled();
+			expect(graphBuildOrder).toEqual(['emitProductionServerModules', 'staticExport']);
 		});
 
 		test('should invoke the integration staticExport hook with the export context', async () => {

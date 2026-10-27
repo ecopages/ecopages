@@ -78,6 +78,22 @@ function createTestApp(
 }
 
 describe('EcopagesApp route registration', () => {
+	it('requires a complete production dist for the emitted server entrypoint', async () => {
+		const originalArgv = process.argv;
+		process.argv = ['node', '/app/dist/.server/app.mjs'];
+		let receivedParams: NodeServerAdapterParams | undefined;
+		const { app } = createTestApp(async (params) => {
+			receivedParams = params;
+			return createServerAdapter();
+		});
+		try {
+			await app.fetch(new Request('http://localhost:3000/'));
+			expect(receivedParams?.requireCompleteDist).toBe(true);
+		} finally {
+			process.argv = originalArgv;
+		}
+	});
+
 	it('forwards registered handlers, schemas, and middleware to the server adapter', async () => {
 		const handler = (_context: unknown) => new Response('ok');
 		const middleware: Middleware<Request, unknown, ApiHandlerContext<Request, unknown>> = async (_context, next) =>

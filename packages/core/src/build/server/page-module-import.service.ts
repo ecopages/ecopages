@@ -10,7 +10,6 @@ import {
 	importEmittedServerModule,
 	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphPage,
-	shouldBuildPagesUnifiedGraph,
 } from '../../build/cache/pages-unified-graph-build.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { recordPageModuleBuildInvocation } from '../../build/rolldown/rolldown-build-invocation-metrics.ts';
@@ -148,7 +147,7 @@ export class PageModuleImportService {
 	 * @returns The loaded module.
 	 */
 	async importModule<T = unknown>(options: PageModuleBuildImportOptions): Promise<T> {
-		if (isProductionRuntime() && shouldBuildPagesUnifiedGraph() && loadProductionServerModules(this.appConfig)) {
+		if (isProductionRuntime() && loadProductionServerModules(this.appConfig)) {
 			return this.importFromProductionManifest<T>(options);
 		}
 
@@ -172,7 +171,8 @@ export class PageModuleImportService {
 		const sourceKey =
 			(manifest && matchProductionModuleKey(this.appConfig.rootDir, options.filePath, manifest.modules)) ??
 			toRootRelativePath(this.appConfig.rootDir, options.filePath);
-		const cacheKey = `production::${sourceKey}`;
+		const relativePath = manifest?.modules[sourceKey];
+		const cacheKey = `production::${relativePath ? path.resolve(manifest.outdir, relativePath) : sourceKey}`;
 		if (!options.bypassCache) {
 			const cachedModule = this.importCache.get(cacheKey);
 			if (cachedModule) {
@@ -326,7 +326,7 @@ export class PageModuleImportService {
 	}
 
 	private async tryLoadPagesUnifiedGraphModule<T>(filePath: string): Promise<T | undefined> {
-		if (!shouldBuildPagesUnifiedGraph() || !isPagesUnifiedGraphPage(filePath, this.appConfig)) {
+		if (!isProductionRuntime() || !isPagesUnifiedGraphPage(filePath, this.appConfig)) {
 			return undefined;
 		}
 		const graphModule = await importPagesUnifiedGraphModule<T>(this.appConfig, filePath);

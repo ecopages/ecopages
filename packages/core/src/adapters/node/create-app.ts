@@ -113,6 +113,7 @@ export class EcopagesApp implements AsyncDisposable {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly serverOptions: Record<string, unknown>;
 	private readonly cliArgs: ReturnParseCliArgs;
+	private readonly requireCompleteDist: boolean;
 	private readonly apiHandlers: ApiHandler<string, Request, unknown>[] = [];
 	private readonly staticRoutes: StaticRoute[] = [];
 	private errorPageLoaders: ErrorPageLoaders = {};
@@ -144,6 +145,7 @@ export class EcopagesApp implements AsyncDisposable {
 		this.appConfig = options.appConfig;
 		this.serverOptions = options.serverOptions || {};
 		this.cliArgs = options.cliArgs;
+		this.requireCompleteDist = this.cliArgs.start && isEcopagesStartCli();
 		this.runtimeHost = dependencies.runtimeHost;
 		this.createServerAdapter =
 			dependencies.createServerAdapter ?? (async (params) => new NodeServerAdapter(params));
@@ -483,7 +485,7 @@ export class EcopagesApp implements AsyncDisposable {
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
 			runtimeAssetSetup: this.resolveRuntimeAssetSetup(),
-			requireCompleteDist: isEcopagesStartCli(),
+			requireCompleteDist: this.requireCompleteDist,
 			allowPortFallback: binding.allowPortFallback,
 			onDevelopmentRestart: this.createDevelopmentRestartHandler(),
 		});

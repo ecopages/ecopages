@@ -65,4 +65,15 @@ describe('assertProductionDistComplete', () => {
 			/The production server module .*page\.mjs is missing/,
 		);
 	});
+
+	it('reports a corrupt server-modules map as invalid', () => {
+		const rootDir = createCompleteDist();
+		writeFileSync(
+			path.join(rootDir, 'dist', SERVER_BUNDLE_DIR, SERVER_MODULES_MANIFEST_FILENAME),
+			'{ invalid json',
+		);
+		expect(() => assertProductionDistComplete(rootDir, 'dist')).toThrow(
+			/The production server-modules map .* is invalid or unreadable/,
+		);
+	});
 });

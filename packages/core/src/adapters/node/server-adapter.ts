@@ -26,7 +26,6 @@ import { serveDistFile } from '../shared/http/dist-file-handler.ts';
 import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import { DevSession } from './dev-session.ts';
 import { prebuildProductionPageBrowserGraphsFromManifest } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
-import { shouldBuildPagesUnifiedGraph } from '../../build/cache/pages-unified-graph-build.ts';
 import { assertProductionDistComplete } from '../../build/production-dist-complete.ts';
 import { requireProductionServerModules } from '../../build/server/server-modules-manifest.ts';
 import { isProductionRuntime } from '../../env.ts';
@@ -213,7 +212,7 @@ export class NodeServerAdapter {
 			if (isProductionRuntime() && this.requireCompleteDist) {
 				assertProductionDistComplete(this.appConfig.rootDir, this.appConfig.distDir);
 			}
-			const skipProcessorSetup = isProductionRuntime() && shouldBuildPagesUnifiedGraph();
+			const skipProcessorSetup = isProductionRuntime() && this.requireCompleteDist;
 			if (skipProcessorSetup) {
 				requireProductionServerModules(this.appConfig);
 			}
@@ -479,7 +478,7 @@ export class NodeServerAdapter {
 			} else {
 				if (this.runtimeAssetSetup === 'start') {
 					await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
-					if (shouldBuildPagesUnifiedGraph()) {
+					if (isProductionRuntime() && this.requireCompleteDist) {
 						requireProductionServerModules(this.appConfig);
 					}
 					const { routeRendererFactory } = this.requestPipeline.getStaticBuildContext();

@@ -10,7 +10,6 @@ import {
 import { ensureIntegrationRuntimeReady, setupAppRuntimePlugins } from '../../build/app-build-manifest-runtime.ts';
 import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createBrowserBuildRequest, resolveAppBuildPlugins } from '../../build/runtime/build-request-policy.ts';
-import { ensurePagesUnifiedGraphBuilt } from '../../build/cache/pages-unified-graph-build.ts';
 import { getHtmlPageModuleScriptUrls, scanModuleScript } from '../../html-pages/html-page-module-scripts.ts';
 import { AssetProcessingService } from '../../assets/asset-processing-service/asset-processing.service.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../../page-cache/page-cache-service.ts';
@@ -67,13 +66,6 @@ describe('AppRuntime', () => {
 		).rejects.toThrow(missingRuntime);
 		expect(() => getHtmlPageModuleScriptUrls(unfinalized)).toThrow(missingRuntime);
 		expect(() => scanModuleScript(unfinalized, '/in.ts')).toThrow(missingRuntime);
-		await expect(
-			ensurePagesUnifiedGraphBuilt({
-				appConfig: unfinalized,
-				entryPaths: [],
-				outdir: '/out',
-			}),
-		).rejects.toThrow(missingRuntime);
 	});
 
 	it('assembles one runtime for a finalized config and keeps a second config separate', async () => {

@@ -28,7 +28,10 @@ function readJsonObject(filePath: string): Record<string, unknown> | undefined {
 function requireJsonObject(rootDir: string, filePath: string, label: string): Record<string, unknown> {
 	const parsed = readJsonObject(filePath);
 	if (!parsed) {
-		throw new Error(`No readable ${label} in ${describe(rootDir, filePath)}. Run \`ecopages build\` again.`);
+		const state = fileSystem.exists(filePath) ? 'is invalid or unreadable' : 'is missing';
+		throw new Error(
+			`The production ${label} ${describe(rootDir, filePath)} ${state}. Run \`ecopages build\` again.`,
+		);
 	}
 	return parsed;
 }
@@ -76,7 +79,7 @@ function requireListedFiles(
 
 function requireServerModules(rootDir: string, serverDir: string, buildId: string, deployManifestPath: string): void {
 	const serverModulesPath = path.join(serverDir, SERVER_MODULES_MANIFEST_FILENAME);
-	const serverModules = requireJsonObject(rootDir, serverModulesPath, 'production server-modules map');
+	const serverModules = requireJsonObject(rootDir, serverModulesPath, 'server-modules map');
 	requireMatchingBuildId(rootDir, buildId, deployManifestPath, serverModulesPath, serverModules);
 	const modules = serverModules.modules;
 	if (!modules || typeof modules !== 'object' || Array.isArray(modules)) {
@@ -124,7 +127,7 @@ export function assertProductionDistComplete(rootDir: string, distDir: string): 
 	const resolvedDist = path.resolve(resolvedRoot, distDir);
 	const serverDir = path.join(resolvedDist, SERVER_BUNDLE_DIR);
 	const deployManifestPath = path.join(serverDir, 'manifest.json');
-	const deployManifest = requireJsonObject(resolvedRoot, deployManifestPath, 'production bundle manifest');
+	const deployManifest = requireJsonObject(resolvedRoot, deployManifestPath, 'bundle manifest');
 	const buildId = requireBuildId(resolvedRoot, deployManifestPath, deployManifest);
 
 	if (typeof deployManifest.serverEntry !== 'string' || deployManifest.serverEntry.length === 0) {
@@ -138,7 +141,7 @@ export function assertProductionDistComplete(rootDir: string, distDir: string): 
 	}
 
 	const routeListPath = path.join(serverDir, PRODUCTION_ROUTES_FILENAME);
-	const routeList = requireJsonObject(resolvedRoot, routeListPath, 'production route list');
+	const routeList = requireJsonObject(resolvedRoot, routeListPath, 'route list');
 	requireMatchingBuildId(resolvedRoot, buildId, deployManifestPath, routeListPath, routeList);
 	requireServerModules(resolvedRoot, serverDir, buildId, deployManifestPath);
 	requireOptionalBrowserManifest(resolvedRoot, serverDir, buildId, deployManifestPath);

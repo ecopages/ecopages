@@ -4,7 +4,7 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 import { reactPlugin } from '@ecopages/react';
 
-export default defineConfig({
+export default defineConfig(() => ({
 	rootDir: import.meta.dirname,
 	integrations: [
 		kitajsPlugin(),
@@ -12,4 +12,4 @@ export default defineConfig({
 		litPlugin(),
 		reactPlugin({ extensions: ['.react.tsx'] }),
 	],
-});
+}));

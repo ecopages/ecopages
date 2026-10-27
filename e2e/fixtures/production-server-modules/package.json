@@ -8,6 +8,7 @@
 		"@ecopages/jsx": "^0.6.0",
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/lit": "workspace:*",
+		"@ecopages/radiant": "^0.6.0",
 		"@ecopages/react": "workspace:*",
 		"@kitajs/html": "^4.2.13",
 		"lit": "^3.3.3",

@@ -8,6 +8,7 @@ import {
 	isHashedBrowserAsset,
 } from '../../../assets/hashed-browser-asset.ts';
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
+import { SERVER_BUNDLE_DIR } from '../../../utils/resolve-entry-file.ts';
 
 export type ServeDistFileOptions = {
 	distDir: string;
@@ -67,6 +68,14 @@ function resolveRequestTarget(request: Request, distDir: string): RequestTarget 
 }
 
 function findDistFile({ pathname, requestedPath }: RequestTarget, options: ServeDistFileOptions): string | undefined {
+	if (
+		pathname
+			.replaceAll('\\', '/')
+			.split('/')
+			.some((segment) => segment.toLowerCase() === SERVER_BUNDLE_DIR.toLowerCase())
+	) {
+		return undefined;
+	}
 	if (options.staticFilesOnly && !ServerUtils.hasKnownStaticExtension(pathname)) {
 		return undefined;
 	}

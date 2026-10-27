@@ -272,6 +272,9 @@ importers:
       '@ecopages/lit':
         specifier: workspace:*
         version: link:../../../packages/integrations/lit
+      '@ecopages/radiant':
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../../packages/integrations/react

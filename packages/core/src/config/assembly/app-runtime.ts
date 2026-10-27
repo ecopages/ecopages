@@ -10,7 +10,6 @@ import { SessionPageBrowserGraphCache } from '../../route-renderer/orchestration
 import { AppModuleLoader } from '../../build/server/app-module-loader.service.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { BuildAdapter } from '../../build/build-adapter.ts';
-import type { PagesUnifiedGraphCacheManifest } from '../../build/cache/pages-unified-graph-build.ts';
 import type { AppBuildManifest } from '../../build/contracts/build-manifest.ts';
 import type { AppModuleLoaderContract } from '../../build/server/app-module-loader.service.ts';
 import type { ProductionServerModulesManifest } from '../../build/server/server-modules-manifest.ts';
@@ -61,7 +60,6 @@ export interface AppRuntime {
 	buildManifest: AppBuildManifest;
 	buildQueue: BuildQueue;
 	buildInputIndex: BuildInputDependencyIndex;
-	pagesUnifiedGraphManifest: PagesUnifiedGraphCacheManifest | null;
 	productionServerModules: ProductionServerModulesManifest | null;
 	pageBrowserGraphSession: SessionPageBrowserGraphCache;
 	serverInvalidation: ServerInvalidationState;
@@ -123,7 +121,6 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		buildManifest: createAppBuildManifest([]),
 		buildQueue,
 		buildInputIndex,
-		pagesUnifiedGraphManifest: null,
 		productionServerModules: null,
 		pageBrowserGraphSession: new SessionPageBrowserGraphCache(buildInputIndex),
 		serverInvalidation: new ServerInvalidationState(),

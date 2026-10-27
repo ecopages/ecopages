@@ -24,18 +24,13 @@ import {
 	prepareExplicitStaticRender,
 	resolveExplicitViewRenderer,
 } from '../route-renderer/explicit-view-render-preparation.ts';
-import { getServerModuleBuildCacheOutdir } from '../build/server/route-module-build-cache-registry.ts';
 import type { StaticExportContext, StaticExportRelease } from './static-export-context.ts';
 import {
 	ensureIntegrationRuntimeReady,
 	setupAppRuntimeIntegrations,
 	teardownAppRuntimeIntegrations,
 } from '../build/app-build-manifest-runtime.ts';
-import {
-	emitProductionServerModules,
-	ensurePagesUnifiedGraphBuilt,
-	shouldBuildPagesUnifiedGraph,
-} from '../build/cache/pages-unified-graph-build.ts';
+import { emitProductionServerModules, shouldBuildPagesUnifiedGraph } from '../build/cache/pages-unified-graph-build.ts';
 import {
 	clearProductionPageBrowserGraphSession,
 	prebuildProductionPageBrowserGraphs,
@@ -67,6 +62,13 @@ type StaticGenerationRendererFactory = StaticGenerationRendererResolver;
 type ExplicitStaticRouteEntry = {
 	pathname: string;
 	params: Record<string, string | string[]>;
+};
+
+type PreparedExplicitStaticRoute = {
+	routePath: string;
+	routeFile?: string;
+	view: EcoPageComponent<any>;
+	routeEntries: ExplicitStaticRouteEntry[];
 };
 
 function createStaticGenerationPageError(route: string, error: unknown, label = 'static page'): Error {
@@ -454,24 +456,6 @@ export class StaticSiteGenerator {
 		});
 	}
 
-	private async ensureUnifiedGraphForStaticGeneration(
-		routes: readonly StaticGenerationRoute[],
-		force: boolean,
-	): Promise<void> {
-		if (requireAppRuntime(this.appConfig).productionServerModules) {
-			return;
-		}
-		if (!shouldBuildPagesUnifiedGraph()) {
-			return;
-		}
-		await ensurePagesUnifiedGraphBuilt({
-			appConfig: this.appConfig,
-			entryPaths: routes.map((route) => route.templateRoute.filePath),
-			outdir: getServerModuleBuildCacheOutdir(this.appConfig),
-			force,
-		});
-	}
-
 	private async executeStaticGenerationBody(input: {
 		router: StaticGenerationRouteSource;
 		baseUrl: string;
@@ -484,6 +468,15 @@ export class StaticSiteGenerator {
 		activeStaticPathnames: Set<string>;
 		sitemapEligiblePathnames?: Set<string>;
 	}): Promise<void> {
+		const explicitStaticRoutes =
+			input.staticRoutes && input.routeRendererFactory
+				? await this.prepareExplicitStaticRoutes({
+						staticRoutes: input.staticRoutes,
+						skipped: input.skippedDynamicPages,
+						failures: input.pageFailures,
+					})
+				: [];
+
 		if (shouldPrebuildProductionPageBrowserGraphs() && input.routeRendererFactory) {
 			const dynamicRouteTemplates = (input.router.templateRoutes ?? [])
 				.filter((route) => route.kind !== 'exact' && route.role === 'page')
@@ -504,6 +497,9 @@ export class StaticSiteGenerator {
 						params: route.params,
 					})),
 					...dynamicRouteTemplates,
+					...explicitStaticRoutes.flatMap(({ routeFile, routeEntries }) =>
+						routeFile ? routeEntries.map(({ params }) => ({ routeFile, params })) : [],
+					),
 				],
 				input.routeRendererFactory,
 			);
@@ -523,11 +519,10 @@ export class StaticSiteGenerator {
 			sitemapEligiblePathnames: input.sitemapEligiblePathnames,
 		});
 
-		if (input.staticRoutes && input.staticRoutes.length > 0 && input.routeRendererFactory) {
+		if (explicitStaticRoutes.length > 0 && input.routeRendererFactory) {
 			await this.generateExplicitStaticPages({
-				staticRoutes: input.staticRoutes,
+				staticRoutes: explicitStaticRoutes,
 				routeRendererFactory: input.routeRendererFactory,
-				skipped: input.skippedDynamicPages,
 				failures: input.pageFailures,
 				activeStaticPathnames: input.activeStaticPathnames,
 				sitemapEligiblePathnames: input.sitemapEligiblePathnames,
@@ -606,7 +601,6 @@ export class StaticSiteGenerator {
 				errorPageLoaders,
 			});
 			const exportRoutes = routes.map((route) => toEcopagesRouteInfo(route));
-			await this.ensureUnifiedGraphForStaticGeneration(routes, force);
 
 			const staticExportContext = this.createStaticExportContext({
 				router,
@@ -677,56 +671,80 @@ export class StaticSiteGenerator {
 		}
 	}
 
-	private async generateExplicitStaticPages(input: {
+	private async prepareExplicitStaticRoutes(input: {
 		staticRoutes: StaticRoute[];
+		skipped: string[];
+		failures: Error[];
+	}): Promise<PreparedExplicitStaticRoute[]> {
+		const prepared: PreparedExplicitStaticRoute[] = [];
+		for (const route of input.staticRoutes) {
+			try {
+				const view = (await route.loader()).default;
+				if (this.shouldSkipStaticView(route.path, view)) {
+					input.skipped.push(route.path);
+					continue;
+				}
+				prepared.push({
+					routePath: route.path,
+					routeFile: route.loader.filePath,
+					view,
+					routeEntries: await this.listExplicitStaticRouteEntries(route.path, view),
+				});
+			} catch (error) {
+				input.failures.push(createStaticGenerationPageError(route.path, error, 'explicit static page'));
+			}
+		}
+		return prepared;
+	}
+
+	private async generateExplicitStaticPages(input: {
+		staticRoutes: PreparedExplicitStaticRoute[];
 		routeRendererFactory: ExplicitStaticRouteRendererFactory;
-		skipped?: string[];
 		failures: Error[];
 		activeStaticPathnames?: Set<string>;
 		sitemapEligiblePathnames?: Set<string>;
 	}): Promise<void> {
 		appLogger.debug(
 			'Generating explicit static routes',
-			input.staticRoutes.map((r) => r.path),
+			input.staticRoutes.map((route) => route.routePath),
 		);
 
 		for (const route of input.staticRoutes) {
-			try {
-				const mod = await route.loader();
-				const view = mod.default;
-				if (this.shouldSkipStaticView(route.path, view)) {
-					input.skipped?.push(route.path);
-					continue;
-				}
-
-				await this.generateExplicitStaticRoute({
-					routePath: route.path,
-					view,
-					routeRendererFactory: input.routeRendererFactory,
-					failures: input.failures,
-					activeStaticPathnames: input.activeStaticPathnames,
-					sitemapEligiblePathnames: input.sitemapEligiblePathnames,
-				});
-			} catch (error) {
-				input.failures.push(createStaticGenerationPageError(route.path, error, 'explicit static page'));
-			}
+			await this.generateExplicitStaticRoute({
+				routePath: route.routePath,
+				view: route.view,
+				routeEntries: route.routeEntries,
+				routeRendererFactory: input.routeRendererFactory,
+				failures: input.failures,
+				activeStaticPathnames: input.activeStaticPathnames,
+				sitemapEligiblePathnames: input.sitemapEligiblePathnames,
+			});
 		}
 	}
 
 	private async generateExplicitStaticRoute(input: {
 		routePath: string;
 		view: EcoPageComponent<any>;
+		routeEntries: ExplicitStaticRouteEntry[];
 		routeRendererFactory: ExplicitStaticRouteRendererFactory;
 		failures: Error[];
 		activeStaticPathnames?: Set<string>;
 		sitemapEligiblePathnames?: Set<string>;
 	}): Promise<void> {
-		const { routePath, view, routeRendererFactory, failures, activeStaticPathnames, sitemapEligiblePathnames } =
-			input;
-		const { renderer, routeEntries } = await this.planExplicitStaticRoute({
+		const {
+			routePath,
+			view,
+			routeEntries,
+			routeRendererFactory,
+			failures,
+			activeStaticPathnames,
+			sitemapEligiblePathnames,
+		} = input;
+		const { renderer } = resolveExplicitViewRenderer({
 			routePath,
 			view,
 			routeRendererFactory,
+			errors: STATIC_SITE_GENERATOR_ERRORS,
 		});
 
 		for (const { pathname, params } of routeEntries) {
@@ -764,24 +782,6 @@ export class StaticSiteGenerator {
 				failures.push(createStaticGenerationPageError(pathname, error, 'explicit static page'));
 			}
 		}
-	}
-
-	private async planExplicitStaticRoute(input: {
-		routePath: string;
-		view: EcoPageComponent<any>;
-		routeRendererFactory: ExplicitStaticRouteRendererFactory;
-	}): Promise<{ renderer: ExplicitViewRenderer; routeEntries: ExplicitStaticRouteEntry[] }> {
-		const { renderer } = resolveExplicitViewRenderer({
-			routePath: input.routePath,
-			view: input.view,
-			routeRendererFactory: input.routeRendererFactory,
-			errors: STATIC_SITE_GENERATOR_ERRORS,
-		});
-
-		return {
-			renderer,
-			routeEntries: await this.listExplicitStaticRouteEntries(input.routePath, input.view),
-		};
 	}
 
 	private async createExplicitStaticContents(input: {

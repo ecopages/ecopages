@@ -16,6 +16,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
 import { appLogger } from '../../global/app-logger.ts';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
@@ -25,6 +26,7 @@ import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import { BuildInputDependencyIndex, runWithBuildInputIndex } from '../cache/build-input-dependency-index.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
 import { assertBuildFailed } from '../../__fixtures__/build/build-result.ts';
+import { collectBuildOutputImports } from '../build-graph.ts';
 
 let workDir: string;
 
@@ -345,6 +347,231 @@ describe('RolldownBuildAdapter', () => {
 		expect(JSON.parse(loaded)).toEqual({ native: true });
 	});
 
+	test.each(['esm', 'cjs'] as const)(
+		'externalPackages keeps preserved %s server module chunks importable',
+		async (format) => {
+			writeAppPackageJson({ type: 'module', dependencies: { 'source-lib': 'workspace:*' } });
+			const sourceLib = path.join(workDir, 'packages/source-lib');
+			mkdirSync(sourceLib, { recursive: true });
+			writeFileSync(
+				path.join(sourceLib, 'package.json'),
+				JSON.stringify({ name: 'source-lib', type: 'module', exports: './index.ts' }),
+			);
+			const nativeLike = path.join(workDir, 'node_modules/native-like');
+			mkdirSync(nativeLike, { recursive: true });
+			writeFileSync(
+				path.join(nativeLike, 'package.json'),
+				JSON.stringify({
+					name: 'native-like',
+					type: format === 'cjs' ? 'commonjs' : 'module',
+					exports: './index.js',
+				}),
+			);
+			writeFileSync(
+				path.join(nativeLike, 'index.js'),
+				format === 'cjs' ? "exports.value = 'external';\n" : "export const value = 'external';\n",
+			);
+			symlinkSync(sourceLib, path.join(workDir, 'node_modules/source-lib'), 'dir');
+			const outdir = path.join(workDir, `preserved-dist-${format}`);
+			const nativeEntry = path.join(realpathSync(workDir), 'node_modules/native-like/index.js');
+			const originalExternalId = path.relative(outdir, nativeEntry).split(path.sep).join('/');
+			const sourceModuleSource = `import { value } from 'native-like'; export { value }; export const load = () => import('native-like'); export const spelling = ${JSON.stringify(originalExternalId)};\n`;
+			writeFileSync(path.join(sourceLib, 'index.ts'), sourceModuleSource);
+			const entrypoint = writeFixture(
+				'preserved-entry.ts',
+				`export { value, spelling, load } from 'source-lib';\nexport const originalExternalId = ${JSON.stringify(originalExternalId)};\n`,
+			);
+
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'server' as const,
+				entrypoints: [entrypoint],
+				outdir,
+				target: 'node',
+				format,
+				externalPackages: true,
+				preserveModules: true,
+				preserveModulesRoot: workDir,
+				naming: '[name]-[hash].[ext]',
+				minify: true,
+				sourcemap: format === 'esm' ? 'external' : 'none',
+				root: workDir,
+			});
+
+			assertBuildSucceeded(result, 'Build failed');
+			expect(result.outputs.length).toBeGreaterThan(1);
+			const sourceModule = result.outputs.find((output) =>
+				path.relative(outdir, output.path).startsWith(`packages/source-lib${path.sep}`),
+			);
+			expect(sourceModule).toBeDefined();
+			expect(path.basename(sourceModule!.path)).toMatch(/-[A-Za-z0-9_-]+\.(?:mjs|cjs)$/u);
+			const generatedCode = readFileSync(sourceModule!.path, 'utf-8');
+			expect(generatedCode).toContain(JSON.stringify(relativeImportPath(sourceModule!.path, nativeEntry)));
+			if (format === 'esm') {
+				const sourceMap = result.outputs.find((output) => output.path === `${sourceModule!.path}.map`);
+				expect(sourceMap).toBeDefined();
+				const parsedSourceMap = JSON.parse(readFileSync(sourceMap!.path, 'utf-8')) as {
+					version: number;
+					file?: string;
+					sources: string[];
+					sourcesContent?: string[];
+					names: string[];
+					mappings: string;
+				};
+				expect(parsedSourceMap.mappings).not.toBe('');
+				const generatedTokenOffset = generatedCode.indexOf(originalExternalId);
+				expect(generatedTokenOffset).toBeGreaterThanOrEqual(0);
+				const originalTokenOffset = sourceModuleSource.indexOf(JSON.stringify(originalExternalId));
+				const generatedPrefix = generatedCode.slice(0, generatedTokenOffset);
+				const original = originalPositionFor(new TraceMap(parsedSourceMap as SourceMapInput), {
+					line: generatedPrefix.split('\n').length,
+					column: generatedPrefix.length - generatedPrefix.lastIndexOf('\n') - 1,
+				});
+				expect(original.source).toContain('packages/source-lib/index.ts');
+				expect(original.line).toBe(1);
+				expect(original.column).toBe(originalTokenOffset);
+			}
+			const entryOutput = result.entryOutputs[entrypoint];
+			expect(entryOutput).toBeDefined();
+			const collectedImports = collectBuildOutputImports(result, entryOutput!);
+			expect(collectedImports.map((importPath) => realpathSync(importPath))).toContain(realpathSync(nativeEntry));
+			if (format === 'cjs')
+				writeFileSync(path.join(outdir, 'package.json'), JSON.stringify({ type: 'commonjs' }));
+			const loadExpression =
+				format === 'esm'
+					? `const m = await import(${JSON.stringify(pathToFileURL(entryOutput!).href)});`
+					: `const m = require(${JSON.stringify(entryOutput)});`;
+			const loaded = execFileSync(
+				process.execPath,
+				[
+					format === 'esm' ? '--input-type=module' : '--input-type=commonjs',
+					'-e',
+					`(async () => { ${loadExpression} const dynamic = await m.load(); console.log(JSON.stringify({ value: m.value, dynamicValue: dynamic.value, spelling: m.spelling, originalExternalId: m.originalExternalId })); })();`,
+				],
+				{ encoding: 'utf8' },
+			);
+			expect(JSON.parse(loaded)).toEqual({
+				value: 'external',
+				dynamicValue: 'external',
+				spelling: originalExternalId,
+				originalExternalId,
+			});
+		},
+	);
+
+	test.each(['esm', 'cjs'] as const)(
+		'externalPackages preserves locally bound require calls in %s output',
+		async (format) => {
+			writeAppPackageJson({ type: 'module' });
+			const sourceDir = path.join(workDir, 'packages/source-lib');
+			mkdirSync(sourceDir, { recursive: true });
+			const nativeDir = path.join(workDir, 'node_modules/native-like');
+			mkdirSync(nativeDir, { recursive: true });
+			writeFileSync(
+				path.join(nativeDir, 'package.json'),
+				JSON.stringify({
+					name: 'native-like',
+					type: format === 'cjs' ? 'commonjs' : 'module',
+					exports: './index.js',
+				}),
+			);
+			writeFileSync(
+				path.join(nativeDir, 'index.js'),
+				format === 'cjs' ? "exports.value = 'external';\n" : "export const value = 'external';\n",
+			);
+			const outdir = path.join(workDir, `shadowed-require-${format}`);
+			const nativeEntry = path.join(realpathSync(workDir), 'node_modules/native-like/index.js');
+			const originalExternalId = path.relative(outdir, nativeEntry).split(path.sep).join('/');
+			writeFileSync(
+				path.join(sourceDir, 'index.ts'),
+				`import { value } from 'native-like';\nconst require = (id: string) => id;\nexport const spelling = require(${JSON.stringify(originalExternalId)});\nexport { value };\n`,
+			);
+			const entrypoint = writeFixture(
+				'shadowed-require-entry.ts',
+				"export { value, spelling } from './packages/source-lib/index.ts';\n",
+			);
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'server' as const,
+				entrypoints: [entrypoint],
+				outdir,
+				target: 'node',
+				format,
+				externalPackages: true,
+				preserveModules: true,
+				preserveModulesRoot: workDir,
+				naming: '[name]-[hash].[ext]',
+				root: workDir,
+			});
+
+			assertBuildSucceeded(result, 'Build failed');
+			const sourceOutput = result.outputs.find((output) =>
+				path.relative(outdir, output.path).startsWith(`packages/source-lib${path.sep}`),
+			);
+			expect(sourceOutput).toBeDefined();
+			const outputCode = readFileSync(sourceOutput!.path, 'utf-8');
+			expect(outputCode).toContain(JSON.stringify(originalExternalId));
+			expect(outputCode).toContain(relativeImportPath(sourceOutput!.path, nativeEntry));
+			const entryOutput = result.entryOutputs[entrypoint];
+			expect(entryOutput).toBeDefined();
+			if (format === 'cjs')
+				writeFileSync(path.join(outdir, 'package.json'), JSON.stringify({ type: 'commonjs' }));
+			const loadEntry =
+				format === 'esm'
+					? `const m = await import(${JSON.stringify(pathToFileURL(entryOutput!).href)});`
+					: `const m = require(${JSON.stringify(entryOutput)});`;
+			const loaded = execFileSync(
+				process.execPath,
+				[
+					format === 'esm' ? '--input-type=module' : '--input-type=commonjs',
+					'-e',
+					`(async () => { ${loadEntry} console.log(JSON.stringify({ value: m.value, spelling: m.spelling })); })();`,
+				],
+				{ encoding: 'utf8' },
+			);
+			expect(JSON.parse(loaded)).toEqual({ value: 'external', spelling: originalExternalId });
+		},
+	);
+
+	test('externalPackages keeps preserved virtual modules importable', async () => {
+		const entrypoint = writeFixture('virtual-entry.ts', "export { parseSync } from 'virtual:parser';\n");
+		const virtualModulePlugin: EcoBuildPlugin = {
+			name: 'virtual-parser',
+			setup(build) {
+				build.module('virtual:parser', () => ({
+					contents: "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n",
+					loader: 'js',
+				}));
+			},
+		};
+		const outdir = path.join(workDir, 'virtual-dist');
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'node',
+			format: 'esm',
+			externalPackages: true,
+			preserveModules: true,
+			preserveModulesRoot: workDir,
+			plugins: [virtualModulePlugin],
+			root: workDir,
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		const entryOutput = result.entryOutputs[entrypoint];
+		expect(entryOutput).toBeDefined();
+		const loaded = execFileSync(
+			process.execPath,
+			[
+				'--input-type=module',
+				'-e',
+				`const m = await import(${JSON.stringify(pathToFileURL(entryOutput!).href)}); console.log(typeof m.parseSync);`,
+			],
+			{ encoding: 'utf8' },
+		);
+		expect(loaded.trim()).toBe('function');
+	});
+
 	test('externalPackages keeps node builtins external for node-target builds', async () => {
 		const entrypoint = writeFixture(
 			'node-builtin-entry.ts',
@@ -588,7 +815,7 @@ describe('RolldownBuildAdapter', () => {
 		expect(warn).not.toHaveBeenCalled();
 	});
 
-	test('externalPackages rejects a nested chunk that imports a core-owned package path', async () => {
+	test('externalPackages keeps nested chunks importable when they import a core-owned package path', async () => {
 		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
 
 		const result = await new RolldownBuildAdapter().build({
@@ -601,8 +828,19 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assertBuildFailed(result);
-		expect(result.logs.map((log) => log.message).join('\n')).toContain('nested/entry');
+		assertBuildSucceeded(result, 'Build failed');
+		const entryOutput = result.entryOutputs[entrypoint];
+		expect(entryOutput).toBeDefined();
+		const loaded = execFileSync(
+			process.execPath,
+			[
+				'--input-type=module',
+				'-e',
+				`const m = await import(${JSON.stringify(pathToFileURL(entryOutput!).href)}); console.log(typeof m.parseSync);`,
+			],
+			{ encoding: 'utf8' },
+		);
+		expect(loaded.trim()).toBe('function');
 	});
 
 	test('externalPackages bundles Core runtime dependencies with CommonJS named exports', async () => {

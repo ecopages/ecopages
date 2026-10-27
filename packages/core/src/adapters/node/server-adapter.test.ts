@@ -514,7 +514,7 @@ describe('NodeServerAdapter', () => {
 				requireCompleteDist: true,
 			});
 
-			await expect(adapter.initialize()).rejects.toThrow(/No readable production bundle manifest/);
+			await expect(adapter.initialize()).rejects.toThrow(/production bundle manifest .* is missing/);
 			await adapter.dispose();
 		});
 

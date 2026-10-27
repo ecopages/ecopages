@@ -77,7 +77,7 @@ new MyElement().renderHostToString({ mode: 'hydrate' });
 
 The legacy `hydrate: true` option remains compatible, but `mode` is the current SSR contract. Registered intrinsic tags that contain a dash are SSR candidates, and framework-specific host rendering should be adapted through the server custom-element render hook instead of hardcoding framework branches into JSX page code.
 
-The integration loads Radiant host serialization through the public `@ecopages/radiant/server/radiant-element-ssr` export after installing the light-DOM shim. Applications do not need a separate Radiant SSR side-effect import.
+The integration loads Radiant host serialization through the public `@ecopages/radiant/server/radiant-element-ssr` export after Core installs the shared server DOM at Integration setup. Applications do not need a separate Radiant SSR side-effect import.
 
 ### Registered Radiant scripts (`ssr: true`)
 

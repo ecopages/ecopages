@@ -1,6 +1,7 @@
 import { eco, type EcoPagesElement } from '@ecopages/core';
 import { html } from 'lit';
 import { LitLayout } from '../layouts/lit-layout.lit';
+import './hello.script.ts';
 
 export default eco.page({
 	layout: LitLayout,

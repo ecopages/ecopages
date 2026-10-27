@@ -15,6 +15,7 @@ import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocke
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { ServerRequestPipeline, type ServerRequestContext } from '../shared/runtime/server-request-pipeline.ts';
+import { runWithBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
 import { ServerStaticBuilder } from '../shared/runtime/server-static-builder.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { disposeDevResources, prepareRuntimePublicDir } from '../shared/runtime/runtime-server-lifecycle.ts';
@@ -130,6 +131,12 @@ export class NodeServerAdapter {
 			appConfig: this.appConfig,
 			runtime: this.runtime,
 			watch: this.options.watch,
+			runInRequestBuildScope: this.options.watch
+				? (operation) =>
+						this.runtime.buildQueue.withRequestScope(() =>
+							runWithBuildInputIndex(this.runtime.buildInputIndex, operation),
+						)
+				: undefined,
 		});
 		this.runtimeAssetSetup = options.runtimeAssetSetup ?? 'start';
 		this.allowPortFallback = options.allowPortFallback !== false;

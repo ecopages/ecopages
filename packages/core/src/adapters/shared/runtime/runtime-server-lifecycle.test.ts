@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import type { Server as NodeHttpServer } from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
 import { test, vi } from 'vitest';
 import { appLogger } from '../../../global/app-logger.ts';
 import * as appBuildManifestRuntime from '../../../build/app-build-manifest-runtime.ts';
@@ -8,6 +12,12 @@ import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import type { IntegrationRuntimeContext } from '../../../plugins/integration-plugin.ts';
 import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config.ts';
 import { HtmlPagesPlugin } from '../../../html-pages/html-pages.plugin.ts';
+import { EcopagesApp } from '../../node/create-app.ts';
+import type { RuntimeHost } from '../../node/runtime-host.ts';
+import { defineIntegration } from '../../../plugins/define-integration.ts';
+import { StringMarkupRenderer } from '../../../route-renderer/orchestration/string-markup-renderer.ts';
+import type { IntegrationRendererRenderOptions } from '../../../types/contracts.ts';
+import { MemoryCacheStore } from '../../../page-cache/memory-cache-store.ts';
 
 test('a failed cleanup step still tears down Integrations and allows setup again', async () => {
 	const events: string[] = [];
@@ -216,4 +226,127 @@ test('startDevWarmup waits for every Integration setup attempt to settle', async
 
 	ensureSpy.mockRestore();
 	errorSpy.mockRestore();
+});
+
+test('A regeneration in progress when the app stops', async () => {
+	const shutdownEvents: string[] = [];
+	let tornDown = false;
+	let renderedAgainstTornDown = false;
+	let finishRender!: () => void;
+	const renderGate = new Promise<void>((resolve) => {
+		finishRender = resolve;
+	});
+	let markRenderStarted!: () => void;
+	const renderStarted = new Promise<void>((resolve) => {
+		markRenderStarted = resolve;
+	});
+
+	class GatedRenderer extends StringMarkupRenderer {
+		name = 'gated';
+		override async getHtmlTemplate() {
+			return ({ children }: { children?: unknown }) =>
+				`<!DOCTYPE html><html><body>${String(children ?? '')}</body></html>`;
+		}
+		override async render(options: IntegrationRendererRenderOptions) {
+			markRenderStarted();
+			await renderGate;
+			if (tornDown) {
+				renderedAgainstTornDown = true;
+			}
+			const body = await super.render(options);
+			shutdownEvents.push('render finished');
+			return body;
+		}
+	}
+
+	const gated = defineIntegration({
+		name: 'gated',
+		extensions: ['.gated.ts'],
+		renderer: GatedRenderer,
+	});
+
+	class GatedIntegration extends gated.Plugin {
+		renderer = GatedRenderer;
+		override async teardown(): Promise<void> {
+			tornDown = true;
+			shutdownEvents.push('teardown');
+		}
+	}
+
+	const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-isr-shutdown-'));
+	const pagesDir = path.join(rootDir, 'src', 'pages');
+	fs.mkdirSync(pagesDir, { recursive: true });
+	fs.writeFileSync(
+		path.join(pagesDir, 'index.gated.ts'),
+		[
+			'export default Object.assign(',
+			'	() => `<p>fresh</p>`,',
+			'	{',
+			'		config: { integration: "gated" },',
+			'		cache: { revalidate: 60 },',
+			'	},',
+			');',
+		].join('\n'),
+	);
+
+	const store = new MemoryCacheStore();
+	const revalidateStrategy = { revalidate: 60 };
+	await store.set('/', {
+		html: '<html>stale</html>',
+		createdAt: Date.now() - 120000,
+		revalidateAfter: Date.now() - 60000,
+		tags: [],
+		strategy: revalidateStrategy,
+	});
+
+	const appConfig = await finalizeEcoPagesConfig({
+		rootDir,
+		integrations: [new GatedIntegration()],
+		cache: { enabled: true, store },
+	});
+	const runtimeHost: RuntimeHost = {
+		start: vi.fn().mockResolvedValue({} as NodeHttpServer),
+		stop: vi.fn().mockResolvedValue(undefined),
+		getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
+	};
+	const app = new EcopagesApp(
+		{
+			appConfig,
+			cliArgs: {
+				preview: false,
+				build: false,
+				start: true,
+				dev: false,
+				serveOnly: false,
+				keepGoing: false,
+				port: undefined,
+				hostname: undefined,
+			},
+		},
+		{ runtimeHost },
+	);
+
+	try {
+		const response = await app.fetch(new Request('http://localhost:3000/'));
+		assert.equal(response.headers.get('x-cache'), 'STALE');
+		assert.equal(await response.text(), '<html>stale</html>');
+		await renderStarted;
+
+		let stopped = false;
+		const stopping = app.stop().then(() => {
+			stopped = true;
+		});
+		await new Promise<void>((resolve) => setImmediate(resolve));
+		assert.equal(stopped, false);
+		assert.deepEqual(shutdownEvents, []);
+
+		finishRender();
+		await stopping;
+		assert.deepEqual(shutdownEvents, ['render finished', 'teardown']);
+		assert.equal(renderedAgainstTornDown, false);
+	} finally {
+		finishRender();
+		await app.stop();
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
 });

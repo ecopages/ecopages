@@ -19,7 +19,7 @@ They are responsible for:
 
 A forced stop, the default, closes every open connection on the Node server, WebSocket connections included (HMR clients and `app.websocket` routes), so it completes while browsers stay connected. `stop(false)` waits for open connections to end on their own.
 
-Shutdown cancels queued Page prewarming, waits for active prewarm renders and for Integration `setup()` calls still in flight, then calls `teardown()` for activated Integrations and clears their activation state. Cleanup attempts each resource even when an earlier step fails, then reports the errors. This releases runtime resources such as Lit workers after background renders finish using them.
+Shutdown cancels queued Page prewarming, waits for active prewarm renders, in-flight page-cache regenerations, and Integration `setup()` calls still in flight, then calls `teardown()` for activated Integrations and clears their activation state. Cleanup attempts each resource even when an earlier step fails, then reports the errors. This releases runtime resources such as Lit workers after background renders finish using them.
 
 If shutdown rejects while a standalone development restart is stopping the server, the adapter logs the rejection details, including nested cleanup errors and their causes, and still exits with the restart code: the process ends either way, and the CLI starts a fresh server.
 

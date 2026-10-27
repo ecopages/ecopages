@@ -109,6 +109,11 @@ import {
 } from './document-shell/layout-shell-props.service.ts';
 import { finalizeIslandComponentRender } from '../../islands/island-host.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
+import {
+	describeProductionBrowserGraphEntry,
+	missingProductionBrowserGraphError,
+	shouldRejectUnplannedProductionBrowserGraph,
+} from './page-browser-graph/missing-production-browser-graph.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.
@@ -1488,7 +1493,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		route: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
 	): Promise<PageClientBrowserAssets | undefined> {
 		const prebuiltInstance = this.resolvePrebuiltPageClientInstance(route);
-		if (!prebuiltInstance) return undefined;
+		if (!prebuiltInstance) {
+			await this.rejectUnplannedProductionPageClientGraph(plan, route);
+			return undefined;
+		}
 
 		const currentEntries = await this.collectAppBrowserClientBuildEntries(plan);
 		const plannedEntries = prebuiltInstance.pageClientBuildEntries ?? [];
@@ -1504,7 +1512,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					.sort(),
 			);
 		const prebuilt = hasMatchingEntries ? prebuiltInstance.prebuiltPageClientBrowserAssets : undefined;
-		if (!prebuilt) return undefined;
+		if (!prebuilt) {
+			if (shouldRejectUnplannedProductionBrowserGraph(this.appConfig)) {
+				throw missingProductionBrowserGraphError(route.file, describeProductionBrowserGraphEntry(route.params));
+			}
+			return undefined;
+		}
 
 		const fallbackGroups = new Map<string, PageClientBuildEntry['dependency'][]>();
 		for (const { dependency, integrationName } of prebuilt.fallbackDependencies) {
@@ -1527,6 +1540,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			processedAssets,
 			lazyTriggers: this.dependencyResolverService.applyPendingLazyTriggers(processedAssets, plan.lazyConfigs),
 		};
+	}
+
+	private async rejectUnplannedProductionPageClientGraph(
+		plan: PageClientPlan,
+		route: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
+	): Promise<void> {
+		if (!shouldRejectUnplannedProductionBrowserGraph(this.appConfig)) return;
+		const currentEntries = await this.collectAppBrowserClientBuildEntries(plan);
+		if (currentEntries.length > 0 || this.integrationHooks.buildIslandClientAssets) {
+			throw missingProductionBrowserGraphError(route.file, describeProductionBrowserGraphEntry(route.params));
+		}
 	}
 
 	private resolvePrebuiltPageClientInstance(

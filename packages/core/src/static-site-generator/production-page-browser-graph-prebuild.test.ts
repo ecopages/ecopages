@@ -246,13 +246,15 @@ test('prebuildProductionPageBrowserGraphs skips routes whose preparation failed'
 
 test('clearProductionPageBrowserGraphSession clears production session records', async () => {
 	const appConfig = await createAppConfig();
-	const session = requireAppRuntime(appConfig).pageBrowserGraphSession;
-	const clearSpy = vi.spyOn(session, 'clearPolicyRecords');
+	const runtime = requireAppRuntime(appConfig);
+	runtime.productionBrowserGraphsSealed = true;
+	const clearSpy = vi.spyOn(runtime.pageBrowserGraphSession, 'clearPolicyRecords');
 
 	clearProductionPageBrowserGraphSession(appConfig);
 
 	assert.equal(clearSpy.mock.calls.length, 1);
 	assert.equal(clearSpy.mock.calls[0]?.[0], 'production');
+	assert.equal(runtime.productionBrowserGraphsSealed, false);
 });
 
 test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs for SSR start', async () => {
@@ -337,6 +339,7 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs 
 
 	assert.deepEqual(await getPrebuiltHtmlPageModuleScriptUrls(runtimeAppConfig), new Map());
 	assert.equal(await prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, routeRendererFactory), true);
+	assert.equal(requireAppRuntime(runtimeAppConfig).productionBrowserGraphsSealed, true);
 	assert.equal(buildAppBrowserClientMock.mock.calls.length, 0);
 	assert.deepEqual(
 		await getPrebuiltHtmlPageModuleScriptUrls(runtimeAppConfig),

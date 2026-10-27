@@ -418,6 +418,9 @@ describe('RouteRegistry', () => {
 			},
 		]);
 		expect(pageModuleAdapter.loadPageModule).toHaveBeenCalledWith('/pages/blog/[slug].ts');
+		await expect(
+			registry.listDynamicPagePathExpansions({ runtimeOrigin: 'http://localhost:3000' }),
+		).resolves.toEqual([]);
 	});
 
 	test('builds a dynamic-route Page with cache dynamic without staticPaths', async () => {
@@ -441,6 +444,63 @@ describe('RouteRegistry', () => {
 		await expect(registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' })).resolves.toEqual(
 			[],
 		);
+		await expect(
+			registry.listDynamicPagePathExpansions({ runtimeOrigin: 'http://localhost:3000' }),
+		).resolves.toEqual([]);
+	});
+
+	test('lists Dynamic Page staticPaths for browser graph planning without treating them as Static Path Expansions', async () => {
+		const pageModuleAdapter: RouteRegistryPageModuleAdapter = {
+			loadPageModule: vi.fn(async () => ({
+				cache: 'dynamic',
+				staticPaths: async () => ({
+					paths: [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }],
+				}),
+			})),
+		};
+
+		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
+		await registry.init();
+
+		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+			{
+				pathname: '/posts/[slug]',
+				kind: 'dynamic',
+				role: 'page',
+				filePath: '/pages/posts/[slug].ts',
+				paramNames: ['slug'],
+			},
+		];
+
+		await expect(registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' })).resolves.toEqual(
+			[],
+		);
+		await expect(
+			registry.listDynamicPagePathExpansions({ runtimeOrigin: 'http://localhost:3000' }),
+		).resolves.toEqual([
+			{
+				pathname: '/posts/plain',
+				templateRoute: {
+					pathname: '/posts/[slug]',
+					kind: 'dynamic',
+					role: 'page',
+					filePath: '/pages/posts/[slug].ts',
+					paramNames: ['slug'],
+				},
+				params: { slug: 'plain' },
+			},
+			{
+				pathname: '/posts/chart',
+				templateRoute: {
+					pathname: '/posts/[slug]',
+					kind: 'dynamic',
+					role: 'page',
+					filePath: '/pages/posts/[slug].ts',
+					paramNames: ['slug'],
+				},
+				params: { slug: 'chart' },
+			},
+		]);
 	});
 
 	test('lists static-generation routes through one registry seam', async () => {

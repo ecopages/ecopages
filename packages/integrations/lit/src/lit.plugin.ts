@@ -7,7 +7,6 @@ import {
  * @module
  */
 
-import './console.ts';
 import {
 	IntegrationPlugin,
 	type IntegrationRendererBase,

@@ -1,0 +1,30 @@
+name: Close issues on next
+
+on:
+    pull_request_target:
+        types: [closed]
+        branches:
+            - next
+
+permissions:
+    issues: write
+
+jobs:
+    close:
+        name: Close the issues a merged PR resolves
+        if: github.event.pull_request.merged == true
+        runs-on: ubuntu-latest
+        env:
+            GH_TOKEN: ${{ github.token }}
+            GH_REPO: ${{ github.repository }}
+            PR_NUMBER: ${{ github.event.pull_request.number }}
+            PR_BODY: ${{ github.event.pull_request.body }}
+        steps:
+            - name: Close each issue named by a closing keyword
+              run: |
+                  issues="$(printf '%s' "$PR_BODY" | grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):? +#[0-9]+' | grep -oE '[0-9]+' | sort -u || true)"
+                  failed=0
+                  for issue in $issues; do
+                      gh issue close "$issue" --reason completed --comment "Merged into next by #$PR_NUMBER." || failed=1
+                  done
+                  exit "$failed"

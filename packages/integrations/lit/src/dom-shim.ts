@@ -1,4 +1,5 @@
 import { installWindowOnGlobal } from '@lit-labs/ssr/lib/dom-shim.js';
+import { installLitCustomElementDefinePolicy } from './custom-element-define.ts';
 
 /**
  * Repairs the minimal Lit DOM surface after another Integration installs its SSR globals.
@@ -9,7 +10,9 @@ import { installWindowOnGlobal } from '@lit-labs/ssr/lib/dom-shim.js';
  * `window` check never turns true and every call would swap in a fresh
  * registry, dropping elements that preloaded SSR scripts already defined.
  * Core runs this as a `repair` after Radiant's complete surface, not as an
- * import side effect or on first render.
+ * import side effect or on first render. After the registry exists, this also
+ * installs the development re-registration policy on Lit's SSR
+ * `CustomElementRegistry`.
  */
 export function ensureLitDomShim(): void {
 	if (typeof globalThis.customElements === 'undefined') {
@@ -62,4 +65,6 @@ export function ensureLitDomShim(): void {
 			});
 		}
 	}
+
+	installLitCustomElementDefinePolicy();
 }

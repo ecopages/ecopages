@@ -1,5 +1,5 @@
-import { PostView } from '../views/post-view.kita';
-import { PostListView } from '../views/post-list-view.kita';
+import PostView from '../views/post-view.kita.tsx';
+import PostListView from '../views/post-list-view.kita.tsx';
 import { posts } from '../data';
 import type { ApiHandlerContext } from '@ecopages/core';
 

@@ -10,6 +10,8 @@ import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/build'
 
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
+const viewReferencePreload = import.meta.resolve('./view-reference-preload.js');
+const viewReferencePreloadPath = fileURLToPath(viewReferencePreload);
 
 const originalCwd = process.cwd();
 
@@ -86,7 +88,14 @@ describe('launch-plan', () => {
 			);
 
 			expect(plan.command).toBe('bun');
-			expect(plan.commandArgs).toEqual(['--watch', 'run', 'app.ts', '--dev']);
+			expect(plan.commandArgs).toEqual([
+				'--watch',
+				'run',
+				'--preload',
+				viewReferencePreloadPath,
+				'app.ts',
+				'--dev',
+			]);
 			expect(plan.env.ECOPAGES_ENTRY_WATCH).toBe('1');
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
@@ -137,6 +146,8 @@ describe('launch-plan', () => {
 				nodeRequirePreload,
 				'--import',
 				tsxLoader,
+				'--import',
+				viewReferencePreload,
 				'--watch',
 				'app.ts',
 				'--dev',
@@ -174,6 +185,8 @@ describe('launch-plan', () => {
 				nodeRequirePreload,
 				'--import',
 				tsxLoader,
+				'--import',
+				viewReferencePreload,
 				'app.ts',
 				'--dev',
 			]);
@@ -200,7 +213,7 @@ describe('launch-plan', () => {
 			);
 
 			expect(plan).toMatchObject({ runtime: 'bun', command: 'bun' });
-			expect(plan.commandArgs).toEqual(['run', 'app.ts', row.flag]);
+			expect(plan.commandArgs).toEqual(['run', '--preload', viewReferencePreloadPath, 'app.ts', row.flag]);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -324,6 +337,8 @@ describe('launch-plan', () => {
 					nodeRequirePreload,
 					'--import',
 					tsxLoader,
+					'--import',
+					viewReferencePreload,
 					'app.ts',
 					'--dev',
 				]);
@@ -532,6 +547,8 @@ describe('launch-plan', () => {
 					nodeRequirePreload,
 					'--import',
 					tsxLoader,
+					'--import',
+					viewReferencePreload,
 					'app.ts',
 					'--preview',
 				]);

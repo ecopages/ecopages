@@ -70,6 +70,7 @@ export type {
 	WebSocketCloseInfo,
 	WithLocals,
 } from './contracts.ts';
+export type { ViewReference } from './view-reference.ts';
 export type { CacheConfig, CacheStrategy } from './cache-types.ts';
 export type {
 	CallableComponentOf,

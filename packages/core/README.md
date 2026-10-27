@@ -303,11 +303,14 @@ The file's rules (405 and `Allow`, load errors, `app.ts` routes on the same URL)
 Filesystem `src/pages/404.*` and `500.*` take precedence. For explicit-route apps, register views on the app:
 
 ```typescript
-app.notFound('./src/views/not-found.kita');
-app.serverError('./src/views/server-error.kita');
+import NotFoundView from './src/views/not-found.kita';
+import ServerErrorView from './src/views/server-error.kita';
+
+app.notFound(NotFoundView);
+app.serverError(ServerErrorView);
 ```
 
-String and URL view paths passed to `app.static()`, `app.notFound()`, and `app.serverError()` load through the server-module loader. Production imports the emitted `dist/.server/` module; development compiles from source. Raw dynamic `import()` skips component-identity transforms. A full explicit view renders through the same route pipeline as a filesystem Page, including its layouts, default metadata, robots meta, and page client plan. Props passed to the render are available to the view's `metadata`.
+Import a view and pass it to `ctx.render`, `ctx.renderPartial`, `app.static()`, or an error-page helper. An Integration-owned import becomes a view reference: development loads it through the app module loader so a save reloads without a restart, and production reads the module `ecopages build` wrote to `dist/.server/`. A full explicit view renders through the same route pipeline as a filesystem Page, including its layouts, default metadata, robots meta, and page client plan. Props passed to the render are available to the view's `metadata`.
 
 When no custom page is configured, built-in HTML defaults are served instead.
 
@@ -371,6 +374,6 @@ Use `@ecopages/core/client` for browser navigation and client runtime helpers.
 
 ### Runtime-Loaded Entries
 
-`@ecopages/core/config/write-types` and `@ecopages/core/hmr/client/hmr-runtime` remain exported because Ecopages loads them by path at runtime. They are implementation entries, not general authoring surfaces.
+`@ecopages/core/config/write-types`, `@ecopages/core/hmr/client/hmr-runtime`, and `@ecopages/core/view-reference` remain exported because Ecopages loads them by path at runtime. They are implementation entries, not general authoring surfaces. App authors import the view file, not this subpath.
 
 `@ecopages/core/errors` remains an alias for the root error exports.

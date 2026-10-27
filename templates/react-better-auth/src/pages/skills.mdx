@@ -239,7 +239,7 @@ You can use **markdown** syntax and JSX components together.
 **Views (`src/views/`):**
 - Default-exported `eco.page()` views rendered from API handlers
 - Must be defined using `eco.page()` with props (e.g., `eco.page<Props>()`)
-- Loaded with `ctx.renderServerModule(new URL("../views/my-view.tsx", import.meta.url), props)`; a raw `import()` skips the compile step that tells core which Integration owns the view
+- Import it and pass it to `ctx.render(MyView, props)`. An Integration-owned import becomes a view reference: development reloads on save, production reads the built module
 - Receive data as props from the handler context
 - Best for: Protected routes, server-side rendered pages with dynamic data, admin panels
 
@@ -277,13 +277,14 @@ export default eco.page<{ user: User }>({
 // src/handlers/account.ts
 import { defineGet } from "@ecopages/core";
 import { auth } from "@/lib/auth.server";
+import Dashboard from "../views/dashboard.tsx";
 
 export const account = defineGet({
   path: "/account",
   handler: async (ctx) => {
     const session = await auth.api.getSession({ headers: ctx.request.headers });
     if (!session) return Response.redirect(new URL("/login", ctx.request.url));
-    return ctx.renderServerModule(new URL("../views/dashboard.tsx", import.meta.url), { user: session.user });
+    return ctx.render(Dashboard, { user: session.user });
   },
 });
 

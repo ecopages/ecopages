@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import { fileSystem } from '@ecopages/file-system';
 import {
@@ -12,6 +13,8 @@ import { ECOPAGES_ENTRY_WATCH_ENV, getDevEnvFileNames, getEcopagesEnv } from '@e
 
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
+const viewReferencePreload = import.meta.resolve('./view-reference-preload.js');
+const viewReferencePreloadPath = fileURLToPath(viewReferencePreload);
 
 function getEnvFilePaths(nodeEnv) {
 	return getDevEnvFileNames(nodeEnv).filter((envFile) => fileSystem.exists(envFile));
@@ -129,6 +132,8 @@ export async function createLaunchPlan(args, options, entryFile, launchMode) {
 	const resolvedOptions = options ?? {};
 	const resolvedEntryFile = entryFile ?? 'app.ts';
 	const { envOverrides, env } = buildLaunchEnv(resolvedOptions);
+	envOverrides.ECOPAGES_ENTRY_FILE = resolvedEntryFile;
+	env.ECOPAGES_ENTRY_FILE = resolvedEntryFile;
 	const runtime = detectRuntime(resolvedOptions);
 	const resolvedLaunchMode = inferLaunchMode(args, launchMode);
 	const shouldUseBundle = usesProductionBundle(resolvedLaunchMode);
@@ -177,7 +182,7 @@ export async function createLaunchPlan(args, options, entryFile, launchMode) {
 	}
 
 	if (runtime === 'node') {
-		const commandArgs = ['--import', nodeRequirePreload, '--import', tsxLoader];
+		const commandArgs = ['--import', nodeRequirePreload, '--import', tsxLoader, '--import', viewReferencePreload];
 		if (resolvedOptions.watch) {
 			commandArgs.push('--watch');
 		}
@@ -196,7 +201,7 @@ export async function createLaunchPlan(args, options, entryFile, launchMode) {
 	if (resolvedOptions.watch) {
 		commandArgs.push('--watch');
 	}
-	commandArgs.push('run', resolvedEntryFile, ...args);
+	commandArgs.push('run', '--preload', viewReferencePreloadPath, resolvedEntryFile, ...args);
 
 	return {
 		runtime,

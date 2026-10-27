@@ -43,15 +43,17 @@ await app.start();
 
 ## Rendering Views
 
-Route handlers render `eco.page` views with `ctx.renderServerModule(url, props)`. It loads the view through the server-module transpiler, which records the view's owning Integration (React, Lit, KitaJS, ...) from its file extension, so no configuration is needed:
+Route handlers render `eco.page` views with `ctx.render(View, props)`. Import the view: an Integration-owned file becomes a view reference, so development reloads on save and production reads the built module.
 
 ```typescript
+import PostView from './src/views/post-view.kita';
+
 app.get('/posts/:slug', async (ctx) => {
 	const post = await getPost(ctx.params.slug);
 	if (!post) {
 		throw HttpError.NotFound('Post not found');
 	}
-	return ctx.renderServerModule(new URL('./src/views/post-view.kita', import.meta.url), post);
+	return ctx.render(PostView, post);
 });
 ```
 
@@ -60,8 +62,11 @@ app.get('/posts/:slug', async (ctx) => {
 Explicit-route apps can register not-found and server-error views on the app instance. Filesystem `src/pages/404.*` and `500.*` still win when they exist.
 
 ```typescript
-app.notFound('./src/views/not-found.kita')
-app.serverError('./src/views/server-error.kita')
+import NotFoundView from './src/views/not-found.kita';
+import ServerErrorView from './src/views/server-error.kita';
+
+app.notFound(NotFoundView)
+app.serverError(ServerErrorView)
 ```
 
 When neither a pages error file nor an app loader is configured, Ecopages serves built-in HTML defaults with **inline CSS only** (not your app Tailwind or PostCSS pipeline). Those pages expose stable hooks for documentation and debugging:
@@ -104,10 +109,7 @@ ctx.json(data, { status: 200, headers: {...} })
 // HTML response
 ctx.html('<h1>Hello</h1>', { status: 200 })
 
-// Full view with layout, loaded from its file
-ctx.renderServerModule(new URL('./src/views/post.tsx', import.meta.url), props, { status: 200 })
-
-// Full view already loaded with ctx.importServerModule()
+// Full view with layout
 ctx.render(View, props, { status: 200 })
 
 // View without layout
@@ -183,13 +185,15 @@ const authMiddleware: EcoMiddleware<ApiHandlerContext & { session: Session }> = 
 The context type is **automatically inferred** from the middleware you provide - no need to manually specify it:
 
 ```typescript
+import AdminDashboard from './src/views/admin-dashboard.tsx';
+
 app.group(
 	'/admin',
 	(r) => {
 		r.get('/', async (ctx) => {
 			// ctx.session is fully typed automatically!
 			console.log(ctx.session.userId);
-			return ctx.renderServerModule(new URL('./src/views/admin-dashboard.tsx', import.meta.url), { user: ctx.session.user });
+			return ctx.render(AdminDashboard, { user: ctx.session.user });
 		});
 
 		r.post('/posts', async (ctx) => {
@@ -352,13 +356,14 @@ Throw `HttpError` for standard HTTP errors:
 
 ```typescript
 import { HttpError } from '@ecopages/core/errors';
+import PostView from './src/views/post-view.tsx';
 
 app.get('/posts/:slug', async (ctx) => {
 	const post = await getPost(ctx.params.slug);
 	if (!post) {
 		throw HttpError.NotFound('Post not found');
 	}
-	return ctx.renderServerModule(new URL('./src/views/post-view.tsx', import.meta.url), post);
+	return ctx.render(PostView, post);
 });
 ```
 
@@ -389,14 +394,17 @@ app.onError((error, ctx) => {
 
 ## Static Generation
 
-Register views for build-time static generation using lazy loaders:
+Register imported views for build-time static generation:
 
 ```typescript
-app.static('/posts', './src/views/post-list.kita');
-app.static('/posts/:slug', './src/views/post-view.kita');
+import PostListView from './src/views/post-list.kita';
+import PostView from './src/views/post-view.kita';
+
+app.static('/posts', PostListView);
+app.static('/posts/:slug', PostView);
 ```
 
-String and URL paths passed to `app.static()` load through the same transpiler as `renderServerModule`, including HMR in development. A full explicit view uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's own page client plan. The props passed to the render are available to the view's `metadata`, and the render does not run the view's `staticProps`. Handler renders (`ctx.render`, `ctx.renderServerModule`) also pass the request's locals, route params and query to the view. Planning a dynamic explicit route resolves the renderer without calling `staticProps`; `staticProps` runs once with the slug's params before the view renders. Views must be the default export and define `staticPaths` and `staticProps`:
+Import the view and pass it to `app.static()`. Development reloads it through the app module loader; production reads the built module. A full explicit view uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's own page client plan. The props passed to the render are available to the view's `metadata`, and the render does not run the view's `staticProps`. Handler renders (`ctx.render`) also pass the request's locals, route params and query to the view. Planning a dynamic explicit route resolves the renderer without calling `staticProps`; `staticProps` runs once with the slug's params before the view renders. Views must be the default export and define `staticPaths` and `staticProps`:
 
 ```typescript
 // src/views/post-view.tsx
@@ -423,7 +431,7 @@ export default PostView;
 
 ## Views Outside pages/
 
-Define `eco.page` views anywhere in your codebase. Views used with `app.static()` or rendered via dynamic import must be the default export:
+Define `eco.page` views anywhere in your codebase. Views used with `app.static()` or `ctx.render()` must be the default export:
 
 ```typescript
 // src/views/post-view.tsx
@@ -491,9 +499,8 @@ const authMiddleware: EcoMiddleware<ApiHandlerContext & { session: Session }> = 
 	return next();
 };
 
-// Static routes (string paths load through the server transpiler on Node)
-app.static('/posts', './src/views/post-list.kita');
-app.static('/posts/:slug', './src/views/post-view.kita');
+app.static('/posts', PostListView);
+app.static('/posts/:slug', PostView);
 
 // Public API
 app.group('/api/v1', (r) => {

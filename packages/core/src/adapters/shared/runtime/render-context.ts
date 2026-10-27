@@ -1,5 +1,5 @@
-import { fileURLToPath } from 'node:url';
-import type { EcoComponent, EcoPageComponent, RenderContext, RenderOptions } from '../../../types/contracts.ts';
+import type { EcoComponent, RenderContext, RenderOptions } from '../../../types/contracts.ts';
+import { isViewReference, type ViewReference } from '../../../types/view-reference.ts';
 import { getComponentOwner } from '../../../eco/component-identity.ts';
 import type {
 	ExplicitViewRenderContext,
@@ -13,10 +13,6 @@ export interface CreateRenderContextOptions {
 	integrations: AnyIntegrationPlugin[];
 	ensureIntegrationReady?: (integrationName: string) => Promise<void>;
 	importServerModule?: (filePath: string) => Promise<unknown>;
-}
-
-function resolveServerModulePath(filePath: string | URL): string {
-	return filePath instanceof URL ? fileURLToPath(filePath) : filePath;
 }
 
 /**
@@ -66,7 +62,8 @@ function createExplicitViewContext(
 /**
  * Creates a render context for route handlers.
  * Provides render(), renderPartial(), json(), and html() methods that can be used
- * within route handlers to generate responses.
+ * within route handlers to generate responses. Imported views resolve through
+ * `importServerModule` so development invalidation and the production map apply.
  *
  * @param options - Configuration options including available integrations
  * @returns A RenderContext object with methods for rendering views and creating responses
@@ -92,43 +89,31 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 		return integration.getRenderer() as IntegrationRenderer;
 	};
 
+	const resolveView = async <P>(view: EcoComponent<P> | ViewReference<P>): Promise<EcoComponent<P>> => {
+		if (!isViewReference<P>(view)) {
+			return view;
+		}
+
+		invariant(!!options.importServerModule, 'Imported views need the server-module loader.');
+		const module = (await options.importServerModule(view.filePath)) as { default?: EcoComponent<P> };
+		invariant(!!module.default, `View module ${view.filePath} has no default export.`);
+		return module.default;
+	};
+
 	const renderContext: RenderContext = {
-		importServerModule: async <T = unknown>(filePath: string | URL) => {
-			invariant(!!options.importServerModule, 'Server module importing is not available in this render context.');
-			return (await options.importServerModule(resolveServerModulePath(filePath))) as T;
-		},
-
-		async renderServerModule<P = Record<string, unknown>>(
-			this: HandlerRequestScope | undefined,
-			filePath: string | URL,
-			props?: P,
-			renderOptions?: RenderOptions,
-		): Promise<Response> {
-			const module = await renderContext.importServerModule<{ default: EcoPageComponent<P> }>(filePath);
-			const view = module.default as EcoComponent<P>;
-			const locals = this?.locals;
-			const mergedProps = mergePropsWithLocals<P>(props ?? ({} as P), locals);
-
-			const renderer = await getRendererForView(view);
-			return await renderer.renderExplicitView(
-				view,
-				mergedProps,
-				createExplicitViewContext(this, renderOptions, false),
-			);
-		},
-
 		async render<P>(
 			this: HandlerRequestScope | undefined,
-			view: EcoComponent<P>,
+			view: EcoComponent<P> | ViewReference<P>,
 			props?: P,
 			renderOptions?: RenderOptions,
 		): Promise<Response> {
 			const locals = this?.locals;
 			const mergedProps = mergePropsWithLocals<P>(props ?? ({} as P), locals);
+			const resolvedView = await resolveView(view);
 
-			const renderer = await getRendererForView(view);
+			const renderer = await getRendererForView(resolvedView);
 			return renderer.renderExplicitView(
-				view,
+				resolvedView,
 				mergedProps,
 				createExplicitViewContext(this, renderOptions, false),
 			);
@@ -136,15 +121,20 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 
 		async renderPartial<P>(
 			this: HandlerRequestScope | undefined,
-			view: EcoComponent<P>,
+			view: EcoComponent<P> | ViewReference<P>,
 			props: P,
 			renderOptions?: RenderOptions,
 		): Promise<Response> {
 			const locals = this?.locals;
 			const mergedProps = mergePropsWithLocals<P>(props, locals);
+			const resolvedView = await resolveView(view);
 
-			const renderer = await getRendererForView(view);
-			return renderer.renderExplicitView(view, mergedProps, createExplicitViewContext(this, renderOptions, true));
+			const renderer = await getRendererForView(resolvedView);
+			return renderer.renderExplicitView(
+				resolvedView,
+				mergedProps,
+				createExplicitViewContext(this, renderOptions, true),
+			);
 		},
 
 		json(data: unknown, responseOptions?: RenderOptions): Response {

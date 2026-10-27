@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, it } from 'vitest';
 import { Processor } from '../../plugins/processor.ts';
 import { collectServerModuleEntries } from './server-module-entries.ts';
+import { createImportedViewPlugin } from '../server/imported-view-plugin.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 
 class ExtraEntryProcessor extends Processor {
@@ -47,5 +48,37 @@ describe('collectServerModuleEntries', () => {
 		});
 
 		assert.deepEqual(entries, [path.resolve(existing)]);
+	});
+
+	it('includes views the server-entry plugin recorded', async () => {
+		const rootDir = mkdtempSync(path.join(os.tmpdir(), 'server-module-imported-views-'));
+		roots.push(rootDir);
+		const viewPath = path.join(rootDir, 'latest-view.kita.tsx');
+		writeFileSync(viewPath, 'export default {};\n');
+		mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+
+		const appConfig = {
+			rootDir,
+			templatesExt: ['.kita.tsx'],
+			integrations: [{ name: 'kitajs', extensions: ['.kita.tsx'] }],
+			absolutePaths: { layoutsDir: path.join(rootDir, 'src', 'layouts') },
+			processors: new Map(),
+		} as unknown as EcoPagesAppConfig;
+
+		const plugin = createImportedViewPlugin(appConfig);
+		let onLoad: ((args: { path: string }) => unknown) | undefined;
+		plugin.setup({
+			onLoad(_options: unknown, callback: unknown) {
+				onLoad = callback as typeof onLoad;
+			},
+		} as never);
+		onLoad?.({ path: viewPath });
+
+		const entries = await collectServerModuleEntries({
+			appConfig,
+			router: { templateRoutes: [] },
+		});
+
+		assert.deepEqual(entries, [path.resolve(viewPath)]);
 	});
 });

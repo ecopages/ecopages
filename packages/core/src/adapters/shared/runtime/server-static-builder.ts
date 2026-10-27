@@ -9,6 +9,7 @@ import {
 	publishServerBundleDirectory,
 	removeServerBundleStagingDirectory,
 } from '../../../build/server-bundle-publication.ts';
+import { createImportedViewPlugin } from '../../../build/server/imported-view-plugin.ts';
 import { createServerBuildRequest } from '../../../build/runtime/build-request-policy.ts';
 import { buildOrThrow } from '../../../build/runtime/build-queue.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
@@ -209,6 +210,7 @@ export class ServerStaticBuilder {
 				naming: SERVER_BUNDLE_FILENAME,
 				sourcemap: 'linked',
 				runtimeOutdir: serverOutdir,
+				plugins: [createImportedViewPlugin(this.appConfig, { entryPath })],
 			});
 			await buildOrThrow(this.appConfig, buildOptions, 'Failed to bundle server entry file');
 

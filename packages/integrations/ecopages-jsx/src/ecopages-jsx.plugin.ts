@@ -4,6 +4,7 @@ import {
 	type IntegrationRuntimeContext,
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
+	type ServerDomInstaller,
 } from '@ecopages/core/integration';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/integration';
 import { requireAppRuntime } from '@ecopages/core/integration';
@@ -25,6 +26,7 @@ import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
 import { EcopagesJsxDevTransformContributor } from './dev-transform/ecopages-jsx-dev-transform-contributor.ts';
 import { assignPageOwnedContentScriptGroupedBundles } from './page-owned-content-script-grouping.ts';
 import { invalidateRadiantRegisteredScriptSsrRegistration } from './radiant-registered-script-ssr-invalidation.ts';
+import { installRadiantServerDom } from './ecopages-jsx-radiant-light-dom.ts';
 import type { EcopagesJsxPluginOptions } from './ecopages-jsx.types.ts';
 
 export type {
@@ -75,6 +77,7 @@ const resolvePluginOptions = (options?: EcopagesJsxPluginOptions): ResolvedJsxPl
 export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	renderer = EcopagesJsxRenderer;
 	override readonly bundlesPageDependencies = true;
+	override readonly serverDom: ServerDomInstaller | undefined;
 
 	private includeRadiant: boolean;
 	private mdxCompilerOptions?: ResolvedMdxCompileOptions;
@@ -135,6 +138,12 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		this.includeRadiant = includeRadiant;
 		this.mdxExtensions = mdxExtensions;
 		this.mdxCompilerOptions = mdxCompilerOptions;
+		this.serverDom = includeRadiant
+			? {
+					kind: 'complete' as const,
+					install: installRadiantServerDom,
+				}
+			: undefined;
 
 		if (this.includeRadiant) {
 			this.integrationDependencies.unshift(...this.getDependencies());

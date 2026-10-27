@@ -54,9 +54,12 @@ export {
 	type IntegrationRendererBase,
 	type IntegrationRuntimeContext,
 	mergeIntegrationOptions,
+	type ServerDomInstaller,
+	type ServerDomSurfaceKind,
 	type StaticExportContext,
 	type StaticExportRelease,
 } from './plugins/integration-plugin.ts';
+export { installConfiguredServerDom } from './plugins/server-dom.ts';
 export {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,

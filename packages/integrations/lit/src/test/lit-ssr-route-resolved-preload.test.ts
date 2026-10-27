@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createTestAppConfig } from '@ecopages/testing';
+import { ensureLitDomShim } from '../dom-shim.ts';
 import { LitRenderer } from '../lit-renderer.ts';
+
+ensureLitDomShim();
 
 const PACKAGE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const FIXTURES_DIR = fileURLToPath(new URL('./fixtures/', import.meta.url));

@@ -1,5 +1,6 @@
 import { createMarkupNodeLike } from '@ecopages/jsx';
 import { createServerHydrationBindingState, withServerHydrationBindingState } from '@ecopages/jsx/server';
+import { ensureRadiantLightDomGlobals } from './ecopages-jsx-radiant-light-dom.ts';
 
 type RadiantLightDomShimWindow = {
 	CSS: { escape(value: string): string };
@@ -37,12 +38,11 @@ type RadiantServerRuntimeModules = {
  * Owns optional Radiant SSR runtime installation for the JSX integration.
  *
  * @remarks
- * Radiant's server bridge and light-DOM shim are loaded lazily because most JSX
- * renders do not need them. Resolved runtime modules are cached on the policy
- * instance so repeated renders on the same renderer reuse one load without
- * process-wide mutable class state. Light-DOM constructor installation remains
- * process-global and idempotent via {@link ensureRadiantLightDomGlobals}; the
- * Radiant installer also repairs incomplete DOM globals left by another runtime.
+ * Radiant's server bridge is loaded lazily because most JSX renders do not need
+ * it. Resolved runtime modules are cached on the policy instance so repeated
+ * renders on the same renderer reuse one load without process-wide mutable class
+ * state. Light-DOM constructors are installed at Integration setup; this policy
+ * only fills them in when no registry exists yet.
  */
 export class EcopagesJsxRadiantSsrPolicy {
 	private runtimeModules: RadiantServerRuntimeModules | undefined;
@@ -117,11 +117,12 @@ export class EcopagesJsxRadiantSsrPolicy {
 
 	private async ensureRuntimeInstalled(): Promise<void> {
 		if (!this.runtimeModulesPromise) {
+			const radiantLightDomShimEntry = import.meta.resolve('@ecopages/radiant/server/light-dom-shim');
 			const radiantElementSsrRuntimeModuleUrl = import.meta
 				.resolve('@ecopages/radiant/server/radiant-element-ssr');
 
 			this.runtimeModulesPromise = (async () => {
-				const lightDomShimModule = await loadRadiantLightDomShim();
+				const lightDomShimModule = await import(/* @vite-ignore */ radiantLightDomShimEntry);
 				ensureRadiantLightDomGlobals(lightDomShimModule.ensureLightDomShim);
 
 				const radiantElementSsrRuntimeModule = (await import(
@@ -157,56 +158,4 @@ export class EcopagesJsxRadiantSsrPolicy {
 			ensureRadiantLightDomGlobals(lightDomShimModule.ensureLightDomShim);
 		}
 	}
-}
-
-/**
- * Loads Radiant's light-DOM shim and installs its constructors on `globalThis`.
- *
- * @remarks
- * Production emit imports Radiant element modules before any Page renders, so
- * Integration `setup()` calls this without constructing a renderer policy.
- */
-export async function installRadiantLightDomShim(): Promise<void> {
-	const lightDomShimModule = await loadRadiantLightDomShim();
-	ensureRadiantLightDomGlobals(lightDomShimModule.ensureLightDomShim);
-}
-
-async function loadRadiantLightDomShim(): Promise<{
-	ensureLightDomShim: () => RadiantLightDomShimWindow | undefined;
-}> {
-	const radiantLightDomShimEntry = import.meta.resolve('@ecopages/radiant/server/light-dom-shim');
-	return await import(/* @vite-ignore */ radiantLightDomShimEntry);
-}
-
-/**
- * Installs Radiant light-DOM constructors on `globalThis` once.
- *
- * @remarks
- * Custom-element constructors must be process-global; undoing them between tests
- * is unsafe. Callers that clear globals for isolation must rely on a fresh policy
- * instance so {@link EcopagesJsxRadiantSsrPolicy.prepareRuntime} re-runs the
- * completeness check.
- */
-function ensureRadiantLightDomGlobals(ensureLightDomShim: () => RadiantLightDomShimWindow | undefined): void {
-	const window = ensureLightDomShim();
-	if (!window) {
-		return;
-	}
-
-	Object.assign(globalThis, {
-		CSS: window.CSS,
-		CustomEvent: window.CustomEvent,
-		Document: window.Document,
-		Element: window.Element,
-		Event: window.Event,
-		EventTarget: window.EventTarget,
-		HTMLScriptElement: window.HTMLScriptElement,
-		HTMLElement: window.HTMLElement,
-		Node: window.Node,
-		document: window.document,
-		customElements: window.customElements,
-		requestAnimationFrame: window.requestAnimationFrame,
-		cancelAnimationFrame: window.cancelAnimationFrame,
-		window,
-	});
 }

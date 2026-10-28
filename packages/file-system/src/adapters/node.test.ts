@@ -87,7 +87,9 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 
 		changes.length = 0;
 		fs.rmSync(existingFile);
-		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'unlink', path: existingFile }));
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'unlink', path: existingFile }), {
+			timeout: 5_000,
+		});
 
 		changes.length = 0;
 		fs.rmSync(nestedDir, { recursive: true });

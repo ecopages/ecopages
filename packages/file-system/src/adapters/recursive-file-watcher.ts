@@ -72,6 +72,16 @@ function isRelatedDiagnosticPath(candidate: string, target: string): boolean {
 	);
 }
 
+function getDiagnosticTargetKind(entries: ReadonlyMap<string, EntryKind>): EntryKind | undefined {
+	const target = watchDiagnosticTarget;
+	return target ? entries.get(target) : undefined;
+}
+
+function hasDiagnosticTarget(entries: ReadonlySet<string>): boolean {
+	const target = watchDiagnosticTarget;
+	return target !== undefined && entries.has(target);
+}
+
 /**
  * Watches requested filesystem paths with native directory watchers.
  *
@@ -368,14 +378,14 @@ export class RecursiveFileWatcher implements FileWatcher {
 		traceWatchDiagnostic('reconcile.start', {
 			rootPath: root.path,
 			notifyRescan,
-			targetKnownKind: watchDiagnosticTarget ? this.knownEntries.get(watchDiagnosticTarget) : undefined,
+			targetKnownKind: getDiagnosticTargetKind(this.knownEntries),
 		});
 		const snapshot = await this.scanWatchRoot(root);
 		traceWatchDiagnostic('reconcile.snapshot', {
 			rootPath: root.path,
-			targetInSnapshot: watchDiagnosticTarget ? snapshot.entries.has(watchDiagnosticTarget) : undefined,
-			targetChanged: watchDiagnosticTarget ? snapshot.changedEntries.has(watchDiagnosticTarget) : undefined,
-			targetKnownKind: watchDiagnosticTarget ? this.knownEntries.get(watchDiagnosticTarget) : undefined,
+			targetInSnapshot: hasDiagnosticTarget(snapshot.entries),
+			targetChanged: hasDiagnosticTarget(snapshot.changedEntries),
+			targetKnownKind: getDiagnosticTargetKind(this.knownEntries),
 		});
 		const removedEntries = this.getRemovedReconciliationEntries(root, snapshot);
 		if (this.indexing) {

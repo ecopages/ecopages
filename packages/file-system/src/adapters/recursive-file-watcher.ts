@@ -131,8 +131,8 @@ export class RecursiveFileWatcher implements FileWatcher {
 			await this.seedKnownEntries(newPaths);
 			if (this.closed) return;
 			for (const watcher of this.getWatchRoots()) this.openWatcher(watcher);
-			this.closeUnneededWatchers();
 			await this.catchUpNewWatchRoots(existingWatchRoots, nativeWatchRegistrationStartedAt);
+			this.closeUnneededWatchers();
 		} catch (error) {
 			this.rollbackAddedPaths(newPaths, existingWatchRoots);
 			throw error;

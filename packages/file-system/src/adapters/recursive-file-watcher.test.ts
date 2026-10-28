@@ -7,6 +7,7 @@ import { expect, test, vi } from 'vitest';
 type NativeWatcher = {
 	path: string;
 	recursive: boolean;
+	closed: boolean;
 	notify: (eventType: string, filename: string | null) => void;
 };
 
@@ -20,6 +21,9 @@ const nativePromises = vi.hoisted(() => ({
 	statStarted: undefined as (() => void) | undefined,
 	releaseStat: undefined as (() => void) | undefined,
 	permissionDeniedLstatPath: undefined as string | undefined,
+	failReaddirPath: undefined as string | undefined,
+	failReaddirOnOccurrence: undefined as number | undefined,
+	readdirCallsOnFailurePath: 0,
 }));
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -31,14 +35,22 @@ vi.mock('node:fs', async (importOriginal) => {
 				nativeWatchers.failNextWatchPath = undefined;
 				throw new Error('Temporary native watch failure');
 			}
-			nativeWatchers.watchers.push({
+			const watcher: NativeWatcher = {
 				path: watchPath,
 				recursive: options.recursive ?? false,
-				notify: listener,
-			});
+				closed: false,
+				notify: (eventType, filename) => {
+					if (!watcher.closed) listener(eventType, filename);
+				},
+			};
+			nativeWatchers.watchers.push(watcher);
 			const notification = nativeWatchers.notifications.shift();
-			if (notification) listener(notification.eventType, notification.filename);
-			return Object.assign(new EventEmitter(), { close: vi.fn() });
+			if (notification) watcher.notify(notification.eventType, notification.filename);
+			return Object.assign(new EventEmitter(), {
+				close: vi.fn(() => {
+					watcher.closed = true;
+				}),
+			});
 		},
 	};
 });
@@ -64,6 +76,18 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 				throw error;
 			}
 			return actual.lstat(...args);
+		},
+		readdir: async (...args: Parameters<typeof actual.readdir>) => {
+			if (String(args[0]) === nativePromises.failReaddirPath) {
+				nativePromises.readdirCallsOnFailurePath += 1;
+				if (nativePromises.readdirCallsOnFailurePath === nativePromises.failReaddirOnOccurrence) {
+					const error = new Error('Temporary directory read failure') as NodeJS.ErrnoException;
+					error.code = 'EIO';
+					nativePromises.failReaddirPath = undefined;
+					throw error;
+				}
+			}
+			return actual.readdir(...args);
 		},
 	};
 });
@@ -172,6 +196,50 @@ test('retries adding a path after native watcher registration fails', async () =
 		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: addedFile }));
 	} finally {
 		nativeWatchers.failNextWatchPath = undefined;
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('keeps existing native watchers when adding a wider root fails during catch-up', async () => {
+	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-add-rollback-')));
+	const existingRoot = path.join(rootDir, 'existing');
+	const existingFile = path.join(existingRoot, 'entry.ts');
+	mkdirSync(existingRoot);
+	writeFileSync(existingFile, 'export const value = 1;', 'utf8');
+	nativeWatchers.watchers.length = 0;
+	const changes: Array<{ type: string; path: string }> = [];
+	const watcher = new NodeFileSystem().watch([existingRoot], {
+		onChange: (change) => changes.push(change),
+		onError: (error) => {
+			throw error;
+		},
+	});
+
+	try {
+		await watcher.ready;
+		const existingNativeWatcher = nativeWatchers.watchers.find(
+			({ path: watchPath, recursive }) => watchPath === existingRoot && recursive,
+		);
+		expect(existingNativeWatcher).toBeDefined();
+		nativePromises.failReaddirPath = existingRoot;
+		nativePromises.failReaddirOnOccurrence = 2;
+		nativePromises.readdirCallsOnFailurePath = 0;
+		await expect(watcher.add([rootDir])).rejects.toThrow('Temporary directory read failure');
+		expect(existingNativeWatcher?.closed).toBe(false);
+		expect(
+			nativeWatchers.watchers.some(
+				(nativeWatcher) => nativeWatcher.path === rootDir && nativeWatcher.recursive && !nativeWatcher.closed,
+			),
+		).toBe(false);
+
+		writeFileSync(existingFile, 'export const value = 2;', 'utf8');
+		existingNativeWatcher?.notify('change', 'entry.ts');
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: existingFile }));
+	} finally {
+		nativePromises.failReaddirPath = undefined;
+		nativePromises.failReaddirOnOccurrence = undefined;
+		nativePromises.readdirCallsOnFailurePath = 0;
 		await watcher.close();
 		rmSync(rootDir, { recursive: true, force: true });
 	}

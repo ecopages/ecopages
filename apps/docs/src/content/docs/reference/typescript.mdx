@@ -1,0 +1,114 @@
+---
+title: 'TypeScript Types'
+description: 'Reference for the public TypeScript types used by Ecopages apps and plugins.'
+order: 1.5
+---
+
+# TypeScript Types
+
+Ecopages ships TypeScript declarations with its packages. Import public types from the package entry point that owns them; do not import from a package's `src/` directory.
+
+| Import path | Types for |
+| --- | --- |
+| `@ecopages/core` | Pages, components, request context, route handlers, schemas, caching, and WebSockets |
+| `@ecopages/core/config` | User configuration and config-loading options |
+| `@ecopages/core/integration` | Integration hooks, renderers, and build plugins |
+| `@ecopages/core/processor` | Processor lifecycle, capabilities, and watch callbacks |
+| `@ecopages/file-system` | File operations and filesystem watcher handles |
+
+The root `@ecopages/core` entry point exports the main app contracts. This table groups the most-used types by purpose; use your editor's package declarations for the full signatures.
+
+| Area | Public types |
+| --- | --- |
+| Components | `EcoComponent`, `EcoComponentConfig`, `EcoComponentDependencies`, `EcoPageComponent`, `EcoPageFile`, `EcoPageLayouts`, `EcoPageLayoutSpec`, `EcoPageLayoutEntry`, `EcoHtmlComponent`, `EcoLayoutComponent`, `ComponentOptions`, `HtmlOptions`, `LayoutOptions` |
+| Pages and data | `PageOptions`, `PageOptionsBase`, `PageProps`, `PagePropsFor`, `PageRequires`, `GetStaticPaths`, `GetStaticProps`, `GetMetadata`, `GetPageDependencies`, `PageDependenciesInput`, `PageDependenciesResult`, `StaticPath`, `PageParams`, `PageQuery`, `CacheStrategy` |
+| Request and routes | `RequestLocals`, `RequestPageContext`, `StaticPageContext`, `ApiHandler`, `ApiHandlerContext`, `EcoMiddleware`, `FileRouteMiddleware`, `FileRouteMiddlewareContext`, `RouteOptions`, `RouteSchema`, `RouteHandlerContext`, `RouteMethod`, `ErrorHandler` |
+| Metadata, validation, and sockets | `PageMetadataProps`, `PageHeadProps`, `PageRobotsMetadata`, `SitemapConfig`, `StandardSchema`, `StandardSchemaV1`, `StandardSchemaResult`, `EcopagesSocket`, `EcopagesRouteInfo`, `IncomingWebSocketMessage`, `OutgoingWebSocketMessage`, `WebSocketCloseInfo` |
+
+## Pages and data
+
+`eco.page<T, E>()` accepts `PageOptions<T, E>` and returns an `EcoPageComponent<T>`. `T` is the shape returned by `staticProps`; `E` is the render result type and defaults to the core element type. Integrations such as React can provide their own render result type. `PageOptions` is a union: when `middleware` is set, `cache` must be `'dynamic'`.
+
+```tsx
+import { eco } from '@ecopages/core';
+
+type ArticleProps = { title: string };
+
+export default eco.page<ArticleProps>({
+	staticPaths: async () => ({
+		paths: [{ params: { slug: 'hello' } }],
+	}),
+	staticProps: async () => ({
+		props: { title: 'Hello' },
+	}),
+	render: ({ title, params, query }) => (
+		<article data-slug={params?.slug} data-search={query?.q}>
+			<h1>{title}</h1>
+		</article>
+	),
+});
+```
+
+The page data types are:
+
+| Type | Contract |
+| --- | --- |
+| `GetStaticPaths` | Receives `{ appConfig, runtimeOrigin }` and returns `{ paths: StaticPath[] }`. |
+| `StaticPath` | One route instance, represented by `{ params: PageParams }`. |
+| `GetStaticProps<T>` | Receives `{ pathname, appConfig, runtimeOrigin }` and returns `{ props: T }`. `pathname` is a `StaticPath`. |
+| `GetMetadata<T>` | Receives page props, route context, and the resolved app config; returns `PageMetadataProps`. |
+| `PagePropsFor<T>` | Adds optional `params` and `query` to the page's declared props. If `T` is a `GetStaticProps` function, it extracts that function's result props. |
+| `EcoPageComponent<T>` | The component returned by `eco.page()`, including its page data, cache, middleware, and dependency options. |
+
+The TypeScript shape for request values is intentionally broad: `PageParams` and `PageQuery` are records whose values are strings or string arrays. Catch-all route params and repeated query keys can contain arrays. See [Data Fetching](/docs/core/data-fetching) for build-time behavior and [Request Locals](/docs/core/request-locals) for request-scoped values.
+
+When a Page has `middleware`, set `cache: 'dynamic'`; `PageOptions` rejects middleware with a different cache strategy. `requires` narrows the named locals in the Page render callback at compile time. It does not check that middleware supplied those locals at runtime.
+
+## Components and layouts
+
+`eco.component()`, `eco.html()`, and `eco.layout()` use `ComponentOptions<P, E>`. Its `render` callback accepts `P` and may return `E` or `Promise<E>`. `HtmlOptions<E>` and `LayoutOptions<E>` specialize the props for HTML shells and layouts.
+
+`EcoComponentDependencies` describes the assets and components attached to a declared component:
+
+```ts
+import type { EcoComponentDependencies } from '@ecopages/core';
+
+const dependencies: EcoComponentDependencies = {
+	stylesheets: ['./counter.css'],
+	scripts: [{ src: './counter.script.ts', ssr: true }],
+	modules: ['react'],
+	components: [],
+};
+```
+
+Script entries can declare `ssr` and one lazy-loading trigger. `components` accepts results from `eco.component()`, `eco.layout()`, or `eco.html()`. For dependency discovery and lazy loading, see the [Eco namespace reference](/docs/reference/eco-namespace).
+
+`LayoutProps<E>` adds `children` to optional request context. A layout prop factory receives `LayoutPropsContext`, which contains optional `params`, `query`, and `locals`.
+
+## Request context
+
+`StaticPageContext` contains optional route `params` and query values. `RequestPageContext` contains `locals`, which are available only during request-time rendering. `PageProps<T>` combines user props with static page context and optional `locals`.
+
+Extend `RequestLocals` through TypeScript module augmentation:
+
+```ts
+import '@ecopages/core';
+
+declare module '@ecopages/core' {
+	interface RequestLocals {
+		session?: { userId: string } | null;
+	}
+}
+```
+
+Use `requires` on `eco.page()` when the render callback needs a local to be non-null. This is a typing contract only; enforce authentication and populate the value in route or Page middleware. A non-dynamic Page that reads request locals throws `LocalsAccessError`.
+
+## Route handlers
+
+`ApiHandlerContext` is the request context for explicit handlers and endpoint files. `ApiHandler`, `EcoMiddleware`, `RouteOptions`, `RouteSchema`, and `RouteHandlerContext` describe handlers, middleware, and validated route input. See [Server API](/docs/server/server-api), [Define Handlers](/docs/server/define-handlers), and [Endpoint Files](/docs/server/endpoint-files) for their usage.
+
+## Configuration and extensions
+
+`EcoPagesUserConfig` is the user-authored config type returned by `defineConfig()` from `@ecopages/core/config`. `EcoPagesAppConfig` is the resolved config passed to Integration and Processor hooks; it is not the shape to write in `eco.config.ts`.
+
+The Integration and Processor subpaths above expose their lifecycle-specific contracts. For examples, see [Custom Integrations](/docs/plugins/custom-integration), [Custom Processors](/docs/plugins/custom-processor), [Caching](/docs/server/caching), [Sitemaps](/docs/core/sitemap), and [WebSockets](/docs/server/websockets).

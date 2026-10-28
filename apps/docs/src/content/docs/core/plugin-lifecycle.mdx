@@ -25,15 +25,21 @@ During this phase Ecopages:
 
 This ordering is core-owned because processors often provide generic asset capabilities that integrations depend on indirectly. This is where app-owned build/runtime state becomes stable.
 
-## Phase 2: App Startup Setup
+## Phase 2: Processor Setup and Integration Activation
 
-Runtime setup happens after the build manifest has already been sealed.
+Runtime setup happens after the build manifest has already been sealed. Development, build, and regular preview prepare Processors by calling `setup()`. The `ecopages types` command also calls `setup()` to let Processors write virtual-module declarations.
 
-The ordering is:
+Production `ecopages start` follows the emitted build instead:
 
-1. core gives each Processor its app config, then runs its `setup()`
-2. in watch mode, core puts the HMR manager on `AppRuntime` and calls each Integration's `hmr(ctx)` once
-3. core calls each Integration's `setup(ctx)` with `{ appConfig, runtime }` before creating its renderer. Startup and static export activate the Integrations they need; request-only `app.fetch()` activates the Integrations used by the requested render, including owners of foreign children.
+1. Core imports the server modules recorded by the production build.
+2. Core gives each Processor its app config and calls `restoreProductionRuntime()`; it does not call `setup()` or scan the source tree.
+3. Core activates Integrations with `setup(ctx)` before their renderers are created. Request-only `app.fetch()` activates the Integrations used by the requested render, including owners of foreign children.
+
+For development and non-production startup, the ordering is:
+
+1. Core gives each Processor its app config, then runs its `setup()`.
+2. In watch mode, core puts the HMR manager on `AppRuntime` and calls each Integration's `hmr(ctx)` once.
+3. Core calls each Integration's `setup(ctx)` with `{ appConfig, runtime }` before creating its renderer. Static export activates the Integrations it needs. `preview --serve-only` skips Processor setup and serves the existing client output.
 
 `setup(ctx)` resolves Integration dependencies and stores the app runtime. `getRenderer()` lazily calls `createRenderer(base)` once per setup activation. Each Integration can add renderer options without receiving services through setters. Network watch startup attempts warmup for every configured Integration before releasing requests; setup failures are logged after all attempts settle and do not prevent startup. Request-only `app.fetch()` leaves Integrations unrelated to its render inactive.
 

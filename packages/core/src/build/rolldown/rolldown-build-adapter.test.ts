@@ -418,7 +418,7 @@ describe('RolldownBuildAdapter', () => {
 					mappings: string;
 				};
 				expect(parsedSourceMap.mappings).not.toBe('');
-				const generatedTokenOffset = generatedCode.indexOf(originalExternalId);
+				const generatedTokenOffset = generatedCode.lastIndexOf(originalExternalId);
 				expect(generatedTokenOffset).toBeGreaterThanOrEqual(0);
 				const originalTokenOffset = sourceModuleSource.indexOf(JSON.stringify(originalExternalId));
 				const generatedPrefix = generatedCode.slice(0, generatedTokenOffset);

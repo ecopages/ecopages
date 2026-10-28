@@ -71,6 +71,7 @@ export const createMockBridge = (): IClientBridge =>
 export interface FakeFileSystemWatchHandle extends FileWatcher {
 	paths: readonly string[];
 	options: WatchOptions;
+	add: Mock<FileWatcher['add']>;
 	close: Mock<() => Promise<void>>;
 }
 

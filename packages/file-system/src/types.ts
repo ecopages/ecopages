@@ -13,31 +13,33 @@ export interface GlobOptions {
 	ignore?: string[];
 }
 
-/** A watched file was added, changed or removed. */
+/** A watched file or directory changed, or a native notification requires a root rescan. */
 export interface FileChange {
-	type: 'add' | 'change' | 'unlink';
+	type: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir' | 'rescan';
 	path: string;
 }
 
 /** Options for {@link FileSystem.watch}. */
 export interface WatchOptions {
-	/** Called for each file change after the watcher is ready. */
+	/** Called after `watcher.ready` for each file or directory change; filename-less native events can produce rescans for mapped roots. */
 	onChange: (change: FileChange) => void;
 	/** Called when watching fails, for example on a permission or watch-limit error. */
 	onError: (error: unknown) => void;
 	/**
-	 * Returns whether to skip a path.
+	 * Returns whether to skip a path and, when available, its current stats.
 	 *
 	 * @remarks
-	 * Tested before a directory is read, so an ignored directory is never descended into.
+	 * Tested before a directory is read, so ignored subdirectories are skipped during initial indexing.
 	 */
-	ignored?: (path: string) => boolean;
+	ignored?: (path: string, stats?: FileStats) => boolean;
 }
 
 /** A running watch started by {@link FileSystem.watch}. */
 export interface FileWatcher {
-	/** Resolves once the initial scan is done; every later change is reported. */
+	/** Resolves once the watch roots are open and existing paths are indexed; existing entries are not reported. */
 	ready: Promise<void>;
+	/** Adds paths to the running subscription and indexes their existing entries without reporting them. */
+	add(paths: readonly string[]): Promise<void>;
 	close(): Promise<void>;
 }
 
@@ -272,12 +274,11 @@ export interface FileSystem {
 	verifyFileExists(path: string): void;
 
 	/**
-	 * Watch files and directories recursively.
+	 * Watch files and directories, recursively for directory roots.
 	 *
 	 * @remarks
-	 * Files that exist when watching starts are not reported. A path that does not exist yet is
-	 * watched for creation. A change is reported once the file has stopped growing, so a partial
-	 * save is not seen as a separate change.
+	 * Existing entries are indexed before `ready`, but are not reported. A path that does not exist yet is watched
+	 * from its nearest existing parent. Rapid native events for one path are coalesced into one change.
 	 */
 	watch(paths: readonly string[], options: WatchOptions): FileWatcher;
 }

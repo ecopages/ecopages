@@ -1,9 +1,7 @@
-import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import chokidar from 'chokidar';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
@@ -855,20 +853,16 @@ describe('NodeServerAdapter', () => {
 		appConfig.integrations = [];
 		const adapter = makeNodeServerAdapter({ appConfig });
 		vi.spyOn(ServerRequestPipeline.prototype, 'configureResponseHandlers').mockImplementation(() => {});
-		const fileEvents = Object.assign(new EventEmitter(), {
-			add: vi.fn(),
-			close: vi.fn(async () => {}),
-			getWatched: vi.fn(() => ({})),
-		});
-		const watch = vi.spyOn(chokidar, 'watch').mockImplementation(() => {
-			setTimeout(() => fileEvents.emit('ready'), 0);
-			return fileEvents as never;
+		let emitFileChange: ((change: { type: 'change'; path: string }) => void) | undefined;
+		const watch = vi.spyOn(fileSystem, 'watch').mockImplementation((_paths, options) => {
+			emitFileChange = options.onChange;
+			return { ready: Promise.resolve(), add: vi.fn(async () => {}), close: vi.fn(async () => {}) };
 		});
 		onTestFinished(() => watch.mockRestore());
 		devBridge.reload.mockClear();
 
 		await adapter.completeInitialization({} as import('node:http').Server);
-		fileEvents.emit('change', path.join(appConfig.absolutePaths.publicDir, 'robots.txt'));
+		emitFileChange?.({ type: 'change', path: path.join(appConfig.absolutePaths.publicDir, 'robots.txt') });
 
 		await vi.waitFor(() => expect(devBridge.reload).toHaveBeenCalledTimes(1));
 	});

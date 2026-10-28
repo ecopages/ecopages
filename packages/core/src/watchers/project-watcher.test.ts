@@ -1,8 +1,8 @@
 import { describe, expect, test, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import path from 'node:path';
 import os from 'node:os';
-import { mkdirSync, mkdtempSync, writeFileSync, utimesSync, rmSync, realpathSync, type Stats } from 'node:fs';
-import { fileSystem } from '@ecopages/file-system';
+import { mkdirSync, mkdtempSync, writeFileSync, utimesSync, rmSync, realpathSync } from 'node:fs';
+import { fileSystem, type FileStats, type WatchOptions } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import { ProjectWatcher, type ProjectWatcherConfig } from './project-watcher';
 import type { EcoPagesAppConfig, IHmrManager } from '../config/internal-types.ts';
@@ -13,10 +13,10 @@ import type { AppModuleLoaderContract } from '../build/server/app-module-loader.
 import {
 	createMockHmrManager,
 	createMockBridge,
-	installFakeChokidar,
+	installFakeFileSystemWatch,
 	registerMockEntrypoint,
-	subscribeWithFakeChokidar,
-	type FakeChokidarOptions,
+	subscribeWithFakeFileSystemWatch,
+	type FakeFileSystemWatchOptions,
 } from './project-watcher.test-helpers.ts';
 
 const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
@@ -57,8 +57,8 @@ describe('ProjectWatcher', () => {
 		vi.useRealTimers();
 	});
 
-	const subscribe = (overrides: Partial<ProjectWatcherConfig> = {}, options?: FakeChokidarOptions) =>
-		subscribeWithFakeChokidar(
+	const subscribe = (overrides: Partial<ProjectWatcherConfig> = {}, options?: FakeFileSystemWatchOptions) =>
+		subscribeWithFakeFileSystemWatch(
 			{
 				config: Config,
 				refreshRouterRoutesCallback: RefreshCallback,
@@ -71,7 +71,7 @@ describe('ProjectWatcher', () => {
 		);
 
 	describe('directory changes', () => {
-		test('batches Chokidar Pages directory events into one route refresh', async () => {
+		test('batches filesystem Pages directory events into one route refresh', async () => {
 			vi.useFakeTimers();
 			const { emit } = await subscribe({ changeDebounceMs: 50 });
 			const sourceDirectory = path.join(Config.absolutePaths.pagesDir, 'blog');
@@ -657,10 +657,16 @@ describe('ProjectWatcher', () => {
 				})),
 			} as never);
 
-			const { watch, handle } = await subscribe();
+			const { watch } = await subscribe();
 
 			const [watchedPaths, watchOptions] = watch.mock.calls[0] ?? [];
-			expect(watchOptions).toMatchObject({ ignoreInitial: true });
+			expect(watchOptions).toEqual(
+				expect.objectContaining({
+					ignored: expect.any(Function),
+					onChange: expect.any(Function),
+					onError: expect.any(Function),
+				}),
+			);
 			expect(watchedPaths).toEqual(
 				expect.arrayContaining([
 					Config.absolutePaths.srcDir,
@@ -677,7 +683,6 @@ describe('ProjectWatcher', () => {
 			]) {
 				expect(watchedPaths).not.toContain(sourceDir);
 			}
-			expect(handle.add).not.toHaveBeenCalled();
 		});
 
 		test('watches a configured source directory that resolves outside srcDir', async () => {
@@ -705,8 +710,28 @@ describe('ProjectWatcher', () => {
 			expect(watchedPaths).not.toContain(sourceInput);
 		});
 
+		test('opens a filesystem subscription for a build input recorded after startup', async () => {
+			const lateInput = path.join(Config.rootDir, '../shared/data/posts.json');
+			const buildInputIndex = requireAppRuntime(Config).buildInputIndex;
+			const { watch, handles } = await subscribe();
+
+			buildInputIndex.recordWatchPath(lateInput);
+
+			expect(watch).toHaveBeenCalledTimes(1);
+			expect(handles[0]?.add).toHaveBeenCalledWith([path.resolve(lateInput)]);
+		});
+
+		test('requests one runtime restart when the filesystem cannot identify a changed path', async () => {
+			const restart = vi.fn(async (_filePath: string) => {});
+			const { emit } = await subscribe({ onRestartRequest: restart });
+
+			await emit('rescan', Config.absolutePaths.srcDir);
+
+			await vi.waitFor(() => expect(restart).toHaveBeenCalledWith(Config.absolutePaths.srcDir));
+		});
+
 		test('waits for filesystem subscriptions to be ready before startup completes', async () => {
-			const fake = installFakeChokidar({ ready: 'manual' });
+			const fake = installFakeFileSystemWatch({ ready: 'manual' });
 			const watcher = new ProjectWatcher({
 				config: Config,
 				refreshRouterRoutesCallback: RefreshCallback,
@@ -806,9 +831,9 @@ describe('ProjectWatcher', () => {
 
 			const { watch } = await subscribe();
 
-			const ignored = watch.mock.calls[0]?.[1]?.ignored as (watchedPath: string, stats?: Stats) => boolean;
-			const file = { isFile: () => true, isDirectory: () => false } as Stats;
-			const directory = { isFile: () => false, isDirectory: () => true } as Stats;
+			const ignored = watch.mock.calls[0]?.[1]?.ignored as NonNullable<WatchOptions['ignored']>;
+			const file: FileStats = { isFile: true, isDirectory: false, isSymbolicLink: false, size: 0 };
+			const directory: FileStats = { isFile: false, isDirectory: true, isSymbolicLink: false, size: 0 };
 			expect(ignored('/test/project/README.md')).toBe(false);
 			expect(ignored('/test/project/README.md', file)).toBe(true);
 			expect(ignored('/test/project/docs', directory)).toBe(false);
@@ -817,7 +842,7 @@ describe('ProjectWatcher', () => {
 			expect(ignored(path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx'), file)).toBe(false);
 		});
 
-		test('ignores node_modules, .git, workDir, and distDir via a path predicate (chokidar v4+ has no glob support)', async () => {
+		test('ignores node_modules, .git, workDir, and distDir via a path predicate (filesystem watcher uses path predicates)', async () => {
 			vi.spyOn(fileSystem, 'exists').mockImplementation(
 				(targetPath) => String(targetPath) === Config.absolutePaths.srcDir,
 			);
@@ -829,13 +854,13 @@ describe('ProjectWatcher', () => {
 			expect(ignored(path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx'))).toBe(false);
 		});
 
-		test('should attach chokidar handlers only once when watcher subscription is requested twice', async () => {
-			const { watcher, watch, handle } = await subscribe();
+		test('starts only one filesystem subscription when watcher subscription is requested twice', async () => {
+			const { watcher, watch, handles } = await subscribe();
 
 			await watcher.createWatcherSubscription();
 
 			expect(watch).toHaveBeenCalledTimes(1);
-			expect(handle.on).toHaveBeenCalledTimes(6);
+			expect(handles).toHaveLength(1);
 		});
 	});
 });

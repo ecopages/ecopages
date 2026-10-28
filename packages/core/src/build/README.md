@@ -175,7 +175,7 @@ An Integration can prune server-only imports before resolution. React uses the s
 
 The development server's `hmr-entrypoint` and `hmr-runtime` rebuilds run on the `hmr` lane (limit three). A build that waits on another running build uses the `nested` lane; all other builds use the `build` lane.
 
-`ProjectWatcher` deduplicates watch roots, ignores `.eco/` and `dist/`, and coalesces duplicate chokidar events within 150ms.
+`ProjectWatcher` deduplicates watch roots, ignores `.eco/` and `dist/`, and batches filesystem events within 150ms.
 
 ## Metrics
 

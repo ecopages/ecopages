@@ -6,6 +6,7 @@ Runtime file system utilities for Ecopages. The implementation is Node's `node:f
 
 - **Node implementation**: `node:fs/promises.glob()`, `crypto`, and `node:fs` on every runtime.
 - **One interface**: Call sites import `fileSystem` and do not choose an adapter. Tests replace it with `installFileSystem` and can wrap it with `createRecordingFileSystem` to observe every path argument.
+- **Recursive watch**: `watch()` opens one native recursive watcher per minimal directory root, rather than one watcher for every subdirectory. File and missing roots share non-recursive parent watches. It indexes existing entries without emitting initial changes, coalesces native events for 50 ms, supports adding paths to a running watch, and maps canonical paths back to the requested roots.
 - **Type Safe**: Full TypeScript support with a consistent API.
 
 ## Installation
@@ -43,8 +44,11 @@ const watcher = fileSystem.watch(['./src'], {
 	onError: (error) => console.error(error),
 });
 await watcher.ready;
+await watcher.add(['./generated']);
 await watcher.close();
 ```
+
+`watch()` reports file changes as `add`, `change` or `unlink`, and directory changes as `addDir` or `unlinkDir`. Atomic replacement of an existing file is reported as one `change`. If a native event omits its filename, `watch()` reconciles the native root and can emit a `rescan` event for each mapped requested root; consumers should invalidate those roots once. A missing root is watched from its nearest existing parent and begins reporting once it is created. `add()` extends the running subscription and indexes entries already present under the new paths without reporting them. Symlinked roots are reported using the path passed to `watch()`. The optional `ignored` predicate runs before existing subdirectory contents are indexed, so ignored subtrees are not scanned.
 
 ## API
 
@@ -74,7 +78,7 @@ await watcher.close();
 | `mkdtemp(prefix)`                  | Create a uniquely named directory             |
 | `rename(src, dest)`                | Move a file or directory                      |
 | `verifyFileExists(path)`           | Throw if file doesn't exist                   |
-| `watch(paths, options)`            | Watch files and directories                   |
+| `watch(paths, options)`            | Watch paths; the returned handle can add more |
 | `installFileSystem(next)`          | Replace the process-wide `fileSystem` (tests) |
 | `createRecordingFileSystem(inner)` | Wrap `inner` and record every path argument   |
 

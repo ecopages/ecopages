@@ -547,13 +547,20 @@ describe('RolldownBuildAdapter', () => {
 		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
 
 		const result = await buildWithCoreImports(
-			['@clack/prompts', '@ecopages/logger', '@standard-schema/utils', 'chokidar', 'oxc-parser', 'oxc-resolver'],
+			[
+				'@clack/prompts',
+				'@ecopages/logger',
+				'@standard-schema/utils',
+				'magic-string',
+				'oxc-parser',
+				'oxc-resolver',
+			],
 			{ reportPackagesOutsideRoot: true },
 		);
 
 		assertBuildSucceeded(result, 'Build failed');
 		expect(String(warn.mock.calls[0]?.[0])).toContain(
-			'6 packages from outside the app folder (@clack/prompts, @ecopages/logger, @standard-schema/utils, chokidar, oxc-parser and 1 more)',
+			'6 packages from outside the app folder (@clack/prompts, @ecopages/logger, @standard-schema/utils, magic-string, oxc-parser and 1 more)',
 		);
 	});
 

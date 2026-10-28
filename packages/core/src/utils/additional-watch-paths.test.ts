@@ -41,4 +41,10 @@ describe('additionalWatchPaths dot segments with a glob matcher that matches the
 		expect(mayContainAdditionalWatchMatches('/test/project/.cache', watchPath)).toBe(false);
 		expect(mayContainAdditionalWatchMatches('/test/project/docs', watchPath)).toBe(true);
 	});
+
+	it('keeps a missing static glob base reachable through its parent', () => {
+		const watchPath = resolveAdditionalWatchPath('content/**/*.md', '/test/project');
+
+		expect(mayContainAdditionalWatchMatches('/test/project', watchPath)).toBe(true);
+	});
 });

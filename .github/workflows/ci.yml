@@ -71,8 +71,6 @@ jobs:
 
             - name: Fast gate
               run: pnpm run test:ci:fast
-              env:
-                  ECOPAGES_FS_WATCH_TRACE: '1'
 
             - name: Build static templates
               run: pnpm run smoke:templates

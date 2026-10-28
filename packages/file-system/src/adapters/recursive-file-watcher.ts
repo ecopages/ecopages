@@ -81,9 +81,13 @@ export class RecursiveFileWatcher implements FileWatcher {
 		);
 	}
 
+	/**
+	 * @remarks
+	 * A failed registration rejects this call but does not poison later calls queued on the same watcher.
+	 */
 	public add(paths: readonly string[]): Promise<void> {
 		const update = this.pathUpdates.then(() => this.addPaths(paths));
-		this.pathUpdates = update.catch((error: unknown) => this.handleError(error));
+		this.pathUpdates = update.catch((error: unknown) => this.handleError(error)).catch(() => undefined);
 		return update;
 	}
 
@@ -124,12 +128,14 @@ export class RecursiveFileWatcher implements FileWatcher {
 		try {
 			this.watchedPaths.push(...newPaths);
 			for (const watcher of this.getWatchRoots()) this.openWatcher(watcher);
-			this.closeUnneededWatchers();
 			await this.seedKnownEntries(newPaths);
 			if (this.closed) return;
 			for (const watcher of this.getWatchRoots()) this.openWatcher(watcher);
 			this.closeUnneededWatchers();
 			await this.catchUpNewWatchRoots(existingWatchRoots, nativeWatchRegistrationStartedAt);
+		} catch (error) {
+			this.rollbackAddedPaths(newPaths, existingWatchRoots);
+			throw error;
 		} finally {
 			this.indexing = false;
 			for (const [changePath, forceChange] of this.changesDuringIndex) this.queueChange(changePath, forceChange);
@@ -138,6 +144,27 @@ export class RecursiveFileWatcher implements FileWatcher {
 				this.scheduleRootReconcile(root, notifyRescan);
 			this.rootsToReconcileAfterIndex.clear();
 		}
+	}
+
+	private rollbackAddedPaths(paths: readonly WatchedPath[], existingWatchRoots: ReadonlySet<string>): void {
+		for (const watchedPath of paths) {
+			const index = this.watchedPaths.indexOf(watchedPath);
+			if (index !== -1) this.watchedPaths.splice(index, 1);
+		}
+		for (const [entryPath] of this.knownEntries) {
+			if (this.getMappedPaths(entryPath).length) continue;
+			this.knownEntries.delete(entryPath);
+			this.knownStats.delete(entryPath);
+		}
+		for (const ignoredPath of this.ignoredDirectories) {
+			if (!this.getMappedPaths(ignoredPath).length) this.ignoredDirectories.delete(ignoredPath);
+		}
+		for (const [watcher, root] of this.watchers) {
+			if (existingWatchRoots.has(rootKey(root))) continue;
+			watcher.close();
+			this.watchers.delete(watcher);
+		}
+		this.closeUnneededWatchers();
 	}
 
 	/**
@@ -588,7 +615,13 @@ export class RecursiveFileWatcher implements FileWatcher {
 		for (const entry of entries) {
 			if (this.closed) return;
 			const entryPath = path.join(directoryPath, entry.name);
-			const stats = await tryLstatAsync(entryPath);
+			let stats: Stats | undefined;
+			try {
+				stats = await tryLstatAsync(entryPath);
+			} catch (error) {
+				if (isPermissionError(error)) continue;
+				throw error;
+			}
 			if (!stats || !this.getMappedPaths(entryPath, stats).length) continue;
 			const kind: EntryKind = entry.isDirectory() && !entry.isSymbolicLink() ? 'directory' : 'file';
 			this.knownEntries.set(entryPath, kind);

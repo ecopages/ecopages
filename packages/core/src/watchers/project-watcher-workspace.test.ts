@@ -202,17 +202,14 @@ test('activates a linked package root when a build input is recorded after start
 	expect(ignored?.(packageDoc, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(false);
 	fake.handle.add.mockRejectedValueOnce(new Error('temporary watch failure'));
 	requireAppRuntime(config).buildInputIndex.recordWatchPath(packageSource);
-	expect(ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(false);
-	expect(fake.handle.add).toHaveBeenCalledWith([packageDir]);
-	await vi.waitFor(() =>
-		expect(ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(
-			true,
-		),
-	);
 	requireAppRuntime(config).buildInputIndex.recordWatchPath(path.join(packageDir, 'src/second.ts'));
-	await vi.waitFor(() => expect(fake.handle.paths).toContain(packageDir));
-	expect(fake.handle.add).toHaveBeenCalledTimes(2);
 	requireAppRuntime(config).buildInputIndex.recordWatchPath(path.join(packageDir, 'src/third.ts'));
+	expect(fake.handle.add).toHaveBeenCalledTimes(1);
+	expect(fake.handle.add).toHaveBeenCalledWith([packageDir]);
+	await vi.waitFor(() => expect(fake.handle.add).toHaveBeenCalledTimes(2));
+	expect(fake.handle.paths).toContain(packageDir);
+	expect(ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(false);
+	requireAppRuntime(config).buildInputIndex.recordWatchPath(path.join(packageDir, 'src/fourth.ts'));
 	expect(fake.handle.add).toHaveBeenCalledTimes(2);
 	await fake.emit('change', packageSource);
 	expect(restart).toHaveBeenCalledWith(packageSource);

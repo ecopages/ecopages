@@ -13,11 +13,13 @@ type NativeWatcher = {
 const nativeWatchers = vi.hoisted(() => ({
 	watchers: [] as NativeWatcher[],
 	notifications: [] as Array<{ eventType: string; filename: string | null }>,
+	failNextWatchPath: undefined as string | undefined,
 }));
 const nativePromises = vi.hoisted(() => ({
 	delayedStatPath: undefined as string | undefined,
 	statStarted: undefined as (() => void) | undefined,
 	releaseStat: undefined as (() => void) | undefined,
+	permissionDeniedLstatPath: undefined as string | undefined,
 }));
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -25,6 +27,10 @@ vi.mock('node:fs', async (importOriginal) => {
 	return {
 		...actual,
 		watch: (watchPath: string, options: { recursive?: boolean }, listener: NativeWatcher['notify']) => {
+			if (nativeWatchers.failNextWatchPath === watchPath) {
+				nativeWatchers.failNextWatchPath = undefined;
+				throw new Error('Temporary native watch failure');
+			}
 			nativeWatchers.watchers.push({
 				path: watchPath,
 				recursive: options.recursive ?? false,
@@ -50,6 +56,14 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 				});
 			}
 			return stats;
+		},
+		lstat: async (...args: Parameters<typeof actual.lstat>) => {
+			if (String(args[0]) === nativePromises.permissionDeniedLstatPath) {
+				const error = new Error('Permission denied') as NodeJS.ErrnoException;
+				error.code = 'EACCES';
+				throw error;
+			}
+			return actual.lstat(...args);
 		},
 	};
 });
@@ -122,6 +136,73 @@ test('reports native change events when file metadata is unchanged', async () =>
 		recursiveWatcher?.notify('change', 'entry.ts');
 		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: changedFile }));
 	} finally {
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('retries adding a path after native watcher registration fails', async () => {
+	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-add-retry-')));
+	const initialRoot = path.join(rootDir, 'initial');
+	const addedRoot = path.join(rootDir, 'added');
+	const addedFile = path.join(addedRoot, 'entry.ts');
+	mkdirSync(initialRoot);
+	mkdirSync(addedRoot);
+	writeFileSync(addedFile, 'export const value = 1;', 'utf8');
+	nativeWatchers.watchers.length = 0;
+	const changes: Array<{ type: string; path: string }> = [];
+	const watcher = new NodeFileSystem().watch([initialRoot], {
+		onChange: (change) => changes.push(change),
+		onError: (error) => {
+			throw error;
+		},
+	});
+
+	try {
+		await watcher.ready;
+		nativeWatchers.failNextWatchPath = addedRoot;
+		await expect(watcher.add([addedRoot])).rejects.toThrow('Temporary native watch failure');
+		expect(nativeWatchers.watchers.some(({ path: watchPath }) => watchPath === addedRoot)).toBe(false);
+
+		await watcher.add([addedRoot]);
+		const addedRootWatcher = nativeWatchers.watchers.find(({ path: watchPath }) => watchPath === addedRoot);
+		expect(addedRootWatcher).toBeDefined();
+		writeFileSync(addedFile, 'export const value = 2;', 'utf8');
+		addedRootWatcher?.notify('change', 'entry.ts');
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: addedFile }));
+	} finally {
+		nativeWatchers.failNextWatchPath = undefined;
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('skips permission-denied children while indexing the rest of a watched root', async () => {
+	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-permission-')));
+	const deniedFile = path.join(rootDir, 'a-denied.ts');
+	const visibleFile = path.join(rootDir, 'z-visible.ts');
+	writeFileSync(deniedFile, 'export const denied = true;', 'utf8');
+	writeFileSync(visibleFile, 'export const value = 1;', 'utf8');
+	nativeWatchers.watchers.length = 0;
+	nativePromises.permissionDeniedLstatPath = deniedFile;
+	const changes: Array<{ type: string; path: string }> = [];
+	const watcher = new NodeFileSystem().watch([rootDir], {
+		onChange: (change) => changes.push(change),
+		onError: (error) => {
+			throw error;
+		},
+	});
+
+	try {
+		await watcher.ready;
+		nativePromises.permissionDeniedLstatPath = undefined;
+		const recursiveWatcher = nativeWatchers.watchers.find(({ recursive }) => recursive);
+		expect(recursiveWatcher).toBeDefined();
+		writeFileSync(visibleFile, 'export const value = 2;', 'utf8');
+		recursiveWatcher?.notify('change', 'z-visible.ts');
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: visibleFile }));
+	} finally {
+		nativePromises.permissionDeniedLstatPath = undefined;
 		await watcher.close();
 		rmSync(rootDir, { recursive: true, force: true });
 	}

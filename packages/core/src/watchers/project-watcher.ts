@@ -551,7 +551,31 @@ export class ProjectWatcher {
 			...new Set(globWatchPaths.map(({ base }) => base)),
 		];
 		for (const watchPath of initialWatchPaths) this.watchedPaths.add(path.resolve(watchPath));
-		this.watcher = fileSystem.watch(initialWatchPaths, watchOptions);
+		const watcher = fileSystem.watch(initialWatchPaths, watchOptions);
+		this.watcher = watcher;
+		const workspacePackageRootsAdding = new Set<string>();
+		/**
+		 * @remarks
+		 * A recorded input may not be published again, so inputs arriving during registration request one retry on failure.
+		 */
+		const workspacePackageRootsToRetry = new Set<string>();
+		const addWorkspacePackageRoot = (root: string) => {
+			activeWorkspacePackageRoots.add(root);
+			this.watchedPaths.add(root);
+			workspacePackageRootsAdding.add(root);
+			void watcher.add([root]).then(
+				() => {
+					workspacePackageRootsAdding.delete(root);
+					workspacePackageRootsToRetry.delete(root);
+				},
+				() => {
+					workspacePackageRootsAdding.delete(root);
+					activeWorkspacePackageRoots.delete(root);
+					this.watchedPaths.delete(root);
+					if (!this.closed && workspacePackageRootsToRetry.delete(root)) addWorkspacePackageRoot(root);
+				},
+			);
+		};
 
 		this.watcherReady = new Promise<void>((resolve, reject) => {
 			this.rejectWatcherReady = reject;
@@ -564,7 +588,7 @@ export class ProjectWatcher {
 					),
 				);
 			}, ProjectWatcher.watcherReadyTimeoutMs);
-			this.watcher!.ready.then(
+			watcher.ready.then(
 				() => {
 					this.clearWatcherReadyTimeout();
 					this.rejectWatcherReady = undefined;
@@ -592,13 +616,11 @@ export class ProjectWatcher {
 			);
 			if (matchingWorkspaceRoots.length > 0) {
 				for (const root of matchingWorkspaceRoots) {
-					if (activeWorkspacePackageRoots.has(root)) continue;
-					activeWorkspacePackageRoots.add(root);
-					this.watchedPaths.add(root);
-					void watcher.add([root]).catch(() => {
-						activeWorkspacePackageRoots.delete(root);
-						this.watchedPaths.delete(root);
-					});
+					if (activeWorkspacePackageRoots.has(root)) {
+						if (workspacePackageRootsAdding.has(root)) workspacePackageRootsToRetry.add(root);
+						continue;
+					}
+					addWorkspacePackageRoot(root);
 				}
 				return;
 			}

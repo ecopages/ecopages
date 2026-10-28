@@ -452,7 +452,7 @@ export class ProjectWatcher {
 	/**
 	 * @remarks
 	 * The subscription watches `srcDir` recursively alongside external recorded
-	 * inputs, restart files, declared workspace package roots, and additional watch paths. Processor
+	 * inputs, restart files, workspace roots used by recorded inputs, and additional watch paths. Processor
 	 * notifications share the same file-change pipeline. The filesystem adapter
 	 * coalesces native events for one path across a 50 ms window.
 	 *
@@ -470,8 +470,13 @@ export class ProjectWatcher {
 
 		const buildInputIndex = requireAppRuntime(this.appConfig).buildInputIndex;
 		seedProcessorWatchPaths(this.appConfig, buildInputIndex);
-		this.workspacePackageRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
 		const recordedWatchPaths = buildInputIndex.recordedWatchPaths();
+		this.workspacePackageRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
+		const activeWorkspacePackageRoots = new Set(
+			this.workspacePackageRoots.filter((root) =>
+				recordedWatchPaths.some((filePath) => isPathInside(filePath, root)),
+			),
+		);
 		const srcDir = this.appConfig.absolutePaths.srcDir;
 		const literalPaths = new Set<string>([srcDir]);
 		const { pagesDir, componentsDir, includesDir, layoutsDir, publicDir } = this.appConfig.absolutePaths;
@@ -481,7 +486,10 @@ export class ProjectWatcher {
 			}
 		}
 		for (const recordedPath of recordedWatchPaths) {
-			if (!isPathInside(recordedPath, srcDir)) {
+			if (
+				!isPathInside(recordedPath, srcDir) &&
+				!this.workspacePackageRoots.some((root) => isPathInside(recordedPath, root))
+			) {
 				literalPaths.add(recordedPath);
 			}
 		}
@@ -519,7 +527,7 @@ export class ProjectWatcher {
 						(literalPath) =>
 							isPathInside(watchedPath, literalPath) || isPathInside(literalPath, watchedPath),
 					) ||
-					this.workspacePackageRoots.some(
+					[...activeWorkspacePackageRoots].some(
 						(root) => isPathInside(watchedPath, root) || isPathInside(root, watchedPath),
 					)
 				)
@@ -539,11 +547,35 @@ export class ProjectWatcher {
 		};
 		const initialWatchPaths = [
 			...literalPaths,
-			...this.workspacePackageRoots,
+			...activeWorkspacePackageRoots,
 			...new Set(globWatchPaths.map(({ base }) => base)),
 		];
 		for (const watchPath of initialWatchPaths) this.watchedPaths.add(path.resolve(watchPath));
-		this.watcher = fileSystem.watch(initialWatchPaths, watchOptions);
+		const watcher = fileSystem.watch(initialWatchPaths, watchOptions);
+		this.watcher = watcher;
+		const workspacePackageRootsAdding = new Set<string>();
+		/**
+		 * @remarks
+		 * A recorded input may not be published again, so inputs arriving during registration request one retry on failure.
+		 */
+		const workspacePackageRootsToRetry = new Set<string>();
+		const addWorkspacePackageRoot = (root: string) => {
+			activeWorkspacePackageRoots.add(root);
+			this.watchedPaths.add(root);
+			workspacePackageRootsAdding.add(root);
+			void watcher.add([root]).then(
+				() => {
+					workspacePackageRootsAdding.delete(root);
+					workspacePackageRootsToRetry.delete(root);
+				},
+				() => {
+					workspacePackageRootsAdding.delete(root);
+					activeWorkspacePackageRoots.delete(root);
+					this.watchedPaths.delete(root);
+					if (!this.closed && workspacePackageRootsToRetry.delete(root)) addWorkspacePackageRoot(root);
+				},
+			);
+		};
 
 		this.watcherReady = new Promise<void>((resolve, reject) => {
 			this.rejectWatcherReady = reject;
@@ -556,7 +588,7 @@ export class ProjectWatcher {
 					),
 				);
 			}, ProjectWatcher.watcherReadyTimeoutMs);
-			this.watcher!.ready.then(
+			watcher.ready.then(
 				() => {
 					this.clearWatcherReadyTimeout();
 					this.rejectWatcherReady = undefined;
@@ -571,19 +603,36 @@ export class ProjectWatcher {
 		});
 
 		this.unsubscribeFromRecordedWatchPaths = buildInputIndex.subscribeToWatchPaths((filePath) => {
-			if (this.closed || !this.watcher) {
+			const watcher = this.watcher;
+			if (this.closed || !watcher) {
 				return;
 			}
 			if (ignoreProjectPath(filePath)) {
 				return;
 			}
 			const resolvedPath = path.resolve(filePath);
+			const matchingWorkspaceRoots = this.workspacePackageRoots.filter((root) =>
+				isPathInside(resolvedPath, root),
+			);
+			if (matchingWorkspaceRoots.length > 0) {
+				for (const root of matchingWorkspaceRoots) {
+					if (activeWorkspacePackageRoots.has(root)) {
+						if (workspacePackageRootsAdding.has(root)) workspacePackageRootsToRetry.add(root);
+						continue;
+					}
+					addWorkspacePackageRoot(root);
+				}
+				return;
+			}
 			if ([...this.watchedPaths].some((watchedPath) => isPathInside(resolvedPath, watchedPath))) {
 				return;
 			}
 			literalPaths.add(resolvedPath);
 			this.watchedPaths.add(resolvedPath);
-			void this.watcher.add([resolvedPath]).catch(() => undefined);
+			void watcher.add([resolvedPath]).catch(() => {
+				literalPaths.delete(resolvedPath);
+				this.watchedPaths.delete(resolvedPath);
+			});
 		});
 
 		return this.waitForWatcherReady();

@@ -7,7 +7,8 @@ import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { DevTransformVendorRegistry } from '../dev/transform-server/dev-transform-vendor-registry.ts';
 import { ProjectWatcher } from './project-watcher.ts';
 import { resolveWorkspacePackageWatchRoots } from './workspace-package-watch-roots.ts';
-import { createMockBridge, createMockHmrManager } from './project-watcher.test-helpers.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
+import { createMockBridge, createMockHmrManager, installFakeFileSystemWatch } from './project-watcher.test-helpers.ts';
 
 const roots: string[] = [];
 const watchers: ProjectWatcher[] = [];
@@ -37,14 +38,19 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		const dependencySource = path.join(dependencyDir, 'index.js');
 		writeFileSync(dependencySource, "export const dep = 'dependency-before';");
 		symlinkSync(dependencyDir, path.join(packageDir, 'node_modules/ui-dep'), 'dir');
-		symlinkSync(dependencyDir, path.join(rootDir, 'node_modules/ui-dep'), 'dir');
 		writeFileSync(
 			path.join(rootDir, 'package.json'),
-			JSON.stringify({ dependencies: { '@acme/ui': 'workspace:*', 'ui-dep': 'workspace:*' } }),
+			JSON.stringify({ dependencies: { '@acme/ui': 'workspace:*' } }),
 		);
 		writeFileSync(
 			path.join(packageDir, 'package.json'),
-			JSON.stringify({ name: '@acme/ui', version: '1.0.0', type: 'module', module: 'src/index.ts' }),
+			JSON.stringify({
+				name: '@acme/ui',
+				version: '1.0.0',
+				type: 'module',
+				module: 'src/index.ts',
+				dependencies: { 'ui-dep': 'workspace:*' },
+			}),
 		);
 		writeFileSync(
 			path.join(packageDir, 'src/index.ts'),
@@ -77,6 +83,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		});
 		watchers.push(watcher);
 		const changedPath = edited === 'package' ? button : edited === 'dependency' ? dependencySource : extra;
+		requireAppRuntime(config).buildInputIndex.recordWatchPath(changedPath);
 		await watcher.createWatcherSubscription();
 		expect(resolveWorkspacePackageWatchRoots(config.rootDir)).toContain(packageDir);
 		if (edited === 'unlink') rmSync(changedPath);
@@ -137,6 +144,7 @@ test('ignores installed and hidden linked-package files while app source retains
 		changeDebounceMs: 0,
 	});
 	watchers.push(watcher);
+	requireAppRuntime(config).buildInputIndex.recordWatchPath(path.join(linked, 'src', 'index.ts'));
 	await watcher.createWatcherSubscription();
 	const drained = path.join(linked, 'src', 'drained.ts');
 	writeFileSync(drained, 'export const value = 1;');
@@ -157,4 +165,52 @@ test('ignores installed and hidden linked-package files while app source retains
 	expect(bridge.reload).not.toHaveBeenCalled();
 	for (const file of ignoredPaths)
 		expect(hmrManager.handleFileChanges).not.toHaveBeenCalledWith([file], expect.anything());
+});
+
+test('activates a linked package root when a build input is recorded after startup', async () => {
+	const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-late-')));
+	roots.push(root);
+	const rootDir = path.join(root, 'app');
+	const packageDir = path.join(root, 'ui');
+	const packageSource = path.join(packageDir, 'src/index.ts');
+	const packageDoc = path.join(packageDir, 'README.md');
+	mkdirSync(path.join(rootDir, 'node_modules'), { recursive: true });
+	mkdirSync(path.dirname(packageSource), { recursive: true });
+	writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ dependencies: { ui: 'workspace:*' } }));
+	writeFileSync(packageSource, 'export const value = 1;');
+	writeFileSync(packageDoc, '# UI');
+	writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: 'ui', module: 'src/index.ts' }));
+	symlinkSync(packageDir, path.join(rootDir, 'node_modules/ui'), 'dir');
+	const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+	config.additionalWatchPaths = ['../**/*.md'];
+	const fake = installFakeFileSystemWatch();
+	const restart = vi.fn(async (_filePath: string) => {});
+	const watcher = new ProjectWatcher({
+		config,
+		hmrManager: createMockHmrManager(),
+		bridge: createMockBridge(),
+		refreshRouterRoutesCallback: async () => {},
+		onRestartRequest: restart,
+		changeDebounceMs: 0,
+	});
+	watchers.push(watcher);
+	await watcher.createWatcherSubscription();
+
+	expect(fake.watch.mock.calls[0]?.[0]).not.toContain(packageDir);
+	const ignored = fake.watch.mock.calls[0]?.[1].ignored;
+	expect(ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(true);
+	expect(ignored?.(packageDoc, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(false);
+	fake.handle.add.mockRejectedValueOnce(new Error('temporary watch failure'));
+	requireAppRuntime(config).buildInputIndex.recordWatchPath(packageSource);
+	requireAppRuntime(config).buildInputIndex.recordWatchPath(path.join(packageDir, 'src/second.ts'));
+	requireAppRuntime(config).buildInputIndex.recordWatchPath(path.join(packageDir, 'src/third.ts'));
+	expect(fake.handle.add).toHaveBeenCalledTimes(1);
+	expect(fake.handle.add).toHaveBeenCalledWith([packageDir]);
+	await vi.waitFor(() => expect(fake.handle.add).toHaveBeenCalledTimes(2));
+	expect(fake.handle.paths).toContain(packageDir);
+	expect(ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(false);
+	requireAppRuntime(config).buildInputIndex.recordWatchPath(path.join(packageDir, 'src/fourth.ts'));
+	expect(fake.handle.add).toHaveBeenCalledTimes(2);
+	await fake.emit('change', packageSource);
+	expect(restart).toHaveBeenCalledWith(packageSource);
 });

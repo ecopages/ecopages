@@ -500,13 +500,15 @@ describe('NodeServerAdapter', () => {
 			return { events, rootDir, copyFile, publicAsset };
 		}
 
-		it('refuses production start when dist/ is incomplete', async () => {
+		it('refuses production start when dist/ is incomplete, without writing into dist/', async () => {
 			vi.stubEnv('NODE_ENV', 'production');
 			onTestFinished(() => {
 				vi.unstubAllEnvs();
 			});
 			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-incomplete-dist-'));
 			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+			fs.mkdirSync(path.join(rootDir, 'src', 'public'), { recursive: true });
+			fs.writeFileSync(path.join(rootDir, 'src', 'public', 'logo.svg'), '<svg />');
 			const appConfig = await finalizeEcoPagesConfig({ rootDir });
 			const adapter = makeNodeServerAdapter({
 				appConfig,
@@ -514,8 +516,9 @@ describe('NodeServerAdapter', () => {
 				requireCompleteDist: true,
 			});
 
-			await expect(adapter.initialize()).rejects.toThrow(/No readable production bundle manifest/);
+			await expect(adapter.initialize()).rejects.toThrow(/production bundle manifest .* is missing/);
 			await adapter.dispose();
+			expect(fs.existsSync(path.join(rootDir, 'dist'))).toBe(false);
 		});
 
 		it.each(['start', 'export'] as const)(

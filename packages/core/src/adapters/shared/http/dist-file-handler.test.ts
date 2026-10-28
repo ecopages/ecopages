@@ -193,6 +193,47 @@ describe('serveDistFile', () => {
 		expect(metadata.status).toBe(404);
 	});
 
+	it('never serves files from the internal server output directory', async () => {
+		const distDir = createDist();
+		const serverDir = path.join(distDir, '.server');
+		fs.mkdirSync(serverDir, { recursive: true });
+		for (const file of ['server-modules.json', 'routes.json', 'app.mjs', 'eco.config.mjs']) {
+			fs.writeFileSync(path.join(serverDir, file), 'internal');
+		}
+		for (const [file, contents] of [
+			['.server\\app.mjs', 'backslash app'],
+			['.SERVER\\eco.config.mjs', 'backslash config'],
+		] as const) {
+			fs.writeFileSync(path.join(distDir, file), contents);
+		}
+		for (const [directory, file] of [
+			['.SERVER', 'app.mjs'],
+			['.SeRvEr', 'routes.json'],
+		] as const) {
+			fs.mkdirSync(path.join(distDir, directory), { recursive: true });
+			fs.writeFileSync(path.join(distDir, directory, file), 'case-variant internal');
+		}
+
+		for (const pathname of [
+			'/.server/server-modules.json',
+			'/.server/routes.json',
+			'/.server/app.mjs',
+			'/.server/eco.config.mjs',
+			'/.SERVER/app.mjs',
+			'/.SeRvEr/routes.json',
+			'/%2Eserver/server-modules.json',
+			'/%2eserver/app.mjs',
+			'/.server%5Capp.mjs',
+			'/.SERVER%5Ceco.config.mjs',
+		]) {
+			const response = await serveDistFile(new Request(`http://localhost${pathname}`), {
+				distDir,
+				watchMode: false,
+			});
+			expect(response.status, pathname).toBe(404);
+		}
+	});
+
 	it('lets the runtime route handler provide its rendered 404', async () => {
 		const distDir = createDist();
 		const notFound = async () =>

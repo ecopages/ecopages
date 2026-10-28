@@ -7,15 +7,12 @@ import { createMockConfig } from './static-site-generator.test-utils.ts';
 
 const graphBuildOrder: string[] = [];
 const resolveBuildParallelismMock = vi.hoisted(() => vi.fn(() => 2));
-const ensurePagesUnifiedGraphBuiltMock = vi.hoisted(() =>
-	vi.fn(async () => {
-		graphBuildOrder.push('ensurePagesUnifiedGraphBuilt');
-		return undefined;
-	}),
-);
 const shouldBuildPagesUnifiedGraphMock = vi.hoisted(() => vi.fn(() => true));
 const emitProductionServerModulesMock = vi.hoisted(() =>
-	vi.fn(async () => ({ outdir: '/test/project/dist/.server', modules: {} })),
+	vi.fn(async () => {
+		graphBuildOrder.push('emitProductionServerModules');
+		return { outdir: '/test/project/dist/.server', modules: {} };
+	}),
 );
 
 vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) => {
@@ -23,7 +20,6 @@ vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) =>
 	return {
 		...actual,
 		emitProductionServerModules: emitProductionServerModulesMock,
-		ensurePagesUnifiedGraphBuilt: ensurePagesUnifiedGraphBuiltMock,
 		shouldBuildPagesUnifiedGraph: shouldBuildPagesUnifiedGraphMock,
 	};
 });
@@ -444,9 +440,9 @@ describe('StaticSiteGenerator', () => {
 			);
 		});
 
-		test('should build unified graph before integration static export hooks', async () => {
+		test('emits production server modules before integration static export hooks', async () => {
 			graphBuildOrder.length = 0;
-			ensurePagesUnifiedGraphBuiltMock.mockClear();
+			emitProductionServerModulesMock.mockClear();
 			const staticExport = vi.fn(async () => {
 				graphBuildOrder.push('staticExport');
 			});
@@ -469,8 +465,8 @@ describe('StaticSiteGenerator', () => {
 				baseUrl: 'http://localhost:3000',
 			});
 
-			expect(ensurePagesUnifiedGraphBuiltMock).toHaveBeenCalled();
-			expect(graphBuildOrder).toEqual(['ensurePagesUnifiedGraphBuilt', 'staticExport']);
+			expect(emitProductionServerModulesMock).toHaveBeenCalled();
+			expect(graphBuildOrder).toEqual(['emitProductionServerModules', 'staticExport']);
 		});
 
 		test('should invoke the integration staticExport hook with the export context', async () => {
@@ -1167,6 +1163,43 @@ describe('StaticSiteGenerator', () => {
 				);
 			},
 		);
+
+		test('keeps exporting other explicit routes when one view has no renderer (keepGoing)', async () => {
+			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+			const view = Object.assign(() => null, { config: { identity: testInjectedMeta } });
+			const getExplicitViewRenderer = vi
+				.fn()
+				.mockReturnValueOnce(undefined)
+				.mockReturnValue({
+					renderExplicitView: vi.fn(),
+					executeExplicitView: vi.fn(async () => ({ body: '<html>Works</html>' })),
+				});
+
+			await expect(
+				ssg.run({
+					router: {
+						listStaticGenerationRoutes: vi.fn(async () => []),
+					} satisfies StaticGenerationRunnerInput['router'],
+					baseUrl: 'http://localhost:3000',
+					routeRendererFactory: {
+						getPageRenderer: vi.fn(),
+						getExplicitViewRenderer,
+					} satisfies StaticGenerationRendererFactory,
+					staticRoutes: [
+						{ path: '/broken', loader: async () => ({ default: view }) },
+						{ path: '/works', loader: async () => ({ default: view }) },
+					],
+					keepGoing: true,
+				}),
+			).resolves.toBeUndefined();
+
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/works.html', '<html>Works</html>');
+			expect(errorSpy).toHaveBeenCalledWith(
+				'Error generating explicit static page for /broken:',
+				expect.objectContaining({ message: expect.stringContaining('No renderer found for integration') }),
+			);
+		});
 
 		test('should reject for dynamic explicit routes without staticPaths', async () => {
 			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);

@@ -8,6 +8,7 @@ import {
 	isHashedBrowserAsset,
 } from '../../../assets/hashed-browser-asset.ts';
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
+import { SERVER_BUNDLE_DIR } from '../../../utils/resolve-entry-file.ts';
 
 export type ServeDistFileOptions = {
 	distDir: string;
@@ -40,7 +41,7 @@ export async function serveDistFile(request: Request, options: ServeDistFileOpti
 		return createBadRequestResponse(method);
 	}
 
-	const candidate = findDistFile(target, options);
+	const candidate = findDistFile(target, options, distDir);
 	const response = candidate
 		? await createDistFileResponse(candidate, ServerUtils.getContentType(candidate), request, options.watchMode)
 		: null;
@@ -66,7 +67,30 @@ function resolveRequestTarget(request: Request, distDir: string): RequestTarget 
 	return isPathInside(distDir, requestedPath) ? { pathname, requestedPath } : undefined;
 }
 
-function findDistFile({ pathname, requestedPath }: RequestTarget, options: ServeDistFileOptions): string | undefined {
+/**
+ * True when `requestedPath` lies in the private `dist/.server/` folder.
+ *
+ * @remarks
+ * `requestedPath` is already decoded and resolved, so encoded dots and dot segments
+ * are covered. Both separators count and the name compares case-insensitively, so a
+ * decoded backslash or a case-insensitive filesystem cannot reach the folder.
+ */
+function isPrivateServerOutput(distDir: string, requestedPath: string): boolean {
+	const [firstSegment] = path
+		.relative(distDir, requestedPath)
+		.split(/[\\/]+/)
+		.filter(Boolean);
+	return firstSegment?.toLowerCase() === SERVER_BUNDLE_DIR.toLowerCase();
+}
+
+function findDistFile(
+	{ pathname, requestedPath }: RequestTarget,
+	options: ServeDistFileOptions,
+	distDir: string,
+): string | undefined {
+	if (isPrivateServerOutput(distDir, requestedPath)) {
+		return undefined;
+	}
 	if (options.staticFilesOnly && !ServerUtils.hasKnownStaticExtension(pathname)) {
 		return undefined;
 	}

@@ -10,27 +10,36 @@ function describe(rootDir: string, filePath: string): string {
 	return path.relative(rootDir, filePath) || '.';
 }
 
-function readJsonObject(filePath: string): Record<string, unknown> | undefined {
+type JsonObjectReadResult =
+	{ kind: 'valid'; value: Record<string, unknown> } | { kind: 'missing' } | { kind: 'invalid'; error: unknown };
+
+function readJsonObject(filePath: string): JsonObjectReadResult {
 	if (!fileSystem.exists(filePath)) {
-		return undefined;
+		return { kind: 'missing' };
 	}
 	try {
 		const parsed: unknown = JSON.parse(fileSystem.readFileSync(filePath));
 		if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-			return undefined;
+			return { kind: 'invalid', error: new TypeError('Expected a JSON object.') };
 		}
-		return parsed as Record<string, unknown>;
-	} catch {
-		return undefined;
+		return { kind: 'valid', value: parsed as Record<string, unknown> };
+	} catch (error) {
+		return { kind: 'invalid', error };
 	}
 }
 
 function requireJsonObject(rootDir: string, filePath: string, label: string): Record<string, unknown> {
-	const parsed = readJsonObject(filePath);
-	if (!parsed) {
-		throw new Error(`No readable ${label} in ${describe(rootDir, filePath)}. Run \`ecopages build\` again.`);
+	const result = readJsonObject(filePath);
+	if (result.kind === 'valid') return result.value;
+	if (result.kind === 'missing') {
+		throw new Error(
+			`The production ${label} ${describe(rootDir, filePath)} is missing. Run \`ecopages build\` again.`,
+		);
 	}
-	return parsed;
+	throw new Error(
+		`The production ${label} ${describe(rootDir, filePath)} is invalid or unreadable. Run \`ecopages build\` again.`,
+		{ cause: result.error },
+	);
 }
 
 function requireBuildId(rootDir: string, filePath: string, payload: Record<string, unknown>): string {
@@ -76,7 +85,7 @@ function requireListedFiles(
 
 function requireServerModules(rootDir: string, serverDir: string, buildId: string, deployManifestPath: string): void {
 	const serverModulesPath = path.join(serverDir, SERVER_MODULES_MANIFEST_FILENAME);
-	const serverModules = requireJsonObject(rootDir, serverModulesPath, 'production server-modules map');
+	const serverModules = requireJsonObject(rootDir, serverModulesPath, 'server-modules map');
 	requireMatchingBuildId(rootDir, buildId, deployManifestPath, serverModulesPath, serverModules);
 	const modules = serverModules.modules;
 	if (!modules || typeof modules !== 'object' || Array.isArray(modules)) {
@@ -99,10 +108,9 @@ function requireOptionalBrowserManifest(
 	deployManifestPath: string,
 ): void {
 	const browserManifestPath = path.join(serverDir, BROWSER_CLIENT_MANIFEST_FILENAME);
-	const browserManifest = readJsonObject(browserManifestPath);
-	if (!browserManifest) {
-		return;
-	}
+	const browserManifestResult = readJsonObject(browserManifestPath);
+	if (browserManifestResult.kind !== 'valid') return;
+	const browserManifest = browserManifestResult.value;
 	requireMatchingBuildId(rootDir, buildId, deployManifestPath, browserManifestPath, browserManifest);
 	const browserOutputPaths = browserManifest.browserOutputPaths;
 	if (Array.isArray(browserOutputPaths)) {
@@ -124,7 +132,7 @@ export function assertProductionDistComplete(rootDir: string, distDir: string): 
 	const resolvedDist = path.resolve(resolvedRoot, distDir);
 	const serverDir = path.join(resolvedDist, SERVER_BUNDLE_DIR);
 	const deployManifestPath = path.join(serverDir, 'manifest.json');
-	const deployManifest = requireJsonObject(resolvedRoot, deployManifestPath, 'production bundle manifest');
+	const deployManifest = requireJsonObject(resolvedRoot, deployManifestPath, 'bundle manifest');
 	const buildId = requireBuildId(resolvedRoot, deployManifestPath, deployManifest);
 
 	if (typeof deployManifest.serverEntry !== 'string' || deployManifest.serverEntry.length === 0) {
@@ -138,7 +146,7 @@ export function assertProductionDistComplete(rootDir: string, distDir: string): 
 	}
 
 	const routeListPath = path.join(serverDir, PRODUCTION_ROUTES_FILENAME);
-	const routeList = requireJsonObject(resolvedRoot, routeListPath, 'production route list');
+	const routeList = requireJsonObject(resolvedRoot, routeListPath, 'route list');
 	requireMatchingBuildId(resolvedRoot, buildId, deployManifestPath, routeListPath, routeList);
 	requireServerModules(resolvedRoot, serverDir, buildId, deployManifestPath);
 	requireOptionalBrowserManifest(resolvedRoot, serverDir, buildId, deployManifestPath);

@@ -1,10 +1,11 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createNodeApp } from '../adapters/node/create-app.ts';
 import type { BuildAdapter, BuildResult } from '../build/build-adapter.ts';
 import { BuildQueue } from '../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import { appLogger } from '../global/app-logger.ts';
 import { loadEcoPagesConfig } from '../config/load-eco-config.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { copyFixtureApp } from '../../__fixtures__/app/copy-fixture-app.ts';
@@ -34,6 +35,7 @@ describe('production Dynamic collection Page browser graphs', () => {
 	afterEach(async () => {
 		for (const appDir of copiedApps.splice(0)) rmSync(appDir, { recursive: true, force: true });
 		vi.unstubAllEnvs();
+		vi.restoreAllMocks();
 	});
 
 	it('serves every Dynamic collection Page entry after ecopages build with a throwing build adapter', async () => {
@@ -44,6 +46,8 @@ describe('production Dynamic collection Page browser graphs', () => {
 		const componentsDir = path.join(appDir, 'src/components');
 		mkdirSync(postsDir, { recursive: true });
 		mkdirSync(componentsDir, { recursive: true });
+		writeFileSync(path.join(componentsDir, 'plain.script.ts'), "console.log('plain-island');\n");
+		writeFileSync(path.join(componentsDir, 'chart.script.ts'), "console.log('chart-island');\n");
 		writeFileSync(
 			path.join(componentsDir, 'plain.ts'),
 			[
@@ -55,16 +59,12 @@ describe('production Dynamic collection Page browser graphs', () => {
 				'',
 			].join('\n'),
 		);
-		writeFileSync(path.join(componentsDir, 'chart.script.ts'), "console.log('chart-island');\n");
 		writeFileSync(
 			path.join(componentsDir, 'chart.ts'),
 			[
 				"import { eco } from '@ecopages/core';",
 				'',
 				'export const Chart = eco.component({',
-				'	dependencies: {',
-				"		scripts: ['./chart.script.ts'],",
-				'	},',
 				'	render: () => \'<div data-testid="entry-chart">Chart entry</div>\',',
 				'});',
 				'',
@@ -89,14 +89,15 @@ describe('production Dynamic collection Page browser graphs', () => {
 				'		props: { slug: String(pathname.params.slug) },',
 				'	}),',
 				'	dependencies: async ({ props }) => ({',
-				'		components: [BaseLayout, props.slug === "chart" ? Chart : Plain],',
+				'		components: [BaseLayout, props.slug === "chart" || props.slug === "unlisted" ? Chart : Plain],',
+				"		scripts: [{ src: props.slug === 'chart' || props.slug === 'unlisted' ? '../../components/chart.script.ts' : '../../components/plain.script.ts', lazy: { 'on:visible': true } }],",
 				'	}),',
 				'	metadata: ({ props }) => ({',
 				'		title: props.slug,',
 				"		description: 'Dynamic collection entry',",
 				'	}),',
 				'	render: ({ slug }) => {',
-				"		const Entry = slug === 'chart' ? Chart : Plain;",
+				"		const Entry = slug === 'chart' || slug === 'unlisted' ? Chart : Plain;",
 				'		return `${BaseLayout({',
 				'			children: `<article data-testid="post-${slug}">${Entry({})}</article>`,',
 				'		})}`;',
@@ -118,21 +119,40 @@ describe('production Dynamic collection Page browser graphs', () => {
 			await buildApp.stop();
 		}
 
+		const browserManifestPath = path.join(appDir, 'dist/.server/browser-client-manifest.json');
+		const browserManifest = JSON.parse(readFileSync(browserManifestPath, 'utf8')) as {
+			entries: Array<{ params?: Record<string, string>; pageClientBuildEntryKeys: string[] }>;
+		};
+		const chartEntries = browserManifest.entries.filter((entry) => entry.params?.slug === 'chart');
+		expect(chartEntries.length).toBeGreaterThan(0);
+		expect(chartEntries.some((entry) => entry.pageClientBuildEntryKeys.length > 0)).toBe(true);
+		const retainedEntries = browserManifest.entries.filter((entry) => entry.params?.slug !== 'chart');
+		expect(retainedEntries.length).toBeLessThan(browserManifest.entries.length);
+		browserManifest.entries = retainedEntries;
+		writeFileSync(browserManifestPath, `${JSON.stringify(browserManifest, null, '\t')}\n`);
+
+		const startConfig = await loadEcoPagesConfig({ configFile: path.join(appDir, 'eco.config.ts') });
 		const app = await createNodeApp({
-			appConfig,
+			appConfig: startConfig,
 			serverOptions: SERVER_OPTIONS,
-			cliArgs: { ...CLI_ARGS, start: true },
+			cliArgs: CLI_ARGS,
 		});
 		try {
 			await app.start();
-			installThrowingBuildAdapter(appConfig);
+			expect(requireAppRuntime(startConfig).productionBrowserGraphsSealed).toBe(true);
+			const errorSpy = vi.spyOn(appLogger, 'error');
+			installThrowingBuildAdapter(startConfig);
 
 			const plain = await app.fetch(new Request('http://localhost:3000/posts/plain'));
 			const chart = await app.fetch(new Request('http://localhost:3000/posts/chart'));
+			const unlisted = await app.fetch(new Request('http://localhost:3000/posts/unlisted'));
 			expect(plain.status).toBe(200);
-			expect(chart.status).toBe(200);
+			expect(chart.status).toBe(500);
+			expect(unlisted.status).toBe(500);
 			expect(await plain.text()).toContain('data-testid="entry-plain"');
-			expect(await chart.text()).toContain('data-testid="entry-chart"');
+			const loggedErrors = errorSpy.mock.calls.flat().map(String).join('\n');
+			expect(loggedErrors).toContain('entry slug=chart');
+			expect(loggedErrors).toContain('entry slug=unlisted');
 		} finally {
 			await app.stop();
 		}

@@ -42,7 +42,7 @@ function canonicalize(value: unknown): unknown {
  * since Rolldown hook precedence depends on position.
  */
 export function createBuildRequestIdentity(options: BuildOptions): string {
-	const { plugins, entrypoints, root, outdir, runtimeOutdir, external, ...rest } = options;
+	const { plugins, entrypoints, root, outdir, runtimeOutdir, preserveModulesRoot, external, ...rest } = options;
 	return JSON.stringify([
 		canonicalize({
 			...rest,
@@ -50,6 +50,7 @@ export function createBuildRequestIdentity(options: BuildOptions): string {
 			root: root ? path.resolve(root) : undefined,
 			outdir: outdir ? path.resolve(outdir) : undefined,
 			runtimeOutdir: runtimeOutdir ? path.resolve(runtimeOutdir) : undefined,
+			preserveModulesRoot: preserveModulesRoot ? path.resolve(preserveModulesRoot) : undefined,
 			external: external ? [...external].sort() : undefined,
 		}),
 		createPluginCacheKey(plugins),

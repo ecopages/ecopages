@@ -6,18 +6,11 @@ import { StaticSiteGenerator } from './static-site-generator.ts';
 import { createMockConfig } from './static-site-generator.test-utils.ts';
 import { disposeDevResources } from '../adapters/shared/runtime/runtime-server-lifecycle.ts';
 
-const graphBuildOrder: string[] = [];
-const ensurePagesUnifiedGraphBuiltMock = vi.hoisted(() =>
-	vi.fn(async () => {
-		graphBuildOrder.push('ensurePagesUnifiedGraphBuilt');
-	}),
-);
-
 vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('../build/cache/pages-unified-graph-build.ts')>();
 	return {
 		...actual,
-		ensurePagesUnifiedGraphBuilt: ensurePagesUnifiedGraphBuiltMock,
+		emitProductionServerModules: vi.fn(async () => ({ outdir: '/test/project/dist/.server', modules: {} })),
 		shouldBuildPagesUnifiedGraph: vi.fn(() => true),
 	};
 });
@@ -32,8 +25,6 @@ describe('StaticSiteGenerator Integration lifecycle', () => {
 	let writeMock: ReturnType<typeof vi.fn>;
 
 	beforeEach(() => {
-		graphBuildOrder.length = 0;
-		ensurePagesUnifiedGraphBuiltMock.mockClear();
 		fileSystem.ensureDir = vi.fn() as typeof fileSystem.ensureDir;
 		writeMock = vi.fn();
 		fileSystem.write = writeMock as typeof fileSystem.write;

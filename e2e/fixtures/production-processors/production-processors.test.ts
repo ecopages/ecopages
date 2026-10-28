@@ -1,10 +1,11 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../../packages/core/src/adapters/create-app.ts';
 import { loadEcoPagesConfig } from '../../../packages/core/src/config/index.ts';
+import type { EcoPagesAppConfig } from '../../../packages/core/src/config/internal-types.ts';
 import { BuildQueue } from '../../../packages/core/src/build/runtime/build-queue.ts';
 import type { BuildAdapter } from '../../../packages/core/src/build/build-adapter.ts';
 import { SERVER_MODULES_MANIFEST_FILENAME } from '../../../packages/core/src/build/server/server-modules-manifest.ts';
@@ -44,6 +45,16 @@ function runCliBuild(appDir: string): ReturnType<typeof spawnSync> {
 	});
 }
 
+async function createProductionStartApp(appConfig: EcoPagesAppConfig, appDir: string) {
+	const previousArgv = process.argv;
+	process.argv = [process.execPath, path.join(appDir, 'dist/.server/app.mjs')];
+	try {
+		return await createApp({ appConfig });
+	} finally {
+		process.argv = previousArgv;
+	}
+}
+
 describe('production processors', () => {
 	const appDirs: string[] = [];
 
@@ -61,6 +72,12 @@ describe('production processors', () => {
 			vi.stubEnv('NODE_ENV', 'production');
 			const appDir = copyFixtureApp(blogJsxDir);
 			appDirs.push(appDir);
+			const apiDir = path.join(appDir, 'src/pages/api');
+			mkdirSync(apiDir, { recursive: true });
+			writeFileSync(
+				path.join(apiDir, 'health.api.ts'),
+				"import { defineGet } from '@ecopages/core';\n\nexport const GET = defineGet({ handler: async ({ response }) => response.json({ ok: true }) });\n",
+			);
 
 			const built = runCliBuild(appDir);
 			expect(built.error).toBeUndefined();
@@ -88,7 +105,7 @@ describe('production processors', () => {
 				});
 			}
 
-			const app = await createApp({ appConfig });
+			const app = await createProductionStartApp(appConfig, appDir);
 			const runtime = requireAppRuntime(appConfig);
 			const throwing = throwingServerBuildAdapter(runtime.buildAdapter);
 			runtime.buildAdapter = throwing;

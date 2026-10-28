@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import {
 	cpSync,
 	existsSync,
@@ -12,6 +12,7 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,14 +20,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '@ecopages/core/create-app';
 import { loadEcoPagesConfig } from '@ecopages/core/config';
 import { createViewReference } from '@ecopages/core/view-reference';
-import { createRecordingFileSystem, installFileSystem, nodeFs } from '../../../packages/file-system/src/index.ts';
 import { BuildQueue } from '../../../packages/core/src/build/runtime/build-queue.ts';
 import type { BuildAdapter } from '../../../packages/core/src/build/build-adapter.ts';
+import { createRecordingFileSystem, installFileSystem, nodeFs } from '../../../packages/file-system/src/index.ts';
 import { SERVER_MODULES_MANIFEST_FILENAME } from '../../../packages/core/src/build/server/server-modules-manifest.ts';
 import { requireAppRuntime } from '../../../packages/core/src/utils/app-runtime.ts';
 import { copyFixtureApp } from '../../../packages/core/__fixtures__/app/copy-fixture-app.ts';
 
 const ORIGIN = 'http://localhost:3000';
+const MAX_PRODUCTION_SERVER_START_ATTEMPTS = 3;
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const cliPath = path.join(repoRoot, 'packages/ecopages/bin/cli.js');
 const fixtureDir = import.meta.dirname;
@@ -36,9 +38,9 @@ const PAGE_ROUTES = [
 	{ path: '/kita-dynamic/alpha', marker: 'kita-dynamic', layout: 'kita' },
 	{ path: '/react', marker: 'react-static', layout: 'react' },
 	{ path: '/react-dynamic/alpha', marker: 'react-dynamic', layout: 'react' },
+	{ path: '/jsx', marker: 'jsx-static', layout: 'jsx' },
 	{ path: '/lit', marker: 'lit-static', layout: 'lit' },
 	{ path: '/lit-dynamic/alpha', marker: 'lit-dynamic', layout: 'lit' },
-	{ path: '/jsx', marker: 'jsx-static', layout: 'jsx' },
 	{ path: '/jsx-dynamic/alpha', marker: 'jsx-dynamic', layout: 'jsx' },
 	{ path: '/about', marker: 'html-static' },
 	{ path: '/kita-view', marker: 'kita-view', layout: 'kita' },
@@ -73,6 +75,7 @@ const EXPECTED_SERVER_MODULE_KEYS = [
 	'src/views/lit-view.lit.tsx',
 	'src/views/jsx-view.eco.tsx',
 	'src/pages/hello.script.ts',
+	'src/pages/radiant-production-probe.script.tsx',
 ] as const;
 
 const ENDPOINT_ROUTES = [
@@ -104,13 +107,11 @@ function findPackageDir(fromDir: string, name: string): string | undefined {
 }
 
 /**
- * Copies the fixture install and its runtime dependencies into `deployDir`,
- * so the emitted config's bare imports resolve without the workspace tree.
+ * Copies the fixture's runtime dependency links beside a relocated `dist/`.
  *
  * @remarks
- * Workspace packages are symlinked so Node can load their TypeScript. Reads
- * through those links are still the production `node_modules` tree, so their
- * real paths are allowed roots for the recording assertion.
+ * Workspace packages remain symlinks so Node can load their TypeScript; their
+ * real paths are included in the filesystem allowlist.
  */
 function installProductionNodeModules(appDir: string, deployDir: string, allowedRoots: Set<string>): void {
 	const destRoot = path.join(deployDir, 'node_modules');
@@ -155,11 +156,15 @@ function isInsideRoot(roots: Iterable<string>, candidate: string): boolean {
 	return [...roots].some((root) => resolved === root || resolved.startsWith(`${root}${path.sep}`));
 }
 
-async function expectEveryRouteServes(app: Awaited<ReturnType<typeof createApp>>): Promise<void> {
+async function expectEveryRouteServes(
+	request: (url: string) => Promise<Response>,
+	origin = ORIGIN,
+	diagnostics: () => string = () => '',
+): Promise<void> {
 	for (const route of PAGE_ROUTES) {
-		const response = await app.fetch(new Request(`${ORIGIN}${route.path}`));
+		const response = await request(`${origin}${route.path}`);
 		const body = await response.text();
-		expect(response.status, `${route.path}: ${body}`).toBe(200);
+		expect(response.status, `${route.path}: ${body}\n${diagnostics()}`).toBe(200);
 		expect(body).toContain(route.marker);
 		expect(body).toContain('data-html="kita"');
 		if ('layout' in route) {
@@ -167,14 +172,18 @@ async function expectEveryRouteServes(app: Awaited<ReturnType<typeof createApp>>
 		}
 	}
 
-	expect(await (await app.fetch(new Request(`${ORIGIN}/lit`))).text()).toContain('<span>hello-ssr</span>');
+	expect(await (await request(`${origin}/lit`)).text()).toContain('<span>hello-ssr</span>');
+	const jsxBody = await (await request(`${origin}/jsx`)).text();
+	expect(jsxBody).toContain('<radiant-production-probe data-radiant-ssr>');
+	expect(jsxBody).toContain('data-radiant-production-probe="true"');
+	expect(jsxBody).toContain('radiant-production-probe</span>');
 
-	const notFound = await app.fetch(new Request(`${ORIGIN}/missing-page`));
+	const notFound = await request(`${origin}/missing-page`);
 	expect(await notFound.text()).toContain('html-404');
 	expect(notFound.status).toBe(404);
 
 	for (const route of ENDPOINT_ROUTES) {
-		const response = await app.fetch(new Request(`${ORIGIN}${route.path}`));
+		const response = await request(`${origin}${route.path}`);
 		expect(response.status, route.path).toBe(200);
 		expect(await response.json()).toEqual({ integration: route.integration });
 	}
@@ -196,6 +205,139 @@ function runCliBuild(appDir: string): ReturnType<typeof spawnSync> {
 	});
 }
 
+async function listenOnPort(port = 0): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
+	const server = createServer();
+	server.on('connection', (socket) => socket.destroy());
+	await new Promise<void>((resolve, reject) => {
+		server.once('error', reject);
+		server.listen(port, '127.0.0.1', resolve);
+	});
+	const address = server.address();
+	if (!address || typeof address === 'string') {
+		throw new Error('Unable to read the local port for the production server test.');
+	}
+	return { server, port: address.port };
+}
+
+async function closeListeningServer(server: ReturnType<typeof createServer>): Promise<void> {
+	await new Promise<void>((resolve, reject) => {
+		server.close((error) => (error ? reject(error) : resolve()));
+	});
+}
+
+async function reservePort(): Promise<number> {
+	const reservation = await listenOnPort();
+	await closeListeningServer(reservation.server);
+	return reservation.port;
+}
+
+function spawnProductionServer(
+	appDir: string,
+	port: number,
+): {
+	child: ChildProcess;
+	output(): string;
+	closed: Promise<void>;
+} {
+	const child = spawn(process.execPath, [path.join(appDir, 'dist/.server/app.mjs')], {
+		cwd: appDir,
+		env: {
+			...process.env,
+			VITEST: '',
+			NODE_ENV: 'production',
+			ECOPAGES_HOSTNAME: '127.0.0.1',
+			ECOPAGES_PORT: String(port),
+			ECOPAGES_UNIFIED_PAGES_GRAPH: '0',
+		},
+		stdio: ['ignore', 'pipe', 'pipe'],
+	});
+	const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
+	let capturedOutput = '';
+	child.stdout?.on('data', (chunk: Buffer) => {
+		capturedOutput += chunk.toString();
+	});
+	child.stderr?.on('data', (chunk: Buffer) => {
+		capturedOutput += chunk.toString();
+	});
+	return { child, output: () => capturedOutput, closed };
+}
+
+async function waitForProductionServer(url: string, server: { child: ChildProcess; output(): string }): Promise<void> {
+	const deadline = Date.now() + 60_000;
+	while (Date.now() < deadline) {
+		if (server.child.exitCode !== null) {
+			throw new Error(`Production server exited before listening.\n${server.output()}`);
+		}
+		try {
+			const response = await fetch(url, { signal: AbortSignal.timeout(500) });
+			if (response.status === 200) return;
+		} catch {}
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	}
+	throw new Error(`Production server did not become ready.\n${server.output()}`);
+}
+
+async function startProductionServer(
+	appDir: string,
+	allocatePort: () => Promise<number> = reservePort,
+): Promise<{ child: ChildProcess; origin: string; output(): string }> {
+	for (let attempt = 0; attempt < MAX_PRODUCTION_SERVER_START_ATTEMPTS; attempt += 1) {
+		const port = await allocatePort();
+		const server = spawnProductionServer(appDir, port);
+		const origin = `http://127.0.0.1:${port}`;
+		try {
+			await waitForProductionServer(origin, server);
+			return { child: server.child, origin, output: server.output };
+		} catch (error) {
+			if (server.child.exitCode !== null || server.child.signalCode !== null) await server.closed;
+			const portIsInUse = /EADDRINUSE/u.test(server.output());
+			await stopProductionServer(server.child);
+			if (!portIsInUse || attempt + 1 === MAX_PRODUCTION_SERVER_START_ATTEMPTS) throw error;
+		}
+	}
+	throw new Error('Unable to start the production server after reserving local ports.');
+}
+
+async function stopProductionServer(child: ChildProcess): Promise<void> {
+	if (child.exitCode !== null) return;
+	const exited = waitForProcessExit(child, 5_000);
+	child.kill('SIGTERM');
+	if ((await exited) === null) {
+		const killed = waitForProcessExit(child, 5_000);
+		child.kill('SIGKILL');
+		await killed;
+	}
+}
+
+function clearSsrCustomElementRegistry(): void {
+	const registry = (
+		globalThis as typeof globalThis & {
+			customElements?: CustomElementRegistry & {
+				__definitions?: Map<string, { ctor: CustomElementConstructor }>;
+				__reverseDefinitions?: Map<object, string>;
+			};
+			litLayoutModuleEvaluations?: number;
+		}
+	).customElements;
+	registry?.__definitions?.clear();
+	registry?.__reverseDefinitions?.clear();
+	delete (globalThis as typeof globalThis & { litLayoutModuleEvaluations?: number }).litLayoutModuleEvaluations;
+}
+
+async function waitForProcessExit(child: ChildProcess, timeoutMs: number): Promise<number | null> {
+	if (child.exitCode !== null) return child.exitCode;
+	return await new Promise<number | null>((resolve) => {
+		const finish = (code: number | null): void => {
+			clearTimeout(timer);
+			child.off('exit', onExit);
+			resolve(code);
+		};
+		const onExit = (code: number | null): void => finish(code);
+		const timer = setTimeout(() => finish(null), timeoutMs);
+		child.once('exit', onExit);
+	});
+}
+
 describe('production server modules', () => {
 	const appDirs: string[] = [];
 
@@ -204,6 +346,7 @@ describe('production server modules', () => {
 		for (const appDir of appDirs.splice(0)) {
 			rmSync(appDir, { recursive: true, force: true });
 		}
+		clearSsrCustomElementRegistry();
 	});
 
 	it('serves every route from the build output without compiling', { timeout: 180_000 }, async () => {
@@ -229,13 +372,57 @@ describe('production server modules', () => {
 		runtime.buildAdapter = throwing;
 		runtime.buildQueue = new BuildQueue(throwing);
 
-		await expectEveryRouteServes(app);
+		await expectEveryRouteServes((url) => app.fetch(new Request(url)));
 
 		await app.stop();
 	});
 
 	it(
-		'serves every route from a copied dist/ and node_modules/ without reading sources',
+		'serves every route from dist/ after source files are removed and rejects an incomplete deployment',
+		{ timeout: 180_000 },
+		async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const appDir = copyFixtureApp(fixtureDir);
+			appDirs.push(appDir);
+
+			const built = runCliBuild(appDir);
+			expect(built.status, `${built.stdout}\n${built.stderr}`).toBe(0);
+
+			rmSync(path.join(appDir, 'src'), { recursive: true, force: true });
+			rmSync(path.join(appDir, 'eco.config.ts'), { force: true });
+			const occupiedPort = await listenOnPort();
+			let portAllocations = 0;
+			let server: Awaited<ReturnType<typeof startProductionServer>>;
+			try {
+				server = await startProductionServer(appDir, async () => {
+					portAllocations += 1;
+					return portAllocations === 1 ? occupiedPort.port : reservePort();
+				});
+			} finally {
+				await closeListeningServer(occupiedPort.server);
+			}
+			expect(portAllocations).toBe(2);
+			try {
+				await expectEveryRouteServes((url) => fetch(url), server.origin, server.output);
+			} finally {
+				await stopProductionServer(server.child);
+			}
+
+			rmSync(path.join(appDir, 'dist/.server/routes.json'));
+			const incompleteServer = spawnProductionServer(appDir, await reservePort());
+			try {
+				const exitCode = await waitForProcessExit(incompleteServer.child, 15_000);
+				expect(exitCode, incompleteServer.output()).not.toBeNull();
+				expect(exitCode).not.toBe(0);
+				expect(incompleteServer.output()).toContain('production route list');
+			} finally {
+				await stopProductionServer(incompleteServer.child);
+			}
+		},
+	);
+
+	it(
+		'serves every route from relocated dist/ and node_modules/ without reading source files',
 		{ timeout: 180_000 },
 		async () => {
 			vi.stubEnv('NODE_ENV', 'production');
@@ -248,8 +435,9 @@ describe('production server modules', () => {
 			const deployDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-dist-deploy-')));
 			appDirs.push(deployDir);
 			cpSync(path.join(appDir, 'dist'), path.join(deployDir, 'dist'), { recursive: true });
-			const allowedRoots = new Set<string>([deployDir, realpathSync(deployDir)]);
+			const allowedRoots = new Set<string>([deployDir]);
 			installProductionNodeModules(appDir, deployDir, allowedRoots);
+			rmSync(appDir, { recursive: true, force: true });
 
 			const recording = createRecordingFileSystem(nodeFs);
 			const restoreFileSystem = installFileSystem(recording);
@@ -266,7 +454,7 @@ describe('production server modules', () => {
 				runtime.buildAdapter = throwing;
 				runtime.buildQueue = new BuildQueue(throwing);
 
-				await expectEveryRouteServes(app);
+				await expectEveryRouteServes((url) => app.fetch(new Request(url)));
 				await app.stop();
 
 				const outside = recording.recordedPaths.filter(

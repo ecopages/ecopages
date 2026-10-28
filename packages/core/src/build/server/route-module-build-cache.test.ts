@@ -163,6 +163,8 @@ describe('RouteModuleBuildCache', () => {
 			format: ['esm', 'cjs'],
 			sourcemap: ['none', 'linked'],
 			splitting: [true, false],
+			preserveModules: [true, false],
+			preserveModulesRoot: ['/app', '/other'],
 			root: ['/app', '/other'],
 			externalPackages: [true, false],
 			reportPackagesOutsideRoot: [true, false],

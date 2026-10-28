@@ -1,8 +1,7 @@
-import path from 'node:path';
+import { getServerModuleBuildCacheOutdir } from './route-module-build-cache-registry.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { EcoPageComponent, ViewLoader } from '../../types/contracts.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
-import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 
 /**
  * Loads a view through the app module loader.
@@ -14,7 +13,7 @@ import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 export async function importViewModule<T = unknown>(appConfig: EcoPagesAppConfig, filePath: string): Promise<T> {
 	return await requireAppRuntime(appConfig).moduleLoader.importModule<T>({
 		filePath,
-		outdir: path.join(resolveInternalExecutionDir(appConfig), '.server-modules'),
+		outdir: getServerModuleBuildCacheOutdir(appConfig),
 		externalPackages: true,
 	});
 }

@@ -18,6 +18,7 @@ import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { appLogger } from '../../global/app-logger.ts';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
+import { resolveRolldownOptions } from './rolldown-adapter-helpers.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
@@ -343,6 +344,121 @@ describe('RolldownBuildAdapter', () => {
 			{ encoding: 'utf8' },
 		);
 		expect(JSON.parse(loaded)).toEqual({ native: true });
+	});
+
+	test('preserveModules writes every module flat in outdir, so nested modules resolve externals and serverFiles', async () => {
+		mkdirSync(path.join(workDir, 'src/pages'), { recursive: true });
+		mkdirSync(path.join(workDir, 'src/layouts'), { recursive: true });
+		writeFixture(
+			'src/layouts/base.ts',
+			"import { parseSync } from 'oxc-parser';\nexport const dir = import.meta.dirname;\nexport const parse = typeof parseSync;\n",
+		);
+		const entrypoint = writeFixture('src/pages/index.ts', "export { dir, parse } from '../layouts/base.ts';\n");
+		const outdir = path.join(workDir, 'dist');
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: { 'src-pages-index': entrypoint },
+			outdir,
+			target: 'node',
+			format: 'esm',
+			externalPackages: true,
+			preserveModules: true,
+			preserveModulesRoot: workDir,
+			naming: '[name]-[hash].[ext]',
+			root: workDir,
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		const outputs = Object.keys(result.outputGraph).map((outputPath) => path.relative(outdir, outputPath));
+		expect(outputs.length).toBeGreaterThan(1);
+		expect(outputs.filter((output) => output.includes(path.sep))).toEqual([]);
+		const layoutSource = realpathSync(path.join(workDir, 'src/layouts/base.ts'));
+		const layoutChunk = Object.values(result.outputGraph).find((chunk) =>
+			chunk.modules.some((moduleId) => realpathSync(moduleId) === layoutSource),
+		);
+		expect(path.basename(layoutChunk!.fileName)).toMatch(/layouts-base-/);
+		const entryOutput = result.entryOutputs[entrypoint];
+		const loaded = execFileSync(
+			process.execPath,
+			[
+				'--input-type=module',
+				'-e',
+				`const m = await import(${JSON.stringify(pathToFileURL(entryOutput!).href)}); console.log(JSON.stringify({ dir: m.dir, parse: m.parse }));`,
+			],
+			{ encoding: 'utf8' },
+		);
+		expect(JSON.parse(loaded)).toEqual({ dir: realpathSync(outdir), parse: 'function' });
+	});
+
+	test('shortens flattened preserved module names from deep pnpm store paths', async () => {
+		const entrypoint = writeFixture('entry.ts', 'export {};\n');
+		const outdir = path.join(workDir, 'dist');
+		const options: BuildOptions = {
+			environment: 'server',
+			entrypoints: { entry: entrypoint },
+			outdir,
+			target: 'node',
+			format: 'esm',
+			preserveModules: true,
+			preserveModulesRoot: workDir,
+			naming: '[name]-[hash].[ext]',
+			root: workDir,
+		};
+		const resolved = await resolveRolldownOptions(options, workDir, outdir, new Map(), () => {});
+		const entryFileNames = resolved.outputOptions.entryFileNames;
+		if (typeof entryFileNames !== 'function') {
+			throw new Error('Expected preserved module naming to use a function.');
+		}
+
+		const deepStoreName = `node_modules/.pnpm/deep-package@1.0.0_${'peer-'.repeat(40)}/node_modules/deep-package/dist/`;
+		const outputNames = [`${deepStoreName}index`, `${deepStoreName}index-copy`].map((name) =>
+			entryFileNames({ name } as Parameters<typeof entryFileNames>[0]),
+		);
+
+		expect(new Set(outputNames).size).toBe(outputNames.length);
+		expect(outputNames.every((name) => Buffer.byteLength(name) < 255)).toBe(true);
+	});
+
+	test('externalPackages keeps preserved virtual modules importable', async () => {
+		const entrypoint = writeFixture('virtual-entry.ts', "export { parseSync } from 'virtual:parser';\n");
+		const virtualModulePlugin: EcoBuildPlugin = {
+			name: 'virtual-parser',
+			setup(build) {
+				build.module('virtual:parser', () => ({
+					contents: "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n",
+					loader: 'js',
+				}));
+			},
+		};
+		const outdir = path.join(workDir, 'virtual-dist');
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'node',
+			format: 'esm',
+			externalPackages: true,
+			preserveModules: true,
+			preserveModulesRoot: workDir,
+			plugins: [virtualModulePlugin],
+			root: workDir,
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		const entryOutput = result.entryOutputs[entrypoint];
+		expect(entryOutput).toBeDefined();
+		const loaded = execFileSync(
+			process.execPath,
+			[
+				'--input-type=module',
+				'-e',
+				`const m = await import(${JSON.stringify(pathToFileURL(entryOutput!).href)}); console.log(typeof m.parseSync);`,
+			],
+			{ encoding: 'utf8' },
+		);
+		expect(loaded.trim()).toBe('function');
 	});
 
 	test('externalPackages keeps node builtins external for node-target builds', async () => {

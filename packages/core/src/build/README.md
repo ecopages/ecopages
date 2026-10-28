@@ -167,9 +167,10 @@ Core-owned browser builds reject Node builtins during resolution and imports mat
 
 An Integration can prune server-only imports before resolution. React uses the shared naming predicate while removing server-only Page options, so a middleware-only `.server` import does not fail the browser build. No `server-only` package marker is interpreted by this guard.
 
-`BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exception:
+`BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exceptions:
 
 - `splitting` — when `false` with a single entrypoint, maps to Rolldown `codeSplitting: false` so dynamic imports stay in one file. Multi-entrypoint builds ignore `splitting: false` because Rolldown cannot inline across multiple inputs.
+- `preserveModules` — emits each source module as a separate file, named after its source path with `/` replaced by `-` so every module sits directly in the output directory. Long flattened names are shortened with a stable digest to stay below common filesystem filename limits. Production server-module emits use it across build passes so a shared SSR script dependency keeps one output path and one runtime module instance. Flat names keep `import.meta` of every emitted module pointing at the folder that holds `serverFiles`, and let installed-package externals relative to the output directory resolve from every module.
 
 ## Dev / watch path
 
@@ -208,7 +209,7 @@ An app with API handlers, WebSocket handlers or endpoint files (`.api.ts`, `.api
 | `dist/`         | Server bundle, emitted config, route list, `server-modules.json`, emitted server modules, and the static export. |
 | `node_modules/` | The install the build ran against, on the server's operating system and CPU architecture.                        |
 
-Start the server from that folder with `node dist/.server/app.mjs`. `ecopages start` checks that `dist/` is complete (one build id, every listed output exists) and loads the emitted config from `dist/.server/`. It does not scan `src/` or compare source fingerprints.
+Start the server from that folder with `node dist/.server/app.mjs`. `ecopages start` checks that `dist/` is complete (one build id, every listed output exists, the route list present) and loads the emitted config from `dist/.server/`. It does not scan source Pages, compare source fingerprints or copy the source public directory into `dist/`.
 
 Relative imports name the package manager's store folders (`node_modules/.pnpm/<name>@<version>_<peers>/...`), so a reinstall works only when it reproduces those names: the same lockfile, package manager version and layout settings (pnpm `node-linker`, `virtual-store-dir`, `virtual-store-dir-max-length`). Copy the install the build used instead, built on the target platform, because native bindings are per platform.
 
@@ -231,9 +232,9 @@ Entries: Page templates including dynamic ones, Layouts, the Html shell, Endpoin
 
 `ServerStaticBuilder` calls `emitProductionServerModules()` after it publishes the server bundle, so publication cannot wipe the modules, then writes `routes.json` and copies `serverFiles`. Listing routes during `ecopages build` still compiles from source until `dist/.server/server-modules.json` exists. After that, and on `ecopages start`, a missing map entry or missing file is an error that names the source and says to run `ecopages build`. `bypassCache` only skips the in-memory import promise. Production `ecopages start` loads filesystem routes from `routes.json` instead of scanning the pages directory.
 
-`shouldBuildPagesUnifiedGraph()` is true by default in production. `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0` opts out, which the bench parity suite uses as its per-page build oracle. A production `ecopages start` after a normal build still requires the emitted map.
+`shouldBuildPagesUnifiedGraph()` is true by default in production builds. `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0` opts out of emitting the map, which the bench parity suite uses as its per-page build oracle. The flag does not change `ecopages start`: start always requires and loads the emitted map, even when the variable is set.
 
-Same-process reuse keeps the emitted files when every requested source key is already in the map. Source hashes are not checked: the next `ecopages build` empties `dist/` and emits again. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
+Static generation skips emit when this process already emitted the map. Source hashes are not checked: the next `ecopages build` empties `dist/` and emits again. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
 
 `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` enables `rolldown/rolldown-build-invocation-metrics.ts` counters used by bench and parity tests.
 

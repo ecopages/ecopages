@@ -79,6 +79,8 @@ test('createBuildRequestIdentity distinguishes every BuildOptions field', () => 
 		format: ['esm', 'cjs'],
 		sourcemap: ['none', 'linked'],
 		splitting: [true, false],
+		preserveModules: [true, false],
+		preserveModulesRoot: ['/in', '/other'],
 		root: ['/in', '/other'],
 		externalPackages: [true, false],
 		reportPackagesOutsideRoot: [true, false],

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { getServerModuleBuildCacheOutdir } from '../../../build/server/route-module-build-cache-registry.ts';
 import { fileURLToPath } from 'node:url';
 import { HMR_RUNTIME_SCRIPT_URL, resolveHmrRuntimeWorkDir } from '../../../hmr/hmr-runtime-paths.ts';
 import {
@@ -35,7 +36,7 @@ import type {
 import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
 import { BrowserBundleService } from '../../../assets/browser-bundle.service.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
-import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
+import { resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';
 import type { DevTransformBundleContributor } from '../../../dev/transform-server/types.ts';
 import type { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
@@ -434,7 +435,7 @@ export class HmrManager implements IHmrManager {
 			importServerModule: async <T>(filePath: string) =>
 				await requireAppRuntime(this.appConfig).moduleLoader.importModule<T>({
 					filePath,
-					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
+					outdir: getServerModuleBuildCacheOutdir(this.appConfig),
 					externalPackages: true,
 				}),
 		};

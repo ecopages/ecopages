@@ -17,6 +17,7 @@ import { findIntegrationForFile } from '../../plugins/find-integration-for-file.
 import { buildOrThrow } from '../runtime/build-queue.ts';
 import { createServerBuildRequest } from '../runtime/build-request-policy.ts';
 import { getBuildEntryOutput } from '../build-graph.ts';
+import type { BuildSuccess } from '../build-adapter.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { ErrorPageLoaders, StaticRoute } from '../../types/contracts.ts';
 import { contentHash } from '../../utils/content-hash.ts';
@@ -37,18 +38,7 @@ import {
 } from './server-module-entries.ts';
 
 /**
- * @deprecated In-memory graph shape kept for tests that still inspect outputs.
- */
-export interface PagesUnifiedGraphCacheManifest {
-	buildKey: string;
-	outputs: Record<string, string>;
-	outputImports: string[];
-	dependencyHashes: Record<string, string>;
-	importable?: boolean;
-}
-
-/**
- * True when the unified graph should build or serve prebuilt page modules.
+ * True when a production build should emit the server-modules map.
  *
  * @remarks
  * Enabled by default in production builds. `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0` opts out, which the
@@ -85,24 +75,6 @@ function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
 
 function uniqueEntryPaths(entryPaths: readonly string[]): string[] {
 	return [...new Set(entryPaths.map((entryPath) => path.resolve(entryPath)))];
-}
-
-function emittedFilesExist(manifest: ProductionServerModulesManifest, sourceKeys: readonly string[]): boolean {
-	return sourceKeys.every((sourceKey) => {
-		const relativePath = manifest.modules[sourceKey];
-		return relativePath ? fileSystem.exists(path.join(manifest.outdir, relativePath)) : false;
-	});
-}
-
-function canReuseEmittedModules(
-	manifest: ProductionServerModulesManifest | null,
-	outdir: string,
-	sourceKeys: readonly string[],
-): manifest is ProductionServerModulesManifest {
-	if (!manifest || path.resolve(manifest.outdir) !== path.resolve(outdir)) {
-		return false;
-	}
-	return sourceKeys.every((sourceKey) => sourceKey in manifest.modules) && emittedFilesExist(manifest, sourceKeys);
 }
 
 async function emitCompiledPageModule(
@@ -193,9 +165,9 @@ async function emitRolldownServerModules(
 	appConfig: EcoPagesAppConfig,
 	entryPaths: readonly string[],
 	outdir: string,
-): Promise<Record<string, string>> {
+): Promise<{ modules: Record<string, string>; outputGraph: BuildSuccess['outputGraph'] }> {
 	if (entryPaths.length === 0) {
-		return {};
+		return { modules: {}, outputGraph: {} };
 	}
 
 	const entryRecord: Record<string, string> = {};
@@ -208,6 +180,8 @@ async function emitRolldownServerModules(
 		entrypoints: entryRecord,
 		outdir,
 		splitting: true,
+		preserveModules: true,
+		preserveModulesRoot: appConfig.rootDir,
 		naming: '[name]-[hash].[ext]',
 	});
 	const buildResult = await buildOrThrow(appConfig, buildOptions, 'Pages unified graph build failed').finally(() =>
@@ -220,12 +194,19 @@ async function emitRolldownServerModules(
 		if (!compiledOutput) {
 			throw new Error(`Pages unified graph build produced no output for ${entryPath}`);
 		}
-		modules[toRootRelativePath(appConfig.rootDir, entryPath)] = path
-			.relative(outdir, compiledOutput)
-			.split(path.sep)
-			.join('/');
+		modules[toRootRelativePath(appConfig.rootDir, entryPath)] = toRootRelativePath(outdir, compiledOutput);
 	}
-	return modules;
+	return { modules, outputGraph: buildResult.outputGraph };
+}
+
+function findEmittedModulePath(outputGraph: BuildSuccess['outputGraph'], sourcePath: string): string | undefined {
+	const resolvedSource = path.resolve(sourcePath);
+	for (const [outputPath, chunk] of Object.entries(outputGraph)) {
+		if (chunk.modules.includes(resolvedSource)) {
+			return outputPath;
+		}
+	}
+	return undefined;
 }
 
 async function importEmittedModules(
@@ -246,12 +227,6 @@ async function importEmittedModules(
 function assignProductionServerModules(appConfig: EcoPagesAppConfig, manifest: ProductionServerModulesManifest): void {
 	const runtime = requireAppRuntime(appConfig);
 	runtime.productionServerModules = manifest;
-	runtime.pagesUnifiedGraphManifest = null;
-}
-
-function storeProductionServerModules(appConfig: EcoPagesAppConfig, manifest: ProductionServerModulesManifest): void {
-	assignProductionServerModules(appConfig, manifest);
-	writeProductionServerModulesManifest(manifest);
 }
 
 /**
@@ -259,8 +234,11 @@ function storeProductionServerModules(appConfig: EcoPagesAppConfig, manifest: Pr
  *
  * @remarks
  * Imports the emitted Rolldown modules to discover extra `ssr: true` scripts, so
- * Integrations are activated first. An Integration that needs process globals
- * before those imports installs them in `setup()`.
+ * Integrations are activated first; Core installs the configured server DOM
+ * before their `setup()`. A discovered script already bundled into the first
+ * emit maps to that output. Otherwise a second emit adds the scripts; preserved
+ * modules keep their output path across both emits, so a module imported after
+ * the first emit is not evaluated again from a second copy.
  */
 export async function emitProductionServerModules(options: {
 	appConfig: EcoPagesAppConfig;
@@ -282,11 +260,12 @@ export async function emitProductionServerModules(options: {
 		errorPageLoaders: options.errorPageLoaders,
 	});
 
-	let rolldownEntries = collected.filter((entryPath) => isRolldownServerModuleEntry(entryPath, appConfig));
+	const rolldownEntries = collected.filter((entryPath) => isRolldownServerModuleEntry(entryPath, appConfig));
 	const htmlEntries = collected.filter((entryPath) => !isRolldownServerModuleEntry(entryPath, appConfig));
 
 	const modules: Record<string, string> = {};
-	Object.assign(modules, await emitRolldownServerModules(appConfig, uniqueEntryPaths(rolldownEntries), outdir));
+	const initialEmit = await emitRolldownServerModules(appConfig, uniqueEntryPaths(rolldownEntries), outdir);
+	Object.assign(modules, initialEmit.modules);
 
 	for (const htmlEntry of uniqueEntryPaths(htmlEntries)) {
 		const emitted = await emitCompiledPageModule(appConfig, htmlEntry, outdir);
@@ -311,8 +290,23 @@ export async function emitProductionServerModules(options: {
 	);
 
 	if (discoveredScripts.length > 0) {
-		rolldownEntries = uniqueEntryPaths([...rolldownEntries, ...discoveredScripts]);
-		Object.assign(modules, await emitRolldownServerModules(appConfig, rolldownEntries, outdir));
+		const scriptsToEmit: string[] = [];
+		for (const scriptPath of discoveredScripts) {
+			const existingOutput = findEmittedModulePath(initialEmit.outputGraph, scriptPath);
+			if (existingOutput) {
+				modules[toRootRelativePath(appConfig.rootDir, scriptPath)] = toRootRelativePath(outdir, existingOutput);
+			} else {
+				scriptsToEmit.push(scriptPath);
+			}
+		}
+		if (scriptsToEmit.length > 0) {
+			const emittedModules = await emitRolldownServerModules(
+				appConfig,
+				uniqueEntryPaths([...rolldownEntries, ...scriptsToEmit]),
+				outdir,
+			);
+			Object.assign(modules, emittedModules.modules);
+		}
 		manifest = { outdir, buildId: ensureProductionBuildId(appConfig), modules };
 		assignProductionServerModules(appConfig, manifest);
 	}
@@ -324,85 +318,11 @@ export async function emitProductionServerModules(options: {
 }
 
 /**
- * Builds eligible server entries in one Rolldown invocation and records outputs.
+ * Imports the emitted module for `filePath` from the production server-modules map.
  *
  * @remarks
- * Production emit writes `dist/.server/server-modules.json`. HTML Pages compile
- * through `compilePageModule` and join the same map.
+ * Resolves `undefined` when no map was emitted or it does not list the file.
  */
-export async function ensurePagesUnifiedGraphBuilt(options: {
-	appConfig: EcoPagesAppConfig;
-	entryPaths: readonly string[];
-	outdir: string;
-	force?: boolean;
-}): Promise<PagesUnifiedGraphCacheManifest | undefined> {
-	requireAppRuntime(options.appConfig);
-	if (!shouldBuildPagesUnifiedGraph()) {
-		return undefined;
-	}
-
-	const eligibleEntryPaths = uniqueEntryPaths(options.entryPaths);
-	if (eligibleEntryPaths.length === 0) {
-		return undefined;
-	}
-
-	const outdir = path.resolve(options.outdir);
-	const runtime = requireAppRuntime(options.appConfig);
-	const sourceKeys = eligibleEntryPaths.map((entryPath) => toRootRelativePath(options.appConfig.rootDir, entryPath));
-	if (!options.force && canReuseEmittedModules(runtime.productionServerModules, outdir, sourceKeys)) {
-		appLogger.debug('Reusing pages unified graph built in this process');
-		return {
-			buildKey: outdir,
-			outputs: Object.fromEntries(
-				eligibleEntryPaths.map((entryPath, index) => [
-					entryPath,
-					path.join(outdir, runtime.productionServerModules!.modules[sourceKeys[index]!]!),
-				]),
-			),
-			outputImports: [],
-			dependencyHashes: {},
-		};
-	}
-
-	const rolldownEntries = eligibleEntryPaths.filter((entryPath) =>
-		isRolldownServerModuleEntry(entryPath, options.appConfig),
-	);
-	const htmlEntries = eligibleEntryPaths.filter(
-		(entryPath) => !isRolldownServerModuleEntry(entryPath, options.appConfig),
-	);
-
-	const modules: Record<string, string> = {
-		...(await emitRolldownServerModules(options.appConfig, rolldownEntries, outdir)),
-	};
-	const outputs: Record<string, string> = {};
-	for (const entryPath of rolldownEntries) {
-		const sourceKey = toRootRelativePath(options.appConfig.rootDir, entryPath);
-		const relativePath = modules[sourceKey];
-		if (relativePath) {
-			outputs[entryPath] = path.join(outdir, relativePath);
-		}
-	}
-
-	for (const htmlEntry of htmlEntries) {
-		const emitted = await emitCompiledPageModule(options.appConfig, htmlEntry, outdir);
-		modules[emitted.sourceKey] = emitted.relativePath;
-		outputs[htmlEntry] = emitted.outputPath;
-	}
-
-	storeProductionServerModules(options.appConfig, {
-		outdir,
-		modules: { ...runtime.productionServerModules?.modules, ...modules },
-	});
-	appLogger.debug(`Built pages unified graph for ${eligibleEntryPaths.length} entries`);
-
-	return {
-		buildKey: outdir,
-		outputs,
-		outputImports: Object.values(outputs),
-		dependencyHashes: {},
-	};
-}
-
 export async function importPagesUnifiedGraphModule<T>(
 	appConfig: EcoPagesAppConfig,
 	filePath: string,

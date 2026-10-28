@@ -31,10 +31,10 @@ This command will:
 
 ## Static Hosting
 
-If your site **does not** use API routes or programmatic server logic, you can host the contents of the `dist` directory on any static provider. `ecopages start` cannot run a static-only build because it has no server bundle; use `ecopages preview` to serve it locally.
+If your site **does not** use API routes or programmatic server logic, you can host the contents of the `dist` directory on any static provider. Leave out `dist/.server/`: it holds the build's compiled server output, which a static host would publish. `ecopages start` cannot run a static-only build because it has no server bundle; use `ecopages preview` to serve it locally.
 
-- **Vercel / Netlify**: Connect your repository and set the build command to `pnpm run build`. Set the output directory to `dist`.
-- **GitHub Pages**: Use a GitHub Action to run `pnpm run build` and deploy the output directory.
+- **Vercel / Netlify**: Connect your repository and set the build command to `pnpm run build && rm -rf dist/.server`. Set the output directory to `dist`.
+- **GitHub Pages**: Use a GitHub Action to run `pnpm run build`, remove `dist/.server`, and deploy the output directory.
 
 <RuiAlert variant="info" layout="banner" class="unstyled">
 	<RuiAlertTitle>Base URL Configuration</RuiAlertTitle>
@@ -67,7 +67,7 @@ pnpm run start
 
 Copy the `node_modules` the build used, installed on the same operating system and CPU architecture as the server, because packages with native bindings install files for one platform. Some imports point into the package manager's own folders, such as `node_modules/.pnpm/<name>@<version>_<peers>/`, so a fresh install only works when it produces the same folder names: same lockfile, same package manager version and same layout settings (for pnpm `node-linker`, `virtual-store-dir` and `virtual-store-dir-max-length`; for Bun the linker).
 
-Start the server from that folder with `node dist/.server/app.mjs`, or `bun dist/.server/app.mjs`. `ecopages start` checks that `dist/` is complete and loads the config compiled into `dist/.server/`. It does not read `src/` or compare source fingerprints.
+Start the server from that folder with `node dist/.server/app.mjs`, or `bun dist/.server/app.mjs`. Both, like `ecopages start`, check that `dist/` is complete and load the routes, server modules and config compiled into `dist/.server/`. Start does not read `src/`, compare source fingerprints or write into `dist/`.
 
 Production `import.meta.url`, `import.meta.dirname` and `import.meta.filename` point at the emitted files in `dist/.server/`. App code that reads a file next to its module must declare it in `serverFiles` so the build copies it into `dist/.server/` by basename, or move the file to `public/` for the browser to fetch. Development still rewrites `import.meta` to source locations.
 

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { getServerModuleBuildCacheOutdir } from '../../../build/server/route-module-build-cache-registry.ts';
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts';
@@ -24,7 +25,6 @@ import { appLogger } from '../../../global/app-logger.ts';
 import { parseSegmentPath, type ParsedSegmentPath } from '../../../router/server/segment-path-matcher.ts';
 import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
 import type { EcoPageComponent, EcoPageFile } from '../../../types/contracts.ts';
-import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
 import type { RouteRegistryPageModuleAdapter } from '../../../router/server/route-registry.ts';
 import type {
@@ -323,7 +323,7 @@ export class ServerRequestPipeline {
 	private async importServerModule<T = unknown>(filePath: string): Promise<T> {
 		return await requireAppRuntime(this.appConfig).moduleLoader.importModule<T>({
 			filePath,
-			outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
+			outdir: getServerModuleBuildCacheOutdir(this.appConfig),
 			externalPackages: true,
 		});
 	}

@@ -234,12 +234,13 @@ async function reservePort(): Promise<number> {
 function spawnProductionServer(
 	appDir: string,
 	port: number,
+	entryFile = path.join(appDir, 'dist/.server/app.mjs'),
 ): {
 	child: ChildProcess;
 	output(): string;
 	closed: Promise<void>;
 } {
-	const child = spawn(process.execPath, [path.join(appDir, 'dist/.server/app.mjs')], {
+	const child = spawn(process.execPath, [entryFile], {
 		cwd: appDir,
 		env: {
 			...process.env,
@@ -280,10 +281,11 @@ async function waitForProductionServer(url: string, server: { child: ChildProces
 async function startProductionServer(
 	appDir: string,
 	allocatePort: () => Promise<number> = reservePort,
+	entryFile?: string,
 ): Promise<{ child: ChildProcess; origin: string; output(): string }> {
 	for (let attempt = 0; attempt < MAX_PRODUCTION_SERVER_START_ATTEMPTS; attempt += 1) {
 		const port = await allocatePort();
-		const server = spawnProductionServer(appDir, port);
+		const server = spawnProductionServer(appDir, port, entryFile);
 		const origin = `http://127.0.0.1:${port}`;
 		try {
 			await waitForProductionServer(origin, server);
@@ -387,6 +389,8 @@ describe('production server modules', () => {
 
 			const built = runCliBuild(appDir);
 			expect(built.status, `${built.stdout}\n${built.stderr}`).toBe(0);
+			const wrapperPath = path.join(appDir, 'server.js');
+			writeFileSync(wrapperPath, "await import('./dist/.server/app.mjs');\n");
 
 			rmSync(path.join(appDir, 'src'), { recursive: true, force: true });
 			rmSync(path.join(appDir, 'eco.config.ts'), { force: true });
@@ -394,10 +398,14 @@ describe('production server modules', () => {
 			let portAllocations = 0;
 			let server: Awaited<ReturnType<typeof startProductionServer>>;
 			try {
-				server = await startProductionServer(appDir, async () => {
-					portAllocations += 1;
-					return portAllocations === 1 ? occupiedPort.port : reservePort();
-				});
+				server = await startProductionServer(
+					appDir,
+					async () => {
+						portAllocations += 1;
+						return portAllocations === 1 ? occupiedPort.port : reservePort();
+					},
+					wrapperPath,
+				);
 			} finally {
 				await closeListeningServer(occupiedPort.server);
 			}
@@ -409,7 +417,7 @@ describe('production server modules', () => {
 			}
 
 			rmSync(path.join(appDir, 'dist/.server/routes.json'));
-			const incompleteServer = spawnProductionServer(appDir, await reservePort());
+			const incompleteServer = spawnProductionServer(appDir, await reservePort(), wrapperPath);
 			try {
 				const exitCode = await waitForProcessExit(incompleteServer.child, 15_000);
 				expect(exitCode, incompleteServer.output()).not.toBeNull();

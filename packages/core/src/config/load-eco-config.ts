@@ -2,7 +2,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { finalizeEcoPagesConfig } from './assembly/finalize-config.ts';
-import { resolveEcoConfigPath } from './resolve-eco-config-path.ts';
+import { resolveEcoConfigPath, resolveEcoConfigPathFromServerBundle } from './resolve-eco-config-path.ts';
+import { getProductionServerBundleDir } from '../utils/server-bundle-context.ts';
 import type {
 	EcoPagesUserConfig,
 	EcoPagesUserConfigFactory,
@@ -93,8 +94,24 @@ export async function loadEcoPagesUserConfig(
  * state belongs to each caller.
  */
 export async function loadEcoPagesConfig(options: LoadEcoPagesConfigOptions = {}): Promise<EcoPagesAppConfig> {
+	return await loadEcoPagesConfigWithBundleDir(options, getProductionServerBundleDir());
+}
+
+export async function loadEcoPagesConfigFromServerBundle(
+	options: LoadEcoPagesConfigOptions,
+	serverBundleDir: string,
+): Promise<EcoPagesAppConfig> {
+	return await loadEcoPagesConfigWithBundleDir(options, serverBundleDir);
+}
+
+async function loadEcoPagesConfigWithBundleDir(
+	options: LoadEcoPagesConfigOptions,
+	serverBundleDir: string | undefined,
+): Promise<EcoPagesAppConfig> {
 	const cwd = resolveLoaderCwd(options.cwd);
-	const configFilePath = resolveEcoConfigPath({ ...options, cwd });
+	const configFilePath = serverBundleDir
+		? resolveEcoConfigPathFromServerBundle({ ...options, cwd }, serverBundleDir)
+		: resolveEcoConfigPath({ ...options, cwd });
 	const exported = await loadConfigModule(configFilePath);
 	const userConfig = materializeUserConfig(exported, configFilePath);
 	return await finalizeEcoPagesConfig(userConfig, { configFilePath, cwd });

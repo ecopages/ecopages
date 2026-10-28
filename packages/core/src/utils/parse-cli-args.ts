@@ -1,8 +1,6 @@
-import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isEcopagesEnvEnabled, setRuntimeModeForCliCommand } from '../env.ts';
 import { getRuntimeArgv } from './runtime.ts';
-import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from './resolve-entry-file.ts';
 
 /**
  * Parsed command line arguments for the Ecopages server.
@@ -29,18 +27,10 @@ const ECOPAGES_BIN_FILES = ['ecopages.ts', 'ecopages.js', 'cli.js'];
 const ECOPAGES_AVAILABLE_COMMANDS = ['dev', 'build', 'start', 'preview'];
 
 /**
- * True when this process runs the production server entrypoint or the CLI's start command.
- *
- * @remarks
- * The CLI launches `dist/.server/app.mjs` directly, without forwarding its `start` subcommand.
+ * True when this process runs the Ecopages CLI's start command.
  */
 export function isEcopagesStartCli(runtimeArgv: string[] = getRuntimeArgv()): boolean {
-	const entryPath = runtimeArgv[1];
-	const isProductionServerEntrypoint =
-		entryPath !== undefined &&
-		path.basename(path.dirname(path.resolve(entryPath))) === SERVER_BUNDLE_DIR &&
-		path.basename(entryPath) === SERVER_BUNDLE_FILENAME;
-	return isProductionServerEntrypoint || resolveEcopagesSubcommand(runtimeArgv) === 'start';
+	return resolveEcopagesSubcommand(runtimeArgv) === 'start';
 }
 
 function resolveEcopagesSubcommand(runtimeArgv: string[]): string {

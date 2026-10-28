@@ -62,6 +62,7 @@ function createTestApp(
 		createServerAdapter(),
 	stop?: () => Promise<void>,
 	appCliArgs: ReturnParseCliArgs = cliArgs,
+	serverBundleDir?: string,
 ) {
 	const { runtimeHost, server } = createRuntimeHost(stop);
 	const app = new EcopagesApp(
@@ -71,6 +72,7 @@ function createTestApp(
 				appRuntime: { origin: 'http://localhost:3000', hmr: null },
 			} as never,
 			cliArgs: appCliArgs,
+			serverBundleDir,
 		},
 		{ runtimeHost, createServerAdapter: createServerAdapterFactory },
 	);
@@ -78,14 +80,19 @@ function createTestApp(
 }
 
 describe('EcopagesApp route registration', () => {
-	it('requires a complete production dist for the emitted server entrypoint', async () => {
+	it('requires a complete production dist when launched through a wrapper importing the emitted entrypoint', async () => {
 		const originalArgv = process.argv;
-		process.argv = ['node', '/app/dist/.server/app.mjs'];
+		process.argv = ['node', '/app/server.js'];
 		let receivedParams: NodeServerAdapterParams | undefined;
-		const { app } = createTestApp(async (params) => {
-			receivedParams = params;
-			return createServerAdapter();
-		});
+		const { app } = createTestApp(
+			async (params) => {
+				receivedParams = params;
+				return createServerAdapter();
+			},
+			undefined,
+			cliArgs,
+			'/app/dist/.server',
+		);
 		try {
 			await app.fetch(new Request('http://localhost:3000/'));
 			expect(receivedParams?.requireCompleteDist).toBe(true);
@@ -94,18 +101,14 @@ describe('EcopagesApp route registration', () => {
 		}
 	});
 
-	it('leaves dist completeness unchecked when the emitted entrypoint runs another command', async () => {
+	it('does not infer a production bundle from a similarly named process entrypoint', async () => {
 		const originalArgv = process.argv;
 		process.argv = ['node', '/app/dist/.server/app.mjs', '--preview'];
 		let receivedParams: NodeServerAdapterParams | undefined;
-		const { app } = createTestApp(
-			async (params) => {
-				receivedParams = params;
-				return createServerAdapter();
-			},
-			undefined,
-			{ ...cliArgs, start: false, preview: true },
-		);
+		const { app } = createTestApp(async (params) => {
+			receivedParams = params;
+			return createServerAdapter();
+		});
 		try {
 			await app.fetch(new Request('http://localhost:3000/'));
 			expect(receivedParams?.requireCompleteDist).toBe(false);

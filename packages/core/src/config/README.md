@@ -23,7 +23,7 @@ It is responsible for:
 - `define-config.ts`: synchronous `defineConfig()` identity for `eco.config.ts` authoring
 - `load-eco-config.ts`: resolves and caches the config module import; a config factory runs for each app, then every call finalizes a new app config and `AppRuntime`. Object configs with plugin instances can create one app; export a factory to create multiple apps safely.
 - `config-module-files.ts`: when the config is loaded from source, lists it and the project files it imports as `absolutePaths.configModuleFiles`. Packages, files outside `rootDir` and imports that do not resolve stay out. Build-input fingerprints hash these files, and `ecopages dev` restarts when any of them change, so an edit to a plugin options module the config imports takes effect like an edit to the config itself. Components imported by the config lose hot reload.
-- `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, the `eco.config.mjs` beside a running `.server` entry, cwd default, and the emitted config beside the selected production bundle) and `resolveUserConfigRootDir()`
+- `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, the emitted config beside the production server bundle, cwd default, and the emitted config beside the selected production bundle) and `resolveUserConfigRootDir()`. The generated `app.mjs` loader scopes its bundle directory to the application's async import; `createApp()` captures that context before resolving the config, so wrappers can import the entry without falling back to `eco.config.ts` or affecting unrelated apps in the same process.
 - `user-config-types.ts`: TypeScript contracts for `EcoPagesUserConfig` and config loader options
 - `server-config-bundle.ts`: emits `dist/.server/eco.config.mjs` for production server startup. Production emit leaves `import.meta` pointing at that file; development server builds still rewrite `import.meta` to sources (`build/preserve-import-meta-transform.ts`)
 
@@ -40,7 +40,7 @@ It is responsible for:
 - `finalizeEcoPagesConfig()` in `assembly/` decides ordering, validates compatibility, and installs the Rolldown adapter on the finalized app config.
 - Each config load creates a new finalized app config and runtime. A config factory also creates fresh integrations, processors and loaders for each app; reusing an object config with plugin instances for another app throws. Runtime startup reuses that app's config/build state; it should not recompute manifest ownership.
 - `EcopagesApp` shares one readiness promise across concurrent `start()` and `fetch()` calls. `stop()` disposes its Node server adapter and watch session; a later `start()` or `fetch()` creates a new adapter while continuing to use the same finalized config's `AppRuntime`.
-- Production startup loads the emitted config artifact recorded by the server build, even when the source config is still present.
+- Production startup loads the emitted config artifact recorded by the server build, even when the source config is still present. The `app.mjs` loader scopes its directory to the application import and `createApp()` passes that context through config resolution, so this also works when a host wrapper imports the server entry.
 
 App-owned Rolldown is the only build path. Finalization installs that adapter on every config.
 

@@ -691,13 +691,13 @@ describe('RolldownBuildAdapter', () => {
 		});
 		await buildWithCoreImports(['@ecopages/logger', 'oxc-parser'], {
 			...staged,
-			naming: 'app.mjs',
+			naming: 'app.bundle.mjs',
 			reportPackagesOutsideRoot: true,
 		});
 
 		expect(warn.mock.calls.map((call) => String(call[0]).split(';')[0])).toEqual([
 			'dist/.server/eco.config.mjs imports 1 package from outside the app folder (oxc-parser)',
-			'dist/.server/app.mjs imports 2 packages from outside the app folder (@ecopages/logger, oxc-parser)',
+			'dist/.server/app.bundle.mjs imports 2 packages from outside the app folder (@ecopages/logger, oxc-parser)',
 		]);
 	});
 

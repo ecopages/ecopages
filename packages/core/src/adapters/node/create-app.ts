@@ -58,6 +58,7 @@ export type EcopagesAppRuntimeOptions = {
 	appConfig: EcoPagesAppConfig;
 	serverOptions?: Record<string, unknown>;
 	cliArgs: ReturnParseCliArgs;
+	serverBundleDir?: string;
 };
 
 /**
@@ -145,7 +146,8 @@ export class EcopagesApp implements AsyncDisposable {
 		this.appConfig = options.appConfig;
 		this.serverOptions = options.serverOptions || {};
 		this.cliArgs = options.cliArgs;
-		this.requireCompleteDist = this.cliArgs.start && isEcopagesStartCli();
+		this.requireCompleteDist =
+			this.cliArgs.start && (isEcopagesStartCli() || options.serverBundleDir !== undefined);
 		this.runtimeHost = dependencies.runtimeHost;
 		this.createServerAdapter =
 			dependencies.createServerAdapter ?? (async (params) => new NodeServerAdapter(params));

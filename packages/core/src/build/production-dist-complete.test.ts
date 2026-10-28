@@ -82,4 +82,13 @@ describe('assertProductionDistComplete', () => {
 		expect((failure as Error).message).toMatch(/The production server-modules map .* is invalid or unreadable/);
 		expect((failure as Error).cause).toBeInstanceOf(SyntaxError);
 	});
+
+	it('rejects an unreadable browser client manifest instead of starting without it', () => {
+		const rootDir = createCompleteDist();
+		writeFileSync(path.join(rootDir, 'dist', SERVER_BUNDLE_DIR, 'browser-client-manifest.json'), '{ bad');
+
+		expect(() => assertProductionDistComplete(rootDir, 'dist')).toThrow(
+			/The production browser client manifest .* is invalid or unreadable/,
+		);
+	});
 });

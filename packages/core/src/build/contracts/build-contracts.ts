@@ -83,8 +83,8 @@ export interface BuildChunk {
 	dynamicImports: string[];
 	isEntry: boolean;
 	facadeModuleId: string | null;
-	/** Source module identifiers included in this emitted chunk. */
-	modules?: string[];
+	/** Absolute source paths of the modules bundled into this chunk; virtual modules are left out. */
+	modules: string[];
 }
 
 /** Targets supported by the Ecopages build adapter. */

@@ -252,9 +252,8 @@ async function waitForProductionServer(url: string, server: { child: ChildProces
 		try {
 			const response = await fetch(url, { signal: AbortSignal.timeout(500) });
 			if (response.status === 200) return;
-		} catch {
-			await new Promise((resolve) => setTimeout(resolve, 100));
-		}
+		} catch {}
+		await new Promise((resolve) => setTimeout(resolve, 100));
 	}
 	throw new Error(`Production server did not become ready.\n${server.output()}`);
 }
@@ -356,19 +355,7 @@ describe('production server modules', () => {
 			const server = startProductionServer(appDir, port);
 			try {
 				await waitForProductionServer(`${origin}/`, server);
-				for (const route of PAGE_ROUTES) {
-					const response = await fetch(`${origin}${route.path}`);
-					const body = await response.text();
-					expect(response.status, `${route.path}: ${body}\n${server.output()}`).toBe(200);
-					expect(body).toContain(route.marker);
-				}
-				const lit = await (await fetch(`${origin}/lit`)).text();
-				expect(lit).toContain('<span>hello-ssr</span>');
-				const jsx = await (await fetch(`${origin}/jsx`)).text();
-				expect(jsx).toContain('<radiant-production-probe data-radiant-ssr>');
-				expect(jsx).toContain('radiant-production-probe</span>');
-				const api = await fetch(`${origin}/api/lit`);
-				expect(await api.json()).toEqual({ integration: 'lit' });
+				await expectEveryRouteServes((url) => fetch(url), origin, server.output);
 			} finally {
 				await stopProductionServer(server.child);
 			}

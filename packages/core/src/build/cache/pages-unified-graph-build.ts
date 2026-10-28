@@ -6,7 +6,7 @@
  */
 
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { isEcopagesEnvDisabled } from '../../env.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
@@ -38,7 +38,7 @@ import {
 } from './server-module-entries.ts';
 
 /**
- * True when the unified graph should build or serve prebuilt page modules.
+ * True when a production build should emit the server-modules map.
  *
  * @remarks
  * Enabled by default in production builds. `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0` opts out, which the
@@ -194,24 +194,15 @@ async function emitRolldownServerModules(
 		if (!compiledOutput) {
 			throw new Error(`Pages unified graph build produced no output for ${entryPath}`);
 		}
-		modules[toRootRelativePath(appConfig.rootDir, entryPath)] = path
-			.relative(outdir, compiledOutput)
-			.split(path.sep)
-			.join('/');
+		modules[toRootRelativePath(appConfig.rootDir, entryPath)] = toRootRelativePath(outdir, compiledOutput);
 	}
 	return { modules, outputGraph: buildResult.outputGraph };
-}
-
-function resolveEmittedModuleId(moduleId: string): string | undefined {
-	if (moduleId.startsWith('\0')) return undefined;
-	const filePath = moduleId.startsWith('file:') ? fileURLToPath(moduleId) : moduleId;
-	return path.isAbsolute(filePath) ? path.resolve(filePath) : undefined;
 }
 
 function findEmittedModulePath(outputGraph: BuildSuccess['outputGraph'], sourcePath: string): string | undefined {
 	const resolvedSource = path.resolve(sourcePath);
 	for (const [outputPath, chunk] of Object.entries(outputGraph)) {
-		if (chunk.modules?.some((moduleId) => resolveEmittedModuleId(moduleId) === resolvedSource)) {
+		if (chunk.modules.includes(resolvedSource)) {
 			return outputPath;
 		}
 	}
@@ -243,8 +234,11 @@ function assignProductionServerModules(appConfig: EcoPagesAppConfig, manifest: P
  *
  * @remarks
  * Imports the emitted Rolldown modules to discover extra `ssr: true` scripts, so
- * Integrations are activated first. An Integration that needs process globals
- * before those imports installs them in `setup()`.
+ * Integrations are activated first; Core installs the configured server DOM
+ * before their `setup()`. A discovered script already bundled into the first
+ * emit maps to that output. Otherwise a second emit adds the scripts; preserved
+ * modules keep their output path across both emits, so a module imported after
+ * the first emit is not evaluated again from a second copy.
  */
 export async function emitProductionServerModules(options: {
 	appConfig: EcoPagesAppConfig;
@@ -266,7 +260,7 @@ export async function emitProductionServerModules(options: {
 		errorPageLoaders: options.errorPageLoaders,
 	});
 
-	let rolldownEntries = collected.filter((entryPath) => isRolldownServerModuleEntry(entryPath, appConfig));
+	const rolldownEntries = collected.filter((entryPath) => isRolldownServerModuleEntry(entryPath, appConfig));
 	const htmlEntries = collected.filter((entryPath) => !isRolldownServerModuleEntry(entryPath, appConfig));
 
 	const modules: Record<string, string> = {};
@@ -300,10 +294,7 @@ export async function emitProductionServerModules(options: {
 		for (const scriptPath of discoveredScripts) {
 			const existingOutput = findEmittedModulePath(initialEmit.outputGraph, scriptPath);
 			if (existingOutput) {
-				modules[toRootRelativePath(appConfig.rootDir, scriptPath)] = path
-					.relative(outdir, existingOutput)
-					.split(path.sep)
-					.join('/');
+				modules[toRootRelativePath(appConfig.rootDir, scriptPath)] = toRootRelativePath(outdir, existingOutput);
 			} else {
 				scriptsToEmit.push(scriptPath);
 			}
@@ -327,11 +318,10 @@ export async function emitProductionServerModules(options: {
 }
 
 /**
- * Builds eligible server entries in one Rolldown invocation and records outputs.
+ * Imports the emitted module for `filePath` from the production server-modules map.
  *
  * @remarks
- * Production emit writes `dist/.server/server-modules.json`. HTML Pages compile
- * through `compilePageModule` and join the same map.
+ * Resolves `undefined` when no map was emitted or it does not list the file.
  */
 export async function importPagesUnifiedGraphModule<T>(
 	appConfig: EcoPagesAppConfig,

@@ -1164,6 +1164,43 @@ describe('StaticSiteGenerator', () => {
 			},
 		);
 
+		test('keeps exporting other explicit routes when one view has no renderer (keepGoing)', async () => {
+			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+			const view = Object.assign(() => null, { config: { identity: testInjectedMeta } });
+			const getExplicitViewRenderer = vi
+				.fn()
+				.mockReturnValueOnce(undefined)
+				.mockReturnValue({
+					renderExplicitView: vi.fn(),
+					executeExplicitView: vi.fn(async () => ({ body: '<html>Works</html>' })),
+				});
+
+			await expect(
+				ssg.run({
+					router: {
+						listStaticGenerationRoutes: vi.fn(async () => []),
+					} satisfies StaticGenerationRunnerInput['router'],
+					baseUrl: 'http://localhost:3000',
+					routeRendererFactory: {
+						getPageRenderer: vi.fn(),
+						getExplicitViewRenderer,
+					} satisfies StaticGenerationRendererFactory,
+					staticRoutes: [
+						{ path: '/broken', loader: async () => ({ default: view }) },
+						{ path: '/works', loader: async () => ({ default: view }) },
+					],
+					keepGoing: true,
+				}),
+			).resolves.toBeUndefined();
+
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/works.html', '<html>Works</html>');
+			expect(errorSpy).toHaveBeenCalledWith(
+				'Error generating explicit static page for /broken:',
+				expect.objectContaining({ message: expect.stringContaining('No renderer found for integration') }),
+			);
+		});
+
 		test('should reject for dynamic explicit routes without staticPaths', async () => {
 			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
 			const ssg = new StaticSiteGenerator({

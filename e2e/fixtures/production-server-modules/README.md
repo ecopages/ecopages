@@ -2,4 +2,4 @@
 
 Acceptance app for `ecopages build` emitting every server entry into `dist/.server/` and `ecopages start` importing that map without compiling.
 
-Each Integration (KitaJS, React, Lit, Ecopages JSX, HTML Pages) has a static Page, a dynamic Page where the Integration accepts params, a Layout, an Endpoint, and an `app.static` view. The app also has an Html shell, a `404.html` error page, and SSR scripts that render a Radiant custom element followed by a Lit custom element in the same production process.
+Each Integration (KitaJS, React, Lit, Ecopages JSX, HTML Pages) has a static Page, a dynamic Page where the Integration accepts params, a Layout, an Endpoint, and an `app.static` view. The app also has an Html shell, a `404.html` error page, and SSR scripts for Lit and Radiant custom elements. The Lit Page imports its own SSR script, and a Radiant probe imports the Lit Page, Layout and script: the build must evaluate the Lit Layout and script once in the same production process, and the JSX Page must render the Radiant element with the Lit element defined in the same process.

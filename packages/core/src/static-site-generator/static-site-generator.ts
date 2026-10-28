@@ -68,6 +68,7 @@ type PreparedExplicitStaticRoute = {
 	routePath: string;
 	routeFile?: string;
 	view: EcoPageComponent<any>;
+	renderer: ExplicitViewRenderer;
 	routeEntries: ExplicitStaticRouteEntry[];
 };
 
@@ -472,6 +473,7 @@ export class StaticSiteGenerator {
 			input.staticRoutes && input.routeRendererFactory
 				? await this.prepareExplicitStaticRoutes({
 						staticRoutes: input.staticRoutes,
+						routeRendererFactory: input.routeRendererFactory,
 						skipped: input.skippedDynamicPages,
 						failures: input.pageFailures,
 					})
@@ -671,8 +673,16 @@ export class StaticSiteGenerator {
 		}
 	}
 
+	/**
+	 * Loads each explicit static view, resolves its renderer and lists its pathnames.
+	 *
+	 * @remarks
+	 * A view that fails here is recorded as a page failure and left out of both
+	 * production browser-graph prebuild and generation.
+	 */
 	private async prepareExplicitStaticRoutes(input: {
 		staticRoutes: StaticRoute[];
+		routeRendererFactory: ExplicitStaticRouteRendererFactory;
 		skipped: string[];
 		failures: Error[];
 	}): Promise<PreparedExplicitStaticRoute[]> {
@@ -684,10 +694,17 @@ export class StaticSiteGenerator {
 					input.skipped.push(route.path);
 					continue;
 				}
+				const { renderer } = resolveExplicitViewRenderer({
+					routePath: route.path,
+					view,
+					routeRendererFactory: input.routeRendererFactory,
+					errors: STATIC_SITE_GENERATOR_ERRORS,
+				});
 				prepared.push({
 					routePath: route.path,
 					routeFile: route.loader.filePath,
 					view,
+					renderer,
 					routeEntries: await this.listExplicitStaticRouteEntries(route.path, view),
 				});
 			} catch (error) {
@@ -713,6 +730,7 @@ export class StaticSiteGenerator {
 			await this.generateExplicitStaticRoute({
 				routePath: route.routePath,
 				view: route.view,
+				renderer: route.renderer,
 				routeEntries: route.routeEntries,
 				routeRendererFactory: input.routeRendererFactory,
 				failures: input.failures,
@@ -725,6 +743,7 @@ export class StaticSiteGenerator {
 	private async generateExplicitStaticRoute(input: {
 		routePath: string;
 		view: EcoPageComponent<any>;
+		renderer: ExplicitViewRenderer;
 		routeEntries: ExplicitStaticRouteEntry[];
 		routeRendererFactory: ExplicitStaticRouteRendererFactory;
 		failures: Error[];
@@ -734,19 +753,13 @@ export class StaticSiteGenerator {
 		const {
 			routePath,
 			view,
+			renderer,
 			routeEntries,
 			routeRendererFactory,
 			failures,
 			activeStaticPathnames,
 			sitemapEligiblePathnames,
 		} = input;
-		const { renderer } = resolveExplicitViewRenderer({
-			routePath,
-			view,
-			routeRendererFactory,
-			errors: STATIC_SITE_GENERATOR_ERRORS,
-		});
-
 		for (const { pathname, params } of routeEntries) {
 			try {
 				let renderedMetadata: PageMetadataProps | undefined;

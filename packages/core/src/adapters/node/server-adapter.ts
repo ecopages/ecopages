@@ -163,10 +163,11 @@ export class NodeServerAdapter {
 	 * 1. **Loaders** are registered first so processors and integrations can
 	 *    reference loader-provided file types in their own plugins.
 	 * 2. **Public dir** is copied before any build so static assets are in `distDir`
-	 *    before the first request arrives. Serve-only preview (`none`) skips this
-	 *    and leaves `dist/` as the earlier export wrote it.
+	 *    before the first request arrives. Serve-only preview (`none`) and production
+	 *    start from a complete `dist/` skip this and leave `dist/` as the build wrote it.
 	 * 3. **Processors** are set up after the public dir is in place so they can
-	 *    safely reference dist-relative paths. Serve-only preview skips both.
+	 *    safely reference dist-relative paths. Serve-only preview skips both; production
+	 *    start from a complete `dist/` restores them from the emitted server-modules map.
 	 *    An export (`build`, `preview`) empties `dist/` first. Integrations
 	 *    activate at the runtime boundary that uses them.
 	 * 4. **Router** is initialised last because it may depend on files written by
@@ -194,8 +195,21 @@ export class NodeServerAdapter {
 		return this.ready;
 	}
 
+	/**
+	 * True for production `ecopages start`, which serves only what `ecopages build` wrote.
+	 *
+	 * @remarks
+	 * Such a start checks that `dist/` is complete, restores Processors from the emitted
+	 * server-modules map instead of calling `setup()`, and leaves `dist/` untouched: the build
+	 * already copied the public directory, and the deploy may hold no sources.
+	 */
+	private startsFromCompleteDist(): boolean {
+		return this.runtimeAssetSetup === 'start' && this.requireCompleteDist && isProductionRuntime();
+	}
+
 	private async initializeResources(): Promise<void> {
-		if (this.runtimeAssetSetup === 'start') {
+		const fromCompleteDist = this.startsFromCompleteDist();
+		if (this.runtimeAssetSetup === 'start' && !fromCompleteDist) {
 			prepareRuntimePublicDir(this.appConfig);
 		}
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
@@ -209,16 +223,13 @@ export class NodeServerAdapter {
 		if (this.runtimeAssetSetup === 'export') {
 			await this.staticBuilder.prepareExport();
 		} else if (this.runtimeAssetSetup === 'start') {
-			if (isProductionRuntime() && this.requireCompleteDist) {
+			if (fromCompleteDist) {
 				assertProductionDistComplete(this.appConfig.rootDir, this.appConfig.distDir);
-			}
-			const skipProcessorSetup = isProductionRuntime() && this.requireCompleteDist;
-			if (skipProcessorSetup) {
 				requireProductionServerModules(this.appConfig);
 			}
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
-				skipProcessorSetup,
+				skipProcessorSetup: fromCompleteDist,
 			});
 		}
 		await this.requestPipeline.initializeRouteHandling({
@@ -478,7 +489,7 @@ export class NodeServerAdapter {
 			} else {
 				if (this.runtimeAssetSetup === 'start') {
 					await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
-					if (isProductionRuntime() && this.requireCompleteDist) {
+					if (this.startsFromCompleteDist()) {
 						requireProductionServerModules(this.appConfig);
 					}
 					const { routeRendererFactory } = this.requestPipeline.getStaticBuildContext();

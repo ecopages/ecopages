@@ -76,6 +76,7 @@ Builds your project and starts a local production server for testing.
 
 - Useful for verifying the production build before deployment.
 - Runs the same build as `build` first, then serves `dist/client/` locally.
+- Pass `--serve-only` (or set `ECOPAGES_PREVIEW_SERVE_ONLY=true`) to serve an existing client build without rebuilding or modifying `dist/`. This mode does not start the app's server runtime, so it serves built client files without API routes.
 
 ### `start`
 
@@ -88,7 +89,7 @@ Starts the production server using the existing build. It needs a server bundle,
 
 Writes the types for virtual modules such as `ecopages:images` and `ecopages:content/*`, then exits.
 
-- Processors generate these types in `setup()`, which otherwise runs only when the app starts (`dev`, `build`, `preview`, or `start`), so a fresh checkout or a CI job has none.
+- Processors generate these types in `setup()`. The `types` command runs that setup to write virtual-module declarations; production `start` restores Processor state from emitted server modules and does not call `setup()`.
 - It loads `eco.config.ts` (or the file given with `--config`), as `astro sync` does, and sets the processors up, so image optimization and the first PostCSS pass run too. Your entry file (`app.ts`) does not run.
 - Run it before the type checker: `"typecheck": "ecopages types && tsc --noEmit"`. The official templates ship that script.
 
@@ -142,6 +143,7 @@ When the preferred port is already in use, `ecopages dev` and `ecopages preview`
 | `ECOPAGES_PORT`         | The port the server listens on.      | `3000`                  |
 | `ECOPAGES_HOSTNAME`     | The hostname the server binds to.    | `localhost`             |
 | `ECOPAGES_LOGGER_DEBUG` | Enables verbose debug logging.       | `false`                 |
+| `ECOPAGES_PREVIEW_SERVE_ONLY` | For `ecopages preview`, serve existing output without rebuilding or writing to `dist/`. | `false` |
 
 > **Note:** CLI server flags map to environment overrides before the runtime process starts. This lets one-off commands change host, port, base URL, or runtime without editing `eco.config.ts`.
 

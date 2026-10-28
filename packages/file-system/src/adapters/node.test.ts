@@ -27,7 +27,8 @@ test('NodeFileSystem.glob uses native Node glob semantics with ignore support', 
 });
 
 test('NodeFileSystem.watch reports nested changes without initial events', async () => {
-	const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-')));
+	const testRoot = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-parent-'));
+	const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(testRoot, 'root-')));
 	const fileSystem = new NodeFileSystem();
 	const sourceDir = path.join(rootDir, 'src');
 	const nestedDir = path.join(sourceDir, 'nested');
@@ -101,7 +102,7 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 		);
 	} finally {
 		await watcher.close();
-		fs.rmSync(rootDir, { recursive: true, force: true });
+		fs.rmSync(testRoot, { recursive: true, force: true });
 	}
 }, 20_000);
 

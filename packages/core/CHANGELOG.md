@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.6.0
+
+### Minor Changes
+
+- [#917](https://github.com/ecopages/ecopages/pull/917) [`a059041`](https://github.com/ecopages/ecopages/commit/a0590417e2e9909eecd0db7873597965aded52c8) Thanks [@andeeplus](https://github.com/andeeplus)! - `ecopages build` emits a Page Browser Graph for every parameter-free non-exact Template Route, every `staticPaths` entry of a Dynamic Page, and every `app.static` view (each of its `staticPaths` entries for a dynamic path), and records them in the browser client manifest. After `ecopages start` restores that manifest, a request whose graph is not listed is an error that names the route and the missing entry. It is never built.
+
+    This is a breaking change: production no longer builds a new browser graph while serving. List every param-dependent graph in `staticPaths`. Development is unchanged.
+
+- [#922](https://github.com/ecopages/ecopages/pull/922) [`6c6a6bf`](https://github.com/ecopages/ecopages/commit/6c6a6bf1f58aa14d43f370b27f03a3be8b20f8f8) Thanks [@andeeplus](https://github.com/andeeplus)! - Production `ecopages start` loads its routes and server modules from `dist/` and `node_modules/`. The build writes the filesystem route list into `dist/server/routes.json`; start loads that list and does not scan source Pages or compare source fingerprints. Start does not copy the source public directory into `dist/`; the build already did. The deploy manifest no longer records the source config path or hash. Start, through `ecopages start` or `node dist/server/app.mjs`, checks that `dist/` is complete (one build id, every listed output exists, the route list present). Production server output leaves `import.meta` pointing at the emitted files.
+
+    This is a breaking change: a deploy that relied on source Pages at startup, source config identity checks, or production `import.meta` pointing at source files will fail. Declare files a production module reads next to itself in `serverFiles`, or move them to `public/`.
+
+- [#933](https://github.com/ecopages/ecopages/pull/933) [`9652bc3`](https://github.com/ecopages/ecopages/commit/9652bc34afb2f092360bfd57c68350419ff29cd7) Thanks [@andeeplus](https://github.com/andeeplus)! - Move public build output into `dist/client/` and keep production server files in `dist/server/`. Nothing a static host publishes holds server code any more.
+
+    This is a breaking change for existing deploys. After upgrading:
+
+    - Rebuild. An output with only the old `dist/.server/` is not found by `ecopages start`.
+    - Point a static host's output directory at `dist/client` instead of `dist`.
+    - Start the server with `node dist/server/app.mjs` (or `bun dist/server/app.mjs`) instead of `dist/.server/app.mjs` in Dockerfiles and process managers.
+    - Write processed images into `dist/client/images` instead of `dist/images`; an image processor `outputDir` left at `dist/images` writes outside the served folder and its images return 404. Processors receive `distDir` pointing at `dist/client/`.
+
+- [#921](https://github.com/ecopages/ecopages/pull/921) [`e8e4344`](https://github.com/ecopages/ecopages/commit/e8e4344aaf001403b77aa9a4946ff9e9ea20c748) Thanks [@andeeplus](https://github.com/andeeplus)! - Import a view and pass it to `ctx.render`, `ctx.renderPartial`, `app.static`, and error pages. Development reloads an edited view and a component it imports without restarting the process. Production serves the built module and does not compile.
+
+    This is a breaking change: `ctx.renderServerModule`, `ctx.importServerModule` on the render context, string and URL view paths, and `createViewModuleLoader` are removed. Import the view instead of passing its path.
+
+- [#918](https://github.com/ecopages/ecopages/pull/918) [`b5f1c8b`](https://github.com/ecopages/ecopages/commit/b5f1c8bdd7d466783f0df9e2ca145fa89636aba9) Thanks [@andeeplus](https://github.com/andeeplus)! - `ecopages build` emits each Processor's runtime output into `dist/server/` and registers it in `server-modules.json`, including content collection manifests and server modules. `ecopages start` restores that output and does not call Processor `setup()`. Invalid collection frontmatter fails the build. Development still regenerates collections when an MDX file is edited.
+
+    This is a breaking change: production no longer scans sources or writes under `.eco/` in Processor `setup()`. A Processor that needs request-time modules lists them with `listProductionServerModuleEntries()` and restores them with `restoreProductionRuntime()`.
+
+- [#915](https://github.com/ecopages/ecopages/pull/915) [`73e4a03`](https://github.com/ecopages/ecopages/commit/73e4a03df266f1272882a90f0a60fe15e85996f4) Thanks [@andeeplus](https://github.com/andeeplus)! - `ecopages build` emits every server entry into `dist/server/` and writes `server-modules.json`. `ecopages start` imports that map and never compiles. Production emit activates Integrations before importing those modules, so an Integration can install process globals in `setup()`.
+
+    This is a breaking change: production no longer compiles Pages, Layouts, Html shells, Endpoints, `app.static` views, error pages, or `ssr: true` scripts from source. A missing entry names the file and says to run `ecopages build`. Development is unchanged.
+
+- [#928](https://github.com/ecopages/ecopages/pull/928) [`ea0d42d`](https://github.com/ecopages/ecopages/commit/ea0d42d4eb0368bfd2d93e5bb5e8a706d32eaa95) Thanks [@andeeplus](https://github.com/andeeplus)! - Use native recursive filesystem watchers, support adding paths to a running watch, report directory changes, and handle missing watch roots. When a native event omits its filename, reconcile the root and may emit rescan events for mapped requested roots; the Project Watcher coalesces them into a runtime restart request. Native events are coalesced for 50 ms, so a change may be reported while a file is still being written. If registration through `add()` fails, the new paths are rolled back so the same paths can be retried. Permission-denied children are skipped during indexing so accessible siblings remain watched. Remove Chokidar from file-system and core.
+
+- [#929](https://github.com/ecopages/ecopages/pull/929) [`2d92e9f`](https://github.com/ecopages/ecopages/commit/2d92e9f9c81f5f993ea8b7f61342365f0aafa7d8) Thanks [@andeeplus](https://github.com/andeeplus)! - The active Project Watcher activates linked workspace roots only for recorded inputs: unused linked packages no longer trigger restarts, while changes to a used package still do.
+
+### Patch Changes
+
+- [#924](https://github.com/ecopages/ecopages/pull/924) [`0d8d251`](https://github.com/ecopages/ecopages/commit/0d8d251dd38991277e454dcdddd6f9faf5b3ef98) Thanks [@andeeplus](https://github.com/andeeplus)! - Keep deep preserved-module filenames within filesystem limits and retain production manifest parse errors.
+
+- [#909](https://github.com/ecopages/ecopages/pull/909) [`3b74da3`](https://github.com/ecopages/ecopages/commit/3b74da3e25f64004e1098e25b1ca5ad63ace5e7a) Thanks [@andeeplus](https://github.com/andeeplus)! - Install the server DOM once at startup, Radiant first and Lit second, so Lit elements still render after a Radiant element in the same process.
+
+- [#913](https://github.com/ecopages/ecopages/pull/913) [`0a9c069`](https://github.com/ecopages/ecopages/commit/0a9c0692dee75708854b20d0bad19c7b671bc2b1) Thanks [@andeeplus](https://github.com/andeeplus)! - Lit Pages render in-process when serving. The Lit render worker starts only for static export and is released when the export ends.
+
+- [#932](https://github.com/ecopages/ecopages/pull/932) [`a79e6f9`](https://github.com/ecopages/ecopages/commit/a79e6f9ed70e135f489ba4d728af7b52f62ff738) Thanks [@andeeplus](https://github.com/andeeplus)! - Production server loaders preserve bundle context when imported by a wrapper, so startup loads the emitted config and rejects incomplete dist output.
+
+- [#920](https://github.com/ecopages/ecopages/pull/920) [`cfd553a`](https://github.com/ecopages/ecopages/commit/cfd553a4faa19c494c8c39d28e86d3b841d5eb93) Thanks [@andeeplus](https://github.com/andeeplus)! - Watch-mode requests and Page prewarm wrap in the build-queue request scope and record filesystem inputs on the app's build-input index. Non-watch production and preview requests do not.
+
+- [#910](https://github.com/ecopages/ecopages/pull/910) [`253b702`](https://github.com/ecopages/ecopages/commit/253b702a7622e69af6b6d5c19ea92a2de5358ba0) Thanks [@andeeplus](https://github.com/andeeplus)! - Stop serve-only preview from copying `src/public` into the build it serves, so a finished `dist/` is left as the build wrote it.
+
+- [#935](https://github.com/ecopages/ecopages/pull/935) [`40c661d`](https://github.com/ecopages/ecopages/commit/40c661d3841d3117a261efc181fb9af4ba63707e) Thanks [@andeeplus](https://github.com/andeeplus)! - A production server bundle started with Bun (`bun dist/server/app.mjs` or `ecopages start --runtime bun`) now loads its emitted config and checks that `dist/` is complete, as it does under Node. `ecopages start` without `--dist-dir` no longer mistakes a project folder that holds a `server/manifest.json`, such as `src/server/`, for a build output.
+
+- [#911](https://github.com/ecopages/ecopages/pull/911) [`fbacb7c`](https://github.com/ecopages/ecopages/commit/fbacb7cd1a9d73c13776fa570d1fe53b84cd2d96) Thanks [@andeeplus](https://github.com/andeeplus)! - Wait for in-flight page-cache regenerations before Integration teardown when the app stops, so a stale revalidating-cache Page cannot keep rendering after its Integration is released.
+
+- [#931](https://github.com/ecopages/ecopages/pull/931) [`6b8b8ac`](https://github.com/ecopages/ecopages/commit/6b8b8acf46f0853930aeb25370bce38674ef623e) Thanks [@andeeplus](https://github.com/andeeplus)! - `watch()` no longer descends into subtrees its `ignored` predicate ignores without stats, so on Linux a recursive root does not open kernel watches for `node_modules` and similar folders. A directory removed while it is being indexed is treated as gone instead of reported as a watcher error, a directory found after `close()` opens no new native watcher, and a folder allowed by a later `add()` reports its changes. The development watcher also reports a build input recorded after startup when it lies under an additional watch path base, and production start rejects an unreadable browser client manifest instead of starting without it.
+- Updated dependencies [[`09f64d9`](https://github.com/ecopages/ecopages/commit/09f64d954261b842c7cfbb64607ef9f8119ede06), [`6c6a6bf`](https://github.com/ecopages/ecopages/commit/6c6a6bf1f58aa14d43f370b27f03a3be8b20f8f8), [`ea0d42d`](https://github.com/ecopages/ecopages/commit/ea0d42d4eb0368bfd2d93e5bb5e8a706d32eaa95), [`6b8b8ac`](https://github.com/ecopages/ecopages/commit/6b8b8acf46f0853930aeb25370bce38674ef623e)]:
+    - @ecopages/dev-toolbar@0.6.0
+    - @ecopages/file-system@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes

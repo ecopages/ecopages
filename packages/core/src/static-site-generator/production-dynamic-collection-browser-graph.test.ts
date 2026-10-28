@@ -119,7 +119,7 @@ describe('production Dynamic collection Page browser graphs', () => {
 			await buildApp.stop();
 		}
 
-		const browserManifestPath = path.join(appDir, 'dist/.server/browser-client-manifest.json');
+		const browserManifestPath = path.join(appDir, 'dist/server/browser-client-manifest.json');
 		const browserManifest = JSON.parse(readFileSync(browserManifestPath, 'utf8')) as {
 			entries: Array<{ params?: Record<string, string>; pageClientBuildEntryKeys: string[] }>;
 		};

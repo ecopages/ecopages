@@ -10,7 +10,7 @@ import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
  *
  * @remarks
  * Development builds every server module here. Production imports the modules emitted
- * into `dist/.server/` and builds here only for a module the server-modules map does not
+ * into `dist/server/` and builds here only for a module the server-modules map does not
  * list, or for every module when `ECOPAGES_UNIFIED_PAGES_GRAPH` disables the map.
  * `.server-route-modules` only serves route-registry scanning.
  */

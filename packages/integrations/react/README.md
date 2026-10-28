@@ -303,7 +303,7 @@ reactPlugin({
 });
 ```
 
-Registering only the library vendor or only the singleton is not enough when the published library still inlines the singleton. Peer the dependency in the library, externalize it in the library build, and register both the library and singleton specifiers in `runtimeModules`. Existing `externals` fields on runtime module entries should be removed; register each non-framework shared dependency as its own entry. React, React DOM, and the configured router are shared automatically. Rebuild vendors (and clear `.eco` / `dist/assets/vendors` in dev) after changing package entry points or `runtimeModules`.
+Registering only the library vendor or only the singleton is not enough when the published library still inlines the singleton. Peer the dependency in the library, externalize it in the library build, and register both the library and singleton specifiers in `runtimeModules`. Existing `externals` fields on runtime module entries should be removed; register each non-framework shared dependency as its own entry. React, React DOM, and the configured router are shared automatically. Rebuild vendors (and clear `.eco` / `dist/client/assets/vendors` in dev) after changing package entry points or `runtimeModules`.
 
 #### Troubleshooting
 
@@ -315,7 +315,7 @@ Registering only the library vendor or only the singleton is not enough when the
 | `@/` alias not followed                       | Missing or invalid tsconfig paths                                                              | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping)                                      |
 | Stale bootstrap script hash in dev            | Rendered HTML cached before runtime vendors/bootstrap scripts changed                          | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation                                             |
 | `MISSING_EXPORT` for names like `BasePlugin`  | Vendor listed CJS enumerable keys that the ESM file does not export                            | Register the package root only; rebuild vendors. Subpath plugins are separate module contracts and must be bundled or declared themselves |
-| `does not provide an export named 'jsx'`      | Stale React vendor generated with `export *` from CJS `jsx-runtime`                            | Clear `.eco` / `dist/assets/vendors` and rebuild so the CJS entry lists `jsx` / `jsxs` explicitly                                         |
+| `does not provide an export named 'jsx'`      | Stale React vendor generated with `export *` from CJS `jsx-runtime`                            | Clear `.eco` / `dist/client/assets/vendors` and rebuild so the CJS entry lists `jsx` / `jsxs` explicitly                                  |
 | `Calling require for "/assets/vendors/…"`     | A CJS vendor graph `require()`d another runtime module after URL rewrite                       | Prefer packages with an ESM/`module` entry; register sibling singletons as separate `runtimeModules` entries                              |
 
 Use the dev toolbar **Deps** panel to inspect vendor URLs loaded by the active Page. See [Dev Toolbar](/docs/core/dev-toolbar).

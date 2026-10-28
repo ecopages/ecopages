@@ -20,7 +20,7 @@ const workerExitTimeoutMs = 1_000;
  * @remarks
  * The package export keeps the worker in `@ecopages/lit` under `node_modules`
  * after production emit, instead of a sibling of the bundled file in
- * `dist/.server/`.
+ * `dist/server/`.
  */
 function resolveLitStaticRenderWorkerUrl(): URL {
 	return new URL(import.meta.resolve('@ecopages/lit/static-render-worker'));

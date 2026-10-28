@@ -130,7 +130,7 @@ function collectImportMetaEdits(
  * @remarks
  * A bundled module would otherwise see the location of its output chunk, so a
  * lookup such as Core reading `../../../package.json` or a page globbing
- * `import.meta.dirname` would search `dist/.server/` or `.eco/.server-modules/`.
+ * `import.meta.dirname` would search `dist/server/` or `.eco/.server-modules/`.
  * The rewrite is a path relative to the output chunk's own `import.meta`, so
  * the output keeps working after it moves together with the sources. It
  * assumes flat output file names in `runtimeDir`, which the external package

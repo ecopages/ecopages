@@ -234,7 +234,7 @@ async function reservePort(): Promise<number> {
 function spawnProductionServer(
 	appDir: string,
 	port: number,
-	entryFile = path.join(appDir, 'dist/.server/app.mjs'),
+	entryFile = path.join(appDir, 'dist/server/app.mjs'),
 ): {
 	child: ChildProcess;
 	output(): string;
@@ -359,9 +359,12 @@ describe('production server modules', () => {
 		const built = runCliBuild(appDir);
 		expect(built.error).toBeUndefined();
 		expect(built.status, `${built.stdout}\n${built.stderr}`).toBe(0);
+		expect(existsSync(path.join(appDir, 'dist/client/index.html'))).toBe(true);
+		expect(existsSync(path.join(appDir, 'dist/server/app.mjs'))).toBe(true);
+		expect(existsSync(path.join(appDir, 'dist/client/server'))).toBe(false);
 
 		const manifest = JSON.parse(
-			readFileSync(path.join(appDir, 'dist/.server', SERVER_MODULES_MANIFEST_FILENAME), 'utf8'),
+			readFileSync(path.join(appDir, 'dist/server', SERVER_MODULES_MANIFEST_FILENAME), 'utf8'),
 		) as { modules: Record<string, string> };
 		expect(Object.keys(manifest.modules).sort()).toEqual([...EXPECTED_SERVER_MODULE_KEYS].sort());
 
@@ -390,7 +393,7 @@ describe('production server modules', () => {
 			const built = runCliBuild(appDir);
 			expect(built.status, `${built.stdout}\n${built.stderr}`).toBe(0);
 			const wrapperPath = path.join(appDir, 'server.js');
-			writeFileSync(wrapperPath, "await import('./dist/.server/app.mjs');\n");
+			writeFileSync(wrapperPath, "await import('./dist/server/app.mjs');\n");
 
 			rmSync(path.join(appDir, 'src'), { recursive: true, force: true });
 			rmSync(path.join(appDir, 'eco.config.ts'), { force: true });
@@ -412,11 +415,15 @@ describe('production server modules', () => {
 			expect(portAllocations).toBe(2);
 			try {
 				await expectEveryRouteServes((url) => fetch(url), server.origin, server.output);
+				for (const pathname of ['/server/app.mjs', '/server/server-modules.json']) {
+					const response = await fetch(`${server.origin}${pathname}`);
+					expect(response.status, pathname).toBe(404);
+				}
 			} finally {
 				await stopProductionServer(server.child);
 			}
 
-			rmSync(path.join(appDir, 'dist/.server/routes.json'));
+			rmSync(path.join(appDir, 'dist/server/routes.json'));
 			const incompleteServer = spawnProductionServer(appDir, await reservePort(), wrapperPath);
 			try {
 				const exitCode = await waitForProcessExit(incompleteServer.child, 15_000);
@@ -451,7 +458,7 @@ describe('production server modules', () => {
 			const restoreFileSystem = installFileSystem(recording);
 			try {
 				const appConfig = await loadEcoPagesConfig({
-					configFile: path.join(deployDir, 'dist/.server/eco.config.mjs'),
+					configFile: path.join(deployDir, 'dist/server/eco.config.mjs'),
 					cwd: deployDir,
 				});
 				const app = await createApp({ appConfig });
@@ -514,7 +521,7 @@ export default eco.page({
 			expect(built.status, `${built.stdout}\n${built.stderr}`).toBe(0);
 
 			const sourceKey = 'src/pages/kita-dynamic/[slug].kita.tsx';
-			const serverOutdir = path.join(appDir, 'dist/.server');
+			const serverOutdir = path.join(appDir, 'dist/server');
 			const manifest = JSON.parse(
 				readFileSync(path.join(serverOutdir, SERVER_MODULES_MANIFEST_FILENAME), 'utf8'),
 			) as { modules: Record<string, string> };

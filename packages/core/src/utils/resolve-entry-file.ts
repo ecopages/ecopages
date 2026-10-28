@@ -94,9 +94,12 @@ export function readEntryFileFlag(argv: string[] = getRuntimeArgv()): string | u
 }
 
 /**
- * The subdirectory inside `dist/` where the bundled server entry is placed.
+ * The subdirectory inside the configured output directory where the private server bundle is placed.
  */
-export const SERVER_BUNDLE_DIR = '.server';
+export const SERVER_BUNDLE_DIR = 'server';
+
+/** The public files inside the configured output directory. */
+export const CLIENT_OUTPUT_DIR = 'client';
 
 /**
  * The filename of the bundled server entry.

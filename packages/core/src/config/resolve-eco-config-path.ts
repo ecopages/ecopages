@@ -14,7 +14,7 @@ export const ECOPAGES_CONFIG_FILE_ENV = 'ECOPAGES_CONFIG_FILE';
  *
  * @remarks
  * Defaults to `cwd` so source configs, in-memory `createApp({ userConfig })`,
- * and production loads of `dist/.server/eco.config.mjs` share one rule.
+ * and production loads of `dist/server/eco.config.mjs` share one rule.
  * `path.resolve` keeps an explicit absolute `rootDir` unchanged.
  */
 export function resolveUserConfigRootDir(rootDir?: string, cwd = process.cwd()): string {

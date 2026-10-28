@@ -461,7 +461,7 @@ test('PageBrowserGraphService warns when grouped assets lose groupedBundle metad
 
 test('PageBrowserGraphService reuses a dynamic route template when grouped dependencies match', async () => {
 	const prebuiltAsset = {
-		filepath: '/app/dist/assets/template.js',
+		filepath: '/app/dist/client/assets/template.js',
 		srcUrl: '/assets/template.js',
 		kind: 'script' as const,
 	};
@@ -509,7 +509,7 @@ test('PageBrowserGraphService keeps the request-time build when a dynamic route 
 	vi.stubEnv('NODE_ENV', 'production');
 	requireAppRuntime(appConfig).productionBrowserGraphsSealed = false;
 	const prebuiltAsset = {
-		filepath: '/app/dist/assets/template.js',
+		filepath: '/app/dist/client/assets/template.js',
 		srcUrl: '/assets/template.js',
 		kind: 'script' as const,
 	};
@@ -565,7 +565,7 @@ test('PageBrowserGraphService fails a production request whose graph is missing 
 	vi.stubEnv('NODE_ENV', 'production');
 	requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
 	const prebuiltAsset = {
-		filepath: '/app/dist/assets/template.js',
+		filepath: '/app/dist/client/assets/template.js',
 		srcUrl: '/assets/template.js',
 		kind: 'script' as const,
 	};
@@ -652,7 +652,7 @@ test('PageBrowserGraphService reuses a listed entry graph when the request only 
 	vi.stubEnv('NODE_ENV', 'production');
 	requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
 	const prebuiltAsset = {
-		filepath: '/app/dist/assets/chart.js',
+		filepath: '/app/dist/client/assets/chart.js',
 		srcUrl: '/assets/chart.js',
 		kind: 'script' as const,
 	};
@@ -699,7 +699,7 @@ test('PageBrowserGraphService reuses a listed entry graph when the request only 
 					contribution: { dependencies: [templateDependency] },
 					prebuiltGroupedAssets: [
 						{
-							filepath: '/app/dist/assets/template.js',
+							filepath: '/app/dist/client/assets/template.js',
 							srcUrl: '/assets/template.js',
 							kind: 'script' as const,
 						},
@@ -761,7 +761,7 @@ test('PageBrowserGraphService fails a production request whose query changes gro
 						contribution: { dependencies: [entryDependency] },
 						prebuiltGroupedAssets: [
 							{
-								filepath: '/app/dist/assets/chart.js',
+								filepath: '/app/dist/client/assets/chart.js',
 								srcUrl: '/assets/chart.js',
 								kind: 'script' as const,
 							},
@@ -1129,7 +1129,7 @@ test('uses app-prebuilt grouped assets without invoking the per-render asset pro
 	const processedAsset: ProcessedAsset = {
 		kind: 'script',
 		inline: false,
-		filepath: '/app/dist/assets/client.js',
+		filepath: '/app/dist/client/assets/client.js',
 		srcUrl: '/assets/client.js',
 		groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'client-entry' },
 	};
@@ -1173,7 +1173,7 @@ test('builds explicit route overrides from their current grouped dependencies', 
 	const prebuiltAsset: ProcessedAsset = {
 		kind: 'script',
 		inline: false,
-		filepath: '/app/dist/assets/prebuilt.js',
+		filepath: '/app/dist/client/assets/prebuilt.js',
 		srcUrl: '/assets/prebuilt.js',
 		groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'prebuilt-entry' },
 	};

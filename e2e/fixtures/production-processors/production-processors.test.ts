@@ -50,9 +50,7 @@ async function createProductionStartApp(appConfig: EcoPagesAppConfig, appDir: st
 	const previousArgv = process.argv;
 	try {
 		process.argv = [process.execPath, path.join(appDir, 'server.js')];
-		return await runWithProductionServerBundleDir(path.join(appDir, 'dist/.server'), () =>
-			createApp({ appConfig }),
-		);
+		return await runWithProductionServerBundleDir(path.join(appDir, 'dist/server'), () => createApp({ appConfig }));
 	} finally {
 		process.argv = previousArgv;
 	}
@@ -87,7 +85,7 @@ describe('production processors', () => {
 			expect(built.status, `${built.stdout}\n${built.stderr}`).toBe(0);
 
 			const manifest = JSON.parse(
-				readFileSync(path.join(appDir, 'dist/.server', SERVER_MODULES_MANIFEST_FILENAME), 'utf8'),
+				readFileSync(path.join(appDir, 'dist/server', SERVER_MODULES_MANIFEST_FILENAME), 'utf8'),
 			) as { modules: Record<string, string> };
 			expect(
 				Object.keys(manifest.modules).some((key) => key.endsWith('ecopages-content-processor/posts.ts')),

@@ -113,7 +113,7 @@ function inferLaunchMode(args, launchMode) {
  *
  * In `start` mode, the server bundle of one build output directory is used
  * directly: `options.distDir` names it, otherwise the only directory below the
- * working directory that holds `.server/manifest.json`. A missing or ambiguous
+ * working directory that holds `server/manifest.json`. A missing or ambiguous
  * bundle throws an error that says how to fix it.
  *
  * In `build`, `dev`, `preview`, and `types` modes, the source entry file is executed via tsx

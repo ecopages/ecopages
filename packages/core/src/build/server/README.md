@@ -13,7 +13,7 @@ Call site (route scan, renderer, SSG, API, ctx.render)
   └─ AppModuleLoader.importModule()          app-module-loader.service.ts
        ├─ uses the app root and BuildQueue
        └─ PageModuleImportService.importModule()
-            ├─ production: dist/.server/server-modules.json → dynamic import of the emitted module
+            ├─ production: dist/server/server-modules.json → dynamic import of the emitted module
             └─ development:
                  ├─ owning Integration's compilePageModule() → compiled in-process, no bundler (HTML Pages)
                  ├─ in-process module import promise cache → route-module build cache
@@ -30,7 +30,7 @@ Source dependency hashes use the adapter's entry module closure and plugin-recor
 
 1. **In-memory module import promise cache** (`PageModuleImportService.importCache`) — development bundled imports are keyed by file path, the canonical identity of the assembled `BuildOptions` request (`createRouteModuleReuseIdentity`), and source hash. The `compilePageModule` branch instead keys by file path, Integration name, and source hash. Production keys by the root-relative source path. The cache is cleared by `invalidateDevelopmentGraph()`, which the watcher batch calls for every edit to a recorded server module closure.
 2. **In-process transpile cache** (`RouteModuleBuildCache`, stored on `AppRuntime.routeModuleBuildCaches`) — development graphs in this process when dependency hashes match. Production does not use it. The build key uses the same complete `BuildOptions` identity plus a hash of the config module and the project files it imports. An entry is also reused only while every local file its compiled output imports still exists. Development invalidation clears them once per `applyDevFileChanges` batch.
-3. **Production server-modules map** (`dist/.server/server-modules.json`, stored on `AppRuntime.productionServerModules` after emit or first load) — see [build layer](../README.md#unified-pages-graph). `ecopages start` imports those modules and never compiles.
+3. **Production server-modules map** (`dist/server/server-modules.json`, stored on `AppRuntime.productionServerModules` after emit or first load) — see [build layer](../README.md#unified-pages-graph). `ecopages start` imports those modules and never compiles.
 
 Development import URLs use `sourceHash` plus `getDevelopmentGeneration()` in the `?update=` query. The compiled output filename includes that generation on every runtime, because Bun retains a previously imported file when only its query changes. On a finalized config that generation is the app runtime's server invalidation counter. Both advance after `invalidateDevelopmentGraph()` without a process-wide invalidation version in reuse keys.
 
@@ -38,19 +38,19 @@ The content processor owns compiled collection server modules and their cache. O
 
 ## Files
 
-| File                                   | Role                                                                                                                                         |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `page-module-import.service.ts`        | Core import/cache/build orchestration                                                                                                        |
-| `route-module-build-manifest.ts`       | Content-derived reuse identity and in-process cache shape                                                                                    |
-| `route-module-build-cache.store.ts`    | In-process route-module transpile cache store                                                                                                |
-| `route-module-build-cache-registry.ts` | Shared cache instance registry per `(appConfig, outdir)` pair                                                                                |
-| `route-module-dependency-hasher.ts`    | Dependency graph source file hashing and staleness validation                                                                                |
-| `app-module-loader.service.ts`         | App-scoped server module loader                                                                                                              |
-| `view-reference.ts`                    | One view reference per Integration-owned import                                                                                              |
-| `imported-view-plugin.ts`              | Server-entry plugin that emits view references instead of views                                                                              |
-| `import-view-module.ts`                | Loads a view through the app module loader                                                                                                   |
-| `resolve-static-view.ts`               | Turns an imported view into the loader `app.static` stores                                                                                   |
-| `server-modules-manifest.ts`           | Production map at `dist/.server/server-modules.json`; config finalization reads its keys to resolve semantic templates when sources are gone |
+| File                                   | Role                                                                                                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `page-module-import.service.ts`        | Core import/cache/build orchestration                                                                                                       |
+| `route-module-build-manifest.ts`       | Content-derived reuse identity and in-process cache shape                                                                                   |
+| `route-module-build-cache.store.ts`    | In-process route-module transpile cache store                                                                                               |
+| `route-module-build-cache-registry.ts` | Shared cache instance registry per `(appConfig, outdir)` pair                                                                               |
+| `route-module-dependency-hasher.ts`    | Dependency graph source file hashing and staleness validation                                                                               |
+| `app-module-loader.service.ts`         | App-scoped server module loader                                                                                                             |
+| `view-reference.ts`                    | One view reference per Integration-owned import                                                                                             |
+| `imported-view-plugin.ts`              | Server-entry plugin that emits view references instead of views                                                                             |
+| `import-view-module.ts`                | Loads a view through the app module loader                                                                                                  |
+| `resolve-static-view.ts`               | Turns an imported view into the loader `app.static` stores                                                                                  |
+| `server-modules-manifest.ts`           | Production map at `dist/server/server-modules.json`; config finalization reads its keys to resolve semantic templates when sources are gone |
 
 ## Development invalidation
 

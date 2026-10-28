@@ -89,7 +89,7 @@ describe('ErrorPageRenderer', () => {
 				...appConfig,
 				appRuntime: {
 					productionServerModules: {
-						outdir: '/app/dist/.server',
+						outdir: '/app/dist/server',
 						modules: { 'src/pages/404.kita.tsx': '404.mjs' },
 					},
 				},

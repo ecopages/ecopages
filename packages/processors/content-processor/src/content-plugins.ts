@@ -143,7 +143,7 @@ function createContentResolvePlugin(
  * Compiled `/server` and `/component` modules are externalized in development so Node can load
  * the collection artifact directly; both specifiers share one module instance and one component
  * cache. Production emit inlines those generated files in the unified graph and writes them to
- * `dist/.server/`. Every resolve waits for `ensureCollectionsGenerated`, so a build that runs
+ * `dist/server/`. Every resolve waits for `ensureCollectionsGenerated`, so a build that runs
  * before the Processor's `setup()` still finds the generated modules. The Page Browser Graph uses
  * `createContentPluginBundler`, where the content boundary rejects `/server` and `/component`
  * resolves to the browser-safe loader.

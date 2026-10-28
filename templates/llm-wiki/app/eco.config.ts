@@ -11,12 +11,12 @@ import { LLM_WIKI_ORIGIN } from './src/lib/site-origin';
 
 /**
  * Resolves the Ecopages app root for both source loads and the production
- * server bundle (`dist/.server/app.mjs`), where `import.meta.dirname` is the
+ * server bundle (`dist/server/app.mjs`), where `import.meta.dirname` is the
  * bundle directory rather than this config file's location.
  */
 function resolveAppRoot(): string {
 	const dir = path.resolve(import.meta.dirname);
-	const serverBundleDir = `${path.sep}dist${path.sep}.server`;
+	const serverBundleDir = `${path.sep}dist${path.sep}server`;
 	if (dir.endsWith(serverBundleDir)) {
 		return path.resolve(dir, '../..');
 	}

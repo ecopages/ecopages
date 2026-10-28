@@ -125,7 +125,7 @@ test('createServerBuildRequest keeps import.meta at the source for the directory
 
 	assert.match(String(await transformFor({})), /new URL\("\.\.\/\.\.\/src\/pages\/index\.ts", import\.meta\.url\)/u);
 	assert.match(
-		String(await transformFor({ runtimeOutdir: '/app/.server' })),
+		String(await transformFor({ runtimeOutdir: '/app/server' })),
 		/new URL\("\.\.\/src\/pages\/index\.ts", import\.meta\.url\)/u,
 	);
 });

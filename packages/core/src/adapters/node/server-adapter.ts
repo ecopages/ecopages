@@ -54,7 +54,7 @@ export interface NodeServerAdapterParams {
 	 *
 	 * @remarks
 	 * `start` sets Processors up before routes are read, except production `ecopages start` with the unified
-	 * graph, which restores from `dist/.server/` and does not call Processor `setup()`. It activates Integrations
+	 * graph, which restores from `dist/server/` and does not call Processor `setup()`. It activates Integrations
 	 * before a network server handles requests. Request-only `app.fetch()` activates only the Integrations used by
 	 * that request. `export` empties `dist/` first and prepares the export runtime; `none` leaves runtime assets
 	 * alone for a preview that serves an earlier export.
@@ -162,13 +162,12 @@ export class NodeServerAdapter {
 	 * Order is intentional:
 	 * 1. **Loaders** are registered first so processors and integrations can
 	 *    reference loader-provided file types in their own plugins.
-	 * 2. **Public dir** is copied before any build so static assets are in `distDir`
-	 *    before the first request arrives. Serve-only preview (`none`) and production
-	 *    start from a complete `dist/` skip this and leave `dist/` as the build wrote it.
+	 * 2. **Public dir** is copied into the client output before any request arrives. Serve-only
+	 *    preview (`none`) and production start from a complete output leave it untouched.
 	 * 3. **Processors** are set up after the public dir is in place so they can
-	 *    safely reference dist-relative paths. Serve-only preview skips both; production
-	 *    start from a complete `dist/` restores them from the emitted server-modules map.
-	 *    An export (`build`, `preview`) empties `dist/` first. Integrations
+	 *    safely reference output-relative paths. Serve-only preview skips both; production
+	 *    start from a complete output restores them from the emitted server-modules map.
+	 *    An export (`build`, `preview`) empties the configured output directory first. Integrations
 	 *    activate at the runtime boundary that uses them.
 	 * 4. **Router** is initialised last because it may depend on files written by
 	 *    processors during their `setup()` calls, and in build mode it imports Pages.
@@ -289,10 +288,10 @@ export class NodeServerAdapter {
 	public async servePreviewOnly(): Promise<string | undefined> {
 		await this.initialize();
 
-		const distPath = path.join(this.appConfig.rootDir, this.appConfig.distDir);
+		const distPath = this.appConfig.absolutePaths.distDir;
 		if (!fileSystem.exists(distPath)) {
 			throw new Error(
-				`Cannot serve preview without building first: dist directory "${this.appConfig.distDir}" not found in "${this.appConfig.rootDir}".`,
+				`Cannot serve preview without building first: client output directory "${path.relative(this.appConfig.rootDir, distPath)}" not found in "${this.appConfig.rootDir}".`,
 			);
 		}
 

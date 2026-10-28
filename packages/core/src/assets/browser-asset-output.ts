@@ -7,7 +7,7 @@ import { isPathInside } from '../utils/path-containment.ts';
  * @remarks
  * `path.relative` from `srcDir` to a file outside it starts with `..`. Joining
  * that onto `dist` writes the asset outside the build. Callers then emit the file
- * in `dist/assets`: a bundled script under the bundler's `[name]-[hash]` name, and
+ * in `dist/client/assets`: a bundled script under the bundler's `[name]-[hash]` name, and
  * an unbundled script or stylesheet under a content hash.
  */
 export function sourceRelativeBrowserAssetPath(srcDir: string, filepath: string): string | undefined {

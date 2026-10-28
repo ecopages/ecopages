@@ -21,7 +21,7 @@ import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from '../resolv
 import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from '../user-config-types.ts';
 import { listProductionServerModuleKeysFromDist } from '../../build/server/server-modules-manifest.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
-import { SERVER_BUNDLE_DIR } from '../../utils/resolve-entry-file.ts';
+import { CLIENT_OUTPUT_DIR, SERVER_BUNDLE_DIR } from '../../utils/resolve-entry-file.ts';
 
 const finalizedPluginInstances = new WeakSet<object>();
 
@@ -49,11 +49,11 @@ function assertUserConfig(userConfig: EcoPagesUserConfig, configFilePath: string
 }
 
 /**
- * Treats an emitted `dist/.server/eco.config.mjs` as living under the deploy root.
+ * Treats an emitted `dist/server/eco.config.mjs` as living under the deploy root.
  *
  * @remarks
  * Production no longer rewrites `import.meta` to the source config, so the
- * emitted file's directory is `dist/.server/`. The app root is the directory
+ * emitted file's directory is `dist/server/`. The app root is the directory
  * that contains `dist/`, taken from the config path so a worker that reloads
  * the emitted file does not need `process.cwd()` to be the deploy root.
  */
@@ -204,7 +204,7 @@ function getPluginInstances(userConfig: EcoPagesUserConfig): object[] {
  *
  * @remarks
  * A file on disk wins. When none exists, a unique recorded source key in
- * `dist/.server/server-modules.json` is the production template, so
+ * `dist/server/server-modules.json` is the production template, so
  * `ecopages start` from a copied `dist/` still finds `404.html` instead of the
  * first Integration extension. Otherwise the path uses the first extension so
  * callers still get a stable, non-existent candidate.
@@ -283,7 +283,7 @@ function createAbsolutePaths(
 		configModuleFiles,
 		projectDir: config.rootDir,
 		srcDir,
-		distDir: path.resolve(config.rootDir, config.distDir),
+		distDir: path.resolve(config.rootDir, config.distDir, CLIENT_OUTPUT_DIR),
 		workDir: path.resolve(config.rootDir, config.workDir),
 		componentsDir: path.join(srcDir, config.componentsDir),
 		includesDir,

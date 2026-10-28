@@ -44,7 +44,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		}
 		recordRolldownBuildInvocation();
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
-		const outdir = path.resolve(options.outdir ?? 'dist/assets');
+		const outdir = path.resolve(options.outdir ?? 'dist/client/assets');
 		const recordingContext = getBuildInputRecordingContext();
 		const loadedInputs = new Set<string>();
 		const loadedInputsByModule = new Map<string, Set<string>>();

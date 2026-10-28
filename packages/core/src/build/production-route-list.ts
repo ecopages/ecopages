@@ -85,7 +85,7 @@ export function readProductionRouteListFromDist(rootDir: string, distDir: string
 }
 
 /**
- * Restores template routes from `dist/.server/routes.json`, resolving file paths against `rootDir`.
+ * Restores template routes from `dist/server/routes.json`, resolving file paths against `rootDir`.
  */
 export function loadProductionTemplateRoutes(appConfig: EcoPagesAppConfig): TemplateRoute[] | undefined {
 	const list = readProductionRouteList(appConfig);

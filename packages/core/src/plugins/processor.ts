@@ -135,6 +135,7 @@ export interface ProcessorContext {
 	config: EcoPagesAppConfig;
 	rootDir: string;
 	srcDir: string;
+	/** Public output directory (`client/` beneath the configured build output root). */
 	distDir: string;
 	cache?: string;
 }

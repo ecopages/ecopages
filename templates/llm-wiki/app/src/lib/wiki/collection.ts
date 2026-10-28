@@ -7,7 +7,7 @@ import { env } from '@/lib/env';
 /**
  * @remarks
  * Do not resolve from `import.meta.dirname` — this module is bundled into
- * `dist/.server/app.mjs`, where dirname no longer points at `src/lib`.
+ * `dist/server/app.mjs`, where dirname no longer points at `src/lib`.
  */
 export function resolveWikiContentRoot(contentRoot?: string): string {
 	return contentRoot ?? path.join(process.cwd(), 'src/content/wiki');

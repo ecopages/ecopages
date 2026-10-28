@@ -24,7 +24,7 @@ describe('server-bundle-context', () => {
 	});
 
 	it('keeps the loader context inside its async scope', async () => {
-		const appBundleDir = '/app/dist/.server';
+		const appBundleDir = '/app/dist/server';
 		const scopedResult = runWithProductionServerBundleDir(appBundleDir, async () => {
 			expect(getProductionServerBundleDir()).toBe(appBundleDir);
 			await new Promise((resolve) => setTimeout(resolve, 1));
@@ -40,7 +40,7 @@ describe('server-bundle-context', () => {
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-context-'));
 		tempDirs.push(rootDir);
 		const serverDirs = ['first', 'second'].map((name) => {
-			const serverDir = path.join(rootDir, name, '.server');
+			const serverDir = path.join(rootDir, name, 'server');
 			mkdirSync(serverDir, { recursive: true });
 			writeFileSync(path.join(serverDir, 'app.mjs'), createServerBundleLoaderSource());
 			writeFileSync(

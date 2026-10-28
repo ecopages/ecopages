@@ -1,7 +1,7 @@
 /**
  * Unified production server-module graph.
  *
- * `ecopages build` emits every server entry into `dist/.server/` and writes
+ * `ecopages build` emits every server entry into `dist/server/` and writes
  * `server-modules.json`. `ecopages start` imports those modules and never compiles.
  */
 
@@ -119,7 +119,7 @@ function reviveCompiledPageModuleFromDisk(appConfig: EcoPagesAppConfig, filePath
  * @remarks
  * Relative `dependencies.scripts` resolve from this directory, so the remap
  * keeps the source key. Emitting the module path here breaks the asset
- * pipeline (`./hello.script.ts` would resolve under `dist/.server/`).
+ * pipeline (`./hello.script.ts` would resolve under `dist/server/`).
  */
 function remapProductionIdentityFile(identity: { file?: string } | undefined, appConfig: EcoPagesAppConfig): void {
 	if (!identity?.file) {

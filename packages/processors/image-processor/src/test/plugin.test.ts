@@ -55,7 +55,7 @@ describe('ImageProcessorPlugin', () => {
 		tempRoots.push(rootDir);
 		const plugin = createImageProcessorPlugin({
 			sourceDir: path.join(rootDir, 'src', 'images'),
-			outputDir: path.join(rootDir, 'dist', 'images'),
+			outputDir: path.join(rootDir, 'dist', 'client', 'images'),
 		});
 		const processSpy = vi.spyOn(plugin, 'process').mockResolvedValue();
 		const deleteSpy = vi.spyOn(plugin, 'deleteProcessedImagesbyPath').mockResolvedValue();
@@ -82,7 +82,7 @@ describe('ImageProcessorPlugin', () => {
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
-		const outputDir = path.join(rootDir, 'dist', 'images');
+		const outputDir = path.join(rootDir, 'dist', 'client', 'images');
 		fs.mkdirSync(sourceDir, { recursive: true });
 		await createTestImage(path.join(sourceDir, 'hero.png'));
 
@@ -117,7 +117,7 @@ describe('ImageProcessorPlugin', () => {
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
-		const outputDir = path.join(rootDir, 'dist', 'images');
+		const outputDir = path.join(rootDir, 'dist', 'client', 'images');
 		fs.mkdirSync(sourceDir, { recursive: true });
 		await createTestImage(path.join(sourceDir, 'hero.png'));
 
@@ -144,7 +144,7 @@ describe('ImageProcessorPlugin', () => {
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
-		const outputDir = path.join(rootDir, 'dist', 'images');
+		const outputDir = path.join(rootDir, 'dist', 'client', 'images');
 		const imagePath = path.join(sourceDir, 'hero.png');
 		fs.mkdirSync(sourceDir, { recursive: true });
 		await createTestImage(imagePath);
@@ -169,6 +169,7 @@ describe('ImageProcessorPlugin', () => {
 		const runtimeVirtualModulePath = path.join(
 			rootDir,
 			'dist',
+			'client',
 			GENERATED_BASE_PATHS.cache,
 			'ecopages-image-processor',
 			'virtual-module.ts',
@@ -192,7 +193,7 @@ describe('ImageProcessorPlugin', () => {
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
-		const outputDir = path.join(rootDir, 'dist', 'images');
+		const outputDir = path.join(rootDir, 'dist', 'client', 'images');
 		fs.mkdirSync(sourceDir, { recursive: true });
 		await createTestImage(path.join(sourceDir, 'hero.png'));
 
@@ -221,7 +222,7 @@ describe('ImageProcessorPlugin', () => {
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
-		const outputDir = path.join(rootDir, 'dist', 'images');
+		const outputDir = path.join(rootDir, 'dist', 'client', 'images');
 		fs.mkdirSync(sourceDir, { recursive: true });
 		await createTestImage(path.join(sourceDir, 'hero.png'));
 
@@ -255,7 +256,7 @@ describe('ImageProcessorPlugin', () => {
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
-		const outputDir = path.join(rootDir, 'dist', 'images');
+		const outputDir = path.join(rootDir, 'dist', 'client', 'images');
 		fs.mkdirSync(sourceDir, { recursive: true });
 		await createTestImage(path.join(sourceDir, 'hero.png'));
 
@@ -294,7 +295,7 @@ describe('ImageProcessorPlugin', () => {
 
 			const plugin = createImageProcessorPlugin({
 				sourceDir,
-				outputDir: path.join(rootDir, 'dist', 'images'),
+				outputDir: path.join(rootDir, 'dist', 'client', 'images'),
 				sizes: [
 					{ width: 320, label: 'sm' },
 					{ width: 640, label: 'md' },
@@ -308,7 +309,7 @@ describe('ImageProcessorPlugin', () => {
 			plugin.setContext(appConfig);
 			await plugin.setup();
 
-			const outputDir = path.join(rootDir, 'dist', 'images');
+			const outputDir = path.join(rootDir, 'dist', 'client', 'images');
 			const onChanges = plugin.getWatchConfig()?.onChanges;
 			if (!onChanges) {
 				throw new Error('Expected image processor batched watch handler');

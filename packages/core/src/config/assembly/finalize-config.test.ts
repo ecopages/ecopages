@@ -42,7 +42,7 @@ const finalize = (userConfig: EcoPagesUserConfig = {}) =>
 describe('finalizeEcoPagesConfig configModuleFiles', () => {
 	test.each([
 		{ source: 'a config loaded from source', configFile: 'eco.config.ts', scanned: true },
-		{ source: 'the emitted production config', configFile: 'dist/.server/eco.config.mjs', scanned: false },
+		{ source: 'the emitted production config', configFile: 'dist/server/eco.config.mjs', scanned: false },
 	])('lists the files that $source imports only when it is scanned', async ({ configFile, scanned }) => {
 		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-module-files-'));
 		try {
@@ -166,7 +166,7 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(config.baseUrl).toBe(`http://${DEFAULT_ECOPAGES_HOSTNAME}:${DEFAULT_ECOPAGES_PORT}`);
 		expect(config.distDir).toBe('dist');
 		expect(config.workDir).toBe('.eco');
-		expect(config.absolutePaths.distDir).toBe(path.join('/project', 'dist'));
+		expect(config.absolutePaths.distDir).toBe(path.join('/project', 'dist', 'client'));
 		expect(config.absolutePaths.workDir).toBe(path.join('/project', '.eco'));
 	});
 
@@ -391,7 +391,7 @@ describe('finalizeEcoPagesConfig', () => {
 	test('resolves semantic templates from the production map when sources are gone', async () => {
 		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-semantic-from-map-'));
 		try {
-			const serverOutdir = path.join(rootDir, 'dist/.server');
+			const serverOutdir = path.join(rootDir, 'dist/server');
 			fs.mkdirSync(serverOutdir, { recursive: true });
 			fs.writeFileSync(
 				path.join(serverOutdir, 'server-modules.json'),

@@ -193,45 +193,65 @@ describe('serveDistFile', () => {
 		expect(metadata.status).toBe(404);
 	});
 
-	it('never serves files from the internal server output directory', async () => {
-		const distDir = createDist();
-		const serverDir = path.join(distDir, '.server');
+	it('serves only the client output and rejects symlinks into sibling server output', async () => {
+		const outputDir = createDist();
+		const distDir = path.join(outputDir, 'client');
+		const serverDir = path.join(outputDir, 'server');
+		fs.mkdirSync(distDir, { recursive: true });
 		fs.mkdirSync(serverDir, { recursive: true });
-		for (const file of ['server-modules.json', 'routes.json', 'app.mjs', 'eco.config.mjs']) {
-			fs.writeFileSync(path.join(serverDir, file), 'internal');
-		}
-		for (const [file, contents] of [
-			['.server\\app.mjs', 'backslash app'],
-			['.SERVER\\eco.config.mjs', 'backslash config'],
-		] as const) {
-			fs.writeFileSync(path.join(distDir, file), contents);
-		}
-		for (const [directory, file] of [
-			['.SERVER', 'app.mjs'],
-			['.SeRvEr', 'routes.json'],
-		] as const) {
-			fs.mkdirSync(path.join(distDir, directory), { recursive: true });
-			fs.writeFileSync(path.join(distDir, directory, file), 'case-variant internal');
-		}
+		fs.writeFileSync(path.join(serverDir, 'app.mjs'), 'internal');
+		fs.writeFileSync(path.join(distDir, 'index.html'), '<h1>Home</h1>');
+		fs.symlinkSync(
+			serverDir,
+			path.join(distDir, 'linked-server'),
+			process.platform === 'win32' ? 'junction' : 'dir',
+		);
 
-		for (const pathname of [
-			'/.server/server-modules.json',
-			'/.server/routes.json',
-			'/.server/app.mjs',
-			'/.server/eco.config.mjs',
-			'/.SERVER/app.mjs',
-			'/.SeRvEr/routes.json',
-			'/%2Eserver/server-modules.json',
-			'/%2eserver/app.mjs',
-			'/.server%5Capp.mjs',
-			'/.SERVER%5Ceco.config.mjs',
-		]) {
+		const home = await serveDistFile(new Request('http://localhost/'), { distDir, watchMode: false });
+		for (const pathname of ['/server/app.mjs', '/linked-server/app.mjs', '/%2Eserver/app.mjs']) {
 			const response = await serveDistFile(new Request(`http://localhost${pathname}`), {
 				distDir,
 				watchMode: false,
 			});
 			expect(response.status, pathname).toBe(404);
 		}
+		expect([home.status, await home.text()]).toEqual([200, '<h1>Home</h1>']);
+	});
+
+	it('does not serve a 404 page symlink into sibling server output', async () => {
+		const outputDir = createDist();
+		const distDir = path.join(outputDir, 'client');
+		const serverDir = path.join(outputDir, 'server');
+		fs.mkdirSync(distDir, { recursive: true });
+		fs.mkdirSync(serverDir, { recursive: true });
+		fs.writeFileSync(path.join(serverDir, 'app.mjs'), 'private server bundle');
+		fs.symlinkSync('../server/app.mjs', path.join(distDir, '404.html'));
+
+		const response = await serveDistFile(new Request('http://localhost/missing'), { distDir, watchMode: false });
+
+		expect(response.status).toBe(404);
+		expect(await response.text()).toBe('404 Not Found');
+	});
+
+	it('does not serve a gzip symlink into sibling server output', async () => {
+		const outputDir = createDist();
+		const distDir = path.join(outputDir, 'client');
+		const serverDir = path.join(outputDir, 'server');
+		const assetDir = path.join(distDir, 'assets');
+		fs.mkdirSync(assetDir, { recursive: true });
+		fs.mkdirSync(serverDir, { recursive: true });
+		fs.writeFileSync(path.join(assetDir, 'app.js'), 'public browser asset');
+		fs.writeFileSync(path.join(serverDir, 'app.mjs'), 'private server bundle');
+		fs.symlinkSync('../../server/app.mjs', path.join(assetDir, 'app.js.gz'));
+
+		const response = await serveDistFile(
+			new Request('http://localhost/assets/app.js', { headers: { 'Accept-Encoding': 'gzip' } }),
+			{ distDir, watchMode: false },
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get('content-encoding')).toBeNull();
+		expect(await response.text()).toBe('public browser asset');
 	});
 
 	it('lets the runtime route handler provide its rendered 404', async () => {

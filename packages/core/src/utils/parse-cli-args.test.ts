@@ -42,7 +42,7 @@ describe('parseCliArgs', () => {
 		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build'];
 		expect(isEcopagesStartCli()).toBe(false);
 
-		process.argv = ['node', '/app/dist/.server/app.mjs'];
+		process.argv = ['node', '/app/dist/server/app.mjs'];
 		expect(isEcopagesStartCli()).toBe(false);
 
 		process.argv = ['node', '/app/server.js'];

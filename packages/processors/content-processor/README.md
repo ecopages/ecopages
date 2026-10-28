@@ -4,10 +4,10 @@ Build-time content collections for Ecopages. Scans MDX (or other configured exte
 
 ## Mental model
 
-Build contributions use one `plugins(app)` method. Collection modules and types are generated in `setup()`, and a build that resolves a collection first waits for the same generation. `ecopages build` emits those generated collection manifests and server modules into `dist/.server/` and registers them in `server-modules.json`. Production `ecopages start` restores from that map and does not call `setup()`. Development still regenerates collections when an MDX file is edited. The server resolver and browser resolver declare separate environments, so browser compilation cannot select the server implementation by registration order.
+Build contributions use one `plugins(app)` method. Collection modules and types are generated in `setup()`, and a build that resolves a collection first waits for the same generation. `ecopages build` emits those generated collection manifests and server modules into `dist/server/` and registers them in `server-modules.json`. Production `ecopages start` restores from that map and does not call `setup()`. Development still regenerates collections when an MDX file is edited. The server resolver and browser resolver declare separate environments, so browser compilation cannot select the server implementation by registration order.
 
 1. **Declare collections** in `eco.config.ts` — content directory, frontmatter schema, and sort order.
-2. **Scan at build time** — the processor validates frontmatter and writes generated modules under `.eco/cache/`. Invalid frontmatter fails `ecopages build`, not the first request. Production emit copies the compiled collection modules into `dist/.server/`.
+2. **Scan at build time** — the processor validates frontmatter and writes generated modules under `.eco/cache/`. Invalid frontmatter fails `ecopages build`, not the first request. Production emit copies the compiled collection modules into `dist/server/`.
 3. **Import the virtual module** — pages and layouts use `ecopages:content/<collection>` for `entries`, metadata, and MDX components.
 4. **Own your frontmatter** — define fields with any [Standard Schema](https://standardschema.dev)-compatible library (Zod, Valibot, ArkType, etc.). The processor adds `slug` and `segments` from the file path.
 

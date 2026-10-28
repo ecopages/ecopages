@@ -478,15 +478,15 @@ describe('NodeServerAdapter', () => {
 			const processor = new (class extends Processor {
 				override async setup(): Promise<void> {
 					events.push('processor setup');
-					fs.writeFileSync(path.join(rootDir, 'dist', 'generated.txt'), 'generated');
+					fs.writeFileSync(path.join(appConfig.absolutePaths.distDir, 'generated.txt'), 'generated');
 				}
 			})({ name: 'generating-processor' });
 			const appConfig = await finalizeEcoPagesConfig({ rootDir, processors: [processor] });
 			fs.mkdirSync(appConfig.absolutePaths.publicDir, { recursive: true });
 			const publicAsset = path.join(appConfig.absolutePaths.publicDir, 'logo.svg');
 			fs.writeFileSync(publicAsset, '<svg />');
-			fs.mkdirSync(path.join(rootDir, 'dist'), { recursive: true });
-			fs.writeFileSync(path.join(rootDir, 'dist', 'stale.txt'), 'stale');
+			fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
+			fs.writeFileSync(path.join(appConfig.absolutePaths.distDir, 'stale.txt'), 'stale');
 			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false }, runtimeAssetSetup });
 			const copyFile = vi.spyOn(fileSystem, 'copyFile');
 			vi.spyOn(ServerRequestPipeline.prototype, 'initializeRouteHandling').mockImplementation(async () => {
@@ -531,7 +531,7 @@ describe('NodeServerAdapter', () => {
 		it('copies the public directory in start mode', async () => {
 			const { rootDir } = await initializeWith('start');
 
-			expect(fs.readFileSync(path.join(rootDir, 'dist', 'logo.svg'), 'utf8')).toBe('<svg />');
+			expect(fs.readFileSync(path.join(rootDir, 'dist', 'client', 'logo.svg'), 'utf8')).toBe('<svg />');
 		});
 
 		it('copies the public directory once when export preparation clears dist', async () => {
@@ -539,8 +539,8 @@ describe('NodeServerAdapter', () => {
 			const publicAssetCopies = copyFile.mock.calls.filter(([source]) => source === publicAsset);
 
 			expect(publicAssetCopies).toHaveLength(1);
-			expect(fs.readFileSync(path.join(rootDir, 'dist', 'logo.svg'), 'utf8')).toBe('<svg />');
-			expect(fs.existsSync(path.join(rootDir, 'dist', 'assets'))).toBe(true);
+			expect(fs.readFileSync(path.join(rootDir, 'dist', 'client', 'logo.svg'), 'utf8')).toBe('<svg />');
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'assets'))).toBe(true);
 		});
 
 		it('sets Integrations up before non-watch network requests are released', async () => {
@@ -617,17 +617,17 @@ describe('NodeServerAdapter', () => {
 		it('empties dist before an export sets Processors up and keeps what they generate', async () => {
 			const { rootDir } = await initializeWith('export');
 
-			expect(fs.existsSync(path.join(rootDir, 'dist', 'stale.txt'))).toBe(false);
-			expect(fs.existsSync(path.join(rootDir, 'dist', 'generated.txt'))).toBe(true);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'stale.txt'))).toBe(false);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'generated.txt'))).toBe(true);
 		});
 
 		it('leaves Processors and dist alone when a preview only serves an earlier export', async () => {
 			const { events, rootDir } = await initializeWith('none');
 
 			expect(events).toEqual(['routes read']);
-			expect(fs.existsSync(path.join(rootDir, 'dist', 'stale.txt'))).toBe(true);
-			expect(fs.existsSync(path.join(rootDir, 'dist', 'logo.svg'))).toBe(false);
-			expect(fs.existsSync(path.join(rootDir, 'dist', 'assets'))).toBe(false);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'stale.txt'))).toBe(true);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'logo.svg'))).toBe(false);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'assets'))).toBe(false);
 		});
 	});
 

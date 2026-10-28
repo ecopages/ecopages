@@ -108,9 +108,8 @@ function requireOptionalBrowserManifest(
 	deployManifestPath: string,
 ): void {
 	const browserManifestPath = path.join(serverDir, BROWSER_CLIENT_MANIFEST_FILENAME);
-	const browserManifestResult = readJsonObject(browserManifestPath);
-	if (browserManifestResult.kind !== 'valid') return;
-	const browserManifest = browserManifestResult.value;
+	if (!fileSystem.exists(browserManifestPath)) return;
+	const browserManifest = requireJsonObject(rootDir, browserManifestPath, 'browser client manifest');
 	requireMatchingBuildId(rootDir, buildId, deployManifestPath, browserManifestPath, browserManifest);
 	const browserOutputPaths = browserManifest.browserOutputPaths;
 	if (Array.isArray(browserOutputPaths)) {

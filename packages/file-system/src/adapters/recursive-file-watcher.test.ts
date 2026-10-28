@@ -7,6 +7,7 @@ import { expect, test, vi } from 'vitest';
 type NativeWatcher = {
 	path: string;
 	recursive: boolean;
+	ignore?: (relativePath: string) => boolean;
 	closed: boolean;
 	notify: (eventType: string, filename: string | null) => void;
 };
@@ -23,6 +24,7 @@ const nativePromises = vi.hoisted(() => ({
 	permissionDeniedLstatPath: undefined as string | undefined,
 	failReaddirPath: undefined as string | undefined,
 	failReaddirOnOccurrence: undefined as number | undefined,
+	failReaddirCode: 'EIO',
 	readdirCallsOnFailurePath: 0,
 }));
 
@@ -30,7 +32,11 @@ vi.mock('node:fs', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('node:fs')>();
 	return {
 		...actual,
-		watch: (watchPath: string, options: { recursive?: boolean }, listener: NativeWatcher['notify']) => {
+		watch: (
+			watchPath: string,
+			options: { recursive?: boolean; ignore?: (relativePath: string) => boolean },
+			listener: NativeWatcher['notify'],
+		) => {
 			if (nativeWatchers.failNextWatchPath === watchPath) {
 				nativeWatchers.failNextWatchPath = undefined;
 				throw new Error('Temporary native watch failure');
@@ -38,6 +44,7 @@ vi.mock('node:fs', async (importOriginal) => {
 			const watcher: NativeWatcher = {
 				path: watchPath,
 				recursive: options.recursive ?? false,
+				ignore: options.ignore,
 				closed: false,
 				notify: (eventType, filename) => {
 					if (!watcher.closed) listener(eventType, filename);
@@ -82,7 +89,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 				nativePromises.readdirCallsOnFailurePath += 1;
 				if (nativePromises.readdirCallsOnFailurePath === nativePromises.failReaddirOnOccurrence) {
 					const error = new Error('Temporary directory read failure') as NodeJS.ErrnoException;
-					error.code = 'EIO';
+					error.code = nativePromises.failReaddirCode;
 					nativePromises.failReaddirPath = undefined;
 					throw error;
 				}
@@ -376,6 +383,130 @@ test('catches a file edit during native watcher registration before add resolves
 		nativePromises.delayedStatPath = undefined;
 		nativePromises.statStarted = undefined;
 		nativePromises.releaseStat = undefined;
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('lets native recursive watchers skip subtrees the caller always ignores', async () => {
+	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-native-ignore-')));
+	mkdirSync(path.join(rootDir, 'node_modules'));
+	mkdirSync(path.join(rootDir, 'data'));
+	nativeWatchers.watchers.length = 0;
+	const watcher = new NodeFileSystem().watch([rootDir], {
+		onChange: () => {},
+		onError: (error) => {
+			throw error;
+		},
+		ignored: (watchedPath, stats) =>
+			path.basename(watchedPath) === 'node_modules' || (stats !== undefined && watchedPath.endsWith('data')),
+	});
+
+	try {
+		await watcher.ready;
+		const recursiveWatcher = nativeWatchers.watchers.find(({ recursive }) => recursive);
+		expect(recursiveWatcher?.ignore?.('node_modules')).toBe(true);
+		expect(recursiveWatcher?.ignore?.('data')).toBe(false);
+		expect(recursiveWatcher?.ignore?.(path.join('src', 'entry.ts'))).toBe(false);
+	} finally {
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('reports a directory the ignore predicate allows after a later add', async () => {
+	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-widened-')));
+	const dataFile = path.join(rootDir, 'data', 'x.json');
+	mkdirSync(path.join(rootDir, 'data'));
+	writeFileSync(dataFile, '1');
+	nativeWatchers.watchers.length = 0;
+	const allowed = new Set<string>();
+	const changes: Array<{ type: string; path: string }> = [];
+	const watcher = new NodeFileSystem().watch([rootDir], {
+		onChange: (change) => changes.push(change),
+		onError: (error) => {
+			throw error;
+		},
+		ignored: (watchedPath, stats) =>
+			stats !== undefined &&
+			watchedPath !== rootDir &&
+			![...allowed].some(
+				(allowedPath) => allowedPath === watchedPath || allowedPath.startsWith(`${watchedPath}${path.sep}`),
+			),
+	});
+
+	try {
+		await watcher.ready;
+		const recursiveWatcher = nativeWatchers.watchers.find(({ recursive }) => recursive);
+		writeFileSync(dataFile, '2');
+		recursiveWatcher?.notify('change', path.join('data', 'x.json'));
+		await new Promise((resolve) => setTimeout(resolve, 150));
+		expect(changes).toEqual([]);
+
+		allowed.add(dataFile);
+		await watcher.add([dataFile]);
+		writeFileSync(dataFile, '3');
+		recursiveWatcher?.notify('change', path.join('data', 'x.json'));
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: dataFile }));
+	} finally {
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('treats a new directory removed while it is indexed as gone, not as a watcher error', async () => {
+	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-vanished-dir-')));
+	const addedDirectory = path.join(rootDir, 'added');
+	nativeWatchers.watchers.length = 0;
+	const errors: unknown[] = [];
+	const changes: Array<{ type: string; path: string }> = [];
+	const watcher = new NodeFileSystem().watch([rootDir], {
+		onChange: (change) => changes.push(change),
+		onError: (error) => errors.push(error),
+	});
+
+	try {
+		await watcher.ready;
+		mkdirSync(addedDirectory);
+		nativePromises.failReaddirPath = addedDirectory;
+		nativePromises.failReaddirOnOccurrence = 1;
+		nativePromises.readdirCallsOnFailurePath = 0;
+		nativePromises.failReaddirCode = 'ENOENT';
+		nativeWatchers.watchers.find(({ recursive }) => recursive)?.notify('rename', 'added');
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'addDir', path: addedDirectory }));
+		await vi.waitFor(() => expect(nativePromises.readdirCallsOnFailurePath).toBe(1));
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(errors).toEqual([]);
+	} finally {
+		nativePromises.failReaddirPath = undefined;
+		nativePromises.failReaddirCode = 'EIO';
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('opens no native watcher for a directory found after close', async () => {
+	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-close-during-index-')));
+	nativeWatchers.watchers.length = 0;
+	let closing: Promise<void> | undefined;
+	const watcher = new NodeFileSystem().watch([rootDir], {
+		onChange: (change) => {
+			if (change.type === 'addDir' && change.path.endsWith(`${path.sep}b`)) closing = watcher.close();
+		},
+		onError: (error) => {
+			throw error;
+		},
+	});
+
+	try {
+		await watcher.ready;
+		mkdirSync(path.join(rootDir, 'a', 'b', 'c'), { recursive: true });
+		nativeWatchers.watchers.find(({ recursive }) => recursive)?.notify('rename', 'a');
+		await vi.waitFor(() => expect(closing).toBeDefined());
+		await closing;
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(nativeWatchers.watchers.filter(({ closed }) => !closed)).toEqual([]);
+	} finally {
 		await watcher.close();
 		rmSync(rootDir, { recursive: true, force: true });
 	}

@@ -214,3 +214,31 @@ test('activates a linked package root when a build input is recorded after start
 	await fake.emit('change', packageSource);
 	expect(restart).toHaveBeenCalledWith(packageSource);
 });
+
+test('watches a build input recorded after startup under an additional watch path base', async () => {
+	const rootDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-glob-base-input-')));
+	roots.push(rootDir);
+	const dataFile = path.join(rootDir, 'data', 'site.json');
+	mkdirSync(path.dirname(dataFile), { recursive: true });
+	writeFileSync(dataFile, '{}');
+	const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+	config.additionalWatchPaths = ['**/*.md'];
+	const fake = installFakeFileSystemWatch();
+	const watcher = new ProjectWatcher({
+		config,
+		hmrManager: createMockHmrManager(),
+		bridge: createMockBridge(),
+		refreshRouterRoutesCallback: async () => {},
+		onRestartRequest: async () => {},
+		changeDebounceMs: 0,
+	});
+	watchers.push(watcher);
+	await watcher.createWatcherSubscription();
+
+	const ignored = fake.watch.mock.calls[0]?.[1].ignored;
+	const fileStats = { isFile: true, isDirectory: false, isSymbolicLink: false, size: 2 };
+	expect(ignored?.(dataFile, fileStats)).toBe(true);
+	requireAppRuntime(config).buildInputIndex.recordWatchPath(dataFile);
+	expect(fake.handle.add).toHaveBeenCalledWith([dataFile]);
+	expect(ignored?.(dataFile, fileStats)).toBe(false);
+});

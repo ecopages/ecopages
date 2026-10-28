@@ -1,4 +1,12 @@
-import { lstatSync, realpathSync, statSync, watch as watchFs, type FSWatcher, type Stats } from 'node:fs';
+import {
+	lstatSync,
+	realpathSync,
+	statSync,
+	watch as watchFs,
+	type FSWatcher,
+	type Stats,
+	type WatchOptionsWithStringEncoding,
+} from 'node:fs';
 import { lstat as lstatAsync, readdir as readdirAsync, stat as statAsync } from 'node:fs/promises';
 import path from 'node:path';
 import type { FileChange, FileStats, FileWatcher, WatchOptions } from '../types.ts';
@@ -29,6 +37,15 @@ type PendingPathChange = {
 	timer: ReturnType<typeof setTimeout>;
 	forceChange: boolean;
 };
+
+/**
+ * `fs.watch` options including `ignore`.
+ *
+ * @remarks
+ * `@types/node` 24.13 does not declare `ignore` yet. Node releases that support it, and Bun, skip ignored
+ * paths of a recursive root; older Node 24 releases ignore the option and watch every entry.
+ */
+type NativeWatchOptions = WatchOptionsWithStringEncoding & { ignore?: (relativePath: string) => boolean };
 
 const CHANGE_COALESCING_MS = 50;
 
@@ -112,6 +129,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 
 	private async addPaths(paths: readonly string[]): Promise<void> {
 		if (this.closed || paths.length === 0) return;
+		this.ignoredDirectories.clear();
 		const requestedPaths = new Set(this.watchedPaths.map(({ requestedPath }) => requestedPath));
 		const newPaths = paths
 			.map((watchPath) => resolveWatchedPath(watchPath))
@@ -227,8 +245,16 @@ export class RecursiveFileWatcher implements FileWatcher {
 	}
 
 	private openWatcher(root: WatchRoot): void {
+		if (this.closed) return;
 		if ([...this.watchers.values()].some((existingRoot) => rootKey(existingRoot) === rootKey(root))) return;
-		const watcher = watchFs(root.path, { encoding: 'utf8', recursive: root.recursive }, (eventType, filename) => {
+		const options: NativeWatchOptions = {
+			encoding: 'utf8',
+			recursive: root.recursive,
+			ignore: root.recursive
+				? (relativePath) => this.isSkippedByNativeWatcher(path.join(root.path, relativePath))
+				: undefined,
+		};
+		const watcher = watchFs(root.path, options, (eventType, filename) => {
 			if (filename === null) {
 				if (this.indexing) {
 					this.deferRootReconcile(root, eventType === 'change', this.rootsToReconcileAfterIndex);
@@ -250,6 +276,39 @@ export class RecursiveFileWatcher implements FileWatcher {
 		});
 		watcher.on('error', (error) => this.handleError(error));
 		this.watchers.set(watcher, root);
+	}
+
+	/**
+	 * True when every watched path that covers `canonicalPath` ignores it, or one of its folders, without stats.
+	 *
+	 * @remarks
+	 * Passed to native recursive watchers as `ignore`. Node on Linux walks a recursive root and opens one
+	 * inotify watch per entry; `ignore` stops that walk, so `node_modules` and similar trees cost no kernel
+	 * watches. Only the stats-free answer is used, because `ignored` may widen later when called with stats.
+	 */
+	private isSkippedByNativeWatcher(canonicalPath: string): boolean {
+		const ignored = this.options.ignored;
+		if (!ignored) return false;
+		let covered = false;
+		for (const watchedPath of this.watchedPaths) {
+			if (watchedPath.scope !== 'directory' || !isSameOrInside(canonicalPath, watchedPath.canonicalPath))
+				continue;
+			covered = true;
+			const segments = path.relative(watchedPath.canonicalPath, canonicalPath).split(path.sep).filter(Boolean);
+			let reportedPath = watchedPath.requestedPath;
+			let skipped = false;
+			for (const segment of ['', ...segments]) {
+				reportedPath = segment ? path.join(reportedPath, segment) : reportedPath;
+				try {
+					skipped = ignored(reportedPath);
+				} catch {
+					skipped = false;
+				}
+				if (skipped) break;
+			}
+			if (!skipped) return false;
+		}
+		return covered;
 	}
 
 	private scheduleRootReconcile(root: WatchRoot, notifyRescan = true): void {
@@ -437,6 +496,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 		try {
 			children = await readdirAsync(directoryPath, { withFileTypes: true });
 		} catch (error) {
+			if (isMissingPathError(error)) return;
 			if (isPermissionError(error)) {
 				unreadableDirectories.add(directoryPath);
 				return;
@@ -608,7 +668,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 		try {
 			entries = await readdirAsync(directoryPath, { withFileTypes: true });
 		} catch (error) {
-			if (isPermissionError(error)) return;
+			if (isPermissionError(error) || isMissingPathError(error)) return;
 			throw error;
 		}
 
@@ -721,7 +781,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 		try {
 			entries = await readdirAsync(directoryPath, { withFileTypes: true });
 		} catch (error) {
-			if (isPermissionError(error)) return;
+			if (isPermissionError(error) || isMissingPathError(error)) return;
 			throw error;
 		}
 
@@ -729,6 +789,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 			if (this.closed) return;
 			const entryPath = path.join(directoryPath, entry.name);
 			const stats = await tryLstatAsync(entryPath);
+			if (this.closed) return;
 			if (!stats || this.knownEntries.has(entryPath)) continue;
 			const mappedPaths = this.getMappedPaths(entryPath, stats);
 			if (!mappedPaths.length) continue;

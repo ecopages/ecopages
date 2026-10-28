@@ -624,7 +624,12 @@ export class ProjectWatcher {
 				}
 				return;
 			}
-			if ([...this.watchedPaths].some((watchedPath) => isPathInside(resolvedPath, watchedPath))) {
+			if (
+				literalPaths.has(resolvedPath) ||
+				[...literalPaths, ...activeWorkspacePackageRoots].some((watchedPath) =>
+					isPathInside(resolvedPath, watchedPath),
+				)
+			) {
 				return;
 			}
 			literalPaths.add(resolvedPath);

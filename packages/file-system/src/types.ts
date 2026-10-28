@@ -30,6 +30,8 @@ export interface WatchOptions {
 	 *
 	 * @remarks
 	 * Tested before a directory is read, so ignored subdirectories are skipped during initial indexing.
+	 * Called without stats, it decides which subtrees native recursive watchers never descend into; return
+	 * `true` there only for paths that stay ignored for the watcher's lifetime, such as `node_modules`.
 	 */
 	ignored?: (path: string, stats?: FileStats) => boolean;
 }

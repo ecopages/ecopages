@@ -170,7 +170,7 @@ An Integration can prune server-only imports before resolution. React uses the s
 `BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exceptions:
 
 - `splitting` — when `false` with a single entrypoint, maps to Rolldown `codeSplitting: false` so dynamic imports stay in one file. Multi-entrypoint builds ignore `splitting: false` because Rolldown cannot inline across multiple inputs.
-- `preserveModules` — emits each source module as a separate file, named after its source path with `/` replaced by `-` so every module sits directly in the output directory. Production server-module emits use it across build passes so a shared SSR script dependency keeps one output path and one runtime module instance. Flat names keep `import.meta` of every emitted module pointing at the folder that holds `serverFiles`, and let installed-package externals relative to the output directory resolve from every module.
+- `preserveModules` — emits each source module as a separate file, named after its source path with `/` replaced by `-` so every module sits directly in the output directory. Long flattened names are shortened with a stable digest to stay below common filesystem filename limits. Production server-module emits use it across build passes so a shared SSR script dependency keeps one output path and one runtime module instance. Flat names keep `import.meta` of every emitted module pointing at the folder that holds `serverFiles`, and let installed-package externals relative to the output directory resolve from every module.
 
 ## Dev / watch path
 

@@ -28,6 +28,7 @@ import { requireAppRuntime } from '../../../packages/core/src/utils/app-runtime.
 import { copyFixtureApp } from '../../../packages/core/__fixtures__/app/copy-fixture-app.ts';
 
 const ORIGIN = 'http://localhost:3000';
+const MAX_PRODUCTION_SERVER_START_ATTEMPTS = 3;
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const cliPath = path.join(repoRoot, 'packages/ecopages/bin/cli.js');
 const fixtureDir = import.meta.dirname;
@@ -204,23 +205,40 @@ function runCliBuild(appDir: string): ReturnType<typeof spawnSync> {
 	});
 }
 
-async function reservePort(): Promise<number> {
+async function listenOnPort(port = 0): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
 	const server = createServer();
+	server.on('connection', (socket) => socket.destroy());
 	await new Promise<void>((resolve, reject) => {
 		server.once('error', reject);
-		server.listen(0, '127.0.0.1', resolve);
+		server.listen(port, '127.0.0.1', resolve);
 	});
 	const address = server.address();
 	if (!address || typeof address === 'string') {
-		throw new Error('Unable to reserve a local port for the production server test.');
+		throw new Error('Unable to read the local port for the production server test.');
 	}
+	return { server, port: address.port };
+}
+
+async function closeListeningServer(server: ReturnType<typeof createServer>): Promise<void> {
 	await new Promise<void>((resolve, reject) => {
 		server.close((error) => (error ? reject(error) : resolve()));
 	});
-	return address.port;
 }
 
-function startProductionServer(appDir: string, port: number): { child: ChildProcess; output(): string } {
+async function reservePort(): Promise<number> {
+	const reservation = await listenOnPort();
+	await closeListeningServer(reservation.server);
+	return reservation.port;
+}
+
+function spawnProductionServer(
+	appDir: string,
+	port: number,
+): {
+	child: ChildProcess;
+	output(): string;
+	closed: Promise<void>;
+} {
 	const child = spawn(process.execPath, [path.join(appDir, 'dist/.server/app.mjs')], {
 		cwd: appDir,
 		env: {
@@ -233,6 +251,7 @@ function startProductionServer(appDir: string, port: number): { child: ChildProc
 		},
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
+	const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
 	let capturedOutput = '';
 	child.stdout?.on('data', (chunk: Buffer) => {
 		capturedOutput += chunk.toString();
@@ -240,7 +259,7 @@ function startProductionServer(appDir: string, port: number): { child: ChildProc
 	child.stderr?.on('data', (chunk: Buffer) => {
 		capturedOutput += chunk.toString();
 	});
-	return { child, output: () => capturedOutput };
+	return { child, output: () => capturedOutput, closed };
 }
 
 async function waitForProductionServer(url: string, server: { child: ChildProcess; output(): string }): Promise<void> {
@@ -256,6 +275,27 @@ async function waitForProductionServer(url: string, server: { child: ChildProces
 		await new Promise((resolve) => setTimeout(resolve, 100));
 	}
 	throw new Error(`Production server did not become ready.\n${server.output()}`);
+}
+
+async function startProductionServer(
+	appDir: string,
+	allocatePort: () => Promise<number> = reservePort,
+): Promise<{ child: ChildProcess; origin: string; output(): string }> {
+	for (let attempt = 0; attempt < MAX_PRODUCTION_SERVER_START_ATTEMPTS; attempt += 1) {
+		const port = await allocatePort();
+		const server = spawnProductionServer(appDir, port);
+		const origin = `http://127.0.0.1:${port}`;
+		try {
+			await waitForProductionServer(origin, server);
+			return { child: server.child, origin, output: server.output };
+		} catch (error) {
+			if (server.child.exitCode !== null || server.child.signalCode !== null) await server.closed;
+			const portIsInUse = /EADDRINUSE/u.test(server.output());
+			await stopProductionServer(server.child);
+			if (!portIsInUse || attempt + 1 === MAX_PRODUCTION_SERVER_START_ATTEMPTS) throw error;
+		}
+	}
+	throw new Error('Unable to start the production server after reserving local ports.');
 }
 
 async function stopProductionServer(child: ChildProcess): Promise<void> {
@@ -350,18 +390,26 @@ describe('production server modules', () => {
 
 			rmSync(path.join(appDir, 'src'), { recursive: true, force: true });
 			rmSync(path.join(appDir, 'eco.config.ts'), { force: true });
-			const port = await reservePort();
-			const origin = `http://127.0.0.1:${port}`;
-			const server = startProductionServer(appDir, port);
+			const occupiedPort = await listenOnPort();
+			let portAllocations = 0;
+			let server: Awaited<ReturnType<typeof startProductionServer>>;
 			try {
-				await waitForProductionServer(`${origin}/`, server);
-				await expectEveryRouteServes((url) => fetch(url), origin, server.output);
+				server = await startProductionServer(appDir, async () => {
+					portAllocations += 1;
+					return portAllocations === 1 ? occupiedPort.port : reservePort();
+				});
+			} finally {
+				await closeListeningServer(occupiedPort.server);
+			}
+			expect(portAllocations).toBe(2);
+			try {
+				await expectEveryRouteServes((url) => fetch(url), server.origin, server.output);
 			} finally {
 				await stopProductionServer(server.child);
 			}
 
 			rmSync(path.join(appDir, 'dist/.server/routes.json'));
-			const incompleteServer = startProductionServer(appDir, await reservePort());
+			const incompleteServer = spawnProductionServer(appDir, await reservePort());
 			try {
 				const exitCode = await waitForProcessExit(incompleteServer.child, 15_000);
 				expect(exitCode, incompleteServer.output()).not.toBeNull();

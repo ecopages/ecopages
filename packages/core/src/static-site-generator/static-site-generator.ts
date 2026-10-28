@@ -59,6 +59,13 @@ type ExplicitStaticRouteRendererFactory = ExplicitViewRendererResolver;
 
 type StaticGenerationRendererFactory = StaticGenerationRendererResolver;
 
+/**
+ * @remarks
+ * Static generation stores pages with route-specific props before the renderer prepares each route. The props type is
+ * intentionally erased here; rendering remains responsible for interpreting that page's props.
+ */
+type StaticGenerationPage = EcoPageComponent<any>;
+
 type ExplicitStaticRouteEntry = {
 	pathname: string;
 	params: Record<string, string | string[]>;
@@ -67,7 +74,7 @@ type ExplicitStaticRouteEntry = {
 type PreparedExplicitStaticRoute = {
 	routePath: string;
 	routeFile?: string;
-	view: EcoPageComponent<any>;
+	view: StaticGenerationPage;
 	renderer: ExplicitViewRenderer;
 	routeEntries: ExplicitStaticRouteEntry[];
 };
@@ -152,7 +159,7 @@ export class StaticSiteGenerator {
 	): Promise<boolean> {
 		const renderer = routeRendererFactory.getPageRenderer(filePath);
 		const pageModule: EcoPageFile = await renderer.loadPageModule(filePath);
-		const Page = pageModule.default as EcoPageComponent<any>;
+		const Page = pageModule.default as StaticGenerationPage;
 		if (Page.cache !== 'dynamic') {
 			return false;
 		}
@@ -161,7 +168,7 @@ export class StaticSiteGenerator {
 		return true;
 	}
 
-	private shouldSkipStaticView(_routePath: string, view: EcoPageComponent<any>): boolean {
+	private shouldSkipStaticView(_routePath: string, view: StaticGenerationPage): boolean {
 		return view.cache === 'dynamic';
 	}
 
@@ -742,7 +749,7 @@ export class StaticSiteGenerator {
 
 	private async generateExplicitStaticRoute(input: {
 		routePath: string;
-		view: EcoPageComponent<any>;
+		view: StaticGenerationPage;
 		renderer: ExplicitViewRenderer;
 		routeEntries: ExplicitStaticRouteEntry[];
 		routeRendererFactory: ExplicitStaticRouteRendererFactory;
@@ -799,7 +806,7 @@ export class StaticSiteGenerator {
 
 	private async createExplicitStaticContents(input: {
 		routePath: string;
-		view: EcoPageComponent<any>;
+		view: StaticGenerationPage;
 		params: Record<string, string | string[]>;
 		routeRendererFactory: ExplicitStaticRouteRendererFactory;
 		renderer: ExplicitViewRenderer;
@@ -820,7 +827,7 @@ export class StaticSiteGenerator {
 
 	private async listExplicitStaticRouteEntries(
 		routePath: string,
-		view: EcoPageComponent<any>,
+		view: StaticGenerationPage,
 	): Promise<ExplicitStaticRouteEntry[]> {
 		const isDynamic = routePath.includes(':') || routePath.includes('[');
 		if (!isDynamic) {

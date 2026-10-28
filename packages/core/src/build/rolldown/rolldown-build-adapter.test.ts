@@ -18,6 +18,7 @@ import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { appLogger } from '../../global/app-logger.ts';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
+import { resolveRolldownOptions } from './rolldown-adapter-helpers.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
@@ -388,6 +389,35 @@ describe('RolldownBuildAdapter', () => {
 			{ encoding: 'utf8' },
 		);
 		expect(JSON.parse(loaded)).toEqual({ dir: realpathSync(outdir), parse: 'function' });
+	});
+
+	test('shortens flattened preserved module names from deep pnpm store paths', async () => {
+		const entrypoint = writeFixture('entry.ts', 'export {};\n');
+		const outdir = path.join(workDir, 'dist');
+		const options: BuildOptions = {
+			environment: 'server',
+			entrypoints: { entry: entrypoint },
+			outdir,
+			target: 'node',
+			format: 'esm',
+			preserveModules: true,
+			preserveModulesRoot: workDir,
+			naming: '[name]-[hash].[ext]',
+			root: workDir,
+		};
+		const resolved = await resolveRolldownOptions(options, workDir, outdir, new Map(), () => {});
+		const entryFileNames = resolved.outputOptions.entryFileNames;
+		if (typeof entryFileNames !== 'function') {
+			throw new Error('Expected preserved module naming to use a function.');
+		}
+
+		const deepStoreName = `node_modules/.pnpm/deep-package@1.0.0_${'peer-'.repeat(40)}/node_modules/deep-package/dist/`;
+		const outputNames = [`${deepStoreName}index`, `${deepStoreName}index-copy`].map((name) =>
+			entryFileNames({ name } as Parameters<typeof entryFileNames>[0]),
+		);
+
+		expect(new Set(outputNames).size).toBe(outputNames.length);
+		expect(outputNames.every((name) => Buffer.byteLength(name) < 255)).toBe(true);
 	});
 
 	test('externalPackages keeps preserved virtual modules importable', async () => {

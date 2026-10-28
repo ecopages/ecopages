@@ -97,7 +97,7 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 - `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, selects the most specific matching catch-all prefix, and shares segment matching and one-time URL decoding with API, explicit, and WebSocket routes.
 - Browser runtime package entries resolve from the application root with ESM import conditions, so framework-local packages cannot shadow app dependencies.
 - `createApp()` resolves config and CLI mode once, then returns the concrete `EcopagesApp`, which owns route registration and the Node HTTP server lifecycle.
-- One bundled adapter builds the app with Rolldown.
+- One bundled adapter builds the app with Rolldown. Preserved server-module names stay flat and use a stable digest when deep package-store paths need shortening.
 
 ## Source Layering
 

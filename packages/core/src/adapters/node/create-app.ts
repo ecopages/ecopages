@@ -25,7 +25,7 @@ import {
 	type EcopagesRuntimeLabel,
 	resolveProcessRuntimeLabel,
 } from '../../dev/runtime-server-started-message.ts';
-import { isEcopagesStartCli, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
+import type { ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { ECOPAGES_DEV_RESTART_EXIT_CODE, ECOPAGES_DEV_RESTART_REASON_ENV } from '../../dev/development-restart.ts';
 import { getEcopagesEnv } from '../../env.ts';
@@ -146,8 +146,7 @@ export class EcopagesApp implements AsyncDisposable {
 		this.appConfig = options.appConfig;
 		this.serverOptions = options.serverOptions || {};
 		this.cliArgs = options.cliArgs;
-		this.requireCompleteDist =
-			this.cliArgs.start && (isEcopagesStartCli() || options.serverBundleDir !== undefined);
+		this.requireCompleteDist = this.cliArgs.start && options.serverBundleDir !== undefined;
 		this.runtimeHost = dependencies.runtimeHost;
 		this.createServerAdapter =
 			dependencies.createServerAdapter ?? (async (params) => new NodeServerAdapter(params));

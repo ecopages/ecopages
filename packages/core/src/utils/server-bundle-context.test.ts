@@ -13,10 +13,12 @@ import {
 describe('server-bundle-context', () => {
 	const tempDirs: string[] = [];
 	const bundleDirKey = Symbol.for(SERVER_BUNDLE_CONTEXT_KEY);
+	const lastBundleDirKey = Symbol.for(`${SERVER_BUNDLE_CONTEXT_KEY}/dir`);
 	const capturesKey = Symbol.for('@ecopages/test-server-bundle-contexts');
 
 	afterEach(() => {
 		Reflect.deleteProperty(globalThis, bundleDirKey);
+		Reflect.deleteProperty(globalThis, lastBundleDirKey);
 		Reflect.deleteProperty(globalThis, capturesKey);
 		for (const tempDir of tempDirs.splice(0)) {
 			rmSync(tempDir, { recursive: true, force: true });
@@ -68,6 +70,19 @@ describe('server-bundle-context', () => {
 		expect(captures.map((capture) => path.resolve(capture as string)).sort()).toEqual(
 			serverDirs.map((serverDir) => path.resolve(serverDir)).sort(),
 		);
-		expect(getProductionServerBundleDir()).toBeUndefined();
+		expect(serverDirs.map((serverDir) => `${serverDir}${path.sep}`)).toContain(getProductionServerBundleDir());
+	});
+
+	it('falls back to the last loaded bundle when the async context is not carried into the import', async () => {
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-context-fallback-'));
+		tempDirs.push(rootDir);
+		const serverDir = path.join(rootDir, 'server');
+		mkdirSync(serverDir, { recursive: true });
+		writeFileSync(path.join(serverDir, 'app.mjs'), createServerBundleLoaderSource());
+		writeFileSync(path.join(serverDir, 'app.bundle.mjs'), 'export {};\n');
+
+		await import(/* @vite-ignore */ pathToFileURL(path.join(serverDir, 'app.mjs')).href);
+
+		expect(getProductionServerBundleDir()).toBe(`${serverDir}${path.sep}`);
 	});
 });

@@ -26,13 +26,6 @@ const ECOPAGES_BIN_FILES = ['ecopages.ts', 'ecopages.js', 'cli.js'];
 
 const ECOPAGES_AVAILABLE_COMMANDS = ['dev', 'build', 'start', 'preview'];
 
-/**
- * True when this process runs the Ecopages CLI's start command.
- */
-export function isEcopagesStartCli(runtimeArgv: string[] = getRuntimeArgv()): boolean {
-	return resolveEcopagesSubcommand(runtimeArgv) === 'start';
-}
-
 function resolveEcopagesSubcommand(runtimeArgv: string[]): string {
 	const ecopagesIndex = runtimeArgv.findIndex((arg) => ECOPAGES_BIN_FILES.some((filename) => arg.endsWith(filename)));
 	if (ecopagesIndex === -1) {

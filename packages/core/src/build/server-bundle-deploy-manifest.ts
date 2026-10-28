@@ -97,10 +97,19 @@ function readServerBundleDeployManifest(serverDir: string): ServerBundleDeployMa
 	}
 
 	try {
-		return JSON.parse(fileSystem.readFileSync(manifestPath).toString()) as ServerBundleDeployManifest;
+		const manifest: unknown = JSON.parse(fileSystem.readFileSync(manifestPath).toString());
+		return isServerBundleDeployManifest(manifest) ? manifest : undefined;
 	} catch {
 		return undefined;
 	}
+}
+
+function isServerBundleDeployManifest(value: unknown): value is ServerBundleDeployManifest {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		typeof (value as { serverEntry?: unknown }).serverEntry === 'string'
+	);
 }
 
 /**
@@ -147,7 +156,10 @@ export async function resolveProductionDistDir(options: { cwd?: string; distDir?
 	const manifests = await fileSystem.glob([`{*,.*}/${SERVER_BUNDLE_DIR}/${SERVER_BUNDLE_MANIFEST_FILENAME}`], {
 		cwd,
 	});
-	const distDirs = manifests.map((manifest) => path.resolve(cwd, manifest, '..', '..')).sort();
+	const distDirs = manifests
+		.map((manifest) => path.resolve(cwd, manifest, '..', '..'))
+		.filter((distDir) => resolveProductionServerEntry(cwd, distDir) !== undefined)
+		.sort();
 	if (distDirs.length > 1) {
 		throw new Error(
 			`Multiple production bundles found: ${distDirs.map(describe).join(', ')}. Pass --dist-dir <dir> to select one.`,

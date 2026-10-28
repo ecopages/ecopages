@@ -110,9 +110,9 @@ export default eco.html<JsxRenderable>({
 				<meta charset="UTF-8" />
 				<meta name="viewport" content="width=device-width, initial-scale=1" />
 				<title>{metadata.title}</title>
-				{headContent as JsxRenderable}
+				{headContent}
 			</head>
-			{children as JsxRenderable}
+			{children}
 		</html>
 	),
 });
@@ -136,4 +136,4 @@ export default eco.html<JsxRenderable>({
 
 The CLI sets `NODE_ENV=production` for `build`, `preview`, `start` and `types`.
 
-`ecopages start` runs the server bundle, which only apps with API handlers, WebSocket handlers or endpoint files build. Such an app uses `"start": "ecopages build && ecopages start"`. A static-only app has no server bundle: keep `ecopages preview` for `start`, or deploy `dist/` to a static host.
+`ecopages start` runs the server bundle, which only apps with API handlers, WebSocket handlers or endpoint files build. Such an app uses `"start": "ecopages build && ecopages start"`. A static-only app has no server bundle: keep `ecopages preview` for `start`, or deploy `dist/client/` to a static host.

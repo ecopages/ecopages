@@ -10,6 +10,7 @@
  * @module
  */
 
+import { createHash } from 'node:crypto';
 import { builtinModules, createRequire } from 'node:module';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
@@ -21,6 +22,7 @@ import type {
 	InputOptions,
 	OutputChunk,
 	OutputOptions,
+	PreRenderedChunk,
 	RolldownLog,
 	RolldownOutput,
 	RolldownPlugin,
@@ -50,6 +52,8 @@ import type {
 
 const coreSourceFile = fileURLToPath(import.meta.url);
 const nodeBuiltinSpecifiers = new Set(builtinModules);
+const MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES = 120;
+const PRESERVED_MODULE_NAME_HASH_LENGTH = 16;
 
 let corePackageNames: Set<string> | undefined;
 
@@ -121,7 +125,7 @@ function getAppRootRequire(cache: Map<string, NodeJS.Require>, contextRoot: stri
  * packages and source (TypeScript or JSX) packages are bundled. Undeclared
  * compiled packages are handled by {@link createInstalledPackageExternalPlugin},
  * because isolated installs (pnpm, Bun's isolated linker) do not expose them
- * as bare specifiers to output directories like `.eco/` or `dist/.server/`.
+ * as bare specifiers to output directories like `.eco/` or `dist/server/`.
  */
 function isAppPackageExternal(
 	id: string,
@@ -211,7 +215,7 @@ function isInstalledCompiledModule(filePath: string): boolean {
  * A compiled package can depend on its location on disk: it loads a native
  * binding (`sharp`, `oxc-parser`), a platform package, or a sibling file
  * through `createRequire(import.meta.url)` or `__dirname`. Bundled into
- * `dist/.server/`, that lookup starts from the wrong folder and fails at
+ * `dist/server/`, that lookup starts from the wrong folder and fails at
  * runtime, and the bundle cannot tell which packages do it. So server builds
  * bundle source code only (the app, workspace packages, TypeScript or JSX
  * packages) and keep every compiled package installed in `node_modules`
@@ -219,7 +223,7 @@ function isInstalledCompiledModule(filePath: string): boolean {
  * Core itself.
  *
  * Under isolated installs (pnpm, Bun's isolated linker) a package the app does
- * not declare is not reachable as a bare specifier from `dist/.server`, so the
+ * not declare is not reachable as a bare specifier from `dist/server`, so the
  * hook resolves it through Rolldown, from the importer (or, for Core's own
  * dependencies, from Core), so the `node` and `import` conditions apply and
  * the result is a real path, and returns a `./` or `../` path that Rolldown
@@ -577,14 +581,54 @@ function shouldDisableRolldownCodeSplitting(options: BuildOptions): boolean {
 	return entrypointCount === 1;
 }
 
+function truncateUtf8(value: string, maximumBytes: number): string {
+	let prefix = '';
+	let prefixBytes = 0;
+	for (const character of value) {
+		const characterBytes = Buffer.byteLength(character);
+		if (prefixBytes + characterBytes > maximumBytes) break;
+		prefix += character;
+		prefixBytes += characterBytes;
+	}
+	return prefix;
+}
+
+function flattenPreservedModuleName(sourceName: string): string {
+	const flattened = sourceName.replaceAll(/[\\/]/g, '-');
+	if (Buffer.byteLength(flattened) <= MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES) return flattened;
+	const digest = createHash('sha256').update(sourceName).digest('hex').slice(0, PRESERVED_MODULE_NAME_HASH_LENGTH);
+	const prefixBytes = MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES - digest.length - 1;
+	return `${truncateUtf8(flattened, prefixBytes)}-${digest}`;
+}
+
+/**
+ * Names preserved modules after their source paths while keeping each flat filename below the filesystem component limit.
+ *
+ * @remarks
+ * `preserveModules` otherwise mirrors the source tree below the output directory. Flat names keep every emitted module
+ * next to the others, so a module's `import.meta` points at the folder that holds its `serverFiles`, and installed-package
+ * externals relative to the output directory resolve from every module. Deep package-manager store paths are shortened
+ * with a stable digest to stay within common filesystem filename limits without colliding on a shared prefix.
+ */
+function flattenPreservedModuleFileNames(pattern: string): (chunk: PreRenderedChunk) => string {
+	return (chunk) => pattern.replaceAll('[name]', () => flattenPreservedModuleName(chunk.name));
+}
+
 function buildRolldownOutputOptions(options: BuildOptions, outdir: string): OutputOptions {
+	const entryFileNames = resolveRolldownEntryFileNames(options);
 	return {
 		dir: outdir,
 		format: mapRolldownFormat(options.format),
 		minify: !!options.minify,
-		entryFileNames: resolveRolldownEntryFileNames(options),
+		entryFileNames: options.preserveModules ? flattenPreservedModuleFileNames(entryFileNames) : entryFileNames,
 		chunkFileNames: '[name]-[hash].js',
 		assetFileNames: '[name]-[hash][extname]',
+		...(options.preserveModules
+			? {
+					preserveModules: true,
+					...(options.preserveModulesRoot ? { preserveModulesRoot: options.preserveModulesRoot } : {}),
+				}
+			: {}),
 		sourcemap: mapRolldownSourcemap(options.sourcemap),
 		...(shouldDisableRolldownCodeSplitting(options) ? { codeSplitting: false } : {}),
 	};
@@ -647,6 +691,15 @@ function isHashedSourceMap(fileName: string, hashedFileNames: ReadonlySet<string
 	return fileName.endsWith('.map') && hashedFileNames.has(fileName.slice(0, -'.map'.length));
 }
 
+/**
+ * Returns the source file path of a bundled module, or nothing for a virtual module.
+ */
+function sourceModulePath(moduleId: string, root: string): string[] {
+	if (moduleId.startsWith('\0')) return [];
+	const filePath = moduleId.startsWith('file:') ? fileURLToPath(moduleId) : moduleId;
+	return path.isAbsolute(filePath) ? [resolveBuildEntryPath(filePath, root)] : [];
+}
+
 /** Maps a Rolldown `output` to the output fields of a {@link BuildSuccess}. */
 export function buildResultFromRolldownOutput(
 	output: RolldownOutput,
@@ -684,6 +737,7 @@ export function buildResultFromRolldownOutput(
 				dynamicImports: chunk.dynamicImports.map(outputImport),
 				isEntry: chunk.isEntry,
 				facadeModuleId: chunk.facadeModuleId ? resolveBuildEntryPath(chunk.facadeModuleId, contextRoot) : null,
+				modules: Object.keys(chunk.modules).flatMap((moduleId) => sourceModulePath(moduleId, contextRoot)),
 			},
 		]),
 	);

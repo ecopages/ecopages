@@ -5,8 +5,8 @@ import { isPathInside } from './path-containment.ts';
  * One `additionalWatchPaths` entry resolved against the project root.
  *
  * @remarks
- * `base` is the absolute path the watcher subscribes to, because chokidar 4
- * and later take only literal paths. For a glob, `base` is built from the
+ * `base` is the absolute directory the filesystem watcher subscribes to. For
+ * a glob, `base` is built from the
  * pattern's segments before the first one with a glob character, and `glob`
  * is the rest of the pattern, matched against paths relative to `base`. Glob
  * characters in the root directory itself therefore never reach the matcher.
@@ -71,8 +71,9 @@ export function matchesAdditionalWatchPath(filePath: string, watchPath: Addition
 	);
 }
 
-/** Returns whether a directory under a glob's base can hold files the glob matches. */
+/** Returns whether a directory can lead to or contain files matched by a glob. */
 export function mayContainAdditionalWatchMatches(directory: string, watchPath: AdditionalWatchPath): boolean {
+	if (isPathInside(watchPath.base, directory)) return true;
 	const relativePath = relativeToBase(directory, watchPath.base);
 	return relativePath !== undefined && (!watchPath.glob || allowsDotSegments(relativePath, watchPath.glob));
 }

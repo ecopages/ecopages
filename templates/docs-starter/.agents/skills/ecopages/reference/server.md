@@ -59,6 +59,7 @@ Method helpers: `defineGet`, `definePost`, `definePut`, `defineDelete`, `defineP
 ```typescript
 import { defineGroupHandler } from '@ecopages/core';
 import { authMiddleware } from './auth';
+import AdminView from '../views/admin.tsx';
 
 export const adminGroup = defineGroupHandler({
 	prefix: '/admin',
@@ -66,8 +67,7 @@ export const adminGroup = defineGroupHandler({
 	routes: (api) => [
 		api.get({
 			path: '/',
-			handler: async (ctx) =>
-				ctx.renderServerModule(new URL('../views/admin.tsx', import.meta.url), { user: ctx.session.user }),
+			handler: async (ctx) => ctx.render(AdminView, { user: ctx.session.user }),
 		}),
 		api.post({
 			path: '/items',
@@ -138,7 +138,7 @@ export const GET = defineGet({
 - Two files on the same route fail at startup, whatever the parameter names.
 - A URL that ends in a static file extension (`feed.xml`, `report.json`) cannot be an endpoint file; register it as an Explicit Route in `app.ts`.
 - An Explicit Route on the same URL answers its methods first, and startup warns.
-- Dev reloads the file on save. The build emits the server bundle (`dist/.server/`) for `ecopages start`; `ecopages preview` does not serve endpoints.
+- Dev reloads the file on save. The build emits the server bundle (`dist/server/`) for `ecopages start`; `ecopages preview` does not serve endpoints.
 
 Full rules: [/docs-llm/server/endpoint-files.md](/docs-llm/server/endpoint-files.md).
 
@@ -148,8 +148,8 @@ When rendering from handlers with `ctx.render()`:
 
 - Component must be the default export, built with `eco.page()` (not a plain framework component)
 - File lives in `src/views/`, not `src/pages/`
-- Load it with `ctx.renderServerModule(new URL('../views/dashboard.tsx', import.meta.url), props)`, so the server-module loader applies the component-identity transform and dev reload; a raw `import()` skips them
-- Handler renders pass the request's Locals, Params and Query to the view as props. Call `ctx.render(...)` / `ctx.renderServerModule(...)` on the context; destructuring `render` loses Locals
+- Import it and pass it to `ctx.render(Dashboard, props)`. An Integration-owned import becomes a view reference: development reloads on save, production reads the built module
+- Handler renders pass the request's Locals, Params and Query to the view as props. Call `ctx.render(...)` on the context; destructuring `render` loses Locals
 - A full render uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's page client plan. Props passed to the render are available to the view's `metadata`
 - `ctx.renderPartial()` stays a component fragment
 - The Html shell is not an island, even when its Integration differs from the page owner

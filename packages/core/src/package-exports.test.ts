@@ -22,6 +22,7 @@ describe('@ecopages/core package exports', () => {
 				'./hmr/client/hmr-runtime',
 				'./integration',
 				'./processor',
+				'./view-reference',
 			].sort(),
 		);
 	});

@@ -10,6 +10,8 @@ import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/build'
 
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
+const viewReferencePreload = import.meta.resolve('./view-reference-preload.js');
+const viewReferencePreloadPath = fileURLToPath(viewReferencePreload);
 
 const originalCwd = process.cwd();
 
@@ -86,7 +88,14 @@ describe('launch-plan', () => {
 			);
 
 			expect(plan.command).toBe('bun');
-			expect(plan.commandArgs).toEqual(['--watch', 'run', 'app.ts', '--dev']);
+			expect(plan.commandArgs).toEqual([
+				'--watch',
+				'run',
+				'--preload',
+				viewReferencePreloadPath,
+				'app.ts',
+				'--dev',
+			]);
 			expect(plan.env.ECOPAGES_ENTRY_WATCH).toBe('1');
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
@@ -137,6 +146,8 @@ describe('launch-plan', () => {
 				nodeRequirePreload,
 				'--import',
 				tsxLoader,
+				'--import',
+				viewReferencePreload,
 				'--watch',
 				'app.ts',
 				'--dev',
@@ -174,6 +185,8 @@ describe('launch-plan', () => {
 				nodeRequirePreload,
 				'--import',
 				tsxLoader,
+				'--import',
+				viewReferencePreload,
 				'app.ts',
 				'--dev',
 			]);
@@ -200,7 +213,7 @@ describe('launch-plan', () => {
 			);
 
 			expect(plan).toMatchObject({ runtime: 'bun', command: 'bun' });
-			expect(plan.commandArgs).toEqual(['run', 'app.ts', row.flag]);
+			expect(plan.commandArgs).toEqual(['run', '--preload', viewReferencePreloadPath, 'app.ts', row.flag]);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -259,7 +272,6 @@ describe('launch-plan', () => {
 					path.join(serverDir, 'manifest.json'),
 					JSON.stringify({
 						serverEntry: SERVER_BUNDLE_FILENAME,
-						sourceConfigRelativePath: 'eco.config.ts',
 						emittedConfigModule: 'eco.config.mjs',
 					}),
 					'utf8',
@@ -324,6 +336,8 @@ describe('launch-plan', () => {
 					nodeRequirePreload,
 					'--import',
 					tsxLoader,
+					'--import',
+					viewReferencePreload,
 					'app.ts',
 					'--dev',
 				]);
@@ -400,7 +414,7 @@ describe('launch-plan', () => {
 				writeBundle(tempDir, 'dist');
 
 				await expect(startPlan({ distDir: 'build' })).rejects.toThrow(
-					/No production bundle found in build\/\.server/,
+					/No production bundle found in build\/server/,
 				);
 			} finally {
 				fs.rmSync(tempDir, { recursive: true, force: true });
@@ -410,8 +424,8 @@ describe('launch-plan', () => {
 		it('explains a static-only build in dist instead of asking for another build', async () => {
 			const tempDir = setupBundleFixture();
 			try {
-				fs.mkdirSync(path.join(tempDir, 'dist'), { recursive: true });
-				fs.writeFileSync(path.join(tempDir, 'dist', 'index.html'), '<html></html>', 'utf8');
+				fs.mkdirSync(path.join(tempDir, 'dist', 'client'), { recursive: true });
+				fs.writeFileSync(path.join(tempDir, 'dist', 'client', 'index.html'), '<html></html>', 'utf8');
 
 				await expect(startPlan()).rejects.toThrow(/static-only build.*ecopages preview/);
 			} finally {
@@ -422,8 +436,8 @@ describe('launch-plan', () => {
 		it('explains a static-only build in the directory --dist-dir names', async () => {
 			const tempDir = setupBundleFixture();
 			try {
-				fs.mkdirSync(path.join(tempDir, 'build'), { recursive: true });
-				fs.writeFileSync(path.join(tempDir, 'build', 'index.html'), '<html></html>', 'utf8');
+				fs.mkdirSync(path.join(tempDir, 'build', 'client'), { recursive: true });
+				fs.writeFileSync(path.join(tempDir, 'build', 'client', 'index.html'), '<html></html>', 'utf8');
 
 				await expect(startPlan({ distDir: 'build' })).rejects.toThrow(
 					/build\/ holds a static-only build.*ecopages preview/,
@@ -474,7 +488,6 @@ describe('launch-plan', () => {
 				fs.writeFileSync(configPath, 'export default {};', 'utf8');
 				writeBundle(tempDir, 'build', {
 					emittedConfigModule: 'eco.config.mjs',
-					configHash: createHash('sha256').update(fs.readFileSync(configPath)).digest('hex'),
 				});
 				fs.writeFileSync(path.join(tempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'), 'export default {}');
 
@@ -488,21 +501,24 @@ describe('launch-plan', () => {
 			}
 		});
 
-		it('checks an explicit config against the manifest of the selected output directory', async () => {
+		it('runs the emitted config of the selected output even when --config names a source file', async () => {
 			const tempDir = setupBundleFixture();
+			const realTempDir = fs.realpathSync(tempDir);
 			try {
-				const sourceConfigPath = path.join(tempDir, 'eco.config.ts');
-				const otherConfigPath = path.join(tempDir, 'other.config.ts');
-				fs.writeFileSync(sourceConfigPath, 'export default {};', 'utf8');
-				fs.writeFileSync(otherConfigPath, 'export default { other: true };', 'utf8');
-				const hashOf = (file: string) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-				writeBundle(tempDir, 'dist', { configHash: hashOf(otherConfigPath) });
-				writeBundle(tempDir, 'build', { configHash: hashOf(sourceConfigPath) });
+				fs.writeFileSync(path.join(tempDir, 'other.config.ts'), 'export default { other: true };', 'utf8');
+				writeBundle(tempDir, 'dist', { emittedConfigModule: 'eco.config.mjs' });
+				writeBundle(tempDir, 'build', { emittedConfigModule: 'eco.config.mjs' });
+				fs.writeFileSync(path.join(tempDir, 'dist', SERVER_BUNDLE_DIR, 'eco.config.mjs'), 'export default {}');
+				fs.writeFileSync(path.join(tempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'), 'export default {}');
 
-				await expect(startPlan({ distDir: 'build', configFile: 'other.config.ts' })).rejects.toThrow(
-					/Ecopages config mismatch/,
+				const buildPlan = await startPlan({ distDir: 'build', configFile: 'other.config.ts' });
+				expect(buildPlan.env.ECOPAGES_CONFIG_FILE).toBe(
+					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'),
 				);
-				await expect(startPlan({ distDir: 'dist', configFile: 'other.config.ts' })).resolves.toBeDefined();
+				const distPlan = await startPlan({ distDir: 'dist', configFile: 'other.config.ts' });
+				expect(distPlan.env.ECOPAGES_CONFIG_FILE).toBe(
+					path.join(realTempDir, 'dist', SERVER_BUNDLE_DIR, 'eco.config.mjs'),
+				);
 			} finally {
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
@@ -532,6 +548,8 @@ describe('launch-plan', () => {
 					nodeRequirePreload,
 					'--import',
 					tsxLoader,
+					'--import',
+					viewReferencePreload,
 					'app.ts',
 					'--preview',
 				]);

@@ -30,8 +30,13 @@ export {
 	type ParsedCollectionSpecifier,
 } from './build/contracts/content-virtual-modules.ts';
 export { isServerOnlyModuleSpecifier } from './build/contracts/server-only-specifier.ts';
+export { shouldBuildPagesUnifiedGraph } from './build/cache/pages-unified-graph-build.ts';
 export { BuildQueue } from './build/runtime/build-queue.ts';
 export { buildServerModule } from './build/server-module.ts';
+export {
+	loadProductionServerModules,
+	missingProductionServerModuleError,
+} from './build/server/server-modules-manifest.ts';
 export { parseModuleSource, recordModuleTransformProfile } from './cache/index.ts';
 export { GENERATED_BASE_PATHS, RESOLVED_ASSETS_DIR } from './constants.ts';
 export {
@@ -51,7 +56,7 @@ export { toPackageRootSpecifier } from './plugins/package-specifier.ts';
 export { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from './plugins/tsconfig-import-resolver.ts';
 export { contentHash } from './utils/content-hash.ts';
 export { isPathInside } from './utils/path-containment.ts';
-export { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from './utils/resolve-entry-file.ts';
+export { CLIENT_OUTPUT_DIR, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from './utils/resolve-entry-file.ts';
 export {
 	getEcopagesEnv,
 	isDevelopmentRuntime,

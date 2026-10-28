@@ -156,6 +156,7 @@ test('walks static and dynamic chunk edges through cycles and retains missing le
 		dynamicImports,
 		isEntry: fileName === output,
 		facadeModuleId: null,
+		modules: [],
 	});
 	const graph = {
 		outputGraph: {

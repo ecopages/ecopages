@@ -1,8 +1,8 @@
 import { fileSystem } from '@ecopages/file-system';
 
-export async function getReactServerMetadataSummary() {
+export async function getReactServerMetadataSummary(pagesDir: string) {
 	const matches = await fileSystem.glob(['react*.tsx', 'react*.mdx', 'react-server-files/**/*.tsx'], {
-		cwd: import.meta.dirname,
+		cwd: pagesDir,
 	});
 
 	return {

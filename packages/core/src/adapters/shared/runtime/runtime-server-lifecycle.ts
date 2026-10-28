@@ -12,13 +12,13 @@ import type { ProjectWatcher } from '../../../watchers/project-watcher.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 
 /**
- * Copies source `public/` into dist and ensures the resolved assets directory exists.
+ * Copies source `public/` into the client output and ensures the resolved assets directory exists.
  */
 export function prepareRuntimePublicDir(appConfig: EcoPagesAppConfig): void {
 	const srcPublicDir = path.join(appConfig.rootDir, appConfig.srcDir, appConfig.publicDir);
 
 	if (fileSystem.exists(srcPublicDir)) {
-		copyRuntimePublicDirIfChanged(srcPublicDir, path.join(appConfig.rootDir, appConfig.distDir));
+		copyRuntimePublicDirIfChanged(srcPublicDir, appConfig.absolutePaths.distDir);
 	}
 
 	fileSystem.ensureDir(path.join(appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
@@ -79,8 +79,9 @@ export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig }):
  *
  * @remarks
  * A server that never ran a `DevSession` passes only `appConfig`. Integration `setup()` calls still in flight
- * settle before any `teardown()`, so a late setup cannot recreate released resources. A failed
- * integration `teardown()` still clears activation state, so the next startup runs `setup()` again.
+ * and page-cache regenerations settle before any `teardown()`, so a late setup or revalidating cache
+ * render cannot recreate or use released resources. A failed integration `teardown()` still clears
+ * activation state, so the next startup runs `setup()` again.
  */
 export async function disposeDevResources(options: {
 	appConfig: EcoPagesAppConfig;
@@ -94,6 +95,7 @@ export async function disposeDevResources(options: {
 		() => options.projectWatcher?.close(),
 		() => hmrManager?.stop(),
 		() => options.bridge?.destroy(),
+		() => runtime.pageCache?.waitForInFlightRegenerations(),
 		() => teardownAppRuntimeIntegrations({ appConfig: options.appConfig }),
 	];
 	const errors: unknown[] = [];

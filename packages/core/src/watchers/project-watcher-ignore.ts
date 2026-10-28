@@ -9,11 +9,8 @@ export type ProjectWatcherIgnorePaths = {
 
 /**
  * @remarks
- * chokidar v4+ no longer treats glob strings in `ignored` as patterns. A path
- * predicate keeps node_modules, VCS metadata, and scoped artifact dirs out of
- * the watch tree without descending into symlinked monorepo node_modules.
- * chokidar hands the predicate forward-slash paths on Windows too, so the
- * path is normalised before its segments are compared.
+ * A path predicate filters node_modules, VCS metadata, and scoped artifact dirs
+ * from indexing and reported changes without traversing symlinked monorepo node_modules.
  */
 export function createProjectWatcherIgnorePredicate(
 	absolutePaths: ProjectWatcherIgnorePaths,

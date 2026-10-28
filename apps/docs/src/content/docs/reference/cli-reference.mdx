@@ -63,11 +63,11 @@ Generates the production build of your project.
 
 - Pre-renders all static pages in `src/pages`.
 - Imports each endpoint file (`*.api.ts`, or `.api.tsx`, `.api.js`, `.api.jsx`) and checks its exports before bundling the server; a broken file fails the build, and `--keep-going` does not skip this check.
-- Bundles the server into `dist/.server/` when the app registers API or WebSocket handlers or has endpoint files.
+- Bundles the server into `dist/server/` when the app registers API or WebSocket handlers or has endpoint files.
 - Optimizes assets and images.
-- Outputs the build to the `dist` directory.
+- Writes public files to `dist/client/` and private server files, when needed, to `dist/server/` under the configured output directory.
 - Strips development-only code.
-- Empties `dist` and renders every Page from source on each run; the command takes no option to reuse earlier output.
+- Empties the configured output directory and renders every Page from source on each run; the command takes no option to reuse earlier output.
 - By default, exits with status 1 after exporting the remaining pages if a Page fails to render. Pass `--keep-going` to retain the earlier log-and-continue behavior.
 
 ### `preview`
@@ -75,11 +75,12 @@ Generates the production build of your project.
 Builds your project and starts a local production server for testing.
 
 - Useful for verifying the production build before deployment.
-- Runs the same build as `build` first, then serves the `dist` output locally.
+- Runs the same build as `build` first, then serves `dist/client/` locally.
+- Pass `--serve-only` (or set `ECOPAGES_PREVIEW_SERVE_ONLY=true`) to serve an existing client build without rebuilding or modifying `dist/`. This mode does not start the app's server runtime, so it serves built client files without API routes.
 
 ### `start`
 
-Starts the production server using the existing build. It needs a server bundle, and only apps that register API or WebSocket handlers or have endpoint files build one. A static-only app has no server bundle, so `start` stops and says so when `dist` (or the `--dist-dir` directory) holds built HTML; serve it with `preview`, or deploy `dist/` to a static host. `start` does not read `distDir` from `eco.config.ts`. It runs the only `<dir>/.server/manifest.json` that exists one level below the app root, including dot-prefixed directories such as `.output`. With none it asks you to run `ecopages build`, and with several it fails and lists them. Pass `--dist-dir <dir>` to choose one, which is also needed for a nested output such as `out/web` or a symlinked directory. An app that builds several outputs, such as `dist-<scope>` per build target, therefore needs `--dist-dir` for a plain `start`.
+Starts the production server using the existing build. It needs a server bundle, and only apps that register API or WebSocket handlers or have endpoint files build one. A static-only app has no server bundle, so `start` stops and says so when `dist/client/` (or the selected `--dist-dir` output's `client/`) holds built HTML; serve it with `preview`, or deploy `dist/client/` to a static host. `start` does not read `distDir` from `eco.config.ts`. It runs the only `<dir>/server/manifest.json` one level below the app root, including dot-prefixed output directories such as `.output`. With none it asks you to run `ecopages build`, and with several it fails and lists them. Pass `--dist-dir <dir>` to choose one, which is also needed for a nested output such as `out/web` or a symlinked directory. An app that builds several outputs, such as `dist-<scope>` per build target, therefore needs `--dist-dir` for a plain `start`.
 
 - Does not watch files for changes.
 - optimized for performance.
@@ -88,7 +89,7 @@ Starts the production server using the existing build. It needs a server bundle,
 
 Writes the types for virtual modules such as `ecopages:images` and `ecopages:content/*`, then exits.
 
-- Processors generate these types in `setup()`, which otherwise runs only when the app starts (`dev`, `build`, `preview`, or `start`), so a fresh checkout or a CI job has none.
+- Processors generate these types in `setup()`. The `types` command runs that setup to write virtual-module declarations; production `start` restores Processor state from emitted server modules and does not call `setup()`.
 - It loads `eco.config.ts` (or the file given with `--config`), as `astro sync` does, and sets the processors up, so image optimization and the first PostCSS pass run too. Your entry file (`app.ts`) does not run.
 - Run it before the type checker: `"typecheck": "ecopages types && tsc --noEmit"`. The official templates ship that script.
 
@@ -142,6 +143,7 @@ When the preferred port is already in use, `ecopages dev` and `ecopages preview`
 | `ECOPAGES_PORT`         | The port the server listens on.      | `3000`                  |
 | `ECOPAGES_HOSTNAME`     | The hostname the server binds to.    | `localhost`             |
 | `ECOPAGES_LOGGER_DEBUG` | Enables verbose debug logging.       | `false`                 |
+| `ECOPAGES_PREVIEW_SERVE_ONLY` | For `ecopages preview`, serve existing output without rebuilding or writing to `dist/`. | `false` |
 
 > **Note:** CLI server flags map to environment overrides before the runtime process starts. This lets one-off commands change host, port, base URL, or runtime without editing `eco.config.ts`.
 

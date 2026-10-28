@@ -12,9 +12,9 @@ import {
 	writeFile as writeFileAsync,
 } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import chokidar from 'chokidar';
 import type { FileSystem, FileWatcher, GlobOptions, WatchOptions } from '../types.ts';
 import { BaseFileSystem } from '../utils/common.ts';
+import { RecursiveFileWatcher } from './recursive-file-watcher.ts';
 
 async function collectGlobMatches(pattern: string, options: GlobOptions): Promise<string[]> {
 	const matches: string[] = [];
@@ -72,21 +72,7 @@ export class NodeFileSystem extends BaseFileSystem implements FileSystem {
 	}
 
 	watch(paths: readonly string[], options: WatchOptions): FileWatcher {
-		const watcher = chokidar.watch([...paths], {
-			ignoreInitial: true,
-			ignorePermissionErrors: true,
-			ignored: options.ignored,
-			awaitWriteFinish: { stabilityThreshold: 50, pollInterval: 50 },
-		});
-		for (const type of ['add', 'change', 'unlink'] as const) {
-			watcher.on(type, (path: string) => options.onChange({ type, path }));
-		}
-		watcher.on('error', options.onError);
-
-		return {
-			ready: new Promise((resolve) => watcher.once('ready', () => resolve())),
-			close: () => watcher.close(),
-		};
+		return new RecursiveFileWatcher(paths, options);
 	}
 
 	hash(path: string): string {

@@ -62,6 +62,7 @@ function createTestApp(
 		createServerAdapter(),
 	stop?: () => Promise<void>,
 	appCliArgs: ReturnParseCliArgs = cliArgs,
+	serverBundleDir?: string,
 ) {
 	const { runtimeHost, server } = createRuntimeHost(stop);
 	const app = new EcopagesApp(
@@ -71,6 +72,7 @@ function createTestApp(
 				appRuntime: { origin: 'http://localhost:3000', hmr: null },
 			} as never,
 			cliArgs: appCliArgs,
+			serverBundleDir,
 		},
 		{ runtimeHost, createServerAdapter: createServerAdapterFactory },
 	);
@@ -78,6 +80,31 @@ function createTestApp(
 }
 
 describe('EcopagesApp route registration', () => {
+	it('requires a complete production dist when started from a production server bundle', async () => {
+		let receivedParams: NodeServerAdapterParams | undefined;
+		const { app } = createTestApp(
+			async (params) => {
+				receivedParams = params;
+				return createServerAdapter();
+			},
+			undefined,
+			cliArgs,
+			'/app/dist/server',
+		);
+		await app.fetch(new Request('http://localhost:3000/'));
+		expect(receivedParams?.requireCompleteDist).toBe(true);
+	});
+
+	it('leaves dist completeness unchecked without a production server bundle', async () => {
+		let receivedParams: NodeServerAdapterParams | undefined;
+		const { app } = createTestApp(async (params) => {
+			receivedParams = params;
+			return createServerAdapter();
+		});
+		await app.fetch(new Request('http://localhost:3000/'));
+		expect(receivedParams?.requireCompleteDist).toBe(false);
+	});
+
 	it('forwards registered handlers, schemas, and middleware to the server adapter', async () => {
 		const handler = (_context: unknown) => new Response('ok');
 		const middleware: Middleware<Request, unknown, ApiHandlerContext<Request, unknown>> = async (_context, next) =>

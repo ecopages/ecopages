@@ -15,7 +15,6 @@ import type {
 } from './lit-static-render-protocol.ts';
 import { toLitStaticRenderErrorMessage } from './lit-static-render-error.ts';
 import { toLitStaticRenderResult } from './lit-static-render-result.ts';
-import './dom-shim.ts';
 
 type LoadedAppConfig = Awaited<ReturnType<typeof loadEcoPagesConfig>>;
 
@@ -30,8 +29,8 @@ let resolveRendersIdle: (() => void) | undefined;
  *
  * @remarks
  * Processor `.setup()` is skipped here because the main thread already prepared disk artifacts
- * before the Lit worker started (`ECOPAGES_LIT_STATIC_RENDER_WORKER`). Integrations still need
- * setup in this isolate before route renderers are created.
+ * before static export started the Lit worker (`ECOPAGES_LIT_STATIC_RENDER_WORKER`). Integrations
+ * still need setup in this isolate before route renderers are created.
  */
 async function initializeWorker(configModulePath: string, runtimeOrigin: string): Promise<void> {
 	appConfig = await loadEcoPagesConfig({ configFile: configModulePath });

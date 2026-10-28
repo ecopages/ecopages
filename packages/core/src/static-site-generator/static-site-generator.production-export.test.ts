@@ -13,13 +13,11 @@ import {
 } from '../route-renderer/orchestration/integration-renderer.test-fixtures.ts';
 
 const shouldBuildPagesUnifiedGraphMock = vi.hoisted(() => vi.fn(() => false));
-const ensurePagesUnifiedGraphBuiltMock = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('../build/cache/pages-unified-graph-build.ts')>();
 	return {
 		...actual,
-		ensurePagesUnifiedGraphBuilt: ensurePagesUnifiedGraphBuiltMock,
 		shouldBuildPagesUnifiedGraph: shouldBuildPagesUnifiedGraphMock,
 	};
 });
@@ -46,7 +44,7 @@ const createMockConfig = (): EcoPagesAppConfig => {
 			exclude: [],
 		},
 		absolutePaths: {
-			distDir: '/test/project/dist',
+			distDir: '/test/project/dist/client',
 			workDir: '/test/project/.eco',
 		} as EcoPagesAppConfig['absolutePaths'],
 		loaders: new Map(),
@@ -163,12 +161,167 @@ describe('StaticSiteGenerator production export', () => {
 		]);
 		expect(writes).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ filePath: '/test/project/dist/blog/first.html' }),
-				expect.objectContaining({ filePath: '/test/project/dist/blog/second.html' }),
+				expect.objectContaining({ filePath: '/test/project/dist/client/blog/first.html' }),
+				expect.objectContaining({ filePath: '/test/project/dist/client/blog/second.html' }),
 			]),
 		);
-		const sitemap = writes.find(({ filePath }) => filePath === '/test/project/dist/sitemap.xml');
+		const sitemap = writes.find(({ filePath }) => filePath === '/test/project/dist/client/sitemap.xml');
 		expect(sitemap?.contents).toContain('<loc>https://example.com/blog/first</loc>');
 		expect(sitemap?.contents).toContain('<loc>https://example.com/blog/second</loc>');
+	});
+
+	test('prebuilds each Dynamic collection Page entry even though HTML is not generated', async () => {
+		writes.length = 0;
+		fileSystem.ensureDir = () => {};
+		fileSystem.write = (filePath, contents) => writes.push({ filePath, contents });
+
+		const appConfig = createMockConfig();
+		const routeFile = '/src/pages/posts/[slug].tsx';
+		type PageProps = { slug: string | string[] | undefined };
+		const Page = (({ slug }: PageProps) => `<p>${slug}</p>`) as EcoPageComponent<PageProps>;
+		Page.cache = 'dynamic';
+		Page.staticPaths = async () => ({
+			paths: [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }],
+		});
+		Page.staticProps = async ({ pathname }) => ({ props: { slug: pathname.params.slug } });
+		Page.config = {
+			integration: 'test-renderer',
+			identity: { id: 'dynamic-collection-page', file: routeFile, integration: 'test-renderer' },
+		};
+
+		class StaticExportRenderer extends TestIntegrationRenderer {
+			protected override async ensureIntegrationRuntimeActivated(): Promise<void> {}
+		}
+
+		const renderer = new StaticExportRenderer({
+			appConfig,
+			assetProcessingService: testAssetService,
+		});
+		const buildGroupedGraphBuildPlan = vi.spyOn(renderer, 'buildGroupedGraphBuildPlan');
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (({ children }: HtmlTemplateProps) =>
+			`<html><body>${String(children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+		const ssg = new StaticSiteGenerator({ appConfig });
+		vi.stubEnv('NODE_ENV', 'production');
+
+		try {
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => []),
+					listDynamicPagePathExpansions: vi.fn(async () => [
+						{
+							pathname: '/posts/plain',
+							templateRoute: {
+								pathname: '/posts/[slug]',
+								kind: 'dynamic' as const,
+								role: 'page' as const,
+								filePath: routeFile,
+								paramNames: ['slug'],
+							},
+							params: { slug: 'plain' },
+						},
+						{
+							pathname: '/posts/chart',
+							templateRoute: {
+								pathname: '/posts/[slug]',
+								kind: 'dynamic' as const,
+								role: 'page' as const,
+								filePath: routeFile,
+								paramNames: ['slug'],
+							},
+							params: { slug: 'chart' },
+						},
+					]),
+					templateRoutes: [
+						{
+							pathname: '/posts/[slug]',
+							kind: 'dynamic',
+							role: 'page',
+							filePath: routeFile,
+							paramNames: ['slug'],
+						},
+					],
+				},
+				baseUrl: 'https://example.com',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn((_filePath: string) => renderer),
+					getExplicitViewRenderer: vi.fn(() => null),
+				},
+			});
+		} finally {
+			vi.unstubAllEnvs();
+		}
+
+		expect(buildGroupedGraphBuildPlan).toHaveBeenCalledTimes(1);
+		expect(buildGroupedGraphBuildPlan.mock.calls[0]?.[0]).toEqual([
+			{ routeFile, skipStaticProps: true, isRouteTemplate: true },
+			{ routeFile, params: { slug: 'chart' } },
+			{ routeFile, params: { slug: 'plain' } },
+		]);
+		expect(writes.some(({ filePath }) => filePath.includes('/posts/'))).toBe(false);
+	});
+
+	test('prebuilds browser graphs for explicit static view route instances', async () => {
+		writes.length = 0;
+		fileSystem.ensureDir = () => {};
+		fileSystem.write = (filePath, contents) => writes.push({ filePath, contents });
+
+		const appConfig = createMockConfig();
+		const routeFile = '/src/views/archive/[slug].tsx';
+		type ViewProps = { slug: string | string[] | undefined };
+		const staticPaths = vi.fn(async () => ({ paths: [{ params: { slug: 'spring' } }] }));
+		const staticProps = vi.fn(async ({ pathname }: Parameters<GetStaticProps<ViewProps>>[0]) => ({
+			props: { slug: pathname.params.slug },
+		}));
+		const view = (({ slug }: ViewProps) => `<p>${slug}</p>`) as EcoPageComponent<ViewProps>;
+		view.staticPaths = staticPaths;
+		view.staticProps = staticProps;
+		view.config = {
+			integration: 'test-renderer',
+			identity: { id: 'explicit-view', file: routeFile, integration: 'test-renderer' },
+		};
+
+		class StaticExportRenderer extends TestIntegrationRenderer {
+			protected override async ensureIntegrationRuntimeActivated(): Promise<void> {}
+		}
+
+		const renderer = new StaticExportRenderer({
+			appConfig,
+			assetProcessingService: testAssetService,
+		});
+		const buildGroupedGraphBuildPlan = vi.spyOn(renderer, 'buildGroupedGraphBuildPlan');
+		renderer.HtmlTemplate = (({ children }: HtmlTemplateProps) =>
+			`<html><body>${String(children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+		const loader = Object.assign(
+			vi.fn(async () => ({ default: view })),
+			{ filePath: routeFile },
+		);
+		const ssg = new StaticSiteGenerator({ appConfig });
+		vi.stubEnv('NODE_ENV', 'production');
+
+		try {
+			await ssg.run({
+				router: { listStaticGenerationRoutes: vi.fn(async () => []) },
+				baseUrl: 'https://example.com',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn((_filePath: string) => renderer),
+					getExplicitViewRenderer: vi.fn(() => renderer),
+				},
+				staticRoutes: [{ path: '/archive/[slug]', loader }],
+			});
+		} finally {
+			vi.unstubAllEnvs();
+		}
+
+		expect(loader).toHaveBeenCalledTimes(1);
+		expect(staticPaths).toHaveBeenCalledTimes(1);
+		expect(staticProps).toHaveBeenCalledTimes(1);
+		expect(buildGroupedGraphBuildPlan).toHaveBeenCalledTimes(1);
+		expect(buildGroupedGraphBuildPlan.mock.calls[0]?.[0]).toEqual([{ routeFile, params: { slug: 'spring' } }]);
+		expect(writes).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ filePath: '/test/project/dist/client/archive/spring.html' }),
+			]),
+		);
 	});
 });

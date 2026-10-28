@@ -7,6 +7,7 @@ import { requireAppRuntime } from '../utils/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { EcoComponent, EcoPageFile, GetMetadata } from '../types/contracts.ts';
 import { contentHash } from '../utils/content-hash.ts';
+import { toRootRelativePath } from '../utils/root-relative-path.ts';
 import { isDevelopmentRuntime } from '../utils/runtime.ts';
 import {
 	compileHtmlPage,
@@ -71,6 +72,11 @@ export function getCompiledHtmlTemplate(component: unknown): HtmlTemplate | unde
 	return (component as HtmlTemplateComponent | undefined)?.[HTML_TEMPLATE];
 }
 
+export type SerializedHtmlPageModule = {
+	template: HtmlTemplate;
+	identity?: ComponentIdentity;
+};
+
 function createTemplateComponent(template: HtmlTemplate, identity?: ComponentIdentity): HtmlTemplateComponent {
 	const render = () => {
 		throw new Error(
@@ -81,6 +87,25 @@ function createTemplateComponent(template: HtmlTemplate, identity?: ComponentIde
 		config: { integration: HTML_PAGES_INTEGRATION_NAME, ...(identity ? { identity } : {}) },
 		[HTML_TEMPLATE]: template,
 	});
+}
+
+function assembleHtmlPageFile(template: HtmlTemplate, identity?: ComponentIdentity): EcoPageFile {
+	const component = createTemplateComponent(template, identity);
+	if (identity) {
+		registerDiscoveredDependencies(identity, {
+			components: () => [],
+			stylesheets: [],
+			watchFiles: getHtmlTemplateWatchFiles(template),
+		});
+	}
+	if (template.kind === 'page') {
+		const metadata: GetMetadata = ({ appConfig: { defaultMetadata } }) => ({
+			...defaultMetadata,
+			...template.metadata,
+		});
+		component.metadata = metadata;
+	}
+	return { default: component };
 }
 
 /**
@@ -113,22 +138,65 @@ export function loadHtmlPageModule(appConfig: EcoPagesAppConfig, filePath: strin
 		file,
 		integration: HTML_PAGES_INTEGRATION_NAME,
 	};
-	const component = createTemplateComponent(template, identity);
-	registerDiscoveredDependencies(identity, {
-		components: () => [],
-		stylesheets: [],
-		watchFiles: getHtmlTemplateWatchFiles(template),
-	});
+	return assembleHtmlPageFile(template, identity);
+}
 
-	if (template.kind === 'page') {
-		const metadata: GetMetadata = ({ appConfig: { defaultMetadata } }) => ({
-			...defaultMetadata,
-			...template.metadata,
-		});
-		component.metadata = metadata;
+function relativizeHtmlFilePath(rootDir: string, filePath: string): string {
+	return path.isAbsolute(filePath) ? toRootRelativePath(rootDir, filePath) : filePath;
+}
+
+function relativizeHtmlTemplate(rootDir: string, template: HtmlTemplate): HtmlTemplate {
+	const relativize = (filePath: string) => relativizeHtmlFilePath(rootDir, filePath);
+	const assets = template.assets.map((asset) =>
+		'filepath' in asset ? { ...asset, filepath: relativize(asset.filepath) } : asset,
+	);
+	return { ...template, file: relativize(template.file), assets };
+}
+
+/**
+ * Records a compiled HTML Page or Html shell so production can import it without compiling.
+ *
+ * @remarks
+ * File paths are stored relative to `rootDir` so the emitted module has no
+ * absolute paths of the build machine.
+ */
+export function serializeHtmlPageModule(module: EcoPageFile, rootDir: string): SerializedHtmlPageModule {
+	const component = module.default as HtmlTemplateComponent;
+	const template = component[HTML_TEMPLATE];
+	if (!template) {
+		throw new Error('[ecopages] Cannot serialize an HTML Page module that has no compiled template.');
 	}
+	const identity = component.config?.identity;
+	return {
+		template: relativizeHtmlTemplate(rootDir, template),
+		identity: identity?.file ? { ...identity, file: relativizeHtmlFilePath(rootDir, identity.file) } : identity,
+	};
+}
 
-	return { default: component };
+function resolveHtmlFilePath(rootDir: string, filePath: string): string {
+	return path.isAbsolute(filePath) ? filePath : path.join(rootDir, filePath);
+}
+
+function resolveHtmlTemplate(rootDir: string, template: HtmlTemplate): HtmlTemplate {
+	const resolve = (filePath: string) => resolveHtmlFilePath(rootDir, filePath);
+	const assets = template.assets.map((asset) =>
+		'filepath' in asset ? { ...asset, filepath: resolve(asset.filepath) } : asset,
+	);
+	return { ...template, file: resolve(template.file), assets };
+}
+
+/**
+ * Restores a compiled HTML Page or Html shell from {@link serializeHtmlPageModule}.
+ *
+ * @param rootDir - App root used to resolve stored relative file paths.
+ */
+export function reviveHtmlPageModule(data: SerializedHtmlPageModule, rootDir?: string): EcoPageFile {
+	const template = rootDir ? resolveHtmlTemplate(rootDir, data.template) : data.template;
+	const identity =
+		rootDir && data.identity?.file
+			? { ...data.identity, file: resolveHtmlFilePath(rootDir, data.identity.file) }
+			: data.identity;
+	return assembleHtmlPageFile(template, identity);
 }
 
 /**

@@ -80,8 +80,8 @@ describe('build → start contract', () => {
 
 		const { serverEntryPath, manifestPath } = getServerBundleOutputPaths(appConfig);
 
-		assert.equal(fileSystem.exists(serverEntryPath), true, 'expected dist/.server/app.mjs');
-		assert.equal(fileSystem.exists(manifestPath), true, 'expected dist/.server/manifest.json');
+		assert.equal(fileSystem.exists(serverEntryPath), true, 'expected dist/server/app.mjs');
+		assert.equal(fileSystem.exists(manifestPath), true, 'expected dist/server/manifest.json');
 
 		const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, string>;
 		assert.equal(manifest.serverEntry, SERVER_BUNDLE_FILENAME);
@@ -162,7 +162,7 @@ describe('build → start contract', () => {
 		});
 
 		const { serverEntryPath, serverOutdir } = getServerBundleOutputPaths(appConfig);
-		assert.equal(serverOutdir, path.join(rootDir, 'build', '.server'));
+		assert.equal(serverOutdir, path.join(rootDir, 'build', 'server'));
 		assert.equal(resolveProductionServerEntry(rootDir, 'build'), serverEntryPath);
 		assert.equal(resolveProductionServerEntry(rootDir, 'dist'), undefined);
 		assert.equal(
@@ -185,9 +185,13 @@ describe('build → start contract', () => {
 		writeFileSync(path.join(rootDir, 'app.ts'), 'export const ready = true;\n', 'utf8');
 
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, distDir: 'dist', workDir: '.eco' });
+		fileSystem.ensureDir(appConfig.absolutePaths.publicDir);
+		writeFileSync(path.join(appConfig.absolutePaths.publicDir, 'public.txt'), 'public');
 
 		const staticSiteGenerator = {
-			run: async () => {},
+			run: async () => {
+				writeFileSync(path.join(appConfig.absolutePaths.distDir, 'index.html'), '<html></html>');
+			},
 		} as unknown as StaticSiteGenerator;
 
 		const builder = new ServerStaticBuilder({
@@ -206,14 +210,18 @@ describe('build → start contract', () => {
 
 		const { serverEntryPath, manifestPath } = getServerBundleOutputPaths(appConfig);
 
-		assert.equal(fileSystem.exists(serverEntryPath), false, 'should not produce dist/.server/app.mjs');
-		assert.equal(fileSystem.exists(manifestPath), false, 'should not produce dist/.server/manifest.json');
+		assert.equal(fileSystem.exists(serverEntryPath), false, 'should not produce dist/server/app.mjs');
+		assert.equal(fileSystem.exists(manifestPath), false, 'should not produce dist/server/manifest.json');
+		assert.equal(fileSystem.exists(path.join(rootDir, 'dist', 'client', 'index.html')), true);
+		assert.equal(fileSystem.exists(path.join(rootDir, 'dist', 'client', 'public.txt')), true);
+		assert.equal(fileSystem.exists(path.join(rootDir, 'dist', 'index.html')), false);
+		assert.equal(fileSystem.exists(path.join(rootDir, 'dist', 'client', 'server')), false);
 
 		const resolvedEntry = resolveProductionServerEntry(rootDir, 'dist');
 		assert.equal(resolvedEntry, undefined);
 	});
 
-	it('preserves import.meta.dirname semantics in emitted dist/.server/eco.config.mjs', async () => {
+	it('leaves production import.meta on the emitted config and remaps rootDir to the deploy root', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-import-meta-'));
 		tempDirs.push(rootDir);
@@ -257,8 +265,15 @@ describe('build → start contract', () => {
 		const configObj = importedModule.default;
 		assert.equal(
 			configObj.rootDir,
+			realpathSync(serverOutdir),
+			'production import.meta.dirname is dist/server, not the source root',
+		);
+
+		const loaded = await loadEcoPagesConfig({ configFile: emittedConfigPath, cwd: rootDir });
+		assert.equal(
+			realpathSync(loaded.rootDir),
 			realpathSync(rootDir),
-			'emitted config rootDir must resolve to source rootDir, not dist/.server',
+			'finalization remaps the emitted config root to the directory that contains dist/',
 		);
 	});
 
@@ -295,13 +310,16 @@ describe('build → start contract', () => {
 			importServerModule: async () => ({}),
 		});
 
-		const expectedEmittedConfig = path.join(rootDir, 'dist', '.server', EMITTED_ECO_CONFIG_FILENAME);
+		const expectedEmittedConfig = path.join(rootDir, 'dist', 'server', EMITTED_ECO_CONFIG_FILENAME);
 		const emittedConfigSource = readFileSync(expectedEmittedConfig, 'utf8');
 
-		writeFileSync(configPath, `${configSource}\nexport const changedAfterBuild = true;\n`, 'utf8');
 		assert.throws(() => {
-			assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist', isExplicitOverride: true });
+			assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist' });
 		}, /Ecopages config mismatch/);
+		writeFileSync(configPath, `${configSource}\nexport const changedAfterBuild = true;\n`, 'utf8');
+		assert.doesNotThrow(() => {
+			assertProductionConfigIdentity(rootDir, expectedEmittedConfig, { distDir: 'dist' });
+		});
 		writeFileSync(configPath, configSource, 'utf8');
 
 		writeFileSync(expectedEmittedConfig, `${emittedConfigSource}\nexport const tampered = true;\n`, 'utf8');
@@ -326,7 +344,6 @@ describe('build → start contract', () => {
 		assert.throws(() => {
 			assertProductionConfigIdentity(rootDir, path.join(rootDir, 'other.config.ts'), {
 				distDir: 'dist',
-				isExplicitOverride: true,
 			});
 		}, /Ecopages config mismatch/);
 	});

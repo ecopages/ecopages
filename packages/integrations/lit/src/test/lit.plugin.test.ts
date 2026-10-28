@@ -36,6 +36,10 @@ vi.mock('@ecopages/core/integration', async (importOriginal) => {
 });
 
 describe('LitPlugin', () => {
+	it('repairs the server DOM after a complete surface', () => {
+		expect(new LitPlugin().serverDom?.kind).toBe('repair');
+	});
+
 	it('keeps the global hydrate-support bootstrap stable across browser-router swaps', () => {
 		const plugin = new LitPlugin();
 		const [dependency] = plugin.getDependencies();
@@ -62,16 +66,39 @@ describe('LitPlugin', () => {
 		class CustomLitRenderer extends LitRenderer {}
 
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
-		appConfig.absolutePaths.config = '/app/eco.config.ts';
 		const plugin = new LitPlugin();
 		plugin.renderer = CustomLitRenderer;
 		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
-		vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
+		const ensureWorker = vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
 		await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 
 		const renderer = plugin.getRenderer();
 
 		expect(renderer).toBeInstanceOf(CustomLitRenderer);
+		expect(ensureWorker).not.toHaveBeenCalled();
+	});
+
+	it('does not require a config path during setup', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
+		appConfig.absolutePaths.config = undefined as unknown as string;
+		const plugin = new LitPlugin();
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+		const ensureWorker = vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
+
+		await expect(plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) })).resolves.toBeUndefined();
+
+		expect(ensureWorker).not.toHaveBeenCalled();
+	});
+
+	it('teardown succeeds after setup when no session was started', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
+		const plugin = new LitPlugin();
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+		const ensureWorker = vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
+		await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
+
+		await expect(plugin.teardown()).resolves.toBeUndefined();
+		expect(ensureWorker).not.toHaveBeenCalled();
 	});
 });
 
@@ -102,7 +129,7 @@ describe('LitPlugin render session invalidation', () => {
 });
 
 describe('LitPlugin staticExport', () => {
-	async function createStaticExportFixture(runtimeOrigin = 'http://127.0.0.1:3000') {
+	async function createStaticExportFixture() {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
 		appConfig.absolutePaths.config = '/app/eco.config.ts';
 		const plugin = new LitPlugin();
@@ -111,20 +138,22 @@ describe('LitPlugin staticExport', () => {
 		vi.spyOn(LitStaticRenderSession.prototype, 'preloadStaticRoutes').mockResolvedValue();
 		const dispose = vi.spyOn(LitStaticRenderSession.prototype, 'dispose').mockResolvedValue();
 		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
-		requireAppRuntime(appConfig).origin = runtimeOrigin;
+		requireAppRuntime(appConfig).origin = 'http://127.0.0.1:4000';
 		await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 		return { plugin, context, ensureWorker, dispose };
 	}
 
-	it('stops the render worker when the returned release runs', async () => {
+	it('starts its own render worker with the export base URL and stops it when the returned release runs', async () => {
 		const { plugin, context, ensureWorker, dispose } = await createStaticExportFixture();
+
+		expect(ensureWorker).not.toHaveBeenCalled();
 
 		const release = await plugin.staticExport(context);
 
-		expect(ensureWorker).toHaveBeenCalledTimes(2);
+		expect(ensureWorker).toHaveBeenCalledTimes(1);
 		expect(ensureWorker).toHaveBeenCalledWith({
 			configModulePath: '/app/eco.config.ts',
-			runtimeOrigin: 'http://127.0.0.1:3000',
+			runtimeOrigin: context.baseUrl,
 		});
 		expect(dispose).not.toHaveBeenCalled();
 
@@ -134,48 +163,17 @@ describe('LitPlugin staticExport', () => {
 		expect(plugin['renderSession']).toBeNull();
 	});
 
-	it('releases the session that setup started instead of starting another', async () => {
-		const { plugin, context, ensureWorker, dispose } = await createStaticExportFixture();
-		const release = await plugin.staticExport(context);
-		await release();
+	it('requires a config path when starting the export worker', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
+		appConfig.absolutePaths.config = undefined as unknown as string;
+		const plugin = new LitPlugin();
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+		await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
+		const context = { appConfig, baseUrl: 'http://127.0.0.1:3000' } as unknown as StaticExportContext;
 
-		expect(ensureWorker).toHaveBeenCalledTimes(2);
-		expect(dispose).toHaveBeenCalledTimes(1);
-		expect(plugin['renderSession']).toBeNull();
-	});
-
-	it('keeps one session across setup and static export', async () => {
-		const { plugin, context, ensureWorker, dispose } = await createStaticExportFixture();
-		const exportSession = plugin['renderSession'];
-
-		const release = await plugin.staticExport(context);
-
-		expect(plugin['renderSession']).toBe(exportSession);
-		expect(ensureWorker).toHaveBeenCalledTimes(2);
-
-		await release();
-
-		expect(dispose).toHaveBeenCalledTimes(1);
-		expect(plugin['renderSession']).toBeNull();
-	});
-
-	it('reconciles the worker origin with the static export base URL', async () => {
-		const setupOrigin = 'http://127.0.0.1:4000';
-		const { plugin, context, ensureWorker } = await createStaticExportFixture(setupOrigin);
-
-		const release = await plugin.staticExport(context);
-
-		expect(ensureWorker).toHaveBeenCalledTimes(2);
-		expect(ensureWorker).toHaveBeenNthCalledWith(1, {
-			configModulePath: '/app/eco.config.ts',
-			runtimeOrigin: setupOrigin,
-		});
-		expect(ensureWorker).toHaveBeenNthCalledWith(2, {
-			configModulePath: '/app/eco.config.ts',
-			runtimeOrigin: context.baseUrl,
-		});
-
-		await release();
+		await expect(plugin.staticExport(context)).rejects.toThrow(
+			'[ecopages][lit] Lit static export requires appConfig.absolutePaths.config',
+		);
 	});
 });
 
@@ -192,7 +190,7 @@ describe('LitPlugin watch restart script-change invalidation', () => {
 		const previousArgv = [...process.argv];
 		process.argv = [...previousArgv.filter((arg) => arg !== '--build' && arg !== '--preview'), '--dev'];
 
-		vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
+		const ensureWorker = vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
 		vi.spyOn(LitStaticRenderSession.prototype, 'dispose').mockResolvedValue();
 		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
 
@@ -240,6 +238,7 @@ describe('LitPlugin watch restart script-change invalidation', () => {
 
 		try {
 			await app.start();
+			expect(ensureWorker).not.toHaveBeenCalled();
 			const firstHmr = requireAppRuntime(appConfig).hmr;
 			expect(firstHmr).not.toBeNull();
 			await firstHmr!.registerScriptEntrypoint(scriptPath);
@@ -248,6 +247,7 @@ describe('LitPlugin watch restart script-change invalidation', () => {
 			expect(requireAppRuntime(appConfig).hmr).toBeNull();
 
 			await app.start();
+			expect(ensureWorker).not.toHaveBeenCalled();
 			const secondHmr = requireAppRuntime(appConfig).hmr;
 			expect(secondHmr).not.toBeNull();
 			expect(secondHmr).not.toBe(firstHmr);

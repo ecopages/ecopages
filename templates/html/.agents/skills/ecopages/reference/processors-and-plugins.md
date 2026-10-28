@@ -18,7 +18,7 @@ Core owns ordering. During config finalization (when `createApp()` loads `eco.co
 
 Nothing else of a Processor or Integration runs during finalization. At runtime, core gives each Processor its app config and calls `setup()`, then activates Integrations before creating their renderers. The Lit render worker and Node's `preview --serve-only` mode skip Processor setup. For development, core calls Integration `hmr(ctx)` with `{ appConfig, runtime }`; Integration `setup(ctx)` receives that same context.
 
-Core calls `teardown()` for activated Integrations after static-export releases and when the app stops or the development server restarts. It waits for in-flight `setup()` calls and active prewarm renders first. Processors have no `teardown()` hook.
+Core calls `teardown()` for activated Integrations after static-export releases and when the app stops or the development server restarts. It waits for in-flight `setup()` calls first. On stop or restart it also waits for active prewarm renders and in-flight page-cache regenerations. Processors have no `teardown()` hook.
 
 Static export calls optional Integration `staticExport(ctx)` hooks before generating pages. A hook may return a release function; core awaits releases in reverse order after export, including when generation fails, then calls `teardown()` for activated Integrations.
 
@@ -36,7 +36,7 @@ import { imageProcessorPlugin } from '@ecopages/image-processor';
 imageProcessorPlugin({
 	options: {
 		sourceDir: path.resolve(appRoot, 'src/images'),
-		outputDir: path.resolve(appRoot, 'dist/images'),
+		outputDir: path.resolve(appRoot, 'dist/client/images'),
 		publicPath: '/images',
 		quality: 80,
 		format: 'webp',

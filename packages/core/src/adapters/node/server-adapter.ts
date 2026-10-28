@@ -15,6 +15,7 @@ import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocke
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { ServerRequestPipeline, type ServerRequestContext } from '../shared/runtime/server-request-pipeline.ts';
+import { runWithBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
 import { ServerStaticBuilder } from '../shared/runtime/server-static-builder.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { disposeDevResources, prepareRuntimePublicDir } from '../shared/runtime/runtime-server-lifecycle.ts';
@@ -25,6 +26,9 @@ import { serveDistFile } from '../shared/http/dist-file-handler.ts';
 import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import { DevSession } from './dev-session.ts';
 import { prebuildProductionPageBrowserGraphsFromManifest } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
+import { assertProductionDistComplete } from '../../build/production-dist-complete.ts';
+import { requireProductionServerModules } from '../../build/server/server-modules-manifest.ts';
+import { isProductionRuntime } from '../../env.ts';
 
 export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
@@ -49,12 +53,18 @@ export interface NodeServerAdapterParams {
 	 * When Processors and Integrations set up.
 	 *
 	 * @remarks
-	 * `start` sets Processors up before routes are read and activates Integrations before a network server handles
-	 * requests. Request-only `app.fetch()` activates only the Integrations used by that request. `export` empties
-	 * `dist/` first and prepares the export runtime; `none` leaves runtime assets alone for a preview that serves an
-	 * earlier export.
+	 * `start` sets Processors up before routes are read, except production `ecopages start` with the unified
+	 * graph, which restores from `dist/server/` and does not call Processor `setup()`. It activates Integrations
+	 * before a network server handles requests. Request-only `app.fetch()` activates only the Integrations used by
+	 * that request. `export` empties `dist/` first and prepares the export runtime; `none` leaves runtime assets
+	 * alone for a preview that serves an earlier export.
 	 */
 	runtimeAssetSetup?: 'start' | 'export' | 'none';
+	/**
+	 * When true, production `start` refuses to run unless `dist/` is a complete
+	 * export. `ecopages start` sets this; in-process `app.fetch()` tests do not.
+	 */
+	requireCompleteDist?: boolean;
 	allowPortFallback?: boolean;
 	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 }
@@ -96,6 +106,7 @@ export class NodeServerAdapter {
 	private staticBuilder!: ServerStaticBuilder;
 	private devSession: DevSession | undefined;
 	private readonly runtimeAssetSetup: 'start' | 'export' | 'none';
+	private readonly requireCompleteDist: boolean;
 	private readonly allowPortFallback: boolean;
 	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	private readonly runtimeHost: RuntimeHost;
@@ -126,8 +137,15 @@ export class NodeServerAdapter {
 			appConfig: this.appConfig,
 			runtime: this.runtime,
 			watch: this.options.watch,
+			runInRequestBuildScope: this.options.watch
+				? (operation) =>
+						this.runtime.buildQueue.withRequestScope(() =>
+							runWithBuildInputIndex(this.runtime.buildInputIndex, operation),
+						)
+				: undefined,
 		});
 		this.runtimeAssetSetup = options.runtimeAssetSetup ?? 'start';
+		this.requireCompleteDist = options.requireCompleteDist === true;
 		this.allowPortFallback = options.allowPortFallback !== false;
 		this.onDevelopmentRestart = options.onDevelopmentRestart;
 		this.apiHandlers = options.apiHandlers || [];
@@ -144,12 +162,13 @@ export class NodeServerAdapter {
 	 * Order is intentional:
 	 * 1. **Loaders** are registered first so processors and integrations can
 	 *    reference loader-provided file types in their own plugins.
-	 * 2. **Public dir** is copied before any build so static assets are in `distDir`
-	 *    before the first request arrives.
+	 * 2. **Public dir** is copied into the client output before any request arrives. Serve-only
+	 *    preview (`none`) and production start from a complete output leave it untouched.
 	 * 3. **Processors** are set up after the public dir is in place so they can
-	 *    safely reference dist-relative paths. An export (`build`, `preview`)
-	 *    empties `dist/` first. Integrations activate at the runtime boundary that
-	 *    uses them.
+	 *    safely reference output-relative paths. Serve-only preview skips both; production
+	 *    start from a complete output restores them from the emitted server-modules map.
+	 *    An export (`build`, `preview`) empties the configured output directory first. Integrations
+	 *    activate at the runtime boundary that uses them.
 	 * 4. **Router** is initialised last because it may depend on files written by
 	 *    processors during their `setup()` calls, and in build mode it imports Pages.
 	 */
@@ -175,8 +194,21 @@ export class NodeServerAdapter {
 		return this.ready;
 	}
 
+	/**
+	 * True for production `ecopages start`, which serves only what `ecopages build` wrote.
+	 *
+	 * @remarks
+	 * Such a start checks that `dist/` is complete, restores Processors from the emitted
+	 * server-modules map instead of calling `setup()`, and leaves `dist/` untouched: the build
+	 * already copied the public directory, and the deploy may hold no sources.
+	 */
+	private startsFromCompleteDist(): boolean {
+		return this.runtimeAssetSetup === 'start' && this.requireCompleteDist && isProductionRuntime();
+	}
+
 	private async initializeResources(): Promise<void> {
-		if (this.runtimeAssetSetup !== 'export') {
+		const fromCompleteDist = this.startsFromCompleteDist();
+		if (this.runtimeAssetSetup === 'start' && !fromCompleteDist) {
 			prepareRuntimePublicDir(this.appConfig);
 		}
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
@@ -190,8 +222,13 @@ export class NodeServerAdapter {
 		if (this.runtimeAssetSetup === 'export') {
 			await this.staticBuilder.prepareExport();
 		} else if (this.runtimeAssetSetup === 'start') {
+			if (fromCompleteDist) {
+				assertProductionDistComplete(this.appConfig.rootDir, this.appConfig.distDir);
+				requireProductionServerModules(this.appConfig);
+			}
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
+				skipProcessorSetup: fromCompleteDist,
 			});
 		}
 		await this.requestPipeline.initializeRouteHandling({
@@ -251,10 +288,10 @@ export class NodeServerAdapter {
 	public async servePreviewOnly(): Promise<string | undefined> {
 		await this.initialize();
 
-		const distPath = path.join(this.appConfig.rootDir, this.appConfig.distDir);
+		const distPath = this.appConfig.absolutePaths.distDir;
 		if (!fileSystem.exists(distPath)) {
 			throw new Error(
-				`Cannot serve preview without building first: dist directory "${this.appConfig.distDir}" not found in "${this.appConfig.rootDir}".`,
+				`Cannot serve preview without building first: client output directory "${path.relative(this.appConfig.rootDir, distPath)}" not found in "${this.appConfig.rootDir}".`,
 			);
 		}
 
@@ -451,6 +488,9 @@ export class NodeServerAdapter {
 			} else {
 				if (this.runtimeAssetSetup === 'start') {
 					await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
+					if (this.startsFromCompleteDist()) {
+						requireProductionServerModules(this.appConfig);
+					}
 					const { routeRendererFactory } = this.requestPipeline.getStaticBuildContext();
 					await prebuildProductionPageBrowserGraphsFromManifest(this.appConfig, routeRendererFactory);
 				}

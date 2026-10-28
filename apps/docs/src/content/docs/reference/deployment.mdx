@@ -12,7 +12,7 @@ Deploying an Ecopages application depends on whether you are using only static f
 
 ## Production Build
 
-Before deploying, you must create a production build. This processes your assets, pre-renders static pages, and prepares the `dist` directory.
+Before deploying, create a production build. This processes your assets, pre-renders static pages, and writes public output to `dist/client/` and private server output, when needed, to `dist/server/`.
 
 ```bash
 pnpm run build
@@ -21,20 +21,20 @@ pnpm run build
 This command will:
 
 1. Set `NODE_ENV=production`.
-2. Clean the `dist` directory.
+2. Clean the `dist` output directory.
 3. Generate static HTML for all files in `src/pages`.
 4. Write `robots.txt` (and optional `sitemap.xml` when enabled — see [Sitemap](/docs/core/sitemap)).
 5. Process images and CSS.
-6. Bundle the server into `dist/.server/` when the app registers API or WebSocket handlers or has endpoint files (`*.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`) in its pages directory. A static-only app has no server bundle. The build first checks each endpoint file's exports and fails, naming the file, on a broken one; see [Endpoint Files](/docs/server/endpoint-files#errors).
+6. Bundle the server into `dist/server/` when the app registers API or WebSocket handlers or has endpoint files (`*.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`) in its pages directory. A static-only app has no server bundle. The build first checks each endpoint file's exports and fails, naming the file, on a broken one; see [Endpoint Files](/docs/server/endpoint-files#errors).
 
 ---
 
 ## Static Hosting
 
-If your site **does not** use API routes or programmatic server logic, you can host the contents of the `dist` directory on any static provider. `ecopages start` cannot run a static-only build because it has no server bundle; use `ecopages preview` to serve it locally.
+If your site **does not** use API routes or programmatic server logic, point your static host at `dist/client/`. The private server output is in the sibling `dist/server/` directory and is never inside the static host's document root. `ecopages start` cannot run a static-only build because it has no server bundle; use `ecopages preview` to serve it locally.
 
-- **Vercel / Netlify**: Connect your repository and set the build command to `pnpm run build`. Set the output directory to `dist`.
-- **GitHub Pages**: Use a GitHub Action to run `pnpm run build` and deploy the output directory.
+- **Vercel / Netlify**: Connect your repository, set the build command to `pnpm run build`, and set the output directory to `dist/client`.
+- **GitHub Pages**: Use a GitHub Action to run `pnpm run build` and deploy `dist/client/`.
 
 <RuiAlert variant="info" layout="banner" class="unstyled">
 	<RuiAlertTitle>Base URL Configuration</RuiAlertTitle>
@@ -60,25 +60,20 @@ pnpm run start
 
 ### 2. What to deploy
 
-`ecopages build` writes the server into `dist/.server/`. The server code holds no absolute paths of the machine that built it: it loads packages from `node_modules` through bare imports or paths relative to `dist/.server/`. You can build in one place and run in another, such as a CI runner and a container image with a different root. Copy these entries of your project and keep their relative positions:
+`ecopages build` writes public output into `dist/client/` and the server into `dist/server/`. The server code holds no absolute paths of the machine that built it: it loads packages from `node_modules` through bare imports or paths relative to `dist/server/`. You can build in one place and run in another, such as a CI runner and a container image with a different root. Copy these entries of your project and keep their relative positions:
 
-- `dist/`: the server bundle, its config and the static export.
-- `src/`: the server reads your routes from `src/pages` at startup and compiles each endpoint file on its first request.
+- `dist/`: the public files in `client/`, plus the server bundle, its config, the route list, and emitted server modules in `server/`.
 - `node_modules/`: the install the build ran against.
-- `package.json`.
 
 Copy the `node_modules` the build used, installed on the same operating system and CPU architecture as the server, because packages with native bindings install files for one platform. Some imports point into the package manager's own folders, such as `node_modules/.pnpm/<name>@<version>_<peers>/`, so a fresh install only works when it produces the same folder names: same lockfile, same package manager version and same layout settings (for pnpm `node-linker`, `virtual-store-dir` and `virtual-store-dir-max-length`; for Bun the linker).
 
-Start the server from that folder with `node dist/.server/app.mjs`, or `bun dist/.server/app.mjs`. The server loads the config compiled into `dist/.server/`, even when `eco.config.ts` is in the folder, so you can copy the whole project.
+Start the server from that folder with `node dist/server/app.mjs`, or `bun dist/server/app.mjs`. Both, like `ecopages start`, check that `dist/` is complete and load the routes, server modules and config compiled into `dist/server/`. The server does not compile Pages; when runtime asset setup copies an available source public directory, those files go into `dist/client/`.
 
-Server code in `.ts`, `.tsx`, `.js` and `.jsx` files keeps `import.meta.url`, `import.meta.dirname` and `import.meta.filename` pointing at your source files, so reading a file next to a module works as in development. In `.mjs`, `.cjs`, `.mts` and `.cts` files, `import.meta` points at the built file in `dist/.server/` in this release. Two more things differ from running the source:
-
-- `import.meta.resolve()` resolves from `dist/.server/`.
-- `import.meta.url === pathToFileURL(process.argv[1]).href`, the usual check for "this file is the entry point", is false, because `import.meta.url` names the source file while `process.argv[1]` names `dist/.server/app.mjs`.
+Production `import.meta.url`, `import.meta.dirname` and `import.meta.filename` point at the emitted files in `dist/server/`. App code that reads a file next to its module must declare it in `serverFiles` so the build copies it into `dist/server/` by basename, or move the file to `public/` for the browser to fetch. Development still rewrites `import.meta` to source locations.
 
 Yarn Plug'n'Play installs are not supported for a server you move after building: their packages live in `.zip` archives, so the build bundles them instead of importing them from `node_modules`.
 
-In a monorepo, the packages live in the workspace root `node_modules`, outside your app folder. Build from a standalone copy of the app instead, for example the output of `pnpm deploy`. `ecopages build` warns with one line per server output file, such as `dist/.server/app.mjs`, that imports packages from outside the app folder, naming the first five and counting the rest.
+In a monorepo, the packages live in the workspace root `node_modules`, outside your app folder. Build from a standalone copy of the app instead, for example the output of `pnpm deploy`. `ecopages build` warns with one line per server output file, such as `dist/server/app.bundle.mjs`, that imports packages from outside the app folder, naming the first five and counting the rest.
 
 ### 3. Docker Deployment
 
@@ -96,35 +91,36 @@ RUN pnpm run build
 FROM node:24-slim
 WORKDIR /srv/app
 ENV NODE_ENV=production ECOPAGES_HOSTNAME=0.0.0.0
-COPY --from=build /build/package.json ./
 COPY --from=build /build/node_modules ./node_modules
 COPY --from=build /build/dist ./dist
-COPY --from=build /build/src ./src
 
 EXPOSE 3000
-CMD ["node", "dist/.server/app.mjs"]
+CMD ["node", "dist/server/app.mjs"]
 ```
 
 To run on Bun instead, use the official Bun image. That process runs on Bun through Node APIs.
 
 ```dockerfile
-FROM oven/bun:latest
-
-WORKDIR /app
-
+FROM oven/bun:latest AS build
+WORKDIR /build
 COPY package.json ./
-RUN bun install --production
-
+RUN bun install
 COPY . .
 RUN bun run build
 
+FROM oven/bun:latest
+WORKDIR /srv/app
+ENV NODE_ENV=production ECOPAGES_HOSTNAME=0.0.0.0
+COPY --from=build /build/node_modules ./node_modules
+COPY --from=build /build/dist ./dist
+
 EXPOSE 3000
-CMD ["bun", "run", "start"]
+CMD ["bun", "dist/server/app.mjs"]
 ```
 
 ### 4. VPS / PaaS (Railway, Fly.io)
 
-Deploy the server by pointing the platform to your `app.ts` as the entry point and ensuring it runs with the `start` command in production.
+Deploy `dist/` and `node_modules/` as listed above. Point the platform at `dist/server/app.mjs`, or run `ecopages start` from that folder. Do not use `app.ts` as the production entry.
 
 ---
 

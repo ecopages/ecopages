@@ -83,6 +83,8 @@ export interface BuildChunk {
 	dynamicImports: string[];
 	isEntry: boolean;
 	facadeModuleId: string | null;
+	/** Absolute source paths of the modules bundled into this chunk; virtual modules are left out. */
+	modules: string[];
 }
 
 /** Targets supported by the Ecopages build adapter. */
@@ -128,6 +130,9 @@ export interface BuildOptions {
 	sourcemap?: BuildSourcemap;
 	/** When `false` with a single entrypoint, inlines dynamic imports into one output file. */
 	splitting?: boolean;
+	/** Emits one output module per source module so separate server emits can share module identity. */
+	preserveModules?: boolean;
+	preserveModulesRoot?: string;
 	root?: string;
 	externalPackages?: boolean;
 	/**

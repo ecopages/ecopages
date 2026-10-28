@@ -59,6 +59,8 @@ function isGroupedContentScriptDependency(asset: AssetDefinition): asset is Extr
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	vi.unstubAllEnvs();
+	requireAppRuntime(appConfig).productionBrowserGraphsSealed = false;
 });
 
 describe('SessionPageBrowserGraphCache', () => {
@@ -459,7 +461,7 @@ test('PageBrowserGraphService warns when grouped assets lose groupedBundle metad
 
 test('PageBrowserGraphService reuses a dynamic route template when grouped dependencies match', async () => {
 	const prebuiltAsset = {
-		filepath: '/app/dist/assets/template.js',
+		filepath: '/app/dist/client/assets/template.js',
 		srcUrl: '/assets/template.js',
 		kind: 'script' as const,
 	};
@@ -504,8 +506,10 @@ test('PageBrowserGraphService reuses a dynamic route template when grouped depen
 });
 
 test('PageBrowserGraphService keeps the request-time build when a dynamic route adds grouped dependencies', async () => {
+	vi.stubEnv('NODE_ENV', 'production');
+	requireAppRuntime(appConfig).productionBrowserGraphsSealed = false;
 	const prebuiltAsset = {
-		filepath: '/app/dist/assets/template.js',
+		filepath: '/app/dist/client/assets/template.js',
 		srcUrl: '/assets/template.js',
 		kind: 'script' as const,
 	};
@@ -555,6 +559,222 @@ test('PageBrowserGraphService keeps the request-time build when a dynamic route 
 	expect(result?.entryAssets).not.toContain(prebuiltAsset);
 	expect(result?.entryAssets).toContainEqual(runtimeAsset);
 	expect(processDependencies).toHaveBeenCalledOnce();
+});
+
+test('PageBrowserGraphService fails a production request whose graph is missing from the manifest, naming the route', async () => {
+	vi.stubEnv('NODE_ENV', 'production');
+	requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
+	const prebuiltAsset = {
+		filepath: '/app/dist/client/assets/template.js',
+		srcUrl: '/assets/template.js',
+		kind: 'script' as const,
+	};
+	const templateDependency = createGroupedDependency();
+	const requestDependency = { ...createGroupedDependency(), content: 'console.log("new product island")' };
+	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => {
+		throw new Error('production must not build browser assets');
+	});
+	const service = new PageBrowserGraphService(appConfig, {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService);
+	const routeFile = '/app/pages/products/[slug].tsx';
+	const plan = {
+		integrationName: 'react',
+		planKey: createGroupedGraphBuildPlanKey('react', [
+			{
+				routeFile,
+				dependencyInstanceKey: '',
+				skipStaticProps: true,
+				isRouteTemplate: true,
+			},
+		]),
+		instances: [
+			{
+				routeFile,
+				dependencyInstanceKey: '',
+				skipStaticProps: true,
+				isRouteTemplate: true,
+				contribution: { dependencies: [templateDependency] },
+				prebuiltGroupedAssets: [prebuiltAsset],
+			},
+		],
+	};
+
+	await expect(
+		service.resolvePageBrowserGraph({
+			routeFile,
+			dependencyInstanceKey: createPageDependencyInstanceKey({ params: { slug: 'new-product' } }),
+			integrationName: 'react',
+			groupedBuildPlan: plan,
+			collectContribution: async () => ({ dependencies: [requestDependency] }),
+		}),
+	).rejects.toThrow(
+		'The production Page Browser Graph for /app/pages/products/[slug].tsx is missing from the manifest (entry slug=new-product). Run `ecopages build` again.',
+	);
+	expect(processDependencies).not.toHaveBeenCalled();
+});
+
+test('PageBrowserGraphService fails a production request whose ungrouped file script was not built', async () => {
+	vi.stubEnv('NODE_ENV', 'production');
+	requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
+	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => {
+		throw new Error('production must not build browser assets');
+	});
+	const service = new PageBrowserGraphService(appConfig, {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService);
+	const routeFile = '/app/pages/products/[slug].tsx';
+
+	await expect(
+		service.resolvePageBrowserGraph({
+			routeFile,
+			dependencyInstanceKey: createPageDependencyInstanceKey({ params: { slug: 'new-product' } }),
+			integrationName: 'react',
+			collectContribution: async () => ({
+				dependencies: [
+					{
+						kind: 'script',
+						source: 'file',
+						filepath: '/app/components/chart.script.ts',
+					} satisfies AssetDefinition,
+				],
+			}),
+		}),
+	).rejects.toThrow(
+		'The production Page Browser Graph for /app/pages/products/[slug].tsx is missing from the manifest (entry slug=new-product). Run `ecopages build` again.',
+	);
+	expect(processDependencies).not.toHaveBeenCalled();
+});
+
+test('PageBrowserGraphService reuses a listed entry graph when the request only adds query', async () => {
+	vi.stubEnv('NODE_ENV', 'production');
+	requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
+	const prebuiltAsset = {
+		filepath: '/app/dist/client/assets/chart.js',
+		srcUrl: '/assets/chart.js',
+		kind: 'script' as const,
+	};
+	const templateDependency = createGroupedDependency();
+	const entryDependency = { ...createGroupedDependency(), content: 'console.log("chart island")' };
+	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => {
+		throw new Error('production must not build browser assets');
+	});
+	const service = new PageBrowserGraphService(appConfig, {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService);
+	const routeFile = '/app/pages/products/[slug].tsx';
+	const entryKey = createPageDependencyInstanceKey({ params: { slug: 'chart' } });
+
+	const result = await service.resolvePageBrowserGraph({
+		routeFile,
+		dependencyInstanceKey: createPageDependencyInstanceKey({
+			params: { slug: 'chart' },
+			query: { utm_source: 'email' },
+		}),
+		integrationName: 'react',
+		groupedBuildPlan: {
+			integrationName: 'react',
+			planKey: createGroupedGraphBuildPlanKey('react', [
+				{
+					routeFile,
+					dependencyInstanceKey: '',
+					skipStaticProps: true,
+					isRouteTemplate: true,
+				},
+				{
+					routeFile,
+					dependencyInstanceKey: entryKey,
+					skipStaticProps: false,
+				},
+			]),
+			instances: [
+				{
+					routeFile,
+					dependencyInstanceKey: '',
+					skipStaticProps: true,
+					isRouteTemplate: true,
+					contribution: { dependencies: [templateDependency] },
+					prebuiltGroupedAssets: [
+						{
+							filepath: '/app/dist/client/assets/template.js',
+							srcUrl: '/assets/template.js',
+							kind: 'script' as const,
+						},
+					],
+				},
+				{
+					routeFile,
+					dependencyInstanceKey: entryKey,
+					skipStaticProps: false,
+					contribution: { dependencies: [entryDependency] },
+					prebuiltGroupedAssets: [prebuiltAsset],
+				},
+			],
+		},
+		collectContribution: async () => ({ dependencies: [entryDependency] }),
+	});
+
+	expect(result?.entryAssets).toEqual([prebuiltAsset]);
+	expect(processDependencies).not.toHaveBeenCalled();
+});
+
+test('PageBrowserGraphService fails a production request whose query changes grouped dependencies', async () => {
+	vi.stubEnv('NODE_ENV', 'production');
+	requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
+	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => {
+		throw new Error('production must not build browser assets');
+	});
+	const service = new PageBrowserGraphService(appConfig, {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService);
+	const routeFile = '/app/pages/products/[slug].tsx';
+	const entryKey = createPageDependencyInstanceKey({ params: { slug: 'chart' } });
+	const entryDependency = createGroupedDependency();
+	const queryDependency = { ...createGroupedDependency(), content: 'console.log("interactive island")' };
+
+	await expect(
+		service.resolvePageBrowserGraph({
+			routeFile,
+			dependencyInstanceKey: createPageDependencyInstanceKey({
+				params: { slug: 'chart' },
+				query: { mode: 'interactive' },
+			}),
+			integrationName: 'react',
+			groupedBuildPlan: {
+				integrationName: 'react',
+				planKey: createGroupedGraphBuildPlanKey('react', [
+					{
+						routeFile,
+						dependencyInstanceKey: entryKey,
+						skipStaticProps: false,
+					},
+				]),
+				instances: [
+					{
+						routeFile,
+						dependencyInstanceKey: entryKey,
+						skipStaticProps: false,
+						contribution: { dependencies: [entryDependency] },
+						prebuiltGroupedAssets: [
+							{
+								filepath: '/app/dist/client/assets/chart.js',
+								srcUrl: '/assets/chart.js',
+								kind: 'script' as const,
+							},
+						],
+					},
+				],
+			},
+			collectContribution: async () => ({ dependencies: [queryDependency] }),
+		}),
+	).rejects.toThrow(
+		'The production Page Browser Graph for /app/pages/products/[slug].tsx is missing from the manifest (entry slug=chart). Run `ecopages build` again.',
+	);
+	expect(processDependencies).not.toHaveBeenCalled();
 });
 
 test('PageBrowserGraphService reuses HMR graph records for unchanged requests', async () => {
@@ -909,7 +1129,7 @@ test('uses app-prebuilt grouped assets without invoking the per-render asset pro
 	const processedAsset: ProcessedAsset = {
 		kind: 'script',
 		inline: false,
-		filepath: '/app/dist/assets/client.js',
+		filepath: '/app/dist/client/assets/client.js',
 		srcUrl: '/assets/client.js',
 		groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'client-entry' },
 	};
@@ -953,7 +1173,7 @@ test('builds explicit route overrides from their current grouped dependencies', 
 	const prebuiltAsset: ProcessedAsset = {
 		kind: 'script',
 		inline: false,
-		filepath: '/app/dist/assets/prebuilt.js',
+		filepath: '/app/dist/client/assets/prebuilt.js',
 		srcUrl: '/assets/prebuilt.js',
 		groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'prebuilt-entry' },
 	};

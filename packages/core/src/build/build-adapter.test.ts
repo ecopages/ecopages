@@ -230,6 +230,30 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 	assert.deepEqual(buildInputIndex.recordedWatchPaths(), ['/app/src/content']);
 });
 
+test('setupAppRuntimePlugins restores Processors instead of calling setup when skipProcessorSetup is set', async () => {
+	const processor = {
+		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
+		setContext: vi.fn(),
+		getWatchConfig: () => undefined,
+		setup: vi.fn(async () => {}),
+		restoreProductionRuntime: vi.fn(async () => {}),
+	};
+
+	await setupAppRuntimePlugins({
+		appConfig: {
+			loaders: new Map(),
+			processors: new Map([['processor', processor]]),
+			integrations: [],
+			appRuntime: { buildInputIndex: new BuildInputDependencyIndex() },
+		} as any,
+		skipProcessorSetup: true,
+	});
+
+	assert.equal(processor.setContext.mock.calls.length, 1);
+	assert.equal(processor.setup.mock.calls.length, 0);
+	assert.equal(processor.restoreProductionRuntime.mock.calls.length, 1);
+});
+
 test('setupAppRuntimePlugins skips processor and integration setup when runtime assets are already prepared', async () => {
 	const processor = {
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
@@ -315,7 +339,9 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 		integrationName: 'react',
 	});
 
-	assert.equal(integration.setup.mock.calls.length, 1);
+	await vi.waitFor(() => {
+		assert.equal(integration.setup.mock.calls.length, 1);
+	});
 	resolveSetup();
 	await Promise.all([first, second]);
 	assert.equal(integration.setup.mock.calls.length, 1);

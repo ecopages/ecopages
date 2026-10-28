@@ -1,7 +1,6 @@
 import path from 'node:path';
 import type { EcoComponent, PageParams, PageQuery } from '@ecopages/core';
 import type { AnyIntegrationPlugin, StaticExportContext } from '@ecopages/core/integration';
-import { ensureLitDomShim } from './dom-shim.ts';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,
@@ -42,9 +41,9 @@ type LitStaticRenderSessionOptions = {
  * Plugin-runtime-scoped Lit server render session.
  *
  * @remarks
- * Owns worker lifecycle and SSR preload for Lit page routes during static export
- * and runtime/dev requests. Injected into `LitRenderer` via a lazy accessor from
- * `LitPlugin`; there is no process-global coordinator.
+ * Owns worker lifecycle and SSR preload for Lit page routes during static export.
+ * Injected into `LitRenderer` via a lazy accessor from `LitPlugin`; there is no
+ * process-global coordinator. Serving leaves the session unset.
  *
  * Worker init identity is sticky for the first `{ configModulePath, runtimeOrigin }`.
  * Later `ensureWorker` calls with the same identity are no-ops; a different identity
@@ -119,7 +118,6 @@ export class LitStaticRenderSession {
 	}
 
 	async preloadSsrScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): Promise<void> {
-		ensureLitDomShim();
 		await this.preloader.preloadSsrScripts(components);
 	}
 

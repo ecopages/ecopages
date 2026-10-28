@@ -373,6 +373,19 @@ export class PageCacheService {
 	}
 
 	/**
+	 * @remarks
+	 * Shutdown awaits this before Integration teardown so a revalidating cache
+	 * regeneration cannot render against a torn-down Integration. Regeneration
+	 * failures are already logged and do not reject shutdown. The mutation gate
+	 * still drops a write whose generation is older than a later invalidation.
+	 */
+	async waitForInFlightRegenerations(): Promise<void> {
+		while (this.regenerationPromises.size > 0) {
+			await Promise.allSettled([...this.regenerationPromises.values()]);
+		}
+	}
+
+	/**
 	 * Invalidate cache entries by tags.
 	 */
 	async invalidateByTags(tags: string[]): Promise<number> {

@@ -201,7 +201,7 @@ Startup logs a warning naming the `app.ts` route and the endpoint file. A route 
 
 - **Dev.** `ecopages dev` compiles an endpoint file on its first request. Saving the file reloads it without a restart, and adding or removing one updates the routes.
 - **Build.** `ecopages build` imports each endpoint file to check its exports, as it imports Pages, so the file's top-level code runs at build time. Keep connections and other side effects inside the handler.
-- **Server bundle.** A build with at least one endpoint file emits the server bundle in `dist/.server/`, even when `app.ts` registers no route. `ecopages start` serves it.
+- **Server bundle.** A build with at least one endpoint file emits the server bundle in `dist/server/`, even when `app.ts` registers no route. `ecopages start` serves it.
 - **No static output.** Endpoint files need a running server. They are never rendered to static HTML, never appear in the sitemap, and `ecopages preview` does not serve them.
 
 See [Deployment](/docs/reference/deployment) for the build steps.

@@ -1,4 +1,5 @@
 /** @jsxImportSource react */
+import { join } from 'node:path';
 import { eco } from '@ecopages/core';
 import { getReactServerMetadataSummary } from './react-server-metadata.server';
 import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout.react';
@@ -9,8 +10,10 @@ export default eco.page<{}, ReactNode>({
 	dependencies: {
 		stylesheets: ['./docs.css'],
 	},
-	metadata: async () => {
-		const { routeCount, scannedDir } = await getReactServerMetadataSummary();
+	metadata: async ({ appConfig }) => {
+		const { routeCount, scannedDir } = await getReactServerMetadataSummary(
+			join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
+		);
 
 		return {
 			title: `React Server Metadata (${routeCount} routes)`,

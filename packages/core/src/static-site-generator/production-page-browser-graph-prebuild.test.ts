@@ -246,13 +246,15 @@ test('prebuildProductionPageBrowserGraphs skips routes whose preparation failed'
 
 test('clearProductionPageBrowserGraphSession clears production session records', async () => {
 	const appConfig = await createAppConfig();
-	const session = requireAppRuntime(appConfig).pageBrowserGraphSession;
-	const clearSpy = vi.spyOn(session, 'clearPolicyRecords');
+	const runtime = requireAppRuntime(appConfig);
+	runtime.productionBrowserGraphsSealed = true;
+	const clearSpy = vi.spyOn(runtime.pageBrowserGraphSession, 'clearPolicyRecords');
 
 	clearProductionPageBrowserGraphSession(appConfig);
 
 	assert.equal(clearSpy.mock.calls.length, 1);
 	assert.equal(clearSpy.mock.calls[0]?.[0], 'production');
+	assert.equal(runtime.productionBrowserGraphsSealed, false);
 });
 
 test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs for SSR start', async () => {
@@ -337,6 +339,7 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs 
 
 	assert.deepEqual(await getPrebuiltHtmlPageModuleScriptUrls(runtimeAppConfig), new Map());
 	assert.equal(await prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, routeRendererFactory), true);
+	assert.equal(requireAppRuntime(runtimeAppConfig).productionBrowserGraphsSealed, true);
 	assert.equal(buildAppBrowserClientMock.mock.calls.length, 0);
 	assert.deepEqual(
 		await getPrebuiltHtmlPageModuleScriptUrls(runtimeAppConfig),
@@ -422,23 +425,27 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores dynamic route tem
 	assert.equal(renderer.prebuildProductionPageBrowserGraph.mock.calls.length, 1);
 });
 
-test('prebuildProductionPageBrowserGraphsFromManifest rejects changed browser sources', async () => {
+test('prebuildProductionPageBrowserGraphsFromManifest reuses outputs after HTML sources change', async () => {
 	const appConfig = await createAppConfig();
 	const htmlPageFile = path.join(appConfig.absolutePaths.pagesDir, 'docs.html');
 	const htmlScriptFile = path.join(appConfig.absolutePaths.srcDir, 'document.ts');
 	writeFile(htmlPageFile, '<script type="module" src="../document.ts"></script>');
 	writeFile(htmlScriptFile, 'export const documentScript = true;');
+	writeFile(path.join(appConfig.absolutePaths.distDir, 'assets/document.js'));
 	setPrebuiltHtmlPageModuleScriptUrls(appConfig, new Map([[htmlScriptFile, '/assets/document.js']]));
 	await writeAppBrowserClientManifest(appConfig, [], [], { sourceFiles: [], outputPaths: [] });
 	writeFile(htmlScriptFile, 'export const documentScript = false;');
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 
-	await expect(
-		prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, { getPageRenderer: () => null as never }),
-	).rejects.toThrow('changed or is missing');
+	assert.equal(
+		await prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, {
+			getPageRenderer: () => null as never,
+		}),
+		true,
+	);
 });
 
-test('prebuildProductionPageBrowserGraphsFromManifest rejects changed route browser sources', async () => {
+test('prebuildProductionPageBrowserGraphsFromManifest reuses outputs after route sources change', async () => {
 	const appConfig = await createAppConfig();
 	const routeFile = path.join(appConfig.rootDir, 'pages/index.tsx');
 	const routeSource = path.join(appConfig.rootDir, 'src/page-client.ts');
@@ -470,18 +477,26 @@ test('prebuildProductionPageBrowserGraphsFromManifest rejects changed route brow
 	});
 	writeFile(routeSource, 'export const pageClient = false;');
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
+	const renderer = {
+		name: 'ecopages-jsx',
+		buildGroupedGraphBuildPlan: vi.fn(async () => plan),
+		prebuildProductionPageBrowserGraph: vi.fn(async () => {}),
+	};
 
-	await expect(
-		prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, { getPageRenderer: () => null as never }),
-	).rejects.toThrow('changed or is missing');
+	assert.equal(
+		await prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, {
+			getPageRenderer: () => renderer as never,
+		}),
+		true,
+	);
 });
 
 test('restoreAppBrowserClientAssets rejects output files missing from dist', async () => {
 	const appConfig = await createAppConfig();
 
 	assert.throws(
-		() => restoreAppBrowserClientAssets(appConfig, [{ kind: 'script', filepath: 'dist/assets/missing.js' }]),
-		/missing output dist\/assets\/missing\.js/,
+		() => restoreAppBrowserClientAssets(appConfig, [{ kind: 'script', filepath: 'dist/client/assets/missing.js' }]),
+		/missing output dist\/client\/assets\/missing\.js/,
 	);
 });
 
@@ -503,11 +518,11 @@ test('the app browser manifest records and validates shared build outputs', asyn
 	await writeAppBrowserClientManifest(appConfig, [], [], { sourceFiles: [], outputPaths: [sharedChunk] });
 
 	const manifest = readAppBrowserClientManifest(appConfig);
-	assert.deepEqual(manifest?.browserOutputPaths, ['dist/assets/shared-chunk.js']);
+	assert.deepEqual(manifest?.browserOutputPaths, ['dist/client/assets/shared-chunk.js']);
 	rmSync(sharedChunk);
 
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 	await expect(
 		prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, { getPageRenderer: () => null as never }),
-	).rejects.toThrow(/missing output dist\/assets\/shared-chunk\.js/);
+	).rejects.toThrow(/missing output dist\/client\/assets\/shared-chunk\.js/);
 });

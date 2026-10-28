@@ -50,8 +50,8 @@ function createMockDependencies() {
 		setContext: () => {},
 		setup: async () => {
 			calls.processorSetup += 1;
-			fs.mkdirSync(path.join(tmpDir, 'dist', 'images'), { recursive: true });
-			fs.writeFileSync(path.join(tmpDir, 'dist', 'images', 'processor.webp'), 'processor-output');
+			fs.mkdirSync(path.join(tmpDir, 'dist', 'client', 'images'), { recursive: true });
+			fs.writeFileSync(path.join(tmpDir, 'dist', 'client', 'images', 'processor.webp'), 'processor-output');
 		},
 	} as any;
 
@@ -64,7 +64,7 @@ function createMockDependencies() {
 		processors: new Map([['image-processor', mockProcessor]]),
 		loaders: new Map(),
 		absolutePaths: {
-			distDir: path.join(tmpDir, 'dist'),
+			distDir: path.join(tmpDir, 'dist', 'client'),
 			workDir: path.join(tmpDir, '.eco'),
 		} as EcoPagesAppConfig['absolutePaths'],
 	} as unknown as EcoPagesAppConfig;
@@ -221,6 +221,17 @@ describe('ServerStaticBuilder', () => {
 	afterEach(() => {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
+
+	function createAppConfigWithOutputDirectory(appConfig: EcoPagesAppConfig, outputDir: string): EcoPagesAppConfig {
+		return {
+			...appConfig,
+			distDir: path.relative(tmpDir, outputDir),
+			absolutePaths: {
+				...appConfig.absolutePaths,
+				distDir: path.join(outputDir, 'client'),
+			},
+		};
+	}
 
 	describe('constructor', () => {
 		it('uses the rebound listening port for later builds', async () => {
@@ -428,7 +439,7 @@ describe('ServerStaticBuilder', () => {
 
 			assert.equal(calls.processorSetup, 1);
 			assert.equal(
-				fs.readFileSync(path.join(tmpDir, 'dist', 'images', 'processor.webp'), 'utf8'),
+				fs.readFileSync(path.join(tmpDir, 'dist', 'client', 'images', 'processor.webp'), 'utf8'),
 				'processor-output',
 			);
 		});
@@ -474,11 +485,7 @@ describe('ServerStaticBuilder', () => {
 					createMockDependencies();
 				const distDir = setupBundleFixture('no-endpoints');
 				fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-				const appConfig = {
-					...AppConfig,
-					rootDir: tmpDir,
-					absolutePaths: { ...AppConfig.absolutePaths, distDir },
-				} as EcoPagesAppConfig;
+				const appConfig = createAppConfigWithOutputDirectory(AppConfig, distDir);
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
@@ -506,11 +513,7 @@ describe('ServerStaticBuilder', () => {
 					createMockDependencies();
 				const distDir = setupBundleFixture('endpoint-route');
 				fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-				const appConfig = {
-					...AppConfig,
-					rootDir: tmpDir,
-					absolutePaths: { ...AppConfig.absolutePaths, distDir },
-				} as EcoPagesAppConfig;
+				const appConfig = createAppConfigWithOutputDirectory(AppConfig, distDir);
 				const buildCalls = recordServerEntryBuilds(appConfig);
 				const router = {
 					templateRoutes: [
@@ -538,21 +541,17 @@ describe('ServerStaticBuilder', () => {
 
 				expect(importHealthModule).toHaveBeenCalledWith('health.api.ts');
 				assert.equal(buildCalls.length, 1);
-				assert.ok(fs.existsSync(path.join(distDir, '.server', 'manifest.json')));
+				assert.ok(fs.existsSync(path.join(distDir, 'server', 'manifest.json')));
 			});
 
 			it.each([['src/pages/health.api.ts'], ['src/pages/health.api.js']])(
-				'fails the build on the endpoint file %p without a method export, naming it whatever its ending, before the server bundle and static generation',
+				'fails the build on the endpoint file %p without a method export, naming it whatever its ending, before static generation',
 				async (filePath) => {
 					const { AppConfig, StaticSiteGenerator, ServeOptions, RouteRendererFactory, logger, calls } =
 						createMockDependencies();
 					const distDir = setupBundleFixture('broken-endpoint-route');
 					fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-					const appConfig = {
-						...AppConfig,
-						rootDir: tmpDir,
-						absolutePaths: { ...AppConfig.absolutePaths, distDir },
-					} as EcoPagesAppConfig;
+					const appConfig = createAppConfigWithOutputDirectory(AppConfig, distDir);
 					const buildCalls = recordServerEntryBuilds(appConfig);
 					const router = {
 						templateRoutes: [{ pathname: '/health', kind: 'exact', role: 'endpoint', filePath }],
@@ -573,9 +572,8 @@ describe('ServerStaticBuilder', () => {
 							importServerModule: async () => ({ helper: () => 'not a handler' }),
 						}),
 					).rejects.toThrow(`${filePath} defines the endpoint "/health" but exports no request handler.`);
-					assert.equal(buildCalls.length, 0);
+					assert.equal(buildCalls.length, 1);
 					assert.equal(calls.staticSiteGeneratorRun.length, 0);
-					assert.equal(fs.existsSync(path.join(distDir, '.server', 'manifest.json')), false);
 				},
 			);
 
@@ -584,11 +582,7 @@ describe('ServerStaticBuilder', () => {
 					createMockDependencies();
 				const distDir = setupBundleFixture('page-route');
 				fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-				const appConfig = {
-					...AppConfig,
-					rootDir: tmpDir,
-					absolutePaths: { ...AppConfig.absolutePaths, distDir },
-				} as EcoPagesAppConfig;
+				const appConfig = createAppConfigWithOutputDirectory(AppConfig, distDir);
 				const buildCalls = recordServerEntryBuilds(appConfig);
 				const router = {
 					templateRoutes: [{ pathname: '/about', kind: 'exact', role: 'page', filePath: 'about.tsx' }],
@@ -615,10 +609,7 @@ describe('ServerStaticBuilder', () => {
 				const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger } =
 					createMockDependencies();
 				const distDir = setupBundleFixture('missing-entry');
-				const appConfig = {
-					...AppConfig,
-					absolutePaths: { ...AppConfig.absolutePaths, distDir },
-				} as EcoPagesAppConfig;
+				const appConfig = createAppConfigWithOutputDirectory(AppConfig, distDir);
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
@@ -664,11 +655,7 @@ describe('ServerStaticBuilder', () => {
 					createMockDependencies();
 				const distDir = setupBundleFixture('env-entry');
 				fs.writeFileSync(path.join(tmpDir, 'server.ts'), 'await Promise.resolve();', 'utf8');
-				const appConfig = {
-					...AppConfig,
-					rootDir: tmpDir,
-					absolutePaths: { ...AppConfig.absolutePaths, distDir },
-				} as EcoPagesAppConfig;
+				const appConfig = createAppConfigWithOutputDirectory(AppConfig, distDir);
 				const buildCalls = recordServerEntryBuilds(appConfig);
 				vi.stubEnv(ENTRY_FILE_ENV, 'server.ts');
 
@@ -699,11 +686,7 @@ describe('ServerStaticBuilder', () => {
 				const distDir = setupBundleFixture('precedence-entry');
 				fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
 				fs.writeFileSync(path.join(tmpDir, 'env-wins.ts'), 'await Promise.resolve();', 'utf8');
-				const appConfig = {
-					...AppConfig,
-					rootDir: tmpDir,
-					absolutePaths: { ...AppConfig.absolutePaths, distDir },
-				} as EcoPagesAppConfig;
+				const appConfig = createAppConfigWithOutputDirectory(AppConfig, distDir);
 				const buildCalls = recordServerEntryBuilds(appConfig);
 				vi.stubEnv(ENTRY_FILE_ENV, 'env-wins.ts');
 
@@ -735,11 +718,7 @@ describe('ServerStaticBuilder', () => {
 				const distDir = setupBundleFixture('external-packages');
 				const rootDir = tmpDir;
 				fs.writeFileSync(path.join(rootDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-				const appConfig = {
-					...AppConfig,
-					rootDir,
-					absolutePaths: { ...AppConfig.absolutePaths, distDir },
-				} as EcoPagesAppConfig;
+				const appConfig = createAppConfigWithOutputDirectory(AppConfig, distDir);
 
 				const buildCalls = recordServerEntryBuilds(appConfig);
 

@@ -2,6 +2,7 @@ import path from 'node:path';
 import { getEcopagesEnv } from '../env.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { SERVER_BUNDLE_DIR } from '../utils/resolve-entry-file.ts';
+import { getProductionServerBundleDir } from '../utils/server-bundle-context.ts';
 import { EMITTED_ECO_CONFIG_FILENAME } from './server-config-bundle.ts';
 
 export const DEFAULT_ECO_CONFIG_FILENAME = 'eco.config.ts';
@@ -13,7 +14,7 @@ export const ECOPAGES_CONFIG_FILE_ENV = 'ECOPAGES_CONFIG_FILE';
  *
  * @remarks
  * Defaults to `cwd` so source configs, in-memory `createApp({ userConfig })`,
- * and production loads of `dist/.server/eco.config.mjs` share one rule.
+ * and production loads of `dist/server/eco.config.mjs` share one rule.
  * `path.resolve` keeps an explicit absolute `rootDir` unchanged.
  */
 export function resolveUserConfigRootDir(rootDir?: string, cwd = process.cwd()): string {
@@ -40,21 +41,18 @@ export function resolveEmittedEcoConfigPath(cwd: string, distDir: string): strin
 }
 
 /**
- * Returns the emitted config next to the running entry when that entry is a
- * server bundle, such as `node dist/.server/app.mjs` or `bun dist/.server/app.mjs`.
+ * Returns the emitted config next to the running server bundle.
  *
  * @remarks
- * Reads `process.argv[1]` rather than `import.meta`, because server builds
- * rewrite bundled `import.meta` to the source location. The source config
- * would make Node import TypeScript from `node_modules`, which it does not
- * strip. `ecopages dev` runs the source entry, so it keeps `eco.config.ts`.
+ * The generated loader records its own directory before dynamically importing the
+ * application bundle. The application may be launched by a wrapper, so `process.argv[1]`
+ * does not reliably identify the server bundle. `ecopages dev` has no loader context and
+ * keeps using `eco.config.ts`.
  */
-function resolveRunningServerBundleConfigPath(): string | undefined {
-	const entry = process.argv[1];
-	if (!entry) return undefined;
-	const entryDir = path.dirname(path.resolve(entry));
-	if (path.basename(entryDir) !== SERVER_BUNDLE_DIR) return undefined;
-	const candidate = path.join(entryDir, EMITTED_ECO_CONFIG_FILENAME);
+function resolveRunningServerBundleConfigPath(serverBundleDir?: string): string | undefined {
+	const resolvedServerBundleDir = serverBundleDir ?? getProductionServerBundleDir();
+	if (!resolvedServerBundleDir) return undefined;
+	const candidate = path.join(resolvedServerBundleDir, EMITTED_ECO_CONFIG_FILENAME);
 	return fileSystem.exists(candidate) ? candidate : undefined;
 }
 
@@ -70,6 +68,22 @@ function resolveRunningServerBundleConfigPath(): string | undefined {
 export function resolveEcoConfigPath(options: ResolveEcoConfigPathOptions & { required: false }): string | undefined;
 export function resolveEcoConfigPath(options?: ResolveEcoConfigPathOptions): string;
 export function resolveEcoConfigPath(options: ResolveEcoConfigPathOptions = {}): string | undefined {
+	return resolveEcoConfigPathWithServerBundleDir(options, getProductionServerBundleDir());
+}
+
+export function resolveEcoConfigPathFromServerBundle(
+	options: ResolveEcoConfigPathOptions,
+	serverBundleDir: string,
+): string {
+	const resolvedPath = resolveEcoConfigPathWithServerBundleDir(options, serverBundleDir);
+	if (!resolvedPath) throw new Error('Ecopages config path was unexpectedly unresolved.');
+	return resolvedPath;
+}
+
+function resolveEcoConfigPathWithServerBundleDir(
+	options: ResolveEcoConfigPathOptions,
+	serverBundleDir: string | undefined,
+): string | undefined {
 	const cwd = options.cwd ?? process.cwd();
 	const required = options.required ?? true;
 
@@ -82,7 +96,7 @@ export function resolveEcoConfigPath(options: ResolveEcoConfigPathOptions = {}):
 		return resolved;
 	}
 
-	const serverBundleConfigPath = resolveRunningServerBundleConfigPath();
+	const serverBundleConfigPath = resolveRunningServerBundleConfigPath(serverBundleDir);
 	if (serverBundleConfigPath) return serverBundleConfigPath;
 
 	const defaultPath = path.resolve(cwd, DEFAULT_ECO_CONFIG_FILENAME);

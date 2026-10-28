@@ -54,12 +54,34 @@ if (fileSystem.exists('file.txt')) {
 }
 
 // Ensure directory exists
-fileSystem.ensureDir('./dist/assets');
+fileSystem.ensureDir('./dist/client/assets');
 
 // Copy files and directories
 fileSystem.copyFile('src.txt', 'dest.txt');
-fileSystem.copyDir('./src', './dist');
+fileSystem.copyDir('./src', './dist/client');
 ```
+
+## Watching paths
+
+`fileSystem.watch()` recursively watches directory roots and returns a handle that can wait for indexing, add paths, and close the subscription:
+
+```typescript
+import { fileSystem } from '@ecopages/file-system';
+
+const watcher = fileSystem.watch(['./src'], {
+	ignored: (path) => path.includes('node_modules'),
+	onChange: ({ type, path }) => console.log(type, path),
+	onError: (error) => console.error(error),
+});
+
+await watcher.ready;
+await watcher.add(['./generated']);
+await watcher.close();
+```
+
+`onChange` receives `add`, `change`, `unlink`, `addDir`, `unlinkDir`, or `rescan` events. Existing entries are indexed before `ready` resolves but are not reported. A missing root is watched from its nearest existing parent and starts reporting when it is created. `add()` indexes existing entries under the new paths without reporting them; if adding paths fails, the subscription rolls those paths back so they can be retried.
+
+Native events for the same path are coalesced for 50 ms, so a change can be reported while a file is still being written. Atomic replacement of a file is reported as one `change`. When a native event omits its filename, the watcher reconciles the root and can report `rescan` for a requested path. Permission-denied directories are skipped while accessible siblings are indexed. An `ignored` predicate skips matching subtrees during indexing; when called without stats, return `true` only for paths that should remain ignored for the life of the watcher.
 
 ## API Reference
 

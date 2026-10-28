@@ -15,7 +15,7 @@ describe('server bundle publication', () => {
 	function createFixture(): { rootDir: string; serverOutdir: string } {
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-publication-'));
 		tempDirs.push(rootDir);
-		const serverOutdir = path.join(rootDir, 'dist', '.server');
+		const serverOutdir = path.join(rootDir, 'dist', 'server');
 		fileSystem.ensureDir(serverOutdir);
 		return { rootDir, serverOutdir };
 	}

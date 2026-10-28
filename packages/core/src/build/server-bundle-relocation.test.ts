@@ -133,11 +133,9 @@ function writeLocationBoundPackages(fixturesDir: string): string {
 	writeFileSync(
 		path.join(sourceLibDir, 'src/index.ts'),
 		[
-			"import { readFileSync } from 'node:fs';",
 			"import { loadBinding } from 'native-like';",
 			'',
 			'export const binding: { native: boolean } = loadBinding();',
-			"export const packageName: string = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).name;",
 			'',
 		].join('\n'),
 	);
@@ -172,15 +170,12 @@ function writeApp(appDir: string): void {
 	writeFileSync(
 		path.join(appDir, 'app.ts'),
 		[
-			"import { readFileSync } from 'node:fs';",
 			"import { createApp } from '@ecopages/core/create-app';",
-			"import { binding, packageName } from 'source-lib';",
+			"import { binding } from 'source-lib';",
 			'',
 			'const app = await createApp();',
 			"app.get('/api/ping', async ({ response }) => response.json({ ok: true }));",
-			"app.get('/api/package-name', async ({ response }) => response.json(packageName));",
 			"app.get('/api/binding', async ({ response }) => response.json(binding));",
-			"app.get('/api/source-name', async ({ response }) => response.json(JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).name));",
 			'await app.start();',
 			'',
 		].join('\n'),
@@ -243,8 +238,6 @@ async function expectDeployServes(cwd: string, command: string, args: string[]):
 	const getJson = async (route: string) =>
 		await (await fetch(new URL(route, serverUrl), { signal: AbortSignal.timeout(15_000) })).json();
 	expect(await getJson('/api/binding')).toEqual({ native: true });
-	expect(await getJson('/api/package-name')).toBe('source-lib');
-	expect(await getJson('/api/source-name')).toBe('relocated-app');
 
 	const exited = once(server, 'exit');
 	server.kill();
@@ -257,14 +250,11 @@ async function expectDeployServes(cwd: string, command: string, args: string[]):
  * Builds a real app with `node`, moves the deploy layout to a directory
  * with a different root, which leaves nothing at the build path, then serves it with `node`.
  * Any absolute path to the build machine in the server output fails here, and
- * so do a bundled location-bound package (a dependency of a source package
- * that loads a file next to itself) and an `import.meta.url` read in the
- * bundled entry, by the app or by a bundled source package reading its own
- * `package.json`, that resolves from `dist/.server/` instead of the source
- * file. The deploy manifest holds no absolute path, and `ecopages start` finds
- * the server entry through it in the new root. The deploy keeps
- * `eco.config.ts`, which `node` cannot load because it imports TypeScript
- * from `node_modules`, so the server must pick the emitted config itself.
+ * so does a compiled package that loads a file next to itself. The deploy
+ * manifest holds no absolute path, and `ecopages start` finds the server
+ * entry through it in the new root. The deploy is `dist/` and
+ * `node_modules/` only; the server loads the emitted config from
+ * `dist/server/`.
  * `VITEST` is cleared for the build because the `ecopages` CLI does not run
  * its command while it is set.
  */
@@ -288,23 +278,23 @@ test(
 			timeout: 90_000,
 		});
 
-		const serverOutput = readServerOutput(path.join(buildDir, 'dist/.server'));
+		const serverOutput = readServerOutput(path.join(buildDir, 'dist/server'));
 		expect(serverOutput).not.toContain('file://');
 		expect(serverOutput).not.toContain(buildDir);
 		const deployManifest = JSON.parse(
-			readFileSync(path.join(buildDir, 'dist/.server/manifest.json'), 'utf8'),
+			readFileSync(path.join(buildDir, 'dist/server/manifest.json'), 'utf8'),
 		) as Record<string, string>;
 		expect(Object.values(deployManifest).filter((value) => path.isAbsolute(value))).toEqual([]);
 		expect(JSON.stringify(deployManifest)).not.toContain(buildDir);
 
 		mkdirSync(deployDir, { recursive: true });
-		for (const entry of ['dist', 'src', 'node_modules', 'package.json', 'eco.config.ts']) {
+		for (const entry of ['dist', 'node_modules']) {
 			renameSync(path.join(buildDir, entry), path.join(deployDir, entry));
 		}
 		rmSync(path.join(workDir, 'build'), { recursive: true, force: true });
 
 		for (const launch of [
-			{ command: process.execPath, args: ['dist/.server/app.mjs'] },
+			{ command: process.execPath, args: ['dist/server/app.mjs'] },
 			{ command: process.execPath, args: [cliPath, 'start', '--runtime', 'node'] },
 		]) {
 			await expectDeployServes(deployDir, launch.command, launch.args);

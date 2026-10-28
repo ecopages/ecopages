@@ -10,6 +10,7 @@ import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
 import { isLitStaticRenderWorkerThread } from './browser/lit-static-render-worker-context.ts';
+import { installConfiguredServerDom } from '../plugins/server-dom.ts';
 
 /**
  * Seals the app's build manifest from its loaders, processors and integrations.
@@ -42,7 +43,17 @@ export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildMani
 	return createAppBuildManifest(registrations, mergeBrowserRuntimeManifests(...browserRuntimeManifests));
 }
 
-export async function setupAppRuntimePlugins(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+/**
+ * Gives each Processor its app config and calls `setup()`.
+ *
+ * @remarks
+ * When `skipProcessorSetup` is set, or this is the Lit static-render worker, each Processor
+ * restores from the production server-modules map instead of scanning sources.
+ */
+export async function setupAppRuntimePlugins(options: {
+	appConfig: EcoPagesAppConfig;
+	skipProcessorSetup?: boolean;
+}): Promise<void> {
 	startupTrace.markPhaseStart('setupAppRuntimePlugins');
 
 	const runtime = requireAppRuntime(options.appConfig);
@@ -59,11 +70,13 @@ export async function setupAppRuntimePlugins(options: { appConfig: EcoPagesAppCo
 	appLogger.debugTime('setupAppRuntimePlugins');
 
 	try {
-		const skipProcessorSetup = isLitStaticRenderWorkerThread();
+		const skipProcessorSetup = options.skipProcessorSetup === true || isLitStaticRenderWorkerThread();
 
 		for (const processor of options.appConfig.processors.values()) {
 			processor.setContext(options.appConfig);
-			if (!skipProcessorSetup) {
+			if (skipProcessorSetup) {
+				await processor.restoreProductionRuntime?.();
+			} else {
 				await processor.setup();
 			}
 		}
@@ -81,7 +94,9 @@ export async function setupAppRuntimePlugins(options: { appConfig: EcoPagesAppCo
  *
  * @remarks
  * Concurrent callers share a single in-flight promise per integration name.
- * Failed activations are evicted so a later caller can retry.
+ * Server DOM install runs inside that promise, before `setup()`, so a second
+ * caller cannot skip the in-flight activation. Failed activations are evicted
+ * so a later caller can retry.
  */
 export async function ensureIntegrationRuntimeReady(options: {
 	appConfig: EcoPagesAppConfig;
@@ -101,6 +116,7 @@ export async function ensureIntegrationRuntimeReady(options: {
 	}
 
 	const activation = (async () => {
+		await installConfiguredServerDom(options.appConfig.integrations);
 		await integration.setup({ appConfig: options.appConfig, runtime });
 	})();
 

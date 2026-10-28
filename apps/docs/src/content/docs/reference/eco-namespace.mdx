@@ -634,81 +634,9 @@ export default eco.page({
 
 The static `Counter` import is discovered automatically. You do not list it again in `dependencies.components`. Lazy scripts stay on the Component.
 
-## Type Definitions
+## TypeScript types
 
-```typescript
-type LazyTrigger = { 'on:idle': true } | { 'on:interaction': string } | { 'on:visible': true | string };
-
-type DependencyEntry = {
-	src?: string;
-	content?: string;
-	lazy?: LazyTrigger;
-	ssr?: boolean;
-	attributes?: Record<string, string>;
-};
-
-interface EcoComponentDependencies {
-	scripts?: Array<string | DependencyEntry>;
-	stylesheets?: Array<string | DependencyEntry>;
-	modules?: string[];
-	/** Declared eco components only — see `EcoComponent`. */
-	components?: EcoComponent[];
-}
-
-type FileOwnedDependencyContribution = EcoComponentDependencies & {
-	ownerFile?: string;
-};
-
-type PageDependenciesResult = FileOwnedDependencyContribution & {
-	contributions?: FileOwnedDependencyContribution[];
-};
-
-type GetPageDependencies<T> = (context: {
-	props: PagePropsFor<T>;
-	params?: PageParams;
-	query?: PageQuery;
-}) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
-
-// Shared base option shape used by component(), html(), and layout()
-interface ComponentOptions<P, E = EcoPagesElement> {
-	componentDir?: string;
-	dependencies?: EcoComponentDependencies;
-	render: (props: P) => E;
-}
-
-// html() and layout() accept the same options as component() but return
-// narrower types to signal intent (EcoHtmlComponent / EcoLayoutComponent).
-type HtmlOptions<E = EcoPagesElement> = ComponentOptions<Record<string, unknown>, E>;
-type LayoutOptions<E = EcoPagesElement> = ComponentOptions<{ children: E }, E>;
-
-type EcoPageLayoutSpec<E = EcoPagesElement> =
-	| EcoComponent<any, E>
-	| { component: EcoComponent<any, E>; props?: (context: LayoutPropsContext) => Record<string, unknown> };
-
-/** Outer → inner. Normalized to `config.layouts` / `config.layoutEntries`. */
-type EcoPageLayouts<E = EcoPagesElement> = EcoPageLayoutSpec<E> | EcoPageLayoutSpec<E>[];
-
-interface PageOptions<T, E = EcoPagesElement> {
-	componentDir?: string;
-	dependencies?: EcoComponentDependencies | GetPageDependencies<T>;
-	layout?: EcoPageLayouts<E>;
-	staticPaths?: GetStaticPaths;
-	staticProps?: GetStaticProps<T>;
-	metadata?: GetMetadata<T>;
-	render: (props: PagePropsFor<T>) => E;
-}
-
-type EcoPageComponent<T> = EcoComponent<PagePropsFor<T>> & {
-	staticPaths?: GetStaticPaths;
-	staticProps?: GetStaticProps<T>;
-	metadata?: GetMetadata<T>;
-};
-
-type PagePropsFor<T> =
-	T extends GetStaticProps<infer P>
-		? P & { params?: PageParams; query?: PageQuery }
-		: T & { params?: PageParams; query?: PageQuery };
-```
+The `eco` factories use public types exported by `@ecopages/core`. For page props, static paths, request context, component dependencies, and the type subpaths, see [TypeScript Types](/docs/reference/typescript).
 
 ## Benefits
 

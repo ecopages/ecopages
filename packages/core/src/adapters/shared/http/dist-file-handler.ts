@@ -40,9 +40,15 @@ export async function serveDistFile(request: Request, options: ServeDistFileOpti
 		return createBadRequestResponse(method);
 	}
 
-	const candidate = findDistFile(target, options);
+	const candidate = findDistFile(target, options, distDir);
 	const response = candidate
-		? await createDistFileResponse(candidate, ServerUtils.getContentType(candidate), request, options.watchMode)
+		? await createDistFileResponse(
+				candidate,
+				ServerUtils.getContentType(candidate),
+				request,
+				options.watchMode,
+				distDir,
+			)
 		: null;
 	if (!response) {
 		return await createNotFoundResponse(request, options, distDir, method);
@@ -66,7 +72,17 @@ function resolveRequestTarget(request: Request, distDir: string): RequestTarget 
 	return isPathInside(distDir, requestedPath) ? { pathname, requestedPath } : undefined;
 }
 
-function findDistFile({ pathname, requestedPath }: RequestTarget, options: ServeDistFileOptions): string | undefined {
+/**
+ * Resolves a requested file only when its real path remains inside the served directory.
+ *
+ * @remarks
+ * This keeps an in-root symbolic link working while rejecting a link to output stored beside the client directory.
+ */
+function findDistFile(
+	{ pathname, requestedPath }: RequestTarget,
+	options: ServeDistFileOptions,
+	distDir: string,
+): string | undefined {
 	if (options.staticFilesOnly && !ServerUtils.hasKnownStaticExtension(pathname)) {
 		return undefined;
 	}
@@ -77,7 +93,8 @@ function findDistFile({ pathname, requestedPath }: RequestTarget, options: Serve
 			? requestedPath
 			: undefined;
 
-	return candidate && path.basename(candidate) !== HASHED_BROWSER_ASSET_INDEX_FILENAME ? candidate : undefined;
+	if (!candidate || path.basename(candidate) === HASHED_BROWSER_ASSET_INDEX_FILENAME) return undefined;
+	return isRealPathInside(distDir, candidate) ? candidate : undefined;
 }
 
 async function createNotFoundResponse(
@@ -106,7 +123,11 @@ function createBadRequestResponse(method: string): Response {
 
 async function createDistNotFoundResponse(request: Request, distDir: string): Promise<Response> {
 	const notFoundPath = path.join(distDir, '404.html');
-	if (fileSystem.exists(notFoundPath) && !fileSystem.isDirectory(notFoundPath)) {
+	if (
+		fileSystem.exists(notFoundPath) &&
+		!fileSystem.isDirectory(notFoundPath) &&
+		isRealPathInside(distDir, notFoundPath)
+	) {
 		const body = request.method === 'HEAD' ? null : fileSystem.readFileAsBuffer(notFoundPath);
 		return new Response(body as unknown as BodyInit | null, {
 			status: 404,
@@ -120,16 +141,25 @@ async function createDistNotFoundResponse(request: Request, distDir: string): Pr
 	});
 }
 
+function isRealPathInside(root: string, candidate: string): boolean {
+	try {
+		return isPathInside(fileSystem.realpath(root), fileSystem.realpath(candidate));
+	} catch {
+		return false;
+	}
+}
+
 async function createDistFileResponse(
 	filePath: string,
 	contentType: string,
 	request: Request,
 	watchMode: boolean,
+	distDir: string,
 ): Promise<Response | null> {
 	try {
 		const gzipPath = `${filePath}.gz`;
 		const gzipEligible = !watchMode && (contentType === 'text/javascript' || contentType === 'text/css');
-		const hasGzipVariant = gzipEligible && fileSystem.exists(gzipPath);
+		const hasGzipVariant = gzipEligible && fileSystem.exists(gzipPath) && isRealPathInside(distDir, gzipPath);
 		const useGzip = hasGzipVariant && acceptsGzip(request.headers.get('Accept-Encoding'));
 		const file = fileSystem.readFileAsBuffer(useGzip ? gzipPath : filePath);
 		const cacheHeaders = fileCacheHeaders(filePath, file, watchMode);

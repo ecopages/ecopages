@@ -106,6 +106,11 @@ export type EcoPagesAppConfig = {
 	/** Additional paths to watch. Use this to monitor extra files. It is relative to the rootDir */
 	additionalWatchPaths: string[];
 	/**
+	 * Globs, relative to `rootDir`, of files copied into `dist/server/` at build
+	 * so production modules can read them next to `import.meta`.
+	 */
+	serverFiles?: string[];
+	/**
 	 * Static paths to SSR-prewarm in the background during development.
 	 *
 	 * @remarks
@@ -133,6 +138,7 @@ export type EcoPagesAppConfig = {
 		 */
 		configModuleFiles: string[];
 		componentsDir: string;
+		/** Public output directory served by the runtime (`<distDir>/client`). */
 		distDir: string;
 		workDir: string;
 		includesDir: string;

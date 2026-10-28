@@ -70,10 +70,10 @@ test('ecopages build finishes healthy exports after a Page data hook failure', {
 	expect(failingBuild.status).toBe(1);
 	expect(`${failingBuild.stdout}${failingBuild.stderr}`).toContain('http://localhost:3000/broken');
 	expect(`${failingBuild.stdout}${failingBuild.stderr}`).toContain('static props failed intentionally');
-	expect(existsSync(path.join(appDir, 'dist/healthy.html'))).toBe(true);
-	expect(existsSync(path.join(appDir, 'dist/sitemap.xml'))).toBe(true);
-	expect(readFileSync(path.join(appDir, 'dist/sitemap.xml'), 'utf8')).toContain('/healthy');
-	expect(existsSync(path.join(appDir, 'dist/broken.html'))).toBe(false);
+	expect(existsSync(path.join(appDir, 'dist/client/healthy.html'))).toBe(true);
+	expect(existsSync(path.join(appDir, 'dist/client/sitemap.xml'))).toBe(true);
+	expect(readFileSync(path.join(appDir, 'dist/client/sitemap.xml'), 'utf8')).toContain('/healthy');
+	expect(existsSync(path.join(appDir, 'dist/client/broken.html'))).toBe(false);
 
 	const continuedBuild = runBuild(['--keep-going']);
 	expect(continuedBuild.error).toBeUndefined();

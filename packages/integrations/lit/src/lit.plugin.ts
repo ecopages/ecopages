@@ -7,7 +7,6 @@ import {
  * @module
  */
 
-import './console.ts';
 import {
 	IntegrationPlugin,
 	type IntegrationRendererBase,
@@ -16,11 +15,11 @@ import {
 	type StaticExportContext,
 	type StaticExportRelease,
 } from '@ecopages/core/integration';
-import { isLitStaticRenderWorkerThread } from '@ecopages/core/build';
 import path from 'node:path';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/integration';
 import { litElementHydrateScript } from './lit-element-hydrate.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
+import { ensureLitDomShim } from './dom-shim.ts';
 import { createLitRenderer, LitRenderer } from './lit-renderer.ts';
 import { LitStaticRenderSession } from './lit-static-render-session.ts';
 
@@ -30,16 +29,20 @@ import { LitStaticRenderSession } from './lit-static-render-session.ts';
 export const PLUGIN_NAME = LIT_PLUGIN_NAME;
 
 /**
- * The Lit plugin class
- * This plugin provides support for Lit components in Ecopages
- *
  * @remarks
- * Owns the {@link LitStaticRenderSession} for worker SSR. Renderers receive a
- * lazy `getRenderSession` accessor so construction before {@link setup} still
- * observes the session once setup assigns it.
+ * Owns the {@link LitStaticRenderSession} for static-export worker SSR. Serving
+ * leaves the session unset so every Lit Page renders in-process. Renderers
+ * receive a lazy `getRenderSession` accessor so construction before
+ * {@link staticExport} still observes the session once export assigns it.
  */
 export class LitPlugin extends IntegrationPlugin {
 	renderer = LitRenderer;
+	override readonly serverDom = {
+		kind: 'repair' as const,
+		install(): void {
+			ensureLitDomShim();
+		},
+	};
 	private renderSession: LitStaticRenderSession | null = null;
 
 	constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
@@ -113,24 +116,6 @@ export class LitPlugin extends IntegrationPlugin {
 		});
 	}
 
-	override async setup(context: IntegrationRuntimeContext): Promise<void> {
-		await super.setup(context);
-
-		if (!this.appConfig?.absolutePaths?.config) {
-			throw new Error('[ecopages][lit] Lit server rendering requires appConfig.absolutePaths.config');
-		}
-
-		if (isLitStaticRenderWorkerThread()) {
-			return;
-		}
-
-		this.renderSession ??= this.createRenderSession();
-		await this.renderSession.ensureWorker({
-			configModulePath: this.appConfig.absolutePaths.config,
-			runtimeOrigin: context.runtime.origin,
-		});
-	}
-
 	override async teardown(): Promise<void> {
 		await this.renderSession?.dispose();
 		this.renderSession = null;
@@ -138,18 +123,21 @@ export class LitPlugin extends IntegrationPlugin {
 	}
 
 	/**
-	 * Reconciles the render worker with the export origin and preloads Lit routes.
+	 * Starts the render worker for this export, preloads Lit routes, and returns a release that stops it.
 	 *
 	 * @remarks
-	 * `setup()` can start the session with the runtime origin before static export resolves its own base URL. The
-	 * session reuses the worker when the identities match and restarts it when the export origin differs. The returned
-	 * release stops the worker once the export ends, so an in-process export leaves no worker thread running. A later
-	 * render in the same process falls back to rendering in-process.
+	 * Serving never starts this session. Static export owns the worker for the duration of the export and
+	 * releases it afterwards, so an in-process export leaves no worker thread running.
 	 */
 	override async staticExport(context: StaticExportContext): Promise<StaticExportRelease> {
-		this.renderSession ??= this.createRenderSession();
+		const configModulePath = context.appConfig.absolutePaths.config;
+		if (!configModulePath) {
+			throw new Error('[ecopages][lit] Lit static export requires appConfig.absolutePaths.config');
+		}
+
+		this.renderSession = this.createRenderSession();
 		await this.renderSession.ensureWorker({
-			configModulePath: context.appConfig.absolutePaths.config,
+			configModulePath,
 			runtimeOrigin: context.baseUrl,
 		});
 

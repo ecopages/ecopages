@@ -14,6 +14,9 @@ import { AssetProcessingService } from '../assets/asset-processing-service/asset
 import type { AssetDefinition, ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
 import type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';
+import { installConfiguredServerDom, type ServerDomInstaller } from './server-dom.ts';
+
+export type { ServerDomInstaller, ServerDomSurfaceKind } from './server-dom.ts';
 
 export type {
 	EcoBuildLoader,
@@ -142,6 +145,15 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly acceptsParams: boolean = true;
 	/** Whether core may collapse this Integration's eligible Page assets into page-owned bundles. */
 	readonly bundlesPageDependencies: boolean = false;
+	/**
+	 * Server DOM installer this Integration contributes, if any.
+	 *
+	 * @remarks
+	 * Core runs every configured `complete` installer, then every `repair`, before
+	 * Integration `setup()` continues. Config order does not change the result.
+	 * Omit this when the Integration does not install DOM globals.
+	 */
+	readonly serverDom?: ServerDomInstaller;
 
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
@@ -189,12 +201,24 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * calls it for every file of the Integration that it loads as a module, and never bundles
 	 * those files itself.
 	 *
-	 * - Every Page of an Integration that implements this stays out of the production pages
-	 *   graph, so each one builds on first load.
-	 * - The result is cached by the file's content hash, so editing another file it reads does
-	 *   not invalidate it.
+	 * Production emit records the compiled module through {@link serializeCompiledPageModule}.
+	 * Development caches the result by the file's content hash, so editing another file it
+	 * reads does not invalidate it.
 	 */
 	compilePageModule?(filePath: string, appConfig: EcoPagesAppConfig): EcoPageFile | Promise<EcoPageFile>;
+
+	/**
+	 * Records a {@link compilePageModule} result so production can import it without compiling.
+	 */
+	serializeCompiledPageModule?(
+		module: EcoPageFile,
+		context: { rootDir: string; filePath: string },
+	): { contents: string };
+
+	/**
+	 * Restores a {@link serializeCompiledPageModule} record for production import.
+	 */
+	reviveCompiledPageModule?(contents: string, context: { rootDir: string; filePath: string }): EcoPageFile;
 
 	/**
 	 * Returns processed global assets resolved during `setup()`.
@@ -265,6 +289,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Performs runtime integration setup, after config finalization has sealed the build manifest.
 	 */
 	async setup(context: IntegrationRuntimeContext): Promise<void> {
+		await installConfiguredServerDom(context.appConfig.integrations);
 		this.appConfig = context.appConfig;
 		this.runtime = context.runtime;
 		this.rendererInstance = undefined;
@@ -291,8 +316,9 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * Core calls this after static-export releases and when the app stops or restarts,
-	 * after in-flight `setup()` calls and active prewarm renders finish. It then clears
-	 * activation state so the next runtime activation runs `setup()` again.
+	 * after in-flight `setup()` calls finish. On stop or restart it also waits for
+	 * active prewarm renders and page-cache regenerations. It then clears activation
+	 * state so the next runtime activation runs `setup()` again.
 	 * Most integrations do not need custom teardown. Override this only for
 	 * explicit cleanup such as watchers, compiler handles, or runtime registries
 	 * that outlive individual requests.

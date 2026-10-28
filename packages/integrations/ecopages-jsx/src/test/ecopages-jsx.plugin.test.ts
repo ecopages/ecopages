@@ -173,6 +173,32 @@ test('EcopagesJsxPlugin enables page dependency bundling', () => {
 	assert.equal(new EcopagesJsxPlugin({ radiant: false }).bundlesPageDependencies, true);
 });
 
+test('declares Radiant server DOM as a complete surface so element modules can load during production emit', async () => {
+	await withClearedLightDomGlobals(async () => {
+		const plugin = new EcopagesJsxPlugin();
+
+		assert.equal(plugin.serverDom?.kind, 'complete');
+		await plugin.serverDom?.install();
+
+		assert.equal(typeof globalThis.HTMLElement, 'function');
+		class EmitProbe extends HTMLElement {}
+		assert.equal(typeof EmitProbe, 'function');
+	});
+});
+
+test('setup leaves light-DOM unset when Radiant SSR is disabled', async () => {
+	await withClearedLightDomGlobals(async () => {
+		const plugin = new EcopagesJsxPlugin({ radiant: false });
+		const appConfig = await createTestAppConfig({
+			rootDir: '/tmp/ecopages-jsx-setup-shim-disabled',
+			integrations: [],
+		});
+		await setupTestIntegration(plugin, appConfig);
+
+		assert.equal(typeof globalThis.HTMLElement, 'undefined');
+	});
+});
+
 test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabled', async () => {
 	const appConfig = await createTestAppConfig({ rootDir: '/tmp/ecopages-jsx-radiant-enabled', integrations: [] });
 	const plugin = new EcopagesJsxPlugin();
@@ -295,4 +321,9 @@ test('EcopagesJsxPlugin declares no build plugin without MDX', () => {
 	const plugin = ecopagesJsxPlugin({ radiant: false });
 
 	assert.deepEqual(plugin.plugins({ rootDir: '/tmp/project' } as IntegrationRuntimeContext['appConfig']), []);
+});
+
+test('EcopagesJsxPlugin contributes a complete server DOM surface when Radiant is enabled', () => {
+	assert.equal(ecopagesJsxPlugin().serverDom?.kind, 'complete');
+	assert.equal(ecopagesJsxPlugin({ radiant: false }).serverDom, undefined);
 });

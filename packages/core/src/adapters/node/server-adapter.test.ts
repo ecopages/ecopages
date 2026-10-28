@@ -1,9 +1,7 @@
-import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import chokidar from 'chokidar';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
@@ -123,6 +121,50 @@ function makeNodeServerAdapter(
 	});
 }
 
+async function requestApiAndPageWithBuildScopeCapture(watch: boolean) {
+	const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-request-build-scope-'));
+	onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+	fs.mkdirSync(path.join(rootDir, 'src', 'pages'), { recursive: true });
+	const appConfig = await finalizeEcoPagesConfig({ rootDir });
+	const runtime = requireAppRuntime(appConfig);
+	const withRequestScope = vi.spyOn(runtime.buildQueue, 'withRequestScope');
+	const recordingIndexes: unknown[] = [];
+	const captureIndex = () => {
+		recordingIndexes.push(getBuildInputRecordingContext().index);
+	};
+	const handleResponse = vi.spyOn(ServerRouteHandler.prototype, 'handleResponse').mockImplementation(async () => {
+		captureIndex();
+		return new Response('page');
+	});
+	onTestFinished(() => handleResponse.mockRestore());
+	const adapter = makeNodeServerAdapter({
+		appConfig,
+		options: { watch },
+		apiHandlers: [
+			{
+				path: '/api/health',
+				method: 'GET',
+				handler: () => {
+					captureIndex();
+					return new Response('ok');
+				},
+			},
+		],
+	});
+
+	try {
+		const api = await adapter.handleRequest(new Request('http://localhost:3000/api/health'));
+		const page = await adapter.handleRequest(new Request('http://localhost:3000/'));
+		expect(api.status).toBe(200);
+		expect(await api.text()).toBe('ok');
+		expect(page.status).toBe(200);
+		expect(await page.text()).toBe('page');
+		return { withRequestScope, recordingIndexes, appConfig };
+	} finally {
+		await adapter.dispose();
+	}
+}
+
 async function getAvailablePort(): Promise<number> {
 	const server = net.createServer();
 	await new Promise<void>((resolve, reject) => {
@@ -135,6 +177,18 @@ async function getAvailablePort(): Promise<number> {
 		server.close((error) => (error ? reject(error) : resolve()));
 	});
 	return address.port;
+}
+
+function setTreeMode(root: string, directoryMode: number, fileMode: number): void {
+	for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+		const fullPath = path.join(root, entry.name);
+		if (entry.isDirectory()) {
+			setTreeMode(fullPath, directoryMode, fileMode);
+		} else {
+			fs.chmodSync(fullPath, fileMode);
+		}
+	}
+	fs.chmodSync(root, directoryMode);
 }
 
 describe('NodeServerAdapter', () => {
@@ -209,6 +263,73 @@ describe('NodeServerAdapter', () => {
 			expect(response.status).toBe(200);
 			expect(await response.text()).toBe('<h1>About</h1>');
 		} finally {
+			await adapter.dispose();
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	it('previewing a finished build leaves it untouched', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-serve-only-untouched-'));
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const distDir = appConfig.absolutePaths.distDir;
+		const publicDir = appConfig.absolutePaths.publicDir;
+		const builtRobots = 'User-agent: *\nDisallow:';
+		fs.mkdirSync(distDir, { recursive: true });
+		fs.mkdirSync(publicDir, { recursive: true });
+		fs.writeFileSync(path.join(distDir, 'robots.txt'), builtRobots);
+		fs.writeFileSync(path.join(distDir, 'about.html'), '<h1>About</h1>');
+		fs.writeFileSync(path.join(publicDir, 'robots.txt'), 'User-agent: *\nAllow: /');
+		fs.writeFileSync(path.join(publicDir, 'extra.txt'), 'after-build');
+		const adapter = makeNodeServerAdapter({
+			appConfig,
+			serveOptions: { hostname: '127.0.0.1', port: await getAvailablePort() },
+			options: { watch: false },
+			runtimeAssetSetup: 'none',
+		});
+
+		try {
+			const previewOrigin = await adapter.servePreviewOnly();
+			if (!previewOrigin) throw new Error('Expected a preview origin');
+			const robots = await fetch(`${previewOrigin}/robots.txt`);
+			const about = await fetch(`${previewOrigin}/about`);
+
+			expect(fs.readFileSync(path.join(distDir, 'robots.txt'), 'utf8')).toBe(builtRobots);
+			expect(fs.existsSync(path.join(distDir, 'extra.txt'))).toBe(false);
+			expect(robots.status).toBe(200);
+			expect(await robots.text()).toBe(builtRobots);
+			expect(about.status).toBe(200);
+			expect(await about.text()).toBe('<h1>About</h1>');
+		} finally {
+			await adapter.dispose();
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	it('serves a page from a read-only dist in serve-only preview', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-serve-only-readonly-'));
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const distDir = appConfig.absolutePaths.distDir;
+		fs.mkdirSync(distDir, { recursive: true });
+		fs.mkdirSync(appConfig.absolutePaths.publicDir, { recursive: true });
+		fs.writeFileSync(path.join(distDir, 'about.html'), '<h1>About</h1>');
+		fs.writeFileSync(path.join(appConfig.absolutePaths.publicDir, 'robots.txt'), 'User-agent: *\nAllow: /');
+		setTreeMode(distDir, 0o555, 0o444);
+		const adapter = makeNodeServerAdapter({
+			appConfig,
+			serveOptions: { hostname: '127.0.0.1', port: await getAvailablePort() },
+			options: { watch: false },
+			runtimeAssetSetup: 'none',
+		});
+
+		try {
+			const previewOrigin = await adapter.servePreviewOnly();
+			if (!previewOrigin) throw new Error('Expected a preview origin');
+			const response = await fetch(`${previewOrigin}/about`);
+
+			expect(response.status).toBe(200);
+			expect(await response.text()).toBe('<h1>About</h1>');
+		} finally {
+			setTreeMode(distDir, 0o755, 0o644);
 			await adapter.dispose();
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}
@@ -357,15 +478,15 @@ describe('NodeServerAdapter', () => {
 			const processor = new (class extends Processor {
 				override async setup(): Promise<void> {
 					events.push('processor setup');
-					fs.writeFileSync(path.join(rootDir, 'dist', 'generated.txt'), 'generated');
+					fs.writeFileSync(path.join(appConfig.absolutePaths.distDir, 'generated.txt'), 'generated');
 				}
 			})({ name: 'generating-processor' });
 			const appConfig = await finalizeEcoPagesConfig({ rootDir, processors: [processor] });
 			fs.mkdirSync(appConfig.absolutePaths.publicDir, { recursive: true });
 			const publicAsset = path.join(appConfig.absolutePaths.publicDir, 'logo.svg');
 			fs.writeFileSync(publicAsset, '<svg />');
-			fs.mkdirSync(path.join(rootDir, 'dist'), { recursive: true });
-			fs.writeFileSync(path.join(rootDir, 'dist', 'stale.txt'), 'stale');
+			fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
+			fs.writeFileSync(path.join(appConfig.absolutePaths.distDir, 'stale.txt'), 'stale');
 			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false }, runtimeAssetSetup });
 			const copyFile = vi.spyOn(fileSystem, 'copyFile');
 			vi.spyOn(ServerRequestPipeline.prototype, 'initializeRouteHandling').mockImplementation(async () => {
@@ -377,6 +498,27 @@ describe('NodeServerAdapter', () => {
 			return { events, rootDir, copyFile, publicAsset };
 		}
 
+		it('refuses production start when dist/ is incomplete, without writing into dist/', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			onTestFinished(() => {
+				vi.unstubAllEnvs();
+			});
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-incomplete-dist-'));
+			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+			fs.mkdirSync(path.join(rootDir, 'src', 'public'), { recursive: true });
+			fs.writeFileSync(path.join(rootDir, 'src', 'public', 'logo.svg'), '<svg />');
+			const appConfig = await finalizeEcoPagesConfig({ rootDir });
+			const adapter = makeNodeServerAdapter({
+				appConfig,
+				options: { watch: false },
+				requireCompleteDist: true,
+			});
+
+			await expect(adapter.initialize()).rejects.toThrow(/production bundle manifest .* is missing/);
+			await adapter.dispose();
+			expect(fs.existsSync(path.join(rootDir, 'dist'))).toBe(false);
+		});
+
 		it.each(['start', 'export'] as const)(
 			'sets Processors up before the routes are read in %s mode',
 			async (mode) => {
@@ -386,13 +528,19 @@ describe('NodeServerAdapter', () => {
 			},
 		);
 
+		it('copies the public directory in start mode', async () => {
+			const { rootDir } = await initializeWith('start');
+
+			expect(fs.readFileSync(path.join(rootDir, 'dist', 'client', 'logo.svg'), 'utf8')).toBe('<svg />');
+		});
+
 		it('copies the public directory once when export preparation clears dist', async () => {
 			const { rootDir, copyFile, publicAsset } = await initializeWith('export');
 			const publicAssetCopies = copyFile.mock.calls.filter(([source]) => source === publicAsset);
 
 			expect(publicAssetCopies).toHaveLength(1);
-			expect(fs.readFileSync(path.join(rootDir, 'dist', 'logo.svg'), 'utf8')).toBe('<svg />');
-			expect(fs.existsSync(path.join(rootDir, 'dist', 'assets'))).toBe(true);
+			expect(fs.readFileSync(path.join(rootDir, 'dist', 'client', 'logo.svg'), 'utf8')).toBe('<svg />');
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'assets'))).toBe(true);
 		});
 
 		it('sets Integrations up before non-watch network requests are released', async () => {
@@ -469,15 +617,17 @@ describe('NodeServerAdapter', () => {
 		it('empties dist before an export sets Processors up and keeps what they generate', async () => {
 			const { rootDir } = await initializeWith('export');
 
-			expect(fs.existsSync(path.join(rootDir, 'dist', 'stale.txt'))).toBe(false);
-			expect(fs.existsSync(path.join(rootDir, 'dist', 'generated.txt'))).toBe(true);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'stale.txt'))).toBe(false);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'generated.txt'))).toBe(true);
 		});
 
 		it('leaves Processors and dist alone when a preview only serves an earlier export', async () => {
 			const { events, rootDir } = await initializeWith('none');
 
 			expect(events).toEqual(['routes read']);
-			expect(fs.existsSync(path.join(rootDir, 'dist', 'stale.txt'))).toBe(true);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'stale.txt'))).toBe(true);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'logo.svg'))).toBe(false);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'assets'))).toBe(false);
 		});
 	});
 
@@ -706,20 +856,16 @@ describe('NodeServerAdapter', () => {
 		appConfig.integrations = [];
 		const adapter = makeNodeServerAdapter({ appConfig });
 		vi.spyOn(ServerRequestPipeline.prototype, 'configureResponseHandlers').mockImplementation(() => {});
-		const fileEvents = Object.assign(new EventEmitter(), {
-			add: vi.fn(),
-			close: vi.fn(async () => {}),
-			getWatched: vi.fn(() => ({})),
-		});
-		const watch = vi.spyOn(chokidar, 'watch').mockImplementation(() => {
-			setTimeout(() => fileEvents.emit('ready'), 0);
-			return fileEvents as never;
+		let emitFileChange: ((change: { type: 'change'; path: string }) => void) | undefined;
+		const watch = vi.spyOn(fileSystem, 'watch').mockImplementation((_paths, options) => {
+			emitFileChange = options.onChange;
+			return { ready: Promise.resolve(), add: vi.fn(async () => {}), close: vi.fn(async () => {}) };
 		});
 		onTestFinished(() => watch.mockRestore());
 		devBridge.reload.mockClear();
 
 		await adapter.completeInitialization({} as import('node:http').Server);
-		fileEvents.emit('change', path.join(appConfig.absolutePaths.publicDir, 'robots.txt'));
+		emitFileChange?.({ type: 'change', path: path.join(appConfig.absolutePaths.publicDir, 'robots.txt') });
 
 		await vi.waitFor(() => expect(devBridge.reload).toHaveBeenCalledTimes(1));
 	});
@@ -819,6 +965,23 @@ describe('NodeServerAdapter', () => {
 		const { errors } = (await disposal.catch((error: unknown) => error)) as AggregateError;
 		expect(errors.map((error: Error) => error.message)).toEqual(['bridge destroy failed', 'preview close failed']);
 		expect(teardown).toHaveBeenCalledOnce();
+	});
+
+	it('does not enter a build queue scope or record build inputs on production API and Page requests', async () => {
+		const { withRequestScope, recordingIndexes } = await requestApiAndPageWithBuildScopeCapture(false);
+
+		expect(withRequestScope).not.toHaveBeenCalled();
+		expect(recordingIndexes).toEqual([undefined, undefined]);
+	});
+
+	it('enters a build queue scope and records build inputs on development API and Page requests', async () => {
+		const { withRequestScope, recordingIndexes, appConfig } = await requestApiAndPageWithBuildScopeCapture(true);
+		const buildInputIndex = requireAppRuntime(appConfig).buildInputIndex;
+
+		expect(withRequestScope).toHaveBeenCalledTimes(2);
+		expect(recordingIndexes).toHaveLength(2);
+		expect(recordingIndexes[0]).toBe(buildInputIndex);
+		expect(recordingIndexes[1]).toBe(buildInputIndex);
 	});
 
 	it('prewarms the paths a Processor added after finalization and records the build inputs the render reads', async () => {

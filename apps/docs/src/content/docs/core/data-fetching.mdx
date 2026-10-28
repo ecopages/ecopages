@@ -60,6 +60,8 @@ export default eco.page({
 
 ---
 
+Production builds also emit the Page Browser Graphs used by browser scripts and component dependencies. If those dependencies vary by route params, return every required route instance from `staticPaths`. `ecopages start` reuses the graphs in the build; a request that needs an unlisted graph fails instead of building it at request time. Development is unchanged.
+
 ## Runtime Data Fetching
 
 For dynamic applications, you can fetch data directly from your client-side scripts or through Ecopages API handlers.

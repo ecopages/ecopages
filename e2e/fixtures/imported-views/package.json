@@ -1,0 +1,10 @@
+{
+	"name": "@ecopages/e2e-imported-views-app",
+	"private": true,
+	"type": "module",
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/kitajs": "workspace:*",
+		"@kitajs/html": "^4.2.13"
+	}
+}

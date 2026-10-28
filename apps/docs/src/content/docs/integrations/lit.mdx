@@ -126,7 +126,7 @@ export default eco.page({
 
 ## Static Export
 
-Lit pages render on the server through a dedicated worker thread started when the Lit plugin initializes. The same worker serves static export, dev, and preview requests. Before static generation, `@ecopages/lit` preloads SSR-eligible custom-element scripts from the route graph.
+Serving (`ecopages start` and `ecopages dev`) renders every Lit Page in-process. Static export starts a dedicated worker thread, preloads SSR-eligible custom-element scripts from the route graph, and releases the worker when the export ends.
 
 ## Key Features
 

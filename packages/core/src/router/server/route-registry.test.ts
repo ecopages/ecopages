@@ -8,6 +8,7 @@ import { ServerRouteHandler } from '../../adapters/shared/runtime/server-route-h
 import type { FileSystemResponseMatcher } from '../../adapters/shared/http/fs-server-response-matcher.ts';
 import type { EndpointRouteHandler } from '../../adapters/shared/http/endpoint-route-handler.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.js';
+import { writeProductionRouteList } from '../../build/production-route-list.ts';
 import { RouteRegistry, type RouteRegistryPageModuleAdapter, type TemplateRoute } from './route-registry.ts';
 
 const {
@@ -418,6 +419,9 @@ describe('RouteRegistry', () => {
 			},
 		]);
 		expect(pageModuleAdapter.loadPageModule).toHaveBeenCalledWith('/pages/blog/[slug].ts');
+		await expect(
+			registry.listDynamicPagePathExpansions({ runtimeOrigin: 'http://localhost:3000' }),
+		).resolves.toEqual([]);
 	});
 
 	test('builds a dynamic-route Page with cache dynamic without staticPaths', async () => {
@@ -441,6 +445,63 @@ describe('RouteRegistry', () => {
 		await expect(registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' })).resolves.toEqual(
 			[],
 		);
+		await expect(
+			registry.listDynamicPagePathExpansions({ runtimeOrigin: 'http://localhost:3000' }),
+		).resolves.toEqual([]);
+	});
+
+	test('lists Dynamic Page staticPaths for browser graph planning without treating them as Static Path Expansions', async () => {
+		const pageModuleAdapter: RouteRegistryPageModuleAdapter = {
+			loadPageModule: vi.fn(async () => ({
+				cache: 'dynamic',
+				staticPaths: async () => ({
+					paths: [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }],
+				}),
+			})),
+		};
+
+		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
+		await registry.init();
+
+		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+			{
+				pathname: '/posts/[slug]',
+				kind: 'dynamic',
+				role: 'page',
+				filePath: '/pages/posts/[slug].ts',
+				paramNames: ['slug'],
+			},
+		];
+
+		await expect(registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' })).resolves.toEqual(
+			[],
+		);
+		await expect(
+			registry.listDynamicPagePathExpansions({ runtimeOrigin: 'http://localhost:3000' }),
+		).resolves.toEqual([
+			{
+				pathname: '/posts/plain',
+				templateRoute: {
+					pathname: '/posts/[slug]',
+					kind: 'dynamic',
+					role: 'page',
+					filePath: '/pages/posts/[slug].ts',
+					paramNames: ['slug'],
+				},
+				params: { slug: 'plain' },
+			},
+			{
+				pathname: '/posts/chart',
+				templateRoute: {
+					pathname: '/posts/[slug]',
+					kind: 'dynamic',
+					role: 'page',
+					filePath: '/pages/posts/[slug].ts',
+					paramNames: ['slug'],
+				},
+				params: { slug: 'chart' },
+			},
+		]);
 	});
 
 	test('lists static-generation routes through one registry seam', async () => {
@@ -680,5 +741,73 @@ describe('RouteRegistry', () => {
 				path.join(pagesDir, 'blog/[slug].ts'),
 			]);
 		});
+	});
+
+	test('loads production filesystem routes from dist/server/routes.json', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-list-'));
+		try {
+			const pagesDir = path.join(rootDir, 'src/pages');
+			const distDir = path.join(rootDir, 'dist');
+			await fs.mkdir(pagesDir, { recursive: true });
+			await fs.writeFile(path.join(pagesDir, 'orphan.tsx'), 'export default {};\n');
+			const productionConfig = {
+				rootDir,
+				distDir: 'dist',
+				absolutePaths: { distDir },
+			} as unknown as EcoPagesAppConfig;
+			writeProductionRouteList(productionConfig, [
+				{
+					pathname: '/from-list',
+					kind: 'exact',
+					role: 'page',
+					filePath: path.join(pagesDir, 'from-list.tsx'),
+					paramNames: [],
+				},
+			]);
+
+			const registry = createRegistry({ pagesDir, appConfig: productionConfig });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.pathname)).toEqual(['/from-list']);
+		} finally {
+			vi.unstubAllEnvs();
+			await fs.rm(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	test('scans the pages directory in development even when dist/server/routes.json exists', async () => {
+		const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-scan-'));
+		try {
+			const pagesDir = path.join(rootDir, 'src/pages');
+			const distDir = path.join(rootDir, 'dist');
+			await fs.mkdir(pagesDir, { recursive: true });
+			await fs.writeFile(path.join(pagesDir, 'orphan.ts'), 'export default {};\n');
+			const developmentConfig = {
+				rootDir,
+				distDir: 'dist',
+				absolutePaths: { distDir },
+			} as unknown as EcoPagesAppConfig;
+			writeProductionRouteList(developmentConfig, [
+				{
+					pathname: '/from-list',
+					kind: 'exact',
+					role: 'page',
+					filePath: path.join(pagesDir, 'from-list.ts'),
+					paramNames: [],
+				},
+			]);
+
+			const registry = createRegistry({
+				pagesDir,
+				templatesExt: ['.ts'],
+				appConfig: developmentConfig,
+			});
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.pathname)).toEqual(['/orphan']);
+		} finally {
+			await fs.rm(rootDir, { recursive: true, force: true });
+		}
 	});
 });

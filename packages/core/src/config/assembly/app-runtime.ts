@@ -10,9 +10,9 @@ import { SessionPageBrowserGraphCache } from '../../route-renderer/orchestration
 import { AppModuleLoader } from '../../build/server/app-module-loader.service.ts';
 import type { EcoPagesAppConfig } from '../internal-types.ts';
 import type { BuildAdapter } from '../../build/build-adapter.ts';
-import type { PagesUnifiedGraphCacheManifest } from '../../build/cache/pages-unified-graph-build.ts';
 import type { AppBuildManifest } from '../../build/contracts/build-manifest.ts';
 import type { AppModuleLoaderContract } from '../../build/server/app-module-loader.service.ts';
+import type { ProductionServerModulesManifest } from '../../build/server/server-modules-manifest.ts';
 import type { RouteModuleBuildCache } from '../../build/server/route-module-build-cache.store.ts';
 import type { RequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
 import type { HtmlPageWarningState } from '../../html-pages/html-page-warning-state.ts';
@@ -60,7 +60,7 @@ export interface AppRuntime {
 	buildManifest: AppBuildManifest;
 	buildQueue: BuildQueue;
 	buildInputIndex: BuildInputDependencyIndex;
-	pagesUnifiedGraphManifest: PagesUnifiedGraphCacheManifest | null;
+	productionServerModules: ProductionServerModulesManifest | null;
 	pageBrowserGraphSession: SessionPageBrowserGraphCache;
 	serverInvalidation: ServerInvalidationState;
 	developmentInvalidation: DevelopmentInvalidationService | null;
@@ -70,12 +70,25 @@ export interface AppRuntime {
 	integrationActivations: Map<string, Promise<void>>;
 	runtimeAssetsPrepared: boolean;
 	hmrAttachedToIntegrations: boolean;
+	/**
+	 * Id shared by every production manifest written during one `ecopages build`.
+	 *
+	 * @remarks
+	 * Null until a production export creates one. `ecopages start` reads the id
+	 * from the files in `dist/` instead of this field.
+	 */
+	productionBuildId: string | null;
 	htmlPageModuleScripts: HtmlPageModuleScriptState;
 	htmlPageWarnings: HtmlPageWarningState;
 	customElementSsrPreloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
 	requestPipelineMetrics: RequestPipelineMetricsState;
 	origin: string;
 	hmr: IHmrManager | null;
+	/**
+	 * When true, a production request whose Page Browser Graph is not in the browser client
+	 * manifest is an error. `ecopages start` sets this after it restores the manifest.
+	 */
+	productionBrowserGraphsSealed: boolean;
 }
 
 /**
@@ -108,7 +121,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		buildManifest: createAppBuildManifest([]),
 		buildQueue,
 		buildInputIndex,
-		pagesUnifiedGraphManifest: null,
+		productionServerModules: null,
 		pageBrowserGraphSession: new SessionPageBrowserGraphCache(buildInputIndex),
 		serverInvalidation: new ServerInvalidationState(),
 		developmentInvalidation: null,
@@ -118,12 +131,14 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		integrationActivations: new Map(),
 		runtimeAssetsPrepared: false,
 		hmrAttachedToIntegrations: false,
+		productionBuildId: null,
 		htmlPageModuleScripts: createHtmlPageModuleScriptState(),
 		htmlPageWarnings: createHtmlPageWarningState(),
 		customElementSsrPreloadScopes: new Map(),
 		requestPipelineMetrics: createRequestPipelineMetricsState(),
 		origin: appConfig.baseUrl,
 		hmr: null,
+		productionBrowserGraphsSealed: false,
 	};
 	appConfig.appRuntime = runtime;
 	try {

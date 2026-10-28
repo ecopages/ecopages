@@ -44,4 +44,18 @@ describe('HtmlPagesPlugin', () => {
 			);
 		}
 	});
+
+	it('round-trips a compiled Page through serialize and revive without compiling again', async () => {
+		const plugin = new HtmlPagesPlugin();
+		const filePath = at('src/pages/about.html');
+		writeFileSync(filePath, '<main>html-static</main>');
+		const compiled = plugin.compilePageModule(filePath, appConfig);
+		const { contents } = plugin.serializeCompiledPageModule(compiled, { rootDir, filePath });
+		rmSync(filePath);
+		const revived = plugin.reviveCompiledPageModule(contents, { rootDir, filePath });
+		expect(getCompiledHtmlTemplate(revived.default)?.kind).toBe('page');
+		expect(JSON.stringify(getCompiledHtmlTemplate(revived.default))).toBe(
+			JSON.stringify(getCompiledHtmlTemplate(compiled.default)),
+		);
+	});
 });

@@ -69,7 +69,7 @@ const PostView = eco.page({
 export default PostView;
 ```
 
-Handlers load views with `ctx.renderServerModule(url, props)`, which compiles the view through the server-module loader. A raw `import()` of a view skips that compile step, so `ctx.render()` cannot tell which Integration owns the view and the request fails.
+Import a view and pass it to `ctx.render(View, props)`. An Integration-owned import becomes a view reference: development loads it through the app module loader so a save reloads without a restart, and production reads the built module.
 
 ## Pattern A: Inline Handlers
 
@@ -89,6 +89,8 @@ import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
 import { db } from './src/db';
+import PostListView from './src/views/post-list.tsx';
+import PostView from './src/views/post.tsx';
 
 const app = await createApp();
 
@@ -97,7 +99,7 @@ app.get('/posts', async (ctx) => {
 		where: { status: 'published' },
 		orderBy: { createdAt: 'desc' }
 	});
-	return ctx.renderServerModule(new URL('./src/views/post-list.tsx', import.meta.url), { posts });
+	return ctx.render(PostListView, { posts });
 });
 
 app.get('/posts/:slug', async (ctx) => {
@@ -105,7 +107,7 @@ app.get('/posts/:slug', async (ctx) => {
 		where: { slug: ctx.params.slug }
 	});
 	if (!post) throw HttpError.NotFound('Post not found');
-	return ctx.renderServerModule(new URL('./src/views/post.tsx', import.meta.url), post);
+	return ctx.render(PostView, post);
 });
 
 app.post(
@@ -166,13 +168,15 @@ app.ts
 import type { ApiHandlerContext } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import { db } from '../db';
+import PostListView from '../views/post-list.tsx';
+import PostView from '../views/post.tsx';
 
 export async function index(ctx: ApiHandlerContext) {
 	const posts = await db.posts.findMany({
 		where: { status: 'published' },
 		orderBy: { createdAt: 'desc' }
 	});
-	return ctx.renderServerModule(new URL('../views/post-list.tsx', import.meta.url), { posts });
+	return ctx.render(PostListView, { posts });
 }
 
 export async function show(ctx: ApiHandlerContext) {
@@ -181,7 +185,7 @@ export async function show(ctx: ApiHandlerContext) {
 		include: { author: true }
 	});
 	if (!post) throw HttpError.NotFound('Post not found');
-	return ctx.renderServerModule(new URL('../views/post.tsx', import.meta.url), post);
+	return ctx.render(PostView, post);
 }
 
 export async function create(ctx: ApiHandlerContext) {
@@ -276,6 +280,8 @@ app.ts
 import type { ApiHandlerContext } from '@ecopages/core';
 import type { Database } from '../types';
 import { HttpError } from '@ecopages/core/errors';
+import PostListView from '../views/post-list.tsx';
+import PostView from '../views/post.tsx';
 
 export function createPostsHandlers(db: Database) {
 	return {
@@ -284,7 +290,7 @@ export function createPostsHandlers(db: Database) {
 				where: { status: 'published' },
 				orderBy: { createdAt: 'desc' }
 			});
-			return ctx.renderServerModule(new URL('../views/post-list.tsx', import.meta.url), { posts });
+			return ctx.render(PostListView, { posts });
 		},
 
 		show: async (ctx: ApiHandlerContext) => {
@@ -293,7 +299,7 @@ export function createPostsHandlers(db: Database) {
 				include: { author: true }
 			});
 			if (!post) throw HttpError.NotFound('Post not found');
-			return ctx.renderServerModule(new URL('../views/post.tsx', import.meta.url), post);
+			return ctx.render(PostView, post);
 		},
 
 		create: async (ctx: ApiHandlerContext) => {
@@ -349,7 +355,7 @@ describe('Posts Handlers', () => {
 
 	test('index returns all posts', async () => {
 		const ctx = {
-			renderServerModule: (_view: URL, props: any) => props
+			render: (_view: unknown, props: { posts: unknown[] }) => props
 		};
 		const result = await posts.index(ctx as any);
 		expect(result.posts).toHaveLength(1);
@@ -358,7 +364,7 @@ describe('Posts Handlers', () => {
 	test('show returns single post', async () => {
 		const ctx = {
 			params: { slug: 'test-post' },
-			renderServerModule: (_view: URL, props: any) => props
+			render: (_view: unknown, props: { title: string }) => props
 		};
 		const result = await posts.show(ctx as any);
 		expect(result.title).toBe('Test Post');
@@ -448,6 +454,8 @@ import type { ApiHandlerContext, RouteHandlerContext } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
 import { PostsService } from '../services/posts.service';
+import PostListView from '../views/post-list.tsx';
+import PostView from '../views/post.tsx';
 
 export const postParams = { params: z.object({ slug: z.string() }) };
 type PostContext = RouteHandlerContext<typeof postParams, ApiHandlerContext>;
@@ -457,13 +465,13 @@ export class PostsController {
 
 	async index(ctx: ApiHandlerContext) {
 		const posts = await this.postsService.findAll();
-		return ctx.renderServerModule(new URL('../views/post-list.tsx', import.meta.url), { posts });
+		return ctx.render(PostListView, { posts });
 	}
 
 	async show(ctx: PostContext) {
 		const post = await this.postsService.findBySlug(ctx.params.slug);
 		if (!post) throw HttpError.NotFound('Post not found');
-		return ctx.renderServerModule(new URL('../views/post.tsx', import.meta.url), post);
+		return ctx.render(PostView, post);
 	}
 
 	async create(ctx: ApiHandlerContext) {
@@ -664,6 +672,8 @@ import type { ApiHandlerContext, RouteHandlerContext } from '@ecopages/core';
 import type { BlogService, PostAdapter } from '../types';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
+import PostListView from '../views/post-list.tsx';
+import PostView from '../views/post.tsx';
 
 export const postParams = { params: z.object({ slug: z.string() }) };
 type PostContext = RouteHandlerContext<typeof postParams, ApiHandlerContext>;
@@ -676,14 +686,14 @@ export function createPostsHandlers(
 		async index(ctx: ApiHandlerContext) {
 			const posts = await service.getAllPublishedPosts();
 			const viewData = adapter.toListView(posts);
-			return ctx.renderServerModule(new URL('../views/post-list.tsx', import.meta.url), { posts: viewData });
+			return ctx.render(PostListView, { posts: viewData });
 		},
 
 		async show(ctx: PostContext) {
 			const post = await service.getPostBySlug(ctx.params.slug);
 			if (!post) throw HttpError.NotFound('Post not found');
 			const viewData = adapter.toDetailView(post);
-			return ctx.renderServerModule(new URL('../views/post.tsx', import.meta.url), viewData);
+			return ctx.render(PostView, viewData);
 		},
 
 		async createDraft(ctx: ApiHandlerContext) {
@@ -849,11 +859,13 @@ See [Endpoint Files](/docs/server/endpoint-files) for the full rules.
 You don't need to pick one pattern for your entire app. Mix patterns based on complexity:
 
 ```typescript
+import AboutView from './src/views/about.tsx';
+
 const app = await createApp();
 
 // Simple inline handler for about page
 app.get('/about', async (ctx) => {
-	return ctx.renderServerModule(new URL('./src/views/about.tsx', import.meta.url));
+	return ctx.render(AboutView);
 });
 
 // Grouped handlers for posts (medium complexity)
@@ -902,10 +914,12 @@ An `app.get()` on an endpoint file's URL answers GET and the file answers its ot
 Begin with [inline handlers](#pattern-a-inline-handlers) and refactor only when complexity demands it:
 
 ```typescript
+import PostListView from './src/views/post-list.tsx';
+
 // Start here
 app.get('/posts', async (ctx) => {
 	const posts = await db.posts.findMany();
-	return ctx.renderServerModule(new URL('./src/views/post-list.tsx', import.meta.url), { posts });
+	return ctx.render(PostListView, { posts });
 });
 
 // Refactor when you need testing or reusability
@@ -921,7 +935,7 @@ Handlers should orchestrate, not implement business logic:
 async show(ctx: ApiHandlerContext) {
 	const post = await service.getPostBySlug(ctx.params.slug);
 	if (!post) throw HttpError.NotFound();
-	return ctx.renderServerModule(new URL('../views/post.tsx', import.meta.url), adapter.toView(post));
+	return ctx.render(PostView, adapter.toView(post));
 }
 ```
 

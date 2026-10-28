@@ -21,6 +21,8 @@ import { litPlugin } from '@ecopages/lit';
 export default defineConfig({ integrations: [litPlugin()] });
 ```
 
+The Integration does not install DOM globals as an import side effect or on first render. Core installs Radiant's complete server DOM first when that Integration is configured, then Lit's `ensureLitDomShim` repairs, so a Lit element defined before a Radiant Page still renders.
+
 Lit also works well alongside an HTML-first renderer such as `@ecopages/kitajs` when you want Lit to own only the nested custom elements:
 
 ```ts
@@ -67,4 +69,8 @@ Important:
 
 A Lit Component can import a relative stylesheet with `import './counter.css'`; core extracts it into the shared asset pipeline. Direct local imports of that Component make its Dependencies available to the Lit SSR preloader, including through Foreign Child rendering.
 
-Keep custom-element registration explicit with `scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:visible': true } }]`. Entries with `ssr: true` execute on the server before rendering (eager or lazy) and load in the browser according to `lazy`. `ssr: true` does not emit an additional eager browser script. Omit `lazy` when eager browser loading is intended. SSR preload artifacts are excluded from HTML, and hydration support must be available before the browser registers the element. Lit-owned page routes preload those scripts in the static-render worker through the app module loader so `@lit-labs/ssr` sees the registered custom element. Preload deduplication and invalidation state belongs to the app's `AppRuntime`, so separate apps keep separate preload history. Elements registered by a page, layout or route-resolved dependency root stay registered for the rest of that render, so every one of them renders with its shadow DOM.
+Keep custom-element registration explicit with `scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:visible': true } }]`. Entries with `ssr: true` execute on the server before rendering (eager or lazy) and load in the browser according to `lazy`. `ssr: true` does not emit an additional eager browser script. Omit `lazy` when eager browser loading is intended. SSR preload artifacts are excluded from HTML, and hydration support must be available before the browser registers the element. Serving preloads those scripts in-process. Static export warms Lit-owned page routes on the main thread, then renders them in the static-render worker so `@lit-labs/ssr` sees the registered custom element. Preload deduplication and invalidation state belongs to the app's `AppRuntime`, so separate apps keep separate preload history. Elements registered by a page, layout or route-resolved dependency root stay registered for the rest of that render, so every one of them renders with its shadow DOM.
+
+## Custom-element registration
+
+Importing this Integration leaves `console.warn` unchanged. On the server, a development reload of a Lit custom element replaces the previous definition on the SSR registry. A second definition during production SSR throws. The browser registry still cannot replace a tag.

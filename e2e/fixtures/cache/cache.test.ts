@@ -1,8 +1,8 @@
 import { rmSync } from 'node:fs';
-import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '@ecopages/core/create-app';
 import { copyFixtureApp } from '../../../packages/core/__fixtures__/app/copy-fixture-app.ts';
+import { emitCopiedFixtureServerModules } from '../../utils/emit-copied-fixture-server-modules.ts';
 
 type RevalidateBody = { tags?: string[]; paths?: string[] };
 
@@ -22,7 +22,8 @@ const ORIGIN = 'http://localhost:3000';
  */
 async function startCacheApp() {
 	const appDir = copyFixtureApp(import.meta.dirname);
-	const app = await createApp({ configFile: path.join(appDir, 'eco.config.ts') });
+	const appConfig = await emitCopiedFixtureServerModules(appDir);
+	const app = await createApp({ appConfig });
 
 	app.post('/api/revalidate', async ({ request, services }) => {
 		const body = (await request.json()) as RevalidateBody;
@@ -70,7 +71,7 @@ describe('cache fixture app', () => {
 	});
 
 	afterEach(async () => {
-		await site.dispose();
+		await site?.dispose();
 		vi.useRealTimers();
 		vi.unstubAllEnvs();
 	});

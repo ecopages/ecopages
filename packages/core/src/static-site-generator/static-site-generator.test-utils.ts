@@ -29,7 +29,7 @@ export const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): Ec
 			exclude: [],
 		},
 		absolutePaths: {
-			distDir: '/test/project/dist',
+			distDir: '/test/project/dist/client',
 			workDir: '/test/project/.eco',
 		} as EcoPagesAppConfig['absolutePaths'],
 		processors: new Map(),

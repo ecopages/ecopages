@@ -135,6 +135,7 @@ export interface ProcessorContext {
 	config: EcoPagesAppConfig;
 	rootDir: string;
 	srcDir: string;
+	/** Public output directory (`client/` beneath the configured build output root). */
 	distDir: string;
 	cache?: string;
 }
@@ -194,8 +195,6 @@ export abstract class Processor<TOptions = unknown> {
 			module: this.name,
 		});
 
-		fileSystem.ensureDir(cachePath);
-
 		this.context = {
 			config: appConfig,
 			rootDir: appConfig.rootDir,
@@ -206,6 +205,28 @@ export abstract class Processor<TOptions = unknown> {
 	}
 
 	abstract setup(): Promise<void>;
+
+	/**
+	 * Source files this Processor needs in the production server-modules map.
+	 *
+	 * @remarks
+	 * Core includes them in the unified graph after `setup()`. Production `ecopages start`
+	 * imports the emitted modules and does not call `setup()`. Development never reads this list.
+	 */
+	listProductionServerModuleEntries(): string[] {
+		return [];
+	}
+
+	/**
+	 * Restores in-memory state from the production server-modules map.
+	 *
+	 * @remarks
+	 * Called instead of `setup()` on production `ecopages start`, and in the Lit static-render
+	 * worker. Must not scan sources or write under the work directory.
+	 */
+	restoreProductionRuntime(): Promise<void> {
+		return Promise.resolve();
+	}
 
 	/**
 	 * Transforms one stylesheet before core writes or inlines it.

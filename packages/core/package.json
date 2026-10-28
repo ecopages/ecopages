@@ -33,7 +33,6 @@
 		"@jridgewell/remapping": "^2.3.5",
 		"@standard-schema/spec": "^1.1.0",
 		"@standard-schema/utils": "^0.3.0",
-		"chokidar": "^5.0.0",
 		"magic-string": "^1.4.3",
 		"oxc-parser": "^0.141.0",
 		"oxc-resolver": "^11.24.2",
@@ -117,6 +116,11 @@
 		"./errors": {
 			"types": "./src/errors/index.ts",
 			"default": "./src/errors/index.ts"
+		},
+		"./view-reference": {
+			"import": "./src/build/server/view-reference.ts",
+			"types": "./src/build/server/view-reference.ts",
+			"default": "./src/build/server/view-reference.ts"
 		}
 	}
 }

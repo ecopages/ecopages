@@ -2,6 +2,7 @@ name: CI
 
 on:
     pull_request:
+    workflow_dispatch:
     push:
         branches:
             - next
@@ -13,7 +14,7 @@ concurrency:
 
 jobs:
     fast:
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -23,6 +24,9 @@ jobs:
 
             - name: Setup pnpm
               uses: pnpm/action-setup@v6
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
 
             - name: Setup Node
               uses: actions/setup-node@v6
@@ -171,7 +175,7 @@ jobs:
             - name: Detect docs inputs
               id: filter
               env:
-                  BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+                  BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
                   HEAD_SHA: ${{ github.sha }}
               shell: bash
               run: |

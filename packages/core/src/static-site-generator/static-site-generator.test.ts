@@ -7,19 +7,19 @@ import { createMockConfig } from './static-site-generator.test-utils.ts';
 
 const graphBuildOrder: string[] = [];
 const resolveBuildParallelismMock = vi.hoisted(() => vi.fn(() => 2));
-const ensurePagesUnifiedGraphBuiltMock = vi.hoisted(() =>
+const shouldBuildPagesUnifiedGraphMock = vi.hoisted(() => vi.fn(() => true));
+const emitProductionServerModulesMock = vi.hoisted(() =>
 	vi.fn(async () => {
-		graphBuildOrder.push('ensurePagesUnifiedGraphBuilt');
-		return undefined;
+		graphBuildOrder.push('emitProductionServerModules');
+		return { outdir: '/test/project/dist/server', modules: {} };
 	}),
 );
-const shouldBuildPagesUnifiedGraphMock = vi.hoisted(() => vi.fn(() => true));
 
 vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('../build/cache/pages-unified-graph-build.ts')>();
 	return {
 		...actual,
-		ensurePagesUnifiedGraphBuilt: ensurePagesUnifiedGraphBuiltMock,
+		emitProductionServerModules: emitProductionServerModulesMock,
 		shouldBuildPagesUnifiedGraph: shouldBuildPagesUnifiedGraphMock,
 	};
 });
@@ -52,6 +52,7 @@ describe('StaticSiteGenerator', () => {
 		ensureDirMock = vi.fn(() => {});
 		writeMock = vi.fn(() => {});
 		resolveBuildParallelismMock.mockClear();
+		emitProductionServerModulesMock.mockClear();
 		fileSystem.ensureDir = ensureDirMock;
 		fileSystem.write = writeMock;
 		vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
@@ -88,8 +89,8 @@ describe('StaticSiteGenerator', () => {
 
 			ssg.generateRobotsTxt();
 
-			expect(ensureDirMock).toHaveBeenCalledWith('/test/project/dist');
-			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/robots.txt', expect.any(String));
+			expect(ensureDirMock).toHaveBeenCalledWith('/test/project/dist/client');
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/client/robots.txt', expect.any(String));
 
 			const writtenContent = writeMock.mock.calls[0][1] as string;
 			expect(writtenContent).toContain('user-agent: *');
@@ -107,7 +108,7 @@ describe('StaticSiteGenerator', () => {
 
 			ssg.generateRobotsTxt();
 
-			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/robots.txt', '');
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/client/robots.txt', '');
 		});
 	});
 
@@ -328,7 +329,7 @@ describe('StaticSiteGenerator', () => {
 			expect(loadPageModule).toHaveBeenCalledWith(filePath);
 			expect(loadPageModule.mock.calls[0]?.length).toBe(1);
 			expect(execute).toHaveBeenCalledTimes(1);
-			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/index.html', '<html>Home</html>');
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/client/index.html', '<html>Home</html>');
 		});
 	});
 
@@ -349,9 +350,99 @@ describe('StaticSiteGenerator', () => {
 			expect(listStaticGenerationRoutes).toHaveBeenCalledTimes(1);
 		});
 
-		test('should build unified graph before integration static export hooks', async () => {
+		test('emits explicit views when there are no filesystem Pages', async () => {
+			const view = Object.assign(() => null, {
+				cache: 'static' as const,
+				config: { identity: { ...testInjectedMeta, file: '/src/views/hello.ts' } },
+			});
+			const loader = Object.assign(async () => ({ default: view }), {
+				filePath: '/src/views/hello.ts',
+			});
+			const staticRoutes = [{ path: '/hello', loader }];
+			const ssg = new StaticSiteGenerator({
+				appConfig: createMockConfig({
+					integrations: [
+						{
+							name: 'test',
+							extensions: ['.ts'],
+						},
+					] as unknown as EcoPagesAppConfig['integrations'],
+				}),
+			});
+
+			await ssg.run({
+				router: {
+					templateRoutes: [],
+					listStaticGenerationRoutes: vi.fn(async () => []),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3000',
+				staticRoutes,
+				routeRendererFactory: {
+					getPageRenderer: vi.fn(),
+					getExplicitViewRenderer: vi.fn(() => ({
+						renderExplicitView: vi.fn(),
+						executeExplicitView: vi.fn(async () => ({
+							body: '<html>Hello</html>',
+							metadata: { title: 'Test', description: 'Test site' },
+						})),
+					})),
+				} satisfies StaticGenerationRendererFactory,
+			});
+
+			expect(emitProductionServerModulesMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					router: { templateRoutes: [] },
+					staticRoutes,
+				}),
+			);
+		});
+
+		test('emits Pages listed by the route source when templateRoutes is omitted', async () => {
+			const templateRoute = {
+				filePath: '/src/pages/about.tsx',
+				pathname: '/about',
+				kind: 'exact' as const,
+				role: 'page' as const,
+				paramNames: [],
+			};
+			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => [
+						{
+							requestUrl: 'http://localhost:3000/about',
+							pathname: '/about',
+							templateRoute,
+							params: {},
+						},
+					]),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn(() => ({
+						loadPageModule: vi.fn(async () => ({
+							default: Object.assign(() => null, { cache: 'static' }),
+						})),
+						execute: vi.fn(async () => ({
+							body: '<html>About</html>',
+							metadata: { title: 'Test', description: 'Test site' },
+						})),
+					})),
+					getExplicitViewRenderer: vi.fn(() => null),
+				} satisfies StaticGenerationRendererFactory,
+			});
+
+			expect(emitProductionServerModulesMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					router: { templateRoutes: [templateRoute] },
+				}),
+			);
+		});
+
+		test('emits production server modules before integration static export hooks', async () => {
 			graphBuildOrder.length = 0;
-			ensurePagesUnifiedGraphBuiltMock.mockClear();
+			emitProductionServerModulesMock.mockClear();
 			const staticExport = vi.fn(async () => {
 				graphBuildOrder.push('staticExport');
 			});
@@ -374,8 +465,8 @@ describe('StaticSiteGenerator', () => {
 				baseUrl: 'http://localhost:3000',
 			});
 
-			expect(ensurePagesUnifiedGraphBuiltMock).toHaveBeenCalled();
-			expect(graphBuildOrder).toEqual(['ensurePagesUnifiedGraphBuilt', 'staticExport']);
+			expect(emitProductionServerModulesMock).toHaveBeenCalled();
+			expect(graphBuildOrder).toEqual(['emitProductionServerModules', 'staticExport']);
 		});
 
 		test('should invoke the integration staticExport hook with the export context', async () => {
@@ -421,7 +512,7 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			expect(ensureDirMock).toHaveBeenCalled();
-			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/robots.txt', expect.any(String));
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/client/robots.txt', expect.any(String));
 		});
 
 		test('should collect filesystem and explicit page failures after exporting remaining pages', async () => {
@@ -502,9 +593,9 @@ describe('StaticSiteGenerator', () => {
 				]),
 			});
 
-			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/works.html', '<html>Works</html>');
-			expect(writeMock).not.toHaveBeenCalledWith('/test/project/dist/broken.html', expect.anything());
-			expect(writeMock).not.toHaveBeenCalledWith('/test/project/dist/manual.html', expect.anything());
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/client/works.html', '<html>Works</html>');
+			expect(writeMock).not.toHaveBeenCalledWith('/test/project/dist/client/broken.html', expect.anything());
+			expect(writeMock).not.toHaveBeenCalledWith('/test/project/dist/client/manual.html', expect.anything());
 			const sitemapWrite = writeMock.mock.calls.find((call: unknown[]) =>
 				String(call[0]).endsWith('sitemap.xml'),
 			);
@@ -572,8 +663,8 @@ describe('StaticSiteGenerator', () => {
 				keepGoing: true,
 			});
 
-			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/works.html', '<html>Works</html>');
-			expect(writeMock).not.toHaveBeenCalledWith('/test/project/dist/broken.html', expect.anything());
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/client/works.html', '<html>Works</html>');
+			expect(writeMock).not.toHaveBeenCalledWith('/test/project/dist/client/broken.html', expect.anything());
 			expect(errorSpy).toHaveBeenCalledWith(
 				'Error generating static page for http://localhost:3000/broken:',
 				expect.objectContaining({ message: 'filesystem page failed' }),
@@ -590,10 +681,16 @@ describe('StaticSiteGenerator', () => {
 				baseUrl: 'http://localhost:3000',
 			});
 
-			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/404.html', expect.stringContaining('Not Found'));
-			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/403.html', expect.stringContaining('Forbidden'));
 			expect(writeMock).toHaveBeenCalledWith(
-				'/test/project/dist/500.html',
+				'/test/project/dist/client/404.html',
+				expect.stringContaining('Not Found'),
+			);
+			expect(writeMock).toHaveBeenCalledWith(
+				'/test/project/dist/client/403.html',
+				expect.stringContaining('Forbidden'),
+			);
+			expect(writeMock).toHaveBeenCalledWith(
+				'/test/project/dist/client/500.html',
 				expect.stringContaining('Something went wrong'),
 			);
 		});
@@ -619,7 +716,10 @@ describe('StaticSiteGenerator', () => {
 				},
 			});
 
-			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/404.html', '<html>Registered not found</html>');
+			expect(writeMock).toHaveBeenCalledWith(
+				'/test/project/dist/client/404.html',
+				'<html>Registered not found</html>',
+			);
 			expect(renderExplicitView).toHaveBeenCalledWith(expect.anything(), { status: 404 }, { status: 404 });
 		});
 
@@ -952,7 +1052,10 @@ describe('StaticSiteGenerator', () => {
 					params: { slug: 'hello-world' },
 				},
 			);
-			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/blog/hello-world.html', '<html>Post</html>');
+			expect(writeMock).toHaveBeenCalledWith(
+				'/test/project/dist/client/blog/hello-world.html',
+				'<html>Post</html>',
+			);
 		});
 
 		test.each([
@@ -960,25 +1063,25 @@ describe('StaticSiteGenerator', () => {
 				name: 'a colon catch-all',
 				path: '/docs/:...path',
 				params: [{ path: ['guide', 'intro'] }, { path: ['api'] }],
-				files: ['/test/project/dist/docs/guide/intro.html', '/test/project/dist/docs/api.html'],
+				files: ['/test/project/dist/client/docs/guide/intro.html', '/test/project/dist/client/docs/api.html'],
 			},
 			{
 				name: 'a bracket catch-all',
 				path: '/docs/[...path]',
 				params: [{ path: ['guide', 'intro'] }],
-				files: ['/test/project/dist/docs/guide/intro.html'],
+				files: ['/test/project/dist/client/docs/guide/intro.html'],
 			},
 			{
 				name: 'params where one name prefixes another',
 				path: '/:idx/:id',
 				params: [{ id: '2', idx: '1x' }],
-				files: ['/test/project/dist/1x/2.html'],
+				files: ['/test/project/dist/client/1x/2.html'],
 			},
 			{
 				name: 'bracket and colon params together',
 				path: '/blog/[slug]/:lang',
 				params: [{ slug: 'hello', lang: 'en' }],
-				files: ['/test/project/dist/blog/hello/en.html'],
+				files: ['/test/project/dist/client/blog/hello/en.html'],
 			},
 		])('should write one file per staticPaths entry for $name', async ({ path, params, files }) => {
 			const ssg = new StaticSiteGenerator({
@@ -1063,7 +1166,7 @@ describe('StaticSiteGenerator', () => {
 
 				expect(executeExplicitView).toHaveBeenCalledTimes(2);
 				expect(writeMock).toHaveBeenCalledWith(
-					'/test/project/dist/blog/works.html',
+					'/test/project/dist/client/blog/works.html',
 					'<html>Second post</html>',
 				);
 				expect(errorSpy).toHaveBeenCalledWith(
@@ -1072,6 +1175,43 @@ describe('StaticSiteGenerator', () => {
 				);
 			},
 		);
+
+		test('keeps exporting other explicit routes when one view has no renderer (keepGoing)', async () => {
+			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+			const view = Object.assign(() => null, { config: { identity: testInjectedMeta } });
+			const getExplicitViewRenderer = vi
+				.fn()
+				.mockReturnValueOnce(undefined)
+				.mockReturnValue({
+					renderExplicitView: vi.fn(),
+					executeExplicitView: vi.fn(async () => ({ body: '<html>Works</html>' })),
+				});
+
+			await expect(
+				ssg.run({
+					router: {
+						listStaticGenerationRoutes: vi.fn(async () => []),
+					} satisfies StaticGenerationRunnerInput['router'],
+					baseUrl: 'http://localhost:3000',
+					routeRendererFactory: {
+						getPageRenderer: vi.fn(),
+						getExplicitViewRenderer,
+					} satisfies StaticGenerationRendererFactory,
+					staticRoutes: [
+						{ path: '/broken', loader: async () => ({ default: view }) },
+						{ path: '/works', loader: async () => ({ default: view }) },
+					],
+					keepGoing: true,
+				}),
+			).resolves.toBeUndefined();
+
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/client/works.html', '<html>Works</html>');
+			expect(errorSpy).toHaveBeenCalledWith(
+				'Error generating explicit static page for /broken:',
+				expect.objectContaining({ message: expect.stringContaining('No renderer found for integration') }),
+			);
+		});
 
 		test('should reject for dynamic explicit routes without staticPaths', async () => {
 			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
@@ -1111,7 +1251,10 @@ describe('StaticSiteGenerator', () => {
 					message: 'Dynamic route /blog/[slug] requires staticPaths to be defined on the view.',
 				}),
 			);
-			expect(writeMock).not.toHaveBeenCalledWith('/test/project/dist/blog/hello-world.html', expect.anything());
+			expect(writeMock).not.toHaveBeenCalledWith(
+				'/test/project/dist/client/blog/hello-world.html',
+				expect.anything(),
+			);
 		});
 	});
 });

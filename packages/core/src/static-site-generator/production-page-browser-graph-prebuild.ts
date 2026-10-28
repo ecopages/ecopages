@@ -7,16 +7,12 @@ import type { PageRendererResolver } from '../route-renderer/route-renderer.ts';
 import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
 import { createPageDependencyInstanceKey } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
-import {
-	collectHtmlPageModuleScriptBuildInputs,
-	setPrebuiltHtmlPageModuleScriptUrls,
-} from '../html-pages/html-page-module-scripts.ts';
+import { setPrebuiltHtmlPageModuleScriptUrls } from '../html-pages/html-page-module-scripts.ts';
 import { buildAppBrowserClient } from '../assets/app-browser-client-build.ts';
 import {
 	assertAppBrowserClientOutputsExist,
 	assertAppBrowserClientManifestHtmlOutputsExist,
 	clearAppBrowserClientManifest,
-	assertAppBrowserClientSourcesMatch,
 	createNormalizedAppBrowserClientEntryKey,
 	readAppBrowserClientManifest,
 	restoreAppBrowserClientAssets,
@@ -48,10 +44,13 @@ export function shouldPrebuildProductionPageBrowserGraphs(): boolean {
  *
  * @remarks
  * Clears only the `'production'` policy so a failed or force export cannot
- * reuse staged graph output. Development session records are left intact.
+ * reuse staged graph output. Also sets `productionBrowserGraphsSealed` to false so a
+ * retry of `ecopages build` can still emit graphs. Development session records are left intact.
  */
 export function clearProductionPageBrowserGraphSession(appConfig: EcoPagesAppConfig): void {
-	requireAppRuntime(appConfig).pageBrowserGraphSession.clearPolicyRecords('production');
+	const runtime = requireAppRuntime(appConfig);
+	runtime.pageBrowserGraphSession.clearPolicyRecords('production');
+	runtime.productionBrowserGraphsSealed = false;
 	clearAppBrowserClientManifest(appConfig);
 }
 
@@ -283,7 +282,12 @@ async function prebuildManifestEntriesForRenderer(
 	}
 }
 
-/** Reuses the browser outputs written by `ecopages build` while `ecopages start` prepares SSR routes. */
+/**
+ * Reuses the browser outputs written by `ecopages build` while `ecopages start` prepares SSR routes.
+ *
+ * @remarks
+ * A successful restore sets `productionBrowserGraphsSealed` so a missing graph is an error.
+ */
 export async function prebuildProductionPageBrowserGraphsFromManifest(
 	appConfig: EcoPagesAppConfig,
 	routeRendererFactory: PageRendererResolver,
@@ -291,12 +295,6 @@ export async function prebuildProductionPageBrowserGraphsFromManifest(
 	if (!shouldPrebuildProductionPageBrowserGraphs()) return false;
 	const manifest = readAppBrowserClientManifest(appConfig);
 	if (!manifest) return false;
-	assertAppBrowserClientSourcesMatch(appConfig, manifest.sourceFingerprints);
-	if (collectHtmlPageModuleScriptBuildInputs(appConfig).fingerprint !== manifest.htmlPageModuleScriptFingerprint) {
-		throw new Error(
-			`The app browser build manifest does not match the current HTML Page module scripts. Run \`ecopages build\` again.`,
-		);
-	}
 	assertAppBrowserClientOutputsExist(appConfig, manifest.browserOutputPaths);
 	assertAppBrowserClientManifestHtmlOutputsExist(appConfig, manifest.htmlPageModuleScriptUrls);
 
@@ -316,5 +314,6 @@ export async function prebuildProductionPageBrowserGraphsFromManifest(
 	)) {
 		await prebuildManifestEntriesForRenderer(appConfig, renderer, entries);
 	}
+	requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
 	return true;
 }

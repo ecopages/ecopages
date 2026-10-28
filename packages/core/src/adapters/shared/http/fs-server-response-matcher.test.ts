@@ -210,7 +210,7 @@ describe('FileSystemResponseMatcher', () => {
 	describe('without cache service', () => {
 		const matcherWithoutCache = new FileSystemResponseMatcher({
 			appConfig,
-			assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+			assetPrefix: appConfig.absolutePaths.distDir,
 			router,
 			routeRendererFactory: routeRendererFactoryForNoMatchTests,
 			fileSystemResponseFactory,
@@ -250,7 +250,7 @@ describe('FileSystemResponseMatcher', () => {
 
 		const matcherWithCache = new FileSystemResponseMatcher({
 			appConfig,
-			assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+			assetPrefix: appConfig.absolutePaths.distDir,
 			router,
 			routeRendererFactory,
 			fileSystemResponseFactory,
@@ -398,7 +398,7 @@ describe('FileSystemResponseMatcher', () => {
 
 		const dynamicMatcher = new FileSystemResponseMatcher({
 			appConfig,
-			assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+			assetPrefix: appConfig.absolutePaths.distDir,
 			router,
 			routeRendererFactory,
 			fileSystemResponseFactory,
@@ -431,7 +431,7 @@ describe('FileSystemResponseMatcher', () => {
 	describe('handleNoMatch content type behavior', () => {
 		const matcher = new FileSystemResponseMatcher({
 			appConfig,
-			assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+			assetPrefix: appConfig.absolutePaths.distDir,
 			router,
 			routeRendererFactory: routeRendererFactoryForNoMatchTests,
 			fileSystemResponseFactory,
@@ -489,7 +489,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithStub404,
 				fileSystemResponseFactory,
@@ -534,7 +534,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithStub404,
 				fileSystemResponseFactory,
@@ -567,7 +567,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithStub404,
 				fileSystemResponseFactory,
@@ -587,7 +587,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
@@ -616,7 +616,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithThrowing500,
 				fileSystemResponseFactory,
@@ -635,7 +635,7 @@ describe('FileSystemResponseMatcher', () => {
 			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory,
 				fileSystemResponseFactory,
@@ -661,7 +661,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
@@ -681,7 +681,7 @@ describe('FileSystemResponseMatcher', () => {
 		] as const)('should preserve HttpError.%s as HTML %s', async (_name, error, status, title) => {
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory,
 				fileSystemResponseFactory,
@@ -703,7 +703,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: throwingFactory,
 				fileSystemResponseFactory,
@@ -742,7 +742,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
@@ -783,7 +783,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
@@ -824,7 +824,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
@@ -865,7 +865,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
@@ -910,7 +910,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
@@ -951,7 +951,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithout500,
 				fileSystemResponseFactory,
@@ -990,7 +990,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithThrowing500,
 				fileSystemResponseFactory,
@@ -1027,7 +1027,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
@@ -1061,7 +1061,7 @@ describe('FileSystemResponseMatcher', () => {
 			};
 			const matcher = new FileSystemResponseMatcher({
 				appConfig: appConfigWithoutErrorPages,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory,
 				errorPageLoaders: {
@@ -1082,7 +1082,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const failingMatcher = new FileSystemResponseMatcher({
 				appConfig: appConfigWithoutErrorPages,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: throwingPageFactory,
 				errorPageLoaders: {
@@ -1119,7 +1119,7 @@ describe('FileSystemResponseMatcher', () => {
 			);
 			const matcher = new FileSystemResponseMatcher({
 				appConfig: appConfigWithout404Template,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory: missing404Factory,
 				fileSystemResponseFactory,
@@ -1136,7 +1136,7 @@ describe('FileSystemResponseMatcher', () => {
 		it('should inspect page modules through the owning route renderer', async () => {
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory,
 				fileSystemResponseFactory,
@@ -1158,7 +1158,7 @@ describe('FileSystemResponseMatcher', () => {
 		it('reuses the inspected page module during render without a second load', async () => {
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
-				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				assetPrefix: appConfig.absolutePaths.distDir,
 				router,
 				routeRendererFactory,
 				fileSystemResponseFactory,

@@ -6,11 +6,13 @@ import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
 
 /**
- * Returns the outdir whose transpile cache backs in-process static generation.
+ * Returns the outdir of route-module server builds and their transpile cache.
  *
  * @remarks
- * Static pages render through `.eco/.server-modules`; `.server-route-modules` only
- * serves route-registry scanning.
+ * Development builds every server module here. Production imports the modules emitted
+ * into `dist/server/` and builds here only for a module the server-modules map does not
+ * list, or for every module when `ECOPAGES_UNIFIED_PAGES_GRAPH` disables the map.
+ * `.server-route-modules` only serves route-registry scanning.
  */
 export function getServerModuleBuildCacheOutdir(appConfig: EcoPagesAppConfig): string {
 	return path.join(resolveInternalExecutionDir(appConfig), '.server-modules');

@@ -78,6 +78,33 @@ describe('ErrorPageRenderer', () => {
 		expect(result.body).toContain('eco-error-page__title">Not Found</h1>');
 	});
 
+	it('renders a filesystem error page from the production map when the source is gone', async () => {
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
+		const execute = vi.fn(async () => ({
+			body: '<html>production-404</html>',
+			metadata: { title: 'Page', description: 'Page description' },
+		}));
+		const renderer = new ErrorPageRenderer({
+			appConfig: {
+				...appConfig,
+				appRuntime: {
+					productionServerModules: {
+						outdir: '/app/dist/server',
+						modules: { 'src/pages/404.kita.tsx': '404.mjs' },
+					},
+				},
+			} as unknown as EcoPagesAppConfig,
+			routeRendererFactory: {
+				getPageRenderer: vi.fn(() => ({ execute, loadPageModule: vi.fn() })),
+				getExplicitViewRenderer: vi.fn(),
+			},
+		});
+
+		const result = await renderer.render({ kind: 'notFound' });
+
+		expect(result).toEqual({ body: '<html>production-404</html>' });
+	});
+
 	it('renders the built-in forbidden document for status 403', async () => {
 		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
 		const renderer = new ErrorPageRenderer({ appConfig });

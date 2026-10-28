@@ -72,8 +72,12 @@ A Filesystem Route declared by a file under the pages directory ending in `.api.
 _Avoid_: API route, API page, handler file
 
 **Explicit Route**:
-A route registered programmatically via the app API (e.g., `app.static(path, loader)` for page routes or `app.get(path, handler)` for handlers), bypassing filesystem discovery.
+A route registered programmatically via the app API (e.g., `app.static(path, view)` for page routes or `app.get(path, handler)` for handlers), bypassing filesystem discovery.
 _Avoid_: Programmatic route, registered route
+
+**View Reference**:
+A handle for an Integration-owned view imported from the server entry. The import is not the compiled view: development loads the file through the app module loader so an edit shows without a process restart, and production reads the module from the server-modules map. Two imports of one view share one reference. Pass it to `ctx.render`, `ctx.renderPartial`, `app.static`, and error pages.
+_Avoid_: view module loader, view path, server module path
 
 **Route Registry**:
 A router module that owns the canonical record of all Filesystem Routes in one application. It is responsible for route discovery, request-time matching, and reload of the route set during development.
@@ -145,6 +149,7 @@ _Avoid_: URL list, crawl map
 - An **HTML Page** needs no **Integration** in app config: core appends a built-in **Integration** for `.html` unless a user **Integration** claims the extension. Its **Html** shell is the app's one `html` template (`src/includes/html.html` or another Integration's `html.*`), or a built-in shell when there is none
 - Pages are discovered as **Filesystem Routes** or registered as page-owned **Explicit Routes**
 - **Explicit Routes** may also register non-page handlers such as `app.get()` handlers
+- An imported view becomes a **View Reference**: `ctx.render`, `ctx.renderPartial`, `app.static`, and error pages resolve it at render time
 - **Filesystem Routes** are classified as exact, dynamic, or catch-all based on file naming conventions, and carry the role `page` or `endpoint`; one route belongs to one file, whatever the roles and parameter names
 - Only `page` **Filesystem Routes** are rendered at **Build-Time Rendering**, produce **Static Path Expansions**, or appear in the **Sitemap**
 - A **Route Registry** owns the canonical set of **Filesystem Routes** for one application and supports reload during development

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import { fileSystem } from '@ecopages/file-system';
 import {
@@ -12,6 +13,8 @@ import { ECOPAGES_ENTRY_WATCH_ENV, getDevEnvFileNames, getEcopagesEnv } from '@e
 
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
+const viewReferencePreload = import.meta.resolve('./view-reference-preload.js');
+const viewReferencePreloadPath = fileURLToPath(viewReferencePreload);
 
 function getEnvFilePaths(nodeEnv) {
 	return getDevEnvFileNames(nodeEnv).filter((envFile) => fileSystem.exists(envFile));
@@ -110,7 +113,7 @@ function inferLaunchMode(args, launchMode) {
  *
  * In `start` mode, the server bundle of one build output directory is used
  * directly: `options.distDir` names it, otherwise the only directory below the
- * working directory that holds `.server/manifest.json`. A missing or ambiguous
+ * working directory that holds `server/manifest.json`. A missing or ambiguous
  * bundle throws an error that says how to fix it.
  *
  * In `build`, `dev`, `preview`, and `types` modes, the source entry file is executed via tsx
@@ -129,6 +132,8 @@ export async function createLaunchPlan(args, options, entryFile, launchMode) {
 	const resolvedOptions = options ?? {};
 	const resolvedEntryFile = entryFile ?? 'app.ts';
 	const { envOverrides, env } = buildLaunchEnv(resolvedOptions);
+	envOverrides.ECOPAGES_ENTRY_FILE = resolvedEntryFile;
+	env.ECOPAGES_ENTRY_FILE = resolvedEntryFile;
 	const runtime = detectRuntime(resolvedOptions);
 	const resolvedLaunchMode = inferLaunchMode(args, launchMode);
 	const shouldUseBundle = usesProductionBundle(resolvedLaunchMode);
@@ -148,11 +153,10 @@ export async function createLaunchPlan(args, options, entryFile, launchMode) {
 				`Production server entry not found in ${path.relative(process.cwd(), distDir) || '.'}. Run \`ecopages build\` again.`,
 			);
 		}
-		assertProductionConfigIdentity(process.cwd(), resolvedConfigFile, {
-			isExplicitOverride: isExplicitConfig,
+		const runtimeConfigFile = resolveEmittedEcoConfigPath(process.cwd(), distDir) ?? resolvedConfigFile;
+		assertProductionConfigIdentity(process.cwd(), runtimeConfigFile, {
 			distDir,
 		});
-		const runtimeConfigFile = resolveEmittedEcoConfigPath(process.cwd(), distDir) ?? resolvedConfigFile;
 		if (runtimeConfigFile) {
 			envOverrides.ECOPAGES_CONFIG_FILE = runtimeConfigFile;
 			env.ECOPAGES_CONFIG_FILE = runtimeConfigFile;
@@ -177,7 +181,7 @@ export async function createLaunchPlan(args, options, entryFile, launchMode) {
 	}
 
 	if (runtime === 'node') {
-		const commandArgs = ['--import', nodeRequirePreload, '--import', tsxLoader];
+		const commandArgs = ['--import', nodeRequirePreload, '--import', tsxLoader, '--import', viewReferencePreload];
 		if (resolvedOptions.watch) {
 			commandArgs.push('--watch');
 		}
@@ -196,7 +200,7 @@ export async function createLaunchPlan(args, options, entryFile, launchMode) {
 	if (resolvedOptions.watch) {
 		commandArgs.push('--watch');
 	}
-	commandArgs.push('run', resolvedEntryFile, ...args);
+	commandArgs.push('run', '--preload', viewReferencePreloadPath, resolvedEntryFile, ...args);
 
 	return {
 		runtime,

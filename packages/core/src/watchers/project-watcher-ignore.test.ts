@@ -21,7 +21,7 @@ describe('createProjectWatcherIgnorePredicate', () => {
 /**
  * @remarks
  * Loads the watcher path helpers with `node:path` swapped for `path.win32`, so the Windows logic runs on
- * any OS. chokidar hands `ignored` forward-slash paths on Windows too.
+ * any OS. The predicate receives paths in the platform's native form.
  */
 describe('watcher path checks with Windows paths', () => {
 	async function importWithWin32Path() {
@@ -41,7 +41,7 @@ describe('watcher path checks with Windows paths', () => {
 		vi.resetModules();
 	});
 
-	it('ignores forward-slash paths under node_modules, .git, workDir and distDir', async () => {
+	it('ignores paths under node_modules, .git, workDir and distDir', async () => {
 		const { createProjectWatcherIgnorePredicate } = await importWithWin32Path();
 		const ignored = createProjectWatcherIgnorePredicate({
 			workDir: 'C:\\project\\.eco',

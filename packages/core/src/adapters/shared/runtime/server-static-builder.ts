@@ -9,15 +9,22 @@ import {
 	publishServerBundleDirectory,
 	removeServerBundleStagingDirectory,
 } from '../../../build/server-bundle-publication.ts';
+import { createImportedViewPlugin } from '../../../build/server/imported-view-plugin.ts';
 import { createServerBuildRequest } from '../../../build/runtime/build-request-policy.ts';
 import { buildOrThrow } from '../../../build/runtime/build-queue.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
+import { copyDeclaredServerFiles } from '../../../build/copy-server-files.ts';
+import { writeProductionRouteList } from '../../../build/production-route-list.ts';
 import {
 	getServerBundleOutputPaths,
 	writeServerBundleDeployManifest,
 } from '../../../build/server-bundle-deploy-manifest.ts';
 import { bundleEcoConfigModule, EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
-import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
+import { CLIENT_OUTPUT_DIR, resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
+import {
+	createServerBundleLoaderSource,
+	SERVER_BUNDLE_IMPLEMENTATION_FILENAME,
+} from '../../../utils/server-bundle-context.ts';
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type { ErrorPageLoaders, StaticRoute } from '../../../types/contracts.ts';
@@ -26,6 +33,10 @@ import type { StaticSiteGenerator } from '../../../static-site-generator/static-
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 import { readEndpointHandlers, type EndpointRouteHandlerOptions } from '../http/endpoint-route-handler.ts';
+import {
+	emitProductionServerModules,
+	shouldBuildPagesUnifiedGraph,
+} from '../../../build/cache/pages-unified-graph-build.ts';
 
 export interface StaticBuildOptions {
 	baseUrl?: string;
@@ -105,15 +116,16 @@ export class ServerStaticBuilder {
 	}
 
 	/**
-	 * Empties `dist/` and copies the public directory into it.
+	 * Empties the configured output directory, then copies public files into `client/`.
 	 *
 	 * @remarks
-	 * Every build renders from source in a fresh process, so nothing in a previous `dist/` is reusable.
+	 * Every build renders from source in a fresh process, so nothing in a previous output is reusable.
 	 */
 	private prepareExportDirectory(): void {
-		const exportDir =
-			this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
-		fileSystem.ensureDir(exportDir, true);
+		const { distDir: outputDir } = getServerBundleOutputPaths(this.appConfig);
+		const exportDir = this.appConfig.absolutePaths?.distDir ?? path.join(outputDir, CLIENT_OUTPUT_DIR);
+		fileSystem.ensureDir(outputDir, true);
+		fileSystem.ensureDir(exportDir);
 
 		this.runtime.runtimeAssetsPrepared = false;
 
@@ -129,11 +141,11 @@ export class ServerStaticBuilder {
 	}
 
 	/**
-	 * Empties `dist/`, copies the public directory into it and sets the Processors up.
+	 * Empties `dist/`, copies the public directory into `dist/client/` and sets the Processors up.
 	 *
 	 * @remarks
 	 * Call it before the router reads any Page, so a Page module that resolves what a Processor generates in
-	 * `setup()` finds it. Integrations are set up later, when the static site generator starts rendering. The next
+	 * `setup()` finds it. Integrations are activated when production emit imports their modules. The next
 	 * {@link build} then skips this work once; a build without a prior call prepares the export itself.
 	 */
 	async prepareExport(): Promise<void> {
@@ -168,10 +180,10 @@ export class ServerStaticBuilder {
 	 * Source code is bundled: the app entry graph, workspace packages and
 	 * TypeScript packages such as Core. Compiled packages from `node_modules`
 	 * stay external (bare when the app declares them, otherwise relative to
-	 * `dist/.server/`), so native bindings load from the installed tree. The
-	 * entry is written to a staging directory, so the request passes
-	 * `runtimeOutdir` and bundled `import.meta` reads resolve against the
-	 * sources from `dist/.server/`.
+	 * `dist/server/`), so native bindings load from the installed tree. The
+	 * application bundle is written as `app.bundle.mjs`; `app.mjs` records the
+	 * bundle directory before importing it, including when a host wrapper loads it.
+	 * Production `import.meta` points at the emitted files in `dist/server/`.
 	 *
 	 * Throws if the build adapter is unavailable or bundling fails.
 	 *
@@ -202,11 +214,13 @@ export class ServerStaticBuilder {
 				reportPackagesOutsideRoot: true,
 				entrypoints: [entryPath],
 				outdir: stagingDir,
-				naming: SERVER_BUNDLE_FILENAME,
+				naming: SERVER_BUNDLE_IMPLEMENTATION_FILENAME,
 				sourcemap: 'linked',
 				runtimeOutdir: serverOutdir,
+				plugins: [createImportedViewPlugin(this.appConfig, { entryPath })],
 			});
 			await buildOrThrow(this.appConfig, buildOptions, 'Failed to bundle server entry file');
+			fileSystem.write(stagedServerEntryPath, createServerBundleLoaderSource());
 
 			writeServerBundleDeployManifest(this.appConfig, stagedServerEntryPath, {
 				emittedConfigModule: configBundle ? EMITTED_ECO_CONFIG_FILENAME : undefined,
@@ -229,9 +243,9 @@ export class ServerStaticBuilder {
 	 * @param dependencies.importServerModule - The server-module loader endpoint requests use
 	 *
 	 * @remarks
-	 * Every endpoint file is imported and its exports checked as its first request would, before the
-	 * server bundle and static generation, so a broken one fails the build with the request's error.
-	 * The import is cached in this process only; `ecopages start` compiles the file again.
+	 * Every server entry is emitted into `dist/server/` before endpoints are checked, so a broken
+	 * module fails the build with the error its first request would log. `ecopages start` loads those
+	 * emitted modules and never compiles.
 	 */
 	async build(
 		options: StaticBuildOptions | undefined,
@@ -255,12 +269,24 @@ export class ServerStaticBuilder {
 		this.exportPrepared = false;
 
 		const endpointRoutes = dependencies.router.templateRoutes.filter((route) => route.role === 'endpoint');
-		for (const route of endpointRoutes) {
-			readEndpointHandlers(await dependencies.importServerModule(route.filePath), route);
-		}
-
 		if (this.needsServerBundle || endpointRoutes.length > 0) {
 			await this.bundleServerEntry();
+		}
+
+		if (shouldBuildPagesUnifiedGraph()) {
+			await emitProductionServerModules({
+				appConfig: this.appConfig,
+				router: dependencies.router,
+				staticRoutes: dependencies.staticRoutes,
+				errorPageLoaders: dependencies.errorPageLoaders,
+			});
+		}
+
+		writeProductionRouteList(this.appConfig, dependencies.router.templateRoutes);
+		await copyDeclaredServerFiles(this.appConfig);
+
+		for (const route of endpointRoutes) {
+			readEndpointHandlers(await dependencies.importServerModule(route.filePath), route);
 		}
 
 		await this.staticSiteGenerator.run({

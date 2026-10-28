@@ -6,7 +6,7 @@ order: 2
 
 # Creating Custom Processors
 
-Processors in Ecopages handle asset transformation, build-time loaders, and development watch behavior. Core owns lifecycle ordering; processors declare contributions through the `Processor` base class.
+Processors in Ecopages handle asset transformation, build-time loaders, and development watch behavior. Import the `Processor` base class and its contracts from `@ecopages/core/processor`. Core owns lifecycle ordering.
 
 See [Plugin Lifecycle](/docs/core/plugin-lifecycle) for the full ordering across config build, startup, and development invalidation.
 
@@ -66,10 +66,69 @@ Shipped processors such as PostCSS and Image expose a factory function (`postcss
 Core owns the ordering. Processors participate in these phases:
 
 1. **`plugins(app)`** — read once during config finalization to seal the app build manifest. It is the only hook that runs then, so it must not do I/O.
-2. **`setup()`** — runs at app startup after the manifest is sealed. Generate files, load configuration and warm caches here.
+2. **`setup()`** — runs after the manifest is sealed when preparing a development, build, preview, or type-generation runtime. Generate files, load configuration and warm caches here. Production `ecopages start` restores emitted Processor state instead of calling `setup()`.
 3. **`transformStylesheet(css, file)`** — optional; transforms every `.css`, `.scss`, `.sass` and `.less` asset the processor's `stylesheet` capability matches, in processor registration order. A processor without it takes no part in stylesheet processing.
 4. **Watch batches** — in development, `watch.onChanges({ created, changed, deleted, bridge })` receives matching absolute paths grouped once per debounce window. `extensions` select notifications; `capabilities` define asset ownership.
 5. **Prewarm** — a processor that owns pages to warm appends their pathnames to `this.context.config.devPrewarmPaths` from `setup()`. Core renders that list in the background once the development server handles requests.
+
+## Production Runtime
+
+`ecopages build` emits the server modules a Processor lists with `listProductionServerModuleEntries()`. Production `ecopages start` imports those emitted modules and calls `restoreProductionRuntime()` to restore in-memory state. It does not call `setup()` or scan the source tree. A Processor that needs generated data at runtime must emit the required modules during the build and restore its state from them.
+
+`listProductionServerModuleEntries()` should return the generated source paths after `setup()` has created them. Core emits those entries and records their root-relative source paths in `dist/server/server-modules.json`. Inside `restoreProductionRuntime()`, map the source path to its emitted module and load that output; the source tree may not be deployed.
+
+```typescript
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { fileSystem } from '@ecopages/file-system';
+import { loadProductionServerModules, missingProductionServerModuleError } from '@ecopages/core/build';
+import { Processor } from '@ecopages/core/processor';
+
+class GeneratedDataProcessor extends Processor {
+	private entries: string[] = [];
+
+	getEntries(): readonly string[] {
+		return this.entries;
+	}
+
+	private generatedModulePath(): string {
+		const cache = this.context?.cache;
+		if (!cache) throw new Error('Processor context is not set');
+		return path.join(cache, 'entries.mjs');
+	}
+
+	override async setup(): Promise<void> {
+		const entries = ['generated during setup'];
+		await fileSystem.writeAsync(
+			this.generatedModulePath(),
+			`export const entries = ${JSON.stringify(entries)};\n`,
+		);
+		this.entries = entries;
+	}
+
+	override listProductionServerModuleEntries(): string[] {
+		return [this.generatedModulePath()];
+	}
+
+	override async restoreProductionRuntime(): Promise<void> {
+		const context = this.context;
+		if (!context) throw new Error('Processor context is not set');
+
+		const sourceKey = path.relative(context.rootDir, this.generatedModulePath()).split(path.sep).join('/');
+		const manifest = loadProductionServerModules(context.config);
+		const emittedPath = manifest?.modules[sourceKey];
+		if (!manifest || !emittedPath) throw missingProductionServerModuleError(sourceKey);
+
+		const emittedFile = path.join(manifest.outdir, emittedPath);
+		const generatedModule = (await import(pathToFileURL(emittedFile).href)) as { entries: string[] };
+		this.entries = generatedModule.entries;
+	}
+}
+
+export const generatedDataProcessor = new GeneratedDataProcessor({ name: 'generated-data' });
+```
+
+Keep source generation in `setup()` or in a build-plugin callback. `restoreProductionRuntime()` must restore from the emitted server modules without reading project sources or writing to the work directory. `ecopages types` runs Processor `setup()` to generate virtual-module declarations; it does not run the app entry file.
 
 ## Asset Capabilities
 

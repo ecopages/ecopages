@@ -4,6 +4,9 @@ import * as api from './src/handlers/api';
 import { adminGroup } from './src/handlers/admin';
 import { releaseNotes } from './src/data/demo-data';
 import { chatRoomWebsocketHandler } from './src/handlers/ws-chat-room';
+import ExplicitTeamView from './src/views/explicit-team-view.kita.tsx';
+import ExplicitReactIslandView from './src/views/explicit-react-island.kita.tsx';
+import LatestReleaseView from './src/views/latest-release-view.kita.tsx';
 
 const isE2ERun = process.env.ECOPAGES_CROSS_INTEGRATION_E2E === 'true';
 
@@ -26,14 +29,14 @@ export const app = await createApp({
 app.websocket('/ws/chat/:roomId', chatRoomWebsocketHandler);
 
 app.get('/explicit/team', async (ctx) => {
-	return await ctx.renderServerModule(new URL('./src/views/explicit-team-view.kita.tsx', import.meta.url));
+	return await ctx.render(ExplicitTeamView);
 })
 	.get('/explicit/react-island', async (ctx) => {
-		return await ctx.renderServerModule(new URL('./src/views/explicit-react-island.kita.tsx', import.meta.url));
+		return await ctx.render(ExplicitReactIslandView);
 	})
 	.get('/latest', async (ctx) => {
 		const latestRelease = releaseNotes[releaseNotes.length - 1]!;
-		return await ctx.renderServerModule(new URL('./src/views/latest-release-view.kita.tsx', import.meta.url), {
+		return await ctx.render(LatestReleaseView, {
 			release: latestRelease,
 		});
 	})

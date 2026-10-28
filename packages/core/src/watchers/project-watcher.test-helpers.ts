@@ -1,5 +1,5 @@
 import path from 'node:path';
-import chokidar, { type FSWatcher } from 'chokidar';
+import { fileSystem, type FileChange, type FileWatcher, type WatchOptions } from '@ecopages/file-system';
 import { onTestFinished, vi, type Mock } from 'vitest';
 import { ProjectWatcher, type ProjectWatcherConfig } from './project-watcher.ts';
 import type { IHmrManager } from '../config/internal-types.ts';
@@ -68,101 +68,118 @@ export const createMockBridge = (): IClientBridge =>
 		subscriberCount: 0,
 	}) as unknown as IClientBridge;
 
-type FakeChokidarListener = (...args: unknown[]) => unknown;
-
-/**
- * The stand-in for the `FSWatcher` that `chokidar.watch` returns.
- */
-export interface FakeChokidarHandle {
-	add: Mock<(paths: string | string[]) => void>;
+export interface FakeFileSystemWatchHandle extends FileWatcher {
+	paths: readonly string[];
+	options: WatchOptions;
+	add: Mock<FileWatcher['add']>;
 	close: Mock<() => Promise<void>>;
-	getWatched: Mock<() => Record<string, string[]>>;
-	on: Mock<(event: string, listener: FakeChokidarListener) => FakeChokidarHandle>;
-	once: Mock<(event: string, listener: FakeChokidarListener) => FakeChokidarHandle>;
 }
 
-export interface FakeChokidarOptions {
-	/**
-	 * `immediate` emits `ready` as soon as the watcher registers for it; `manual` leaves it to the test.
-	 */
+export interface FakeFileSystemWatchOptions {
+	/** `immediate` resolves readiness after registration; `manual` leaves it to the test. */
 	ready?: 'immediate' | 'manual';
 }
 
-export interface FakeChokidar {
-	/** The spy that replaces `chokidar.watch`; its calls hold the watched paths and options. */
-	watch: Mock<typeof chokidar.watch>;
-	handle: FakeChokidarHandle;
-	/**
-	 * Delivers a Chokidar event to every registered listener and resolves when each has settled.
-	 *
-	 * @remarks
-	 * The listeners are the production handlers, so a `change`, `add` or `unlink` event goes through the same
-	 * path as a real filesystem event: debounce, batching and the invalidation plan. With a nonzero
-	 * `changeDebounceMs` the promise settles after the batch flushes, so call it as `void emit(...)` and
-	 * advance fake timers.
-	 */
+export interface FakeFileSystemWatch {
+	/** The spy whose calls contain watched paths and options. */
+	watch: Mock<typeof fileSystem.watch>;
+	handles: FakeFileSystemWatchHandle[];
+	handle: FakeFileSystemWatchHandle;
+	/** Delivers a change or readiness failure through the registered filesystem callbacks. */
 	emit(event: string, ...args: unknown[]): Promise<void>;
 }
 
-/**
- * Replaces `chokidar.watch` with an in-memory watcher the test drives through `emit`.
- *
- * @remarks
- * Vitest restores the spy after each test.
- */
-export function installFakeChokidar({ ready = 'immediate' }: FakeChokidarOptions = {}): FakeChokidar {
-	const listeners = new Map<string, FakeChokidarListener[]>();
-	const addListener = (event: string, listener: FakeChokidarListener) => {
-		listeners.set(event, [...(listeners.get(event) ?? []), listener]);
-	};
-	const emit = async (event: string, ...args: unknown[]): Promise<void> => {
-		await Promise.all((listeners.get(event) ?? []).map((listener) => listener(...args)));
-	};
-	const handle: FakeChokidarHandle = {
-		add: vi.fn(),
-		close: vi.fn(async () => {}),
-		getWatched: vi.fn(() => ({})),
-		on: vi.fn((event, listener) => {
-			addListener(event, listener);
-			return handle;
-		}),
-		once: vi.fn((event, listener) => {
-			const onceListener: FakeChokidarListener = (...args) => {
-				listeners.set(
-					event,
-					(listeners.get(event) ?? []).filter((registered) => registered !== onceListener),
-				);
-				return listener(...args);
-			};
-			addListener(event, onceListener);
-			return handle;
-		}),
-	};
-	const watch = vi.spyOn(chokidar, 'watch').mockImplementation(() => {
-		if (ready === 'immediate') queueMicrotask(() => void emit('ready'));
-		return handle as unknown as FSWatcher;
+/** Replaces the filesystem watch API with handles the test drives through `emit`. */
+export function installFakeFileSystemWatch({
+	ready = 'immediate',
+}: FakeFileSystemWatchOptions = {}): FakeFileSystemWatch {
+	const handles: FakeFileSystemWatchHandle[] = [];
+	const watch = vi.spyOn(fileSystem, 'watch').mockImplementation((paths, options) => {
+		let resolveReady!: () => void;
+		let rejectReady!: (error: unknown) => void;
+		const watcherReady = new Promise<void>((resolve, reject) => {
+			resolveReady = resolve;
+			rejectReady = reject;
+		});
+		const handle: FakeFileSystemWatchHandle = {
+			paths: [...paths],
+			options,
+			ready: watcherReady,
+			add: vi.fn(async (additionalPaths) => {
+				handle.paths = [...handle.paths, ...additionalPaths];
+			}),
+			close: vi.fn(async () => {}),
+		};
+		readinessByHandle.set(handle, { resolve: resolveReady, reject: rejectReady });
+		handles.push(handle);
+		if (ready === 'immediate') queueMicrotask(resolveReady);
+		return handle;
 	});
-	return { watch, handle, emit };
+	const emit = async (event: string, ...args: unknown[]): Promise<void> => {
+		if (event === 'ready') {
+			for (const handle of handles) {
+				resolveHandleReady(handle);
+			}
+			return;
+		}
+		if (event === 'error') {
+			const error = args[0];
+			for (const handle of handles) {
+				handle.options.onError(error);
+				rejectHandleReady(handle, error);
+			}
+			return;
+		}
+		const change: FileChange = { type: event as FileChange['type'], path: String(args[0]) };
+		const eventPath = path.resolve(change.path);
+		await Promise.all(
+			handles
+				.filter((handle) => handle.paths.some((watchPath) => isSameOrInside(eventPath, watchPath)))
+				.map((handle) => handle.options.onChange(change)),
+		);
+	};
+	return {
+		watch,
+		handles,
+		get handle() {
+			const firstHandle = handles[0];
+			if (!firstHandle) throw new Error('Filesystem watch was not started');
+			return firstHandle;
+		},
+		emit,
+	};
 }
 
-export interface FakeChokidarSubscription extends FakeChokidar {
+export interface FakeFileSystemWatchSubscription extends FakeFileSystemWatch {
 	watcher: ProjectWatcher;
 }
 
-/**
- * Starts a `ProjectWatcher` on a fake Chokidar and resolves once its subscription is ready.
- *
- * @remarks
- * The watcher closes when the test finishes. Tests that need the startup itself, such as a late or
- * failed `ready`, call `installFakeChokidar` and `createWatcherSubscription` directly.
- */
-export async function subscribeWithFakeChokidar(
+/** Starts a ProjectWatcher with a fake filesystem watch and closes it after the test. */
+export async function subscribeWithFakeFileSystemWatch(
 	config: ProjectWatcherConfig,
-	options?: FakeChokidarOptions,
-): Promise<FakeChokidarSubscription> {
-	const fake = installFakeChokidar(options);
+	options?: FakeFileSystemWatchOptions,
+): Promise<FakeFileSystemWatchSubscription> {
+	const fake = installFakeFileSystemWatch(options);
 	const watcher = new ProjectWatcher(config);
 	onTestFinished(() => watcher.close());
 	await watcher.createWatcherSubscription();
 	return { ...fake, watcher };
+}
+
+const readinessByHandle = new WeakMap<
+	FakeFileSystemWatchHandle,
+	{ resolve: () => void; reject: (error: unknown) => void }
+>();
+
+function resolveHandleReady(handle: FakeFileSystemWatchHandle): void {
+	readinessByHandle.get(handle)?.resolve();
+}
+
+function rejectHandleReady(handle: FakeFileSystemWatchHandle, error: unknown): void {
+	readinessByHandle.get(handle)?.reject(error);
+}
+
+function isSameOrInside(candidate: string, root: string): boolean {
+	const relativePath = path.relative(path.resolve(root), path.resolve(candidate));
+	return relativePath === '' || (relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`));
 }

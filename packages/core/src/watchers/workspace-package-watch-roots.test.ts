@@ -51,3 +51,21 @@ test('allows projects without a manifest', () => {
 	roots.push(root);
 	expect(resolveWorkspacePackageWatchRoots(root)).toEqual([]);
 });
+
+test('follows linked package dependencies to find transitive linked roots', () => {
+	const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-transitive-')));
+	roots.push(root);
+	const app = path.join(root, 'app');
+	const ui = path.join(root, 'ui');
+	const transitive = path.join(root, 'transitive');
+	mkdirSync(path.join(app, 'node_modules'), { recursive: true });
+	mkdirSync(path.join(ui, 'node_modules'), { recursive: true });
+	mkdirSync(transitive);
+	writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['app', 'ui', 'transitive'] }));
+	writeFileSync(path.join(app, 'package.json'), JSON.stringify({ dependencies: { ui: 'workspace:*' } }));
+	writeFileSync(path.join(ui, 'package.json'), JSON.stringify({ dependencies: { transitive: 'workspace:*' } }));
+	writeFileSync(path.join(transitive, 'package.json'), JSON.stringify({ name: 'transitive' }));
+	symlinkSync(ui, path.join(app, 'node_modules/ui'), 'dir');
+	symlinkSync(transitive, path.join(ui, 'node_modules/transitive'), 'dir');
+	expect(resolveWorkspacePackageWatchRoots(app)).toEqual([ui, transitive]);
+});

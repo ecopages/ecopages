@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, it, vi } from 'vitest';
@@ -106,15 +106,13 @@ describe('server-bundle-deploy-manifest', () => {
 
 		useRuntimeHash(check);
 		assert.doesNotThrow(() => assertProductionConfigIdentity(rootDir, emittedConfigPath, { distDir: 'dist' }));
-		assert.doesNotThrow(() =>
-			assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist', isExplicitOverride: true }),
+		assert.throws(
+			() => assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist' }),
+			/Ecopages config mismatch/,
 		);
 
 		writeFileSync(configPath, 'export default { changed: true };\n', 'utf8');
-		assert.throws(
-			() => assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist', isExplicitOverride: true }),
-			/Ecopages config mismatch/,
-		);
+		assert.doesNotThrow(() => assertProductionConfigIdentity(rootDir, emittedConfigPath, { distDir: 'dist' }));
 	});
 
 	function createBuiltApp(prefix: string, distDirName = 'dist') {
@@ -149,11 +147,12 @@ describe('server-bundle-deploy-manifest', () => {
 
 		assert.deepEqual(manifest, {
 			serverEntry: SERVER_BUNDLE_FILENAME,
-			sourceConfigRelativePath: 'eco.config.ts',
 			emittedConfigModule: EMITTED_ECO_CONFIG_FILENAME,
-			configHash: manifest.configHash,
 			emittedConfigHash: manifest.emittedConfigHash,
+			buildId: manifest.buildId,
 		});
+		assert.equal(typeof manifest.buildId, 'string');
+		assert.ok(manifest.buildId.length > 0);
 		assert.deepEqual(
 			Object.values(manifest).filter((value) => path.isAbsolute(value) || value.includes(appConfig.rootDir)),
 			[],
@@ -227,6 +226,14 @@ describe('server-bundle-deploy-manifest', () => {
 			);
 		});
 
+		it('ignores a project folder whose server/manifest.json is not a production bundle', async () => {
+			const { rootDir } = createBuiltApp('eco-deploy-manifest-unrelated-', 'dist');
+			mkdirSync(path.join(rootDir, 'src', 'server'), { recursive: true });
+			writeFileSync(path.join(rootDir, 'src', 'server', 'manifest.json'), '{ "name": "app" }\n', 'utf8');
+
+			assert.equal(await resolveProductionDistDir({ cwd: rootDir }), path.join(rootDir, 'dist'));
+		});
+
 		it('finds a dot-prefixed build output', async () => {
 			const { rootDir } = createBuiltApp('eco-deploy-manifest-dot-', '.output');
 
@@ -258,15 +265,15 @@ describe('server-bundle-deploy-manifest', () => {
 
 			await assert.rejects(
 				resolveProductionDistDir({ cwd: rootDir, distDir: 'build' }),
-				/No production bundle found in build\/\.server/,
+				/No production bundle found in build\/server/,
 			);
 		});
 
 		it('explains a static-only build instead of asking for another build', async () => {
 			const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-static-'));
 			tempDirs.push(rootDir);
-			fileSystem.ensureDir(path.join(rootDir, 'dist'));
-			writeFileSync(path.join(rootDir, 'dist', 'index.html'), '<html></html>');
+			fileSystem.ensureDir(path.join(rootDir, 'dist', 'client'));
+			writeFileSync(path.join(rootDir, 'dist', 'client', 'index.html'), '<html></html>');
 
 			await assert.rejects(resolveProductionDistDir({ cwd: rootDir }), /static-only build.*ecopages preview/);
 			await assert.rejects(

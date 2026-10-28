@@ -27,7 +27,7 @@ function attachTestAppRuntime(
 		buildQueue: new BuildQueue(buildAdapter),
 		buildInputIndex: new BuildInputDependencyIndex(),
 		requestPipelineMetrics: createRequestPipelineMetricsState(),
-		pagesUnifiedGraphManifest: null,
+		productionServerModules: null,
 		routeModuleBuildCaches: new Map(),
 		serverInvalidation: new ServerInvalidationState(),
 		moduleLoader: new AppModuleLoader(appConfig as never),

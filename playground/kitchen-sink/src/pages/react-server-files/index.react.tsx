@@ -1,4 +1,5 @@
 /** @jsxImportSource react */
+import { join } from 'node:path';
 import { eco } from '@ecopages/core';
 import { buildPagesTreeSnapshot } from './tree.server';
 import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout.react';
@@ -17,9 +18,9 @@ export default eco.page<ReactServerFilesPageProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['../docs.css'],
 	},
-	staticProps: async () => {
+	staticProps: async ({ appConfig }) => {
 		return {
-			props: await buildPagesTreeSnapshot(),
+			props: await buildPagesTreeSnapshot(join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir)),
 		};
 	},
 	metadata: () => ({

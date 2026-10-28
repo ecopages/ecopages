@@ -32,7 +32,7 @@ describe('parseCliArgs', () => {
 		expect(parseCliArgs()).toMatchObject({ start: true, dev: false, build: false, preview: false });
 	});
 
-	it('recognizes a CLI start and its emitted server entrypoint', () => {
+	it('recognizes CLI start commands without inferring a launch from a server bundle path', () => {
 		process.argv = ['node', '/usr/local/bin/ecopages.js'];
 		expect(isEcopagesStartCli()).toBe(true);
 
@@ -43,7 +43,10 @@ describe('parseCliArgs', () => {
 		expect(isEcopagesStartCli()).toBe(false);
 
 		process.argv = ['node', '/app/dist/.server/app.mjs'];
-		expect(isEcopagesStartCli()).toBe(true);
+		expect(isEcopagesStartCli()).toBe(false);
+
+		process.argv = ['node', '/app/server.js'];
+		expect(isEcopagesStartCli()).toBe(false);
 
 		process.argv = ['node', '/app/app.ts'];
 		expect(isEcopagesStartCli()).toBe(false);

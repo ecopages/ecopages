@@ -10,6 +10,7 @@ import { BuildQueue } from '../../../packages/core/src/build/runtime/build-queue
 import type { BuildAdapter } from '../../../packages/core/src/build/build-adapter.ts';
 import { SERVER_MODULES_MANIFEST_FILENAME } from '../../../packages/core/src/build/server/server-modules-manifest.ts';
 import { requireAppRuntime } from '../../../packages/core/src/utils/app-runtime.ts';
+import { runWithProductionServerBundleDir } from '../../../packages/core/src/utils/server-bundle-context.ts';
 import { copyFixtureApp } from '../../../packages/core/__fixtures__/app/copy-fixture-app.ts';
 
 const ORIGIN = 'http://localhost:3000';
@@ -47,9 +48,11 @@ function runCliBuild(appDir: string): ReturnType<typeof spawnSync> {
 
 async function createProductionStartApp(appConfig: EcoPagesAppConfig, appDir: string) {
 	const previousArgv = process.argv;
-	process.argv = [process.execPath, path.join(appDir, 'dist/.server/app.mjs')];
 	try {
-		return await createApp({ appConfig });
+		process.argv = [process.execPath, path.join(appDir, 'server.js')];
+		return await runWithProductionServerBundleDir(path.join(appDir, 'dist/.server'), () =>
+			createApp({ appConfig }),
+		);
 	} finally {
 		process.argv = previousArgv;
 	}

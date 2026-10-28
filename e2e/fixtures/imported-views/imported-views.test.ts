@@ -9,7 +9,11 @@ import { createViewReference } from '@ecopages/core/view-reference';
 import type { ErrorPageTemplateProps } from '@ecopages/core';
 import { BuildQueue } from '../../../packages/core/src/build/runtime/build-queue.ts';
 import type { BuildAdapter } from '../../../packages/core/src/build/build-adapter.ts';
-import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../../../packages/core/src/utils/resolve-entry-file.ts';
+import { SERVER_BUNDLE_DIR } from '../../../packages/core/src/utils/resolve-entry-file.ts';
+import {
+	SERVER_BUNDLE_IMPLEMENTATION_FILENAME,
+	runWithProductionServerBundleDir,
+} from '../../../packages/core/src/utils/server-bundle-context.ts';
 import { SERVER_MODULES_MANIFEST_FILENAME } from '../../../packages/core/src/build/server/server-modules-manifest.ts';
 import { requireAppRuntime } from '../../../packages/core/src/utils/app-runtime.ts';
 import { copyFixtureApp } from '../../../packages/core/__fixtures__/app/copy-fixture-app.ts';
@@ -52,6 +56,12 @@ function runCliBuild(appDir: string, runtime: 'bun' | 'node'): ReturnType<typeof
 		encoding: 'utf8',
 		timeout: 180_000,
 	});
+}
+
+async function createProductionStartApp(appConfig: Awaited<ReturnType<typeof loadEcoPagesConfig>>, appDir: string) {
+	return await runWithProductionServerBundleDir(path.join(appDir, 'dist', SERVER_BUNDLE_DIR), () =>
+		createApp({ appConfig }),
+	);
 }
 
 function registerImportedViews(app: Awaited<ReturnType<typeof createApp>>, appDir: string): void {
@@ -97,14 +107,14 @@ describe('imported views in production', () => {
 			expect(Object.keys(manifest.modules)).toEqual(expect.arrayContaining([...VIEW_MODULE_KEYS]));
 
 			const serverEntry = readFileSync(
-				path.join(appDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
+				path.join(appDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_IMPLEMENTATION_FILENAME),
 				'utf8',
 			);
 			expect(serverEntry).toContain('createViewReference');
 			expect(serverEntry).not.toContain('Version 1');
 
 			const appConfig = await loadEcoPagesConfig({ configFile: path.join(appDir, 'eco.config.ts') });
-			const app = await createApp({ appConfig });
+			const app = await createProductionStartApp(appConfig, appDir);
 			registerImportedViews(app, appDir);
 
 			const runtimeState = requireAppRuntime(appConfig);

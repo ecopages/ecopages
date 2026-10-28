@@ -1,8 +1,9 @@
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
-import { loadEcoPagesConfig } from '../config/load-eco-config.ts';
+import { loadEcoPagesConfig, loadEcoPagesConfigFromServerBundle } from '../config/load-eco-config.ts';
 import type { EcoPagesUserConfig } from '../config/user-config-types.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { parseCliArgs } from '../utils/parse-cli-args.ts';
+import { getProductionServerBundleDir } from '../utils/server-bundle-context.ts';
 import { createNodeApp } from './node/create-app.ts';
 import type { EcopagesApp } from './node/create-app.ts';
 
@@ -33,7 +34,10 @@ export type EcopagesAppOptions = EcopagesAppConfigSource & {
 	serverOptions?: Record<string, unknown>;
 };
 
-async function resolveAppConfig(options: EcopagesAppOptions): Promise<EcoPagesAppConfig> {
+async function resolveAppConfig(
+	options: EcopagesAppOptions,
+	serverBundleDir: string | undefined,
+): Promise<EcoPagesAppConfig> {
 	if (options.appConfig) {
 		return options.appConfig;
 	}
@@ -42,7 +46,9 @@ async function resolveAppConfig(options: EcopagesAppOptions): Promise<EcoPagesAp
 		return await finalizeEcoPagesConfig(options.userConfig);
 	}
 
-	return await loadEcoPagesConfig({ configFile: options.configFile });
+	return serverBundleDir
+		? await loadEcoPagesConfigFromServerBundle({ configFile: options.configFile }, serverBundleDir)
+		: await loadEcoPagesConfig({ configFile: options.configFile });
 }
 
 /**
@@ -78,7 +84,8 @@ async function resolveAppConfig(options: EcopagesAppOptions): Promise<EcoPagesAp
  * ```
  */
 export async function createApp(options: EcopagesAppOptions = {}): Promise<EcopagesApp> {
-	const appConfig = await resolveAppConfig(options);
+	const serverBundleDir = getProductionServerBundleDir();
+	const appConfig = await resolveAppConfig(options, serverBundleDir);
 	const cliArgs = parseCliArgs();
-	return createNodeApp({ appConfig, serverOptions: options.serverOptions, cliArgs });
+	return createNodeApp({ appConfig, serverOptions: options.serverOptions, cliArgs, serverBundleDir });
 }

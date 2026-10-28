@@ -21,6 +21,10 @@ import {
 } from '../../../build/server-bundle-deploy-manifest.ts';
 import { bundleEcoConfigModule, EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
+import {
+	createServerBundleLoaderSource,
+	SERVER_BUNDLE_IMPLEMENTATION_FILENAME,
+} from '../../../utils/server-bundle-context.ts';
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type { ErrorPageLoaders, StaticRoute } from '../../../types/contracts.ts';
@@ -176,8 +180,9 @@ export class ServerStaticBuilder {
 	 * TypeScript packages such as Core. Compiled packages from `node_modules`
 	 * stay external (bare when the app declares them, otherwise relative to
 	 * `dist/.server/`), so native bindings load from the installed tree. The
-	 * entry is written to a staging directory, then published. Production
-	 * `import.meta` points at the emitted files in `dist/.server/`.
+	 * application bundle is written as `app.bundle.mjs`; `app.mjs` records the
+	 * bundle directory before importing it, including when a host wrapper loads it.
+	 * Production `import.meta` points at the emitted files in `dist/.server/`.
 	 *
 	 * Throws if the build adapter is unavailable or bundling fails.
 	 *
@@ -208,12 +213,13 @@ export class ServerStaticBuilder {
 				reportPackagesOutsideRoot: true,
 				entrypoints: [entryPath],
 				outdir: stagingDir,
-				naming: SERVER_BUNDLE_FILENAME,
+				naming: SERVER_BUNDLE_IMPLEMENTATION_FILENAME,
 				sourcemap: 'linked',
 				runtimeOutdir: serverOutdir,
 				plugins: [createImportedViewPlugin(this.appConfig, { entryPath })],
 			});
 			await buildOrThrow(this.appConfig, buildOptions, 'Failed to bundle server entry file');
+			fileSystem.write(stagedServerEntryPath, createServerBundleLoaderSource());
 
 			writeServerBundleDeployManifest(this.appConfig, stagedServerEntryPath, {
 				emittedConfigModule: configBundle ? EMITTED_ECO_CONFIG_FILENAME : undefined,

@@ -46,7 +46,7 @@ export default defineConfig({
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(appRoot, 'src/images'),
-				outputDir: path.resolve(appRoot, 'dist/images'),
+				outputDir: path.resolve(appRoot, 'dist/client/images'),
 				publicPath: '/images',
 				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 				quality: 80,
@@ -66,7 +66,7 @@ export default defineConfig({
 
 The processor name and image asset capabilities are fixed inside the plugin factory. Pass options only through `imageProcessorPlugin({ options })`.
 
-`outputDir` commonly targets a deployable path such as `dist/images`. Use a work-dir path only when processed files should stay inside `.eco` or another internal workspace.
+`outputDir` commonly targets a deployable path such as `dist/client/images`. Use a work-dir path only when processed files should stay inside `.eco` or another internal workspace.
 
 ### Configuration Options
 

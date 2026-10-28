@@ -4,7 +4,7 @@ import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { getServerBundleOutputPaths } from './server-bundle-deploy-manifest.ts';
 
 /**
- * Copies `serverFiles` globs into `dist/.server/` under each file's basename.
+ * Copies `serverFiles` globs into `dist/server/` under each file's basename.
  *
  * @remarks
  * Production `import.meta.dirname` is the emitted module directory, so declared
@@ -30,13 +30,13 @@ export async function copyDeclaredServerFiles(appConfig: EcoPagesAppConfig): Pro
 		const existing = copiedNames.get(name);
 		if (existing) {
 			throw new Error(
-				`serverFiles copy collision: "${existing}" and "${relative}" both copy to ${name} in dist/.server/. Use unique names, or move the files to public/.`,
+				`serverFiles copy collision: "${existing}" and "${relative}" both copy to ${name} in dist/server/. Use unique names, or move the files to public/.`,
 			);
 		}
 		const destination = path.join(serverOutdir, name);
 		if (fileSystem.exists(destination)) {
 			throw new Error(
-				`serverFiles copy would overwrite ${name} in dist/.server/. Use a unique basename, or move the file to public/.`,
+				`serverFiles copy would overwrite ${name} in dist/server/. Use a unique basename, or move the file to public/.`,
 			);
 		}
 		copiedNames.set(name, relative);

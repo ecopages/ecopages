@@ -39,7 +39,7 @@ router/
 
 ### `RouteRegistry`
 
-Owns the canonical set of filesystem-discovered template routes for one application. Development scans the pages directory. Production `ecopages start` loads the list `ecopages build` wrote to `dist/.server/routes.json`.
+Owns the canonical set of filesystem-discovered template routes for one application. Development scans the pages directory. Production `ecopages start` loads the list `ecopages build` wrote to `dist/server/routes.json`.
 
 File patterns determine route role and kind:
 

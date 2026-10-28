@@ -54,11 +54,11 @@ if (fileSystem.exists('file.txt')) {
 }
 
 // Ensure directory exists
-fileSystem.ensureDir('./dist/assets');
+fileSystem.ensureDir('./dist/client/assets');
 
 // Copy files and directories
 fileSystem.copyFile('src.txt', 'dest.txt');
-fileSystem.copyDir('./src', './dist');
+fileSystem.copyDir('./src', './dist/client');
 ```
 
 ## API Reference

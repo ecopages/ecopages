@@ -68,7 +68,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	 * is copied to its source-relative path. A classic script inside `srcDir` is compiled and written
 	 * under that path with a `.js` name. A file outside `srcDir` has no such path that stays inside
 	 * `dist`: an unbundled or classic script is written under a content hash, and a bundled script
-	 * is emitted in `dist/assets` under the bundler's `[name]-[hash]` name. Vendor runtimes inside
+	 * is emitted in `dist/client/assets` under the bundler's `[name]-[hash]` name. Vendor runtimes inside
 	 * `src` keep their stable names.
 	 */
 	async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
@@ -172,7 +172,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	 * @remarks
 	 * The output keeps the source path and name when the file is inside `srcDir`, with a TypeScript
 	 * extension turned into `.js`, as a copied classic `.js` does. A file outside `srcDir` is written
-	 * under a content hash in `dist/assets`. A second source file for the same output is rejected while
+	 * under a content hash in `dist/client/assets`. A second source file for the same output is rejected while
 	 * the first still exists, so a last write cannot silently win.
 	 *
 	 * @throws When the file cannot be a classic script, or another existing file is emitted to its output.

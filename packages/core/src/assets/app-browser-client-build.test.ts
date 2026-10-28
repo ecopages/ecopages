@@ -95,7 +95,7 @@ function createTestAppConfig(rootDir: string): EcoPagesAppConfig {
 			rootDir,
 			srcDir: path.join(rootDir, 'src'),
 			pagesDir: path.join(rootDir, 'pages'),
-			distDir: path.join(rootDir, 'dist'),
+			distDir: path.join(rootDir, 'dist', 'client'),
 			workDir: path.join(rootDir, '.eco'),
 		},
 	} as unknown as EcoPagesAppConfig;
@@ -233,7 +233,7 @@ test('buildAppBrowserClient bundles route entries and HTML module scripts in one
 	);
 	assertHtmlModuleScriptUrls();
 	assert.ok(build.sourceFiles.includes(path.join(rootDir, 'node_modules/html-only-package/index.js')));
-	assert.ok(build.outputPaths.includes(path.join(rootDir, 'dist/assets/shared-chunk.js')));
+	assert.ok(build.outputPaths.includes(path.join(rootDir, 'dist/client/assets/shared-chunk.js')));
 });
 
 test('buildAppBrowserClient scopes bundle options to entries with matching options', async () => {

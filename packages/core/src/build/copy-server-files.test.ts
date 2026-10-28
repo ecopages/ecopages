@@ -29,21 +29,21 @@ describe('copyDeclaredServerFiles', () => {
 		} as unknown as EcoPagesAppConfig;
 	}
 
-	it('copies declared files into dist/.server/ by basename', async () => {
+	it('copies declared files into dist/server/ by basename', async () => {
 		const appConfig = createApp(['data/*.json']);
 		mkdirSync(path.join(appConfig.rootDir, 'data'), { recursive: true });
 		writeFileSync(path.join(appConfig.rootDir, 'data/messages.json'), '{"ok":true}\n');
 
 		await copyDeclaredServerFiles(appConfig);
 
-		expect(readFileSync(path.join(appConfig.rootDir, 'dist/.server/messages.json'), 'utf8')).toBe('{"ok":true}\n');
+		expect(readFileSync(path.join(appConfig.rootDir, 'dist/server/messages.json'), 'utf8')).toBe('{"ok":true}\n');
 	});
 
-	it('rejects a declared file that would overwrite an existing dist/.server/ artifact', async () => {
+	it('rejects a declared file that would overwrite an existing dist/server/ artifact', async () => {
 		const appConfig = createApp(['data/*.mjs']);
 		mkdirSync(path.join(appConfig.rootDir, 'data'), { recursive: true });
 		writeFileSync(path.join(appConfig.rootDir, 'data/app.mjs'), 'export const fromApp = true;\n');
-		writeFileSync(path.join(appConfig.rootDir, 'dist/.server/app.mjs'), 'export const generated = true;\n');
+		writeFileSync(path.join(appConfig.rootDir, 'dist/server/app.mjs'), 'export const generated = true;\n');
 
 		await expect(copyDeclaredServerFiles(appConfig)).rejects.toThrow(/would overwrite app\.mjs/);
 	});

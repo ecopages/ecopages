@@ -9,7 +9,7 @@ import { createPreserveImportMetaPlugin } from './preserve-import-meta-transform
 function transformConfigSource(
 	code: string,
 	id = '/project/eco.config.ts',
-	runtimeDir = '/project/dist/.server',
+	runtimeDir = '/project/dist/server',
 ): string {
 	const transform = getPluginTransform(createPreserveImportMetaPlugin(runtimeDir));
 	const result = transform.transform(code, id);
@@ -54,7 +54,7 @@ describe('createPreserveImportMetaPlugin', () => {
 	it('maps rewritten import.meta expressions back to their source line', () => {
 		const filePath = '/project/eco.config.ts';
 		const source = '\nexport const root = import.meta.dirname;\n';
-		const result = getPluginTransform(createPreserveImportMetaPlugin('/project/dist/.server')).transform(
+		const result = getPluginTransform(createPreserveImportMetaPlugin('/project/dist/server')).transform(
 			source,
 			filePath,
 		) as {

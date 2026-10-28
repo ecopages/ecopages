@@ -444,7 +444,7 @@ describe('PageModuleImportService', () => {
 		mkdirSync(pagesDir, { recursive: true });
 		const filePath = join(pagesDir, 'page.tsx');
 		writeFileSync(filePath, 'export default { from: "source" };', 'utf8');
-		const serverOutdir = join(appRootDir, 'dist/.server');
+		const serverOutdir = join(appRootDir, 'dist/server');
 		mkdirSync(serverOutdir, { recursive: true });
 		writeFileSync(join(serverOutdir, 'page.mjs'), 'export default { from: "emitted" };', 'utf8');
 		writeFileSync(
@@ -472,7 +472,7 @@ describe('PageModuleImportService', () => {
 
 	it('loads a production module when identity.file still names the build machine', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const serverOutdir = join(appRootDir, 'dist/.server');
+		const serverOutdir = join(appRootDir, 'dist/server');
 		mkdirSync(serverOutdir, { recursive: true });
 		writeFileSync(
 			join(serverOutdir, 'hello.mjs'),
@@ -528,7 +528,7 @@ export default Page;
 	it('errors when a production module is missing from the map and does not compile', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const filePath = join(appRootDir, 'src/pages/missing.tsx');
-		const serverOutdir = join(appRootDir, 'dist/.server');
+		const serverOutdir = join(appRootDir, 'dist/server');
 		mkdirSync(serverOutdir, { recursive: true });
 		writeFileSync(join(serverOutdir, 'server-modules.json'), `${JSON.stringify({ modules: {} })}\n`, 'utf8');
 

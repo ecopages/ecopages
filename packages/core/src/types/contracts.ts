@@ -1703,7 +1703,7 @@ export type RouteGroupBuilder<
  * A function that dynamically imports a view module.
  * Used by `app.static()` and the HTML error-page helpers (`app.notFound()`,
  * `app.forbidden()`, `app.serverError()`, `app.errorPage()`, …). Production emit
- * reads `filePath` so the view joins `dist/.server/`. Development compiles from
+ * reads `filePath` so the view joins `dist/server/`. Development compiles from
  * source so an edit reloads it.
  */
 export type ViewLoader<P = any> = (() => Promise<{ default: EcoPageComponent<P> }>) & {

@@ -414,7 +414,7 @@ describe('launch-plan', () => {
 				writeBundle(tempDir, 'dist');
 
 				await expect(startPlan({ distDir: 'build' })).rejects.toThrow(
-					/No production bundle found in build\/\.server/,
+					/No production bundle found in build\/server/,
 				);
 			} finally {
 				fs.rmSync(tempDir, { recursive: true, force: true });
@@ -424,8 +424,8 @@ describe('launch-plan', () => {
 		it('explains a static-only build in dist instead of asking for another build', async () => {
 			const tempDir = setupBundleFixture();
 			try {
-				fs.mkdirSync(path.join(tempDir, 'dist'), { recursive: true });
-				fs.writeFileSync(path.join(tempDir, 'dist', 'index.html'), '<html></html>', 'utf8');
+				fs.mkdirSync(path.join(tempDir, 'dist', 'client'), { recursive: true });
+				fs.writeFileSync(path.join(tempDir, 'dist', 'client', 'index.html'), '<html></html>', 'utf8');
 
 				await expect(startPlan()).rejects.toThrow(/static-only build.*ecopages preview/);
 			} finally {
@@ -436,8 +436,8 @@ describe('launch-plan', () => {
 		it('explains a static-only build in the directory --dist-dir names', async () => {
 			const tempDir = setupBundleFixture();
 			try {
-				fs.mkdirSync(path.join(tempDir, 'build'), { recursive: true });
-				fs.writeFileSync(path.join(tempDir, 'build', 'index.html'), '<html></html>', 'utf8');
+				fs.mkdirSync(path.join(tempDir, 'build', 'client'), { recursive: true });
+				fs.writeFileSync(path.join(tempDir, 'build', 'client', 'index.html'), '<html></html>', 'utf8');
 
 				await expect(startPlan({ distDir: 'build' })).rejects.toThrow(
 					/build\/ holds a static-only build.*ecopages preview/,

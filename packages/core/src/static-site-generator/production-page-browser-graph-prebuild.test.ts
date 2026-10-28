@@ -495,8 +495,8 @@ test('restoreAppBrowserClientAssets rejects output files missing from dist', asy
 	const appConfig = await createAppConfig();
 
 	assert.throws(
-		() => restoreAppBrowserClientAssets(appConfig, [{ kind: 'script', filepath: 'dist/assets/missing.js' }]),
-		/missing output dist\/assets\/missing\.js/,
+		() => restoreAppBrowserClientAssets(appConfig, [{ kind: 'script', filepath: 'dist/client/assets/missing.js' }]),
+		/missing output dist\/client\/assets\/missing\.js/,
 	);
 });
 
@@ -518,11 +518,11 @@ test('the app browser manifest records and validates shared build outputs', asyn
 	await writeAppBrowserClientManifest(appConfig, [], [], { sourceFiles: [], outputPaths: [sharedChunk] });
 
 	const manifest = readAppBrowserClientManifest(appConfig);
-	assert.deepEqual(manifest?.browserOutputPaths, ['dist/assets/shared-chunk.js']);
+	assert.deepEqual(manifest?.browserOutputPaths, ['dist/client/assets/shared-chunk.js']);
 	rmSync(sharedChunk);
 
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 	await expect(
 		prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, { getPageRenderer: () => null as never }),
-	).rejects.toThrow(/missing output dist\/assets\/shared-chunk\.js/);
+	).rejects.toThrow(/missing output dist\/client\/assets\/shared-chunk\.js/);
 });

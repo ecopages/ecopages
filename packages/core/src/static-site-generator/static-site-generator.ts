@@ -20,6 +20,7 @@ import type {
 } from '../route-renderer/route-renderer.ts';
 import type { PathExpansion, StaticGenerationRoute, TemplateRoute } from '../router/server/route-registry.ts';
 import { fileSystem } from '@ecopages/file-system';
+import { CLIENT_OUTPUT_DIR } from '../utils/resolve-entry-file.ts';
 import {
 	prepareExplicitStaticRender,
 	resolveExplicitViewRenderer,
@@ -149,7 +150,10 @@ export class StaticSiteGenerator {
 	}
 
 	private getExportDir(): string {
-		return this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
+		return (
+			this.appConfig.absolutePaths?.distDir ??
+			path.join(this.appConfig.rootDir, this.appConfig.distDir, CLIENT_OUTPUT_DIR)
+		);
 	}
 
 	private async shouldSkipStaticPageFile(

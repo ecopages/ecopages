@@ -38,7 +38,7 @@ export default defineConfig({
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(appRoot, 'src/images'),
-				outputDir: path.resolve(appRoot, 'dist/images'),
+				outputDir: path.resolve(appRoot, 'dist/client/images'),
 				publicPath: '/images',
 				acceptedFormats: ['jpg', 'jpeg', 'png', 'avif', 'webp', 'gif'],
 				quality: 80,

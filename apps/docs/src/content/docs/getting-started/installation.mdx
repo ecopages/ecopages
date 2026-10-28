@@ -131,9 +131,9 @@ Add the following scripts to your `package.json`:
 Now you can use these commands:
 
 - `pnpm run dev` (or `bun run dev`): Starts the development server. You can override the host, port, base URL, and runtime with CLI flags or environment variables.
-- `pnpm run build` (or `bun run build`): Builds your project for production into the `dist` directory.
-- `pnpm run start` (or `bun run start`): Starts the production server from the existing `dist` build output. It needs a server bundle, which only apps with API handlers, WebSocket handlers or endpoint files build; serve a static-only app with `preview` instead.
-- `pnpm run preview` (or `bun run preview`): Rebuilds `dist` and then serves that production output locally for verification.
+- `pnpm run build` (or `bun run build`): Builds your project into `dist/client/` and, when needed, `dist/server/`.
+- `pnpm run start` (or `bun run start`): Starts the production server from `dist/server/`. It needs a server bundle, which only apps with API handlers, WebSocket handlers or endpoint files build; serve a static-only app with `preview` instead.
+- `pnpm run preview` (or `bun run preview`): Rebuilds the output and serves `dist/client/` locally for verification.
 
 ## Next Steps
 

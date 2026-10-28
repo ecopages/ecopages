@@ -113,7 +113,7 @@ export type BrowserBuildRequestInput = Partial<BuildOptions> & {
  * also gets {@link createPreserveImportMetaPlugin} for `runtimeOutdir` (or
  * `outdir`) in development, so compiled modules in `.eco/.server-modules/`
  * keep reading files next to their sources. Production emit leaves
- * `import.meta` pointing at the files in `dist/.server/`.
+ * `import.meta` pointing at the files in `dist/server/`.
  */
 export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: ServerBuildRequestInput): BuildOptions {
 	const importMetaDir = input.runtimeOutdir ?? input.outdir;

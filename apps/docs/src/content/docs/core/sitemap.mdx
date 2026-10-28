@@ -16,9 +16,9 @@ Sitemap generation is **opt in** and **disabled by default**. Enable it when you
 	<RuiAlertTitle>Production / static export only</RuiAlertTitle>
 	<RuiAlertDescription>
 		<p>
-			Ecopages writes <code>sitemap.xml</code> during <code>ecopages build</code> (into <code>dist/</code>).{' '}
+			Ecopages writes <code>sitemap.xml</code> during <code>ecopages build</code> (into <code>dist/client/</code>).{' '}
 			<code>ecopages dev</code> does not generate or serve it. To inspect the file locally, build and use{' '}
-			<code>ecopages preview</code>, or open <code>dist/sitemap.xml</code>.
+			<code>ecopages preview</code>, or open <code>dist/client/sitemap.xml</code>.
 		</p>
 	</RuiAlertDescription>
 </RuiAlert>
@@ -44,7 +44,7 @@ export default defineConfig({
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `enabled` | `false` | Write a sitemap file during static export |
-| `fileName` | `sitemap.xml` | Output file name inside `dist/` |
+| `fileName` | `sitemap.xml` | Output file name inside `dist/client/` |
 | `exclude` | `[]` | Pathname patterns to omit after eligibility checks |
 | `extraUrls` | `[]` | Additional URLs to append (feeds, manifests, integration artifacts) |
 
@@ -157,11 +157,11 @@ The generator does **not** emit `lastmod`, `changefreq`, or `priority`, and does
 
 ## Verify the output
 
-After `ecopages build`, inspect `dist/sitemap.xml` or run `ecopages preview`. `ecopages dev` does not generate or serve `/sitemap.xml` (the path 404s).
+After `ecopages build`, inspect `dist/client/sitemap.xml` or run `ecopages preview`. `ecopages dev` does not generate or serve `/sitemap.xml` (the path 404s).
 
 ```bash
 ECOPAGES_BASE_URL=https://example.com pnpm run build
-grep -o '<loc>[^<]*</loc>' dist/sitemap.xml
+grep -o '<loc>[^<]*</loc>' dist/client/sitemap.xml
 ```
 
 Confirm production `robots.txt` references the sitemap if you want crawlers to discover it automatically — Ecopages does not add a `Sitemap:` directive for you.

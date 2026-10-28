@@ -180,7 +180,7 @@ order: 1
 			.relative(rootDir, path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.server.ts'))
 			.split(path.sep)
 			.join('/');
-		const outdir = path.join(rootDir, 'dist', '.server');
+		const outdir = path.join(rootDir, 'dist', 'server');
 		const entriesOutput = 'docs-entries.mjs';
 		const serverOutput = 'docs-server.mjs';
 		requireAppRuntime(appConfig).productionServerModules = {
@@ -213,7 +213,7 @@ order: 1
 		});
 		plugin.setContext(appConfig);
 		requireAppRuntime(appConfig).productionServerModules = {
-			outdir: path.join(rootDir, 'dist', '.server'),
+			outdir: path.join(rootDir, 'dist', 'server'),
 			modules: {},
 		};
 

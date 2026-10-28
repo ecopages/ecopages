@@ -91,7 +91,7 @@ describe('EcopagesApp route registration', () => {
 			},
 			undefined,
 			cliArgs,
-			'/app/dist/.server',
+			'/app/dist/server',
 		);
 		try {
 			await app.fetch(new Request('http://localhost:3000/'));
@@ -103,7 +103,7 @@ describe('EcopagesApp route registration', () => {
 
 	it('does not infer a production bundle from a similarly named process entrypoint', async () => {
 		const originalArgv = process.argv;
-		process.argv = ['node', '/app/dist/.server/app.mjs', '--preview'];
+		process.argv = ['node', '/app/dist/server/app.mjs', '--preview'];
 		let receivedParams: NodeServerAdapterParams | undefined;
 		const { app } = createTestApp(async (params) => {
 			receivedParams = params;

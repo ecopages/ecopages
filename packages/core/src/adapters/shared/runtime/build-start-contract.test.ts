@@ -80,8 +80,8 @@ describe('build → start contract', () => {
 
 		const { serverEntryPath, manifestPath } = getServerBundleOutputPaths(appConfig);
 
-		assert.equal(fileSystem.exists(serverEntryPath), true, 'expected dist/.server/app.mjs');
-		assert.equal(fileSystem.exists(manifestPath), true, 'expected dist/.server/manifest.json');
+		assert.equal(fileSystem.exists(serverEntryPath), true, 'expected dist/server/app.mjs');
+		assert.equal(fileSystem.exists(manifestPath), true, 'expected dist/server/manifest.json');
 
 		const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, string>;
 		assert.equal(manifest.serverEntry, SERVER_BUNDLE_FILENAME);
@@ -162,7 +162,7 @@ describe('build → start contract', () => {
 		});
 
 		const { serverEntryPath, serverOutdir } = getServerBundleOutputPaths(appConfig);
-		assert.equal(serverOutdir, path.join(rootDir, 'build', '.server'));
+		assert.equal(serverOutdir, path.join(rootDir, 'build', 'server'));
 		assert.equal(resolveProductionServerEntry(rootDir, 'build'), serverEntryPath);
 		assert.equal(resolveProductionServerEntry(rootDir, 'dist'), undefined);
 		assert.equal(
@@ -185,9 +185,13 @@ describe('build → start contract', () => {
 		writeFileSync(path.join(rootDir, 'app.ts'), 'export const ready = true;\n', 'utf8');
 
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, distDir: 'dist', workDir: '.eco' });
+		fileSystem.ensureDir(appConfig.absolutePaths.publicDir);
+		writeFileSync(path.join(appConfig.absolutePaths.publicDir, 'public.txt'), 'public');
 
 		const staticSiteGenerator = {
-			run: async () => {},
+			run: async () => {
+				writeFileSync(path.join(appConfig.absolutePaths.distDir, 'index.html'), '<html></html>');
+			},
 		} as unknown as StaticSiteGenerator;
 
 		const builder = new ServerStaticBuilder({
@@ -206,8 +210,12 @@ describe('build → start contract', () => {
 
 		const { serverEntryPath, manifestPath } = getServerBundleOutputPaths(appConfig);
 
-		assert.equal(fileSystem.exists(serverEntryPath), false, 'should not produce dist/.server/app.mjs');
-		assert.equal(fileSystem.exists(manifestPath), false, 'should not produce dist/.server/manifest.json');
+		assert.equal(fileSystem.exists(serverEntryPath), false, 'should not produce dist/server/app.mjs');
+		assert.equal(fileSystem.exists(manifestPath), false, 'should not produce dist/server/manifest.json');
+		assert.equal(fileSystem.exists(path.join(rootDir, 'dist', 'client', 'index.html')), true);
+		assert.equal(fileSystem.exists(path.join(rootDir, 'dist', 'client', 'public.txt')), true);
+		assert.equal(fileSystem.exists(path.join(rootDir, 'dist', 'index.html')), false);
+		assert.equal(fileSystem.exists(path.join(rootDir, 'dist', 'client', 'server')), false);
 
 		const resolvedEntry = resolveProductionServerEntry(rootDir, 'dist');
 		assert.equal(resolvedEntry, undefined);
@@ -258,7 +266,7 @@ describe('build → start contract', () => {
 		assert.equal(
 			configObj.rootDir,
 			realpathSync(serverOutdir),
-			'production import.meta.dirname is dist/.server, not the source root',
+			'production import.meta.dirname is dist/server, not the source root',
 		);
 
 		const loaded = await loadEcoPagesConfig({ configFile: emittedConfigPath, cwd: rootDir });
@@ -302,7 +310,7 @@ describe('build → start contract', () => {
 			importServerModule: async () => ({}),
 		});
 
-		const expectedEmittedConfig = path.join(rootDir, 'dist', '.server', EMITTED_ECO_CONFIG_FILENAME);
+		const expectedEmittedConfig = path.join(rootDir, 'dist', 'server', EMITTED_ECO_CONFIG_FILENAME);
 		const emittedConfigSource = readFileSync(expectedEmittedConfig, 'utf8');
 
 		assert.throws(() => {

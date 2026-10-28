@@ -4,6 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { PageParams } from '../types/contracts.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { ensureProductionBuildId } from '../build/production-build-id.ts';
+import { getServerBundleOutputPaths } from '../build/server-bundle-deploy-manifest.ts';
 import {
 	collectHtmlPageModuleScriptBuildInputs,
 	getPrebuiltHtmlPageModuleScriptUrls,
@@ -57,7 +58,7 @@ export type AppBrowserClientManifest = {
 };
 
 function getManifestPath(appConfig: EcoPagesAppConfig): string {
-	return path.join(appConfig.absolutePaths.distDir, '.server', APP_BROWSER_CLIENT_MANIFEST_FILENAME);
+	return path.join(getServerBundleOutputPaths(appConfig).serverOutdir, APP_BROWSER_CLIENT_MANIFEST_FILENAME);
 }
 
 function toProjectPath(rootDir: string, filePath: string): string {

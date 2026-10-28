@@ -254,7 +254,7 @@ async function expectDeployServes(cwd: string, command: string, args: string[]):
  * manifest holds no absolute path, and `ecopages start` finds the server
  * entry through it in the new root. The deploy is `dist/` and
  * `node_modules/` only; the server loads the emitted config from
- * `dist/.server/`.
+ * `dist/server/`.
  * `VITEST` is cleared for the build because the `ecopages` CLI does not run
  * its command while it is set.
  */
@@ -278,11 +278,11 @@ test(
 			timeout: 90_000,
 		});
 
-		const serverOutput = readServerOutput(path.join(buildDir, 'dist/.server'));
+		const serverOutput = readServerOutput(path.join(buildDir, 'dist/server'));
 		expect(serverOutput).not.toContain('file://');
 		expect(serverOutput).not.toContain(buildDir);
 		const deployManifest = JSON.parse(
-			readFileSync(path.join(buildDir, 'dist/.server/manifest.json'), 'utf8'),
+			readFileSync(path.join(buildDir, 'dist/server/manifest.json'), 'utf8'),
 		) as Record<string, string>;
 		expect(Object.values(deployManifest).filter((value) => path.isAbsolute(value))).toEqual([]);
 		expect(JSON.stringify(deployManifest)).not.toContain(buildDir);
@@ -294,7 +294,7 @@ test(
 		rmSync(path.join(workDir, 'build'), { recursive: true, force: true });
 
 		for (const launch of [
-			{ command: process.execPath, args: ['dist/.server/app.mjs'] },
+			{ command: process.execPath, args: ['dist/server/app.mjs'] },
 			{ command: process.execPath, args: [cliPath, 'start', '--runtime', 'node'] },
 		]) {
 			await expectDeployServes(deployDir, launch.command, launch.args);

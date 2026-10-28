@@ -49,7 +49,7 @@ describe('resolveEcoConfigPath', () => {
 	});
 
 	it('ignores the emitted config of an unnamed output directory', () => {
-		const emittedPath = path.join(tempDir, 'dist', '.server', 'eco.config.mjs');
+		const emittedPath = path.join(tempDir, 'dist', 'server', 'eco.config.mjs');
 		fs.mkdirSync(path.dirname(emittedPath), { recursive: true });
 		fs.writeFileSync(emittedPath, 'export default {}');
 
@@ -58,7 +58,7 @@ describe('resolveEcoConfigPath', () => {
 
 	it('prefers the emitted config for production startup', () => {
 		const sourcePath = path.join(tempDir, 'eco.config.ts');
-		const emittedPath = path.join(tempDir, 'dist', '.server', 'eco.config.mjs');
+		const emittedPath = path.join(tempDir, 'dist', 'server', 'eco.config.mjs');
 		fs.mkdirSync(path.dirname(emittedPath), { recursive: true });
 		fs.writeFileSync(sourcePath, 'export default {}');
 		fs.writeFileSync(emittedPath, 'export default {}');
@@ -73,7 +73,7 @@ describe('resolveEcoConfigPath', () => {
 
 		beforeEach(() => {
 			sourcePath = path.join(tempDir, 'eco.config.ts');
-			emittedPath = path.join(tempDir, 'dist', '.server', 'eco.config.mjs');
+			emittedPath = path.join(tempDir, 'dist', 'server', 'eco.config.mjs');
 			fs.mkdirSync(path.dirname(emittedPath), { recursive: true });
 			fs.writeFileSync(sourcePath, 'export default {}');
 			fs.writeFileSync(emittedPath, 'export default {}');
@@ -252,7 +252,7 @@ describe('loadEcoPagesConfig', () => {
 	});
 
 	it('defaults omitted rootDir from cwd when loading an emitted config', async () => {
-		const configDir = path.join(tempDir, 'dist', '.server');
+		const configDir = path.join(tempDir, 'dist', 'server');
 		const configPath = path.join(configDir, 'eco.config.mjs');
 		fs.mkdirSync(configDir, { recursive: true });
 		fs.writeFileSync(configPath, 'export default {};\n');
@@ -262,7 +262,7 @@ describe('loadEcoPagesConfig', () => {
 	});
 
 	it('loads an emitted config against the directory that contains dist/ even when cwd differs', async () => {
-		const configDir = path.join(tempDir, 'dist', '.server');
+		const configDir = path.join(tempDir, 'dist', 'server');
 		const configPath = path.join(configDir, 'eco.config.mjs');
 		const otherCwd = path.join(tempDir, 'elsewhere');
 		fs.mkdirSync(configDir, { recursive: true });
@@ -274,7 +274,7 @@ describe('loadEcoPagesConfig', () => {
 	});
 
 	it('loads an emitted config when distDir is nested and cwd differs', async () => {
-		const configDir = path.join(tempDir, 'build', 'web', '.server');
+		const configDir = path.join(tempDir, 'build', 'web', 'server');
 		const configPath = path.join(configDir, 'eco.config.mjs');
 		const otherCwd = path.join(tempDir, 'elsewhere');
 		fs.mkdirSync(configDir, { recursive: true });
@@ -290,7 +290,7 @@ describe('loadEcoPagesConfig', () => {
 	});
 
 	it('loads an emitted config when distDir is a dotted relative nested path and cwd differs', async () => {
-		const configDir = path.join(tempDir, 'build', 'web', '.server');
+		const configDir = path.join(tempDir, 'build', 'web', 'server');
 		const configPath = path.join(configDir, 'eco.config.mjs');
 		const otherCwd = path.join(tempDir, 'elsewhere');
 		fs.mkdirSync(configDir, { recursive: true });

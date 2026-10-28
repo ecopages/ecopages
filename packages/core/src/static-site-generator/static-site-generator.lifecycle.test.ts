@@ -10,7 +10,7 @@ vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) =>
 	const actual = await importOriginal<typeof import('../build/cache/pages-unified-graph-build.ts')>();
 	return {
 		...actual,
-		emitProductionServerModules: vi.fn(async () => ({ outdir: '/test/project/dist/.server', modules: {} })),
+		emitProductionServerModules: vi.fn(async () => ({ outdir: '/test/project/dist/server', modules: {} })),
 		shouldBuildPagesUnifiedGraph: vi.fn(() => true),
 	};
 });

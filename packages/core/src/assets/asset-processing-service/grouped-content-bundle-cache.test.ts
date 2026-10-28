@@ -10,7 +10,7 @@ import type { ContentScriptAsset } from './assets.types.ts';
 const createConfig = (): EcoPagesAppConfig =>
 	({
 		absolutePaths: {
-			distDir: '/test/dist',
+			distDir: '/test/dist/client',
 		},
 		appRuntime: {
 			buildInputIndex: new BuildInputDependencyIndex(),
@@ -39,7 +39,7 @@ test('AssetProcessingService caches grouped outputs as a complete dependency set
 	const processGroupedMock = vi.fn(async (deps: { groupedBundle?: ContentScriptAsset['groupedBundle'] }[]) => {
 		buildNumber += 1;
 		return deps.map((dep) => ({
-			filepath: `/test/dist/assets/${dep.groupedBundle?.entryName}-build-${buildNumber}.js`,
+			filepath: `/test/dist/client/assets/${dep.groupedBundle?.entryName}-build-${buildNumber}.js`,
 			kind: 'script' as const,
 			inline: false,
 			groupedBundle: dep.groupedBundle,
@@ -64,8 +64,8 @@ test('AssetProcessingService caches grouped outputs as a complete dependency set
 
 	expect(processGroupedMock).toHaveBeenCalledTimes(3);
 	expect(pageAResults.map((asset) => asset.filepath)).toEqual([
-		'/test/dist/assets/island-one-build-3.js',
-		'/test/dist/assets/island-two-build-3.js',
+		'/test/dist/client/assets/island-one-build-3.js',
+		'/test/dist/client/assets/island-two-build-3.js',
 	]);
 	expect(cachedPageAResults.map((asset) => asset.filepath)).toEqual(pageAResults.map((asset) => asset.filepath));
 });
@@ -77,7 +77,7 @@ test('AssetProcessingService invalidates a grouped cache when a bundled input ch
 	const processGroupedMock = vi.fn(async (deps: { groupedBundle?: ContentScriptAsset['groupedBundle'] }[]) => {
 		buildNumber += 1;
 		return deps.map((dep) => ({
-			filepath: `/test/dist/assets/${dep.groupedBundle?.entryName}-build-${buildNumber}.js`,
+			filepath: `/test/dist/client/assets/${dep.groupedBundle?.entryName}-build-${buildNumber}.js`,
 			kind: 'script' as const,
 			inline: false,
 			groupedBundle: dep.groupedBundle,
@@ -107,7 +107,7 @@ test('AssetProcessingService invalidates a grouped cache when a bundled input ch
 
 	expect(processGroupedMock).toHaveBeenCalledTimes(2);
 	expect(results.map((asset) => asset.filepath)).toEqual([
-		'/test/dist/assets/island-one-build-2.js',
-		'/test/dist/assets/island-two-build-2.js',
+		'/test/dist/client/assets/island-one-build-2.js',
+		'/test/dist/client/assets/island-two-build-2.js',
 	]);
 });

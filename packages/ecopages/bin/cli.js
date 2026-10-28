@@ -390,7 +390,7 @@ const SERVER_COMMANDS = {
 		optionOverrides: { nodeEnv: 'production' },
 	},
 	preview: {
-		description: 'Build the project for production, then serve dist locally to preview it.',
+		description: 'Build the project for production, then serve dist/client locally to preview it.',
 		entryArgs: ['--preview'],
 		optionOverrides: { nodeEnv: 'production' },
 	},

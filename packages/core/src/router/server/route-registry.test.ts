@@ -743,7 +743,7 @@ describe('RouteRegistry', () => {
 		});
 	});
 
-	test('loads production filesystem routes from dist/.server/routes.json', async () => {
+	test('loads production filesystem routes from dist/server/routes.json', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-list-'));
 		try {
@@ -776,7 +776,7 @@ describe('RouteRegistry', () => {
 		}
 	});
 
-	test('scans the pages directory in development even when dist/.server/routes.json exists', async () => {
+	test('scans the pages directory in development even when dist/server/routes.json exists', async () => {
 		const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-scan-'));
 		try {
 			const pagesDir = path.join(rootDir, 'src/pages');

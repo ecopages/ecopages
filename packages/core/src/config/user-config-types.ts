@@ -46,7 +46,7 @@ export type EcoPagesUserConfig = {
 	srcDir?: string;
 
 	/**
-	 * Directory for static public assets copied directly to `distDir`, relative to `rootDir`.
+	 * Directory for static public assets copied into `<distDir>/client`, relative to `rootDir`.
 	 *
 	 * @default 'public'
 	 */
@@ -74,7 +74,7 @@ export type EcoPagesUserConfig = {
 	layoutsDir?: string;
 
 	/**
-	 * Output directory for the production build, relative to `rootDir`.
+	 * Output root for the production build, relative to `rootDir`. Public files are written to `client/` and private server output to `server/` beneath it.
 	 *
 	 * @default 'dist'
 	 */
@@ -112,7 +112,7 @@ export type EcoPagesUserConfig = {
 	additionalWatchPaths?: string[];
 
 	/**
-	 * Globs, relative to `rootDir`, of files copied into `dist/.server/` by
+	 * Globs, relative to `rootDir`, of files copied into `dist/server/` by
 	 * basename so production code can read them next to `import.meta`. Two
 	 * matches that share a basename fail the build. Prefer `public/` for static
 	 * files the browser should fetch.

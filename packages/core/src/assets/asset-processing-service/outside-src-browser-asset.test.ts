@@ -21,7 +21,7 @@ afterEach(() => {
 function createApp(workspace: string): { config: EcoPagesAppConfig; srcDir: string; distDir: string } {
 	const rootDir = path.join(workspace, 'apps', 'web');
 	const srcDir = path.join(rootDir, 'src');
-	const distDir = path.join(rootDir, 'dist');
+	const distDir = path.join(rootDir, 'dist', 'client');
 	mkdirSync(srcDir, { recursive: true });
 	const config = {
 		rootDir,

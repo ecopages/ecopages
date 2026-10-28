@@ -233,10 +233,10 @@ async function smokeTemplate(templateId: string, workDir: string, tarballs: Map<
 		['every repository package comes from a tarball', () => assertInstalledFromTarballs(projectDir, tarballs)],
 		['ecopages build', () => void run('npx', ['--no-install', 'ecopages', 'build'], projectDir)],
 		[
-			'dist/index.html exists',
+			'dist/client/index.html exists',
 			() => {
-				if (!existsSync(path.join(projectDir, 'dist/index.html')))
-					throw new Error('dist/index.html is missing');
+				if (!existsSync(path.join(projectDir, 'dist/client/index.html')))
+					throw new Error('dist/client/index.html is missing');
 			},
 		],
 	];

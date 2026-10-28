@@ -12,13 +12,13 @@ import type { ProjectWatcher } from '../../../watchers/project-watcher.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 
 /**
- * Copies source `public/` into dist and ensures the resolved assets directory exists.
+ * Copies source `public/` into the client output and ensures the resolved assets directory exists.
  */
 export function prepareRuntimePublicDir(appConfig: EcoPagesAppConfig): void {
 	const srcPublicDir = path.join(appConfig.rootDir, appConfig.srcDir, appConfig.publicDir);
 
 	if (fileSystem.exists(srcPublicDir)) {
-		copyRuntimePublicDirIfChanged(srcPublicDir, path.join(appConfig.rootDir, appConfig.distDir));
+		copyRuntimePublicDirIfChanged(srcPublicDir, appConfig.absolutePaths.distDir);
 	}
 
 	fileSystem.ensureDir(path.join(appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));

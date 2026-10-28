@@ -515,7 +515,10 @@ export class ProjectWatcher {
 		}
 
 		const ignoreProjectPath = createProjectWatcherIgnorePredicate(
-			this.appConfig.absolutePaths,
+			{
+				...this.appConfig.absolutePaths,
+				distDir: path.resolve(this.appConfig.rootDir, this.appConfig.distDir),
+			},
 			this.workspacePackageRoots,
 		);
 		const watchOptions: WatchOptions = {

@@ -8,7 +8,6 @@ import {
 	isHashedBrowserAsset,
 } from '../../../assets/hashed-browser-asset.ts';
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
-import { SERVER_BUNDLE_DIR } from '../../../utils/resolve-entry-file.ts';
 
 export type ServeDistFileOptions = {
 	distDir: string;
@@ -43,7 +42,13 @@ export async function serveDistFile(request: Request, options: ServeDistFileOpti
 
 	const candidate = findDistFile(target, options, distDir);
 	const response = candidate
-		? await createDistFileResponse(candidate, ServerUtils.getContentType(candidate), request, options.watchMode)
+		? await createDistFileResponse(
+				candidate,
+				ServerUtils.getContentType(candidate),
+				request,
+				options.watchMode,
+				distDir,
+			)
 		: null;
 	if (!response) {
 		return await createNotFoundResponse(request, options, distDir, method);
@@ -68,29 +73,16 @@ function resolveRequestTarget(request: Request, distDir: string): RequestTarget 
 }
 
 /**
- * True when `requestedPath` lies in the private `dist/.server/` folder.
+ * Resolves a requested file only when its real path remains inside the served directory.
  *
  * @remarks
- * `requestedPath` is already decoded and resolved, so encoded dots and dot segments
- * are covered. Both separators count and the name compares case-insensitively, so a
- * decoded backslash or a case-insensitive filesystem cannot reach the folder.
+ * This keeps an in-root symbolic link working while rejecting a link to output stored beside the client directory.
  */
-function isPrivateServerOutput(distDir: string, requestedPath: string): boolean {
-	const [firstSegment] = path
-		.relative(distDir, requestedPath)
-		.split(/[\\/]+/)
-		.filter(Boolean);
-	return firstSegment?.toLowerCase() === SERVER_BUNDLE_DIR.toLowerCase();
-}
-
 function findDistFile(
 	{ pathname, requestedPath }: RequestTarget,
 	options: ServeDistFileOptions,
 	distDir: string,
 ): string | undefined {
-	if (isPrivateServerOutput(distDir, requestedPath)) {
-		return undefined;
-	}
 	if (options.staticFilesOnly && !ServerUtils.hasKnownStaticExtension(pathname)) {
 		return undefined;
 	}
@@ -101,7 +93,8 @@ function findDistFile(
 			? requestedPath
 			: undefined;
 
-	return candidate && path.basename(candidate) !== HASHED_BROWSER_ASSET_INDEX_FILENAME ? candidate : undefined;
+	if (!candidate || path.basename(candidate) === HASHED_BROWSER_ASSET_INDEX_FILENAME) return undefined;
+	return isRealPathInside(distDir, candidate) ? candidate : undefined;
 }
 
 async function createNotFoundResponse(
@@ -130,7 +123,11 @@ function createBadRequestResponse(method: string): Response {
 
 async function createDistNotFoundResponse(request: Request, distDir: string): Promise<Response> {
 	const notFoundPath = path.join(distDir, '404.html');
-	if (fileSystem.exists(notFoundPath) && !fileSystem.isDirectory(notFoundPath)) {
+	if (
+		fileSystem.exists(notFoundPath) &&
+		!fileSystem.isDirectory(notFoundPath) &&
+		isRealPathInside(distDir, notFoundPath)
+	) {
 		const body = request.method === 'HEAD' ? null : fileSystem.readFileAsBuffer(notFoundPath);
 		return new Response(body as unknown as BodyInit | null, {
 			status: 404,
@@ -144,16 +141,25 @@ async function createDistNotFoundResponse(request: Request, distDir: string): Pr
 	});
 }
 
+function isRealPathInside(root: string, candidate: string): boolean {
+	try {
+		return isPathInside(fileSystem.realpath(root), fileSystem.realpath(candidate));
+	} catch {
+		return false;
+	}
+}
+
 async function createDistFileResponse(
 	filePath: string,
 	contentType: string,
 	request: Request,
 	watchMode: boolean,
+	distDir: string,
 ): Promise<Response | null> {
 	try {
 		const gzipPath = `${filePath}.gz`;
 		const gzipEligible = !watchMode && (contentType === 'text/javascript' || contentType === 'text/css');
-		const hasGzipVariant = gzipEligible && fileSystem.exists(gzipPath);
+		const hasGzipVariant = gzipEligible && fileSystem.exists(gzipPath) && isRealPathInside(distDir, gzipPath);
 		const useGzip = hasGzipVariant && acceptsGzip(request.headers.get('Accept-Encoding'));
 		const file = fileSystem.readFileAsBuffer(useGzip ? gzipPath : filePath);
 		const cacheHeaders = fileCacheHeaders(filePath, file, watchMode);

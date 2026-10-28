@@ -251,7 +251,7 @@ export class ServerRequestPipeline {
 		const cacheService = this.getOrCreateSharedPageCacheService();
 		const fileSystemResponseMatcher = new FileSystemResponseMatcher({
 			appConfig: this.appConfig,
-			assetPrefix: path.join(this.appConfig.rootDir, this.appConfig.distDir),
+			assetPrefix: this.appConfig.absolutePaths.distDir,
 			router: this.router,
 			routeRendererFactory: this.routeRendererFactory,
 			errorPageLoaders,

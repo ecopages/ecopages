@@ -682,7 +682,7 @@ describe('RolldownBuildAdapter', () => {
 
 	test('each server output reports its own complete list, named by the directory it runs from', async () => {
 		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
-		const staged = { outdir: path.join(workDir, 'staging'), runtimeOutdir: path.join(workDir, 'dist/.server') };
+		const staged = { outdir: path.join(workDir, 'staging'), runtimeOutdir: path.join(workDir, 'dist/server') };
 
 		await buildWithCoreImports(['oxc-parser'], {
 			...staged,
@@ -696,8 +696,8 @@ describe('RolldownBuildAdapter', () => {
 		});
 
 		expect(warn.mock.calls.map((call) => String(call[0]).split(';')[0])).toEqual([
-			'dist/.server/eco.config.mjs imports 1 package from outside the app folder (oxc-parser)',
-			'dist/.server/app.bundle.mjs imports 2 packages from outside the app folder (@ecopages/logger, oxc-parser)',
+			'dist/server/eco.config.mjs imports 1 package from outside the app folder (oxc-parser)',
+			'dist/server/app.bundle.mjs imports 2 packages from outside the app folder (@ecopages/logger, oxc-parser)',
 		]);
 	});
 

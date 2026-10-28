@@ -257,15 +257,15 @@ describe('server-bundle-deploy-manifest', () => {
 
 			await assert.rejects(
 				resolveProductionDistDir({ cwd: rootDir, distDir: 'build' }),
-				/No production bundle found in build\/\.server/,
+				/No production bundle found in build\/server/,
 			);
 		});
 
 		it('explains a static-only build instead of asking for another build', async () => {
 			const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-static-'));
 			tempDirs.push(rootDir);
-			fileSystem.ensureDir(path.join(rootDir, 'dist'));
-			writeFileSync(path.join(rootDir, 'dist', 'index.html'), '<html></html>');
+			fileSystem.ensureDir(path.join(rootDir, 'dist', 'client'));
+			writeFileSync(path.join(rootDir, 'dist', 'client', 'index.html'), '<html></html>');
 
 			await assert.rejects(resolveProductionDistDir({ cwd: rootDir }), /static-only build.*ecopages preview/);
 			await assert.rejects(

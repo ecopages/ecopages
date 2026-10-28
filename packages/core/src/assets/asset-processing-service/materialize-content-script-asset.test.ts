@@ -19,8 +19,8 @@ test('materializeContentScriptAsset copies declarative fields from the dependenc
 		attributes: { type: 'module', 'data-eco-page-bootstrap': 'react-router' },
 	};
 
-	expect(materializeContentScriptAsset(dependency, '/dist/assets/scripts/page.js')).toEqual({
-		filepath: '/dist/assets/scripts/page.js',
+	expect(materializeContentScriptAsset(dependency, '/dist/client/assets/scripts/page.js')).toEqual({
+		filepath: '/dist/client/assets/scripts/page.js',
 		kind: 'script',
 		inline: false,
 		position: 'head',
@@ -46,8 +46,8 @@ test('materializeContentScriptAsset reads bundled inline script output from the 
 		attributes: { type: 'module' },
 	};
 
-	expect(materializeContentScriptAsset(dependency, '/dist/assets/scripts/bootstrap.js')).toEqual({
-		filepath: '/dist/assets/scripts/bootstrap.js',
+	expect(materializeContentScriptAsset(dependency, '/dist/client/assets/scripts/bootstrap.js')).toEqual({
+		filepath: '/dist/client/assets/scripts/bootstrap.js',
 		kind: 'script',
 		inline: true,
 		content: 'console.log("bundled")',

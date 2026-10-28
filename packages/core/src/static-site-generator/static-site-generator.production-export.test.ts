@@ -44,7 +44,7 @@ const createMockConfig = (): EcoPagesAppConfig => {
 			exclude: [],
 		},
 		absolutePaths: {
-			distDir: '/test/project/dist',
+			distDir: '/test/project/dist/client',
 			workDir: '/test/project/.eco',
 		} as EcoPagesAppConfig['absolutePaths'],
 		loaders: new Map(),
@@ -161,11 +161,11 @@ describe('StaticSiteGenerator production export', () => {
 		]);
 		expect(writes).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ filePath: '/test/project/dist/blog/first.html' }),
-				expect.objectContaining({ filePath: '/test/project/dist/blog/second.html' }),
+				expect.objectContaining({ filePath: '/test/project/dist/client/blog/first.html' }),
+				expect.objectContaining({ filePath: '/test/project/dist/client/blog/second.html' }),
 			]),
 		);
-		const sitemap = writes.find(({ filePath }) => filePath === '/test/project/dist/sitemap.xml');
+		const sitemap = writes.find(({ filePath }) => filePath === '/test/project/dist/client/sitemap.xml');
 		expect(sitemap?.contents).toContain('<loc>https://example.com/blog/first</loc>');
 		expect(sitemap?.contents).toContain('<loc>https://example.com/blog/second</loc>');
 	});
@@ -319,7 +319,9 @@ describe('StaticSiteGenerator production export', () => {
 		expect(buildGroupedGraphBuildPlan).toHaveBeenCalledTimes(1);
 		expect(buildGroupedGraphBuildPlan.mock.calls[0]?.[0]).toEqual([{ routeFile, params: { slug: 'spring' } }]);
 		expect(writes).toEqual(
-			expect.arrayContaining([expect.objectContaining({ filePath: '/test/project/dist/archive/spring.html' })]),
+			expect.arrayContaining([
+				expect.objectContaining({ filePath: '/test/project/dist/client/archive/spring.html' }),
+			]),
 		);
 	});
 });

@@ -4,6 +4,7 @@ import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { getServerBundleOutputPaths } from '../server-bundle-deploy-manifest.ts';
+import { SERVER_BUNDLE_DIR } from '../../utils/resolve-entry-file.ts';
 
 export const SERVER_MODULES_MANIFEST_FILENAME = 'server-modules.json';
 
@@ -39,10 +40,10 @@ export function writeProductionServerModulesManifest(manifest: ProductionServerM
 }
 
 /**
- * Source keys from `dist/.server/server-modules.json`, before the app runtime exists.
+ * Source keys from `dist/server/server-modules.json`, before the app runtime exists.
  */
 export function listProductionServerModuleKeysFromDist(rootDir: string, distDir: string): string[] | undefined {
-	const payload = readProductionServerModulesFile(path.join(path.resolve(rootDir, distDir), '.server'));
+	const payload = readProductionServerModulesFile(path.join(path.resolve(rootDir, distDir), SERVER_BUNDLE_DIR));
 	return payload ? Object.keys(payload.modules) : undefined;
 }
 
@@ -65,7 +66,7 @@ function readProductionServerModulesFile(outdir: string): ServerModulesManifestF
 
 /**
  * Returns the production server-modules map for this app, loading it from
- * `dist/.server/server-modules.json` when this process has not emitted one.
+ * `dist/server/server-modules.json` when this process has not emitted one.
  */
 export function loadProductionServerModules(appConfig: EcoPagesAppConfig): ProductionServerModulesManifest | undefined {
 	const runtime = requireAppRuntime(appConfig);

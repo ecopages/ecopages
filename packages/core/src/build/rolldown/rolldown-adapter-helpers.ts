@@ -125,7 +125,7 @@ function getAppRootRequire(cache: Map<string, NodeJS.Require>, contextRoot: stri
  * packages and source (TypeScript or JSX) packages are bundled. Undeclared
  * compiled packages are handled by {@link createInstalledPackageExternalPlugin},
  * because isolated installs (pnpm, Bun's isolated linker) do not expose them
- * as bare specifiers to output directories like `.eco/` or `dist/.server/`.
+ * as bare specifiers to output directories like `.eco/` or `dist/server/`.
  */
 function isAppPackageExternal(
 	id: string,
@@ -215,7 +215,7 @@ function isInstalledCompiledModule(filePath: string): boolean {
  * A compiled package can depend on its location on disk: it loads a native
  * binding (`sharp`, `oxc-parser`), a platform package, or a sibling file
  * through `createRequire(import.meta.url)` or `__dirname`. Bundled into
- * `dist/.server/`, that lookup starts from the wrong folder and fails at
+ * `dist/server/`, that lookup starts from the wrong folder and fails at
  * runtime, and the bundle cannot tell which packages do it. So server builds
  * bundle source code only (the app, workspace packages, TypeScript or JSX
  * packages) and keep every compiled package installed in `node_modules`
@@ -223,7 +223,7 @@ function isInstalledCompiledModule(filePath: string): boolean {
  * Core itself.
  *
  * Under isolated installs (pnpm, Bun's isolated linker) a package the app does
- * not declare is not reachable as a bare specifier from `dist/.server`, so the
+ * not declare is not reachable as a bare specifier from `dist/server`, so the
  * hook resolves it through Rolldown, from the importer (or, for Core's own
  * dependencies, from Core), so the `node` and `import` conditions apply and
  * the result is a real path, and returns a `./` or `../` path that Rolldown

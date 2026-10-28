@@ -36,7 +36,7 @@ import { imageProcessorPlugin } from '@ecopages/image-processor';
 imageProcessorPlugin({
 	options: {
 		sourceDir: path.resolve(appRoot, 'src/images'),
-		outputDir: path.resolve(appRoot, 'dist/images'),
+		outputDir: path.resolve(appRoot, 'dist/client/images'),
 		publicPath: '/images',
 		quality: 80,
 		format: 'webp',

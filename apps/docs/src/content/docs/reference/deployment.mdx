@@ -73,7 +73,7 @@ Production `import.meta.url`, `import.meta.dirname` and `import.meta.filename` p
 
 Yarn Plug'n'Play installs are not supported for a server you move after building: their packages live in `.zip` archives, so the build bundles them instead of importing them from `node_modules`.
 
-In a monorepo, the packages live in the workspace root `node_modules`, outside your app folder. Build from a standalone copy of the app instead, for example the output of `pnpm deploy`. `ecopages build` warns with one line per server output file, such as `dist/server/app.mjs`, that imports packages from outside the app folder, naming the first five and counting the rest.
+In a monorepo, the packages live in the workspace root `node_modules`, outside your app folder. Build from a standalone copy of the app instead, for example the output of `pnpm deploy`. `ecopages build` warns with one line per server output file, such as `dist/server/app.bundle.mjs`, that imports packages from outside the app folder, naming the first five and counting the rest.
 
 ### 3. Docker Deployment
 

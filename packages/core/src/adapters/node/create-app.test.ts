@@ -80,9 +80,7 @@ function createTestApp(
 }
 
 describe('EcopagesApp route registration', () => {
-	it('requires a complete production dist when launched through a wrapper importing the emitted entrypoint', async () => {
-		const originalArgv = process.argv;
-		process.argv = ['node', '/app/server.js'];
+	it('requires a complete production dist when started from a production server bundle', async () => {
 		let receivedParams: NodeServerAdapterParams | undefined;
 		const { app } = createTestApp(
 			async (params) => {
@@ -93,28 +91,18 @@ describe('EcopagesApp route registration', () => {
 			cliArgs,
 			'/app/dist/server',
 		);
-		try {
-			await app.fetch(new Request('http://localhost:3000/'));
-			expect(receivedParams?.requireCompleteDist).toBe(true);
-		} finally {
-			process.argv = originalArgv;
-		}
+		await app.fetch(new Request('http://localhost:3000/'));
+		expect(receivedParams?.requireCompleteDist).toBe(true);
 	});
 
-	it('does not infer a production bundle from a similarly named process entrypoint', async () => {
-		const originalArgv = process.argv;
-		process.argv = ['node', '/app/dist/server/app.mjs', '--preview'];
+	it('leaves dist completeness unchecked without a production server bundle', async () => {
 		let receivedParams: NodeServerAdapterParams | undefined;
 		const { app } = createTestApp(async (params) => {
 			receivedParams = params;
 			return createServerAdapter();
 		});
-		try {
-			await app.fetch(new Request('http://localhost:3000/'));
-			expect(receivedParams?.requireCompleteDist).toBe(false);
-		} finally {
-			process.argv = originalArgv;
-		}
+		await app.fetch(new Request('http://localhost:3000/'));
+		expect(receivedParams?.requireCompleteDist).toBe(false);
 	});
 
 	it('forwards registered handlers, schemas, and middleware to the server adapter', async () => {

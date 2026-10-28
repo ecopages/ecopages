@@ -235,12 +235,13 @@ function spawnProductionServer(
 	appDir: string,
 	port: number,
 	entryFile = path.join(appDir, 'dist/server/app.mjs'),
+	runtime = process.execPath,
 ): {
 	child: ChildProcess;
 	output(): string;
 	closed: Promise<void>;
 } {
-	const child = spawn(process.execPath, [entryFile], {
+	const child = spawn(runtime, [entryFile], {
 		cwd: appDir,
 		env: {
 			...process.env,
@@ -282,10 +283,11 @@ async function startProductionServer(
 	appDir: string,
 	allocatePort: () => Promise<number> = reservePort,
 	entryFile?: string,
+	runtime?: string,
 ): Promise<{ child: ChildProcess; origin: string; output(): string }> {
 	for (let attempt = 0; attempt < MAX_PRODUCTION_SERVER_START_ATTEMPTS; attempt += 1) {
 		const port = await allocatePort();
-		const server = spawnProductionServer(appDir, port, entryFile);
+		const server = spawnProductionServer(appDir, port, entryFile, runtime);
 		const origin = `http://127.0.0.1:${port}`;
 		try {
 			await waitForProductionServer(origin, server);
@@ -425,6 +427,38 @@ describe('production server modules', () => {
 
 			rmSync(path.join(appDir, 'dist/server/routes.json'));
 			const incompleteServer = spawnProductionServer(appDir, await reservePort(), wrapperPath);
+			try {
+				const exitCode = await waitForProcessExit(incompleteServer.child, 15_000);
+				expect(exitCode, incompleteServer.output()).not.toBeNull();
+				expect(exitCode).not.toBe(0);
+				expect(incompleteServer.output()).toContain('production route list');
+			} finally {
+				await stopProductionServer(incompleteServer.child);
+			}
+		},
+	);
+
+	it.skipIf(spawnSync('bun', ['--version']).status !== 0)(
+		'starts the dist-only build under Bun and rejects an incomplete deployment',
+		{ timeout: 180_000 },
+		async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const appDir = copyFixtureApp(fixtureDir);
+			appDirs.push(appDir);
+
+			const built = runCliBuild(appDir);
+			expect(built.status, `${built.stdout}\n${built.stderr}`).toBe(0);
+			rmSync(path.join(appDir, 'src'), { recursive: true, force: true });
+			rmSync(path.join(appDir, 'eco.config.ts'), { force: true });
+			const server = await startProductionServer(appDir, reservePort, undefined, 'bun');
+			try {
+				await expectEveryRouteServes((url) => fetch(url), server.origin, server.output);
+			} finally {
+				await stopProductionServer(server.child);
+			}
+
+			rmSync(path.join(appDir, 'dist/server/routes.json'));
+			const incompleteServer = spawnProductionServer(appDir, await reservePort(), undefined, 'bun');
 			try {
 				const exitCode = await waitForProcessExit(incompleteServer.child, 15_000);
 				expect(exitCode, incompleteServer.output()).not.toBeNull();

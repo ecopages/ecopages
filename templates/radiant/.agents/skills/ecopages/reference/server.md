@@ -67,8 +67,7 @@ export const adminGroup = defineGroupHandler({
 	routes: (api) => [
 		api.get({
 			path: '/',
-			handler: async (ctx) =>
-				ctx.render(AdminView, { user: ctx.session.user }),
+			handler: async (ctx) => ctx.render(AdminView, { user: ctx.session.user }),
 		}),
 		api.post({
 			path: '/items',
@@ -139,7 +138,7 @@ export const GET = defineGet({
 - Two files on the same route fail at startup, whatever the parameter names.
 - A URL that ends in a static file extension (`feed.xml`, `report.json`) cannot be an endpoint file; register it as an Explicit Route in `app.ts`.
 - An Explicit Route on the same URL answers its methods first, and startup warns.
-- Dev reloads the file on save. The build emits the server bundle (`dist/.server/`) for `ecopages start`; `ecopages preview` does not serve endpoints.
+- Dev reloads the file on save. The build emits the server bundle (`dist/server/`) for `ecopages start`; `ecopages preview` does not serve endpoints.
 
 Full rules: [/docs-llm/server/endpoint-files.md](/docs-llm/server/endpoint-files.md).
 

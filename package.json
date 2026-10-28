@@ -31,7 +31,7 @@
 		"test:all": "pnpm run test:vitest && pnpm run test:e2e",
 		"test:pre-commit": "pnpm run test:vitest && pnpm run lint && pnpm run lint-staged && pnpm run typecheck && pnpm run typecheck:e2e",
 		"test:ci": "pnpm run test:ci:fast",
-		"test:ci:fast": "pnpm run check:ignored && pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run typecheck:e2e && pnpm run test:vitest",
+		"test:ci:fast": "pnpm run check:ignored && pnpm run check:templates && pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run typecheck:e2e && pnpm run test:vitest",
 		"test:vitest": "vitest run --project shared-core --project browser --project docs --project docs-starter --project llm-wiki --browser.headless",
 		"test:bench": "ECOPAGES_BENCH=1 pnpm --filter @ecopages/kitchen-sink exec tsx bench/run.mts",
 		"test:bench:baseline": "pnpm --filter @ecopages/kitchen-sink exec tsx bench/scripts/consolidate-baseline.ts",

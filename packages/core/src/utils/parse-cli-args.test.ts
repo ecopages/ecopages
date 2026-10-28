@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isEcopagesStartCli, parseCliArgs } from './parse-cli-args.ts';
+import { parseCliArgs } from './parse-cli-args.ts';
 import { isDevelopmentRuntime, isProductionRuntime } from './runtime.ts';
 
 const originalArgv = [...process.argv];
@@ -30,26 +30,6 @@ describe('parseCliArgs', () => {
 		process.argv = ['node', '/app/app.ts'];
 
 		expect(parseCliArgs()).toMatchObject({ start: true, dev: false, build: false, preview: false });
-	});
-
-	it('recognizes CLI start commands without inferring a launch from a server bundle path', () => {
-		process.argv = ['node', '/usr/local/bin/ecopages.js'];
-		expect(isEcopagesStartCli()).toBe(true);
-
-		process.argv = ['node', '/usr/local/bin/ecopages.js', 'start'];
-		expect(isEcopagesStartCli()).toBe(true);
-
-		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build'];
-		expect(isEcopagesStartCli()).toBe(false);
-
-		process.argv = ['node', '/app/dist/server/app.mjs'];
-		expect(isEcopagesStartCli()).toBe(false);
-
-		process.argv = ['node', '/app/server.js'];
-		expect(isEcopagesStartCli()).toBe(false);
-
-		process.argv = ['node', '/app/app.ts'];
-		expect(isEcopagesStartCli()).toBe(false);
 	});
 
 	it('forces production NODE_ENV for build when ambient env is development', () => {

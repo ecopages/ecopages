@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, it, vi } from 'vitest';
@@ -224,6 +224,14 @@ describe('server-bundle-deploy-manifest', () => {
 				resolveProductionDistDir({ cwd: rootDir }),
 				/Multiple production bundles found: build, dist\. Pass --dist-dir <dir> to select one\./,
 			);
+		});
+
+		it('ignores a project folder whose server/manifest.json is not a production bundle', async () => {
+			const { rootDir } = createBuiltApp('eco-deploy-manifest-unrelated-', 'dist');
+			mkdirSync(path.join(rootDir, 'src', 'server'), { recursive: true });
+			writeFileSync(path.join(rootDir, 'src', 'server', 'manifest.json'), '{ "name": "app" }\n', 'utf8');
+
+			assert.equal(await resolveProductionDistDir({ cwd: rootDir }), path.join(rootDir, 'dist'));
 		});
 
 		it('finds a dot-prefixed build output', async () => {

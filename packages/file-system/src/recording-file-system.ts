@@ -162,7 +162,15 @@ export function createRecordingFileSystem(inner: FileSystem): RecordingFileSyste
 		},
 		watch: (paths: readonly string[], options: WatchOptions): FileWatcher => {
 			for (const watchPath of paths) recordString(recorded, watchPath);
-			return inner.watch(paths, options);
+			const watcher = inner.watch(paths, options);
+			return {
+				ready: watcher.ready,
+				add: (additionalPaths) => {
+					for (const watchPath of additionalPaths) recordString(recorded, watchPath);
+					return watcher.add(additionalPaths);
+				},
+				close: () => watcher.close(),
+			};
 		},
 	};
 

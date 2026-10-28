@@ -41,8 +41,5 @@
 	"devDependencies": {
 		"@types/node": "^24.12.4",
 		"mitata": "^1.0.34"
-	},
-	"dependencies": {
-		"chokidar": "^5.0.0"
 	}
 }

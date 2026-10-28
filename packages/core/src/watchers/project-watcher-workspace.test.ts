@@ -76,13 +76,9 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 			changeDebounceMs: 0,
 		});
 		watchers.push(watcher);
-		const subscription = await watcher.createWatcherSubscription();
-		await new Promise<void>((resolve) => subscription.once('ready', resolve));
-		expect(resolveWorkspacePackageWatchRoots(config.rootDir)).toContain(packageDir);
-		await vi.waitFor(() => expect(subscription.getWatched()[path.join(packageDir, 'src')]).toContain('button.ts'), {
-			timeout: 3000,
-		});
 		const changedPath = edited === 'package' ? button : edited === 'dependency' ? dependencySource : extra;
+		await watcher.createWatcherSubscription();
+		expect(resolveWorkspacePackageWatchRoots(config.rootDir)).toContain(packageDir);
 		if (edited === 'unlink') rmSync(changedPath);
 		else
 			writeFileSync(
@@ -141,15 +137,7 @@ test('ignores installed and hidden linked-package files while app source retains
 		changeDebounceMs: 0,
 	});
 	watchers.push(watcher);
-	const subscription = await watcher.createWatcherSubscription();
-	await new Promise<void>((resolve) => subscription.once('ready', resolve));
-	await vi.waitFor(
-		() => {
-			expect(subscription.getWatched()[path.dirname(appSource)]).toContain(path.basename(appSource));
-			expect(subscription.getWatched()[path.join(linked, 'src')]).toContain('index.ts');
-		},
-		{ timeout: 3000 },
-	);
+	await watcher.createWatcherSubscription();
 	const drained = path.join(linked, 'src', 'drained.ts');
 	writeFileSync(drained, 'export const value = 1;');
 	await vi.waitFor(() => expect(restart).toHaveBeenCalledWith(drained), { timeout: 3000, interval: 1 });

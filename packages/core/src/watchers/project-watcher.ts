@@ -1,6 +1,5 @@
 import path from 'node:path';
-import chokidar, { type FSWatcher } from 'chokidar';
-import { fileSystem } from '@ecopages/file-system';
+import { fileSystem, type FileChange, type FileWatcher, type WatchOptions } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import { getEcopagesEnv } from '../env.ts';
 import { isPathInside } from '../utils/path-containment.ts';
@@ -79,7 +78,8 @@ export class ProjectWatcher {
 	private readonly entryWatcherOwnsConfig: boolean;
 	private restartRequestScheduled = false;
 	private workspacePackageRoots: string[] = [];
-	private watcher: FSWatcher | null = null;
+	private watcher: FileWatcher | null = null;
+	private readonly watchedPaths = new Set<string>();
 	private watcherReady?: Promise<void>;
 	private watcherReadyTimeout: ReturnType<typeof setTimeout> | undefined;
 	private rejectWatcherReady: ((error: Error) => void) | undefined;
@@ -161,7 +161,7 @@ export class ProjectWatcher {
 	}
 
 	/**
-	 * Serializes file change handling so that concurrent chokidar events are
+	 * Serializes file change handling so that concurrent filesystem events are
 	 * processed one at a time, preventing overlapping builds and race conditions.
 	 */
 	private enqueueChange(task: () => Promise<void>): Promise<void> {
@@ -250,7 +250,7 @@ export class ProjectWatcher {
 		}
 	}
 
-	private async waitForWatcherReady(): Promise<FSWatcher> {
+	private async waitForWatcherReady(): Promise<FileWatcher> {
 		try {
 			await this.watcherReady;
 		} catch (error) {
@@ -452,16 +452,16 @@ export class ProjectWatcher {
 	/**
 	 * @remarks
 	 * The subscription watches `srcDir` recursively alongside external recorded
-	 * inputs, restart files, workspace roots, and additional watch paths. Processor
-	 * notifications share the same file-change pipeline. `awaitWriteFinish` waits
-	 * for writes to stabilize before a file event is processed.
+	 * inputs, restart files, declared workspace package roots, and additional watch paths. Processor
+	 * notifications share the same file-change pipeline. The filesystem adapter
+	 * coalesces native events for one path across a 50 ms window.
 	 *
 	 * A glob in `additionalWatchPaths` is watched through its static base
 	 * directory, which can be the project root for `**` patterns. Files reached
 	 * only through such a base are ignored unless they match a pattern, and so
 	 * are dot-directories the pattern does not name, so a broad base does not
 	 * feed unrelated files into the change pipeline. Readiness rejects and closes
-	 * the subscription if Chokidar does not become ready within 30 seconds.
+	 * the subscription if the filesystem adapter does not become ready within 30 seconds.
 	 */
 	public async createWatcherSubscription() {
 		if (this.watcher) {
@@ -470,6 +470,8 @@ export class ProjectWatcher {
 
 		const buildInputIndex = requireAppRuntime(this.appConfig).buildInputIndex;
 		seedProcessorWatchPaths(this.appConfig, buildInputIndex);
+		this.workspacePackageRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
+		const recordedWatchPaths = buildInputIndex.recordedWatchPaths();
 		const srcDir = this.appConfig.absolutePaths.srcDir;
 		const literalPaths = new Set<string>([srcDir]);
 		const { pagesDir, componentsDir, includesDir, layoutsDir, publicDir } = this.appConfig.absolutePaths;
@@ -478,7 +480,7 @@ export class ProjectWatcher {
 				literalPaths.add(sourceDir);
 			}
 		}
-		for (const recordedPath of buildInputIndex.recordedWatchPaths()) {
+		for (const recordedPath of recordedWatchPaths) {
 			if (!isPathInside(recordedPath, srcDir)) {
 				literalPaths.add(recordedPath);
 			}
@@ -504,36 +506,44 @@ export class ProjectWatcher {
 			literalPaths.add(restartPath);
 		}
 
-		this.workspacePackageRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
 		const ignoreProjectPath = createProjectWatcherIgnorePredicate(
 			this.appConfig.absolutePaths,
 			this.workspacePackageRoots,
 		);
-		const ignored = (watchedPath: string, stats?: { isDirectory(): boolean }): boolean => {
-			if (ignoreProjectPath(watchedPath)) return true;
-			if (
-				!stats ||
-				[...literalPaths].some((literalPath) => isPathInside(watchedPath, literalPath)) ||
-				this.workspacePackageRoots.some((root) => isPathInside(watchedPath, root))
-			)
-				return false;
-			return stats.isDirectory()
-				? !globWatchPaths.some((watchPath) => mayContainAdditionalWatchMatches(watchedPath, watchPath))
-				: !globWatchPaths.some((watchPath) => matchesAdditionalWatchPath(watchedPath, watchPath));
-		};
-
-		this.watcher = chokidar.watch(
-			[...literalPaths, ...this.workspacePackageRoots, ...new Set(globWatchPaths.map(({ base }) => base))],
-			{
-				ignoreInitial: true,
-				ignorePermissionErrors: true,
-				ignored,
-				awaitWriteFinish: {
-					stabilityThreshold: 50,
-					pollInterval: 50,
-				},
+		const watchOptions: WatchOptions = {
+			ignored: (watchedPath, stats) => {
+				if (ignoreProjectPath(watchedPath)) return true;
+				if (
+					!stats ||
+					[...literalPaths].some(
+						(literalPath) =>
+							isPathInside(watchedPath, literalPath) || isPathInside(literalPath, watchedPath),
+					) ||
+					this.workspacePackageRoots.some(
+						(root) => isPathInside(watchedPath, root) || isPathInside(root, watchedPath),
+					)
+				)
+					return false;
+				return stats.isDirectory
+					? !globWatchPaths.some((watchPath) => mayContainAdditionalWatchMatches(watchedPath, watchPath))
+					: !globWatchPaths.some((watchPath) => matchesAdditionalWatchPath(watchedPath, watchPath));
 			},
-		);
+			onChange: (change) => this.handleWatchChange(change),
+			onError: (error) => {
+				this.handleError(error);
+				const processorError = error instanceof Error ? error : new Error(String(error));
+				for (const processor of this.appConfig.processors.values()) {
+					processor.getWatchConfig()?.onError?.(processorError);
+				}
+			},
+		};
+		const initialWatchPaths = [
+			...literalPaths,
+			...this.workspacePackageRoots,
+			...new Set(globWatchPaths.map(({ base }) => base)),
+		];
+		for (const watchPath of initialWatchPaths) this.watchedPaths.add(path.resolve(watchPath));
+		this.watcher = fileSystem.watch(initialWatchPaths, watchOptions);
 
 		this.watcherReady = new Promise<void>((resolve, reject) => {
 			this.rejectWatcherReady = reject;
@@ -546,16 +556,18 @@ export class ProjectWatcher {
 					),
 				);
 			}, ProjectWatcher.watcherReadyTimeoutMs);
-			this.watcher!.once('ready', () => {
-				this.clearWatcherReadyTimeout();
-				this.rejectWatcherReady = undefined;
-				resolve();
-			});
-			this.watcher!.once('error', (error) => {
-				this.clearWatcherReadyTimeout();
-				this.rejectWatcherReady = undefined;
-				reject(error);
-			});
+			this.watcher!.ready.then(
+				() => {
+					this.clearWatcherReadyTimeout();
+					this.rejectWatcherReady = undefined;
+					resolve();
+				},
+				(error) => {
+					this.clearWatcherReadyTimeout();
+					this.rejectWatcherReady = undefined;
+					reject(error);
+				},
+			);
 		});
 
 		this.unsubscribeFromRecordedWatchPaths = buildInputIndex.subscribeToWatchPaths((filePath) => {
@@ -566,32 +578,26 @@ export class ProjectWatcher {
 				return;
 			}
 			const resolvedPath = path.resolve(filePath);
-			if (
-				literalPaths.has(resolvedPath) ||
-				[...literalPaths].some((literalPath) => isPathInside(resolvedPath, literalPath))
-			) {
+			if ([...this.watchedPaths].some((watchedPath) => isPathInside(resolvedPath, watchedPath))) {
 				return;
 			}
 			literalPaths.add(resolvedPath);
-			this.watcher.add(resolvedPath);
+			this.watchedPaths.add(resolvedPath);
+			void this.watcher.add([resolvedPath]).catch(() => undefined);
 		});
 
-		this.watcher
-			.on('change', (p) => this.handleFileChange(p, 'change'))
-			.on('add', (p) => this.handleFileChange(p, 'add'))
-			.on('addDir', (p) => this.handleDirectoryChange(p))
-			.on('unlink', (p) => this.handleFileChange(p, 'unlink'))
-			.on('unlinkDir', (p) => this.handleDirectoryChange(p))
-			.on('error', (error) => this.handleError(error));
-
-		for (const processor of this.appConfig.processors.values()) {
-			const watchConfig = processor.getWatchConfig();
-			if (watchConfig?.onError) {
-				this.watcher.on('error', watchConfig.onError as (error: unknown) => void);
-			}
-		}
-
 		return this.waitForWatcherReady();
+	}
+
+	private handleWatchChange(change: FileChange): Promise<void> {
+		if (change.type === 'rescan') {
+			this.handleRuntimeRestart(change.path);
+			return Promise.resolve();
+		}
+		if (change.type === 'addDir' || change.type === 'unlinkDir') {
+			return this.handleDirectoryChange(change.path);
+		}
+		return this.handleFileChange(change.path, change.type);
 	}
 
 	/**
@@ -625,10 +631,8 @@ export class ProjectWatcher {
 			resolve();
 		}
 
-		if (this.watcher) {
-			await this.watcher.close();
-			this.watcher = null;
-		}
+		await this.watcher?.close();
+		this.watcher = null;
 
 		await this.changeQueue.catch(() => undefined);
 	}

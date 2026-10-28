@@ -4,6 +4,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { expect, test, vi } from 'vitest';
 import { NodeFileSystem } from './node.ts';
+import {
+	getRecursiveFileWatcherDiagnostics,
+	setRecursiveFileWatcherDiagnosticTarget,
+} from './recursive-file-watcher.ts';
 
 test('NodeFileSystem.glob uses native Node glob semantics with ignore support', async () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-glob-'));
@@ -37,6 +41,7 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 	fs.mkdirSync(ignoredDir, { recursive: true });
 	const existingFile = path.join(sourceDir, 'existing.ts');
 	fs.writeFileSync(existingFile, 'export const existing = 1;', 'utf8');
+	setRecursiveFileWatcherDiagnosticTarget(process.env.ECOPAGES_FS_WATCH_TRACE === '1' ? existingFile : undefined);
 	const changes: Array<{ type: string; path: string }> = [];
 	const ignoredPaths: string[] = [];
 	const watcher = fileSystem.watch([rootDir], {
@@ -87,9 +92,15 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 
 		changes.length = 0;
 		fs.rmSync(existingFile);
-		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'unlink', path: existingFile }), {
-			timeout: 5_000,
-		});
+		try {
+			await vi.waitFor(() => expect(changes).toContainEqual({ type: 'unlink', path: existingFile }), {
+				timeout: 5_000,
+			});
+		} catch (error) {
+			if (process.env.ECOPAGES_FS_WATCH_TRACE === '1')
+				process.stderr.write(`[watch-diagnostic] ${JSON.stringify(getRecursiveFileWatcherDiagnostics())}\n`);
+			throw error;
+		}
 
 		changes.length = 0;
 		fs.rmSync(nestedDir, { recursive: true });
@@ -104,6 +115,7 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 		);
 	} finally {
 		await watcher.close();
+		setRecursiveFileWatcherDiagnosticTarget(undefined);
 		fs.rmSync(testRoot, { recursive: true, force: true });
 	}
 }, 20_000);

@@ -32,6 +32,46 @@ type PendingPathChange = {
 
 const CHANGE_COALESCING_MS = 50;
 
+type WatchDiagnostic = {
+	atMs: number;
+	stage: string;
+	details: Record<string, unknown>;
+};
+
+const watchDiagnostics: WatchDiagnostic[] = [];
+let watchDiagnosticTarget: string | undefined;
+
+export function setRecursiveFileWatcherDiagnosticTarget(target: string | undefined): void {
+	watchDiagnostics.length = 0;
+	watchDiagnosticTarget = target;
+}
+
+export function getRecursiveFileWatcherDiagnostics(): readonly WatchDiagnostic[] {
+	return [...watchDiagnostics];
+}
+
+function traceWatchDiagnostic(stage: string, details: Record<string, unknown>): void {
+	const target = watchDiagnosticTarget;
+	if (!target) return;
+	const paths = Object.values(details).flatMap((value) => {
+		if (typeof value === 'string') return [value];
+		if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+		return [];
+	});
+	if (!paths.some((candidate) => isRelatedDiagnosticPath(candidate, target))) return;
+	watchDiagnostics.push({ atMs: Math.round(performance.now() * 10) / 10, stage, details });
+	if (watchDiagnostics.length > 500) watchDiagnostics.shift();
+}
+
+function isRelatedDiagnosticPath(candidate: string, target: string): boolean {
+	const resolvedCandidate = path.resolve(candidate);
+	return (
+		resolvedCandidate === target ||
+		target.startsWith(`${resolvedCandidate}${path.sep}`) ||
+		resolvedCandidate.startsWith(`${target}${path.sep}`)
+	);
+}
+
 /**
  * Watches requested filesystem paths with native directory watchers.
  *
@@ -229,6 +269,15 @@ export class RecursiveFileWatcher implements FileWatcher {
 	private openWatcher(root: WatchRoot): void {
 		if ([...this.watchers.values()].some((existingRoot) => rootKey(existingRoot) === rootKey(root))) return;
 		const watcher = watchFs(root.path, { encoding: 'utf8', recursive: root.recursive }, (eventType, filename) => {
+			const diagnosticChangedPath = filename === null ? undefined : path.resolve(root.path, filename.toString());
+			traceWatchDiagnostic('fs.watch', {
+				rootPath: root.path,
+				recursive: root.recursive,
+				eventType,
+				filename: filename?.toString() ?? null,
+				changedPath: diagnosticChangedPath,
+				indexing: this.indexing,
+			});
 			if (filename === null) {
 				if (this.indexing) {
 					this.deferRootReconcile(root, eventType === 'change', this.rootsToReconcileAfterIndex);
@@ -254,6 +303,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 
 	private scheduleRootReconcile(root: WatchRoot, notifyRescan = true): void {
 		if (this.closed) return;
+		traceWatchDiagnostic('scheduleRootReconcile', { rootPath: root.path, notifyRescan });
 		const key = rootKey(root);
 		this.pendingRootReconcileNotifications.set(
 			key,
@@ -315,7 +365,18 @@ export class RecursiveFileWatcher implements FileWatcher {
 	 */
 	private async reconcileWatchRoot(root: WatchRoot, notifyRescan: boolean): Promise<void> {
 		if (this.closed) return;
+		traceWatchDiagnostic('reconcile.start', {
+			rootPath: root.path,
+			notifyRescan,
+			targetKnownKind: watchDiagnosticTarget ? this.knownEntries.get(watchDiagnosticTarget) : undefined,
+		});
 		const snapshot = await this.scanWatchRoot(root);
+		traceWatchDiagnostic('reconcile.snapshot', {
+			rootPath: root.path,
+			targetInSnapshot: watchDiagnosticTarget ? snapshot.entries.has(watchDiagnosticTarget) : undefined,
+			targetChanged: watchDiagnosticTarget ? snapshot.changedEntries.has(watchDiagnosticTarget) : undefined,
+			targetKnownKind: watchDiagnosticTarget ? this.knownEntries.get(watchDiagnosticTarget) : undefined,
+		});
 		const removedEntries = this.getRemovedReconciliationEntries(root, snapshot);
 		if (this.indexing) {
 			for (const [entryPath] of removedEntries) this.deferIndexedChange(entryPath);
@@ -387,6 +448,10 @@ export class RecursiveFileWatcher implements FileWatcher {
 	}
 
 	private async reconcileRemovedEntry(entryPath: string): Promise<void> {
+		traceWatchDiagnostic('reconcileRemovedEntry', {
+			path: entryPath,
+			previousKind: this.knownEntries.get(entryPath),
+		});
 		let stats: Stats | undefined;
 		try {
 			stats = await tryLstatAsync(entryPath);
@@ -406,6 +471,10 @@ export class RecursiveFileWatcher implements FileWatcher {
 	}
 
 	private async reconcileCurrentEntry(entryPath: string): Promise<void> {
+		traceWatchDiagnostic('reconcileCurrentEntry', {
+			path: entryPath,
+			previousKind: this.knownEntries.get(entryPath),
+		});
 		let stats: Stats | undefined;
 		try {
 			stats = await tryLstatAsync(entryPath);
@@ -632,6 +701,12 @@ export class RecursiveFileWatcher implements FileWatcher {
 
 	private queueChange(canonicalPath: string, forceChange = false): void {
 		if (this.closed) return;
+		traceWatchDiagnostic('queueChange', {
+			path: canonicalPath,
+			forceChange,
+			previousKind: this.knownEntries.get(canonicalPath),
+			pending: this.pendingChanges.has(canonicalPath),
+		});
 		try {
 			const stats = tryLstat(canonicalPath);
 			if (this.isInsideIgnoredDirectory(canonicalPath)) return;
@@ -662,6 +737,13 @@ export class RecursiveFileWatcher implements FileWatcher {
 		const previousKind = this.knownEntries.get(canonicalPath);
 		const stats = tryLstat(canonicalPath);
 		const mappedPaths = this.getMappedPaths(canonicalPath, stats);
+		traceWatchDiagnostic('flushChange', {
+			path: canonicalPath,
+			forceChange,
+			previousKind,
+			present: Boolean(stats),
+			mappedPaths,
+		});
 		if (!mappedPaths.length) return;
 
 		if (!stats) {
@@ -673,6 +755,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 	}
 
 	private flushRemovedPath(canonicalPath: string, previousKind: EntryKind | undefined, mappedPaths: string[]): void {
+		traceWatchDiagnostic('flushRemovedPath', { path: canonicalPath, previousKind, mappedPaths });
 		if (!previousKind) return;
 		this.emitChange(previousKind === 'directory' ? 'unlinkDir' : 'unlink', mappedPaths);
 		this.knownEntries.delete(canonicalPath);
@@ -842,6 +925,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 	}
 
 	private emitChange(type: FileChange['type'], paths: readonly string[]): void {
+		traceWatchDiagnostic('emitChange', { type, paths: [...paths] });
 		const emitted = new Set<string>();
 		for (const mappedPath of paths) {
 			const key = `${type}:${mappedPath}`;

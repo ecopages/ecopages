@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { createDistManifest, findUnresolvedRelativeImports } from './build-npm-packages.ts';
+import { createDistManifest, findTestRunnerImports, findUnresolvedRelativeImports } from './build-npm-packages.ts';
 
 test('findUnresolvedRelativeImports reports relative targets missing from the tarball', () => {
 	const packed = new Set(['src/a.js', 'src/lib/b.js', 'src/lib/c.js', 'src/data.json']);
@@ -13,12 +13,26 @@ test('findUnresolvedRelativeImports reports relative targets missing from the ta
 		`import { x } from '@ecopages/core';`,
 		`/** Example: import './in-comment.css' */`,
 		`write('import "./generated.d.js";');`,
+		"const generated = `await import('./${SERVER_BUNDLE_IMPLEMENTATION_FILENAME}')`;",
+		"const templated = `result: ${import('./missing-template-expression.js')}`;",
 	].join('\n');
 
 	assert.deepEqual(findUnresolvedRelativeImports('src/a.js', source, packed), [
 		'src/lib/dist-missing.js',
 		'src/gone.js',
+		'src/missing-template-expression.js',
 	]);
+});
+
+test('findTestRunnerImports ignores generated source strings', () => {
+	const source = [
+		`import { test } from 'vitest';`,
+		`export { vi } from 'vitest/browser';`,
+		`const dynamic = () => import('vitest/utils');`,
+		"const generated = `import('vitest')`;",
+	].join('\n');
+
+	assert.deepEqual(findTestRunnerImports('src/a.js', source), ['vitest', 'vitest/browser', 'vitest/utils']);
 });
 
 test('createDistManifest strips development-only manifest fields', () => {

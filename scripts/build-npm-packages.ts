@@ -567,24 +567,44 @@ function validatePackedFiles(distDir: string): void {
 }
 
 /**
- * Lists the relative import targets of one packed JavaScript file that the tarball does not contain.
+ * Collects statically named module dependencies from emitted JavaScript.
  *
  * @remarks
- * Matches `from '...'`, side-effect `import '...'` and `import('...')` with a string literal, which
- * also covers `export ... from`. Targets must match a packed path exactly because Node ESM does not
- * guess extensions. Block comments and whole-line `//` comments are ignored because TSDoc examples
- * quote imports. The scan is textual, so a string literal that contains `/*` can hide the code up to
- * the next `*` and `/`, which can only miss a problem and never invent one. A keyword that directly
- * follows a quote is skipped, so code generated inside a string, such as `'import "./x.d.ts";'`, is not read.
+ * Parsing with TypeScript ignores import-like text inside comments and generated source strings. It
+ * collects static imports and exports plus dynamic imports with string literal targets. Computed
+ * dynamic imports cannot be resolved at build time.
  */
+function collectModuleSpecifiers(file: string, source: string): string[] {
+	const specifiers = new Set<string>();
+	const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+	const collectSpecifiers = (node: ts.Node): void => {
+		if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier) {
+			if (ts.isStringLiteral(node.moduleSpecifier)) specifiers.add(node.moduleSpecifier.text);
+		} else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+			const [specifier] = node.arguments;
+			if (specifier && ts.isStringLiteral(specifier)) specifiers.add(specifier.text);
+		}
+
+		ts.forEachChild(node, collectSpecifiers);
+	};
+	collectSpecifiers(sourceFile);
+	return [...specifiers];
+}
+
 export function findUnresolvedRelativeImports(file: string, source: string, packed: ReadonlySet<string>): string[] {
 	const unresolved = new Set<string>();
-	const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-	for (const [, specifier] of code.matchAll(/(?<![\w"'`$.])(?:from|import)\s*\(?\s*["'](\.{1,2}\/[^"'\n\r]+)["']/g)) {
+	for (const specifier of collectModuleSpecifiers(file, source)) {
+		if (!specifier.startsWith('./') && !specifier.startsWith('../')) continue;
 		const target = path.posix.join(path.posix.dirname(file), specifier);
 		if (!packed.has(target)) unresolved.add(target);
 	}
 	return [...unresolved];
+}
+
+export function findTestRunnerImports(file: string, source: string): string[] {
+	return collectModuleSpecifiers(file, source).filter(
+		(specifier) => specifier === 'vitest' || specifier.startsWith('vitest/'),
+	);
 }
 
 /**
@@ -598,11 +618,7 @@ function validateNoTestRunnerImports(distDir: string): void {
 	const offenders = readdirSync(distDir, { recursive: true, encoding: 'utf8' })
 		.map(toPosix)
 		.filter((entry) => /\.[cm]?js$/.test(entry))
-		.filter((entry) =>
-			/(?:from|import)\s*\(?\s*["']vitest(?:\/[^"']*)?["']/.test(
-				readFileSync(path.join(distDir, entry), 'utf-8'),
-			),
-		);
+		.filter((entry) => findTestRunnerImports(entry, readFileSync(path.join(distDir, entry), 'utf-8')).length > 0);
 	if (offenders.length > 0) {
 		throw new Error(
 			`${toPosix(path.relative(repoRoot, distDir))} would publish ${offenders.length} file(s) that import vitest: ${offenders.join(', ')}.`,

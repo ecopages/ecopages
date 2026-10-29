@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0
+
+### Minor Changes
+
+- [#916](https://github.com/ecopages/ecopages/pull/916) [`09f64d9`](https://github.com/ecopages/ecopages/commit/09f64d954261b842c7cfbb64607ef9f8119ede06) Thanks [@andeeplus](https://github.com/andeeplus)! - Require `@ecopages/jsx`, `@ecopages/radiant`, and `@ecopages/signals` 0.6.0, and `@ecopages/radiant-ui` 0.3.0.
+
+    Radiant 0.6.0 needs `@ecopages/jsx` 0.6.0. Apps still on 0.5 must upgrade those packages together.
+
+### Patch Changes
+
+- Updated dependencies [[`a059041`](https://github.com/ecopages/ecopages/commit/a0590417e2e9909eecd0db7873597965aded52c8), [`6c6a6bf`](https://github.com/ecopages/ecopages/commit/6c6a6bf1f58aa14d43f370b27f03a3be8b20f8f8), [`9652bc3`](https://github.com/ecopages/ecopages/commit/9652bc34afb2f092360bfd57c68350419ff29cd7), [`0d8d251`](https://github.com/ecopages/ecopages/commit/0d8d251dd38991277e454dcdddd6f9faf5b3ef98), [`e8e4344`](https://github.com/ecopages/ecopages/commit/e8e4344aaf001403b77aa9a4946ff9e9ea20c748), [`3b74da3`](https://github.com/ecopages/ecopages/commit/3b74da3e25f64004e1098e25b1ca5ad63ace5e7a), [`0a9c069`](https://github.com/ecopages/ecopages/commit/0a9c0692dee75708854b20d0bad19c7b671bc2b1), [`a79e6f9`](https://github.com/ecopages/ecopages/commit/a79e6f9ed70e135f489ba4d728af7b52f62ff738), [`b5f1c8b`](https://github.com/ecopages/ecopages/commit/b5f1c8bdd7d466783f0df9e2ca145fa89636aba9), [`cfd553a`](https://github.com/ecopages/ecopages/commit/cfd553a4faa19c494c8c39d28e86d3b841d5eb93), [`73e4a03`](https://github.com/ecopages/ecopages/commit/73e4a03df266f1272882a90f0a60fe15e85996f4), [`253b702`](https://github.com/ecopages/ecopages/commit/253b702a7622e69af6b6d5c19ea92a2de5358ba0), [`40c661d`](https://github.com/ecopages/ecopages/commit/40c661d3841d3117a261efc181fb9af4ba63707e), [`ea0d42d`](https://github.com/ecopages/ecopages/commit/ea0d42d4eb0368bfd2d93e5bb5e8a706d32eaa95), [`fbacb7c`](https://github.com/ecopages/ecopages/commit/fbacb7cd1a9d73c13776fa570d1fe53b84cd2d96), [`2d92e9f`](https://github.com/ecopages/ecopages/commit/2d92e9f9c81f5f993ea8b7f61342365f0aafa7d8), [`6b8b8ac`](https://github.com/ecopages/ecopages/commit/6b8b8acf46f0853930aeb25370bce38674ef623e)]:
+    - @ecopages/core@0.6.0
+    - @ecopages/file-system@0.6.0
+
 ## 0.5.0
 
 ### Patch Changes

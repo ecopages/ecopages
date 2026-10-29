@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0
+
+### Minor Changes
+
+- [#916](https://github.com/ecopages/ecopages/pull/916) [`09f64d9`](https://github.com/ecopages/ecopages/commit/09f64d954261b842c7cfbb64607ef9f8119ede06) Thanks [@andeeplus](https://github.com/andeeplus)! - Require `@ecopages/jsx`, `@ecopages/radiant`, and `@ecopages/signals` 0.6.0, and `@ecopages/radiant-ui` 0.3.0.
+
+    Radiant 0.6.0 needs `@ecopages/jsx` 0.6.0. Apps still on 0.5 must upgrade those packages together.
+
 ## 0.5.0
 
 No changes in this release.

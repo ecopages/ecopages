@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0
+
+### Minor Changes
+
+- [#922](https://github.com/ecopages/ecopages/pull/922) [`6c6a6bf`](https://github.com/ecopages/ecopages/commit/6c6a6bf1f58aa14d43f370b27f03a3be8b20f8f8) Thanks [@andeeplus](https://github.com/andeeplus)! - Production `ecopages start` loads its routes and server modules from `dist/` and `node_modules/`. The build writes the filesystem route list into `dist/server/routes.json`; start loads that list and does not scan source Pages or compare source fingerprints. Start does not copy the source public directory into `dist/`; the build already did. The deploy manifest no longer records the source config path or hash. Start, through `ecopages start` or `node dist/server/app.mjs`, checks that `dist/` is complete (one build id, every listed output exists, the route list present). Production server output leaves `import.meta` pointing at the emitted files.
+
+    This is a breaking change: a deploy that relied on source Pages at startup, source config identity checks, or production `import.meta` pointing at source files will fail. Declare files a production module reads next to itself in `serverFiles`, or move them to `public/`.
+
+- [#928](https://github.com/ecopages/ecopages/pull/928) [`ea0d42d`](https://github.com/ecopages/ecopages/commit/ea0d42d4eb0368bfd2d93e5bb5e8a706d32eaa95) Thanks [@andeeplus](https://github.com/andeeplus)! - Use native recursive filesystem watchers, support adding paths to a running watch, report directory changes, and handle missing watch roots. When a native event omits its filename, reconcile the root and may emit rescan events for mapped requested roots; the Project Watcher coalesces them into a runtime restart request. Native events are coalesced for 50 ms, so a change may be reported while a file is still being written. If registration through `add()` fails, the new paths are rolled back so the same paths can be retried. Permission-denied children are skipped during indexing so accessible siblings remain watched. Remove Chokidar from file-system and core.
+
+### Patch Changes
+
+- [#931](https://github.com/ecopages/ecopages/pull/931) [`6b8b8ac`](https://github.com/ecopages/ecopages/commit/6b8b8acf46f0853930aeb25370bce38674ef623e) Thanks [@andeeplus](https://github.com/andeeplus)! - `watch()` no longer descends into subtrees its `ignored` predicate ignores without stats, so on Linux a recursive root does not open kernel watches for `node_modules` and similar folders. A directory removed while it is being indexed is treated as gone instead of reported as a watcher error, a directory found after `close()` opens no new native watcher, and a folder allowed by a later `add()` reports its changes. The development watcher also reports a build input recorded after startup when it lies under an additional watch path base, and production start rejects an unreadable browser client manifest instead of starting without it.
+
 ## 0.5.0
 
 No changes in this release.

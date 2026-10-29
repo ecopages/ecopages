@@ -113,7 +113,8 @@ function syncAttributes(current: Element, incoming: Element): void {
 	}
 	for (const attribute of Array.from(incoming.attributes)) {
 		if ((incoming.tagName === 'LINK' || incoming.tagName === 'BASE') && attribute.name === 'href') {
-			current.setAttribute('href', (incoming as HTMLLinkElement).href);
+			const href = (incoming as HTMLLinkElement).href;
+			if ((current as HTMLLinkElement).href !== href) current.setAttribute('href', href);
 		} else {
 			current.setAttribute(attribute.name, attribute.value);
 		}

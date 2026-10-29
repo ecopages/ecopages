@@ -12,6 +12,38 @@ afterEach(() => {
 });
 
 describe('shared navigation head updates', () => {
+	it('keeps a shared stylesheet applied when navigating between layouts', async () => {
+		const href = '/packages/core/src/router/client/navigation-head.fixture.css';
+		const link = document.createElement('link');
+		link.rel = 'stylesheet';
+		link.setAttribute('href', href);
+		const loaded = new Promise<void>((resolve) => link.addEventListener('load', () => resolve(), { once: true }));
+		document.head.append(link);
+		await loaded;
+		const incoming = parseDocument(`<html><head><link rel="stylesheet" href="${href}"></head><body></body></html>`);
+		const update = await prepareNavigationHead(incoming);
+
+		update.commit();
+
+		expect(getComputedStyle(document.documentElement).backgroundColor).toBe('rgb(12, 34, 56)');
+	});
+
+	it('updates base and canonical URLs when the destination changes them', async () => {
+		document.head.innerHTML =
+			'<base href="https://example.com/old/"><link rel="canonical" href="https://example.com/old">';
+		const incoming = parseDocument(
+			'<html><head><base href="https://example.com/new/"><link rel="canonical" href="https://example.com/new"></head></html>',
+		);
+		const update = await prepareNavigationHead(incoming);
+
+		update.commit();
+
+		expect(document.head.querySelector('base')?.href).toBe('https://example.com/new/');
+		expect(document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href).toBe(
+			'https://example.com/new',
+		);
+	});
+
 	it('updates metadata, waits for incoming stylesheets, removes stale stylesheets, and preserves stable elements', async () => {
 		document.head.innerHTML = [
 			'<meta charset="utf-8">',

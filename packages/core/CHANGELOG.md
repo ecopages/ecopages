@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.1
+
+### Patch Changes
+
+- [#943](https://github.com/ecopages/ecopages/pull/943) [`e5c1162`](https://github.com/ecopages/ecopages/commit/e5c1162e3dd59d624d8ef72d9f4152e0b664c2e0) Thanks [@andeeplus](https://github.com/andeeplus)! - Prevent incoming stylesheets from affecting the outgoing page and preserve the cascade order of uniquely keyed styles during navigation. Fall back to full document navigation if a stylesheet replacement fails, retained CSS changes order while a retained style or stylesheet is persisted, or another update invalidates the prepared stylesheet order.
+
+    Callers of `prepareNavigationHead()` must check `requiresReload` immediately before committing. If it is true, cancel the update and navigate the document instead. Custom implementations of `NavigationHeadUpdate` must provide the new property.
+
+- [#944](https://github.com/ecopages/ecopages/pull/944) [`c3ba059`](https://github.com/ecopages/ecopages/commit/c3ba0598653139c9cde15bcb6164847017ba5009) Thanks [@andeeplus](https://github.com/andeeplus)! - Keep shared stylesheets applied during client-side navigation between layouts.
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.6.1
+    - @ecopages/file-system@0.6.1
+
 ## 0.6.0
 
 ### Minor Changes

@@ -12,6 +12,84 @@ afterEach(() => {
 });
 
 describe('commitNavigationPage', () => {
+	it('keeps a stylesheet that becomes persisted before the swap', async () => {
+		document.head.replaceChildren();
+		const first = '/packages/core/src/router/client/navigation-head.fixture.css';
+		const second = '/packages/core/src/router/client/navigation-head-order.fixture.css';
+		for (const href of [first, second]) {
+			const link = document.createElement('link');
+			link.rel = 'stylesheet';
+			link.href = href;
+			const loaded = new Promise<void>((resolve) =>
+				link.addEventListener('load', () => resolve(), { once: true }),
+			);
+			document.head.append(link);
+			await loaded;
+		}
+		const original = document.head.querySelector('link')!;
+		const reload = vi.fn();
+		const swap = vi.fn();
+		const result = await commitNavigationPage({
+			url: new URL('https://example.test/next'),
+			direction: 'forward',
+			newDocument: parseDocument(
+				`<head><link rel="stylesheet" href="${second}"><link rel="stylesheet" href="${first}"></head>`,
+			),
+			isStale: () => false,
+			viewTransitionsEnabled: false,
+			beforeTransition: () => original.setAttribute('data-eco-persist', ''),
+			onReloadRequested: reload,
+			swap,
+		});
+		expect(result).toBe('reload-requested');
+		expect(reload).toHaveBeenCalledOnce();
+		expect(swap).not.toHaveBeenCalled();
+		expect(original.isConnected).toBe(true);
+	});
+	it('requests a full navigation if a staged stylesheet disappears before the swap', async () => {
+		const reload = vi.fn();
+		const swap = vi.fn();
+		const history = vi.fn();
+		const result = await commitNavigationPage({
+			url: new URL('https://example.test/next'),
+			direction: 'forward',
+			newDocument: parseDocument(
+				'<head><link rel="stylesheet" href="/packages/core/src/router/client/navigation-head.fixture.css"></head>',
+			),
+			isStale: () => false,
+			viewTransitionsEnabled: false,
+			beforeTransition: () => document.head.querySelector('link')?.remove(),
+			beforeCommit: history,
+			onReloadRequested: reload,
+			swap,
+		});
+		expect(result).toBe('reload-requested');
+		expect(reload).toHaveBeenCalledOnce();
+		expect(history).not.toHaveBeenCalled();
+		expect(swap).not.toHaveBeenCalled();
+	});
+	it('requests a full navigation before swapping when persisted stylesheets would change order', async () => {
+		document.head.innerHTML =
+			'<link rel="stylesheet" href="/a.css" data-eco-persist><link rel="stylesheet" href="/b.css">';
+		const original = document.head.querySelector('link');
+		const reload = vi.fn();
+		const swap = vi.fn();
+		const result = await commitNavigationPage({
+			url: new URL('https://example.test/next'),
+			direction: 'forward',
+			newDocument: parseDocument(
+				'<head><link rel="stylesheet" href="/b.css"><link rel="stylesheet" href="/a.css" data-eco-persist></head>',
+			),
+			isStale: () => false,
+			viewTransitionsEnabled: false,
+			onReloadRequested: reload,
+			swap,
+		});
+		expect(result).toBe('reload-requested');
+		expect(reload).toHaveBeenCalledOnce();
+		expect(swap).not.toHaveBeenCalled();
+		expect(document.head.querySelector('link')).toBe(original);
+	});
 	it('runs shared document work around the router-provided swap', async () => {
 		document.head.innerHTML = '<title>Current</title>';
 		document.body.innerHTML = '<main>Current page</main>';

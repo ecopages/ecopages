@@ -28,6 +28,11 @@ export type NavigationCommitPipelineInput = {
 	afterLifecycle?: () => void | Promise<void>;
 };
 
+async function requestReload(input: NavigationCommitPipelineInput): Promise<NavigationCommitPipelineResult> {
+	await input.onReloadRequested?.();
+	return input.isStale() ? 'stale' : 'reload-requested';
+}
+
 /** Runs shared document work around the router-specific page swap. */
 export async function commitNavigationPage(
 	input: NavigationCommitPipelineInput,
@@ -41,8 +46,7 @@ export async function commitNavigationPage(
 		});
 		if (input.isStale()) return 'stale';
 		if (requestedReload) {
-			await input.onReloadRequested?.();
-			return input.isStale() ? 'stale' : 'reload-requested';
+			return await requestReload(input);
 		}
 
 		const preparedHeadUpdate = await prepareNavigationHead(
@@ -52,13 +56,22 @@ export async function commitNavigationPage(
 		);
 		headUpdate = preparedHeadUpdate;
 		if (input.isStale()) return 'stale';
+		if (preparedHeadUpdate.requiresReload) {
+			return await requestReload(input);
+		}
 		await input.beforeTransition?.();
 		if (input.isStale()) return 'stale';
 
 		let committed = false;
+		let reloadRequested = false;
 		await runNavigationViewTransition(
 			async () => {
 				if (input.isStale()) return false;
+				if (preparedHeadUpdate.requiresReload) {
+					reloadRequested = true;
+					await requestReload(input);
+					return false;
+				}
 				input.beforeCommit?.();
 				if (input.isStale()) return false;
 				preparedHeadUpdate.commit();
@@ -78,6 +91,7 @@ export async function commitNavigationPage(
 			},
 			{ enabled: input.viewTransitionsEnabled, incomingDocument: input.newDocument },
 		);
+		if (reloadRequested) return input.isStale() ? 'stale' : 'reload-requested';
 		if (input.isStale() || !committed) return 'stale';
 
 		completeNavigationLifecycle(

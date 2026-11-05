@@ -206,139 +206,6 @@ function getEntryBuildOptions(entry: BuildEntry): NonNullable<ScriptAsset['bundl
 	return entry.dependencies[0]?.kind === 'script' ? (entry.dependencies[0].bundleOptions ?? {}) : {};
 }
 
-function arraysEqual<T>(left: readonly T[] = [], right: readonly T[] = []): boolean {
-	return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-type GroupablePluginLayout = {
-	valid: boolean;
-	slotsByName: Map<string, string>;
-	orderBySlot: Map<number, string[]>;
-};
-
-function getGroupablePluginLayout(plugins: readonly EcoBuildPlugin[]): GroupablePluginLayout {
-	const slotsByName = new Map<string, string>();
-	const orderBySlot = new Map<number, string[]>();
-	let slot = 0;
-	let valid = true;
-	for (const plugin of plugins) {
-		if (plugin.bundleGroupKey === undefined) {
-			slot += 1;
-			continue;
-		}
-		const token = JSON.stringify([plugin.name, plugin.bundleGroupKey]);
-		const slotIdentity = JSON.stringify([plugin.bundleGroupKey, slot]);
-		const existingSlot = slotsByName.get(plugin.name);
-		if (existingSlot && existingSlot !== slotIdentity) valid = false;
-		slotsByName.set(plugin.name, slotIdentity);
-		const order = orderBySlot.get(slot) ?? [];
-		if (!order.includes(token)) order.push(token);
-		orderBySlot.set(slot, order);
-	}
-	return { valid, slotsByName, orderBySlot };
-}
-
-function groupablePluginsCompatible(
-	left: readonly EcoBuildPlugin[] = [],
-	right: readonly EcoBuildPlugin[] = [],
-): boolean {
-	const leftLayout = getGroupablePluginLayout(left);
-	const rightLayout = getGroupablePluginLayout(right);
-	if (!leftLayout.valid || !rightLayout.valid) return false;
-	for (const [name, slot] of leftLayout.slotsByName) {
-		if (rightLayout.slotsByName.has(name) && rightLayout.slotsByName.get(name) !== slot) return false;
-	}
-	for (const [slot, leftOrder] of leftLayout.orderBySlot) {
-		const rightOrder = rightLayout.orderBySlot.get(slot) ?? [];
-		if (rightOrder.length > 0 && !isSubsequence(leftOrder, rightOrder) && !isSubsequence(rightOrder, leftOrder)) {
-			return false;
-		}
-	}
-	return true;
-}
-
-function isSubsequence(candidate: readonly string[], sequence: readonly string[]): boolean {
-	let candidateIndex = 0;
-	for (const item of sequence) {
-		if (item === candidate[candidateIndex]) candidateIndex += 1;
-	}
-	return candidateIndex === candidate.length;
-}
-
-function bundlePluginsEqual(left: readonly EcoBuildPlugin[] = [], right: readonly EcoBuildPlugin[] = []): boolean {
-	return (
-		arraysEqual(
-			left.filter((plugin) => plugin.bundleGroupKey === undefined),
-			right.filter((plugin) => plugin.bundleGroupKey === undefined),
-		) && groupablePluginsCompatible(left, right)
-	);
-}
-
-type GroupedPluginsBySlot = Map<number, Map<string, EcoBuildPlugin[]>>;
-
-function collectGroupedPluginsBySlot(sequences: readonly (readonly EcoBuildPlugin[])[]): GroupedPluginsBySlot {
-	const groupedPluginsBySlot: GroupedPluginsBySlot = new Map();
-	for (const sequence of sequences) {
-		let slot = 0;
-		for (const plugin of sequence) {
-			if (plugin.bundleGroupKey === undefined) {
-				slot += 1;
-				continue;
-			}
-			const token = JSON.stringify([plugin.name, plugin.bundleGroupKey]);
-			const groupedPluginsByIdentity = groupedPluginsBySlot.get(slot) ?? new Map<string, EcoBuildPlugin[]>();
-			const groupedPlugins = groupedPluginsByIdentity.get(token) ?? [];
-			if (!groupedPlugins.includes(plugin)) groupedPlugins.push(plugin);
-			groupedPluginsByIdentity.set(token, groupedPlugins);
-			groupedPluginsBySlot.set(slot, groupedPluginsByIdentity);
-		}
-	}
-	return groupedPluginsBySlot;
-}
-
-function getMergedGroupOrder(leftOrder: readonly string[], rightOrder: readonly string[]): readonly string[] {
-	return isSubsequence(leftOrder, rightOrder) ? rightOrder : leftOrder;
-}
-
-function appendGroupedPluginsAtSlot(
-	merged: EcoBuildPlugin[],
-	groupedPluginsBySlot: GroupedPluginsBySlot,
-	groupOrder: readonly string[],
-	slot: number,
-): void {
-	for (const token of groupOrder) {
-		merged.push(...(groupedPluginsBySlot.get(slot)?.get(token) ?? []));
-	}
-}
-
-function mergePluginSlots(
-	commonPlugins: readonly EcoBuildPlugin[],
-	groupedPluginsBySlot: GroupedPluginsBySlot,
-	leftLayout: GroupablePluginLayout,
-	rightLayout: GroupablePluginLayout,
-): EcoBuildPlugin[] {
-	const merged: EcoBuildPlugin[] = [];
-	for (let slot = 0; slot <= commonPlugins.length; slot += 1) {
-		const leftOrder = leftLayout.orderBySlot.get(slot) ?? [];
-		const rightOrder = rightLayout.orderBySlot.get(slot) ?? [];
-		appendGroupedPluginsAtSlot(merged, groupedPluginsBySlot, getMergedGroupOrder(leftOrder, rightOrder), slot);
-		const commonPlugin = commonPlugins[slot];
-		if (commonPlugin) merged.push(commonPlugin);
-	}
-	return merged;
-}
-
-function mergeBundlePlugins(
-	left: readonly EcoBuildPlugin[] = [],
-	right: readonly EcoBuildPlugin[] = [],
-): EcoBuildPlugin[] {
-	const commonPlugins = left.filter((plugin) => plugin.bundleGroupKey === undefined);
-	const groupedPluginsBySlot = collectGroupedPluginsBySlot([left, right]);
-	const leftLayout = getGroupablePluginLayout(left);
-	const rightLayout = getGroupablePluginLayout(right);
-	return mergePluginSlots(commonPlugins, groupedPluginsBySlot, leftLayout, rightLayout);
-}
-
 function setsEqual(left: readonly string[] = [], right: readonly string[] = []): boolean {
 	return left.length === right.length && left.every((value) => right.includes(value));
 }
@@ -349,42 +216,137 @@ function recordsEqual(left: Record<string, string> = {}, right: Record<string, s
 	return leftEntries.length === rightEntries.length && leftEntries.every(([key, value]) => right[key] === value);
 }
 
-function buildOptionsEqual(
+/**
+ * Whether two entries can share one build.
+ *
+ * @remarks
+ * Only options that apply to the whole build keep entries apart. Plugins and external modules do not: each
+ * plugin is scoped to the entries that declared it (see {@link mergeEntryPlugins}), and an external module
+ * stays external for the whole build. Splitting is always on in the app-wide build.
+ */
+function buildWideOptionsEqual(
 	left: NonNullable<ScriptAsset['bundleOptions']>,
 	right: NonNullable<ScriptAsset['bundleOptions']>,
 ): boolean {
 	return (
 		(left.minify ?? true) === (right.minify ?? true) &&
-		(left.splitting ?? true) === (right.splitting ?? true) &&
 		(left.treeshaking ?? true) === (right.treeshaking ?? true) &&
-		setsEqual(left.external, right.external) &&
 		setsEqual(left.excludeAppBuildPlugins, right.excludeAppBuildPlugins) &&
-		recordsEqual(left.define, right.define) &&
-		bundlePluginsEqual(left.plugins, right.plugins)
+		recordsEqual(left.define, right.define)
 	);
 }
+
+/** Instances with one `bundleGroupKey` count as one plugin; any other plugin is its own identity. */
+function pluginIdentity(plugin: EcoBuildPlugin): unknown {
+	return plugin.bundleGroupKey === undefined ? plugin : JSON.stringify([plugin.name, plugin.bundleGroupKey]);
+}
+
+function pluginIdentityOrder(plugins: readonly EcoBuildPlugin[]): unknown[] {
+	return [...new Set(plugins.map(pluginIdentity))];
+}
+
+/**
+ * Whether `plugins` keeps the relative order of every plugin it shares with `merged`.
+ *
+ * @remarks
+ * The first plugin that returns a result wins a hook, so two entries that order the same plugins differently
+ * need different builds.
+ */
+function pluginOrderCompatible(merged: readonly EcoBuildPlugin[], plugins: readonly EcoBuildPlugin[]): boolean {
+	const entryOrder = pluginIdentityOrder(plugins);
+	const mergedOrder = pluginIdentityOrder(merged);
+	const shared = new Set(entryOrder.filter((identity) => mergedOrder.includes(identity)));
+	const mergedShared = mergedOrder.filter((identity) => shared.has(identity));
+	const entryShared = entryOrder.filter((identity) => shared.has(identity));
+	return mergedShared.every((identity, index) => entryShared[index] === identity);
+}
+
+/** Adds `plugins` to `merged`, keeping the relative order of both lists and instances of one identity together. */
+function insertEntryPlugins(merged: EcoBuildPlugin[], plugins: readonly EcoBuildPlugin[]): void {
+	let insertAt = 0;
+	for (const plugin of plugins) {
+		const existing = merged.indexOf(plugin);
+		if (existing !== -1) {
+			insertAt = existing + 1;
+			continue;
+		}
+		const identity = pluginIdentity(plugin);
+		const lastSameIdentity = merged.findLastIndex((candidate) => pluginIdentity(candidate) === identity);
+		const position = lastSameIdentity === -1 ? insertAt : lastSameIdentity + 1;
+		merged.splice(position, 0, plugin);
+		insertAt = position + 1;
+	}
+}
+
+/**
+ * Scopes each merged plugin to the entries that declared it.
+ *
+ * @remarks
+ * A plugin that every entry of the build declares applies to the whole build. Any other plugin gets an
+ * `entryScope`, so the bridge applies it only to modules those entries reach and fails the build when a module
+ * it changed is also reached by another entry.
+ */
+function scopeEntryPlugins(
+	merged: readonly EcoBuildPlugin[],
+	entries: ReadonlyArray<{ entryName: string; plugins: readonly EcoBuildPlugin[] }>,
+): EcoBuildPlugin[] {
+	const carriers = new Map<unknown, Set<string>>();
+	for (const { entryName, plugins } of entries) {
+		for (const plugin of plugins) {
+			const identity = pluginIdentity(plugin);
+			carriers.set(identity, (carriers.get(identity) ?? new Set<string>()).add(entryName));
+		}
+	}
+	return merged.map((plugin) => {
+		const scope = carriers.get(pluginIdentity(plugin)) ?? new Set<string>();
+		return scope.size === entries.length ? plugin : { ...plugin, entryScope: [...scope].sort() };
+	});
+}
+
+type BuildGroup = {
+	entries: BuildEntry[];
+	options: NonNullable<ScriptAsset['bundleOptions']>;
+	plugins: EcoBuildPlugin[];
+};
 
 function groupBuildEntriesByOptions(
 	entries: BuildEntry[],
 ): Array<{ entries: BuildEntry[]; options: NonNullable<ScriptAsset['bundleOptions']> }> {
-	const groups: Array<{ entries: BuildEntry[]; options: NonNullable<ScriptAsset['bundleOptions']> }> = [];
+	const groups: BuildGroup[] = [];
 	for (const entry of entries) {
 		const options = getEntryBuildOptions(entry);
-		const group = groups.find((candidate) => buildOptionsEqual(candidate.options, options));
+		const plugins = options.plugins ?? [];
+		const group = groups.find(
+			(candidate) =>
+				buildWideOptionsEqual(candidate.options, options) && pluginOrderCompatible(candidate.plugins, plugins),
+		);
 		if (group) {
 			group.entries.push(entry);
-			group.options = {
-				...group.options,
-				plugins: mergeBundlePlugins(group.options.plugins, options.plugins),
-			};
+			insertEntryPlugins(group.plugins, plugins);
 		} else {
-			groups.push({
-				entries: [entry],
-				options: { ...options, plugins: options.plugins ? [...options.plugins] : undefined },
-			});
+			const merged: EcoBuildPlugin[] = [];
+			insertEntryPlugins(merged, plugins);
+			groups.push({ entries: [entry], options, plugins: merged });
 		}
 	}
-	return groups;
+	return groups.map((group) => {
+		const external = [...new Set(group.entries.flatMap((entry) => getEntryBuildOptions(entry).external ?? []))];
+		const plugins = scopeEntryPlugins(
+			group.plugins,
+			group.entries.map((entry) => ({
+				entryName: entry.entryName,
+				plugins: getEntryBuildOptions(entry).plugins ?? [],
+			})),
+		);
+		return {
+			entries: group.entries,
+			options: {
+				...group.options,
+				external: external.length > 0 ? external : undefined,
+				plugins: plugins.length > 0 ? plugins : undefined,
+			},
+		};
+	});
 }
 
 function registerGroupedDependency(
@@ -598,7 +560,7 @@ async function executeAppBrowserBuild(
 			outdir: path.join(appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR),
 			root: appConfig.rootDir,
 			...group.options,
-			splitting: group.options.splitting ?? true,
+			splitting: true,
 			naming: '[name]-[hash].[ext]',
 			minify: group.options.minify ?? true,
 		});

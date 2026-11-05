@@ -204,27 +204,8 @@ export class StaticSiteGenerator {
 		fileSystem.write(path.join(this.getExportDir(), fileName), renderSitemap(locations));
 	}
 
-	/**
-	 * Collects parent directories that must exist for the generated route set.
-	 */
-	getDirectories(routes: string[]) {
-		const directories = new Set<string>();
-
-		for (const route of routes) {
-			const path = route.startsWith('http') ? new URL(route).pathname : route;
-
-			const segments = path.split('/');
-
-			if (segments.length > 2) {
-				directories.add(segments.slice(0, segments.length - 1).join('/'));
-			}
-		}
-
-		return Array.from(directories);
-	}
-
-	private writeStaticOutput(routePath: string, contents: string | Buffer, directories: string[] = []): string {
-		const outputPath = this.getOutputPath(routePath, directories);
+	private writeStaticOutput(routePath: string, contents: string | Buffer): string {
+		const outputPath = this.getOutputPath(routePath);
 		fileSystem.ensureDir(path.dirname(outputPath));
 		fileSystem.write(outputPath, contents);
 		return outputPath;
@@ -232,18 +213,16 @@ export class StaticSiteGenerator {
 
 	private async writeStaticPageArtifact(options: {
 		pathname: string;
-		directories?: string[];
 		createContents: () => Promise<string | Buffer | null>;
 		activeStaticPathnames?: Set<string>;
 		onSuccessfulExport?: () => Promise<void>;
 	}): Promise<void> {
-		const directories = options.directories ?? this.getDirectories([options.pathname]);
 		const contents = await options.createContents();
 		if (contents === null) {
 			return;
 		}
 
-		this.writeStaticOutput(options.pathname, contents, directories);
+		this.writeStaticOutput(options.pathname, contents);
 		options.activeStaticPathnames?.add(options.pathname);
 		await options.onSuccessfulExport?.();
 	}
@@ -345,7 +324,6 @@ export class StaticSiteGenerator {
 			routes.map((route) => route.requestUrl),
 		);
 
-		const directories = this.getDirectories(routes.map((route) => route.requestUrl));
 		const failures = input.failures ?? [];
 
 		await runWithConcurrency(routes, resolveBuildParallelism(), async (route) => {
@@ -353,7 +331,6 @@ export class StaticSiteGenerator {
 				let renderedMetadata: PageMetadataProps | undefined;
 				await this.writeStaticPageArtifact({
 					pathname: route.pathname,
-					directories,
 					activeStaticPathnames,
 					onSuccessfulExport: () =>
 						this.considerSitemapEligibility({
@@ -855,14 +832,17 @@ export class StaticSiteGenerator {
 
 	/**
 	 * Get the output file path for a given route.
+	 *
+	 * @remarks
+	 * The path depends only on the Template Route: `/` is `index.html`, a trailing-slash route is
+	 * `<route>index.html`, and every other route is `<route>.html`. Sibling Pages never move it. Static serving
+	 * resolves `/blog` to `blog.html` first, then `blog/index.html`.
 	 */
-	private getOutputPath(routePath: string, directories: string[] = []): string {
+	private getOutputPath(routePath: string): string {
 		let outputName: string;
 
 		if (routePath === '/') {
 			outputName = 'index.html';
-		} else if (directories.includes(routePath)) {
-			outputName = `${routePath}/index.html`;
 		} else if (routePath.endsWith('/')) {
 			outputName = `${routePath}index.html`;
 		} else {

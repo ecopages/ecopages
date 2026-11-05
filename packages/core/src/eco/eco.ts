@@ -179,7 +179,7 @@ function layout<E = EcoPagesElement>(options: LayoutOptions<E>): EcoLayoutCompon
  * Creates a page component with typed props and optional static helpers.
  */
 function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
-function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals = keyof RequestLocals>(
+function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals = never>(
 	options: Omit<PageOptions<T, E>, 'render' | 'requires'> & {
 		requires: PageRequires<K>;
 		render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;

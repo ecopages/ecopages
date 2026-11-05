@@ -265,7 +265,7 @@ export interface Eco {
 	 */
 	page: {
 		<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
-		<T = {}, E = EcoPagesElement, const K extends RequiresKeys = RequiresKeys>(
+		<T = {}, E = EcoPagesElement, const K extends RequiresKeys = never>(
 			options: Omit<PageOptions<T, E>, 'render' | 'requires'> & {
 				requires: PageRequires<K>;
 				render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;

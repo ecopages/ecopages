@@ -8,7 +8,7 @@ import { postsService, type Post } from '@/lib/posts.server';
 import { requireSession } from '@/lib/require-session.server';
 import './admin-posts.css';
 
-export default eco.page<{ posts: Post[] }, JsxRenderable>({
+export default eco.page<{ posts: Post[] }, JsxRenderable, 'session'>({
 	cache: 'dynamic',
 	middleware: [requireSession],
 	requires: ['session'] as const,

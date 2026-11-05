@@ -600,6 +600,7 @@ export class StaticSiteGenerator {
 		const activeStaticPathnames = new Set<string>();
 		const sitemapEligiblePathnames = this.appConfig.sitemap?.enabled ? new Set<string>() : undefined;
 		this.resetStaticGenerationState(force);
+		requireAppRuntime(this.appConfig).staticGenerationActive = true;
 
 		let releases: StaticExportRelease[] = [];
 		let generationFailed = false;
@@ -656,6 +657,7 @@ export class StaticSiteGenerator {
 			generationFailed = true;
 			generationError = error;
 		}
+		requireAppRuntime(this.appConfig).staticGenerationActive = false;
 		clearProductionBrowserManifestOnFailure(this.appConfig, generationFailed);
 
 		const cleanupErrors: unknown[] = [];

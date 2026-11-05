@@ -89,6 +89,11 @@ export interface AppRuntime {
 	 * manifest is an error. `ecopages start` sets this after it restores the manifest.
 	 */
 	productionBrowserGraphsSealed: boolean;
+	/**
+	 * True while static generation (`ecopages build`) runs. An asset that cannot be processed then
+	 * fails the build.
+	 */
+	staticGenerationActive: boolean;
 }
 
 /**
@@ -139,6 +144,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		origin: appConfig.baseUrl,
 		hmr: null,
 		productionBrowserGraphsSealed: false,
+		staticGenerationActive: false,
 	};
 	appConfig.appRuntime = runtime;
 	try {

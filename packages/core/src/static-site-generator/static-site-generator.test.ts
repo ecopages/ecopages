@@ -1,5 +1,9 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { resolveStaticFilePath } from '../utils/server-utils.module.ts';
 import { StaticSiteGenerator } from './static-site-generator';
 import type { EcoPagesAppConfig } from '../config/internal-types';
 import { appLogger } from '../global/app-logger.ts';
@@ -118,12 +122,15 @@ describe('StaticSiteGenerator', () => {
 			default: Object.assign(() => null, { cache: 'static' }),
 		});
 
-		describe('index Page output path', () => {
-			async function exportedFiles(pathnames: string[]): Promise<string[]> {
+		describe('Page output path', () => {
+			const exportDir = '/test/project/dist/client';
+
+			async function exportedFiles(pages: Array<{ pathname: string; file: string }>): Promise<string[]> {
+				writeMock.mockClear();
 				const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
 				const Router = createMockRouter(
 					Object.fromEntries(
-						pathnames.map((pathname) => [pathname, { filePath: `/src/pages${pathname}.ts`, pathname }]),
+						pages.map(({ pathname, file }) => [pathname, { filePath: `/src/pages/${file}`, pathname }]),
 					),
 				);
 				const RendererFactory = {
@@ -142,14 +149,53 @@ describe('StaticSiteGenerator', () => {
 				return writeMock.mock.calls.map((call: unknown[]) => String(call[0]));
 			}
 
-			test('writes /blog to the same file with and without a sibling Page', async () => {
-				const alone = await exportedFiles(['/blog']);
-				writeMock.mockClear();
-				const withSibling = await exportedFiles(['/blog', '/blog/about']);
+			test.each([
+				{ name: 'index.tsx', file: 'blog/index.tsx', expected: `${exportDir}/blog/index.html` },
+				{ name: 'index.mdx', file: 'blog/index.mdx', expected: `${exportDir}/blog/index.html` },
+				{ name: 'blog.tsx', file: 'blog.tsx', expected: `${exportDir}/blog.html` },
+			])(
+				'writes /blog from $name to the same file with and without a sibling Page',
+				async ({ file, expected }) => {
+					const alone = await exportedFiles([{ pathname: '/blog', file }]);
+					const withSibling = await exportedFiles([
+						{ pathname: '/blog', file },
+						{ pathname: '/blog/about', file: 'blog/about.tsx' },
+					]);
 
-				expect(alone).toEqual(['/test/project/dist/client/blog.html']);
-				expect(withSibling).toContain('/test/project/dist/client/blog.html');
-				expect(withSibling).toContain('/test/project/dist/client/blog/about.html');
+					expect(alone).toEqual([expected]);
+					expect(withSibling).toContain(expected);
+					expect(withSibling).toContain(`${exportDir}/blog/about.html`);
+				},
+			);
+
+			test('keeps the root and a dynamic index Page deterministic', async () => {
+				const files = await exportedFiles([
+					{ pathname: '/', file: 'index.tsx' },
+					{ pathname: '/docs/intro', file: 'docs/[slug]/index.tsx' },
+					{ pathname: '/news/today', file: 'news/[slug].tsx' },
+				]);
+
+				expect(files).toEqual(
+					expect.arrayContaining([
+						`${exportDir}/index.html`,
+						`${exportDir}/docs/intro/index.html`,
+						`${exportDir}/news/today.html`,
+					]),
+				);
+			});
+
+			test('static serving resolves both layouts', () => {
+				const dir = mkdtempSync(path.join(tmpdir(), 'eco-ssg-layout-'));
+				try {
+					mkdirSync(path.join(dir, 'blog'), { recursive: true });
+					writeFileSync(path.join(dir, 'blog', 'index.html'), 'index');
+					writeFileSync(path.join(dir, 'news.html'), 'flat');
+
+					expect(resolveStaticFilePath(path.join(dir, 'blog'))).toBe(path.join(dir, 'blog', 'index.html'));
+					expect(resolveStaticFilePath(path.join(dir, 'news'))).toBe(path.join(dir, 'news.html'));
+				} finally {
+					rmSync(dir, { recursive: true, force: true });
+				}
 			});
 		});
 

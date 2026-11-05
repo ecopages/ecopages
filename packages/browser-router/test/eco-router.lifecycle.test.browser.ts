@@ -86,15 +86,16 @@ describe('EcoRouter', () => {
 		});
 
 		it('should dispatch before-swap, after-swap and page-load for a navigation', async () => {
-			fixtures.router = createRouter();
 			const seen: Array<{ type: string; detail: Record<string, unknown>; incomingText: string | null }> = [];
 			const names = ['eco:before-swap', 'eco:after-swap', 'eco:page-load'];
 			vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
 				callback(performance.now());
 				return 1;
 			});
+			fixtures.router = createRouter();
 			const record = (event: Event) => {
 				const detail = (event as CustomEvent).detail;
+				if (detail.url.pathname !== '/event-test') return;
 				seen.push({
 					type: event.type,
 					detail,
@@ -114,6 +115,63 @@ describe('EcoRouter', () => {
 				expect(afterSwap!.detail.direction).toBe('forward');
 			} finally {
 				for (const name of names) document.removeEventListener(name, record);
+			}
+		});
+
+		it('should dispatch page-load after a committed navigation on a real animation frame', async () => {
+			fixtures.router = createRouter();
+			const pageLoadSpy = vi.fn();
+			document.addEventListener('eco:page-load', pageLoadSpy);
+
+			try {
+				await fixtures.router.navigate('/real-frame');
+
+				await vi.waitFor(() => {
+					const paths = pageLoadSpy.mock.calls.map(([event]) => (event as CustomEvent).detail.url.pathname);
+					expect(paths.filter((path) => path === '/real-frame')).toHaveLength(1);
+				});
+			} finally {
+				document.removeEventListener('eco:page-load', pageLoadSpy);
+			}
+		});
+
+		it('should dispatch page-load on the first load', async () => {
+			const pageLoadSpy = vi.fn();
+			document.addEventListener('eco:page-load', pageLoadSpy);
+
+			try {
+				fixtures.router = createRouter();
+
+				await vi.waitFor(() => expect(pageLoadSpy).toHaveBeenCalledTimes(1));
+				const detail = (pageLoadSpy.mock.calls[0]![0] as CustomEvent).detail;
+				expect((detail.url as URL).href).toBe(window.location.href);
+			} finally {
+				document.removeEventListener('eco:page-load', pageLoadSpy);
+			}
+		});
+
+		it('should skip page-load only for a navigation superseded before its frame runs', async () => {
+			fixtures.router = createRouter();
+			const frames: FrameRequestCallback[] = [];
+			vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
+				frames.push(callback);
+				return frames.length;
+			});
+			const paths: string[] = [];
+			const record = (event: Event) => {
+				const { pathname } = (event as CustomEvent).detail.url as URL;
+				if (pathname !== '/') paths.push(pathname);
+			};
+			document.addEventListener('eco:page-load', record);
+
+			try {
+				await fixtures.router.navigate('/first');
+				await fixtures.router.navigate('/second');
+				for (const frame of frames) frame(performance.now());
+
+				expect(paths).toEqual(['/second']);
+			} finally {
+				document.removeEventListener('eco:page-load', record);
 			}
 		});
 

@@ -183,7 +183,7 @@ function collectComponentConfigDependencies(
 		scriptEntries: dependenciesConfig?.scripts ?? [],
 		componentFile: file,
 		componentDir: dir,
-		integrationName: context.integrationName,
+		integrationName: getComponentOwner(config, context.integrationName),
 		dependencies: context.dependencies,
 		lazyDependencyKeys: context.lazyDependencyKeys,
 		registerLazyScript,

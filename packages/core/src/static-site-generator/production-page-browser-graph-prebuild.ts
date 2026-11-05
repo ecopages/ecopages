@@ -13,13 +13,18 @@ import {
 	assertAppBrowserClientOutputsExist,
 	assertAppBrowserClientManifestHtmlOutputsExist,
 	clearAppBrowserClientManifest,
+	createNormalizedBundledScriptKey,
 	createNormalizedAppBrowserClientEntryKey,
 	readAppBrowserClientManifest,
 	restoreAppBrowserClientAssets,
 	resolveAppBrowserClientManifestPath,
 	writeAppBrowserClientManifest,
 } from '../assets/app-browser-client-manifest.ts';
-import type { AppBrowserClientManifestEntry } from '../assets/app-browser-client-manifest.ts';
+import type {
+	AppBrowserClientManifestBundledScript,
+	AppBrowserClientManifestEntry,
+} from '../assets/app-browser-client-manifest.ts';
+import { getAssetDependencyKey } from '../assets/asset-processing-service/asset-dependency-keys.ts';
 
 export type ProductionPageBrowserGraphRouteInstance = {
 	routeFile: string;
@@ -51,6 +56,7 @@ export function clearProductionPageBrowserGraphSession(appConfig: EcoPagesAppCon
 	const runtime = requireAppRuntime(appConfig);
 	runtime.pageBrowserGraphSession.clearPolicyRecords('production');
 	runtime.productionBrowserGraphsSealed = false;
+	runtime.prebuiltBrowserScripts.clear();
 	clearAppBrowserClientManifest(appConfig);
 }
 
@@ -121,12 +127,17 @@ export async function prebuildProductionPageBrowserGraphs(
 		appConfig,
 		rendererPlans.map(({ groupedBuildPlan }) => groupedBuildPlan),
 	);
+	requireAppRuntime(appConfig).prebuiltBrowserScripts = new Map(appBrowserBuild.bundledScriptAssets);
 	await writeAppBrowserClientManifest(
 		appConfig,
 		appBrowserBuild.plans,
 		rendererPlans.flatMap(({ routeInstances: instances }) => instances),
 		appBrowserBuild,
 	);
+
+	for (const { renderer } of rendererPlans) {
+		await renderer.materializeCollectedScripts();
+	}
 
 	for (const [index, { renderer, routeInstances: routeInstancesForRenderer }] of rendererPlans.entries()) {
 		const groupedBuildPlan = appBrowserBuild.plans[index];
@@ -239,6 +250,32 @@ function restoreFallbackDependencies(
 	});
 }
 
+/**
+ * Registers the app-wide build output of each component script the plan's routes bundle.
+ *
+ * @remarks
+ * The scripts are collected again from the current routes, so a script the manifest does not list means the source
+ * changed since `ecopages build`.
+ */
+function restoreBundledScripts(
+	appConfig: EcoPagesAppConfig,
+	plan: GroupedGraphBuildPlan,
+	bundledScripts: ReadonlyMap<string, AppBrowserClientManifestBundledScript>,
+): void {
+	const prebuiltBrowserScripts = requireAppRuntime(appConfig).prebuiltBrowserScripts;
+	for (const dependency of plan.bundledScripts ?? []) {
+		const script = bundledScripts.get(createNormalizedBundledScriptKey(appConfig.rootDir, dependency));
+		if (!script) {
+			const source = 'filepath' in dependency ? ` ${path.relative(appConfig.rootDir, dependency.filepath)}` : '';
+			throw new Error(
+				`The app browser build manifest does not list the ${plan.integrationName} script${source}. Run \`ecopages build\` again.`,
+			);
+		}
+		const [asset] = restoreAppBrowserClientAssets(appConfig, [script.asset]);
+		if (asset) prebuiltBrowserScripts.set(getAssetDependencyKey(dependency), asset);
+	}
+}
+
 function restoreManifestRouteAssets(
 	appConfig: EcoPagesAppConfig,
 	renderer: IntegrationRenderer<unknown>,
@@ -257,6 +294,7 @@ async function prebuildManifestEntriesForRenderer(
 	appConfig: EcoPagesAppConfig,
 	renderer: IntegrationRenderer<unknown>,
 	entries: readonly ResolvedManifestEntry[],
+	bundledScripts: ReadonlyMap<string, AppBrowserClientManifestBundledScript>,
 ): Promise<void> {
 	const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan(
 		entries.map(({ routeFile, params, skipStaticProps, isRouteTemplate }) => ({
@@ -272,6 +310,8 @@ async function prebuildManifestEntriesForRenderer(
 		const instance = findPlanInstance(entry, groupedBuildPlan.instances);
 		restoreManifestRouteAssets(appConfig, renderer, entry, instance);
 	}
+	restoreBundledScripts(appConfig, groupedBuildPlan, bundledScripts);
+	await renderer.materializeCollectedScripts();
 	for (const entry of entries) {
 		await renderer.prebuildProductionPageBrowserGraph(entry.routeFile, {
 			params: entry.params,
@@ -307,12 +347,13 @@ export async function prebuildProductionPageBrowserGraphsFromManifest(
 			]),
 		),
 	);
+	const bundledScripts = new Map(manifest.bundledScripts.map((script) => [script.key, script]));
 	for (const [renderer, entries] of groupManifestEntriesByRenderer(
 		appConfig,
 		routeRendererFactory,
 		manifest.entries,
 	)) {
-		await prebuildManifestEntriesForRenderer(appConfig, renderer, entries);
+		await prebuildManifestEntriesForRenderer(appConfig, renderer, entries, bundledScripts);
 	}
 	requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
 	return true;

@@ -17,7 +17,11 @@ import { getPendingLazyClientAssets, getResolvedLazyTriggers } from '../../eco/c
 import { collectPageClientPlan } from '../orchestration/ownership-graph/page-client-plan.ts';
 import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
 import { packagePageDependencies } from './page-dependency-bundling.ts';
-import { deduplicateAssetDependencies } from '../../assets/asset-processing-service/asset-dependency-keys.ts';
+import {
+	deduplicateAssetDependencies,
+	getAssetDependencyKey,
+} from '../../assets/asset-processing-service/asset-dependency-keys.ts';
+import assert from 'node:assert/strict';
 
 describe('DependencyResolverService', () => {
 	const appConfig = {
@@ -97,6 +101,26 @@ describe('DependencyResolverService', () => {
 		expect(getPendingLazyClientAssets(component.config)).toEqual(entries);
 		expect(plan.lazyClientEntries).toEqual(entries);
 		expect(processDependencies).not.toHaveBeenCalled();
+	});
+
+	it('names a lazy entry after the component that declares it, whichever renderer collects it', () => {
+		const service = new DependencyResolverService(appConfig, {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService);
+		const createLitComponent = () => {
+			const component = (() => '<div />') as EcoComponent;
+			component.config = {
+				identity: { id: 'foreign-lazy-name', file: '/app/foreign-lazy-name.tsx', integration: 'lit' },
+				dependencies: { scripts: [{ src: './lazy.ts', lazy: { 'on:idle': true } }] },
+			};
+			return component;
+		};
+
+		const [fromOwner] = service.prepareLazyClientDependencies([createLitComponent()], 'lit');
+		const [fromHost] = service.prepareLazyClientDependencies([createLitComponent()], 'kitajs');
+
+		expect(fromOwner).toEqual(expect.objectContaining({ name: expect.stringMatching(/^ecopages-lit-lazy-/) }));
+		expect(fromHost).toEqual(fromOwner);
 	});
 
 	it('evicts a rejected production dependency result so the next render can retry', async () => {
@@ -1070,5 +1094,73 @@ describe('DependencyResolverService', () => {
 		await expect(service.processComponentDependencies([component], 'kitajs')).rejects.toThrow(
 			UndeclaredComponentDependencyError,
 		);
+	});
+	describe('script collection', () => {
+		function createComponent(file: string, scripts: string[], integration = 'react'): EcoComponent {
+			const component = (() => '<component />') as EcoComponent;
+			component.config = {
+				identity: { id: file, file, integration },
+				dependencies: { scripts, stylesheets: ['./style.css'] },
+			};
+			return component;
+		}
+
+		it('hands out placeholders for bundled scripts and processes the other assets', async () => {
+			const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
+				deps.map((dep) => ({ kind: dep.kind, srcUrl: `/processed/${dep.kind}` }) as ProcessedAsset),
+			);
+			const service = new DependencyResolverService(appConfig, {
+				processDependencies,
+			} as unknown as AssetProcessingService);
+
+			service.startScriptCollection();
+			const assets = await service.processPreparedComponentDependencies(
+				[createComponent('/app/card.tsx', ['./card.script.ts'])],
+				'react',
+			);
+			const collected = service.finishScriptCollection();
+
+			expect(processDependencies).toHaveBeenCalledTimes(1);
+			expect(processDependencies.mock.calls[0]?.[0].map((dep) => dep.kind)).toEqual(['stylesheet']);
+			expect(collected).toHaveLength(1);
+			expect(collected[0]).toMatchObject({ kind: 'script', filepath: '/app/card.script.ts' });
+			const placeholder = assets.find((asset) => asset.kind === 'script');
+			expect(placeholder?.srcUrl).toBeUndefined();
+		});
+
+		it('fills placeholders from the prebuilt scripts and builds a script the app-wide build missed', async () => {
+			const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
+				deps.map((dep) => ({ kind: dep.kind, srcUrl: `/separate/${dep.kind}` }) as ProcessedAsset),
+			);
+			const service = new DependencyResolverService(appConfig, {
+				processDependencies,
+			} as unknown as AssetProcessingService);
+
+			service.startScriptCollection();
+			const prebuiltAssets = await service.processPreparedComponentDependencies(
+				[createComponent('/app/prebuilt.tsx', ['./prebuilt.script.ts'])],
+				'react',
+			);
+			const missedAssets = await service.processPreparedComponentDependencies(
+				[createComponent('/app/missed.tsx', ['./missed.script.ts'])],
+				'react',
+			);
+			const [prebuiltScript] = service.finishScriptCollection();
+			assert.ok(prebuiltScript);
+			processDependencies.mockClear();
+
+			await service.materializeCollectedScripts(
+				new Map([
+					[
+						getAssetDependencyKey(prebuiltScript),
+						{ kind: 'script', srcUrl: '/assets/client-shared.js' } as ProcessedAsset,
+					],
+				]),
+			);
+
+			expect(prebuiltAssets.find((asset) => asset.kind === 'script')?.srcUrl).toBe('/assets/client-shared.js');
+			expect(missedAssets.find((asset) => asset.kind === 'script')?.srcUrl).toBe('/separate/script');
+			expect(processDependencies).toHaveBeenCalledTimes(1);
+		});
 	});
 });

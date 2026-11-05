@@ -75,7 +75,7 @@ build/
 - `production-route-list.ts`: writes and loads `dist/server/routes.json`, the filesystem route list `ecopages start` uses instead of scanning sources.
 - `production-dist-complete.ts`: `ecopages start` refuses a mixed or incomplete `dist/` (one build id, every listed output exists) and does not read sources.
 - `copy-server-files.ts`: copies `serverFiles` globs into `dist/server/` by basename so production modules can read them next to `import.meta`.
-- `server-bundle-publication.ts`: stages the server entry, emitted config, and deploy manifest together, then publishes the complete directory with rollback.
+- `server-bundle-publication.ts`: stages the server entry, emitted config, and deploy manifest together, then publishes the complete directory with rollback. The staging directory is made with a plain `mkdir` under a unique name, so `dist/server` has the same mode as `dist/client` (0777 less umask) and a non-root user in a deployed image can read it.
 - `rolldown/entry-module-closures.ts`: records each entry's static and dynamic source module closure in `generateBundle`, including inlined and tree-shaken imports.
 - `build-graph.ts`: shared entry path and output lookup (caller path, real path, and named grouped keys), emitted chunk reachability for in-process cache artifact checks, and dependency input collection. Browser build fingerprints can include package inputs under `node_modules`; local external imports remain leaves, including missing generated server modules.
 - `server-module.ts`: builds one server entry through the app's server request policy and returns its emitted path. The content processor owns collection-specific build identity and caching.

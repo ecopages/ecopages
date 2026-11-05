@@ -2,11 +2,18 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 
-/** Creates a sibling staging directory so publication stays on one filesystem. */
+/**
+ * Creates a sibling staging directory so publication stays on one filesystem.
+ *
+ * @remarks
+ * The directory is made with a plain `mkdir` under a unique name, not `mkdtemp`, whose 0700 mode
+ * would survive the rename and leave `dist/server` unreadable to a non-root user in a deployed image.
+ */
 export function createServerBundleStagingDirectory(serverOutdir: string): string {
 	const parentDir = path.dirname(serverOutdir);
-	fileSystem.ensureDir(parentDir);
-	return fileSystem.mkdtemp(path.join(parentDir, `.${path.basename(serverOutdir)}.staging-`));
+	const stagingDir = path.join(parentDir, `.${path.basename(serverOutdir)}.staging-${randomUUID()}`);
+	fileSystem.ensureDir(stagingDir);
+	return stagingDir;
 }
 
 /**

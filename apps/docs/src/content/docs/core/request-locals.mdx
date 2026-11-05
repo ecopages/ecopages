@@ -65,6 +65,8 @@ export default eco.page({
 
 A Page's `requires` option narrows the named locals in its `render` callback. For `requires: ['session']`, TypeScript treats `locals.session` as present and non-null.
 
+TypeScript cannot infer the keys when you write only some type arguments. If you write type arguments with `requires`, write all three: `eco.page<Props, Element, 'session'>({ requires: ['session'], ... })`. Writing only `Props` and `Element` is a type error.
+
 `requires` is a type-only contract. Ecopages does not check at runtime that middleware populated those locals. Make the middleware enforce the requirement, and do not use `requires` as an authentication or authorization check. See [TypeScript Types](/docs/reference/typescript) for the public type definitions.
 
 API handlers also receive `ctx.locals`. Their `ctx.require('session', onMissing)` helper checks that a local is present and non-null at runtime, then returns its narrowed value; if it is missing, the helper terminates the request with the `Response` returned by `onMissing`.

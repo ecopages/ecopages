@@ -116,13 +116,11 @@ export class BundleService {
 	 * so ESM imports resolve to concrete runtime asset URLs during module loading.
 	 *
 	 * @param componentName - Generated unique component name for output naming
-	 * @param isMdx - Whether the source file is an MDX file
 	 * @param declaredModules - Explicitly declared browser module specifiers
 	 * @returns Bundle options object for the build adapter
 	 */
 	async createBundleOptions(
 		componentName: string,
-		isMdx: boolean,
 		declaredModules: string[],
 		bundleOptions: ReactClientBundleOptions = {},
 		entrypointFile?: string,
@@ -163,7 +161,6 @@ export class BundleService {
 			groupedEntrypointFiles,
 			groupedDeclaredModules,
 			includeRuntime: bundleOptions.includeRuntime,
-			isMdx,
 		});
 
 		return options;
@@ -175,7 +172,6 @@ export class BundleService {
 		groupedEntrypointFiles?: readonly string[];
 		groupedDeclaredModules?: readonly string[];
 		includeRuntime?: boolean;
-		isMdx: boolean;
 	}): EcoBuildPlugin[] {
 		const graphBoundaryPlugin = createClientGraphBoundaryPlugin({
 			projectRoot: this.config.appConfig?.absolutePaths?.projectDir ?? this.config.rootDir,
@@ -194,7 +190,7 @@ export class BundleService {
 			? []
 			: [this.runtimeRewritePlugin].filter((plugin): plugin is NonNullable<typeof plugin> => plugin !== null);
 
-		const mdxPlugin = options.isMdx ? this.getMdxLoaderPlugin() : undefined;
+		const mdxPlugin = this.getMdxLoaderPlugin();
 		return [
 			...(this.foreignJsxOverridePlugin ? [this.foreignJsxOverridePlugin] : []),
 			graphBoundaryPlugin,

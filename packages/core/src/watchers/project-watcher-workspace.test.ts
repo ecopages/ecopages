@@ -1,4 +1,3 @@
-import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -66,11 +65,10 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		const running = registry();
 		const oldUrl = await running.resolveVendorUrl('@acme/ui');
 		const oldResponse = await running.tryHandleVendorRequest(oldUrl);
+		const oldEtag = oldResponse?.headers.get('ETag');
 		const oldCode = (await oldResponse?.text()) ?? '';
 		expect(oldCode).toContain('before-edit');
-		const dependencyUrl = /from\s*["'](\/assets\/vendors\/ui-dep[^"']+)["']/.exec(oldCode)?.[1];
-		assert.ok(dependencyUrl);
-		const oldDependencyEtag = (await running.tryHandleVendorRequest(dependencyUrl))?.headers.get('ETag');
+		expect(oldCode).toContain('dependency-before');
 		const restart = vi.fn(async () => {});
 		const hmrManager = createMockHmrManager();
 		const watcher = new ProjectWatcher({
@@ -97,10 +95,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		const restarted = registry();
 		const newUrl = await restarted.resolveVendorUrl('@acme/ui');
 		expect(newUrl).toBe(oldUrl);
-		const newResponse =
-			edited === 'dependency'
-				? await restarted.tryHandleVendorRequest(dependencyUrl, oldDependencyEtag)
-				: await restarted.tryHandleVendorRequest(newUrl);
+		const newResponse = await restarted.tryHandleVendorRequest(newUrl, edited === 'dependency' ? oldEtag : null);
 		expect(newResponse?.status).toBe(200);
 		expect(await newResponse?.text()).toContain(
 			edited === 'package' ? 'after-edit' : edited === 'dependency' ? 'dependency-after' : 'before-edit',

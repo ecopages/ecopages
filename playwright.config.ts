@@ -111,6 +111,12 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		use: { ...chrome, baseURL: 'http://localhost:4004' },
 	},
 	{
+		name: 'browser-module-identity-dev-e2e',
+		testMatch: 'e2e/fixtures/react-router/browser-module-identity.test.e2e.ts',
+		timeout: 60_000,
+		use: { ...chrome, appOptions: { source: 'e2e/fixtures/react-router' } },
+	},
+	{
 		name: 'react-router-persist-layouts-dev-e2e',
 		testMatch: 'e2e/fixtures/react-router/persist-layouts-hmr.test.e2e.ts',
 		timeout: 60_000,

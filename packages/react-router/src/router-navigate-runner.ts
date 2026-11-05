@@ -65,6 +65,7 @@ async function applyRouterNavigationOutcome(
 	outcome: ReactNavigationOutcome,
 	input: {
 		isStale: () => boolean;
+		isSuperseded: () => boolean;
 		skipViewTransition: boolean;
 		isPopState: boolean;
 		navigationId: number;
@@ -95,6 +96,7 @@ async function applyRouterNavigationOutcome(
 			outcome,
 			{
 				isStale: input.isStale,
+				isSuperseded: input.isSuperseded,
 				hardAssign: (href) => {
 					window.location.assign(href);
 				},
@@ -210,6 +212,7 @@ export async function runRouterNavigate(
 	deps.activeNavigationRef.current = navigation;
 	const navigationId = navigation.id;
 	const isStale = () => !navigation.isCurrent();
+	const isSuperseded = () => navigation.isSuperseded();
 
 	try {
 		deps.isNavigatingRef.current = true;
@@ -226,6 +229,7 @@ export async function runRouterNavigate(
 
 		await applyRouterNavigationOutcome(outcome, {
 			isStale,
+			isSuperseded,
 			skipViewTransition,
 			isPopState,
 			navigationId,

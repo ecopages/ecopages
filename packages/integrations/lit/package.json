@@ -26,6 +26,10 @@
 			"default": "./src/styled-mixin.ts",
 			"types": "./src/styled-mixin.ts"
 		},
+		"./hydrate-support": {
+			"default": "./src/lit-hydrate-support.ts",
+			"types": "./src/lit-hydrate-support.ts"
+		},
 		"./static-render-worker": {
 			"default": "./src/lit-static-render-worker.ts",
 			"types": "./src/lit-static-render-worker.ts"

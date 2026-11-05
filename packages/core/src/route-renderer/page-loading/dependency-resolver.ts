@@ -10,6 +10,7 @@ import type {
 import { resolveAssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
 import { getAssetDependencyKey } from '../../assets/asset-processing-service/asset-dependency-keys.ts';
 import { prepareAssetDependencies } from '../../assets/asset-processing-service/asset-processing.service.ts';
+import { isBundleableScript } from '../../assets/asset-processing-service/bundleable-script.ts';
 import { contentHash } from '../../utils/content-hash.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
@@ -74,10 +75,6 @@ type CollectedScript = {
 	integrationName: string;
 	placeholders: ProcessedAsset[];
 };
-
-function isBundleableScript(dep: AssetDefinition): boolean {
-	return dep.kind === 'script' && dep.bundle !== false && dep.classic !== true && dep.inline !== true;
-}
 
 function isLazyClientScript(dep: AssetDefinition): boolean {
 	return dep.kind === 'script' && Boolean(dep.attributes?.['data-eco-lazy-key']);

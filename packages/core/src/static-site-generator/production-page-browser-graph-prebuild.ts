@@ -25,6 +25,8 @@ import type {
 	AppBrowserClientManifestEntry,
 } from '../assets/app-browser-client-manifest.ts';
 import { getAssetDependencyKey } from '../assets/asset-processing-service/asset-dependency-keys.ts';
+import { prepareAssetDependencies } from '../assets/asset-processing-service/asset-processing.service.ts';
+import { isBundleableScript } from '../assets/asset-processing-service/bundleable-script.ts';
 
 export type ProductionPageBrowserGraphRouteInstance = {
 	routeFile: string;
@@ -123,11 +125,12 @@ export async function prebuildProductionPageBrowserGraphs(
 		});
 	}
 	if (rendererPlans.length === 0) return;
-	const appBrowserBuild = await buildAppBrowserClient(
-		appConfig,
-		rendererPlans.map(({ groupedBuildPlan }) => groupedBuildPlan),
-	);
+	const appBrowserBuild = await buildAppBrowserClient(appConfig, [
+		...rendererPlans.map(({ groupedBuildPlan }) => groupedBuildPlan),
+		...collectIntegrationScriptPlans(appConfig),
+	]);
 	requireAppRuntime(appConfig).prebuiltBrowserScripts = new Map(appBrowserBuild.bundledScriptAssets);
+	await refreshIntegrationDependencies(appConfig);
 	await writeAppBrowserClientManifest(
 		appConfig,
 		appBrowserBuild.plans,
@@ -251,6 +254,37 @@ function restoreFallbackDependencies(
 }
 
 /**
+ * Lists each Integration's global scripts as a plan without routes, so the app-wide build bundles them.
+ *
+ * @remarks
+ * Browser runtime assets keep their fixed URLs and are left out; runtime-specifier rewrites point at them.
+ */
+function collectIntegrationScriptPlans(appConfig: EcoPagesAppConfig): GroupedGraphBuildPlan[] {
+	return appConfig.integrations.flatMap((integration) => {
+		const bundledScripts = prepareAssetDependencies(
+			[...integration.getIntegrationDependencies()],
+			integration,
+		).filter((dependency) => isBundleableScript(dependency) && dependency.packageRole !== 'runtime');
+		return bundledScripts.length > 0
+			? [
+					{
+						integrationName: integration.name,
+						planKey: `integration-scripts:${integration.name}`,
+						instances: [],
+						bundledScripts,
+					},
+				]
+			: [];
+	});
+}
+
+async function refreshIntegrationDependencies(appConfig: EcoPagesAppConfig): Promise<void> {
+	for (const integration of appConfig.integrations) {
+		await integration.refreshResolvedIntegrationDependencies();
+	}
+}
+
+/**
  * Registers the app-wide build output of each component script the plan's routes bundle.
  *
  * @remarks
@@ -348,6 +382,10 @@ export async function prebuildProductionPageBrowserGraphsFromManifest(
 		),
 	);
 	const bundledScripts = new Map(manifest.bundledScripts.map((script) => [script.key, script]));
+	for (const plan of collectIntegrationScriptPlans(appConfig)) {
+		restoreBundledScripts(appConfig, plan, bundledScripts);
+	}
+	await refreshIntegrationDependencies(appConfig);
 	for (const [renderer, entries] of groupManifestEntriesByRenderer(
 		appConfig,
 		routeRendererFactory,

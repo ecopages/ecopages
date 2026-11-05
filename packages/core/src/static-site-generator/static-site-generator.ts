@@ -553,8 +553,12 @@ export class StaticSiteGenerator {
 		}).export(input.activeStaticPathnames);
 	}
 
+	/**
+	 * @remarks
+	 * Sitemap locations use `appConfig.baseUrl` (config, `ECOPAGES_BASE_URL`, `--base-url`), the same canonical
+	 * origin Pages resolve. The `baseUrl` passed to `run` is the serve origin used to enumerate routes and is not public.
+	 */
 	private finalizeStaticGenerationRun(input: {
-		baseUrl: string;
 		skippedDynamicPages: string[];
 		sitemapEligiblePathnames?: Set<string>;
 	}): void {
@@ -562,7 +566,7 @@ export class StaticSiteGenerator {
 			const locations = resolveSitemapLocations({
 				eligiblePathnames: [...input.sitemapEligiblePathnames],
 				sitemap: this.appConfig.sitemap,
-				baseUrl: input.baseUrl,
+				baseUrl: this.appConfig.baseUrl,
 			});
 			this.generateSitemap(locations, this.appConfig.sitemap);
 		}
@@ -647,7 +651,6 @@ export class StaticSiteGenerator {
 			}
 
 			this.finalizeStaticGenerationRun({
-				baseUrl,
 				skippedDynamicPages,
 				sitemapEligiblePathnames,
 			});

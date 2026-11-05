@@ -15,7 +15,8 @@ import {
 	createPageDependencyInstanceKey,
 	createRouteGraphLookupKey,
 } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
-import type { ProcessedAsset } from './asset-processing-service/assets.types.ts';
+import type { AssetDefinition, ProcessedAsset } from './asset-processing-service/assets.types.ts';
+import { getAssetDependencyKey } from './asset-processing-service/asset-dependency-keys.ts';
 
 const APP_BROWSER_CLIENT_MANIFEST_FILENAME = 'browser-client-manifest.json';
 
@@ -48,10 +49,17 @@ export type AppBrowserClientManifestEntry = {
 	};
 };
 
+/** The app-wide build output of one component script, under a key that survives moving the project root. */
+export type AppBrowserClientManifestBundledScript = {
+	key: string;
+	asset: SerializedProcessedAsset;
+};
+
 export type AppBrowserClientManifest = {
 	version: 1;
 	buildId?: string;
 	entries: AppBrowserClientManifestEntry[];
+	bundledScripts: AppBrowserClientManifestBundledScript[];
 	htmlPageModuleScriptUrls: Record<string, string>;
 	htmlPageModuleScriptFingerprint: string;
 	browserOutputPaths: string[];
@@ -88,6 +96,44 @@ export function createNormalizedAppBrowserClientEntryKey(
 	dependency: Parameters<typeof createAppBrowserClientEntryKey>[1],
 ): string {
 	return normalizeAppBrowserClientEntryKey(rootDir, createAppBrowserClientEntryKey(integrationName, dependency));
+}
+
+/**
+ * Creates the dependency key of a component script with project-relative paths.
+ *
+ * @remarks
+ * A Page script's content imports its member files by absolute path, so the content is normalized as well.
+ */
+export function createNormalizedBundledScriptKey(rootDir: string, dependency: AssetDefinition): string {
+	const root = `${path.resolve(rootDir)}${path.sep}`;
+	const normalized = {
+		...dependency,
+		...('filepath' in dependency ? { filepath: toProjectPath(rootDir, path.resolve(dependency.filepath)) } : {}),
+		...('content' in dependency ? { content: dependency.content.replaceAll(root, '<root>/') } : {}),
+		...(dependency.bundledSourceFilepaths
+			? {
+					bundledSourceFilepaths: dependency.bundledSourceFilepaths.map((filePath) =>
+						toProjectPath(rootDir, filePath),
+					),
+				}
+			: {}),
+	} as AssetDefinition;
+	return getAssetDependencyKey(normalized);
+}
+
+function serializeBundledScripts(
+	rootDir: string,
+	plans: readonly GroupedGraphBuildPlan[],
+	bundledScriptAssets: ReadonlyMap<string, ProcessedAsset>,
+): AppBrowserClientManifestBundledScript[] {
+	const scripts = new Map<string, AppBrowserClientManifestBundledScript>();
+	for (const dependency of plans.flatMap((plan) => plan.bundledScripts ?? [])) {
+		const asset = bundledScriptAssets.get(getAssetDependencyKey(dependency));
+		if (!asset) continue;
+		const key = createNormalizedBundledScriptKey(rootDir, dependency);
+		scripts.set(key, { key, asset: serializeProcessedAsset(rootDir, asset) });
+	}
+	return [...scripts.values()].sort((left, right) => left.key.localeCompare(right.key));
 }
 
 function serializeProcessedAsset(rootDir: string, asset: ProcessedAsset): SerializedProcessedAsset {
@@ -175,6 +221,10 @@ function isManifest(value: unknown): value is AppBrowserClientManifest {
 		isOptionalString(value, 'buildId') &&
 		Array.isArray(value.entries) &&
 		value.entries.every(isManifestEntry) &&
+		Array.isArray(value.bundledScripts) &&
+		value.bundledScripts.every(
+			(script) => isRecord(script) && typeof script.key === 'string' && isProcessedAsset(script.asset),
+		) &&
 		isStringRecord(value.htmlPageModuleScriptUrls) &&
 		typeof value.htmlPageModuleScriptFingerprint === 'string' &&
 		isStringArray(value.browserOutputPaths)
@@ -275,7 +325,11 @@ export async function writeAppBrowserClientManifest(
 		skipStaticProps?: boolean;
 		isRouteTemplate?: boolean;
 	}[],
-	browserBuild: { sourceFiles: readonly string[]; outputPaths: readonly string[] },
+	browserBuild: {
+		sourceFiles: readonly string[];
+		outputPaths: readonly string[];
+		bundledScriptAssets: ReadonlyMap<string, ProcessedAsset>;
+	},
 ): Promise<void> {
 	const paramsByRouteKey = new Map(
 		routeInstances.map((instance) => [
@@ -314,6 +368,7 @@ export async function writeAppBrowserClientManifest(
 		version: 1,
 		buildId: ensureProductionBuildId(appConfig),
 		entries,
+		bundledScripts: serializeBundledScripts(appConfig.rootDir, plans, browserBuild.bundledScriptAssets),
 		htmlPageModuleScriptUrls,
 		htmlPageModuleScriptFingerprint: htmlBuildInputs.fingerprint,
 		browserOutputPaths: [

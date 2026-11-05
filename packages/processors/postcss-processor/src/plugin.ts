@@ -120,8 +120,23 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		);
 	}
 
+	/**
+	 * @remarks
+	 * Stylesheets in the public directory are excluded: the build copies them as written and serves them
+	 * as they are, so a processed copy would be emitted but linked by no Page.
+	 */
 	private matchesCssFilter(filePath: string): boolean {
-		return this.canProcessAsset('stylesheet', filePath);
+		return !this.isInsidePublicDir(filePath) && this.canProcessAsset('stylesheet', filePath);
+	}
+
+	private isInsidePublicDir(filePath: string): boolean {
+		const publicDir = this.context?.config.absolutePaths.publicDir;
+		if (!publicDir) {
+			return false;
+		}
+
+		const relativePath = path.relative(publicDir, filePath);
+		return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
 	}
 
 	private isCssInsideSrc(filePath: string): boolean {

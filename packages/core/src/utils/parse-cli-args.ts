@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import { isEcopagesEnvEnabled, setRuntimeModeForCliCommand } from '../env.ts';
+import { ENTRY_COMMAND_FLAGS, type EntryCommandFlagName } from './entry-command-flags.ts';
 import { getRuntimeArgv } from './runtime.ts';
 
 /**
@@ -21,6 +22,10 @@ export type ReturnParseCliArgs = {
 	port?: number;
 	hostname?: string;
 };
+
+const ENTRY_FLAG_OPTIONS = Object.fromEntries(
+	Object.keys(ENTRY_COMMAND_FLAGS).map((name) => [name, { type: 'boolean' }]),
+) as Record<EntryCommandFlagName, { type: 'boolean' }>;
 
 const ECOPAGES_BIN_FILES = ['ecopages.ts', 'ecopages.js', 'cli.js'];
 
@@ -73,8 +78,7 @@ export function parseCliArgs(): ReturnParseCliArgs {
 			dev: { type: 'boolean' },
 			preview: { type: 'boolean' },
 			build: { type: 'boolean' },
-			'serve-only': { type: 'boolean' },
-			'keep-going': { type: 'boolean' },
+			...ENTRY_FLAG_OPTIONS,
 			port: { type: 'string' },
 			hostname: { type: 'string' },
 		},

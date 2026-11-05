@@ -10,6 +10,8 @@ import { createLaunchPlan, resolveEcoConfigFilePath } from './launch-plan.js';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
+	ENTRY_COMMAND_FLAGS,
+	getEntryCommandFlagNames,
 	isEcopagesEnvEnabled,
 	resolveDevelopmentRecoveryWatch,
 } from '@ecopages/core/build';
@@ -112,11 +114,11 @@ function parseCommandArguments(rawArgs, options) {
 function parseServerCommandArgs(rawArgs, definition) {
 	const commandName = definition.name;
 	const valueOptions = definition.valueOptions ?? {};
-	const booleanOptions = definition.booleanOptions ?? {};
+	const entryFlagNames = getEntryCommandFlagNames(commandName);
 	const { values, positionals } = parseCommandArguments(rawArgs, {
 		...sharedServerOptionDefinitions,
 		...Object.fromEntries(Object.keys(valueOptions).map((option) => [option, { type: 'string' }])),
-		...booleanOptions,
+		...Object.fromEntries(entryFlagNames.map((flag) => [flag, { type: 'boolean' }])),
 	});
 
 	if (values.help) {
@@ -124,7 +126,10 @@ function parseServerCommandArgs(rawArgs, definition) {
 			getServerCommandHelpText(
 				commandName,
 				definition.description,
-				[...Object.values(valueOptions), ...(definition.optionHelpLines ?? [])],
+				[
+					...Object.values(valueOptions),
+					...entryFlagNames.map((flag) => `      --${flag.padEnd(33)}${ENTRY_COMMAND_FLAGS[flag].help}`),
+				],
 				definition.ignoredOptions,
 			),
 		);
@@ -141,7 +146,7 @@ function parseServerCommandArgs(rawArgs, definition) {
 
 	return {
 		entry,
-		keepGoing: Boolean(values['keep-going']),
+		entryFlags: entryFlagNames.filter((flag) => values[flag]),
 		options: {
 			port: values.port,
 			hostname: values.hostname,
@@ -338,7 +343,7 @@ async function runServerCommand(rawArgs, definition) {
 
 	const entry = definition.resolveEntry?.() ?? parsed.entry;
 	const entryArgs = [...definition.entryArgs];
-	if (parsed.keepGoing) entryArgs.push('--keep-going');
+	for (const flag of parsed.entryFlags) entryArgs.push(`--${flag}`);
 	await runEntryCommand(
 		entryArgs,
 		{ ...parsed.options, ...definition.optionOverrides, entryFile: entry },
@@ -368,8 +373,6 @@ const SERVER_COMMANDS = {
 		description:
 			'Build the project for production: pre-render the Pages in src/pages, optimize assets and images, and write the result to dist.',
 		entryArgs: ['--build'],
-		booleanOptions: { 'keep-going': { type: 'boolean' } },
-		optionHelpLines: ['      --keep-going                       Continue the build after a Page fails to render'],
 		optionOverrides: { nodeEnv: 'production' },
 	},
 	start: {

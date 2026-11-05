@@ -6,7 +6,6 @@ import type {
 	IntegrationRuntimeContext,
 } from '@ecopages/core/integration';
 import { BundleService } from './bundle.ts';
-import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 
 const withNodeEnv = async <T>(nodeEnv: string | undefined, run: () => Promise<T>): Promise<T> => {
 	if (nodeEnv === undefined) {
@@ -187,22 +186,6 @@ describe('BundleService', () => {
 			expect(resolved[specifier]?.external, specifier).toBe(true);
 			expect(resolved[specifier]?.path, specifier).toMatch(/^\/assets\/vendors\/.+\.js$/);
 		}
-	});
-
-	it('resolves configured runtime module imports to shared vendor URLs', async () => {
-		const service = new BundleService({
-			rootDir: '/app',
-			appConfig: testAppConfig,
-			hostIntegrationName: 'react',
-			runtimeModules: resolveReactPluginRuntimeModules(['@tanstack/react-query']),
-		});
-
-		const resolved = await resolveRuntimeSpecifiers(service, ['@tanstack/react-query']);
-
-		expect(resolved['@tanstack/react-query']).toEqual({
-			path: '/assets/vendors/tanstack-react-query.js',
-			external: true,
-		});
 	});
 
 	it('processes page-layout-normalization vendor once for concurrent MDX callers', async () => {

@@ -25,7 +25,6 @@ import { RuntimeBundleService } from '../bundling/runtime-bundle.ts';
 import { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
 import { createReactMdxLoaderPlugin } from '../mdx/mdx-loader-plugin.ts';
 import { appendMdxExtensions, resolveMdxCompilerOptions } from '@ecopages/mdx/core';
-import { resolveReactPluginRuntimeModules } from '../bundling/runtime-modules.ts';
 
 export type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 
@@ -77,7 +76,6 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 		mdx,
 		explicitGraph,
 		dependencies,
-		runtimeModules,
 		renderTimeoutMs,
 		...baseConfig
 	} = options ?? {};
@@ -85,7 +83,6 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 	const extensions = [...(userExtensions ?? ['.tsx'])];
 	const mdxEnabled = mdx !== undefined;
 	const mdxExtensions = mdx?.extensions ?? ['.mdx'];
-	const resolvedRuntimeModules = resolveReactPluginRuntimeModules(runtimeModules);
 
 	if (mdxEnabled) {
 		appendMdxExtensions(extensions, mdxExtensions);
@@ -93,7 +90,6 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 
 	const rendererConfig: ReactRendererConfig = {
 		routerAdapter: router,
-		runtimeModules: resolvedRuntimeModules,
 		mdxExtensions,
 		hmrPageMetadataCache: new HmrPageMetadataCache(),
 		forceBrowserGraph: explicitGraph ?? false,
@@ -137,7 +133,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		const { extensions, rendererConfig, integrationDependencies, mdxCompilerOptions, ...baseConfig } = config;
 		const runtimeBundleService = new RuntimeBundleService({
 			routerAdapter: rendererConfig.routerAdapter,
-			runtimeModules: rendererConfig.runtimeModules,
 		});
 
 		super({
@@ -206,7 +201,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		this.runtimeBundleService.setWorkDir(
 			appConfig.absolutePaths.workDir ?? path.join(appConfig.rootDir, appConfig.workDir ?? '.eco'),
 		);
-		this.runtimeBundleService.setRuntimeModules(this.rendererConfig.runtimeModules ?? []);
 
 		this.integrationDependencies.unshift(...this.runtimeBundleService.getDependencies());
 		this.runtimeDependenciesInitialized = true;

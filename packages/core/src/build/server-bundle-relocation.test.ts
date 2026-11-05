@@ -301,3 +301,129 @@ test(
 		}
 	},
 );
+
+function writeStyledApp(appDir: string): void {
+	mkdirSync(path.join(appDir, 'src/pages'), { recursive: true });
+	mkdirSync(path.join(appDir, 'src/includes'), { recursive: true });
+	writeFileSync(
+		path.join(appDir, 'package.json'),
+		JSON.stringify({
+			name: 'relocated-styled-app',
+			private: true,
+			type: 'module',
+			dependencies: { '@ecopages/core': '*', '@ecopages/kitajs': '*', '@kitajs/html': '*' },
+		}),
+	);
+	writeFileSync(
+		path.join(appDir, 'tsconfig.json'),
+		JSON.stringify({
+			compilerOptions: { jsx: 'react-jsx', jsxImportSource: '@kitajs/html', module: 'ESNext', target: 'ES2024' },
+		}),
+	);
+	writeFileSync(
+		path.join(appDir, 'eco.config.ts'),
+		[
+			"import { defineConfig } from '@ecopages/core/config';",
+			"import { kitajsPlugin } from '@ecopages/kitajs';",
+			'',
+			'export default defineConfig({ rootDir: import.meta.dirname, integrations: [kitajsPlugin()] });',
+			'',
+		].join('\n'),
+	);
+	writeFileSync(
+		path.join(appDir, 'app.ts'),
+		"import { createApp } from '@ecopages/core/create-app';\n\nconst app = await createApp();\napp.get('/api/ping', async ({ response }) => response.json({ ok: true }));\nawait app.start();\n",
+	);
+	writeFileSync(
+		path.join(appDir, 'src/includes/html.kita.tsx'),
+		[
+			"import type { HtmlTemplateProps } from '@ecopages/core';",
+			"import { eco } from '@ecopages/core';",
+			'',
+			'export default eco.html({',
+			'	render: ({ children, metadata }: HtmlTemplateProps) => (',
+			'		<html lang="en">',
+			'			<head>',
+			'				<meta charset="UTF-8" />',
+			'				<title>{metadata.title}</title>',
+			'			</head>',
+			"			<body>{children as 'safe'}</body>",
+			'		</html>',
+			'	),',
+			'});',
+			'',
+		].join('\n'),
+	);
+	writeFileSync(
+		path.join(appDir, 'src/pages/index.kita.tsx'),
+		[
+			"import { eco } from '@ecopages/core';",
+			'',
+			'export default eco.page({',
+			`	metadata: () => ({ title: '${HOME_MARKER}' }),`,
+			"	dependencies: { stylesheets: ['./home.css'], scripts: ['./home.script.ts'] },",
+			`	render: () => <h1>${HOME_MARKER}</h1>,`,
+			'});',
+			'',
+		].join('\n'),
+	);
+	writeFileSync(path.join(appDir, 'src/pages/home.css'), 'h1 { color: rebeccapurple; }\n');
+	writeFileSync(path.join(appDir, 'src/pages/home.script.ts'), "document.documentElement.dataset.home = 'ready';\n");
+}
+
+/**
+ * @remarks
+ * A Page declares a stylesheet and a component script. After the build the
+ * deploy layout moves to another root and the build tree, `src/` included,
+ * is deleted. Request-time asset processing must still link both from `dist/`.
+ */
+test(
+	'a moved build still links the Page stylesheet and script without the source tree',
+	{ timeout: 120_000 },
+	async () => {
+		workDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-assets-')));
+		const buildDir = path.join(workDir, 'build/app');
+		const deployDir = path.join(workDir, 'srv/deploy/app');
+		writeStyledApp(buildDir);
+		const kitajsDir = path.join(repoRoot, 'packages/integrations/kitajs');
+		installIsolated(buildDir, {
+			'@ecopages/core': path.join(repoRoot, 'packages/core'),
+			'@ecopages/kitajs': kitajsDir,
+			'@kitajs/html': findPackageDir(kitajsDir, '@kitajs/html')!,
+		});
+
+		execFileSync(process.execPath, [cliPath, 'build', '--runtime', 'node'], {
+			cwd: buildDir,
+			env: { ...process.env, VITEST: '', NODE_ENV: 'production' },
+			stdio: 'pipe',
+			timeout: 90_000,
+		});
+
+		mkdirSync(deployDir, { recursive: true });
+		for (const entry of ['dist', 'node_modules']) {
+			renameSync(path.join(buildDir, entry), path.join(deployDir, entry));
+		}
+		rmSync(path.join(workDir, 'build'), { recursive: true, force: true });
+
+		let output = '';
+		server = spawn(process.execPath, ['dist/server/app.mjs'], {
+			cwd: deployDir,
+			env: {
+				...process.env,
+				VITEST: '',
+				NODE_ENV: 'production',
+				ECOPAGES_HOSTNAME: '127.0.0.1',
+				ECOPAGES_PORT: '0',
+			},
+			stdio: 'pipe',
+		});
+		server.stdout?.on('data', (chunk: Buffer) => (output += chunk.toString()));
+		server.stderr?.on('data', (chunk: Buffer) => (output += chunk.toString()));
+		const serverUrl = await waitForServerUrl(server, () => output);
+		const html = await (await fetch(new URL('/', serverUrl), { signal: AbortSignal.timeout(15_000) })).text();
+		expect(html).toContain(HOME_MARKER);
+		expect(html).toMatch(/<link[^>]+rel="stylesheet"[^>]+href="[^"]+\.css"/u);
+		expect(html).toMatch(/<script[^>]+src="[^"]+\.js"/u);
+		expect(output).not.toContain('Skipping missing');
+	},
+);

@@ -1,3 +1,4 @@
+import { ProcessedAssetLedger } from '../../assets/asset-processing-service/processed-asset-ledger.ts';
 import { createBuildAdapter } from '../../build/build-adapter.ts';
 import { sealAppBuildManifest } from '../../build/app-build-manifest-runtime.ts';
 import { BuildInputDependencyIndex, seedProcessorWatchPaths } from '../../build/cache/build-input-dependency-index.ts';
@@ -89,6 +90,14 @@ export interface AppRuntime {
 	 * manifest is an error. `ecopages start` sets this after it restores the manifest.
 	 */
 	productionBrowserGraphsSealed: boolean;
+	/**
+	 * Processed file dependencies of the production build, shared by every asset-processing service.
+	 *
+	 * @remarks
+	 * `ecopages build` fills it and writes it to `dist/server/processed-assets.json`; `ecopages start`
+	 * restores it so rendering never reads source files for recorded dependencies.
+	 */
+	processedAssets: ProcessedAssetLedger;
 }
 
 /**
@@ -139,6 +148,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		origin: appConfig.baseUrl,
 		hmr: null,
 		productionBrowserGraphsSealed: false,
+		processedAssets: new ProcessedAssetLedger(appConfig.rootDir),
 	};
 	appConfig.appRuntime = runtime;
 	try {

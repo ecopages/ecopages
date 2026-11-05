@@ -14,6 +14,7 @@ import { createServerBuildRequest } from '../../../build/runtime/build-request-p
 import { buildOrThrow } from '../../../build/runtime/build-queue.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
 import { copyDeclaredServerFiles } from '../../../build/copy-server-files.ts';
+import { writeProductionAssetLedger } from '../../../build/production-asset-ledger.ts';
 import { writeProductionRouteList } from '../../../build/production-route-list.ts';
 import {
 	getServerBundleOutputPaths,
@@ -235,6 +236,11 @@ export class ServerStaticBuilder {
 		this.logger.info('Server entry file bundled successfully');
 	}
 
+	/** Records the processed file dependencies beside the server bundle, which is the only consumer of them. */
+	private writeAssetLedger(buildsServerBundle: boolean): void {
+		if (buildsServerBundle) writeProductionAssetLedger(this.appConfig);
+	}
+
 	/**
 	 * Generates a static build of the site for deployment.
 	 * @param dependencies.router - The initialized router
@@ -269,7 +275,8 @@ export class ServerStaticBuilder {
 		this.exportPrepared = false;
 
 		const endpointRoutes = dependencies.router.templateRoutes.filter((route) => route.role === 'endpoint');
-		if (this.needsServerBundle || endpointRoutes.length > 0) {
+		const buildsServerBundle = this.needsServerBundle || endpointRoutes.length > 0;
+		if (buildsServerBundle) {
 			await this.bundleServerEntry();
 		}
 
@@ -298,6 +305,8 @@ export class ServerStaticBuilder {
 			force,
 			keepGoing: options?.keepGoing,
 		});
+
+		this.writeAssetLedger(buildsServerBundle);
 
 		if (isEcopagesEnvEnabled('ECOPAGES_BENCH') && !isEcopagesEnvEnabled('ECOPAGES_BENCH_VERBOSE')) {
 			this.logger.debug('Build completed');

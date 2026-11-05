@@ -179,7 +179,7 @@ test('AssetProcessingService - processDependencies - processor not found', async
 	expect(gzipDirMock).not.toHaveBeenCalled();
 });
 
-test('AssetProcessingService - processDependencies - error during processing', async () => {
+test('AssetProcessingService - processDependencies - rejects when a processor fails', async () => {
 	const ensureDirMock = vi.fn(() => {});
 	const gzipDirMock = vi.fn(() => {});
 	fileSystem.ensureDir = ensureDirMock;
@@ -199,12 +199,31 @@ test('AssetProcessingService - processDependencies - error during processing', a
 		source: 'file',
 		filepath: 'path/to/failing.js',
 	};
-	const results = await service.processDependencies([dependency], undefined);
+	await expect(service.processDependencies([dependency], undefined)).rejects.toThrow('Processing failed!');
 
 	expect(ensureDirMock).toHaveBeenCalledWith('/test/dist/client/assets');
 	expect(erroringProcessor.process).toHaveBeenCalledTimes(1);
-	expect(results.length).toBe(0);
 	expect(gzipDirMock).not.toHaveBeenCalled();
+});
+
+test('AssetProcessingService - processDependencies - rejects when a grouped bundle fails', async () => {
+	fileSystem.exists = vi.fn(() => true);
+	const service = new AssetProcessingService(Config);
+	service.registerProcessor('script', 'file', {
+		process: vi.fn(async () => Processor.process()),
+		processGrouped: vi.fn(async () => {
+			throw new Error('[browser-build] server-only module "secret.server.ts"');
+		}),
+	});
+
+	const dependencies = ['a', 'b'].map((name) => ({
+		kind: 'script' as const,
+		source: 'file' as const,
+		filepath: `/app/src/${name}.script.ts`,
+		groupedBundle: { id: 'page', entryName: name },
+	})) as AssetDefinition[];
+
+	await expect(service.processDependencies(dependencies, undefined)).rejects.toThrow('server-only module');
 });
 
 test('AssetProcessingService - processDependencies - handles undefined filepath for srcUrl', async () => {

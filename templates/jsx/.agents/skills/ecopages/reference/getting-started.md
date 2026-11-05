@@ -54,7 +54,7 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
-const appRoot = import.meta.dirname;
+const appRoot = process.cwd();
 
 export default defineConfig({
 	rootDir: appRoot,
@@ -73,7 +73,9 @@ export default defineConfig({
 });
 ```
 
-`baseUrl` defaults to `ECOPAGES_BASE_URL`, then `http://localhost:3000`. Set it to the production URL when canonical links or the Sitemap need it.
+Resolve the app root from the working directory (`process.cwd()`, which is also the default `rootDir`), not `import.meta.dirname`. The production build bundles the config into `dist/server/`, so `import.meta.dirname` there is the bundle directory, not the app folder.
+
+`baseUrl` in the config is the canonical origin. It wins when set; otherwise `--base-url` or `ECOPAGES_BASE_URL` (the flag exports the variable) supplies it, then the default `http://localhost:3000`. Set it to the production URL when canonical links or the Sitemap need it, and build absolute canonical URLs from that one origin (for example a small `site-origin` helper that the config and the Head metadata both import) instead of reading `process.env.ECOPAGES_BASE_URL` in each component.
 
 ## Required files
 

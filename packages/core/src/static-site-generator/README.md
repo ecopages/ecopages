@@ -30,6 +30,8 @@ It should not invent a parallel rendering stack just for build mode.
 
 Static export uses the same CPU-based concurrency limit as the build queue, and the startup trace reports that limit.
 
+An index Page's output file depends only on its Template Route: `/` is `index.html` and every other route `<route>.html` (`/blog` is `blog.html`, `/blog/about` is `blog/about.html`), whether or not sibling Pages exist. Static serving and `ecopages start` resolve `/blog` to `blog.html` first, then `blog/index.html`.
+
 Semantic error pages are excluded from ordinary page enumeration and emitted once by `route-renderer/error-pages/semantic-error-page-exporter.ts`, so runtime and static output share source precedence and rendering behavior.
 
 ## Files

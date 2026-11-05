@@ -64,24 +64,6 @@ describe('StaticSiteGenerator', () => {
 		vi.restoreAllMocks();
 	});
 
-	describe('getDirectories', () => {
-		test.each([
-			{ name: 'root-level routes', routes: ['/about', '/contact'], directories: [] },
-			{ name: 'nested routes', routes: ['/blog/post-1', '/docs/api'], directories: ['/blog', '/docs'] },
-			{
-				name: 'absolute URLs by their pathname',
-				routes: ['http://localhost:3000/blog/post'],
-				directories: ['/blog'],
-			},
-			{ name: 'siblings once', routes: ['/blog/a', '/blog/b', '/blog/c'], directories: ['/blog'] },
-			{ name: 'deeply nested paths', routes: ['/a/b/c/page'], directories: ['/a/b/c'] },
-		])('lists directories for $name', ({ routes, directories }) => {
-			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-
-			expect(ssg.getDirectories(routes)).toEqual(directories);
-		});
-	});
-
 	describe('generateRobotsTxt', () => {
 		test('should generate robots.txt with preferences from config', () => {
 			const config = createMockConfig();
@@ -134,6 +116,41 @@ describe('StaticSiteGenerator', () => {
 
 		const createStaticPageModule = () => ({
 			default: Object.assign(() => null, { cache: 'static' }),
+		});
+
+		describe('index Page output path', () => {
+			async function exportedFiles(pathnames: string[]): Promise<string[]> {
+				const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+				const Router = createMockRouter(
+					Object.fromEntries(
+						pathnames.map((pathname) => [pathname, { filePath: `/src/pages${pathname}.ts`, pathname }]),
+					),
+				);
+				const RendererFactory = {
+					getPageRenderer: vi.fn(() => ({
+						loadPageModule: vi.fn(async () => createStaticPageModule()),
+						execute: vi.fn(async () => ({ body: '<html></html>' })),
+					})),
+				} satisfies StaticPageRouteRendererFactory;
+
+				await ssg.generateStaticPages({
+					router: Router,
+					baseUrl: 'http://localhost:3000',
+					routeRendererFactory: RendererFactory,
+				});
+
+				return writeMock.mock.calls.map((call: unknown[]) => String(call[0]));
+			}
+
+			test('writes /blog to the same file with and without a sibling Page', async () => {
+				const alone = await exportedFiles(['/blog']);
+				writeMock.mockClear();
+				const withSibling = await exportedFiles(['/blog', '/blog/about']);
+
+				expect(alone).toEqual(['/test/project/dist/client/blog.html']);
+				expect(withSibling).toContain('/test/project/dist/client/blog.html');
+				expect(withSibling).toContain('/test/project/dist/client/blog/about.html');
+			});
 		});
 
 		test('uses the shared build parallelism for static export', async () => {

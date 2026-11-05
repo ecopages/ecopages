@@ -140,21 +140,13 @@ describe('buildReactRuntimeManifest', () => {
 		]);
 	});
 
-	it('includes configured runtime modules and the router import path', () => {
+	it('includes the router import path', () => {
 		const manifest = buildReactRuntimeManifest(
 			{ ...reactRuntimeImports, router: '/assets/vendors/router.js' },
-			[{ specifier: 'mobx', outputName: 'mobx' }],
-			(outputName) => `/assets/vendors/${outputName}.js`,
 			{ routerImportPath: '/router.ts' },
 		);
 
-		expect(manifest.bySpecifier.get('mobx')).toEqual({
-			specifier: 'mobx',
-			owner: '@ecopages/react',
-			importPath: 'mobx',
-			publicPath: '/assets/vendors/mobx.js',
-			externals: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
-		});
+		expect(manifest.bySpecifier.has('mobx')).toBe(false);
 		expect(manifest.bySpecifier.get('/router.ts')?.publicPath).toBe('/assets/vendors/router.js');
 		expect(manifest.bySpecifier.get('@ecopages/react-router')?.publicPath).toBe('/assets/vendors/router.js');
 	});
@@ -164,9 +156,7 @@ describe('buildReactRuntimeManifest', () => {
 	});
 
 	it('builds the canonical allowlist for client graph boundaries', () => {
-		expect(
-			getReactClientGraphAllowSpecifiers(['virtual:runtime-a', 'virtual:runtime-b'], reactRouterAdapter),
-		).toEqual([
+		expect(getReactClientGraphAllowSpecifiers(reactRouterAdapter)).toEqual([
 			'@ecopages/core',
 			'react',
 			'react-dom',
@@ -174,8 +164,6 @@ describe('buildReactRuntimeManifest', () => {
 			'react/jsx-dev-runtime',
 			'react-dom/client',
 			'/router.ts',
-			'virtual:runtime-a',
-			'virtual:runtime-b',
 		]);
 	});
 });

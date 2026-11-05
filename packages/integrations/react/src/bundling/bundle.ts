@@ -15,7 +15,6 @@ import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/i
 import type { AssetProcessingIntegration, AssetProcessingService } from '@ecopages/core/integration';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { RuntimeBundleService, type ReactRuntimeImports } from './runtime-bundle.ts';
-import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
 import { isReactProductionRuntime } from './runtime-mode.ts';
 
 /**
@@ -27,7 +26,6 @@ export interface BundleServiceConfig {
 	assetProcessingIntegration?: AssetProcessingIntegration;
 	hostIntegrationName: string;
 	routerAdapter?: ReactRouterAdapter;
-	runtimeModules?: ResolvedReactPluginRuntimeModule[];
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 }
 
@@ -62,7 +60,6 @@ export class BundleService {
 		this.runtimeBundleService = new RuntimeBundleService({
 			rootDir: config.rootDir,
 			routerAdapter: config.routerAdapter,
-			runtimeModules: config.runtimeModules,
 		});
 		[this.foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(
 			config.appConfig,
@@ -180,10 +177,7 @@ export class BundleService {
 			groupedEntrypointFiles: options.groupedEntrypointFiles,
 			groupedDeclaredModules: options.groupedDeclaredModules,
 			declaredModules: options.declaredModules,
-			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(
-				this.runtimeBundleService.getConfiguredRuntimeModuleSpecifiers(),
-				this.config.routerAdapter,
-			),
+			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(this.config.routerAdapter),
 		});
 
 		const runtimePlugins = options.includeRuntime

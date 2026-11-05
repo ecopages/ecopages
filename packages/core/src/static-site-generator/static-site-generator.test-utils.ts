@@ -9,6 +9,7 @@ export const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): Ec
 	}));
 	return {
 		rootDir: '/test/project',
+		baseUrl: 'http://localhost:3000',
 		distDir: 'dist',
 		workDir: DEFAULT_ECOPAGES_WORK_DIR,
 		srcDir: 'src',

@@ -204,8 +204,8 @@ export class StaticSiteGenerator {
 		fileSystem.write(path.join(this.getExportDir(), fileName), renderSitemap(locations));
 	}
 
-	private writeStaticOutput(routePath: string, contents: string | Buffer): string {
-		const outputPath = this.getOutputPath(routePath);
+	private writeStaticOutput(routePath: string, contents: string | Buffer, sourceFile?: string): string {
+		const outputPath = this.getOutputPath(routePath, sourceFile);
 		fileSystem.ensureDir(path.dirname(outputPath));
 		fileSystem.write(outputPath, contents);
 		return outputPath;
@@ -213,6 +213,7 @@ export class StaticSiteGenerator {
 
 	private async writeStaticPageArtifact(options: {
 		pathname: string;
+		sourceFile?: string;
 		createContents: () => Promise<string | Buffer | null>;
 		activeStaticPathnames?: Set<string>;
 		onSuccessfulExport?: () => Promise<void>;
@@ -222,7 +223,7 @@ export class StaticSiteGenerator {
 			return;
 		}
 
-		this.writeStaticOutput(options.pathname, contents);
+		this.writeStaticOutput(options.pathname, contents, options.sourceFile);
 		options.activeStaticPathnames?.add(options.pathname);
 		await options.onSuccessfulExport?.();
 	}
@@ -331,6 +332,7 @@ export class StaticSiteGenerator {
 				let renderedMetadata: PageMetadataProps | undefined;
 				await this.writeStaticPageArtifact({
 					pathname: route.pathname,
+					sourceFile: route.templateRoute.filePath,
 					activeStaticPathnames,
 					onSuccessfulExport: () =>
 						this.considerSitemapEligibility({
@@ -834,17 +836,21 @@ export class StaticSiteGenerator {
 	 * Get the output file path for a given route.
 	 *
 	 * @remarks
-	 * The path depends only on the Template Route: `/` is `index.html`, a trailing-slash route is
-	 * `<route>index.html`, and every other route is `<route>.html`. Sibling Pages never move it. Static serving
-	 * resolves `/blog` to `blog.html` first, then `blog/index.html`.
+	 * The path depends only on the route and its own source file, never on sibling Pages. `/` is `index.html`
+	 * and a trailing-slash route is `<route>index.html`. Otherwise a Page whose source file is named `index`
+	 * (`pages/blog/index.tsx`, also for a dynamic `[slug]/index.tsx`) writes `<route>/index.html`, and any other
+	 * Page (`pages/blog.tsx`, `[slug].tsx`) writes `<route>.html`. Explicit static routes and semantic error
+	 * pages have no filesystem source, so they write `<route>.html`. Static serving resolves both layouts.
 	 */
-	private getOutputPath(routePath: string): string {
+	private getOutputPath(routePath: string, sourceFile?: string): string {
 		let outputName: string;
 
 		if (routePath === '/') {
 			outputName = 'index.html';
 		} else if (routePath.endsWith('/')) {
 			outputName = `${routePath}index.html`;
+		} else if (sourceFile && path.basename(sourceFile).split('.')[0] === 'index') {
+			outputName = `${routePath}/index.html`;
 		} else {
 			outputName = `${routePath}.html`;
 		}

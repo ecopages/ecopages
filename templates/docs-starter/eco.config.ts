@@ -8,7 +8,7 @@ import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v
 import { docsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
 import { configuredSiteOrigin, DOCS_SITEMAP_EXTRA_URLS } from './src/lib/docs/site-meta';
 
-const appRoot = path.resolve(import.meta.dirname);
+const appRoot = process.cwd();
 
 export default defineConfig({
 	baseUrl: configuredSiteOrigin(),

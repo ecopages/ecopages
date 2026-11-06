@@ -106,6 +106,11 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		use: { ...chrome, appOptions: { source: 'e2e/fixtures/html-pages' } },
 	},
 	{
+		name: 'react-production-start-e2e',
+		testMatch: 'e2e/fixtures/react-production-start/**/*.test.e2e.ts',
+		use: { ...chrome, baseURL: 'http://localhost:4623' },
+	},
+	{
 		name: 'react-router-runtime-modules-e2e',
 		testMatch: 'e2e/fixtures/react-router/persist-layouts.test.e2e.ts',
 		use: { ...chrome, baseURL: 'http://localhost:4004' },
@@ -274,6 +279,20 @@ const projectWebServers: ProjectWebServer[] = [
 			ECOPAGES_PORT: '4620',
 			ECOPAGES_E2E_ARTIFACT_SCOPE: 'html-pages-e2e',
 			ECOPAGES_PREVIEW_SERVE_ONLY: 'true',
+		},
+	},
+	{
+		projects: ['react-production-start-e2e'],
+		command:
+			'node ../../../packages/ecopages/bin/cli.js build --runtime node && node ../../../packages/ecopages/bin/cli.js start --runtime node --port 4623 --dist-dir dist-react-production-start-e2e',
+		cwd: 'e2e/fixtures/react-production-start',
+		url: 'http://localhost:4623/health',
+		timeout: 180_000,
+		reuseExistingServer: !process.env.CI,
+		env: {
+			NODE_ENV: 'production',
+			ECOPAGES_PORT: '4623',
+			ECOPAGES_E2E_ARTIFACT_SCOPE: 'react-production-start-e2e',
 		},
 	},
 	{

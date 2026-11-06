@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -56,6 +56,16 @@ function createPluginTestHarness(
 	};
 }
 
+/**
+ * Evaluates a transformed plain-JavaScript fixture and returns its default export's `render()` result.
+ */
+async function renderTransformed(tempDir: string, name: string, transformed: string): Promise<unknown> {
+	const outputPath = join(tempDir, `${name}.transformed.mjs`);
+	writeFileSync(outputPath, transformed);
+	const module = (await import(pathToFileURL(outputPath).href)) as { default: { render: () => unknown } };
+	return module.default.render();
+}
+
 describe('createClientGraphBoundaryPlugin', () => {
 	it('keeps the standalone boundary for builds with an entrypoint map', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
@@ -107,11 +117,21 @@ describe('createClientGraphBoundaryPlugin', () => {
 		const islandA = join(tempDir, 'island-a.tsx');
 		const islandB = join(tempDir, 'island-b.tsx');
 		const sharedHelper = join(tempDir, 'shared-helper.ts');
-		const source =
-			"import fs from 'node:fs';\nimport path from 'node:path';\nimport crypto from 'node:crypto';\nexport default String(!!fs && !!path && !!crypto);\n";
-		writeFileSync(islandA, source, 'utf-8');
-		writeFileSync(islandB, source, 'utf-8');
-		writeFileSync(sharedHelper, source, 'utf-8');
+		const writeIsland = (filePath: string, serverOnly: string, render: string) =>
+			writeFileSync(
+				filePath,
+				[
+					"import fs from 'node:fs';",
+					"import path from 'node:path';",
+					"import crypto from 'node:crypto';",
+					'const eco = { page: (options) => options };',
+					`export default eco.page({ middleware: [${serverOnly}], render: () => ${render} });`,
+				].join('\n'),
+				'utf-8',
+			);
+		writeIsland(islandA, 'fs, crypto', "path.basename('/a/b')");
+		writeIsland(islandB, 'path, crypto', 'typeof fs.readFileSync');
+		writeIsland(sharedHelper, 'crypto', "path.basename('/a/c') + typeof fs.readFileSync");
 
 		const registrations: OnLoadRegistration[] = [];
 		const groupedEntrypointFiles = [islandA, islandB];
@@ -149,16 +169,21 @@ describe('createClientGraphBoundaryPlugin', () => {
 				return readFileSync(filePath, 'utf-8');
 			};
 
-			expect(await transformEntry(islandA)).not.toContain("from 'node:fs'");
-			expect(await transformEntry(islandA)).toContain("from 'node:path'");
-			expect(await transformEntry(islandA)).not.toContain("from 'node:crypto'");
-			expect(await transformEntry(islandB)).toContain("from 'node:fs'");
-			expect(await transformEntry(islandB)).not.toContain("from 'node:path'");
-			expect(await transformEntry(islandB)).not.toContain("from 'node:crypto'");
+			const transformedIslandA = await transformEntry(islandA);
+			expect(transformedIslandA).not.toContain("from 'node:fs'");
+			expect(transformedIslandA).toContain("from 'node:path'");
+			expect(transformedIslandA).not.toContain("from 'node:crypto'");
+			expect(await renderTransformed(tempDir, 'island-a', transformedIslandA)).toBe('b');
+			const transformedIslandB = await transformEntry(islandB);
+			expect(transformedIslandB).toContain("from 'node:fs'");
+			expect(transformedIslandB).not.toContain("from 'node:path'");
+			expect(transformedIslandB).not.toContain("from 'node:crypto'");
+			expect(await renderTransformed(tempDir, 'island-b', transformedIslandB)).toBe('function');
 			const transformedHelper = await transformEntry(sharedHelper);
 			expect(transformedHelper).toContain("from 'node:fs'");
 			expect(transformedHelper).toContain("from 'node:path'");
 			expect(transformedHelper).not.toContain("from 'node:crypto'");
+			expect(await renderTransformed(tempDir, 'shared-helper', transformedHelper)).toBe('cfunction');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -229,16 +254,18 @@ describe('createClientGraphBoundaryPlugin', () => {
 		const islandA = join(tempDir, 'island-a.tsx');
 		const islandB = join(tempDir, 'island-b.tsx');
 		const htmlEntry = join(tempDir, 'shell.ts');
-		writeFileSync(
-			islandA,
-			"import { readFileSync, writeFileSync } from 'node:fs';\nexport default String(!!readFileSync) + String(!!writeFileSync);",
-			'utf-8',
-		);
-		writeFileSync(
-			islandB,
-			"import { readFileSync, writeFileSync } from 'node:fs';\nexport default String(!!readFileSync) + String(!!writeFileSync);",
-			'utf-8',
-		);
+		const writeIsland = (filePath: string, serverOnly: string, render: string) =>
+			writeFileSync(
+				filePath,
+				[
+					"import { readFileSync, writeFileSync } from 'node:fs';",
+					'const eco = { page: (options) => options };',
+					`export default eco.page({ middleware: [${serverOnly}], render: () => typeof ${render} });`,
+				].join('\n'),
+				'utf-8',
+			);
+		writeIsland(islandA, 'writeFileSync', 'readFileSync');
+		writeIsland(islandB, 'readFileSync', 'writeFileSync');
 		writeFileSync(htmlEntry, "import fs from 'node:fs';\nexport default String(!!fs);", 'utf-8');
 
 		const registrations: OnLoadRegistration[] = [];
@@ -288,6 +315,8 @@ describe('createClientGraphBoundaryPlugin', () => {
 			expect(transformedIslandA).not.toContain("writeFileSync } from 'node:fs';");
 			expect(transformedIslandB).toContain("import { writeFileSync } from 'node:fs';");
 			expect(transformedIslandB).not.toContain("readFileSync, writeFileSync } from 'node:fs';");
+			expect(await renderTransformed(tempDir, 'island-a', transformedIslandA!)).toBe('function');
+			expect(await renderTransformed(tempDir, 'island-b', transformedIslandB!)).toBe('function');
 			expect(await transformEntry(htmlEntry)).toBeUndefined();
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
@@ -437,17 +466,23 @@ describe('createClientGraphBoundaryPlugin', () => {
 		const filePath = join(pagesDir, 'entry.tsx');
 		writeFileSync(
 			filePath,
-			"import fs from 'node:fs';\nimport dayjs from 'dayjs';\nexport default dayjs() + String(!!fs);\n",
+			[
+				"import fs from 'node:fs';",
+				"import path from 'node:path';",
+				'const eco = { page: (options) => options };',
+				"export default eco.page({ middleware: [fs], render: () => path.basename('/a/b') });",
+			].join('\n'),
 			'utf-8',
 		);
 
 		try {
-			const harness = createPluginTestHarness({ declaredModules: ['dayjs'] });
+			const harness = createPluginTestHarness({ declaredModules: ['node:path'] });
 			const transformed = await harness.transformFile(filePath);
 
 			expect(transformed).toBeDefined();
-			expect(transformed).toContain("import dayjs from 'dayjs';");
+			expect(transformed).toContain("import path from 'node:path';");
 			expect(transformed).not.toContain("import fs from 'node:fs';");
+			expect(await renderTransformed(tempDir, 'entry', transformed!)).toBe('b');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -770,7 +805,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
-	it('strips metadata that references direct filesystem imports, leaving import cleanup to downstream treeshaking', async () => {
+	it('removes an import only server-only metadata used', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
 		const pagesDir = join(tempDir, 'pages');
 		mkdirSync(pagesDir);
@@ -793,11 +828,201 @@ describe('createClientGraphBoundaryPlugin', () => {
 			const transformed = await harness.transformFile(filePath);
 
 			expect(transformed).toBeDefined();
-			expect(transformed).toContain("import { fileSystem } from '@ecopages/file-system';");
+			expect(transformed).not.toContain('@ecopages/file-system');
 			expect(transformed).not.toContain('metadata:');
 			expect(transformed).toContain('render: () => <div>Metadata only</div>');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
+});
+
+describe('client graph boundary: stripped imports', () => {
+	const ECO_STUB = 'export const eco = { page: (options) => options, staticProps: (fn) => fn };';
+
+	/**
+	 * Builds `entry.tsx` from the given files with the boundary plugin and returns the emitted module path.
+	 */
+	async function buildBrowserModule(tempDir: string, files: Record<string, string>): Promise<string> {
+		writeFileSync(join(tempDir, 'eco.ts'), ECO_STUB);
+		for (const [name, contents] of Object.entries(files)) writeFileSync(join(tempDir, name), contents);
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser',
+			entrypoints: [join(tempDir, 'entry.tsx')],
+			outdir: join(tempDir, 'dist'),
+			root: tempDir,
+			target: 'browser',
+			format: 'esm',
+			plugins: [createClientGraphBoundaryPlugin()],
+		});
+		assertBuildSucceeded(result, 'Build failed');
+		return result.outputs[0]!.path;
+	}
+
+	async function withTempDir(run: (tempDir: string) => Promise<void>): Promise<void> {
+		const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-stripped-imports-')));
+		try {
+			await run(tempDir);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	}
+
+	async function evaluate(outputPath: string): Promise<Record<string, unknown>> {
+		return (await import(pathToFileURL(outputPath).href)) as Record<string, unknown>;
+	}
+
+	it('removes a hoisted staticProps helper that uses a server import', () =>
+		withTempDir(async (tempDir) => {
+			const outputPath = await buildBrowserModule(tempDir, {
+				'posts.server.ts': 'export const getPost = async () => "server-secret";',
+				'entry.tsx': [
+					"import { eco } from './eco';",
+					"import { getPost } from './posts.server';",
+					'const staticProps = async () => ({ props: { post: await getPost() } });',
+					'export default eco.page({ staticProps, render: () => "Post" });',
+				].join('\n'),
+			});
+			const output = readFileSync(outputPath, 'utf8');
+			expect(output).not.toContain('getPost');
+			expect(output).not.toContain('server-secret');
+			const page = (await evaluate(outputPath)).default as { render: () => string; staticProps?: unknown };
+			expect(page.render()).toBe('Post');
+			expect(page.staticProps).toBeUndefined();
+		}));
+
+	it('drops a legacy getStaticProps export built with eco.staticProps', () =>
+		withTempDir(async (tempDir) => {
+			const outputPath = await buildBrowserModule(tempDir, {
+				'posts.server.ts': 'export const getPosts = async () => "server-secret";',
+				'entry.tsx': [
+					"import { eco } from './eco';",
+					"import { getPosts } from './posts.server';",
+					'export const getStaticProps = eco.staticProps(async () => ({ props: { posts: await getPosts() } }));',
+					'export default eco.page({ render: () => "Posts" });',
+				].join('\n'),
+			});
+			expect(readFileSync(outputPath, 'utf8')).not.toContain('getPosts');
+			const module = await evaluate(outputPath);
+			expect((module.default as { render: () => string }).render()).toBe('Posts');
+			expect(module.getStaticProps).toBeUndefined();
+		}));
+
+	it('treats destructured bindings and class member names as local', () =>
+		withTempDir(async (tempDir) => {
+			const outputPath = await buildBrowserModule(tempDir, {
+				'db.server.ts': 'export const db = "server-secret";',
+				'entry.tsx': [
+					"import { eco } from './eco';",
+					"import { db } from './db.server';",
+					'export const read = ({ db }: { db: string }) => db;',
+					'export const pick = (source: { db: string }) => { const { db } = source; return db; };',
+					'export const first = ([db]: string[]) => db;',
+					'export class Repo { db() { return "method"; } static db = "field"; }',
+					'export const shape = { db: 1 }.db;',
+					'export default eco.page({ middleware: [db], render: () => "Page" });',
+				].join('\n'),
+			});
+			const module = await evaluate(outputPath);
+			expect((module.read as (value: { db: string }) => string)({ db: 'a' })).toBe('a');
+			expect((module.pick as (value: { db: string }) => string)({ db: 'b' })).toBe('b');
+			expect((module.first as (value: string[]) => string)(['c'])).toBe('c');
+			expect(new (module.Repo as new () => { db: () => string })().db()).toBe('method');
+			expect(module.shape).toBe(1);
+		}));
+
+	it.each([
+		['an as expression', 'export const guard = authMiddleware as unknown;', 2, 22],
+		['a satisfies expression', 'export const guards = [authMiddleware] satisfies unknown[];', 2, 24],
+		['a JSX element name', 'export const Guard = () => <authMiddleware.Provider />;', 2, 29],
+		[
+			'a name shadowed elsewhere in the module',
+			'export const guard = authMiddleware;\nconst wrap = (authMiddleware: unknown) => authMiddleware;',
+			2,
+			22,
+		],
+	])('fails the build when a stripped import is used in %s', (_case, usage, line, column) =>
+		withTempDir(async (tempDir) => {
+			await expect(
+				buildBrowserModule(tempDir, {
+					'auth.server.ts': 'export const authMiddleware = "server-secret";',
+					'entry.tsx': [
+						"import { authMiddleware } from './auth.server';",
+						usage,
+						'export default { render: () => "Page" };',
+					].join('\n'),
+				}),
+			).rejects.toThrow(
+				`'authMiddleware' (imported from './auth.server') is used at ${join(tempDir, 'entry.tsx')}:${line}:${column}`,
+			);
+		}),
+	);
+
+	it('fails the build when a JSX component imported from a server module is rendered outside render', () =>
+		withTempDir(async (tempDir) => {
+			await expect(
+				buildBrowserModule(tempDir, {
+					'secret.server.tsx': 'export const Secret = () => "server-secret";',
+					'entry.tsx': [
+						"import { Secret } from './secret.server';",
+						'export const Widget = () => <Secret />;',
+						'export default { render: () => "Page" };',
+					].join('\n'),
+				}),
+			).rejects.toThrow(
+				`'Secret' (imported from './secret.server') is used at ${join(tempDir, 'entry.tsx')}:2:30`,
+			);
+		}));
+
+	it('removes a node built-in used only by a server-only Page option', () =>
+		withTempDir(async (tempDir) => {
+			const outputPath = await buildBrowserModule(tempDir, {
+				'entry.tsx': [
+					"import { eco } from './eco';",
+					"import fs from 'node:fs';",
+					'const title = fs.existsSync("title.txt") ? "file" : "default";',
+					'export default eco.page({ metadata: () => ({ title }), render: () => "Page" });',
+				].join('\n'),
+			});
+			expect(readFileSync(outputPath, 'utf8')).not.toContain('existsSync');
+			expect(((await evaluate(outputPath)).default as { render: () => string }).render()).toBe('Page');
+		}));
+
+	it('fails the build when a stripped node built-in is still used', () =>
+		withTempDir(async (tempDir) => {
+			await expect(
+				buildBrowserModule(tempDir, {
+					'entry.tsx': ["import fs from 'node:fs';", 'export default String(!!fs);'].join('\n'),
+				}),
+			).rejects.toThrow(`'fs' (imported from 'node:fs') is used at ${join(tempDir, 'entry.tsx')}:2:25`);
+		}));
+
+	it('removes a content collection server import used only by staticPaths', () =>
+		withTempDir(async (tempDir) => {
+			const outputPath = await buildBrowserModule(tempDir, {
+				'entry.tsx': [
+					"import { eco } from './eco';",
+					"import { entries } from 'ecopages:content/posts/server';",
+					'const paths = entries.map((entry) => ({ params: { slug: entry.slug } }));',
+					'export default eco.page({ staticPaths: async () => ({ paths }), render: () => "Post" });',
+				].join('\n'),
+			});
+			expect(((await evaluate(outputPath)).default as { render: () => string }).render()).toBe('Post');
+		}));
+
+	it('fails the build when a content collection server import is still used', () =>
+		withTempDir(async (tempDir) => {
+			await expect(
+				buildBrowserModule(tempDir, {
+					'entry.tsx': [
+						"import { eco } from './eco';",
+						"import { entries } from 'ecopages:content/posts/server';",
+						'export const count = entries.length;',
+						'export default eco.page({ render: () => "Post" });',
+					].join('\n'),
+				}),
+			).rejects.toThrow(
+				`'entries' (imported from 'ecopages:content/posts/server') is used at ${join(tempDir, 'entry.tsx')}:3:22`,
+			);
+		}));
 });

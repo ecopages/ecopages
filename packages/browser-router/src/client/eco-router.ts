@@ -138,6 +138,7 @@ export class EcoRouter {
 				return await this.performNavigation(new URL(currentUrl, window.location.origin), 'replace', {
 					bypassPrefetchCache: !!request?.clearCache,
 					allowFullDocumentFallback: false,
+					reload: true,
 				});
 			},
 			cleanupBeforeHandoff: async () => {
@@ -146,6 +147,7 @@ export class EcoRouter {
 		});
 		getEcoNavigationRuntime(window).adoptDocumentOwner(document, 'browser-router');
 
+		this.navigationCommit.recordInitialDocument();
 		// Cache the initial page for instant back-navigation
 		const initialHtml = document.documentElement.outerHTML;
 		this.prefetchManager?.cacheVisitedPage(window.location.href, initialHtml);
@@ -330,7 +332,7 @@ export class EcoRouter {
 	private async performNavigation(
 		url: URL,
 		direction: EcoNavigationEvent['direction'],
-		options: { bypassPrefetchCache?: boolean; allowFullDocumentFallback?: boolean } = {},
+		options: { bypassPrefetchCache?: boolean; allowFullDocumentFallback?: boolean; reload?: boolean } = {},
 	): Promise<boolean> {
 		const allowFullDocumentFallback = options.allowFullDocumentFallback ?? true;
 		this.pendingNavigations++;
@@ -344,6 +346,7 @@ export class EcoRouter {
 				direction,
 				bypassPrefetchCache: options.bypassPrefetchCache || !this.prefetchManager,
 				allowFullDocumentFallback,
+				reload: options.reload,
 				navigationCommit: this.navigationCommit,
 				isStaleNavigation,
 				isSupersededNavigation,

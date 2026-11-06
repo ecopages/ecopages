@@ -196,6 +196,10 @@ Add the `data-eco-persist` attribute with a unique ID:
 	</RuiAlertDescription>
 </RuiAlert>
 
+### Development saves
+
+When a page, layout, include or view is saved under `ecopages dev`, HMR asks the router to reload the current page in place. The router compares each element's server-rendered markup before and after the save and keeps every element whose markup did not change, so custom elements keep their state and stay connected, and classes or attributes added at runtime stay. Changed custom elements are replaced. Elements are not refreshed for `data-eco-rerun` scripts on this reload, so a rerun script must register its handlers idempotently. Elements pair in tree order, so inserting or removing an earlier sibling with the same markup moves state to its neighbour. See [HMR](/docs/core/hmr).
+
 ### Script Re-execution
 
 After a navigation:

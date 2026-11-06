@@ -12,12 +12,15 @@ import { escapeRegExp } from '../utils/regex-escaping.ts';
 import {
 	assertDeliverableStylesheetImport,
 	collectStaticImports,
+	createDiscoveryCache,
 	createUndeliverableStylesheetError,
 	declaresEcoFactory,
+	forgetDiscoveryOwner,
 	discoverComponentImports,
 	isDeliveredStylesheetImport,
 	isReachedByDiscovery,
 	type DiscoveredImports,
+	type DiscoveryCache,
 	type DiscoveryOptions,
 } from './component-import-discovery.ts';
 import { loadTsconfigPathPrefixes } from './tsconfig-import-resolver.ts';
@@ -283,6 +286,8 @@ export type ComponentIdentityAttributionOptions = {
 	 * The build plugin turns it off for a package module outside the app root that discovery has not reached.
 	 */
 	stripPlainModuleStylesheets?: boolean;
+	/** Discovery results shared by the transforms of one build. */
+	discoveryCache?: DiscoveryCache;
 };
 
 /**
@@ -345,6 +350,7 @@ export function attributeComponentIdentity(
 	}
 
 	if (!mayDeclare || !declaresEcoFactory(program)) {
+		forgetDiscoveryOwner(projectRoot, filePath);
 		const edits =
 			options.stripPlainModuleStylesheets === false
 				? []
@@ -377,6 +383,7 @@ export function attributeComponentIdentity(
 	const discovered = discoverComponentImports(program, filePath, projectRoot, {
 		integrationOf: options.integrationOf,
 		ownerSource: contents,
+		cache: options.discoveryCache,
 	});
 	const plainModuleImports = createPlainModuleComponentImports(discovered);
 	const discoveryArgument = serializeDiscoveryArgument(discovered, plainModuleImports.locals);
@@ -553,6 +560,7 @@ export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptio
 		name: 'eco-component-identity-attribution',
 		setup(build) {
 			const strippedStylesheets = new Map<string, string>();
+			const discoveryCache = createDiscoveryCache();
 			const appRoot = `${fileSystem.exists(rootDir) ? fileSystem.realpath(rootDir) : path.resolve(rootDir)}${path.sep}`;
 			build.transform({ filter: /\.[cm]?[jt]sx?(\?.*)?$/ }, (code, rawId) => {
 				const id = rawId.replace(/[?#].*$/, '');
@@ -571,6 +579,7 @@ export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptio
 					jsxImportSource: integration?.jsxImportSource,
 					integrationOf,
 					stripPlainModuleStylesheets,
+					discoveryCache,
 					onStrippedStylesheet: (source) => {
 						if (insideApp && !strippedStylesheets.has(id)) strippedStylesheets.set(id, source);
 					},

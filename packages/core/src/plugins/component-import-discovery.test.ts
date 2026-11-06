@@ -247,6 +247,50 @@ export const Button = eco.component({ render: () => '' });`,
 			reached.transform(read('badge.ts'), path.join(root, 'badge.ts'));
 			await expect(reached.end()).resolves.toBeUndefined();
 		});
+		it('forgets a plain module once the only declaration importing it drops the import', async () => {
+			const { root, file } = plainFixture();
+			const plugin = createEcoComponentMetaPlugin({
+				config: { rootDir: root, integrations: [{ name: 'lit', extensions: ['.ts'] }] } as EcoPagesAppConfig,
+			});
+			const read = (name: string) => fileSystem.readFileSync(path.join(root, name));
+			const build = () => {
+				const run = getPluginTransform(plugin);
+				run.transform(read('badge.ts'), path.join(root, 'badge.ts'));
+				run.transform(read('card.ts'), path.join(root, 'card.ts'));
+				return run.end();
+			};
+			await expect(build()).resolves.toBeUndefined();
+			file(
+				'badge.ts',
+				`import { eco } from '@ecopages/core';\nexport const Badge = eco.component({ render: () => '' });`,
+			);
+			await expect(build()).rejects.toThrow('[ecopages] card.ts: "./card.css" never reaches a Page');
+		});
+		it('shares plain module walks within a build without losing CSS through a cycle', () => {
+			const { root, file, real } = plainFixture();
+			file(
+				'card-body.ts',
+				`import './card-body.css';\nimport { Card } from './card';\nexport const CardBody = () => '';`,
+			);
+			file(
+				'page.ts',
+				`import { eco } from '@ecopages/core';\nimport { CardBody } from './card-body';\nexport default eco.page({ render: () => CardBody() });`,
+			);
+			const run = getPluginTransform(
+				createEcoComponentMetaPlugin({
+					config: {
+						rootDir: root,
+						integrations: [{ name: 'lit', extensions: ['.ts'] }],
+					} as EcoPagesAppConfig,
+				}),
+			);
+			const code = (name: string) => {
+				const result = run.transform(fileSystem.readFileSync(path.join(root, name)), path.join(root, name));
+				return typeof result === 'string' ? result : (result?.code ?? '');
+			};
+			expect(code('badge.ts')).toContain(JSON.stringify([real('card.css'), real('card-body.css')]));
+			expect(code('page.ts')).toContain(JSON.stringify([real('card-body.css'), real('card.css')]));
+		});
 		it('strips the CSS import of a plain module no Integration owns', () => {
 			const { attribute } = plainFixture();
 			expect(attribute('card-body.ts', null)).not.toContain(`import './card-body.css'`);

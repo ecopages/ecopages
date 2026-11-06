@@ -145,7 +145,7 @@ function collectRenderedNames(program: unknown): Set<string> {
 	return names;
 }
 
-type ModuleIndex = {
+export type ModuleIndex = {
 	hash: string;
 	declaresEcoFactory: boolean;
 	jsxImportSource?: string;
@@ -228,11 +228,16 @@ const moduleIndexes = new Map<string, ModuleIndex>();
  * the AST, which the bounded parse cache owns. `export *` is ignored so a barrel cannot
  * pull an entire kit into the graph.
  */
-function indexModule(file: string): ModuleIndex {
+function indexModule(file: string, cache?: DiscoveryCache): ModuleIndex {
+	const built = cache?.indexes.get(file);
+	if (built) return built;
 	const source = fileSystem.readFileSync(file);
 	const hash = contentHash(source, 16);
 	const cached = moduleIndexes.get(file);
-	if (cached?.hash === hash) return cached;
+	if (cached?.hash === hash) {
+		cache?.indexes.set(file, cached);
+		return cached;
+	}
 
 	const program = parseModuleSource(file, source, { sourceType: 'module' }).program;
 	const body = nodes(node(program)?.body);
@@ -252,6 +257,7 @@ function indexModule(file: string): ModuleIndex {
 		imports: collectStaticImports(program),
 	};
 	moduleIndexes.set(file, indexed);
+	cache?.indexes.set(file, indexed);
 	return indexed;
 }
 
@@ -260,32 +266,64 @@ function jsxPragmaOf(source: string): string | undefined {
 	return /^\s*\/\*[\s\S]*?@jsxImportSource\s+(\S+)[\s\S]*?\*\//.exec(source)?.[1];
 }
 
-const reachedModules = new Map<string, Set<string>>();
+/** Per app root: each walked plain module and the declaration files whose discovery walked it. */
+const reachOwners = new Map<string, { byModule: Map<string, Set<string>>; byOwner: Map<string, Set<string>> }>();
 
 function canonicalFile(file: string): string {
 	return fileSystem.exists(file) ? fileSystem.realpath(file) : path.resolve(file);
 }
 
-function reachedIn(projectRoot: string): Set<string> {
+function reachIn(projectRoot: string) {
 	const key = path.resolve(projectRoot);
-	let reached = reachedModules.get(key);
-	if (!reached) {
-		reached = new Set();
-		reachedModules.set(key, reached);
+	let reach = reachOwners.get(key);
+	if (!reach) {
+		reach = { byModule: new Map(), byOwner: new Map() };
+		reachOwners.set(key, reach);
 	}
-	return reached;
+	return reach;
 }
 
 /**
- * Whether discovery from an Eco declaration of the app at `projectRoot` has walked into `file`.
+ * Drops what discovery from the declaration in `ownerFile` recorded as reached.
  *
  * @remarks
- * A bundler transforms an importer before the modules it imports, so a plain module reached from a
- * declaration is recorded before its own transform asks. The record lasts for the process: a module that a
- * declaration stops importing keeps it until a restart.
+ * Each discovery of a declaration replaces its previous record, so a plain module stops counting as reached
+ * once no declaration imports it. The development watcher calls this for a deleted file, and the meta
+ * plugin for a module that no longer declares anything.
+ */
+export function forgetDiscoveryOwner(projectRoot: string, ownerFile: string): void {
+	const reach = reachIn(projectRoot);
+	const owner = canonicalFile(ownerFile);
+	for (const module of reach.byOwner.get(owner) ?? []) {
+		const owners = reach.byModule.get(module);
+		owners?.delete(owner);
+		if (owners?.size === 0) reach.byModule.delete(module);
+	}
+	reach.byOwner.delete(owner);
+}
+
+function recordDiscoveryOwner(projectRoot: string, ownerFile: string, modules: Iterable<string>): void {
+	forgetDiscoveryOwner(projectRoot, ownerFile);
+	const reach = reachIn(projectRoot);
+	const owner = canonicalFile(ownerFile);
+	const reached = new Set(modules);
+	reach.byOwner.set(owner, reached);
+	for (const module of reached) {
+		const owners = reach.byModule.get(module) ?? new Set<string>();
+		owners.add(owner);
+		reach.byModule.set(module, owners);
+	}
+}
+
+/**
+ * Whether the latest discovery of some Eco declaration of the app at `projectRoot` walked into `file`.
+ *
+ * @remarks
+ * A bundler transforms an importer before the modules it imports in most builds, and the meta plugin checks
+ * again once its build is transformed, so a plain module reached from a declaration is recorded in time.
  */
 export function isReachedByDiscovery(projectRoot: string, file: string): boolean {
-	return reachedIn(projectRoot).has(canonicalFile(file));
+	return reachIn(projectRoot).byModule.has(canonicalFile(file));
 }
 
 function relativeToRoot(projectRoot: string, file: string): string {
@@ -383,7 +421,31 @@ export type DiscoveryOptions = {
 	integrationOf?: (file: string) => DiscoveryIntegration | undefined;
 	/** Source of the declaring module, read for a `@jsxImportSource` pragma; defaults to the file on disk. */
 	ownerSource?: string;
+	/** Results shared by every discovery of one build; see {@link createDiscoveryCache}. */
+	cache?: DiscoveryCache;
 };
+
+/** What one plain module and the plain modules it imports contribute to a declaration. */
+type PlainModuleWalk = {
+	stylesheets: string[];
+	components: Map<string, { file: string; imported: string }>;
+	/** Canonical paths of the walked plain modules. */
+	modules: Set<string>;
+	watchFiles: Set<string>;
+};
+
+/**
+ * Module indexes and plain module walks shared by the discoveries of one build.
+ *
+ * @remarks
+ * Files do not change during a build, so each declaration reuses what an earlier one read and walked.
+ * Create one per build; across builds the content-keyed module index is the only cache.
+ */
+export type DiscoveryCache = { indexes: Map<string, ModuleIndex>; walks: Map<string, PlainModuleWalk> };
+
+export function createDiscoveryCache(): DiscoveryCache {
+	return { indexes: new Map(), walks: new Map() };
+}
 
 type DiscoveryState = {
 	projectRoot: string;
@@ -391,11 +453,9 @@ type DiscoveryState = {
 	integrationOf?: (file: string) => DiscoveryIntegration | undefined;
 	ownerFile: string;
 	ownerSource?: string;
+	cache?: DiscoveryCache;
 	resolved: Map<string, boolean>;
 	watchFiles: Set<string>;
-	stylesheets: string[];
-	components: Map<string, { file: string; imported: string }>;
-	visitedPlainModules: Set<string>;
 };
 
 function resolveReexport(
@@ -434,7 +494,7 @@ function isFactoryExport(
 
 	let result = false;
 	if (!file.includes(`${path.sep}node_modules${path.sep}`) && !isServerSpecifier(file)) {
-		const { factories, namedReexports } = indexModule(file);
+		const { factories, namedReexports } = indexModule(file, state.cache);
 		if (factories.has(exportName)) {
 			result = true;
 			state.watchFiles.add(file);
@@ -463,7 +523,11 @@ function plainBindingModules(file: string, exportName: string, state: DiscoveryS
 	while (current && !seen.has(`${current.file}\0${current.imported}`)) {
 		seen.add(`${current.file}\0${current.imported}`);
 		modules.push(current.file);
-		current = resolveReexport(current.file, indexModule(current.file).namedReexports.get(current.imported), state);
+		current = resolveReexport(
+			current.file,
+			indexModule(current.file, state.cache).namedReexports.get(current.imported),
+			state,
+		);
 	}
 	return modules;
 }
@@ -498,7 +562,7 @@ function jsxRuntimeOf(file: string, state: DiscoveryState): { integration: strin
 	const pragma =
 		file === state.ownerFile && state.ownerSource !== undefined
 			? jsxPragmaOf(state.ownerSource)
-			: indexModule(file).jsxImportSource;
+			: indexModule(file, state.cache).jsxImportSource;
 	return { integration: integration.name, runtime: pragma ?? integration.jsxImportSource };
 }
 
@@ -574,31 +638,57 @@ function collectModuleEdges(
  * A module's own stylesheets come before those of the modules it imports, the order collection gives a
  * declaration and the Components it renders. The walk stops at Eco modules, packages and `.server`
  * modules, and follows only static named, default and side-effect imports. An Eco Component it imports is
- * recorded on `state.components`.
+ * recorded on the walk. A walk is kept in the build cache unless it skipped a module still being walked
+ * higher up a cycle, since that walk lacks what the skipped module contributes.
  */
-function walkPlainModule(file: string, state: DiscoveryState): void {
-	if (state.visitedPlainModules.has(file)) return;
-	state.visitedPlainModules.add(file);
-	const index = indexModule(file);
-	if (index.declaresEcoFactory) return;
-	state.watchFiles.add(file);
-	reachedIn(state.projectRoot).add(canonicalFile(file));
+function walkPlainModule(
+	file: string,
+	state: DiscoveryState,
+	inProgress: Set<string>,
+): { walk?: PlainModuleWalk; pending: Set<string> } {
+	const memo = state.cache?.walks.get(file);
+	if (memo) return { walk: memo, pending: new Set() };
+	if (inProgress.has(file)) return { pending: new Set([file]) };
+	const index = indexModule(file, state.cache);
+	const walk: PlainModuleWalk = { stylesheets: [], components: new Map(), modules: new Set(), watchFiles: new Set() };
+	if (index.declaresEcoFactory) return { walk, pending: new Set() };
 
+	inProgress.add(file);
+	const local: DiscoveryState = { ...state, resolved: new Map(), watchFiles: walk.watchFiles };
+	walk.modules.add(canonicalFile(file));
+	walk.watchFiles.add(file);
 	for (const entry of index.imports) {
-		const stylesheet = resolveSideEffectStylesheet(entry, file, state);
-		if (stylesheet && !state.stylesheets.includes(stylesheet)) state.stylesheets.push(stylesheet);
+		const stylesheet = resolveSideEffectStylesheet(entry, file, local);
+		if (stylesheet && !walk.stylesheets.includes(stylesheet)) walk.stylesheets.push(stylesheet);
 	}
 	const children = collectModuleEdges(
 		file,
 		index.imports,
 		() => index.renderedNames,
-		state,
+		local,
 		(binding, target) => {
 			const key = `${target}\0${binding.imported}`;
-			if (!state.components.has(key)) state.components.set(key, { file: target, imported: binding.imported });
+			if (!walk.components.has(key)) walk.components.set(key, { file: target, imported: binding.imported });
 		},
 	);
-	for (const child of children) walkPlainModule(child, state);
+	const pending = new Set<string>();
+	for (const child of children) {
+		const result = walkPlainModule(child, state, inProgress);
+		for (const skipped of result.pending) pending.add(skipped);
+		if (result.walk) mergePlainModuleWalk(walk, result.walk);
+	}
+	inProgress.delete(file);
+	pending.delete(file);
+	if (pending.size === 0) state.cache?.walks.set(file, walk);
+	return { walk, pending };
+}
+
+function mergePlainModuleWalk(into: PlainModuleWalk, from: PlainModuleWalk): void {
+	for (const stylesheet of from.stylesheets)
+		if (!into.stylesheets.includes(stylesheet)) into.stylesheets.push(stylesheet);
+	for (const [key, component] of from.components) if (!into.components.has(key)) into.components.set(key, component);
+	for (const module of from.modules) into.modules.add(module);
+	for (const watchFile of from.watchFiles) into.watchFiles.add(watchFile);
 }
 
 /**
@@ -633,11 +723,9 @@ export function discoverComponentImports(
 		integrationOf: options.integrationOf,
 		ownerFile,
 		ownerSource: options.ownerSource,
+		cache: options.cache,
 		resolved: new Map(),
 		watchFiles: new Set(),
-		stylesheets: [],
-		components: new Map(),
-		visitedPlainModules: new Set([canonicalFile(ownerFile)]),
 	};
 	const imports = collectStaticImports(program);
 	for (const entry of imports) {
@@ -659,11 +747,23 @@ export function discoverComponentImports(
 			state.watchFiles.add(file);
 		},
 	);
-	for (const file of plainModules) walkPlainModule(file, state);
-	for (const [key, component] of state.components) {
+	const plain: PlainModuleWalk = {
+		stylesheets: [],
+		components: new Map(),
+		modules: new Set(),
+		watchFiles: new Set(),
+	};
+	const inProgress = new Set([canonicalFile(ownerFile)]);
+	for (const file of plainModules) {
+		const { walk } = walkPlainModule(file, state, inProgress);
+		if (walk) mergePlainModuleWalk(plain, walk);
+	}
+	recordDiscoveryOwner(projectRoot, ownerFile, plain.modules);
+	for (const watchFile of plain.watchFiles) state.watchFiles.add(watchFile);
+	for (const [key, component] of plain.components) {
 		if (!ownComponents.has(key)) result.plainModuleComponents.push(component);
 	}
-	result.plainModuleStylesheets.push(...state.stylesheets.filter((file) => !result.stylesheets.includes(file)));
+	result.plainModuleStylesheets.push(...plain.stylesheets.filter((file) => !result.stylesheets.includes(file)));
 	result.watchFiles.push(...state.watchFiles);
 	return result;
 }

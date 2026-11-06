@@ -24,7 +24,12 @@ import {
 	getBrowserRuntimeSpecifierMap,
 	type BrowserRuntimeManifest,
 } from '@ecopages/core/build';
-import { LAYOUT_COMPOSE_PACKAGE, PAGE_LAYOUT_NORMALIZATION_PACKAGE } from './bootstrap-package-paths.ts';
+import {
+	ISLAND_HYDRATION_PACKAGE,
+	LAYOUT_COMPOSE_PACKAGE,
+	PAGE_HYDRATION_PACKAGE,
+	PAGE_LAYOUT_NORMALIZATION_PACKAGE,
+} from './bootstrap-package-paths.ts';
 
 export type ReactRuntimeImports = {
 	react: string;
@@ -35,6 +40,8 @@ export type ReactRuntimeImports = {
 	useSyncExternalStoreWithSelector: string;
 	pageLayoutNormalization: string;
 	layoutCompose: string;
+	islandHydration: string;
+	pageHydration: string;
 	router?: string;
 };
 
@@ -112,6 +119,8 @@ export class RuntimeBundleService {
 				this.getVendorFileName('page-layout-normalization', mode),
 			),
 			layoutCompose: buildBrowserRuntimeAssetUrl(this.getVendorFileName('layout-compose', mode)),
+			islandHydration: buildBrowserRuntimeAssetUrl(this.getVendorFileName('island-hydration', mode)),
+			pageHydration: buildBrowserRuntimeAssetUrl(this.getVendorFileName('page-hydration', mode)),
 		};
 
 		if (this.config.routerAdapter) {
@@ -206,6 +215,24 @@ export class RuntimeBundleService {
 						define: this.createRuntimeDefines(mode),
 						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
 						plugins: [reactVendorImportRewritePlugin],
+					},
+				}),
+				createBrowserRuntimeScriptAsset({
+					importPath: ISLAND_HYDRATION_PACKAGE,
+					name: 'island-hydration',
+					fileName: this.getVendorFileName('island-hydration', mode),
+					bundleOptions: {
+						define: this.createRuntimeDefines(mode),
+						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
+					},
+				}),
+				createBrowserRuntimeScriptAsset({
+					importPath: PAGE_HYDRATION_PACKAGE,
+					name: 'page-hydration',
+					fileName: this.getVendorFileName('page-hydration', mode),
+					bundleOptions: {
+						define: this.createRuntimeDefines(mode),
+						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
 					},
 				}),
 			);

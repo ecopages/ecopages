@@ -16,6 +16,8 @@ const reactRuntimeImports = {
 	useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
 	pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
 	layoutCompose: '/assets/vendors/layout-compose.js',
+	islandHydration: '/assets/vendors/island-hydration.js',
+	pageHydration: '/assets/vendors/page-hydration.js',
 } as const;
 
 const reactRouterAdapter: ReactRouterAdapter = {
@@ -134,6 +136,26 @@ describe('buildReactRuntimeManifest', () => {
 					owner: '@ecopages/react',
 					importPath: '@ecopages/react/layout-compose',
 					publicPath: '/assets/vendors/layout-compose.js',
+					externals: [],
+				},
+			],
+			[
+				'@ecopages/react/island-hydration',
+				{
+					specifier: '@ecopages/react/island-hydration',
+					owner: '@ecopages/react',
+					importPath: '@ecopages/react/island-hydration',
+					publicPath: '/assets/vendors/island-hydration.js',
+					externals: [],
+				},
+			],
+			[
+				'@ecopages/react/page-hydration',
+				{
+					specifier: '@ecopages/react/page-hydration',
+					owner: '@ecopages/react',
+					importPath: '@ecopages/react/page-hydration',
+					publicPath: '/assets/vendors/page-hydration.js',
 					externals: [],
 				},
 			],

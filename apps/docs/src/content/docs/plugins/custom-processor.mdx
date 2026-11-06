@@ -273,7 +273,6 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { customProcessorPlugin } from './custom-processor';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	processors: [customProcessorPlugin()],
 	integrations: [ecopagesJsxPlugin()],
 });

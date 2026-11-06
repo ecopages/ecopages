@@ -63,8 +63,7 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { bannerTransform } from './banner-transform';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	baseUrl: 'https://example.com',
 	loaders: [bannerTransform],
 	integrations: [ecopagesJsxPlugin()],
 });

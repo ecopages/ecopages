@@ -49,7 +49,6 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	processors: [postcssProcessorPlugin(tailwindV3Preset())],
 });
 ```
@@ -75,7 +74,7 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
-const appRoot = import.meta.dirname;
+const appRoot = process.cwd();
 
 export default defineConfig({
 	rootDir: appRoot,
@@ -126,7 +125,6 @@ import { defineConfig } from '@ecopages/core/config';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	processors: [postcssProcessorPlugin()],
 });
 ```
@@ -157,7 +155,6 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	processors: [
 		postcssProcessorPlugin({
 			// Define a filter for files to process (defaults to /\.css$/)

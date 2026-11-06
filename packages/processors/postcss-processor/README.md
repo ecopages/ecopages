@@ -36,7 +36,7 @@ export default defineConfig({
 	processors: [
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dirname, 'src/styles/app.css'),
+				referencePath: path.resolve(process.cwd(), 'src/styles/app.css'),
 			}),
 		),
 	],

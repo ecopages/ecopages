@@ -33,8 +33,8 @@ const imageProcessor = new ImageProcessorPlugin({
 	name: 'ecopages-image-processor',
 	type: 'image',
 	options: {
-		sourceDir: path.resolve(import.meta.dirname, 'src/images'),
-		outputDir: path.resolve(import.meta.dirname, 'dist/client/images'),
+		sourceDir: path.resolve(process.cwd(), 'src/images'),
+		outputDir: path.resolve(process.cwd(), 'dist/client/images'),
 		publicPath: '/images',
 		acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 		quality: 80,

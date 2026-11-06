@@ -88,6 +88,7 @@ Rows:
 - island host attributes are stamped when the instance has client scripts
 - a foreign boundary resolves and leaves the script-less shell unstamped
 - a deferred foreign layout leaves no `<eco-marker` behind, and the explicit view equals the filesystem page, head included
+- a layout that does not render its children is reported (a warning outside static generation)
 - a view that throws fails with the Integration's error prefix and the cause
 
 The harness supplies `name`, `errorPrefix`, `createRenderer({ integrations, processDependencies })`, `makeComponent(spec)` and `makeView(spec)`. The renderer's document shell must print `metadata.title` in `<head>`. Optional `viewFile` sets the file key. `createStringMarkupContractFactories(name)` builds `makeComponent` and `makeView` for Integrations whose components return HTML strings (kitajs, mdx, lit).

@@ -528,7 +528,8 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		const html = this.normalizeUnresolvedMarkerArtifactHtml(
 			await this.renderReactTree(tree, getComponentIdentity(page.component)?.file ?? 'page'),
 		);
-		renderTracker.assertChildrenRendered(page.component);
+		const layoutWithoutChildren = renderTracker.findLayoutWithoutChildren(page.component);
+		if (layoutWithoutChildren) this.onLayoutChildrenNotRendered(layoutWithoutChildren);
 		return { children: await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext) };
 	}
 

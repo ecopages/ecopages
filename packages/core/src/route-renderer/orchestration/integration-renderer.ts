@@ -112,6 +112,10 @@ import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { prepareAssetDependencies } from '../../assets/asset-processing-service/asset-processing.service.ts';
 import { isBundleableScript } from '../../assets/asset-processing-service/bundleable-script.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
+import {
+	createLayoutChildrenNotRenderedHandler,
+	type LayoutChildrenNotRenderedHandler,
+} from './document-shell/layout-children-not-rendered-error.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.
@@ -302,6 +306,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected assetProcessingService: AssetProcessingService;
 	protected assetProcessingIntegration?: AssetProcessingIntegration;
 	protected htmlTransformer: HtmlTransformerService;
+	/** Reports a layout that rendered without its children by the current render mode. */
+	protected readonly onLayoutChildrenNotRendered: LayoutChildrenNotRenderedHandler = (error) =>
+		createLayoutChildrenNotRenderedHandler({
+			staticGeneration: this.appConfig.appRuntime?.staticGenerationActive === true,
+			production: isProductionRuntime(),
+		})(error);
 	protected hmrManager?: IHmrManager;
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	declare protected options: Required<InternalIntegrationRendererRenderOptions>;
@@ -564,6 +574,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			{
 				renderComponentWithForeignChildren: (renderInput) =>
 					this.renderComponentWithForeignChildren(renderInput),
+				onLayoutChildrenNotRendered: this.onLayoutChildrenNotRendered,
 			},
 			{ ...input, layouts, composeChildren },
 			this.DOC_TYPE,

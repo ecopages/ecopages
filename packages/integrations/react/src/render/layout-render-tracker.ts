@@ -31,11 +31,11 @@ export class LayoutRenderTracker {
 	}
 
 	/**
-	 * @throws {LayoutChildrenNotRenderedError} For the innermost rendered layout when the page did not render.
+	 * Returns the error for the innermost rendered layout when the page did not render.
 	 */
-	assertChildrenRendered(page: EcoComponent): void {
-		if (this.pageRendered || this.renderedLayouts.size === 0) return;
+	findLayoutWithoutChildren(page: EcoComponent): LayoutChildrenNotRenderedError | undefined {
+		if (this.pageRendered || this.renderedLayouts.size === 0) return undefined;
 		const innermost = Math.max(...this.renderedLayouts.keys());
-		throw LayoutChildrenNotRenderedError.forLayout(this.renderedLayouts.get(innermost)!, page);
+		return LayoutChildrenNotRenderedError.forLayout(this.renderedLayouts.get(innermost)!, page);
 	}
 }

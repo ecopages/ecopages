@@ -8,7 +8,6 @@ import type {
 	EcoComponent,
 	EcoComponentDependencies,
 	EcoHtmlComponent,
-	EcoLayoutComponent,
 	EcoPageLayouts,
 	EcoPagesElement,
 	EcoPageComponent,
@@ -122,7 +121,14 @@ export interface ComponentOptions<P, E = EcoPagesElement> {
 
 export type HtmlOptions<E = EcoPagesElement> = ComponentOptions<HtmlTemplateProps<E>, E>;
 
-export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E>;
+/**
+ * Options for `eco.layout()`.
+ *
+ * @remarks
+ * `P` adds props to `LayoutProps`. Extra props must be optional for the layout to be accepted by
+ * `eco.page({ layout })`, which passes only `LayoutProps` and the entry's props factory output.
+ */
+export type LayoutOptions<E = EcoPagesElement, P extends LayoutProps<E> = LayoutProps<E>> = ComponentOptions<P, E>;
 
 /**
  * Base options shared by all page variants
@@ -255,7 +261,9 @@ export interface Eco {
 	/**
 	 * Create a route layout component.
 	 */
-	layout: <E = EcoPagesElement>(options: LayoutOptions<E>) => EcoLayoutComponent<E>;
+	layout: <E = EcoPagesElement, P extends LayoutProps<E> = LayoutProps<E>>(
+		options: LayoutOptions<E, P>,
+	) => EcoComponent<P, E>;
 
 	/**
 	 * Create a page component with type-safe props from getStaticProps.

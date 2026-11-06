@@ -96,7 +96,7 @@ function createDeferredWidget(): EcoComponent {
  * renderer must add on top of it: structured output and name, the foreign
  * subtree payload, island stamping, foreign boundaries, a deferred layout that
  * leaves no marker behind, explicit view and filesystem page parity, a layout
- * that drops its children failing the render, and a failed render that keeps core's message prefix and the original error as
+ * that drops its children being reported, and a failed render that keeps core's message prefix and the original error as
  * `cause`. Framework-specific cases stay in the Integration's own tests.
  */
 export function describeRendererContract(harness: RendererContractHarness): void {
@@ -219,21 +219,27 @@ export function describeRendererContract(harness: RendererContractHarness): void
 			expect(explicitHtml).toBe(pageHtml);
 		});
 
-		it('fails a view whose layout does not render its children', async () => {
+		it('reports a layout that does not render its children', async () => {
+			const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			const renderer = await createPlainRenderer();
 			const layout = makeComponent({ tag: 'aside', asLayout: true });
 			const view = makeView({ text: 'Dropped page', layout });
 
-			const error = await renderer
-				.renderExplicitView(view as EcoFunctionComponent<Record<string, unknown>, unknown>, {}, {})
-				.then(
-					() => undefined,
-					(rejection: unknown) => rejection,
+			try {
+				await renderer.renderExplicitView(
+					view as EcoFunctionComponent<Record<string, unknown>, unknown>,
+					{},
+					{},
 				);
 
-			expect(((error as Error | undefined)?.cause as Error | undefined)?.message).toMatch(
-				/Layout .+ \(.+\) did not render its children/,
-			);
+				expect(warn).toHaveBeenCalledWith(
+					expect.anything(),
+					expect.stringMatching(/Layout .+ \(.+\) did not render its children/),
+					expect.anything(),
+				);
+			} finally {
+				warn.mockRestore();
+			}
 		});
 
 		it('fails a view that throws with the core error prefix and the cause', async () => {

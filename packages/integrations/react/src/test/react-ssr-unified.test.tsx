@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createContext, useContext, type ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HtmlTemplateProps } from '@ecopages/core';
 import type { IntegrationRendererRenderOptions } from '@ecopages/core/integration';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
@@ -134,19 +134,41 @@ describe('ReactRenderer unified SSR layout composition', () => {
 			});
 		}
 
-		it('fails the render, naming a plain layout and the page that uses it', async () => {
-			const Outer = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
-			const DroppingLayout = () => <aside>no page here</aside>;
+		const message = '[ecopages] Layout DroppingLayout (/tmp/pages/nested.tsx) did not render its children';
+		const Outer = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
+		const DroppingLayout = () => <aside>sign in first</aside>;
 
-			const render = renderNested([Outer, DroppingLayout]);
+		afterEach(() => {
+			appConfig.appRuntime!.staticGenerationActive = false;
+			vi.unstubAllEnvs();
+			vi.restoreAllMocks();
+		});
 
-			await expect(render).rejects.toThrow(
-				expect.objectContaining({
-					cause: expect.objectContaining({
-						message: '[ecopages] Layout DroppingLayout (/tmp/pages/nested.tsx) did not render its children',
-					}),
-				}),
+		it('fails static build output, naming a plain layout and the page that uses it', async () => {
+			appConfig.appRuntime!.staticGenerationActive = true;
+
+			await expect(renderNested([Outer, DroppingLayout])).rejects.toThrow(
+				expect.objectContaining({ cause: expect.objectContaining({ message }) }),
 			);
+		});
+
+		it('warns and returns the layout output on a development request-time render', async () => {
+			const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+			await expect(renderNested([Outer, DroppingLayout]).then(String)).resolves.toContain(
+				'<div><aside>sign in first</aside></div>',
+			);
+			expect(warn).toHaveBeenCalledWith(expect.anything(), message, expect.anything());
+		});
+
+		it('returns the layout output without a log on a production request-time render', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+			await expect(renderNested([Outer, DroppingLayout]).then(String)).resolves.toContain(
+				'<div><aside>sign in first</aside></div>',
+			);
+			expect(warn).not.toHaveBeenCalledWith(expect.anything(), message, expect.anything());
 		});
 
 		it('renders a stack whose layouts all render their children', async () => {

@@ -248,7 +248,7 @@ If you change the AST transform or hydration flow, update the corresponding test
 
 Pages may declare `layout` as a single component or an **outer → inner** array on `eco.page()`. On the server, React-managed layout stacks compose through `composeDocumentShell` + `composeLayoutPageTree` so provider context reaches nested pages during SSR. On the client, `@ecopages/react-router` `PageContent` uses the same `composeLayoutPageTree` helper; a tier stays mounted while consecutive pages pass the same layout function.
 
-A server render tracks which tiers and the page it reached (`LayoutRenderTracker`): a layout that renders without its page fails the render with `Layout <name> (<file>) did not render its children`. Each tier is wrapped in a function that calls it directly, so the tree keeps its depth and `useId` values match the browser's.
+A server render tracks which tiers and the page it reached (`LayoutRenderTracker`): a layout that renders without its page is reported through the renderer's render-mode handler (`Layout <name> (<file>) did not render its children`), which throws for static build output, warns in development and stays silent in production. Each tier is wrapped in a function that calls it directly, so the tree keeps its depth and `useId` values match the browser's.
 
 During SSR, `ReactRenderer` passes the app-resolved React runtime into `composeLayoutPageTree` via `options.react` so layout trees are built with the same module instance the server renders them with. App code should import hooks and context from `react` normally; keep a single React version in the app dependency graph (avoid duplicate `react` copies in monorepos).
 

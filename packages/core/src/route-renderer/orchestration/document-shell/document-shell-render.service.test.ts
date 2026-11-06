@@ -209,6 +209,25 @@ describe('document-shell-render.service', () => {
 			).rejects.toThrow(new LayoutChildrenNotRenderedError('PlainLayout', '/app/page.tsx'));
 		});
 
+		it('keeps the layout output when the handler returns instead of throwing', async () => {
+			const onLayoutChildrenNotRendered = vi.fn();
+
+			const result = await composeSequentialLayoutChildren(
+				{
+					primaryComponent: stubComponent('page'),
+					primaryProps: {},
+					layouts: [{ component: Dropping }],
+					rendererCache: new Map(),
+					renderComponentWithForeignChildren: renderWithoutChildren,
+					onLayoutChildrenNotRendered,
+				},
+				'<page />',
+			);
+
+			expect(result).toEqual({ children: '<aside />' });
+			expect(onLayoutChildrenNotRendered).toHaveBeenCalledWith(expect.any(LayoutChildrenNotRenderedError));
+		});
+
 		it('passes a layout that renders its children and removes the check from the output', async () => {
 			await expect(compose([Outer])).resolves.toEqual({ children: '<main><page /></main>' });
 		});

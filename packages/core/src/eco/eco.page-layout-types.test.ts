@@ -26,6 +26,21 @@ describe('eco.page layout types', () => {
 		expect(page.config?.layouts).toEqual([WrappedLayout, ProseLayout]);
 	});
 
+	test('types extra eco.layout() props after the element type', () => {
+		const ProseLayout = eco.layout<Element, LayoutProps<Element> & { prose?: boolean }>({
+			render: ({ children, prose }) => `<main data-prose="${String(prose)}">${children}</main>`,
+		});
+		const GreetingLayout = eco.layout<Element, LayoutProps<Element> & { name: string }>({
+			render: ({ children, name }) => `<main>${name}${children}</main>`,
+		});
+
+		expect(ProseLayout({ children: '', prose: true })).toBe('<main data-prose="true"></main>');
+		eco.page<{}, Element>({ layout: ProseLayout, render: () => '' });
+		eco.page<{}, Element>({ layout: { component: ProseLayout, props: () => ({ prose: true }) }, render: () => '' });
+		// @ts-expect-error a required extra prop is not passed by eco.page({ layout })
+		eco.page<{}, Element>({ layout: GreetingLayout, render: () => '' });
+	});
+
 	test('rejects a layout without children in its props', () => {
 		const Header = ({ title }: { title: string }) => `<h1>${title}</h1>`;
 		const ComponentHeader = eco.component<{ title: string }, Element>({

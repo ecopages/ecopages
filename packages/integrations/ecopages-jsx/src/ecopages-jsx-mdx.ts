@@ -1,6 +1,6 @@
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { EcoComponent, EcoComponentConfig, EcoFunctionComponent, EcoPageFile, GetMetadata } from '@ecopages/core';
-import { ensurePageConfigLayouts } from '@ecopages/core/integration';
+import { ensurePageConfigLayouts, moveMdxMetadataOntoPage } from '@ecopages/core/integration';
 import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import {
 	appendMdxExtensions,
@@ -84,15 +84,13 @@ export const normalizeMdxPageModule = (file: string, module: EcopagesJsxMdxPageM
 
 	wrappedPage.config = attributedConfig;
 
-	if (module.getMetadata ?? Page.metadata) {
-		wrappedPage.metadata = module.getMetadata ?? Page.metadata;
+	if (Page.metadata) {
+		wrappedPage.metadata = Page.metadata;
 	}
 
-	const { getMetadata: _getMetadata, ...rest } = module;
-
-	return {
-		...rest,
+	return moveMdxMetadataOntoPage({
+		...module,
 		default: wrappedPage,
 		config: attributedConfig,
-	};
+	}) as EcopagesJsxMdxPageModule;
 };

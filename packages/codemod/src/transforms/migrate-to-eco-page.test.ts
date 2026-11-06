@@ -46,12 +46,16 @@ describe('migrate-to-eco-page', () => {
 		expect(await runTransform(input)).toBe(expected);
 	});
 
-	it.each(['wrapped-exports', 'function-exports', 'export-list', 'existing-eco-page', 'exported-and-referenced'])(
-		'migrates the legacy form in %s',
-		async (name) => {
-			expect(await runTransform(readFixture(name, 'input'))).toBe(readFixture(name, 'output'));
-		},
-	);
+	it.each([
+		'wrapped-exports',
+		'function-exports',
+		'export-list',
+		'existing-eco-page',
+		'exported-and-referenced',
+		'typeof-reference',
+	])('migrates the legacy form in %s', async (name) => {
+		expect(await runTransform(readFixture(name, 'input'))).toBe(readFixture(name, 'output'));
+	});
 
 	it('leaves a file it cannot rewrite into an eco.page call unchanged', async () => {
 		const source = [

@@ -26,7 +26,6 @@ describe('ProcessedAssetLedger', () => {
 		const deployed = new ProcessedAssetLedger(deployRoot);
 		deployed.restore(JSON.parse(JSON.stringify(built.serialize())));
 
-		expect(deployed.isRestored).toBe(true);
 		expect(deployed.lookup(createDependency(deployRoot))).toEqual(createAsset(deployRoot));
 	});
 
@@ -35,6 +34,28 @@ describe('ProcessedAssetLedger', () => {
 		ledger.restore({ entries: [] });
 
 		expect(ledger.lookup(createDependency(buildRoot))).toBeUndefined();
+	});
+
+	it('stays open after a restore until it is sealed', () => {
+		const ledger = new ProcessedAssetLedger(buildRoot);
+		ledger.restore({ entries: [] });
+		expect(ledger.isSealed).toBe(false);
+
+		ledger.seal();
+		expect(ledger.isSealed).toBe(true);
+	});
+
+	it('records an inline asset without the file it never writes', () => {
+		const ledger = new ProcessedAssetLedger(buildRoot);
+		const inlineScript = { kind: 'script', source: 'content', content: 'go()', inline: true } as const;
+		ledger.record(inlineScript, {
+			kind: 'script',
+			inline: true,
+			content: 'go()',
+			filepath: path.join(buildRoot, 'dist/client/assets/scripts/go.js'),
+		});
+
+		expect(ledger.lookup(inlineScript)).toMatchObject({ inline: true, content: 'go()', filepath: undefined });
 	});
 
 	it('records no path of the build machine', () => {

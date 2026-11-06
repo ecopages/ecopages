@@ -2,7 +2,6 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { SerializedProcessedAssetLedger } from '../assets/asset-processing-service/processed-asset-ledger.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
-import type { PageParams } from '../types/contracts.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { isPathStrictlyInside } from '../utils/path-containment.ts';
 import { toRootRelativePath } from '../utils/root-relative-path.ts';
@@ -15,19 +14,6 @@ export const PRODUCTION_ASSET_LEDGER_FILENAME = 'processed-assets.json';
 const LEGACY_BROWSER_CLIENT_MANIFEST_FILENAME = 'browser-client-manifest.json';
 
 /**
- * One route instance the production prebuild planned.
- *
- * @remarks
- * `ecopages start` plans these again before it serves requests. #1010 removes that re-planning and this record.
- */
-export type PlannedProductionRoute = {
-	routeFile: string;
-	params?: PageParams;
-	skipStaticProps?: boolean;
-	isRouteTemplate?: boolean;
-};
-
-/**
  * Everything a production build emitted for the browser, as `ecopages start` restores it.
  *
  * @remarks
@@ -35,10 +21,9 @@ export type PlannedProductionRoute = {
  * root-relative source, so the file serves a build moved to another folder or platform.
  */
 export type ProductionAssetLedgerFile = SerializedProcessedAssetLedger & {
-	version: 2;
+	version: 3;
 	buildId: string;
 	htmlPageModuleScriptUrls: Record<string, string>;
-	plannedRoutes: PlannedProductionRoute[];
 };
 
 function getLedgerPath(appConfig: EcoPagesAppConfig): string {
@@ -46,8 +31,8 @@ function getLedgerPath(appConfig: EcoPagesAppConfig): string {
 }
 
 /**
- * Writes the app runtime's asset ledger and planned routes, with the HTML module-script URLs of the same build,
- * to `<distDir>/server/processed-assets.json`.
+ * Writes the app runtime's asset ledger, with the HTML module-script URLs of the same build, to
+ * `<distDir>/server/processed-assets.json`.
  *
  * @remarks
  * The production prebuild writes it right after the app-wide browser build, so the Lit static-render worker can
@@ -59,7 +44,7 @@ export function writeProductionAssetLedger(
 ): void {
 	const runtime = requireAppRuntime(appConfig);
 	const payload: ProductionAssetLedgerFile = {
-		version: 2,
+		version: 3,
 		buildId: ensureProductionBuildId(appConfig),
 		...runtime.processedAssets.serialize(),
 		htmlPageModuleScriptUrls: Object.fromEntries(
@@ -67,10 +52,6 @@ export function writeProductionAssetLedger(
 				.map(([filePath, url]) => [toRootRelativePath(appConfig.rootDir, filePath), url] as const)
 				.sort(([left], [right]) => left.localeCompare(right)),
 		),
-		plannedRoutes: runtime.plannedProductionRoutes.map((route) => ({
-			...route,
-			routeFile: toRootRelativePath(appConfig.rootDir, route.routeFile),
-		})),
 	};
 	const ledgerPath = getLedgerPath(appConfig);
 	fileSystem.ensureDir(path.dirname(ledgerPath));
@@ -90,30 +71,16 @@ function isStringArray(value: unknown): value is string[] {
 	return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
-function isPlannedRoute(value: unknown): value is PlannedProductionRoute {
-	return (
-		isRecord(value) &&
-		typeof value.routeFile === 'string' &&
-		(value.params === undefined ||
-			(isRecord(value.params) &&
-				Object.values(value.params).every((param) => typeof param === 'string' || isStringArray(param)))) &&
-		(value.skipStaticProps === undefined || typeof value.skipStaticProps === 'boolean') &&
-		(value.isRouteTemplate === undefined || typeof value.isRouteTemplate === 'boolean')
-	);
-}
-
 function isLedgerFile(value: unknown): value is ProductionAssetLedgerFile {
 	return (
 		isRecord(value) &&
-		value.version === 2 &&
+		value.version === 3 &&
 		typeof value.buildId === 'string' &&
 		Array.isArray(value.entries) &&
 		value.entries.every((entry) => isRecord(entry) && typeof entry.key === 'string' && isRecord(entry.asset)) &&
 		(value.browserOutputs === undefined || isStringArray(value.browserOutputs)) &&
 		isRecord(value.htmlPageModuleScriptUrls) &&
-		Object.values(value.htmlPageModuleScriptUrls).every((url) => typeof url === 'string') &&
-		Array.isArray(value.plannedRoutes) &&
-		value.plannedRoutes.every(isPlannedRoute)
+		Object.values(value.htmlPageModuleScriptUrls).every((url) => typeof url === 'string')
 	);
 }
 
@@ -159,13 +126,12 @@ function assertOutputsExist(appConfig: EcoPagesAppConfig, ledger: ProductionAsse
  * Loads the record written by `ecopages build` into the app runtime's ledger, if the build wrote one.
  *
  * @remarks
- * Once restored, asset processing serves recorded dependencies from their emitted outputs, including every
- * script the app-wide browser build bundled, and fails for an unrecorded file dependency whose source is
- * missing. Returns the HTML module-script URLs, by absolute source path, and the routes the build planned.
+ * Once restored, asset processing serves every script the app-wide browser build bundled from its emitted
+ * output. Returns the HTML module-script URLs, by absolute source path.
  */
 export function restoreProductionAssetLedger(
 	appConfig: EcoPagesAppConfig,
-): { htmlPageModuleScriptUrls: Map<string, string>; plannedRoutes: PlannedProductionRoute[] } | undefined {
+): { htmlPageModuleScriptUrls: Map<string, string> } | undefined {
 	const ledger = readProductionAssetLedger(appConfig);
 	if (!ledger) return undefined;
 	assertOutputsExist(appConfig, ledger);
@@ -177,9 +143,5 @@ export function restoreProductionAssetLedger(
 				url,
 			]),
 		),
-		plannedRoutes: ledger.plannedRoutes.map((route) => ({
-			...route,
-			routeFile: path.resolve(appConfig.rootDir, route.routeFile),
-		})),
 	};
 }

@@ -88,7 +88,6 @@ function createMockDependencies() {
 		runtimeAssetsPrepared: false,
 		integrationActivations: new Map(),
 		processedAssets: new ProcessedAssetLedger('/test'),
-		plannedProductionRoutes: [],
 		htmlPageModuleScripts: createHtmlPageModuleScriptState(),
 	} as unknown as AppRuntime;
 

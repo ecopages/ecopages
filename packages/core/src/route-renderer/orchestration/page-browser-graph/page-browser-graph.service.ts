@@ -10,18 +10,12 @@ import { resolveAssetProcessingIntegration } from '../../../assets/asset-process
 import { appLogger } from '../../../global/app-logger.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
-import { prepareAssetDependencies } from '../../../assets/asset-processing-service/asset-processing.service.ts';
 import {
 	collectPageBrowserGraphDependencyPaths,
 	createPageBrowserGraphEntryFingerprint,
 	type GraphBuildResult,
 	type GraphPolicy,
 } from './page-browser-graph-session.ts';
-import {
-	describeProductionBrowserGraphEntry,
-	missingProductionBrowserGraphError,
-	shouldRejectUnplannedProductionBrowserGraph,
-} from './missing-production-browser-graph.ts';
 
 type GroupedContentScriptAsset = Extract<AssetDefinition, { kind: 'script'; source: 'content' }> & {
 	groupedBundle: {
@@ -186,27 +180,14 @@ export class PageBrowserGraphService {
 	 * Processes the route's grouped scripts and keeps the outputs of its own bundles.
 	 *
 	 * @remarks
-	 * In production each one resolves to the output the app-wide browser build recorded for it; once
-	 * `ecopages start` or the Lit static-render worker sealed the build, a grouped script the ledger does not
-	 * record is an error. Ungrouped dependencies are not checked: a React page script, for one, is never in the
-	 * app-wide build, and asset processing already fails for an unrecorded file whose source is missing.
-	 * Elsewhere they build as one grouped bundle for this route, which is not cached across routes.
+	 * In production each one resolves to the output the app-wide browser build recorded for it. Elsewhere they
+	 * build as one grouped bundle for this route, which is not cached across routes.
 	 */
 	private async processGroupedDependencies(
 		input: PageBrowserGraphResolveInput,
 		groupedDependencies: GroupedContentScriptAsset[],
 		integration: AssetProcessingIntegration | undefined,
 	): Promise<ProcessedAsset[]> {
-		if (shouldRejectUnplannedProductionBrowserGraph(this.appConfig)) {
-			const ledger = requireAppRuntime(this.appConfig).processedAssets;
-			const prepared = prepareAssetDependencies([...groupedDependencies], integration, this.appConfig.rootDir);
-			if (prepared.some((dependency) => !ledger.lookup(dependency))) {
-				throw missingProductionBrowserGraphError(
-					input.routeFile,
-					describeProductionBrowserGraphEntry(undefined, input.dependencyInstanceKey),
-				);
-			}
-		}
 		const bundleKeys = new Set(groupedDependencies.map((dep) => getGroupedBundleAssetKey(dep.groupedBundle)));
 		const groupedAssets = (
 			await this.assetProcessingService.processDependencies(groupedDependencies, integration)

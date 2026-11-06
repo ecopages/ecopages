@@ -22,7 +22,7 @@ import {
 	type IntegrationRendererOptions,
 	type HtmlDocumentContribution,
 	type HtmlDocumentContributionContext,
-	type PageBrowserGraphContribution,
+	type PageBrowserGraphDeclaration,
 	type PageBrowserGraphContributionContext,
 	selectHydrationIslandEntries,
 	type PageClientBrowserAssets,
@@ -465,20 +465,16 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 
 	private async collectPageBrowserGraphContributionHook(
 		context: PageBrowserGraphContributionContext,
-	): Promise<PageBrowserGraphContribution> {
+	): Promise<PageBrowserGraphDeclaration> {
 		try {
 			const { file: pagePath, pageModule } = context;
 			const shouldHydrate = this.forceBrowserGraph ? true : this.pageModuleService.shouldHydratePage(pageModule);
 			if (!shouldHydrate) {
-				return { assets: [] };
+				return {};
 			}
 
 			const isMdx = this.pageModuleService.isMdxFile(pagePath);
 			const declaredModules = this.pageModuleService.collectPageDeclaredModules(pageModule);
-
-			if (isMdx) {
-				await this.bundleService.ensurePageLayoutNormalizationVendorProcessed(this.assetProcessingService);
-			}
 
 			const dependencies = await this.hydrationAssetService.createPageBrowserGraphDependencies(
 				pagePath,
@@ -487,7 +483,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			);
 			if (!isMdx) return { dependencies };
 			return {
-				dependencies,
+				dependencies: [...dependencies, ...this.bundleService.getPageLayoutNormalizationDependencies()],
 				...this.mdxConfigDependencyService.collectMdxConfigContribution(
 					pagePath,
 					(pageModule as EcoPageFile & { config?: EcoComponentConfig }).config,

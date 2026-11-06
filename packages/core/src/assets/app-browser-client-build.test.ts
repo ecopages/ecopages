@@ -60,7 +60,7 @@ function createIslandEntry(
 	};
 }
 
-function createLazyEntry(): NonNullable<GroupedGraphBuildPlan['instances'][number]['pageClientBuildEntries']>[number] {
+function createLazyEntry(): GroupedGraphBuildPlan['pageClientEntries'][number] {
 	return {
 		integrationName: 'ecopages-jsx',
 		dependency: {
@@ -105,19 +105,29 @@ function createTestAppConfig(rootDir: string): EcoPagesAppConfig {
 	} as unknown as EcoPagesAppConfig;
 }
 
-function createRouteInstance(
-	rootDir: string,
-	routeName: string,
-	routeScript: AssetDefinition,
-	pageClientBuildEntries: NonNullable<GroupedGraphBuildPlan['instances'][number]['pageClientBuildEntries']> = [
-		createIslandEntry(rootDir, `island-${routeName}`),
-	],
-) {
+type PlannedRoute = {
+	script?: AssetDefinition;
+	pageClientEntries?: GroupedGraphBuildPlan['pageClientEntries'];
+};
+
+/** One Integration's plan, with each route script prepared as planning prepares it. */
+function createPlan(
+	appConfig: EcoPagesAppConfig,
+	integrationName: string,
+	routes: PlannedRoute[],
+	bundledScripts: AssetDefinition[] = [],
+): GroupedGraphBuildPlan {
 	return {
-		routeFile: path.join(rootDir, 'pages', `${routeName}.tsx`),
-		dependencyInstanceKey: '',
-		contribution: { dependencies: [{ ...routeScript }] },
-		pageClientBuildEntries,
+		integrationName,
+		bundledScripts: [
+			...routes.flatMap(({ script }) =>
+				script ? [preparedRouteScript(appConfig, script, integrationName)] : [],
+			),
+			...bundledScripts,
+		],
+		pageClientEntries: routes.flatMap((route, index) =>
+			route.pageClientEntries ? [...route.pageClientEntries] : [createIslandEntry(rootDir, `island-${index}`)],
+		),
 	};
 }
 
@@ -205,17 +215,11 @@ test('buildAppBrowserClient records each entry output in the ledger under every 
 	const islandA = createIslandEntry(rootDir, 'island-a');
 	const lazyEntry = createLazyEntry();
 	const plans = [
-		{
-			integrationName: 'ecopages-jsx',
-			instances: [
-				createRouteInstance(rootDir, 'a', routeScript, [islandA, lazyEntry]),
-				createRouteInstance(rootDir, 'b', routeScript),
-			],
-		},
-		{
-			integrationName: 'lit',
-			instances: [createRouteInstance(rootDir, 'c', routeScript, [])],
-		},
+		createPlan(appConfig, 'ecopages-jsx', [
+			{ script: routeScript, pageClientEntries: [islandA, lazyEntry] },
+			{ script: routeScript },
+		]),
+		createPlan(appConfig, 'lit', [{ script: routeScript, pageClientEntries: [] }]),
 	];
 
 	await buildAppBrowserClient(appConfig, plans);
@@ -246,19 +250,19 @@ test('buildAppBrowserClient records a shared script once however many routes dec
 		bundleGroupedEntries.mockClear();
 		const appConfig = createTestAppConfig(rootDir);
 		await buildAppBrowserClient(appConfig, [
-			{
-				integrationName: 'ecopages-jsx',
-				instances: Array.from({ length: routeCount }, (_, index) =>
-					createRouteInstance(rootDir, `route-${index}`, routeScript, [
-						createIslandEntry(rootDir, 'shared-island'),
-					]),
-				),
-				bundledScripts: Array.from({ length: routeCount }, () => ({
+			createPlan(
+				appConfig,
+				'ecopages-jsx',
+				Array.from({ length: routeCount }, () => ({
+					script: routeScript,
+					pageClientEntries: [createIslandEntry(rootDir, 'shared-island')],
+				})),
+				Array.from({ length: routeCount }, () => ({
 					kind: 'script' as const,
 					source: 'file' as const,
 					filepath: path.join(rootDir, 'src', 'counter.script.ts'),
 				})),
-			},
+			),
 		]);
 		return ledgerOf(appConfig).serialize();
 	};
@@ -279,7 +283,7 @@ test('buildAppBrowserClient records outputs that a build moved to another folder
 	});
 	const appConfig = createTestAppConfig(rootDir);
 	await buildAppBrowserClient(appConfig, [
-		{ integrationName: 'lit', instances: [], bundledScripts: [componentScript(rootDir)] },
+		{ integrationName: 'lit', bundledScripts: [componentScript(rootDir)], pageClientEntries: [] },
 	]);
 	const built = required(ledgerOf(appConfig).lookup(componentScript(rootDir)));
 
@@ -317,13 +321,10 @@ test('buildAppBrowserClient builds entries apart only when build-wide options di
 		bundle: true,
 		position: 'head',
 	};
-	const plan = {
-		integrationName: 'ecopages-jsx',
-		instances: [
-			createRouteInstance(rootDir, 'special', specialRouteScript, []),
-			createRouteInstance(rootDir, 'default', defaultRouteScript, []),
-		],
-	};
+	const plan = createPlan(appConfig, 'ecopages-jsx', [
+		{ script: specialRouteScript, pageClientEntries: [] },
+		{ script: defaultRouteScript, pageClientEntries: [] },
+	]);
 
 	await buildAppBrowserClient(appConfig, [plan]);
 
@@ -364,37 +365,31 @@ test('buildAppBrowserClient combines compatible entry-scoped plugins and keeps e
 	const secondIsland = createIslandEntry(rootDir, 'island-second');
 	firstIsland.dependency.bundleOptions = { plugins: [firstBoundary] };
 	secondIsland.dependency.bundleOptions = { plugins: [secondBoundary] };
-	const plan = {
-		integrationName: 'ecopages-jsx',
-		instances: [
-			createRouteInstance(
-				rootDir,
-				'first',
-				{
-					kind: 'script',
-					source: 'content',
-					content: 'import "./first-route.js";',
-					bundle: true,
-					position: 'head',
-				},
-				[firstIsland],
-			),
-			createRouteInstance(
-				rootDir,
-				'second',
-				{
-					kind: 'script',
-					source: 'content',
-					content: 'import "./second-route.js";',
-					bundle: true,
-					position: 'head',
-				},
-				[secondIsland],
-			),
-		],
-	};
+	const appConfig = createTestAppConfig(rootDir);
+	const plan = createPlan(appConfig, 'ecopages-jsx', [
+		{
+			script: {
+				kind: 'script',
+				source: 'content',
+				content: 'import "./first-route.js";',
+				bundle: true,
+				position: 'head',
+			},
+			pageClientEntries: [firstIsland],
+		},
+		{
+			script: {
+				kind: 'script',
+				source: 'content',
+				content: 'import "./second-route.js";',
+				bundle: true,
+				position: 'head',
+			},
+			pageClientEntries: [secondIsland],
+		},
+	]);
 
-	await buildAppBrowserClient(createTestAppConfig(rootDir), [plan]);
+	await buildAppBrowserClient(appConfig, [plan]);
 
 	assert.equal(bundleGroupedEntries.mock.calls.length, 1);
 	const buildCall = required(bundleGroupedEntries.mock.calls[0]);
@@ -416,25 +411,21 @@ test('buildAppBrowserClient builds entries with different plugins together and s
 	const islandPlugin: EcoBuildPlugin = { name: 'island-only-plugin', setup() {} };
 	const island = createIslandEntry(rootDir, 'island-scoped');
 	island.dependency.bundleOptions = { plugins: [islandPlugin], external: ['island-runtime'] };
-	const plan = {
-		integrationName: 'react',
-		instances: [
-			createRouteInstance(
-				rootDir,
-				'scoped',
-				{
-					kind: 'script',
-					source: 'content',
-					content: 'import "./scoped-route.js";',
-					bundle: true,
-					position: 'head',
-				},
-				[island],
-			),
-		],
-	};
+	const appConfig = createTestAppConfig(rootDir);
+	const plan = createPlan(appConfig, 'react', [
+		{
+			script: {
+				kind: 'script',
+				source: 'content',
+				content: 'import "./scoped-route.js";',
+				bundle: true,
+				position: 'head',
+			},
+			pageClientEntries: [island],
+		},
+	]);
 
-	await buildAppBrowserClient(createTestAppConfig(rootDir), [plan]);
+	await buildAppBrowserClient(appConfig, [plan]);
 
 	assert.equal(bundleGroupedEntries.mock.calls.length, 1);
 	const [entries, options] = required(bundleGroupedEntries.mock.calls[0]);
@@ -463,25 +454,13 @@ test('buildAppBrowserClient separates entry-scoped plugins with different hook p
 	const secondIsland = createIslandEntry(rootDir, 'island-second');
 	firstIsland.dependency.bundleOptions = { plugins: [firstBoundary, sharedPlugin] };
 	secondIsland.dependency.bundleOptions = { plugins: [sharedPlugin, secondBoundary] };
-	const plan = {
-		integrationName: 'react',
-		instances: [
-			{
-				routeFile: path.join(rootDir, 'pages', 'first.tsx'),
-				dependencyInstanceKey: '',
-				contribution: { dependencies: [] },
-				pageClientBuildEntries: [firstIsland],
-			},
-			{
-				routeFile: path.join(rootDir, 'pages', 'second.tsx'),
-				dependencyInstanceKey: '',
-				contribution: { dependencies: [] },
-				pageClientBuildEntries: [secondIsland],
-			},
-		],
-	};
+	const appConfig = createTestAppConfig(rootDir);
+	const plan = createPlan(appConfig, 'react', [
+		{ pageClientEntries: [firstIsland] },
+		{ pageClientEntries: [secondIsland] },
+	]);
 
-	await buildAppBrowserClient(createTestAppConfig(rootDir), [plan]);
+	await buildAppBrowserClient(appConfig, [plan]);
 
 	assert.equal(bundleGroupedEntries.mock.calls.length, 2);
 	assert.deepEqual(

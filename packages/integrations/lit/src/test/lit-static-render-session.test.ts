@@ -51,6 +51,7 @@ describe('LitStaticRenderSession', () => {
 		await session.ensureWorker({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: 'http://127.0.0.1:3000',
+			directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 		});
 
 		expect(workerStart).toHaveBeenCalledTimes(1);
@@ -90,10 +91,12 @@ describe('LitStaticRenderSession', () => {
 		await session.ensureWorker({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: 'http://127.0.0.1:3000',
+			directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 		});
 		await session.ensureWorker({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: 'http://127.0.0.1:3000',
+			directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 		});
 
 		expect(createClient).toHaveBeenCalledTimes(1);
@@ -102,6 +105,7 @@ describe('LitStaticRenderSession', () => {
 		await session.ensureWorker({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: 'http://127.0.0.1:4000',
+			directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 		});
 
 		expect(workerDispose).toHaveBeenCalledTimes(1);
@@ -110,6 +114,7 @@ describe('LitStaticRenderSession', () => {
 		expect(createClient).toHaveBeenLastCalledWith({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: 'http://127.0.0.1:4000',
+			directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 		});
 
 		await session.dispose();
@@ -128,6 +133,7 @@ describe('LitStaticRenderSession', () => {
 		await session.ensureWorker({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: 'http://127.0.0.1:3000',
+			directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 		});
 
 		await session.renderPageInWorker({
@@ -232,7 +238,11 @@ describe('LitStaticRenderSession', () => {
 			createWorkerClient: createClient,
 			getInvalidationVersion: () => version,
 		});
-		await session.ensureWorker({ configModulePath: '/app/eco.config.ts', runtimeOrigin: 'http://localhost' });
+		await session.ensureWorker({
+			configModulePath: '/app/eco.config.ts',
+			runtimeOrigin: 'http://localhost',
+			directories: { distDir: '/app/dist', workDir: '/app/.eco' },
+		});
 		await session.renderPageInWorker({ filePath: '/app/page.lit.tsx', params: {} });
 		version += 1;
 		await Promise.all([

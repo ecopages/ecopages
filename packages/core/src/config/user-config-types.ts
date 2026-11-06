@@ -181,4 +181,12 @@ export type FinalizeEcoPagesConfigOptions = {
 export type LoadEcoPagesConfigOptions = {
 	configFile?: string;
 	cwd?: string;
+	/**
+	 * Output and work directories that replace the config's `distDir` and `workDir`.
+	 *
+	 * @remarks
+	 * A worker that renders for a build in progress, such as the Lit static-render worker, passes the directories
+	 * of that build, which may differ from the configured ones.
+	 */
+	directories?: { distDir: string; workDir: string };
 };

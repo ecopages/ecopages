@@ -2,8 +2,6 @@ import path from 'node:path';
 import { getAssetDependencyKey } from './asset-dependency-keys.ts';
 import type { AssetDefinition, ProcessedAsset } from './assets.types.ts';
 
-type FileAssetDefinition = Extract<AssetDefinition, { source: 'file' }>;
-
 /** A processed asset whose file paths are relative to the app root, so the record survives a move. */
 export type LedgerProcessedAsset = Omit<ProcessedAsset, 'filepath' | 'sourceFilepath' | 'bundledSourceFilepaths'> & {
 	filepath?: string;
@@ -24,16 +22,16 @@ export type SerializedProcessedAssetLedger = {
  * The emitted form of every dependency one production build processed or bundled, by dependency key.
  *
  * @remarks
- * `ecopages build` records here each processed file stylesheet and script, and each script the
- * app-wide browser build bundled, under the key of every dependency that declared it. It writes the
- * record beside the server bundle; `ecopages start` restores it, so rendering resolves each dependency
- * to its file in `dist/` and never reads the build machine's source tree. Keys and paths are relative
- * to the app root, which lets the deployed folder sit at any location.
+ * `ecopages build` records here every dependency it processes, and each script the app-wide browser build
+ * bundled, under the key of every dependency that declared it. It writes the record beside the server bundle;
+ * `ecopages start` restores and seals it, so rendering resolves each dependency to its file in `dist/` and never
+ * compiles, writes or reads the build machine's source tree. Keys and paths are relative to the app root, which
+ * lets the deployed folder sit at any location.
  */
 export class ProcessedAssetLedger {
 	private readonly entries = new Map<string, LedgerProcessedAsset>();
 	private browserOutputs: Set<string> | undefined;
-	private restored = false;
+	private sealed = false;
 
 	private readonly rootDir: string;
 
@@ -41,9 +39,14 @@ export class ProcessedAssetLedger {
 		this.rootDir = rootDir;
 	}
 
-	/** True once a build's record was loaded, which makes source files optional for recorded dependencies. */
-	get isRestored(): boolean {
-		return this.restored;
+	/** True once `ecopages start` sealed the restored record: a dependency it does not record is an error. */
+	get isSealed(): boolean {
+		return this.sealed;
+	}
+
+	/** Serves every dependency from this record from now on; asset processing compiles and writes nothing. */
+	seal(): void {
+		this.sealed = true;
 	}
 
 	/** True once the app-wide browser build recorded its outputs, in this process or in the restored build. */
@@ -51,8 +54,13 @@ export class ProcessedAssetLedger {
 		return this.browserOutputs !== undefined;
 	}
 
+	/**
+	 * @remarks
+	 * An inline asset carries its content and no file reaches `dist/`, so its `filepath` is not recorded.
+	 */
 	record(dep: AssetDefinition, asset: ProcessedAsset): void {
-		this.entries.set(getAssetDependencyKey(dep, this.rootDir), this.toPortable(asset));
+		const recorded = asset.inline ? { ...asset, filepath: undefined } : asset;
+		this.entries.set(getAssetDependencyKey(dep, this.rootDir), this.toPortable(recorded));
 	}
 
 	/** Records the files one app-wide browser build emitted, which marks the ledger as holding that build. */
@@ -77,9 +85,11 @@ export class ProcessedAssetLedger {
 		return asset ? this.toAbsolute(asset) : undefined;
 	}
 
-	/** The app-root relative path that names `dep` in error messages. */
-	describe(dep: FileAssetDefinition): string {
-		return this.relative(dep.filepath);
+	/** Names `dep` in error messages: its app-root relative file, import path or content name. */
+	describe(dep: AssetDefinition): string {
+		if ('filepath' in dep) return this.relative(dep.filepath);
+		if ('importPath' in dep) return dep.importPath;
+		return 'name' in dep && dep.name ? `content ${dep.name}` : 'inline content';
 	}
 
 	serialize(): SerializedProcessedAssetLedger {
@@ -93,7 +103,6 @@ export class ProcessedAssetLedger {
 		this.entries.clear();
 		for (const { key, asset } of ledger.entries) this.entries.set(key, asset);
 		this.browserOutputs = ledger.browserOutputs ? new Set(ledger.browserOutputs) : undefined;
-		this.restored = true;
 	}
 
 	private relative(filepath: string): string {

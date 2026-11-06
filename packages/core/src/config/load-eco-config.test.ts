@@ -138,6 +138,22 @@ describe('loadEcoPagesConfig', () => {
 		expect(appConfig.rootDir).toBe(tempDir);
 	});
 
+	it('replaces the configured output and work directories with the ones it is given', async () => {
+		const configPath = path.join(tempDir, 'eco.config.ts');
+		fs.writeFileSync(configPath, `export default { rootDir: ${JSON.stringify(tempDir)}, distDir: 'dist' };`);
+		const distDir = path.join(tempDir, 'dist', 'scoped');
+		const workDir = path.join(tempDir, '.eco', 'scoped');
+
+		const appConfig = await loadEcoPagesConfig({
+			cwd: tempDir,
+			configFile: configPath,
+			directories: { distDir, workDir },
+		});
+
+		expect(appConfig.absolutePaths.distDir).toBe(path.join(distDir, 'client'));
+		expect(appConfig.absolutePaths.workDir).toBe(workDir);
+	});
+
 	it('records the project files the config imports', async () => {
 		const optionsPath = path.join(tempDir, 'options.ts');
 		const configPath = path.join(tempDir, 'eco.config.ts');

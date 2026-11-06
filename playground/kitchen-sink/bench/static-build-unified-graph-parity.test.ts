@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { afterAll, afterEach, beforeEach, describe, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, it, onTestFinished, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { isPagesUnifiedGraphPage } from '../../../packages/core/src/build/cache/pages-unified-graph-build';
 import { appLogger } from '../../../packages/core/src/global/app-logger';
@@ -51,6 +51,24 @@ const original = vi.hoisted(() => {
 });
 
 const PARITY_SCOPE_BASELINE = '__bench-unified-graph-baseline__';
+
+/**
+ * Puts a ledger from an earlier build in the configured output, which the scoped builds below do not use.
+ *
+ * @remarks
+ * The Lit static-render worker must restore the ledger of the build it renders for; reading this one fails the
+ * export with "Run `ecopages build` again". Returns a function that puts back what was there.
+ */
+function writeStaleDefaultLedger(): () => void {
+	const ledgerPath = path.join(import.meta.dirname, '..', 'dist', 'server', 'processed-assets.json');
+	const previous = existsSync(ledgerPath) ? readFileSync(ledgerPath) : undefined;
+	mkdirSync(path.dirname(ledgerPath), { recursive: true });
+	writeFileSync(ledgerPath, JSON.stringify({ version: 1, buildId: 'stale', entries: [] }));
+	return () => {
+		if (previous) writeFileSync(ledgerPath, previous);
+		else rmSync(ledgerPath);
+	};
+}
 const PARITY_SCOPE_GRAPH = '__bench-unified-graph-treatment__';
 
 function normalizeStaticHtml(html: string): string {
@@ -114,6 +132,8 @@ describe('static-build unified graph parity', () => {
 	it('produces identical static HTML with unified graph on vs off', async () => {
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 		const logError = vi.spyOn(appLogger, 'error');
+		const restoreDefaultLedger = writeStaleDefaultLedger();
+		onTestFinished(restoreDefaultLedger);
 
 		const baselineConfig = await loadStaticBuildBenchConfigWithScope(PARITY_SCOPE_BASELINE);
 		resetBenchBuildState(baselineConfig);

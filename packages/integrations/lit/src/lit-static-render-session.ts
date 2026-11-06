@@ -20,6 +20,7 @@ type LitAppConfig = { integrations: Pick<AnyIntegrationPlugin, 'name' | 'extensi
 type LitStaticRenderWorkerIdentity = {
 	configModulePath: string;
 	runtimeOrigin: string;
+	directories: { distDir: string; workDir: string };
 };
 
 type LitStaticRenderSessionOptions = {
@@ -31,10 +32,7 @@ type LitStaticRenderSessionOptions = {
 		integration?: AssetProcessingIntegration,
 	) => Promise<ProcessedAsset[]>;
 	getInvalidationVersion?: () => number;
-	createWorkerClient?: (input: {
-		configModulePath: string;
-		runtimeOrigin: string;
-	}) => LitStaticRenderWorkerClientContract;
+	createWorkerClient?: (input: LitStaticRenderWorkerIdentity) => LitStaticRenderWorkerClientContract;
 };
 
 /**
@@ -45,7 +43,7 @@ type LitStaticRenderSessionOptions = {
  * Injected into `LitRenderer` via a lazy accessor from `LitPlugin`; there is no
  * process-global coordinator. Serving leaves the session unset.
  *
- * Worker init identity is sticky for the first `{ configModulePath, runtimeOrigin }`.
+ * Worker init identity is sticky for the first `{ configModulePath, runtimeOrigin, directories }`.
  * Later `ensureWorker` calls with the same identity are no-ops; a different identity
  * recreates the worker so stale config/origin is never silently reused.
  */
@@ -71,13 +69,7 @@ export class LitStaticRenderSession {
 				processDependencies: options.processDependencies,
 			}),
 		});
-		this.createWorkerClient =
-			options.createWorkerClient ??
-			((input) =>
-				new LitStaticRenderWorkerClient({
-					configModulePath: input.configModulePath,
-					runtimeOrigin: input.runtimeOrigin,
-				}));
+		this.createWorkerClient = options.createWorkerClient ?? ((input) => new LitStaticRenderWorkerClient(input));
 	}
 
 	/**
@@ -85,14 +77,16 @@ export class LitStaticRenderSession {
 	 *
 	 * @remarks
 	 * First successful start sticks that identity. Matching re-entry is a no-op.
-	 * A different `configModulePath` or `runtimeOrigin` disposes and recreates.
+	 * A different `configModulePath`, `runtimeOrigin` or `directories` disposes and recreates.
 	 */
-	async ensureWorker(input: { configModulePath: string; runtimeOrigin: string }): Promise<void> {
+	async ensureWorker(input: LitStaticRenderWorkerIdentity): Promise<void> {
 		if (
 			this.workerClient &&
 			this.workerIdentity &&
 			this.workerIdentity.configModulePath === input.configModulePath &&
-			this.workerIdentity.runtimeOrigin === input.runtimeOrigin
+			this.workerIdentity.runtimeOrigin === input.runtimeOrigin &&
+			this.workerIdentity.directories.distDir === input.directories.distDir &&
+			this.workerIdentity.directories.workDir === input.directories.workDir
 		) {
 			return;
 		}
@@ -101,14 +95,8 @@ export class LitStaticRenderSession {
 			await this.dispose();
 		}
 
-		this.workerIdentity = {
-			configModulePath: input.configModulePath,
-			runtimeOrigin: input.runtimeOrigin,
-		};
-		this.workerClient = this.createWorkerClient({
-			configModulePath: input.configModulePath,
-			runtimeOrigin: input.runtimeOrigin,
-		});
+		this.workerIdentity = { ...input };
+		this.workerClient = this.createWorkerClient(this.workerIdentity);
 		await this.workerClient.start();
 		this.workerInvalidationVersion = this.getInvalidationVersion();
 	}

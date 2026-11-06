@@ -1,7 +1,7 @@
 import { parentPort } from 'node:worker_threads';
 import { loadEcoPagesConfig } from '@ecopages/core/config';
 import {
-	restoreProductionPageBrowserGraphs,
+	restoreProductionBrowserBuild,
 	setupAppRuntimeIntegrations,
 	setupAppRuntimePlugins,
 	teardownAppRuntimeIntegrations,
@@ -34,8 +34,12 @@ let resolveRendersIdle: (() => void) | undefined;
  * before static export started the Lit worker (`ECOPAGES_LIT_STATIC_RENDER_WORKER`). Integrations
  * still need setup in this isolate before route renderers are created.
  */
-async function initializeWorker(configModulePath: string, runtimeOrigin: string): Promise<void> {
-	appConfig = await loadEcoPagesConfig({ configFile: configModulePath });
+async function initializeWorker(
+	configModulePath: string,
+	runtimeOrigin: string,
+	directories: { distDir: string; workDir: string },
+): Promise<void> {
+	appConfig = await loadEcoPagesConfig({ configFile: configModulePath, directories });
 	const runtime = requireAppRuntime(appConfig);
 	runtime.origin = runtimeOrigin;
 
@@ -54,11 +58,13 @@ async function initializeWorker(configModulePath: string, runtimeOrigin: string)
  *
  * @remarks
  * Static export starts the worker before the main thread builds the app browser client and writes its asset ledger,
- * so the worker restores the ledger on its first render instead of at init. A Lit Page then links the same
- * outputs as every other Page instead of building its own scripts and Page Browser Graph.
+ * so the worker restores the ledger on its first render instead of at init. It reads the ledger of the build it
+ * renders for, whose directories the main thread passed at init, so an older build in the configured output cannot
+ * leak in. A Lit Page then links the same outputs as every other Page. The ledger stays unsealed: the export
+ * still processes the dependencies only rendering reveals.
  */
-function restoreAppBrowserBuild(config: LoadedAppConfig, factory: RouteRendererFactory): Promise<boolean> {
-	appBrowserBuildRestore ??= restoreProductionPageBrowserGraphs(config, factory);
+function restoreAppBrowserBuild(config: LoadedAppConfig): Promise<boolean> {
+	appBrowserBuildRestore ??= restoreProductionBrowserBuild(config, { seal: false });
 	return appBrowserBuildRestore;
 }
 
@@ -66,7 +72,7 @@ async function renderPage(filePath: string, params: PageParams, query?: PageQuer
 	if (!routeRendererFactory || !appConfig) {
 		throw new Error('Lit static render worker is not initialized');
 	}
-	await restoreAppBrowserBuild(appConfig, routeRendererFactory);
+	await restoreAppBrowserBuild(appConfig);
 
 	const result = await routeRendererFactory.getPageRenderer(filePath).execute({
 		file: filePath,
@@ -109,7 +115,7 @@ if (!parentPort) {
 parentPort.on('message', async (message: LitStaticRenderWorkerRequestMessage) => {
 	try {
 		if (message.type === 'init') {
-			await initializeWorker(message.configModulePath, message.runtimeOrigin);
+			await initializeWorker(message.configModulePath, message.runtimeOrigin, message.directories);
 			postMessage({ type: 'ready' });
 			return;
 		}

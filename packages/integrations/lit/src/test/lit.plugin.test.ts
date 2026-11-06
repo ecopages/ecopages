@@ -145,7 +145,7 @@ describe('LitPlugin staticExport', () => {
 		return { plugin, context, ensureWorker, dispose };
 	}
 
-	it('starts its own render worker with the export base URL and stops it when the returned release runs', async () => {
+	it('starts its own render worker with the export base URL and build directories and stops it when the returned release runs', async () => {
 		const { plugin, context, ensureWorker, dispose } = await createStaticExportFixture();
 
 		expect(ensureWorker).not.toHaveBeenCalled();
@@ -156,6 +156,7 @@ describe('LitPlugin staticExport', () => {
 		expect(ensureWorker).toHaveBeenCalledWith({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: context.baseUrl,
+			directories: { distDir: path.resolve('/app/dist'), workDir: path.resolve('/app/.eco') },
 		});
 		expect(dispose).not.toHaveBeenCalled();
 

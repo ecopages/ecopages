@@ -11,7 +11,7 @@ export {
 } from './build/browser/browser-runtime-plugin.ts';
 export { getHostScopedJsxOwnershipPlugins } from './build/browser/jsx-ownership-plugins.ts';
 export { isLitStaticRenderWorkerThread } from './build/browser/lit-static-render-worker-context.ts';
-export { restoreProductionPageBrowserGraphs } from './static-site-generator/production-page-browser-graph-prebuild.ts';
+export { restoreProductionBrowserBuild } from './static-site-generator/production-page-browser-graph-prebuild.ts';
 export {
 	type BuildAdapter,
 	type BuildExecutor,

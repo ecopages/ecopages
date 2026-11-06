@@ -25,7 +25,7 @@ import type { RuntimeHost } from './runtime-host.ts';
 import { serveDistFile } from '../shared/http/dist-file-handler.ts';
 import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import { DevSession } from './dev-session.ts';
-import { restoreProductionPageBrowserGraphs } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
+import { restoreProductionBrowserBuild } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
 import { assertProductionDistComplete } from '../../build/production-dist-complete.ts';
 import { requireProductionServerModules } from '../../build/server/server-modules-manifest.ts';
 import { isProductionRuntime } from '../../env.ts';
@@ -199,8 +199,10 @@ export class NodeServerAdapter {
 	 *
 	 * @remarks
 	 * Such a start checks that `dist/` is complete, restores Processors from the emitted
-	 * server-modules map instead of calling `setup()`, and leaves `dist/` untouched: the build
-	 * already copied the public directory, and the deploy may hold no sources.
+	 * server-modules map instead of calling `setup()`, restores and seals the asset ledger before any
+	 * Integration processes a dependency, and leaves `dist/` untouched: the build already copied the
+	 * public directory and processed every asset, and the deploy may hold no sources. Any other start
+	 * restores no ledger, so a source edited after the build is never served from stale outputs.
 	 */
 	private startsFromCompleteDist(): boolean {
 		return this.runtimeAssetSetup === 'start' && this.requireCompleteDist && isProductionRuntime();
@@ -225,6 +227,7 @@ export class NodeServerAdapter {
 			if (fromCompleteDist) {
 				assertProductionDistComplete(this.appConfig.rootDir, this.appConfig.distDir);
 				requireProductionServerModules(this.appConfig);
+				await restoreProductionBrowserBuild(this.appConfig, { seal: true });
 			}
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
@@ -491,8 +494,6 @@ export class NodeServerAdapter {
 					if (this.startsFromCompleteDist()) {
 						requireProductionServerModules(this.appConfig);
 					}
-					const { routeRendererFactory } = this.requestPipeline.getStaticBuildContext();
-					await restoreProductionPageBrowserGraphs(this.appConfig, routeRendererFactory);
 				}
 				attachNodeHttpWebSocketUpgrades(server, {
 					runtimeOrigin: this.runtime.origin,

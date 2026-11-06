@@ -22,7 +22,6 @@ import type { CustomElementScriptPreloadScopeState } from '../../route-renderer/
 import type { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
 import type { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import type { IHmrManager } from '../../types/contracts.ts';
-import type { PlannedProductionRoute } from '../../build/production-asset-ledger.ts';
 import { MISSING_APP_RUNTIME } from '../../utils/app-runtime.ts';
 
 export { requireAppRuntime } from '../../utils/app-runtime.ts';
@@ -87,25 +86,15 @@ export interface AppRuntime {
 	origin: string;
 	hmr: IHmrManager | null;
 	/**
-	 * When true, a production request whose Page Browser Graph script the asset ledger does not record is an
-	 * error. `ecopages start` sets this after it restores the ledger.
-	 */
-	productionBrowserGraphsSealed: boolean;
-	/**
 	 * Processed and bundled dependencies of the production build, by dependency key, shared by every
 	 * asset-processing service.
 	 *
 	 * @remarks
-	 * The app-wide browser build records each script it bundles here, and asset processing each file
-	 * dependency it processes. `ecopages build` writes it to `dist/server/processed-assets.json`; `ecopages start`
-	 * restores it so rendering never reads source files for recorded dependencies.
+	 * The app-wide browser build records each script it bundles here, and asset processing each dependency it
+	 * processes. `ecopages build` writes it to `dist/server/processed-assets.json`; `ecopages start` restores and
+	 * seals it, so rendering serves every dependency from `dist/` and never compiles or writes.
 	 */
 	processedAssets: ProcessedAssetLedger;
-	/**
-	 * Route instances the production prebuild planned, written beside the ledger for `ecopages start` to plan
-	 * again. #1010 removes it with that re-planning.
-	 */
-	plannedProductionRoutes: PlannedProductionRoute[];
 	/**
 	 * True while static generation (`ecopages build`) runs. An asset that cannot be processed then
 	 * fails the build.
@@ -160,9 +149,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		requestPipelineMetrics: createRequestPipelineMetricsState(),
 		origin: appConfig.baseUrl,
 		hmr: null,
-		productionBrowserGraphsSealed: false,
 		processedAssets: new ProcessedAssetLedger(appConfig.rootDir),
-		plannedProductionRoutes: [],
 		staticGenerationActive: false,
 	};
 	appConfig.appRuntime = runtime;

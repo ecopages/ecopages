@@ -7,7 +7,7 @@ import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { getServerBundleOutputPaths } from '../build/server-bundle-deploy-manifest.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
-import { createPageDependencyInstanceKey } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
+import type { PlannedRouteInstance } from '../route-renderer/orchestration/integration-renderer.ts';
 import type { AssetDefinition, ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
 import { AssetFactory } from '../assets/asset-processing-service/asset.factory.ts';
 import { APP_BROWSER_CLIENT_BUNDLE_ID } from '../assets/asset-processing-service/app-browser-client-bundle.ts';
@@ -25,7 +25,7 @@ import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import {
 	clearProductionPageBrowserGraphSession,
 	prebuildProductionPageBrowserGraphs,
-	restoreProductionPageBrowserGraphs,
+	restoreProductionBrowserBuild,
 	shouldPrebuildProductionPageBrowserGraphs,
 } from './production-page-browser-graph-prebuild.ts';
 
@@ -73,23 +73,21 @@ function recordBuiltScript(appConfig: EcoPagesAppConfig, dependency: AssetDefini
 	if (asset.filepath) writeFile(asset.filepath);
 }
 
-function createRestoringRenderer(plan: GroupedGraphBuildPlan) {
+/** A renderer whose routes plan to `plan`; preparing them appends `event(routeFile)` to `events`. */
+function createPlanningRenderer(plan: GroupedGraphBuildPlan, events: string[] = []) {
 	return {
-		name: plan.integrationName,
-		buildGroupedGraphBuildPlan: vi.fn(
-			async (
-				_instances: Array<{
-					routeFile: string;
-					params?: Record<string, string | string[]>;
-					skipStaticProps?: boolean;
-					isRouteTemplate?: boolean;
-				}>,
-			) => plan,
-		),
-		prebuildProductionPageBrowserGraph: vi.fn(
-			async (_routeFile: string, _options?: { skipStaticProps?: boolean; isRouteTemplate?: boolean }) => {},
-		),
+		planProductionRoutes: vi.fn(async (instances: PlannedRouteInstance[], _options?: unknown) => ({
+			plan,
+			prepare: async () => {
+				for (const { routeFile } of instances) events.push(`prepare ${path.basename(path.dirname(routeFile))}`);
+			},
+			preparations: [],
+		})),
 	};
+}
+
+function createPlan(integrationName: string): GroupedGraphBuildPlan {
+	return { integrationName, bundledScripts: [], pageClientEntries: [] };
 }
 
 test('shouldPrebuildProductionPageBrowserGraphs is production-only', () => {
@@ -101,29 +99,19 @@ test('shouldPrebuildProductionPageBrowserGraphs is production-only', () => {
 });
 
 test('prebuildProductionPageBrowserGraphs deduplicates, sorts, and groups route instances by renderer', async () => {
-	const calls: Array<{ rendererName: string; routeFile: string; params?: Record<string, string | string[]> }> = [];
 	const appConfig = await createAppConfig();
 	const reactRouteFile = path.join(appConfig.rootDir, 'pages/a/page.tsx');
 	const litRouteFile = path.join(appConfig.rootDir, 'pages/b/page.tsx');
 	const reactRouteParams = { slug: 'alpha' };
 	const litRouteParams = { slug: 'beta' };
-	const createBuildPlan = (integrationName: string, routeFile: string, params: Record<string, string>) => ({
-		integrationName,
-		instances: [{ routeFile, dependencyInstanceKey: createPageDependencyInstanceKey({ params }) }],
+	const events: string[] = [];
+	buildAppBrowserClientMock.mockImplementation(async () => {
+		events.push('build');
 	});
-	const reactGroupedBuildPlan = createBuildPlan('react', reactRouteFile, reactRouteParams);
-	const litGroupedBuildPlan = createBuildPlan('lit', litRouteFile, litRouteParams);
-	const createRenderer = (rendererName: string, groupedBuildPlan: GroupedGraphBuildPlan) => ({
-		buildGroupedGraphBuildPlan: vi.fn(async (_instances: unknown[], _options: unknown) => groupedBuildPlan),
-		prebuildProductionPageBrowserGraph: async (
-			filePath: string,
-			options?: { params?: Record<string, string | string[]> },
-		) => {
-			calls.push({ rendererName, routeFile: filePath, params: options?.params });
-		},
-	});
-	const reactRenderer = createRenderer('react', reactGroupedBuildPlan);
-	const litRenderer = createRenderer('lit', litGroupedBuildPlan);
+	const reactPlan = createPlan('react');
+	const litPlan = createPlan('lit');
+	const reactRenderer = createPlanningRenderer(reactPlan, events);
+	const litRenderer = createPlanningRenderer(litPlan, events);
 	const routeRendererFactory = {
 		getPageRenderer: (routeFile: string) => (routeFile === reactRouteFile ? reactRenderer : litRenderer) as never,
 	};
@@ -138,78 +126,67 @@ test('prebuildProductionPageBrowserGraphs deduplicates, sorts, and groups route 
 		routeRendererFactory,
 	);
 
-	assert.deepEqual(buildAppBrowserClientMock.mock.calls, [[appConfig, [reactGroupedBuildPlan, litGroupedBuildPlan]]]);
-	assert.deepEqual(reactRenderer.buildGroupedGraphBuildPlan.mock.calls[0]?.[0], [
+	assert.deepEqual(buildAppBrowserClientMock.mock.calls, [[appConfig, [reactPlan, litPlan]]]);
+	assert.deepEqual(reactRenderer.planProductionRoutes.mock.calls[0]?.[0], [
 		{ routeFile: reactRouteFile, params: reactRouteParams },
 	]);
-	assert.deepEqual(litRenderer.buildGroupedGraphBuildPlan.mock.calls[0]?.[0], [
+	assert.deepEqual(litRenderer.planProductionRoutes.mock.calls[0]?.[0], [
 		{ routeFile: litRouteFile, params: litRouteParams },
 	]);
-	assert.deepEqual(calls, [
-		{ rendererName: 'react', routeFile: reactRouteFile, params: reactRouteParams },
-		{ rendererName: 'lit', routeFile: litRouteFile, params: litRouteParams },
-	]);
-	assert.deepEqual(readLedgerFile(appConfig).plannedRoutes, [
-		{ routeFile: 'pages/a/page.tsx', params: reactRouteParams },
-		{ routeFile: 'pages/b/page.tsx', params: litRouteParams },
-	]);
+	assert.deepEqual(events, ['build', 'prepare a', 'prepare b']);
 	assert.equal(existsSync(path.join(path.dirname(ledgerPath(appConfig)), 'browser-client-manifest.json')), false);
 });
 
-test('prebuildProductionPageBrowserGraphs skips routes whose preparation failed', async () => {
+test('prebuildProductionPageBrowserGraphs writes the ledger once every planned route is prepared', async () => {
+	const appConfig = await createAppConfig();
+	const routeFile = path.join(appConfig.rootDir, 'pages/index/page.tsx');
+	const preparedAsset: ProcessedAsset = {
+		kind: 'stylesheet',
+		filepath: path.join(appConfig.absolutePaths.distDir, 'assets/page.css'),
+	};
+	const stylesheet: AssetDefinition = {
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: path.join(appConfig.rootDir, 'src/page.css'),
+	};
+	const ledgerExistedWhenPrepared: boolean[] = [];
+	const renderer = {
+		planProductionRoutes: vi.fn(async () => ({
+			plan: createPlan('react'),
+			prepare: async () => {
+				ledgerExistedWhenPrepared.push(existsSync(ledgerPath(appConfig)));
+				requireAppRuntime(appConfig).processedAssets.record(stylesheet, preparedAsset);
+			},
+			preparations: [],
+		})),
+	};
+
+	await prebuildProductionPageBrowserGraphs(appConfig, [{ routeFile }], { getPageRenderer: () => renderer as never });
+
+	const ledger = readLedgerFile(appConfig);
+	assert.deepEqual(ledgerExistedWhenPrepared, [false]);
+	assert.equal(ledger.version, 3);
+	assert.equal('plannedRoutes' in ledger, false);
+	assert.ok(ledger.entries.some((entry) => entry.asset.filepath === 'dist/client/assets/page.css'));
+});
+
+test('prebuildProductionPageBrowserGraphs builds nothing when no route could be planned', async () => {
 	const appConfig = await createAppConfig();
 	const routeFile = path.join(appConfig.rootDir, 'pages/[slug].tsx');
-	const failure = new Error('broken static props');
-	const groupedBuildPlan = {
-		integrationName: 'react',
-		instances: [
-			{ routeFile, dependencyInstanceKey: createPageDependencyInstanceKey({ params: { slug: 'healthy' } }) },
-		],
-	};
-	const prebuiltRoutes: string[] = [];
-	const renderer = {
-		buildGroupedGraphBuildPlan: vi.fn(
-			async (
-				instances: Array<{ routeFile: string; params?: Record<string, string | string[]> }>,
-				options?: {
-					onRouteFailure?: (
-						routeInstance: { routeFile: string; params?: Record<string, string | string[]> },
-						error: unknown,
-					) => void;
-				},
-			) => {
-				const failedInstance = instances.find(({ params }) => params?.slug === 'broken');
-				if (!failedInstance) throw new Error('Expected the failing route instance');
-				options?.onRouteFailure?.(failedInstance, failure);
-				return groupedBuildPlan;
-			},
-		),
-		prebuildProductionPageBrowserGraph: vi.fn(async (routePath: string) => {
-			prebuiltRoutes.push(routePath);
-		}),
-	};
+	const renderer = { planProductionRoutes: vi.fn(async () => undefined) };
 
-	await prebuildProductionPageBrowserGraphs(
-		appConfig,
-		[
-			{ routeFile, params: { slug: 'broken' } },
-			{ routeFile, params: { slug: 'healthy' } },
-		],
-		{ getPageRenderer: () => renderer as never },
-	);
+	await prebuildProductionPageBrowserGraphs(appConfig, [{ routeFile, params: { slug: 'broken' } }], {
+		getPageRenderer: () => renderer as never,
+	});
 
-	assert.deepEqual(prebuiltRoutes, [routeFile]);
-	assert.deepEqual(buildAppBrowserClientMock.mock.calls[0]?.[1], [groupedBuildPlan]);
-	assert.deepEqual(readLedgerFile(appConfig).plannedRoutes, [
-		{ routeFile: 'pages/[slug].tsx', params: { slug: 'healthy' } },
-	]);
+	assert.equal(renderer.planProductionRoutes.mock.calls.length, 1);
+	assert.equal(buildAppBrowserClientMock.mock.calls.length, 0);
+	assert.equal(existsSync(ledgerPath(appConfig)), false);
 });
 
 test('clearProductionPageBrowserGraphSession clears production session records and the ledger file', async () => {
 	const appConfig = await createAppConfig();
 	const runtime = requireAppRuntime(appConfig);
-	runtime.productionBrowserGraphsSealed = true;
-	runtime.plannedProductionRoutes = [{ routeFile: path.join(appConfig.rootDir, 'pages/index.tsx') }];
 	runtime.processedAssets.recordBrowserOutputs([path.join(appConfig.absolutePaths.distDir, 'assets/old.js')]);
 	writeProductionAssetLedger(appConfig, await getPrebuiltHtmlPageModuleScriptUrls(appConfig));
 	const clearSpy = vi.spyOn(runtime.pageBrowserGraphSession, 'clearPolicyRecords');
@@ -218,16 +195,12 @@ test('clearProductionPageBrowserGraphSession clears production session records a
 
 	assert.equal(clearSpy.mock.calls.length, 1);
 	assert.equal(clearSpy.mock.calls[0]?.[0], 'production');
-	assert.equal(runtime.productionBrowserGraphsSealed, false);
-	assert.deepEqual(runtime.plannedProductionRoutes, []);
 	assert.equal(runtime.processedAssets.hasBrowserBuild, false);
 	assert.equal(existsSync(ledgerPath(appConfig)), false);
 });
 
-test('restoreProductionPageBrowserGraphs restores the asset ledger and HTML module scripts for SSR start', async () => {
+test('restoreProductionBrowserBuild restores and seals the asset ledger and HTML module scripts for start', async () => {
 	const appConfig = await createAppConfig();
-	const routeFile = path.join(appConfig.rootDir, 'pages/[slug].tsx');
-	const params = { slug: 'intro' };
 	const island: AssetDefinition = {
 		kind: 'script',
 		source: 'content',
@@ -246,51 +219,32 @@ test('restoreProductionPageBrowserGraphs restores the asset ledger and HTML modu
 	writeFile(path.join(appConfig.absolutePaths.distDir, 'assets/document.js'));
 	recordBuiltScript(appConfig, island, islandAsset);
 	setPrebuiltHtmlPageModuleScriptUrls(appConfig, new Map([[htmlScriptFile, '/assets/document.js']]));
-	requireAppRuntime(appConfig).plannedProductionRoutes = [{ routeFile, params }];
 	writeProductionAssetLedger(appConfig, await getPrebuiltHtmlPageModuleScriptUrls(appConfig));
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
-	const renderer = createRestoringRenderer({ integrationName: 'ecopages-jsx', instances: [] });
 
 	assert.deepEqual(await getPrebuiltHtmlPageModuleScriptUrls(runtimeAppConfig), new Map());
-	assert.equal(
-		await restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => renderer as never }),
-		true,
-	);
+	assert.equal(await restoreProductionBrowserBuild(runtimeAppConfig, { seal: true }), true);
 
 	const runtime = requireAppRuntime(runtimeAppConfig);
-	assert.equal(runtime.productionBrowserGraphsSealed, true);
+	assert.equal(runtime.processedAssets.isSealed, true);
 	assert.equal(buildAppBrowserClientMock.mock.calls.length, 0);
 	assert.deepEqual(
 		await getPrebuiltHtmlPageModuleScriptUrls(runtimeAppConfig),
 		new Map([[htmlScriptFile, '/assets/document.js']]),
 	);
 	assert.equal(runtime.processedAssets.lookup(island)?.filepath, islandAsset.filepath);
-	assert.deepEqual(renderer.buildGroupedGraphBuildPlan.mock.calls[0]?.[0], [{ routeFile, params }]);
-	assert.equal(renderer.prebuildProductionPageBrowserGraph.mock.calls.length, 1);
 });
 
-test('restoreProductionPageBrowserGraphs fails when a planned component script is not in the ledger', async () => {
+test('restoreProductionBrowserBuild leaves the ledger open for the Lit static-render worker', async () => {
 	const appConfig = await createAppConfig();
-	const routeFile = path.join(appConfig.rootDir, 'pages/index.tsx');
-	requireAppRuntime(appConfig).plannedProductionRoutes = [{ routeFile }];
-	writeProductionAssetLedger(appConfig, await getPrebuiltHtmlPageModuleScriptUrls(appConfig));
+	writeProductionAssetLedger(appConfig, new Map());
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
-	const renderer = createRestoringRenderer({
-		integrationName: 'ecopages-jsx',
-		instances: [],
-		bundledScripts: [
-			{ kind: 'script', source: 'file', filepath: path.join(appConfig.rootDir, 'src/new.script.ts') },
-		],
-	});
 
-	await expect(
-		restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => renderer as never }),
-	).rejects.toThrow(
-		'The production asset ledger does not record the ecopages-jsx script src/new.script.ts. Run `ecopages build` again.',
-	);
+	assert.equal(await restoreProductionBrowserBuild(runtimeAppConfig, { seal: false }), true);
+	assert.equal(requireAppRuntime(runtimeAppConfig).processedAssets.isSealed, false);
 });
 
-test('restoreProductionPageBrowserGraphs restores a non-React build moved to another folder', async () => {
+test('restoreProductionBrowserBuild restores a non-React build moved to another folder', async () => {
 	const parentDir = mkdtempSync(path.join(os.tmpdir(), 'eco-moved-build-'));
 	temporaryRoots.push(parentDir);
 	const buildRoot = path.join(parentDir, 'built-here');
@@ -332,7 +286,6 @@ test('restoreProductionPageBrowserGraphs restores a non-React build moved to ano
 		srcUrl: '/assets/client-island.js',
 		kind: 'script',
 	});
-	requireAppRuntime(buildConfig).plannedProductionRoutes = [{ routeFile: path.join(buildRoot, 'pages/index.tsx') }];
 	writeFile(path.join(buildConfig.absolutePaths.distDir, 'assets/document.js'));
 	writeProductionAssetLedger(
 		buildConfig,
@@ -341,16 +294,8 @@ test('restoreProductionPageBrowserGraphs restores a non-React build moved to ano
 	assert.doesNotMatch(readFileSync(ledgerPath(buildConfig), 'utf8'), /built-here|\\\\/);
 	renameSync(buildRoot, startRoot);
 	const startConfig = await createAppConfig(startRoot);
-	const renderer = createRestoringRenderer({
-		integrationName: 'ecopages-jsx',
-		instances: [],
-		bundledScripts: [pageScriptUnder(startRoot)],
-	});
 
-	assert.equal(
-		await restoreProductionPageBrowserGraphs(startConfig, { getPageRenderer: () => renderer as never }),
-		true,
-	);
+	assert.equal(await restoreProductionBrowserBuild(startConfig, { seal: true }), true);
 
 	const ledger = requireAppRuntime(startConfig).processedAssets;
 	const restored = ledger.lookup(pageScriptUnder(startRoot));
@@ -361,12 +306,9 @@ test('restoreProductionPageBrowserGraphs restores a non-React build moved to ano
 		await getPrebuiltHtmlPageModuleScriptUrls(startConfig),
 		new Map([[path.join(startRoot, 'src/document.ts'), '/assets/document.js']]),
 	);
-	assert.deepEqual(renderer.buildGroupedGraphBuildPlan.mock.calls[0]?.[0], [
-		{ routeFile: path.join(startRoot, 'pages/index.tsx') },
-	]);
 });
 
-test('restoreProductionPageBrowserGraphs restores Integration scripts before refreshing their assets', async () => {
+test('restoreProductionBrowserBuild restores Integration scripts before refreshing their assets', async () => {
 	const appConfig = await createAppConfig();
 	const globalScript: AssetDefinition = {
 		kind: 'script',
@@ -398,43 +340,13 @@ test('restoreProductionPageBrowserGraphs restores Integration scripts before ref
 	};
 	runtimeAppConfig.integrations.push(integration as never);
 
-	assert.equal(
-		await restoreProductionPageBrowserGraphs(runtimeAppConfig, {
-			getPageRenderer: () => {
-				throw new Error('no routes');
-			},
-		}),
-		true,
-	);
+	assert.equal(await restoreProductionBrowserBuild(runtimeAppConfig, { seal: true }), true);
 
 	assert.equal(integration.refreshResolvedIntegrationDependencies.mock.calls.length, 1);
 	assert.equal(recordedWhenRefreshed[0]?.srcUrl, '/assets/client-hydrate.js');
 });
 
-test('restoreProductionPageBrowserGraphs plans dynamic route templates again without static props', async () => {
-	const appConfig = await createAppConfig();
-	const routeFile = path.join(appConfig.rootDir, 'pages/products/[slug].tsx');
-	requireAppRuntime(appConfig).plannedProductionRoutes = [
-		{ routeFile, skipStaticProps: true, isRouteTemplate: true },
-	];
-	writeProductionAssetLedger(appConfig, await getPrebuiltHtmlPageModuleScriptUrls(appConfig));
-	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
-	const renderer = createRestoringRenderer({ integrationName: 'ecopages-jsx', instances: [] });
-
-	assert.equal(
-		await restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => renderer as never }),
-		true,
-	);
-	assert.deepEqual(renderer.buildGroupedGraphBuildPlan.mock.calls[0]?.[0], [
-		{ routeFile, skipStaticProps: true, isRouteTemplate: true },
-	]);
-	assert.deepEqual(renderer.prebuildProductionPageBrowserGraph.mock.calls[0], [
-		routeFile,
-		{ params: undefined, skipStaticProps: true, isRouteTemplate: true },
-	]);
-});
-
-test('restoreProductionPageBrowserGraphs reuses outputs after HTML sources change', async () => {
+test('restoreProductionBrowserBuild reuses outputs after HTML sources change', async () => {
 	const appConfig = await createAppConfig();
 	const htmlPageFile = path.join(appConfig.absolutePaths.pagesDir, 'docs.html');
 	const htmlScriptFile = path.join(appConfig.absolutePaths.srcDir, 'document.ts');
@@ -446,13 +358,10 @@ test('restoreProductionPageBrowserGraphs reuses outputs after HTML sources chang
 	writeFile(htmlScriptFile, 'export const documentScript = false;');
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 
-	assert.equal(
-		await restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => null as never }),
-		true,
-	);
+	assert.equal(await restoreProductionBrowserBuild(runtimeAppConfig, { seal: true }), true);
 });
 
-test('restoreProductionPageBrowserGraphs rejects a missing HTML module-script output', async () => {
+test('restoreProductionBrowserBuild rejects a missing HTML module-script output', async () => {
 	const appConfig = await createAppConfig();
 	setPrebuiltHtmlPageModuleScriptUrls(
 		appConfig,
@@ -461,12 +370,12 @@ test('restoreProductionPageBrowserGraphs rejects a missing HTML module-script ou
 	writeProductionAssetLedger(appConfig, await getPrebuiltHtmlPageModuleScriptUrls(appConfig));
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 
-	await expect(
-		restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => null as never }),
-	).rejects.toThrow(/missing output dist\/client\/assets\/missing\.js/);
+	await expect(restoreProductionBrowserBuild(runtimeAppConfig, { seal: true })).rejects.toThrow(
+		/missing output dist\/client\/assets\/missing\.js/,
+	);
 });
 
-test('restoreProductionPageBrowserGraphs rejects a missing shared chunk of the app-wide build', async () => {
+test('restoreProductionBrowserBuild rejects a missing shared chunk of the app-wide build', async () => {
 	const appConfig = await createAppConfig();
 	const sharedChunk = path.join(appConfig.absolutePaths.distDir, 'assets/shared-chunk.js');
 	writeFile(sharedChunk);
@@ -476,9 +385,9 @@ test('restoreProductionPageBrowserGraphs rejects a missing shared chunk of the a
 	rmSync(sharedChunk);
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 
-	await expect(
-		restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => null as never }),
-	).rejects.toThrow(/missing output dist\/client\/assets\/shared-chunk\.js/);
+	await expect(restoreProductionBrowserBuild(runtimeAppConfig, { seal: true })).rejects.toThrow(
+		/missing output dist\/client\/assets\/shared-chunk\.js/,
+	);
 });
 
 test('a ledger file written by an earlier version asks for a new build', async () => {
@@ -487,92 +396,16 @@ test('a ledger file written by an earlier version asks for a new build', async (
 	writeFileSync(ledgerPath(appConfig), JSON.stringify({ ...readLedgerFile(appConfig), version: 1 }));
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 
-	await expect(
-		restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => null as never }),
-	).rejects.toThrow(/Run `ecopages build` again\./);
+	await expect(restoreProductionBrowserBuild(runtimeAppConfig, { seal: true })).rejects.toThrow(
+		/Run `ecopages build` again\./,
+	);
 });
 
-test('restoreProductionPageBrowserGraphs fails at start when a planned route has a grouped graph script the ledger does not record', async () => {
-	const appConfig = await createAppConfig();
-	const routeFile = path.join(appConfig.rootDir, 'pages/index.tsx');
-	requireAppRuntime(appConfig).plannedProductionRoutes = [{ routeFile }];
-	writeProductionAssetLedger(appConfig, new Map());
-	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
-	const renderer = createRestoringRenderer({
-		integrationName: 'ecopages-jsx',
-		instances: [
-			{
-				routeFile,
-				dependencyInstanceKey: createPageDependencyInstanceKey({}),
-				contribution: {
-					dependencies: [
-						{
-							kind: 'script',
-							source: 'content',
-							content: 'console.log("hydrate");',
-							groupedBundle: { id: 'react-router-pages', entryName: 'index' },
-						},
-					],
-				},
-			},
-		],
-	});
-
-	await expect(
-		restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => renderer as never }),
-	).rejects.toThrow(/does not record .* Run `ecopages build` again\./);
-	assert.equal(renderer.prebuildProductionPageBrowserGraph.mock.calls.length, 0);
-});
-
-test('restoreProductionPageBrowserGraphs fails at start when a planned page-client entry is not in the ledger', async () => {
-	const appConfig = await createAppConfig();
-	const routeFile = path.join(appConfig.rootDir, 'pages/index.tsx');
-	requireAppRuntime(appConfig).plannedProductionRoutes = [{ routeFile }];
-	writeProductionAssetLedger(appConfig, new Map());
-	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
-	const renderer = createRestoringRenderer({
-		integrationName: 'ecopages-jsx',
-		instances: [
-			{
-				routeFile,
-				dependencyInstanceKey: createPageDependencyInstanceKey({}),
-				pageClientBuildEntries: [
-					{
-						integrationName: 'ecopages-jsx',
-						dependency: { kind: 'script', source: 'content', content: 'import "./island.ts";' },
-					},
-				],
-			},
-		],
-	});
-
-	await expect(
-		restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => renderer as never }),
-	).rejects.toThrow(/does not record .* Run `ecopages build` again\./);
-});
-
-test('restoreProductionPageBrowserGraphs seals the build before it warms the planned routes', async () => {
-	const appConfig = await createAppConfig();
-	const routeFile = path.join(appConfig.rootDir, 'pages/index.tsx');
-	requireAppRuntime(appConfig).plannedProductionRoutes = [{ routeFile }];
-	writeProductionAssetLedger(appConfig, new Map());
-	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
-	const sealedWhenWarmed: boolean[] = [];
-	const renderer = createRestoringRenderer({ integrationName: 'ecopages-jsx', instances: [] });
-	renderer.prebuildProductionPageBrowserGraph.mockImplementation(async () => {
-		sealedWhenWarmed.push(requireAppRuntime(runtimeAppConfig).productionBrowserGraphsSealed);
-	});
-
-	await restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => renderer as never });
-
-	assert.deepEqual(sealedWhenWarmed, [true]);
-});
-
-test('restoreProductionPageBrowserGraphs asks for a new build when dist has only a browser client manifest', async () => {
+test('restoreProductionBrowserBuild asks for a new build when dist has only a browser client manifest', async () => {
 	const appConfig = await createAppConfig();
 	writeFile(path.join(path.dirname(ledgerPath(appConfig)), 'browser-client-manifest.json'), '{"version":2}');
 
-	await expect(
-		restoreProductionPageBrowserGraphs(appConfig, { getPageRenderer: () => null as never }),
-	).rejects.toThrow(/Run `ecopages build` again\./);
+	await expect(restoreProductionBrowserBuild(appConfig, { seal: true })).rejects.toThrow(
+		/Run `ecopages build` again\./,
+	);
 });

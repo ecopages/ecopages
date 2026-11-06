@@ -1977,4 +1977,27 @@ describe('IntegrationRenderer', () => {
 			expect(await response.text()).toBe(`<p>${undeclaredFile}</p>`);
 		});
 	});
+
+	it('names the missing Html template instead of asking to run ecopages build', async () => {
+		const appConfig = createMockAppConfig({
+			rootDir: '/missing-html-app',
+			distDir: 'dist',
+			absolutePaths: {
+				pagesDir: '/missing-html-app/src/pages',
+				htmlTemplatePath: '/missing-html-app/src/includes/html.tsx',
+			},
+		} as Partial<EcoPagesAppConfig>);
+		const renderer = new TestIntegrationRenderer({ appConfig, assetProcessingService: testAssetService });
+		const getHtmlTemplate = (IntegrationRenderer.prototype as unknown as { getHtmlTemplate(): Promise<unknown> })
+			.getHtmlTemplate;
+
+		const error = await getHtmlTemplate.call(renderer).then(
+			() => undefined,
+			(caught: unknown) => caught as Error,
+		);
+
+		expect(error?.message).toContain('Missing Html template');
+		expect(error?.message).toContain('src/includes/html.<ext>');
+		expect(error?.message).not.toContain('ecopages build');
+	});
 });

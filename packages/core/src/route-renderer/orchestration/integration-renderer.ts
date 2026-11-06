@@ -34,7 +34,10 @@ import { resolveAssetProcessingIntegration } from '../../assets/asset-processing
 import { createAppBrowserClientEntryKey } from '../../assets/app-browser-client-build.ts';
 import { HtmlTransformerService } from '../../html/html-transformer.service.ts';
 import type { HtmlDocumentContribution } from '../../html/html-transformer.service.ts';
+import { fileSystem } from '@ecopages/file-system';
+import { hasProductionServerModule } from '../../build/server/server-modules-manifest.ts';
 import { invariant } from '../../utils/invariant.ts';
+import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
@@ -836,6 +839,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	protected async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		const htmlTemplatePath = this.appConfig.absolutePaths.htmlTemplatePath;
+		const htmlTemplateKey = toRootRelativePath(this.appConfig.rootDir, htmlTemplatePath);
+		invariant(
+			fileSystem.exists(htmlTemplatePath) || hasProductionServerModule(this.appConfig, htmlTemplatePath),
+			`Missing Html template: expected ${htmlTemplateKey.replace(/\.[^./]+$/, '.<ext>')} but no such file exists. Add that file (for example ${htmlTemplateKey}) with the app's Html template as its default export.`,
+		);
 		try {
 			const { default: HtmlTemplate } = await this.importPageFile(htmlTemplatePath);
 			return HtmlTemplate as EcoComponent<HtmlTemplateProps>;

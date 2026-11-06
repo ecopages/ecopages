@@ -130,16 +130,25 @@ export function resolveBrowserRuntimeEntryPath(options: {
 }
 
 /**
- * Builds a relative import path from a generated runtime entry file to a resolved module path.
+ * Builds the import path from a generated runtime entry file to a resolved module path.
+ *
+ * @remarks
+ * The path is relative to `entryDir`. On Windows a module on another drive than `entryDir` has no relative
+ * path, so the absolute path with forward slashes is returned; prefixing it with `./` would point into a
+ * folder named after the drive. `pathApi` exists so tests can run the Windows rules on any platform.
  */
-export function toRelativeEntryImport(entryDir: string, resolvedPath: string): string {
-	let relativePath = path.relative(entryDir, resolvedPath).replace(/\\/g, '/');
+export function toRelativeEntryImport(
+	entryDir: string,
+	resolvedPath: string,
+	pathApi: Pick<typeof path, 'relative' | 'isAbsolute'> = path,
+): string {
+	const relativePath = pathApi.relative(entryDir, resolvedPath).replace(/\\/g, '/');
 
-	if (!relativePath.startsWith('.')) {
-		relativePath = `./${relativePath}`;
+	if (pathApi.isAbsolute(relativePath)) {
+		return relativePath;
 	}
 
-	return relativePath;
+	return relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
 }
 
 /**

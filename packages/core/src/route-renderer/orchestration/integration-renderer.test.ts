@@ -441,6 +441,99 @@ describe('IntegrationRenderer', () => {
 		});
 	});
 
+	it('plans the scripts a contribution hook processes and links them after the app-wide build', async () => {
+		const routeFile = '/app/pages/post.mdx';
+		const appConfig = createMockAppConfig({ rootDir: '/app' });
+		const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
+			deps.map((dep) => ({ kind: dep.kind, srcUrl: '/assets/mdx-built.js' }) as ProcessedAsset),
+		);
+		const mdxConfig = {
+			identity: { id: 'post', file: routeFile, integration: 'test-renderer' },
+			dependencies: { scripts: ['./post.script.ts'] },
+		};
+		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+		const renderer = new (class extends TestIntegrationRenderer {
+			override async collectPageBrowserGraphContribution(): Promise<PageBrowserGraphContribution> {
+				return { assets: await this.processComponentDependencies([{ config: mdxConfig }]) };
+			}
+
+			resolveGraphForRoute(file: string) {
+				return this.resolvePageBrowserGraphForRoute(file);
+			}
+		})({
+			appConfig,
+			assetProcessingService: {
+				processDependencies,
+				getHmrManager: () => undefined,
+			} as unknown as AssetProcessingService,
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+
+		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
+		const scriptProcessingCallsWhilePlanning = processDependencies.mock.calls.filter(([deps]) =>
+			deps.some((dep) => dep.kind === 'script'),
+		);
+		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
+		const graph = await renderer.resolveGraphForRoute(routeFile);
+
+		expect(scriptProcessingCallsWhilePlanning).toEqual([]);
+		expect(groupedBuildPlan.bundledScripts).toEqual([
+			expect.objectContaining({ kind: 'script', filepath: '/app/pages/post.script.ts' }),
+		]);
+		expect([...(graph?.entryAssets ?? []), ...(graph?.chunkAssets ?? [])]).toContainEqual({
+			kind: 'script',
+			srcUrl: '/assets/mdx-built.js',
+		});
+	});
+
+	it('keeps the page dependencies of a route planned next to its route template', async () => {
+		const routeFile = '/app/pages/index.tsx';
+		const appConfig = createMockAppConfig({ rootDir: '/app' });
+		const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
+			deps.map((dep) => ({ kind: dep.kind, srcUrl: '/assets/card-built.js' }) as ProcessedAsset),
+		);
+		const Card = (() => '<div>card</div>') as EcoComponent;
+		Card.config = {
+			identity: { id: 'card', file: '/app/components/card.tsx', integration: 'test-renderer' },
+			dependencies: { scripts: ['./card.script.ts'] },
+		};
+		let staticPropsCalls = 0;
+		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+		Page.staticProps = async () => {
+			staticPropsCalls += 1;
+			if (staticPropsCalls > 1) await new Promise((resolveLater) => setTimeout(resolveLater, 20));
+			return { props: {} };
+		};
+		Page.resolveDependencies = async () => ({ components: [Card] });
+		const renderer = new (class extends TestIntegrationRenderer {
+			resolveGraphForRoute(file: string) {
+				return this.resolvePageBrowserGraphForRoute(file);
+			}
+		})({
+			appConfig,
+			assetProcessingService: {
+				processDependencies,
+				getHmrManager: () => undefined,
+			} as unknown as AssetProcessingService,
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+
+		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([
+			{ routeFile },
+			{ routeFile, isRouteTemplate: true },
+		]);
+		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan, isRouteTemplate: true });
+		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
+		const graph = await renderer.resolveGraphForRoute(routeFile);
+
+		expect([...(graph?.entryAssets ?? []), ...(graph?.chunkAssets ?? [])]).toContainEqual({
+			kind: 'script',
+			srcUrl: '/assets/card-built.js',
+		});
+	});
+
 	it('resolves lazy triggers from the prebuilt app browser client assets', async () => {
 		const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
 		lazyComponent.config = {

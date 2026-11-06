@@ -70,7 +70,7 @@ For persistent UI across navigations (headers, sidebars), assign a **declared** 
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 
-export const BaseLayout = eco.layout<{ children: ReactNode }>({
+export const BaseLayout = eco.layout<ReactNode>({
 	render: ({ children }) => (
 		<>
 			<header>My Site</header>

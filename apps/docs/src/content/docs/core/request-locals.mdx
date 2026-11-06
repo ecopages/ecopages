@@ -87,7 +87,9 @@ export default eco.page({
 
 ## Layouts
 
-Layouts receive optional locals through `LayoutProps`. They cannot declare `requires`, so handle absent values:
+Layouts receive optional locals through `LayoutProps`. They cannot declare `requires`, so handle absent values.
+
+A Layout that reads `locals` can wrap only Pages with `cache: 'dynamic'`. For any other Page, the Layout receives a locals object that throws `LocalsAccessError` on every access, including `locals?.session`, because optional chaining only guards against `undefined`. Use such a Layout only on Dynamic Pages, and give Static Pages a Layout that does not read `locals`:
 
 ```tsx
 import { eco } from '@ecopages/core';

@@ -22,7 +22,7 @@ sources:
 Every server and browser build in Ecopages runs Rolldown with a plugin list that core assembles. Integrations, Processors and config `loaders` never hand Rolldown a plugin directly: they return `EcoBuildPlugin` objects, core seals them once into an app build manifest split by environment, orders them per build request, and a single bridge plugin runs them inside Rolldown. This page follows a plugin from declaration to hook call. For what triggers builds see [Build and start](/dev/build-and-start); for what a browser build emits see [Browser graph](/dev/browser-graph).
 
 ```mermaid
-flowchart LR
+flowchart TD
   L[Config loaders] --> S[sealAppBuildManifest]
   P["Processor plugins(app)"] --> S
   I["Integration plugins(app)"] --> S

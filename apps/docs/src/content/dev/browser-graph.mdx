@@ -83,7 +83,7 @@ The `?v=` query makes the browser treat an edited dependency as a new module, so
 Bare package imports are not compiled one by one. `DevTransformVendorRegistry` prebundles them, the way Vite pre-bundles dependencies. A package can contain hundreds of internal files and CommonJS modules the browser cannot load, and one request per file would make cold loads slow.
 
 ```mermaid
-flowchart LR
+flowchart TD
   A["app module imports 'react-aria'"] --> R[resolve package entry]
   R --> E[add entry to graph]
   E --> Q{50 ms quiet period}
@@ -116,11 +116,10 @@ Vendor builds leave out the app's build plugins and run only the vendor plugins 
 
 ```mermaid
 flowchart TD
-  P1[React route plans] --> B
-  P2[Kita and Lit route plans] --> B
-  P3[HTML Page module scripts] --> B
-  P4[Integration global scripts] --> B
-  B[app-wide Rolldown build, splitting on] --> O["dist/assets: name-hash.js"]
+  P1[Route plans] --> B
+  P3[HTML Page scripts] --> B
+  P4[Global scripts] --> B
+  B[One split build] --> O["dist/client/assets"]
   B --> L[(processed-asset ledger)]
   L --> PP[Page Package per route]
   PP --> H[HTML script tags]
@@ -132,7 +131,7 @@ Each entry is named `client-<hash of its dependency key>` (`html-<hash of path>`
 
 Package imports are bundled into the same chunks. The exception is a specifier in an Integration's browser runtime manifest: the browser runtime plugin marks it external and points it at the runtime's fixed public URL, the same URL the dev import rewriter uses, so every Page shares one copy of the framework runtime.
 
-The build writes outputs to `dist/assets`, gzips each `.js` and `.css` file and records every content-hashed output, so the server answers them with `Cache-Control: public, max-age=31536000, immutable`. Each entry's output goes into the processed-asset ledger under the dependency key of every declaration that named it. `ecopages start` restores and seals that ledger and never compiles; [Build and start](/dev/build-and-start) covers the ledger and the sealed start.
+The build writes outputs to `dist/client/assets`, gzips each `.js` and `.css` file and records every content-hashed output, so the server answers them with `Cache-Control: public, max-age=31536000, immutable`. Each entry's output goes into the processed-asset ledger under the dependency key of every declaration that named it. `ecopages start` restores and seals that ledger and never compiles; [Build and start](/dev/build-and-start) covers the ledger and the sealed start.
 
 ## From graph to HTML: the Page Package
 

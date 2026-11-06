@@ -21,6 +21,9 @@ sources:
   - packages/integrations/ecopages-jsx/src/ecopages-jsx-radiant-ssr-policy.ts
   - packages/integrations/react/src/render/react-renderer.ts
   - packages/processors/content-processor/src/
+  - packages/core/src/route-renderer/orchestration/document-shell/document-shell-render.service.ts
+  - packages/core/src/route-renderer/orchestration/document-shell/layout-children-not-rendered-error.ts
+  - packages/react-router/src/router.ts
 ---
 
 # Content, Processors and Integrations
@@ -137,6 +140,10 @@ At runtime, `attachDiscoveredDependencies` turns `config.dependencies.components
 ### Layouts
 
 `eco.page({ layout })` normalizes one Layout or an outer-to-inner array into `config.layouts`. `mergeLayoutDependencies` adds only `eco.layout()` results to `dependencies.components`; a plain Layout function carries no config, so it is composed but not a graph node, and its imports reach the Page through plain-module discovery. Use `eco.layout()` only when a Layout needs browser scripts, `modules`, stylesheet attributes, an `integration` override or rendering by another Integration.
+
+Layouts persist by reference. A Layout module has one URL in the browser, so every Page that imports it gets the same function. With react-router's `persistLayouts` (on by default), a layout tier stays mounted while consecutive Pages pass the same function, and React keeps its state; with it off, each Page's tree is keyed so its layouts remount. Why by reference: no layout id or registry is needed, because the module graph already gives one identity per module.
+
+A Layout must render its `children`. The type cannot prove it, since a function with fewer parameters is still assignable, so sequential layout composition passes a marker in `children` and reports a `LayoutChildrenNotRenderedError` when the marker is missing from the output. A static build throws it, so `ecopages build` fails. A development request logs a warning and returns the HTML. A production request returns it silently, because a layout may render a sign-in gate instead of the page on purpose.
 
 ### Route preparation builds the Page Package
 

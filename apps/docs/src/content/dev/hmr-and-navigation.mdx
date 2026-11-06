@@ -20,7 +20,7 @@ sources:
 A save in `ecopages dev` passes through three stages: the Project Watcher batches filesystem events, `DevelopmentInvalidationService` classifies each file and marks results dirty, and `HmrManager` picks one HMR strategy per file and broadcasts one coalesced set of events to the browser. The HMR client then swaps a module, refreshes a stylesheet, soft-reloads the page through the active navigation runtime, or reloads the document. Nothing rebuilds on the file event itself; dirty results rebuild on the next request that needs them. Module serving is covered in [Browser graph](/dev/browser-graph), process restarts in [Build and start](/dev/build-and-start).
 
 ```mermaid
-flowchart LR
+flowchart TD
   FS[File events] --> W[Project Watcher]
   W -->|"batch"| I[Invalidation service]
   I -->|"restart category"| R[Process restart]

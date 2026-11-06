@@ -37,13 +37,15 @@ This page follows one build from an empty `dist/` to a sealed server. Developmen
 flowchart TD
     A[prepareExport: empty dist, copy public, set up Processors] --> B{server bundle needed?}
     B -- yes --> C[bundle server entry in staging, publish dist/server]
-    B -- no --> D
-    C --> D[emit server modules + server-modules.json]
+    B -- no --> U
+    C --> U{"shouldBuildPagesUnifiedGraph()"}
+    U -- yes --> D[emit server modules + server-modules.json]
+    U -- no --> E
     D --> E[write routes.json, copy serverFiles, check endpoints]
     E --> F[plan routes, app-wide browser build]
     F --> G[write processed-assets.json]
     G --> H[render static HTML into dist/client]
-    H --> I[write processed-assets.json again]
+    H --> I["write processed-assets.json again, only with a server bundle"]
 ```
 
 | Artifact | Location | Written by |
@@ -76,13 +78,13 @@ The deploy manifest names the server entry and emitted config relative to `dist/
 
 ## Server modules
 
-`emitProductionServerModules()` collects every server entry once (`collectServerModuleEntries`): Page templates including dynamic ones, Layouts, the Html shell, `app.static` views, error pages, and each Processor's `listProductionServerModuleEntries()`. It bundles them in one Rolldown server build with `preserveModules`, then records each source in `server-modules.json`.
+Production builds emit server modules unless `ECOPAGES_UNIFIED_PAGES_GRAPH` is `false` or `0` (`shouldBuildPagesUnifiedGraph()`), an opt-out the bench parity suite uses; `ecopages start` still requires the map. `emitProductionServerModules()` collects every server entry once (`collectServerModuleEntries`): Page templates including dynamic ones, Layouts, the Html shell, `app.static` views, error pages, and each Processor's `listProductionServerModuleEntries()`. It bundles them in one Rolldown server build with `preserveModules`, then records each source in `server-modules.json`.
 
 Pages of an Integration that implements `compilePageModule`, such as HTML Pages, stay out of the Rolldown graph. Each compiles in process and is stored as a `-html.json` record that the Integration's `reviveCompiledPageModule` restores at load time.
 
 Emit then imports the bundled modules to find `ssr: true` scripts the entries did not name. A script already inside the first output maps to it; otherwise a second emit adds it. Why: preserved modules keep their output path across both emits, so a module imported after the first emit is never evaluated from a second copy. Integrations are activated before that import, which is why an Integration that needs process globals installs them in `setup()`.
 
-In production, `PageModuleImportService.importModule()` imports from this map whenever it exists. A missing key or file throws `No compiled server module for <source>. Run ecopages build.`. A path outside the deploy root still matches the longest recorded key it ends with, so an `identity.file` captured on the build machine resolves on the server.
+In production, `PageModuleImportService.importModule()` imports from this map whenever it exists. A missing key or file throws ``No compiled server module for <source>. Run `ecopages build`.`` A path outside the deploy root still matches the longest recorded key it ends with, so an `identity.file` captured on the build machine resolves on the server.
 
 ## The app-wide browser graph
 
@@ -165,9 +167,9 @@ Once sealed, `AssetProcessingService.processDependencies()` is a pure lookup. It
 
 | Missing at start | Result |
 | --- | --- |
-| A `dist/` file, or mismatched build ids | Startup fails: `... Run ecopages build again.` |
-| A `server-modules.json` entry or its file | Request fails: `No compiled server module for <source>. Run ecopages build.` |
-| A dependency the ledger does not record | Request fails: `The production build did not record the <kind> <name>. Run ecopages build again.` |
+| A `dist/` file, or mismatched build ids | Startup fails: ``... Run `ecopages build` again.`` |
+| A `server-modules.json` entry or its file | Request fails: ``No compiled server module for <source>. Run `ecopages build`.`` |
+| A dependency the ledger does not record | Request fails: ``The production build did not record the <kind> <name>. Run `ecopages build` again.`` |
 | A recorded output removed from `dist/` | Request fails: `The production build recorded <file> but it is missing.` |
 | A ledger in an older format, or the earlier `browser-client-manifest.json` | Startup fails and asks for a new build |
 | `processed-assets.json` itself | Startup continues unsealed and processes assets on request. A build always writes the file, so only a deploy that drops it reaches this case |

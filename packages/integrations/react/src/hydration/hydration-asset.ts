@@ -22,7 +22,8 @@ import {
 	type ProcessedAsset,
 } from '@ecopages/core/integration';
 import type { AssetProcessingIntegration, AssetProcessingService } from '@ecopages/core/integration';
-import { IslandHydrationScriptCompiler, PageHydrationScriptCompiler } from './hydration-script-compiler.ts';
+import { createIslandEntrySource } from './hydration-island-entry-source.ts';
+import { createPageEntrySource } from './hydration-page-entry-source.ts';
 import { resolveHydrationBootstrapImports } from './bootstrap-imports.ts';
 import { collectDeclaredModulesInConfig } from '../client-graph/declared-modules.ts';
 import type { BundleService } from '../bundling/bundle.ts';
@@ -73,8 +74,6 @@ export function getIslandComponentKey(componentFile: string, config?: EcoCompone
  */
 export class HydrationAssetService {
 	private readonly config: HydrationAssetServiceConfig;
-	private readonly islandScriptCompiler = new IslandHydrationScriptCompiler();
-	private readonly pageScriptCompiler = new PageHydrationScriptCompiler();
 	private static readonly ROUTER_PAGE_GROUPED_BUNDLE_ID = APP_BROWSER_CLIENT_BUNDLE_ID;
 
 	constructor(config: HydrationAssetServiceConfig) {
@@ -122,7 +121,7 @@ export class HydrationAssetService {
 	 * Creates the page-owned route entry asset for hydration and client navigation.
 	 *
 	 * @remarks
-	 * The entry is compiled asynchronously from the editable browser lifecycle.
+	 * The entry imports the `@ecopages/react/page-hydration` lifecycle.
 	 * Production router pages may be grouped into the Page Browser Graph, while
 	 * HMR entries remain separate ESM scripts with browser-resolvable imports.
 	 */
@@ -150,12 +149,13 @@ export class HydrationAssetService {
 			runtimeImports,
 			routerAdapterImportPath: this.config.routerAdapter?.bundle.importPath,
 		});
-		const pageHydrationScript = await this.pageScriptCompiler.compile({
+		const pageHydrationScript = createPageEntrySource({
 			importPath: hmrEnabled ? importPath : pagePath,
 			pageModuleUrlExpression,
 			scriptId: componentName,
 			reactImportPath: bootstrapImports.reactImportPath,
 			reactDomClientImportPath: bootstrapImports.reactDomClientImportPath,
+			pageHydrationImportPath: bootstrapImports.pageHydrationImportPath,
 			routerImportPath: bootstrapImports.routerImportPath,
 			layoutComposeImportPath: bootstrapImports.layoutComposeImportPath,
 			pageLayoutNormalizationImportPath: bootstrapImports.pageLayoutNormalizationImportPath,
@@ -163,7 +163,6 @@ export class HydrationAssetService {
 			routerPropsExpression: this.config.routerAdapter?.getRouterProps('Page', 'props'),
 			hmrEnabled,
 			isMdx,
-			minify: !hmrEnabled && isReactProductionRuntime(),
 		});
 		return [
 			AssetFactory.createContentScript({
@@ -240,12 +239,7 @@ export class HydrationAssetService {
 			);
 			const componentKey = getIslandComponentKey(island.file, island.config);
 			const hydrationName = this.getIslandHydrationName(componentName, componentKey);
-			const hydrationScript = await this.createIslandHydrationScript(
-				island.file,
-				island.config,
-				island.file,
-				false,
-			);
+			const hydrationScript = this.createIslandHydrationScript(island.file, island.config, island.file, false);
 			entries.push({
 				dependency: {
 					...hydrationScript,
@@ -386,40 +380,38 @@ export class HydrationAssetService {
 			if (!importPath) {
 				throw new Error(`Missing grouped browser output for island ${island.file}`);
 			}
-			hydrationScripts.push(
-				await this.createIslandHydrationScript(island.file, island.config, importPath, false),
-			);
+			hydrationScripts.push(this.createIslandHydrationScript(island.file, island.config, importPath, false));
 		}
 		return hydrationScripts;
 	}
 
 	private async buildHmrIslandAssets(componentFile: string, config?: EcoComponentConfig): Promise<ProcessedAsset[]> {
 		const importPath = await this.resolveAssetImportPath(componentFile, this.getIslandBundleName(componentFile));
-		const hydrationScript = await this.createIslandHydrationScript(componentFile, config, importPath, true);
+		const hydrationScript = this.createIslandHydrationScript(componentFile, config, importPath, true);
 		return this.config.assetProcessingService.processDependencies(
 			[hydrationScript],
 			this.config.assetProcessingIntegration,
 		);
 	}
 
-	private async createIslandHydrationScript(
+	private createIslandHydrationScript(
 		componentFile: string,
 		config: EcoComponentConfig | undefined,
 		importPath: string,
 		hmrEnabled: boolean,
-	): Promise<ContentScriptAsset> {
+	): ContentScriptAsset {
 		const componentName = this.getIslandBundleName(componentFile);
 		const componentKey = getIslandComponentKey(componentFile, config);
 		const hydrationName = this.getIslandHydrationName(componentName, componentKey);
 		const runtimeImports = this.config.bundleService.getRuntimeImports();
-		const islandHydrationScript = await this.islandScriptCompiler.compile({
+		const islandHydrationScript = createIslandEntrySource({
 			importPath,
 			scriptId: hydrationName,
 			reactImportPath: runtimeImports.react,
 			reactDomClientImportPath: runtimeImports.reactDomClient,
+			islandHydrationImportPath: runtimeImports.islandHydration,
 			targetSelector: `[data-eco-component-key="${componentKey}"]`,
 			componentRef: config?.identity?.id,
-			minify: !hmrEnabled,
 			hmrEnabled,
 		});
 

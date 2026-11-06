@@ -6,7 +6,7 @@ import {
 	type BrowserRuntimeAssetDeclaration,
 	type BrowserRuntimeManifest,
 } from '@ecopages/core/build';
-import { LAYOUT_COMPOSE_PACKAGE } from './bootstrap-package-paths.ts';
+import { ISLAND_HYDRATION_PACKAGE, LAYOUT_COMPOSE_PACKAGE, PAGE_HYDRATION_PACKAGE } from './bootstrap-package-paths.ts';
 
 export type BuildReactRuntimeManifestOptions = {
 	routerImportPath?: string;
@@ -45,6 +45,18 @@ export function buildReactRuntimeManifest(
 			owner: '@ecopages/react',
 			importPath: LAYOUT_COMPOSE_PACKAGE,
 			publicPath: runtimeImports.layoutCompose,
+		},
+		{
+			specifier: ISLAND_HYDRATION_PACKAGE,
+			owner: '@ecopages/react',
+			importPath: ISLAND_HYDRATION_PACKAGE,
+			publicPath: runtimeImports.islandHydration,
+		},
+		{
+			specifier: PAGE_HYDRATION_PACKAGE,
+			owner: '@ecopages/react',
+			importPath: PAGE_HYDRATION_PACKAGE,
+			publicPath: runtimeImports.pageHydration,
 		},
 	];
 

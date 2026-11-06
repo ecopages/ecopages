@@ -1,6 +1,21 @@
-import type { CompiledPageHydrationOptions } from './compiled-page-hydration-options.ts';
+/** Complete inputs that affect a Page hydration entry's generated source. */
+export type PageEntrySourceOptions = {
+	importPath: string;
+	pageModuleUrlExpression: string;
+	scriptId: string;
+	reactImportPath: string;
+	reactDomClientImportPath: string;
+	pageHydrationImportPath: string;
+	routerImportPath?: string;
+	layoutComposeImportPath: string;
+	pageLayoutNormalizationImportPath: string;
+	routerComponents?: { router: string; pageContent: string };
+	routerPropsExpression?: string;
+	hmrEnabled: boolean;
+	isMdx: boolean;
+};
 
-function assertRouterConfiguration(options: CompiledPageHydrationOptions): void {
+function assertRouterConfiguration(options: PageEntrySourceOptions): void {
 	if (options.routerComponents && !options.routerImportPath) {
 		throw new Error('routerImportPath is required when router components are configured');
 	}
@@ -9,26 +24,26 @@ function assertRouterConfiguration(options: CompiledPageHydrationOptions): void 
 	}
 }
 
-function buildPageImport(options: CompiledPageHydrationOptions): string {
+function buildPageImport(options: PageEntrySourceOptions): string {
 	if (options.isMdx) {
 		return `import * as PageModule from ${JSON.stringify(options.importPath)};`;
 	}
 	return `import Page from ${JSON.stringify(options.importPath)};`;
 }
 
-function buildInitialPageBinding(options: CompiledPageHydrationOptions): string {
+function buildInitialPageBinding(options: PageEntrySourceOptions): string {
 	if (options.isMdx) {
 		return 'const initialPage = resolvePageComponent(PageModule, true, ensurePageConfigLayouts);';
 	}
 	return 'const initialPage = Page;';
 }
 
-function buildRouterImports(options: CompiledPageHydrationOptions): string {
+function buildRouterImports(options: PageEntrySourceOptions): string {
 	if (!options.routerComponents) return '';
 	return `import { ${options.routerComponents.router}, ${options.routerComponents.pageContent} } from ${JSON.stringify(options.routerImportPath)};`;
 }
 
-function buildRouterTree(options: CompiledPageHydrationOptions): string {
+function buildRouterTree(options: PageEntrySourceOptions): string {
 	if (!options.routerComponents) {
 		return 'const createTree = (Page, props) => composeLayoutPageTree(Page, props);';
 	}
@@ -38,12 +53,12 @@ function buildRouterTree(options: CompiledPageHydrationOptions): string {
 };`;
 }
 
-function buildNormalizationImport(options: CompiledPageHydrationOptions): string {
+function buildNormalizationImport(options: PageEntrySourceOptions): string {
 	if (!options.isMdx) return '';
 	return `import { ensurePageConfigLayouts } from ${JSON.stringify(options.pageLayoutNormalizationImportPath)};`;
 }
 
-function buildHmrOptions(options: CompiledPageHydrationOptions): string {
+function buildHmrOptions(options: PageEntrySourceOptions): string {
 	if (!options.hmrEnabled) return '';
 	const layoutStack = options.routerComponents
 		? 'getLayoutStack: (Page) => (Page.config?.layouts ?? []).map((layout) => layout?.config?.identity?.id ?? "").join("|"),'
@@ -56,17 +71,24 @@ function buildHmrOptions(options: CompiledPageHydrationOptions): string {
 
 /**
  * Creates the Page entry contract consumed by the browser lifecycle.
+ *
+ * @remarks
+ * The entry only wires the Page module to `@ecopages/react/page-hydration`.
+ * A production Page entry that inlines React bundles the bootstrap; every other
+ * entry imports its `/assets/vendors/` URL. No server process compiles it.
  */
-export function createPageEntrySource(options: CompiledPageHydrationOptions): string {
+export function createPageEntrySource(options: PageEntrySourceOptions): string {
 	assertRouterConfiguration(options);
-	const pageBootstrapId = '\0ecopages-react-page-bootstrap';
-	const pageDataReaderId = '\0ecopages-react-page-data-reader';
 
 	return `
 import { hydrateRoot } from ${JSON.stringify(options.reactDomClientImportPath)};
 import { createElement } from ${JSON.stringify(options.reactImportPath)};
-import { resolvePageComponent, startPageHydration } from ${JSON.stringify(pageBootstrapId)};
-import { readPageDataDocument, getPageDataFromDocument } from ${JSON.stringify(pageDataReaderId)};
+import {
+  getPageDataFromDocument,
+  readPageDataDocument,
+  resolvePageComponent,
+  startPageHydration,
+} from ${JSON.stringify(options.pageHydrationImportPath)};
 ${options.routerComponents ? '' : `import { composeLayoutPageTree } from ${JSON.stringify(options.layoutComposeImportPath)};`}
 ${buildRouterImports(options)}
 ${buildNormalizationImport(options)}

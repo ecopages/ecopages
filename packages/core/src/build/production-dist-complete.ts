@@ -100,14 +100,8 @@ function requireServerModules(rootDir: string, serverDir: string, buildId: strin
 	);
 }
 
-function requireOptionalAssetLedger(
-	rootDir: string,
-	serverDir: string,
-	buildId: string,
-	deployManifestPath: string,
-): void {
+function requireAssetLedger(rootDir: string, serverDir: string, buildId: string, deployManifestPath: string): void {
 	const ledgerPath = path.join(serverDir, PRODUCTION_ASSET_LEDGER_FILENAME);
-	if (!fileSystem.exists(ledgerPath)) return;
 	const ledger = requireJsonObject(rootDir, ledgerPath, 'asset ledger');
 	requireMatchingBuildId(rootDir, buildId, deployManifestPath, ledgerPath, ledger);
 	const entryOutputs = Array.isArray(ledger.entries)
@@ -148,5 +142,5 @@ export function assertProductionDistComplete(rootDir: string, distDir: string): 
 	const routeList = requireJsonObject(resolvedRoot, routeListPath, 'route list');
 	requireMatchingBuildId(resolvedRoot, buildId, deployManifestPath, routeListPath, routeList);
 	requireServerModules(resolvedRoot, serverDir, buildId, deployManifestPath);
-	requireOptionalAssetLedger(resolvedRoot, serverDir, buildId, deployManifestPath);
+	requireAssetLedger(resolvedRoot, serverDir, buildId, deployManifestPath);
 }

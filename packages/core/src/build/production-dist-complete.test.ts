@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { assertProductionDistComplete } from './production-dist-complete.ts';
+import { PRODUCTION_ASSET_LEDGER_FILENAME } from './production-asset-ledger.ts';
 import { PRODUCTION_ROUTES_FILENAME } from './production-route-list.ts';
 import { SERVER_MODULES_MANIFEST_FILENAME } from './server/server-modules-manifest.ts';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../utils/resolve-entry-file.ts';
@@ -40,6 +41,11 @@ describe('assertProductionDistComplete', () => {
 		writeJson(path.join(serverDir, SERVER_MODULES_MANIFEST_FILENAME), {
 			buildId,
 			modules: { 'src/pages/index.tsx': 'page.mjs' },
+		});
+		writeJson(path.join(serverDir, PRODUCTION_ASSET_LEDGER_FILENAME), {
+			buildId,
+			entries: [],
+			browserOutputs: [],
 		});
 		return rootDir;
 	}
@@ -81,6 +87,15 @@ describe('assertProductionDistComplete', () => {
 		expect(failure).toBeInstanceOf(Error);
 		expect((failure as Error).message).toMatch(/The production server-modules map .* is invalid or unreadable/);
 		expect((failure as Error).cause).toBeInstanceOf(SyntaxError);
+	});
+
+	it('rejects a dist/ whose asset ledger is missing instead of starting unsealed', () => {
+		const rootDir = createCompleteDist();
+		fileSystem.remove(path.join(rootDir, 'dist', SERVER_BUNDLE_DIR, PRODUCTION_ASSET_LEDGER_FILENAME));
+
+		expect(() => assertProductionDistComplete(rootDir, 'dist')).toThrow(
+			/The production asset ledger .*processed-assets\.json is missing\. Run `ecopages build` again\./,
+		);
 	});
 
 	it('rejects an unreadable asset ledger instead of starting without it', () => {

@@ -18,7 +18,7 @@ import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { appLogger } from '../../global/app-logger.ts';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
-import { resolveRolldownOptions } from './rolldown-adapter-helpers.ts';
+import { flattenPreservedModuleName, resolveRolldownOptions } from './rolldown-adapter-helpers.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
@@ -514,6 +514,21 @@ describe('RolldownBuildAdapter', () => {
 
 		expect(new Set(outputNames).size).toBe(outputNames.length);
 		expect(outputNames.every((name) => Buffer.byteLength(name) < 255)).toBe(true);
+	});
+
+	test('flattens preserved module names for modules outside the root or on another Windows drive', () => {
+		const root = 'D:\\a\\app';
+		const outsideRoot = path.win32.relative(root, 'D:\\a\\shared\\component-internal-state');
+		const otherDrive = path.win32.relative(root, 'E:\\core\\src\\component-internal-state');
+
+		expect(outsideRoot).toBe('..\\shared\\component-internal-state');
+		expect(otherDrive).toBe('E:\\core\\src\\component-internal-state');
+		expect(flattenPreservedModuleName(outsideRoot)).toBe('_up_-shared-component-internal-state');
+		expect(flattenPreservedModuleName(otherDrive)).toBe('E-core-src-component-internal-state');
+		expect(flattenPreservedModuleName('E:/core/src/component-internal-state')).toBe(
+			'E-core-src-component-internal-state',
+		);
+		expect(flattenPreservedModuleName('src/pages/index')).toBe('src-pages-index');
 	});
 
 	test('externalPackages keeps preserved virtual modules importable', async () => {

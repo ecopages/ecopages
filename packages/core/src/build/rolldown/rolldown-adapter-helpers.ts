@@ -613,8 +613,19 @@ function truncateUtf8(value: string, maximumBytes: number): string {
 	return prefix;
 }
 
-function flattenPreservedModuleName(sourceName: string): string {
-	const flattened = sourceName.replaceAll(/[\\/]/g, '-');
+/**
+ * Flattens a preserved module name into one filename component.
+ *
+ * @remarks
+ * A module outside `preserveModulesRoot` arrives with `..` segments, or with a drive qualifier when it sits on another
+ * Windows drive than the root. Rolldown rejects a pattern that starts with `..` or carries a drive, so those segments are
+ * rewritten to plain text; the content hash in the output name keeps modules that share a flattened name apart.
+ */
+export function flattenPreservedModuleName(sourceName: string): string {
+	const flattened = sourceName
+		.split(/[\\/]/)
+		.map((segment) => (segment === '..' ? '_up_' : segment.replace(/^([A-Za-z]):$/, '$1')))
+		.join('-');
 	if (Buffer.byteLength(flattened) <= MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES) return flattened;
 	const digest = createHash('sha256').update(sourceName).digest('hex').slice(0, PRESERVED_MODULE_NAME_HASH_LENGTH);
 	const prefixBytes = MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES - digest.length - 1;

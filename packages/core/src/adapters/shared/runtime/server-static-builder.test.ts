@@ -6,6 +6,7 @@ import type { BuildAdapter, BuildOptions, BuildResult } from '../../../build/bui
 import { createAppBuildManifest } from '../../../build/contracts/build-manifest.ts';
 import { BuildQueue } from '../../../build/runtime/build-queue.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
+import { ProcessedAssetLedger } from '../../../assets/asset-processing-service/processed-asset-ledger.ts';
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator';
@@ -85,6 +86,7 @@ function createMockDependencies() {
 		hmr: null,
 		runtimeAssetsPrepared: false,
 		integrationActivations: new Map(),
+		processedAssets: new ProcessedAssetLedger('/test'),
 	} as AppRuntime;
 
 	const ServeOptions: ServeOptions = {

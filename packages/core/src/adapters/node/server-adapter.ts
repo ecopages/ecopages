@@ -26,6 +26,7 @@ import { serveDistFile } from '../shared/http/dist-file-handler.ts';
 import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import { DevSession } from './dev-session.ts';
 import { prebuildProductionPageBrowserGraphsFromManifest } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
+import { restoreProductionAssetLedger } from '../../build/production-asset-ledger.ts';
 import { assertProductionDistComplete } from '../../build/production-dist-complete.ts';
 import { requireProductionServerModules } from '../../build/server/server-modules-manifest.ts';
 import { isProductionRuntime } from '../../env.ts';
@@ -490,6 +491,7 @@ export class NodeServerAdapter {
 					await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
 					if (this.startsFromCompleteDist()) {
 						requireProductionServerModules(this.appConfig);
+						restoreProductionAssetLedger(this.appConfig);
 					}
 					const { routeRendererFactory } = this.requestPipeline.getStaticBuildContext();
 					await prebuildProductionPageBrowserGraphsFromManifest(this.appConfig, routeRendererFactory);

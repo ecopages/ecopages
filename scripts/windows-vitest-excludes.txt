@@ -3,11 +3,6 @@
 # Each file fails on windows-latest today and is excluded by scripts/test-vitest-windows.ts.
 # Remove a line when its draft issue is fixed. See the PR for ecopages/ecopages#1015.
 #
-# Fixture apps that still fail with the temp folder on the checkout drive (ecopages/ecopages#1018):
-# dynamic routes answer 404 on Windows, and the image processor cache key contains a colon that Windows cannot write.
-e2e/fixtures/cache/cache.test.ts
-e2e/fixtures/production-processors/production-processors.test.ts
-e2e/fixtures/production-server-modules/production-server-modules.test.ts
 # Cross-drive server build, kept visible on purpose (ecopages/ecopages#1018).
 # When the app root and an imported module sit on different drives, Rolldown cannot name the module inside
 # preserveModulesRoot, keeps its ../ prefix and rejects it (INVALID_OPTION, "Invalid substitution ... for placeholder [name]")

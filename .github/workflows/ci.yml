@@ -84,6 +84,21 @@ jobs:
             - name: Checkout Repo
               uses: actions/checkout@v6
 
+            - name: Keep temp on the checkout drive
+              shell: pwsh
+              run: |
+                  $tempDrive = (Split-Path -Qualifier $env:RUNNER_TEMP)
+                  $workspaceDrive = (Split-Path -Qualifier $env:GITHUB_WORKSPACE)
+                  Write-Host "runner.temp=$env:RUNNER_TEMP workspace=$env:GITHUB_WORKSPACE TEMP=$env:TEMP"
+                  $temp = $env:RUNNER_TEMP
+                  if ($tempDrive -ne $workspaceDrive) {
+                      $temp = Join-Path (Split-Path -Parent $env:GITHUB_WORKSPACE) 'tmp'
+                      New-Item -ItemType Directory -Force -Path $temp | Out-Null
+                  }
+                  Write-Host "using TEMP=$temp"
+                  "TEMP=$temp" >> $env:GITHUB_ENV
+                  "TMP=$temp" >> $env:GITHUB_ENV
+
             - name: Setup pnpm
               uses: pnpm/action-setup@v6
 

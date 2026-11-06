@@ -37,11 +37,11 @@ sources:
 
 ## Why `serverDom` is a repair
 
-Core runs every `complete` server DOM installer, then every `repair`, before Integration `setup()` continues, whatever the config order. Lit only fills in what is missing, so a Lit element defined before a Radiant Page still renders. The Integration installs no DOM globals as an import side effect or on first render.
+Installing a complete surface after an incomplete one replaces `customElements` and drops defined elements. Core therefore runs every `complete` server DOM installer, then every `repair`, before Integration `setup()` continues, whatever the config order. Lit installs its shim only while no custom element registry exists, and installs no DOM globals as an import side effect or on first render.
 
 ## Hydration support
 
-`lit-hydrate-support.ts` imports `@lit-labs/ssr-client/lit-element-hydrate-support.js` and `lit` from the app's own install, so the patched `LitElement` and `lit-html` are the ones the app's elements use. It is a module script of the app browser graph: production builds it into the app-wide browser build, and development serves it through the transform server. Either way the page loads one copy of Lit.
+`lit-hydrate-support.ts` imports `@lit-labs/ssr-client/lit-element-hydrate-support.js` and `lit` from the app's own install, so the patched `LitElement` and `lit-html` are the ones the app's elements use. It is a module script of the app browser graph: it imports the app's `lit` instead of carrying its own copy.
 
 A bundler can evaluate `lit-element` in a chunk before this module's body, and then the global hook has already been skipped. The module checks `Object.hasOwn(LitElement, 'observedAttributes')` and applies the patch itself only when missing, so it never patches twice. Core places the script first in `document.head`, which is what makes the patch precede element definitions.
 
@@ -76,7 +76,7 @@ sequenceDiagram
     Core->>Plugin: "release (dispose session)"
 ```
 
-- Pages with `locals` or explicit `props` decline the worker path and render in-process: locals are request objects and the worker re-imports the route module.
+- Pages with `locals` or explicit `props` decline the worker path and render in-process: request locals are not sent through the worker protocol, and explicit props are not passed because the worker re-imports the route module.
 - The worker restores the production browser build from the asset ledger, so a Lit Page links the same app-wide outputs as any other Page ([Build pipeline](/dev/build-pipeline), [Ledger and start](/dev/ledger-and-start)).
 - `ECOPAGES_LIT_STATIC_RENDER_WORKER=true` makes the worker skip processor `.setup()`; the main thread already prepared artifacts. Integration setup still runs in the worker.
 - Teardown disposes the session; the release returned by `staticExport()` does the same so no worker outlives the export.

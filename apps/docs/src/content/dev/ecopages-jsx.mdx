@@ -41,10 +41,10 @@ sources:
 JSX is rendered with `renderToString` from `@ecopages/jsx/server`. Radiant lives in `EcopagesJsxRadiantSsrPolicy`, which wraps each render in a server custom-element render hook: a registered intrinsic tag that has an element instance is serialized through Radiant's `renderHostToString`, so framework-specific host rendering stays out of page code.
 
 - Radiant's server bridge is loaded lazily, once per policy instance, because most renders never need it.
-- The DOM constructors are not installed here. Core installs them at Integration setup (`serverDom`), so production emit can import Radiant element modules; the policy only fills in when no registry exists.
+- The DOM constructors are not installed here. Core installs them at Integration setup (`serverDom`), before any element is defined; the policy only fills in when no registry exists.
 - With `radiant: false` the policy is disabled and `serverDom` is undefined.
 
-### Why `ssr: true` scripts
+### `ssr: true` scripts
 
 Components declare element registration once in `dependencies.scripts`. A `CustomElementScriptPreloader` imports entries marked `ssr: true` before render (`beforeRender` and `renderComponent`) so the host can SSR without a redundant import in the component file. It is enabled only when Radiant is, and its state lives on the `AppRuntime`, so apps do not share preload history. In development a changed script entrypoint invalidates its registration (`invalidateRadiantRegisteredScriptSsrRegistration`).
 

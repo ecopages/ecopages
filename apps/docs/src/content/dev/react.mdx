@@ -39,7 +39,7 @@ Options worth knowing: `router` (a `ReactRouterAdapter`), `mdx`, `explicitGraph`
 
 ## SSR policy
 
-- **App's own React.** `resolveReactRuntimeModules(rootDir)` prefers the app's `react`, `react-dom/static` and `react-dom/server`, and falls back to the Integration's copy only when the app cannot resolve them. SSR identity therefore matches the browser bundle; keep one React in the app graph.
+- **App's own React.** `resolveReactRuntimeModules(rootDir)` prefers the app's `react`, `react-dom/static` and `react-dom/server`, and falls back to the Integration's copy only when the app cannot resolve them.
 - **Complete document, not streamed.** The server waits for every `<Suspense>` boundary before returning HTML. One deadline (`REACT_SSR_RENDER_TIMEOUT_MS`, 10 s, or `renderTimeoutMs`) covers the whole Page render through `runWithRenderBudget`. Unfinished boundaries stay in their fallback for the browser to retry and a warning names the Page.
 - **Layouts.** Layout stacks compose through the shared `composeLayoutPageTree` so provider context reaches nested Pages and `useId` values match the browser. `LayoutRenderTracker` reports a Layout that never renders its children.
 - **Non-React shells.** A Page, Layout or `html` template owned by another Integration must return a string; React inserts it unescaped.
@@ -55,18 +55,18 @@ Core decides which Components are Island Hosts and stamps `data-eco-island*` att
 | Page entry      | `hydration-page-entry-source.ts`           | generated Page entry using `@ecopages/react/page-hydration`                                                     |
 | Page payload    | `hydration/page-payload.ts`                | serializes page props; `locals` keys are limited to those in `Page.requires`                                    |
 
-A Page hydrates when it declares `dependencies.modules`, when `explicitGraph` is set, or whenever a router adapter exists (`shouldHydratePage`). `explicitGraph` forces hydration assets; it does not turn off client-graph stripping. Hydration entries import bootstrap vendors by URL, so no server process compiles them.
+A Page hydrates when it declares `dependencies.modules`, when `explicitGraph` is set, or whenever a router adapter exists (`shouldHydratePage`). `explicitGraph` forces hydration assets; it does not turn off client-graph stripping. A production Page entry that inlines React bundles the bootstrap; every other hydration entry imports its `/assets/vendors/` URL.
 
-### Why a client-graph boundary
+### Client-graph boundary
 
-The server graph may touch `node:*`, databases and `.server` modules; the browser graph must not. `client-graph/boundary-plugin.ts` runs on every module in a browser build (page, island, lazy entry and shared helpers) and:
+`client-graph/boundary-plugin.ts` runs on every module in a browser build (page, island, lazy entry and shared helpers) and:
 
 1. computes reachability from client roots,
 2. removes disallowed imports (Node built-ins, `.server` modules, content `/server` modules, named imports outside declared `pkg{name}` rules),
-3. strips server-only `eco.page()` options (`cache`, `middleware`, `metadata`, `staticProps`, `staticPaths`, `requires`) and declarations only they used,
+3. strips server-only `eco.page()` options (`cache`, `middleware`, `dependencies`, `requires`, `metadata`, `staticProps`, `staticPaths`) and declarations only they used,
 4. fails the build, naming binding and `file:line:column`, if needed browser code still uses a removed import.
 
-`render` always stays, because hydration rebuilds the tree from it. Pruning imports alone is not enough: a left-behind `middleware: [authMiddleware]` would throw a `ReferenceError` in the browser. The transform is scope-aware (`scope-walk.ts`) and caches nothing across builds.
+Legacy `getMetadata`, `getStaticProps` and `getStaticPaths` exports are never browser roots. Declarations that only removed code used are removed, and an exported name keeps its binding set to `undefined`.
 
 Build plugins for a client build are assembled in `bundling/bundle.ts`: the foreign-JSX override (only for files another JSX Integration owns that React's static scan reaches), the graph boundary, the runtime import rewrite, and the MDX loader. They key off the module, not the entry that reached it, because a shared module has one URL and one compiled form ([Plugin pipeline](/dev/plugin-pipeline), [Build pipeline](/dev/build-pipeline)).
 
@@ -83,11 +83,11 @@ Build plugins for a client build are assembled in `bundling/bundle.ts`: the fore
 | router asset                            | only with a router adapter; named by `adapter.bundle.outputName`    |
 | `page-layout-normalization`             | MDX only, declared on demand rather than at setup                   |
 
-The manifest rewrites those specifiers to the fixed URLs in every build, so each Page, Layout and island shares one React instance. Vendor bundles exclude the default browser-runtime plugin so they do not rewrite themselves.
+The manifest rewrites those specifiers to the fixed URLs in every build. Vendor bundles are built without the default browser-runtime plugin.
 
 ## HMR
 
-`ReactHmrStrategy` is an `INTEGRATION` strategy. It matches watched React entrypoints and files found through the entrypoint dependency graph, ignores registered script entrypoints, and rebuilds the affected targets through the dev transform plugins (including the graph boundary). Result: `layout-update` when a Layout or Layout dependency changed, otherwise per-URL `update` events, otherwise `none` ([HMR strategies](/dev/hmr-strategies), [HMR client](/dev/hmr-client)). A shared `HmrPageMetadataCache` lets save-time rebuilds reuse declared-module analysis. `page-hydration-hmr.ts` is the browser half.
+`ReactHmrStrategy` is an `INTEGRATION` strategy. It matches watched React entrypoints and files found through the entrypoint dependency graph, ignores registered script entrypoints, and rebuilds the affected targets through the dev transform plugins (including the graph boundary). Result: `layout-update` when a Layout or Layout dependency changed, otherwise per-URL `update` events, otherwise `none` ([HMR strategies](/dev/hmr-strategies), [HMR client](/dev/hmr-client)). A shared `HmrPageMetadataCache` lets save-time rebuilds reuse declared-module analysis. `page-hydration-hmr.ts` is the browser half: `handlePageHmr` imports the new module, then either calls the navigation runtime's `reloadCurrentPage` with `moduleUrl` (when the document owner is `react-router`; `clearCache` is set only if the layout stack differs by reference) or re-renders the active page root with the new Page. A stale mount generation aborts the update. If an uncaught error tears the root down, the server HTML is restored and the Page's HMR handler rejects so the HMR client reloads the document.
 
 ## Router hookup
 

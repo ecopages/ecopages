@@ -16,7 +16,7 @@ sources:
 
 # React router
 
-`@ecopages/react-router` is the client navigation runtime for pages the React Integration owns. Where [Browser router](/dev/browser-router) morphs the incoming body into the DOM, react-router leaves the DOM to React: it fetches the next document, imports that page's module and renders the new Page component into the existing root. Everything around the swap (head reconciliation, stylesheet staging, script activation, view transitions, `eco:before-swap`, `eco:after-swap`, `eco:page-load`) is the shared `commitNavigationPage()` pipeline in core, covered in [Navigation](/dev/navigation). React's own virtual DOM and hydration lifecycle is why the two routers cannot share a swap.
+`@ecopages/react-router` is the client navigation runtime for pages the React Integration owns. Where [Browser router](/dev/browser-router) morphs the incoming body into the DOM, react-router leaves the DOM to React: it fetches the next document, imports that page's module and renders the new Page component into the existing root. Everything around the swap (head reconciliation, stylesheet staging, script activation, view transitions, `eco:before-swap`, `eco:after-swap`, `eco:page-load`) is the shared `commitNavigationPage()` pipeline in core, covered in [Navigation](/dev/navigation).
 
 ## Wiring
 
@@ -31,9 +31,9 @@ Two registrations happen, in order, and the second replaces the first because th
 1. `startPageHydration()` runs from the Page bootstrap script. With `hasRouter` it calls `registerRouterOwnership()`: unless a `react-router` runtime that can navigate is already registered, it registers a minimal one whose only capability is `cleanupBeforeHandoff` (unmount the Page root) and claims ownership. This makes the document owner correct before React has run any effect.
 2. `EcoRouter`'s effect registers the full runtime (`navigate`, `reloadCurrentPage`, `cleanupBeforeHandoff`), claims ownership and schedules the first `eco:page-load`.
 
-Why a Page root survives navigation: `mount()` with a router and an existing `pageRoot` returns without re-rendering. The router changes Pages inside the same root through `setCurrentPage`, so the bootstrap rerunning must not render a second tree. Without a router, a rerun calls `root.render()` itself.
+`mount()` with a router and an existing `pageRoot` returns without re-rendering; the router changes Pages inside the same root through `setCurrentPage`. Without a router, a rerun calls `root.render()` itself.
 
-The bootstrap script is emitted with `data-eco-rerun`, `data-eco-persist` and, when a router adapter is configured, `data-eco-page-bootstrap="react-router"`. The shared script queue would run it again on every navigation, so the SPA commit passes `skipScriptActivation` for scripts whose `data-eco-script-id` starts with `ecopages-react-` (not `ecopages-react-island-`) or whose `src` is a React page asset, and `includeBodyScripts: false`. Why: the router has already loaded and adapted the page module before the commit, and the Page root is already mounted. Island scripts are not skipped.
+The bootstrap script is emitted with `data-eco-rerun`, `data-eco-persist` and, when a router adapter is configured, `data-eco-page-bootstrap="react-router"`. The shared script queue would run it again on every navigation, so the SPA commit passes `skipScriptActivation` for scripts whose `data-eco-script-id` starts with `ecopages-react-` (not `ecopages-react-island-`) or whose `src` is a React page asset, and `includeBodyScripts: false`. Island scripts are not skipped.
 
 ## Navigation outcomes
 
@@ -54,7 +54,7 @@ flowchart TD
 
 Every step checks `isStale()` and returns `stale` instead of acting, so a newer navigation never races an older one; `isNavigating` is cleared by non-stale terminals only. A failed fetch or module import becomes a full document navigation so the link never goes dead. Fetches always pass `bypassCache`: react-router does not read the prefetch cache that browser-router fills.
 
-Module discovery reads the `#__ECO_PAGE_DATA__` JSON envelope (`EcoPropsScript` renders it in the Html shell), then `window.__ECO_PAGES__.page.module` for the current document, then the `src` of `script[data-eco-page-bootstrap="react-router"]`. Why a JSON script: the router never parses hydration JavaScript to find props or the module. In development the import URL gets a `t=<timestamp>` query so a revisited page is not served from the module cache; production URLs are content-hashed and used as they are.
+Module discovery reads the `#__ECO_PAGE_DATA__` JSON envelope (`EcoPropsScript` renders it in the Html shell), then `window.__ECO_PAGES__.page.module` for the current document, then the `src` of `script[data-eco-page-bootstrap="react-router"]`. Hydration JavaScript is never parsed. In development the import URL gets a `t=<timestamp>` query so a revisited page is not served from the module cache; production URLs are content-hashed and used as they are.
 
 The SPA swap renders inside `startTransition()` and awaits a deferred that `EcoRouter`'s effect resolves once the committed page state matches, so `eco:after-swap` and the view transition snapshot happen after React has rendered. History updates before the swap (`pushState` for forward, `replaceState` for replace or a redirect to another path).
 
@@ -74,7 +74,7 @@ The reverse direction needs no code here: browser-router sees that another runti
 
 Window scroll uses the shared `manageWindowScroll()` (`top`, `preserve` or `auto`; hashes scroll to the element), run from `EcoRouter`'s effect when the committed URL changes.
 
-Scroll inside elements is separate. Elements with `data-eco-persist="scroll"` and an `id` or `data-testid` are captured before the commit (`saveScrollPositions`, keyed by the leaving path, passed in because `window.location` already points at the destination on back/forward) and restored after render (`restoreScrollPositions`). Back/forward restores what was stored for the destination path; a link click carries the current snapshot to the next Page, which is what keeps a persisted layout's sidebar position. Restore retries every 50 ms, up to 20 times, until all captured keys are found, because the element may not exist the frame after the swap.
+Scroll inside elements is separate. Elements with `data-eco-persist="scroll"` and an `id` or `data-testid` are captured before the commit (`saveScrollPositions`, keyed by the leaving path, passed in because `window.location` already points at the destination on back/forward) and restored after render (`restoreScrollPositions`). Back/forward restores what was stored for the destination path; a link click carries the current snapshot to the next Page, which is what keeps a persisted layout's sidebar position. Restore retries every 50 ms, up to 20 times, until all captured keys are found.
 
 ## Reload and errors
 

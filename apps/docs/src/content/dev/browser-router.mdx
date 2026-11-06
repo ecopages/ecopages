@@ -32,7 +32,7 @@ flowchart TD
 
 Listeners are capture-phase `pointerdown` and `click` on `document`, plus `popstate`. `getLinkNavigationDecision()` in core is the one policy: it declines modified clicks, non-left clicks, a `target` other than `_self`, `data-eco-reload`, `download`, `#` and `javascript:` hrefs, cross-origin and static-asset URLs, and same-page hash links. The anchor is found through `composedPath()`, so links inside shadow roots work.
 
-`pointerdown` records the intended href with a timestamp. If a navigation is already in flight, the click is queued: the router cancels the running transaction and, once it settles, replays the queued href through `decideQueuedNavigationReplay()` (skipped when it is the same page with the same hash). The recorded intent also recovers the href when the DOM changed between press and click, for up to one second. Why: during a rapid sequence of clicks the last one should win, and a swap must not turn the link under the pointer into something else.
+`pointerdown` records the intended href with a timestamp. If a navigation is already in flight, the click is queued: the router cancels the running transaction and, once it settles, replays the queued href through `decideQueuedNavigationReplay()` (skipped when it is the same page with the same hash). The recorded intent also recovers the href when the DOM changed between press and click, for up to one second.
 
 When another runtime owns the document (`isAnotherNavigationRuntimeActive()`), the click is stopped and routed through `requestNavigation()`, so a page shell with both routers has one navigating at a time.
 
@@ -40,7 +40,7 @@ When another runtime owns the document (`isAnotherNavigationRuntimeActive()`), t
 
 `fetchNavigationPage()` (core) fetches with `Accept: text/html` and `cache: 'no-store'`, accepts only `text/html` or `application/xhtml+xml` responses, keeps the requested fragment across redirects, and parses with `DOMParser`, adding an `<base data-eco-injected>` for the final URL when the page has none. The HTML cache is a module-level map in core shared by both runtimes. A non-HTML or failed response throws, and the router falls back to `reloadDocument`.
 
-`PrefetchManager` fills the cache ahead of clicks: an `IntersectionObserver` for viewport links and delegated hover/focus listeners for intent (`strategy: 'intent'` does both, 65 ms hover delay), `requestIdleCallback` scheduling, `respectDataSaver`, and per-link `data-eco-prefetch`, `data-eco-prefetch-delay` and `data-eco-no-prefetch`. It also warms new stylesheets with low-priority fetches. `cacheVisitedPage()` stores the HTML of the page being left or loaded, and the copy is never refreshed in the background. Why: a revisit should render immediately, and a refetch on every load would add a request without fixing a stale copy. With `prefetch: false` the router sets `bypassCache` on every fetch, because the shared cache would otherwise serve the first copy for the whole session.
+`PrefetchManager` fills the cache ahead of clicks: an `IntersectionObserver` for viewport links and delegated hover/focus listeners for intent (`strategy: 'intent'` does both, 65 ms hover delay), `requestIdleCallback` scheduling, `respectDataSaver`, and per-link `data-eco-prefetch`, `data-eco-prefetch-delay` and `data-eco-no-prefetch`. It also warms new stylesheets with low-priority fetches. `cacheVisitedPage()` stores the HTML of the page being left or loaded, and the copy is never refreshed in the background. The page on screen was just fetched or loaded, so refetching it would add a request without a stale copy to fix. With `prefetch: false` the router sets `bypassCache` on every fetch, because the shared cache would otherwise serve the first copy for the whole session.
 
 ## The commit
 
@@ -85,7 +85,7 @@ sequenceDiagram
   R-->>H: handled
 ```
 
-In browser-router, `reloadCurrentPage` returns `false` while a navigation is pending, which makes the client fall back to a full reload. With `clearCache` it evicts the page from its prefetch cache and bypasses the cache on fetch, because the cached HTML predates the edit. It navigates with direction `replace`, `reload: true`, and no full-document fallback, so a failed soft reload reports unhandled instead of navigating away. The commit runs the same pipeline as a link navigation, so `eco:before-swap`, `eco:after-swap` and `eco:page-load` fire on every soft reload; code that must run after each HMR refresh can listen for `eco:page-load`.
+In browser-router, `reloadCurrentPage` returns `false` while a navigation is pending, which makes the client fall back to a full reload. With `clearCache` it evicts the page from its prefetch cache and bypasses the cache on fetch. It navigates with direction `replace`, `reload: true`, and no full-document fallback, so a failed soft reload reports unhandled instead of navigating away. The commit runs the same pipeline as a link navigation, so `eco:before-swap`, `eco:after-swap` and `eco:page-load` fire on every soft reload; code that must run after each HMR refresh can listen for `eco:page-load`.
 
 Dev-transform local imports carry a content-hash `?v=` query, so after invalidation a re-imported page or layout resolves to a new ESM module-map key and the soft reload picks up the new code.
 
@@ -101,6 +101,6 @@ Two mechanisms keep state across a soft reload in browser-router.
 - Changed custom element: replaced, so the browser runs its full lifecycle.
 - Changed plain element: morphed, keeping its live attributes when its own server attributes did not change.
 
-Why compare server markup: the live element always differs from fresh HTML once a component or script has touched it, so a live comparison would replace every hydrated component on every save. Why opt in: copying the body costs work on each commit, and production navigation never needs it, so only development pays for it.
+Tracking is off until development HMR asks for it, so production navigation does no copying.
 
 Rerun scripts do not refresh elements on a reload, since replacing an ancestor would drop the unchanged elements inside it; a `data-eco-rerun` script must register handlers idempotently. Known limits: the first save after a full load compares against the body as the router found it at start, so a component that rendered before then is replaced once; and state follows tree position, so identical sibling hosts can trade state when an earlier sibling is inserted or removed. react-router implements `reloadCurrentPage` but not server-markup tracking.

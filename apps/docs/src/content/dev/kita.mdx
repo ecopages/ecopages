@@ -29,9 +29,9 @@ sources:
 
 `defineIntegration` builds an `IntegrationPlugin` subclass from the declarative fields and the renderer class. `kitajsPlugin` is both the factory and, through `.Plugin`, the class; `KitaHtmlPlugin` is a deprecated alias of `.Plugin`.
 
-## Why there is no renderer code
+## Renderer
 
-`createIntegrationRenderer` supplies the whole route pipeline, and a renderer only adds behavior through hooks. Kita needs none because its output is already a string: the shell is rendered, and nothing has to be hydrated or serialized for the browser. Hooks are the extension point if a Kita-specific capability appears; subclassing is the fallback when a hook cannot express it.
+`createIntegrationRenderer` supplies the whole route pipeline, and a renderer adds behavior through hooks. Kita registers none. Hooks are the extension point for a Kita-specific capability; subclass only when a hook cannot express it.
 
 ## Mixed rendering
 

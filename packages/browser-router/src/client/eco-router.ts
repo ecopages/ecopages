@@ -4,7 +4,7 @@
  */
 
 import type { EcoNavigationEvent } from '@ecopages/core/client';
-import { getEcoNavigationRuntime } from '@ecopages/core/client';
+import { getEcoNavigationRuntime, schedulePageLoad } from '@ecopages/core/client';
 import {
 	getAnchorFromNavigationEvent,
 	isStaticAssetHref,
@@ -110,14 +110,14 @@ export class EcoRouter {
 				return true;
 			},
 			handoffNavigation: async (request) => {
-				const { isStaleNavigation, complete } = this.beginNavigationTransaction();
+				const { isStaleNavigation, isSupersededNavigation, complete } = this.beginNavigationTransaction();
 				if (isStaleNavigation()) return true;
 				try {
 					await this.navigationCommit.commit(
 						new URL(request.finalHref ?? request.href, window.location.origin),
 						request.direction ?? 'forward',
 						request.document,
-						{ html: request.html, isStaleNavigation },
+						{ html: request.html, isStaleNavigation, isSupersededNavigation },
 					);
 				} finally {
 					complete();
@@ -150,6 +150,11 @@ export class EcoRouter {
 		const initialHtml = document.documentElement.outerHTML;
 		this.prefetchManager?.cacheVisitedPage(window.location.href, initialHtml);
 		this.started = true;
+		schedulePageLoad(
+			document,
+			{ url: new URL(window.location.href), direction: 'replace' },
+			{ isSuperseded: () => !this.started },
+		);
 	}
 
 	/**
@@ -291,12 +296,14 @@ export class EcoRouter {
 
 	private beginNavigationTransaction(): {
 		isStaleNavigation: () => boolean;
+		isSupersededNavigation: () => boolean;
 		signal: AbortSignal;
 		complete: () => void;
 	} {
 		const transaction = getEcoNavigationRuntime(window).beginNavigationTransaction();
 		return {
 			isStaleNavigation: () => !transaction.isCurrent(),
+			isSupersededNavigation: () => transaction.isSuperseded(),
 			signal: transaction.signal,
 			complete: () => transaction.complete(),
 		};
@@ -327,7 +334,7 @@ export class EcoRouter {
 	): Promise<boolean> {
 		const allowFullDocumentFallback = options.allowFullDocumentFallback ?? true;
 		this.pendingNavigations++;
-		const { isStaleNavigation, signal, complete } = this.beginNavigationTransaction();
+		const { isStaleNavigation, isSupersededNavigation, signal, complete } = this.beginNavigationTransaction();
 		let queuedNavigationHref: string | null = null;
 		let committed = false;
 
@@ -339,6 +346,7 @@ export class EcoRouter {
 				allowFullDocumentFallback,
 				navigationCommit: this.navigationCommit,
 				isStaleNavigation,
+				isSupersededNavigation,
 				signal,
 			});
 			return committed;

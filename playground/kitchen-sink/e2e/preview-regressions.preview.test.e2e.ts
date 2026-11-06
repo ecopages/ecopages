@@ -150,7 +150,7 @@ test.describe('Kitchen Sink Preview Regressions @preview', () => {
 		'/integration-matrix/react-entry',
 		'/integration-matrix/ecopages-jsx-entry',
 	]) {
-		test(`loads Lit from one module on ${href}`, async ({ page }) => {
+		test(`loads one copy of Lit on ${href}`, async ({ page }) => {
 			const litModules: string[] = [];
 			page.on('response', async (response) => {
 				if (!new URL(response.url()).pathname.endsWith('.js')) return;
@@ -163,6 +163,10 @@ test.describe('Kitchen Sink Preview Regressions @preview', () => {
 			await page.waitForLoadState('networkidle');
 
 			expect(litModules.length, litModules.join('\n')).toBeLessThanOrEqual(1);
+			const litVersions = await page.evaluate(
+				() => (globalThis as { litHtmlVersions?: string[] }).litHtmlVersions ?? [],
+			);
+			expect(litVersions.length, litVersions.join(', ')).toBeLessThanOrEqual(1);
 		});
 	}
 

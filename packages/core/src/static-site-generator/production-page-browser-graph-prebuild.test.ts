@@ -416,6 +416,64 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores bundled component
 	assert.equal(prebuiltScriptsWhenMaterialized[0]?.srcUrl, '/assets/client-counter.js');
 });
 
+test('prebuildProductionPageBrowserGraphsFromManifest restores Integration scripts and refreshes their assets', async () => {
+	const appConfig = await createAppConfig();
+	const globalScript: AssetDefinition = {
+		kind: 'script',
+		source: 'file',
+		filepath: path.join(appConfig.rootDir, 'node_modules/lit-runtime/hydrate.ts'),
+		position: 'head',
+	};
+	const runtimeScript: AssetDefinition = {
+		kind: 'script',
+		source: 'node-module',
+		importPath: 'react',
+		position: 'head',
+		packageRole: 'runtime',
+	};
+	const globalAsset: ProcessedAsset = {
+		filepath: path.join(appConfig.absolutePaths.distDir, 'assets/client-hydrate.js'),
+		srcUrl: '/assets/client-hydrate.js',
+		kind: 'script',
+	};
+	writeFile(globalAsset.filepath!);
+	await writeAppBrowserClientManifest(
+		appConfig,
+		[{ integrationName: 'lit', planKey: 'integration-scripts:lit', instances: [], bundledScripts: [globalScript] }],
+		[],
+		{
+			sourceFiles: [],
+			outputPaths: [],
+			bundledScriptAssets: new Map([[getAssetDependencyKey(globalScript), globalAsset]]),
+		},
+	);
+	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
+	const prebuiltWhenRefreshed: Array<ProcessedAsset | undefined> = [];
+	const integration = {
+		name: 'lit',
+		getIntegrationDependencies: () => [{ ...globalScript }, runtimeScript],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {
+			prebuiltWhenRefreshed.push(
+				requireAppRuntime(runtimeAppConfig).prebuiltBrowserScripts.get(getAssetDependencyKey(globalScript)),
+			);
+		}),
+	};
+	runtimeAppConfig.integrations.push(integration as never);
+
+	assert.equal(
+		await prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, {
+			getPageRenderer: () => {
+				throw new Error('no routes');
+			},
+		}),
+		true,
+	);
+
+	assert.equal(integration.refreshResolvedIntegrationDependencies.mock.calls.length, 1);
+	assert.equal(prebuiltWhenRefreshed[0]?.srcUrl, '/assets/client-hydrate.js');
+	assert.equal(requireAppRuntime(runtimeAppConfig).prebuiltBrowserScripts.size, 1);
+});
+
 test('prebuildProductionPageBrowserGraphsFromManifest restores dynamic route templates without static props', async () => {
 	const appConfig = await createAppConfig();
 	const routeFile = path.join(appConfig.rootDir, 'pages/products/[slug].tsx');

@@ -3,7 +3,7 @@
  *
  * @remarks
  * Page modules imported by the server (so the framework can read
- * `getStaticProps` / `staticPaths` / page metadata) commonly have
+ * `staticProps` / `staticPaths` / page metadata) commonly have
  * `import './style.css'` at the top. The bundler does not bundle
  * CSS, and the server only needs the JS exports — the CSS itself
  * is delivered to the browser via the page's `dependencies.stylesheets`

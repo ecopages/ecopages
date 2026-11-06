@@ -949,23 +949,6 @@ describe('client graph boundary: stripped imports', () => {
 			expect(page.staticProps).toBeUndefined();
 		}));
 
-	it('drops a legacy getStaticProps export built with eco.staticProps', () =>
-		withTempDir(async (tempDir) => {
-			const outputPath = await buildBrowserModule(tempDir, {
-				'posts.server.ts': 'export const getPosts = async () => "server-secret";',
-				'entry.tsx': [
-					"import { eco } from './eco';",
-					"import { getPosts } from './posts.server';",
-					'export const getStaticProps = eco.staticProps(async () => ({ props: { posts: await getPosts() } }));',
-					'export default eco.page({ render: () => "Posts" });',
-				].join('\n'),
-			});
-			expect(readFileSync(outputPath, 'utf8')).not.toContain('getPosts');
-			const module = await evaluate(outputPath);
-			expect((module.default as { render: () => string }).render()).toBe('Posts');
-			expect(module.getStaticProps).toBeUndefined();
-		}));
-
 	it('drops a helper export that needs a node built-in when the Page renders another export', () =>
 		withTempDir(async (tempDir) => {
 			const outputPath = await buildBrowserModule(tempDir, {

@@ -96,7 +96,7 @@ describe('PageModuleLoaderService', () => {
 		});
 	});
 
-	it('should resolve page module using provided importer and prefer component static exports', async () => {
+	it('should resolve page module using provided importer and read the data hooks from the Page', async () => {
 		const service = new PageModuleLoaderService(appConfig);
 		const Page = (() => 'ok') as EcoPageComponent<any>;
 		Page.staticProps = async () => ({ props: { from: 'component-static' } });
@@ -107,11 +107,6 @@ describe('PageModuleLoaderService', () => {
 
 		const module = {
 			default: Page,
-			getStaticProps: async () => ({ props: { from: 'module-static' } }),
-			getMetadata: async () => ({
-				title: 'module-metadata',
-				description: 'module-description',
-			}),
 			extra: 'integration-value',
 		} satisfies EcoPageFile<{ extra: string }>;
 
@@ -124,6 +119,42 @@ describe('PageModuleLoaderService', () => {
 		expect(result.getMetadata).toBe(Page.metadata);
 		expect(result.integrationSpecificProps).toEqual({ extra: 'integration-value' });
 		expect(result.module).toBe(module);
+	});
+
+	it.each(['getStaticProps', 'getStaticPaths', 'getMetadata'])(
+		'rejects a page module that still exports %s, naming the file and the codemod',
+		async (legacyExport) => {
+			const service = new PageModuleLoaderService(appConfig);
+			const Page = (() => 'ok') as EcoPageComponent<any>;
+			const module = { default: Page, [legacyExport]: async () => ({}) } as unknown as EcoPageFile;
+
+			await expect(
+				service.resolvePageModule({ file: '/app/src/pages/index.tsx', importPageFileFn: async () => module }),
+			).rejects.toThrow(
+				new RegExp(`/app/src/pages/index\\.tsx.*${legacyExport}.*eco\\.page.*migrate-to-eco-page codemod`),
+			);
+			expect(() => service.assertNoLegacyPageExports('/app/src/pages/index.tsx', module)).toThrow(legacyExport);
+		},
+	);
+
+	it('lists every legacy export a page module still has', () => {
+		const service = new PageModuleLoaderService(appConfig);
+		const module = {
+			default: (() => 'ok') as EcoPageComponent<any>,
+			getStaticProps: async () => ({ props: {} }),
+			getMetadata: async () => ({}),
+		} as unknown as EcoPageFile;
+
+		expect(() => service.assertNoLegacyPageExports('/app/src/pages/a.tsx', module)).toThrow(
+			'getStaticProps, getMetadata',
+		);
+	});
+
+	it('accepts a page module without legacy exports', () => {
+		const service = new PageModuleLoaderService(appConfig);
+		const module = { default: (() => 'ok') as EcoPageComponent<any>, getStaticProps: undefined } as EcoPageFile;
+
+		expect(() => service.assertNoLegacyPageExports('/app/src/pages/a.tsx', module)).not.toThrow();
 	});
 
 	it('should resolve page data end-to-end', async () => {

@@ -13,6 +13,8 @@ import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { HttpError } from '../../errors/http-error.ts';
 
+const LEGACY_PAGE_EXPORT_NAMES = ['getStaticPaths', 'getStaticProps', 'getMetadata'] as const;
+
 /**
  * Loads route page modules and normalizes their data hooks for rendering.
  *
@@ -115,8 +117,28 @@ export class PageModuleLoaderService {
 	}
 
 	/**
-	 * Loads a page module and normalizes integration-facing exports.
-	 * When both component static methods and module exports exist, component statics win.
+	 * Fails when a page module still declares data through the removed module-level exports.
+	 *
+	 * @remarks
+	 * Integrations that cannot call `eco.page(...)`, such as MDX, move their metadata export onto the
+	 * Page in `normalizePageModule`, so only modules that declare the old exports reach this check.
+	 */
+	assertNoLegacyPageExports(file: string, module: EcoPageFile): void {
+		const found = LEGACY_PAGE_EXPORT_NAMES.filter(
+			(name) => (module as Record<string, unknown>)[name] !== undefined,
+		);
+		if (found.length === 0) return;
+		throw new Error(
+			`[ecopages] ${file} exports ${found.join(', ')}. Pages declare data through the staticPaths, staticProps and metadata options of eco.page({ ... }); module-level exports are no longer read. Run the migrate-to-eco-page codemod from @ecopages/codemod to migrate this file.`,
+		);
+	}
+
+	/**
+	 * Loads a page module and resolves the data hooks of its Page component.
+	 *
+	 * @remarks
+	 * Throws through {@link PageModuleLoaderService.assertNoLegacyPageExports} when the module still
+	 * has a legacy data export.
 	 */
 	async resolvePageModule(options: {
 		file: string;
@@ -132,19 +154,15 @@ export class PageModuleLoaderService {
 		const module =
 			options.pageModule ??
 			(await (options.importPageFileFn ?? ((file) => this.importPageFile(file)))(options.file));
-		const {
-			default: Page,
-			getStaticProps: moduleGetStaticProps,
-			getMetadata: moduleGetMetadata,
-			...integrationSpecificProps
-		} = module;
+		this.assertNoLegacyPageExports(options.file, module);
+		const { default: Page, ...integrationSpecificProps } = module;
 		const pageComponent = Page as EcoPageComponent<any>;
 
 		return {
 			module,
 			Page,
-			getStaticProps: pageComponent.staticProps ?? moduleGetStaticProps,
-			getMetadata: pageComponent.metadata ?? moduleGetMetadata,
+			getStaticProps: pageComponent.staticProps,
+			getMetadata: pageComponent.metadata,
 			integrationSpecificProps,
 		};
 	}

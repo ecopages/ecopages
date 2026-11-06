@@ -140,36 +140,36 @@ describe('transformModuleImports', () => {
 		expect(transformed).not.toContain('readFileSync');
 	});
 
-	it('replaces a legacy export exposed through an export list', () => {
+	it('replaces a server-only export exposed through an export list', () => {
 		const source = [
 			"import { getPost } from './posts.server';",
-			'async function getStaticProps() { return { props: { post: await getPost() } }; }',
-			'export { getStaticProps };',
+			'async function loadPost() { return { post: await getPost() }; }',
+			'export { loadPost };',
 			'export default eco.page({ render: () => null });',
 		].join('\n');
 
 		const { transformed } = transform(source, '/app/src/pages/post.tsx');
 
 		expect(transformed).not.toContain('getPost');
-		expect(transformed).toContain('const getStaticProps = undefined;');
-		expect(transformed).toContain('export { getStaticProps };');
+		expect(transformed).toContain('const loadPost = undefined;');
+		expect(transformed).toContain('export { loadPost };');
 	});
 
-	it('keeps a legacy export that browser code uses', () => {
+	it('keeps an export that browser code uses', () => {
 		const source = [
-			'export async function getMetadata() { return { title: "Post" }; }',
-			'export const describe = () => getMetadata();',
+			'export async function loadTitle() { return { title: "Post" }; }',
+			'export const describe = () => loadTitle();',
 			'export default eco.page({ render: () => describe() });',
 		].join('\n');
 
 		expect(transform(source, '/app/src/pages/post.tsx').modified).toBe(false);
 	});
 
-	it('fails when a requested export reaches a legacy export that needs a stripped import', () => {
+	it('fails when a requested export reaches an export that needs a stripped import', () => {
 		const source = [
 			"import { getPost } from './posts.server';",
-			'export async function getMetadata() { return { title: await getPost() }; }',
-			'export const describe = () => getMetadata();',
+			'export async function loadTitle() { return { title: await getPost() }; }',
+			'export const describe = () => loadTitle();',
 			'export default eco.page({ render: () => null });',
 		].join('\n');
 		const requestedExports = new Map<string, RequestedExportRules>([
@@ -177,7 +177,7 @@ describe('transformModuleImports', () => {
 		]);
 
 		expect(() => transform(source, '/app/src/pages/post.tsx', { requestedExports })).toThrow(
-			"'getPost' (imported from './posts.server') is used at /app/src/pages/post.tsx:2:61",
+			"'getPost' (imported from './posts.server') is used at /app/src/pages/post.tsx:2:59",
 		);
 	});
 
@@ -228,27 +228,6 @@ describe('transformModuleImports', () => {
 		const { transformed } = transform(source, '/app/src/pages/index.tsx');
 
 		expect(transformed).toBe('export default eco.page({\n\trender: () => null,\n\t});');
-	});
-
-	it('replaces legacy server-only Page exports with undefined', () => {
-		const source = [
-			"import { getPosts } from './posts.server';",
-			'export async function getStaticPaths() { return { paths: await getPosts() }; }',
-			'export const getMetadata = () => ({ title: String(getPosts) });',
-			'export default eco.page({ render: () => null });',
-		].join('\n');
-
-		const { transformed } = transform(source, '/app/src/pages/index.tsx');
-
-		expect(transformed).not.toContain('getPosts');
-		expect(transformed).toContain('export const getStaticPaths = undefined;');
-		expect(transformed).toContain('export const getMetadata = undefined;');
-	});
-
-	it('keeps getMetadata in a module that defines no Page', () => {
-		const source = "export const getMetadata = () => ({ title: 'Docs' });";
-
-		expect(transform(source, '/app/src/lib/metadata.ts').modified).toBe(false);
 	});
 
 	it('does not treat type positions as uses of a stripped import', () => {

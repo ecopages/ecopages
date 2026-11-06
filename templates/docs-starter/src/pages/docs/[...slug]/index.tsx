@@ -14,7 +14,7 @@ type DocsCatchAllProps = {
 	description?: string;
 };
 
-export const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { section, slug, title, description } }) => ({
+const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { section, slug, title, description } }) => ({
 	title: `Docs | ${title}`,
 	description: description ?? '',
 	url: `/docs/${section}/${slug}`,

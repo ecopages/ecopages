@@ -79,7 +79,7 @@ Pass `browserRuntimeManifest` as constructor data when the browser runtime needs
 
 Core bundles an Integration's Page files and imports the result. An Integration whose files are not JavaScript, such as core's own HTML Pages, can compile them itself instead:
 
-- **`compilePageModule(filePath, appConfig)`** returns the module for a Page or `html.*` template file, or a promise of it: a `default` component, plus optional `getMetadata` or `cache`. Core calls it for every file of the Integration that it loads and never bundles those files itself, so throw for a file the Integration cannot compile.
+- **`compilePageModule(filePath, appConfig)`** returns the module for a Page or `html.*` template file, or a promise of it: a `default` component, plus an optional `cache`. Put page metadata on the component as `metadata`: a module that exports `getMetadata`, `getStaticProps` or `getStaticPaths` fails. Core calls it for every file of the Integration that it loads and never bundles those files itself, so throw for a file the Integration cannot compile.
   - Every Page of an Integration that implements it stays out of the production pages graph, so a static export compiles each one on its own.
   - Core caches the result by the file's content hash, so editing another file it reads does not invalidate it.
 - **`acceptsParams = false`** as a class field says its Pages cannot receive Params. Route discovery then rejects `[param]` and `[...param]` filenames the Integration owns, instead of failing at render time. It is not a constructor option, because it describes the Integration rather than the app.

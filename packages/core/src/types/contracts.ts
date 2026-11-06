@@ -933,9 +933,6 @@ export type GetStaticProps<T> = (context: {
  */
 export type EcoPageFile<T = unknown> = T & {
 	default: EcoComponent<any, any>;
-	getStaticPaths?: GetStaticPaths;
-	getStaticProps?: GetStaticProps<Record<string, unknown>>;
-	getMetadata?: GetMetadata;
 	cache?: CacheStrategy;
 };
 

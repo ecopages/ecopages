@@ -15,9 +15,6 @@ const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set([
 	'staticPaths',
 ]);
 
-/** Page module exports core reads on the server when the Page does not set the matching option. */
-export const SERVER_ONLY_PAGE_EXPORT_NAMES = new Set(['getMetadata', 'getStaticProps', 'getStaticPaths']);
-
 type SourceRange = { start: number; end: number };
 
 export type ServerOnlyPageCode = {
@@ -25,8 +22,6 @@ export type ServerOnlyPageCode = {
 	edits: SourceEdit[];
 	/** Nodes whose subtrees the edits remove; references inside them do not reach the browser. */
 	strippedNodes: Set<unknown>;
-	/** Whether the module calls `eco.page(...)` with an options object. */
-	definesPage: boolean;
 };
 
 function isEcoPageOptionsCall(node: any): boolean {
@@ -101,11 +96,10 @@ function collectPageOptionEdits(node: any, code: ServerOnlyPageCode): void {
  * Collects the server-only `eco.page(...)` options of a browser-bound module and the edits that remove them.
  */
 export function collectServerOnlyPageCode(program: any): ServerOnlyPageCode {
-	const code: ServerOnlyPageCode = { edits: [], strippedNodes: new Set(), definesPage: false };
+	const code: ServerOnlyPageCode = { edits: [], strippedNodes: new Set() };
 
 	walkAstNodes(program, (node) => {
 		if (!isEcoPageOptionsCall(node)) return;
-		code.definesPage = true;
 		collectPageOptionEdits(node, code);
 	});
 

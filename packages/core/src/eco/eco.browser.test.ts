@@ -31,13 +31,4 @@ describe('browser eco facade', () => {
 		expect(Page.metadata).toBe(metadata);
 		expect(Page.middleware).toBe(middleware);
 	});
-
-	test('preserves the metadata helper contract', async () => {
-		const getMetadata = eco.metadata(async () => ({ title: 'Browser title', description: 'Browser desc' }));
-
-		await expect(getMetadata({} as never)).resolves.toEqual({
-			title: 'Browser title',
-			description: 'Browser desc',
-		});
-	});
 });

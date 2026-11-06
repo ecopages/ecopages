@@ -246,11 +246,8 @@ export class RouteRegistry {
 			const staticPaths = pageModule.staticPaths;
 
 			if (options.requireStaticHooks && this.buildMode) {
-				invariant(staticPaths !== undefined, `[ecopages] Missing getStaticPaths in ${route.filePath}`);
-				invariant(
-					pageModule.staticProps !== undefined,
-					`[ecopages] Missing getStaticProps in ${route.filePath}`,
-				);
+				invariant(staticPaths !== undefined, `[ecopages] Missing staticPaths in ${route.filePath}`);
+				invariant(pageModule.staticProps !== undefined, `[ecopages] Missing staticProps in ${route.filePath}`);
 			}
 
 			if (!staticPaths) {

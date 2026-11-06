@@ -118,7 +118,6 @@ export function transformModuleImports(
 		strippedBindings,
 		editedImports,
 		requestedExports: explicitRequestedExports,
-		definesPage: pageCode.definesPage,
 	});
 
 	const edits = [...importEdits, ...pageCode.edits, ...cleanupEdits];

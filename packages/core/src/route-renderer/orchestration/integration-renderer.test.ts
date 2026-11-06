@@ -71,6 +71,21 @@ describe('IntegrationRenderer', () => {
 		expect(String(html)).toContain('<main>current:recent:from static props</main>');
 	});
 
+	it('fails loadPageModule for a page module that still exports getStaticProps', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+		});
+		renderer.PageModule = {
+			default: (() => 'ok') as EcoComponent,
+			getStaticProps: async () => ({ props: {} }),
+		} as EcoPageFile;
+
+		await expect(renderer.loadPageModule('/app/src/pages/index.tsx')).rejects.toThrow(
+			/\/app\/src\/pages\/index\.tsx exports getStaticProps.*migrate-to-eco-page codemod/,
+		);
+	});
+
 	it('creates a renderer from hooks without a renderer subclass', async () => {
 		const renderComponent = vi.fn(async () => ({
 			html: '<main>hook-rendered</main>',

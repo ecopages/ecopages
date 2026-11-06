@@ -102,11 +102,11 @@ jobs:
             - name: Typecheck
               run: pnpm run typecheck
 
-            - name: Unit suites
-              run: pnpm exec vitest run --project shared-core --project docs --project docs-starter --project llm-wiki
-
             - name: Production smoke
               run: pnpm run smoke:start
+
+            - name: Unit suites
+              run: pnpm exec vitest run --project shared-core --project docs --project docs-starter --project llm-wiki
 
     e2e-shard:
         strategy:

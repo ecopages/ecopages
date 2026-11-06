@@ -9,6 +9,7 @@ import {
 	inferBrowserRuntimeDefaultExportPolicy,
 	resolveBrowserRuntimeEntryImport,
 	resolvePackageEsmEntryPath,
+	toRelativeEntryImport,
 } from './browser-runtime-entry-resolution.ts';
 
 test('resolvePackageEsmEntryPath resolves installed react to index.js', () => {
@@ -351,4 +352,23 @@ test('inferBrowserRuntimeDefaultExportPolicy skips default for installed @tansta
 		}),
 		'skip-default',
 	);
+});
+
+test('toRelativeEntryImport keeps a module on another Windows drive as an absolute path', () => {
+	assert.equal(
+		toRelativeEntryImport(
+			'C:\\Users\\runneradmin\\Temp\\app\\.eco\\entries',
+			'D:\\a\\ecopages\\node_modules\\react-dom\\client.js',
+			path.win32,
+		),
+		'D:/a/ecopages/node_modules/react-dom/client.js',
+	);
+});
+
+test('toRelativeEntryImport returns a ./ or ../ path on the same Windows drive', () => {
+	assert.equal(
+		toRelativeEntryImport('D:\\app\\.eco\\entries', 'D:\\app\\node_modules\\react-dom\\client.js', path.win32),
+		'../../node_modules/react-dom/client.js',
+	);
+	assert.equal(toRelativeEntryImport('D:\\app\\entries', 'D:\\app\\entries\\x.js', path.win32), './x.js');
 });

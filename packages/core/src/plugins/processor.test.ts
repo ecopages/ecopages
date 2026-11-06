@@ -65,6 +65,23 @@ describe('Processor', () => {
 		expect(fs.existsSync(cacheDir)).toBe(false);
 		expect(processor.listProductionServerModuleEntries()).toEqual([]);
 	});
+
+	test('stores a cache entry under a file name every platform accepts', async () => {
+		const cacheProcessor = processor as unknown as {
+			readCache<T>(key: string): Promise<T | null>;
+			writeCache<T>(key: string, data: T): Promise<void>;
+		};
+		const key = 'photo.jpg:7ba5a4e0:q80:webp:320:sm,768:md';
+		const cacheDir = path.join(testRoots[0]!, '.eco', 'cache', 'test-processor');
+
+		await cacheProcessor.writeCache(key, { width: 320 });
+
+		const [fileName, ...rest] = fs.readdirSync(cacheDir);
+		expect(rest).toEqual([]);
+		expect(fileName).toMatch(/^[\w.-]+$/);
+		expect(await cacheProcessor.readCache(key)).toEqual({ width: 320 });
+		expect(await cacheProcessor.readCache(`${key}:lg`)).toBeNull();
+	});
 });
 
 describe('Processor capability matching', () => {

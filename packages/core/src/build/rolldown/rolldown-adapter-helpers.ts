@@ -34,6 +34,7 @@ import { isEcopagesEnvEnabled } from '../../env.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.ts';
+import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
@@ -549,6 +550,7 @@ async function buildRolldownInputPlugins(
 		...(rolldownPlatform === 'browser' ? [createBrowserServerOnlyGuardPlugin()] : []),
 		...(options.environment === 'server' ? [createServerSideCssShimPlugin()] : []),
 		...appPlugins,
+		...(options.environment === 'browser' && options.workerEntries !== false ? [createWorkerEntriesPlugin()] : []),
 	];
 }
 

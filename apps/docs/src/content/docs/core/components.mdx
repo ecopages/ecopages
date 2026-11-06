@@ -79,6 +79,22 @@ dependencies: {
 
 Ecopages stamps [island host attributes](/docs/core/island-hosts) on hydratable Component SSR roots so developer tools and client runtimes can discover them.
 
+## Web Workers
+
+Start a worker from browser code with a relative URL resolved against `import.meta.url`:
+
+```ts
+const worker = new Worker(new URL('./resize.worker.ts', import.meta.url), { type: 'module' });
+```
+
+The worker file is built like any browser script and can import other modules. `ecopages build` writes it as its own hashed file under `dist/client/assets` and rewrites the URL to that file; modules it shares with the scripts of the app's Pages load from the same chunk. `ecopages dev` serves it through the dev transform server. `SharedWorker` works the same way.
+
+- Pass `{ type: 'module' }`: workers are built as ES modules, so a relative worker URL without it fails `ecopages build`, and the module request in `ecopages dev`.
+- The URL must be a string literal that starts with `./` or `../` and resolves to a file; one that does not resolve fails the same way. Any other URL is left as written, with a warning in development; point it at a file the server serves, such as one in `public/`.
+- Call `Worker` or `SharedWorker` directly: `window.Worker` and `self.Worker` are not recognized.
+
+`SharedArrayBuffer` in a worker needs a cross-origin isolated page. Set the two headers with the [`headers` option](/docs/getting-started/configuration#webassembly-and-cross-origin-isolation).
+
 ## Related guides
 
 - [Ecopages JSX](/docs/integrations/ecopages-jsx) — install and configure the default template integration

@@ -72,6 +72,7 @@ export class DevTransformBundler {
 			naming: '[name].js',
 			plugins: [createDevTransformExternalizeImportsPlugin(), ...pagePlugins],
 			minify: false,
+			workerEntries: false,
 		});
 
 		assertBuildSucceeded(result, `[dev-transform] Transpile failed for ${normalized}`);

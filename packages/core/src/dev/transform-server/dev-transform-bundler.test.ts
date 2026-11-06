@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { appLogger } from '../../global/app-logger.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
@@ -177,5 +178,115 @@ describe('DevTransformBundler', () => {
 		expect(result.code).toContain('/hero.jpg');
 		expect(result.code).not.toMatch(/from ["']images["']/);
 		expect(result.code).not.toMatch(/from ["']ecopages:images["']/);
+	});
+	describe('a Worker URL', () => {
+		async function transpileScript(rootDir: string, source: string) {
+			const scriptPath = path.join(rootDir, 'src', 'components', 'demo.script.ts');
+			fs.mkdirSync(path.join(rootDir, 'src', 'components', 'workers'), { recursive: true });
+			fs.writeFileSync(
+				path.join(rootDir, 'src', 'components', 'workers', 'echo.worker.ts'),
+				"self.postMessage('hi');\n",
+			);
+			fs.writeFileSync(scriptPath, source, 'utf8');
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+			const bundler = new DevTransformBundler({
+				appConfig: config,
+				getRuntimeSpecifierMap: () => new Map(),
+				vendorRegistry: new DevTransformVendorRegistry({ appConfig: config }),
+			});
+			return bundler.transpileModule(scriptPath);
+		}
+
+		it.each(['Worker', 'SharedWorker'])(
+			'of a module %s points at the dev transform URL of the worker',
+			async (name) => {
+				const rootDir = createTempRoot('dev-transform-bundler-worker');
+				const result = await transpileScript(
+					rootDir,
+					`export const worker = new ${name}(new URL('./workers/echo.worker.ts', import.meta.url), { type: 'module' });\n`,
+				);
+
+				expect(result.code).toMatch(
+					new RegExp(
+						`new URL\\(["']${DEV_TRANSFORM_URL_PREFIX}/components/workers/echo\\.worker\\.js\\?v=[0-9a-f]+["'], import\\.meta\\.url\\)`,
+					),
+				);
+				expect(result.code).not.toContain('echo.worker.ts');
+				expect(result.dependencies).toContain(
+					path.join(rootDir, 'src', 'components', 'workers', 'echo.worker.ts'),
+				);
+			},
+		);
+
+		it('gets a new version query when the worker changes', async () => {
+			const rootDir = createTempRoot('dev-transform-bundler-worker-version');
+			const source =
+				"export const worker = new Worker(new URL('./workers/echo.worker.ts', import.meta.url), { type: 'module' });\n";
+			const workerVersion = (code: string) => code.match(/echo\.worker\.js\?v=([0-9a-f]+)/)?.[1];
+			const before = workerVersion((await transpileScript(rootDir, source)).code);
+
+			fs.writeFileSync(
+				path.join(rootDir, 'src', 'components', 'workers', 'echo.worker.ts'),
+				"self.postMessage('changed');\n",
+			);
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+			const after = await new DevTransformBundler({
+				appConfig: config,
+				getRuntimeSpecifierMap: () => new Map(),
+				vendorRegistry: new DevTransformVendorRegistry({ appConfig: config }),
+			}).transpileModule(path.join(rootDir, 'src', 'components', 'demo.script.ts'));
+
+			expect(before).toBeTruthy();
+			expect(workerVersion(after.code)).toBeTruthy();
+			expect(workerVersion(after.code)).not.toBe(before);
+		});
+
+		it('that does not resolve fails, naming the URL', async () => {
+			const rootDir = createTempRoot('dev-transform-bundler-missing-worker');
+
+			await expect(
+				transpileScript(
+					rootDir,
+					"export const worker = new Worker(new URL('./workers/missing.worker.ts', import.meta.url), { type: 'module' });\n",
+				),
+			).rejects.toThrow('"./workers/missing.worker.ts"');
+		});
+
+		it('that is not relative is left as written with a warning', async () => {
+			const rootDir = createTempRoot('dev-transform-bundler-public-worker');
+			const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+
+			const result = await transpileScript(
+				rootDir,
+				"export const worker = new Worker(new URL('/workers/echo.js', import.meta.url), { type: 'module' });\n",
+			);
+
+			expect(result.code).toContain('/workers/echo.js');
+			expect(warn).toHaveBeenCalledWith(expect.stringContaining('is not relative'));
+		});
+
+		it('of a classic worker fails, naming the URL', async () => {
+			const rootDir = createTempRoot('dev-transform-bundler-classic-worker');
+
+			await expect(
+				transpileScript(
+					rootDir,
+					"export const worker = new Worker(new URL('./workers/echo.worker.ts', import.meta.url));\n",
+				),
+			).rejects.toThrow(`new Worker(new URL("./workers/echo.worker.ts", import.meta.url)) in`);
+		});
+
+		it('that is not a literal is left as written with a warning', async () => {
+			const rootDir = createTempRoot('dev-transform-bundler-dynamic-worker');
+			const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+
+			const result = await transpileScript(
+				rootDir,
+				"const name = 'echo';\nexport const worker = new Worker(new URL(`./workers/${name}.worker.ts`, import.meta.url), { type: 'module' });\n",
+			);
+
+			expect(result.code).toContain('./workers/${name}.worker.ts');
+			expect(warn).toHaveBeenCalledWith(expect.stringContaining('is not a string literal'));
+		});
 	});
 });

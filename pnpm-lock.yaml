@@ -376,6 +376,21 @@ importers:
         specifier: ^19.2.6
         version: 19.2.8(react@19.2.8)
 
+  e2e/fixtures/web-workers:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
+      '@ecopages/radiant':
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+
   packages/__internals/testing:
     dependencies:
       '@ecopages/core':

@@ -5,6 +5,13 @@ import { parseModuleSource } from '../../cache/module-parse-cache.ts';
 import { isBarePackageImportSpecifier, resolveProjectModulePath } from '../../plugins/tsconfig-import-resolver.ts';
 import { resolveRuntimeSpecifierPublicPath } from '../../build/browser/browser-runtime-manifest.ts';
 import { resolveDevTransformModuleUrl } from './dev-transform-url.ts';
+import { appLogger } from '../../global/app-logger.ts';
+import {
+	WORKER_CONSTRUCTOR_PATTERN,
+	findWorkerUrls,
+	formatClassicWorkerError,
+	formatUnbundledWorkerWarning,
+} from '../../build/worker-urls.ts';
 
 /**
  * Builds a browser-importable dev-transform URL that changes when the source changes.
@@ -70,6 +77,41 @@ function readStringLiteral(node: unknown): StringLiteralNode | undefined {
 }
 
 /**
+ * Points each relative module Worker URL at the worker's dev-transform URL.
+ *
+ * @remarks
+ * The URL stays an argument of `new URL(..., import.meta.url)`; an absolute path resolves against the page origin.
+ * A classic worker fails like a production build, since the served worker is an ES module with imports. A URL
+ * that is not a relative literal is left as written and warned on each compile.
+ */
+function rewriteWorkerUrls(
+	program: unknown,
+	options: RewriteModuleImportsOptions,
+	sourcePath: string,
+	dependencies: Set<string>,
+): ImportEdit[] {
+	const edits: ImportEdit[] = [];
+	if (!WORKER_CONSTRUCTOR_PATTERN.test(options.code)) return edits;
+	for (const url of findWorkerUrls(program, options.code)) {
+		if (url.kind === 'classic') throw new Error(formatClassicWorkerError(url, sourcePath));
+		if (url.kind !== 'entry') {
+			appLogger.warn(formatUnbundledWorkerWarning(url, sourcePath));
+			continue;
+		}
+		const workerPath = resolveProjectModulePath(options.projectRoot, sourcePath, url.specifier);
+		if (!workerPath) {
+			throw new Error(
+				`[dev-transform] Could not resolve the ${url.constructorName} URL ${JSON.stringify(url.specifier)} in ${sourcePath}.`,
+			);
+		}
+		dependencies.add(workerPath);
+		const workerUrl = resolveVersionedDevTransformModuleUrl(options.srcDir, workerPath, options.extraModuleRoots);
+		edits.push({ start: url.start, end: url.end, replacement: JSON.stringify(workerUrl) });
+	}
+	return edits;
+}
+
+/**
  * Rewrites static and dynamic import specifiers to dev-transform or vendor URLs.
  */
 export async function rewriteModuleImports(options: RewriteModuleImportsOptions): Promise<{
@@ -121,7 +163,7 @@ export async function rewriteModuleImports(options: RewriteModuleImportsOptions)
 
 	walk(parseResult.program);
 
-	const edits: ImportEdit[] = [];
+	const edits: ImportEdit[] = rewriteWorkerUrls(parseResult.program, options, normalizedSource, dependencies);
 	for (const specifierNode of specifierNodes) {
 		const rewritten = await resolveImportSpecifier({
 			specifier: specifierNode.value,

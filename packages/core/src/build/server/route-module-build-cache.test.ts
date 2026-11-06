@@ -172,6 +172,7 @@ describe('RouteModuleBuildCache', () => {
 			writeToDisk: [true, false],
 			external: [['react'], ['react-dom']],
 			jsx: [{ importSource: 'react' }, { importSource: 'preact' }],
+			workerEntries: [true, false],
 		} satisfies Record<Exclude<keyof BuildOptions, 'plugins' | 'naming'>, [unknown, unknown]>;
 
 		for (const [field, [, right]] of Object.entries(fields)) {

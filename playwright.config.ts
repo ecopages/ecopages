@@ -125,6 +125,25 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		use: { ...chrome, baseURL: 'http://localhost:4623' },
 	},
 	{
+		name: 'web-workers-dev-e2e',
+		testMatch: 'e2e/fixtures/web-workers/web-workers.dev.test.e2e.ts',
+		timeout: 60_000,
+		use: { ...chrome, appOptions: { source: 'e2e/fixtures/web-workers' } },
+	},
+	{
+		name: 'web-workers-preview-e2e',
+		testMatch: 'e2e/fixtures/web-workers/web-workers.test.e2e.ts',
+		use: { ...chrome, baseURL: 'http://localhost:4626' },
+	},
+	{
+		name: 'web-workers-start-e2e',
+		testMatch: [
+			'e2e/fixtures/web-workers/web-workers.test.e2e.ts',
+			'e2e/fixtures/web-workers/web-workers.output.test.e2e.ts',
+		],
+		use: { ...chrome, baseURL: 'http://localhost:4627' },
+	},
+	{
 		name: 'react-router-preview-e2e',
 		testMatch: 'e2e/fixtures/react-router/persist-layouts.test.e2e.ts',
 		use: { ...chrome, baseURL: 'http://localhost:4004' },
@@ -330,6 +349,25 @@ const projectWebServers: ProjectWebServer[] = [
 			ECOPAGES_PORT: '4623',
 			ECOPAGES_E2E_ARTIFACT_SCOPE: 'react-production-start-e2e',
 		},
+	},
+	{
+		projects: ['web-workers-preview-e2e'],
+		command: 'node ../../../packages/ecopages/bin/cli.js preview --runtime node --port 4626',
+		cwd: 'e2e/fixtures/web-workers',
+		url: 'http://localhost:4626',
+		timeout: 180_000,
+		reuseExistingServer: !process.env.CI,
+		env: { NODE_ENV: 'production', ECOPAGES_PORT: '4626', ECOPAGES_E2E_ARTIFACT_SCOPE: 'web-workers-preview-e2e' },
+	},
+	{
+		projects: ['web-workers-start-e2e'],
+		command:
+			'node ../../../packages/ecopages/bin/cli.js build --runtime node && node ../../../packages/ecopages/bin/cli.js start --runtime node --port 4627 --dist-dir dist-web-workers-start-e2e',
+		cwd: 'e2e/fixtures/web-workers',
+		url: 'http://localhost:4627/health',
+		timeout: 180_000,
+		reuseExistingServer: !process.env.CI,
+		env: { NODE_ENV: 'production', ECOPAGES_PORT: '4627', ECOPAGES_E2E_ARTIFACT_SCOPE: 'web-workers-start-e2e' },
 	},
 	{
 		projects: ['react-router-preview-e2e'],

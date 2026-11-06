@@ -159,6 +159,14 @@ export interface BuildOptions {
 		sideEffects?: boolean;
 	};
 	plugins?: EcoBuildPlugin[];
+	/**
+	 * Builds each `new Worker(new URL('./x.ts', import.meta.url), { type: 'module' })`, and the same with
+	 * `SharedWorker`, as its own entry and points the URL at the emitted file. Browser builds only; defaults to `true`.
+	 *
+	 * @remarks
+	 * The dev transform server sets `false`: it compiles one module at a time and points the URL at its own module URL.
+	 */
+	workerEntries?: boolean;
 }
 
 /** Compilation environment, independent of the build queue's scheduling lane. */

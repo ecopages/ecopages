@@ -71,6 +71,9 @@ importers:
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
         version: link:../../packages/integrations/ecopages-jsx
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../packages/file-system
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
@@ -113,6 +116,9 @@ importers:
       lit:
         specifier: ^3.3.3
         version: 3.3.3
+      mdast-util-from-markdown:
+        specifier: ^2.0.3
+        version: 2.0.3
       react:
         specifier: ^19.2.6
         version: 19.2.8
@@ -390,6 +396,27 @@ importers:
       '@ecopages/radiant':
         specifier: ^0.6.0
         version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+
+  examples/recipes/diagrams:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
+      '@ecopages/mdx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/mdx
+      ecopages:
+        specifier: workspace:*
+        version: link:../../../packages/ecopages
+      pele:
+        specifier: 1.13.0
+        version: 1.13.0
 
   packages/__internals/testing:
     dependencies:

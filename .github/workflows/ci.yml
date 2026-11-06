@@ -75,6 +75,9 @@ jobs:
             - name: Build every template
               run: pnpm run smoke:templates
 
+            - name: Build every recipe fixture
+              run: pnpm run smoke:recipes
+
     windows:
         if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         runs-on: windows-latest

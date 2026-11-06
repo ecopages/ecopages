@@ -14,6 +14,12 @@
 - Prose styles must exclude `.unstyled` / `.unstyled *` so alerts, code tabs, and other chrome are not restyled by `.prose`.
 - Prose `<table>` elements scroll horizontally in CSS (`display: block`, `max-width: 100%`, `overflow-x: auto`). Do not wrap them in MDX or rehype markup.
 
+## Recipes
+
+- `src/content/docs/recipes/` is the Recipes section. Each recipe is one page plus a fixture app under `examples/recipes/<name>/` (see its README); CI typechecks it and builds it with `pnpm run smoke:recipes`.
+- Recipe code on a page comes from the fixture: a fence with `file="<path from the repo root>"` and optional `region="<name>"` is filled by `remarkSnippetInclude` (`src/lib/docs/snippet-include.ts`) and by `scripts/llm-docs-export.ts` for `docs-llm`. Leave the fence body empty.
+- `src/lib/docs/mdx-plugin-options.ts` imports the Diagrams fixture's `remarkMermaid` directly, so the docs app runs the recipe it teaches; `src/styles/components/diagram.css` is the docs theme mapping.
+
 ## Configuration
 
 - Register `contentProcessorPlugin()` from `@ecopages/content-processor/plugin` in `eco.config.ts`.

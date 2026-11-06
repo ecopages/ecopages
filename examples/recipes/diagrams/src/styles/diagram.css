@@ -1,0 +1,52 @@
+:root {
+	--color-bg: #ffffff;
+	--color-fg: #1f2328;
+	--color-surface: #f6f8fa;
+	--color-border: #d0d7de;
+	--color-accent: #0969da;
+	--color-danger: #cf222e;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--color-bg: #0d1117;
+		--color-fg: #e6edf3;
+		--color-surface: #161b22;
+		--color-border: #30363d;
+		--color-accent: #58a6ff;
+		--color-danger: #ff7b72;
+	}
+}
+
+body {
+	background: var(--color-bg);
+	color: var(--color-fg);
+	font-family: system-ui, sans-serif;
+	margin: 0 auto;
+	max-width: 48rem;
+	padding: 1rem;
+}
+
+/* #region theme */
+.diagram {
+	--pele-bg: var(--color-bg);
+	--pele-fg: var(--color-fg);
+	--pele-muted: color-mix(in oklab, var(--color-fg) 60%, transparent);
+	--pele-line: var(--color-fg);
+	--pele-surface: var(--color-surface);
+	--pele-surface-alt: color-mix(in oklab, var(--color-surface) 70%, var(--color-bg));
+	--pele-border: var(--color-border);
+	--pele-accent: var(--color-accent);
+	--pele-critical: var(--color-danger);
+	--pele-font: system-ui, sans-serif;
+	margin-block: 1.5rem;
+	overflow-x: auto;
+}
+
+.diagram svg {
+	display: block;
+	height: auto;
+	margin-inline: auto;
+	max-width: 100%;
+}
+/* #endregion theme */

@@ -1,4 +1,3 @@
-import { eco } from '@ecopages/core';
 import { useState, type ReactNode } from 'react';
 import './counter.css';
 
@@ -6,28 +5,20 @@ type CounterProps = {
 	defaultValue: number;
 };
 
-export const Counter = eco.component<CounterProps, ReactNode>({
-	render: ({ defaultValue = 5 }) => {
-		const [count, setCount] = useState<number>(defaultValue);
-		const handleIncrement = () => setCount(count + 1);
-		const handleDecrement = () => setCount(count - 1);
+export function Counter({ defaultValue = 5 }: CounterProps): ReactNode {
+	const [count, setCount] = useState<number>(defaultValue);
+	const handleIncrement = () => setCount(count + 1);
+	const handleDecrement = () => setCount(count - 1);
 
-		return (
-			<div className="counter">
-				<button onClick={handleDecrement} aria-label="Decrement" type="button" className="decrement">
-					-
-				</button>
-				<span>{count}</span>
-				<button
-					data-increment
-					onClick={handleIncrement}
-					aria-label="Increment"
-					type="button"
-					className="increment"
-				>
-					+
-				</button>
-			</div>
-		);
-	},
-});
+	return (
+		<div className="counter">
+			<button onClick={handleDecrement} aria-label="Decrement" type="button" className="decrement">
+				-
+			</button>
+			<span>{count}</span>
+			<button data-increment onClick={handleIncrement} aria-label="Increment" type="button" className="increment">
+				+
+			</button>
+		</div>
+	);
+}

@@ -1,1 +1,1 @@
-export * from './radiant-counter.kita';
+export { RadiantCounter } from './radiant-counter.kita';

@@ -7,9 +7,6 @@ import './index.css';
 
 export default eco.page<{}, JsxRenderable>({
 	layout: DocsLayout,
-	dependencies: {
-		components: [CatalogSearchHero],
-	},
 	metadata: () => ({
 		title: 'Wiki',
 		description: 'Catalog of wiki pages, grouped by category.',

@@ -9,10 +9,6 @@ type AuthorProps = {
 };
 
 export default eco.page<AuthorProps>({
-	dependencies: {
-		components: [BaseLayout],
-	},
-
 	staticPaths: async () => {
 		return { paths: getAllAuthorIds() };
 	},

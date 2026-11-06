@@ -1,1 +1,1 @@
-export * from './header';
+export { type HeaderProps, Header } from './header';

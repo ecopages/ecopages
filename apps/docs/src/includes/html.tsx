@@ -6,7 +6,7 @@ const themeScript = `(function(){const s=localStorage.getItem('theme');const p=s
 
 const HtmlTemplate = eco.html<JsxRenderable>({
 	dependencies: {
-		components: [Head],
+		stylesheets: ['../styles/tailwind.css'],
 		scripts: [
 			{
 				content: themeScript,

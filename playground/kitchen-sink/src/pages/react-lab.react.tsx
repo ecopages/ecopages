@@ -9,7 +9,7 @@ import type { ReactNode } from 'react';
 export default eco.page<{}, ReactNode>({
 	layout: ReactPlaygroundLayout,
 	dependencies: {
-		components: [ReactCounter, ReactShell],
+		components: [ReactShell],
 		stylesheets: ['./docs.css'],
 	},
 	metadata: () => ({

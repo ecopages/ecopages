@@ -9,7 +9,7 @@ const announcementScript = `(function(){const d=localStorage.getItem('announceme
 
 const HtmlTemplate = eco.html<ReactNode>({
 	dependencies: {
-		components: [Head],
+		stylesheets: ['../styles/router.css', '../styles/app.css'],
 		scripts: [{ content: themeScript }, { content: announcementScript }],
 	},
 

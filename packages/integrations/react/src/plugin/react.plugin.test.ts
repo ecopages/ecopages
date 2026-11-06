@@ -19,6 +19,7 @@ async function getMdxLoaderFilter(
 		},
 		module() {},
 		transform() {},
+		onEnd() {},
 	});
 	return filter;
 }

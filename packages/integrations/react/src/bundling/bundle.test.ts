@@ -161,6 +161,7 @@ describe('BundleService', () => {
 			onLoad() {},
 			module() {},
 			transform() {},
+			onEnd() {},
 		});
 
 		return Object.fromEntries(

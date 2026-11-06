@@ -65,7 +65,6 @@ const initialCommand = commands[0];
 
 export default eco.page({
 	dependencies: {
-		components: [BaseLayout],
 		scripts: [
 			{
 				src: './api-lab.script.ts',

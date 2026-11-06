@@ -1,1 +1,1 @@
-export * from './base-layout';
+export { type BaseLayoutProps, BaseLayout } from './base-layout';

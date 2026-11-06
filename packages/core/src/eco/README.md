@@ -24,7 +24,9 @@ EcoPages does **not** infer layouts from `src/layouts/` file paths or route segm
 
 ## Dependency discovery
 
-Discovery is enabled by default for modules declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, as well as MDX documents compiled through `@ecopages/mdx/core`.
+Discovery is enabled by default for modules declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, as well as MDX documents compiled through `@ecopages/mdx/core`. From there it also walks the plain local modules those declarations import, so a plain function can import its own CSS.
+
+Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. Layouts still use `eco.layout()` (or `eco.component()`), and the document shell uses `eco.html()`. Everything else can be a plain function.
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -36,13 +38,13 @@ export default eco.page({
 });
 ```
 
-Direct static named/default imports of local Eco Components contribute their Dependencies transitively. Configured TypeScript path aliases and relative imports are supported for both Components and CSS stylesheets (e.g., `import '@/components/button'` or `import '@/styles/main.css'`). Side-effect CSS imports become stylesheet Dependencies; the shared transform removes the imports so the existing asset pipeline owns delivery in server and browser builds. In MDX documents, top-level component and CSS imports are discovered while markdown code blocks and dynamic imports within functions are safely ignored.
+Direct static named/default imports of local Eco Components contribute their Dependencies transitively. A static named, default or side-effect import of a plain local module is walked too: its side-effect CSS reaches the nearest declaration that imports it, and the Eco Components it imports become Components of that declaration. The walk stops at Eco modules, packages and `.server` modules. Configured TypeScript path aliases and relative imports are supported for both Components and CSS stylesheets (e.g., `import '@/components/button'` or `import '@/styles/main.css'`). Side-effect CSS imports become stylesheet Dependencies; the shared transform removes the imports so the existing asset pipeline owns delivery in server and browser builds. In MDX documents, top-level component and CSS imports are discovered while markdown code blocks and dynamic imports within functions are safely ignored.
 
 Discovery is conservative and module-scoped: every Eco declaration in a file shares its imported Components and styles, even when a render condition omits a Component. It does not infer which Components actually render. **Best practice:** author **one `eco.component()` per file**. Co-locating multiple components in a single file will cause all declared components in that file to share discovered dependencies.
 
 Imported Layouts contribute assets; only the explicit `layout` option controls Layout composition.
 
-Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Discovered stylesheets are **not** written into `config.dependencies.stylesheets`; they stay on Component identity until collection. Inferred styles follow explicit styles and are emitted once per collection. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
+Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Discovered stylesheets are **not** written into `config.dependencies.stylesheets`; they stay on Component identity until collection. Inferred styles follow explicit styles and are emitted once per collection; a stylesheet only plain modules import comes after the CSS of every declaration importing it, so a plain component's CSS under a persisted Layout stays with that Layout. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
 
 When a Page combines its own relative assets with a content entry, use `mergePageDependencies()`. Do not object-spread the two bags: spread copies `ownerFile` onto the other side's relative paths.
 
@@ -73,7 +75,15 @@ For Lit and Ecopages JSX (Radiant hosts), `ssr: true` imports the script on the 
 
 Scripts listening to client navigation events (`eco:after-swap`, `eco:page-load`) should be registered as client scripts (e.g., using `scripts: ['./component.script.ts']`) or guarded by `isServer` from `@ecopages/radiant/is-server` when used in Radiant projects where `document` is defined during SSR.
 
-Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. The imported module, the factory file, and successful named re-export hops are watch paths, so editing a child Component or retargeting a barrel updates page assets without editing the importing Page. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`; a development render fails for a component the route never declared. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
+Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. The imported module, the factory file, and successful named re-export hops are watch paths, so editing a child Component or retargeting a barrel updates page assets without editing the importing Page. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`; a development render fails for a component the route never declared. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
+
+Plain modules are walked too, and they are watch paths, so adding or removing a CSS import in a plain component refreshes the Page's stylesheets in development. The build removes their side-effect CSS imports, so server, browser, development and production builds treat them alike. These CSS imports fail the build in development and in `ecopages build`, naming the file and the import. Modules outside the app root, such as linked workspace packages, count as packages and are not checked, and a CSS Module or package stylesheet only fails in a module an Integration owns or discovery reaches:
+
+- a side-effect CSS import in a plain module that no declaration reaches (for example one imported only through `export *`, a namespace import, or a client script);
+- a CSS Module (`./card.module.css`);
+- a package stylesheet (`import 'swiper/css'`).
+
+A plain component does not cross Integrations. When a module renders a plain component that another Integration owns and the two compile JSX with different runtimes (a `@jsxImportSource` pragma wins), the build fails, names the component and both Integrations, and suggests `eco.component()`, which hands it over as a Foreign Child. Lit, which leaves the runtime to the app's tsconfig, and MDX are not checked.
 
 ## Component ownership
 
@@ -106,10 +116,10 @@ export function Card({ children, class: className }: CardProps) {
 
 - Static/presentational UI (cards, alerts, badges, layout primitives)
 - Projects using utility-first CSS (Tailwind, UnoCSS, etc.)
-- Components that only render HTML without scripts or dedicated stylesheets
+- Components that only render HTML without scripts, or that import their own stylesheet (`import './card.css'`)
 - Zero runtime cost - just functions returning markup
 
-> **Note:** If your component requires a dedicated CSS file, use `eco.component()` instead to manage the stylesheet dependency.
+> **Note:** A plain function can import its own CSS. Use `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration.
 
 ### Plain React Components
 
@@ -166,10 +176,10 @@ export function ThemeToggle() {
 **When to use:**
 
 - React components with hooks (`useState`, `useEffect`, etc.)
-- Components styled with Tailwind CSS classes
-- Interactive UI that doesn't require external scripts or dedicated stylesheets
+- Components styled with Tailwind CSS classes or with an imported stylesheet
+- Interactive UI that doesn't require external scripts
 
-> **Note:** Use `eco.component()` only when you need to manage external stylesheets, scripts, or lazy loading. For React components relying solely on hooks and Tailwind, plain functions are simpler and sufficient.
+> **Note:** Use `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. Plain functions are simpler and sufficient otherwise.
 
 ### `eco.component()` (Interactive Components)
 
@@ -189,21 +199,23 @@ export const Counter = eco.component({
 
 **When to use:**
 
-- Components with client-side interactivity
-- Components requiring scripts or stylesheets
+- Components with browser scripts or `modules`
+- Stylesheets with attributes (for example `media="print"`)
 - Lazy-loaded components with hydration strategies
-- Web components or custom elements
+- Components rendered by another Integration, or with an `integration` override
 
 ### Comparison
 
-| Aspect               | Simple JSX | Plain React    | `eco.component()` |
-| -------------------- | ---------- | -------------- | ----------------- |
-| React hooks          | No         | Yes            | Yes               |
-| Scripts/Stylesheets  | No         | No             | Yes               |
-| Lazy loading         | No         | No             | Yes               |
-| Hydration strategies | No         | No             | Yes               |
-| Runtime cost         | Zero       | Minimal        | Minimal           |
-| Use case             | Static UI  | Interactive UI | Advanced UI       |
+| Aspect                          | Simple JSX | Plain React    | `eco.component()` |
+| ------------------------------- | ---------- | -------------- | ----------------- |
+| React hooks                     | No         | Yes            | Yes               |
+| Imported stylesheets            | Yes        | Yes            | Yes               |
+| Scripts                         | No         | No             | Yes               |
+| Rendered by another Integration | No         | No             | Yes               |
+| Lazy loading                    | No         | No             | Yes               |
+| Hydration strategies            | No         | No             | Yes               |
+| Runtime cost                    | Zero       | Minimal        | Minimal           |
+| Use case                        | Static UI  | Interactive UI | Advanced UI       |
 
 All patterns can coexist in the same project. Use the right tool for the job.
 

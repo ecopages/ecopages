@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
+import { DocsLayoutBanner } from './docs-layout-banner';
 import { DocsLayoutSidebarLink } from './docs-layout-sidebar-link';
 
 export type DocsLayoutProps = {
@@ -45,6 +46,7 @@ export const DocsLayout = eco.layout<DocsLayoutProps, ReactNode>({
 			<QueryClientProvider client={queryClient}>
 				<div className="docs-layout" data-testid="docs-layout">
 					<aside className="docs-sidebar" data-testid="docs-sidebar" data-eco-persist="scroll">
+						<DocsLayoutBanner />
 						<nav>
 							<ul>
 								{sidebarItems.map((item) => (

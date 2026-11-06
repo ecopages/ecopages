@@ -1,1 +1,1 @@
-export * from './alpine-counter.kita';
+export { type AlpineCounterProps, AlpineCounter } from './alpine-counter.kita';

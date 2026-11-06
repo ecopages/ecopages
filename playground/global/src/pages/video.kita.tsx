@@ -2,10 +2,6 @@ import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 
 export default eco.page({
-	dependencies: {
-		components: [BaseLayout],
-	},
-
 	metadata: () => ({
 		title: 'Home page',
 		description: 'This is the homepage of the website',

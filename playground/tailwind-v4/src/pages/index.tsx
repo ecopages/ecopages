@@ -4,7 +4,6 @@ import { BaseLayout } from '@/layouts/base-layout';
 
 export default eco.page<{}, ReactNode>({
 	dependencies: {
-		components: [BaseLayout],
 		stylesheets: ['./index.css'],
 	},
 	render: () => {

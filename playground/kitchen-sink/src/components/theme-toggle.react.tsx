@@ -3,7 +3,6 @@ import { eco } from '@ecopages/core';
 import type { JSX } from 'react';
 
 export const ThemeToggleReact = eco.component<{}, JSX.Element>({
-	integration: 'react',
 	render: () => (
 		<button
 			id="theme-toggle"

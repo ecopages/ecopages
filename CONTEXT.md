@@ -106,12 +106,12 @@ Request-scoped data injected by middleware or the request pipeline (e.g., authen
 _Avoid_: Request context, server context
 
 **Dependencies**:
-Metadata describing what a Component needs to render correctly: stylesheets, scripts, and nested Components. Explicit declarations and supported static imports both supply this metadata; the dependency pipeline decides which assets to inject. JavaScript imports retain their module execution semantics.
+Metadata describing what a Component needs to render correctly: stylesheets, scripts, and nested Components. Explicit declarations and supported static imports both supply this metadata, including the imports of plain function components, which belong to the nearest declared Component, Layout or Page importing them. Wrap a Component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration; Layouts and the Html shell stay declared. The dependency pipeline decides which assets to inject. JavaScript imports retain their module execution semantics.
 _Avoid_: Requirements, imports
 
 **Foreign Child**:
 A child Component encountered during render whose owning Integration differs from the current Integration. A Foreign Child cannot be rendered inline by the current Integration and must be handed off for resolution by the owning Integration.
-Its owner is resolved from `config.integration`, then the Component's build-time identity, then the inherited owner.
+Its owner is resolved from `config.integration`, then the Component's build-time identity, then the inherited owner. Only a declared Component can be a Foreign Child. The build catches a plain function component rendered by another Integration when the two Integrations compile JSX with different runtimes (a plain React component in a Kita or Ecopages JSX Page); Lit pages and MDX are not checked.
 _Avoid_: Boundary, cross-integration child
 
 **Foreign Subtree**:
@@ -160,7 +160,7 @@ _Avoid_: URL list, crawl map
 - Each **Page** receives context: **Params** (from dynamic routes), **Query** (from URL), and optionally **Locals** (from middleware)
 - An **Integration** owns rendering for a specific file extension; multiple Integrations coexist as peers
 - A **Processor** owns transformation of non-page assets (e.g., stylesheets); Integrations and Processors are distinct
-- **Dependencies** combine explicit declarations with discovery of direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports. Explicit asset settings take precedence; inferred stylesheet provenance stays on Component identity until collection. Scripts retain explicit server and browser loading policy. Merging Page and content Dependencies keeps each file's contribution so relative assets resolve against the file that declared them.
+- **Dependencies** combine explicit declarations with discovery of direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports, walking through plain local modules to the side-effect CSS and Eco Components they import. Inside the app root, a plain module's side-effect CSS import that no declaration reaches fails the build; so does a CSS Module or a package stylesheet in a module an Integration owns or discovery reaches. Explicit asset settings take precedence; inferred stylesheet provenance stays on Component identity until collection. Scripts retain explicit server and browser loading policy. Merging Page and content Dependencies keeps each file's contribution so relative assets resolve against the file that declared them.
 - When an **Integration** encounters a **Foreign Child**, it must hand off the corresponding **Foreign Subtree** to the owning **Integration** before final HTML is returned
 - Each **Page** may produce one **Page Browser Graph**, including any lazy browser entries that belong to that Page
 - An **Integration** may apply an **SSR Policy** per Page or Component without forcing one global browser runtime bundle for every Page

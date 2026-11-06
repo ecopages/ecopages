@@ -531,6 +531,7 @@ order: 2
 				onLoad() {},
 				module() {},
 				transform() {},
+				onEnd() {},
 			} as EcoBuildPluginBuilder);
 
 		const resolver = resolvers.find(({ filter }) => filter.test('ecopages:content/docs'));
@@ -594,6 +595,7 @@ order: 2
 				onLoad() {},
 				module() {},
 				transform() {},
+				onEnd() {},
 			} as EcoBuildPluginBuilder);
 		const resolveServerModule = () =>
 			resolvers
@@ -661,6 +663,7 @@ order: 2
 					onLoad() {},
 					module() {},
 					transform() {},
+					onEnd() {},
 				} as EcoBuildPluginBuilder);
 			}
 			return resolvers.find(({ filter }) => filter.test(specifier))?.callback({ path: specifier });

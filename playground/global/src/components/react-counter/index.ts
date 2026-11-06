@@ -1,1 +1,1 @@
-export * from './react-counter.react';
+export { type ReactCounterProps, ReactCounter } from './react-counter.react';

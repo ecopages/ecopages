@@ -1,12 +1,11 @@
-import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 
 export type LogoProps = Partial<Pick<HTMLAnchorElement, 'href' | 'target' | 'title'>> & {
 	children?: JsxRenderable;
 };
 
-export const Logo = eco.component<LogoProps, JsxRenderable>({
-	render: ({ children = 'Ecopages', href = '/', target, title }) => (
+export function Logo({ children = 'Ecopages', href = '/', target, title }: LogoProps): JsxRenderable {
+	return (
 		<a href={href} target={target} title={title} class="site-logo">
 			<svg height="28" viewBox="0 0 35 42" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 				<path
@@ -18,5 +17,5 @@ export const Logo = eco.component<LogoProps, JsxRenderable>({
 			</svg>
 			{children}
 		</a>
-	),
-});
+	);
+}

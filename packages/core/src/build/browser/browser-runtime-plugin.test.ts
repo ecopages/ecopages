@@ -63,6 +63,7 @@ function setupPlugin(
 		},
 		module() {},
 		transform() {},
+		onEnd() {},
 	});
 }
 

@@ -35,6 +35,7 @@ function createPluginTestHarness(
 		},
 		module: (_specifier, _callback) => {},
 		transform: () => {},
+		onEnd: () => {},
 	};
 
 	const plugin = createClientGraphBoundaryPlugin(pluginOptions);
@@ -140,6 +141,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 			onLoad: (options, callback) => registrations.push({ options, callback }),
 			module: () => {},
 			transform: () => {},
+			onEnd: () => {},
 		};
 
 		try {
@@ -223,6 +225,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 			onLoad: (options, callback) => registrations.push({ options, callback }),
 			module: () => {},
 			transform: () => {},
+			onEnd: () => {},
 		};
 
 		try {
@@ -276,6 +279,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 			onLoad: (options, callback) => registrations.push({ options, callback }),
 			module: () => {},
 			transform: () => {},
+			onEnd: () => {},
 		};
 
 		try {

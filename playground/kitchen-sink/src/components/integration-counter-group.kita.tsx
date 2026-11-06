@@ -12,10 +12,6 @@ type IntegrationCounterGroupProps = {
 };
 
 export const IntegrationCounterGroup = eco.component<IntegrationCounterGroupProps, EcoPagesElement>({
-	integration: 'kitajs',
-	dependencies: {
-		components: [KitaCounter, LitCounter, ReactCounter, RadiantCounterComponent],
-	},
 	render: ({ testId, radiantId }) => (
 		<div class="flex flex-wrap gap-3" data-testid={testId}>
 			<KitaCounter />

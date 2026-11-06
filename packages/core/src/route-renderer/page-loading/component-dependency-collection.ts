@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { DependencyLazyTrigger, EcoComponent, EcoComponentDependencies } from '../../types/contracts.ts';
 import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';
-import { getInferredStylesheets } from '../../eco/discovered-dependencies.ts';
+import { getDiscoveredStylesheets } from '../../eco/discovered-dependencies.ts';
 import type { AssetDefinition } from '../../assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { extractEcopagesVirtualImports } from './ecopages-virtual-imports.ts';
@@ -94,7 +94,7 @@ type ComponentDependencyCollectionContext = {
 	lazyScriptsByConfig: Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>;
 	lazyDependencyKeys: Set<string>;
 	visited: Set<NonNullable<EcoComponent['config']>>;
-	inferredStyles: Array<{ dir: string; src: string }>;
+	inferredStyles: InferredStyle[];
 	explicitStylePaths: Set<string>;
 	stylesheetDependencyKeys: Set<string>;
 	scriptDependencyKeys: Set<string>;
@@ -132,11 +132,39 @@ function recordExplicitAndInferredStyles(
 		if (src) context.explicitStylePaths.add(resolveDependencyPath(dir, src));
 	}
 
-	for (const src of getInferredStylesheets(config)) {
-		context.inferredStyles.push({ dir, src });
+	const discovered = getDiscoveredStylesheets(config);
+	for (const src of discovered.imported) {
+		context.inferredStyles.push({ dir, src, plainModule: false });
+	}
+	for (const src of discovered.plainModules) {
+		context.inferredStyles.push({ dir, src, plainModule: true });
 	}
 
 	return explicitStyles;
+}
+
+type InferredStyle = { dir: string; src: string; plainModule: boolean };
+
+/**
+ * Orders inferred stylesheets once each, leaving out paths with an explicit entry.
+ *
+ * @remarks
+ * A declaration's own import keeps its first position. A stylesheet that only plain modules import takes
+ * the position of its last occurrence, so it follows the CSS of every declaration that imports its module.
+ */
+function orderInferredStylesheets(styles: InferredStyle[], explicitStylePaths: ReadonlySet<string>): string[] {
+	const positions = new Map<string, { index: number; plainModule: boolean }>();
+	styles.forEach(({ dir, src, plainModule }, index) => {
+		const filepath = resolveDependencyPath(dir, src);
+		if (explicitStylePaths.has(filepath)) return;
+		const known = positions.get(filepath);
+		if (!known || (known.plainModule && !plainModule)) {
+			positions.set(filepath, { index, plainModule });
+		} else if (known.plainModule) {
+			known.index = index;
+		}
+	});
+	return [...positions].sort(([, left], [, right]) => left.index - right.index).map(([filepath]) => filepath);
 }
 
 /**
@@ -226,7 +254,7 @@ function collectNestedComponentDependencies(
  * @remarks
  * Explicit stylesheet declarations are collected first across the graph. Inferred
  * stylesheets are read from component identity afterward and skipped when the same
- * resolved path already has an explicit entry. The returned structures preserve both
+ * resolved path already has an explicit entry (see {@link orderInferredStylesheets}). The returned structures preserve both
  * the flat asset list used by asset processing and the grouped lazy-trigger data used
  * later during render output.
  */
@@ -246,7 +274,7 @@ export function collectComponentDependencies(
 	const lazyScriptsByConfig = new Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>();
 	const lazyDependencyKeys = new Set<string>();
 	const visited = new Set<NonNullable<EcoComponent['config']>>();
-	const inferredStyles: Array<{ dir: string; src: string }> = [];
+	const inferredStyles: InferredStyle[] = [];
 	const explicitStylePaths = new Set<string>();
 	const modulesMap = new Map<string, Set<string> | null>();
 	const preparedStylesheetDependencyKeys = skipNestedComponents ? new Set<string>() : undefined;
@@ -280,10 +308,7 @@ export function collectComponentDependencies(
 	}
 	dependencies.push(...createModuleDependencies(modulesMap));
 
-	for (const { dir, src } of inferredStyles) {
-		const filepath = resolveDependencyPath(dir, src);
-		if (explicitStylePaths.has(filepath)) continue;
-		explicitStylePaths.add(filepath);
+	for (const filepath of orderInferredStylesheets(inferredStyles, explicitStylePaths)) {
 		dependencies.push(
 			AssetFactory.createFileStylesheet({ filepath, position: 'head', attributes: { rel: 'stylesheet' } }),
 		);

@@ -2,10 +2,6 @@ import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 
 export default eco.page({
-	dependencies: {
-		components: [BaseLayout],
-	},
-
 	metadata: () => ({
 		title: 'Video Detail',
 		description: 'This is a detail page of a video',

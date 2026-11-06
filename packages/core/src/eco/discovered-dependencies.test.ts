@@ -65,6 +65,43 @@ describe('discovered dependency graph', () => {
 		expect(styles[1]).toMatchObject({ filepath: '/app/last.css' });
 		expect(styles[2]).toMatchObject({ filepath: '/app/extra.css' });
 	});
+	it('links a plain component stylesheet once, after the CSS of every declaration importing it', () => {
+		const badge = eco.component(
+			bindComponentIdentity(
+				identity('badge.ts'),
+				{ render: () => '' },
+				{ components: () => [], stylesheets: ['./badge.css'], plainModuleStylesheets: ['./card.css'] },
+			),
+		);
+		const page = eco.component(
+			bindComponentIdentity(
+				identity('page.ts'),
+				{ render: () => '' },
+				{ components: () => [badge], stylesheets: ['./page.css'], plainModuleStylesheets: ['./card.css'] },
+			),
+		);
+		const styles = collect([page]).dependencies.map((asset) => (asset as { filepath?: string }).filepath);
+		expect(styles).toEqual(['/app/page.css', '/app/badge.css', '/app/card.css']);
+		expect(collectDependencyWatchPaths('/app/page.ts', [page])).toContain('/app/card.css');
+	});
+	it('keeps a plain component stylesheet next to the only declaration importing it', () => {
+		const child = eco.component(
+			bindComponentIdentity(
+				identity('child.ts'),
+				{ render: () => '' },
+				{ components: () => [], stylesheets: ['./child.css'] },
+			),
+		);
+		const html = eco.component(
+			bindComponentIdentity(
+				identity('html.ts'),
+				{ render: () => '' },
+				{ components: () => [child], stylesheets: ['./html.css'], plainModuleStylesheets: ['./head.css'] },
+			),
+		);
+		const styles = collect([html]).dependencies.map((asset) => (asset as { filepath?: string }).filepath);
+		expect(styles).toEqual(['/app/html.css', '/app/head.css', '/app/child.css']);
+	});
 	it('supports absolute paths in discovered stylesheets', () => {
 		const inferred = eco.component(
 			bindComponentIdentity(

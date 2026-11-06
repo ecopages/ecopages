@@ -7,7 +7,6 @@ type RadiantCounterComponentProps = RadiantCounterProps & {
 };
 
 export const RadiantCounter = eco.component<RadiantCounterComponentProps, EcoPagesElement>({
-	integration: 'kitajs',
 	dependencies: {
 		stylesheets: ['./integration-counter.css', './radiant-counter.css'],
 		scripts: [{ src: './radiant-counter-element.script.ts', ssr: true }],

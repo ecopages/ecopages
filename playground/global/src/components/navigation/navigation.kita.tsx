@@ -1,4 +1,4 @@
-import { eco } from '@ecopages/core';
+import './navigation.css';
 
 export type NavigationProps = {
 	items: {
@@ -7,12 +7,8 @@ export type NavigationProps = {
 	}[];
 };
 
-export const Navigation = eco.component<NavigationProps>({
-	dependencies: {
-		stylesheets: ['./navigation.css'],
-	},
-
-	render: ({ items }) => (
+export function Navigation({ items }: NavigationProps) {
+	return (
 		<nav class="navigation">
 			<ul>
 				{items.map(({ label, url }) => (
@@ -22,5 +18,5 @@ export const Navigation = eco.component<NavigationProps>({
 				))}
 			</ul>
 		</nav>
-	),
-});
+	);
+}

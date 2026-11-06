@@ -69,7 +69,7 @@ scripts: [{
 
 For Lit and Ecopages JSX (Radiant hosts), `ssr: true` imports the script on the server before rendering so `customElements.define` runs without a separate value import in the component file. Only those integrations run SSR preload today; other renderers ignore `ssr: true` until they adopt the same preloader. `lazy` controls browser delivery only; it does not suppress server import. Lazy entries with `ssr: true` do not emit a duplicate eager browser script—browser delivery follows `lazy`, or loads eagerly when `lazy` is omitted. String-form `scripts: ['./file.ts']` stays browser-only unless you opt in with `{ src, ssr: true }`.
 
-Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
+Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain function modules are walked as well: their side-effect CSS reaches the nearest declaration importing them, the Eco Components they import become Components of that declaration, and the walk stops at Eco modules, packages and `.server` modules. A plain module's CSS import inside the app that no declaration reaches fails the build with the file and the import named, and so does a CSS Module or a package stylesheet in a module an Integration owns or discovery reaches. A plain component rendered by another Integration fails the build when the two Integrations compile JSX with different runtimes (a plain React component in a Kita or Ecopages JSX Page); Lit pages and MDX are not checked; wrap it in `eco.component()` to hand it over as a Foreign Child. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
 
 ## Component Patterns
 
@@ -112,7 +112,7 @@ While `eco.component()` is the default, there are specific scenarios where light
 
 ### Simple JSX Functions (Optimization)
 
-For purely presentational components (static UI) that **do not require** client-side interactivity, scripts, or dedicated stylesheets, you can use plain JSX functions. This is a performance optimization that avoids the overhead of a custom element wrapper and works especially well with utility-first CSS where styles are expressed inline through class names.
+For purely presentational components (static UI) that **do not require** client-side scripts, you can use plain JSX functions, and they may import their own stylesheet. This is a performance optimization that avoids the overhead of a custom element wrapper and works especially well with utility-first CSS where styles are expressed inline through class names. Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. Layouts use `eco.layout()` and the document shell uses `eco.html()`; every other component can be a plain function.
 
 ```tsx
 import type { PropsWithChildren } from '@/types';
@@ -127,10 +127,10 @@ export function Card({ children, className }: PropsWithChildren<{ className?: st
 
 - Static/presentational UI (cards, alerts, badges, layout primitives)
 - Projects using utility-first CSS (Tailwind, UnoCSS, etc.)
-- Components that only render HTML without scripts or dedicated stylesheets
+- Components that only render HTML without scripts, or that import their own stylesheet (`import './card.css'`)
 - Zero runtime cost - just functions returning markup
 
-> **Note:** If your component requires a dedicated CSS file, use `eco.component()` instead to manage the stylesheet dependency.
+> **Note:** Use `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration.
 
 ### Plain React Components (Integration)
 
@@ -138,7 +138,7 @@ You can use standard React components directly if they only rely on hooks (`useS
 
 Powered by [`@ecopages/react`](https://github.com/ecopages/react).
 
-> **Warning:** These components **cannot** declare external dependencies (scripts/stylesheets) or use EcoPages' lazy loading strategies directly. For those features, wrap them in `eco.component()`.
+> **Warning:** These components **cannot** declare scripts or use EcoPages' lazy loading strategies directly, and a page of another Integration cannot render them. For those features, wrap them in `eco.component()`. A side-effect CSS import (`import './counter.css'`) works without a wrapper.
 >
 > **Important:** Plain React functions are **not** valid as `eco.page({ layout })` values or as `dependencies.components` entries. The renderer validates that dependency graph nodes are **declared** components (`eco.component()`, `eco.layout()`, or `eco.html()`) with bound `config.identity`. Use `eco.layout()` for route wrappers instead of ad-hoc functions.
 
@@ -165,14 +165,16 @@ export function Counter() {
 - Complex state logic within a single component
 - When you are already using the React integration
 
-> **Note:** If you need to attach external assets or lazy-load the component, switch to `eco.component()`.
+> **Note:** Use `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration.
 
 ### Comparison
 
 | Aspect | Simple JSX | Plain React | `eco.component()` |
 | :--- | :--- | :--- | :--- |
 | React hooks | No | Yes | Yes |
-| Scripts/Stylesheets | No | No | Yes |
+| Imported stylesheets | Yes | Yes | Yes |
+| Scripts | No | No | Yes |
+| Rendered by another Integration | No | No | Yes |
 | Lazy loading | No | No | Yes |
 | Hydration strategies | No | No | Yes |
 | Runtime cost | Zero | Minimal | Minimal |

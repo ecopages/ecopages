@@ -3,7 +3,6 @@ import { eco } from '@ecopages/core';
 import type { EcoPagesElement } from '@ecopages/core';
 
 export const KitaCounter = eco.component<{}, EcoPagesElement>({
-	integration: 'kitajs',
 	dependencies: {
 		stylesheets: ['./integration-counter.css', './kita-counter.css'],
 		scripts: [

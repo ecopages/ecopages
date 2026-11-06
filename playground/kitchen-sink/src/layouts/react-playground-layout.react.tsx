@@ -6,7 +6,6 @@ import type { ReactNode } from 'react';
 
 export const ReactPlaygroundLayout = eco.layout<ReactNode>({
 	dependencies: {
-		components: [ThemeToggleReact],
 		scripts: ['./base-layout/base-layout.script.ts'],
 	},
 	render: ({ children, locals }) => {

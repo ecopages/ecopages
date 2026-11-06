@@ -3,10 +3,6 @@ import type { ErrorPageTemplateProps } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout.kita';
 
 export default eco.page<ErrorPageTemplateProps>({
-	dependencies: {
-		components: [BaseLayout],
-	},
-
 	render: () => {
 		return (
 			<BaseLayout>

@@ -3,9 +3,6 @@ import type { ErrorPageTemplateProps } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 
 export default eco.page<ErrorPageTemplateProps>({
-	dependencies: {
-		components: [BaseLayout],
-	},
 	layout: BaseLayout,
 	metadata: () => ({
 		title: 'Server Error',

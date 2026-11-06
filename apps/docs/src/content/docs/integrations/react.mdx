@@ -70,9 +70,9 @@ export const Counter = eco.component({
 
 ### Plain React Components
 
-You can also write standard React components directly when they only need React runtime behavior and do not need Ecopages-managed dependency declarations.
+You can also write standard React components directly when they only need React runtime behavior. A plain component can import its own stylesheet (`import './counter.css'`): Ecopages hands it to the nearest declared component, layout or page that imports the component.
 
-**This is especially useful if you are using Tailwind CSS**, as you do not need to attach specific stylesheets or declare dependencies.
+Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. Layouts use `eco.layout()` and the document shell uses `eco.html()`; every other component can be a plain function. A page of another Integration cannot render a plain React component; for a Kita or Ecopages JSX page the build fails and suggests `eco.component()`, which renders it as a Foreign Child.
 
 ```tsx
 import { useState } from 'react';

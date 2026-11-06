@@ -123,6 +123,7 @@ test('createAliasResolverPlugin resolves tsconfig path aliases to concrete barre
 			onLoad() {},
 			module() {},
 			transform() {},
+			onEnd() {},
 		});
 
 		assert.ok(registrations.length > 0);

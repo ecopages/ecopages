@@ -87,6 +87,7 @@ describe('content-plugins', () => {
 			onLoad() {},
 			module() {},
 			transform() {},
+			onEnd() {},
 		} as EcoBuildPluginBuilder);
 		await Promise.all(pending);
 
@@ -107,6 +108,7 @@ describe('content-plugins', () => {
 			onLoad() {},
 			module() {},
 			transform() {},
+			onEnd() {},
 		} as EcoBuildPluginBuilder);
 
 		expect(matched).toEqual([]);
@@ -136,6 +138,7 @@ describe('content-plugins', () => {
 			onLoad() {},
 			module() {},
 			transform() {},
+			onEnd() {},
 		} as EcoBuildPluginBuilder);
 		await Promise.all(pending);
 

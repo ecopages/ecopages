@@ -123,6 +123,37 @@ test('invalidates discovered CSS after import addition, edit and removal @hmr', 
 	}
 });
 
+test('updates page stylesheets after a plain component import edit @hmr', async ({ page, app }) => {
+	test.setTimeout(210_000);
+	const componentFile = path.join(app.dir, 'src/components/dependency-discovery/plain-card.react.tsx');
+	const originalComponent = readFileSync(componentFile, 'utf8');
+	const card = page.locator('.discovery-plain-card').first();
+	const diagnostics = captureFailureDiagnostics(page, app);
+	try {
+		const hmrReady = startEcopagesHmrConnectionWatch(page);
+		await gotoPathSimple(page, '/discovery-plain');
+		await hmrReady;
+		await expect(card).toHaveCSS('border-bottom-width', '0px');
+		diagnostics.mark('adding CSS import to the plain component');
+		writeFileSync(
+			componentFile,
+			originalComponent.replace(
+				`import './plain-card.css';`,
+				`import './plain-card.css';\nimport './plain-extra.css';`,
+			),
+		);
+		await expect(card).toHaveCSS('border-bottom-width', '4px', { timeout: HMR_FULL_RELOAD_ASSERT_TIMEOUT_MS });
+		diagnostics.mark('removing CSS import from the plain component');
+		writeFileSync(componentFile, originalComponent);
+		await expect(card).toHaveCSS('border-bottom-width', '0px', { timeout: HMR_FULL_RELOAD_ASSERT_TIMEOUT_MS });
+	} catch (error) {
+		diagnostics.reportFailure(error);
+		throw error;
+	} finally {
+		writeFileSync(componentFile, originalComponent);
+	}
+});
+
 test('invalidates discovered CSS after a live barrel retarget without editing the page @hmr', async ({ page, app }) => {
 	test.setTimeout(210_000);
 	const barrelFile = path.join(app.dir, 'src/components/dependency-discovery/barrel/index.ts');

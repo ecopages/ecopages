@@ -4,7 +4,6 @@ import { BaseLayout } from '@/layouts/base-layout';
 export default eco.page({
 	dependencies: {
 		stylesheets: ['./plain-css.css'],
-		components: [BaseLayout],
 	},
 
 	metadata: () => ({

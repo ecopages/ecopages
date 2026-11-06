@@ -67,6 +67,9 @@ Ecopages injects scripts and CSS by walking declared Component Dependencies.
 In modules that declare `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, and in MDX compiled through `@ecopages/mdx/core`:
 
 - Direct local Eco Component imports and relative or aliased side-effect CSS imports are discovered automatically.
+- Plain function components are followed too: their side-effect CSS reaches the page through the nearest declared component, layout or page that imports them, and editing their imports in development refreshes the page's stylesheets.
+- In development and in `ecopages build`, the build fails, naming the file and the import, for a plain module's CSS import inside the app that no declaration reaches, and for a CSS Module or a package stylesheet in a module an Integration owns or discovery reaches. Modules outside the app root, such as linked workspace packages, are treated as packages and not checked.
+- Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. Layouts use `eco.layout()` and the document shell uses `eco.html()`; every other component can be a plain function.
 - Browser scripts stay explicit in `dependencies.scripts`. Ecopages does **not** detect script files by name pattern.
 - Explicit `dependencies.stylesheets` entries override discovered references to the same resolved file (for example `media="print"`). Discovered CSS is not copied into that array.
 

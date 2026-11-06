@@ -139,7 +139,6 @@ const HomeFooterColumn = ({ title, links }: HomeFooterColumnData) => (
 export default eco.page<{}, JsxRenderable>({
 	layout: BaseLayout,
 	dependencies: {
-		components: [CodeTabs],
 		stylesheets: ['./index.css'],
 	},
 	metadata: () => ({

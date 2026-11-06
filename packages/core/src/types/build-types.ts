@@ -96,6 +96,13 @@ export interface EcoBuildPluginBuilder {
 			id: string,
 		) => EcoBuildOnTransformResult | string | undefined | Promise<EcoBuildOnTransformResult | string | undefined>,
 	): void;
+	/**
+	 * Registers a check that runs once every module of the build is transformed.
+	 *
+	 * @remarks
+	 * It does not run when the build already failed. A thrown error fails the build.
+	 */
+	onEnd(callback: () => void | Promise<void>): void;
 }
 
 /**

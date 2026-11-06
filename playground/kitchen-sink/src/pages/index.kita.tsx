@@ -64,9 +64,6 @@ const featureMatrix = [
 ];
 
 export default eco.page({
-	dependencies: {
-		components: [BaseLayout],
-	},
 	layout: BaseLayout,
 	metadata: () => ({
 		title: 'Kitchen Sink',

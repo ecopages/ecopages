@@ -26,7 +26,10 @@ const args = [
 	'docs-starter',
 	'--project',
 	'llm-wiki',
-	...excludes.flatMap((file) => ['--exclude', file]),
 ];
-const result = spawnSync('pnpm', args, { stdio: 'inherit', shell: process.platform === 'win32' });
+const result = spawnSync('pnpm', args, {
+	stdio: 'inherit',
+	shell: process.platform === 'win32',
+	env: { ...process.env, ECOPAGES_VITEST_EXCLUDE: excludes.join('\n') },
+});
 process.exit(result.status ?? 1);

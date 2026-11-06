@@ -167,5 +167,6 @@ interface HMRPayload {
 		});
 	}
 
+	getEcoNavigationRuntime(window).enableReloadStatePreservation();
 	connect();
 })();

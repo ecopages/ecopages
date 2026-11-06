@@ -51,7 +51,7 @@ export const HmrStrategyType = {
 
 	/**
 	 * Fallback strategy for unhandled file types.
-	 * Lowest priority, triggers full page reload.
+	 * Lowest priority, evaluated after integration and script strategies.
 	 */
 	FALLBACK: 0,
 } as const;

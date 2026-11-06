@@ -3,7 +3,7 @@ import type { EcoNavigationEvent } from '@ecopages/core/client';
 import { commitNavigationPage } from '@ecopages/core/client';
 import { manageWindowScroll } from '@ecopages/core/client';
 import type { EcoNavigationOwner } from '@ecopages/core/client';
-import { morphBody } from './dom/body-morpher.ts';
+import { morphBody, recordInitialServerMarkup, type ServerMarkup } from './dom/body-morpher.ts';
 import type { PrefetchManager } from './services/prefetch-manager.ts';
 import type { EcoRouterOptions } from './types.ts';
 import { resolveNavigationReloadDecision } from './navigation-commit-reload.ts';
@@ -14,6 +14,8 @@ export type NavigationCommitOptions = {
 	isStaleNavigation?: () => boolean;
 	isSupersededNavigation?: () => boolean;
 	allowFullDocumentFallback?: boolean;
+	/** Set when the router reloads the current page; ignored when the response ends on another URL. */
+	reload?: boolean;
 };
 
 type CommitOwnerContext = {
@@ -36,16 +38,35 @@ function resolveCommitOwnerContext(
 	return { currentDocumentOwner, shouldCleanupCurrentOwner };
 }
 
+function isSameDocumentUrl(left: URL, right: URL): boolean {
+	return left.origin === right.origin && left.pathname === right.pathname && left.search === right.search;
+}
+
 /**
  * Commits a fetched document into the live page and dispatches navigation lifecycle events.
  */
 export class NavigationCommit {
 	private readonly prefetchManager: PrefetchManager | null;
 	private readonly options: Required<EcoRouterOptions>;
+	private serverMarkup: ServerMarkup | undefined;
 
 	constructor(prefetchManager: PrefetchManager | null, options: Required<EcoRouterOptions>) {
 		this.prefetchManager = prefetchManager;
 		this.options = options;
+	}
+
+	/**
+	 * Starts tracking the server markup of each body element, so a reload of the current URL keeps the elements
+	 * whose markup did not change.
+	 *
+	 * @remarks
+	 * Off until development HMR asks for it, so production navigations do no copying. The current body is the
+	 * first baseline.
+	 */
+	trackServerMarkup(): void {
+		if (this.serverMarkup) return;
+		this.serverMarkup = new WeakMap();
+		recordInitialServerMarkup(this.serverMarkup);
 	}
 
 	async commit(
@@ -56,6 +77,7 @@ export class NavigationCommit {
 	): Promise<boolean> {
 		const allowFullDocumentFallback = options.allowFullDocumentFallback ?? true;
 		const previousUrl = new URL(window.location.href);
+		const reload = options.reload === true && isSameDocumentUrl(url, previousUrl);
 		const navigationRuntime = getEcoNavigationRuntime(window);
 		const isStaleNavigation = options.isStaleNavigation ?? (() => false);
 		const { currentDocumentOwner, shouldCleanupCurrentOwner } = resolveCommitOwnerContext(
@@ -93,7 +115,7 @@ export class NavigationCommit {
 			},
 			swap: () => {
 				syncDocumentElementAttributes(document, newDocument, this.options.documentElementAttributesToSync);
-				morphBody(newDocument, this.options.persistAttribute);
+				morphBody(newDocument, this.options.persistAttribute, { serverMarkup: this.serverMarkup, reload });
 			},
 			onSwapped: () => {
 				navigationRuntime.adoptDocumentOwner(newDocument, 'browser-router');

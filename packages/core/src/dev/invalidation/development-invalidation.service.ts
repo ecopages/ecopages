@@ -417,6 +417,15 @@ export class DevelopmentInvalidationService {
 		return isPathInside(resolvedPath, viewsDir) && this.isSourceFile(resolvedPath);
 	}
 
+	/** Returns whether a file under the source directory has an integration template extension. */
+	isTemplateSourceFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		return (
+			isPathInside(resolvedPath, this.appConfig.absolutePaths.srcDir) &&
+			this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))
+		);
+	}
+
 	/**
 	 * Returns whether the file is a route source file.
 	 */

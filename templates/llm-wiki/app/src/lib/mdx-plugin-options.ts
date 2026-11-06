@@ -1,10 +1,11 @@
 import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
 import remarkGfm from 'remark-gfm';
+import { remarkMermaid } from './remark-mermaid';
 import { remarkWikiLinks } from './wiki/remark-links';
 
 /** MDX plugin options wired into `ecopagesJsxPlugin({ mdx: mdxPluginOptions })`. */
 export const mdxPluginOptions = {
 	...withContentMdxPlugins({
-		remarkPlugins: [remarkGfm, remarkWikiLinks],
+		remarkPlugins: [remarkGfm, remarkWikiLinks, remarkMermaid],
 	}),
 };

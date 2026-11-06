@@ -92,6 +92,19 @@ Controls the order of wiki pages in this category.
 
 When you add or rename a page, update the category's `sortspec.md` to include it in the desired position.
 
+## Diagrams
+
+Write diagrams as fenced `mermaid` blocks. The site renders them to inline SVG at build time, and Obsidian renders the same blocks.
+
+````markdown
+```mermaid
+flowchart LR
+  Source --> Page
+```
+````
+
+Keep a diagram valid: a block Pele cannot parse fails the site build with the file and position. Add a short sentence before it saying what it shows, since agents reading the markdown see only the source.
+
 ## Frontmatter
 
 ```yaml

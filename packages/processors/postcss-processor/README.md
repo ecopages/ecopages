@@ -4,7 +4,7 @@ PostCSS processing pipeline for Ecopages. It provides a processor plugin that se
 
 ## Features
 
-Build contributions use one `plugins(app)` method. The PostCSS plugin list loads on the first stylesheet transform. Browser-specific CSS hooks declare `environments: ['browser']`; runtime CSS hooks remain available to both environments.
+Build contributions use one `plugins(app)` method. The PostCSS plugin list loads on the first stylesheet transform. The one build loader declares `environments: ['browser']` and runs PostCSS on every stylesheet a browser build imports. Server builds replace stylesheet imports with an empty module before any plugin loads them, so the Processor registers nothing for them.
 
 - **Ecopages Processor Plugin**: Hook right into the build pipeline. In production, processed CSS is persisted under a name derived from a hash of the output bytes.
 - **Tailwind Presets**: Pre-configured pipelines for Tailwind CSS v3 and v4.

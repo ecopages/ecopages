@@ -150,12 +150,12 @@ async function refreshIntegrationDependencies(appConfig: EcoPagesAppConfig): Pro
 }
 
 /**
- * Restores the app-wide browser build `ecopages build` recorded in the asset ledger, if it wrote one.
+ * Restores the app-wide browser build `ecopages build` recorded in the asset ledger.
  *
  * @remarks
  * Rendering then resolves every script that build bundled through the ledger. With `seal`, as `ecopages start` from
- * a complete `dist/` restores it, every dependency resolves through the ledger and one it does not record is an
- * error, so start compiles and writes nothing. The Lit static-render worker restores without sealing: it renders
+ * a complete `dist/` restores it, a missing ledger is an error. Every dependency then resolves through the ledger,
+ * one it does not record is an error, and start compiles and writes nothing. The Lit static-render worker restores without sealing: it renders
  * during the build, which still processes what the ledger does not yet record.
  */
 export async function restoreProductionBrowserBuild(
@@ -164,7 +164,12 @@ export async function restoreProductionBrowserBuild(
 ): Promise<boolean> {
 	if (!shouldPrebuildProductionPageBrowserGraphs()) return false;
 	const restored = restoreProductionAssetLedger(appConfig);
-	if (!restored) return false;
+	if (!restored) {
+		if (options.seal) {
+			throw new Error('The production asset ledger is missing. Run `ecopages build` again.');
+		}
+		return false;
+	}
 	setPrebuiltHtmlPageModuleScriptUrls(appConfig, restored.htmlPageModuleScriptUrls);
 	if (options.seal) requireAppRuntime(appConfig).processedAssets.seal();
 	await refreshIntegrationDependencies(appConfig);

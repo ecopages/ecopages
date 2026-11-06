@@ -235,6 +235,17 @@ test('restoreProductionBrowserBuild restores and seals the asset ledger and HTML
 	assert.equal(runtime.processedAssets.lookup(island)?.filepath, islandAsset.filepath);
 });
 
+test('restoreProductionBrowserBuild refuses to seal without a ledger, and the worker may restore none', async () => {
+	const appConfig = await createAppConfig();
+
+	await assert.rejects(
+		restoreProductionBrowserBuild(appConfig, { seal: true }),
+		/asset ledger is missing\. Run `ecopages build` again\./,
+	);
+	assert.equal(await restoreProductionBrowserBuild(appConfig, { seal: false }), false);
+	assert.equal(requireAppRuntime(appConfig).processedAssets.isSealed, false);
+});
+
 test('restoreProductionBrowserBuild leaves the ledger open for the Lit static-render worker', async () => {
 	const appConfig = await createAppConfig();
 	writeProductionAssetLedger(appConfig, new Map());

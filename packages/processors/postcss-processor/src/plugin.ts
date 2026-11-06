@@ -105,7 +105,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	private readonly trackedCssFiles = new Set<string>();
 	private watchQueue: Promise<void> = Promise.resolve();
 
-	private readonly hashedCssOutputBySource = new Map<string, string>();
 	/**
 	 * Maps an imported CSS file path → set of tracked CSS entry files that import it.
 	 * Used to resolve which parent entry files need re-processing when a dependency changes.
@@ -148,32 +147,17 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
 	}
 
-	private readProcessedCssFromDist(filePath: string): string | null {
-		const hashedOutputPath = this.hashedCssOutputBySource.get(filePath);
-		const outputPath =
-			hashedOutputPath ??
-			(this.context && this.isCssInsideSrc(filePath)
-				? path.join(this.context.distDir, 'assets', path.relative(this.context.srcDir, filePath))
-				: null);
-		if (!outputPath || !fileSystem.exists(outputPath)) {
-			return null;
-		}
-
-		return fileSystem.readFileAsBuffer(outputPath).toString('utf-8');
-	}
-
 	private async persistProcessedCss(filePath: string, css: string): Promise<void> {
 		if (!this.context || !this.isCssInsideSrc(filePath)) {
 			return;
 		}
 
 		if (isProductionRuntime()) {
-			const outputPath = writeHashedBrowserAsset({
+			writeHashedBrowserAsset({
 				bytes: css,
 				directory: path.join(this.context.distDir, 'assets'),
 				extension: '.css',
 			});
-			this.hashedCssOutputBySource.set(filePath, outputPath);
 			return;
 		}
 
@@ -288,22 +272,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			return [];
 		}
 		return Array.from(entries);
-	}
-
-	private transformCssSync(input: CssTransformInput): string {
-		const cached = this.runtimeCssCache.get(input.filePath);
-		if (cached) {
-			return cached;
-		}
-
-		const persisted = this.readProcessedCssFromDist(input.filePath);
-		if (persisted) {
-			this.runtimeCssCache.set(input.filePath, persisted);
-			return persisted;
-		}
-
-		const { contents } = input;
-		return typeof contents === 'string' ? contents : contents.toString('utf-8');
 	}
 
 	private async transformCssAsync(input: CssTransformInput): Promise<string> {
@@ -425,7 +393,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 				this.runtimeCssCache.delete(filePath);
 				this.trackedCssFiles.delete(filePath);
 				this.cssDependencyMap.delete(filePath);
-				this.hashedCssOutputBySource.delete(filePath);
 			}
 
 			if (createdCss.length > 0 || changedCss.length > 0 || deletedCss.length > 0) {
@@ -499,13 +466,16 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		}
 	}
 
+	/**
+	 * Processes every stylesheet a browser build imports.
+	 *
+	 * @remarks
+	 * The loader awaits PostCSS for each file, so a stylesheet outside `srcDir` or one added after the prewarm
+	 * is processed too. Server builds register nothing: the bundler replaces their stylesheet imports with an
+	 * empty module before any plugin loads them.
+	 */
 	override plugins(): EcoBuildPlugin[] {
 		return [
-			createCssLoaderPlugin({
-				name: 'postcss-processor-runtime-loader',
-				filter: this.getCssFilter(),
-				transform: this.transformCssSync.bind(this),
-			}),
 			{
 				...createCssLoaderPlugin({
 					name: 'postcss-processor-build-loader',

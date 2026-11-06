@@ -25,8 +25,8 @@ export const devFrontmatterSchema = z.object({
 	description: z.string(),
 	order: z.coerce.number().optional(),
 	/**
-	 * Repository paths the page describes: a directory ends with `/`. `scripts/check-dev-pages.ts`
-	 * fails a pull request that changes a covered file without touching the page.
+	 * Repository paths the page describes: a directory ends with `/`. A change to one of them
+	 * means the page needs a look.
 	 */
 	sources: z.array(z.string()).min(1),
 });

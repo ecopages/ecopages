@@ -141,6 +141,31 @@ test.describe('Kitchen Sink Preview Regressions @preview', () => {
 		runtime.assertClean();
 	});
 
+	for (const href of [
+		'/discovery',
+		'/discovery-foreign',
+		'/react-content',
+		'/integration-matrix/kita',
+		'/integration-matrix/lit-entry',
+		'/integration-matrix/react-entry',
+		'/integration-matrix/ecopages-jsx-entry',
+	]) {
+		test(`loads Lit from one module on ${href}`, async ({ page }) => {
+			const litModules: string[] = [];
+			page.on('response', async (response) => {
+				if (!new URL(response.url()).pathname.endsWith('.js')) return;
+				const body = await response.text().catch(() => '');
+				if (body.includes('litHtmlVersions')) litModules.push(response.url());
+			});
+			await gotoPath(page, href);
+			await page.waitForLoadState('networkidle');
+			await page.mouse.wheel(0, 10_000);
+			await page.waitForLoadState('networkidle');
+
+			expect(litModules.length, litModules.join('\n')).toBeLessThanOrEqual(1);
+		});
+	}
+
 	test('keeps React preview vendors available and hydration interactive', async ({ request, page }) => {
 		const reactVendorResponse = await requestGetAndWait(request, '/assets/vendors/react.js', 10000);
 		expect(reactVendorResponse.ok()).toBe(true);

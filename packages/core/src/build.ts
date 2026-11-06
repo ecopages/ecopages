@@ -9,7 +9,7 @@ export {
 	DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME,
 	getBrowserRuntimeManifestFromPlugin,
 } from './build/browser/browser-runtime-plugin.ts';
-export { getHostScopedJsxOwnershipPlugins } from './build/browser/jsx-ownership-plugins.ts';
+export { findJsxExtensionOwner, getHostScopedJsxOwnershipPlugins } from './build/browser/jsx-ownership-plugins.ts';
 export { isLitStaticRenderWorkerThread } from './build/browser/lit-static-render-worker-context.ts';
 export { restoreProductionBrowserBuild } from './static-site-generator/production-page-browser-graph-prebuild.ts';
 export {
@@ -54,7 +54,11 @@ export {
 	type RequestPipelineMetricsState,
 } from './diagnostics/request-pipeline-metrics.ts';
 export { toPackageRootSpecifier } from './plugins/package-specifier.ts';
-export { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from './plugins/tsconfig-import-resolver.ts';
+export {
+	loadTsconfigPathPrefixes,
+	matchesTsconfigPathPrefix,
+	resolveProjectModulePath,
+} from './plugins/tsconfig-import-resolver.ts';
 export {
 	ENTRY_COMMAND_FLAGS,
 	getEntryCommandFlagNames,

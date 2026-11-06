@@ -38,7 +38,7 @@ function canonicalize(value: unknown): unknown {
  * output; `conditions` keeps its order because Rolldown's `conditionNames`
  * precedence depends on it. Empty collections count as unset.
  *
- * Plugins enter by name, environments, `cacheKey` and `entryScope`, in order,
+ * Plugins enter by name, environments and `cacheKey`, in order,
  * since Rolldown hook precedence depends on position.
  */
 export function createBuildRequestIdentity(options: BuildOptions): string {

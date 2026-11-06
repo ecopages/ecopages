@@ -47,7 +47,6 @@ import type {
 	LoadResult,
 	PartialResolvedId,
 	Plugin,
-	PluginContext,
 	ResolveIdResult,
 	RolldownLog,
 	SourceDescription,
@@ -65,7 +64,6 @@ import type {
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
 } from '../contracts/build-types.ts';
-import { EntryScopeTracker } from './entry-scope-tracker.ts';
 
 const NAMESPACE_SEPARATOR = ':';
 
@@ -308,8 +306,6 @@ interface Registration<Callback> {
 	hookFilter: RegExp;
 	callback: Callback;
 	pluginName: string;
-	/** Entry names whose modules this registration applies to; absent for the whole build. */
-	entryScope?: ReadonlySet<string>;
 }
 
 function createRegistration<Callback>(
@@ -317,21 +313,13 @@ function createRegistration<Callback>(
 	namespace: string | undefined,
 	callback: Callback,
 	pluginName: string,
-	entryScope?: ReadonlySet<string>,
 ): Registration<Callback> {
 	return {
 		matches: buildIdMatcher(filter, namespace),
 		hookFilter: namespace ? new RegExp(`^${escapeRegExp(`${namespace}${NAMESPACE_SEPARATOR}`)}`) : filter,
 		callback,
 		pluginName,
-		...(entryScope ? { entryScope } : {}),
 	};
-}
-
-function getResolvedId(result: ResolveIdResult | undefined): { id: string; external: boolean } | undefined {
-	if (!result) return undefined;
-	if (typeof result === 'string') return { id: result, external: false };
-	return { id: result.id, external: result.external === true || result.external === 'absolute' };
 }
 
 /**
@@ -399,10 +387,6 @@ export type BuildInputRecorder = (moduleId: string, filePath: string) => void;
  * Every build creates a new bridge, so registrations and the
  * virtual-module counter never carry over between builds.
  *
- * A plugin with an `entryScope` applies only to modules that one of those entries reaches. The bridge then
- * resolves every import itself, falling back to Rolldown's resolver with `skipSelf`, so it can record which
- * entries reach each module; see {@link EntryScopeTracker}.
- *
  * @param plugins - `EcoBuildPlugin` instances registered for this build.
  * @param contextRoot - Project root used to resolve relative load paths.
  * @param recordBuildInput - Records filesystem paths this load read so watch
@@ -432,27 +416,17 @@ export async function createRolldownPluginBridge(
 	const transformRegistrations: Registration<TransformCallback>[] = [];
 	const endRegistrations: Array<{ callback: () => void | Promise<void>; pluginName: string }> = [];
 
-	const tracker =
-		entrypoints && plugins.some((plugin) => plugin.entryScope !== undefined)
-			? new EntryScopeTracker(entrypoints, contextRoot)
-			: undefined;
-
 	for (const ecoPlugin of plugins) {
 		const pluginName = ecoPlugin.name;
-		const entryScope = tracker && ecoPlugin.entryScope ? new Set(ecoPlugin.entryScope) : undefined;
 		const builder: EcoBuildPluginBuilder = {
 			...(entrypoints ? { entrypoints } : {}),
 			onResolve: (options, callback) => {
 				assertOpen('onResolve');
-				resolveRegistrations.push(
-					createRegistration(options.filter, options.namespace, callback, pluginName, entryScope),
-				);
+				resolveRegistrations.push(createRegistration(options.filter, options.namespace, callback, pluginName));
 			},
 			onLoad: (options, callback) => {
 				assertOpen('onLoad');
-				loadRegistrations.push(
-					createRegistration(options.filter, options.namespace, callback, pluginName, entryScope),
-				);
+				loadRegistrations.push(createRegistration(options.filter, options.namespace, callback, pluginName));
 			},
 			module: (specifier, callback) => {
 				assertOpen('module');
@@ -464,18 +438,13 @@ export async function createRolldownPluginBridge(
 						undefined,
 						async () => ({ path: joinNamespace(namespace, specifier) }),
 						pluginName,
-						entryScope,
 					),
 				);
-				loadRegistrations.push(
-					createRegistration(/.*/, namespace, async () => callback(), pluginName, entryScope),
-				);
+				loadRegistrations.push(createRegistration(/.*/, namespace, async () => callback(), pluginName));
 			},
 			transform: (options, callback) => {
 				assertOpen('transform');
-				transformRegistrations.push(
-					createRegistration(options.filter, undefined, callback, pluginName, entryScope),
-				);
+				transformRegistrations.push(createRegistration(options.filter, undefined, callback, pluginName));
 			},
 			onEnd: (callback) => {
 				assertOpen('onEnd');
@@ -491,13 +460,6 @@ export async function createRolldownPluginBridge(
 	}
 	registrationClosed = true;
 
-	/** Whether a registration applies to module `id` under its `entryScope`; an unscoped one always does. */
-	const inScope = (registration: Registration<unknown>, id: string): boolean =>
-		!registration.entryScope || (tracker?.applies(registration.entryScope, id) ?? false);
-
-	const transformApplies = (registration: Registration<unknown>, sourcePath: string, id: string): boolean =>
-		(registration.matches(sourcePath) || registration.matches(stripQuery(sourcePath))) && inScope(registration, id);
-
 	const runTransform = async (
 		{ callback, pluginName }: Registration<TransformCallback>,
 		code: string,
@@ -510,25 +472,13 @@ export async function createRolldownPluginBridge(
 		}
 	};
 
-	const recordScopedChange = (registration: Registration<unknown>, id: string): void => {
-		if (registration.entryScope) tracker?.recordBuiltBy(id, registration.pluginName, registration.entryScope);
-	};
-
-	const recordResolved = (importer: string | undefined, source: string, result: ResolveIdResult | undefined) => {
-		const resolved = getResolvedId(result);
-		if (!tracker || !resolved || resolved.external) return;
-		tracker.recordImport(importer, resolved.id, path.resolve(contextRoot, source));
-	};
-
-	const resolveIdHandler = async function (
-		this: Pick<PluginContext, 'resolve'> | undefined,
+	const resolveIdHandler = async (
 		source: string,
 		importer: string | undefined,
 		extraOptions?: { kind?: EcoBuildImportKind },
-	) {
-		for (const registration of resolveRegistrations) {
-			const { matches, callback, pluginName } = registration;
-			if (!matches(source) || (importer !== undefined && !inScope(registration, importer))) {
+	) => {
+		for (const { matches, callback, pluginName } of resolveRegistrations) {
+			if (!matches(source)) {
 				continue;
 			}
 			const { namespace, path: sourcePath } = splitNamespace(source);
@@ -540,29 +490,18 @@ export async function createRolldownPluginBridge(
 			}
 			const converted = convertPluginOnResolveResult(result, importer, contextRoot);
 			if (converted !== undefined) {
-				recordResolved(importer, source, converted);
 				return converted;
 			}
 		}
-		if (!tracker || typeof this?.resolve !== 'function') {
-			return undefined;
-		}
-		const resolved = await this.resolve(source, importer, {
-			skipSelf: true,
-			isEntry: importer === undefined,
-			...(extraOptions?.kind ? { kind: extraOptions.kind } : {}),
-		});
-		recordResolved(importer, source, resolved ?? undefined);
-		return resolved ?? undefined;
+		return undefined;
 	};
 
 	const loadHandler = async function (
 		this: { addWatchFile?: (id: string) => void },
 		id: string,
 	): Promise<LoadResult | undefined> {
-		for (const registration of loadRegistrations) {
-			const { matches, callback, pluginName } = registration;
-			if (!matches(id) || !inScope(registration, id)) {
+		for (const { matches, callback, pluginName } of loadRegistrations) {
+			if (!matches(id)) {
 				continue;
 			}
 			const { namespace, path: sourcePath } = splitNamespace(id);
@@ -578,7 +517,6 @@ export async function createRolldownPluginBridge(
 			}
 			const converted = convertPluginOnLoadResult({ id }, result);
 			if (converted !== undefined) {
-				recordScopedChange(registration, id);
 				return converted;
 			}
 		}
@@ -599,7 +537,7 @@ export async function createRolldownPluginBridge(
 		let current = code;
 		const mapState: TransformMapState = { map: undefined, invalidated: false, preserveIncoming: false };
 		for (const registration of transformRegistrations) {
-			if (!transformApplies(registration, sourcePath, id)) {
+			if (!registration.matches(sourcePath) && !registration.matches(stripQuery(sourcePath))) {
 				continue;
 			}
 			const result = await runTransform(registration, current, sourcePath);
@@ -608,7 +546,6 @@ export async function createRolldownPluginBridge(
 			}
 			const previous = current;
 			current = typeof result === 'string' ? result : result.code;
-			if (current !== previous) recordScopedChange(registration, id);
 			if (typeof result === 'string') {
 				if (current !== previous) invalidateTransformMap(mapState);
 				continue;
@@ -628,9 +565,7 @@ export async function createRolldownPluginBridge(
 	};
 
 	const plugin: Plugin = { name: 'ecopages-plugin-bridge' };
-	if (tracker) {
-		plugin.resolveId = resolveIdHandler;
-	} else if (resolveRegistrations.length > 0) {
+	if (resolveRegistrations.length > 0) {
 		plugin.resolveId = {
 			filter: resolveRegistrations.map(({ hookFilter }) => include(idFilter(hookFilter))),
 			handler: resolveIdHandler,

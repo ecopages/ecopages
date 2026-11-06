@@ -124,22 +124,4 @@ export type EcoBuildPlugin = {
 	 * processed-asset cache keeps such scripts apart.
 	 */
 	cacheKey?: string;
-	/**
-	 * Allows entry-specific plugin instances to share a browser build with matching group keys.
-	 *
-	 * @remarks
-	 * Instances remain in the build so each can contribute its own entry configuration. Plugins with the same name
-	 * must use the same key and position relative to other plugins to share a build; entries that omit the plugin may
-	 * still join that build.
-	 */
-	bundleGroupKey?: string;
-	/**
-	 * Entry names whose module graph this plugin applies to. Omitted, it applies to the whole build.
-	 *
-	 * @remarks
-	 * Core sets it when browser entries with different plugin lists share one build, so a module reached
-	 * only by other entries is built without this plugin. A module this plugin changed must not also be
-	 * reached by an entry outside the scope; the build fails instead of shipping two builds of one module.
-	 */
-	entryScope?: readonly string[];
 };

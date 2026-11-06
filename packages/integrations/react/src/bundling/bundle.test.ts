@@ -6,6 +6,9 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
 import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
+import { getBuildEntryOutput } from '../../../../core/src/build/build-graph.ts';
+import { assertBuildFailed } from '../../../../core/src/__fixtures__/build/build-result.ts';
+import { getJsxOwnershipPlugins } from '../../../../core/src/build/browser/jsx-ownership-plugins.ts';
 import { BundleService } from './bundle.ts';
 
 const withNodeEnv = async <T>(nodeEnv: string | undefined, run: () => Promise<T>): Promise<T> => {
@@ -296,5 +299,93 @@ describe('BundleService', () => {
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
+	});
+
+	describe('foreign-JSX files in a build shared with another JSX Integration', () => {
+		/** An app where `@ecopages/jsx` owns `.tsx` and React owns `.react.tsx`. */
+		const buildSharedEntries = async (tempDir: string, entrypoints: Record<string, string>) => {
+			const appConfig = {
+				rootDir: tempDir,
+				absolutePaths: { projectDir: tempDir },
+				integrations: [
+					{ name: 'react', jsxImportSource: 'react', extensions: ['.react.tsx'] },
+					{ name: 'ecopages-jsx', jsxImportSource: '@ecopages/jsx', extensions: ['.tsx'] },
+				],
+			} as unknown as IntegrationRuntimeContext['appConfig'];
+			const service = new BundleService({ rootDir: tempDir, appConfig, hostIntegrationName: 'react' });
+			const options = await service.createBundleOptions('island', [], {}, entrypoints.island);
+			return new RolldownBuildAdapter().build({
+				environment: 'browser' as const,
+				entrypoints,
+				outdir: join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				splitting: true,
+				external: [...(options.external as string[]), '@ecopages/jsx/jsx-runtime'],
+				plugins: [...(options.plugins as EcoBuildPlugin[]), ...getJsxOwnershipPlugins(appConfig)],
+			});
+		};
+
+		const writeSharedApp = (tempDir: string, islandImport: string) => {
+			writeFileSync(join(tempDir, 'button.tsx'), 'export const Button = () => <button>button</button>;');
+			writeFileSync(join(tempDir, 'card.tsx'), 'export const Card = () => <article>card</article>;');
+			writeFileSync(
+				join(tempDir, 'foo.script.ts'),
+				"import { Button } from './button.tsx';\ncustomElements.define('x-button', class extends HTMLElement { render = Button; });",
+			);
+			const island = join(tempDir, 'island.react.tsx');
+			writeFileSync(island, `${islandImport}\nexport default () => null;`);
+			return { island, radiant: join(tempDir, 'foo.script.ts') };
+		};
+
+		const readEntry = (result: Awaited<ReturnType<typeof buildSharedEntries>>, name: string, tempDir: string) => {
+			assertBuildSucceeded(result, 'Build failed');
+			return readFileSync(getBuildEntryOutput(result, name, tempDir)!, 'utf8');
+		};
+
+		it('compiles a foreign file only another Integration imports with its owner runtime', async () => {
+			const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-react-shared-jsx-')));
+			try {
+				const entrypoints = writeSharedApp(tempDir, "import { Card } from './card.tsx'; console.log(Card);");
+				const radiant = readEntry(await buildSharedEntries(tempDir, entrypoints), 'radiant', tempDir);
+				expect(radiant).toContain('@ecopages/jsx/jsx-runtime');
+				expect(radiant).not.toMatch(/react/);
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('compiles a foreign file a React island imports with the React runtime', async () => {
+			const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-react-shared-jsx-')));
+			try {
+				const entrypoints = writeSharedApp(tempDir, "import { Card } from './card.tsx'; console.log(Card);");
+				const island = readEntry(await buildSharedEntries(tempDir, entrypoints), 'island', tempDir);
+				expect(island).toContain('card');
+				expect(island).toMatch(/react/);
+				expect(island).not.toContain('@ecopages/jsx/jsx-runtime');
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('fails the build when a React island and another Integration import one foreign file', async () => {
+			const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-react-shared-jsx-')));
+			try {
+				const entrypoints = writeSharedApp(
+					tempDir,
+					"import { Button } from './button.tsx'; console.log(Button);",
+				);
+				const result = await buildSharedEntries(tempDir, entrypoints);
+				assertBuildFailed(result);
+				const message = result.logs.map((log) => log.message).join('\n');
+				expect(message).toContain(join(tempDir, 'button.tsx'));
+				expect(message).toContain('ecopages-jsx file');
+				expect(message).toContain('react browser entries');
+				expect(message).toContain(join(tempDir, 'foo.script.ts'));
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
 	});
 });

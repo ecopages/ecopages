@@ -119,27 +119,6 @@ test('createBuildRequestIdentity tells apart plugins of one name by cacheKey', (
 	);
 });
 
-test('createBuildRequestIdentity tells apart one plugin scoped to different entries', () => {
-	const make = (entryScope?: readonly string[]): EcoBuildPlugin => ({
-		name: 'scoped-plugin',
-		entryScope,
-		setup() {},
-	});
-
-	assert.notEqual(
-		createBuildRequestIdentity({ ...baseOptions, plugins: [make(['a'])] }),
-		createBuildRequestIdentity({ ...baseOptions, plugins: [make(['b'])] }),
-	);
-	assert.notEqual(
-		createBuildRequestIdentity({ ...baseOptions, plugins: [make(['a'])] }),
-		createBuildRequestIdentity({ ...baseOptions, plugins: [make()] }),
-	);
-	assert.equal(
-		createBuildRequestIdentity({ ...baseOptions, plugins: [make(['b', 'a'])] }),
-		createBuildRequestIdentity({ ...baseOptions, plugins: [make(['a', 'b'])] }),
-	);
-});
-
 test('createBuildRequestIdentity tells apart import.meta transforms of different runtime directories', () => {
 	const identityFor = (runtimeDir: string) =>
 		createBuildRequestIdentity({

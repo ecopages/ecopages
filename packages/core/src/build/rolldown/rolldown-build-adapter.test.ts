@@ -140,99 +140,74 @@ describe('RolldownBuildAdapter', () => {
 		expect(result.logs.map((log) => log.message).join('\n')).toContain(entrypoint);
 	});
 
-	describe('entry-scoped plugins', () => {
-		/** Rewrites the marker in every module it loads, so the output shows which modules it built. */
-		function createMarkerPlugin(entryScope: readonly string[]): EcoBuildPlugin {
+	describe('a module that several entries reach', () => {
+		/** Rewrites the marker in the files it owns, the `component.ts` files, whichever entry reached them. */
+		const markerPlugin: EcoBuildPlugin = {
+			name: 'marker-rewrite',
+			setup(build) {
+				build.transform({ filter: /component\.ts$/ }, (code) => code.replaceAll('MARKER', 'TRANSFORMED'));
+			},
+		};
+
+		/**
+		 * Holds back the load of `slowFile`, so the entry that does not import through it reaches `component.ts`
+		 * first, and records the importer that reached `component.ts` first.
+		 */
+		function createLoadOrderPlugin(slowFile: string, firstImporters: string[]): EcoBuildPlugin {
 			return {
-				name: 'marker-rewrite',
-				entryScope,
+				name: 'load-order',
 				setup(build) {
-					build.onLoad({ filter: /\.ts$/ }, (args) => {
-						const source = readFileSync(args.path, 'utf8');
-						if (!source.includes('MARKER')) return undefined;
-						return { contents: source.replaceAll('MARKER', 'SCOPED'), loader: 'ts' };
+					build.onResolve({ filter: /component\.ts$/ }, (args) => {
+						if (args.importer) firstImporters.push(path.basename(args.importer));
+						return undefined;
+					});
+					build.onLoad({ filter: /\.ts$/ }, async (args) => {
+						if (path.basename(args.path) === slowFile)
+							await new Promise((resolve) => setTimeout(resolve, 50));
+						return undefined;
 					});
 				},
 			};
 		}
 
-		function buildEntries(entrypoints: Record<string, string>, plugins: EcoBuildPlugin[]) {
-			return new RolldownBuildAdapter().build({
+		async function buildWithSlowFile(slowFile: string) {
+			const firstImporters: string[] = [];
+			const result = await new RolldownBuildAdapter().build({
 				environment: 'browser' as const,
-				entrypoints,
+				entrypoints: {
+					lit: path.join(workDir, 'lit-entry.ts'),
+					react: path.join(workDir, 'react-entry.ts'),
+				},
 				outdir: path.join(workDir, 'dist'),
 				target: 'browser',
 				format: 'esm',
 				root: workDir,
 				splitting: true,
-				plugins,
+				plugins: [createLoadOrderPlugin(slowFile, firstImporters), markerPlugin],
 			});
-		}
-
-		function readOutput(result: Awaited<ReturnType<typeof buildEntries>>): string {
 			assertBuildSucceeded(result, 'Build failed');
-			return result.outputs
+			const output = result.outputs
 				.filter((output) => output.path.endsWith('.js'))
 				.map((output) => readFileSync(output.path, 'utf8'))
 				.join('\n');
+			return { firstImporter: firstImporters[0], output };
 		}
 
-		test('applies a scoped plugin only to modules its entries reach', async () => {
-			writeFixture('react-only.ts', "export const reactValue = 'MARKER-react';");
-			writeFixture('lit-only.ts', "export const litValue = 'MARKER-lit';");
-			writeFixture('shared.ts', "export const shared = 'shared-value';");
-			const react = writeFixture(
-				'react-entry.ts',
-				"import { reactValue } from './react-only.ts'; import { shared } from './shared.ts'; console.log(reactValue, shared);",
-			);
-			const lit = writeFixture(
-				'lit-entry.ts',
-				"import { litValue } from './lit-only.ts'; import { shared } from './shared.ts'; console.log(litValue, shared);",
-			);
-
-			const result = await buildEntries({ react, lit }, [createMarkerPlugin(['react'])]);
-
-			assertBuildSucceeded(result, 'Build failed');
-			const output = readOutput(result);
-			expect(output).toContain('SCOPED-react');
-			expect(output).toContain('MARKER-lit');
-			expect(output.match(/shared-value/g)).toHaveLength(1);
-		});
-
-		test('applies a scoped plugin to a module reached through a module it did not change', async () => {
+		test('compiles the module the same way in either load order', async () => {
 			writeFixture('component.ts', "export const component = 'MARKER-component';");
 			writeFixture('barrel.ts', "export { component } from './component.ts';");
-			const react = writeFixture(
-				'react-entry.ts',
-				"import { component } from './barrel.ts'; console.log(component);",
-			);
-			const lit = writeFixture('lit-entry.ts', "console.log('lit');");
+			writeFixture('lit-entry.ts', "import { component } from './component.ts'; console.log(component);");
+			writeFixture('react-entry.ts', "import { component } from './barrel.ts'; console.log(component);");
 
-			const result = await buildEntries({ react, lit }, [createMarkerPlugin(['react'])]);
+			const litFirst = await buildWithSlowFile('barrel.ts');
+			const reactFirst = await buildWithSlowFile('lit-entry.ts');
 
-			assertBuildSucceeded(result, 'Build failed');
-			expect(readOutput(result)).toContain('SCOPED-component');
-		});
-
-		test('fails when an entry outside the scope reaches a module the plugin changed', async () => {
-			writeFixture('component.ts', "export const component = 'MARKER-component';");
-			writeFixture('barrel.ts', "export { component } from './component.ts';");
-			const react = writeFixture(
-				'react-entry.ts',
-				"import { component } from './component.ts'; console.log(component);",
-			);
-			const lit = writeFixture(
-				'lit-entry.ts',
-				"import { component } from './barrel.ts'; console.log(component);",
-			);
-
-			const result = await buildEntries({ react, lit }, [createMarkerPlugin(['react'])]);
-
-			assertBuildFailed(result);
-			const message = result.logs.map((log) => log.message).join('\n');
-			expect(message).toContain('component.ts');
-			expect(message).toContain('"marker-rewrite"');
-			expect(message).toContain('"lit"');
+			expect(litFirst.firstImporter).toBe('lit-entry.ts');
+			expect(reactFirst.firstImporter).toBe('barrel.ts');
+			for (const { output } of [litFirst, reactFirst]) {
+				expect(output.match(/TRANSFORMED-component/g)).toHaveLength(1);
+				expect(output).not.toContain('MARKER-component');
+			}
 		});
 	});
 

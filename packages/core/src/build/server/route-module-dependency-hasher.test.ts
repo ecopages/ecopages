@@ -59,7 +59,6 @@ describe('RouteModuleDependencyHasher', () => {
 	it('resolves dependency paths from build results', () => {
 		const dependencyPaths = resolveRouteModuleDependencyPaths(
 			{
-				loadedInputsByModule: { '/app/pages/about.tsx': ['/app/data/posts.json'] },
 				dependencyGraph: {
 					entrypoints: {
 						'/app/pages/about.tsx': [
@@ -67,6 +66,7 @@ describe('RouteModuleDependencyHasher', () => {
 							'/app/layouts/shared.tsx',
 							'node:fs',
 							'/app/node_modules/react/index.js',
+							'/app/data/posts.json',
 						],
 					},
 				},

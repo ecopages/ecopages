@@ -13,6 +13,8 @@ describe('createContentServerBoundaryPlugin', () => {
 			module() {},
 			transform() {},
 			onEnd() {},
+			addWatchFile() {},
+			resolve: async () => undefined,
 		};
 
 		createContentServerBoundaryPlugin().setup(build);

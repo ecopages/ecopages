@@ -24,9 +24,7 @@ export type ParsedCollectionSpecifier = {
 export function parseCollectionSpecifier(specifier: string): ParsedCollectionSpecifier | null {
 	const normalized = specifier.startsWith(`${CONTENT_VIRTUAL_MODULE_PREFIX}/`)
 		? specifier.slice(`${CONTENT_VIRTUAL_MODULE_PREFIX}/`.length)
-		: specifier.startsWith('content/')
-			? specifier.slice('content/'.length)
-			: null;
+		: null;
 
 	if (!normalized) {
 		return null;

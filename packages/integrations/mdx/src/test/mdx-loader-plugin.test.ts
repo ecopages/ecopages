@@ -39,6 +39,8 @@ function createBuilderHarness() {
 		module() {},
 		transform() {},
 		onEnd() {},
+		addWatchFile() {},
+		resolve: async () => undefined,
 	};
 
 	return {

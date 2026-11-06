@@ -64,7 +64,7 @@ function createContentResolvePlugin(
 	collectionBrowserModules: Record<string, string>,
 	ensureCollectionServerArtifact: EnsureCollectionServerArtifact | undefined,
 	ensureCollectionsGenerated: EnsureCollectionsGenerated | undefined,
-	options: { graph: 'server' | 'browser'; namespace?: string; externalizeCompiledServerModules?: boolean },
+	options: { graph: 'server' | 'browser'; externalizeCompiledServerModules?: boolean },
 ): EcoBuildPlugin {
 	return {
 		name: 'ecopages:content',
@@ -82,18 +82,7 @@ function createContentResolvePlugin(
 			const resolveGeneratedModule = async (args: { path: string }) => {
 				await ensureCollectionsGenerated?.();
 				const modulePath = resolveCollection(args.path);
-				if (!modulePath) {
-					return undefined;
-				}
-
-				if (options.namespace) {
-					return {
-						namespace: options.namespace,
-						path: modulePath,
-					};
-				}
-
-				return { path: modulePath };
+				return modulePath ? { path: modulePath } : undefined;
 			};
 
 			build.onResolve({ filter: CONTENT_VIRTUAL_MODULE_PATTERN }, resolveGeneratedModule);
@@ -113,18 +102,7 @@ function createContentResolvePlugin(
 					}
 
 					const modulePath = resolveCollection(args.path);
-					if (!modulePath) {
-						return undefined;
-					}
-
-					if (options.namespace) {
-						return {
-							namespace: options.namespace,
-							path: modulePath,
-						};
-					}
-
-					return { path: modulePath };
+					return modulePath ? { path: modulePath } : undefined;
 				};
 
 				build.onResolve({ filter: CONTENT_SERVER_VIRTUAL_MODULE_PATTERN }, resolveServerBackedModule);
@@ -172,8 +150,8 @@ export function createContentPlugin(
  * @remarks
  * It resolves entries and `/component` modules to generated files on disk so
  * relative MDX imports inside those files resolve as filesystem paths. A
- * virtual namespace would keep those imports inside `ecopages-content:` and
- * Rolldown would report them as missing. `/server` resolution is omitted so
+ * `\0` virtual module would leave those imports without a directory to resolve
+ * from. `/server` resolution is omitted so
  * the content server-boundary plugin can reject any server artifact that
  * remains browser-reachable.
  */

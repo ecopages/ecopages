@@ -160,6 +160,8 @@ describe('BundleService', () => {
 			module() {},
 			transform() {},
 			onEnd() {},
+			addWatchFile() {},
+			resolve: async () => undefined,
 		});
 
 		return Object.fromEntries(

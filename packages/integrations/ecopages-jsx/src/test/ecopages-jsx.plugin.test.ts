@@ -106,6 +106,8 @@ function getMdxLoaderFilter(plugin: EcoBuildPlugin): RegExp {
 		module() {},
 		transform() {},
 		onEnd() {},
+		addWatchFile() {},
+		resolve: async () => undefined,
 	});
 
 	assert.ok(capturedFilter, 'Expected MDX loader plugin to register an onLoad filter.');

@@ -1,6 +1,6 @@
 ---
 title: "Plugin pipeline"
-description: "How Integrations, Processors and config loaders contribute EcoBuildPlugins, how core orders them per environment, and how one bridge runs them inside Rolldown."
+description: "How Integrations, Processors and config loaders contribute EcoBuildPlugins, how core orders them per environment, and how the bridge turns them into Rolldown plugins."
 section: build
 order: 4
 sources:
@@ -20,7 +20,7 @@ sources:
 
 # Plugin pipeline
 
-Every server and browser build in Ecopages runs Rolldown with a plugin list that core assembles. Integrations, Processors and config `loaders` never hand Rolldown a plugin directly: they return `EcoBuildPlugin` objects, core seals them once into an app build manifest split by environment, orders them per build request, and a single bridge plugin runs them inside Rolldown. This page follows a plugin from declaration to hook call. For what triggers builds and what a browser build emits see [Build pipeline](/dev/build-pipeline).
+Every server and browser build in Ecopages runs Rolldown with a plugin list that core assembles. Integrations, Processors and config `loaders` never hand Rolldown a plugin directly: they return `EcoBuildPlugin` objects, core seals them once into an app build manifest split by environment, orders them per build request, and the bridge turns each handler they register into a Rolldown plugin. This page follows a plugin from declaration to hook call. For what triggers builds and what a browser build emits see [Build pipeline](/dev/build-pipeline).
 
 ```mermaid
 flowchart TD
@@ -50,14 +50,16 @@ export type EcoBuildPlugin = {
 
 | Builder member | Maps to Rolldown | Use |
 | --- | --- | --- |
-| `onResolve({ filter, namespace? }, cb)` | `resolveId` | Redirect or externalize a specifier. The callback also gets `importer`, `namespace` and the import `kind`. |
-| `onLoad({ filter, namespace? }, cb)` | `load` | Supply module contents, or an `object` loader whose `exports` become a module. |
-| `module(specifier, cb)` | `resolveId` + `load` | Declare a virtual module by name. |
-| `transform({ filter }, cb)` | `transform` | Rewrite source after load, optionally returning a source map. |
+| `onResolve({ filter, exclude? }, cb)` | `resolveId` | Redirect or externalize a specifier. The callback gets `path` and `importer`; a virtual module's path starts with `\0`. |
+| `onLoad({ filter, exclude? }, cb)` | `load` | Supply module contents as `js`, `jsx`, `ts` or `tsx`. |
+| `module(specifier, cb)` | `resolveId` + `load` | Declare a virtual module by name; it gets the id `\0<specifier>`. |
+| `transform({ filter, exclude? }, cb)` | `transform` | Rewrite source after load, optionally returning a source map. |
 | `onEnd(cb)` | `buildEnd` | Check the finished build; skipped when the build already failed, and a throw fails it. |
+| `addWatchFile(path)` | `this.addWatchFile` | Declare a file the running `onLoad` or `transform` callback read, so an edit to it rebuilds the module. |
+| `resolve(specifier, importer)` | `this.resolve` | Resolve a specifier the way the build does, from inside an `onLoad` or `transform` callback. |
 | `entrypoints` | (data) | The entry names and paths of this build request, the same map for every plugin of the build. |
 
-Handlers must be registered before `setup` returns or its promise resolves; a later call throws. Rolldown reads hook filters when a plugin is registered, so the bridge closes registration before it builds the Rolldown plugin object.
+Handlers must be registered before `setup` returns or its promise resolves; a later call throws. Rolldown reads hook filters when a plugin is registered, so the bridge closes registration before it hands its plugins to Rolldown. Rolldown tests `filter` and `exclude` itself, against ids with `/` separators, so `exclude: /\/node_modules\//` keeps installed packages out of a handler on every platform.
 
 `cacheKey` exists because a build request is identified by its plugins' names in order. A factory that captures an output-changing option, such as the MDX loader with its compiler options or the foreign JSX override with its import source, sets `cacheKey` so two builds that differ only in that option are not deduplicated into one.
 
@@ -78,7 +80,7 @@ Real contributors:
 | MDX Integration | MDX loader | both |
 | React and Ecopages JSX Integrations | MDX loader, when MDX is enabled | both |
 | Content Processor | content plugin, plus browser collection plugins | `server`, `browser` |
-| Image Processor | image plugin, image bundler plugin | `server`, `browser` |
+| Image Processor | image plugin (`module('ecopages:images')`) | both |
 | PostCSS Processor | build CSS loader | `browser` |
 
 ## Environments
@@ -93,7 +95,7 @@ The browser list is not plain registration order. It holds the plugins that also
 
 ## Order
 
-Position in the list is priority. The bridge asks `onResolve` and `onLoad` registrations in list order and the first non-null result wins; `transform` runs every matching registration in list order, each one on the previous output. `resolveBuildPluginOrder()` in `build/runtime/build-request-policy.ts` is the one place that decides that list for a request:
+Position in the list is priority. The bridge keeps that order for the Rolldown plugins it creates, so Rolldown asks `onResolve` and `onLoad` handlers in list order and the first non-null result wins, and `transform` runs every matching handler in list order, each one on the previous output. `resolveBuildPluginOrder()` in `build/runtime/build-request-policy.ts` is the one place that decides that list for a request:
 
 1. Caller plugins that apply to the environment and whose name no app plugin has. A caller cannot replace an app plugin of the same name; it gets first refusal on resolves and loads instead, which React's vendor and alias rewrites rely on.
 2. App plugins: the alias resolver, then the manifest list for the environment, then the JSX ownership plugins. Within the manifest, registration order is loaders, then Processors, then Integrations, each in config order. A browser request can drop app plugins it replaces by name with `excludeAppBuildPlugins`.
@@ -115,33 +117,33 @@ The diagram shows a browser request; a server request has no browser runtime plu
 
 ## The Rolldown bridge
 
-`createRolldownPluginBridge()` in `build/rolldown/rolldown-plugin-bridge.ts` turns the ordered `EcoBuildPlugin[]` into one Rolldown plugin named `ecopages-plugin-bridge`. The Rolldown adapter first filters the request's plugins by `environments` again, then creates a new bridge for every build, so registrations never carry over between builds.
+`createRolldownPluginBridge()` in `build/rolldown/rolldown-plugin-bridge.ts` turns the ordered `EcoBuildPlugin[]` into Rolldown plugins: one per registered handler, named after its `EcoBuildPlugin`, in the order of the list and of the handlers inside each plugin. The Rolldown adapter first filters the request's plugins by `environments` again, then runs the bridge for every build, so registrations never carry over between builds.
 
-The bridge runs every `setup` up front and collects the registrations. Each Rolldown hook declares the union of its registrations' filters as a native hook filter, so Rolldown calls into JavaScript only for ids at least one registration might match; the exact filter is then tested in JavaScript.
+The bridge runs every `setup` up front. Each handler's `filter` and `exclude` become the native hook filter of its own Rolldown plugin, so Rolldown calls into JavaScript only for ids that handler matches, and stops asking at the first `resolveId` or `load` that answers.
 
 ```mermaid
 sequenceDiagram
   participant R as Rolldown
-  participant B as Bridge
-  participant P as EcoBuildPlugins
-  R->>B: resolveId or load
-  B->>P: first match, then next match
-  P-->>B: first non-null result
-  B-->>R: converted result
-  R->>B: transform
-  B->>P: every match in order
-  P-->>B: code and map each
-  B-->>R: code with composed map
+  participant A as Handler A
+  participant B as Handler B
+  R->>A: resolveId or load, when A's filter matches
+  A-->>R: null
+  R->>B: resolveId or load, when B's filter matches
+  B-->>R: first non-null result wins
+  R->>A: transform
+  A-->>R: code and map
+  R->>B: transform on A's output
+  B-->>R: code and map, chained by Rolldown
 ```
 
 What the bridge adds on top of the hook mapping:
 
-- **Namespaces.** Rolldown has no namespace field, so the bridge encodes one as a `<namespace>:` id prefix and strips it before calling back. A namespaced filter matches only ids with that prefix. `module(specifier)` uses a fresh `ecopages-module-<n>` namespace per virtual module. A Windows drive prefix such as `C:\` is never read as a namespace.
-- **Build inputs.** Every matched `onLoad` records the loaded path through the per-build recorder and Rolldown's `addWatchFile`, so caches and the watcher know which files a plugin read. [Watcher and invalidation](/dev/hmr-watcher-invalidation) covers how those inputs drive invalidation.
-- **Source maps.** Chained transforms compose their maps in order. A transform that changes code without a map clears earlier mappings and returns empty `mappings`, so debug locations never point at stale positions; `map: null` declares that the transform moves no code and keeps the incoming map.
-- **Error attribution.** Rolldown overwrites `plugin` on a thrown error with the hosting plugin's name, which is the bridge. The bridge wraps every throw in an `EcoBuildPluginError` that keeps the `EcoBuildPlugin` name, and `BuildLog.plugin` reports that name.
+- **Virtual modules.** `module(specifier)` resolves the exact specifier to `\0<specifier>` and loads that id. `transform` handlers never see a `\0` id, so a virtual module stays as its plugin wrote it. An id with a query, even one holding a `:`, is a normal id: transform filters are tested with the query and hash stripped.
+- **Watch files.** `addWatchFile(path)` calls Rolldown's `addWatchFile` and records the file under the module the running callback is for. The adapter adds those files to the closure of every entry whose graph holds the module, which is what caches and the Project Watcher bind to. The React client-graph boundary declares each file it inlines this way. [Watcher and invalidation](/dev/hmr-watcher-invalidation) covers how closures drive invalidation.
+- **Source maps.** Rolldown chains the maps of transforms in order. A transform that changes code without a usable map returns empty `mappings`, so debug locations never point at stale positions; `map: null` declares that the transform moves no code and keeps the incoming map.
+- **Error attribution.** Each Rolldown plugin carries its `EcoBuildPlugin` name, so Rolldown reports that name as the error's `plugin` and `BuildLog.plugin` shows it. The bridge throws a copy of a callback's error with the module id it failed on, because Rolldown sets no `id` and writes onto the thrown value; the copy keeps that value as `cause` unchanged, so a plugin can share or freeze it. A `setup` error, thrown before Rolldown runs, gets the plugin name from the bridge.
 
-One merged plugin keeps first-wins semantics in exactly the order core decided.
+One Rolldown plugin per handler leaves first-wins `resolveId` and `load`, ordered `transform` with chained source maps, native filters and plugin names in errors to Rolldown, so the bridge only translates between the two contracts.
 
 Around the bridge, the adapter places a few native Rolldown plugins that are not part of the contract: the installed-package externalizer when packages are external, a server-only import guard on browser platform builds, a CSS shim on server builds, and, after the bridge, the Worker entries plugin on browser builds.
 

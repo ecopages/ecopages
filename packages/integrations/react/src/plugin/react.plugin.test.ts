@@ -20,6 +20,8 @@ async function getMdxLoaderFilter(
 		module() {},
 		transform() {},
 		onEnd() {},
+		addWatchFile() {},
+		resolve: async () => undefined,
 	});
 	return filter;
 }

@@ -2,99 +2,54 @@
  * Bundler plugin bridge.
  *
  * @remarks
- * Translates an array of `EcoBuildPlugin` instances (the runtime-agnostic
- * plugin contract used by Ecopages processors and integrations) into
- * the bundler's native `Plugin` array. The bridge exposes the five
- * builder hooks of the `EcoBuildPlugin` contract (`onResolve`, `onLoad`,
- * `module`, `transform`, `onEnd`) and maps them to the bundler's
- * `resolveId`/`load`/`transform`/`buildEnd` hooks; `module` registers
- * both a `resolveId` and a `load` handler.
- *
- * The shared `EcoBuildPlugin` contract stays the boundary between
- * integrations and bundler backends.
- *
- * **Namespace handling.**
- *
- * The shared `EcoBuildPlugin` contract scopes `onResolve`/`onLoad`
- * handlers with a `namespace` string. The bundler encodes namespaces
- * into the module id (no separate field). The bridge prepends
- * `<namespace>:` to the resolved id when the result includes a
- * namespace. A namespaced `onLoad`/`onResolve` filter matches only ids
- * with that prefix, and is tested against the path after it. The bridge
- * strips the prefix before forwarding the id back
- * to the callback so plugin code keeps seeing the same `path` shape
- * it did on the historical contract.
+ * Translates `EcoBuildPlugin` instances (the runtime-agnostic plugin contract used by Ecopages
+ * processors and integrations) into Rolldown plugins. Every handler a plugin registers becomes its
+ * own Rolldown plugin, named after the `EcoBuildPlugin` and carrying the handler's filter as a native
+ * hook filter: `onResolve` maps to `resolveId`, `onLoad` to `load`, `transform` to `transform`,
+ * `onEnd` to `buildEnd`, and `module` to a `resolveId` and `load` pair for a `\0` virtual id.
  *
  * **Plugin ordering is semantically significant.**
  *
- * All `EcoBuildPlugin` instances are merged into one Rolldown plugin.
- * Its `resolveId` and `load` check the registrations in `plugins` array
- * order, and the first non-null result wins. `transform` runs every
- * matching registration in array order. The position of each plugin in
- * the array determines its priority:
- *
- * - **Index 0** has the highest priority.
- * - **Last index** has the lowest priority.
- *
- * When adding new integrations or processors, ensure security-critical
- * plugins (e.g. `ecopages-client-graph-boundary`) are placed **before**
- * general-purpose loaders in the array so they always get first refusal
- * on every source file.
+ * The Rolldown plugins keep the order of the `plugins` array, and of the handlers inside each
+ * plugin. Rolldown gives the first non-null `resolveId` and `load` result precedence, and runs every
+ * matching `transform` in order, chaining their source maps. Index 0 has the highest priority, so
+ * security-critical plugins (e.g. `ecopages-client-graph-boundary`) go **before** general-purpose
+ * loaders, to get first refusal on every source file.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import path from 'node:path';
-import { composeSourceMaps, isUsableSourceMap } from '../source-maps.ts';
 import type {
 	LoadResult,
 	PartialResolvedId,
 	Plugin,
-	ResolveIdResult,
+	PluginContext,
 	RolldownLog,
 	SourceDescription,
 	SourceMapInput,
 } from 'rolldown';
-import { id as idFilter, include } from 'rolldown/filter';
+import { exclude, id as idFilter, include, type TopLevelFilterExpression } from 'rolldown/filter';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
+import { isUsableSourceMap } from '../source-maps.ts';
 import type {
-	EcoBuildOnLoadArgs,
+	EcoBuildFilter,
 	EcoBuildOnLoadResult,
-	EcoBuildImportKind,
-	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildOnTransformResult,
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
+	EcoBuildResolvedId,
 } from '../contracts/build-types.ts';
 
-const NAMESPACE_SEPARATOR = ':';
+/** Files each module's plugins declared with `addWatchFile`, keyed by Rolldown module id. */
+export type WatchFilesByModule = Map<string, Set<string>>;
 
-function joinNamespace(namespace: string | undefined, value: string): string {
-	return namespace ? `${namespace}${NAMESPACE_SEPARATOR}${value}` : value;
-}
+const VIRTUAL_MODULE_ID = /^\0/;
 
-/**
- * @remarks
- * A Windows drive prefix such as `C:\` or `C:/` is part of the path, not a namespace.
- */
-function splitNamespace(id: string): { namespace: string | undefined; path: string } {
-	const separatorIndex = id.indexOf(NAMESPACE_SEPARATOR);
-	if (separatorIndex <= 0 || /^[A-Za-z]:[\\/]/.test(id)) {
-		return { namespace: undefined, path: id };
-	}
-	return {
-		namespace: id.slice(0, separatorIndex),
-		path: id.slice(separatorIndex + 1),
-	};
-}
+const ROLLDOWN_MODULE_LOADERS = new Set(['js', 'jsx', 'ts', 'tsx']);
 
-function stripQuery(id: string): string {
-	return id.replace(/[?#].*$/, '');
-}
-
-function inferRolldownModuleTypeFromPath(filePath: string): string {
-	const extension = path.extname(filePath).toLowerCase();
-
-	switch (extension) {
+function inferModuleType(filePath: string): SourceDescription['moduleType'] {
+	switch (path.extname(filePath).toLowerCase()) {
 		case '.ts':
 			return 'ts';
 		case '.tsx':
@@ -110,300 +65,150 @@ function inferRolldownModuleTypeFromPath(filePath: string): string {
 	}
 }
 
-const ROLLDOWN_MODULE_LOADERS = new Set(['js', 'jsx', 'ts', 'tsx']);
-
-function normalizeRolldownModuleType(loader: unknown): string | undefined {
-	return typeof loader === 'string' && ROLLDOWN_MODULE_LOADERS.has(loader) ? loader : undefined;
-}
-
-function convertLoadResultToModuleSource(result: EcoBuildOnLoadResult): string | undefined {
-	if (result.loader === 'object' && result.exports && typeof result.exports === 'object') {
-		return Object.entries(result.exports)
-			.map(([key, value]) =>
-				key === 'default'
-					? `export default ${JSON.stringify(value)};`
-					: `export const ${key} = ${JSON.stringify(value)};`,
-			)
-			.join('\n');
-	}
-
-	return undefined;
-}
-
-function buildIdMatcher(filter: RegExp, namespace: string | undefined): (id: string) => boolean {
-	if (!namespace) {
-		return (id) => filter.test(id);
-	}
-	const prefix = `${namespace}${NAMESPACE_SEPARATOR}`;
-	return (id) => id.startsWith(prefix) && filter.test(id.slice(prefix.length));
-}
-
 function resolvePluginPath(value: string, importer: string | undefined, contextRoot: string): string {
-	if (path.isAbsolute(value)) {
+	if (path.isAbsolute(value) || !value.startsWith('.')) {
 		return value;
 	}
-
-	if (value.startsWith('.') || value.startsWith('..')) {
-		const baseDir = importer ? path.dirname(importer) : contextRoot;
-		return path.resolve(baseDir, value);
-	}
-
-	return value;
+	return path.resolve(importer ? path.dirname(importer) : contextRoot, value);
 }
 
-function convertPluginOnLoadResult(args: { id: string }, result: unknown): LoadResult | undefined {
-	if (!result || typeof result !== 'object') {
-		return undefined;
-	}
-
-	const candidate = result as EcoBuildOnLoadResult;
-	const { path: sourcePath } = splitNamespace(args.id);
-
-	const sourceFromExports = convertLoadResultToModuleSource(candidate);
-
-	if (sourceFromExports) {
-		const description: SourceDescription = {
-			code: sourceFromExports,
-			moduleType: 'js',
-		};
-		return description;
-	}
-
-	if (typeof candidate.contents === 'string' || candidate.contents instanceof Uint8Array) {
-		const code =
-			typeof candidate.contents === 'string' ? candidate.contents : new TextDecoder().decode(candidate.contents);
-		const description: SourceDescription = {
-			code,
-			moduleType: (normalizeRolldownModuleType(candidate.loader) ??
-				inferRolldownModuleTypeFromPath(sourcePath)) as SourceDescription['moduleType'],
-			...(candidate.map !== undefined ? { map: toRolldownSourceMapInput(candidate.map) } : {}),
-		};
-		return description;
-	}
-
-	return undefined;
-}
-
-function convertPluginOnResolveResult(
-	result: unknown,
+function toResolveResult(
+	result: EcoBuildOnResolveResult | undefined,
+	source: string,
 	importer: string | undefined,
 	contextRoot: string,
-): ResolveIdResult | undefined {
-	if (!result || typeof result !== 'object') {
-		return undefined;
+): PartialResolvedId | null {
+	if (!result || (typeof result.path !== 'string' && typeof result.external !== 'boolean')) {
+		return null;
 	}
-
-	const candidate = result as EcoBuildOnResolveResult;
-
-	if (typeof candidate.path !== 'string' && typeof candidate.namespace !== 'string') {
-		if (typeof candidate.external !== 'boolean') {
-			return undefined;
-		}
-	}
-
-	const partial: PartialResolvedId = { id: '' };
-
-	if (typeof candidate.path === 'string') {
-		partial.id = joinNamespace(candidate.namespace, resolvePluginPath(candidate.path, importer, contextRoot));
-	} else if (typeof candidate.namespace === 'string') {
-		partial.id = joinNamespace(candidate.namespace, '');
-	}
-
-	if (typeof candidate.external === 'boolean') {
-		partial.external = candidate.external;
-	}
-
-	return partial;
-}
-
-/**
- * Narrows a bundler-agnostic transform map to Rolldown's `SourceMapInput`.
- *
- * @remarks
- * `EcoBuildOnTransformResult.map` is `unknown` so plugin authors stay free of
- * Rolldown types. Only usable maps (see {@link isUsableSourceMap}) and `null` (keep the existing map) are
- * forwarded; an empty or source-less map is dropped, so the caller treats the rewrite as unmapped. The
- * assertion to `SourceMapInput` happens after that check, so the original map object is returned without a copy.
- */
-function toRolldownSourceMapInput(value: unknown): SourceMapInput | undefined {
-	if (value === null) {
-		return value;
-	}
-	return isUsableSourceMap(value) ? (value as SourceMapInput) : undefined;
-}
-
-type TransformMapState = {
-	map: SourceMapInput | undefined;
-	invalidated: boolean;
-	preserveIncoming: boolean;
-};
-
-function invalidateTransformMap(state: TransformMapState): void {
-	state.map = undefined;
-	state.invalidated = true;
-	state.preserveIncoming = false;
-}
-
-function keepTransformMap(state: TransformMapState, map: SourceMapInput, pluginName: string, sourcePath: string): void {
-	if (state.invalidated) return;
-	if (state.preserveIncoming) {
-		state.map = map;
-		state.preserveIncoming = false;
-		return;
-	}
-	if (!state.map) {
-		state.map = map;
-		return;
-	}
-	try {
-		state.map = composeSourceMaps(map as never, state.map as never) as SourceMapInput;
-	} catch (error) {
-		throw new EcoBuildPluginError(error, pluginName, sourcePath);
-	}
-}
-
-function updateTransformMap(
-	state: TransformMapState,
-	result: EcoBuildOnTransformResult,
-	previousCode: string,
-	currentCode: string,
-	pluginName: string,
-	sourcePath: string,
-): void {
-	if (result.map === null) {
-		if (!state.map && !state.invalidated) {
-			state.preserveIncoming = true;
-		}
-		return;
-	}
-	if (result.map === undefined) {
-		if (currentCode !== previousCode) invalidateTransformMap(state);
-		return;
-	}
-	const map = toRolldownSourceMapInput(result.map);
-	if (!map) {
-		invalidateTransformMap(state);
-		return;
-	}
-	keepTransformMap(state, map, pluginName, sourcePath);
-}
-
-type ResolveCallback = (
-	args: EcoBuildOnResolveArgs,
-) => EcoBuildOnResolveResult | undefined | Promise<EcoBuildOnResolveResult | undefined>;
-
-type LoadCallback = (
-	args: EcoBuildOnLoadArgs,
-) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>;
-
-type TransformCallback = (
-	code: string,
-	id: string,
-) => EcoBuildOnTransformResult | string | undefined | Promise<EcoBuildOnTransformResult | string | undefined>;
-
-interface Registration<Callback> {
-	matches: (id: string) => boolean;
-	/** Superset of `matches` that Rolldown tests natively before it calls into JavaScript. */
-	hookFilter: RegExp;
-	callback: Callback;
-	pluginName: string;
-}
-
-function createRegistration<Callback>(
-	filter: RegExp,
-	namespace: string | undefined,
-	callback: Callback,
-	pluginName: string,
-): Registration<Callback> {
 	return {
-		matches: buildIdMatcher(filter, namespace),
-		hookFilter: namespace ? new RegExp(`^${escapeRegExp(`${namespace}${NAMESPACE_SEPARATOR}`)}`) : filter,
-		callback,
-		pluginName,
+		id: typeof result.path === 'string' ? resolvePluginPath(result.path, importer, contextRoot) : source,
+		...(typeof result.external === 'boolean' ? { external: result.external } : {}),
 	};
 }
 
 /**
- * Error thrown by the bridge for an error an `EcoBuildPlugin` threw.
+ * Narrows a bundler-agnostic map to Rolldown's `SourceMapInput`.
  *
  * @remarks
- * Rolldown overwrites `plugin` on a thrown error with the name of the Rolldown plugin that hosts the hook,
- * which is the bridge, so the `EcoBuildPlugin` name is kept in `ecoBuildPlugin` and read back by
- * {@link getEcoBuildPluginName}. A new error is thrown for every attribution so the thrown value, which a
- * plugin may share across files or freeze, is never changed; it stays available as `cause`.
+ * `map` is `unknown` so plugin authors stay free of Rolldown types. Only usable maps (see
+ * {@link isUsableSourceMap}) and `null` (keep the incoming map) pass; anything else is `undefined`.
  */
-class EcoBuildPluginError extends Error {
-	readonly ecoBuildPlugin: string;
-	id?: string;
-	loc?: RolldownLog['loc'];
-	frame?: string;
+function toSourceMapInput(value: unknown): SourceMapInput | null | undefined {
+	if (value === null) return null;
+	return isUsableSourceMap(value) ? (value as SourceMapInput) : undefined;
+}
 
-	constructor(thrown: unknown, pluginName: string, id: string | undefined) {
-		const source: Partial<RolldownLog> = typeof thrown === 'object' && thrown !== null ? thrown : {};
-		super(typeof source.message === 'string' ? source.message : String(thrown), { cause: thrown });
-		this.ecoBuildPlugin = pluginName;
-		if (typeof source.stack === 'string') {
-			this.stack = source.stack;
-		}
-		const thrownId = typeof source.id === 'string' ? source.id : undefined;
-		if (thrownId ?? id) {
-			this.id = thrownId ?? id;
-		}
-		if (source.loc) {
-			this.loc = source.loc;
-		}
-		if (typeof source.frame === 'string') {
-			this.frame = source.frame;
-		}
+function toLoadResult(result: EcoBuildOnLoadResult | undefined, id: string): LoadResult {
+	if (!result || (typeof result.contents !== 'string' && !(result.contents instanceof Uint8Array))) {
+		return null;
+	}
+	const map = toSourceMapInput(result.map);
+	return {
+		code: typeof result.contents === 'string' ? result.contents : new TextDecoder().decode(result.contents),
+		moduleType:
+			typeof result.loader === 'string' && ROLLDOWN_MODULE_LOADERS.has(result.loader)
+				? result.loader
+				: inferModuleType(id),
+		...(map !== undefined ? { map } : {}),
+	};
+}
+
+/**
+ * Converts a transform result to Rolldown's shape.
+ *
+ * @remarks
+ * A rewrite without a usable map gets empty `mappings`, so Rolldown does not emit SOURCEMAP_BROKEN
+ * and the chained map does not point at stale source positions. An unchanged result is `null`.
+ */
+function toTransformResult(
+	result: EcoBuildOnTransformResult | string | undefined,
+	code: string,
+): SourceDescription | null {
+	if (result === undefined) return null;
+	const transformed = typeof result === 'string' ? result : result.code;
+	const map = typeof result === 'string' ? undefined : toSourceMapInput(result.map);
+	if (map === undefined && transformed === code) return null;
+	return { code: transformed, map: map === undefined ? { mappings: '' } : map };
+}
+
+/**
+ * Copies an error an `EcoBuildPlugin` threw, adding the module id it failed on.
+ *
+ * @remarks
+ * Rolldown writes `code`, `plugin` and `hook` onto a thrown error and leaves `id` unset, so a plugin
+ * that throws one shared or frozen error for several modules would lose its attribution. The copy
+ * keeps the thrown value unchanged as `cause`. `plugin` is set only for a `setup` error, which is
+ * thrown before Rolldown runs.
+ */
+function toPluginError(thrown: unknown, id: string | undefined, plugin?: string): Error {
+	const source: Partial<RolldownLog> = typeof thrown === 'object' && thrown !== null ? thrown : {};
+	const error: Error & Partial<RolldownLog> = new Error(
+		typeof source.message === 'string' ? source.message : String(thrown),
+		{ cause: thrown },
+	);
+	if (typeof source.stack === 'string') error.stack = source.stack;
+	const errorId = typeof source.id === 'string' ? source.id : id;
+	if (errorId) error.id = errorId;
+	if (source.loc) error.loc = source.loc;
+	if (typeof source.frame === 'string') error.frame = source.frame;
+	if (plugin) error.plugin = plugin;
+	return error;
+}
+
+async function attribute<T>(id: string | undefined, run: () => T | Promise<T>): Promise<T> {
+	try {
+		return await run();
+	} catch (thrown) {
+		throw toPluginError(thrown, id);
 	}
 }
 
-/** Returns the name of the `EcoBuildPlugin` that threw `error` inside the bridge, if any. */
-export function getEcoBuildPluginName(error: unknown): string | undefined {
-	return error instanceof EcoBuildPluginError ? error.ecoBuildPlugin : undefined;
+function toHookFilter(options: EcoBuildFilter, cleanUrl = false): TopLevelFilterExpression[] {
+	return [
+		...(options.exclude ? [exclude(idFilter(options.exclude, { cleanUrl }))] : []),
+		include(idFilter(options.filter, { cleanUrl })),
+	];
 }
 
-export type BuildInputRecorder = (moduleId: string, filePath: string) => void;
+function exactIdFilter(value: string): TopLevelFilterExpression[] {
+	return [include(idFilter(new RegExp(`^${escapeRegExp(value)}$`)))];
+}
+
+type HookScope = {
+	addWatchFile(filePath: string): void;
+	resolve(specifier: string, importer: string): Promise<EcoBuildResolvedId | undefined>;
+};
 
 /**
- * Creates the single Rolldown `Plugin` that drives the supplied
- * `EcoBuildPlugin` instances.
- *
- * All eco plugins are merged into one Rolldown plugin. Its `resolveId`
- * and `load` hooks check the registrations in `plugins` array order, so
- * registrations from earlier eco plugins win over later ones. `transform`
- * runs every matching registration in that same order.
+ * The `onLoad` or `transform` call a builder's `addWatchFile` and `resolve` belong to.
  *
  * @remarks
- * Every `setup` runs here, before the plugin object exists, because
- * Rolldown reads hook filters when the plugin is registered. Each hook
- * declares the union of its registrations as a hook filter, so Rolldown
- * calls into JavaScript only for ids that at least one registration may
- * match. A namespaced registration contributes only `^<namespace>:`; its
- * exact filter is tested in JavaScript against the path after the prefix.
- * Transform filters are tested with the query and hash stripped. Rolldown
- * tests filters against ids with `/` separators, so a filter written for
- * backslash separators does not match on Windows.
+ * Rolldown runs hooks for many modules at once, so the module a call is for travels with its async
+ * context instead of living on the builder.
+ */
+const hookScope = new AsyncLocalStorage<HookScope>();
+
+/**
+ * Creates the Rolldown plugins that drive the supplied `EcoBuildPlugin` instances.
  *
- * Every build creates a new bridge, so registrations and the
- * virtual-module counter never carry over between builds.
+ * @remarks
+ * Every `setup` runs here, in order, before any Rolldown plugin exists, because Rolldown reads hook
+ * filters when a plugin is registered; a handler registered later throws. Every builder shares one
+ * `entrypoints` object, so a plugin can key state on it for one build. Transform filters are tested
+ * with the query and hash stripped and never see a `\0` virtual id. Rolldown tests filters against
+ * ids with `/` separators, so a filter written for backslash separators does not match on Windows.
  *
  * @param plugins - `EcoBuildPlugin` instances registered for this build.
- * @param contextRoot - Project root used to resolve relative load paths.
- * @param recordBuildInput - Records filesystem paths this load read so watch
- *   and invalidation include them.
+ * @param contextRoot - Project root used to resolve a relative path an `onResolve` callback returns.
+ * @param options.watchFiles - Receives each file a callback declares with `addWatchFile`, under the module it ran for.
  */
 export async function createRolldownPluginBridge(
 	plugins: EcoBuildPlugin[],
 	contextRoot: string,
-	recordBuildInput?: BuildInputRecorder,
-	entrypoints?: Readonly<Record<string, string>>,
+	options: { entrypoints?: Readonly<Record<string, string>>; watchFiles?: WatchFilesByModule } = {},
 ): Promise<Plugin[]> {
-	if (plugins.length === 0) {
-		return [];
-	}
-
-	let moduleCount = 0;
+	const rolldownPlugins: Plugin[] = [];
 	let registrationClosed = false;
 	const assertOpen = (method: string): void => {
 		if (registrationClosed) {
@@ -412,190 +217,120 @@ export async function createRolldownPluginBridge(
 			);
 		}
 	};
-	const resolveRegistrations: Registration<ResolveCallback>[] = [];
-	const loadRegistrations: Registration<LoadCallback>[] = [];
-	const transformRegistrations: Registration<TransformCallback>[] = [];
-	const endRegistrations: Array<{ callback: () => void | Promise<void>; pluginName: string }> = [];
+	const inModule = <T>(context: Pick<PluginContext, 'addWatchFile' | 'resolve'>, moduleId: string, run: () => T): T =>
+		hookScope.run(
+			{
+				addWatchFile(filePath) {
+					const resolved = path.resolve(contextRoot, filePath);
+					context.addWatchFile(resolved);
+					if (!options.watchFiles) return;
+					const files = options.watchFiles.get(moduleId) ?? new Set<string>();
+					files.add(resolved);
+					options.watchFiles.set(moduleId, files);
+				},
+				async resolve(specifier, importer) {
+					const resolved = await context.resolve(specifier, importer, { skipSelf: true });
+					return resolved ? { id: resolved.id, external: Boolean(resolved.external) } : undefined;
+				},
+			},
+			run,
+		);
+	const currentScope = (method: string, name: string): HookScope => {
+		const scope = hookScope.getStore();
+		if (!scope) {
+			throw new Error(
+				`[ecopages] build.${method}() was called outside an onLoad or transform callback of "${name}".`,
+			);
+		}
+		return scope;
+	};
 
 	for (const ecoPlugin of plugins) {
-		const pluginName = ecoPlugin.name;
+		const name = ecoPlugin.name;
 		const builder: EcoBuildPluginBuilder = {
-			...(entrypoints ? { entrypoints } : {}),
-			onResolve: (options, callback) => {
+			...(options.entrypoints ? { entrypoints: options.entrypoints } : {}),
+			onResolve(filter, callback) {
 				assertOpen('onResolve');
-				resolveRegistrations.push(createRegistration(options.filter, options.namespace, callback, pluginName));
+				rolldownPlugins.push({
+					name,
+					resolveId: {
+						filter: toHookFilter(filter),
+						handler: async (source, importer) =>
+							toResolveResult(
+								await attribute(importer, () => callback({ path: source, importer })),
+								source,
+								importer,
+								contextRoot,
+							),
+					},
+				});
 			},
-			onLoad: (options, callback) => {
+			onLoad(filter, callback) {
 				assertOpen('onLoad');
-				loadRegistrations.push(createRegistration(options.filter, options.namespace, callback, pluginName));
+				rolldownPlugins.push({
+					name,
+					load: {
+						filter: toHookFilter(filter),
+						async handler(id) {
+							return toLoadResult(
+								await attribute(id, () => inModule(this, id, () => callback({ path: id }))),
+								id,
+							);
+						},
+					},
+				});
 			},
-			module: (specifier, callback) => {
+			module(specifier, callback) {
 				assertOpen('module');
-				const namespace = `ecopages-module-${moduleCount}`;
-				moduleCount += 1;
-				resolveRegistrations.push(
-					createRegistration(
-						new RegExp(`^${escapeRegExp(specifier)}$`),
-						undefined,
-						async () => ({ path: joinNamespace(namespace, specifier) }),
-						pluginName,
-					),
-				);
-				loadRegistrations.push(createRegistration(/.*/, namespace, async () => callback(), pluginName));
+				const virtualId = `\0${specifier}`;
+				rolldownPlugins.push({
+					name,
+					resolveId: { filter: exactIdFilter(specifier), handler: () => virtualId },
+					load: {
+						filter: exactIdFilter(virtualId),
+						handler: async () => toLoadResult(await attribute(specifier, callback), specifier),
+					},
+				});
 			},
-			transform: (options, callback) => {
+			transform(filter, callback) {
 				assertOpen('transform');
-				transformRegistrations.push(createRegistration(options.filter, undefined, callback, pluginName));
+				rolldownPlugins.push({
+					name,
+					transform: {
+						filter: [exclude(idFilter(VIRTUAL_MODULE_ID)), ...toHookFilter(filter, true)],
+						async handler(code, id) {
+							return toTransformResult(
+								await attribute(id, () => inModule(this, id, () => callback(code, id))),
+								code,
+							);
+						},
+					},
+				});
 			},
-			onEnd: (callback) => {
+			onEnd(callback) {
 				assertOpen('onEnd');
-				endRegistrations.push({ callback, pluginName });
+				rolldownPlugins.push({
+					name,
+					async buildEnd(error) {
+						if (!error) await attribute(undefined, callback);
+					},
+				});
+			},
+			addWatchFile(filePath) {
+				currentScope('addWatchFile', name).addWatchFile(filePath);
+			},
+			resolve(specifier, importer) {
+				return currentScope('resolve', name).resolve(specifier, importer);
 			},
 		};
 
 		try {
 			await ecoPlugin.setup(builder);
-		} catch (error) {
-			throw new EcoBuildPluginError(error, pluginName, undefined);
+		} catch (thrown) {
+			throw toPluginError(thrown, undefined, name);
 		}
 	}
 	registrationClosed = true;
 
-	const runTransform = async (
-		{ callback, pluginName }: Registration<TransformCallback>,
-		code: string,
-		sourcePath: string,
-	): Promise<EcoBuildOnTransformResult | string | undefined> => {
-		try {
-			return await callback(code, sourcePath);
-		} catch (error) {
-			throw new EcoBuildPluginError(error, pluginName, sourcePath);
-		}
-	};
-
-	const resolveIdHandler = async (
-		source: string,
-		importer: string | undefined,
-		extraOptions?: { kind?: EcoBuildImportKind },
-	) => {
-		for (const { matches, callback, pluginName } of resolveRegistrations) {
-			if (!matches(source)) {
-				continue;
-			}
-			const { namespace, path: sourcePath } = splitNamespace(source);
-			let result: EcoBuildOnResolveResult | undefined;
-			try {
-				result = await callback({ path: sourcePath, importer, namespace, kind: extraOptions?.kind });
-			} catch (error) {
-				throw new EcoBuildPluginError(error, pluginName, importer);
-			}
-			const converted = convertPluginOnResolveResult(result, importer, contextRoot);
-			if (converted !== undefined) {
-				return converted;
-			}
-		}
-		return undefined;
-	};
-
-	const loadHandler = async function (
-		this: { addWatchFile?: (id: string) => void },
-		id: string,
-	): Promise<LoadResult | undefined> {
-		for (const { matches, callback, pluginName } of loadRegistrations) {
-			if (!matches(id)) {
-				continue;
-			}
-			const { namespace, path: sourcePath } = splitNamespace(id);
-			const addWatchFile = typeof this?.addWatchFile === 'function' ? this.addWatchFile.bind(this) : undefined;
-			const resolved = path.isAbsolute(sourcePath) ? sourcePath : path.resolve(contextRoot, sourcePath);
-			recordBuildInput?.(id, resolved);
-			addWatchFile?.(resolved);
-			let result: EcoBuildOnLoadResult | undefined;
-			try {
-				result = await callback({ path: sourcePath, namespace });
-			} catch (error) {
-				throw new EcoBuildPluginError(error, pluginName, sourcePath);
-			}
-			const converted = convertPluginOnLoadResult({ id }, result);
-			if (converted !== undefined) {
-				return converted;
-			}
-		}
-		return undefined;
-	};
-
-	/**
-	 * Runs every matching transform and composes maps between them. A rewrite
-	 * without a map uses empty `mappings` so Rolldown does not emit
-	 * SOURCEMAP_BROKEN or report stale source positions.
-	 */
-	const transformHandler = async (code: string, id: string): Promise<SourceDescription | undefined> => {
-		const { namespace, path: sourcePath } = splitNamespace(id);
-		if (namespace !== undefined) {
-			return undefined;
-		}
-
-		let current = code;
-		const mapState: TransformMapState = { map: undefined, invalidated: false, preserveIncoming: false };
-		for (const registration of transformRegistrations) {
-			if (!registration.matches(sourcePath) && !registration.matches(stripQuery(sourcePath))) {
-				continue;
-			}
-			const result = await runTransform(registration, current, sourcePath);
-			if (!result) {
-				continue;
-			}
-			const previous = current;
-			current = typeof result === 'string' ? result : result.code;
-			if (typeof result === 'string') {
-				if (current !== previous) invalidateTransformMap(mapState);
-				continue;
-			}
-			updateTransformMap(mapState, result, previous, current, registration.pluginName, sourcePath);
-		}
-
-		const sourceMap = toRolldownSourceMapInput(mapState.map);
-		if (current === code && sourceMap === undefined && !mapState.invalidated && !mapState.preserveIncoming) {
-			return undefined;
-		}
-
-		return {
-			code: current,
-			map: sourceMap ?? (mapState.preserveIncoming ? null : { mappings: '' }),
-		};
-	};
-
-	const plugin: Plugin = { name: 'ecopages-plugin-bridge' };
-	if (resolveRegistrations.length > 0) {
-		plugin.resolveId = {
-			filter: resolveRegistrations.map(({ hookFilter }) => include(idFilter(hookFilter))),
-			handler: resolveIdHandler,
-		};
-	}
-	if (loadRegistrations.length > 0) {
-		plugin.load = {
-			filter: loadRegistrations.map(({ hookFilter }) => include(idFilter(hookFilter))),
-			handler: loadHandler,
-		};
-	}
-	if (endRegistrations.length > 0) {
-		plugin.buildEnd = async (error) => {
-			if (error) return;
-			for (const { callback, pluginName } of endRegistrations) {
-				try {
-					await callback();
-				} catch (thrown) {
-					throw new EcoBuildPluginError(thrown, pluginName, undefined);
-				}
-			}
-		};
-	}
-	if (transformRegistrations.length > 0) {
-		plugin.transform = {
-			filter: transformRegistrations.map(({ hookFilter }) => include(idFilter(hookFilter, { cleanUrl: true }))),
-			handler: transformHandler,
-		};
-	}
-
-	return [plugin];
+	return rolldownPlugins;
 }

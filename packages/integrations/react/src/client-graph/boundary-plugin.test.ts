@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -8,6 +8,7 @@ import type {
 	EcoBuildOnLoadResult,
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
+	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
 } from '@ecopages/core/integration';
 import { createClientGraphBoundaryPlugin } from './boundary-plugin.ts';
@@ -16,7 +17,7 @@ import { getBuildEntryOutput } from '../../../../core/src/build/build-graph.ts';
 import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
 
 type OnLoadRegistration = {
-	options: { filter: RegExp; namespace?: string };
+	options: { filter: RegExp; exclude?: RegExp };
 	callback: (
 		args: EcoBuildOnLoadArgs,
 	) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>;
@@ -36,6 +37,8 @@ function createPluginTestHarness(
 		module: (_specifier, _callback) => {},
 		transform: () => {},
 		onEnd: () => {},
+		addWatchFile: () => {},
+		resolve: async () => undefined,
 	};
 
 	const plugin = createClientGraphBoundaryPlugin(pluginOptions);
@@ -65,6 +68,15 @@ async function renderTransformed(tempDir: string, name: string, transformed: str
 	writeFileSync(outputPath, transformed);
 	const module = (await import(pathToFileURL(outputPath).href)) as { default: { render: () => unknown } };
 	return module.default.render();
+}
+
+async function withTempDir(run: (tempDir: string) => Promise<void>): Promise<void> {
+	const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-client-graph-')));
+	try {
+		await run(tempDir);
+	} finally {
+		rmSync(tempDir, { recursive: true, force: true });
+	}
 }
 
 describe('createClientGraphBoundaryPlugin', () => {
@@ -142,6 +154,8 @@ describe('createClientGraphBoundaryPlugin', () => {
 			module: () => {},
 			transform: () => {},
 			onEnd: () => {},
+			addWatchFile: () => {},
+			resolve: async () => undefined,
 		};
 
 		try {
@@ -226,6 +240,8 @@ describe('createClientGraphBoundaryPlugin', () => {
 			module: () => {},
 			transform: () => {},
 			onEnd: () => {},
+			addWatchFile: () => {},
+			resolve: async () => undefined,
 		};
 
 		try {
@@ -280,6 +296,8 @@ describe('createClientGraphBoundaryPlugin', () => {
 			module: () => {},
 			transform: () => {},
 			onEnd: () => {},
+			addWatchFile: () => {},
+			resolve: async () => undefined,
 		};
 
 		try {
@@ -693,7 +711,10 @@ describe('createClientGraphBoundaryPlugin', () => {
 		);
 
 		try {
-			const harness = createPluginTestHarness();
+			const harness = createPluginTestHarness(
+				{ absWorkingDir: tempDir, projectRoot: tempDir },
+				{ entry: entryPath },
+			);
 			await harness.transformFile(entryPath);
 
 			await expect(harness.transformFile(barrelPath)).rejects.toThrow(
@@ -726,7 +747,10 @@ describe('createClientGraphBoundaryPlugin', () => {
 		);
 
 		try {
-			const harness = createPluginTestHarness();
+			const harness = createPluginTestHarness(
+				{ absWorkingDir: tempDir, projectRoot: tempDir },
+				{ entry: entryPath },
+			);
 			await harness.transformFile(entryPath);
 			const transformed = await harness.transformFile(barrelPath);
 
@@ -917,15 +941,6 @@ describe('client graph boundary: stripped imports', () => {
 		return result.outputs[0]!.path;
 	}
 
-	async function withTempDir(run: (tempDir: string) => Promise<void>): Promise<void> {
-		const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-stripped-imports-')));
-		try {
-			await run(tempDir);
-		} finally {
-			rmSync(tempDir, { recursive: true, force: true });
-		}
-	}
-
 	async function evaluate(outputPath: string): Promise<Record<string, unknown>> {
 		return (await import(pathToFileURL(outputPath).href)) as Record<string, unknown>;
 	}
@@ -1084,5 +1099,258 @@ describe('client graph boundary: stripped imports', () => {
 			).rejects.toThrow(
 				`'entries' (imported from 'ecopages:content/posts/server') is used at ${join(tempDir, 'entry.tsx')}:2:22`,
 			);
+		}));
+});
+
+describe('client graph boundary: one plan per build', () => {
+	/**
+	 * Builds two React islands that share `shared.ts`, holding back the load of `delayed` until `shared.ts`
+	 * starts loading, so the other island's requests reach `shared.ts` first.
+	 */
+	async function buildWithLoadOrder(tempDir: string, delayed: 'island-a' | 'island-b') {
+		const islandA = join(tempDir, 'island-a.tsx');
+		const islandB = join(tempDir, 'island-b.tsx');
+		const sharedLoading = Promise.withResolvers<void>();
+		const loadOrder: EcoBuildPlugin = {
+			name: 'load-order',
+			setup(build) {
+				build.onLoad({ filter: /shared\.ts$/ }, () => {
+					sharedLoading.resolve();
+					return undefined;
+				});
+				build.onLoad({ filter: new RegExp(`${delayed}\\.tsx$`) }, async () => {
+					await sharedLoading.promise;
+					return undefined;
+				});
+			},
+		};
+		const groupedEntrypointFiles = [islandA, islandB];
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser',
+			entrypoints: { islandA, islandB },
+			outdir: join(tempDir, 'dist'),
+			root: tempDir,
+			target: 'browser',
+			format: 'esm',
+			splitting: true,
+			writeToDisk: false,
+			plugins: [
+				loadOrder,
+				...groupedEntrypointFiles.map((entrypointFile) =>
+					createClientGraphBoundaryPlugin({
+						absWorkingDir: tempDir,
+						projectRoot: tempDir,
+						entrypointFile,
+						groupedEntrypointFiles,
+					}),
+				),
+			],
+		});
+		if (!result.success) return { error: result.logs.map((log) => log.message).join('\n') };
+		return {
+			outputs: result.outputs
+				.map((output) => [output.path, String(output.content)])
+				.sort(([left], [right]) => left!.localeCompare(right!)),
+		};
+	}
+
+	function writeIslands(tempDir: string, shared: string[]) {
+		writeFileSync(join(tempDir, 'secret.server.ts'), 'export const secret = "server-secret";');
+		writeFileSync(join(tempDir, 'shared.ts'), shared.join('\n'));
+		writeFileSync(join(tempDir, 'island-a.tsx'), "import { a } from './shared';\nexport default () => a();");
+		writeFileSync(join(tempDir, 'island-b.tsx'), "import { b } from './shared';\nexport default () => b();");
+	}
+
+	it('emits the same bytes in either load order when the build succeeds', () =>
+		withTempDir(async (tempDir) => {
+			writeIslands(tempDir, [
+				"import { secret } from './secret.server';",
+				"export const a = () => 'from-a';",
+				"export const b = () => 'from-b';",
+				'export const leak = () => secret;',
+			]);
+
+			const first = await buildWithLoadOrder(tempDir, 'island-b');
+			const second = await buildWithLoadOrder(tempDir, 'island-a');
+
+			expect(first.error).toBeUndefined();
+			expect(second).toEqual(first);
+			const code = first.outputs!.map(([, content]) => content).join('\n');
+			expect(code).toContain('from-a');
+			expect(code).toContain('from-b');
+			expect(code).not.toContain('server-secret');
+		}));
+
+	it('rejects an export another island needs from a server module in either load order', () =>
+		withTempDir(async (tempDir) => {
+			writeIslands(tempDir, [
+				"import { secret } from './secret.server';",
+				"export const a = () => 'from-a';",
+				'export const b = () => secret;',
+			]);
+
+			const first = await buildWithLoadOrder(tempDir, 'island-b');
+			const second = await buildWithLoadOrder(tempDir, 'island-a');
+
+			expect(first.error).toContain("Forbidden client import './secret.server'");
+			expect(second).toEqual(first);
+		}));
+
+	it('requests nothing from a module that only a stripped server-only Page option imports', () =>
+		withTempDir(async (tempDir) => {
+			mkdirSync(join(tempDir, 'pages'));
+			const entry = join(tempDir, 'pages', 'entry.tsx');
+			writeFileSync(
+				entry,
+				[
+					"import { load } from './loader';",
+					"import { x } from './helper';",
+					'export default eco.page({',
+					'\tstaticProps: async () => ({ props: { value: await load() } }),',
+					'\trender: () => x(),',
+					'});',
+				].join('\n'),
+			);
+			writeFileSync(
+				join(tempDir, 'pages', 'loader.ts'),
+				"import { serverFn } from './helper';\nexport const load = () => serverFn();",
+			);
+			writeFileSync(
+				join(tempDir, 'pages', 'helper.ts'),
+				"import { secret } from './secret.server';\nexport const x = () => 'from-x';\nexport const serverFn = () => secret;",
+			);
+			writeFileSync(join(tempDir, 'pages', 'secret.server.ts'), "export const secret = 'server-secret';");
+
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser',
+				entrypoints: [entry],
+				outdir: join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				writeToDisk: false,
+				plugins: [
+					createClientGraphBoundaryPlugin({
+						absWorkingDir: tempDir,
+						projectRoot: tempDir,
+						entrypointFile: entry,
+						groupedEntrypointFiles: [entry],
+					}),
+				],
+			});
+
+			assertBuildSucceeded(result, 'Build failed');
+			const code = result.outputs.map((output) => String(output.content)).join('\n');
+			expect(code).toContain('from-x');
+			expect(code).not.toContain('server-secret');
+		}));
+
+	it('passes requests on from a workspace package imported by name to an app module it shares', () =>
+		withTempDir(async (tempDir) => {
+			const app = join(tempDir, 'app');
+			const kit = join(tempDir, 'packages', 'kit');
+			mkdirSync(join(app, 'src'), { recursive: true });
+			mkdirSync(join(app, 'node_modules', '@ws'), { recursive: true });
+			mkdirSync(kit, { recursive: true });
+			symlinkSync(kit, join(app, 'node_modules', '@ws', 'kit'), 'dir');
+			writeFileSync(join(kit, 'package.json'), JSON.stringify({ name: '@ws/kit', main: 'index.ts' }));
+			writeFileSync(
+				join(kit, 'index.ts'),
+				"import { y } from '../../app/src/shared';\nexport const useKit = () => y();",
+			);
+			writeFileSync(join(app, 'src', 'secret.server.ts'), "export const secret = 'server-secret';");
+			writeFileSync(
+				join(app, 'src', 'shared.ts'),
+				[
+					"import { secret } from './secret.server';",
+					"export const x = () => 'from-x';",
+					'export const y = () => secret;',
+				].join('\n'),
+			);
+			const island = join(app, 'src', 'island.tsx');
+			writeFileSync(
+				island,
+				[
+					"import { x } from './shared';",
+					"import { useKit } from '@ws/kit';",
+					'export default () => x() + useKit();',
+				].join('\n'),
+			);
+
+			const result = await new RolldownBuildAdapter()
+				.build({
+					environment: 'browser',
+					entrypoints: { island },
+					outdir: join(app, 'dist'),
+					root: app,
+					target: 'browser',
+					format: 'esm',
+					writeToDisk: false,
+					plugins: [
+						createClientGraphBoundaryPlugin({
+							absWorkingDir: app,
+							projectRoot: app,
+							entrypointFile: island,
+							groupedEntrypointFiles: [island],
+						}),
+					],
+				})
+				.catch((error: unknown) => ({ success: false as const, logs: [{ message: String(error) }] }));
+
+			expect(result.success).toBe(false);
+			expect(result.success ? '' : result.logs.map((log) => log.message).join('\n')).toContain(
+				"Forbidden client import './secret.server'",
+			);
+		}));
+
+	it('registers one handler for every boundary instance of a build', async () => {
+		const registrations: OnLoadRegistration[] = [];
+		const builder: EcoBuildPluginBuilder = {
+			entrypoints: { a: '/app/a.tsx', b: '/app/b.tsx' },
+			onResolve: () => {},
+			onLoad: (options, callback) => registrations.push({ options, callback }),
+			module: () => {},
+			transform: () => {},
+			onEnd: () => {},
+			addWatchFile: () => {},
+			resolve: async () => undefined,
+		};
+		for (const entrypointFile of ['/app/a.tsx', '/app/b.tsx']) {
+			await createClientGraphBoundaryPlugin({
+				absWorkingDir: '/app',
+				entrypointFile,
+				groupedEntrypointFiles: ['/app/a.tsx', '/app/b.tsx'],
+			}).setup(builder);
+		}
+
+		expect(registrations).toHaveLength(1);
+		expect(registrations[0]!.options.exclude?.test('/app/node_modules/react/index.js')).toBe(true);
+	});
+
+	it('declares a file it inlines as a dependency of the entries that hold the module', () =>
+		withTempDir(async (tempDir) => {
+			const entrypoint = join(tempDir, 'entry.tsx');
+			const greeting = join(tempDir, 'greeting.txt');
+			writeFileSync(greeting, 'hello');
+			writeFileSync(
+				join(tempDir, 'copy.ts'),
+				"export const copy = fs.readFileSync(path.resolve('greeting.txt'), 'utf8');",
+			);
+			writeFileSync(entrypoint, "import { copy } from './copy';\nexport default () => copy;");
+
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser',
+				entrypoints: [entrypoint],
+				outdir: join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				writeToDisk: false,
+				plugins: [createClientGraphBoundaryPlugin({ absWorkingDir: tempDir, projectRoot: tempDir })],
+			});
+
+			assertBuildSucceeded(result, 'Build failed');
+			expect(String(result.outputs[0]!.content)).toContain('hello');
+			expect(result.dependencyGraph.entrypoints[entrypoint]).toContain(greeting);
 		}));
 });

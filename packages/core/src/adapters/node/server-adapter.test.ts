@@ -18,7 +18,6 @@ import { Processor } from '../../plugins/processor.ts';
 import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import { ServerRouteHandler } from '../shared/runtime/server-route-handler.ts';
 import { ServerRequestPipeline } from '../shared/runtime/server-request-pipeline.ts';
-import { getBuildInputRecordingContext } from '../../build/cache/build-input-dependency-index.ts';
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));
 const devBridge = vi.hoisted(() => ({ reload: vi.fn() }));
@@ -128,14 +127,9 @@ async function requestApiAndPageWithBuildScopeCapture(watch: boolean) {
 	const appConfig = await finalizeEcoPagesConfig({ rootDir });
 	const runtime = requireAppRuntime(appConfig);
 	const withRequestScope = vi.spyOn(runtime.buildQueue, 'withRequestScope');
-	const recordingIndexes: unknown[] = [];
-	const captureIndex = () => {
-		recordingIndexes.push(getBuildInputRecordingContext().index);
-	};
-	const handleResponse = vi.spyOn(ServerRouteHandler.prototype, 'handleResponse').mockImplementation(async () => {
-		captureIndex();
-		return new Response('page');
-	});
+	const handleResponse = vi
+		.spyOn(ServerRouteHandler.prototype, 'handleResponse')
+		.mockImplementation(async () => new Response('page'));
 	onTestFinished(() => handleResponse.mockRestore());
 	const adapter = makeNodeServerAdapter({
 		appConfig,
@@ -144,10 +138,7 @@ async function requestApiAndPageWithBuildScopeCapture(watch: boolean) {
 			{
 				path: '/api/health',
 				method: 'GET',
-				handler: () => {
-					captureIndex();
-					return new Response('ok');
-				},
+				handler: () => new Response('ok'),
 			},
 		],
 	});
@@ -159,7 +150,7 @@ async function requestApiAndPageWithBuildScopeCapture(watch: boolean) {
 		expect(await api.text()).toBe('ok');
 		expect(page.status).toBe(200);
 		expect(await page.text()).toBe('page');
-		return { withRequestScope, recordingIndexes, appConfig };
+		return { withRequestScope };
 	} finally {
 		await adapter.dispose();
 	}
@@ -963,34 +954,29 @@ describe('NodeServerAdapter', () => {
 		expect(teardown).toHaveBeenCalledOnce();
 	});
 
-	it('does not enter a build queue scope or record build inputs on production API and Page requests', async () => {
-		const { withRequestScope, recordingIndexes } = await requestApiAndPageWithBuildScopeCapture(false);
+	it('does not enter a build queue scope on production API and Page requests', async () => {
+		const { withRequestScope } = await requestApiAndPageWithBuildScopeCapture(false);
 
 		expect(withRequestScope).not.toHaveBeenCalled();
-		expect(recordingIndexes).toEqual([undefined, undefined]);
 	});
 
-	it('enters a build queue scope and records build inputs on development API and Page requests', async () => {
-		const { withRequestScope, recordingIndexes, appConfig } = await requestApiAndPageWithBuildScopeCapture(true);
-		const buildInputIndex = requireAppRuntime(appConfig).buildInputIndex;
+	it('enters a build queue scope on development API and Page requests', async () => {
+		const { withRequestScope } = await requestApiAndPageWithBuildScopeCapture(true);
 
 		expect(withRequestScope).toHaveBeenCalledTimes(2);
-		expect(recordingIndexes).toHaveLength(2);
-		expect(recordingIndexes[0]).toBe(buildInputIndex);
-		expect(recordingIndexes[1]).toBe(buildInputIndex);
 	});
 
-	it('prewarms the paths a Processor added after finalization and records the build inputs the render reads', async () => {
+	it('prewarms each path a Processor added after finalization once', async () => {
 		const appConfig = await finalizeEcoPagesConfig({
 			rootDir: path.join(os.tmpdir(), 'ecopages-prewarm-build-inputs'),
 		});
 		appConfig.devPrewarmPaths = ['/prewarmed', '/prewarmed'];
-		const recordingIndexes: unknown[] = [];
+		const prewarmed: string[] = [];
 		const handleResponse = vi
 			.spyOn(ServerRouteHandler.prototype, 'handleResponse')
 			.mockImplementation(async (request: Request) => {
 				if (new URL(request.url).pathname === '/prewarmed') {
-					recordingIndexes.push(getBuildInputRecordingContext().index);
+					prewarmed.push(request.url);
 				}
 				return new Response('ok');
 			});
@@ -1002,10 +988,10 @@ describe('NodeServerAdapter', () => {
 		onTestFinished(() => subscription.mockRestore());
 
 		await adapter.completeInitialization({} as import('node:http').Server);
-		await vi.waitFor(() => expect(recordingIndexes).toHaveLength(1));
+		await vi.waitFor(() => expect(prewarmed).toHaveLength(1));
 
 		await adapter.dispose();
 
-		expect(recordingIndexes).toEqual([requireAppRuntime(appConfig).buildInputIndex]);
+		expect(prewarmed).toHaveLength(1);
 	});
 });

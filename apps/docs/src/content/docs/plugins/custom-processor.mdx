@@ -233,12 +233,12 @@ class CustomProcessor extends Processor {
 
 Plugins that declare `environments: ['browser']` apply to browser bundles only. Plugins that omit `environments` apply to server and browser builds.
 
-### Virtual modules and the `object` loader
+### Virtual modules, loaders and watch files
 
-Two parts of the build plugin contract serve modules that have no file on disk:
-
-- `build.module(specifier, callback)` declares a virtual module. An import of exactly `specifier` resolves to it, and `callback` returns the `onLoad` result that provides its contents. The image Processor uses it for `ecopages:images`.
-- `loader: 'object'` in an `onLoad` result turns `exports` into the module's exports instead of compiling `contents`. The PostCSS Processor returns `{ exports: { default: css }, loader: 'object' }` to hand a stylesheet's compiled CSS to the importer. The other loaders (`js`, `jsx`, `ts`, `tsx`) compile `contents` as that language.
+- `build.module(specifier, callback)` declares a virtual module. An import of exactly `specifier` resolves to it, and `callback` returns the `onLoad` result that provides its contents. The image Processor uses it for `ecopages:images`. A virtual module path you return from `onResolve` yourself starts with `\0`, so no other plugin reads it as a file.
+- `loader` in an `onLoad` result (`js`, `jsx`, `ts` or `tsx`) sets the language `contents` compiles as. The PostCSS Processor returns `` { contents: `export default ${JSON.stringify(css)};`, loader: 'js' } `` to hand a stylesheet's compiled CSS to the importer.
+- `onResolve`, `onLoad` and `transform` take an optional `exclude` pattern next to `filter`. Rolldown tests both before your callback runs, against ids with `/` separators.
+- `build.addWatchFile(path)`, called inside an `onLoad` or `transform` callback, declares a file the callback read, so an edit to it rebuilds the module in development and invalidates the caches that hold it.
 
 Like `onResolve`, `onLoad`, and `transform`, call `module()` before `setup` returns. A later call throws.
 

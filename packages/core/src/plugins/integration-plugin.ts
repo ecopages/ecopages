@@ -19,14 +19,15 @@ import { installConfiguredServerDom, type ServerDomInstaller } from './server-do
 export type { ServerDomInstaller, ServerDomSurfaceKind } from './server-dom.ts';
 
 export type {
+	EcoBuildFilter,
 	EcoBuildLoader,
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
-	EcoBuildImportKind,
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
+	EcoBuildResolvedId,
 } from '../build/contracts/build-types.ts';
 export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../types/contracts.ts';
 export type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';

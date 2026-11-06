@@ -25,14 +25,17 @@ function resolveReadFileCandidate(relPath: string, sourcePath: string, absWorkin
 
 /**
  * Inlines `fs.readFileSync(path.resolve(...), 'utf8')` calls when the target file exists.
+ *
+ * @returns The rewritten source, whether it changed, and the files it inlined.
  */
 export function inlineReadFileSyncCalls(
 	source: string,
 	sourcePath: string,
 	absWorkingDir: string,
-): { transformed: string; modified: boolean } {
+): { transformed: string; modified: boolean; inlinedFiles: string[] } {
+	const inlinedFiles: string[] = [];
 	if (!source.includes('readFileSync')) {
-		return { transformed: source, modified: false };
+		return { transformed: source, modified: false, inlinedFiles };
 	}
 
 	let modified = false;
@@ -41,11 +44,12 @@ export function inlineReadFileSyncCalls(
 		try {
 			const absolutePath = resolveReadFileCandidate(relPath, sourcePath, absWorkingDir);
 			if (!absolutePath) return '""';
+			inlinedFiles.push(absolutePath);
 			return JSON.stringify(fileSystem.readFileSync(absolutePath));
 		} catch {
 			return '""';
 		}
 	});
 
-	return { transformed, modified };
+	return { transformed, modified, inlinedFiles };
 }

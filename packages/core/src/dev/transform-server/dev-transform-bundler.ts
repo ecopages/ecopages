@@ -8,7 +8,7 @@ import { createDevTransformExternalizeImportsPlugin } from './dev-transform-exte
 import { rewriteModuleImports } from './dev-transform-import-rewriter.ts';
 import type { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 import type { DevTransformBundleContributor, DevTransformBundleResult } from './types.ts';
-import { getBuildEntryOutput } from '../../build/build-graph.ts';
+import { collectBuildEntryInputPaths, getBuildEntryOutput } from '../../build/build-graph.ts';
 import { assertBuildSucceeded } from '../../build/build-log.ts';
 
 export type DevTransformBundlerOptions = {
@@ -93,9 +93,12 @@ export class DevTransformBundler {
 			resolveVendorUrl: (specifier) => this.vendorRegistry.resolveVendorUrl(specifier),
 		});
 
+		const inlinedInputs = collectBuildEntryInputPaths(result, normalized, this.appConfig.rootDir).filter(
+			(filePath) => filePath !== normalized,
+		);
 		return {
 			code: rewritten.code,
-			dependencies: rewritten.dependencies,
+			dependencies: [...new Set([...rewritten.dependencies, ...inlinedInputs])],
 		};
 	}
 }

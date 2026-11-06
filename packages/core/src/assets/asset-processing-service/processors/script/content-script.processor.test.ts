@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { ContentScriptProcessor } from './content-script.processor';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
@@ -291,10 +292,9 @@ describe('ContentScriptProcessor', () => {
 				entryOutputs: Object.fromEntries(entries.map((entry) => [entry.entrypoint, outputPath])),
 				dependencyGraph: {
 					entrypoints: Object.fromEntries(
-						entries.map((entry) => [entry.entrypoint, [entry.entrypoint, buildInput]]),
+						entries.map((entry) => [path.resolve(entry.entrypoint), [entry.entrypoint, buildInput]]),
 					),
 				},
-				loadedInputsByModule: Object.fromEntries(entries.map((entry) => [entry.entrypoint, [buildInput]])),
 			});
 		});
 		const processor = new ContentScriptProcessor({ appConfig: createMockConfig() });

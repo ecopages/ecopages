@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { transformModuleImports } from './ast-transform.ts';
-import type { RequestedExportRules } from './specifier-classification.ts';
+import { normalizeRequestedExportsKey, type RequestedExportRules } from './specifier-classification.ts';
 
 function transform(
 	source: string,
@@ -14,7 +14,7 @@ function transform(
 		source,
 		filename,
 		options?.globallyAllowed ?? new Map(),
-		options?.requestedExports ?? new Map(),
+		options?.requestedExports?.get(normalizeRequestedExportsKey(filename)),
 	);
 }
 

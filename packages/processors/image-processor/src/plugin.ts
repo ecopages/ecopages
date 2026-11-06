@@ -17,7 +17,7 @@ import {
 } from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
 import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
-import { createImagePlugin, createImagePluginBundler } from './image-plugins.ts';
+import { createImagePlugin } from './image-plugins.ts';
 import { ImageProcessor } from './image-processor.ts';
 import {
 	getOutputSources,
@@ -154,13 +154,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	}
 
 	override plugins(): EcoBuildPlugin[] {
-		return [
-			{ ...createImagePlugin(this.processedImages, () => this.ensurePrepared()), environments: ['server'] },
-			{
-				...createImagePluginBundler(this.processedImages, () => this.ensurePrepared()),
-				environments: ['browser'],
-			},
-		];
+		return [createImagePlugin(this.processedImages, () => this.ensurePrepared())];
 	}
 
 	/**

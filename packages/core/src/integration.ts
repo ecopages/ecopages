@@ -44,13 +44,14 @@ export { HmrStrategy, HmrStrategyType } from './hmr/hmr-strategy.ts';
 export { type DefinedIntegration, defineIntegration } from './plugins/define-integration.ts';
 export {
 	type AnyIntegrationPlugin,
+	type EcoBuildFilter,
 	type EcoBuildOnLoadArgs,
 	type EcoBuildOnLoadResult,
-	type EcoBuildImportKind,
 	type EcoBuildOnResolveArgs,
 	type EcoBuildOnResolveResult,
 	type EcoBuildPlugin,
 	type EcoBuildPluginBuilder,
+	type EcoBuildResolvedId,
 	IntegrationPlugin,
 	type IntegrationPluginConfig,
 	type IntegrationRendererBase,

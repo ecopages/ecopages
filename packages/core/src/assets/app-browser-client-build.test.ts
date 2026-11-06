@@ -179,8 +179,6 @@ beforeEach(() => {
 				success: true,
 				outputs: [...outputs, { path: path.join(options.outdir, 'shared-chunk.js') }],
 				warnings: [],
-				loadedInputs: [],
-				loadedInputsByModule: {},
 				dependencyGraph: {
 					entrypoints: Object.fromEntries(
 						entries.map(({ entrypoint }) => [

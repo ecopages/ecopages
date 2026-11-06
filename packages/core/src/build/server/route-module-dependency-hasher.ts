@@ -170,7 +170,7 @@ function filterTrackableRouteModuleDependencies(modulePaths: readonly string[]):
  * @returns Normalized module paths, falling back to the entrypoint when no graph is available.
  */
 export function resolveRouteModuleDependencyPaths(
-	buildResult: Pick<BuildSuccess, 'dependencyGraph' | 'loadedInputsByModule'>,
+	buildResult: Pick<BuildSuccess, 'dependencyGraph'>,
 	entrypointPath: string,
 	rootDir: string,
 ): string[] {

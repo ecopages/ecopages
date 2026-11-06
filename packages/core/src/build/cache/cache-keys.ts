@@ -1,8 +1,8 @@
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 
 /**
- * Stable fingerprint for ordered build plugins: each name, its environments, its
- * {@link EcoBuildPlugin.cacheKey} and, when set, its {@link EcoBuildPlugin.entryScope}.
+ * Stable fingerprint for ordered build plugins: each name, its environments and its
+ * {@link EcoBuildPlugin.cacheKey}.
  */
 export function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
 	if (!plugins || plugins.length === 0) {
@@ -15,7 +15,6 @@ export function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
 			plugin.name,
 			[...new Set(plugin.environments ?? ['server', 'browser'])].sort(),
 			plugin.cacheKey ?? null,
-			...(plugin.entryScope ? [[...plugin.entryScope].sort()] : []),
 		]),
 	]);
 }

@@ -220,6 +220,11 @@ function loadBuildClientGraphBoundaryModule(
 
 /**
  * Instantiates the client graph boundary build plugin.
+ *
+ * @remarks
+ * In a build shared with other Integrations it decides by file, never by the entry that reached a module: it
+ * leaves an entry file no boundary instance declares to its own Integration and transforms every other source
+ * module the same way, since a module has one URL and so one compiled form.
  */
 export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOptions): EcoBuildPlugin {
 	const normalizedOptions = normalizeClientGraphBoundaryOptions(options);
@@ -228,7 +233,6 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 	return {
 		name: 'ecopages-client-graph-boundary',
 		cacheKey: normalizedOptions.cacheKey,
-		bundleGroupKey: 'react-client-graph-boundary',
 		setup(build) {
 			if (
 				!build.entrypoints ||

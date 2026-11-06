@@ -368,6 +368,60 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
+	it('compiles a module that a React island and another Integration share the same way in either entry order', async () => {
+		const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-client-graph-')));
+		const island = join(tempDir, 'island.tsx');
+		const litEntry = join(tempDir, 'lit-entry.ts');
+		writeFileSync(join(tempDir, 'secret.server.ts'), 'export const secret = "server-secret";');
+		writeFileSync(
+			join(tempDir, 'format.ts'),
+			[
+				"import { secret } from './secret.server.ts';",
+				'export const loadSecret = () => secret;',
+				'export const format = (value) => `formatted-${value}`;',
+			].join('\n'),
+		);
+		writeFileSync(island, "import { format } from './format.ts';\nexport default () => format('island');");
+		writeFileSync(litEntry, "import { format } from './format.ts';\nconsole.log(format('lit'));");
+
+		const buildInOrder = async (entrypoints: Record<string, string>) => {
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser',
+				entrypoints,
+				outdir: join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				splitting: true,
+				plugins: [
+					createClientGraphBoundaryPlugin({
+						absWorkingDir: tempDir,
+						projectRoot: tempDir,
+						entrypointFile: island,
+						groupedEntrypointFiles: [island],
+					}),
+				],
+			});
+			assertBuildSucceeded(result, 'Build failed');
+			return result.outputs
+				.filter((output) => output.path.endsWith('.js'))
+				.map((output) => readFileSync(output.path, 'utf8'))
+				.join('\n');
+		};
+
+		try {
+			for (const output of [
+				await buildInOrder({ island, lit: litEntry }),
+				await buildInOrder({ lit: litEntry, island }),
+			]) {
+				expect(output.match(/formatted-/g)).toHaveLength(1);
+				expect(output).not.toContain('server-secret');
+			}
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('builds a browser Page after pruning server-only middleware before resolution', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
 		const pagesDir = join(tempDir, 'pages');

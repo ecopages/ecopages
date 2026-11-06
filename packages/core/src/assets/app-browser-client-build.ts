@@ -5,7 +5,6 @@ import { fileSystem } from '@ecopages/file-system';
 import { getBuildEntryOutput, collectBuildEntryInputPaths } from '../build/build-graph.ts';
 import type { BuildSuccess } from '../build/build-adapter.ts';
 import { assertBuildSucceeded } from '../build/build-log.ts';
-import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { RESOLVED_ASSETS_DIR } from '../constants.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
 import {
@@ -150,9 +149,10 @@ function recordsEqual(left: Record<string, string> = {}, right: Record<string, s
  * Whether two entries can share one build.
  *
  * @remarks
- * Only options that apply to the whole build keep entries apart. Plugins and external modules do not: each
- * plugin is scoped to the entries that declared it (see {@link mergeEntryPlugins}), and an external module
- * stays external for the whole build. Splitting is always on in the app-wide build.
+ * Only options that apply to the whole build keep entries apart. Plugins and external modules do not: a module
+ * has one URL and so one compiled form, so every plugin of the build applies to every module and decides by the
+ * module itself whether it handles it, and an external module stays external for the whole build. Splitting is
+ * always on in the app-wide build.
  */
 function buildWideOptionsEqual(
 	left: NonNullable<ScriptAsset['bundleOptions']>,
@@ -166,108 +166,26 @@ function buildWideOptionsEqual(
 	);
 }
 
-/** Instances with one `bundleGroupKey` count as one plugin; any other plugin is its own identity. */
-function pluginIdentity(plugin: EcoBuildPlugin): unknown {
-	return plugin.bundleGroupKey === undefined ? plugin : JSON.stringify([plugin.name, plugin.bundleGroupKey]);
-}
-
-function pluginIdentityOrder(plugins: readonly EcoBuildPlugin[]): unknown[] {
-	return [...new Set(plugins.map(pluginIdentity))];
-}
-
-/**
- * Whether `plugins` keeps the relative order of every plugin it shares with `merged`.
- *
- * @remarks
- * The first plugin that returns a result wins a hook, so two entries that order the same plugins differently
- * need different builds.
- */
-function pluginOrderCompatible(merged: readonly EcoBuildPlugin[], plugins: readonly EcoBuildPlugin[]): boolean {
-	const entryOrder = pluginIdentityOrder(plugins);
-	const mergedOrder = pluginIdentityOrder(merged);
-	const shared = new Set(entryOrder.filter((identity) => mergedOrder.includes(identity)));
-	const mergedShared = mergedOrder.filter((identity) => shared.has(identity));
-	const entryShared = entryOrder.filter((identity) => shared.has(identity));
-	return mergedShared.every((identity, index) => entryShared[index] === identity);
-}
-
-/** Adds `plugins` to `merged`, keeping the relative order of both lists and instances of one identity together. */
-function insertEntryPlugins(merged: EcoBuildPlugin[], plugins: readonly EcoBuildPlugin[]): void {
-	let insertAt = 0;
-	for (const plugin of plugins) {
-		const existing = merged.indexOf(plugin);
-		if (existing !== -1) {
-			insertAt = existing + 1;
-			continue;
-		}
-		const identity = pluginIdentity(plugin);
-		const lastSameIdentity = merged.findLastIndex((candidate) => pluginIdentity(candidate) === identity);
-		const position = lastSameIdentity === -1 ? insertAt : lastSameIdentity + 1;
-		merged.splice(position, 0, plugin);
-		insertAt = position + 1;
-	}
-}
-
-/**
- * Scopes each merged plugin to the entries that declared it.
- *
- * @remarks
- * A plugin that every entry of the build declares applies to the whole build. Any other plugin gets an
- * `entryScope`, so the bridge applies it only to modules those entries reach and fails the build when a module
- * it changed is also reached by another entry.
- */
-function scopeEntryPlugins(
-	merged: readonly EcoBuildPlugin[],
-	entries: ReadonlyArray<{ entryName: string; plugins: readonly EcoBuildPlugin[] }>,
-): EcoBuildPlugin[] {
-	const carriers = new Map<unknown, Set<string>>();
-	for (const { entryName, plugins } of entries) {
-		for (const plugin of plugins) {
-			const identity = pluginIdentity(plugin);
-			carriers.set(identity, (carriers.get(identity) ?? new Set<string>()).add(entryName));
-		}
-	}
-	return merged.map((plugin) => {
-		const scope = carriers.get(pluginIdentity(plugin)) ?? new Set<string>();
-		return scope.size === entries.length ? plugin : { ...plugin, entryScope: [...scope].sort() };
-	});
-}
-
 type BuildGroup = {
 	entries: BuildEntry[];
 	options: NonNullable<ScriptAsset['bundleOptions']>;
-	plugins: EcoBuildPlugin[];
 };
 
-function groupBuildEntriesByOptions(
-	entries: BuildEntry[],
-): Array<{ entries: BuildEntry[]; options: NonNullable<ScriptAsset['bundleOptions']> }> {
+function groupBuildEntriesByOptions(entries: BuildEntry[]): BuildGroup[] {
 	const groups: BuildGroup[] = [];
 	for (const entry of entries) {
 		const options = getEntryBuildOptions(entry);
-		const plugins = options.plugins ?? [];
-		const group = groups.find(
-			(candidate) =>
-				buildWideOptionsEqual(candidate.options, options) && pluginOrderCompatible(candidate.plugins, plugins),
-		);
+		const group = groups.find((candidate) => buildWideOptionsEqual(candidate.options, options));
 		if (group) {
 			group.entries.push(entry);
-			insertEntryPlugins(group.plugins, plugins);
 		} else {
-			const merged: EcoBuildPlugin[] = [];
-			insertEntryPlugins(merged, plugins);
-			groups.push({ entries: [entry], options, plugins: merged });
+			groups.push({ entries: [entry], options });
 		}
 	}
 	return groups.map((group) => {
-		const external = [...new Set(group.entries.flatMap((entry) => getEntryBuildOptions(entry).external ?? []))];
-		const plugins = scopeEntryPlugins(
-			group.plugins,
-			group.entries.map((entry) => ({
-				entryName: entry.entryName,
-				plugins: getEntryBuildOptions(entry).plugins ?? [],
-			})),
-		);
+		const entryOptions = group.entries.map(getEntryBuildOptions);
+		const external = [...new Set(entryOptions.flatMap((options) => options.external ?? []))];
+		const plugins = [...new Set(entryOptions.flatMap((options) => options.plugins ?? []))];
 		return {
 			entries: group.entries,
 			options: {

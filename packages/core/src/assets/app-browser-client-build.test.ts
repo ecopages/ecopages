@@ -348,128 +348,42 @@ test('buildAppBrowserClient builds entries apart only when build-wide options di
 	);
 });
 
-test('buildAppBrowserClient combines compatible entry-scoped plugins and keeps each plugin config', async () => {
+test('buildAppBrowserClient builds entries with different plugin lists together and passes each plugin once', async () => {
 	const firstBoundary: EcoBuildPlugin = {
 		name: 'ecopages-client-graph-boundary',
 		cacheKey: 'first-island',
-		bundleGroupKey: 'react-client-graph-boundary',
 		setup() {},
 	};
 	const secondBoundary: EcoBuildPlugin = {
 		name: 'ecopages-client-graph-boundary',
 		cacheKey: 'second-island',
-		bundleGroupKey: 'react-client-graph-boundary',
 		setup() {},
 	};
+	const sharedPlugin: EcoBuildPlugin = { name: 'shared-plugin', setup() {} };
 	const firstIsland = createIslandEntry(rootDir, 'island-first');
 	const secondIsland = createIslandEntry(rootDir, 'island-second');
-	firstIsland.dependency.bundleOptions = { plugins: [firstBoundary] };
-	secondIsland.dependency.bundleOptions = { plugins: [secondBoundary] };
-	const appConfig = createTestAppConfig(rootDir);
-	const plan = createPlan(appConfig, 'ecopages-jsx', [
-		{
-			script: {
-				kind: 'script',
-				source: 'content',
-				content: 'import "./first-route.js";',
-				bundle: true,
-				position: 'head',
-			},
-			pageClientEntries: [firstIsland],
-		},
-		{
-			script: {
-				kind: 'script',
-				source: 'content',
-				content: 'import "./second-route.js";',
-				bundle: true,
-				position: 'head',
-			},
-			pageClientEntries: [secondIsland],
-		},
-	]);
-
-	await buildAppBrowserClient(appConfig, [plan]);
-
-	assert.equal(bundleGroupedEntries.mock.calls.length, 1);
-	const buildCall = required(bundleGroupedEntries.mock.calls[0]);
-	assert.equal(buildCall[0].length, 5);
-	const plugins = buildCall[1].plugins as EcoBuildPlugin[];
-	assert.deepEqual(
-		plugins.map((plugin) => plugin.cacheKey),
-		['first-island', 'second-island'],
-	);
-	const entryNames = new Set(buildCall[0].map((entry: { entryName: string }) => entry.entryName));
-	for (const plugin of plugins) {
-		assert.equal(plugin.entryScope?.length, 2);
-		assert.ok(plugin.entryScope?.every((entryName) => entryNames.has(entryName)));
-		assert.deepEqual(plugin.entryScope, plugins[0]?.entryScope);
-	}
-});
-
-test('buildAppBrowserClient builds entries with different plugins together and scopes each plugin', async () => {
-	const islandPlugin: EcoBuildPlugin = { name: 'island-only-plugin', setup() {} };
-	const island = createIslandEntry(rootDir, 'island-scoped');
-	island.dependency.bundleOptions = { plugins: [islandPlugin], external: ['island-runtime'] };
+	firstIsland.dependency.bundleOptions = { plugins: [firstBoundary, sharedPlugin], external: ['first-runtime'] };
+	secondIsland.dependency.bundleOptions = { plugins: [sharedPlugin, secondBoundary], external: ['second-runtime'] };
 	const appConfig = createTestAppConfig(rootDir);
 	const plan = createPlan(appConfig, 'react', [
 		{
 			script: {
 				kind: 'script',
 				source: 'content',
-				content: 'import "./scoped-route.js";',
+				content: 'import "./plain-route.js";',
 				bundle: true,
 				position: 'head',
 			},
-			pageClientEntries: [island],
+			pageClientEntries: [firstIsland],
 		},
+		{ pageClientEntries: [secondIsland] },
 	]);
 
 	await buildAppBrowserClient(appConfig, [plan]);
 
 	assert.equal(bundleGroupedEntries.mock.calls.length, 1);
 	const [entries, options] = required(bundleGroupedEntries.mock.calls[0]);
-	const [scopedPlugin] = options.plugins as EcoBuildPlugin[];
-	assert.equal(scopedPlugin?.name, 'island-only-plugin');
-	assert.equal(scopedPlugin?.entryScope?.length, 1);
-	assert.ok(entries.length > 1);
-	assert.deepEqual(options.external, ['island-runtime']);
-});
-
-test('buildAppBrowserClient separates entry-scoped plugins with different hook positions', async () => {
-	const firstBoundary: EcoBuildPlugin = {
-		name: 'ecopages-client-graph-boundary',
-		cacheKey: 'first-island',
-		bundleGroupKey: 'react-client-graph-boundary',
-		setup() {},
-	};
-	const secondBoundary: EcoBuildPlugin = {
-		name: 'ecopages-client-graph-boundary',
-		cacheKey: 'second-island',
-		bundleGroupKey: 'react-client-graph-boundary',
-		setup() {},
-	};
-	const sharedPlugin: EcoBuildPlugin = { name: 'shared-plugin', setup() {} };
-	const firstIsland = createIslandEntry(rootDir, 'island-first');
-	const secondIsland = createIslandEntry(rootDir, 'island-second');
-	firstIsland.dependency.bundleOptions = { plugins: [firstBoundary, sharedPlugin] };
-	secondIsland.dependency.bundleOptions = { plugins: [sharedPlugin, secondBoundary] };
-	const appConfig = createTestAppConfig(rootDir);
-	const plan = createPlan(appConfig, 'react', [
-		{ pageClientEntries: [firstIsland] },
-		{ pageClientEntries: [secondIsland] },
-	]);
-
-	await buildAppBrowserClient(appConfig, [plan]);
-
-	assert.equal(bundleGroupedEntries.mock.calls.length, 2);
-	assert.deepEqual(
-		bundleGroupedEntries.mock.calls.map(([, options]) =>
-			(options.plugins as EcoBuildPlugin[]).map((plugin) => plugin.cacheKey ?? plugin.name),
-		),
-		[
-			['first-island', 'shared-plugin'],
-			['shared-plugin', 'second-island'],
-		],
-	);
+	assert.ok(entries.length > 2);
+	assert.deepEqual(options.plugins, [firstBoundary, sharedPlugin, secondBoundary]);
+	assert.deepEqual(options.external, ['first-runtime', 'second-runtime']);
 });

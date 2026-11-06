@@ -193,8 +193,12 @@ test('activates a linked package root when a build input is recorded after start
 
 	expect(fake.watch.mock.calls[0]?.[0]).not.toContain(packageDir);
 	const ignored = fake.watch.mock.calls[0]?.[1].ignored;
-	expect(ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(true);
-	expect(ignored?.(packageDoc, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(false);
+	expect(
+		ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1, mtimeMs: 0 }),
+	).toBe(true);
+	expect(
+		ignored?.(packageDoc, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1, mtimeMs: 0 }),
+	).toBe(false);
 	fake.handle.add.mockRejectedValueOnce(new Error('temporary watch failure'));
 	requireAppRuntime(config).buildInputIndex.recordWatchPath(packageSource);
 	requireAppRuntime(config).buildInputIndex.recordWatchPath(path.join(packageDir, 'src/second.ts'));
@@ -203,7 +207,9 @@ test('activates a linked package root when a build input is recorded after start
 	expect(fake.handle.add).toHaveBeenCalledWith([packageDir]);
 	await vi.waitFor(() => expect(fake.handle.add).toHaveBeenCalledTimes(2));
 	expect(fake.handle.paths).toContain(packageDir);
-	expect(ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(false);
+	expect(
+		ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1, mtimeMs: 0 }),
+	).toBe(false);
 	requireAppRuntime(config).buildInputIndex.recordWatchPath(path.join(packageDir, 'src/fourth.ts'));
 	expect(fake.handle.add).toHaveBeenCalledTimes(2);
 	await fake.emit('change', packageSource);
@@ -231,7 +237,7 @@ test('watches a build input recorded after startup under an additional watch pat
 	await watcher.createWatcherSubscription();
 
 	const ignored = fake.watch.mock.calls[0]?.[1].ignored;
-	const fileStats = { isFile: true, isDirectory: false, isSymbolicLink: false, size: 2 };
+	const fileStats = { isFile: true, isDirectory: false, isSymbolicLink: false, size: 2, mtimeMs: 0 };
 	expect(ignored?.(dataFile, fileStats)).toBe(true);
 	requireAppRuntime(config).buildInputIndex.recordWatchPath(dataFile);
 	expect(fake.handle.add).toHaveBeenCalledWith([dataFile]);

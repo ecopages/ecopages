@@ -1045,6 +1045,7 @@ function toFileStats(stats: Stats): FileStats {
 		isDirectory: stats.isDirectory(),
 		isSymbolicLink: stats.isSymbolicLink(),
 		size: stats.size,
+		mtimeMs: stats.mtimeMs,
 	};
 }
 

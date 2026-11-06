@@ -6,6 +6,7 @@ import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformServer } from './dev-transform-server.ts';
+import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 
 const tempRoots: string[] = [];
 
@@ -309,5 +310,86 @@ describe('DevTransformServer', () => {
 
 		expect(response?.status).toBe(200);
 		expect(await response!.text()).toContain('export default ":host { color: tomato; }\\n"');
+	});
+	function writeFixturePackage(rootDir: string, name: string, source: string): void {
+		const packageDir = path.join(rootDir, 'node_modules', name);
+		fs.mkdirSync(packageDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name, version: '1.0.0', type: 'module', module: 'index.js' }),
+		);
+		fs.writeFileSync(path.join(packageDir, 'index.js'), source);
+	}
+
+	async function requestConsumer(server: DevTransformServer, sourcePath: string, code: string): Promise<string> {
+		fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+		fs.writeFileSync(sourcePath, code);
+		const response = await server.tryHandleRequest(
+			new Request(`http://localhost${server.registerModule(sourcePath)}`),
+		);
+		expect(response?.status).toBe(200);
+		return (await response?.text()) ?? '';
+	}
+
+	function vendorBuildsUnder(bundle: { mock: { calls: unknown[][] } }, rootDir: string): number {
+		const modules = path.join(fs.realpathSync(rootDir), 'node_modules');
+		return bundle.mock.calls.filter(([options]) =>
+			Object.values((options as { entrypoints: Record<string, string> }).entrypoints).some((entry) =>
+				entry.startsWith(modules),
+			),
+		).length;
+	}
+
+	it('builds the vendor graph once for a module that imports five new packages', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-batch');
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify({ name: 'vendor-batch-app', type: 'module' }),
+		);
+		const names = ['lib-a', 'lib-b', 'lib-c', 'lib-d', 'lib-e'];
+		for (const name of names) writeFixturePackage(rootDir, name, `export const marker = '${name}';\n`);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const server = new DevTransformServer({ appConfig: config });
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+
+		const code = await requestConsumer(
+			server,
+			path.join(config.absolutePaths.srcDir, 'many-vendors.ts'),
+			`${names.map((name, index) => `import { marker as m${index} } from '${name}';`).join('\n')}\nexport const markers = [m0, m1, m2, m3, m4];\n`,
+		);
+
+		expect(code.match(/\/assets\/vendors\//gu)).toHaveLength(5);
+		expect(vendorBuildsUnder(bundle, rootDir)).toBe(1);
+	});
+
+	it('rebuilds the vendor graph when the lockfile changes', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-lockfile');
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify({ name: 'vendor-lockfile-app', type: 'module' }),
+		);
+		const lockfile = path.join(rootDir, 'pnpm-lock.yaml');
+		fs.writeFileSync(lockfile, 'lockfileVersion: one\n');
+		writeFixturePackage(rootDir, 'fixture-lib', "export const release = 'release-one';\n");
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const server = new DevTransformServer({ appConfig: config });
+		const consumer = await requestConsumer(
+			server,
+			path.join(config.absolutePaths.srcDir, 'vendor-consumer.ts'),
+			"import { release } from 'fixture-lib';\nexport { release };\n",
+		);
+		const vendorUrl = consumer.match(/['"](\/assets\/vendors\/[^'"]+)['"]/u)?.[1];
+		const readVendor = async () =>
+			(await server.tryHandleRequest(new Request(`http://localhost${vendorUrl}`)))?.text();
+		expect(await readVendor()).toContain('release-one');
+
+		writeFixturePackage(rootDir, 'fixture-lib', "export const release = 'release-two';\n");
+		expect(await readVendor()).toContain('release-one');
+
+		fs.writeFileSync(lockfile, 'lockfileVersion: two, reinstalled\n');
+		const later = new Date(Date.now() + 60_000);
+		fs.utimesSync(lockfile, later, later);
+		vi.spyOn(Date, 'now').mockReturnValue(later.getTime());
+		expect(await readVendor()).toContain('release-two');
 	});
 });

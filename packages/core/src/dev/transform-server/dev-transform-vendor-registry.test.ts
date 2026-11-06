@@ -629,6 +629,88 @@ describe('DevTransformVendorRegistry', () => {
 		expect(await badResponse?.text()).toContain('Vendor prebundle failed for bad-lib');
 	});
 
+	it.each([
+		{ failure: 'every build fails', failResolver: false },
+		{ failure: 'the plugin resolver throws', failResolver: true },
+	])('keeps serving the last good output when a rebuild fails as a whole ($failure)', async ({ failResolver }) => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-transient');
+		for (const name of ['built-lib', 'new-lib']) {
+			writePackage(
+				path.join(modules, name),
+				name,
+				{ type: 'module', module: 'index.js' },
+				{ 'index.js': `export const marker = '${name}-code';\n` },
+			);
+		}
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		let failing = false;
+		const registry = new DevTransformVendorRegistry({
+			appConfig: config,
+			resolveVendorBundlePlugins: async () => {
+				if (failing && failResolver) throw new Error('transient resolver failure');
+				return [];
+			},
+		});
+		const builtUrl = await registry.resolveVendorUrl('built-lib');
+		await readVendorGraph(registry, [builtUrl]);
+
+		failing = true;
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		if (!failResolver) {
+			bundle.mockResolvedValue({ success: false, logs: [{ message: 'transient install failure' }] });
+		}
+		await expect(registry.resolveVendorUrl('new-lib')).rejects.toThrow(/transient/);
+		bundle.mockRestore();
+		failing = false;
+
+		expect([...(await readVendorGraph(registry, [builtUrl])).values()].join('\n')).toContain('built-lib-code');
+		const persisted = fs.readFileSync(path.join(config.absolutePaths.workDir, 'dev-vendor-entries.json'), 'utf8');
+		expect(persisted).toContain('built-lib');
+		expect(persisted).toContain('new-lib');
+
+		const retries = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		await expect(registry.resolveVendorUrl('new-lib')).rejects.toThrow(/transient/);
+		expect(bundleCallsUnder(retries, rootDir)).toBe(0);
+
+		const failedAt = Date.now();
+		vi.spyOn(Date, 'now').mockReturnValue(failedAt + 2_000);
+		const newUrl = await registry.resolveVendorUrl('new-lib');
+		expect([...(await readVendorGraph(registry, [newUrl])).values()].join('\n')).toContain('new-lib-code');
+		expect(bundleCallsUnder(retries, rootDir)).toBe(1);
+		vi.restoreAllMocks();
+	});
+
+	it('serves the chunks of the previous build until the rebuild after an invalidation commits', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-stale-chunk');
+		writePackage(
+			path.join(modules, 'chunked-lib'),
+			'chunked-lib',
+			{ type: 'module', exports: { '.': './index.js', './hooks': './hooks.js' } },
+			{
+				'shared.js': "export const context = { marker: 'chunked-shared-code' };\n",
+				'index.js': "import { context } from './shared.js';\nexport const providerContext = context;\n",
+				'hooks.js': "import { context } from './shared.js';\nexport const hookContext = context;\n",
+			},
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const urls = await Promise.all([
+			registry.resolveVendorUrl('chunked-lib'),
+			registry.resolveVendorUrl('chunked-lib/hooks'),
+		]);
+		const chunkUrl = [...(await readVendorGraph(registry, urls)).keys()].find((url) => !urls.includes(url));
+		assert.ok(chunkUrl, 'expected a shared chunk');
+
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		registry.invalidateAll();
+		const chunk = await registry.tryHandleVendorRequest(chunkUrl);
+
+		expect(chunk?.status).toBe(200);
+		expect(await chunk?.text()).toContain('chunked-shared-code');
+		expect(bundleCallsUnder(bundle, rootDir)).toBe(0);
+		bundle.mockRestore();
+	});
+
 	it('builds the entries a previous dev process discovered on the first request', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-persisted');
 		for (const name of ['first-lib', 'second-lib']) {

@@ -5,7 +5,8 @@
  * Each page under `apps/docs/src/content/dev/` lists the code it describes in its `sources:`
  * frontmatter. A source ending in `/` covers every file below that directory; any other source
  * covers one file. Run `node --experimental-strip-types scripts/check-dev-pages.ts [base]`; the
- * base defaults to `origin/next` and the changed files come from `git diff <base>...HEAD`.
+ * base defaults to `origin/next` and the changed files come from `git diff <base>...HEAD`. Tests and
+ * Markdown files do not count as changes, and a `main` base (a release) skips the check.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -50,18 +51,36 @@ export function parseSources(source: string): string[] {
 	return sources;
 }
 
+/**
+ * Changes that never make a page wrong: tests and Markdown, such as a package README.
+ */
+const IGNORED_CHANGE = /(\.test\.tsx?|\.md)$/;
+
 function covers(source: string, file: string): boolean {
 	return source.endsWith('/') ? file.startsWith(source) : file === source;
 }
 
-/** Lists the pages whose sources changed while the page itself did not, with the files that matched. */
+/**
+ * True for the release branch.
+ *
+ * @remarks
+ * A release pull request from `next` into `main` carries every change already checked when it merged into
+ * `next`, so checking it again would only flag pages that were updated in earlier pull requests.
+ */
+export function isReleaseBase(base: string): boolean {
+	return base.replace(/^origin\//, '') === 'main';
+}
+
+/** Lists the pages whose sources changed while the page itself did not, with the files that matched; tests and Markdown do not count. */
 export function findStalePages(pages: DevPage[], changedFiles: string[]): StalePage[] {
 	const changed = new Set(changedFiles);
 	return pages.flatMap((page) => {
 		if (changed.has(page.path)) {
 			return [];
 		}
-		const files = changedFiles.filter((file) => page.sources.some((source) => covers(source, file)));
+		const files = changedFiles.filter(
+			(file) => !IGNORED_CHANGE.test(file) && page.sources.some((source) => covers(source, file)),
+		);
 		return files.length > 0 ? [{ page: page.path, files }] : [];
 	});
 }
@@ -124,6 +143,10 @@ const isMain = import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
 if (isMain) {
 	const rootDir = path.resolve(import.meta.dirname, '..');
 	const base = process.argv[2] ?? 'origin/next';
+	if (isReleaseBase(base)) {
+		console.log(`Skipped: ${base} is the release branch.`);
+		process.exit(0);
+	}
 	const changedFiles = execFileSync('git', ['diff', '--name-only', `${base}...HEAD`], {
 		cwd: rootDir,
 		encoding: 'utf8',

@@ -3,7 +3,14 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { onTestFinished, test } from 'vitest';
-import { checkDevPages, findStalePages, formatReport, parseSources, readDevPages } from './check-dev-pages.ts';
+import {
+	checkDevPages,
+	findStalePages,
+	formatReport,
+	isReleaseBase,
+	parseSources,
+	readDevPages,
+} from './check-dev-pages.ts';
 
 const page = (sources: string[]) =>
 	['---', 'title: "Page"', 'sources:', ...sources.map((source) => `  - ${source}`), '---', '', '# Page', ''].join(
@@ -51,6 +58,28 @@ test('findStalePages matches a directory source by whole segments and a file sou
 		findStalePages(pages, ['packages/core/src/build-cache/a.ts', 'packages/core/src/hmr/hmr.test.ts']),
 		[],
 	);
+});
+
+test('findStalePages ignores tests and Markdown under covered paths', () => {
+	const pages = [{ path: 'dev/build.mdx', sources: ['packages/core/src/build/'] }];
+	assert.deepEqual(
+		findStalePages(pages, [
+			'packages/core/src/build/a.test.ts',
+			'packages/core/src/build/b.test.tsx',
+			'packages/core/src/build/README.md',
+		]),
+		[],
+	);
+	assert.deepEqual(findStalePages(pages, ['packages/core/src/build/a.test-utils.ts']), [
+		{ page: 'dev/build.mdx', files: ['packages/core/src/build/a.test-utils.ts'] },
+	]);
+});
+
+test('isReleaseBase is true only for main', () => {
+	assert.equal(isReleaseBase('main'), true);
+	assert.equal(isReleaseBase('origin/main'), true);
+	assert.equal(isReleaseBase('origin/next'), false);
+	assert.equal(isReleaseBase('origin/maintenance'), false);
 });
 
 test('checkDevPages reports pages without sources and sources that do not exist', () => {

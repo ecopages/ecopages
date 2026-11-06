@@ -14,7 +14,7 @@ Official templates ship agent skill packs under `.agents/skills`. After changing
 
 ## Developer pages
 
-`check-dev-pages.ts` (`pnpm check:dev-pages [base]`) reads the `sources:` of every page in `apps/docs/src/content/dev` and the files changed since the merge base with `base` (default `origin/next`). It fails when a page's sources changed while the page did not, listing the pages to update, and when a page has no sources or lists a path that does not exist. The `Developer pages` workflow runs it on every pull request against its base branch and skips it when the pull request has the `docs-not-needed` label.
+`check-dev-pages.ts` (`pnpm check:dev-pages [base]`) reads the `sources:` of every page in `apps/docs/src/content/dev` and the files changed since the merge base with `base` (default `origin/next`). It fails when a page's sources changed while the page did not, listing the pages to update, and when a page has no sources or lists a path that does not exist. Tests (`*.test.ts`, `*.test.tsx`) and Markdown files do not count as changes. A `main` base skips the check, since a release only carries changes `next` already checked. The `Developer pages` workflow runs it on every pull request against its base branch and skips it when the pull request has the `docs-not-needed` label (listed in `.github/labels.yml`).
 
 ## Test guardrails
 

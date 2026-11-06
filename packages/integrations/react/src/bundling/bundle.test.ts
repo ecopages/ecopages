@@ -57,7 +57,7 @@ describe('BundleService', () => {
 			},
 		});
 
-		const options = await service.createBundleOptions('ecopages-react-page', false, []);
+		const options = await service.createBundleOptions('ecopages-react-page', []);
 		const pluginNames = (options.plugins as Array<{ name: string }>).map((plugin) => plugin.name);
 		const runtimeImports = service.getRuntimeImports();
 
@@ -69,7 +69,7 @@ describe('BundleService', () => {
 		expect(options.external).not.toEqual(expect.arrayContaining(['react', 'react-dom', 'react-dom/client']));
 	});
 
-	it('adds the plugin-owned MDX loader to MDX bundles only', async () => {
+	it('gives MDX and TSX entries the same plugins so they share one build group', async () => {
 		const mdxLoader = { name: 'react-mdx-loader', setup: () => {} };
 		const service = new BundleService({
 			rootDir: '/app',
@@ -78,11 +78,14 @@ describe('BundleService', () => {
 			getMdxLoaderPlugin: () => mdxLoader,
 		});
 
-		const mdxOptions = await service.createBundleOptions('ecopages-react-page', true, []);
-		const tsxOptions = await service.createBundleOptions('ecopages-react-page', false, []);
+		const mdxPageOptions = await service.createBundleOptions('ecopages-react-mdx-page', [], {}, '/app/page.mdx');
+		const tsxPageOptions = await service.createBundleOptions('ecopages-react-tsx-page', [], {}, '/app/page.tsx');
+		const pluginNames = (options: Record<string, unknown>) =>
+			(options.plugins as Array<{ name: string }>).map((plugin) => plugin.name);
 
-		expect(mdxOptions.plugins).toContain(mdxLoader);
-		expect(tsxOptions.plugins).not.toContain(mdxLoader);
+		expect(mdxPageOptions.plugins).toContain(mdxLoader);
+		expect(tsxPageOptions.plugins).toContain(mdxLoader);
+		expect(pluginNames(mdxPageOptions)).toEqual(pluginNames(tsxPageOptions));
 	});
 
 	it('enables minify only for production runtimes', async () => {
@@ -93,10 +96,10 @@ describe('BundleService', () => {
 		});
 
 		const developmentOptions = await withNodeEnv('development', () =>
-			service.createBundleOptions('ecopages-react-page', false, []),
+			service.createBundleOptions('ecopages-react-page', []),
 		);
 		const productionOptions = await withNodeEnv('production', () =>
-			service.createBundleOptions('ecopages-react-page', false, []),
+			service.createBundleOptions('ecopages-react-page', []),
 		);
 
 		expect(developmentOptions.minify).toBeUndefined();
@@ -126,7 +129,7 @@ describe('BundleService', () => {
 			},
 		});
 
-		const options = await service.createBundleOptions('ecopages-react-page', false, [], {
+		const options = await service.createBundleOptions('ecopages-react-page', [], {
 			includeRuntime: true,
 		});
 		const pluginNames = (options.plugins as Array<{ name: string }>).map((plugin) => plugin.name);
@@ -140,7 +143,7 @@ describe('BundleService', () => {
 		service: BundleService,
 		specifiers: string[],
 	): Promise<Record<string, EcoBuildOnResolveResult | undefined>> {
-		const options = await service.createBundleOptions('ecopages-react-page', false, []);
+		const options = await service.createBundleOptions('ecopages-react-page', []);
 		const runtimeRewritePlugin = (options.plugins as EcoBuildPlugin[]).find(
 			(plugin) => plugin.name === 'react-renderer-runtime-import-rewrite',
 		);

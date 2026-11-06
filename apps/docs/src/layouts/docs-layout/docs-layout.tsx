@@ -23,16 +23,13 @@ import { docsNav } from '@/lib/content-nav';
 import { BaseLayout } from '@/layouts/base-layout';
 import { frameworkVersion } from '@/lib/framework-version';
 import { DocsPagination } from './components/docs-pagination';
+import './docs-layout.css';
 
 const paginationData = JSON.stringify({
 	pages: docsNav.sections.flatMap((section) => section.items).map(({ href, title }) => ({ href, title })),
 });
 const ECO_NAVIGATION_EVENTS = 'eco:page-load,eco:after-swap';
 const DOCS_SIDEBAR_ID = 'docs-sidebar';
-
-export type DocsLayoutProps = {
-	children: JsxRenderable;
-};
 
 const DocsNavigation = () => (
 	<>
@@ -101,9 +98,8 @@ const DocsSiteHeader = () => (
 	</div>
 );
 
-export const DocsLayout = eco.component<DocsLayoutProps, JsxRenderable>({
+export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./docs-layout.css'],
 		scripts: [{ src: './docs-layout.script.ts', ssr: true }],
 		components: [CodeTabs],
 	},

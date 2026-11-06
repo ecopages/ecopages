@@ -1,19 +1,22 @@
-import { eco } from '@ecopages/core';
+import { eco, type EcoComponent, type EcoPagesElement, type LayoutProps } from '@ecopages/core';
 import { Navigation } from '@/components/navigation';
 import { RadiantCounter } from '@/components/radiant-counter';
+import './base-layout.css';
 
-export type BaseLayoutProps = {
-	children: JSX.Element | JSX.Element[];
+export interface BaseLayoutProps extends LayoutProps<EcoPagesElement> {
 	class?: string;
-};
+}
 
-export const BaseLayout = eco.component<BaseLayoutProps>({
+/**
+ * @remarks
+ * Typed with {@link BaseLayoutProps} so Pages can render it with `class`.
+ */
+export const BaseLayout: EcoComponent<BaseLayoutProps, EcoPagesElement> = eco.layout({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
 
-	render: ({ children, class: className }) => {
+	render: ({ children, class: className }: BaseLayoutProps) => {
 		return (
 			<body>
 				<Navigation

@@ -91,7 +91,9 @@ The worker file is built like any browser script and can import other modules. `
 
 - Pass `{ type: 'module' }`: workers are built as ES modules, so a relative worker URL without it fails `ecopages build`, and the module request in `ecopages dev`.
 - The URL must be a string literal that starts with `./` or `../` and resolves to a file; one that does not resolve fails the same way. Any other URL is left as written, with a warning in development; point it at a file the server serves, such as one in `public/`.
+- Write the `new URL(...)` inside the `new Worker(...)` call, without a query or a hash. A URL built elsewhere, such as one held in a variable, is left as written with a warning naming the file.
 - Call `Worker` or `SharedWorker` directly: `window.Worker` and `self.Worker` are not recognized.
+- Do not start a worker from an `inline` script: it resolves `import.meta.url` against the page, so the build fails.
 
 `SharedArrayBuffer` in a worker needs a cross-origin isolated page. Set the two headers with the [`headers` option](/docs/getting-started/configuration#webassembly-and-cross-origin-isolation).
 

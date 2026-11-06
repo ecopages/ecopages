@@ -122,15 +122,45 @@ describe('worker entries in browser builds', () => {
 	test.each([
 		['a URL that is not a literal', 'new URL(`./workers/${name}.ts`, import.meta.url)', './workers/${name}.ts'],
 		['a URL that is not relative', "new URL('/workers/echo.js', import.meta.url)", '/workers/echo.js'],
-	])('leaves %s as written and builds', async (_label, url, written) => {
+		['a URL held in a variable', 'workerUrl', 'workerUrl'],
+	])('leaves %s as written, builds, and warns naming the file', async (_label, url, written) => {
 		const entrypoint = writeSource(
 			'main.ts',
-			`const name = 'echo';\nexport const worker = new Worker(${url}, { type: 'module' });\n`,
+			`const name = 'echo';\nconst workerUrl = new URL(\`./workers/\${name}.ts\`, import.meta.url);\nexport const worker = new Worker(${url}, { type: 'module' });\n`,
 		);
 		const { result, outdir } = await build(entrypoint);
 		assertBuildSucceeded(result, 'worker build');
 
 		expect(readOutput(outdir, 'main-').code).toContain(written);
+		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain(
+			`${path.join('src', 'main.ts')}`,
+		);
+	});
+
+	test('builds a URL behind a type assertion', async () => {
+		writeApp();
+		const entrypoint = writeSource(
+			'main.ts',
+			"export const worker = new Worker(new URL('./workers/echo.worker.ts', import.meta.url) as URL, { type: 'module' });\n",
+		);
+		const { result, outdir } = await build(entrypoint);
+		assertBuildSucceeded(result, 'worker build');
+
+		expect(readOutput(outdir, 'main-').code).toContain(JSON.stringify(readOutput(outdir, 'echo.worker-').name));
+	});
+
+	test('fails a URL with a query, naming it', async () => {
+		writeApp();
+		const entrypoint = writeSource(
+			'main.ts',
+			"new Worker(new URL('./workers/echo.worker.ts?v=1', import.meta.url), { type: 'module' });\n",
+		);
+		const { result } = await build(entrypoint);
+
+		expect(result.success).toBe(false);
+		expect(result.success ? '' : result.logs.map((log) => log.message).join('\n')).toContain(
+			'"./workers/echo.worker.ts?v=1" in',
+		);
 	});
 
 	test('builds a Worker URL in a TSX module', async () => {

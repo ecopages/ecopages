@@ -462,6 +462,34 @@ describe('FileScriptProcessor', () => {
 			expect(result.bundledSourceFilepaths).toEqual([entrypoint, helper, pluginInput]);
 		});
 
+		test('fails an inline script whose import starts a worker, naming both files', async () => {
+			const entrypoint = '/test/project/src/inline.ts';
+			const starter = '/test/project/src/start-worker.ts';
+			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue(
+				createBuildSuccess({
+					outputs: [{ path: '/tmp/inline.js' }],
+					entryOutputs: { [entrypoint]: '/tmp/inline.js' },
+					dependencyGraph: { entrypoints: { [entrypoint]: [entrypoint, starter] } },
+				}),
+			);
+			existsMock.mockReturnValue(true);
+			readFileSyncMock.mockImplementation((filePath: string) =>
+				filePath === starter
+					? "new Worker(new URL('./echo.worker.ts', import.meta.url), { type: 'module' });"
+					: "import './start-worker.ts';",
+			);
+
+			await expect(
+				createProcessor().process({
+					kind: 'script',
+					source: 'file',
+					filepath: entrypoint,
+					bundle: true,
+					inline: true,
+				}),
+			).rejects.toThrow(`${entrypoint} is inline, but ${starter} starts new Worker(new URL("./echo.worker.ts"`);
+		});
+
 		test('throws the formatted logs of a failed bundle, with plugin and file', async () => {
 			const entrypoint = '/test/project/src/pages/index.tsx';
 			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue(

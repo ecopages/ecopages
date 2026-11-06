@@ -11,6 +11,8 @@ import {
 	findWorkerUrls,
 	formatClassicWorkerError,
 	formatUnbundledWorkerWarning,
+	formatWorkerUrlQueryError,
+	isUnbundledWorkerUrl,
 } from '../../build/worker-urls.ts';
 
 /**
@@ -94,7 +96,8 @@ function rewriteWorkerUrls(
 	if (!WORKER_CONSTRUCTOR_PATTERN.test(options.code)) return edits;
 	for (const url of findWorkerUrls(program, options.code)) {
 		if (url.kind === 'classic') throw new Error(formatClassicWorkerError(url, sourcePath));
-		if (url.kind !== 'entry') {
+		if (url.kind === 'query') throw new Error(formatWorkerUrlQueryError(url, sourcePath));
+		if (isUnbundledWorkerUrl(url)) {
 			appLogger.warn(formatUnbundledWorkerWarning(url, sourcePath));
 			continue;
 		}

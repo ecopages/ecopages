@@ -252,6 +252,30 @@ describe('DevTransformBundler', () => {
 			).rejects.toThrow('"./workers/missing.worker.ts"');
 		});
 
+		it('held in a variable is left as written with a warning naming the file', async () => {
+			const rootDir = createTempRoot('dev-transform-bundler-indirect-worker');
+			const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+
+			const result = await transpileScript(
+				rootDir,
+				"const workerUrl = new URL('./workers/echo.worker.ts', import.meta.url);\nexport const worker = new Worker(workerUrl, { type: 'module' });\n",
+			);
+
+			expect(result.code).toContain('new Worker(workerUrl');
+			expect(warn).toHaveBeenCalledWith(expect.stringContaining('demo.script.ts'));
+		});
+
+		it('with a query fails, naming the URL', async () => {
+			const rootDir = createTempRoot('dev-transform-bundler-query-worker');
+
+			await expect(
+				transpileScript(
+					rootDir,
+					"export const worker = new Worker(new URL('./workers/echo.worker.ts?v=1', import.meta.url), { type: 'module' });\n",
+				),
+			).rejects.toThrow('"./workers/echo.worker.ts?v=1" in');
+		});
+
 		it('that is not relative is left as written with a warning', async () => {
 			const rootDir = createTempRoot('dev-transform-bundler-public-worker');
 			const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);

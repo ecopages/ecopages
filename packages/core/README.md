@@ -124,13 +124,13 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/cache/README.md`: Build-layer module parse cache
 - `src/diagnostics/README.md`: per-app request-pipeline metrics and the startup trace
 - `src/plugins/README.md`: integration and processor authoring contracts
-- `src/build/README.md`: build adapter, app-scoped server module loading, shared `.server` browser import guard, per-module production output for shared SSR dependencies, development build coordination, standalone Node server packaging and its deploy layout
+- `src/build/README.md`: build adapter, app-scoped server module loading, shared `.server` browser import guard, per-module production output for shared SSR dependencies, development build coordination, standalone Node server packaging and its deploy layout, and Worker URL entries
 - `src/page-cache/README.md`: HTML cache strategies, ISR, and source-aware invalidation
 - `src/assets/README.md`: shared asset processing and browser build coordination
 - `src/validation/README.md`: request validation with Standard Schema
 - `src/html/README.md`: streaming HTML rewriting, per-render document contributions, source parsing, and escaped asset tags
 - `src/adapters/README.md`: Node HTTP host and shared adapter boundaries
-- `src/dev/README.md`: development invalidation, dev transform server, in-memory on-demand vendor bundles, and client delivery (including workspace-package `@fs` URLs)
+- `src/dev/README.md`: development invalidation, dev transform server, in-memory on-demand vendor bundles, and client delivery (including workspace-package `@fs` URLs and Worker URLs)
 - `src/watchers/README.md`: recursive filesystem subscriptions with bounded readiness and scheduled debounce batches, external build-input and linked-package watching, batched `applyDevFileChanges`, and restart invalidation
 - `src/dev/invalidation/README.md`: file-change classification and dirty-marking for bounded watcher batches
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation

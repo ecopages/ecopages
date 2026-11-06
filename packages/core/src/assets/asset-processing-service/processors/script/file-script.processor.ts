@@ -6,6 +6,19 @@ import { assertBrowserOutputInsideDist, sourceRelativeBrowserAssetPath } from '.
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 import { classicScriptOutputName, compileClassicScript } from './classic-script-compiler.ts';
+import { findWorkerEntrySource } from '../../../../build/worker-urls.ts';
+
+/**
+ * @throws When an inline script, or a module it imports, starts a worker the build emits: inline, the script's
+ * `import.meta.url` is the page URL, so the worker URL would resolve against the page instead of the worker file.
+ */
+export function assertInlineScriptStartsNoWorker(scriptPath: string, inputPaths: readonly string[]): void {
+	const worker = findWorkerEntrySource([scriptPath, ...inputPaths]);
+	if (!worker) return;
+	throw new Error(
+		`${scriptPath} is inline, but ${worker.sourcePath} starts new ${worker.url.constructorName}(new URL(${JSON.stringify(worker.url.specifier)}, import.meta.url)): an inline script resolves import.meta.url against the page, so declare it without inline.`,
+	);
+}
 
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	private readonly getHmrManager: () => IHmrManager | undefined;
@@ -153,6 +166,8 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 			...bundlerOptions,
 			plugins: bundlerOptions.plugins,
 		});
+
+		if (dep.inline) assertInlineScriptStartsNoWorker(dep.filepath, bundledOutput.inputPaths);
 
 		return {
 			filepath: bundledOutput.filepath,

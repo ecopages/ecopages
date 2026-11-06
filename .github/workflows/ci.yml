@@ -106,7 +106,7 @@ jobs:
               run: pnpm run smoke:start
 
             - name: Unit suites
-              run: pnpm exec vitest run --project shared-core --project docs --project docs-starter --project llm-wiki
+              run: node --experimental-strip-types scripts/test-vitest-windows.ts
 
     e2e-shard:
         strategy:

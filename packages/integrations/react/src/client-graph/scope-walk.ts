@@ -79,6 +79,8 @@ const NAMED_DECLARATION_TYPES = new Set([
 	'ClassDeclaration',
 	'TSEnumDeclaration',
 	'TSDeclareFunction',
+	'TSModuleDeclaration',
+	'TSImportEqualsDeclaration',
 ]);
 
 function unwrapExport(statement: any): any {
@@ -204,23 +206,25 @@ class ScopedReferenceWalker {
 		}
 	}
 
+	/**
+	 * Walks a function: parameter defaults see the parameters but not the body's declarations.
+	 */
 	walkFunction(node: any, scope: Scope): void {
 		if (isDeclaredOnly(node) || !node.body) return;
-		const names = new Set<string>();
-		if (node.type !== 'FunctionDeclaration' && node.id?.type === 'Identifier') names.add(node.id.name);
-		for (const param of node.params ?? []) collectPatternNames(param, names);
-		if (node.type !== 'ArrowFunctionExpression') names.add('arguments');
-		if (node.body.type === 'BlockStatement') {
-			collectHoistedVars(node.body.body, names);
-			for (const statement of node.body.body) collectLexicalDeclarations(statement, names);
+		const paramNames = new Set<string>();
+		if (node.type !== 'FunctionDeclaration' && node.id?.type === 'Identifier') paramNames.add(node.id.name);
+		for (const param of node.params ?? []) collectPatternNames(param, paramNames);
+		if (node.type !== 'ArrowFunctionExpression') paramNames.add('arguments');
+		const paramScope = extendScope(scope, paramNames);
+		for (const param of node.params ?? []) this.walkPattern(param, paramScope);
+		if (node.body.type !== 'BlockStatement') {
+			this.walk(node.body, paramScope);
+			return;
 		}
-		const functionScope = extendScope(scope, names);
-		for (const param of node.params ?? []) this.walkPattern(param, functionScope);
-		if (node.body.type === 'BlockStatement') {
-			this.walk(node.body.body, functionScope);
-		} else {
-			this.walk(node.body, functionScope);
-		}
+		const bodyNames = new Set<string>();
+		collectHoistedVars(node.body.body, bodyNames);
+		for (const statement of node.body.body) collectLexicalDeclarations(statement, bodyNames);
+		this.walk(node.body.body, extendScope(paramScope, bodyNames));
 	}
 
 	walkClass(node: any, scope: Scope): void {
@@ -347,7 +351,30 @@ const NODE_HANDLERS: Record<string, NodeHandler> = {
 	PropertyDefinition: walkClassMember,
 	AccessorProperty: walkClassMember,
 	TSEnumDeclaration: (walker, node, scope) => {
-		for (const member of node.body?.members ?? node.members ?? []) walker.walk(member.initializer, scope);
+		if (node.declare) return;
+		const members = node.body?.members ?? node.members ?? [];
+		const memberNames = members.flatMap((member: any) =>
+			member.id?.type === 'Identifier' ? [member.id.name] : [],
+		);
+		const enumScope = extendScope(scope, memberNames);
+		for (const member of members) walker.walk(member.initializer, enumScope);
+	},
+	TSModuleDeclaration: (walker, node, scope) => {
+		if (node.declare || node.body?.type !== 'TSModuleBlock') {
+			if (!node.declare && node.body) walker.walk(node.body, scope);
+			return;
+		}
+		walker.walk(node.body.body, blockScope(scope, node.body.body));
+	},
+	TSImportEqualsDeclaration: (walker, node, scope) => {
+		if (node.importKind === 'type') return;
+		let reference = node.moduleReference;
+		while (reference?.type === 'TSQualifiedName') reference = reference.left;
+		if (reference?.type === 'Identifier') walker.reference(reference.name, reference, scope);
+	},
+	UnaryExpression: (walker, node, scope) => {
+		if (node.operator === 'typeof' && node.argument?.type === 'Identifier') return;
+		walker.walk(node.argument, scope);
 	},
 	TSExportAssignment: (walker, node, scope) => walker.walk(node.expression, scope),
 	MemberExpression: (walker, node, scope) => {
@@ -383,9 +410,10 @@ function collectProgramVars(program: any): Set<string> {
  * Walks `root` and reports each runtime reference to a name that no scope inside the walk declares.
  *
  * @remarks
- * Type-only syntax (annotations, interfaces, type aliases, `import type`) is skipped; the
- * operand of `as`, `satisfies` and `!` is walked. Property keys, member names, labels and
- * intrinsic JSX tags are not references. Walking a `Program` puts its top-level declarations
+ * Type-only syntax (annotations, interfaces, type aliases, `import type`, `declare`) is skipped;
+ * the operand of `as`, `satisfies` and `!`, enums and namespaces are walked. Property keys,
+ * member names, labels and intrinsic JSX tags are not references, and neither is the bare
+ * identifier operand of `typeof`, which cannot throw. Walking a `Program` puts its top-level declarations
  * in scope; walk its statements one by one to see references to them.
  */
 export function walkScopedReferences(

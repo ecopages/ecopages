@@ -52,6 +52,11 @@ describe('walkScopedReferences', () => {
 		['export specifiers', 'export { local as renamed };', ['local']],
 		['assignment targets', '({ db } = source);', ['db', 'source']],
 		['meta properties', 'const url = import.meta.url;', []],
+		['parameter defaults', 'function f(a = auth, b = a) { var auth; return b; }', ['auth']],
+		['typeof checks', "const hasFs = typeof fs !== 'undefined' && typeof fs.x;", ['fs']],
+		['namespaces', 'namespace N { auth(); export const x = local; }', ['auth', 'local']],
+		['enums', 'enum E { A = 1, B = A + offset }', ['offset']],
+		['import aliases', 'import Q = N.x;', ['N']],
 	])('reports only free runtime references for %s', (_case, source, expected) => {
 		expect(freeReferences(source)).toEqual(expected);
 	});

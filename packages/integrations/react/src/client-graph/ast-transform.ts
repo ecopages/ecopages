@@ -69,12 +69,12 @@ function propagateRequestedExportRules(
 
 /**
  * Parses a module using Oxc AST and removes what must not reach the browser: forbidden imports,
- * named imports outside the declared rules, server-only Page code, and the top-level code only
- * that removed code used.
+ * named imports outside the declared rules, server-only Page options, and the top-level code the
+ * browser module does not need that only removed code used or that uses a removed import.
  *
  * @remarks
  * Every edit is planned on the one parse of `source`, so error positions point into it. Throws
- * when kept code still references a binding whose import is removed.
+ * when code the browser module needs still references a binding whose import is removed.
  */
 export function transformModuleImports(
 	source: string,
@@ -117,6 +117,8 @@ export function transformModuleImports(
 		strippedNodes: pageCode.strippedNodes,
 		strippedBindings,
 		editedImports,
+		requestedExports: explicitRequestedExports,
+		definesPage: pageCode.definesPage,
 	});
 
 	const edits = [...importEdits, ...pageCode.edits, ...cleanupEdits];

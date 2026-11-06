@@ -19,14 +19,16 @@ function transform(
 }
 
 describe('transformModuleImports', () => {
-	it('fails with the binding, its specifier and its position when kept code uses a stripped import', () => {
+	it('fails with the binding, its specifier and its position when a requested export uses a stripped import', () => {
 		const source = [
 			"import { authMiddleware } from './auth.server';",
 			'export const guard = authMiddleware;',
 			'export default eco.page({ middleware: [authMiddleware], render: () => null });',
 		].join('\n');
 
-		expect(() => transform(source, '/app/src/widget.tsx')).toThrow(
+		const requestedExports = new Map<string, RequestedExportRules>([['/app/src/widget', new Set(['guard'])]]);
+
+		expect(() => transform(source, '/app/src/widget.tsx', { requestedExports })).toThrow(
 			"'authMiddleware' (imported from './auth.server') is used at /app/src/widget.tsx:2:22",
 		);
 	});
@@ -76,27 +78,141 @@ describe('transformModuleImports', () => {
 		expect(transformed).toContain('eco.page({ render: () => heading() })');
 	});
 
-	it('fails for a declaration nothing references that uses a stripped import', () => {
+	it('removes a declaration nothing references that uses a stripped import', () => {
 		const source = [
 			"import fs from 'node:fs';",
 			'const unused = fs.existsSync("x");',
+			'function readIt() { return fs.readFileSync("x"); }',
 			'export default eco.page({ render: () => null });',
 		].join('\n');
 
-		expect(() => transform(source, '/app/src/pages/index.tsx')).toThrow(
-			"'fs' (imported from 'node:fs') is used at /app/src/pages/index.tsx:2:16",
+		const { transformed } = transform(source, '/app/src/pages/index.tsx');
+
+		expect(transformed).not.toContain('fs');
+		expect(transformed).not.toContain('readIt');
+		expect(transformed).toContain('eco.page({ render: () => null })');
+	});
+
+	it('replaces an export no browser importer uses that needs a stripped import', () => {
+		const source = [
+			"import { readdirSync } from 'node:fs';",
+			'export function readPosts() { return readdirSync("posts"); }',
+			'export const listPosts = () => readPosts();',
+			'export const Button = eco.component({ render: () => null });',
+		].join('\n');
+
+		const { transformed } = transform(source, '/app/src/components/button.tsx');
+
+		expect(transformed).not.toContain('readdirSync');
+		expect(transformed).toContain('export const readPosts = undefined;');
+		expect(transformed).toContain('export const listPosts = undefined;');
+		expect(transformed).toContain('export const Button = eco.component');
+	});
+
+	it('keeps a requested export that does not need a stripped import', () => {
+		const source = [
+			"import { readFileSync } from 'node:fs';",
+			'export function formatDate(date) { return date.toISOString(); }',
+			"export function dbSecretQuery() { return readFileSync('/etc/passwd', 'utf8'); }",
+		].join('\n');
+		const requestedExports = new Map<string, RequestedExportRules>([
+			['/app/src/utils/mixed', new Set(['formatDate'])],
+		]);
+
+		const { transformed } = transform(source, '/app/src/utils/mixed.ts', { requestedExports });
+
+		expect(transformed).toContain('export function formatDate');
+		expect(transformed).toContain('export const dbSecretQuery = undefined;');
+		expect(transformed).not.toContain('readFileSync');
+	});
+
+	it('replaces a named export that needs a stripped import when no request is known', () => {
+		const source = [
+			"import { readFileSync } from 'node:fs';",
+			'export function formatDate(date) { return date.toISOString(); }',
+			"export function dbSecretQuery() { return readFileSync('/etc/passwd', 'utf8'); }",
+		].join('\n');
+
+		const { transformed } = transform(source, '/app/src/utils/mixed.ts');
+
+		expect(transformed).toContain('export function formatDate');
+		expect(transformed).toContain('export const dbSecretQuery = undefined;');
+		expect(transformed).not.toContain('readFileSync');
+	});
+
+	it('replaces a legacy export exposed through an export list', () => {
+		const source = [
+			"import { getPost } from './posts.server';",
+			'async function getStaticProps() { return { props: { post: await getPost() } }; }',
+			'export { getStaticProps };',
+			'export default eco.page({ render: () => null });',
+		].join('\n');
+
+		const { transformed } = transform(source, '/app/src/pages/post.tsx');
+
+		expect(transformed).not.toContain('getPost');
+		expect(transformed).toContain('const getStaticProps = undefined;');
+		expect(transformed).toContain('export { getStaticProps };');
+	});
+
+	it('keeps a legacy export that browser code uses', () => {
+		const source = [
+			'export async function getMetadata() { return { title: "Post" }; }',
+			'export const describe = () => getMetadata();',
+			'export default eco.page({ render: () => describe() });',
+		].join('\n');
+
+		expect(transform(source, '/app/src/pages/post.tsx').modified).toBe(false);
+	});
+
+	it('fails when a requested export reaches a legacy export that needs a stripped import', () => {
+		const source = [
+			"import { getPost } from './posts.server';",
+			'export async function getMetadata() { return { title: await getPost() }; }',
+			'export const describe = () => getMetadata();',
+			'export default eco.page({ render: () => null });',
+		].join('\n');
+		const requestedExports = new Map<string, RequestedExportRules>([
+			['/app/src/pages/post', new Set(['describe'])],
+		]);
+
+		expect(() => transform(source, '/app/src/pages/post.tsx', { requestedExports })).toThrow(
+			"'getPost' (imported from './posts.server') is used at /app/src/pages/post.tsx:2:61",
 		);
+	});
+
+	it('does not treat a typeof check as a use of a stripped import', () => {
+		const source = ["import fs from 'node:fs';", "export const hasFs = typeof fs !== 'undefined';"].join('\n');
+
+		const { transformed } = transform(source);
+
+		expect(transformed).toBe("\nexport const hasFs = typeof fs !== 'undefined';");
+	});
+
+	it('removes a side-effecting declaration only server-only options used, and keeps a top-level call', () => {
+		const source = [
+			"import { register } from './registry';",
+			"const registered = register('server');",
+			"register('browser');",
+			'export default eco.page({ metadata: () => ({ title: registered }), render: () => null });',
+		].join('\n');
+
+		const { transformed } = transform(source, '/app/src/pages/index.tsx');
+
+		expect(transformed).not.toContain("register('server')");
+		expect(transformed).toContain("register('browser');");
+		expect(transformed).toContain("import { register } from './registry';");
 	});
 
 	it('fails when kept code uses a named import the declared rules remove', () => {
 		const source = [
 			"import { keepMe, dropMe } from 'left-pad';",
 			"export const Component = eco.component({ dependencies: { modules: ['left-pad{keepMe}'] }, render: () => keepMe() });",
-			'export const padded = dropMe();',
+			'export default [Component, dropMe()];',
 		].join('\n');
 
 		expect(() => transform(source)).toThrow(
-			"'dropMe' (imported from 'left-pad') is used at /app/component.tsx:3:23",
+			"'dropMe' (imported from 'left-pad') is used at /app/component.tsx:3:28",
 		);
 	});
 

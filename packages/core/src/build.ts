@@ -11,6 +11,7 @@ export {
 } from './build/browser/browser-runtime-plugin.ts';
 export { getHostScopedJsxOwnershipPlugins } from './build/browser/jsx-ownership-plugins.ts';
 export { isLitStaticRenderWorkerThread } from './build/browser/lit-static-render-worker-context.ts';
+export { prebuildProductionPageBrowserGraphsFromManifest } from './static-site-generator/production-page-browser-graph-prebuild.ts';
 export {
 	type BuildAdapter,
 	type BuildExecutor,
@@ -54,6 +55,11 @@ export {
 } from './diagnostics/request-pipeline-metrics.ts';
 export { toPackageRootSpecifier } from './plugins/package-specifier.ts';
 export { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from './plugins/tsconfig-import-resolver.ts';
+export {
+	ENTRY_COMMAND_FLAGS,
+	getEntryCommandFlagNames,
+	type EntryCommandFlagName,
+} from './utils/entry-command-flags.ts';
 export { contentHash } from './utils/content-hash.ts';
 export { isPathInside } from './utils/path-containment.ts';
 export { CLIENT_OUTPUT_DIR, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from './utils/resolve-entry-file.ts';

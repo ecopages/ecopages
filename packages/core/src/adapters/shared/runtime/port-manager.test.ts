@@ -56,11 +56,10 @@ describe('isPortAvailable', () => {
 		try {
 			expect(await isPortAvailable(occupiedPort, '127.0.0.1')).toBe(false);
 		} finally {
-			holder.close();
+			await new Promise<void>((resolve) => holder.close(() => resolve()));
 		}
 
-		const freePort = 49152 + Math.floor(Math.random() * 1000);
-		expect(await isPortAvailable(freePort, '127.0.0.1')).toBe(true);
+		expect(await isPortAvailable(occupiedPort, '127.0.0.1')).toBe(true);
 	});
 
 	it('probes the address the hostname resolves to', async () => {

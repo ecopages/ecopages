@@ -75,6 +75,39 @@ jobs:
             - name: Build static templates
               run: pnpm run smoke:templates
 
+    windows:
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        runs-on: windows-latest
+        permissions:
+            contents: read
+        steps:
+            - name: Checkout Repo
+              uses: actions/checkout@v6
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v6
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Setup Node
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: pnpm
+
+            - name: Install Dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Typecheck
+              run: pnpm run typecheck
+
+            - name: Production smoke
+              run: pnpm run smoke:start
+
+            - name: Unit suites
+              run: node --experimental-strip-types scripts/test-vitest-windows.ts
+
     e2e-shard:
         strategy:
             fail-fast: false

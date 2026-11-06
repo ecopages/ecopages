@@ -9,7 +9,7 @@ export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>(
 		scripts: [{ src: './radiant-counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count = 0 }) => (
-		<radiant-counter count={count}>
+		<radiant-counter attr:count={count}>
 			<RuiButton type="button" variant="ghost" size="sm" data-ref="decrement" aria-label="Decrement">
 				-
 			</RuiButton>

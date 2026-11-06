@@ -1,5 +1,5 @@
 import type { PageBrowserGraphContribution } from '../../../types/contracts.ts';
-import type { ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
+import type { AssetDefinition, ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
 import type { PageClientBuildEntry } from '../ownership-graph/page-client-plan.ts';
 
 export type PlannedPageClientBuildEntry = PageClientBuildEntry & {
@@ -26,6 +26,11 @@ export type GroupedGraphBuildPlan = {
 	integrationName: string;
 	planKey: string;
 	instances: ReadonlyArray<GroupedGraphBuildPlanInstance>;
+	/**
+	 * Component scripts route preparation bundles for these routes, collected before rendering so the app-wide
+	 * browser build includes them.
+	 */
+	bundledScripts?: ReadonlyArray<AssetDefinition>;
 };
 
 /**

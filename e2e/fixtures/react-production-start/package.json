@@ -1,0 +1,13 @@
+{
+	"name": "@ecopages/e2e-react-production-start-app",
+	"private": true,
+	"type": "module",
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/kitajs": "workspace:*",
+		"@ecopages/react": "workspace:*",
+		"@kitajs/html": "^4.2.13",
+		"react": "^19.2.6",
+		"react-dom": "^19.2.6"
+	}
+}

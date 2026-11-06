@@ -10,6 +10,8 @@ const vendorImports = {
 	useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
 	pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
 	layoutCompose: '/assets/vendors/layout-compose.js',
+	islandHydration: '/assets/vendors/island-hydration.js',
+	pageHydration: '/assets/vendors/page-hydration.js',
 	router: '/assets/vendors/react-router-esm.js',
 };
 
@@ -27,6 +29,7 @@ describe('resolveHydrationBootstrapImports', () => {
 			routerImportPath: '/assets/vendors/react-router-esm.js',
 			layoutComposeImportPath: '/assets/vendors/layout-compose.js',
 			pageLayoutNormalizationImportPath: '/assets/vendors/page-layout-normalization.js',
+			pageHydrationImportPath: '/assets/vendors/page-hydration.js',
 		});
 	});
 
@@ -43,6 +46,7 @@ describe('resolveHydrationBootstrapImports', () => {
 			routerImportPath: '@ecopages/react-router/browser',
 			layoutComposeImportPath: '@ecopages/react/layout-compose',
 			pageLayoutNormalizationImportPath: '@ecopages/core/client',
+			pageHydrationImportPath: '@ecopages/react/page-hydration',
 		});
 	});
 });

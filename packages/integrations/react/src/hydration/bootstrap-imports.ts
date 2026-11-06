@@ -7,7 +7,11 @@
  * When false, bare package names are emitted for the production page bundler.
  */
 
-import { LAYOUT_COMPOSE_PACKAGE, PAGE_LAYOUT_NORMALIZATION_PACKAGE } from '../bundling/bootstrap-package-paths.ts';
+import {
+	LAYOUT_COMPOSE_PACKAGE,
+	PAGE_HYDRATION_PACKAGE,
+	PAGE_LAYOUT_NORMALIZATION_PACKAGE,
+} from '../bundling/bootstrap-package-paths.ts';
 import type { ReactRuntimeImports } from '../bundling/runtime-bundle.ts';
 
 export type HydrationBootstrapImportPaths = {
@@ -16,6 +20,7 @@ export type HydrationBootstrapImportPaths = {
 	routerImportPath?: string;
 	layoutComposeImportPath: string;
 	pageLayoutNormalizationImportPath: string;
+	pageHydrationImportPath: string;
 };
 
 export type ResolveHydrationBootstrapImportsOptions = {
@@ -41,6 +46,7 @@ export function resolveHydrationBootstrapImports(
 				: {}),
 			layoutComposeImportPath: runtimeImports.layoutCompose,
 			pageLayoutNormalizationImportPath: runtimeImports.pageLayoutNormalization,
+			pageHydrationImportPath: runtimeImports.pageHydration,
 		};
 	}
 
@@ -50,5 +56,6 @@ export function resolveHydrationBootstrapImports(
 		...(routerAdapterImportPath ? { routerImportPath: routerAdapterImportPath } : {}),
 		layoutComposeImportPath: LAYOUT_COMPOSE_PACKAGE,
 		pageLayoutNormalizationImportPath: PAGE_LAYOUT_NORMALIZATION_PACKAGE,
+		pageHydrationImportPath: PAGE_HYDRATION_PACKAGE,
 	};
 }

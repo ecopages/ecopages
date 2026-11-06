@@ -310,7 +310,7 @@ app.notFound(NotFoundView);
 app.serverError(ServerErrorView);
 ```
 
-Import a view and pass it to `ctx.render`, `ctx.renderPartial`, `app.static()`, or an error-page helper. An Integration-owned import becomes a view reference: development loads it through the app module loader so a save reloads without a restart, and production reads the module `ecopages build` wrote to `dist/server/`. A full explicit view renders through the same route pipeline as a filesystem Page, including its layouts, default metadata, robots meta, and page client plan. Props passed to the render are available to the view's `metadata`.
+Import a view and pass it to `ctx.render`, `ctx.renderPartial`, `app.static()`, or an error-page helper. The default export of an Integration-owned file becomes a view reference: development loads it through the app module loader so a save reloads without a restart, and production reads the module `ecopages build` wrote to `dist/server/`. A file without a default export, such as a file of named plain components, imports as itself. A full explicit view renders through the same route pipeline as a filesystem Page, including its layouts, default metadata, robots meta, and page client plan. Props passed to the render are available to the view's `metadata`.
 
 When no custom page is configured, built-in HTML defaults are served instead.
 

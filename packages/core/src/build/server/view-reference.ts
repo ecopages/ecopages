@@ -4,6 +4,7 @@ import { escapeRegExp } from '../../utils/regex-escaping.ts';
 import { isViewReference, VIEW_REFERENCE, type ViewReference } from '../../types/view-reference.ts';
 
 export { isViewReference, VIEW_REFERENCE, type ViewReference } from '../../types/view-reference.ts';
+export { isViewModule } from './view-module.ts';
 
 const HTML_VIEW_EXTENSION = '.html';
 /** Same name as `HTML_PAGES_INTEGRATION_NAME`; this file cannot import the Rendering layer. */

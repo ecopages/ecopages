@@ -1,10 +1,12 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEcoPagesUserConfig } from '@ecopages/core/config';
+import { fileSystem } from '@ecopages/file-system';
 import {
 	collectViewIntegrations,
 	findViewOwner,
 	isExemptFromViewReference,
+	isViewModule,
 	viewExtensionFilter,
 	viewReferenceModuleSource,
 } from '@ecopages/core/view-reference';
@@ -52,20 +54,33 @@ function importerFilePath(importer) {
 	return importer;
 }
 
+/**
+ * Resolves an import the way Bun does, so tsconfig aliases reach the file.
+ *
+ * @remarks
+ * `Bun.resolveSync` does not run plugins. A specifier Bun cannot resolve is left to
+ * the import itself to report.
+ */
 function resolveImportedPath(specifier, importer, appRoot) {
-	if (path.isAbsolute(specifier)) {
-		return specifier;
-	}
 	const importerPath = importerFilePath(importer);
 	const fromDir = importerPath ? path.dirname(importerPath) : appRoot;
-	return path.resolve(fromDir, specifier);
+	try {
+		return globalThis.Bun.resolveSync(specifier, fromDir);
+	} catch {
+		return undefined;
+	}
 }
 
+/** The Integration whose view this import is, or `undefined` when the file loads as itself. */
 function viewOwnerToRewrite(filePath, entryPath, appRoot) {
 	if (isExemptFromViewReference(filePath, { entryPath, appRoot })) {
 		return undefined;
 	}
-	return findViewOwner(integrations, filePath);
+	const owner = findViewOwner(integrations, filePath);
+	if (!owner || !isViewModule(filePath, fileSystem.readFileSync(filePath))) {
+		return undefined;
+	}
+	return owner;
 }
 
 function viewModuleLoadResult(filePath, integrationName) {
@@ -88,7 +103,7 @@ if (process.versions.bun) {
 			setup(builder) {
 				builder.onResolve({ filter: viewExtensionFilter(extensions) }, (args) => {
 					const filePath = resolveImportedPath(args.path, args.importer, appRoot);
-					const owner = viewOwnerToRewrite(filePath, entryPath, appRoot);
+					const owner = filePath ? viewOwnerToRewrite(filePath, entryPath, appRoot) : undefined;
 					if (!owner) {
 						return undefined;
 					}

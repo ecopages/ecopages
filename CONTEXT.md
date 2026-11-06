@@ -76,7 +76,7 @@ A route registered programmatically via the app API (e.g., `app.static(path, vie
 _Avoid_: Programmatic route, registered route
 
 **View Reference**:
-A handle for an Integration-owned view imported from the server entry. The import is not the compiled view: development loads the file through the app module loader so an edit shows without a process restart, and production reads the module from the server-modules map. Two imports of one view share one reference. Pass it to `ctx.render`, `ctx.renderPartial`, `app.static`, and error pages.
+A handle for an Integration-owned view imported from the server entry; the view is the file's default export, so a file without one is not a view and imports as itself. The default import is not the compiled view: development loads the file through the app module loader so an edit shows without a process restart, and production reads the module from the server-modules map. Two imports of one view share one reference. Pass it to `ctx.render`, `ctx.renderPartial`, `app.static`, and error pages.
 _Avoid_: view module loader, view path, server module path
 
 **Route Registry**:

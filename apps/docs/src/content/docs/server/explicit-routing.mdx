@@ -43,7 +43,7 @@ await app.start();
 
 ## Rendering Views
 
-Route handlers render `eco.page` views with `ctx.render(View, props)`. Import the view: an Integration-owned file becomes a view reference, so development reloads on save and production reads the built module.
+Route handlers render `eco.page` views with `ctx.render(View, props)`. Import the view: the default export of an Integration-owned file becomes a view reference, so development reloads on save and production reads the built module. A file without a default export, such as a file of named plain components, imports as itself. Any default export of an Integration-owned file counts as a view, so import only the default from a view file, and export a component the server entry imports by name.
 
 ```typescript
 import PostView from './src/views/post-view.kita';

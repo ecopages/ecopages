@@ -72,7 +72,7 @@ jobs:
             - name: Fast gate
               run: pnpm run test:ci:fast
 
-            - name: Build static templates
+            - name: Build every template
               run: pnpm run smoke:templates
 
     windows:

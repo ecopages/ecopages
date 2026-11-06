@@ -1,0 +1,68 @@
+---
+title: "Islands and hydration"
+description: "How Islands are planned and stamped on the server, matched to their browser entries by identity, hydrated by the Integration bootstrap, and loaded lazily."
+section: rendering
+order: 7
+sources:
+  - packages/core/src/islands/
+  - packages/core/src/route-renderer/orchestration/ownership-graph/
+  - packages/core/src/route-renderer/page-loading/lazy-entry-collection.ts
+  - packages/core/src/route-renderer/page-loading/lazy-trigger-planning.ts
+  - packages/core/src/route-renderer/page-loading/dependency-resolver.ts
+  - packages/core/src/route-renderer/orchestration/page-browser-graph/global-injector-assets.service.ts
+  - packages/core/src/eco/global-injector-map.ts
+  - packages/integrations/react/src/hydration/
+---
+
+# Islands and hydration
+
+An Island is a Component that hydrates in the browser inside a Page it does not own. The server stamps its root as an Island Host, route preparation builds a browser entry for it, and the owning Integration's bootstrap hydrates the host in place. A script can also be loaded later, on a trigger, instead of at page load. How a Component of another Integration is rendered on the server is covered in [Integrations and foreign children](/dev/integrations-foreign-children).
+
+```mermaid
+sequenceDiagram
+  participant R as Route preparation
+  participant S as Server render
+  participant B as Browser
+  R->>R: "plan islandEntries, build grouped entries"
+  S->>B: "HTML with data-eco-island hosts"
+  B->>B: "page and island entries load"
+  B->>B: "entry selects hosts by data-eco-component-key"
+  B->>B: "hydrateRoot on each host"
+```
+
+## Declaring and planning
+
+An Island is a graph edge where a Component's Integration differs from its parent's, excluding the Html shell. `collectPageClientPlanFromGraph` lists these as `islandEntries`, and `selectHydrationIslandEntries` gives each hydrating Integration only the islands it owns on a Page owned by another Integration; the page owner's own tree is hydrated by its page bootstrap. The page owner asks every other island-hydrating Integration on the plan for its grouped client build, so a React island on a Kita Page still gets a hydration script.
+
+At render, a resolved Foreign Subtree carries a component instance id. `finalizeIslandComponentRender` stamps the root as an Island Host (`data-eco-island`, `data-eco-island-integration`, `data-eco-component-id`) when the result has one root element and the Component's own Dependencies, excluding Foreign Children, include a script. React stamps through `buildIslandHostAttributes`, adds `data-eco-component-key` and base64 `data-eco-props`, and wraps the root in `<eco-island style="display:contents">`. Why one attribute set: devtools and client runtimes find islands without Integration-specific selectors.
+
+## Matching a host to its entry
+
+A host is matched to its browser entry by identity, not by position. Each declaration has a component identity id, and each server render of a Component gets its own instance id, stamped as `data-eco-component-id`. React derives `data-eco-component-key` from the component file and its identity id (`getIslandComponentKey`), so every instance of one Component shares the key and the browser assets, but each host gets its own React root. The generated island entry selects hosts with `[data-eco-component-key="<key>"]` and passes the identity id as `componentRef`; `resolveComponent` then picks the export whose `config.identity.id` equals it. That matters when one file declares several Components. Only when no export carries the id does it fall back to the default export and then the first function.
+
+## Bootstraps
+
+Pages and Islands hydrate through two different bootstraps, and React ships both as package exports: `@ecopages/react/page-hydration` and `@ecopages/react/island-hydration`. A generated entry only wires its module to one of them.
+
+| Bootstrap | Used by | Behavior |
+| --- | --- | --- |
+| `page-hydration` | the Page entry of a React Page | Owns the document tree, navigation ownership, cleanup and HMR for the page root. A production Page entry that inlines React bundles it; every other entry imports its `/assets/vendors/` URL. |
+| `island-hydration` | one entry per React Island | `mountIslands` hydrates every matching host that has no root yet, and `readProps` decodes `data-eco-props`. The entry always imports the vendor URL. |
+
+Why vendors: the bootstrap is built as a browser vendor and receives React as a value (`hydrateRoot`, `createElement`, `useEffect`), so it never bundles React and every island entry on a page shares one copy of the bootstrap and of React. All island entries share one runtime object on `window.__ECO_PAGES__`, with a single `MutationObserver` that unmounts the root of a host removed from the document. The host gets `data-eco-hydrated` after its first commit, and in development `registerIslandHmr` re-renders hosts with a hot-updated module; see [HMR client](/dev/hmr-client). The vendor build itself is the one described in [Dev server](/dev/dev-server) and [Build pipeline](/dev/build-pipeline).
+
+## Lazy triggers
+
+A script entry of a Component can declare when it loads with `lazy`:
+
+| Trigger | Meaning |
+| --- | --- |
+| `{ 'on:idle': true }` | after page load, when the injector is idle |
+| `{ 'on:interaction': 'mouseenter,focusin' }` | when one of the listed events fires |
+| `{ 'on:visible': true }` or a margin string such as `'100px'` | when the Component enters the viewport, with an optional margin |
+
+Collection turns each lazy script into a hidden entry: it is excluded from the HTML, joins the app-wide client bundle and carries a `data-eco-lazy-key`. Scripts of one Component that share a trigger form a group, and each group resolves to a `ResolvedLazyTrigger` whose `triggerId` is a hash of the component file and its sorted script URLs, so it does not depend on declaration order. The Component root receives `data-eco-trigger`, and the Page Package carries one global injector map (a script of type `ecopages/global-injector-map`) plus a bootstrap that imports `@ecopages/scripts-injector/global`, which loads the scripts for each trigger. `lazy` controls browser delivery only: a script with `ssr: true` is still imported on the server.
+
+## Across Integrations
+
+An Island is exactly a graph edge whose Integration differs from its parent, so the same mechanism covers a React Island on a Kita or Lit Page: the Page owner collects the grouped island build from every island-hydrating Integration on the plan. The server side of that edge, the Foreign Subtree handoff, is in [Integrations and foreign children](/dev/integrations-foreign-children). Each Integration page under Packages says what it contributes: [React](/dev/react), [Lit](/dev/lit), [Kita](/dev/kita), [Ecopages JSX](/dev/ecopages-jsx).

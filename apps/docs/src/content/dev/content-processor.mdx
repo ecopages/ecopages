@@ -1,0 +1,68 @@
+---
+title: "Content processor"
+description: "How @ecopages/content-processor scans collections, validates frontmatter and generates the ecopages:content virtual modules."
+section: packages
+order: 27
+sources:
+  - packages/processors/content-processor/src/plugin.ts
+  - packages/processors/content-processor/src/content-scanner.ts
+  - packages/processors/content-processor/src/content-plugins.ts
+  - packages/processors/content-processor/src/content-server-boundary-plugin.ts
+  - packages/processors/content-processor/src/collection-server-module-build.service.ts
+  - packages/processors/content-processor/src/codegen.ts
+  - packages/processors/content-processor/src/ownership.ts
+  - packages/processors/content-processor/src/types.ts
+  - packages/core/src/plugins/processor.ts
+  - packages/core/src/route-renderer/page-loading/file-scoped-dependency-components.ts
+---
+
+# Content processor
+
+`ContentProcessorPlugin` is a Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline)) that turns configured collection directories into generated TypeScript modules and exposes them as `ecopages:content/<collection>` virtual specifiers. Collection names must match `^[a-z][a-z0-9-]*$`.
+
+## Scanning
+
+One `ContentScanner` per collection globs `**/*<ext>` under `srcDir/<contentDir>` for the collection's `extensions` (default `['.mdx']`). For each file it:
+
+- Reads frontmatter with `vfile-matter` and validates it with `validateStandardSchema`, so any Standard Schema library works. An invalid file fails the generation, which fails `ecopages build` instead of the first request.
+- Derives `slug` by stripping the longest matching extension from the path relative to the content root, using `/` separators, and `segments` as `slug.split('/')`. Extensions are matched longest-first so `.react.mdx` strips cleanly when `.mdx` is also declared.
+- Sorts entries with `orderBy`, defaulting to slug order.
+
+A rejected scan is not cached, so fixing the file and saving recovers without a restart.
+
+## Generated modules
+
+Per collection, `regenerateCollectionModule` writes three files under the Processor's cache directory (`<workDir>/cache/ecopages-content-processor/`) and mirrors them into `.d.ts` files under `node_modules/@types/ecopages-content-processor`:
+
+| Specifier | Generated file | Contents |
+| --- | --- | --- |
+| `ecopages:content/<c>` | `<c>.ts` | `entries`, `getEntry(slug)`, `getEntryBySegments(segments)`. Metadata only, so route preparation loads it cheaply. |
+| `ecopages:content/<c>/server` | `<c>.server.ts` | Per-slug lazy `import()` of each MDX file, `getComponent(slug)`, `getEntryDependencies(slug)`. |
+| `ecopages:content/<c>/component` | `<c>.server.ts` or `<c>.browser.ts` | `loadComponent(slug)` with a `collection` property. |
+
+`/component` is one specifier with two resolutions. The server graph backs it with the same module as `/server`, so a Page importing both shares one component cache per slug. The Page Browser Graph backs it with the browser module, which loads a browser-compiled entry and returns the module's own default export. Why: a hydratable Page needs the entry in the browser, but `/server` must never become browser-reachable.
+
+## Server and client boundary
+
+`plugins()` returns one `server` plugin and the browser plugins (`environments: ['browser']`), declared separately so registration order cannot pick the wrong implementation.
+
+- Server: resolves all three specifiers. For `/server` and `/component` it first builds a compiled collection artifact, then externalizes it so Node loads one instance. In the unified production graph (`shouldBuildPagesUnifiedGraph()`) the generated files are inlined instead and emitted to `dist/server/`.
+- Browser: resolves entries and `/component` to generated files on disk (not a virtual namespace, so relative MDX imports resolve), and omits `/server`. `createContentServerBoundaryPlugin` throws if `/server` is still reached, with a message to move the import into a server-only Page option.
+
+Every resolve awaits `ensureCollectionsGenerated()`, which `setup()` also calls. Why: a build can start before `setup()`, and the shared promise makes both wait on the same generation. A failed generation is dropped so the next caller retries.
+
+The compiled artifact (`ensureCollectionServerArtifact`) is built lazily, single-flight per collection, because it bundles every entry's MDX. It is named from a hash of the generated file plus entry sources and the app module loader's development generation, and discarded when a source changes during the build.
+
+## Ownership at render time
+
+Each entry component is wrapped by `invokeContentEntry`, which compares the entry's `identity.integration` with the active render context. When they differ and a foreign-child runtime exists, the entry is handed off to its owning renderer; otherwise it throws an ownership error. See [/dev/integrations-foreign-children](/dev/integrations-foreign-children). The generated module also throws if the MDX config lacks `identity`, since the MDX loader must attribute it (see [/dev/mdx](/dev/mdx)).
+
+## Joining route preparation
+
+`getEntryDependencies(slug)` returns `{ components: [entryComponent] }`. A Page passes it as its `dependencies` function, and `collectPageDependencyComponents` expands the result into collector roots like any other Component. Why a Component and not asset paths: the entry's scripts and stylesheets come from its identity, so content needs no separate asset channel. It does not copy `config.dependencies` or set `ownerFile`. See [/dev/pages-layouts-components](/dev/pages-layouts-components).
+
+## Setup, watch and production
+
+- `setup()` generates every collection and types, then adds `routePrefix/<slug>` pathnames to `devPrewarmPaths` for collections with `devPrewarm` and `routePrefix`. They are read from the manifest at startup.
+- Watch paths are the collections' content roots. A body-only edit leaves the manifest unchanged (`no-op`), so generated files are not rewritten, but the compiled artifact is invalidated. A created or deleted entry, or a changed slug, regenerates the collection; a frontmatter change rewrites only the entries module. A collection whose regeneration failed stays stale and regenerates on the next change.
+- `ecopages build` emits the entries and server modules; `listProductionServerModuleEntries()` names them for `server-modules.json`. `restoreProductionRuntime()` points the module maps at the emitted files and throws if one is missing. Production `start` calls it instead of `setup()`.

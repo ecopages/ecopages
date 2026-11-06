@@ -1,0 +1,63 @@
+---
+title: "From graph to HTML"
+description: "How route preparation resolves the Page Browser Graph, processes Dependencies and builds the Page Package that the HTML transform writes."
+section: rendering
+order: 8
+sources:
+  - packages/core/src/assets/asset-processing-service/page-package.ts
+  - packages/core/src/assets/asset-processing-service/processors/script/file-script.processor.ts
+  - packages/core/src/route-renderer/orchestration/page-browser-graph/
+  - packages/core/src/static-site-generator/production-page-browser-graph-prebuild.ts
+  - packages/core/src/html/html-transformer.service.ts
+  - packages/core/src/route-renderer/orchestration/ownership-graph/
+  - packages/core/src/route-renderer/orchestration/route-pipeline/route-render-orchestrator.ts
+  - packages/core/src/route-renderer/page-loading/component-dependency-collection.ts
+  - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts
+  - packages/core/src/route-renderer/orchestration/document-shell/document-shell-render.service.ts
+---
+
+# From graph to HTML
+
+Before any Component renders, route preparation decides every asset the Page ships. Asset processing turns each Dependency into an output, the Page Browser Graph resolves the scripts, and both land in one Page Package that the HTML transform injects into the rendered document. [Pages, layouts and components](/dev/pages-layouts-components) covers how Dependencies are discovered; [Build pipeline](/dev/build-pipeline) and [Dev server](/dev/dev-server) cover where the script URLs come from.
+
+## Route preparation
+
+`RouteRenderOrchestrator.prepareRenderOptions()` runs before any Component renders:
+
+```mermaid
+flowchart TD
+  A["Load page module and props"] --> B["Shell graph: Html, Layouts, Page"]
+  B --> V{"Ownership valid?"}
+  V -- no --> X["Throw before render"]
+  V -- yes --> D["Add Page dependencies roots"]
+  D --> E["Collect Dependencies"]
+  D --> F["Page Browser Graph"]
+  D --> G["Client plan: islands, lazy entries"]
+  E --> H[(Page Package)]
+  F --> H
+  G --> H
+  H --> R["Render, then inject assets"]
+```
+
+1. `prepareRouteShellGraph` builds a `PreparedComponentGraph` from the Html shell, Layouts and Page, following `config.dependencies.components` (explicit and discovered). Each node records its owner, identity file and own assets.
+2. `OwnershipValidationService` rejects a Foreign Child without identity or with an unregistered owner.
+3. The Page's `dependencies` function (for example `getEntryDependencies`) adds request-time roots to the same graph.
+4. Dependency collection, the Page Browser Graph, the page client plan, Integration runtimes and lazy-trigger injectors produce the asset list that becomes the Page Package.
+
+Only nodes with an identity file, under parents that also have one, take part in dependency collection. Why the Page Package is fixed before render: island builds, the Page Browser Graph and cache watch paths all need the asset set up front, and a package that rendering could grow would depend on which branches and Integrations happened to run. Renders return HTML and root attributes only, and the HTML transform injects the prepared package.
+
+The graph has a guard. In development, `assertComponentInPreparedGraph` fails a render of a Component with `dependencies` and an identity file that preparation never reached, naming the file. Production does not check, so such a Component renders without its assets.
+
+Production builds run the same preparation in two steps: planning collects bundleable scripts without processing them, and processing runs after the app-wide browser build. See [Ledger and start](/dev/ledger-and-start). Development invalidation of prepared graphs and cached HTML is covered in [Watcher and invalidation](/dev/hmr-watcher-invalidation).
+
+## The Page Package
+
+Route preparation builds one Page Package per render, before any Component renders. `PageBrowserGraphService` resolves the route's Page Browser Graph: it processes the Integration's contribution and splits the result into entry assets and dynamic chunks. In production, every grouped script resolves to the output the app-wide build recorded. In development, the graph is built on first request and cached in `page-browser-graph-session` until a tracked dependency changes, and its file scripts and Integration page modules point at transform URLs. A grouped script that no app-wide build recorded builds as one grouped bundle for that route, which no other route reuses.
+
+`createPagePackage` merges those graph assets with the processed Dependencies of every Component the route reached, then sorts them into the page script, the page stylesheet, inline assets, separate assets and dynamic chunks. Three kinds of asset get no tag:
+
+- an asset marked `excludeFromHtml`, such as an island entry that another script imports;
+- a `runtime` asset, which modules import by URL;
+- a source file already bundled into the page script or page stylesheet.
+
+The HTML transform appends the remaining assets to `<head>` or `<body>` by position; stylesheets always go to `<head>`. It never writes a tag for a Page Browser Graph dynamic chunk: the entry that needs it imports it. Rendering cannot add assets to the package; an HTML Page writes the tags of its own declared assets into its markup instead.

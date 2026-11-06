@@ -1,7 +1,8 @@
 ---
 title: "Plugin pipeline"
 description: "How Integrations, Processors and config loaders contribute EcoBuildPlugins, how core orders them per environment, and how one bridge runs them inside Rolldown."
-order: 3
+section: build
+order: 4
 sources:
   - packages/core/src/types/build-types.ts
   - packages/core/src/plugins/integration-plugin.ts
@@ -19,7 +20,7 @@ sources:
 
 # Plugin pipeline
 
-Every server and browser build in Ecopages runs Rolldown with a plugin list that core assembles. Integrations, Processors and config `loaders` never hand Rolldown a plugin directly: they return `EcoBuildPlugin` objects, core seals them once into an app build manifest split by environment, orders them per build request, and a single bridge plugin runs them inside Rolldown. This page follows a plugin from declaration to hook call. For what triggers builds see [Build and start](/dev/build-and-start); for what a browser build emits see [Browser graph](/dev/browser-graph).
+Every server and browser build in Ecopages runs Rolldown with a plugin list that core assembles. Integrations, Processors and config `loaders` never hand Rolldown a plugin directly: they return `EcoBuildPlugin` objects, core seals them once into an app build manifest split by environment, orders them per build request, and a single bridge plugin runs them inside Rolldown. This page follows a plugin from declaration to hook call. For what triggers builds and what a browser build emits see [Build pipeline](/dev/build-pipeline).
 
 ```mermaid
 flowchart TD
@@ -78,7 +79,7 @@ Real contributors:
 | React and Ecopages JSX Integrations | MDX loader, when MDX is enabled | both |
 | Content Processor | content plugin, plus browser collection plugins | `server`, `browser` |
 | Image Processor | image plugin, image bundler plugin | `server`, `browser` |
-| PostCSS Processor | runtime CSS loader, build CSS loader | both, `browser` |
+| PostCSS Processor | build CSS loader | `browser` |
 
 ## Environments
 
@@ -136,7 +137,7 @@ sequenceDiagram
 What the bridge adds on top of the hook mapping:
 
 - **Namespaces.** Rolldown has no namespace field, so the bridge encodes one as a `<namespace>:` id prefix and strips it before calling back. A namespaced filter matches only ids with that prefix. `module(specifier)` uses a fresh `ecopages-module-<n>` namespace per virtual module. A Windows drive prefix such as `C:\` is never read as a namespace.
-- **Build inputs.** Every matched `onLoad` records the loaded path through the per-build recorder and Rolldown's `addWatchFile`, so caches and the watcher know which files a plugin read. [HMR and navigation](/dev/hmr-and-navigation) covers how those inputs drive invalidation.
+- **Build inputs.** Every matched `onLoad` records the loaded path through the per-build recorder and Rolldown's `addWatchFile`, so caches and the watcher know which files a plugin read. [Watcher and invalidation](/dev/hmr-watcher-invalidation) covers how those inputs drive invalidation.
 - **Source maps.** Chained transforms compose their maps in order. A transform that changes code without a map clears earlier mappings and returns empty `mappings`, so debug locations never point at stale positions; `map: null` declares that the transform moves no code and keeps the incoming map.
 - **Error attribution.** Rolldown overwrites `plugin` on a thrown error with the hosting plugin's name, which is the bridge. The bridge wraps every throw in an `EcoBuildPluginError` that keeps the `EcoBuildPlugin` name, and `BuildLog.plugin` reports that name.
 
@@ -152,7 +153,7 @@ Ownership is by extension. `findIntegrationForFile()` returns the Integration wi
 
 - **Loaders** filter on the extensions they compile. The MDX loader's filter comes from its configured MDX extensions, so it never claims another Integration's files.
 - **JSX ownership plugins.** `getJsxOwnershipPlugins()` creates one `transform` per JSX-capable `(Integration, extension)` pair, longest extensions first. Each prepends that Integration's `@jsxImportSource` pragma to its files, unless the file already has one, and excludes longer extensions that end with its own, so the `.tsx` owner skips `.kita.tsx` files.
-- **Component identity attribution** looks up the owning Integration of each script module and attributes identity with that Integration's name and JSX runtime. It skips `node_modules` and leaves a module no Integration owns alone unless it is a plain module inside the app root or one discovery reached. [Content and Integrations](/dev/content-and-integrations) covers discovery.
+- **Component identity attribution** looks up the owning Integration of each script module and attributes identity with that Integration's name and JSX runtime. It skips `node_modules` and leaves a module no Integration owns alone unless it is a plain module inside the app root or one discovery reached. [Pages, layouts and components](/dev/pages-layouts-components) covers discovery.
 - **Host-scoped overrides.** An Integration that bundles foreign files into its own client graph uses `getHostScopedJsxOwnershipPlugins()`, which compiles other Integrations' JSX extensions with the host's runtime. Its `scope` option narrows that per build: React's scope claims a foreign file only when a React entry reaches it, and fails the build when entries of both Integrations reach it.
 
 Why scope by ownership: without it, every JSX file would compile with the project tsconfig's JSX runtime, and a Kita file bundled into a React client graph would emit HTML strings instead of React elements. Deriving every filter from the owning Integration's extensions keeps each file compiled by the runtime that renders it, whichever Integration's entry pulled it in.

@@ -42,10 +42,7 @@ export const DevBreadcrumb = ({ title }: { title?: string }) => (
 export const DevSources = ({ sources }: { sources: string[] }) => (
 	<>
 		<h2 id="sources">Sources</h2>
-		<p>
-			This page describes the code below. A pull request that changes these paths updates this page in the same
-			pull request.
-		</p>
+		<p>This page describes the code below.</p>
 		<ul>
 			{sources.map((source) => (
 				<li>

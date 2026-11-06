@@ -1,0 +1,53 @@
+---
+title: "Kita"
+description: "The smallest Integration: a name, one extension and core's shared renderer, with no build plugins, hydration or HMR of its own."
+section: packages
+order: 22
+sources:
+  - packages/integrations/kitajs/src/
+  - packages/core/src/plugins/define-integration.ts
+---
+
+# Kita
+
+`@ecopages/kitajs` renders `.kita.tsx` Pages, Layouts and document shells to strings with `@kitajs/html`. It is the reference for how little an Integration has to declare: everything else comes from core's shared route and document-shell pipeline ([Graph to HTML](/dev/graph-to-html)).
+
+## What it plugs into core
+
+| Contract                     | Kita                                                                                              |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| Plugin name / extensions     | `kitajs` / `['.kita.tsx']`                                                                        |
+| Declaration                  | `defineIntegration({ name, extensions, jsxImportSource, renderer })`, not a hand-written subclass |
+| `jsxImportSource`            | `@kitajs/html`                                                                                    |
+| Renderer                     | `createIntegrationRenderer('kitajs')` with no hooks                                               |
+| Build plugins (`plugins()`)  | none                                                                                              |
+| `serverDom`                  | none                                                                                              |
+| `bundlesPageDependencies`    | core default (`false`)                                                                            |
+| Browser runtime manifest     | core default (empty)                                                                              |
+| HMR strategy                 | none; no `hmr()` override                                                                         |
+| Hydration                    | none                                                                                              |
+
+`defineIntegration` builds an `IntegrationPlugin` subclass from the declarative fields and the renderer class. `kitajsPlugin` is both the factory and, through `.Plugin`, the class; `KitaHtmlPlugin` is a deprecated alias of `.Plugin`.
+
+## Why there is no renderer code
+
+`createIntegrationRenderer` supplies the whole route pipeline, and a renderer only adds behavior through hooks. Kita needs none because its output is already a string: the shell is rendered, and nothing has to be hydrated or serialized for the browser. Hooks are the extension point if a Kita-specific capability appears; subclassing is the fallback when a hook cannot express it.
+
+## Mixed rendering
+
+Kita is meant to be the outer shell. When a Kita-owned Page reaches a Foreign Child, core resolves that Foreign Subtree with the owning renderer and splices the HTML back in ([Integrations and Foreign Children](/dev/integrations-foreign-children)).
+
+- The Component must list the child in `config.dependencies.components`. Ownership is validated from declared Dependencies during route preparation, not discovered from rendered HTML.
+- Route-level dependency resolvers can add Components at request time; they count for handoff.
+- Kita children of Kita do not go through a separate child serialization contract.
+
+`@ecopages/kitajs/eco-embed` exports `EcoEmbed`, a thin Kita-JSX wrapper over `eco.embed(component, props, children)`. Use it to render a foreign or same-Integration Component from a Kita file without inline mixed-JSX authoring.
+
+## Islands
+
+Kita emits no Island Host markup of its own and ships no client runtime. Interactivity inside a Kita Page comes from a Component owned by another Integration, which stamps and hydrates its own host: see [React](/dev/react), [Lit](/dev/lit) and [Ecopages JSX](/dev/ecopages-jsx), and [Islands and hydration](/dev/islands-hydration) for the shared contract.
+
+## See also
+
+- [Plugin pipeline](/dev/plugin-pipeline) for how `plugins()` and `jsxImportSource` are consumed.
+- [Pages, layouts and components](/dev/pages-layouts-components).

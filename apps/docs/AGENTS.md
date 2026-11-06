@@ -22,10 +22,10 @@
 
 ## Developer area
 
-- `src/content/dev/<slug>.mdx` is the `dev` collection, served at `/dev/<slug>` by `src/pages/dev/[slug].tsx`; `src/pages/dev/index.tsx` lists it at `/dev`. It documents the framework's internals for maintainers.
-- The area is hidden: the docs sidebar, pagination and `llms.txt` read only the `docs` collection, every page sets `robots: DEV_ROBOTS` (`noindex`, which also drops it from `sitemap.xml`), and the only link in is the homepage footer.
+- `src/content/dev/<slug>.mdx` is the `dev` collection, served at `/dev/<slug>` by `src/pages/dev/[slug].tsx`; `index.mdx` is the overview served at `/dev` by `src/pages/dev/index.tsx`. It documents the framework's internals for maintainers. The `section` frontmatter value (`overview`, `build`, `rendering`, `development`, `hmr`, `packages`; see `DEV_SECTION_ORDER` in `src/content/dev.ts`) places a page in the sidebar and `order` sorts it. `sources:` is metadata, not checked in CI. Never link the area from the footer or site-wide navigation; only the "Under the hood" notes at the end of three public pages link in.
+- The area is hidden: the docs sidebar, pagination and `llms.txt` read only the `docs` collection, every page sets `robots: DEV_ROBOTS` (`noindex`, which also drops it from `sitemap.xml`), and the only links in are the "Under the hood" notes at the end of three public pages (Deployment, Custom Integration, HMR).
 - `DevLayout` (`src/layouts/docs-layout/`) is the docs shell with the developer sidebar (`src/lib/dev-nav.ts`) under its own persist id.
-- Frontmatter requires `title`, `description` and `sources`: the repository paths the page describes, a directory ending in `/`. Keep them accurate: when the code a page lists changes, update the page. Diagrams are `mermaid` code fences.
+- Frontmatter requires `title`, `description`, `section` and `sources`: the repository paths the page describes, a directory ending in `/`. Keep them accurate: when the code a page lists changes, update the page. Diagrams are `mermaid` code fences.
 
 ## Configuration
 

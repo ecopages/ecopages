@@ -50,6 +50,28 @@ test.describe('A built React app under `ecopages start`', () => {
 		});
 	}
 
+	test('links the package stylesheet a plain component imports on a dynamic Page, with its font', async ({
+		page,
+		request,
+	}) => {
+		await page.goto('/dynamic');
+
+		await expect(page.locator('.package-css-lib-badge')).toHaveCSS('outline-width', '3px');
+		const stylesheetUrls = await page
+			.locator('link[rel="stylesheet"]')
+			.evaluateAll((links) => links.map((link) => (link as HTMLLinkElement).href));
+		const stylesheets = await Promise.all(
+			stylesheetUrls.map(async (url) => ({ url, text: await (await request.get(url)).text() })),
+		);
+		const packageStylesheets = stylesheets.filter(({ text }) => text.includes('.package-css-lib-badge'));
+		expect(packageStylesheets).toHaveLength(1);
+		const fontReference = /url\(["']?([^"')]+\.woff2)["']?\)/.exec(packageStylesheets[0]!.text)?.[1];
+		expect(fontReference).toBeDefined();
+		const font = await request.get(new URL(fontReference!, packageStylesheets[0]!.url).href);
+		expect(font.ok()).toBe(true);
+		expect(await font.text()).toBe('package-css-lib font fixture\n');
+	});
+
 	test('writes nothing into the build output while it serves', () => {
 		const ledgerWrittenAt = statSync(path.join(distDir, 'server/processed-assets.json')).mtimeMs;
 

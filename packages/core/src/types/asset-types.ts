@@ -99,6 +99,14 @@ export interface FileStylesheetAsset extends StylesheetAsset {
 	source: 'file';
 	filepath: string;
 	name?: string;
+	/**
+	 * Marks a stylesheet a package import named, such as `import 'some-lib/style.css'`.
+	 *
+	 * @remarks
+	 * Processors do not transform it, a Page stylesheet bundle never merges it, and each file its relative
+	 * `url()` references is emitted under a content hash with the reference rewritten to it.
+	 */
+	fromPackage?: boolean;
 }
 
 export interface InlineFileStylesheetAsset extends FileStylesheetAsset {

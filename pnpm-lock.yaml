@@ -267,6 +267,8 @@ importers:
         specifier: ^4.2.13
         version: 4.2.13
 
+  e2e/fixtures/package-css-lib: {}
+
   e2e/fixtures/page-script-splitting:
     devDependencies:
       '@ecopages/core':
@@ -335,6 +337,9 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../../packages/core
+      '@ecopages/e2e-package-css-lib':
+        specifier: workspace:*
+        version: link:../package-css-lib
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../../packages/integrations/kitajs
@@ -1107,6 +1112,9 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@ecopages/e2e-package-css-lib':
+        specifier: workspace:*
+        version: link:../../e2e/fixtures/package-css-lib
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
         version: link:../../packages/integrations/ecopages-jsx

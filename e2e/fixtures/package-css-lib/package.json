@@ -1,0 +1,10 @@
+{
+	"name": "@ecopages/e2e-package-css-lib",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./style.css": {
+			"style": "./css/style.css"
+		}
+	}
+}

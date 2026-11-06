@@ -86,6 +86,12 @@ function applySourceEdits(
 	return createMappedSourceTransformResult(contents, filePath, editSource);
 }
 
+/**
+ * Matches the text of a side-effect import such as `import 'swiper/css'`, which can name a package stylesheet
+ * without a `.css` suffix.
+ */
+const SIDE_EFFECT_IMPORT = /(?:^|[;}\s])import\s*['"]/m;
+
 function isAstNode(value: unknown): value is AstNode {
 	return typeof value === 'object' && value !== null;
 }
@@ -240,8 +246,12 @@ function serializeDiscoveryArgument(
 		discovered.plainModuleStylesheets.length > 0
 			? `, plainModuleStylesheets: ${JSON.stringify(discovered.plainModuleStylesheets)}`
 			: '';
+	const packages =
+		discovered.packageStylesheets.length > 0
+			? `, packageStylesheets: ${JSON.stringify(discovered.packageStylesheets)}`
+			: '';
 	const watchFiles = discovered.watchFiles.length > 0 ? `, watchFiles: ${JSON.stringify(discovered.watchFiles)}` : '';
-	return `, { components: () => [${components}], stylesheets: ${JSON.stringify(discovered.stylesheets)}${plain}${watchFiles} }`;
+	return `, { components: () => [${components}], stylesheets: ${JSON.stringify(discovered.stylesheets)}${plain}${packages}${watchFiles} }`;
 }
 
 /**
@@ -291,13 +301,12 @@ export type ComponentIdentityAttributionOptions = {
 };
 
 /**
- * Removes the local side-effect stylesheet imports of a module without `eco.*()` calls.
+ * Removes the side-effect stylesheet imports, local or from a package, of a module without `eco.*()` calls.
  *
  * @remarks
  * Discovery hands those stylesheets to the nearest Eco declaration that imports the module, so no server or
  * browser build sees the import; the build plugin fails at the end of a build for a module no declaration
- * reached. A CSS Module or a package stylesheet in a module an Integration owns throws here, because no
- * declaration could deliver it.
+ * reached. A CSS Module in a module an Integration owns throws here, because no declaration could deliver it.
  */
 function stripPlainModuleStylesheetImports(
 	program: AstNode,
@@ -307,9 +316,8 @@ function stripPlainModuleStylesheetImports(
 	const edits: SourceEdit[] = [];
 	const pathPrefixes = loadTsconfigPathPrefixes(options.projectRoot);
 	for (const entry of collectStaticImports(program)) {
-		if (entry.attributed || !entry.source.endsWith('.css')) continue;
-		if (options.integration) assertDeliverableStylesheetImport(entry, filePath, options.projectRoot, pathPrefixes);
-		if (!isDeliveredStylesheetImport(entry, pathPrefixes)) continue;
+		if (options.integration) assertDeliverableStylesheetImport(entry, filePath, options.projectRoot);
+		if (!isDeliveredStylesheetImport(entry, filePath, options.projectRoot, pathPrefixes)) continue;
 		edits.push({ start: entry.start, end: entry.end, replacement: '' });
 		options.onStrippedStylesheet?.(entry.source);
 	}
@@ -338,7 +346,7 @@ export function attributeComponentIdentity(
 			? createJsxImportSourcePragma(jsxImportSource)
 			: undefined;
 	const mayDeclare = integration !== undefined && contents.includes('eco.');
-	if (!mayDeclare && !contents.includes('.css')) {
+	if (!mayDeclare && !contents.includes('.css') && !SIDE_EFFECT_IMPORT.test(contents)) {
 		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 

@@ -77,8 +77,8 @@ function getSourceSignature(dep: AssetDefinition, rootDir: string): string[] {
  * Script dependencies include a build signature: bundle flags, grouped-bundle metadata and every
  * `bundleOptions` field, with each plugin as its name and `cacheKey`. `NODE_ENV` and plugin objects are left
  * out, so a plugin factory that captures an option which changes its output must set `cacheKey`.
- * `attributes` (hashed) and `inline` join the key so dedupe and cache reuse do not collapse declarations that
- * would emit different tags. `name` only names output files and is left out.
+ * `attributes` (hashed), `inline` and a stylesheet's `fromPackage` join the key so dedupe and cache reuse do not
+ * collapse declarations that would emit different tags or files. `name` only names output files and is left out.
  *
  * File paths, bundled sources and a Page script bundle's members are relative to `rootDir`, so the key survives
  * moving the project. Other content is hashed as written: generated content that embeds an absolute path
@@ -102,6 +102,10 @@ export function getAssetDependencyKey(dep: AssetDefinition, rootDir: string): st
 
 	if ('packageRole' in dep && dep.packageRole) {
 		parts.push(`package:${dep.packageRole}`);
+	}
+
+	if (dep.kind === 'stylesheet' && dep.source === 'file' && dep.fromPackage) {
+		parts.push('from-package');
 	}
 
 	if ((dep.kind === 'script' || dep.kind === 'stylesheet') && dep.attributes) {

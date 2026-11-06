@@ -95,6 +95,7 @@ type ComponentDependencyCollectionContext = {
 	lazyDependencyKeys: Set<string>;
 	visited: Set<NonNullable<EcoComponent['config']>>;
 	inferredStyles: InferredStyle[];
+	packageStylePaths: Set<string>;
 	explicitStylePaths: Set<string>;
 	stylesheetDependencyKeys: Set<string>;
 	scriptDependencyKeys: Set<string>;
@@ -122,7 +123,7 @@ function createLazyScriptRegistrar(
 function recordExplicitAndInferredStyles(
 	config: NonNullable<EcoComponent['config']>,
 	dir: string,
-	context: Pick<ComponentDependencyCollectionContext, 'explicitStylePaths' | 'inferredStyles'>,
+	context: Pick<ComponentDependencyCollectionContext, 'explicitStylePaths' | 'inferredStyles' | 'packageStylePaths'>,
 ): NonNullable<EcoComponentDependencies['stylesheets']> {
 	const dependenciesConfig = config.dependencies;
 	const explicitStyles = dependenciesConfig?.stylesheets ?? [];
@@ -138,6 +139,9 @@ function recordExplicitAndInferredStyles(
 	}
 	for (const src of discovered.plainModules) {
 		context.inferredStyles.push({ dir, src, plainModule: true });
+	}
+	for (const src of discovered.packages) {
+		context.packageStylePaths.add(resolveDependencyPath(dir, src));
 	}
 
 	return explicitStyles;
@@ -254,7 +258,8 @@ function collectNestedComponentDependencies(
  * @remarks
  * Explicit stylesheet declarations are collected first across the graph. Inferred
  * stylesheets are read from component identity afterward and skipped when the same
- * resolved path already has an explicit entry (see {@link orderInferredStylesheets}). The returned structures preserve both
+ * resolved path already has an explicit entry (see {@link orderInferredStylesheets}). One a package import named is
+ * marked `fromPackage`. The returned structures preserve both
  * the flat asset list used by asset processing and the grouped lazy-trigger data used
  * later during render output.
  */
@@ -275,6 +280,7 @@ export function collectComponentDependencies(
 	const lazyDependencyKeys = new Set<string>();
 	const visited = new Set<NonNullable<EcoComponent['config']>>();
 	const inferredStyles: InferredStyle[] = [];
+	const packageStylePaths = new Set<string>();
 	const explicitStylePaths = new Set<string>();
 	const modulesMap = new Map<string, Set<string> | null>();
 	const preparedStylesheetDependencyKeys = skipNestedComponents ? new Set<string>() : undefined;
@@ -298,6 +304,7 @@ export function collectComponentDependencies(
 			lazyDependencyKeys,
 			visited,
 			inferredStyles,
+			packageStylePaths,
 			explicitStylePaths,
 			stylesheetDependencyKeys: preparedStylesheetDependencyKeys ?? new Set<string>(),
 			scriptDependencyKeys: preparedScriptDependencyKeys ?? new Set<string>(),
@@ -310,7 +317,12 @@ export function collectComponentDependencies(
 
 	for (const filepath of orderInferredStylesheets(inferredStyles, explicitStylePaths)) {
 		dependencies.push(
-			AssetFactory.createFileStylesheet({ filepath, position: 'head', attributes: { rel: 'stylesheet' } }),
+			AssetFactory.createFileStylesheet({
+				filepath,
+				position: 'head',
+				attributes: { rel: 'stylesheet' },
+				...(packageStylePaths.has(filepath) ? { fromPackage: true } : {}),
+			}),
 		);
 	}
 	return {

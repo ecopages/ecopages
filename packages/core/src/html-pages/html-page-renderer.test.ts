@@ -797,6 +797,19 @@ describe('HtmlPageRenderer', () => {
 			expect(await renderWithHmr(page('main.ts'))).toContain('<script type="module" src="/assets/main.ts">');
 		});
 
+		it('allows a package stylesheet import the component meta transform moves into Component Dependencies', async () => {
+			appConfig.integrations.push({ name: 'test-string', extensions: ['.eco.ts'] } as never);
+			write('node_modules/slider/package.json', '{ "name": "slider", "exports": { "./css": "./slider.css" } }');
+			write('node_modules/slider/slider.css', '.slider {}');
+			write(
+				'src/components/card.eco.ts',
+				"import { eco } from '@ecopages/core';\nimport 'slider/css';\nexport const Card = eco.component({ render: () => '<div></div>' });",
+			);
+			write('src/pages/main.ts', "import { Card } from '../components/card.eco.ts';\nconsole.log(Card);");
+
+			expect(await renderWithHmr(page('main.ts'))).toContain('<script type="module" src="/assets/main.ts">');
+		});
+
 		it('rejects a stylesheet re-export from a component file, which the component meta transform keeps', async () => {
 			appConfig.integrations.push({ name: 'test-string', extensions: ['.eco.ts'] } as never);
 			write('src/components/card.css', '.card { color: red; }');

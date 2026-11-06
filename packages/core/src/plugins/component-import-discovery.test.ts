@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
@@ -56,7 +56,7 @@ describe('component import discovery', () => {
 		const result = transform(`import './style.css';\nimport '@/style.css';`);
 		expect(result).not.toContain(`import './style.css'`);
 		expect(result).not.toContain(`import '@/style.css'`);
-		expect(result).toContain(`stylesheets: ${JSON.stringify([stylePath, stylePath])}`);
+		expect(result).toContain(`stylesheets: ${JSON.stringify([stylePath])}`);
 		expect(result).toContain('import { eco, bindComponentIdentity }');
 		expect(
 			attributeComponentIdentity(result, path.join(root, 'page.ts'), { integration: 'lit', projectRoot: root })
@@ -153,14 +153,99 @@ export const Button = eco.component({ render: () => '' });`,
 		expect(result).not.toContain('stylesheets: ["');
 		expect(result).toContain(`import styles from './style.css'`);
 	});
-	it('fails on a CSS Module or a package stylesheet with the file and the import', () => {
+	it('fails on a CSS Module with the file and the import', () => {
 		const { transform } = fixture();
 		expect(() => transform(`import './style.module.css';`)).toThrow(
 			'page.ts: "./style.module.css" is a CSS Module, which Ecopages cannot add to a Page.',
 		);
-		expect(() => transform(`import 'swiper/css/swiper.css';`)).toThrow(
-			'page.ts: "swiper/css/swiper.css" is a package stylesheet, which Ecopages cannot add to a Page.',
-		);
+	});
+	describe('package stylesheets', () => {
+		function packageFixture() {
+			const context = fixture();
+			const write = (name: string, source: string) => {
+				const file = path.join(context.root, name);
+				mkdirSync(path.dirname(file), { recursive: true });
+				writeFileSync(file, source);
+				return file;
+			};
+			write(
+				'node_modules/some-lib/package.json',
+				JSON.stringify({
+					name: 'some-lib',
+					main: './index.js',
+					exports: {
+						'.': './index.js',
+						'./style.css': { style: './dist/style.css', default: './dist/style.js' },
+						'./dist/*': './dist/*',
+						'./theme': './dist/theme.css',
+						'./module.css': './dist/x.module.css',
+					},
+				}),
+			);
+			write('node_modules/some-lib/index.js', 'export const lib = 1;');
+			write('node_modules/some-lib/dist/style.js', 'export {};');
+			write('node_modules/some-lib/dist/style.css', '.some-lib {}');
+			write('node_modules/some-lib/dist/theme.css', '.some-lib-theme {}');
+			write('node_modules/some-lib/dist/x.module.css', '.x {}');
+			const real = (name: string) => realpathSync(path.join(context.root, name));
+			return { ...context, write, real };
+		}
+
+		it('resolves a package stylesheet through its exports with the style condition and strips the import', () => {
+			const { transform, real } = packageFixture();
+			const style = real('node_modules/some-lib/dist/style.css');
+			const result = transform(`import 'some-lib/style.css';\nimport 'some-lib/dist/style.css';`);
+			expect(result).not.toContain(`import 'some-lib`);
+			expect(result).toContain(`stylesheets: ${JSON.stringify([style])}`);
+			expect(result).toContain(`packageStylesheets: ${JSON.stringify([style])}`);
+		});
+		it('reads a package import without .css as a stylesheet only when it resolves to one', () => {
+			const { transform, real } = packageFixture();
+			const result = transform(`import 'some-lib/theme';\nimport 'some-lib';`);
+			expect(result).toContain(`stylesheets: ${JSON.stringify([real('node_modules/some-lib/dist/theme.css')])}`);
+			expect(result).not.toContain(`import 'some-lib/theme'`);
+			expect(result).toContain(`import 'some-lib';`);
+		});
+		it('strips a package stylesheet named without .css from a plain module', () => {
+			const { root, write } = packageFixture();
+			write('theme.ts', `import 'some-lib/theme';\nexport const theme = 1;`);
+			const code = attributeComponentIdentity(
+				fileSystem.readFileSync(path.join(root, 'theme.ts')),
+				path.join(root, 'theme.ts'),
+				{ integration: 'lit', projectRoot: root },
+			).code;
+			expect(code).not.toContain('some-lib');
+		});
+		it('fails on a package CSS Module and on a package stylesheet the package does not export', () => {
+			const { transform } = packageFixture();
+			expect(() => transform(`import 'some-lib/module.css';`)).toThrow(
+				'page.ts: "some-lib/module.css" is a CSS Module, which Ecopages cannot add to a Page.',
+			);
+			expect(() => transform(`import 'some-lib/missing.css';`)).toThrow(
+				'Cannot resolve package stylesheet "some-lib/missing.css"',
+			);
+		});
+		it('hands a package stylesheet of a plain module to the nearest declaration, after the declaration CSS', () => {
+			const { root, write, real } = packageFixture();
+			write('badge.css', '.badge {}');
+			write('card.css', '.card {}');
+			write('card.ts', `import 'some-lib/style.css';\nimport './card.css';\nexport const Card = () => '';`);
+			write(
+				'badge.ts',
+				`import { eco } from '@ecopages/core';\nimport './badge.css';\nimport { Card } from './card';\nexport const Badge = eco.component({ render: () => Card() });`,
+			);
+			const attribute = (name: string) =>
+				attributeComponentIdentity(fileSystem.readFileSync(path.join(root, name)), path.join(root, name), {
+					integration: 'lit',
+					projectRoot: root,
+				}).code;
+			const style = real('node_modules/some-lib/dist/style.css');
+			const badge = attribute('badge.ts');
+			expect(badge).toContain(`stylesheets: ${JSON.stringify([real('badge.css')])}`);
+			expect(badge).toContain(`plainModuleStylesheets: ${JSON.stringify([style, real('card.css')])}`);
+			expect(badge).toContain(`packageStylesheets: ${JSON.stringify([style])}`);
+			expect(attribute('card.ts')).not.toContain('some-lib');
+		});
 	});
 	it('reports missing relative or aliased imports with owner and specifier', () => {
 		const { transform, root } = fixture();
@@ -295,12 +380,8 @@ export const Button = eco.component({ render: () => '' });`,
 			const { attribute } = plainFixture();
 			expect(attribute('card-body.ts', null)).not.toContain(`import './card-body.css'`);
 		});
-		it('fails on a CSS Module or a package stylesheet in a reached plain module', () => {
+		it('fails on a CSS Module in a reached plain module', () => {
 			const { attribute, file } = plainFixture();
-			file('card-body.ts', `import 'kit/dist/kit.css';\nexport const CardBody = () => '';`);
-			expect(() => attribute('badge.ts')).toThrow(
-				'[ecopages] card-body.ts: "kit/dist/kit.css" is a package stylesheet, which Ecopages cannot add to a Page.',
-			);
 			file('card-body.ts', `import styles from './card-body.module.css';\nexport const CardBody = () => styles;`);
 			expect(() => attribute('badge.ts')).toThrow(
 				'[ecopages] card-body.ts: "./card-body.module.css" is a CSS Module',

@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import { Counter } from '../components/counter.react';
+import { PackageBadge } from '../components/package-badge.kita';
 
 export default eco.page({
 	cache: 'dynamic',
@@ -9,6 +10,7 @@ export default eco.page({
 		<main>
 			<h1>react-island-dynamic-page</h1>
 			<Counter />
+			<PackageBadge />
 		</main>
 	),
 });

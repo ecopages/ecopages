@@ -113,6 +113,10 @@ function createPageDependencyPackagingPlan(
 				return isSafeBundledStylesheetContent(dependency.content);
 			}
 
+			if (dependency.fromPackage) {
+				return false;
+			}
+
 			if (!fileSystem.exists(dependency.filepath)) {
 				return false;
 			}

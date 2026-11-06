@@ -9,7 +9,7 @@ The build removes those imports from every plain module, so development, product
 Breaking: these CSS imports now fail the build in development and in `ecopages build`, naming the file and the import:
 
 - a side-effect CSS import in a plain module inside the app that no declaration reaches (for example one imported only through `export *`, a namespace import, or a client script);
-- a CSS Module or a package stylesheet, in a module an Integration owns or discovery reaches.
+- a CSS Module, in a module an Integration owns or discovery reaches.
 
 Rendering a plain component owned by another Integration that compiles JSX differently (a plain React component in a Kita Page) also fails the build, naming the component and both Integrations; wrap it in `eco.component()` to render it as a Foreign Child.
 

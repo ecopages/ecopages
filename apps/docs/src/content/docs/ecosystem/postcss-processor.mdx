@@ -185,6 +185,10 @@ import styles from './styles.css';
 console.log(styles);
 ```
 
+### Package stylesheets
+
+A side-effect import of a package stylesheet in a component, such as `import 'react-day-picker/style.css'`, is linked on the Page as published. The processor does not run on it: Tailwind and the preset plugins are written for your own CSS, not for third-party CSS that is already built. Ecopages still copies the fonts and images its relative `url()` references into the build. To run a package stylesheet through PostCSS, `@import` it from one of your own stylesheets instead; that needs `postcss-import` in the plugin list (the presets include it), and its relative `url()` references are then not rewritten.
+
 ## Processing Methods
 
 The processor also exports standalone methods if you need to process CSS programmatically:

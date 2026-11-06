@@ -330,3 +330,42 @@ export function resolveProjectImportPath(projectRoot: string, fromFile: string, 
 
 	return resolveProjectModulePath(projectRoot, fromFile, specifier);
 }
+
+const packageStylesheetResolvers = new Map<string, ResolverFactoryType>();
+
+function getPackageStylesheetResolver(conditionNames: readonly string[]): ResolverFactoryType {
+	const key = conditionNames.join(',');
+	let resolver = packageStylesheetResolvers.get(key);
+	if (!resolver) {
+		resolver = new ResolverFactory({ conditionNames: [...conditionNames], extensions: [] });
+		packageStylesheetResolvers.set(key, resolver);
+	}
+	return resolver;
+}
+
+/**
+ * Resolves a bare package specifier imported for its side effects to the stylesheet it names.
+ *
+ * @returns The real path of the stylesheet, or `undefined` when the specifier does not name one.
+ *
+ * @remarks
+ * A specifier ending in `.css` (`pkg/style.css`) resolves through the package's `exports` with the `style`
+ * condition first, then `browser`, `import` and `default`, and throws when the package does not provide it. Any
+ * other specifier (`swiper/css`, `@fontsource/inter`) resolves as a browser script import would, without the
+ * `style` condition, and names a stylesheet only when that resolves to a `.css` file, so a package whose entry is
+ * a script is never read as its stylesheet.
+ */
+export function resolvePackageStylesheetPath(fromFile: string, specifier: string): string | undefined {
+	const named = specifier.endsWith('.css');
+	const conditionNames = named ? ['style', 'browser', 'import', 'default'] : ['browser', 'import', 'default'];
+	const result = getPackageStylesheetResolver(conditionNames).sync(path.dirname(fromFile), specifier);
+	if (!result.path) {
+		if (named) {
+			throw new Error(
+				`[ecopages] Cannot resolve package stylesheet ${JSON.stringify(specifier)} from ${fromFile}${result.error ? `: ${result.error}` : ''}`,
+			);
+		}
+		return undefined;
+	}
+	return result.path.endsWith('.css') ? fileSystem.realpath(result.path) : undefined;
+}

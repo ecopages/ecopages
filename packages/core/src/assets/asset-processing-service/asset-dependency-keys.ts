@@ -71,8 +71,8 @@ function getSourceSignature(dep: AssetDefinition, rootDir: string): string[] {
  * The identity of a dependency: two dependencies with one key are built, cached and served as one.
  *
  * @remarks
- * It keys deduplication, the {@link AssetProcessingService} cache and in-flight sharing, the app-wide browser
- * build and its persisted manifest, and `AppRuntime.prebuiltBrowserScripts`.
+ * It keys deduplication, the {@link AssetProcessingService} cache and in-flight sharing, and the production
+ * asset ledger (`AppRuntime.processedAssets`), where the app-wide browser build records each script it bundles.
  *
  * Script dependencies include a build signature: bundle flags, grouped-bundle metadata and every
  * `bundleOptions` field, with each plugin as its name and `cacheKey`. `NODE_ENV` and plugin objects are left

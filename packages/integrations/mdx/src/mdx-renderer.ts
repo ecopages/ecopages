@@ -67,9 +67,7 @@ function collectMdxPageComponents(
 /**
  * MDX routes use the shared renderer pipeline with page-module and dependency hooks.
  */
-export const MDXRenderer = createIntegrationRenderer<EcoPagesElement>(MDX_PLUGIN_NAME, ({ resolveDependencies }) => ({
-	collectPageBrowserGraphContribution: async (context) => ({
-		assets: await resolveDependencies(collectMdxPageComponents(context)),
-	}),
+export const MDXRenderer = createIntegrationRenderer<EcoPagesElement>(MDX_PLUGIN_NAME, () => ({
+	collectPageBrowserGraphContribution: async (context) => ({ components: collectMdxPageComponents(context) }),
 	normalizePageModule: normalizeImportedMdxPage,
 }));

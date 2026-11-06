@@ -92,7 +92,7 @@ function throwStaticGenerationPageFailures(pageFailures: Error[], keepGoing: boo
 	}
 }
 
-function clearProductionBrowserManifestOnFailure(appConfig: EcoPagesAppConfig, generationFailed: boolean): void {
+function clearProductionAssetLedgerOnFailure(appConfig: EcoPagesAppConfig, generationFailed: boolean): void {
 	if (generationFailed && shouldPrebuildProductionPageBrowserGraphs()) {
 		clearProductionPageBrowserGraphSession(appConfig);
 	}
@@ -640,7 +640,7 @@ export class StaticSiteGenerator {
 			generationError = error;
 		}
 		requireAppRuntime(this.appConfig).staticGenerationActive = false;
-		clearProductionBrowserManifestOnFailure(this.appConfig, generationFailed);
+		clearProductionAssetLedgerOnFailure(this.appConfig, generationFailed);
 
 		const cleanupErrors: unknown[] = [];
 		try {

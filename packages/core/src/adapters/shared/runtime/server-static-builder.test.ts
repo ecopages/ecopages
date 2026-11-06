@@ -7,6 +7,7 @@ import { createAppBuildManifest } from '../../../build/contracts/build-manifest.
 import { BuildQueue } from '../../../build/runtime/build-queue.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { ProcessedAssetLedger } from '../../../assets/asset-processing-service/processed-asset-ledger.ts';
+import { createHtmlPageModuleScriptState } from '../../../html-pages/html-page-module-scripts.ts';
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator';
@@ -87,7 +88,9 @@ function createMockDependencies() {
 		runtimeAssetsPrepared: false,
 		integrationActivations: new Map(),
 		processedAssets: new ProcessedAssetLedger('/test'),
-	} as AppRuntime;
+		plannedProductionRoutes: [],
+		htmlPageModuleScripts: createHtmlPageModuleScriptState(),
+	} as unknown as AppRuntime;
 
 	const ServeOptions: ServeOptions = {
 		hostname: 'localhost',

@@ -299,14 +299,14 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile, params }]);
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { params, groupedBuildPlan });
+		await renderer.buildGroupedGraphBuildPlan([{ routeFile, params }]);
+		await renderer.prebuildProductionPageBrowserGraph(routeFile, { params });
 		const result = await renderer.execute({ file: routeFile, params });
 
 		expect(staticProps).toHaveBeenCalledTimes(1);
 		expect(metadata).toHaveBeenCalledTimes(1);
 		expect(resolveDependencies).toHaveBeenCalledTimes(1);
-		expect(preparedContributionHookCalls).toBe(2);
+		expect(preparedContributionHookCalls).toBe(1);
 		expect(validateGraph).toHaveBeenCalledTimes(2);
 		expect(result.metadata?.title).toBe('captured');
 		validateGraph.mockRestore();
@@ -428,7 +428,7 @@ describe('IntegrationRenderer', () => {
 		const scriptProcessingCallsWhilePlanning = processDependencies.mock.calls.filter(([deps]) =>
 			deps.some((dep) => dep.kind === 'script'),
 		);
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
+		await renderer.prebuildProductionPageBrowserGraph(routeFile);
 		const graph = await renderer.resolveGraphForRoute(routeFile);
 
 		expect(scriptProcessingCallsWhilePlanning).toEqual([]);
@@ -441,22 +441,33 @@ describe('IntegrationRenderer', () => {
 		});
 	});
 
-	it('plans the scripts a contribution hook processes and links them after the app-wide build', async () => {
+	it('plans what a contribution hook names without processing it, and processes it when the graph resolves', async () => {
 		const routeFile = '/app/pages/post.mdx';
 		const appConfig = createMockAppConfig({ rootDir: '/app' });
 		const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
-			deps.map((dep) => ({ kind: dep.kind, srcUrl: '/assets/mdx-built.js' }) as ProcessedAsset),
+			deps.map(
+				(dep) =>
+					({
+						kind: dep.kind,
+						srcUrl:
+							dep.source === 'file' && dep.filepath.endsWith('ssr.script.ts')
+								? '/assets/ssr.js'
+								: '/assets/mdx.js',
+					}) as ProcessedAsset,
+			),
 		);
 		const mdxConfig = {
 			identity: { id: 'post', file: routeFile, integration: 'test-renderer' },
 			dependencies: { scripts: ['./post.script.ts'] },
 		};
+		const ssrLazyScript: AssetDefinition = {
+			kind: 'script',
+			source: 'file',
+			filepath: '/app/components/ssr.script.ts',
+			position: 'head',
+		};
 		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
 		const renderer = new (class extends TestIntegrationRenderer {
-			override async collectPageBrowserGraphContribution(): Promise<PageBrowserGraphContribution> {
-				return { assets: await this.processComponentDependencies([{ config: mdxConfig }]) };
-			}
-
 			resolveGraphForRoute(file: string) {
 				return this.resolvePageBrowserGraphForRoute(file);
 			}
@@ -466,6 +477,12 @@ describe('IntegrationRenderer', () => {
 				processDependencies,
 				getHmrManager: () => undefined,
 			} as unknown as AssetProcessingService,
+			hooks: {
+				collectPageBrowserGraphContribution: async () => ({
+					components: [{ config: mdxConfig }],
+					bundledScripts: [ssrLazyScript],
+				}),
+			},
 		});
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
@@ -474,17 +491,18 @@ describe('IntegrationRenderer', () => {
 		const scriptProcessingCallsWhilePlanning = processDependencies.mock.calls.filter(([deps]) =>
 			deps.some((dep) => dep.kind === 'script'),
 		);
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
 		const graph = await renderer.resolveGraphForRoute(routeFile);
 
 		expect(scriptProcessingCallsWhilePlanning).toEqual([]);
-		expect(groupedBuildPlan.bundledScripts).toEqual([
-			expect.objectContaining({ kind: 'script', filepath: '/app/pages/post.script.ts' }),
-		]);
-		expect([...(graph?.entryAssets ?? []), ...(graph?.chunkAssets ?? [])]).toContainEqual({
-			kind: 'script',
-			srcUrl: '/assets/mdx-built.js',
-		});
+		expect(groupedBuildPlan.bundledScripts).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ kind: 'script', filepath: '/app/pages/post.script.ts' }),
+				expect.objectContaining({ kind: 'script', filepath: '/app/components/ssr.script.ts' }),
+			]),
+		);
+		const graphAssets = [...(graph?.entryAssets ?? []), ...(graph?.chunkAssets ?? [])];
+		expect(graphAssets).toContainEqual({ kind: 'script', srcUrl: '/assets/mdx.js' });
+		expect(graphAssets).toContainEqual({ kind: 'script', srcUrl: '/assets/ssr.js' });
 	});
 
 	it('keeps the page dependencies of a route planned next to its route template', async () => {
@@ -520,12 +538,9 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([
-			{ routeFile },
-			{ routeFile, isRouteTemplate: true },
-		]);
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan, isRouteTemplate: true });
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
+		await renderer.buildGroupedGraphBuildPlan([{ routeFile }, { routeFile, isRouteTemplate: true }]);
+		await renderer.prebuildProductionPageBrowserGraph(routeFile, { isRouteTemplate: true });
+		await renderer.prebuildProductionPageBrowserGraph(routeFile);
 		const graph = await renderer.resolveGraphForRoute(routeFile);
 
 		expect([...(graph?.entryAssets ?? []), ...(graph?.chunkAssets ?? [])]).toContainEqual({
@@ -534,135 +549,7 @@ describe('IntegrationRenderer', () => {
 		});
 	});
 
-	it('resolves lazy triggers from the prebuilt app browser client assets', async () => {
-		const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
-		lazyComponent.config = {
-			identity: { id: 'lazy-component', file: '/app/components/lazy.tsx', integration: 'lit' },
-			dependencies: { scripts: [{ src: './lazy.client.ts', lazy: { 'on:idle': true } }] },
-		};
-		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-		Page.resolveDependencies = async () => ({ components: [lazyComponent] });
-		const routeFile = '/app/pages/lazy.tsx';
-		const appConfig = {
-			...testAppConfig,
-			integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
-		} as EcoPagesAppConfig;
-		const renderer = new (class extends TestIntegrationRenderer {
-			readonly resolvedGroupedPlans: unknown[] = [];
-
-			constructor(options: ConstructorParameters<typeof TestIntegrationRenderer>[0]) {
-				super(options);
-				const resolve = this.routeRenderOrchestrator.resolveDeclaredPageBrowserGraph.bind(
-					this.routeRenderOrchestrator,
-				);
-				vi.spyOn(this.routeRenderOrchestrator, 'resolveDeclaredPageBrowserGraph').mockImplementation(
-					async (input) => {
-						this.resolvedGroupedPlans.push(input.groupedBuildPlan);
-						return resolve(input);
-					},
-				);
-			}
-
-			async resolveGraphForRoute(routeFile: string) {
-				return this.resolvePageBrowserGraphForRoute(routeFile);
-			}
-		})({
-			appConfig,
-			assetProcessingService: testAssetService,
-		});
-		renderer.PageModule = { default: Page };
-		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
-		const instance = groupedBuildPlan.instances[0];
-		const lazyEntry = instance?.pageClientBuildEntries?.find(
-			({ dependency }) => dependency.kind === 'script' && Boolean(dependency.attributes?.['data-eco-lazy-key']),
-		);
-		expect(lazyEntry).toBeDefined();
-		expect(lazyEntry?.integrationName).toBe('test-renderer');
-		const lazyDependency = lazyEntry?.dependency;
-		if (lazyDependency?.kind !== 'script') throw new Error('Expected a planned lazy script entry');
-		if (!instance) throw new Error('Expected a production route instance');
-		instance.prebuiltPageClientBrowserAssets = {
-			processedAssets: [
-				{
-					kind: 'script',
-					srcUrl: '/assets/lazy-entry-hash.js',
-					attributes: lazyDependency.attributes,
-				} as ProcessedAsset,
-			],
-			fallbackDependencies: [],
-		};
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
-
-		const pageClientPlan = collectPageClientPlan([{ component: lazyComponent }], 'test-renderer');
-		const result = await renderer.buildPageClientBrowserAssets(pageClientPlan, { file: routeFile });
-
-		expect(result.lazyTriggers).toHaveLength(1);
-		expect(result.lazyTriggers[0]?.rules).toEqual([{ 'on:idle': { scripts: ['/assets/lazy-entry-hash.js'] } }]);
-
-		renderer.clearPrebuiltRoutePreparation({ file: routeFile });
-		const afterClear = await renderer.buildPageClientBrowserAssets(pageClientPlan, { file: routeFile });
-		await renderer.resolveGraphForRoute(routeFile);
-
-		expect(afterClear.processedAssets).not.toContainEqual(
-			expect.objectContaining({ srcUrl: '/assets/lazy-entry-hash.js' }),
-		);
-		expect(renderer.resolvedGroupedPlans).toEqual([groupedBuildPlan, undefined]);
-	});
-
-	it('keeps prebuilt page client assets for every render of an exact route', async () => {
-		const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
-		lazyComponent.config = {
-			identity: { id: 'repeat-lazy-component', file: '/app/components/repeat-lazy.tsx', integration: 'lit' },
-		};
-		const dependency: AssetDefinition = {
-			kind: 'script',
-			source: 'content',
-			content: 'window.repeatLazy = true;',
-			name: 'repeat-lazy',
-		};
-		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-		Page.resolveDependencies = async () => ({ components: [lazyComponent] });
-		const routeFile = '/app/pages/repeat.tsx';
-		const renderedPageEntryAssets: ProcessedAsset[][] = [];
-		const renderer = new (class extends TestIntegrationRenderer {
-			override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>) {
-				renderedPageEntryAssets.push(options.pagePackage?.assets ?? []);
-				return await super.render(options);
-			}
-		})({
-			appConfig: {
-				...testAppConfig,
-				integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
-			} as EcoPagesAppConfig,
-			assetProcessingService: testAssetService,
-			hooks: {
-				collectAppBrowserClientBuildEntries: async (plan) =>
-					plan.sourceComponents.includes(lazyComponent) ? [{ dependency }] : [],
-			},
-		});
-		renderer.PageModule = { default: Page };
-		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
-		const instance = groupedBuildPlan.instances[0];
-		if (!instance) throw new Error('Expected a production route instance');
-		instance.prebuiltPageClientBrowserAssets = {
-			processedAssets: [{ kind: 'script', srcUrl: '/assets/repeat-entry-hash.js' } as ProcessedAsset],
-			fallbackDependencies: [],
-		};
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
-
-		await renderer.execute({ file: routeFile });
-		await renderer.execute({ file: routeFile });
-
-		expect(renderedPageEntryAssets).toHaveLength(2);
-		for (const assets of renderedPageEntryAssets) {
-			expect(assets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/repeat-entry-hash.js' }));
-		}
-	});
-
-	it('reuses dynamic route template client assets when the page client entries match', async () => {
-		const renderedPageEntryAssets: ProcessedAsset[][] = [];
+	describe('page client entries after an app-wide browser build', () => {
 		const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
 		lazyComponent.config = {
 			identity: { id: 'lazy-template-component', file: '/app/components/lazy-template.tsx', integration: 'lit' },
@@ -681,110 +568,38 @@ describe('IntegrationRenderer', () => {
 			content: 'window.lazyTemplate = true;',
 			name: 'lazy-template',
 		};
-		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-		Page.resolveDependencies = async () => ({ components: [lazyComponent] });
-		const routeFile = '/app/pages/products/[slug].tsx';
-		const appConfig = {
-			...testAppConfig,
-			integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
-		} as EcoPagesAppConfig;
-		const renderer = new (class extends TestIntegrationRenderer {
-			override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>) {
-				renderedPageEntryAssets.push(options.pagePackage?.assets ?? []);
-				return await super.render(options);
-			}
-		})({
-			appConfig,
-			assetProcessingService: testAssetService,
-			hooks: {
-				collectAppBrowserClientBuildEntries: async (plan) =>
-					plan.sourceComponents.includes(lazyComponent) ? [{ dependency }] : [],
-			},
-		});
-		renderer.PageModule = { default: Page };
-		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([
-			{ routeFile, skipStaticProps: true, isRouteTemplate: true },
-		]);
-		const instance = groupedBuildPlan.instances[0];
-		if (!instance) throw new Error('Expected a dynamic route template plan');
-		instance.prebuiltPageClientBrowserAssets = {
-			processedAssets: [{ kind: 'script', srcUrl: '/assets/template-client.js' } as ProcessedAsset],
-			fallbackDependencies: [],
+		const otherDependency: AssetDefinition = {
+			kind: 'script',
+			source: 'content',
+			content: 'window.otherTemplate = true;',
+			name: 'other-template',
 		};
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, {
-			skipStaticProps: true,
-			isRouteTemplate: true,
-			groupedBuildPlan,
-		});
-		await renderer.execute({ file: routeFile, params: { slug: 'new-product' } });
+		const builtAsset = { kind: 'script', srcUrl: '/assets/template-client.js' } as ProcessedAsset;
+		const integrationBuiltAsset = { kind: 'script', srcUrl: '/assets/integration-built.js' } as ProcessedAsset;
+		const routeFile = '/app/pages/products/[slug].tsx';
 
-		const matchingPlan = collectPageClientPlan([{ component: lazyComponent }], 'test-renderer');
-		const reusedAssets = await renderer.buildPageClientBrowserAssets(matchingPlan, {
-			file: routeFile,
-			params: { slug: 'new-product' },
-		});
-		const changedPlan = collectPageClientPlan([{ component: otherComponent }], 'test-renderer');
-		const fallbackAssets = await renderer.buildPageClientBrowserAssets(changedPlan, {
-			file: routeFile,
-			params: { slug: 'new-product' },
-		});
-
-		expect(reusedAssets.processedAssets).toContainEqual(
-			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
-		);
-		expect(renderedPageEntryAssets.at(-1)).toContainEqual(
-			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
-		);
-		expect(fallbackAssets.processedAssets).not.toContainEqual(
-			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
-		);
-	});
-
-	it('fails a production request whose page-client graph is missing from the manifest, naming the route', async () => {
-		vi.stubEnv('NODE_ENV', 'production');
-		const runtime = requireAppRuntime(testAppConfig);
-		runtime.productionBrowserGraphsSealed = true;
-		try {
-			const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
-			lazyComponent.config = {
-				identity: {
-					id: 'lazy-template-component',
-					file: '/app/components/lazy-template.tsx',
-					integration: 'lit',
-				},
-			};
-			const otherComponent = (() => '<button>other</button>') as EcoComponent;
-			otherComponent.config = {
-				identity: {
-					id: 'other-template-component',
-					file: '/app/components/other-template.tsx',
-					integration: 'lit',
-				},
-			};
-			const dependency: AssetDefinition = {
-				kind: 'script',
-				source: 'content',
-				content: 'window.lazyTemplate = true;',
-				name: 'lazy-template',
-			};
-			const otherDependency: AssetDefinition = {
-				kind: 'script',
-				source: 'content',
-				content: 'window.otherTemplate = true;',
-				name: 'other-template',
-			};
-			const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-			Page.resolveDependencies = async () => ({ components: [lazyComponent] });
-			const routeFile = '/app/pages/products/[slug].tsx';
-			const appConfig = {
-				...testAppConfig,
+		function createBuiltRenderer() {
+			const appConfig = createMockAppConfig({
+				rootDir: '/app',
 				integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
-			} as EcoPagesAppConfig;
-			const renderer = new TestIntegrationRenderer({
+			});
+			const ledger = requireAppRuntime(appConfig).processedAssets;
+			ledger.record(dependency, builtAsset);
+			ledger.recordBrowserOutputs([]);
+			const renderedPageEntryAssets: ProcessedAsset[][] = [];
+			const renderer = new (class extends TestIntegrationRenderer {
+				override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>) {
+					renderedPageEntryAssets.push(options.pagePackage?.assets ?? []);
+					return await super.render(options);
+				}
+			})({
 				appConfig,
 				assetProcessingService: testAssetService,
 				hooks: {
+					buildIslandClientAssets: async () => ({
+						processedAssets: [integrationBuiltAsset],
+						lazyTriggers: [],
+					}),
 					collectAppBrowserClientBuildEntries: async (plan) =>
 						plan.sourceComponents.includes(otherComponent)
 							? [{ dependency: otherDependency }]
@@ -793,22 +608,41 @@ describe('IntegrationRenderer', () => {
 								: [],
 				},
 			});
+			const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+			Page.resolveDependencies = async () => ({ components: [lazyComponent] });
 			renderer.PageModule = { default: Page };
 			renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-			const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([
-				{ routeFile, skipStaticProps: true, isRouteTemplate: true },
-			]);
-			const instance = groupedBuildPlan.instances[0];
-			if (!instance) throw new Error('Expected a dynamic route template plan');
-			instance.prebuiltPageClientBrowserAssets = {
-				processedAssets: [{ kind: 'script', srcUrl: '/assets/template-client.js' } as ProcessedAsset],
-				fallbackDependencies: [],
-			};
-			await renderer.prebuildProductionPageBrowserGraph(routeFile, {
-				skipStaticProps: true,
-				isRouteTemplate: true,
-				groupedBuildPlan,
+			return { appConfig, renderer, renderedPageEntryAssets };
+		}
+
+		it('links the recorded output for any params of the route', async () => {
+			const { renderer, renderedPageEntryAssets } = createBuiltRenderer();
+
+			await renderer.execute({ file: routeFile, params: { slug: 'planned' } });
+			await renderer.execute({ file: routeFile, params: { slug: 'new-product' } });
+
+			expect(renderedPageEntryAssets).toHaveLength(2);
+			for (const assets of renderedPageEntryAssets) {
+				expect(assets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/template-client.js' }));
+			}
+		});
+
+		it('builds an entry the ledger does not record on its own until the build is sealed', async () => {
+			const { renderer } = createBuiltRenderer();
+			const changedPlan = collectPageClientPlan([{ component: otherComponent }], 'test-renderer');
+
+			const fallbackAssets = await renderer.buildPageClientBrowserAssets(changedPlan, {
+				file: routeFile,
+				params: { slug: 'new-product' },
 			});
+
+			expect(fallbackAssets.processedAssets).toEqual([integrationBuiltAsset]);
+		});
+
+		it('fails a sealed production request whose page-client entry the ledger does not record, naming the route', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const { appConfig, renderer } = createBuiltRenderer();
+			requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
 			const changedPlan = collectPageClientPlan([{ component: otherComponent }], 'test-renderer');
 
 			await expect(
@@ -817,12 +651,46 @@ describe('IntegrationRenderer', () => {
 					params: { slug: 'new-product' },
 				}),
 			).rejects.toThrow(
-				'The production Page Browser Graph for /app/pages/products/[slug].tsx is missing from the manifest (entry slug=new-product). Run `ecopages build` again.',
+				'The production Page Browser Graph for /app/pages/products/[slug].tsx is missing from the production asset ledger (entry slug=new-product). Run `ecopages build` again.',
 			);
-		} finally {
-			runtime.productionBrowserGraphsSealed = false;
 			vi.unstubAllEnvs();
-		}
+		});
+
+		it('resolves lazy triggers from the recorded app browser client assets', async () => {
+			const lazyClientComponent = (() => '<button>lazy</button>') as EcoComponent;
+			lazyClientComponent.config = {
+				identity: { id: 'lazy-component', file: '/app/components/lazy.tsx', integration: 'lit' },
+				dependencies: { scripts: [{ src: './lazy.client.ts', lazy: { 'on:idle': true } }] },
+			};
+			const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+			Page.resolveDependencies = async () => ({ components: [lazyClientComponent] });
+			const lazyRouteFile = '/app/pages/lazy.tsx';
+			const appConfig = createMockAppConfig({
+				rootDir: '/app',
+				integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
+			});
+			const renderer = new TestIntegrationRenderer({ appConfig, assetProcessingService: testAssetService });
+			renderer.PageModule = { default: Page };
+			renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+			const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile: lazyRouteFile }]);
+			const lazyEntry = groupedBuildPlan.instances[0]?.pageClientBuildEntries?.find(
+				({ dependency: entry }) => entry.kind === 'script' && Boolean(entry.attributes?.['data-eco-lazy-key']),
+			);
+			if (lazyEntry?.dependency.kind !== 'script') throw new Error('Expected a planned lazy script entry');
+			const ledger = requireAppRuntime(appConfig).processedAssets;
+			ledger.record(lazyEntry.dependency, {
+				kind: 'script',
+				srcUrl: '/assets/lazy-entry-hash.js',
+				attributes: lazyEntry.dependency.attributes,
+			});
+			ledger.recordBrowserOutputs([]);
+
+			const pageClientPlan = collectPageClientPlan([{ component: lazyClientComponent }], 'test-renderer');
+			const result = await renderer.buildPageClientBrowserAssets(pageClientPlan, { file: lazyRouteFile });
+
+			expect(result.lazyTriggers).toHaveLength(1);
+			expect(result.lazyTriggers[0]?.rules).toEqual([{ 'on:idle': { scripts: ['/assets/lazy-entry-hash.js'] } }]);
+		});
 	});
 
 	it('keeps metadata active for route plans that only skip static props', async () => {
@@ -917,8 +785,8 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
+		await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
+		await renderer.prebuildProductionPageBrowserGraph(routeFile);
 		await renderer.execute({ file: routeFile, params: {}, query: {} });
 		expect(renderedPageEntryAssets.at(-1)).toEqual([defaultAsset]);
 		await renderer.execute({ file: routeFile, params: {}, query: {}, props: { variant: 'override' } });

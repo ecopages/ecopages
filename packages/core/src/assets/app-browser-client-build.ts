@@ -7,130 +7,40 @@ import type { BuildSuccess } from '../build/build-adapter.ts';
 import { assertBuildSucceeded } from '../build/build-log.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { RESOLVED_ASSETS_DIR } from '../constants.ts';
-import type {
-	GroupedGraphBuildPlan,
-	GroupedGraphBuildPlanInstance,
-} from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
-import { createRouteGraphLookupKey } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
+import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
 import {
 	collectHtmlPageModuleScriptBuildInputs,
 	setPrebuiltHtmlPageModuleScriptUrls,
 } from '../html-pages/html-page-module-scripts.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { BrowserBundleService, type BrowserBundleGroupedEntry } from './browser-bundle.service.ts';
-import { APP_BROWSER_CLIENT_BUNDLE_ID } from './asset-processing-service/app-browser-client-bundle.ts';
 import {
-	deduplicateAssetDependencies,
 	getAssetDependencyKey,
 	getIntegrationDependencyKey,
 } from './asset-processing-service/asset-dependency-keys.ts';
 import type { AssetDefinition, ProcessedAsset, ScriptAsset } from './asset-processing-service/assets.types.ts';
-import { ensureGroupedContentScriptsBundle } from './asset-processing-service/grouped-content-bundles.ts';
+import { prepareAssetDependencies } from './asset-processing-service/asset-processing.service.ts';
+import { isBundleableScript } from './asset-processing-service/bundleable-script.ts';
+
+type BundledScript = Extract<AssetDefinition, { kind: 'script' }>;
 
 type BuildEntry = {
 	entryName: string;
 	entrypoint: string;
-	dependencies: AssetDefinition[];
-	dependencyRoutes: Map<AssetDefinition, Set<string>>;
-	pageClientRoutes: Map<string, Set<string>>;
-	/** Component scripts this entry builds, as route preparation declares them, by dependency key. */
-	bundledScripts: Map<string, AssetDefinition>;
+	/** The first dependency that declared this entry, which supplies its build options; none for an HTML module script. */
+	dependency?: BundledScript;
+	/** Each dependency that declared this entry, by the dependency key rendering looks its output up with. */
+	declarations: Map<string, AssetDefinition>;
 	cleanup?: () => void;
-};
-
-type RouteBuildPlan = {
-	plan: GroupedGraphBuildPlan;
-	instances: RouteBuildPlanInstance[];
-};
-
-type RouteBuildPlanInstance = {
-	instance: GroupedGraphBuildPlanInstance;
-	routeKey: string;
-	dependencies: AssetDefinition[];
-	pageClientBuildEntries: NonNullable<GroupedGraphBuildPlanInstance['pageClientBuildEntries']>;
-};
-
-/**
- * Results produced by the application-wide browser build.
- *
- * @remarks
- * Route-instance identity and HTML Page script inputs currently come from rendering modules; #556 tracks
- * moving those shared build inputs behind the Build layer.
- */
-export type AppBrowserClientBuildResult = {
-	plans: GroupedGraphBuildPlan[];
-	sourceFiles: string[];
-	outputPaths: string[];
-	/** Outputs for every route's component scripts, by dependency key; see `AppRuntime.prebuiltBrowserScripts`. */
-	bundledScriptAssets: Map<string, ProcessedAsset>;
 };
 
 function hash(value: string): string {
 	return contentHash(value, 16);
 }
 
-function canBundle(dependency: AssetDefinition): dependency is AssetDefinition & {
-	kind: 'script';
-	groupedBundle: { id: string; entryName: string };
-} {
-	return (
-		dependency.kind === 'script' &&
-		Boolean(dependency.groupedBundle?.id) &&
-		dependency.bundle !== false &&
-		dependency.classic !== true &&
-		dependency.inline !== true
-	);
-}
-
-function getOrCreateBuildEntry(
-	appConfig: EcoPagesAppConfig,
-	entriesByKey: Map<string, BuildEntry>,
-	integrationName: string,
-	dependency: AssetDefinition,
-	cleanupEntries: Array<() => void>,
-): BuildEntry {
-	const key = getIntegrationDependencyKey(integrationName, dependency, appConfig.rootDir);
-	const existing = entriesByKey.get(key);
-	if (existing) return existing;
-
-	const entrypoint = createBundleEntryPath(appConfig, dependency);
-	const entry: BuildEntry = {
-		entryName: `client-${hash(key)}`,
-		entrypoint: entrypoint.entrypoint,
-		dependencies: [],
-		dependencyRoutes: new Map(),
-		pageClientRoutes: new Map(),
-		bundledScripts: new Map(),
-		...(entrypoint.cleanup ? { cleanup: entrypoint.cleanup } : {}),
-	};
-	entriesByKey.set(key, entry);
-	if (entry.cleanup) cleanupEntries.push(entry.cleanup);
-	return entry;
-}
-
-function prepareAppClientDependency(
-	appConfig: EcoPagesAppConfig,
-	integrationName: string,
-	dependency: AssetDefinition,
-): AssetDefinition {
-	if (
-		dependency.kind !== 'script' ||
-		dependency.bundle === false ||
-		dependency.classic === true ||
-		dependency.inline === true
-	) {
-		return dependency;
-	}
-
-	const entryName =
-		dependency.groupedBundle?.entryName ??
-		`client-${hash(getIntegrationDependencyKey(integrationName, dependency, appConfig.rootDir))}`;
-	const prepared = {
-		...dependency,
-		groupedBundle: { id: APP_BROWSER_CLIENT_BUNDLE_ID, entryName },
-	};
-	ensureGroupedContentScriptsBundle([prepared]);
-	return prepared;
+function toPublicUrl(appConfig: EcoPagesAppConfig, filepath: string): string {
+	return `/${path.relative(appConfig.absolutePaths.distDir, filepath).split(path.sep).join('/')}`;
 }
 
 function createBundleEntryPath(
@@ -152,39 +62,79 @@ function createBundleEntryPath(
 	return { entrypoint, cleanup: () => fileSystem.remove(entrypoint) };
 }
 
+/**
+ * The entries of one app-wide build, one per Integration dependency key.
+ *
+ * @remarks
+ * Each entry keeps the dependencies that declared it under their own dependency key, so the output is recorded
+ * where rendering looks each declaration up, whether it was declared before or after the build prepared it.
+ */
+class BuildEntries {
+	private readonly entriesByKey = new Map<string, BuildEntry>();
+	private readonly appConfig: EcoPagesAppConfig;
+	private readonly cleanupEntries: Array<() => void>;
+
+	constructor(appConfig: EcoPagesAppConfig, cleanupEntries: Array<() => void>) {
+		this.appConfig = appConfig;
+		this.cleanupEntries = cleanupEntries;
+	}
+
+	get entries(): BuildEntry[] {
+		return [...this.entriesByKey.values()];
+	}
+
+	/** Adds `dependency` to the build when it can be bundled, and records it as one of its entry's declarations. */
+	add(integrationName: string, dependency: AssetDefinition): void {
+		if (dependency.kind !== 'script' || !isBundleableScript(dependency)) return;
+		const key = getIntegrationDependencyKey(integrationName, dependency, this.appConfig.rootDir);
+		let entry = this.entriesByKey.get(key);
+		if (!entry) {
+			const entrypoint = createBundleEntryPath(this.appConfig, dependency);
+			entry = {
+				entryName: `client-${hash(key)}`,
+				entrypoint: entrypoint.entrypoint,
+				dependency,
+				declarations: new Map(),
+				...(entrypoint.cleanup ? { cleanup: entrypoint.cleanup } : {}),
+			};
+			this.entriesByKey.set(key, entry);
+			if (entrypoint.cleanup) this.cleanupEntries.push(entrypoint.cleanup);
+		}
+		entry.declarations.set(getAssetDependencyKey(dependency, this.appConfig.rootDir), dependency);
+	}
+}
+
+/** The emitted form of one declaration, as asset processing would return it for that declaration. */
 function createProcessedAsset(
 	appConfig: EcoPagesAppConfig,
-	dependency: AssetDefinition & { kind: 'script'; groupedBundle: { id: string; entryName: string } },
-	entryName: string,
+	declaration: AssetDefinition,
 	filepath: string,
 	entrypoint: string,
 	inputPaths: string[],
 ): ProcessedAsset {
-	const publicPath = `/${path.relative(appConfig.absolutePaths.distDir, filepath).split(path.sep).join('/')}`;
-	const sourceFilepath = dependency.source === 'file' ? dependency.filepath : undefined;
 	const bundledSourceFilepaths = [
 		...new Set([
-			...(dependency.bundledSourceFilepaths ?? []),
+			...(declaration.bundledSourceFilepaths ?? []),
 			...inputPaths.filter((inputPath) => path.resolve(inputPath) !== path.resolve(entrypoint)),
 		]),
 	];
 	return {
 		filepath,
-		sourceFilepath,
-		srcUrl: publicPath,
+		sourceFilepath: declaration.source === 'file' ? declaration.filepath : undefined,
+		srcUrl: toPublicUrl(appConfig, filepath),
 		kind: 'script',
-		position: dependency.position,
-		attributes: dependency.attributes,
+		position: declaration.position,
+		attributes: declaration.attributes,
 		inline: false,
-		excludeFromHtml: dependency.excludeFromHtml,
-		packageRole: dependency.packageRole,
-		groupedBundle: { id: APP_BROWSER_CLIENT_BUNDLE_ID, entryName },
+		excludeFromHtml: declaration.kind === 'script' ? declaration.excludeFromHtml : undefined,
+		packageRole: declaration.packageRole,
+		groupedBundle: declaration.kind === 'script' ? declaration.groupedBundle : undefined,
 		...(bundledSourceFilepaths.length > 0 ? { bundledSourceFilepaths } : {}),
 	};
 }
 
 function getEntryBuildOptions(entry: BuildEntry): NonNullable<ScriptAsset['bundleOptions']> {
-	return entry.dependencies[0]?.kind === 'script' ? (entry.dependencies[0].bundleOptions ?? {}) : {};
+	return entry.dependency?.bundleOptions ?? {};
 }
 
 function setsEqual(left: readonly string[] = [], right: readonly string[] = []): boolean {
@@ -330,225 +280,47 @@ function groupBuildEntriesByOptions(
 	});
 }
 
-function registerGroupedDependency(
-	appConfig: EcoPagesAppConfig,
-	entriesByKey: Map<string, BuildEntry>,
-	cleanupEntries: Array<() => void>,
-	integrationName: string,
-	routeKey: string,
-	dependency: AssetDefinition,
-): AssetDefinition {
-	if (!canBundle(dependency)) return dependency;
-	const entry = getOrCreateBuildEntry(appConfig, entriesByKey, integrationName, dependency, cleanupEntries);
-	if (!entry.dependencies.includes(dependency)) entry.dependencies.push(dependency);
-	const routes = entry.dependencyRoutes.get(dependency) ?? new Set<string>();
-	routes.add(routeKey);
-	entry.dependencyRoutes.set(dependency, routes);
-	return { ...dependency, groupedBundle: { id: APP_BROWSER_CLIENT_BUNDLE_ID, entryName: entry.entryName } };
-}
-
-function registerPageClientEntry(
-	appConfig: EcoPagesAppConfig,
-	entriesByKey: Map<string, BuildEntry>,
-	cleanupEntries: Array<() => void>,
-	instance: GroupedGraphBuildPlanInstance,
-	routeKey: string,
-	clientEntry: NonNullable<GroupedGraphBuildPlanInstance['pageClientBuildEntries']>[number],
-): NonNullable<GroupedGraphBuildPlanInstance['pageClientBuildEntries']>[number] {
-	const dependency = prepareAppClientDependency(appConfig, clientEntry.integrationName, clientEntry.dependency);
-	if (!canBundle(dependency)) {
-		instance.prebuiltPageClientBrowserAssets ??= {
-			processedAssets: [],
-			fallbackDependencies: [],
-		};
-		instance.prebuiltPageClientBrowserAssets.fallbackDependencies.push({
-			dependency,
-			integrationName: clientEntry.integrationName,
-		});
-		return { ...clientEntry, dependency };
-	}
-
-	const entry = getOrCreateBuildEntry(
-		appConfig,
-		entriesByKey,
-		clientEntry.integrationName,
-		dependency,
-		cleanupEntries,
-	);
-	const identity = getAssetDependencyKey(dependency, appConfig.rootDir);
-	if (
-		!entry.dependencies.some(
-			(entryDependency) => getAssetDependencyKey(entryDependency, appConfig.rootDir) === identity,
-		)
-	) {
-		entry.dependencies.push(dependency);
-	}
-	const routes = entry.pageClientRoutes.get(identity) ?? new Set<string>();
-	routes.add(routeKey);
-	entry.pageClientRoutes.set(identity, routes);
-	return { ...clientEntry, dependency };
-}
-
-function prepareRouteBuildPlan(
-	appConfig: EcoPagesAppConfig,
-	plan: GroupedGraphBuildPlan,
-	entriesByKey: Map<string, BuildEntry>,
-	cleanupEntries: Array<() => void>,
-): RouteBuildPlan {
-	const integration = appConfig.integrations.find((entry) => entry.name === plan.integrationName);
-	const instances: RouteBuildPlanInstance[] = plan.instances.map((instance) => ({
-		instance,
-		routeKey: createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey),
-		dependencies: [...(instance.contribution?.dependencies ?? [])],
-		pageClientBuildEntries: [...(instance.pageClientBuildEntries ?? [])],
-	}));
-	const routesByDependencyIdentity = new Map<string, Set<string>>();
-	const dependencies = instances.flatMap(({ routeKey, dependencies: routeDependencies }) =>
-		routeDependencies.map((dependency) => {
-			const identity = getIntegrationDependencyKey(plan.integrationName, dependency, appConfig.rootDir);
-			const routes = routesByDependencyIdentity.get(identity) ?? new Set<string>();
-			routes.add(routeKey);
-			routesByDependencyIdentity.set(identity, routes);
-			return dependency;
-		}),
-	);
-	const deduplicatedDependencies = deduplicateAssetDependencies(dependencies, appConfig.rootDir);
-	const preparedDependencies =
-		integration?.prepareAssetDependencies?.(deduplicatedDependencies) ?? deduplicatedDependencies;
-	ensureGroupedContentScriptsBundle(preparedDependencies);
-
-	for (const { instance, routeKey } of instances) {
-		const routeDependencies = preparedDependencies.filter((dependency) =>
-			routesByDependencyIdentity
-				.get(getIntegrationDependencyKey(plan.integrationName, dependency, appConfig.rootDir))
-				?.has(routeKey),
-		);
-		const updatedDependencies = routeDependencies.map((dependency) =>
-			registerGroupedDependency(
-				appConfig,
-				entriesByKey,
-				cleanupEntries,
-				plan.integrationName,
-				routeKey,
-				dependency,
-			),
-		);
-		instance.contribution = instance.contribution
-			? { ...instance.contribution, dependencies: updatedDependencies }
-			: undefined;
-		instance.prebuiltGroupedAssets = [];
-		instance.pageClientBuildEntries = instance.pageClientBuildEntries?.map((clientEntry) =>
-			registerPageClientEntry(appConfig, entriesByKey, cleanupEntries, instance, routeKey, clientEntry),
-		);
-	}
-	for (const script of plan.bundledScripts ?? []) {
-		registerBundledScript(appConfig, entriesByKey, cleanupEntries, plan.integrationName, script);
-	}
-
-	return { plan, instances };
-}
-
 /**
- * Adds one component script that route preparation bundles to the app-wide build.
+ * Adds one plan's dependencies to the build.
  *
  * @remarks
- * Rendering processes the script as it was declared, so its output is recorded under the dependency key of that
- * declaration, not of the copy prepared for the app-wide build.
+ * Grouped graph dependencies are prepared as asset processing prepares them, and recorded under the prepared key
+ * it looks them up with; ungrouped ones are processed on their own when the graph resolves. Lazy and island
+ * entries are recorded under the key they were declared with, which is the one the renderer looks up. Component
+ * scripts arrive already prepared.
  */
-function registerBundledScript(
-	appConfig: EcoPagesAppConfig,
-	entriesByKey: Map<string, BuildEntry>,
-	cleanupEntries: Array<() => void>,
-	integrationName: string,
-	script: AssetDefinition,
-): void {
-	const dependency = prepareAppClientDependency(appConfig, integrationName, script);
-	if (!canBundle(dependency)) return;
-	const entry = getOrCreateBuildEntry(appConfig, entriesByKey, integrationName, dependency, cleanupEntries);
-	entry.bundledScripts.set(getAssetDependencyKey(script, appConfig.rootDir), dependency);
-}
-
-function prepareRouteBuildPlans(
-	appConfig: EcoPagesAppConfig,
-	plans: readonly GroupedGraphBuildPlan[],
-	cleanupEntries: Array<() => void>,
-): { routePlans: RouteBuildPlan[]; entries: BuildEntry[] } {
-	const entriesByKey = new Map<string, BuildEntry>();
-	const routePlans = plans.map((plan) => prepareRouteBuildPlan(appConfig, plan, entriesByKey, cleanupEntries));
-	return { routePlans, entries: [...entriesByKey.values()] };
-}
-
-function attachPageClientAsset(instance: GroupedGraphBuildPlanInstance, asset: ProcessedAsset): void {
-	const prebuilt = instance.prebuiltPageClientBrowserAssets ?? { processedAssets: [], fallbackDependencies: [] };
-	prebuilt.processedAssets.push(asset);
-	instance.prebuiltPageClientBrowserAssets = prebuilt;
-}
-
-function attachEntryAssetToRoutes(
-	appConfig: EcoPagesAppConfig,
-	entry: BuildEntry,
-	dependency: AssetDefinition,
-	asset: ProcessedAsset,
-	routePlans: RouteBuildPlan[],
-): void {
-	const pageClientRoutes = entry.pageClientRoutes.get(getAssetDependencyKey(dependency, appConfig.rootDir));
-	for (const routePlan of routePlans) {
-		for (const { instance, routeKey } of routePlan.instances) {
-			if (entry.dependencyRoutes.get(dependency)?.has(routeKey)) {
-				instance.prebuiltGroupedAssets = [...(instance.prebuiltGroupedAssets ?? []), asset];
-			}
-			if (pageClientRoutes?.has(routeKey)) {
-				attachPageClientAsset(instance, asset);
-			}
-		}
+function addPlanEntries(appConfig: EcoPagesAppConfig, plan: GroupedGraphBuildPlan, entries: BuildEntries): void {
+	const integration = appConfig.integrations.find((entry) => entry.name === plan.integrationName);
+	const graphDependencies = prepareAssetDependencies(
+		plan.instances.flatMap((instance) => [...(instance.contribution?.dependencies ?? [])]),
+		integration,
+		appConfig.rootDir,
+	);
+	for (const dependency of graphDependencies) {
+		if (dependency.kind === 'script' && dependency.groupedBundle?.id) entries.add(plan.integrationName, dependency);
+	}
+	for (const { integrationName, dependency } of plan.instances.flatMap(
+		(instance) => instance.pageClientBuildEntries ?? [],
+	)) {
+		entries.add(integrationName, dependency);
+	}
+	for (const script of plan.bundledScripts ?? []) {
+		entries.add(plan.integrationName, script);
 	}
 }
 
-function collectBundledScriptAssets(
-	appConfig: EcoPagesAppConfig,
-	result: BuildSuccess,
-	entries: BuildEntry[],
-	bundledScriptAssets: Map<string, ProcessedAsset>,
-): void {
-	for (const entry of entries) {
-		if (entry.bundledScripts.size === 0) continue;
-		const output = getBuildEntryOutput(result, entry.entryName, appConfig.rootDir);
-		if (!output) throw new Error(`No build output generated for app browser client entry ${entry.entryName}`);
-		const inputPaths = collectBuildEntryInputPaths(result, entry.entryName, appConfig.rootDir);
-		for (const [key, dependency] of entry.bundledScripts) {
-			const { groupedBundle: _groupedBundle, ...asset } = createProcessedAsset(
-				appConfig,
-				dependency as AssetDefinition & { kind: 'script'; groupedBundle: { id: string; entryName: string } },
-				entry.entryName,
-				output,
-				entry.entrypoint,
-				inputPaths,
-			);
-			bundledScriptAssets.set(key, asset);
-		}
-	}
-}
-
-function attachBuiltEntryAssets(
-	appConfig: EcoPagesAppConfig,
-	result: BuildSuccess,
-	entries: BuildEntry[],
-	routePlans: RouteBuildPlan[],
-): void {
+/** Records each entry's output under the key of every dependency that declared it. */
+function recordBuiltEntries(appConfig: EcoPagesAppConfig, result: BuildSuccess, entries: BuildEntry[]): void {
+	const ledger = requireAppRuntime(appConfig).processedAssets;
 	for (const entry of entries) {
 		const output = getBuildEntryOutput(result, entry.entryName, appConfig.rootDir);
 		if (!output) throw new Error(`No build output generated for app browser client entry ${entry.entryName}`);
-		const inputPaths = collectBuildEntryInputPaths(result, entry.entryName, appConfig.rootDir);
-		for (const dependency of entry.dependencies) {
-			const asset = createProcessedAsset(
-				appConfig,
-				dependency as AssetDefinition & { kind: 'script'; groupedBundle: { id: string; entryName: string } },
-				entry.entryName,
-				output,
-				entry.entrypoint,
-				inputPaths,
+		const inputPaths = collectBuildEntryInputPaths(result, entry.entrypoint, appConfig.rootDir);
+		for (const declaration of entry.declarations.values()) {
+			ledger.record(
+				declaration,
+				createProcessedAsset(appConfig, declaration, output, entry.entrypoint, inputPaths),
 			);
-			attachEntryAssetToRoutes(appConfig, entry, dependency, asset, routePlans);
 		}
 	}
 }
@@ -562,10 +334,7 @@ function collectHtmlScriptUrls(
 	for (const [script, entryName] of htmlEntryNames) {
 		const output = getBuildEntryOutput(result, entryName, appConfig.rootDir);
 		if (output) {
-			urls.set(
-				fileSystem.realpath(script),
-				`/${path.relative(appConfig.absolutePaths.distDir, output).split(path.sep).join('/')}`,
-			);
+			urls.set(fileSystem.realpath(script), toPublicUrl(appConfig, output));
 		}
 	}
 	return urls;
@@ -574,18 +343,9 @@ function collectHtmlScriptUrls(
 async function executeAppBrowserBuild(
 	appConfig: EcoPagesAppConfig,
 	buildEntries: BuildEntry[],
-	routePlans: RouteBuildPlan[],
 	htmlEntryNames: ReadonlyMap<string, string>,
-): Promise<{
-	buildFingerprint: string;
-	htmlScriptUrls: Map<string, string>;
-	sourceFiles: string[];
-	outputPaths: string[];
-	bundledScriptAssets: Map<string, ProcessedAsset>;
-}> {
-	const bundledScriptAssets = new Map<string, ProcessedAsset>();
+): Promise<{ htmlScriptUrls: Map<string, string>; outputPaths: string[] }> {
 	const htmlScriptUrls = new Map<string, string>();
-	const sourceFiles = new Set<string>();
 	const outputPaths: string[] = [];
 	const browserBundleService = new BrowserBundleService(appConfig);
 	for (const group of groupBuildEntriesByOptions(buildEntries)) {
@@ -603,24 +363,15 @@ async function executeAppBrowserBuild(
 			minify: group.options.minify ?? true,
 		});
 		assertBuildSucceeded(result, '[ecopages] Could not build the app browser client');
-		for (const entry of group.entries) {
-			for (const filepath of collectBuildEntryInputPaths(result, entry.entrypoint, appConfig.rootDir, {
-				includeNodeModules: true,
-			})) {
-				sourceFiles.add(path.resolve(filepath));
-			}
-		}
 		for (const { path: output } of result.outputs) {
 			outputPaths.push(output);
 			if (output.endsWith('.js') || output.endsWith('.css')) fileSystem.gzipFile(output);
 		}
-		attachBuiltEntryAssets(
+		recordBuiltEntries(
 			appConfig,
 			result,
-			group.entries.filter((entry) => entry.dependencies.length > 0),
-			routePlans,
+			group.entries.filter((entry) => entry.declarations.size > 0),
 		);
-		collectBundledScriptAssets(appConfig, result, group.entries, bundledScriptAssets);
 		const groupHtmlEntries = new Map(
 			[...htmlEntryNames].filter(([, entryName]) => group.entries.some((entry) => entry.entryName === entryName)),
 		);
@@ -629,60 +380,41 @@ async function executeAppBrowserBuild(
 		}
 	}
 
-	return {
-		buildFingerprint: hash(outputPaths.sort().join('\n')),
-		htmlScriptUrls,
-		sourceFiles: [...sourceFiles],
-		outputPaths,
-		bundledScriptAssets,
-	};
+	return { htmlScriptUrls, outputPaths };
 }
 
-/** Builds the production browser client once for the app and attaches its route assets to plans. */
+/**
+ * Builds the production browser client once for the app.
+ *
+ * @remarks
+ * Every script the plans declare and every HTML module script are entries of one build per set of build-wide
+ * options, so a module they share is one chunk. Each entry's output is recorded in `AppRuntime.processedAssets`,
+ * along with every emitted file; HTML module-script URLs go to the HTML Page state.
+ */
 export async function buildAppBrowserClient(
 	appConfig: EcoPagesAppConfig,
 	plans: readonly GroupedGraphBuildPlan[],
-): Promise<AppBrowserClientBuildResult> {
+): Promise<void> {
 	const cleanupEntries: Array<() => void> = [];
 	try {
-		const { routePlans, entries } = prepareRouteBuildPlans(appConfig, plans, cleanupEntries);
+		const entries = new BuildEntries(appConfig, cleanupEntries);
+		for (const plan of plans) addPlanEntries(appConfig, plan, entries);
 		const htmlInputs = collectHtmlPageModuleScriptBuildInputs(appConfig);
-		const buildEntries = [...entries];
+		const buildEntries = entries.entries;
 		const htmlEntryNames = new Map<string, string>();
 		for (const script of htmlInputs.scripts) {
 			if (!fileSystem.exists(script)) continue;
 			const entryName = `html-${hash(path.resolve(script))}`;
 			htmlEntryNames.set(script, entryName);
-			buildEntries.push({
-				entryName,
-				entrypoint: script,
-				dependencies: [],
-				dependencyRoutes: new Map(),
-				pageClientRoutes: new Map(),
-				bundledScripts: new Map(),
-			});
+			buildEntries.push({ entryName, entrypoint: script, declarations: new Map() });
 		}
 
 		const build =
 			buildEntries.length > 0
-				? await executeAppBrowserBuild(appConfig, buildEntries, routePlans, htmlEntryNames)
-				: {
-						buildFingerprint: 'empty',
-						htmlScriptUrls: new Map<string, string>(),
-						sourceFiles: [],
-						outputPaths: [],
-						bundledScriptAssets: new Map<string, ProcessedAsset>(),
-					};
+				? await executeAppBrowserBuild(appConfig, buildEntries, htmlEntryNames)
+				: { htmlScriptUrls: new Map<string, string>(), outputPaths: [] };
+		requireAppRuntime(appConfig).processedAssets.recordBrowserOutputs(build.outputPaths);
 		setPrebuiltHtmlPageModuleScriptUrls(appConfig, build.htmlScriptUrls);
-		return {
-			plans: routePlans.map(({ plan }) => ({
-				...plan,
-				planKey: JSON.stringify([plan.planKey, 'app-browser-client', build.buildFingerprint]),
-			})),
-			sourceFiles: build.sourceFiles,
-			outputPaths: build.outputPaths,
-			bundledScriptAssets: build.bundledScriptAssets,
-		};
 	} finally {
 		for (const cleanup of cleanupEntries) cleanup();
 	}

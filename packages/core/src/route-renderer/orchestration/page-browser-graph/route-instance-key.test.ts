@@ -1,11 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import {
 	createPageDependencyInstanceKey,
-	createRouteGraphLookupKey,
 	describePageDependencyInstance,
 	describePageDependencyInstanceKey,
-	pageDependencyInstanceParams,
-	serializeGroupedGraphCacheKey,
 } from './route-instance-key.ts';
 
 describe('page dependency instance key', () => {
@@ -32,41 +29,11 @@ describe('page dependency instance key', () => {
 		expect(new Set([scalar, segments, delimited, split]).size).toBe(4);
 	});
 
-	test('createRouteGraphLookupKey scopes grouped graph maps', () => {
-		expect(createRouteGraphLookupKey('/app/pages/docs/[...slug]/index.tsx')).toBe(
-			JSON.stringify(['/app/pages/docs/[...slug]/index.tsx', '']),
-		);
-		expect(createRouteGraphLookupKey('/app/pages/docs/[...slug]/index.tsx', '{"params":[]}')).toBe(
-			JSON.stringify(['/app/pages/docs/[...slug]/index.tsx', '{"params":[]}']),
-		);
-	});
-
-	test('pageDependencyInstanceParams reads params and ignores query', () => {
-		expect(pageDependencyInstanceParams('')).toEqual([]);
-		expect(
-			pageDependencyInstanceParams(
-				createPageDependencyInstanceKey({
-					params: { slug: 'chart' },
-					query: { utm_source: 'email' },
-				}),
-			),
-		).toEqual([['slug', 'chart']]);
-	});
-
 	test('describePageDependencyInstance formats params for missing-manifest errors', () => {
 		expect(describePageDependencyInstance({})).toBe('default');
 		expect(describePageDependencyInstance({ params: { slug: 'new-product' } })).toBe('slug=new-product');
 		expect(
 			describePageDependencyInstanceKey(createPageDependencyInstanceKey({ params: { slug: 'new-product' } })),
 		).toBe('slug=new-product');
-	});
-
-	test('serializeGroupedGraphCacheKey scopes grouped graph caches by integration and plan', () => {
-		expect(
-			serializeGroupedGraphCacheKey({
-				integrationName: 'react',
-				planKey: 'plan-a',
-			}),
-		).toBe(JSON.stringify(['grouped', 'react', 'plan-a']));
 	});
 });

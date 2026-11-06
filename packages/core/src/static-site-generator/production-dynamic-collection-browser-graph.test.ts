@@ -38,7 +38,7 @@ describe('production Dynamic collection Page browser graphs', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('serves every Dynamic collection Page entry after ecopages build with a throwing build adapter', async () => {
+	it('serves every Dynamic collection Page entry whose scripts the ledger records, with a throwing build adapter', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const appDir = copyFixtureApp(CACHE_FIXTURE_DIR);
 		copiedApps.push(appDir);
@@ -119,17 +119,18 @@ describe('production Dynamic collection Page browser graphs', () => {
 			await buildApp.stop();
 		}
 
-		const browserManifestPath = path.join(appDir, 'dist/server/browser-client-manifest.json');
-		const browserManifest = JSON.parse(readFileSync(browserManifestPath, 'utf8')) as {
-			entries: Array<{ params?: Record<string, string>; pageClientBuildEntryKeys: string[] }>;
+		const ledgerPath = path.join(appDir, 'dist/server/processed-assets.json');
+		const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8')) as {
+			entries: Array<{ key: string; asset: { bundledSourceFilepaths?: string[] } }>;
+			plannedRoutes: Array<{ params?: Record<string, string> }>;
 		};
-		const chartEntries = browserManifest.entries.filter((entry) => entry.params?.slug === 'chart');
-		expect(chartEntries.length).toBeGreaterThan(0);
-		expect(chartEntries.some((entry) => entry.pageClientBuildEntryKeys.length > 0)).toBe(true);
-		const retainedEntries = browserManifest.entries.filter((entry) => entry.params?.slug !== 'chart');
-		expect(retainedEntries.length).toBeLessThan(browserManifest.entries.length);
-		browserManifest.entries = retainedEntries;
-		writeFileSync(browserManifestPath, `${JSON.stringify(browserManifest, null, '\t')}\n`);
+		expect(ledger.plannedRoutes.some((route) => route.params?.slug === 'chart')).toBe(true);
+		const builtFromChartScript = (entry: (typeof ledger.entries)[number]) =>
+			(entry.asset.bundledSourceFilepaths ?? []).some((filePath) => filePath.endsWith('chart.script.ts'));
+		expect(ledger.entries.some(builtFromChartScript)).toBe(true);
+		ledger.entries = ledger.entries.filter((entry) => !builtFromChartScript(entry));
+		ledger.plannedRoutes = ledger.plannedRoutes.filter((route) => route.params?.slug !== 'chart');
+		writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, '\t')}\n`);
 
 		const startConfig = await loadEcoPagesConfig({ configFile: path.join(appDir, 'eco.config.ts') });
 		const app = await createNodeApp({

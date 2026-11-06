@@ -1,7 +1,7 @@
 import { parentPort } from 'node:worker_threads';
 import { loadEcoPagesConfig } from '@ecopages/core/config';
 import {
-	prebuildProductionPageBrowserGraphsFromManifest,
+	restoreProductionPageBrowserGraphs,
 	setupAppRuntimeIntegrations,
 	setupAppRuntimePlugins,
 	teardownAppRuntimeIntegrations,
@@ -53,12 +53,12 @@ async function initializeWorker(configModulePath: string, runtimeOrigin: string)
  * Restores the production app-wide browser build once, before the first render.
  *
  * @remarks
- * Static export starts the worker before the main thread builds the app browser client and writes its manifest,
- * so the worker reads the manifest on its first render instead of at init. A Lit Page then links the same
+ * Static export starts the worker before the main thread builds the app browser client and writes its asset ledger,
+ * so the worker restores the ledger on its first render instead of at init. A Lit Page then links the same
  * outputs as every other Page instead of building its own scripts and Page Browser Graph.
  */
 function restoreAppBrowserBuild(config: LoadedAppConfig, factory: RouteRendererFactory): Promise<boolean> {
-	appBrowserBuildRestore ??= prebuildProductionPageBrowserGraphsFromManifest(config, factory);
+	appBrowserBuildRestore ??= restoreProductionPageBrowserGraphs(config, factory);
 	return appBrowserBuildRestore;
 }
 

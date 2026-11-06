@@ -3,7 +3,6 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition, ContentScriptAsset, ProcessedAsset } from './assets.types';
-import { getAssetDependencyKey } from './asset-dependency-keys.ts';
 import { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
@@ -167,7 +166,7 @@ test('AssetProcessingService - processDependencies - success', async () => {
 	expect(gzipDirMock).not.toHaveBeenCalled();
 });
 
-test('AssetProcessingService - processDependencies - returns the app-wide build output of a prebuilt script', async () => {
+test('AssetProcessingService - processDependencies - returns the app-wide build output the ledger records for a script', async () => {
 	fileSystem.exists = vi.fn(() => true);
 	const prebuiltScript: AssetDefinition = { kind: 'script', source: 'file', filepath: '/app/src/counter.script.ts' };
 	const prebuiltAsset: ProcessedAsset = {
@@ -176,10 +175,11 @@ test('AssetProcessingService - processDependencies - returns the app-wide build 
 		srcUrl: '/assets/client-shared.js',
 		inline: false,
 	};
-	Config.appRuntime.prebuiltBrowserScripts = new Map([
-		[getAssetDependencyKey(prebuiltScript, Config.rootDir), prebuiltAsset],
-	]);
-	const service = new AssetProcessingService(Config);
+	const appConfig = createTestConfig();
+	const ledger = requireAppRuntime(appConfig).processedAssets;
+	ledger.record(prebuiltScript, prebuiltAsset);
+	ledger.recordBrowserOutputs([prebuiltAsset.filepath ?? '']);
+	const service = new AssetProcessingService(appConfig);
 	const scriptProcessor = { process: vi.fn(Processor.process) };
 	service.registerProcessor('script', 'file', scriptProcessor);
 

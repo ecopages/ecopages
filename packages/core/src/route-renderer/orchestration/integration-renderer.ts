@@ -4,7 +4,6 @@
  * @module
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EcoPagesAppConfig, IHmrManager, InternalComponentRenderInput } from '../../config/internal-types.ts';
 import type {
 	ComponentRenderInput,
@@ -32,10 +31,7 @@ import {
 } from '../../assets/asset-processing-service/index.ts';
 import type { AssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
 import { resolveAssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
-import {
-	getAssetDependencyKey,
-	getIntegrationDependencyKey,
-} from '../../assets/asset-processing-service/asset-dependency-keys.ts';
+import { getAssetDependencyKey } from '../../assets/asset-processing-service/asset-dependency-keys.ts';
 import { HtmlTransformerService } from '../../html/html-transformer.service.ts';
 import type { HtmlDocumentContribution } from '../../html/html-transformer.service.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -84,11 +80,7 @@ import {
 	resolvePageDependenciesFromContext,
 	type ResolvedPageDependencies,
 } from '../page-loading/resolved-page-dependencies.ts';
-import {
-	createGroupedGraphBuildPlanKey,
-	type GroupedGraphBuildPlan,
-} from './page-browser-graph/grouped-graph-build-plan.ts';
-import { createRouteGraphLookupKey } from './page-browser-graph/route-instance-key.ts';
+import type { GroupedGraphBuildPlan } from './page-browser-graph/grouped-graph-build-plan.ts';
 import type { ForeignChildInterceptionInput, ForeignChildRuntime } from '../../eco/component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
 import { isMarkupNodeLike } from '../../eco/component-render-output.ts';
@@ -119,6 +111,9 @@ import {
 	resolveDocumentShellLayouts,
 } from './document-shell/layout-shell-props.service.ts';
 import { finalizeIslandComponentRender } from '../../islands/island-host.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
+import { prepareAssetDependencies } from '../../assets/asset-processing-service/asset-processing.service.ts';
+import { isBundleableScript } from '../../assets/asset-processing-service/bundleable-script.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 import {
 	describeProductionBrowserGraphEntry,
@@ -204,6 +199,14 @@ export type IntegrationRendererHooks = {
 		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	}) => DocumentShellComposeChildrenHook | undefined;
 	normalizePageModule?: <TPageModule extends EcoPageFile>(file: string, module: TPageModule) => TPageModule;
+	/**
+	 * Names what one Page adds to its Page Browser Graph.
+	 *
+	 * @remarks
+	 * The production prebuild calls it while it plans routes, before the app-wide browser build exists, so it must
+	 * process nothing: return components and scripts in `components` and `bundledScripts`, and core processes
+	 * them when it resolves the graph and plans their scripts for the app-wide build.
+	 */
 	collectPageBrowserGraphContribution?: (
 		context: PageBrowserGraphContributionContext,
 	) => Promise<PageBrowserGraphContribution | undefined>;
@@ -290,21 +293,6 @@ type PlannedRouteInstance = {
 	isRouteTemplate?: boolean;
 };
 
-/** The renderer planning its routes in the current async context, and the scripts its planning would bundle. */
-type RoutePlanning = {
-	renderer: IntegrationRenderer<unknown>;
-	bundledScripts: Map<string, AssetDefinition>;
-};
-
-/**
- * @remarks
- * Integration hooks process component dependencies through the renderer while it plans, before the app-wide build
- * exists. The scope reaches them without a hook contract change, and stays with the planning call: a render that runs
- * meanwhile, even on the same renderer, processes as usual. Work first started inside the scope, such as a memoized
- * task, also runs in it.
- */
-const routePlanning = new AsyncLocalStorage<RoutePlanning>();
-
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
  * It handles the import of page files, collection of dependencies, and preparation of render options.
@@ -324,8 +312,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected routeRenderOrchestrator: RouteRenderOrchestrator;
 	protected integrationHooks: IntegrationRendererHooks;
 	private readonly prebuiltRoutePreparations = new Map<string, PrebuiltRoutePreparation>();
-	private readonly prebuiltGroupedBuildPlans = new Map<string, GroupedGraphBuildPlan>();
-	private readonly prebuiltPageClientBrowserAssets = new Map<string, GroupedGraphBuildPlan['instances'][number]>();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -359,59 +345,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		options?: Pick<RouteRendererOptions, 'params' | 'query'> & {
 			skipStaticProps?: RouteRendererOptions['skipStaticProps'];
 			isRouteTemplate?: boolean;
-			groupedBuildPlan?: GroupedGraphBuildPlan;
 		},
 	): Promise<void> {
 		await this.ensureIntegrationRuntimeActivated();
-		if (options?.groupedBuildPlan) {
-			const routeKey = createPrebuiltRoutePreparationKey({
-				file: routeFile,
-				params: options.params,
-				query: options.query,
-				skipStaticProps: options.skipStaticProps,
-				isRouteTemplate: options.isRouteTemplate,
-			});
-			this.prebuiltGroupedBuildPlans.set(routeKey, options.groupedBuildPlan);
-			const dependencyInstanceKey = createPageDependencyInstanceKey({
-				params: options.params,
-				query: options.query,
-			});
-			const routeLookupKey = createRouteGraphLookupKey(routeFile, dependencyInstanceKey);
-			const plannedInstance = options.groupedBuildPlan.instances.find(
-				(instance) =>
-					createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey) === routeLookupKey &&
-					(instance.skipStaticProps ?? false) === (options.skipStaticProps ?? false) &&
-					(instance.isRouteTemplate ?? false) === (options.isRouteTemplate ?? false),
-			);
-			if (plannedInstance?.prebuiltPageClientBrowserAssets) {
-				this.prebuiltPageClientBrowserAssets.set(routeKey, plannedInstance);
-			}
-		}
 		if (!options?.skipStaticProps) {
-			await this.resolvePageBrowserGraphForRoute(routeFile, options, options?.groupedBuildPlan);
+			await this.resolvePageBrowserGraphForRoute(routeFile, options);
 		}
-	}
-
-	/** Returns the production app browser plan candidate for one route instance. */
-	getGroupedBuildPlanForRoute(
-		routeOptions: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
-	): GroupedGraphBuildPlan | undefined {
-		const exactPlan = this.prebuiltGroupedBuildPlans.get(createPrebuiltRoutePreparationKey(routeOptions));
-		if (exactPlan) return exactPlan;
-
-		const dependencyInstanceKey = createPageDependencyInstanceKey({ params: routeOptions.params });
-		for (const plan of this.prebuiltGroupedBuildPlans.values()) {
-			if (
-				plan.instances.some(
-					(instance) =>
-						instance.routeFile === routeOptions.file &&
-						(instance.isRouteTemplate || instance.dependencyInstanceKey === dependencyInstanceKey),
-				)
-			) {
-				return plan;
-			}
-		}
-		return undefined;
 	}
 
 	/**
@@ -429,34 +368,42 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	): Promise<GroupedGraphBuildPlan> {
 		await this.ensureIntegrationRuntimeActivated();
 		this.prebuiltRoutePreparations.clear();
-		this.prebuiltGroupedBuildPlans.clear();
-		this.prebuiltPageClientBrowserAssets.clear();
-		const planning: RoutePlanning = { renderer: this, bundledScripts: new Map() };
-		const preparedInstances = routePlanning.run(planning, () =>
-			Promise.all(
-				instances.map(async (routeInstance) => {
-					try {
-						return await this.planRouteInstance(routeInstance);
-					} catch (error) {
-						if (!options?.onRouteFailure) throw error;
-						options.onRouteFailure(routeInstance, error);
-						return undefined;
-					}
-				}),
-			),
+		const preparations = new Map<string, PrebuiltRoutePreparation>();
+		const bundledScripts = new Map<string, AssetDefinition>();
+		const plannedInstances = await Promise.all(
+			instances.map(async (routeInstance) => {
+				try {
+					return await this.planRouteInstance(routeInstance, preparations, bundledScripts);
+				} catch (error) {
+					if (!options?.onRouteFailure) throw error;
+					options.onRouteFailure(routeInstance, error);
+					return undefined;
+				}
+			}),
 		);
-		const builtInstances = (await preparedInstances).filter((instance) => instance !== undefined);
+		for (const [key, preparation] of preparations) this.prebuiltRoutePreparations.set(key, preparation);
+		const builtInstances = plannedInstances.filter((instance) => instance !== undefined);
 
 		return {
 			integrationName: this.name,
-			planKey: createGroupedGraphBuildPlanKey(this.name, builtInstances),
 			instances: builtInstances,
-			bundledScripts: [...planning.bundledScripts.values()],
+			bundledScripts: [...bundledScripts.values()],
 		};
 	}
 
+	/**
+	 * Plans one route instance without processing any of its assets.
+	 *
+	 * @remarks
+	 * The scripts the route's render would bundle, from the shell, the page Dependencies and the components and
+	 * scripts its Page Browser Graph contribution names, go to `bundledScripts`. Preparations go to `preparations`
+	 * so that no instance of the same plan reuses one, whose page Dependencies would be processed before the
+	 * app-wide build.
+	 */
 	private async planRouteInstance(
 		routeInstance: PlannedRouteInstance,
+		preparations: Map<string, PrebuiltRoutePreparation>,
+		bundledScripts: Map<string, AssetDefinition>,
 	): Promise<GroupedGraphBuildPlan['instances'][number]> {
 		const routeOptions = {
 			file: routeInstance.routeFile,
@@ -472,6 +419,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			resolvedInputs,
 			props: resolvedInputs.props,
 			renderer: this,
+			planning: true,
 		});
 		const {
 			graphContext: context,
@@ -481,78 +429,65 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			shellDependencyComponents,
 			graph,
 		} = graphPreparation;
-		const componentGraphs = {
-			shellGraph,
-			shellDependencyComponents,
-			graph,
-			ownershipValidated: true,
-		};
 		this.prepareGraphLazyClientDependencies(graph);
 		const pageClientPlan = collectPageClientPlanFromGraph(graph);
 		const pageClientBuildEntries = await this.collectAppBrowserClientBuildEntries(pageClientPlan);
-		const builtInstance = {
+		const contribution = await this.integrationHooks.collectPageBrowserGraphContribution?.(context);
+		const planScripts = (scripts: AssetDefinition[]) => {
+			for (const script of scripts) {
+				bundledScripts.set(getAssetDependencyKey(script, this.appConfig.rootDir), script);
+			}
+		};
+		planScripts(
+			this.dependencyResolverService.collectBundleableScripts(shellDependencyComponents, this.name, true),
+		);
+		planScripts(
+			this.dependencyResolverService.collectBundleableScripts(
+				pageDependencyNodes.map((node) => node.component),
+				this.name,
+				true,
+			),
+		);
+		planScripts(
+			this.dependencyResolverService.collectBundleableScripts(
+				[...(contribution?.components ?? [])],
+				this.name,
+				false,
+			),
+		);
+		planScripts(
+			prepareAssetDependencies(
+				[...(contribution?.bundledScripts ?? [])],
+				this.getAssetProcessingIntegration(),
+				this.appConfig.rootDir,
+			).filter(isBundleableScript),
+		);
+		if (!routeInstance.skipStaticProps) {
+			preparations.set(
+				createPrebuiltRoutePreparationKey({ ...routeOptions, isRouteTemplate: routeInstance.isRouteTemplate }),
+				{
+					resolvedInputs,
+					graphContext: context,
+					resolvedPageDependencies,
+					pageDependencyNodes,
+					componentGraphs: { shellGraph, shellDependencyComponents, graph, ownershipValidated: true },
+				},
+			);
+		}
+		return {
 			routeFile: routeInstance.routeFile,
 			dependencyInstanceKey: context.dependencyInstanceKey ?? '',
 			skipStaticProps: routeInstance.skipStaticProps,
 			isRouteTemplate: routeInstance.isRouteTemplate,
-			contribution: mergePageBrowserGraphContributions(
-				await this.collectPageBrowserGraphContribution(context),
-				resolvedPageDependencies?.contribution,
-			),
+			contribution: contribution?.dependencies ? { dependencies: contribution.dependencies } : undefined,
 			pageClientBuildEntries,
-			prebuiltPageClientBrowserAssets: {
-				processedAssets: [],
-				fallbackDependencies: [],
-			},
 		};
-		if (!routeInstance.skipStaticProps) {
-			const preparationKey = createPrebuiltRoutePreparationKey({
-				...routeOptions,
-				isRouteTemplate: routeInstance.isRouteTemplate,
-			});
-			this.prebuiltRoutePreparations.set(preparationKey, {
-				resolvedInputs,
-				graphContext: context,
-				resolvedPageDependencies: resolvedPageDependencies && {
-					...resolvedPageDependencies,
-					contribution: undefined,
-				},
-				pageDependencyNodes,
-				componentGraphs,
-			});
-		}
-		await this.processComponentDependencies(shellDependencyComponents, { preparedGraph: true });
-		return builtInstance;
 	}
 
-	private planBundledScripts(
-		planning: RoutePlanning,
-		components: Array<EcoComponent | Partial<EcoComponent>>,
-		skipNestedComponents: boolean,
-	): void {
-		for (const script of this.dependencyResolverService.collectBundleableScripts(
-			components,
-			this.name,
-			skipNestedComponents,
-		)) {
-			planning.bundledScripts.set(getAssetDependencyKey(script, this.appConfig.rootDir), script);
-		}
-	}
-
-	/**
-	 * @remarks
-	 * Planning never reuses a preparation: one made while planning would process its page Dependencies inside the
-	 * planning scope, which returns no assets.
-	 */
 	private getPrebuiltRoutePreparation(
 		routeOptions: RouteRendererOptions & { isRouteTemplate?: boolean },
 	): PrebuiltRoutePreparation | undefined {
-		if (
-			routeOptions.pageModule ||
-			routeOptions.props ||
-			routeOptions.skipStaticProps ||
-			routePlanning.getStore()?.renderer === this
-		) {
+		if (routeOptions.pageModule || routeOptions.props || routeOptions.skipStaticProps) {
 			return undefined;
 		}
 
@@ -564,17 +499,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Drops every production prebuild result for a route, including its grouped plan and page-client assets.
+	 * Drops the production prebuild preparation for a route.
 	 *
 	 * @remarks
-	 * Static export calls this when it skips a dynamic route. A render only consumes the one-shot route preparation,
-	 * so the grouped plan and page-client assets keep serving later renders of the same route in production start.
+	 * Static export calls this when it skips a dynamic route.
 	 */
 	clearPrebuiltRoutePreparation(input: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>): void {
-		const routeKey = createPrebuiltRoutePreparationKey(input);
-		this.prebuiltRoutePreparations.delete(routeKey);
-		this.prebuiltGroupedBuildPlans.delete(routeKey);
-		this.prebuiltPageClientBrowserAssets.delete(routeKey);
+		this.prebuiltRoutePreparations.delete(createPrebuiltRoutePreparationKey(input));
 	}
 
 	/**
@@ -656,15 +587,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query' | 'skipStaticProps'> & {
 			isRouteTemplate?: boolean;
 		},
-		groupedBuildPlan?: GroupedGraphBuildPlan,
 	): Promise<PageBrowserGraphResult | undefined> {
-		const groupedPlan =
-			groupedBuildPlan ??
-			this.getGroupedBuildPlanForRoute({
-				file: filePath,
-				params: routeOptions?.params,
-				query: routeOptions?.query,
-			});
 		const graphContext = await this.buildPageBrowserGraphContributionContext(filePath, routeOptions);
 		const resolvedPageDependencies = await this.resolvePageDependenciesForContext(graphContext, {
 			file: filePath,
@@ -677,7 +600,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			routeFile: filePath,
 			dependencyInstanceKey: graphContext.dependencyInstanceKey,
 			integrationName: this.name,
-			groupedBuildPlan: groupedPlan,
 			collectContribution: async () =>
 				mergePageBrowserGraphContributions(
 					await this.collectPageBrowserGraphContribution(graphContext),
@@ -949,20 +871,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Use this method when you need only the component's own assets.
 	 *
 	 * @param components - The components to collect dependencies from.
-	 * @remarks
-	 * While this renderer plans its routes for the production prebuild, it processes nothing: it adds the scripts it
-	 * would bundle to the plan and returns no assets. Rendering processes the same components after the app-wide build.
 	 */
 	protected async processComponentDependencies(
 		components: (EcoComponent | Partial<EcoComponent>)[],
 		options?: { preparedGraph?: true },
 	): Promise<ProcessedAsset[]> {
-		const planning = routePlanning.getStore();
-		if (planning?.renderer === this) {
-			this.planBundledScripts(planning, components, options?.preparedGraph === true);
-			return [];
-		}
-
 		if (options?.preparedGraph) {
 			return this.dependencyResolverService.processPreparedComponentDependencies(components, this.name);
 		}
@@ -1602,50 +1515,44 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		});
 	}
 
+	/**
+	 * Resolves the page's island and lazy entries to the outputs the app-wide browser build recorded.
+	 *
+	 * @remarks
+	 * Returns nothing outside a production build or start, or when a bundleable entry is not recorded, so the
+	 * Integration builds the entries itself; once `ecopages start` sealed the build, that is an error instead.
+	 * Entries the app-wide build does not bundle are processed on their own.
+	 */
 	private async buildPrebuiltPageClientBrowserAssets(
 		plan: PageClientPlan,
 		route: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
 	): Promise<PageClientBrowserAssets | undefined> {
-		const prebuiltInstance = this.resolvePrebuiltPageClientInstance(route);
-		if (!prebuiltInstance) {
-			await this.rejectUnplannedProductionPageClientGraph(plan, route);
-			return undefined;
-		}
+		const ledger = requireAppRuntime(this.appConfig).processedAssets;
+		if (!ledger.hasBrowserBuild) return undefined;
 
-		const currentEntries = await this.collectAppBrowserClientBuildEntries(plan);
-		const plannedEntries = prebuiltInstance.pageClientBuildEntries ?? [];
-		const hasMatchingEntries =
-			JSON.stringify(
-				currentEntries
-					.map((entry) =>
-						getIntegrationDependencyKey(entry.integrationName, entry.dependency, this.appConfig.rootDir),
-					)
-					.sort(),
-			) ===
-			JSON.stringify(
-				plannedEntries
-					.map((entry) =>
-						getIntegrationDependencyKey(entry.integrationName, entry.dependency, this.appConfig.rootDir),
-					)
-					.sort(),
-			);
-		const prebuilt = hasMatchingEntries ? prebuiltInstance.prebuiltPageClientBrowserAssets : undefined;
-		if (!prebuilt) {
-			if (shouldRejectUnplannedProductionBrowserGraph(this.appConfig)) {
-				throw missingProductionBrowserGraphError(route.file, describeProductionBrowserGraphEntry(route.params));
+		const recordedAssets: ProcessedAsset[] = [];
+		const unbundledGroups = new Map<string, PageClientBuildEntry['dependency'][]>();
+		for (const { dependency, integrationName } of await this.collectAppBrowserClientBuildEntries(plan)) {
+			if (!isBundleableScript(dependency)) {
+				unbundledGroups.set(integrationName, [...(unbundledGroups.get(integrationName) ?? []), dependency]);
+				continue;
 			}
-			return undefined;
+			const recorded = ledger.lookup(dependency);
+			if (!recorded) {
+				if (shouldRejectUnplannedProductionBrowserGraph(this.appConfig)) {
+					throw missingProductionBrowserGraphError(
+						route.file,
+						describeProductionBrowserGraphEntry(route.params),
+					);
+				}
+				return undefined;
+			}
+			recordedAssets.push(recorded);
 		}
 
-		const fallbackGroups = new Map<string, PageClientBuildEntry['dependency'][]>();
-		for (const { dependency, integrationName } of prebuilt.fallbackDependencies) {
-			const dependencies = fallbackGroups.get(integrationName) ?? [];
-			dependencies.push(dependency);
-			fallbackGroups.set(integrationName, dependencies);
-		}
-		const fallbackAssets = (
+		const unbundledAssets = (
 			await Promise.all(
-				[...fallbackGroups].map(([integrationName, dependencies]) =>
+				[...unbundledGroups].map(([integrationName, dependencies]) =>
 					this.assetProcessingService.processDependencies(
 						dependencies,
 						this.getAssetProcessingIntegration(integrationName),
@@ -1653,41 +1560,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				),
 			)
 		).flat();
-		const processedAssets = [...prebuilt.processedAssets, ...fallbackAssets];
+		const processedAssets = [...recordedAssets, ...unbundledAssets];
 		return {
 			processedAssets,
 			lazyTriggers: this.dependencyResolverService.applyPendingLazyTriggers(processedAssets, plan.lazyConfigs),
 		};
-	}
-
-	private async rejectUnplannedProductionPageClientGraph(
-		plan: PageClientPlan,
-		route: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
-	): Promise<void> {
-		if (!shouldRejectUnplannedProductionBrowserGraph(this.appConfig)) return;
-		const currentEntries = await this.collectAppBrowserClientBuildEntries(plan);
-		if (currentEntries.length > 0 || this.integrationHooks.buildIslandClientAssets) {
-			throw missingProductionBrowserGraphError(route.file, describeProductionBrowserGraphEntry(route.params));
-		}
-	}
-
-	private resolvePrebuiltPageClientInstance(
-		route: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
-	): GroupedGraphBuildPlan['instances'][number] | undefined {
-		const routeKey = createPrebuiltRoutePreparationKey(route);
-		const exact = this.prebuiltPageClientBrowserAssets.get(routeKey);
-		if (exact) return exact;
-
-		const dependencyInstanceKey = createPageDependencyInstanceKey({ params: route.params });
-		for (const instance of this.prebuiltPageClientBrowserAssets.values()) {
-			if (
-				instance.routeFile === route.file &&
-				(instance.isRouteTemplate || instance.dependencyInstanceKey === dependencyInstanceKey)
-			) {
-				return instance;
-			}
-		}
-		return undefined;
 	}
 
 	private async collectAppBrowserClientBuildEntries(
@@ -1760,12 +1637,25 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * the supported page-browser extension point for integrations.
 	 *
 	 * @param context - The route file path and already imported page module.
-	 * @returns Declarative dependencies or pre-resolved assets for the Page.
+	 * @returns Declarative dependencies, with the contribution's components and bundled scripts processed into
+	 * its assets.
 	 */
 	async collectPageBrowserGraphContribution(
 		context: PageBrowserGraphContributionContext,
 	): Promise<PageBrowserGraphContribution | undefined> {
-		return this.integrationHooks.collectPageBrowserGraphContribution?.(context);
+		const contribution = await this.integrationHooks.collectPageBrowserGraphContribution?.(context);
+		if (!contribution) return undefined;
+		const { components, bundledScripts, ...declared } = contribution;
+		const componentAssets = components?.length ? await this.processComponentDependencies([...components]) : [];
+		const scriptAssets = bundledScripts?.length
+			? await this.assetProcessingService.processDependencies(
+					bundledScripts,
+					this.getAssetProcessingIntegration(),
+				)
+			: [];
+		return componentAssets.length || scriptAssets.length
+			? { ...declared, assets: [...(declared.assets ?? []), ...componentAssets, ...scriptAssets] }
+			: declared;
 	}
 
 	/**

@@ -1,37 +1,16 @@
 import path from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { EcoComponentConfig } from '@ecopages/core';
-import type { AssetDefinition } from '@ecopages/core/integration';
 import { MdxConfigDependencyService } from './mdx-config-dependency.ts';
 
 describe('MdxConfigDependencyService', () => {
-	it('eagerly emits SSR-marked lazy scripts for declared MDX component dependencies', async () => {
-		const processDependencies = vi.fn(async (dependencies: AssetDefinition[]) =>
-			dependencies.map((dependency) => ({
-				kind: dependency.kind,
-				filepath: dependency.source === 'file' ? dependency.filepath : undefined,
-				attributes: dependency.attributes,
-				excludeFromHtml: dependency.kind === 'script' ? dependency.excludeFromHtml : undefined,
-			})),
-		);
-		const processComponentDependencies = vi.fn(async () => [
-			{
-				kind: 'script' as const,
-				filepath: '/tmp/owned-config.js',
-			},
-		]);
-		const assetProcessingIntegration = { name: 'react' };
+	it('names the owned config components and their SSR-marked lazy scripts as eager head scripts', () => {
 		const service = new MdxConfigDependencyService({
 			integrationName: 'react',
 			pageModuleService: {
 				ensureConfigFileMetadata: (config: EcoComponentConfig) => config,
 			},
-			assetProcessingService: {
-				processDependencies,
-			},
-			assetProcessingIntegration,
 		});
-
 		const declaredLitComponentConfig: EcoComponentConfig = {
 			identity: {
 				id: 'declared-lit-counter',
@@ -45,45 +24,26 @@ describe('MdxConfigDependencyService', () => {
 						lazy: { 'on:interaction': 'click' },
 						ssr: true,
 					},
+					{ src: './browser-only.script.ts', lazy: { 'on:idle': true } },
 				],
 				components: [],
 			},
 		};
+		const pagePath = path.resolve(__dirname, '../test/fixture/react-content.mdx');
 
-		const assets = await service.processMdxConfigDependencies({
-			pagePath: path.resolve(__dirname, '../test/fixture/react-content.mdx'),
-			config: {
-				dependencies: {
-					components: [{ config: declaredLitComponentConfig }],
-				},
-			},
-			processComponentDependencies,
+		const contribution = service.collectMdxConfigContribution(pagePath, {
+			dependencies: { components: [{ config: declaredLitComponentConfig }] },
 		});
 
-		expect(processComponentDependencies).toHaveBeenCalledTimes(1);
-		expect(processDependencies).toHaveBeenCalledTimes(1);
-		expect(processDependencies).toHaveBeenCalledWith(
-			[
-				expect.objectContaining({
-					kind: 'script',
-					source: 'file',
-					filepath: path.resolve(__dirname, '../test/fixture/declared-lit-counter.script.ts'),
-					position: 'head',
-					attributes: {
-						type: 'module',
-						defer: '',
-					},
-				}),
-			],
-			assetProcessingIntegration,
-		);
-		expect(assets).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ filepath: '/tmp/owned-config.js' }),
-				expect.objectContaining({
-					filepath: path.resolve(__dirname, '../test/fixture/declared-lit-counter.script.ts'),
-				}),
-			]),
-		);
+		expect(contribution.components.map((component) => component.config?.identity?.file)).toEqual([pagePath]);
+		expect(contribution.bundledScripts).toEqual([
+			expect.objectContaining({
+				kind: 'script',
+				source: 'file',
+				filepath: path.resolve(__dirname, '../test/fixture/declared-lit-counter.script.ts'),
+				position: 'head',
+				attributes: { type: 'module', defer: '' },
+			}),
+		]);
 	});
 });

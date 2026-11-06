@@ -32,7 +32,7 @@ describe('ProcessedAssetLedger', () => {
 
 	it('does not find a dependency that was not recorded', () => {
 		const ledger = new ProcessedAssetLedger(buildRoot);
-		ledger.restore([]);
+		ledger.restore({ entries: [] });
 
 		expect(ledger.lookup(createDependency(buildRoot))).toBeUndefined();
 	});

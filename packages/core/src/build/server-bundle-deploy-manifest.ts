@@ -22,7 +22,7 @@ export interface ServerBundleDeployManifest {
 	emittedConfigModule?: string;
 	/** Content hash of the emitted production config artifact. */
 	emittedConfigHash?: string;
-	/** Id shared with `routes.json`, `server-modules.json`, and the browser-client manifest. */
+	/** Id shared with `routes.json`, `server-modules.json`, and `processed-assets.json`. */
 	buildId?: string;
 }
 

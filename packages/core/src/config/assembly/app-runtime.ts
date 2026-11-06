@@ -22,7 +22,7 @@ import type { CustomElementScriptPreloadScopeState } from '../../route-renderer/
 import type { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
 import type { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import type { IHmrManager } from '../../types/contracts.ts';
-import type { ProcessedAsset } from '../../assets/asset-processing-service/assets.types.ts';
+import type { PlannedProductionRoute } from '../../build/production-asset-ledger.ts';
 import { MISSING_APP_RUNTIME } from '../../utils/app-runtime.ts';
 
 export { requireAppRuntime } from '../../utils/app-runtime.ts';
@@ -87,27 +87,25 @@ export interface AppRuntime {
 	origin: string;
 	hmr: IHmrManager | null;
 	/**
-	 * When true, a production request whose Page Browser Graph is not in the browser client
-	 * manifest is an error. `ecopages start` sets this after it restores the manifest.
+	 * When true, a production request whose Page Browser Graph script the asset ledger does not record is an
+	 * error. `ecopages start` sets this after it restores the ledger.
 	 */
 	productionBrowserGraphsSealed: boolean;
 	/**
-	 * Outputs of the production app-wide browser build for Page Package scripts, by dependency key.
+	 * Processed and bundled dependencies of the production build, by dependency key, shared by every
+	 * asset-processing service.
 	 *
 	 * @remarks
-	 * The production prebuild collects every route's component scripts before rendering and builds them in the
-	 * app-wide build, so a module they share is one chunk. Asset processing returns these outputs instead of
-	 * bundling the script on its own. `ecopages start` restores them from the browser client manifest.
-	 */
-	prebuiltBrowserScripts: Map<string, ProcessedAsset>;
-	/**
-	 * Processed file dependencies of the production build, shared by every asset-processing service.
-	 *
-	 * @remarks
-	 * `ecopages build` fills it and writes it to `dist/server/processed-assets.json`; `ecopages start`
+	 * The app-wide browser build records each script it bundles here, and asset processing each file
+	 * dependency it processes. `ecopages build` writes it to `dist/server/processed-assets.json`; `ecopages start`
 	 * restores it so rendering never reads source files for recorded dependencies.
 	 */
 	processedAssets: ProcessedAssetLedger;
+	/**
+	 * Route instances the production prebuild planned, written beside the ledger for `ecopages start` to plan
+	 * again. #1010 removes it with that re-planning.
+	 */
+	plannedProductionRoutes: PlannedProductionRoute[];
 	/**
 	 * True while static generation (`ecopages build`) runs. An asset that cannot be processed then
 	 * fails the build.
@@ -163,8 +161,8 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		origin: appConfig.baseUrl,
 		hmr: null,
 		productionBrowserGraphsSealed: false,
-		prebuiltBrowserScripts: new Map(),
 		processedAssets: new ProcessedAssetLedger(appConfig.rootDir),
+		plannedProductionRoutes: [],
 		staticGenerationActive: false,
 	};
 	appConfig.appRuntime = runtime;

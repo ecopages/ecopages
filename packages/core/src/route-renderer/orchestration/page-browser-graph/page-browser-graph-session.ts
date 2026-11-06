@@ -1,6 +1,4 @@
 import path from 'node:path';
-import type { GroupedGraphScope } from './route-instance-key.ts';
-import { serializeGroupedGraphCacheKey } from './route-instance-key.ts';
 import { contentHash } from '../../../utils/content-hash.ts';
 import type { PageBrowserGraphContribution, PageBrowserGraphResult } from '../../../types/contracts.ts';
 import type { AssetDefinition, ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
@@ -40,12 +38,6 @@ export type GraphBuildResult = {
 	 * When false, the build result is returned to callers but not committed to the session cache.
 	 */
 	cacheable?: boolean;
-};
-
-type GroupedGraphRecord = {
-	assetsByRoute: Map<string, ProcessedAsset[]>;
-	dependencyPaths: ReadonlySet<string>;
-	generation: number;
 };
 
 function serializeGraphKey(key: GraphKey): string {
@@ -106,11 +98,8 @@ export class SessionPageBrowserGraphCache {
 	private readonly inFlight = new Map<string, Promise<PageBrowserGraphResult | undefined>>();
 	private readonly inFlightDependencyPaths = new Map<string, ReadonlySet<string>>();
 	private readonly inFlightGenerations = new Map<string, number>();
-	private readonly groupedRecords = new Map<string, GroupedGraphRecord>();
-	private readonly groupedInFlight = new Map<string, Promise<Map<string, ProcessedAsset[]>>>();
 	private readonly inputIndex: BuildInputDependencyIndex;
 	private readonly graphGenerations = new Map<string, number>();
-	private readonly groupedGenerations = new Map<string, number>();
 	private buildCount = 0;
 
 	constructor(inputIndex: BuildInputDependencyIndex = new BuildInputDependencyIndex()) {
@@ -216,42 +205,12 @@ export class SessionPageBrowserGraphCache {
 		return (await build())?.result;
 	}
 
-	resolveGroupedGraph(
-		scope: GroupedGraphScope,
-		build: () => Promise<GroupedGraphRecord | undefined>,
-	): Promise<Map<string, ProcessedAsset[]>> {
-		const cacheKey = serializeGroupedGraphCacheKey(scope);
-		const cached = this.groupedRecords.get(cacheKey);
-		if (cached) {
-			return Promise.resolve(cached.assetsByRoute);
-		}
-
-		const pending = this.groupedInFlight.get(cacheKey);
-		if (pending) {
-			return pending;
-		}
-
-		const buildGeneration = this.bumpGroupedGeneration(cacheKey);
-		const buildPromise = this.runGroupedBuild(cacheKey, buildGeneration, build);
-		this.groupedInFlight.set(cacheKey, buildPromise);
-		return buildPromise;
-	}
-
-	peekGroupedGraph(scope: GroupedGraphScope): Map<string, ProcessedAsset[]> | undefined {
-		return this.groupedRecords.get(serializeGroupedGraphCacheKey(scope))?.assetsByRoute;
-	}
-
 	invalidateByFilePath(filePath: string): number {
 		const normalizedFilePath = normalizeDependencyPath(filePath);
 		const affectedKeys = this.graphKeysFor(normalizedFilePath);
 		let invalidated = 0;
 
 		for (const serializedKey of affectedKeys) {
-			if (this.groupedRecords.has(serializedKey) || this.groupedInFlight.has(serializedKey)) {
-				invalidated += this.invalidateGroupedRecord(serializedKey);
-				continue;
-			}
-
 			invalidated += this.invalidateSerializedGraphKey(serializedKey);
 		}
 
@@ -328,18 +287,6 @@ export class SessionPageBrowserGraphCache {
 			this.inFlightGenerations.delete(serializedKey);
 			this.graphGenerations.delete(serializedKey);
 		}
-
-		if (policy === 'production') {
-			for (const cacheKey of [...this.groupedRecords.keys()]) {
-				const groupedRecord = this.groupedRecords.get(cacheKey);
-				if (groupedRecord) {
-					this.unbindGraphPaths(cacheKey, groupedRecord.dependencyPaths);
-				}
-				this.groupedRecords.delete(cacheKey);
-				this.groupedInFlight.delete(cacheKey);
-				this.groupedGenerations.delete(cacheKey);
-			}
-		}
 	}
 
 	private pruneStaleRouteRecords(key: GraphKey): void {
@@ -371,12 +318,6 @@ export class SessionPageBrowserGraphCache {
 		return next;
 	}
 
-	private bumpGroupedGeneration(cacheKey: string): number {
-		const next = (this.groupedGenerations.get(cacheKey) ?? 0) + 1;
-		this.groupedGenerations.set(cacheKey, next);
-		return next;
-	}
-
 	private invalidateSerializedGraphKey(serializedKey: string): number {
 		const record = this.records.get(serializedKey);
 		if (record) {
@@ -394,18 +335,6 @@ export class SessionPageBrowserGraphCache {
 		this.inFlightGenerations.delete(serializedKey);
 		this.bumpGraphGeneration(serializedKey);
 		return record || hadInFlightBuild ? 1 : 0;
-	}
-
-	private invalidateGroupedRecord(cacheKey: string): number {
-		const groupedRecord = this.groupedRecords.get(cacheKey);
-		if (groupedRecord) {
-			this.unbindGraphPaths(cacheKey, groupedRecord.dependencyPaths);
-			this.groupedRecords.delete(cacheKey);
-		}
-
-		this.bumpGroupedGeneration(cacheKey);
-		this.groupedInFlight.delete(cacheKey);
-		return groupedRecord ? 1 : 0;
 	}
 
 	private async runGraphBuild(
@@ -456,49 +385,8 @@ export class SessionPageBrowserGraphCache {
 		}
 	}
 
-	private async runGroupedBuild(
-		cacheKey: string,
-		buildGeneration: number,
-		build: () => Promise<GroupedGraphRecord | undefined>,
-	): Promise<Map<string, ProcessedAsset[]>> {
-		try {
-			this.buildCount += 1;
-			const buildResult = await build();
-			if (!buildResult) {
-				return new Map();
-			}
-
-			if (!this.canCommitGroupedBuild(cacheKey, buildGeneration)) {
-				const existing = this.groupedRecords.get(cacheKey);
-				return existing?.assetsByRoute ?? new Map();
-			}
-
-			const previous = this.groupedRecords.get(cacheKey);
-			if (previous) {
-				this.unbindGraphPaths(cacheKey, previous.dependencyPaths);
-			}
-
-			const record: GroupedGraphRecord = {
-				assetsByRoute: buildResult.assetsByRoute,
-				dependencyPaths: buildResult.dependencyPaths,
-				generation: buildGeneration,
-			};
-			this.groupedRecords.set(cacheKey, record);
-			this.bindGraphPaths(cacheKey, record.dependencyPaths);
-			return record.assetsByRoute;
-		} catch (error) {
-			return Promise.reject(error);
-		} finally {
-			this.groupedInFlight.delete(cacheKey);
-		}
-	}
-
 	private canCommitGraphBuild(serializedKey: string, buildGeneration: number): boolean {
 		return this.graphGenerations.get(serializedKey) === buildGeneration;
-	}
-
-	private canCommitGroupedBuild(cacheKey: string, buildGeneration: number): boolean {
-		return this.groupedGenerations.get(cacheKey) === buildGeneration;
 	}
 
 	private bindDependencyPaths(serializedKey: string, dependencyPaths: ReadonlySet<string>): void {

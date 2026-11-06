@@ -90,6 +90,7 @@ export {
 	type IntegrationRendererHookFactoryOptions,
 	type IntegrationRendererHooks,
 	type IntegrationRendererOptions,
+	type PageBrowserGraphContribution,
 	type PageBrowserGraphContributionContext,
 	type PageClientBrowserAssets,
 	type PageClientBuildEntry,

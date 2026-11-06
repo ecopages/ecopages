@@ -6,6 +6,7 @@ import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { AssetProcessingService } from './asset-processing.service.ts';
 import type { ContentScriptAsset } from './assets.types.ts';
+import { ProcessedAssetLedger } from './processed-asset-ledger.ts';
 
 const createConfig = (): EcoPagesAppConfig =>
 	({
@@ -14,6 +15,7 @@ const createConfig = (): EcoPagesAppConfig =>
 		},
 		appRuntime: {
 			buildInputIndex: new BuildInputDependencyIndex(),
+			processedAssets: new ProcessedAssetLedger('/test'),
 		} as AppRuntime,
 	}) as unknown as EcoPagesAppConfig;
 

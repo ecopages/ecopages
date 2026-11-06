@@ -15,6 +15,7 @@ import { buildOrThrow } from '../../../build/runtime/build-queue.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
 import { copyDeclaredServerFiles } from '../../../build/copy-server-files.ts';
 import { writeProductionAssetLedger } from '../../../build/production-asset-ledger.ts';
+import { getPrebuiltHtmlPageModuleScriptUrls } from '../../../html-pages/html-page-module-scripts.ts';
 import { writeProductionRouteList } from '../../../build/production-route-list.ts';
 import {
 	getServerBundleOutputPaths,
@@ -236,9 +237,16 @@ export class ServerStaticBuilder {
 		this.logger.info('Server entry file bundled successfully');
 	}
 
-	/** Records the processed file dependencies beside the server bundle, which is the only consumer of them. */
-	private writeAssetLedger(buildsServerBundle: boolean): void {
-		if (buildsServerBundle) writeProductionAssetLedger(this.appConfig);
+	/**
+	 * Records the processed file dependencies beside the server bundle, which is the only consumer of them.
+	 *
+	 * @remarks
+	 * The production prebuild already wrote the app-wide browser build there; this adds what rendering processed.
+	 */
+	private async writeAssetLedger(buildsServerBundle: boolean): Promise<void> {
+		if (buildsServerBundle) {
+			writeProductionAssetLedger(this.appConfig, await getPrebuiltHtmlPageModuleScriptUrls(this.appConfig));
+		}
 	}
 
 	/**
@@ -306,7 +314,7 @@ export class ServerStaticBuilder {
 			keepGoing: options?.keepGoing,
 		});
 
-		this.writeAssetLedger(buildsServerBundle);
+		await this.writeAssetLedger(buildsServerBundle);
 
 		if (isEcopagesEnvEnabled('ECOPAGES_BENCH') && !isEcopagesEnvEnabled('ECOPAGES_BENCH_VERBOSE')) {
 			this.logger.debug('Build completed');

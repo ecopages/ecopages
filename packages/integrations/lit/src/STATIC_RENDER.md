@@ -34,7 +34,7 @@ staticExport
   └─ returns a release that disposes the session once the export ends
 ```
 
-Static export starts the worker before the main thread builds the app browser client, so the worker restores that build from `browser-client-manifest.json` on its first render (`prebuildProductionPageBrowserGraphsFromManifest`). A Lit Page then links the same app-wide outputs and component scripts as every other Page instead of building its own.
+Static export starts the worker before the main thread builds the app browser client, so the worker restores that build from the asset ledger, `dist/server/processed-assets.json`, on its first render (`restoreProductionPageBrowserGraphs`). A Lit Page then links the same app-wide outputs and component scripts as every other Page instead of building its own.
 
 `ECOPAGES_LIT_STATIC_RENDER_WORKER=true` in the worker environment skips processor `.setup()` inside `setupAppRuntimePlugins` (the main thread already prepared artifacts). Integration setup still runs in the worker isolate before `RouteRendererFactory` creates route renderers. That processor skip stays necessary because the worker still bootstraps a second app during export.
 

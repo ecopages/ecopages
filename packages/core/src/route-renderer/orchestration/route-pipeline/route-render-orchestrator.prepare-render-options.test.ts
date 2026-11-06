@@ -15,6 +15,7 @@ import { BuildInputDependencyIndex } from '../../../build/cache/build-input-depe
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { SessionPageBrowserGraphCache } from '../page-browser-graph/page-browser-graph-session.ts';
+import { ProcessedAssetLedger } from '../../../assets/asset-processing-service/processed-asset-ledger.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import type {
 	AssetDefinition,
@@ -75,6 +76,7 @@ function createOrchestrator(
 		appRuntime: {
 			buildInputIndex: new BuildInputDependencyIndex(),
 			pageBrowserGraphSession: new SessionPageBrowserGraphCache(),
+			processedAssets: new ProcessedAssetLedger('/app'),
 		} as AppRuntime,
 		...options.appConfig,
 	} as unknown as EcoPagesAppConfig;
@@ -456,7 +458,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 	});
 
 	describe('grouped page-browser assets', () => {
-		it('resolves them per route without a production build plan', async () => {
+		it('resolves them per route without an app-wide browser build', async () => {
 			const { prepare, processDependencies, collectPageBrowserGraphContribution } = createGroupedHarness({
 				bundleFor: reactRouterBundleFor,
 			});

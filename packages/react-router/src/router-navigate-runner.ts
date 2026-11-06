@@ -19,10 +19,6 @@ export type RouterNavigateOptions = {
 	moduleUrlOverride?: string;
 };
 
-type RouterPageState = PageState & {
-	refreshPersistedLayout?: boolean;
-};
-
 type PendingRender = {
 	navigationId: number;
 	page: PageState;
@@ -38,7 +34,7 @@ export type RouterNavigateRunnerDeps = {
 	queuedNavigationHrefRef: MutableRefObject<string | null>;
 	committedPathRef: MutableRefObject<string>;
 	setIsNavigating: Dispatch<SetStateAction<boolean>>;
-	setCurrentPage: Dispatch<SetStateAction<RouterPageState>>;
+	setCurrentPage: Dispatch<SetStateAction<PageState>>;
 	startTransition: TransitionStartFunction;
 	replayLocalNavigate: (href: string) => void;
 	createDeferred: <T>() => { promise: Promise<T>; resolve: (value: T) => void };
@@ -49,7 +45,7 @@ function createWaitForRender(
 	navigationId: number,
 	createDeferred: RouterNavigateRunnerDeps['createDeferred'],
 ) {
-	return (nextPage: RouterPageState) => {
+	return (nextPage: PageState) => {
 		pendingRenderRef.current?.resolve();
 		const renderDeferred = createDeferred<void>();
 		pendingRenderRef.current = {

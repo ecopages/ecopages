@@ -48,7 +48,7 @@ export type PageHydrationOptions = {
 	normalizePageConfig?: (config: unknown) => void;
 	hmr?: {
 		importPath: string;
-		getLayoutStack?: (Page: unknown) => string;
+		getLayouts?: (Page: unknown) => readonly unknown[];
 	};
 };
 

@@ -11,10 +11,6 @@ export type HmrProcessContext = {
 	ownsWatchedEntrypoint: (filePath: string) => boolean;
 	isDevTransformOutputUrl: (outputUrl: string) => boolean;
 	collectReactPageBuildTargets: () => Promise<ReactHmrBuildTarget[]>;
-	hasLayoutOwnedDependencyTarget: (
-		changedFilePath: string,
-		requestedTargets: ReactHmrBuildTarget[],
-	) => Promise<boolean>;
 	resolveBuildTargets: (
 		requestedTargets: ReactHmrBuildTarget[],
 		changedFilePath: string,
@@ -66,6 +62,12 @@ export function scanDependencyHits(ctx: HmrProcessContext, changedEntrypointOutp
 	return { affectedEntrypoints, hasOwnedLayoutDependencyHit, shouldAbort };
 }
 
+/**
+ * @remarks
+ * A changed watched entrypoint that is neither a Page nor a Layout file also refreshes the owned Pages that
+ * import it, so a layout it belongs to re-renders from the Page's fresh import instead of matching the
+ * layout by component identity.
+ */
 export async function resolveRequestedTargets(
 	ctx: HmrProcessContext,
 	changedEntrypointOutput: string | undefined,
@@ -74,29 +76,27 @@ export async function resolveRequestedTargets(
 	hasOwnedLayoutDependencyHit: boolean,
 	affectedEntrypoints: Map<string, string>,
 	hasDependencyHits: boolean,
-): Promise<{ requestedTargets: ReactHmrBuildTarget[]; hasLayoutOwnedRequestedTarget: boolean }> {
-	let layoutOwnedPageTargets: ReactHmrBuildTarget[] = [];
-	let hasLayoutOwnedRequestedTarget = false;
+): Promise<ReactHmrBuildTarget[]> {
+	if (changedEntrypointOutput) {
+		const changedTarget = { entrypointPath: ctx.resolvedFilePath, outputUrl: changedEntrypointOutput };
+		if (isLayout || isChangedPageEntrypoint) {
+			return [changedTarget];
+		}
 
-	if (changedEntrypointOutput && !isLayout && !isChangedPageEntrypoint) {
-		layoutOwnedPageTargets = await ctx.collectReactPageBuildTargets();
-		hasLayoutOwnedRequestedTarget = await ctx.hasLayoutOwnedDependencyTarget(
-			ctx.resolvedFilePath,
-			layoutOwnedPageTargets,
+		const dependentEntrypoints = ctx.getDependencyEntrypoints(ctx.resolvedFilePath);
+		const dependentPageTargets = (await ctx.collectReactPageBuildTargets()).filter((target) =>
+			dependentEntrypoints.has(target.entrypointPath),
 		);
+		return [changedTarget, ...dependentPageTargets];
 	}
 
-	const requestedTargets = changedEntrypointOutput
-		? hasLayoutOwnedRequestedTarget
-			? [{ entrypointPath: ctx.resolvedFilePath, outputUrl: changedEntrypointOutput }, ...layoutOwnedPageTargets]
-			: [{ entrypointPath: ctx.resolvedFilePath, outputUrl: changedEntrypointOutput }]
-		: hasOwnedLayoutDependencyHit
-			? await ctx.collectReactPageBuildTargets()
-			: hasDependencyHits
-				? Array.from(affectedEntrypoints, ([entrypointPath, outputUrl]) => ({ entrypointPath, outputUrl }))
-				: Array.from(ctx.watchedFiles, ([entrypointPath, outputUrl]) => ({ entrypointPath, outputUrl }));
+	if (hasOwnedLayoutDependencyHit) {
+		return await ctx.collectReactPageBuildTargets();
+	}
 
-	return { requestedTargets, hasLayoutOwnedRequestedTarget };
+	return hasDependencyHits
+		? Array.from(affectedEntrypoints, ([entrypointPath, outputUrl]) => ({ entrypointPath, outputUrl }))
+		: Array.from(ctx.watchedFiles, ([entrypointPath, outputUrl]) => ({ entrypointPath, outputUrl }));
 }
 
 export function collectHmrUpdateUrls(

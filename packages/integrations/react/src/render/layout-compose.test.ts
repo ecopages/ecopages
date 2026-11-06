@@ -1,6 +1,6 @@
-import { createElement } from 'react';
+import { createElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
-import { eco } from '@ecopages/core';
+import { eco, type LayoutProps } from '@ecopages/core';
 import {
 	composeLayoutPageTree,
 	composeLayoutPageTreeFromShell,
@@ -19,8 +19,8 @@ function pageComponent<P extends Record<string, unknown>>(Page: ComposablePage<P
 
 describe('layout-compose', () => {
 	it('should wrap a page with a single legacy layout', () => {
-		const Layout = ({ children }: { children?: string }) => createElement('main', null, children);
-		const Page = eco.page({
+		const Layout = ({ children }: { children?: ReactNode }) => createElement('main', null, children);
+		const Page = eco.page<{}, ReactNode>({
 			layout: Layout,
 			render: () => 'page',
 		});
@@ -36,9 +36,9 @@ describe('layout-compose', () => {
 	});
 
 	it('should nest multiple layouts outer to inner', () => {
-		const Outer = ({ children }: { children?: string }) => createElement('outer', null, children);
-		const Inner = ({ children }: { children?: string }) => createElement('inner', null, children);
-		const Page = eco.page({
+		const Outer = ({ children }: { children?: ReactNode }) => createElement('outer', null, children);
+		const Inner = ({ children }: { children?: ReactNode }) => createElement('inner', null, children);
+		const Page = eco.page<{}, ReactNode>({
 			layout: [Outer, Inner],
 			render: () => 'page',
 		});
@@ -53,9 +53,9 @@ describe('layout-compose', () => {
 	});
 
 	it('should merge layout entry prop factories', () => {
-		const Layout = ({ section }: { section?: string; children?: string }) =>
+		const Layout = ({ section }: { section?: string; children?: ReactNode }) =>
 			createElement('section', null, section);
-		const Page = eco.page({
+		const Page = eco.page<{}, ReactNode>({
 			layout: [{ component: Layout, props: ({ params }) => ({ section: params?.slug }) }],
 			render: () => 'page',
 		});
@@ -73,7 +73,7 @@ describe('layout-compose', () => {
 	it('should normalize layout arrays from page config', () => {
 		const Outer = () => null;
 		const Inner = () => null;
-		const Page = eco.page({
+		const Page = eco.page<{}, ReactNode>({
 			layout: [Outer, Inner],
 			render: () => null,
 		});
@@ -82,17 +82,17 @@ describe('layout-compose', () => {
 	});
 
 	it('should compose explicit shell layouts outer to inner', () => {
-		const Outer = ({ children }: { children?: string }) => createElement('outer', null, children);
-		const Page = eco.page({ render: () => 'page' });
+		const Outer = ({ children }: { children?: ReactNode }) => createElement('outer', null, children);
+		const Page = eco.page<{}, ReactNode>({ render: () => 'page' });
 
 		const tree = composeLayoutPageTreeFromShell(pageComponent(Page), {}, [{ component: Outer }]);
 		expect(tree.type).toBe(Outer);
 	});
 
 	it('should apply persisted layout tiers when a resolver is provided', () => {
-		const Layout = ({ children }: { children?: string }) => createElement('section', null, children);
-		const CachedLayout = ({ children }: { children?: string }) => createElement('cached', null, children);
-		const Page = eco.page({
+		const Layout = ({ children }: { children?: ReactNode }) => createElement('section', null, children);
+		const CachedLayout = ({ children }: { children?: ReactNode }) => createElement('cached', null, children);
+		const Page = eco.page<{}, ReactNode>({
 			layout: Layout,
 			render: () => 'page',
 		});
@@ -110,9 +110,9 @@ describe('layout-compose', () => {
 	});
 
 	it('should derive layout locals from shell props instead of pageProps.locals', () => {
-		const Layout = ({ locals, children }: { locals?: { role: string }; children?: string }) =>
-			createElement('section', null, locals?.role, children);
-		const Page = eco.page({
+		const Layout = ({ locals, children }: LayoutProps<ReactNode>) =>
+			createElement('section', null, (locals as { role?: string } | undefined)?.role, children);
+		const Page = eco.page<{}, ReactNode>({
 			layout: Layout,
 			render: () => 'page',
 		});

@@ -3,7 +3,7 @@ import { userEvent } from 'vitest/browser';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE, getEcoDocumentOwner, getEcoNavigationRuntime } from '@ecopages/core/client';
-import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
+import { EcoRouter, PageContent } from '../src/router.ts';
 
 /**
  * Black-box cross-runtime navigation handoff tests.
@@ -50,9 +50,7 @@ describe('React ↔ browser-router cross-runtime handoff', () => {
 		root?.unmount();
 		container.parentNode?.removeChild(container);
 		vi.restoreAllMocks();
-		clearLayoutCache();
 		delete window.__ECO_PAGES__;
-		delete (window as typeof window & { __ecoLayoutCache?: unknown }).__ecoLayoutCache;
 	});
 
 	describe('React → browser-router', () => {

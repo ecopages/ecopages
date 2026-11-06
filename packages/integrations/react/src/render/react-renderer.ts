@@ -70,6 +70,7 @@ import {
 } from './react-runtime.ts';
 import { composeReactLayoutPageTree, shouldUseUnifiedReactLayoutComposition } from './unified-layout-composition.ts';
 import { assertComposablePage, resolveLayoutContextFromShell } from './layout-compose.ts';
+import { LayoutRenderTracker } from './layout-render-tracker.ts';
 
 export type { ReactRendererConfig } from '../plugin/react.types.ts';
 export { BundleError, ReactRenderError } from './errors.ts';
@@ -510,9 +511,11 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			props: layout.props,
 		}));
 		const runtime = this.getReactRuntimeModules();
+		const renderTracker = new LayoutRenderTracker();
 		const tree = composeReactLayoutPageTree(pageComponent, page.props, shellEntries, {
 			context: resolveLayoutContextFromShell(page.props, shellEntries),
 			react: runtime.react,
+			renderTracker,
 		});
 		const runtimeInput: ComponentRenderInput = {
 			component: page.component,
@@ -525,6 +528,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		const html = this.normalizeUnresolvedMarkerArtifactHtml(
 			await this.renderReactTree(tree, getComponentIdentity(page.component)?.file ?? 'page'),
 		);
+		renderTracker.assertChildrenRendered(page.component);
 		return { children: await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext) };
 	}
 

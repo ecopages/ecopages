@@ -107,4 +107,55 @@ describe('ReactRenderer unified SSR layout composition', () => {
 		expect(html.indexOf('data-layout="outer"')).toBeLessThan(html.indexOf('data-layout="inner"'));
 		expect(html.indexOf('data-layout="inner"')).toBeLessThan(html.indexOf('data-layout="page"'));
 	});
+
+	describe('a layout that does not render its children', () => {
+		function renderNested(layouts: Array<(props: { children?: ReactNode }) => ReactNode>) {
+			const renderer = new TestReactRenderer({ appConfig, assetProcessingService: assetService });
+			const Page = () => <p>content</p>;
+			Page.config = {
+				identity: { id: 'page', file: '/tmp/pages/nested.tsx', integration: 'react' },
+				layouts,
+				layoutEntries: layouts.map((component) => ({ component })),
+			};
+
+			return renderer.render({
+				file: '/tmp/pages/nested.tsx',
+				params: {},
+				query: {},
+				props: {},
+				locals: undefined,
+				pageLocals: undefined,
+				metadata: appConfig.defaultMetadata,
+				Page: Page as IntegrationRendererRenderOptions<ReactNode>['Page'],
+				HtmlTemplate: (({ children }: HtmlTemplateProps) =>
+					children) as IntegrationRendererRenderOptions<ReactNode>['HtmlTemplate'],
+				resolvedDependencies: [],
+				pageProps: {},
+			});
+		}
+
+		it('fails the render, naming a plain layout and the page that uses it', async () => {
+			const Outer = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
+			const DroppingLayout = () => <aside>no page here</aside>;
+
+			const render = renderNested([Outer, DroppingLayout]);
+
+			await expect(render).rejects.toThrow(
+				expect.objectContaining({
+					cause: expect.objectContaining({
+						message: '[ecopages] Layout DroppingLayout (/tmp/pages/nested.tsx) did not render its children',
+					}),
+				}),
+			);
+		});
+
+		it('renders a stack whose layouts all render their children', async () => {
+			const Outer = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
+			const Inner = ({ children }: { children?: ReactNode }) => <section>{children}</section>;
+
+			await expect(renderNested([Outer, Inner]).then(String)).resolves.toContain(
+				'<div><section><p>content</p></section></div>',
+			);
+		});
+	});
 });

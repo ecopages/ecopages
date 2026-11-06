@@ -20,6 +20,14 @@ function isCurrentMountGeneration(generation: number): boolean {
 	return (getRuntime().react?.mountGeneration ?? 0) === generation;
 }
 
+/**
+ * @remarks
+ * A layout module has one URL, so an unchanged layout is the same function in both page versions.
+ */
+function haveSameLayouts(current: readonly unknown[], next: readonly unknown[]): boolean {
+	return current.length === next.length && current.every((layout, index) => layout === next[index]);
+}
+
 async function applyRouterHmrUpdate(
 	options: PageHydrationOptions,
 	newUrl: string,
@@ -30,10 +38,10 @@ async function applyRouterHmrUpdate(
 		return false;
 	}
 
-	const currentLayoutStack = options.hmr!.getLayoutStack?.(currentPage) ?? '';
-	const nextLayoutStack = options.hmr!.getLayoutStack?.(nextPage) ?? '';
+	const currentLayouts = options.hmr!.getLayouts?.(currentPage) ?? [];
+	const nextLayouts = options.hmr!.getLayouts?.(nextPage) ?? [];
 	await getRuntime().navigation?.reloadCurrentPage?.({
-		clearCache: currentLayoutStack !== nextLayoutStack,
+		clearCache: !haveSameLayouts(currentLayouts, nextLayouts),
 		moduleUrl: newUrl,
 		source: 'react-router',
 	});

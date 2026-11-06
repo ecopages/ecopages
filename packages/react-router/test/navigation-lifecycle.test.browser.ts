@@ -3,7 +3,7 @@ import { userEvent } from 'vitest/browser';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/client';
-import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
+import { EcoRouter, PageContent } from '../src/router.ts';
 import { flushTasks } from './react-router.harness.ts';
 
 function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
@@ -47,7 +47,6 @@ describe('react-router navigation lifecycle', () => {
 		root?.unmount();
 		container?.remove();
 		vi.restoreAllMocks();
-		clearLayoutCache();
 		delete window.__ECO_PAGES__;
 	});
 

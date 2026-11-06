@@ -658,76 +658,6 @@ describe('ReactHmrStrategy', () => {
 			});
 		});
 
-		it('process triggers a layout refresh when a dependency-hit page owns the changed file through its layout subtree', async () => {
-			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const entrypointB = '/tmp/src/pages/page-b.tsx';
-			const changedComponent = '/tmp/src/components/app-shell.tsx';
-			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
-				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
-			]);
-
-			const strategy = new ReactHmrStrategy({
-				context: createMockContext({
-					getWatchedFiles: () => watchedFiles,
-					getEntrypointDependencyGraph: () => ({
-						supportsSelectiveInvalidation: () => true,
-						getDependencyEntrypoints: (filePath: string) =>
-							filePath === changedComponent ? new Set([entrypointA, entrypointB]) : new Set(),
-						setEntrypointDependencies: () => {},
-						clearEntrypointDependencies: () => {},
-						reset: () => {},
-					}),
-					importServerModule: createImportServerModuleMock({
-						config: {
-							layouts: [
-								{
-									config: {
-										identity: {
-											id: 'layout',
-											file: '/tmp/src/layouts/base-layout.tsx',
-											integration: 'react',
-										},
-										dependencies: {
-											components: [
-												{
-													config: {
-														identity: {
-															id: 'shell',
-															file: changedComponent,
-															integration: 'react',
-														},
-													},
-												},
-											],
-										},
-									},
-								},
-							],
-						},
-					}),
-				}),
-				pageMetadataCache: createPageMetadataCache({
-					getDeclaredModules: () => [],
-					initialOwnedEntrypoints: [entrypointA, entrypointB],
-					ownsEntrypoint: (entrypointPath) =>
-						entrypointPath === entrypointA || entrypointPath === entrypointB,
-				}),
-				runtimeManifest: defaultRuntimeManifest,
-			});
-
-			const action = await strategy.process(changedComponent);
-
-			expect(action).toEqual({
-				type: 'broadcast',
-				events: [
-					{
-						type: 'layout-update',
-					},
-				],
-			});
-		});
-
 		it('process falls back to all watched entrypoints when dependency graph has no hits', async () => {
 			const entrypointA = '/tmp/src/pages/page-a.tsx';
 			const entrypointB = '/tmp/src/pages/page-b.tsx';
@@ -776,76 +706,7 @@ describe('ReactHmrStrategy', () => {
 			});
 		});
 
-		it('process triggers a layout refresh on dependency-graph miss when the changed file belongs to a page layout subtree', async () => {
-			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const entrypointB = '/tmp/src/pages/page-b.tsx';
-			const changedComponent = '/tmp/src/components/app-shell.tsx';
-			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
-				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
-			]);
-
-			const strategy = new ReactHmrStrategy({
-				context: createMockContext({
-					getWatchedFiles: () => watchedFiles,
-					getEntrypointDependencyGraph: () => ({
-						supportsSelectiveInvalidation: () => true,
-						getDependencyEntrypoints: () => new Set(),
-						setEntrypointDependencies: () => {},
-						clearEntrypointDependencies: () => {},
-						reset: () => {},
-					}),
-					importServerModule: createImportServerModuleMock({
-						config: {
-							layouts: [
-								{
-									config: {
-										identity: {
-											id: 'layout',
-											file: '/tmp/src/layouts/base-layout.tsx',
-											integration: 'react',
-										},
-										dependencies: {
-											components: [
-												{
-													config: {
-														identity: {
-															id: 'shell',
-															file: changedComponent,
-															integration: 'react',
-														},
-													},
-												},
-											],
-										},
-									},
-								},
-							],
-						},
-					}),
-				}),
-				pageMetadataCache: createPageMetadataCache({
-					getDeclaredModules: () => [],
-					initialOwnedEntrypoints: [entrypointA, entrypointB],
-					ownsEntrypoint: (entrypointPath) =>
-						entrypointPath === entrypointA || entrypointPath === entrypointB,
-				}),
-				runtimeManifest: defaultRuntimeManifest,
-			});
-
-			const action = await strategy.process(changedComponent);
-
-			expect(action).toEqual({
-				type: 'broadcast',
-				events: [
-					{
-						type: 'layout-update',
-					},
-				],
-			});
-		});
-
-		it('process triggers a layout refresh when the changed watched entrypoint is owned by a page layout subtree', async () => {
+		it('process refreshes the pages that import a changed watched entrypoint', async () => {
 			const entrypointA = '/tmp/src/pages/page-a.tsx';
 			const entrypointB = '/tmp/src/pages/page-b.tsx';
 			const changedComponent = '/tmp/src/components/app-shell.tsx';
@@ -860,38 +721,11 @@ describe('ReactHmrStrategy', () => {
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
 						supportsSelectiveInvalidation: () => true,
-						getDependencyEntrypoints: () => new Set(),
+						getDependencyEntrypoints: (filePath: string) =>
+							filePath === changedComponent ? new Set([entrypointA]) : new Set(),
 						setEntrypointDependencies: () => {},
 						clearEntrypointDependencies: () => {},
 						reset: () => {},
-					}),
-					importServerModule: createImportServerModuleMock({
-						config: {
-							layouts: [
-								{
-									config: {
-										identity: {
-											id: 'layout',
-											file: '/tmp/src/layouts/base-layout.tsx',
-											integration: 'react',
-										},
-										dependencies: {
-											components: [
-												{
-													config: {
-														identity: {
-															id: 'shell',
-															file: changedComponent,
-															integration: 'react',
-														},
-													},
-												},
-											],
-										},
-									},
-								},
-							],
-						},
 					}),
 				}),
 				pageMetadataCache: createPageMetadataCache({
@@ -909,14 +743,17 @@ describe('ReactHmrStrategy', () => {
 
 			expect(action).toEqual({
 				type: 'broadcast',
-				events: [
+				events: expect.arrayContaining([
+					{ type: 'update', path: '/assets/__eco_dev__/pages/page-a.js', timestamp: expect.any(Number) },
 					{
-						type: 'layout-update',
+						type: 'update',
+						path: '/assets/__eco_dev__/components/app-shell.js',
+						timestamp: expect.any(Number),
 					},
-				],
+				]),
 			});
+			expect(JSON.stringify(action)).not.toContain('page-b.js');
 		});
-
 		it('matches gives precedence to watched entrypoint check over dependency graph hits', () => {
 			const entrypointA = '/tmp/src/pages/page-a.tsx';
 			const watchedFiles = new Map<string, string>([[entrypointA, '/assets/__eco_dev__/pages/page-a.js']]);

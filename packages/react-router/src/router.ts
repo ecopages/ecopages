@@ -21,6 +21,7 @@ import {
 	useContext,
 	startTransition,
 	createElement,
+	Fragment,
 	type ReactNode,
 	type ComponentType,
 	type FC,
@@ -42,49 +43,33 @@ import {
 	type EcoNavigationTransaction,
 	type EcoReloadRequest,
 } from '@ecopages/core/client';
-import { clearLayoutCache, resolvePersistedLayoutStack, type LayoutComponent } from './layout-cache.ts';
-import {
-	composeLayoutPageTree,
-	assertComposablePage,
-	normalizePageLayoutComponents,
-	type ComposablePage,
-} from '@ecopages/react/layout-compose';
-import type { EcoComponent } from '@ecopages/core';
+import { composeLayoutPageTree, assertComposablePage } from '@ecopages/react/layout-compose';
 import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
 } from '@ecopages/core/client';
 
-/**
- * Router-owned page state.
- *
- * `refreshPersistedLayout` is reserved for refresh-style updates where the
- * route stays logically the same but the page module may have changed, such as
- * HMR or top-level page prop refreshes. Ordinary SPA navigation keeps this flag
- * unset so persisted layouts retain their existing mounted instance.
- */
-type RouterPageState = PageState & {
-	refreshPersistedLayout?: boolean;
-};
-
-type PageContextValue = RouterPageState | null;
+type PageContextValue = PageState | null;
 
 const PageContext = createContext<PageContextValue>(null);
 
 const PersistLayoutsContext = createContext<boolean>(false);
 
-/**
- * @remarks
- * Eco declared layouts widen to React callables for the persistence cache.
- */
-function resolvePageLayoutStack(pageConfig?: ComposablePage['config']): LayoutComponent[] {
-	const layoutEntries = pageConfig?.layoutEntries;
-	if (layoutEntries && layoutEntries.length > 0) {
-		return layoutEntries.map((entry) => entry.component) as LayoutComponent[];
-	}
+const pageMountKeys = new WeakMap<object, string>();
+let nextPageMountKey = 0;
 
-	return normalizePageLayoutComponents(pageConfig?.layouts) as LayoutComponent[];
+/**
+ * Keys a page's tree so that, with `persistLayouts` off, its layouts remount when the page changes.
+ */
+function getPageMountKey(Page: object): string {
+	let key = pageMountKeys.get(Page);
+	if (!key) {
+		nextPageMountKey += 1;
+		key = `page-${nextPageMountKey}`;
+		pageMountKeys.set(Page, key);
+	}
+	return key;
 }
 
 /**
@@ -101,17 +86,13 @@ export interface EcoRouterProps {
 	children: ReactNode;
 }
 
-export { clearLayoutCache } from './layout-cache.ts';
-
 /**
  * Renders the current page with its layout.
  *
- * Must be a child of {@link EcoRouter}. When `persistLayouts` is enabled,
- * shared layouts remain mounted across navigations. When the server serialized
- * request `locals` for hydration, the same `locals` object is passed to the
- * layout on the client so the hydrated tree matches SSR. Refresh-style updates
- * may still replace the cached layout implementation when the router marks the
- * page state with `refreshPersistedLayout`.
+ * Must be a child of {@link EcoRouter}. When `persistLayouts` is enabled, a layout tier stays mounted while
+ * consecutive pages pass the same layout function: a layout module has one URL, so every page that imports it
+ * gets the same function, and React keeps its state. When the server serialized request `locals` for
+ * hydration, the same `locals` object is passed to the layout on the client so the hydrated tree matches SSR.
  *
  * @example
  * ```tsx
@@ -131,28 +112,14 @@ export const PageContent: FC = () => {
 		return null;
 	}
 
-	const { Component: Page, props, refreshPersistedLayout } = pageContext;
+	const { Component: Page, props } = pageContext;
 
 	if (typeof Page !== 'function') {
 		return null;
 	}
 
-	const composablePage = assertComposablePage(Page);
-	const layoutComponents = resolvePageLayoutStack(composablePage.config);
-	const shouldRefreshPersistedLayout = Boolean(refreshPersistedLayout);
-	const persistedTiers =
-		persistLayouts && layoutComponents.length > 0
-			? resolvePersistedLayoutStack(layoutComponents, shouldRefreshPersistedLayout)
-			: undefined;
-
-	return composeLayoutPageTree(composablePage, props, {
-		resolvePersistedTier: persistedTiers
-			? (_layout, index) => ({
-					layout: persistedTiers[index]!.layout as EcoComponent,
-					key: persistedTiers[index]!.key,
-				})
-			: undefined,
-	});
+	const tree = composeLayoutPageTree(assertComposablePage(Page), props);
+	return persistLayouts ? tree : createElement(Fragment, { key: getPageMountKey(Page) }, tree);
 };
 
 function reloadCurrentDocument(): void {
@@ -203,7 +170,6 @@ function useNavigationCoordinator(
 
 		const currentUrl = window.location.href;
 		if (request?.clearCache) {
-			clearLayoutCache();
 			invalidateNavigationHtml(currentUrl);
 		}
 
@@ -282,10 +248,9 @@ function useNavigationCoordinator(
  */
 export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOptions, children }: EcoRouterProps) => {
 	const options = useMemo(() => ({ ...DEFAULT_OPTIONS, ...userOptions }), [userOptions]);
-	const [currentPage, setCurrentPage] = useState<RouterPageState>({
+	const [currentPage, setCurrentPage] = useState<PageState>({
 		Component: page,
 		props: pageProps,
-		refreshPersistedLayout: false,
 	});
 	const [isNavigating, setIsNavigating] = useState(false);
 	const pendingRenderRef = useRef<PendingRender | null>(null);
@@ -313,12 +278,12 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 					return current;
 				}
 
-				return { Component: page, props: pageProps, refreshPersistedLayout: false };
+				return { Component: page, props: pageProps };
 			});
 			return;
 		}
 
-		setCurrentPage({ Component: page, props: pageProps, refreshPersistedLayout: true });
+		setCurrentPage({ Component: page, props: pageProps });
 	}, [page, pageProps]);
 
 	useEffect(() => {
@@ -362,7 +327,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		};
 	}, []);
 
-	const commitNavigatedPage = useCallback((page: SetStateAction<RouterPageState>) => {
+	const commitNavigatedPage = useCallback((page: SetStateAction<PageState>) => {
 		hasNavigatedRef.current = true;
 		setCurrentPage(page);
 	}, []);

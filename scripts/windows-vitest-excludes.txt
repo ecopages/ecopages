@@ -3,16 +3,6 @@
 # Each file fails on windows-latest today and is excluded by scripts/test-vitest-windows.ts.
 # Remove a line when its draft issue is fixed. See the PR for ecopages/ecopages#1015.
 #
-# Draft: "Windows: the page transpile bundles the oxc-resolver native binding"
-e2e/fixtures/browser-router/lazy-dependencies.output.test.ts
-e2e/fixtures/cache/cache.test.ts
-e2e/fixtures/imported-views/imported-views.test.ts
-e2e/fixtures/production-processors/production-processors.test.ts
-e2e/fixtures/production-server-modules/production-server-modules.test.ts
-packages/core/src/assets/asset-processing-service/processors/script/node-module-script.processor.test.ts
-packages/core/src/build/cache/pages-unified-graph-build.test.ts
-packages/core/src/static-site-generator/production-dynamic-collection-browser-graph.test.ts
-#
 # Draft: "Windows: unit tests assume POSIX paths and separators"
 packages/__internals/testing/src/index.test.ts
 packages/codemod/src/transforms/migrate-core-entrypoints.test.ts

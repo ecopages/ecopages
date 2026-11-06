@@ -14,7 +14,7 @@ import { createHash } from 'node:crypto';
 import { builtinModules, createRequire } from 'node:module';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { recordBuildEntryOutput, resolveBuildEntryPath } from '../build-graph.ts';
 import type {
@@ -208,6 +208,27 @@ function isInstalledCompiledModule(filePath: string): boolean {
 }
 
 /**
+ * Returns the import specifier that a server output file in `outdir` uses to load an installed package file.
+ *
+ * @remarks
+ * The specifier is a `./` or `../` path relative to `outdir`. On Windows a package installed on another drive
+ * than `outdir` (a temp folder on `C:` and a checkout on `D:`) has no relative path, so it is a `file:` URL,
+ * which Node's ESM loader accepts where a bare `D:\` path is rejected. `pathApi` exists so tests can run the
+ * Windows rules on any platform.
+ */
+export function toInstalledPackageExternalId(
+	resolvedPath: string,
+	outdir: string,
+	pathApi: Pick<typeof path, 'relative' | 'isAbsolute' | 'sep'> = path,
+): string {
+	const relativePath = pathApi.relative(outdir, resolvedPath).split(pathApi.sep).join('/');
+	if (pathApi.isAbsolute(relativePath)) {
+		return pathToFileURL(resolvedPath, { windows: pathApi === path.win32 || undefined }).href;
+	}
+	return relativePath.startsWith('../') ? relativePath : `./${relativePath}`;
+}
+
+/**
  * Keeps installed compiled packages external as paths relative to the output
  * directory.
  *
@@ -241,8 +262,8 @@ function isInstalledCompiledModule(filePath: string): boolean {
  * Packages the app declares stay bare specifiers through the `external`
  * option, which Rolldown checks before this hook. Packages in
  * `CORE_RUNTIME_BUNDLED_PACKAGES`, workspace and source packages, anything
- * that does not resolve and anything on another drive than `outdir` are
- * bundled.
+ * that does not resolve are bundled. On Windows a package on another drive than
+ * `outdir` stays external as a `file:` URL.
  */
 export function createInstalledPackageExternalPlugin(
 	contextRoot: string,
@@ -271,15 +292,14 @@ export function createInstalledPackageExternalPlugin(
 					return null;
 				}
 				realOutdir ??= realpathOfDirectory(outdir);
-				const relativePath = path.relative(realOutdir, resolved.id).split(path.sep).join('/');
-				if (path.isAbsolute(relativePath)) {
-					return null;
-				}
 				realContextRoot ??= realpathOfDirectory(contextRoot);
 				if (reportDir && !isPathInside(resolved.id, realContextRoot)) {
 					outsideRootPackages.add(packageName);
 				}
-				const externalId = relativePath.startsWith('../') ? relativePath : `./${relativePath}`;
+				const externalId = toInstalledPackageExternalId(resolved.id, realOutdir);
+				if (externalId.startsWith('file:')) {
+					return { id: externalId, external: true };
+				}
 				externalIds.add(externalId);
 				return { id: externalId, external: true };
 			},

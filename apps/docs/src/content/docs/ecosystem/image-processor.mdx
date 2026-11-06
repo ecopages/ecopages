@@ -37,11 +37,11 @@ import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 
-const appRoot = import.meta.dirname;
+const appRoot = process.cwd();
 
 export default defineConfig({
 	rootDir: appRoot,
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	baseUrl: 'https://example.com',
 	processors: [
 		imageProcessorPlugin({
 			options: {

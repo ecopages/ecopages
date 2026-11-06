@@ -337,7 +337,6 @@ const customIntegration = new CustomIntegration();
 
 export default defineConfig({
 	baseUrl: 'https://example.com',
-	rootDir: import.meta.dirname,
 	integrations: [customIntegration],
 });
 ```
@@ -406,7 +405,6 @@ export class CustomIntegration extends IntegrationPlugin {
 
 export default defineConfig({
 	baseUrl: 'https://example.com',
-	rootDir: import.meta.dirname,
 	integrations: [new CustomIntegration()],
 });
 ```

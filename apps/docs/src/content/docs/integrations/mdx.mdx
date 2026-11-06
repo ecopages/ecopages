@@ -54,8 +54,7 @@ import { defineConfig } from '@ecopages/core/config';
 import { mdxPlugin } from '@ecopages/mdx';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	baseUrl: 'https://example.com',
 	integrations: [
 		mdxPlugin({
 			compilerOptions: {
@@ -186,7 +185,6 @@ import { mdxPlugin } from '@ecopages/mdx';
 import { litPlugin } from '@ecopages/lit';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	integrations: [
 		mdxPlugin({
 			compilerOptions: {

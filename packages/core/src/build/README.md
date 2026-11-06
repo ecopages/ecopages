@@ -254,7 +254,7 @@ Mixed-integration apps need explicit `@jsxImportSource` handling in two differen
 | `getHostScopedJsxOwnershipPlugins()` | One integration's **client** bundle graph | Foreign `.tsx`/`.jsx` files compile with the **host** integration JSX runtime (for example React bundling `.kita.tsx`). |
 | component identity build plugin      | Component identity attribution            | Prepends the **owning** integration pragma when injecting `identity` into native files.                                 |
 
-`foreign-jsx-override-plugin.ts` is the shared implementation. Prefer the helpers above instead of calling it directly from integrations. It is a `transform`, not an `onLoad`, so it composes with an earlier loader such as the React client-graph boundary rather than replacing its output.
+`foreign-jsx-override-plugin.ts` is the shared implementation. Prefer the helpers above instead of calling it directly from integrations. Its `scope` option, which `getHostScopedJsxOwnershipPlugins()` passes through, returns per build which foreign files the override claims; React uses it so a foreign file in a build shared with other Integrations gets React's runtime only when a React entry reaches it. It is a `transform`, not an `onLoad`, so it composes with an earlier loader such as the React client-graph boundary rather than replacing its output.
 
 ## Rolldown operator notes
 

@@ -1,6 +1,6 @@
 import { createForeignJsxOverridePlugin } from '../../plugins/foreign-jsx-override-plugin.ts';
 import { collectJsxExtensions, filterJsxSourceExtensions } from '../../plugins/jsx-import-source.utils.ts';
-import type { EcoBuildPlugin } from '../contracts/build-types.ts';
+import type { EcoBuildPlugin, EcoBuildPluginBuilder } from '../contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 
 type JsxExtensionEntry = {
@@ -15,6 +15,12 @@ function collectJsxExtensionEntries(appConfig: EcoPagesAppConfig): JsxExtensionE
 			filterJsxSourceExtensions(integration.extensions).map((extension) => ({ integration, extension })),
 		)
 		.sort((left, right) => right.extension.length - left.extension.length);
+}
+
+/** Name of the JSX Integration whose longest extension `filePath` ends with, if any. */
+export function findJsxExtensionOwner(appConfig: EcoPagesAppConfig, filePath: string): string | undefined {
+	return collectJsxExtensionEntries(appConfig).find(({ extension }) => filePath.endsWith(extension))?.integration
+		.name;
 }
 
 /**
@@ -54,7 +60,7 @@ export function getJsxOwnershipPlugins(appConfig: EcoPagesAppConfig): EcoBuildPl
 export function getHostScopedJsxOwnershipPlugins(
 	appConfig: EcoPagesAppConfig,
 	hostIntegrationName: string,
-	options?: { name?: string },
+	options?: { name?: string; scope?: (build: EcoBuildPluginBuilder) => (sourcePath: string) => boolean },
 ): EcoBuildPlugin[] {
 	const hostIntegration = (appConfig.integrations ?? []).find(
 		(integration) => integration.name === hostIntegrationName,
@@ -73,6 +79,7 @@ export function getHostScopedJsxOwnershipPlugins(
 			name: options?.name ?? `ecopages-jsx-ownership-host-${hostIntegrationName}`,
 			hostJsxImportSource,
 			foreignExtensions,
+			...(options?.scope ? { scope: options.scope } : {}),
 		}),
 	];
 }

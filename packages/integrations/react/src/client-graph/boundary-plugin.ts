@@ -6,11 +6,17 @@
 
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
-import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult, EcoBuildPlugin } from '@ecopages/core/integration';
+import type {
+	EcoBuildOnLoadArgs,
+	EcoBuildOnLoadResult,
+	EcoBuildPlugin,
+	EcoBuildPluginBuilder,
+} from '@ecopages/core/integration';
 import type { RequestedExportRules } from './specifier-classification.ts';
 import { parseDeclaredModules, toModuleBaseSpecifier } from './specifier-classification.ts';
 import { classifyClientGraphModule } from './module-classification.ts';
 import { transformClientGraphModule } from './boundary-plugin-transform.ts';
+import { scanForeignJsxReach, toRealPath, type ForeignJsxReach } from './foreign-jsx-reach.ts';
 
 const SOURCE_FILE_FILTER = /\.(tsx?|jsx?)$/;
 
@@ -28,6 +34,7 @@ type ClientGraphBoundaryBuildContext = {
 	configs: NormalizedClientGraphBoundaryOptions[];
 	entrypointFiles: Set<string>;
 	requestedExports: Map<string, RequestedExportRules>;
+	foreignJsxReach?: ForeignJsxReach;
 };
 
 const buildContexts = new WeakMap<Readonly<Record<string, string>>, ClientGraphBoundaryBuildContext>();
@@ -188,17 +195,21 @@ function getBuildContext(
 	return context;
 }
 
+function getReactEntrypointFiles(context: ClientGraphBoundaryBuildContext): Set<string> {
+	return new Set(
+		context.configs
+			.flatMap((config) => [config.entrypointFile, ...config.groupedEntrypointFiles])
+			.filter((filePath): filePath is string => filePath !== undefined),
+	);
+}
+
 function loadBuildClientGraphBoundaryModule(
 	args: EcoBuildOnLoadArgs,
 	context: ClientGraphBoundaryBuildContext,
 ): EcoBuildOnLoadResult | undefined {
 	const sourcePath = path.resolve(context.configs[0]?.absWorkingDir ?? process.cwd(), args.path);
 	const rootConfigs = context.configs.filter((config) => config.entrypointFile === sourcePath);
-	const reactEntrypointFiles = new Set(
-		context.configs
-			.flatMap((config) => [config.entrypointFile, ...config.groupedEntrypointFiles])
-			.filter((filePath): filePath is string => filePath !== undefined),
-	);
+	const reactEntrypointFiles = getReactEntrypointFiles(context);
 	if (context.entrypointFiles.has(sourcePath) && !reactEntrypointFiles.has(sourcePath)) {
 		return undefined;
 	}
@@ -216,6 +227,58 @@ function loadBuildClientGraphBoundaryModule(
 		alwaysAllowSpecifiers: [...new Set(context.configs.flatMap((config) => config.alwaysAllowSpecifiers))],
 	};
 	return loadClientGraphBoundaryModule(args, options, context.requestedExports);
+}
+
+function getForeignJsxReach(
+	context: ClientGraphBoundaryBuildContext,
+	projectRoot: string,
+	isForeignFile: (filePath: string) => boolean,
+): ForeignJsxReach {
+	if (!context.foreignJsxReach) {
+		const reactEntryFiles = new Set([...getReactEntrypointFiles(context)].map(toRealPath));
+		context.foreignJsxReach = scanForeignJsxReach({
+			projectRoot,
+			reactEntryFiles,
+			otherEntryFiles: [...context.entrypointFiles].map(toRealPath).filter((file) => !reactEntryFiles.has(file)),
+			isForeignFile,
+		});
+	}
+	return context.foreignJsxReach;
+}
+
+/**
+ * Scope for React's foreign-JSX override: a file another JSX Integration owns gets React's JSX runtime only when
+ * a React entry file reaches it.
+ *
+ * @remarks
+ * Reach comes from a static import scan of the build's entry files before any module loads, so it does not
+ * depend on load order. A foreign file only another Integration's entry reaches keeps its owner's runtime. One
+ * that both reach fails the build, since it has one URL and so one compiled form. A build without boundary
+ * plugins, and a file the scan does not find, keep the override, as in a React-only build.
+ */
+export function createForeignJsxScope(options: {
+	projectRoot: string;
+	hostIntegrationName: string;
+	/** Name of the other JSX Integration that owns `filePath`; `undefined` when the file is not foreign. */
+	findForeignOwner: (filePath: string) => string | undefined;
+}): (build: EcoBuildPluginBuilder) => (sourcePath: string) => boolean {
+	const isForeignFile = (filePath: string) => options.findForeignOwner(filePath) !== undefined;
+	return (build) => (sourcePath) => {
+		const context = build.entrypoints ? buildContexts.get(build.entrypoints) : undefined;
+		const owner = options.findForeignOwner(sourcePath);
+		if (!context || context.configs.length === 0 || owner === undefined) return true;
+		const reach = getForeignJsxReach(context, options.projectRoot, isForeignFile);
+		const filePath = toRealPath(sourcePath);
+		const otherEntry = reach.others.get(filePath);
+		if (otherEntry === undefined) return true;
+		if (!reach.react.has(filePath)) return false;
+		throw new Error(
+			`[ecopages] ${filePath} is a ${owner} file that both ${options.hostIntegrationName} browser entries and ` +
+				`another browser entry (${otherEntry}) import. ${options.hostIntegrationName} compiles it with its ` +
+				`own JSX runtime and ${owner} with its runtime, but one module has one compiled form. Import it ` +
+				`from one of them only.`,
+		);
+	};
 }
 
 /**

@@ -7,10 +7,10 @@
  * @module
  */
 
-import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
+import { createClientGraphBoundaryPlugin, createForeignJsxScope } from '../client-graph/boundary-plugin.ts';
 import { getReactClientGraphAllowSpecifiers, getReactRuntimeExternalSpecifiers } from './runtime-alias-map.ts';
 import { createBrowserRuntimePlugin } from '@ecopages/core/build';
-import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build';
+import { findJsxExtensionOwner, getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build';
 import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/integration';
 import type { AssetDefinition, AssetProcessingIntegration } from '@ecopages/core/integration';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
@@ -63,7 +63,17 @@ export class BundleService {
 		[this.foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(
 			config.appConfig,
 			config.hostIntegrationName,
-			{ name: 'react-renderer-foreign-jsx-override' },
+			{
+				name: 'react-renderer-foreign-jsx-override',
+				scope: createForeignJsxScope({
+					projectRoot: config.appConfig?.absolutePaths?.projectDir ?? config.rootDir,
+					hostIntegrationName: config.hostIntegrationName,
+					findForeignOwner: (filePath) => {
+						const owner = findJsxExtensionOwner(config.appConfig, filePath);
+						return owner === config.hostIntegrationName ? undefined : owner;
+					},
+				}),
+			},
 		);
 		this.runtimeRewritePlugin = createBrowserRuntimePlugin({
 			name: 'react-renderer-runtime-import-rewrite',

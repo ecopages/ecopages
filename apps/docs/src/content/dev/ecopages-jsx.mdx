@@ -1,0 +1,81 @@
+---
+title: "Ecopages JSX"
+description: "How the Ecopages JSX Integration renders @ecopages/jsx templates, optionally wires Radiant SSR and hydration, compiles MDX, and refreshes pages in development."
+section: packages
+order: 23
+sources:
+  - packages/integrations/ecopages-jsx/src/ecopages-jsx.plugin.ts
+  - packages/integrations/ecopages-jsx/src/ecopages-jsx-renderer.ts
+  - packages/integrations/ecopages-jsx/src/ecopages-jsx-radiant-ssr-policy.ts
+  - packages/integrations/ecopages-jsx/src/ecopages-jsx-radiant-light-dom.ts
+  - packages/integrations/ecopages-jsx/src/resolve-radiant-install-hydrator.ts
+  - packages/integrations/ecopages-jsx/src/radiant-registered-script-ssr-invalidation.ts
+  - packages/integrations/ecopages-jsx/src/page-owned-content-script-grouping.ts
+  - packages/integrations/ecopages-jsx/src/ecopages-jsx-mdx.ts
+  - packages/integrations/ecopages-jsx/src/ecopages-jsx-hmr-strategy.ts
+  - packages/integrations/ecopages-jsx/src/ecopages-jsx-hmr-ownership.ts
+  - packages/integrations/ecopages-jsx/src/dev-transform/
+  - packages/integrations/ecopages-jsx/README.md
+---
+
+# Ecopages JSX
+
+`@ecopages/ecopages-jsx` owns `.tsx` Pages compiled against the `@ecopages/jsx` runtime. It optionally adds Radiant, the web-component layer, for server rendering and in-place hydration, and optionally compiles MDX.
+
+## What it plugs into core
+
+| Contract                  | Ecopages JSX                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Plugin name / extensions  | `ecopages-jsx` / `['.tsx']` by default; `extensions` replaces it, and `mdx.extensions` (default `['.mdx']`) is appended when `mdx` is set |
+| `jsxImportSource`         | `@ecopages/jsx`                                                                                               |
+| Renderer                  | `createEcopagesJsxRenderer(jsxConfig)` on `createIntegrationRenderer`; `jsxConfig` carries `mdxExtensions` and `radiantSsrEnabled` |
+| `bundlesPageDependencies` | `true`                                                                                                        |
+| `serverDom`               | `{ kind: 'complete' }` installing Radiant's light DOM when `radiant` is on (default); otherwise none          |
+| Global dependency         | with Radiant, `@ecopages/radiant/client/install-hydrator` as a head script, `bundle: false`, id `ecopages-jsx-radiant-hydrator` |
+| Build plugins             | the `ecopages-jsx-mdx-loader` plugin when `mdx` is set; none otherwise                                        |
+| `prepareAssetDependencies`| tags page-owned content scripts into the app-wide client bundle                                               |
+| HMR                       | `EcopagesJsxHmrStrategy` plus `EcopagesJsxDevTransformContributor`                                            |
+
+## SSR policy
+
+JSX is rendered with `renderToString` from `@ecopages/jsx/server`. Radiant lives in `EcopagesJsxRadiantSsrPolicy`, which wraps each render in a server custom-element render hook: a registered intrinsic tag that has an element instance is serialized through Radiant's `renderHostToString`, so framework-specific host rendering stays out of page code.
+
+- Radiant's server bridge is loaded lazily, once per policy instance, because most renders never need it.
+- The DOM constructors are not installed here. Core installs them at Integration setup (`serverDom`), before any element is defined; the policy only fills in when no registry exists.
+- With `radiant: false` the policy is disabled and `serverDom` is undefined.
+
+### `ssr: true` scripts
+
+Components declare element registration once in `dependencies.scripts`. A `CustomElementScriptPreloader` imports entries marked `ssr: true` before render (`beforeRender` and `renderComponent`) so the host can SSR without a redundant import in the component file. It is enabled only when Radiant is, and its state lives on the `AppRuntime`, so apps do not share preload history. In development a changed script entrypoint invalidates its registration (`invalidateRadiantRegisteredScriptSsrRegistration`).
+
+## Hydration story
+
+There is no island entry generator here. The two pieces are:
+
+- Page-level scripts are Component Dependencies; with `bundlesPageDependencies` and `prepareAssetDependencies`, page-owned content scripts join the app-wide client bundle ([Build pipeline](/dev/build-pipeline)). File scripts of Components and Integration runtime assets stay ungrouped.
+- Radiant hosts hydrate in place only when SSR markers and the client hydrator both exist. The hydrator script is loaded explicitly in the head so it runs before any custom-element module connects; relying on elements to install it opportunistically is not supported. Without it Radiant falls back to a fresh client render on first connect.
+
+`RadiantElement` preserves SSR light-DOM nodes (focus, input state, media). `RadiantController` activation re-mounts its template into the host, so child nodes are rebuilt.
+
+## MDX
+
+`ecopages-jsx-mdx.ts` wraps the shared `@ecopages/mdx/core` helpers with `jsxImportSource: '@ecopages/jsx'`, `format: 'detect'` and `outputFormat: 'program'`. The renderer's `normalizePageModule` hook adapts MDX Page modules (layouts via `ensurePageConfigLayouts`). See [MDX](/dev/mdx).
+
+## HMR
+
+The strategy matches a changed file under the source directory (excluding the includes directory) when it is a Page or Layout file with a JSX template extension, or a file the latest render used. It returns a `layout-update` broadcast, so the navigation runtime refreshes the current Page ([HMR strategies](/dev/hmr-strategies), [Navigation](/dev/navigation)). Registered script entrypoints are skipped; script HMR handles them.
+
+"Used by the latest render" comes from a module-scoped ownership set recorded by `withEjsxHmrOwnershipScope` / `recordEjsxHmrOwnership`, so the watcher need not walk the component tree. Only the latest top-level render is kept, so a file used only by an earlier-rendered Page does not match until that Page renders again.
+
+The dev-transform contributor claims Page and Layout entrypoints and supplies the MDX loader for `.mdx` modules.
+
+## Mixed rendering
+
+- `normalizeForeignChildProps` serializes JSX `children` to HTML when the target Integration is not `ecopages-jsx` (DOM-like nodes use `outerHTML`; arrays, React-like elements and template results go through `renderToString`).
+- `renderQueuedChildren` resolves queued foreign tokens in the serialized children.
+- Cross-Integration shell stacks use `EcoEmbed` from `@ecopages/ecopages-jsx/eco-embed`.
+- Components that may render Foreign Children declare them in `config.dependencies.components` ([Integrations and Foreign Children](/dev/integrations-foreign-children)).
+
+## See also
+
+[Islands and hydration](/dev/islands-hydration), [Plugin pipeline](/dev/plugin-pipeline), [Lit](/dev/lit) (the other Integration that registers custom elements).

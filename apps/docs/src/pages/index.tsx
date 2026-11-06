@@ -370,9 +370,6 @@ export default eco.page<{}, JsxRenderable>({
 						</a>
 					</p>
 					<p>
-						<a href="/dev">Architecture</a>
-					</p>
-					<p>
 						Built with{' '}
 						<a href="https://github.com/ecopages/ecopages" target="_blank" rel="noopener noreferrer">
 							Ecopages

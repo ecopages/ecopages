@@ -1,0 +1,82 @@
+---
+title: "PostCSS processor"
+description: "How @ecopages/postcss-processor loads PostCSS plugins, transforms stylesheets, and keeps a runtime CSS cache that drives css-update in development."
+section: packages
+order: 28
+sources:
+  - packages/processors/postcss-processor/src/plugin.ts
+  - packages/processors/postcss-processor/src/postcss-processor.ts
+  - packages/processors/postcss-processor/src/postcss-config-loading.ts
+  - packages/processors/postcss-processor/src/postcss-import-app-aware.ts
+  - packages/processors/postcss-processor/src/runtime/css-loader-plugin.ts
+  - packages/processors/postcss-processor/src/presets/
+  - packages/core/src/plugins/processor.ts
+  - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts
+---
+
+# PostCSS processor
+
+`PostCssProcessorPlugin` is a Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline)) that owns stylesheets. Its single `stylesheet` capability matches `*.{css,scss,sass,less}` and is narrowed by a filename filter, default `/\.css$/`. Files inside the app's public directory are excluded: the build copies them as written, so a processed copy would be linked by no Page.
+
+## Two routes to the page
+
+CSS reaches the page by two routes that share one function, `transformStylesheet(css, file)`.
+
+```mermaid
+flowchart TD
+  T["transformStylesheet: input hook, PostCSS plugins, output hook"]
+  A["Core asset pipeline: applyStylesheetProcessors"] --> T
+  B["Browser build: onLoad of a stylesheet import"] --> T
+  C["setup prewarm and dev watch"] --> T
+  T --> D["Page stylesheet asset, or default export of an imported CSS module"]
+```
+
+- Asset pipeline: for every `.css`, `.scss`, `.sass` or `.less` dependency, core calls `transformStylesheet` on each Processor whose `stylesheet` capability matches, in registration order, each receiving the previous output. This is how `config.dependencies.stylesheets` and content stylesheets get processed.
+- Browser build loader: `plugins()` returns one loader with `environments: ['browser']`. It runs PostCSS on any matching stylesheet a browser build imports and returns it as the module's `default` export (`loader: 'object'`), including files outside `srcDir` or added after the prewarm.
+
+Server builds register nothing for CSS: the bundler replaces their stylesheet imports with an empty module before any plugin loads them.
+
+## Per-environment handling
+
+| Environment | Behavior |
+| --- | --- |
+| `server` build | No plugin from this Processor. |
+| `browser` build | Build loader above. |
+| Development | `setup()` prewarms the runtime cache; `onChanges` keeps it current and broadcasts. |
+| Production runtime | `persistProcessedCss` writes `distDir/assets/<hash>.css` from the output bytes (`writeHashedBrowserAsset`). |
+
+In development the persisted file keeps its source-relative path under `distDir/assets`, rewritten only when the bytes change. Only stylesheets inside `srcDir` are persisted.
+
+## Config loading
+
+The plugin list loads lazily, once, on the first `transformStylesheet` (`ensurePostcssPlugins`); a failed load is dropped so the next stylesheet retries. Config finalization does not load the plugins, so a build that starts before `setup()` and an app without stylesheets both work.
+
+Resolution order in `resolvePostcssPluginsFromSources`:
+
+1. `postcss.config.{js,cjs,mjs,ts}` in `rootDir`, imported dynamically. It may export `pluginFactories` and `plugins` (array or record). An import error is logged and yields no config.
+2. Otherwise `options.plugins` or `options.pluginFactories`.
+3. Otherwise a warning and an empty plugin list.
+
+Note that a config file wins over options.
+
+`PostCssProcessor.processStringOrBuffer` runs the plugins and the `transformOutput` hook. On a PostCSS error it logs and returns `''`, so a broken stylesheet becomes empty CSS rather than a thrown error.
+
+## Presets
+
+`src/presets/` holds `tailwindV3Preset()` and `tailwindV4Preset({ referencePath })`. Both return `plugins` for immediate use and `pluginFactories`, with `postcss-import` (app-aware, resolving from the app root), nesting, Tailwind, autoprefixer and cssnano.
+
+Factories exist because Tailwind keeps internal caches in long-lived plugin instances: when a non-CSS file changes, `refreshConfiguredPlugins` rebuilds the list from them so newly used classes are found.
+
+The v4 preset also sets `dependencyEntryPaths: [referencePath]` and a `transformInput` that rewrites `@import 'tailwindcss'` to the reference file, or prepends `@reference` to files that use `@apply`, so component stylesheets see the theme. It skips the reference file itself and files that already reference it.
+
+## Runtime cache and `css-update`
+
+`runtimeCssCache` maps a stylesheet path to its last output. `setup()` fills it for every matching file in `srcDir` and builds a map from imported files to the entry stylesheets that `@import` them (relative imports only, followed transitively).
+
+In `onChanges` (queued, so batches run in order):
+
+- A changed CSS file that is an import of an entry rebuilds that entry, not the file.
+- A changed non-CSS file (watch extensions include `.ts`, `.tsx`, `.mdx`, `.html` and others) rebuilds the entries from `dependencyEntryPaths`, or every tracked entry when none is set.
+- `processAndBroadcast` re-runs the transform and calls `bridge.cssUpdate(file)` only when the output differs from the cached one. A failure calls `bridge.error`.
+
+The bridge sends a `css-update` message and the client refreshes matching stylesheet `link` hrefs; see [/dev/hmr-watcher-invalidation](/dev/hmr-watcher-invalidation) and [/dev/hmr-client](/dev/hmr-client). CSS does not go through HMR strategies.

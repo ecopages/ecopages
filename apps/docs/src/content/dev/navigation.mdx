@@ -1,0 +1,51 @@
+---
+title: "Navigation"
+description: "The browser-side navigation coordinator that browser-router, react-router and the HMR client share, and the helpers both routers build on."
+section: development
+order: 10
+sources:
+  - packages/core/src/router/client/
+  - packages/core/src/client/navigation-attributes.ts
+  - packages/core/src/client/navigation-scripts/
+---
+
+# Navigation
+
+Two routers can run in one site: [browser-router](/dev/browser-router) for server-rendered documents and [react-router](/dev/react-router) for React pages. Neither owns navigation alone. `packages/core/src/router/client/` holds the framework-agnostic parts they share, so a click, a handoff between them and a development reload all agree on who owns the document and which navigation is current.
+
+## The coordinator
+
+`navigation-coordinator.ts` keeps one `EcoNavigationRuntime` on `window.__ECO_PAGES__.navigation`. A router registers an `EcoNavigationRuntimeRegistration` with optional capabilities:
+
+| Capability | Purpose |
+| --- | --- |
+| `navigate` | Navigate to a request routed to this owner. |
+| `handoffNavigation` | Accept a document another runtime already fetched. |
+| `reloadCurrentPage` | Re-render the current URL in place; `clearCache` discards cached client state and `moduleUrl` forces a page entry. |
+| `cleanupBeforeHandoff` | Release client state before another runtime commits a document. `requestHandoff()` does not run it; the accepting runtime decides when, so the current page is not blanked before the incoming document is ready. |
+| `enableReloadStatePreservation` | Start keeping what `reloadCurrentPage` needs to preserve state. |
+
+The coordinator arbitrates three things:
+
+- **Ownership.** `claimOwnership` and `releaseOwnership` track the active owner (`browser-router`, `react-router` or `none`). A rendered document names its owner in `data-eco-document-owner`; `adoptDocumentOwner` reads it, and a document without the marker leaves the router on its local default.
+- **Transactions.** `beginNavigationTransaction` starts a new navigation and invalidates the previous one. A transaction exposes an `AbortSignal`, `isCurrent()` and `isSuperseded()`. Superseded differs from not current: a navigation that completed normally is no longer current, yet still owes work such as `eco:page-load`, which is skipped only when a newer navigation replaced it or it was cancelled.
+- **Handoff and reload.** `requestNavigation` and `requestHandoff` send a request or a pre-fetched document to another registered runtime; `reloadCurrentPage` asks the active owner; `enableReloadStatePreservation` asks every runtime now and any that registers later.
+
+A handoff carries the already fetched `Document`, so the receiving runtime commits it without another request.
+
+## Shared helpers
+
+| Module | Role |
+| --- | --- |
+| `link-intent` | Finds the anchor for a click, pointer or hover event across Shadow DOM boundaries, and remembers the last valid target while a navigation is in flight. |
+| `link-navigation-policy` | Decides whether a link is intercepted. It returns the refusal reason: modified or non-left click, external target, explicit reload attribute, download, no-prefetch, invalid or cross-origin href, static asset, or same-page hash. |
+| `navigation-document` | Fetches and parses the next page, with an HTML cache and a final-URL map for redirects. |
+| `navigation-head` | Reconciles the document head and activates staged stylesheets before the swap. |
+| `navigation-commit`, `navigation-pipeline` | The shared commit pipeline that each router plugs its page swap into. |
+| `navigation-view-transition` | Wraps the swap in a View Transition. |
+| `navigation-replay` | Decides what happens to a click queued during a navigation: nothing for the same page and hash, otherwise a local navigation or one through the coordinator. |
+| `navigation-lifecycle` | Dispatches the public events. |
+
+## Lifecycle events
+
+`eco:before-swap`, `eco:after-swap` and `eco:page-load` are the public contract for dev tooling, global injectors and layout scripts. Dispatch helpers live in `navigation-lifecycle.ts` so both routers stay aligned. `eco:before-swap` reports whether a listener asked for a reload. `eco:after-swap` fires after the commit, and `eco:page-load` is scheduled on the next animation frame unless a newer navigation replaced this one. Router specifics, such as the body morph and persisted elements, are in [Browser router](/dev/browser-router); React's page swap is in [React router](/dev/react-router). The HMR client reaches both through `reloadCurrentPage`; see [HMR client](/dev/hmr-client).

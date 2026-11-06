@@ -20,13 +20,35 @@ export const DEV_ROOT = '/dev';
  */
 export const DEV_ROBOTS: PageRobotsMetadata = { index: false };
 
+/** Sidebar sections of the developer area, in display order. */
+export const DEV_SECTION_ORDER = ['overview', 'build', 'rendering', 'development', 'hmr', 'packages'] as const;
+
+export type DevSectionId = (typeof DEV_SECTION_ORDER)[number];
+
+/** Slug of the overview entry, served at `/dev` instead of `/dev/index`. */
+export const DEV_INDEX_SLUG = 'index';
+
+export const DEV_SECTION_TITLES: Record<DevSectionId, string> = {
+	overview: 'Overview',
+	build: 'Build',
+	rendering: 'Rendering',
+	development: 'Development',
+	hmr: 'HMR',
+	packages: 'Packages',
+};
+
+export function devEntryHref(slug: string): string {
+	return slug === DEV_INDEX_SLUG ? DEV_ROOT : `${DEV_ROOT}/${slug}`;
+}
+
 export const devFrontmatterSchema = z.object({
 	title: z.string(),
 	description: z.string(),
+	section: z.enum(DEV_SECTION_ORDER),
 	order: z.coerce.number().optional(),
 	/**
-	 * Repository paths the page describes: a directory ends with `/`. A change to one of them
-	 * means the page needs a look.
+	 * Repository paths the page describes: a directory ends with `/`. Metadata for readers and
+	 * maintainers; nothing in CI checks it.
 	 */
 	sources: z.array(z.string()).min(1),
 });

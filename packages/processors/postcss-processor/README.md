@@ -9,7 +9,7 @@ Build contributions use one `plugins(app)` method. The PostCSS plugin list loads
 - **Ecopages Processor Plugin**: Hook right into the build pipeline. In production, processed CSS is persisted under a name derived from a hash of the output bytes.
 - **Tailwind Presets**: Pre-configured pipelines for Tailwind CSS v3 and v4.
 - **Automatic Configuration**: Detects existing `postcss.config.{js,ts,etc}`.
-- **CSS imports**: A server build plugin turns CSS imported from TS/JS files into the processed CSS string.
+- **CSS imports**: A browser-only build loader runs PostCSS on CSS imported from TS/JS files. Server builds receive an empty module for each CSS import from core's server CSS shim.
 
 ## Installation
 

@@ -1,0 +1,104 @@
+---
+title: "Dev server"
+description: "How ecopages dev serves browser modules: the transform server that compiles each module on request, and the vendor graph that prebundles package imports."
+section: development
+order: 9
+sources:
+  - packages/core/src/dev/transform-server/
+  - packages/core/src/hmr/hmr-asset-paths.ts
+  - packages/core/src/adapters/shared/hmr/hmr-manager.ts
+  - packages/core/src/assets/asset-processing-service/processors/script/file-script.processor.ts
+  - packages/core/src/build/browser/browser-runtime-manifest.ts
+  - packages/core/src/build/browser/browser-runtime-plugin.ts
+---
+
+# Dev server
+
+In `ecopages dev` every browser module has exactly one URL, and nothing compiles until the browser asks for it. The dev transform server compiles each source module on request and serves it at a URL derived from its path, while bare package imports go to a prebundled vendor graph. Production reaches the same rule by emitting hashed chunks once per app; see [Build pipeline](/dev/build-pipeline).
+
+The rule exists because browsers key ES modules by URL: two URLs for one file are two module instances.
+
+## The transform server
+
+`DevTransformServer` (`dev/transform-server/dev-transform-server.ts`) serves browser ESM on demand during `ecopages dev`. The HMR manager owns one instance and registers into it every module that needs a browser URL: page and island modules an Integration hydrates (React calls `registerEntrypoint`), and every bundled file script, which the file-script processor sends to the HMR manager instead of bundling while HMR is on.
+
+Registration only computes a URL; nothing compiles until the browser asks for it.
+
+### URL shape
+
+| Source location | URL |
+| --- | --- |
+| Under `srcDir` | `/assets/__eco_dev__/<path relative to srcDir>.js` |
+| In a linked workspace package | `/assets/__eco_dev__/@fs/<absolute path>.js` |
+| A stylesheet imported from a module | the same shapes, keeping `.css` |
+
+The `.ts`, `.tsx`, `.jsx`, `.mdx` and `.md` extensions become `.js`, and path segments are URL-encoded. To resolve a request, the server first checks its registered URLs, then decodes the path and tries the source extensions in order (`.tsx`, `.ts`, `.jsx`, `.js`, `.mdx`, `.md`). This lazy lookup serves page modules that client-side navigation requests before any server render registered them. A path that leaves `srcDir` and the workspace package roots never resolves.
+
+The `@fs` form lets an island outside the app folder, such as one from a linked workspace package, still hydrate.
+
+### Compiling one module
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant S as DevTransformServer
+  participant R as Rolldown
+  participant V as Vendor registry
+  B->>S: "GET /assets/__eco_dev__/islands/counter.js"
+  S->>S: "cache hit for source hash?"
+  S->>R: "one-entry build, imports external"
+  R-->>S: transpiled module
+  S->>S: rewrite import specifiers
+  S->>V: "resolveVendorUrl('react-aria')"
+  V-->>S: "/assets/vendors/react-aria.1a2b3c4d.js"
+  S-->>B: "ESM, Cache-Control: no-store"
+```
+
+`DevTransformBundler` runs a Rolldown build with a single entry on the `hmr` lane. The `ecopages-dev-transform-externalize-imports` plugin marks every import external, so only the requested file is compiled; namespaced imports such as `ecopages:images` stay internal so their virtual-module plugins can inline them. The Integration that claims the module through its `DevTransformBundleContributor` adds its own plugins, for example a client-graph boundary or the MDX loader.
+
+The server keeps one cache entry per source file, keyed by the file's content hash, and one in-flight compile per source. A result is committed only if the source did not change or get invalidated while it compiled; otherwise the request compiles again. A stylesheet needs no build: it becomes `export default "<css>"`, since real stylesheet delivery goes through Dependencies.
+
+A failed compile answers `500` with the error text and reports it to the HMR manager, which shows it in the page. See [HMR client](/dev/hmr-client) for how errors and updates reach the browser.
+
+### Import rewriting
+
+`rewriteModuleImports` parses the compiled module and rewrites each static import, re-export and literal `import()` specifier, checking in this order:
+
+1. A specifier in an Integration's browser runtime manifest (for example `react`) becomes that runtime's fixed public URL.
+2. A `node:` builtin fails the module with an error that points at the importer's browser exports or client-graph boundary.
+3. A relative or absolute path, or a tsconfig path alias, becomes the target's transform URL plus `?v=<content hash>`.
+4. Any other bare specifier goes to the vendor registry.
+
+The `?v=` query makes the browser treat an edited dependency as a new module, so a soft HMR update picks up changed layouts and components without a full reload. The pathname itself never changes, so a module keeps one identity per content version. Relative module `Worker` and `SharedWorker` URLs are rewritten the same way. Every resolved local import is reported back to the HMR manager as a dependency of the module, which drives invalidation.
+
+## The vendor graph
+
+Bare package imports are not compiled one by one. `DevTransformVendorRegistry` prebundles them into process-local files under `/assets/vendors/`.
+
+```mermaid
+flowchart TD
+  A["app module imports 'react-aria'"] --> R[resolve package entry]
+  R --> E[add entry to graph]
+  E --> Q{50 ms quiet period}
+  Q --> B[one code-split Rolldown build]
+  B --> M[(in-memory outputs)]
+  M --> U["/assets/vendors/name.entryhash.js"]
+  M --> C["/assets/vendors/chunk-contenthash.js"]
+```
+
+Every known dependency entry, meaning each package file an app module imports by a bare specifier, is an entry of one code-split build per vendor graph. A module that two entries reach, such as a file shared by a package root and its subpath or a CommonJS module several packages `require()`, lands in one shared chunk that the entries import relatively. Inside one graph a module therefore has exactly one chunk.
+
+There are two graphs because a build takes one list of resolve conditions: `@ecopages/core` resolves browser-first (`browser`, `module`, `import`, `default`) so its browser entry wins, and every other package resolves module-first. A package both graphs reach loads once per graph.
+
+| Behavior | Rule |
+| --- | --- |
+| Entry URL | `/assets/vendors/<specifier>.<hash of entry path>.js`, stable across rebuilds, so URLs already embedded in served modules stay valid |
+| Chunk URL | `/assets/vendors/<name>-<content hash>.js` |
+| Batching | a new entry schedules a rebuild after a 50 ms quiet period, so the bare imports of one page load share one build |
+| Storage | outputs stay in process memory; nothing is written under `dist` |
+| Seeding | known specifiers are written to `dev-vendor-entries.json` in the work directory; the next process seeds from it and builds the full graph on its first request instead of rebuilding and reloading |
+| Failures | a failed graph build retries entry by entry; failing entries answer `500` with the prebundle error and the rest build without them |
+| Changes | when a rebuild changes or drops a file a browser already received, the HMR manager broadcasts `reload`, since mixing old and new chunks could load a module twice |
+| Caching | responses carry `Cache-Control: no-cache` and a content `ETag`, so the browser revalidates and gets `304` while the content holds |
+
+Vendor builds leave out the app's build plugins and run only the vendor plugins contributors supply, such as runtime rewrites.

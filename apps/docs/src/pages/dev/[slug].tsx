@@ -3,7 +3,7 @@ import type { GetMetadata, GetStaticProps } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { getComponent, getEntryDependencies } from 'ecopages:content/dev/server';
-import { DEV_ROBOTS, DEV_ROOT, type DevContentEntry } from '@/content/dev';
+import { DEV_INDEX_SLUG, DEV_ROBOTS, DEV_ROOT, type DevContentEntry } from '@/content/dev';
 import { DevBreadcrumb, DevSources } from '@/components/dev-page';
 import { devEntries } from '@/lib/dev-nav';
 import { DevLayout } from '@/layouts/docs-layout';
@@ -21,7 +21,7 @@ const getMetadata: GetMetadata<DevPageProps> = ({ props: { entry } }) => ({
 
 const staticProps: GetStaticProps<DevPageProps> = async ({ pathname }) => {
 	const slug = pathname.params.slug;
-	const entry = devEntries.find((candidate) => candidate.slug === slug);
+	const entry = devEntries.find((candidate) => candidate.slug === slug && candidate.slug !== DEV_INDEX_SLUG);
 
 	if (!entry) {
 		throw HttpError.NotFound(`Unknown developer page: ${String(slug)}`);
@@ -33,7 +33,9 @@ const staticProps: GetStaticProps<DevPageProps> = async ({ pathname }) => {
 export default eco.page<DevPageProps, JsxRenderable>({
 	layout: DevLayout,
 	staticPaths: async () => ({
-		paths: devEntries.map((entry) => ({ params: { slug: entry.slug } })),
+		paths: devEntries
+			.filter((entry) => entry.slug !== DEV_INDEX_SLUG)
+			.map((entry) => ({ params: { slug: entry.slug } })),
 	}),
 	staticProps,
 	metadata: getMetadata,

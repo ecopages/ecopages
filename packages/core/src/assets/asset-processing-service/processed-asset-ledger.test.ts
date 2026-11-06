@@ -26,7 +26,6 @@ describe('ProcessedAssetLedger', () => {
 		const deployed = new ProcessedAssetLedger(deployRoot);
 		deployed.restore(JSON.parse(JSON.stringify(built.serialize())));
 
-		expect(deployed.isRestored).toBe(true);
 		expect(deployed.lookup(createDependency(deployRoot))).toEqual(createAsset(deployRoot));
 	});
 
@@ -35,6 +34,15 @@ describe('ProcessedAssetLedger', () => {
 		ledger.restore({ entries: [] });
 
 		expect(ledger.lookup(createDependency(buildRoot))).toBeUndefined();
+	});
+
+	it('stays open after a restore until it is sealed', () => {
+		const ledger = new ProcessedAssetLedger(buildRoot);
+		ledger.restore({ entries: [] });
+		expect(ledger.isSealed).toBe(false);
+
+		ledger.seal();
+		expect(ledger.isSealed).toBe(true);
 	});
 
 	it('records no path of the build machine', () => {

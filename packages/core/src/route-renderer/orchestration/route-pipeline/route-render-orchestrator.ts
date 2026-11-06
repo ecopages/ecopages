@@ -8,7 +8,6 @@ import type {
 	InternalIntegrationRendererRenderOptions,
 	PageBrowserGraphContribution,
 	PageBrowserGraphContributionContext,
-	PageBrowserGraphResult,
 	PageMetadataProps,
 	RouteRendererBody,
 	RouteRendererOptions,
@@ -27,7 +26,6 @@ import type { HtmlDocumentContribution } from '../../../html/html-transformer.se
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
 import {
 	createPreparedComponentGraphBuilder,
-	type PreparedRouteComponentGraphs,
 	type PreparedComponentGraphNode,
 	type DeclaredOwnershipRoot,
 	type PreparedComponentGraph,
@@ -45,7 +43,6 @@ import { collectPreparedGraphComponents } from '../ownership-graph/prepared-grap
 import { buildGlobalInjectorAssets } from '../page-browser-graph/global-injector-assets.service.ts';
 import { mergePageBrowserGraphContributions } from '../page-browser-graph/page-browser-graph-contribution.merge.ts';
 import { PageBrowserGraphService } from '../page-browser-graph/page-browser-graph.service.ts';
-import type { GroupedGraphBuildPlan } from '../page-browser-graph/grouped-graph-build-plan.ts';
 import type { ResolvedPageDependencies } from '../../page-loading/resolved-page-dependencies.ts';
 import type { IntegrationRenderer } from '../integration-renderer.ts';
 import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
@@ -87,9 +84,7 @@ export type RouteRenderHost<C> = Pick<
 	| 'resolveRouteDependencies'
 	| 'collectPageBrowserGraphContribution'
 	| 'resolvePageDependenciesForRoute'
-	| 'getPrebuiltRouteComponentGraphs'
 	| 'resolvePageDependencyContribution'
-	| 'buildPageBrowserGraphContributionContext'
 	| 'buildPageClientBrowserAssets'
 	| 'renderRouteBody'
 	| 'getRouteHtmlFinalization'
@@ -112,19 +107,30 @@ export interface RouteRenderOrchestratorDependencies {
 	assetProcessingIntegration?: AssetProcessingIntegration;
 }
 
-type PreparedRouteGraphContext = {
+export type PreparedRouteGraphContext = {
 	dependencyInstanceKey: string;
 	graphContext: PageBrowserGraphContributionContext;
 	resolvedPageDependencies: ResolvedPageDependencies | undefined;
-	/** Page Dependency nodes this preparation added to the graph; empty when it reused prebuilt graphs. */
+	/** Page Dependency nodes this preparation added to the graph. */
 	pageDependencyNodes: PreparedComponentGraphNode[];
 	shellGraph: PreparedComponentGraph;
 	shellDependencyComponents: EcoComponent[];
 	graph: PreparedComponentGraph;
 };
 
+/**
+ * A route the production build planned: its inputs and graphs, with the page Dependencies left unprocessed.
+ *
+ * @remarks
+ * {@link RouteRenderOrchestrator.prepareRenderOptions} takes it to process the route's dependencies once the
+ * app-wide browser build recorded its outputs, without running the route's data hooks again.
+ */
+export type PlannedRoutePreparation = {
+	resolvedInputs: RouteRenderOrchestratorResolvedInputs;
+	graphContext: PreparedRouteGraphContext;
+};
+
 type PreparedRouteShellGraph = {
-	prebuiltGraphs: PreparedRouteComponentGraphs | undefined;
 	graphBuilder: ReturnType<typeof createPreparedComponentGraphBuilder>;
 	shellGraph: PreparedComponentGraph;
 	shellDependencyComponents: EcoComponent[];
@@ -197,10 +203,8 @@ export class RouteRenderOrchestrator {
 			dependencyInstanceKey,
 		};
 		const pageGraph = await this.preparePageDependencyGraph({
-			routeOptions,
 			renderer,
 			graphContext,
-			prebuiltGraphs: shell.prebuiltGraphs,
 			graphBuilder: shell.graphBuilder,
 			planning: input.planning,
 		});
@@ -229,41 +233,33 @@ export class RouteRenderOrchestrator {
 			})),
 			{ component: resolvedInputs.Page as EcoComponent, source: 'page' },
 		];
-		const prebuiltGraphs = renderer.getPrebuiltRouteComponentGraphs(routeOptions);
 		const graphBuilder = createPreparedComponentGraphBuilder(renderer.name);
-		if (!prebuiltGraphs) {
-			graphBuilder.addRoots(shellRoots);
-		}
-		const shellGraph = prebuiltGraphs?.shellGraph ?? graphBuilder.getGraph({ updateForeignDescendantFlags: false });
-		const shellDependencyComponents =
-			prebuiltGraphs?.shellDependencyComponents ??
-			shellGraph.nodes.filter((node) => node.dependencyCollectionVisible).map((node) => node.component);
-		if (!prebuiltGraphs?.ownershipValidated) {
-			await this.validateOwnershipGraph(shellGraph);
-		}
-		return { prebuiltGraphs, graphBuilder, shellGraph, shellDependencyComponents };
+		graphBuilder.addRoots(shellRoots);
+		const shellGraph = graphBuilder.getGraph({ updateForeignDescendantFlags: false });
+		const shellDependencyComponents = shellGraph.nodes
+			.filter((node) => node.dependencyCollectionVisible)
+			.map((node) => node.component);
+		await this.validateOwnershipGraph(shellGraph);
+		return { graphBuilder, shellGraph, shellDependencyComponents };
 	}
 
 	private async preparePageDependencyGraph<C>(input: {
-		routeOptions: RouteRendererOptions;
 		renderer: RouteRenderHost<C>;
 		graphContext: PageBrowserGraphContributionContext;
-		prebuiltGraphs: PreparedRouteComponentGraphs | undefined;
 		graphBuilder: ReturnType<typeof createPreparedComponentGraphBuilder>;
 		planning?: true;
 	}): Promise<Pick<PreparedRouteGraphContext, 'resolvedPageDependencies' | 'pageDependencyNodes' | 'graph'>> {
-		const { routeOptions, renderer, graphContext, prebuiltGraphs, graphBuilder } = input;
-		const resolvedPageDependencies = await renderer.resolvePageDependenciesForRoute(graphContext, routeOptions);
+		const { renderer, graphContext, graphBuilder } = input;
+		const resolvedPageDependencies = await renderer.resolvePageDependenciesForRoute(graphContext);
 		const pageDependencyNodes = this.collectPageDependencyNodes(
-			prebuiltGraphs,
 			graphBuilder,
 			resolvedPageDependencies?.components ?? [],
 		);
 		const pageDependencyContribution = input.planning
 			? undefined
 			: await this.resolvePageDependencyContribution(renderer, resolvedPageDependencies, pageDependencyNodes);
-		const graph = prebuiltGraphs?.graph ?? graphBuilder.getGraph();
-		if (resolvedPageDependencies?.components.length && !prebuiltGraphs?.ownershipValidated) {
+		const graph = graphBuilder.getGraph();
+		if (resolvedPageDependencies?.components.length) {
 			await this.validateOwnershipGraph(graph);
 		}
 		return {
@@ -276,18 +272,32 @@ export class RouteRenderOrchestrator {
 	}
 
 	private collectPageDependencyNodes(
-		prebuiltGraphs: PreparedRouteComponentGraphs | undefined,
 		graphBuilder: ReturnType<typeof createPreparedComponentGraphBuilder>,
 		components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 	): PreparedComponentGraphNode[] {
-		if (prebuiltGraphs) {
-			return [];
-		}
-
 		const { nodes } = graphBuilder.addRootsAndCollectNodes(
 			components.map((component) => ({ component, source: 'dependency' })),
 		);
 		return nodes.filter((node) => node.dependencyCollectionVisible);
+	}
+
+	private async processPlannedPageDependencies<C>(
+		renderer: RouteRenderHost<C>,
+		planned: PreparedRouteGraphContext,
+	): Promise<PreparedRouteGraphContext> {
+		const resolved = planned.resolvedPageDependencies;
+		if (!resolved) return planned;
+		return {
+			...planned,
+			resolvedPageDependencies: {
+				...resolved,
+				contribution: await this.resolvePageDependencyContribution(
+					renderer,
+					resolved,
+					planned.pageDependencyNodes,
+				),
+			},
+		};
 	}
 
 	private resolvePageDependencyContribution<C>(
@@ -313,15 +323,19 @@ export class RouteRenderOrchestrator {
 	 *
 	 * This preparation step validates route-root ownership, resolves page data,
 	 * collects processed assets, and produces the page package consumed by downstream
-	 * HTML transformation.
+	 * HTML transformation. With a `planned` preparation it reuses the inputs and graphs the production build
+	 * planned and only processes the route's dependencies.
 	 */
 	async prepareRenderOptions<C = unknown>(
 		routeOptions: RouteRendererOptions,
 		renderer: RouteRenderHost<C>,
+		planned?: PlannedRoutePreparation,
 	): Promise<InternalIntegrationRendererRenderOptions<C>> {
-		const resolvedInputs = await measureRouteRenderPhase(this.requestPipelineMetrics, 'resolve-route-inputs', () =>
-			renderer.resolveRouteRenderInputs(routeOptions),
-		);
+		const resolvedInputs =
+			planned?.resolvedInputs ??
+			(await measureRouteRenderPhase(this.requestPipelineMetrics, 'resolve-route-inputs', () =>
+				renderer.resolveRouteRenderInputs(routeOptions),
+			));
 		const finalProps = {
 			...resolvedInputs.props,
 			...(routeOptions.props ?? {}),
@@ -330,12 +344,14 @@ export class RouteRenderOrchestrator {
 			...resolvedInputs,
 			props: finalProps,
 		};
-		const graphContext = await this.prepareRouteGraphContext({
-			routeOptions,
-			resolvedInputs: finalResolvedInputs,
-			props: finalProps,
-			renderer,
-		});
+		const graphContext = planned
+			? await this.processPlannedPageDependencies(renderer, planned.graphContext)
+			: await this.prepareRouteGraphContext({
+					routeOptions,
+					resolvedInputs: finalResolvedInputs,
+					props: finalProps,
+					renderer,
+				});
 		const {
 			dependencyInstanceKey,
 			graphContext: contributionContext,
@@ -412,16 +428,6 @@ export class RouteRenderOrchestrator {
 			pageClientPlan: clientPlan,
 			preparedGraphComponents: collectPreparedGraphComponents(preparedGraph),
 		};
-	}
-
-	async resolveDeclaredPageBrowserGraph(input: {
-		routeFile: string;
-		dependencyInstanceKey?: string;
-		integrationName: string;
-		collectContribution: () => Promise<PageBrowserGraphContribution | undefined>;
-		groupedBuildPlan?: GroupedGraphBuildPlan;
-	}): Promise<PageBrowserGraphResult | undefined> {
-		return await this.pageBrowserGraphService.resolvePageBrowserGraph(input);
 	}
 
 	/**

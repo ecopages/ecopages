@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import {
-	createPageDependencyInstanceKey,
-	describePageDependencyInstance,
-	describePageDependencyInstanceKey,
-} from './route-instance-key.ts';
+import { createPageDependencyInstanceKey } from './route-instance-key.ts';
 
 describe('page dependency instance key', () => {
 	test('returns an empty key for routes without dependency inputs', () => {
@@ -27,13 +23,5 @@ describe('page dependency instance key', () => {
 		const split = createPageDependencyInstanceKey({ params: { slug: ['a', 'b=c'] } });
 
 		expect(new Set([scalar, segments, delimited, split]).size).toBe(4);
-	});
-
-	test('describePageDependencyInstance formats params for missing-manifest errors', () => {
-		expect(describePageDependencyInstance({})).toBe('default');
-		expect(describePageDependencyInstance({ params: { slug: 'new-product' } })).toBe('slug=new-product');
-		expect(
-			describePageDependencyInstanceKey(createPageDependencyInstanceKey({ params: { slug: 'new-product' } })),
-		).toBe('slug=new-product');
 	});
 });

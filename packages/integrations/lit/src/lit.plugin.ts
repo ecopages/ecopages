@@ -138,6 +138,10 @@ export class LitPlugin extends IntegrationPlugin {
 		await this.renderSession.ensureWorker({
 			configModulePath,
 			runtimeOrigin: context.baseUrl,
+			directories: {
+				distDir: path.resolve(context.appConfig.rootDir, context.appConfig.distDir),
+				workDir: context.appConfig.absolutePaths.workDir,
+			},
 		});
 
 		const session = this.renderSession;

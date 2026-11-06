@@ -51,7 +51,6 @@ function createGroupedDependency(): AssetDefinition {
 afterEach(() => {
 	vi.restoreAllMocks();
 	vi.unstubAllEnvs();
-	requireAppRuntime(appConfig).productionBrowserGraphsSealed = false;
 });
 
 describe('SessionPageBrowserGraphCache', () => {
@@ -800,49 +799,5 @@ describe('PageBrowserGraphService with an app-wide browser build', () => {
 		await service.resolvePageBrowserGraph(input);
 
 		expect(processDependencies).toHaveBeenCalledOnce();
-	});
-
-	test('serves a sealed production request whose grouped scripts the ledger records', async () => {
-		vi.stubEnv('NODE_ENV', 'production');
-		const runtime = requireAppRuntime(appConfig);
-		runtime.processedAssets.record(createGroupedDependency(), builtAsset);
-		runtime.processedAssets.recordBrowserOutputs([]);
-		runtime.productionBrowserGraphsSealed = true;
-		const service = createService(vi.fn(async (): Promise<ProcessedAsset[]> => [builtAsset]));
-
-		const result = await service.resolvePageBrowserGraph({
-			routeFile,
-			dependencyInstanceKey,
-			integrationName: 'react',
-			collectContribution: async () => ({ dependencies: [createGroupedDependency()] }),
-		});
-
-		expect(result?.entryAssets).toEqual([builtAsset]);
-	});
-
-	test('fails a sealed production request whose grouped script the ledger does not record, naming the route', async () => {
-		vi.stubEnv('NODE_ENV', 'production');
-		const runtime = requireAppRuntime(appConfig);
-		runtime.processedAssets.record(createGroupedDependency(), builtAsset);
-		runtime.processedAssets.recordBrowserOutputs([]);
-		runtime.productionBrowserGraphsSealed = true;
-		const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => {
-			throw new Error('production must not build browser assets');
-		});
-		const service = createService(processDependencies);
-
-		await expect(
-			service.resolvePageBrowserGraph({
-				routeFile,
-				dependencyInstanceKey,
-				integrationName: 'react',
-				collectContribution: async () => ({
-					dependencies: [{ ...createGroupedDependency(), content: 'console.log("new product island")' }],
-				}),
-			}),
-		).rejects.toThrow(
-			'The production Page Browser Graph for /app/pages/products/[slug].tsx is missing from the production asset ledger (entry slug=new-product). Run `ecopages build` again.',
-		);
-		expect(processDependencies).not.toHaveBeenCalled();
 	});
 });

@@ -18,7 +18,7 @@ import type {
 	PageBrowserGraphResult,
 } from '@ecopages/core/integration';
 import { type PageClientPlan, type RouteModuleLoadOptions } from '@ecopages/core/integration';
-import type { ProcessedAsset } from '@ecopages/core/integration';
+import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/integration';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { describeRendererContract } from '@ecopages/testing/renderer-contract';
@@ -162,12 +162,6 @@ class TestReactRenderer extends ReactRenderer {
 				(this.pageBrowserGraphOverride ? [...this.pageBrowserGraphOverride.entryAssets] : undefined) ??
 				originalProcessDependencies(...(args as Parameters<typeof originalProcessDependencies>)),
 		) as typeof this.assetProcessingService.processDependencies;
-	}
-
-	protected override async resolvePageBrowserGraphForFile(
-		filePath: string,
-	): Promise<PageBrowserGraphResult | undefined> {
-		return this.pageBrowserGraphOverride ?? super.resolvePageBrowserGraphForFile(filePath);
 	}
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps, JSX.Element>> {
@@ -945,7 +939,7 @@ describe('ReactRenderer', () => {
 		expect(withForceSpy).toHaveBeenCalledWith('/app/src/pages/with-force.tsx', false, []);
 	});
 
-	it('ensures page-layout-normalization vendor only for MDX page graphs', async () => {
+	it('declares the page-layout-normalization vendor only in MDX page graphs, without processing it', async () => {
 		const tsxRenderer = createRenderer({ forceBrowserGraph: true });
 		const mdxAssetProcessingService = createAssetProcessingServiceMock();
 		const mdxRenderer = new TestReactRenderer({
@@ -963,25 +957,20 @@ describe('ReactRenderer', () => {
 		} as EcoPageFile;
 		tsxRenderer.importedPageFileOverride = pageModule;
 		mdxRenderer.importedPageFileOverride = pageModule;
-
 		vi.spyOn(tsxRenderer.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
 		vi.spyOn(mdxRenderer.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
-		const tsxEnsureSpy = vi
-			.spyOn(tsxRenderer.bundleService, 'ensurePageLayoutNormalizationVendorProcessed')
-			.mockResolvedValue(undefined);
-		const mdxEnsureSpy = vi
-			.spyOn(mdxRenderer.bundleService, 'ensurePageLayoutNormalizationVendorProcessed')
-			.mockResolvedValue(undefined);
-
 		tsxRenderer.isMdxFileOverride = false;
 		mdxRenderer.isMdxFileOverride = true;
+		const context = { file: '/app/src/pages/guide.mdx', pageModule, props: {} };
 
-		await tsxRenderer.execute({ file: '/app/src/pages/tsx-graph.tsx', params: {}, query: {} });
-		await mdxRenderer.execute({ file: '/app/src/pages/guide.mdx', params: {}, query: {} });
+		const tsxContribution = await tsxRenderer['collectPageBrowserGraphContributionHook'](context);
+		const mdxContribution = await mdxRenderer['collectPageBrowserGraphContributionHook'](context);
 
-		expect(tsxEnsureSpy).not.toHaveBeenCalled();
-		expect(mdxEnsureSpy).toHaveBeenCalledTimes(1);
-		expect(mdxEnsureSpy).toHaveBeenCalledWith(mdxAssetProcessingService);
+		const isVendor = (dependency: AssetDefinition) =>
+			'name' in dependency && dependency.name === 'page-layout-normalization';
+		expect(tsxContribution.dependencies?.some(isVendor) ?? false).toBe(false);
+		expect(mdxContribution.dependencies?.filter(isVendor)).toHaveLength(1);
+		expect(mdxAssetProcessingService.processDependencies).not.toHaveBeenCalled();
 	});
 
 	it('should emit canonical page data for router-backed pages inside non-react html templates', async () => {

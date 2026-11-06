@@ -40,21 +40,21 @@ describe('page-owned-content-script-grouping', () => {
 			},
 		];
 
-		assignPageOwnedContentScriptGroupedBundles(dependencies);
+		const prepared = assignPageOwnedContentScriptGroupedBundles(dependencies);
 
-		const moduleScript = dependencies[0] as ContentScriptAsset;
-		const lazyScript = dependencies[1] as ContentScriptAsset;
-		const fileScript = dependencies[2] as AssetDefinition;
-		const injectorScript = dependencies[3] as ContentScriptAsset;
+		const moduleScript = prepared[0] as ContentScriptAsset;
+		const lazyScript = prepared[1] as ContentScriptAsset;
+		const fileScript = prepared[2] as AssetDefinition;
+		const injectorScript = prepared[3] as ContentScriptAsset;
 
 		expect(moduleScript.groupedBundle).toEqual({
 			id: createPageOwnedContentScriptBundleId(ECOPAGES_JSX_PLUGIN_NAME),
-			entryName: 'module-ecopages-images',
+			entryName: expect.stringMatching(/^module-ecopages-images-[a-f0-9]{8}$/),
 		});
 		expect(moduleScript.bundle).toBe(true);
 		expect(lazyScript.groupedBundle).toEqual({
 			id: createPageOwnedContentScriptBundleId(ECOPAGES_JSX_PLUGIN_NAME),
-			entryName: 'ecopages-ecopages-jsx-lazy-deadbeef',
+			entryName: expect.stringMatching(/^ecopages-ecopages-jsx-lazy-deadbeef-[a-f0-9]{8}$/),
 		});
 		expect(fileScript).not.toHaveProperty('groupedBundle');
 		expect(injectorScript.groupedBundle).toBeUndefined();
@@ -75,8 +75,24 @@ describe('page-owned-content-script-grouping', () => {
 			},
 		];
 
-		assignPageOwnedContentScriptGroupedBundles(dependencies);
+		const [prepared] = assignPageOwnedContentScriptGroupedBundles(dependencies);
 
-		assert.equal((dependencies[0] as ContentScriptAsset).groupedBundle?.id, 'ecopages-react-router-pages');
+		assert.equal((prepared as ContentScriptAsset).groupedBundle?.id, 'ecopages-react-router-pages');
+	});
+
+	test('assignPageOwnedContentScriptGroupedBundles names a script the same in any batch, without changing it', () => {
+		const script: ContentScriptAsset = {
+			kind: 'script',
+			source: 'content',
+			name: 'page-entry',
+			content: 'import "/app/pages/a.tsx";',
+		};
+		const namesake: ContentScriptAsset = { ...script, content: 'import "/app/pages/b.tsx";' };
+
+		const [alone] = assignPageOwnedContentScriptGroupedBundles([script]);
+		const [, together] = assignPageOwnedContentScriptGroupedBundles([namesake, script]);
+
+		expect(together).toEqual(alone);
+		expect(script.groupedBundle).toBeUndefined();
 	});
 });

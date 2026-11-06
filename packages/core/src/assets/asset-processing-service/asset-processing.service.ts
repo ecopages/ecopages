@@ -104,9 +104,7 @@ export function prepareAssetDependencies(
 	rootDir: string,
 ): AssetDefinition[] {
 	const dedupedDeps = deduplicateAssetDependencies(deps, rootDir);
-	const preparedDeps = integration?.prepareAssetDependencies?.(dedupedDeps) ?? dedupedDeps;
-	ensureGroupedContentScriptsBundle(preparedDeps);
-	return preparedDeps;
+	return ensureGroupedContentScriptsBundle(integration?.prepareAssetDependencies?.(dedupedDeps) ?? dedupedDeps);
 }
 
 export class AssetProcessingService {
@@ -203,20 +201,25 @@ export class AssetProcessingService {
 	 *
 	 * Once the app-wide browser build ran, in this process or in the restored build, a script it can bundle
 	 * resolves to the output the asset ledger records for it, so scripts it bundled together share chunks.
+	 *
+	 * Once `ecopages start` sealed the ledger, every dependency resolves to its recorded output and nothing is
+	 * compiled or written; a dependency the ledger does not record is an error.
 	 */
 	async processDependencies(
 		deps: AssetDefinition[],
 		integration: AssetProcessingIntegration | undefined,
 	): Promise<ProcessedAsset[]> {
-		const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
-		fileSystem.ensureDir(depsDir);
-
 		const preparedDeps = prepareAssetDependencies(deps, integration, this.config.rootDir);
-		const resolvesBundledScripts = requireAppRuntime(this.config).processedAssets.hasBrowserBuild;
+		const ledger = requireAppRuntime(this.config).processedAssets;
+		if (ledger.isSealed) {
+			return preparedDeps.map((dep) => this.requireRecordedAsset(dep));
+		}
+
+		fileSystem.ensureDir(path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 		const prebuilt: ProcessedAsset[] = [];
 		const pending: AssetDefinition[] = [];
 		for (const dep of preparedDeps) {
-			const asset = resolvesBundledScripts && isBundleableScript(dep) ? this.lookupRecordedAsset(dep) : undefined;
+			const asset = ledger.hasBrowserBuild && isBundleableScript(dep) ? this.lookupRecordedAsset(dep) : undefined;
 			if (asset) {
 				prebuilt.push(asset);
 			} else {
@@ -234,15 +237,27 @@ export class AssetProcessingService {
 	 *
 	 * @remarks
 	 * A recorded output that is gone is an error: serving the Page without it would drop its styles or scripts.
+	 * An inline asset carries its content and has no output to check.
 	 */
 	private lookupRecordedAsset(dep: AssetDefinition): ProcessedAsset | undefined {
 		const recorded = requireAppRuntime(this.config).processedAssets.lookup(dep);
-		if (recorded?.filepath && !fileSystem.exists(recorded.filepath)) {
+		if (recorded?.filepath && !recorded.inline && !fileSystem.exists(recorded.filepath)) {
 			throw new Error(
 				`The production build recorded ${path.relative(this.config.rootDir, recorded.filepath)} but it is missing. Run \`ecopages build\` again.`,
 			);
 		}
 		return recorded;
+	}
+
+	private requireRecordedAsset(dep: AssetDefinition): ProcessedAsset {
+		const recorded = this.lookupRecordedAsset(dep);
+		if (!recorded) {
+			const ledger = requireAppRuntime(this.config).processedAssets;
+			throw new Error(
+				`The production build did not record the ${dep.kind} ${ledger.describe(dep)}. Run \`ecopages build\` again.`,
+			);
+		}
+		return finalizeProcessedAsset(recorded, (processed) => this.resolveProcessedAssetSrcUrl(processed));
 	}
 
 	/**
@@ -294,12 +309,6 @@ export class AssetProcessingService {
 		}
 
 		if (dep.source === 'file' && 'filepath' in dep && !fileSystem.exists(dep.filepath)) {
-			const ledger = requireAppRuntime(this.config).processedAssets;
-			if (ledger.isRestored) {
-				throw new Error(
-					`The production build did not record the ${dep.kind} file ${ledger.describe(dep)} and it is missing from the app folder. Run \`ecopages build\` again.`,
-				);
-			}
 			appLogger.warn(`Skipping missing ${dep.kind} file: ${dep.filepath}`);
 			return null;
 		}
@@ -575,7 +584,7 @@ export class AssetProcessingService {
 		}
 
 		if (isProductionRuntime()) {
-			return this.cache.get(depKey)?.asset ?? this.restoreRecordedAsset(dep, depKey);
+			return this.cache.get(depKey)?.asset ?? null;
 		}
 
 		const currentCache = this.cache.get(depKey);
@@ -600,22 +609,6 @@ export class AssetProcessingService {
 		}
 
 		return currentCache.asset;
-	}
-
-	/**
-	 * Serves a dependency the production build recorded from its emitted output.
-	 *
-	 * @remarks
-	 * The record names files under `dist/`, so a restored build never reads the dependency's source.
-	 */
-	private restoreRecordedAsset(dep: AssetDefinition, depKey: string): ProcessedAsset | null {
-		const recorded = requireAppRuntime(this.config).processedAssets.isRestored
-			? this.lookupRecordedAsset(dep)
-			: undefined;
-		if (!recorded) return null;
-		const asset = finalizeProcessedAsset(recorded, (processed) => this.resolveProcessedAssetSrcUrl(processed));
-		this.cache.set(depKey, { asset });
-		return asset;
 	}
 
 	private getGroupedBundleCacheKey(deps: AssetDefinition[]): string | undefined {
@@ -728,7 +721,7 @@ export class AssetProcessingService {
 			asset,
 			sourceHash: this.getFileSourceHash(asset.sourceFilepath ?? this.getDependencySourceFilepath(dep)),
 		});
-		if (isProductionRuntime() && dep.source === 'file') {
+		if (isProductionRuntime()) {
 			requireAppRuntime(this.config).processedAssets.record(dep, asset);
 		}
 		if (asset.filepath) {

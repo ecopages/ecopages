@@ -92,6 +92,7 @@ export {
 	type IntegrationRendererOptions,
 	type PageBrowserGraphContribution,
 	type PageBrowserGraphContributionContext,
+	type PageBrowserGraphDeclaration,
 	type PageClientBrowserAssets,
 	type PageClientBuildEntry,
 	type PageClientPlan,

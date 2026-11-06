@@ -8,21 +8,17 @@ function isGroupedScriptDependency(dep: AssetDefinition): dep is AssetDefinition
 	return dep.kind === 'script' && Boolean(dep.groupedBundle?.id);
 }
 
-/** Forces grouped scripts to run through the bundler in production builds. */
-export function ensureGroupedContentScriptsBundle(dependencies: AssetDefinition[]): void {
+/** Forces grouped scripts to run through the bundler in production builds; returns copies of the ones it changes. */
+export function ensureGroupedContentScriptsBundle(dependencies: AssetDefinition[]): AssetDefinition[] {
 	if (isDevelopmentRuntime()) {
-		return;
+		return dependencies;
 	}
 
-	for (const dependency of dependencies) {
-		if (!isGroupedScriptDependency(dependency)) {
-			continue;
-		}
-
-		if (dependency.bundle === false) {
-			dependency.bundle = true;
-		}
-	}
+	return dependencies.map((dependency) =>
+		isGroupedScriptDependency(dependency) && dependency.bundle === false
+			? { ...dependency, bundle: true }
+			: dependency,
+	);
 }
 
 /**

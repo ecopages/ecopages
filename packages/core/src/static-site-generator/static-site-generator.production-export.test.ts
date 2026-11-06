@@ -63,7 +63,7 @@ describe('StaticSiteGenerator production export', () => {
 		vi.restoreAllMocks();
 	});
 
-	test('runs staticProps once per expanded path, includes each path in the sitemap, and prebuilds no browser graph for an endpoint route', async () => {
+	test('runs staticProps once per expanded path to plan it and once to export it, includes each path in the sitemap, and prebuilds no browser graph for an endpoint route', async () => {
 		writes.length = 0;
 		fileSystem.ensureDir = () => {};
 		fileSystem.write = (filePath, contents) => writes.push({ filePath, contents });
@@ -97,7 +97,7 @@ describe('StaticSiteGenerator production export', () => {
 			appConfig,
 			assetProcessingService: testAssetService,
 		});
-		const buildGroupedGraphBuildPlan = vi.spyOn(renderer, 'buildGroupedGraphBuildPlan');
+		const planProductionRoutes = vi.spyOn(renderer, 'planProductionRoutes');
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (({ children }: HtmlTemplateProps) =>
 			`<html><body>${String(children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
@@ -147,17 +147,19 @@ describe('StaticSiteGenerator production export', () => {
 			vi.unstubAllEnvs();
 		}
 
-		expect(buildGroupedGraphBuildPlan).toHaveBeenCalledTimes(1);
-		expect(buildGroupedGraphBuildPlan.mock.calls[0]?.[0]).toEqual([
+		expect(planProductionRoutes).toHaveBeenCalledTimes(1);
+		expect(planProductionRoutes.mock.calls[0]?.[0]).toEqual([
 			{ routeFile, skipStaticProps: true, isRouteTemplate: true },
 			{ routeFile, params: { slug: 'first' } },
 			{ routeFile, params: { slug: 'second' } },
 		]);
-		expect(buildGroupedGraphBuildPlan.mock.calls[0]?.[1]?.onRouteFailure).toEqual(expect.any(Function));
-		expect(staticPropsMock).toHaveBeenCalledTimes(2);
-		expect(metadataMock).toHaveBeenCalledTimes(2);
-		expect(staticPropsMock.mock.calls.map(([context]) => context.pathname.params.slug)).toEqual([
+		expect(planProductionRoutes.mock.calls[0]?.[1]?.onRouteFailure).toEqual(expect.any(Function));
+		expect(staticPropsMock).toHaveBeenCalledTimes(4);
+		expect(metadataMock).toHaveBeenCalledTimes(4);
+		expect(staticPropsMock.mock.calls.map(([context]) => context.pathname.params.slug).sort()).toEqual([
 			'first',
+			'first',
+			'second',
 			'second',
 		]);
 		expect(writes).toEqual(
@@ -198,7 +200,7 @@ describe('StaticSiteGenerator production export', () => {
 			appConfig,
 			assetProcessingService: testAssetService,
 		});
-		const buildGroupedGraphBuildPlan = vi.spyOn(renderer, 'buildGroupedGraphBuildPlan');
+		const planProductionRoutes = vi.spyOn(renderer, 'planProductionRoutes');
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (({ children }: HtmlTemplateProps) =>
 			`<html><body>${String(children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
@@ -253,8 +255,8 @@ describe('StaticSiteGenerator production export', () => {
 			vi.unstubAllEnvs();
 		}
 
-		expect(buildGroupedGraphBuildPlan).toHaveBeenCalledTimes(1);
-		expect(buildGroupedGraphBuildPlan.mock.calls[0]?.[0]).toEqual([
+		expect(planProductionRoutes).toHaveBeenCalledTimes(1);
+		expect(planProductionRoutes.mock.calls[0]?.[0]).toEqual([
 			{ routeFile, skipStaticProps: true, isRouteTemplate: true },
 			{ routeFile, params: { slug: 'chart' } },
 			{ routeFile, params: { slug: 'plain' } },
@@ -290,7 +292,7 @@ describe('StaticSiteGenerator production export', () => {
 			appConfig,
 			assetProcessingService: testAssetService,
 		});
-		const buildGroupedGraphBuildPlan = vi.spyOn(renderer, 'buildGroupedGraphBuildPlan');
+		const planProductionRoutes = vi.spyOn(renderer, 'planProductionRoutes');
 		renderer.HtmlTemplate = (({ children }: HtmlTemplateProps) =>
 			`<html><body>${String(children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
 		const loader = Object.assign(
@@ -317,8 +319,8 @@ describe('StaticSiteGenerator production export', () => {
 		expect(loader).toHaveBeenCalledTimes(1);
 		expect(staticPaths).toHaveBeenCalledTimes(1);
 		expect(staticProps).toHaveBeenCalledTimes(1);
-		expect(buildGroupedGraphBuildPlan).toHaveBeenCalledTimes(1);
-		expect(buildGroupedGraphBuildPlan.mock.calls[0]?.[0]).toEqual([{ routeFile, params: { slug: 'spring' } }]);
+		expect(planProductionRoutes).toHaveBeenCalledTimes(1);
+		expect(planProductionRoutes.mock.calls[0]?.[0]).toEqual([{ routeFile, params: { slug: 'spring' } }]);
 		expect(writes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ filePath: '/test/project/dist/client/archive/spring.html' }),

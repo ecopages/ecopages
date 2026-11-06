@@ -8,5 +8,5 @@ export default defineConfig({
 	rootDir: import.meta.dirname,
 	distDir: artifactScope ? `dist-${artifactScope}` : 'dist',
 	workDir: artifactScope ? `.eco-${artifactScope}` : '.eco',
-	integrations: [kitajsPlugin(), reactPlugin({ extensions: ['.react.tsx'] })],
+	integrations: [kitajsPlugin(), reactPlugin({ extensions: ['.react.tsx'], explicitGraph: true })],
 });

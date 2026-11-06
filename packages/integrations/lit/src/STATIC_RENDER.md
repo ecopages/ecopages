@@ -34,17 +34,17 @@ staticExport
   └─ returns a release that disposes the session once the export ends
 ```
 
-Static export starts the worker before the main thread builds the app browser client, so the worker restores that build from the asset ledger, `dist/server/processed-assets.json`, on its first render (`restoreProductionPageBrowserGraphs`). A Lit Page then links the same app-wide outputs and component scripts as every other Page instead of building its own.
+Static export starts the worker before the main thread builds the app browser client, so the worker restores that build from the asset ledger, `<distDir>/server/processed-assets.json`, on its first render (`restoreProductionBrowserBuild`, unsealed). The `init` message carries the output and work directories of the export, which the worker loads the config with, so it reads the ledger of the build it renders for even when the configured `distDir` holds an earlier build. A Lit Page then links the same app-wide outputs and component scripts as every other Page instead of building its own.
 
 `ECOPAGES_LIT_STATIC_RENDER_WORKER=true` in the worker environment skips processor `.setup()` inside `setupAppRuntimePlugins` (the main thread already prepared artifacts). Integration setup still runs in the worker isolate before `RouteRendererFactory` creates route renderers. That processor skip stays necessary because the worker still bootstraps a second app during export.
 
 ## Ownership
 
-| Concern                    | Owner                                                                                                                                                                  |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session + worker lifecycle | `LitPlugin` (`renderSession`), started only from `staticExport()`                                                                                                      |
-| Lazy session lookup        | `createLitRenderer()` hook factory via `getRenderSession`                                                                                                              |
-| Worker identity            | First `{ configModulePath, runtimeOrigin }` passed to `ensureWorker`; same identity is sticky; a later `ensureWorker` with a different identity disposes and recreates |
+| Concern                    | Owner                                                                                                                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session + worker lifecycle | `LitPlugin` (`renderSession`), started only from `staticExport()`                                                                                                                   |
+| Lazy session lookup        | `createLitRenderer()` hook factory via `getRenderSession`                                                                                                                           |
+| Worker identity            | First `{ configModulePath, runtimeOrigin, directories }` passed to `ensureWorker`; same identity is sticky; a later `ensureWorker` with a different identity disposes and recreates |
 
 `staticExport` requires `appConfig.absolutePaths.config` and starts the worker with `context.baseUrl`. Its release disposes the session and clears `renderSession`, so an in-process export leaves no worker thread; serving never had one.
 
@@ -64,11 +64,11 @@ When `RouteRendererOptions.locals` or `RouteRendererOptions.props` is present, t
 
 ## Protocol
 
-| Message             | Direction     | Purpose                                                                                                                                                                     |
-| ------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init`              | main → worker | Load the app config module (`configModulePath`, usually `eco.config.ts` in development and `dist/server/eco.config.mjs` in production), bootstrap runtime (`runtimeOrigin`) |
-| `ready`             | worker → main | Worker initialized                                                                                                                                                          |
-| `render`            | main → worker | Render one Lit page route (`filePath`, `PageParams`, optional `PageQuery`)                                                                                                  |
-| `result` / `error`  | worker → main | HTML body plus optional `cacheStrategy`, `sourceDependencyPaths` and resolved `metadata`, or an error message (with the status of a thrown `HttpError`)                     |
-| `shutdown`          | main → worker | Wait for active renders, tear down activated Integrations, and close the worker message port                                                                                |
-| `shutdown-complete` | worker → main | Confirm Integration teardown completed; the client waits for worker exit and force-terminates after timeout                                                                 |
+| Message             | Direction     | Purpose                                                                                                                                                                                                     |
+| ------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init`              | main → worker | Load the app config module (`configModulePath`, usually `eco.config.ts` in development and `dist/server/eco.config.mjs` in production) with the export's `directories`, bootstrap runtime (`runtimeOrigin`) |
+| `ready`             | worker → main | Worker initialized                                                                                                                                                                                          |
+| `render`            | main → worker | Render one Lit page route (`filePath`, `PageParams`, optional `PageQuery`)                                                                                                                                  |
+| `result` / `error`  | worker → main | HTML body plus optional `cacheStrategy`, `sourceDependencyPaths` and resolved `metadata`, or an error message (with the status of a thrown `HttpError`)                                                     |
+| `shutdown`          | main → worker | Wait for active renders, tear down activated Integrations, and close the worker message port                                                                                                                |
+| `shutdown-complete` | worker → main | Confirm Integration teardown completed; the client waits for worker exit and force-terminates after timeout                                                                                                 |

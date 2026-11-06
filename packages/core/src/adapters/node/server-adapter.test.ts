@@ -29,7 +29,7 @@ vi.mock('../shared/ws/node-http-websocket-upgrades.ts', () => ({
 }));
 
 vi.mock('../../static-site-generator/production-page-browser-graph-prebuild.ts', () => ({
-	restoreProductionPageBrowserGraphs: assetLedgerRestore.run,
+	restoreProductionBrowserBuild: assetLedgerRestore.run,
 }));
 
 const devRuntime = vi.hoisted(() => ({
@@ -565,53 +565,22 @@ describe('NodeServerAdapter', () => {
 			expect(events).toEqual(['routes read', 'integration setup']);
 		});
 
-		it('restores the production asset ledger after Integration setup', async () => {
+		it('restores no asset ledger when start runs from the source tree', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			onTestFinished(() => {
+				vi.unstubAllEnvs();
+			});
 			assetLedgerRestore.run.mockReset();
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-browser-manifest-'));
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-source-tree-start-'));
 			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
-			const events: string[] = [];
-			let releaseManifestRestore!: () => void;
-			const manifestRestore = new Promise<void>((resolve) => {
-				releaseManifestRestore = resolve;
-			});
-			const integration = new HtmlPagesPlugin();
-			vi.spyOn(integration, 'setup').mockImplementation(async () => {
-				events.push('integration setup');
-			});
-			assetLedgerRestore.run.mockImplementation(async () => {
-				events.push('asset ledger restore started');
-				await manifestRestore;
-				events.push('asset ledger restored');
-			});
-			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [integration] });
+			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [new HtmlPagesPlugin()] });
 			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false } });
-			vi.spyOn(ServerRequestPipeline.prototype, 'initializeRouteHandling').mockImplementation(async () => {
-				events.push('routes read');
-			});
+			vi.spyOn(ServerRequestPipeline.prototype, 'initializeRouteHandling').mockResolvedValue(undefined);
 
 			await adapter.initialize();
-			const initialization = adapter.completeInitialization({} as import('node:http').Server);
-			await vi.waitFor(() => expect(events).toContain('asset ledger restore started'));
-			const handleSharedRequest = vi
-				.spyOn(ServerRequestPipeline.prototype, 'handleSharedRequest')
-				.mockResolvedValue(new Response('ok'));
-			const request = adapter.handleServerRequest(new Request('http://localhost:3000/page'));
-			await Promise.resolve();
+			await adapter.completeInitialization({} as import('node:http').Server);
 
-			expect(handleSharedRequest).not.toHaveBeenCalled();
-			releaseManifestRestore();
-			await initialization;
-			await request;
-
-			expect(events).toEqual([
-				'routes read',
-				'integration setup',
-				'asset ledger restore started',
-				'asset ledger restored',
-			]);
-			expect(handleSharedRequest).toHaveBeenCalledTimes(1);
-			expect(assetLedgerRestore.run).toHaveBeenCalledTimes(1);
-			expect(assetLedgerRestore.run.mock.calls[0]?.[0]).toBe(appConfig);
+			expect(assetLedgerRestore.run).not.toHaveBeenCalled();
 		});
 
 		it('empties dist before an export sets Processors up and keeps what they generate', async () => {

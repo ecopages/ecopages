@@ -260,7 +260,7 @@ describe('IntegrationRenderer', () => {
 		expect(result.html).toBe('<section><aside><strong>queued child</strong></aside></section>');
 	});
 
-	it('reuses production prebuild page data and prepares render options on demand', async () => {
+	it('prepares a planned route without running its data hooks again', async () => {
 		const validateGraph = vi.spyOn(OwnershipValidationService.prototype, 'validateGraph');
 		const staticProps = vi.fn(async ({ pathname }: { pathname: { params: Record<string, string> } }) => ({
 			props: { slug: pathname.params.slug },
@@ -282,13 +282,12 @@ describe('IntegrationRenderer', () => {
 		Page.resolveDependencies = resolveDependencies;
 		let preparedContributionHookCalls = 0;
 		const renderer = new (class extends TestIntegrationRenderer {
-			protected override async resolvePageBrowserGraphContributionFromComponents(
-				components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
-				ownerFile: string,
-				preparedNodes?: ReadonlyArray<PreparedComponentGraphNode>,
-			) {
+			override async resolvePageDependencyContribution(input: {
+				nodes: ReadonlyArray<PreparedComponentGraphNode>;
+				ownerFile: string;
+			}) {
 				preparedContributionHookCalls += 1;
-				return super.resolvePageBrowserGraphContributionFromComponents(components, ownerFile, preparedNodes);
+				return super.resolvePageDependencyContribution(input);
 			}
 		})({
 			appConfig: testAppConfig,
@@ -299,16 +298,14 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		await renderer.buildGroupedGraphBuildPlan([{ routeFile, params }]);
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { params });
-		const result = await renderer.execute({ file: routeFile, params });
+		const routesPlan = await renderer.planProductionRoutes([{ routeFile, params }]);
+		await routesPlan?.prepare();
 
 		expect(staticProps).toHaveBeenCalledTimes(1);
 		expect(metadata).toHaveBeenCalledTimes(1);
 		expect(resolveDependencies).toHaveBeenCalledTimes(1);
 		expect(preparedContributionHookCalls).toBe(1);
 		expect(validateGraph).toHaveBeenCalledTimes(2);
-		expect(result.metadata?.title).toBe('captured');
 		validateGraph.mockRestore();
 	});
 
@@ -330,7 +327,7 @@ describe('IntegrationRenderer', () => {
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const onRouteFailure = vi.fn();
 
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan(
+		const routesPlan = await renderer.planProductionRoutes(
 			[
 				{ routeFile, params: { slug: 'broken' } },
 				{ routeFile, params: { slug: 'healthy' } },
@@ -344,9 +341,7 @@ describe('IntegrationRenderer', () => {
 			message: 'Error fetching static props: broken static props',
 			cause: failure,
 		});
-		expect(groupedBuildPlan.instances).toHaveLength(1);
-		expect(groupedBuildPlan.instances[0]?.routeFile).toBe(routeFile);
-		expect(groupedBuildPlan.instances[0]?.dependencyInstanceKey).toContain('healthy');
+		expect(routesPlan?.plan.integrationName).toBe('test-renderer');
 	});
 
 	it('plans component scripts as definitions without changing a render that runs meanwhile', async () => {
@@ -384,14 +379,14 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		const planning = renderer.buildGroupedGraphBuildPlan([{ routeFile }, { routeFile: '/app/pages/other.tsx' }]);
+		const planning = renderer.planProductionRoutes([{ routeFile }, { routeFile: '/app/pages/other.tsx' }]);
 		await staticPropsStarted;
 		const resolvedDependencies = await renderer.processForRender([Card]);
 		for (const release of pendingStaticProps) release();
-		const groupedBuildPlan = await planning;
+		const routesPlan = await planning;
 
 		expect(resolvedDependencies).toEqual([{ kind: 'script', srcUrl: '/assets/script.js' }]);
-		expect(groupedBuildPlan.bundledScripts).toEqual([
+		expect(routesPlan?.plan.bundledScripts).toEqual([
 			expect.objectContaining({ kind: 'script', filepath: '/app/components/card.script.ts' }),
 		]);
 		expect(processDependencies).toHaveBeenCalledOnce();
@@ -410,11 +405,7 @@ describe('IntegrationRenderer', () => {
 		};
 		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
 		Page.resolveDependencies = async () => ({ components: [Card] });
-		const renderer = new (class extends TestIntegrationRenderer {
-			resolveGraphForRoute(file: string) {
-				return this.resolvePageBrowserGraphForRoute(file);
-			}
-		})({
+		const renderer = new TestIntegrationRenderer({
 			appConfig,
 			assetProcessingService: {
 				processDependencies,
@@ -424,24 +415,22 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
+		const routesPlan = await renderer.planProductionRoutes([{ routeFile }]);
 		const scriptProcessingCallsWhilePlanning = processDependencies.mock.calls.filter(([deps]) =>
 			deps.some((dep) => dep.kind === 'script'),
 		);
-		await renderer.prebuildProductionPageBrowserGraph(routeFile);
-		const graph = await renderer.resolveGraphForRoute(routeFile);
+		await routesPlan?.prepare();
 
 		expect(scriptProcessingCallsWhilePlanning).toEqual([]);
-		expect(groupedBuildPlan.bundledScripts).toEqual([
+		expect(routesPlan?.plan.bundledScripts).toEqual([
 			expect.objectContaining({ kind: 'script', filepath: '/app/components/card.script.ts' }),
 		]);
-		expect([...(graph?.entryAssets ?? []), ...(graph?.chunkAssets ?? [])]).toContainEqual({
-			kind: 'script',
-			srcUrl: '/assets/card-built.js',
-		});
+		expect(processDependencies.mock.calls.flatMap(([deps]) => deps)).toContainEqual(
+			expect.objectContaining({ kind: 'script', filepath: '/app/components/card.script.ts' }),
+		);
 	});
 
-	it('plans what a contribution hook names without processing it, and processes it when the graph resolves', async () => {
+	it('plans what a contribution hook names without processing it, and processes it when the route is prepared', async () => {
 		const routeFile = '/app/pages/post.mdx';
 		const appConfig = createMockAppConfig({ rootDir: '/app' });
 		const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
@@ -467,11 +456,7 @@ describe('IntegrationRenderer', () => {
 			position: 'head',
 		};
 		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-		const renderer = new (class extends TestIntegrationRenderer {
-			resolveGraphForRoute(file: string) {
-				return this.resolvePageBrowserGraphForRoute(file);
-			}
-		})({
+		const renderer = new TestIntegrationRenderer({
 			appConfig,
 			assetProcessingService: {
 				processDependencies,
@@ -487,66 +472,24 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
+		const routesPlan = await renderer.planProductionRoutes([{ routeFile }]);
 		const scriptProcessingCallsWhilePlanning = processDependencies.mock.calls.filter(([deps]) =>
 			deps.some((dep) => dep.kind === 'script'),
 		);
-		const graph = await renderer.resolveGraphForRoute(routeFile);
+		await routesPlan?.prepare();
 
 		expect(scriptProcessingCallsWhilePlanning).toEqual([]);
-		expect(groupedBuildPlan.bundledScripts).toEqual(
+		expect(routesPlan?.plan.bundledScripts).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ kind: 'script', filepath: '/app/pages/post.script.ts' }),
 				expect.objectContaining({ kind: 'script', filepath: '/app/components/ssr.script.ts' }),
 			]),
 		);
-		const graphAssets = [...(graph?.entryAssets ?? []), ...(graph?.chunkAssets ?? [])];
-		expect(graphAssets).toContainEqual({ kind: 'script', srcUrl: '/assets/mdx.js' });
-		expect(graphAssets).toContainEqual({ kind: 'script', srcUrl: '/assets/ssr.js' });
-	});
-
-	it('keeps the page dependencies of a route planned next to its route template', async () => {
-		const routeFile = '/app/pages/index.tsx';
-		const appConfig = createMockAppConfig({ rootDir: '/app' });
-		const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
-			deps.map((dep) => ({ kind: dep.kind, srcUrl: '/assets/card-built.js' }) as ProcessedAsset),
+		const processedScripts = processDependencies.mock.calls.flatMap(([deps]) => deps);
+		expect(processedScripts).toContainEqual(
+			expect.objectContaining({ kind: 'script', filepath: '/app/pages/post.script.ts' }),
 		);
-		const Card = (() => '<div>card</div>') as EcoComponent;
-		Card.config = {
-			identity: { id: 'card', file: '/app/components/card.tsx', integration: 'test-renderer' },
-			dependencies: { scripts: ['./card.script.ts'] },
-		};
-		let staticPropsCalls = 0;
-		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-		Page.staticProps = async () => {
-			staticPropsCalls += 1;
-			if (staticPropsCalls > 1) await new Promise((resolveLater) => setTimeout(resolveLater, 20));
-			return { props: {} };
-		};
-		Page.resolveDependencies = async () => ({ components: [Card] });
-		const renderer = new (class extends TestIntegrationRenderer {
-			resolveGraphForRoute(file: string) {
-				return this.resolvePageBrowserGraphForRoute(file);
-			}
-		})({
-			appConfig,
-			assetProcessingService: {
-				processDependencies,
-				getHmrManager: () => undefined,
-			} as unknown as AssetProcessingService,
-		});
-		renderer.PageModule = { default: Page };
-		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-
-		await renderer.buildGroupedGraphBuildPlan([{ routeFile }, { routeFile, isRouteTemplate: true }]);
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { isRouteTemplate: true });
-		await renderer.prebuildProductionPageBrowserGraph(routeFile);
-		const graph = await renderer.resolveGraphForRoute(routeFile);
-
-		expect([...(graph?.entryAssets ?? []), ...(graph?.chunkAssets ?? [])]).toContainEqual({
-			kind: 'script',
-			srcUrl: '/assets/card-built.js',
-		});
+		expect(processedScripts).toContainEqual(ssrLazyScript);
 	});
 
 	describe('page client entries after an app-wide browser build', () => {
@@ -627,7 +570,7 @@ describe('IntegrationRenderer', () => {
 			}
 		});
 
-		it('builds an entry the ledger does not record on its own until the build is sealed', async () => {
+		it('builds an entry the ledger does not record through the Integration', async () => {
 			const { renderer } = createBuiltRenderer();
 			const changedPlan = collectPageClientPlan([{ component: otherComponent }], 'test-renderer');
 
@@ -637,23 +580,6 @@ describe('IntegrationRenderer', () => {
 			});
 
 			expect(fallbackAssets.processedAssets).toEqual([integrationBuiltAsset]);
-		});
-
-		it('fails a sealed production request whose page-client entry the ledger does not record, naming the route', async () => {
-			vi.stubEnv('NODE_ENV', 'production');
-			const { appConfig, renderer } = createBuiltRenderer();
-			requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
-			const changedPlan = collectPageClientPlan([{ component: otherComponent }], 'test-renderer');
-
-			await expect(
-				renderer.buildPageClientBrowserAssets(changedPlan, {
-					file: routeFile,
-					params: { slug: 'new-product' },
-				}),
-			).rejects.toThrow(
-				'The production Page Browser Graph for /app/pages/products/[slug].tsx is missing from the production asset ledger (entry slug=new-product). Run `ecopages build` again.',
-			);
-			vi.unstubAllEnvs();
 		});
 
 		it('resolves lazy triggers from the recorded app browser client assets', async () => {
@@ -672,8 +598,8 @@ describe('IntegrationRenderer', () => {
 			const renderer = new TestIntegrationRenderer({ appConfig, assetProcessingService: testAssetService });
 			renderer.PageModule = { default: Page };
 			renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-			const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile: lazyRouteFile }]);
-			const lazyEntry = groupedBuildPlan.instances[0]?.pageClientBuildEntries?.find(
+			const routesPlan = await renderer.planProductionRoutes([{ routeFile: lazyRouteFile }]);
+			const lazyEntry = routesPlan?.plan.pageClientEntries.find(
 				({ dependency: entry }) => entry.kind === 'script' && Boolean(entry.attributes?.['data-eco-lazy-key']),
 			);
 			if (lazyEntry?.dependency.kind !== 'script') throw new Error('Expected a planned lazy script entry');
@@ -715,14 +641,14 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		await renderer.buildGroupedGraphBuildPlan([
+		await renderer.planProductionRoutes([
 			{ routeFile, params: { slug: 'existing-product' }, skipStaticProps: true },
 		]);
 
 		expect(metadata).toHaveBeenCalledWith(expect.objectContaining({ params: { slug: 'existing-product' } }));
 	});
 
-	it('does not reuse prebuilt page dependencies when render props override the route', async () => {
+	it('resolves the page dependencies of each render from its own props', async () => {
 		const defaultDependency = (() => 'default') as EcoComponent;
 		defaultDependency.config = {
 			identity: { id: 'default', file: '/app/components/default.tsx', integration: 'test-renderer' },
@@ -758,11 +684,11 @@ describe('IntegrationRenderer', () => {
 				return await super.render(options);
 			}
 
-			protected override async resolvePageBrowserGraphContributionFromComponents(
-				components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
-				_ownerFile: string,
-				_preparedNodes?: ReadonlyArray<PreparedComponentGraphNode>,
-			) {
+			override async resolvePageDependencyContribution(input: {
+				nodes: ReadonlyArray<PreparedComponentGraphNode>;
+				ownerFile: string;
+			}) {
+				const components = input.nodes.map((node) => node.component);
 				pageDependencyContributions.push(
 					components.flatMap((component) => {
 						const id = getComponentIdentity(component)?.id;
@@ -785,8 +711,6 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
-		await renderer.prebuildProductionPageBrowserGraph(routeFile);
 		await renderer.execute({ file: routeFile, params: {}, query: {} });
 		expect(renderedPageEntryAssets.at(-1)).toEqual([defaultAsset]);
 		await renderer.execute({ file: routeFile, params: {}, query: {}, props: { variant: 'override' } });

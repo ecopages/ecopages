@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type {
-	AssetProcessingService,
-	EcoBuildOnResolveResult,
-	EcoBuildPlugin,
-	IntegrationRuntimeContext,
-} from '@ecopages/core/integration';
+import type { EcoBuildOnResolveResult, EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/integration';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -194,44 +189,21 @@ describe('BundleService', () => {
 		}
 	});
 
-	it('processes page-layout-normalization vendor once for concurrent MDX callers', async () => {
-		const assetProcessingIntegration = { name: 'react' };
+	it('declares the page-layout-normalization vendor as a browser runtime asset left out of the HTML', () => {
 		const service = new BundleService({
 			rootDir: '/app',
 			appConfig: testAppConfig,
-			assetProcessingIntegration,
+			assetProcessingIntegration: { name: 'react' },
 			hostIntegrationName: 'react',
 		});
-		let resolveProcess!: () => void;
-		const processGate = new Promise<void>((resolve) => {
-			resolveProcess = resolve;
-		});
-		const processDependencies = vi.fn(async () => {
-			await processGate;
-			return [];
-		});
-		const assetProcessingService = {
-			processDependencies,
-		} satisfies Pick<AssetProcessingService, 'processDependencies'>;
 
-		const first = service.ensurePageLayoutNormalizationVendorProcessed(assetProcessingService);
-		const second = service.ensurePageLayoutNormalizationVendorProcessed(assetProcessingService);
-
-		expect(processDependencies).toHaveBeenCalledTimes(1);
-		expect(processDependencies).toHaveBeenCalledWith(
-			expect.arrayContaining([
-				expect.objectContaining({
-					name: 'page-layout-normalization',
-				}),
-			]),
-			assetProcessingIntegration,
-		);
-
-		resolveProcess();
-		await Promise.all([first, second]);
-
-		await service.ensurePageLayoutNormalizationVendorProcessed(assetProcessingService);
-		expect(processDependencies).toHaveBeenCalledTimes(1);
+		expect(service.getPageLayoutNormalizationDependencies()).toEqual([
+			expect.objectContaining({
+				name: 'page-layout-normalization',
+				packageRole: 'runtime',
+				excludeFromHtml: true,
+			}),
+		]);
 	});
 
 	const buildReactIsland = async (tempDir: string, entrypoint: string) => {

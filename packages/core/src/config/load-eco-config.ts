@@ -114,5 +114,8 @@ async function loadEcoPagesConfigWithBundleDir(
 		: resolveEcoConfigPath({ ...options, cwd });
 	const exported = await loadConfigModule(configFilePath);
 	const userConfig = materializeUserConfig(exported, configFilePath);
-	return await finalizeEcoPagesConfig(userConfig, { configFilePath, cwd });
+	return await finalizeEcoPagesConfig(options.directories ? { ...userConfig, ...options.directories } : userConfig, {
+		configFilePath,
+		cwd,
+	});
 }

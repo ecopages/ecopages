@@ -12,7 +12,7 @@ import { getReactClientGraphAllowSpecifiers, getReactRuntimeExternalSpecifiers }
 import { createBrowserRuntimePlugin } from '@ecopages/core/build';
 import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build';
 import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/integration';
-import type { AssetProcessingIntegration, AssetProcessingService } from '@ecopages/core/integration';
+import type { AssetDefinition, AssetProcessingIntegration } from '@ecopages/core/integration';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { RuntimeBundleService, type ReactRuntimeImports } from './runtime-bundle.ts';
 import { isReactProductionRuntime } from './runtime-mode.ts';
@@ -52,7 +52,6 @@ export class BundleService {
 	private readonly config: BundleServiceConfig;
 	private readonly foreignJsxOverridePlugin: EcoBuildPlugin | undefined;
 	private readonly runtimeRewritePlugin: EcoBuildPlugin | null;
-	private pageLayoutNormalizationVendorPromise: Promise<void> | undefined;
 	private mdxLoaderPlugin: EcoBuildPlugin | null | undefined;
 
 	constructor(config: BundleServiceConfig) {
@@ -80,29 +79,14 @@ export class BundleService {
 	}
 
 	/**
-	 * Processes the MDX-only page-layout-normalization vendor once per BundleService instance.
+	 * Returns the MDX-only page-layout-normalization vendor, which an MDX Page Browser Graph declares.
 	 *
 	 * @remarks
-	 * Concurrent callers share the same in-flight promise. Asset processing itself caches
-	 * by dependency key, so repeats after success remain cheap.
+	 * It is a browser runtime asset left out of the HTML: core processes it with the graph, and the runtime
+	 * specifier rewrite points the page bootstrap at its fixed URL.
 	 */
-	async ensurePageLayoutNormalizationVendorProcessed(
-		assetProcessingService: Pick<AssetProcessingService, 'processDependencies'>,
-	): Promise<void> {
-		if (!this.pageLayoutNormalizationVendorPromise) {
-			this.pageLayoutNormalizationVendorPromise = assetProcessingService
-				.processDependencies(
-					this.runtimeBundleService.getPageLayoutNormalizationDependencies(),
-					this.config.assetProcessingIntegration,
-				)
-				.then(() => undefined)
-				.catch((error) => {
-					this.pageLayoutNormalizationVendorPromise = undefined;
-					throw error;
-				});
-		}
-
-		await this.pageLayoutNormalizationVendorPromise;
+	getPageLayoutNormalizationDependencies(): AssetDefinition[] {
+		return this.runtimeBundleService.getPageLayoutNormalizationDependencies();
 	}
 
 	/**

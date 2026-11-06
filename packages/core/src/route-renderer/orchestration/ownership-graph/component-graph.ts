@@ -80,13 +80,6 @@ export function computeForeignDescendantMap(
 	return foreignByNode;
 }
 
-export type PreparedRouteComponentGraphs = {
-	shellGraph: PreparedComponentGraph;
-	shellDependencyComponents: EcoComponent[];
-	graph: PreparedComponentGraph;
-	ownershipValidated?: boolean;
-};
-
 function createComponentGraphNodeId(
 	identity: ReturnType<typeof getComponentIdentity>,
 	source: Exclude<OwnershipPlanNodeSource, 'route'> | undefined,

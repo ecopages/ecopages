@@ -32,6 +32,7 @@ import {
 	teardownAppRuntimeIntegrations,
 } from '../build/app-build-manifest-runtime.ts';
 import { emitProductionServerModules, shouldBuildPagesUnifiedGraph } from '../build/cache/pages-unified-graph-build.ts';
+import { getImportedViewPaths } from '../build/server/imported-view-plugin.ts';
 import {
 	clearProductionPageBrowserGraphSession,
 	prebuildProductionPageBrowserGraphs,
@@ -158,18 +159,10 @@ export class StaticSiteGenerator {
 
 	private async shouldSkipStaticPageFile(
 		filePath: string,
-		params: Record<string, string | string[]>,
 		routeRendererFactory: StaticPageRouteRendererFactory,
 	): Promise<boolean> {
-		const renderer = routeRendererFactory.getPageRenderer(filePath);
-		const pageModule: EcoPageFile = await renderer.loadPageModule(filePath);
-		const Page = pageModule.default as StaticGenerationPage;
-		if (Page.cache !== 'dynamic') {
-			return false;
-		}
-
-		renderer.clearPrebuiltRoutePreparation?.({ file: filePath, params });
-		return true;
+		const pageModule: EcoPageFile = await routeRendererFactory.getPageRenderer(filePath).loadPageModule(filePath);
+		return (pageModule.default as StaticGenerationPage).cache === 'dynamic';
 	}
 
 	private shouldSkipStaticView(_routePath: string, view: StaticGenerationPage): boolean {
@@ -277,7 +270,7 @@ export class StaticSiteGenerator {
 			throw new Error(STATIC_SITE_GENERATOR_ERRORS.ROUTE_RENDERER_FACTORY_REQUIRED);
 		}
 
-		if (await this.shouldSkipStaticPageFile(filePath, params, routeRendererFactory)) {
+		if (await this.shouldSkipStaticPageFile(filePath, routeRendererFactory)) {
 			skipped?.push(filePath);
 			return null;
 		}
@@ -477,6 +470,11 @@ export class StaticSiteGenerator {
 				(await input.router.listDynamicPagePathExpansions?.({
 					runtimeOrigin: input.baseUrl,
 				})) ?? [];
+			const importedViews = getImportedViewPaths(this.appConfig).map((routeFile) => ({
+				routeFile,
+				skipStaticProps: true,
+				isRouteTemplate: true,
+			}));
 			await prebuildProductionPageBrowserGraphs(
 				this.appConfig,
 				[
@@ -489,6 +487,7 @@ export class StaticSiteGenerator {
 						params: route.params,
 					})),
 					...dynamicRouteTemplates,
+					...importedViews,
 					...explicitStaticRoutes.flatMap(({ routeFile, routeEntries }) =>
 						routeFile ? routeEntries.map(({ params }) => ({ routeFile, params })) : [],
 					),

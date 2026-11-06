@@ -20,7 +20,6 @@ import {
 	getIntegrationDependencyKey,
 } from './asset-processing-service/asset-dependency-keys.ts';
 import type { AssetDefinition, ProcessedAsset, ScriptAsset } from './asset-processing-service/assets.types.ts';
-import { prepareAssetDependencies } from './asset-processing-service/asset-processing.service.ts';
 import { isBundleableScript } from './asset-processing-service/bundleable-script.ts';
 
 type BundledScript = Extract<AssetDefinition, { kind: 'script' }>;
@@ -281,31 +280,18 @@ function groupBuildEntriesByOptions(
 }
 
 /**
- * Adds one plan's dependencies to the build.
+ * Adds one plan's scripts to the build.
  *
  * @remarks
- * Grouped graph dependencies are prepared as asset processing prepares them, and recorded under the prepared key
- * it looks them up with; ungrouped ones are processed on their own when the graph resolves. Lazy and island
- * entries are recorded under the key they were declared with, which is the one the renderer looks up. Component
- * scripts arrive already prepared.
+ * Planning prepared each script as asset processing prepares it, so it is recorded under the key rendering looks
+ * it up with. Island and lazy entries are recorded under the key they were declared with.
  */
-function addPlanEntries(appConfig: EcoPagesAppConfig, plan: GroupedGraphBuildPlan, entries: BuildEntries): void {
-	const integration = appConfig.integrations.find((entry) => entry.name === plan.integrationName);
-	const graphDependencies = prepareAssetDependencies(
-		plan.instances.flatMap((instance) => [...(instance.contribution?.dependencies ?? [])]),
-		integration,
-		appConfig.rootDir,
-	);
-	for (const dependency of graphDependencies) {
-		if (dependency.kind === 'script' && dependency.groupedBundle?.id) entries.add(plan.integrationName, dependency);
-	}
-	for (const { integrationName, dependency } of plan.instances.flatMap(
-		(instance) => instance.pageClientBuildEntries ?? [],
-	)) {
-		entries.add(integrationName, dependency);
-	}
-	for (const script of plan.bundledScripts ?? []) {
+function addPlanEntries(plan: GroupedGraphBuildPlan, entries: BuildEntries): void {
+	for (const script of plan.bundledScripts) {
 		entries.add(plan.integrationName, script);
+	}
+	for (const { integrationName, dependency } of plan.pageClientEntries) {
+		entries.add(integrationName, dependency);
 	}
 }
 
@@ -398,7 +384,7 @@ export async function buildAppBrowserClient(
 	const cleanupEntries: Array<() => void> = [];
 	try {
 		const entries = new BuildEntries(appConfig, cleanupEntries);
-		for (const plan of plans) addPlanEntries(appConfig, plan, entries);
+		for (const plan of plans) addPlanEntries(plan, entries);
 		const htmlInputs = collectHtmlPageModuleScriptBuildInputs(appConfig);
 		const buildEntries = entries.entries;
 		const htmlEntryNames = new Map<string, string>();

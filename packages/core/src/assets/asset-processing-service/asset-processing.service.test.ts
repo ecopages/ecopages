@@ -1129,3 +1129,63 @@ test('AssetProcessingService - reuses a cached asset in production without re-re
 	expect(processMock).toHaveBeenCalledTimes(1);
 	expect(hash.mock.calls.length).toBe(hashesAfterFirstRun);
 });
+
+test('AssetProcessingService - a sealed ledger serves every recorded dependency without processing or writing', async () => {
+	vi.stubEnv('NODE_ENV', 'production');
+	fileSystem.exists = vi.fn(() => true);
+	const appConfig = createTestConfig();
+	const ledger = requireAppRuntime(appConfig).processedAssets;
+	const contentScript: AssetDefinition = { kind: 'script', source: 'content', content: 'go()', bundle: false };
+	const stylesheet: AssetDefinition = { kind: 'stylesheet', source: 'file', filepath: '/test/src/page.css' };
+	const scriptAsset: ProcessedAsset = { kind: 'script', filepath: '/test/dist/client/assets/go.js', inline: false };
+	const styleAsset: ProcessedAsset = { kind: 'stylesheet', filepath: '/test/dist/client/assets/page.css' };
+	ledger.record(contentScript, scriptAsset);
+	ledger.record(stylesheet, styleAsset);
+	ledger.seal();
+	const service = new AssetProcessingService(appConfig);
+	const process = vi.fn(Processor.process);
+	service.registerProcessor('script', 'content', { process });
+	service.registerProcessor('stylesheet', 'file', { process });
+
+	const results = await service.processDependencies([contentScript, stylesheet], undefined);
+
+	expect(results.map((asset) => asset.srcUrl)).toEqual(['/assets/go.js', '/assets/page.css']);
+	expect(process).not.toHaveBeenCalled();
+	expect(fileSystem.write).not.toHaveBeenCalled();
+	expect(fileSystem.ensureDir).not.toHaveBeenCalled();
+	expect(fileSystem.gzipFile).not.toHaveBeenCalled();
+});
+
+test('AssetProcessingService - a sealed ledger rejects a dependency it does not record, without processing it', async () => {
+	vi.stubEnv('NODE_ENV', 'production');
+	fileSystem.exists = vi.fn(() => true);
+	const appConfig = createTestConfig();
+	requireAppRuntime(appConfig).processedAssets.seal();
+	const service = new AssetProcessingService(appConfig);
+	const process = vi.fn(Processor.process);
+	service.registerProcessor('script', 'content', { process });
+
+	await expect(
+		service.processDependencies(
+			[{ kind: 'script', source: 'content', content: 'late()', name: 'late' }],
+			undefined,
+		),
+	).rejects.toThrow('The production build did not record the script content late. Run `ecopages build` again.');
+	expect(process).not.toHaveBeenCalled();
+	expect(fileSystem.write).not.toHaveBeenCalled();
+});
+
+test('AssetProcessingService - a production build records every dependency it processes, content included', async () => {
+	vi.stubEnv('NODE_ENV', 'production');
+	fileSystem.exists = vi.fn(() => true);
+	const appConfig = createTestConfig();
+	const service = new AssetProcessingService(appConfig);
+	service.registerProcessor('script', 'content', { process: vi.fn(Processor.process) });
+	const contentScript: AssetDefinition = { kind: 'script', source: 'content', content: 'go()', bundle: false };
+
+	await service.processDependencies([contentScript], undefined);
+
+	expect(requireAppRuntime(appConfig).processedAssets.lookup(contentScript)?.filepath).toBe(
+		'/test/dist/client/assets/test.js',
+	);
+});

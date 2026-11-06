@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
 import type { ResolvedHmrEntrypoint } from '../../types/contracts.ts';
+import { DevTransformEntrypointRegistry } from '../../adapters/shared/hmr/dev-transform-entrypoint-registry.ts';
 import { TemplateSourceHmrStrategy } from './template-source-hmr-strategy.ts';
 
 async function createStrategy(
@@ -27,11 +28,9 @@ describe('TemplateSourceHmrStrategy', () => {
 
 	it('leaves a registered script entrypoint to the strategies that rerun it', async () => {
 		const scriptPath = '/test/project/src/components/widget.script.kita.tsx';
-		const strategy = await createStrategy(
-			new Map([
-				[scriptPath, { sourcePath: scriptPath, outputPath: scriptPath, outputUrl: '/w.js', role: 'script' }],
-			]),
-		);
+		const registry = new DevTransformEntrypointRegistry();
+		registry.registerTransformModule(scriptPath, '/w.js', { role: 'script' });
+		const strategy = await createStrategy(registry.getRegisteredEntrypoints());
 
 		expect(strategy.matches(scriptPath)).toBe(false);
 	});

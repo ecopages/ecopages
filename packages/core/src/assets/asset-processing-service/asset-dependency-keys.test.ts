@@ -128,6 +128,17 @@ describe('getAssetDependencyKey', () => {
 			);
 		});
 
+		it('changes with the order of plugins, since the first plugin to answer a hook wins', () => {
+			const alias: EcoBuildPlugin = { name: 'alias', setup: () => {} };
+			const override = jsxOverride('react');
+
+			expect(
+				keyOf(AssetFactory.createFileScript({ filepath, bundleOptions: { plugins: [alias, override] } })),
+			).not.toBe(
+				keyOf(AssetFactory.createFileScript({ filepath, bundleOptions: { plugins: [override, alias] } })),
+			);
+		});
+
 		it('does not depend on the order of define entries', () => {
 			expect(
 				keyOf(AssetFactory.createFileScript({ filepath, bundleOptions: { define: { A: '1', B: '2' } } })),

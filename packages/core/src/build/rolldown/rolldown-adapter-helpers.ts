@@ -642,7 +642,11 @@ export function flattenPreservedModuleName(sourceName: string): string {
  * with a stable digest to stay within common filesystem filename limits without colliding on a shared prefix.
  */
 function flattenPreservedModuleFileNames(pattern: string): (chunk: PreRenderedChunk) => string {
-	return (chunk) => pattern.replaceAll('[name]', () => flattenPreservedModuleName(chunk.name));
+	return (chunk) => {
+		const out = pattern.replaceAll('[name]', () => flattenPreservedModuleName(chunk.name));
+		console.error(`DEBUGNAME ${JSON.stringify(chunk)} => ${out}`);
+		return out;
+	};
 }
 
 function buildRolldownOutputOptions(options: BuildOptions, outdir: string): OutputOptions {

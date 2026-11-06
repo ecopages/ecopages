@@ -139,10 +139,6 @@ export async function prebuildProductionPageBrowserGraphs(
 		appBrowserBuild,
 	);
 
-	for (const { renderer } of rendererPlans) {
-		await renderer.materializeCollectedScripts();
-	}
-
 	for (const [index, { renderer, routeInstances: routeInstancesForRenderer }] of rendererPlans.entries()) {
 		const groupedBuildPlan = appBrowserBuild.plans[index];
 		if (!groupedBuildPlan) continue;
@@ -342,7 +338,6 @@ async function prebuildManifestEntriesForRenderer(
 		restoreManifestRouteAssets(appConfig, renderer, entry, instance);
 	}
 	restoreBundledScripts(appConfig, groupedBuildPlan, bundledScripts);
-	await renderer.materializeCollectedScripts();
 	for (const entry of entries) {
 		await renderer.prebuildProductionPageBrowserGraph(entry.routeFile, {
 			params: entry.params,

@@ -117,6 +117,8 @@ type PreparedRouteGraphContext = {
 	dependencyInstanceKey: string;
 	graphContext: PageBrowserGraphContributionContext;
 	resolvedPageDependencies: ResolvedPageDependencies | undefined;
+	/** Page Dependency nodes this preparation added to the graph; empty when it reused prebuilt graphs. */
+	pageDependencyNodes: PreparedComponentGraphNode[];
 	shellGraph: PreparedComponentGraph;
 	shellDependencyComponents: EcoComponent[];
 	graph: PreparedComponentGraph;
@@ -205,6 +207,7 @@ export class RouteRenderOrchestrator {
 			dependencyInstanceKey,
 			graphContext,
 			resolvedPageDependencies: pageGraph.resolvedPageDependencies,
+			pageDependencyNodes: pageGraph.pageDependencyNodes,
 			shellGraph: shell.shellGraph,
 			shellDependencyComponents: shell.shellDependencyComponents,
 			graph: pageGraph.graph,
@@ -245,7 +248,7 @@ export class RouteRenderOrchestrator {
 		graphContext: PageBrowserGraphContributionContext;
 		prebuiltGraphs: PreparedRouteComponentGraphs | undefined;
 		graphBuilder: ReturnType<typeof createPreparedComponentGraphBuilder>;
-	}): Promise<Pick<PreparedRouteGraphContext, 'resolvedPageDependencies' | 'graph'>> {
+	}): Promise<Pick<PreparedRouteGraphContext, 'resolvedPageDependencies' | 'pageDependencyNodes' | 'graph'>> {
 		const { routeOptions, renderer, graphContext, prebuiltGraphs, graphBuilder } = input;
 		const resolvedPageDependencies = await renderer.resolvePageDependenciesForRoute(graphContext, routeOptions);
 		const pageDependencyNodes = this.collectPageDependencyNodes(
@@ -264,6 +267,7 @@ export class RouteRenderOrchestrator {
 		}
 		return {
 			graph,
+			pageDependencyNodes,
 			resolvedPageDependencies: resolvedPageDependencies
 				? { ...resolvedPageDependencies, contribution: pageDependencyContribution }
 				: undefined,

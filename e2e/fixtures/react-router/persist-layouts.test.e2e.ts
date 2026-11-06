@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { gotoAndWait } from '../../utils/test-helpers';
+import { registerLayoutPersistenceTests } from './layout-persistence.e2e-shared';
+
+registerLayoutPersistenceTests(test);
 
 test('shared runtime module state survives navigation between layout pages', async ({ page }) => {
 	await gotoAndWait(page, '/docs');
@@ -55,24 +58,6 @@ test('back navigation restores the sidebar scroll of the page it returns to, not
 	await page.goBack();
 	await page.waitForURL('**/docs');
 	await expect.poll(() => sidebar.evaluate((element) => element.scrollTop)).toBe(firstPagePosition);
-});
-
-test('evaluates a Layout module once when navigating between a TSX and an MDX Page', async ({ page }) => {
-	const readDocsLayoutEvaluations = () =>
-		page.evaluate(
-			() =>
-				(window as Window & { __ECO_E2E_DOCS_LAYOUT_EVALUATIONS__?: number })
-					.__ECO_E2E_DOCS_LAYOUT_EVALUATIONS__,
-		);
-
-	await gotoAndWait(page, '/docs');
-	await expect.poll(readDocsLayoutEvaluations).toBe(1);
-
-	await page.getByTestId('docs-nav-link').filter({ hasText: 'MDX Docs 1' }).click();
-	await page.waitForURL('**/docs/mdx-docs-1');
-	await expect(page.getByTestId('mdx-docs-1')).toBeVisible();
-
-	expect(await readDocsLayoutEvaluations()).toBe(1);
 });
 
 test('keeps the CSS of a plain component inside a persisted Layout across navigation', async ({ page, request }) => {

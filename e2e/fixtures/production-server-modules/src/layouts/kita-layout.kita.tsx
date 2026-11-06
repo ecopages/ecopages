@@ -1,6 +1,5 @@
-import { eco } from '@ecopages/core';
-import type { EcoPagesElement } from '@ecopages/core';
+import type { EcoPagesElement, LayoutProps } from '@ecopages/core';
 
-export const KitaLayout = eco.layout<{ children: EcoPagesElement }>({
-	render: ({ children }) => <div data-layout="kita">{children as 'safe'}</div>,
-});
+export function KitaLayout({ children }: LayoutProps<EcoPagesElement>) {
+	return <div data-layout="kita">{children as 'safe'}</div>;
+}

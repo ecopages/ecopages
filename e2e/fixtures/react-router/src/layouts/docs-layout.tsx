@@ -26,6 +26,15 @@ const sidebarItems = [
 
 const queryClient = new QueryClient();
 
+/** Counts browser evaluations of this module, so a test can tell one shared copy from two. */
+function countDocsLayoutEvaluation() {
+	if (typeof window === 'undefined') return;
+	const runtimeWindow = window as Window & { __ECO_E2E_DOCS_LAYOUT_EVALUATIONS__?: number };
+	runtimeWindow.__ECO_E2E_DOCS_LAYOUT_EVALUATIONS__ = (runtimeWindow.__ECO_E2E_DOCS_LAYOUT_EVALUATIONS__ ?? 0) + 1;
+}
+
+countDocsLayoutEvaluation();
+
 export const DocsLayout = eco.layout<DocsLayoutProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./docs.css'],

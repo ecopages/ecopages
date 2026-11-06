@@ -161,7 +161,6 @@ describe('HydrationAssetService', () => {
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			1,
 			`ecopages-react-island-${BigInt(`0x${contentHash(islandA, 16)}`).toString()}`,
-			false,
 			['node:path'],
 			{},
 			islandA,
@@ -171,7 +170,6 @@ describe('HydrationAssetService', () => {
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			2,
 			`ecopages-react-island-${BigInt(`0x${contentHash(islandB, 16)}`).toString()}`,
-			false,
 			['node:fs'],
 			{},
 			islandB,
@@ -296,7 +294,6 @@ describe('HydrationAssetService', () => {
 
 		expect(createBundleOptions).toHaveBeenCalledWith(
 			`ecopages-react-${BigInt(`0x${contentHash('/app/src/pages/index.tsx', 16)}`).toString()}`,
-			false,
 			[],
 			{
 				includeRuntime: true,
@@ -339,7 +336,6 @@ describe('HydrationAssetService', () => {
 
 		expect(createBundleOptions).toHaveBeenCalledWith(
 			`ecopages-react-${BigInt(`0x${contentHash('/app/src/pages/index.tsx', 16)}`).toString()}`,
-			false,
 			[],
 			{
 				includeRuntime: false,
@@ -367,7 +363,6 @@ describe('HydrationAssetService', () => {
 
 		expect(createBundleOptions).toHaveBeenCalledWith(
 			`ecopages-react-${BigInt(`0x${contentHash('/app/src/pages/index.tsx', 16)}`).toString()}`,
-			false,
 			[],
 			{
 				includeRuntime: false,
@@ -551,7 +546,6 @@ describe('HydrationAssetService', () => {
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			1,
 			`ecopages-react-island-${BigInt(`0x${contentHash(islandA, 16)}`).toString()}`,
-			false,
 			['node:path'],
 			{},
 			islandA,
@@ -561,7 +555,6 @@ describe('HydrationAssetService', () => {
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			2,
 			`ecopages-react-island-${BigInt(`0x${contentHash(islandB, 16)}`).toString()}`,
-			false,
 			['node:fs'],
 			{},
 			islandB,
@@ -679,7 +672,6 @@ describe('HydrationAssetService', () => {
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			1,
 			islandName,
-			false,
 			[],
 			{},
 			'/app/src/components/counter.tsx',
@@ -689,7 +681,6 @@ describe('HydrationAssetService', () => {
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			2,
 			islandName,
-			false,
 			[],
 			{},
 			'/app/src/components/counter.tsx',

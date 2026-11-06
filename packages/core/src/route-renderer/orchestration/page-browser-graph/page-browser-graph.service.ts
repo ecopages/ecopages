@@ -141,6 +141,11 @@ function remapPlannedInstanceKey(
 	};
 }
 
+/**
+ * @remarks
+ * A planned instance supplies the dependencies the app-wide build assigned to bundles. Processed assets always come
+ * from the current contribution: planning runs before the build, so it processes no component dependencies.
+ */
 function resolveGroupedBuildPlan(
 	rootDir: string,
 	input: PageBrowserGraphResolveInput,
@@ -173,7 +178,7 @@ function resolveGroupedBuildPlan(
 				input.integrationName,
 			)
 		: usesPrebuiltGroupedAssets
-			? (plannedInstance.contribution ?? contribution)
+			? { ...contribution, dependencies: plannedInstance.contribution?.dependencies ?? contribution.dependencies }
 			: contribution;
 
 	return { groupedBuildPlan, graphContribution, usesPrebuiltGroupedAssets };

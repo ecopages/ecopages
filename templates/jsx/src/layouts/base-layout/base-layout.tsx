@@ -10,11 +10,11 @@ export interface BaseLayoutProps extends LayoutProps<JsxRenderable> {
 	prose?: boolean;
 }
 
-export const BaseLayout = eco.layout<JsxRenderable>({
+export const BaseLayout = eco.layout<JsxRenderable, BaseLayoutProps>({
 	dependencies: {
 		scripts: [{ src: './base-layout.script.ts', attributes: { 'data-eco-rerun': '' } }],
 	},
-	render: ({ children, class: className, prose = false }: BaseLayoutProps) => {
+	render: ({ children, class: className, prose = false }) => {
 		return (
 			<body>
 				<header class="site-header">

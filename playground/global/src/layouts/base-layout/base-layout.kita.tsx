@@ -1,4 +1,4 @@
-import { eco, type EcoComponent, type EcoPagesElement, type LayoutProps } from '@ecopages/core';
+import { eco, type EcoPagesElement, type LayoutProps } from '@ecopages/core';
 import { Navigation } from '@/components/navigation';
 import { RadiantCounter } from '@/components/radiant-counter';
 import './base-layout.css';
@@ -7,16 +7,12 @@ export interface BaseLayoutProps extends LayoutProps<EcoPagesElement> {
 	class?: string;
 }
 
-/**
- * @remarks
- * Typed with {@link BaseLayoutProps} so Pages can render it with `class`.
- */
-export const BaseLayout: EcoComponent<BaseLayoutProps, EcoPagesElement> = eco.layout({
+export const BaseLayout = eco.layout<EcoPagesElement, BaseLayoutProps>({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},
 
-	render: ({ children, class: className }: BaseLayoutProps) => {
+	render: ({ children, class: className }) => {
 		return (
 			<body>
 				<Navigation

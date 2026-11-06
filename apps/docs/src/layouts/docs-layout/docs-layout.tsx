@@ -23,7 +23,6 @@ import { docsNav } from '@/lib/content-nav';
 import { BaseLayout } from '@/layouts/base-layout';
 import { frameworkVersion } from '@/lib/framework-version';
 import { DocsPagination } from './components/docs-pagination';
-import './docs-layout.css';
 
 const paginationData = JSON.stringify({
 	pages: docsNav.sections.flatMap((section) => section.items).map(({ href, title }) => ({ href, title })),
@@ -100,6 +99,7 @@ const DocsSiteHeader = () => (
 
 export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
+		stylesheets: ['./docs-layout.css'],
 		scripts: [{ src: './docs-layout.script.ts', ssr: true }],
 		components: [CodeTabs],
 	},

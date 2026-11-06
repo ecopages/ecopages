@@ -6,12 +6,12 @@ export interface BaseLayoutProps extends LayoutProps<EcoPagesElement> {
 	id?: string;
 }
 
-export const BaseLayout = eco.layout({
+export const BaseLayout = eco.layout<EcoPagesElement, BaseLayoutProps>({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},
 
-	render: ({ children }: BaseLayoutProps) => {
+	render: ({ children }) => {
 		return (
 			<div class="layout-container">
 				<header class="site-header">

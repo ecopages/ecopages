@@ -324,7 +324,16 @@ export const BaseLayout = eco.layout({
 });
 ```
 
-Pass either kind as the `layout` option in `eco.page()`. `layout` takes only layout-shaped components: an `eco.layout()` result or a function whose props are `LayoutProps`, which require `children`. EcoPages merges `eco.layout()` results into the page dependency graph automatically; a plain layout's imports reach the page through discovery. A layout that renders without its `children` fails `ecopages dev` and `ecopages build` with `Layout <name> (<file>) did not render its children`.
+A layout with extra props passes them as the second type argument; they must be optional for `eco.page({ layout })`, which passes only `LayoutProps` and the entry's `props` factory output:
+
+```tsx
+export const BaseLayout = eco.layout<ReactNode, LayoutProps<ReactNode> & { prose?: boolean }>({
+	dependencies: { scripts: ['./base-layout.script.ts'] },
+	render: ({ children, prose }) => <main className={prose ? 'prose' : undefined}>{children}</main>,
+});
+```
+
+Pass either kind as the `layout` option in `eco.page()`. `layout` takes only layout-shaped components: an `eco.layout()` result or a function whose props are `LayoutProps`, which require `children`. EcoPages merges `eco.layout()` results into the page dependency graph automatically; a plain layout's imports reach the page through discovery. When a layout renders without its `children`, `ecopages build` fails with `Layout <name> (<file>) did not render its children`, a development request logs it as a warning, and a production request returns the layout's HTML unchanged.
 
 ```tsx
 import { eco } from '@ecopages/core';

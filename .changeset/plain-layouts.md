@@ -9,7 +9,7 @@ Accept plain layout functions. `eco.page({ layout })` takes an `eco.layout()` re
 
 Breaking:
 
-- `layout` accepts only layout-shaped components. A component whose props lack `children`, such as an `eco.component()` that takes other props, is a type error; use `eco.layout()` or a function typed with `LayoutProps`. `EcoPageLayoutEntry` is now the normalized entry stored on page config, and `EcoPageLayoutEntrySpec` is the `{ component, props }` entry written in `eco.page()`.
-- A layout that renders without its `children` fails `ecopages dev` and `ecopages build` with `Layout <name> (<file>) did not render its children`, in every Integration.
+- `layout` accepts only layout-shaped components. A component whose props lack `children`, such as an `eco.component()` that takes other props, is a type error; use `eco.layout()` or a function typed with `LayoutProps`. `EcoPageLayoutEntry` is now the normalized entry stored on page config, and `EcoPageLayoutEntrySpec` is the `{ component, props }` entry written in `eco.page()`. `eco.layout<E, P>()` takes the layout's props as an optional second type argument; extra props must be optional to be passed as `layout`.
+- A layout that renders without its `children` fails `ecopages build` with `Layout <name> (<file>) did not render its children`, in every Integration. A development request logs it as a warning; a production request returns the layout's HTML unchanged.
 - `@ecopages/react-router` no longer exports `clearLayoutCache`. With `persistLayouts: false`, layouts now remount on every page change.
-- A Lit component that does not render its children no longer gets them appended; only a document shell without a children slot still gets them before `</body>`.
+- Every Lit component, not only layouts: children passed to a component whose template has no children slot marker are now dropped instead of appended after its markup. Only a document shell (a template with `</html>`) without a marker still gets them before `</body>`.

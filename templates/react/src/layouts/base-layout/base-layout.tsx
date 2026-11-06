@@ -16,11 +16,11 @@ function ThemeHotkey(): null {
 	return null;
 }
 
-export const BaseLayout = eco.layout<ReactNode>({
+export const BaseLayout = eco.layout<ReactNode, BaseLayoutProps>({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},
-	render: ({ children, class: className, prose = false }: BaseLayoutProps) => {
+	render: ({ children, class: className, prose = false }) => {
 		return (
 			<body>
 				<ThemeHotkey />

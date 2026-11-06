@@ -222,4 +222,27 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 
 		await expect(page.getByTestId('base-layout-hmr')).toHaveText('updated', { timeout: 10000 });
 	});
+
+	test('navigating back after a layout edit renders the edited layout', async ({ page }) => {
+		let hmrMessages = 0;
+		page.on('websocket', (socket) => {
+			socket.on('framereceived', () => {
+				hmrMessages += 1;
+			});
+		});
+		await gotoWithCleanDocsLayout(page, '/docs');
+		await page.getByRole('link', { name: '← Back to Home' }).click();
+		await page.waitForURL('**/');
+		await expect(page.getByTestId('index-page')).toBeVisible();
+
+		const messagesBeforeEdit = hmrMessages;
+		fs.writeFileSync(docsLayoutFile, patchLayoutMdxLabel(originalDocsLayout, '(edited away)'), 'utf-8');
+		await expect.poll(() => hmrMessages, { timeout: 10000 }).toBeGreaterThan(messagesBeforeEdit);
+
+		await page.goBack();
+		await page.waitForURL('**/docs');
+		await expect(page.getByRole('link', { name: 'MDX Docs 1 (edited away)', exact: true })).toBeVisible({
+			timeout: 10000,
+		});
+	});
 });

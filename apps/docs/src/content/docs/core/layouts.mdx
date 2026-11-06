@@ -68,7 +68,7 @@ export function BaseLayout({ children }: LayoutProps<ReactNode>) {
 
 Use `eco.layout()` when the layout declares browser `scripts`, `modules`, stylesheet attributes, or an `integration` override. Reserve `eco.html()` for the document shell in `src/includes`.
 
-A layout must render `children`. TypeScript accepts a function that ignores them, so composition checks it: when a layout renders without its page, `ecopages dev` and `ecopages build` fail with `Layout <name> (<file>) did not render its children`. An `eco.layout()` result is named after its file; a plain function is named by its function name, with the file of the page that uses it.
+A layout must render `children`. TypeScript accepts a function that ignores them, so composition checks it: when a layout renders without its page, `ecopages build` fails with `Layout <name> (<file>) did not render its children`, a development request logs it as a warning, and a production request returns the layout's HTML unchanged, so a layout that shows a sign-in gate instead of the page still works on a dynamic route. An `eco.layout()` result is named after its file; a plain function is named by its function name, with the file of the page that uses it.
 
 ## Single layout on a page
 

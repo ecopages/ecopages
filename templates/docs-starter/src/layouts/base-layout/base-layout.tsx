@@ -1,4 +1,4 @@
-import { eco, type EcoComponent, type LayoutProps } from '@ecopages/core';
+import { eco, type LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { ThemeToggle } from '@/components/theme-toggle/theme-toggle';
@@ -13,15 +13,11 @@ export interface BaseLayoutProps extends LayoutProps<JsxRenderable> {
 
 const docsIndexHref = docsNav.sections[0]?.items[0]?.href ?? '/docs/getting-started/introduction';
 
-/**
- * @remarks
- * Typed with {@link BaseLayoutProps} so `DocsLayout` can render it with `showHeader`.
- */
-export const BaseLayout: EcoComponent<BaseLayoutProps, JsxRenderable> = eco.layout<JsxRenderable>({
+export const BaseLayout = eco.layout<JsxRenderable, BaseLayoutProps>({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},
-	render: ({ children, class: className, showHeader = true }: BaseLayoutProps) => {
+	render: ({ children, class: className, showHeader = true }) => {
 		return (
 			<body>
 				{showHeader ? (

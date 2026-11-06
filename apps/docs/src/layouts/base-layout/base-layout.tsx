@@ -1,7 +1,6 @@
-import { eco, type EcoComponent, type LayoutProps } from '@ecopages/core';
+import { eco, type LayoutProps } from '@ecopages/core';
 import { Header } from '@/components/header';
 import type { JsxRenderable } from '@ecopages/jsx';
-import './base-layout.css';
 
 export interface BaseLayoutProps extends LayoutProps<JsxRenderable> {
 	class?: string;
@@ -10,16 +9,13 @@ export interface BaseLayoutProps extends LayoutProps<JsxRenderable> {
 	showHeader?: boolean;
 }
 
-/**
- * @remarks
- * Typed with {@link BaseLayoutProps} so `DocsLayout` can render it with `showHeader`.
- */
-export const BaseLayout: EcoComponent<BaseLayoutProps, JsxRenderable> = eco.layout<JsxRenderable>({
+export const BaseLayout = eco.layout<JsxRenderable, BaseLayoutProps>({
 	dependencies: {
+		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
 
-	render: ({ children, class: className, showDocsLink = true, showHeader = true }: BaseLayoutProps) => {
+	render: ({ children, class: className, showDocsLink = true, showHeader = true }) => {
 		return (
 			<body>
 				{showHeader ? (

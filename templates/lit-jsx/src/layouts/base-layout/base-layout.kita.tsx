@@ -9,11 +9,11 @@ export interface BaseLayoutProps extends LayoutProps<EcoPagesElement> {
 	prose?: boolean;
 }
 
-export const BaseLayout = eco.layout<EcoPagesElement>({
+export const BaseLayout = eco.layout<EcoPagesElement, BaseLayoutProps>({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},
-	render: ({ children, class: className, prose = false }: BaseLayoutProps) => {
+	render: ({ children, class: className, prose = false }) => {
 		return (
 			<body>
 				<header class="site-header">

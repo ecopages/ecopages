@@ -22,6 +22,7 @@ import { APP_BROWSER_CLIENT_BUNDLE_ID } from './asset-processing-service/app-bro
 import {
 	deduplicateAssetDependencies,
 	getAssetDependencyKey,
+	getIntegrationDependencyKey,
 } from './asset-processing-service/asset-dependency-keys.ts';
 import type { AssetDefinition, ProcessedAsset, ScriptAsset } from './asset-processing-service/assets.types.ts';
 import { ensureGroupedContentScriptsBundle } from './asset-processing-service/grouped-content-bundles.ts';
@@ -68,36 +69,6 @@ function hash(value: string): string {
 	return contentHash(value, 16);
 }
 
-function dependencyAssociationKey(dependency: AssetDefinition): string {
-	const bundleOptions = dependency.kind === 'script' ? dependency.bundleOptions : undefined;
-	return JSON.stringify({
-		kind: dependency.kind,
-		source: dependency.source,
-		filepath: 'filepath' in dependency ? path.resolve(dependency.filepath) : undefined,
-		content: 'content' in dependency ? hash(dependency.content) : undefined,
-		importPath: 'importPath' in dependency ? dependency.importPath : undefined,
-		name: 'name' in dependency ? dependency.name : undefined,
-		position: dependency.position,
-		attributes: dependency.attributes,
-		packageRole: dependency.packageRole,
-		inline: dependency.inline,
-		classic: dependency.kind === 'script' ? dependency.classic : undefined,
-		excludeFromHtml: dependency.kind === 'script' ? dependency.excludeFromHtml : undefined,
-		bundleOptions: bundleOptions
-			? {
-					treeshaking: bundleOptions.treeshaking,
-					define: bundleOptions.define,
-					minify: bundleOptions.minify,
-					external: bundleOptions.external,
-					splitting: bundleOptions.splitting,
-					excludeAppBuildPlugins: bundleOptions.excludeAppBuildPlugins,
-					naming: bundleOptions.naming,
-					plugins: bundleOptions.plugins?.map((plugin) => [plugin.name, plugin.cacheKey]),
-				}
-			: undefined,
-	});
-}
-
 function canBundle(dependency: AssetDefinition): dependency is AssetDefinition & {
 	kind: 'script';
 	groupedBundle: { id: string; entryName: string };
@@ -111,10 +82,6 @@ function canBundle(dependency: AssetDefinition): dependency is AssetDefinition &
 	);
 }
 
-export function createAppBrowserClientEntryKey(integrationName: string, dependency: AssetDefinition): string {
-	return JSON.stringify([integrationName, dependencyAssociationKey(dependency)]);
-}
-
 function getOrCreateBuildEntry(
 	appConfig: EcoPagesAppConfig,
 	entriesByKey: Map<string, BuildEntry>,
@@ -122,7 +89,7 @@ function getOrCreateBuildEntry(
 	dependency: AssetDefinition,
 	cleanupEntries: Array<() => void>,
 ): BuildEntry {
-	const key = createAppBrowserClientEntryKey(integrationName, dependency);
+	const key = getIntegrationDependencyKey(integrationName, dependency, appConfig.rootDir);
 	const existing = entriesByKey.get(key);
 	if (existing) return existing;
 
@@ -141,7 +108,11 @@ function getOrCreateBuildEntry(
 	return entry;
 }
 
-function prepareAppClientDependency(dependency: AssetDefinition): AssetDefinition {
+function prepareAppClientDependency(
+	appConfig: EcoPagesAppConfig,
+	integrationName: string,
+	dependency: AssetDefinition,
+): AssetDefinition {
 	if (
 		dependency.kind !== 'script' ||
 		dependency.bundle === false ||
@@ -151,7 +122,9 @@ function prepareAppClientDependency(dependency: AssetDefinition): AssetDefinitio
 		return dependency;
 	}
 
-	const entryName = dependency.groupedBundle?.entryName ?? `client-${hash(dependencyAssociationKey(dependency))}`;
+	const entryName =
+		dependency.groupedBundle?.entryName ??
+		`client-${hash(getIntegrationDependencyKey(integrationName, dependency, appConfig.rootDir))}`;
 	const prepared = {
 		...dependency,
 		groupedBundle: { id: APP_BROWSER_CLIENT_BUNDLE_ID, entryName },
@@ -382,7 +355,7 @@ function registerPageClientEntry(
 	routeKey: string,
 	clientEntry: NonNullable<GroupedGraphBuildPlanInstance['pageClientBuildEntries']>[number],
 ): NonNullable<GroupedGraphBuildPlanInstance['pageClientBuildEntries']>[number] {
-	const dependency = prepareAppClientDependency(clientEntry.dependency);
+	const dependency = prepareAppClientDependency(appConfig, clientEntry.integrationName, clientEntry.dependency);
 	if (!canBundle(dependency)) {
 		instance.prebuiltPageClientBrowserAssets ??= {
 			processedAssets: [],
@@ -402,8 +375,12 @@ function registerPageClientEntry(
 		dependency,
 		cleanupEntries,
 	);
-	const identity = dependencyAssociationKey(dependency);
-	if (!entry.dependencies.some((entryDependency) => dependencyAssociationKey(entryDependency) === identity)) {
+	const identity = getAssetDependencyKey(dependency, appConfig.rootDir);
+	if (
+		!entry.dependencies.some(
+			(entryDependency) => getAssetDependencyKey(entryDependency, appConfig.rootDir) === identity,
+		)
+	) {
 		entry.dependencies.push(dependency);
 	}
 	const routes = entry.pageClientRoutes.get(identity) ?? new Set<string>();
@@ -428,21 +405,23 @@ function prepareRouteBuildPlan(
 	const routesByDependencyIdentity = new Map<string, Set<string>>();
 	const dependencies = instances.flatMap(({ routeKey, dependencies: routeDependencies }) =>
 		routeDependencies.map((dependency) => {
-			const identity = dependencyAssociationKey(dependency);
+			const identity = getIntegrationDependencyKey(plan.integrationName, dependency, appConfig.rootDir);
 			const routes = routesByDependencyIdentity.get(identity) ?? new Set<string>();
 			routes.add(routeKey);
 			routesByDependencyIdentity.set(identity, routes);
 			return dependency;
 		}),
 	);
-	const deduplicatedDependencies = deduplicateAssetDependencies(dependencies);
+	const deduplicatedDependencies = deduplicateAssetDependencies(dependencies, appConfig.rootDir);
 	const preparedDependencies =
 		integration?.prepareAssetDependencies?.(deduplicatedDependencies) ?? deduplicatedDependencies;
 	ensureGroupedContentScriptsBundle(preparedDependencies);
 
 	for (const { instance, routeKey } of instances) {
 		const routeDependencies = preparedDependencies.filter((dependency) =>
-			routesByDependencyIdentity.get(dependencyAssociationKey(dependency))?.has(routeKey),
+			routesByDependencyIdentity
+				.get(getIntegrationDependencyKey(plan.integrationName, dependency, appConfig.rootDir))
+				?.has(routeKey),
 		);
 		const updatedDependencies = routeDependencies.map((dependency) =>
 			registerGroupedDependency(
@@ -483,10 +462,10 @@ function registerBundledScript(
 	integrationName: string,
 	script: AssetDefinition,
 ): void {
-	const dependency = prepareAppClientDependency(script);
+	const dependency = prepareAppClientDependency(appConfig, integrationName, script);
 	if (!canBundle(dependency)) return;
 	const entry = getOrCreateBuildEntry(appConfig, entriesByKey, integrationName, dependency, cleanupEntries);
-	entry.bundledScripts.set(getAssetDependencyKey(script), dependency);
+	entry.bundledScripts.set(getAssetDependencyKey(script, appConfig.rootDir), dependency);
 }
 
 function prepareRouteBuildPlans(
@@ -506,12 +485,13 @@ function attachPageClientAsset(instance: GroupedGraphBuildPlanInstance, asset: P
 }
 
 function attachEntryAssetToRoutes(
+	appConfig: EcoPagesAppConfig,
 	entry: BuildEntry,
 	dependency: AssetDefinition,
 	asset: ProcessedAsset,
 	routePlans: RouteBuildPlan[],
 ): void {
-	const pageClientRoutes = entry.pageClientRoutes.get(dependencyAssociationKey(dependency));
+	const pageClientRoutes = entry.pageClientRoutes.get(getAssetDependencyKey(dependency, appConfig.rootDir));
 	for (const routePlan of routePlans) {
 		for (const { instance, routeKey } of routePlan.instances) {
 			if (entry.dependencyRoutes.get(dependency)?.has(routeKey)) {
@@ -568,7 +548,7 @@ function attachBuiltEntryAssets(
 				entry.entrypoint,
 				inputPaths,
 			);
-			attachEntryAssetToRoutes(entry, dependency, asset, routePlans);
+			attachEntryAssetToRoutes(appConfig, entry, dependency, asset, routePlans);
 		}
 	}
 }

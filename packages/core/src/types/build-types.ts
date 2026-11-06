@@ -113,6 +113,8 @@ export type EcoBuildPlugin = {
 	 * A build request is identified by its plugins' names in order, so builds that differ only in the options
 	 * a factory captured would otherwise share an identity, and with it a deduplicated build or a reused
 	 * artifact. A factory that captures an option which changes its output sets this to a string of that option.
+	 * The dependency key of a script that declares the plugin in `bundleOptions` includes it too, so the
+	 * processed-asset cache keeps such scripts apart.
 	 */
 	cacheKey?: string;
 	/**

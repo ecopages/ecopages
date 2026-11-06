@@ -13,8 +13,6 @@ import {
 	assertAppBrowserClientOutputsExist,
 	assertAppBrowserClientManifestHtmlOutputsExist,
 	clearAppBrowserClientManifest,
-	createNormalizedBundledScriptKey,
-	createNormalizedAppBrowserClientEntryKey,
 	readAppBrowserClientManifest,
 	restoreAppBrowserClientAssets,
 	resolveAppBrowserClientManifestPath,
@@ -24,7 +22,10 @@ import type {
 	AppBrowserClientManifestBundledScript,
 	AppBrowserClientManifestEntry,
 } from '../assets/app-browser-client-manifest.ts';
-import { getAssetDependencyKey } from '../assets/asset-processing-service/asset-dependency-keys.ts';
+import {
+	getAssetDependencyKey,
+	getIntegrationDependencyKey,
+} from '../assets/asset-processing-service/asset-dependency-keys.ts';
 import { prepareAssetDependencies } from '../assets/asset-processing-service/asset-processing.service.ts';
 import { isBundleableScript } from '../assets/asset-processing-service/bundleable-script.ts';
 
@@ -208,14 +209,12 @@ function assertManifestDependenciesMatch(
 	const groupedDependencyKeys = [
 		...new Set(
 			(instance.contribution?.dependencies ?? []).map((dependency) =>
-				createNormalizedAppBrowserClientEntryKey(rootDir, renderer.name, dependency),
+				getIntegrationDependencyKey(renderer.name, dependency, rootDir),
 			),
 		),
 	].sort();
 	const pageClientBuildEntryKeys = (instance.pageClientBuildEntries ?? [])
-		.map((clientEntry) =>
-			createNormalizedAppBrowserClientEntryKey(rootDir, clientEntry.integrationName, clientEntry.dependency),
-		)
+		.map((clientEntry) => getIntegrationDependencyKey(clientEntry.integrationName, clientEntry.dependency, rootDir))
 		.sort();
 	if (
 		JSON.stringify(groupedDependencyKeys) !== JSON.stringify(entry.groupedDependencyKeys) ||
@@ -235,11 +234,7 @@ function restoreFallbackDependencies(
 	return entry.pageClientAssets.fallbackPageClientBuildEntryKeys.map((key) => {
 		const fallbackEntry = instance.pageClientBuildEntries?.find(
 			(clientEntry) =>
-				createNormalizedAppBrowserClientEntryKey(
-					rootDir,
-					clientEntry.integrationName,
-					clientEntry.dependency,
-				) === key,
+				getIntegrationDependencyKey(clientEntry.integrationName, clientEntry.dependency, rootDir) === key,
 		);
 		if (!fallbackEntry) {
 			throw new Error(
@@ -264,6 +259,7 @@ function collectIntegrationScriptPlans(appConfig: EcoPagesAppConfig): GroupedGra
 		const bundledScripts = prepareAssetDependencies(
 			[...integration.getIntegrationDependencies()],
 			integration,
+			appConfig.rootDir,
 		).filter((dependency) => isBundleableScript(dependency) && dependency.packageRole !== 'runtime');
 		return bundledScripts.length > 0
 			? [
@@ -298,7 +294,8 @@ function restoreBundledScripts(
 ): void {
 	const prebuiltBrowserScripts = requireAppRuntime(appConfig).prebuiltBrowserScripts;
 	for (const dependency of plan.bundledScripts ?? []) {
-		const script = bundledScripts.get(createNormalizedBundledScriptKey(appConfig.rootDir, dependency));
+		const key = getAssetDependencyKey(dependency, appConfig.rootDir);
+		const script = bundledScripts.get(key);
 		if (!script) {
 			const source = 'filepath' in dependency ? ` ${path.relative(appConfig.rootDir, dependency.filepath)}` : '';
 			throw new Error(
@@ -306,7 +303,7 @@ function restoreBundledScripts(
 			);
 		}
 		const [asset] = restoreAppBrowserClientAssets(appConfig, [script.asset]);
-		if (asset) prebuiltBrowserScripts.set(getAssetDependencyKey(dependency), asset);
+		if (asset) prebuiltBrowserScripts.set(key, asset);
 	}
 }
 

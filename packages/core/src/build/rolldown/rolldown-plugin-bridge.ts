@@ -562,6 +562,8 @@ export async function createRolldownPluginBridge(
 			}
 			const { namespace, path: sourcePath } = splitNamespace(id);
 			const addWatchFile = typeof this?.addWatchFile === 'function' ? this.addWatchFile.bind(this) : undefined;
+			if (!path.isAbsolute(sourcePath) && /react-dom/.test(id))
+				console.error(`DEBUG1018 id=${JSON.stringify(id)} ns=${namespace}`);
 			const resolved = path.isAbsolute(sourcePath) ? sourcePath : path.resolve(contextRoot, sourcePath);
 			recordBuildInput?.(id, resolved);
 			addWatchFile?.(resolved);

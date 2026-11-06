@@ -20,6 +20,13 @@
 - Recipe code on a page comes from the fixture: a fence with `file="<path from the repo root>"` and optional `region="<name>"` is filled by `remarkSnippetInclude` (`src/lib/docs/snippet-include.ts`) and by `scripts/llm-docs-export.ts` for `docs-llm`. Leave the fence body empty.
 - `src/lib/docs/mdx-plugin-options.ts` imports the Diagrams fixture's `remarkMermaid` directly, so the docs app runs the recipe it teaches; `src/styles/components/diagram.css` is the docs theme mapping.
 
+## Developer area
+
+- `src/content/dev/<slug>.mdx` is the `dev` collection, served at `/dev/<slug>` by `src/pages/dev/[slug].tsx`; `src/pages/dev/index.tsx` lists it at `/dev`. It documents the framework's internals for maintainers.
+- The area is hidden: the docs sidebar, pagination and `llms.txt` read only the `docs` collection, every page sets `robots: DEV_ROBOTS` (`noindex`, which also drops it from `sitemap.xml`), and the only link in is the homepage footer.
+- `DevLayout` (`src/layouts/docs-layout/`) is the docs shell with the developer sidebar (`src/lib/dev-nav.ts`) under its own persist id.
+- Frontmatter requires `title`, `description` and `sources`: the repository paths the page describes, a directory ending in `/`. `pnpm check:dev-pages` (`scripts/check-dev-pages.ts`) fails a branch that changes a covered file without touching the page, and a source path that does not exist. Diagrams are `mermaid` code fences.
+
 ## Configuration
 
 - Register `contentProcessorPlugin()` from `@ecopages/content-processor/plugin` in `eco.config.ts`.

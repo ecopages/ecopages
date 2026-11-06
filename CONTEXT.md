@@ -16,7 +16,7 @@ A file-based route entry point that renders content for a specific URL path. Pag
 _Avoid_: Route, view
 
 **Layout**:
-A route-level shell that wraps a page's content. Layouts provide structure (headers, navigation, footers) that persists across page navigations.
+A route-level shell that wraps a page's content. Layouts provide structure (headers, navigation, footers) that persists across page navigations. A Layout is a plain function typed with `LayoutProps`, or an `eco.layout()` result when it needs a wrapper, and it must render its `children`.
 _Avoid_: Template, wrapper
 
 **Component**:
@@ -106,7 +106,7 @@ Request-scoped data injected by middleware or the request pipeline (e.g., authen
 _Avoid_: Request context, server context
 
 **Dependencies**:
-Metadata describing what a Component needs to render correctly: stylesheets, scripts, and nested Components. Explicit declarations and supported static imports both supply this metadata, including the imports of plain function components, which belong to the nearest declared Component, Layout or Page importing them. Wrap a Component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration; Layouts and the Html shell stay declared. The dependency pipeline decides which assets to inject. JavaScript imports retain their module execution semantics.
+Metadata describing what a Component needs to render correctly: stylesheets, scripts, and nested Components. Explicit declarations and supported static imports both supply this metadata, including the imports of plain function components, which belong to the nearest declared Component, Layout or Page importing them. Wrap a Component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration; Layouts use `eco.layout()` only for those needs, and the Html shell stays declared. The dependency pipeline decides which assets to inject. JavaScript imports retain their module execution semantics.
 _Avoid_: Requirements, imports
 
 **Foreign Child**:

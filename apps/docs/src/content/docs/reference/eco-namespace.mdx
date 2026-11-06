@@ -140,7 +140,7 @@ Powered by [`@ecopages/react`](https://github.com/ecopages/react).
 
 > **Warning:** These components **cannot** declare scripts or use EcoPages' lazy loading strategies directly, and a page of another Integration cannot render them. For those features, wrap them in `eco.component()`. A side-effect CSS import (`import './counter.css'`) works without a wrapper.
 >
-> **Important:** Plain React functions are **not** valid as `eco.page({ layout })` values or as `dependencies.components` entries. The renderer validates that dependency graph nodes are **declared** components (`eco.component()`, `eco.layout()`, or `eco.html()`) with bound `config.identity`. Use `eco.layout()` for route wrappers instead of ad-hoc functions.
+> **Important:** Plain React functions are **not** valid as `dependencies.components` entries; the renderer validates that dependency graph nodes are **declared** components (`eco.component()`, `eco.layout()`, or `eco.html()`) with bound `config.identity`. A plain function typed with `LayoutProps` is a valid `eco.page({ layout })` value.
 
 ```tsx
 import { useState } from 'react';
@@ -298,14 +298,24 @@ export const Document = eco.html({
 
 ### `eco.layout()`
 
-Creates a route layout component — a wrapper rendered around page content. Semantically equivalent to `eco.component()` but clearly communicates that the component is intended to be used as a `layout` in `eco.page()`.
+Creates a route layout component — a wrapper rendered around page content — for a layout that declares browser `scripts`, `modules`, stylesheet attributes, or an `integration` override. Any other layout is a plain function typed with `LayoutProps`:
+
+```tsx
+import type { LayoutProps } from '@ecopages/core';
+import type { ReactNode } from 'react';
+import './base-layout.css';
+
+export function BaseLayout({ children }: LayoutProps<ReactNode>) {
+	return <main>{children}</main>;
+}
+```
 
 ```tsx
 import { eco } from '@ecopages/core';
+import './base-layout.css';
 
 export const BaseLayout = eco.layout({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
 	render: ({ children }) => (
@@ -314,7 +324,7 @@ export const BaseLayout = eco.layout({
 });
 ```
 
-Use `eco.layout()` components as the `layout` option in `eco.page()`. EcoPages merges declared layouts into the page dependency graph automatically — you do not need to list the layout again in `dependencies.components` unless you also render it manually inside `render` (unusual).
+Pass either kind as the `layout` option in `eco.page()`. `layout` takes only layout-shaped components: an `eco.layout()` result or a function whose props are `LayoutProps`, which require `children`. EcoPages merges `eco.layout()` results into the page dependency graph automatically; a plain layout's imports reach the page through discovery. A layout that renders without its `children` fails `ecopages dev` and `ecopages build` with `Layout <name> (<file>) did not render its children`.
 
 ```tsx
 import { eco } from '@ecopages/core';

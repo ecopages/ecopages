@@ -266,7 +266,7 @@ export interface Eco {
 	) => EcoComponent<P, E>;
 
 	/**
-	 * Create a page component with type-safe props from getStaticProps.
+	 * Create a page component with type-safe props from `staticProps`.
 	 * Returns an EcoPageComponent with attached staticPaths, staticProps, and metadata.
 	 *
 	 * If `requires` is provided, the `render` callback receives `locals` as required and non-null for the required keys.
@@ -280,19 +280,4 @@ export interface Eco {
 			},
 		): EcoPageComponent<T>;
 	};
-
-	/**
-	 * Type-safe wrapper for page metadata (identity function)
-	 */
-	metadata: <P = {}>(fn: GetMetadata<P>) => GetMetadata<P>;
-
-	/**
-	 * Type-safe wrapper for static paths (identity function)
-	 */
-	staticPaths: (fn: GetStaticPaths) => GetStaticPaths;
-
-	/**
-	 * Type-safe wrapper for static props (identity function)
-	 */
-	staticProps: <P>(fn: GetStaticProps<P>) => GetStaticProps<P>;
 }

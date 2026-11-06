@@ -21,6 +21,7 @@ export {
 	runWithComponentRenderContext,
 } from './eco/component-render-context.ts';
 export { ensurePageConfigLayouts } from './eco/page-layout-normalization.ts';
+export { moveMdxMetadataOntoPage } from './eco/mdx-page-metadata.ts';
 export {
 	collectJsxExtensions,
 	createJsxImportSourcePragma,

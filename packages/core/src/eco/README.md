@@ -12,9 +12,6 @@ The `eco` namespace provides a consistent, type-safe interface for:
 2. **`eco.html()`** - Semantic alias for the document shell component (the outermost HTML wrapper)
 3. **`eco.layout()`** - Semantic alias for route layout components (page-level wrappers)
 4. **`eco.page()`** - Factory for defining page components with optional inline `staticPaths`, `staticProps`, and `metadata`
-5. **`eco.metadata()`** - Type-safe wrapper for page metadata (legacy pattern)
-6. **`eco.staticPaths()`** - Type-safe wrapper for dynamic route generation (legacy pattern)
-7. **`eco.staticProps()`** - Type-safe wrapper for static data fetching (legacy pattern)
 
 ## Layout assignment
 
@@ -259,9 +256,7 @@ export default eco.page<Props, JSX.Element>({
 });
 ```
 
-## Two Patterns for Pages
-
-### Consolidated API (Recommended)
+## Page data
 
 Define everything in one place:
 
@@ -282,32 +277,7 @@ export default eco.page<BlogPostProps>({
 });
 ```
 
-### Separate Exports (Legacy)
-
-The traditional pattern with named exports:
-
-```tsx
-import { eco } from '@ecopages/core';
-
-export const getStaticPaths = eco.staticPaths(async () => ({
-	paths: getAllSlugs(),
-}));
-
-export const getStaticProps = eco.staticProps(async ({ pathname }) => ({
-	props: { post: await getPost(pathname.params.slug) },
-}));
-
-export const getMetadata = eco.metadata<typeof getStaticProps>(({ props: { post } }) => ({
-	title: post.title,
-	description: post.excerpt,
-}));
-
-export default eco.page<typeof getStaticProps>({
-	render: ({ post }) => <article>{post.content}</article>,
-});
-```
-
-Both patterns work and can be mixed - the renderer checks for attached properties first, then falls back to named exports.
+A Page declares its data only through the `staticPaths`, `staticProps` and `metadata` options. A page module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata` fails in `ecopages dev` and `ecopages build` with an error naming the file. The `migrate-to-eco-page` codemod in `@ecopages/codemod` rewrites those pages, including the `eco.staticPaths()`, `eco.staticProps()` and `eco.metadata()` wrappers.
 
 ## API Reference
 
@@ -488,40 +458,9 @@ export default eco.page({
 });
 ```
 
-### `eco.metadata()`
-
-Type-safe wrapper for page metadata (for separate exports pattern).
-
-```tsx
-export const getMetadata = eco.metadata<typeof getStaticProps>(({ props: { post } }) => ({
-	title: post.title,
-	description: post.excerpt,
-}));
-```
-
-### `eco.staticPaths()`
-
-Type-safe wrapper for dynamic route generation (for separate exports pattern).
-
-```tsx
-export const getStaticPaths = eco.staticPaths(async () => ({
-	paths: posts.map((p) => ({ params: { slug: p.slug } })),
-}));
-```
-
-### `eco.staticProps()`
-
-Type-safe wrapper for static data fetching (for separate exports pattern).
-
-```tsx
-export const getStaticProps = eco.staticProps(async ({ pathname }) => ({
-	props: { post: await getPost(pathname.params.slug) },
-}));
-```
-
 ## Complete Examples
 
-### Dynamic Blog Post (Consolidated API)
+### Dynamic Blog Post
 
 ```tsx
 // pages/blog/[slug].tsx
@@ -717,7 +656,7 @@ export default eco.page<{ title: string }>({
 });
 ```
 
-### 3. Single Source of Truth (Consolidated API)
+### 3. Single Source of Truth
 
 All page configuration in one place - no hunting for separate exports:
 
@@ -731,56 +670,30 @@ export default eco.page<Props>({
 });
 ```
 
-### 4. Backwards Compatible
-
-Both patterns work side by side - choose what works best for your use case.
-
 ## Design Decisions
 
-### Why consolidated API?
+### Why one options object?
 
-| Aspect             | Separate Exports       | Consolidated API |
-| ------------------ | ---------------------- | ---------------- |
-| Discoverability    | Scan file for exports  | All in one place |
-| Type inference     | Manual with `typeof`   | Automatic flow   |
-| Colocated concerns | Spread across file     | Single object    |
-| Flexibility        | Mix with other exports | Self-contained   |
-
-### Why both patterns?
-
-- **Consolidated** is cleaner for new pages
-- **Separate exports** provides flexibility and follows Next.js conventions
-- Backwards compatibility with existing code
+| Aspect             | Separate exports      | `eco.page` options |
+| ------------------ | --------------------- | ------------------ |
+| Discoverability    | Scan file for exports | All in one place   |
+| Type inference     | Manual with `typeof`  | Automatic flow     |
+| Colocated concerns | Spread across file    | Single object      |
 
 ## Implementation Notes
 
-The renderer checks for attached properties first:
+The renderer reads the data hooks from the Page only:
 
 ```typescript
-// Check for attached static functions (consolidated API) or named exports (legacy)
-const getStaticProps = Page.staticProps ?? module.getStaticProps;
-const getMetadata = Page.metadata ?? module.getMetadata;
+const getStaticProps = Page.staticProps;
+const getMetadata = Page.metadata;
 ```
 
-This ensures both patterns work seamlessly.
+`PageModuleLoaderService.assertNoLegacyPageExports` fails a page module that exports `getStaticProps`, `getStaticPaths` or `getMetadata`, naming the file and the `migrate-to-eco-page` codemod. MDX pages cannot call `eco.page()`, so the MDX integrations move their `getMetadata` export onto the Page as `metadata` through `moveMdxMetadataOntoPage` before core sees the module.
 
 ## Migration
 
-Pages can be migrated incrementally:
-
-```tsx
-// Before (separate exports)
-export const getStaticProps = ...
-export const getMetadata = ...
-export default Page;
-
-// After (consolidated)
-export default eco.page({
-  staticProps: ...,
-  metadata: ...,
-  render: ...,
-});
-```
+Run the `migrate-to-eco-page` codemod from `@ecopages/codemod` on `src/pages`; see its README. It handles `export const` and `export function` forms, `export { x as getX }` lists, the `eco.*` wrappers and pages that already call `eco.page`.
 
 ## References
 

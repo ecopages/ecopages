@@ -5,9 +5,6 @@ import type {
 	EcoPagesElement,
 	EcoPageComponent,
 	FileRouteMiddleware,
-	GetMetadata,
-	GetStaticPaths,
-	GetStaticProps,
 	RequestPageContext,
 } from '../types/contracts.ts';
 import type { CacheStrategy } from '../page-cache/cache.types.ts';
@@ -129,25 +126,10 @@ function page<T, E>(
 	return pageComponent;
 }
 
-function metadata<T = Record<string, unknown>>(fn: GetMetadata<T>): GetMetadata<T> {
-	return fn;
-}
-
-function staticPaths(fn: GetStaticPaths): GetStaticPaths {
-	return fn;
-}
-
-function staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
-	return fn;
-}
-
 export const eco: Eco = {
 	component,
 	embed,
 	html,
 	layout,
 	page,
-	metadata,
-	staticPaths,
-	staticProps,
 };

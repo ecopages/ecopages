@@ -39,7 +39,7 @@ function wikiPageFromCatchAll(slugParam: PageParams[string] | undefined): WikiCa
 	};
 }
 
-export const getMetadata: GetMetadata<WikiCatchAllProps> = ({ props: { title, slug } }) => ({
+const getMetadata: GetMetadata<WikiCatchAllProps> = ({ props: { title, slug } }) => ({
 	title: `Wiki | ${title}`,
 	description: `Wiki page for ${title}`,
 	url: `wiki/${slug}`,

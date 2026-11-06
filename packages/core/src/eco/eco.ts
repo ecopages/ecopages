@@ -10,9 +10,6 @@ import type {
 	EcoPagesElement,
 	EcoPageComponent,
 	FileRouteMiddleware,
-	GetMetadata,
-	GetStaticPaths,
-	GetStaticProps,
 	RequestLocals,
 	RequestPageContext,
 } from '../types/contracts.ts';
@@ -241,36 +238,6 @@ function page<T, E>(
 }
 
 /**
- * Type-safe wrapper for metadata functions.
- *
- * @param fn Metadata factory function.
- * @returns The same function.
- */
-function metadata<P = {}>(fn: GetMetadata<P>): GetMetadata<P> {
-	return fn;
-}
-
-/**
- * Type-safe wrapper for static paths functions.
- *
- * @param fn Static paths function.
- * @returns The same function.
- */
-function staticPaths(fn: GetStaticPaths): GetStaticPaths {
-	return fn;
-}
-
-/**
- * Type-safe wrapper for static props functions.
- *
- * @param fn Static props function.
- * @returns The same function.
- */
-function staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
-	return fn;
-}
-
-/**
  * The eco namespace - provides factories for components and pages
  */
 export const eco: Eco = {
@@ -279,7 +246,4 @@ export const eco: Eco = {
 	html,
 	layout,
 	page,
-	metadata,
-	staticPaths,
-	staticProps,
 };

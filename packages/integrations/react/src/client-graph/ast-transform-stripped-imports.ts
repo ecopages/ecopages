@@ -4,7 +4,6 @@
  */
 
 import type { SourceEdit } from './ast-transform-import-edits.ts';
-import { SERVER_ONLY_PAGE_EXPORT_NAMES } from './ast-transform-eco-page.ts';
 import { checkPotentialClientRoot } from './reachability-client-roots.ts';
 import { getExportedName, isExplicitlyRequestedExport } from './reachability-export-names.ts';
 import type { ExplicitlyRequestedExports } from './reachability-export-names.ts';
@@ -22,8 +21,6 @@ export type StrippedImportCleanupInput = {
 	editedImports: ReadonlySet<unknown>;
 	/** Exports that browser importers of this module are known to use. */
 	requestedExports?: ExplicitlyRequestedExports;
-	/** Whether the module calls `eco.page(...)`; its legacy server-only Page exports are then not browser roots. */
-	definesPage: boolean;
 };
 
 type UnitKind = 'declaration' | 'exported-declaration' | 'export-specifiers' | 'statement';
@@ -46,7 +43,6 @@ type TopLevelUnit = {
 const DECLARATION_TYPES = new Set(['VariableDeclaration', 'FunctionDeclaration', 'ClassDeclaration']);
 
 function isBrowserExport(name: string, input: StrippedImportCleanupInput): boolean {
-	if (input.definesPage && SERVER_ONLY_PAGE_EXPORT_NAMES.has(name)) return false;
 	return isExplicitlyRequestedExport(name, input.requestedExports);
 }
 
@@ -205,9 +201,7 @@ function assertNoStrippedBindingReferences(
  * The browser module needs its top-level statements other than declarations (the default export
  * included), the declarations that create a client root, and the named exports browser importers
  * are known to request. A named export nothing requests is not needed: rolldown would tree-shake
- * it, and the requests are unknown for imports through a path alias. In a Page module the legacy `getMetadata`,
- * `getStaticProps` and `getStaticPaths` exports are never browser roots. Declarations those roots
- * reach are needed too.
+ * it, and the requests are unknown for imports through a path alias. Declarations those roots reach are needed too.
  *
  * A declaration that is not needed is removed when only removed code used it, or when it uses a
  * stripped binding or another removed declaration; the check repeats until nothing else changes.

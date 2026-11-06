@@ -45,4 +45,19 @@ describe('migrate-to-eco-page', () => {
 		const expected = readFixture('export-object-prototype-key', 'output');
 		expect(await runTransform(input)).toBe(expected);
 	});
+
+	it.each(['wrapped-exports', 'function-exports', 'export-list', 'existing-eco-page', 'exported-and-referenced'])(
+		'migrates the legacy form in %s',
+		async (name) => {
+			expect(await runTransform(readFixture(name, 'input'))).toBe(readFixture(name, 'output'));
+		},
+	);
+
+	it('leaves a file it cannot rewrite into an eco.page call unchanged', async () => {
+		const source = [
+			'export const getStaticProps = async () => ({ props: {} });',
+			'export default function Page() { return null; }',
+		].join('\n');
+		expect(await runTransform(source)).toBeNull();
+	});
 });

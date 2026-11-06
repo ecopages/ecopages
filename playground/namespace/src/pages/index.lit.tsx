@@ -2,20 +2,20 @@
  * Home page using eco.page() demonstrating all three counter types
  */
 import { eco } from '@ecopages/core';
-import type { GetMetadata } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout.kita';
 import { RadiantCounter } from '@/components/radiant-counter/radiant-counter.kita';
 import { AlpineCounter } from '@/components/alpine-counter/alpine-counter.kita';
 import { LitCounter } from '@/components/lit-counter/lit-counter.kita';
 import { Card } from '@/components/card.kita';
 
-export const getMetadata: GetMetadata = () => ({
-	title: 'Eco Namespace Playground',
-	description: 'Demonstrating the eco namespace API with lazy loading',
-});
-
 export default eco.page({
 	layout: BaseLayout,
+
+	metadata: () => ({
+		title: 'Eco Namespace Playground',
+		description: 'Demonstrating the eco namespace API with lazy loading',
+	}),
+
 	render: () => (
 		<div class="max-w-5xl mx-auto space-y-12">
 			<section class="text-center space-y-6 pt-12 pb-8">

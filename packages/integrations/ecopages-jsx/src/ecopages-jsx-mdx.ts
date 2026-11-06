@@ -88,8 +88,10 @@ export const normalizeMdxPageModule = (file: string, module: EcopagesJsxMdxPageM
 		wrappedPage.metadata = module.getMetadata ?? Page.metadata;
 	}
 
+	const { getMetadata: _getMetadata, ...rest } = module;
+
 	return {
-		...module,
+		...rest,
 		default: wrappedPage,
 		config: attributedConfig,
 	};

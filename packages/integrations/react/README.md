@@ -151,7 +151,7 @@ The browser-bound transform in [src/client-graph/boundary-plugin.ts](src/client-
 1. Build a reachability view of the client render graph.
 2. Remove imports that are not allowed: Node built-ins, `.server` modules, `ecopages:content/*/server` modules and named imports outside the declared `pkg{name}` rules. An import reachable from a client root fails the build instead.
 3. Remove server-only `eco.page(...)` options.
-4. Work out which top-level code the browser module needs: every top-level statement that is not a declaration (the default export included), declarations that create a client root such as `eco.component(...)`, the named exports browser importers are known to request, and every declaration those reach. In a module that calls `eco.page(...)`, the legacy `getMetadata`, `getStaticProps` and `getStaticPaths` exports are never needed by themselves.
+4. Work out which top-level code the browser module needs: every top-level statement that is not a declaration (the default export included), declarations that create a client root such as `eco.component(...)`, the named exports browser importers are known to request, and every declaration those reach.
 5. Remove each declaration the browser module does not need when only removed code used it, or when it uses a removed import or another removed declaration, repeating until nothing else changes. An exported name keeps its binding, set to `undefined`. Imports only removed code used are removed too, so their modules stay out of the browser graph.
 6. Fail the build when needed code, or an `export { ... }` list, still uses a binding whose import step 2 removed.
 7. Apply the edits and return the rewritten source to the bundle step.

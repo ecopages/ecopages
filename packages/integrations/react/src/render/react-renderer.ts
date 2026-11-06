@@ -32,7 +32,7 @@ import {
 import type { ProcessedAsset } from '@ecopages/core/integration';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
 import { resolveQueuedTokens } from '@ecopages/core/integration';
-import { ensurePageConfigLayouts } from '@ecopages/core/integration';
+import { ensurePageConfigLayouts, moveMdxMetadataOntoPage } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
 import { hasSingleRootElement } from './html-boundary.ts';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
@@ -449,19 +449,18 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		pageModule: TPageModule,
 	): TPageModule {
 		const reactModule = pageModule as TPageModule & { config?: EcoComponentConfig };
-		const { default: Page, getMetadata, config } = reactModule;
+		const { default: Page, config } = reactModule;
 
-		if (this.pageModuleService.isMdxFile(file) && config) {
+		if (!this.pageModuleService.isMdxFile(file)) {
+			return pageModule;
+		}
+
+		if (config) {
 			ensurePageConfigLayouts(config);
 			Page.config = config;
 		}
 
-		return {
-			...pageModule,
-			default: Page,
-			getMetadata,
-			config,
-		} as TPageModule;
+		return { ...moveMdxMetadataOntoPage(reactModule), default: Page, config } as unknown as TPageModule;
 	}
 
 	private async collectPageBrowserGraphContributionHook(

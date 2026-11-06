@@ -476,10 +476,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Request-time infrastructure may need page metadata such as cache strategy or
 	 * middleware before full rendering starts. Exposing this narrow entrypoint lets
 	 * those callers reuse integration-specific import setup instead of bypassing it
-	 * with raw transpiler access.
+	 * with raw transpiler access. A module that still exports `getStaticProps`,
+	 * `getStaticPaths` or `getMetadata` fails here with an error that points to the codemod.
 	 */
 	public async loadPageModule(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
-		return this.importPageFile(file, options);
+		const pageModule = await this.importPageFile(file, options);
+		this.pageModuleLoaderService.assertNoLegacyPageExports(file, pageModule);
+		return pageModule;
 	}
 
 	public setHmrManager(hmrManager: IHmrManager) {

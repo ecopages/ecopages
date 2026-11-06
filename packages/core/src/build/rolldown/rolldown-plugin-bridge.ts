@@ -4,10 +4,11 @@
  * @remarks
  * Translates an array of `EcoBuildPlugin` instances (the runtime-agnostic
  * plugin contract used by Ecopages processors and integrations) into
- * the bundler's native `Plugin` array. The bridge exposes the same
- * four hooks (`onResolve`, `onLoad`, `transform`, `module`) the
- * `EcoBuildPlugin` contract uses, but maps them to the bundler's
- * `resolveId`/`load`/`transform` hooks.
+ * the bundler's native `Plugin` array. The bridge exposes the five
+ * builder hooks of the `EcoBuildPlugin` contract (`onResolve`, `onLoad`,
+ * `module`, `transform`, `onEnd`) and maps them to the bundler's
+ * `resolveId`/`load`/`transform`/`buildEnd` hooks; `module` registers
+ * both a `resolveId` and a `load` handler.
  *
  * The shared `EcoBuildPlugin` contract stays the boundary between
  * integrations and bundler backends.

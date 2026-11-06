@@ -170,7 +170,7 @@ export type EcoPagesUserConfig = {
 	processors?: AnyProcessor[];
 
 	/**
-	 * Custom Rolldown build loaders and asset transforms.
+	 * Build plugins, in the `EcoBuildPlugin` contract, that load or transform modules in every build.
 	 */
 	loaders?: EcoBuildPlugin[];
 

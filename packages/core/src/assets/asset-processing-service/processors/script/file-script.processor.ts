@@ -75,8 +75,8 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 	/**
 	 * @remarks
-	 * With HMR active, a bundled script is built and watched by the HMR manager, which emits an ES
-	 * module and serves the dev-transform URL. In production, a `bundle: false` script is written
+	 * With HMR active, a bundled script is registered with the HMR manager, which returns its
+	 * dev-transform URL; the dev transform server compiles the module when the browser requests it. In production, a `bundle: false` script is written
 	 * under a hash of its bytes. In development, a non-classic `bundle: false` file inside `srcDir`
 	 * is copied to its source-relative path. A classic script inside `srcDir` is compiled and written
 	 * under that path with a `.js` name. A file outside `srcDir` has no such path that stays inside

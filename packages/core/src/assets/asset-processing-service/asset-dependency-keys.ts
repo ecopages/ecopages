@@ -17,7 +17,9 @@ function getBundledSourceSignature(dep: AssetDefinition, rootDir: string): strin
 }
 
 function sortedEntries(record: Record<string, string> | undefined): [string, string][] | undefined {
-	return record ? Object.entries(record).sort(([left], [right]) => left.localeCompare(right)) : undefined;
+	return record
+		? Object.entries(record).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+		: undefined;
 }
 
 function getScriptDependencyBuildSignature(dep: AssetDefinition): string | undefined {

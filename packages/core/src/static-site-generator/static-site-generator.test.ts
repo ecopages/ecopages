@@ -823,6 +823,55 @@ describe('StaticSiteGenerator', () => {
 			}
 		});
 
+		test('writes sitemap locations from the configured baseUrl, not the serve origin', async () => {
+			const appConfig = createMockConfig({
+				baseUrl: 'https://example.com',
+				sitemap: { enabled: true, fileName: 'sitemap.xml', extraUrls: ['/rss.xml'], exclude: [] },
+			});
+			const ssg = new StaticSiteGenerator({ appConfig });
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => [
+						{
+							requestUrl: 'http://localhost:3001/',
+							pathname: '/',
+							templateRoute: {
+								pathname: '/',
+								kind: 'exact' as const,
+								role: 'page' as const,
+								filePath: '/src/pages/index.tsx',
+								paramNames: [],
+							},
+							params: {},
+						},
+					]),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3001',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn(() => ({
+						loadPageModule: vi.fn(async () => ({
+							default: Object.assign(() => null, { cache: 'static' }),
+						})),
+						execute: vi.fn(async () => ({
+							body: '<html>Page</html>',
+							metadata: appConfig.defaultMetadata,
+						})),
+					})),
+					getExplicitViewRenderer: vi.fn(),
+				} satisfies StaticGenerationRendererFactory,
+				keepGoing: true,
+			});
+
+			const sitemapWrite = writeMock.mock.calls.find((call: unknown[]) =>
+				String(call[0]).endsWith('sitemap.xml'),
+			);
+			const sitemapContent = String(sitemapWrite?.[1]);
+			expect(sitemapContent).toContain('<loc>https://example.com/</loc>');
+			expect(sitemapContent).toContain('<loc>https://example.com/rss.xml</loc>');
+			expect(sitemapContent).not.toContain('localhost');
+		});
+
 		test('uses rendered metadata for sitemap eligibility without resolving it again', async () => {
 			const metadataError = new Error('metadata boom');
 			const draftMetadata = vi.fn(async () => ({

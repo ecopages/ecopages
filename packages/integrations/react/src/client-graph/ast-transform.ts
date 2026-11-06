@@ -4,9 +4,10 @@
 
 import { parseModuleSource } from '@ecopages/core/build';
 import { analyzeReachability } from './reachability-analyzer.ts';
-import { stripServerOnlyEcoPageOptions } from './ast-transform-eco-page.ts';
+import { collectServerOnlyPageCode } from './ast-transform-eco-page.ts';
 import { collectImportTransformEdits } from './ast-transform-walk-imports.ts';
 import { walkAstNodes } from './ast-walk.ts';
+import { planStrippedImportCleanup } from './ast-transform-stripped-imports.ts';
 import { applySourceEdits } from './ast-transform-import-edits.ts';
 import {
 	mergeDeclaredModulesMap,
@@ -67,15 +68,19 @@ function propagateRequestedExportRules(
 }
 
 /**
- * Parses a module using Oxc AST and surgically removes forbidden imports.
- * Filters down to the exact specifiers requested via `{namedImport}` syntax.
+ * Parses a module using Oxc AST and removes what must not reach the browser: forbidden imports,
+ * named imports outside the declared rules, server-only Page options, and the top-level code the
+ * browser module does not need that only removed code used or that uses a removed import.
+ *
+ * @remarks
+ * Every edit is planned on the one parse of `source`, so error positions point into it. Throws
+ * when code the browser module needs still references a binding whose import is removed.
  */
 export function transformModuleImports(
 	source: string,
 	filename: string,
 	globallyAllowed: Map<string, Set<string> | '*'>,
 	requestedExports: Map<string, RequestedExportRules>,
-	stripServerOnlyPageOptions = false,
 	preserveUnreachableSideEffectImports = false,
 ): { transformed: string; modified: boolean } {
 	let result;
@@ -94,34 +99,31 @@ export function transformModuleImports(
 
 	propagateRequestedExportRules(program, filename, reachability, requestedExports);
 
-	const edits = collectImportTransformEdits(program, {
+	const strippedBindings = new Map<string, string>();
+	const editedImports = new Set<unknown>();
+	const importEdits = collectImportTransformEdits(program, {
 		filename,
 		reachability,
 		allowedMap,
 		preserveUnreachableSideEffectImports,
+		strippedBindings,
+		editedImports,
+	});
+	const pageCode = collectServerOnlyPageCode(program);
+	const cleanupEdits = planStrippedImportCleanup({
+		program,
+		source,
+		filename,
+		strippedNodes: pageCode.strippedNodes,
+		strippedBindings,
+		editedImports,
+		requestedExports: explicitRequestedExports,
+		definesPage: pageCode.definesPage,
 	});
 
+	const edits = [...importEdits, ...pageCode.edits, ...cleanupEdits];
 	if (edits.length === 0) {
-		return stripServerOnlyPageOptions
-			? stripServerOnlyEcoPageOptions(source, program)
-			: { transformed: source, modified: false };
+		return { transformed: source, modified: false };
 	}
-
-	const transformed = applySourceEdits(source, edits);
-
-	let reparsedResult;
-	try {
-		reparsedResult = parseModuleSource(filename, transformed);
-	} catch {
-		return { transformed, modified: true };
-	}
-
-	const strippedPageOptions = stripServerOnlyPageOptions
-		? stripServerOnlyEcoPageOptions(transformed, reparsedResult.program)
-		: { transformed, modified: false };
-	if (strippedPageOptions.modified) {
-		return strippedPageOptions;
-	}
-
-	return { transformed, modified: true };
+	return { transformed: applySourceEdits(source, edits), modified: true };
 }

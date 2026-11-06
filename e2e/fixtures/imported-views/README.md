@@ -1,3 +1,3 @@
 # Imported views fixture
 
-Acceptance app for handlers that render imported views. Development reloads an edited view and a component it imports without restarting the process. Production serves those views from the server-modules map without compiling.
+Acceptance app for handlers that render imported views. Development reloads an edited view and a component it imports without restarting the process. Production serves those views from the server-modules map without compiling. The entry also imports a plain component file through a barrel, which must keep its export.

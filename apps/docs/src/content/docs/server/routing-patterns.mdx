@@ -69,7 +69,7 @@ const PostView = eco.page({
 export default PostView;
 ```
 
-Import a view and pass it to `ctx.render(View, props)`. An Integration-owned import becomes a view reference: development loads it through the app module loader so a save reloads without a restart, and production reads the built module.
+Import a view and pass it to `ctx.render(View, props)`. The default export of an Integration-owned file becomes a view reference: development loads it through the app module loader so a save reloads without a restart, and production reads the built module. A file without a default export, such as a file of named plain components, imports as itself.
 
 ## Pattern A: Inline Handlers
 

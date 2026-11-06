@@ -48,7 +48,7 @@ describe('view-reference preload', () => {
 			);
 			fs.writeFileSync(
 				path.join(rootDir, 'view.ts'),
-				'throw new Error("the view source must not run");\n',
+				'throw new Error("the view source must not run");\nexport default {};\n',
 				'utf8',
 			);
 
@@ -92,7 +92,11 @@ describe('view-reference preload', () => {
 				),
 				'utf8',
 			);
-			fs.writeFileSync(viewPath, 'throw new Error("the view source must not run");\n', 'utf8');
+			fs.writeFileSync(
+				viewPath,
+				'throw new Error("the view source must not run");\nexport default {};\n',
+				'utf8',
+			);
 			fs.writeFileSync(
 				path.join(rootDir, 'entry.ts'),
 				[
@@ -126,6 +130,56 @@ describe('view-reference preload', () => {
 			} finally {
 				process.chdir(previousCwd);
 			}
+		},
+	);
+
+	/** Runs `entry.ts` through the preload in an app whose one Integration owns `.tsx`, and returns its parsed output. */
+	async function runTsxEntry(runtime: 'node' | 'bun', files: Record<string, string>): Promise<unknown> {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-exports-preload-'));
+		roots.push(rootDir);
+		const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
+		fs.mkdirSync(path.join(rootDir, 'node_modules/@ecopages'), { recursive: true });
+		fs.symlinkSync(path.join(repoRoot, 'packages/core'), path.join(rootDir, 'node_modules/@ecopages/core'), 'dir');
+		const appFiles: Record<string, string> = {
+			'package.json': JSON.stringify({ type: 'module' }),
+			'eco.config.ts': "export default { integrations: [{ name: 'jsx', extensions: ['.tsx'] }] };\n",
+			...files,
+		};
+		for (const [relativePath, source] of Object.entries(appFiles)) {
+			fs.mkdirSync(path.dirname(path.join(rootDir, relativePath)), { recursive: true });
+			fs.writeFileSync(path.join(rootDir, relativePath), source, 'utf8');
+		}
+
+		const previousCwd = process.cwd();
+		process.chdir(rootDir);
+		try {
+			const plan = await createLaunchPlan([], { runtime }, 'entry.ts', 'dev');
+			const result = spawnSync(plan.command, plan.commandArgs, { cwd: rootDir, encoding: 'utf8', env: plan.env });
+			expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+			return JSON.parse(result.stdout.trim());
+		} finally {
+			process.chdir(previousCwd);
+		}
+	}
+
+	it.each(['node', 'bun'] as const)(
+		'keeps the export of a plain .tsx component re-exported through a .ts module (%s)',
+		async (runtime) => {
+			const output = await runTsxEntry(runtime, {
+				'search/search-icon.tsx': [
+					'export type SearchIconProps = { label: string };',
+					'export function SearchIcon({ label }: SearchIconProps) {',
+					'\treturn `icon:${label}`;',
+					'}',
+				].join('\n'),
+				'search/index.ts': "export { SearchIcon, type SearchIconProps } from './search-icon';\n",
+				'entry.ts': [
+					"import { SearchIcon } from './search/index.ts';",
+					"console.log(JSON.stringify({ icon: SearchIcon({ label: 'find' }) }));",
+				].join('\n'),
+			});
+
+			expect(output).toEqual({ icon: 'icon:find' });
 		},
 	);
 });

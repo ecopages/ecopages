@@ -1,10 +1,12 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEcoPagesUserConfig } from '@ecopages/core/config';
+import { fileSystem } from '@ecopages/file-system';
 import {
 	collectViewIntegrations,
 	findViewOwner,
 	isExemptFromViewReference,
+	isViewModule,
 	viewExtensionFilter,
 	viewReferenceModuleSource,
 } from '@ecopages/core/view-reference';
@@ -61,11 +63,22 @@ function resolveImportedPath(specifier, importer, appRoot) {
 	return path.resolve(fromDir, specifier);
 }
 
+/**
+ * The Integration whose view this import is, or `undefined` when the file loads as itself.
+ *
+ * @remarks
+ * A path that does not exist, such as a tsconfig alias the Bun resolve hook joined
+ * naively, is left to the runtime's resolver.
+ */
 function viewOwnerToRewrite(filePath, entryPath, appRoot) {
 	if (isExemptFromViewReference(filePath, { entryPath, appRoot })) {
 		return undefined;
 	}
-	return findViewOwner(integrations, filePath);
+	const owner = findViewOwner(integrations, filePath);
+	if (!owner || !fileSystem.exists(filePath) || !isViewModule(filePath, fileSystem.readFileSync(filePath))) {
+		return undefined;
+	}
+	return owner;
 }
 
 function viewModuleLoadResult(filePath, integrationName) {

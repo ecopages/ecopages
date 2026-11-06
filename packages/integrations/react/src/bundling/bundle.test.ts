@@ -5,6 +5,11 @@ import type {
 	EcoBuildPlugin,
 	IntegrationRuntimeContext,
 } from '@ecopages/core/integration';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
+import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
 import { BundleService } from './bundle.ts';
 
 const withNodeEnv = async <T>(nodeEnv: string | undefined, run: () => Promise<T>): Promise<T> => {
@@ -226,5 +231,55 @@ describe('BundleService', () => {
 
 		await service.ensurePageLayoutNormalizationVendorProcessed(assetProcessingService);
 		expect(processDependencies).toHaveBeenCalledTimes(1);
+	});
+
+	it('strips server imports from foreign-JSX files in the React client graph', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-react-foreign-jsx-'));
+		const srcDir = join(tempDir, 'src');
+		mkdirSync(srcDir);
+		const entrypoint = join(srcDir, 'island.tsx');
+		writeFileSync(join(srcDir, 'auth.server.ts'), 'export const authMiddleware = "server-secret";');
+		writeFileSync(join(srcDir, 'eco.ts'), 'export const eco = { page: (options) => options };');
+		writeFileSync(
+			join(srcDir, 'widget.kita.tsx'),
+			[
+				"import { eco } from './eco';",
+				"import { authMiddleware } from './auth.server.ts';",
+				'export default eco.page({',
+				'middleware: [authMiddleware],',
+				'render: () => <div>Widget</div>,',
+				'});',
+			].join('\n'),
+		);
+		writeFileSync(entrypoint, "import Widget from './widget.kita.tsx';\nexport default Widget;");
+
+		try {
+			const service = new BundleService({
+				rootDir: tempDir,
+				appConfig: {
+					...testAppConfig,
+					rootDir: tempDir,
+					absolutePaths: { projectDir: tempDir },
+				} as unknown as IntegrationRuntimeContext['appConfig'],
+				hostIntegrationName: 'react',
+			});
+			const options = await service.createBundleOptions('island', [], { includeRuntime: true }, entrypoint);
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser' as const,
+				entrypoints: [entrypoint],
+				outdir: join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				plugins: options.plugins as EcoBuildPlugin[],
+			});
+			assertBuildSucceeded(result, 'Build failed');
+			const output = readFileSync(result.outputs[0]!.path, 'utf8');
+			expect(output).toContain('Widget');
+			expect(output).not.toContain('server-secret');
+			expect(output).not.toContain('auth.server');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 });

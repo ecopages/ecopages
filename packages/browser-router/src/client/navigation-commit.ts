@@ -48,15 +48,24 @@ function isSameDocumentUrl(left: URL, right: URL): boolean {
 export class NavigationCommit {
 	private readonly prefetchManager: PrefetchManager | null;
 	private readonly options: Required<EcoRouterOptions>;
-	private readonly serverMarkup: ServerMarkup = new WeakMap();
+	private serverMarkup: ServerMarkup | undefined;
 
 	constructor(prefetchManager: PrefetchManager | null, options: Required<EcoRouterOptions>) {
 		this.prefetchManager = prefetchManager;
 		this.options = options;
 	}
 
-	/** Records the body of the document the router starts on, for its first reload. */
-	recordInitialDocument(): void {
+	/**
+	 * Starts tracking the server markup of each body element, so a reload of the current URL keeps the elements
+	 * whose markup did not change.
+	 *
+	 * @remarks
+	 * Off until development HMR asks for it, so production navigations do no copying. The current body is the
+	 * first baseline.
+	 */
+	trackServerMarkup(): void {
+		if (this.serverMarkup) return;
+		this.serverMarkup = new WeakMap();
 		recordInitialServerMarkup(this.serverMarkup);
 	}
 

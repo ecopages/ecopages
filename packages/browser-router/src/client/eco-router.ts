@@ -144,10 +144,10 @@ export class EcoRouter {
 			cleanupBeforeHandoff: async () => {
 				this.cancelNavigationTransaction();
 			},
+			enableReloadStatePreservation: () => this.navigationCommit.trackServerMarkup(),
 		});
 		getEcoNavigationRuntime(window).adoptDocumentOwner(document, 'browser-router');
 
-		this.navigationCommit.recordInitialDocument();
 		// Cache the initial page for instant back-navigation
 		const initialHtml = document.documentElement.outerHTML;
 		this.prefetchManager?.cacheVisitedPage(window.location.href, initialHtml);

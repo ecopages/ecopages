@@ -49,7 +49,23 @@ async function injectIntoHtml(manager: HmrManager): Promise<string> {
 }
 
 describe('dev client runtimes', () => {
-	it('loads the HMR runtime and then the Dev Toolbar runtime at the end of a page', async () => {
+	it('loads the runtimes at the start of the head, before the page scripts', async () => {
+		const manager = await createManager({ toolbarPackage: '@ecopages/dev-toolbar', installToolbar: true });
+		manager.setEnabled(true);
+		await manager.ensureRuntimeReady();
+
+		const response = await manager.injectDevClientRuntimes(
+			new Response(
+				'<html><head lang="en"><script type="module" src="/page.js"></script></head><body></body></html>',
+			),
+		);
+
+		expect(await response.text()).toContain(
+			`<head lang="en"><script type="module">${HMR_RUNTIME_IMPORT};</script><script type="module">${DEV_TOOLBAR_RUNTIME_IMPORT};</script><script type="module" src="/page.js">`,
+		);
+	});
+
+	it('loads the HMR runtime and then the Dev Toolbar runtime at the end of a page without a head', async () => {
 		const manager = await createManager({ toolbarPackage: '@ecopages/dev-toolbar', installToolbar: true });
 		manager.setEnabled(true);
 		expect(await manager.ensureRuntimeReady()).toBe(true);

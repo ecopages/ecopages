@@ -84,12 +84,23 @@ export function readDevClientRuntime(runtime: DevClientRuntime): Response | null
 	});
 }
 
+function insertDevClientScripts(html: string, scripts: string): string {
+	const headStart = /<head(?:\s[^>]*)?>/i;
+	if (headStart.test(html)) {
+		return html.replace(headStart, (head) => `${head}${scripts}`);
+	}
+	return html.replace(/<\/html>/i, `${scripts}</html>`);
+}
+
 /**
- * Loads each runtime from an HTML response with a module script before `</html>`.
+ * Loads each runtime from an HTML response with a module script at the start of `<head>`, or before `</html>`
+ * when the document has no head.
  *
  * @remarks
  * A runtime already imported by the document is skipped, because a response can pass through more than one
- * development layer before it reaches the client.
+ * development layer before it reaches the client. Module scripts run in document order, so the runtimes run
+ * before the page's scripts: the HMR client asks the navigation runtime to preserve reload state before a page
+ * script changes the markup the router records.
  */
 export async function injectDevClientRuntimes(
 	response: Response,
@@ -109,7 +120,7 @@ export async function injectDevClientRuntimes(
 		.map((specifier) => `<script type="module">${specifier};</script>`)
 		.join('');
 
-	return new Response(scripts ? html.replace(/<\/html>/i, `${scripts}</html>`) : html, {
+	return new Response(scripts ? insertDevClientScripts(html, scripts) : html, {
 		status: response.status,
 		statusText: response.statusText,
 		headers,

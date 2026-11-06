@@ -12,6 +12,7 @@ import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 
 function createTestConfig(overrides: Record<string, unknown> = {}): EcoPagesAppConfig {
 	return {
+		rootDir: '/test',
 		absolutePaths: {
 			distDir: '/test/dist/client',
 		},
@@ -172,7 +173,9 @@ test('AssetProcessingService - processDependencies - returns the app-wide build 
 		srcUrl: '/assets/client-shared.js',
 		inline: false,
 	};
-	Config.appRuntime.prebuiltBrowserScripts = new Map([[getAssetDependencyKey(prebuiltScript), prebuiltAsset]]);
+	Config.appRuntime.prebuiltBrowserScripts = new Map([
+		[getAssetDependencyKey(prebuiltScript, Config.rootDir), prebuiltAsset],
+	]);
 	const service = new AssetProcessingService(Config);
 	const scriptProcessor = { process: vi.fn(Processor.process) };
 	service.registerProcessor('script', 'file', scriptProcessor);

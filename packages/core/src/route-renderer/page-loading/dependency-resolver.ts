@@ -192,7 +192,7 @@ export class DependencyResolverService {
 		this.collectedScripts = new Map();
 		for (const { dependency, integrationName, placeholders } of collected) {
 			const asset =
-				prebuiltScripts.get(getAssetDependencyKey(dependency)) ??
+				prebuiltScripts.get(getAssetDependencyKey(dependency, this.appConfig.rootDir)) ??
 				(
 					await this.assetProcessingService.processDependencies(
 						[dependency],
@@ -212,14 +212,14 @@ export class DependencyResolverService {
 		collection: Map<string, CollectedScript>,
 	): Promise<ProcessedAsset[]> {
 		const integration = this.getAssetProcessingIntegration(integrationName);
-		const prepared = prepareAssetDependencies(eagerDeps, integration);
+		const prepared = prepareAssetDependencies(eagerDeps, integration, this.appConfig.rootDir);
 		const scripts = prepared.filter(isBundleableScript);
 		const processed = await this.assetProcessingService.processDependencies(
 			prepared.filter((dep) => !isBundleableScript(dep)),
 			integration,
 		);
 		const placeholders = scripts.map((dependency) => {
-			const key = getAssetDependencyKey(dependency);
+			const key = getAssetDependencyKey(dependency, this.appConfig.rootDir);
 			const placeholder: ProcessedAsset = {
 				kind: 'script',
 				inline: false,
@@ -267,7 +267,12 @@ export class DependencyResolverService {
 		const bundlesPageDependencies =
 			this.appConfig.integrations?.find((integration) => integration.name === integrationName)
 				?.bundlesPageDependencies ?? false;
-		const packagedDependencies = packagePageDependencies(dependencies, integrationName, bundlesPageDependencies);
+		const packagedDependencies = packagePageDependencies(
+			dependencies,
+			integrationName,
+			bundlesPageDependencies,
+			this.appConfig.rootDir,
+		);
 		const lazyDeps = packagedDependencies.filter(isLazyClientScript);
 		const eagerDeps = packagedDependencies.filter((dep) => !isLazyClientScript(dep));
 

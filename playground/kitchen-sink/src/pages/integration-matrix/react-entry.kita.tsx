@@ -15,7 +15,7 @@ import { ReactShell } from '@ecopages/testing/kitchen-sink/react-shell';
 
 export default eco.page({
 	dependencies: {
-		components: [BaseLayout, IntegrationCounterGroup, KitaShell, LitShell, EcopagesJsxShell, ReactShell],
+		components: [KitaShell, LitShell, EcopagesJsxShell, ReactShell],
 		stylesheets: ['./integration-matrix.css'],
 	},
 	layout: BaseLayout,

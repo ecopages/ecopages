@@ -11,7 +11,6 @@ import { BaseLayout } from '@/layouts/base-layout';
 export default eco.page({
 	dependencies: {
 		stylesheets: ['./index.css'],
-		components: [BaseLayout, AlpineCounter, RadiantCounter, LitCounter, ReactCounter],
 	},
 
 	metadata: () => ({

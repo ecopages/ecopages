@@ -1,7 +1,7 @@
-import { eco, type EcoPagesElement } from '@ecopages/core';
+import { type EcoPagesElement } from '@ecopages/core';
 
-export const Logo = eco.component<{ href?: string; title?: string }, EcoPagesElement>({
-	render: ({ href = '/', title }) => (
+export function Logo({ href = '/', title }: { href?: string; title?: string }): EcoPagesElement {
+	return (
 		<a href={href} title={title} class="site-logo">
 			<svg height="28" viewBox="0 0 35 42" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 				<path
@@ -13,5 +13,5 @@ export const Logo = eco.component<{ href?: string; title?: string }, EcoPagesEle
 			</svg>
 			Ecopages
 		</a>
-	),
-});
+	);
+}

@@ -19,9 +19,8 @@ const renderCounterGroup = (testId: string, radiantId: string) =>
 	IntegrationCounterGroup({ testId, radiantId }) as unknown as JsxRenderable;
 
 export default eco.page<{}, JsxRenderable>({
-	integration: 'ecopages-jsx',
 	dependencies: {
-		components: [BaseLayout, IntegrationCounterGroup, KitaShell, LitShell, EcopagesJsxShell, ReactShell],
+		components: [KitaShell, LitShell, EcopagesJsxShell, ReactShell],
 		stylesheets: ['./integration-matrix.css'],
 	},
 	layout: BaseLayout,

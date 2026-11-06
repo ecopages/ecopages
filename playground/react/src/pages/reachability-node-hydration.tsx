@@ -28,7 +28,6 @@ export default eco.page<{ data: string[] }, ReactNode>({
 	}),
 	dependencies: {
 		stylesheets: ['./index.css'],
-		components: [InteractiveList],
 	},
 	staticProps: async () => {
 		return { props: { data: loadServerData() } };

@@ -430,6 +430,7 @@ export async function createRolldownPluginBridge(
 	const resolveRegistrations: Registration<ResolveCallback>[] = [];
 	const loadRegistrations: Registration<LoadCallback>[] = [];
 	const transformRegistrations: Registration<TransformCallback>[] = [];
+	const endRegistrations: Array<{ callback: () => void | Promise<void>; pluginName: string }> = [];
 
 	const tracker =
 		entrypoints && plugins.some((plugin) => plugin.entryScope !== undefined)
@@ -475,6 +476,10 @@ export async function createRolldownPluginBridge(
 				transformRegistrations.push(
 					createRegistration(options.filter, undefined, callback, pluginName, entryScope),
 				);
+			},
+			onEnd: (callback) => {
+				assertOpen('onEnd');
+				endRegistrations.push({ callback, pluginName });
 			},
 		};
 
@@ -635,6 +640,18 @@ export async function createRolldownPluginBridge(
 		plugin.load = {
 			filter: loadRegistrations.map(({ hookFilter }) => include(idFilter(hookFilter))),
 			handler: loadHandler,
+		};
+	}
+	if (endRegistrations.length > 0) {
+		plugin.buildEnd = async (error) => {
+			if (error) return;
+			for (const { callback, pluginName } of endRegistrations) {
+				try {
+					await callback();
+				} catch (thrown) {
+					throw new EcoBuildPluginError(thrown, pluginName, undefined);
+				}
+			}
 		};
 	}
 	if (transformRegistrations.length > 0) {

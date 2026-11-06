@@ -8,10 +8,6 @@ type LatestReleaseViewProps = {
 };
 
 export default eco.page<LatestReleaseViewProps>({
-	dependencies: {
-		components: [BaseLayout],
-	},
-	integration: 'kitajs',
 	layout: BaseLayout,
 	metadata: ({ props }) => ({
 		title: `${props.release.title} | Latest release`,

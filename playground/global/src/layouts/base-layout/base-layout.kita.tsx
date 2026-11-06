@@ -11,7 +11,6 @@ export const BaseLayout = eco.component<BaseLayoutProps>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
-		components: [Navigation, RadiantCounter],
 	},
 
 	render: ({ children, class: className }) => {

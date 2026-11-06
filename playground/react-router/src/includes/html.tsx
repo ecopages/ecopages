@@ -7,7 +7,7 @@ const themeScript = `(function(){const t=localStorage.getItem('theme')||(window.
 
 const HtmlTemplate = eco.html<ReactNode>({
 	dependencies: {
-		components: [Head],
+		stylesheets: ['../styles/router.css', '../styles/tailwind.css'],
 		scripts: [{ content: themeScript }],
 	},
 

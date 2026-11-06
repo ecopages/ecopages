@@ -4,10 +4,6 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { getPageTestId } from '@/data/primary-links';
 
 export default eco.page({
-	dependencies: {
-		components: [BaseLayout],
-	},
-	integration: 'kitajs',
 	layout: BaseLayout,
 	metadata: () => ({
 		title: 'Explicit team route',

@@ -9,8 +9,6 @@ export type BlogPostProps = {
 };
 
 export default eco.page<BlogPostProps>({
-	dependencies: { components: [BaseLayout] },
-
 	staticPaths: async () => {
 		return { paths: getAllBlogPostSlugs() };
 	},

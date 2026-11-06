@@ -1,1 +1,1 @@
-export * from './navigation.kita';
+export { type NavigationProps, Navigation } from './navigation.kita';

@@ -6,7 +6,6 @@ import { BaseLayout } from '@/layouts/base-layout';
 export default eco.page<ErrorPageTemplateProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./500.css'],
-		components: [BaseLayout],
 	},
 
 	render: ({ message, stack }) => {

@@ -5,7 +5,6 @@ import { getPageTestId } from '@/data/primary-links';
 
 export default eco.page({
 	dependencies: {
-		components: [BaseLayout],
 		scripts: [
 			{
 				src: './ws-chat.script.ts',

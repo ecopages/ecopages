@@ -797,3 +797,66 @@ test('createRolldownPluginBridge treats a Windows drive prefix as part of the pa
 	assert.match(transformed?.code ?? '', /tagged/);
 	assert.deepEqual(seen, ['C:\\app\\src\\a.ts', 'undefined|D:/app/a.txt']);
 });
+
+test('createRolldownPluginBridge runs onEnd after every module is transformed and fails the build when it throws', async () => {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'eco-bridge-end-'));
+	try {
+		writeFileSync(path.join(root, 'entry.js'), `import './child.js';\nexport const entry = 1;`);
+		writeFileSync(path.join(root, 'child.js'), `export const child = 1;`);
+		const transformed: string[] = [];
+		const plugin: EcoBuildPlugin = {
+			name: 'end-check',
+			setup(build) {
+				build.transform({ filter: /\.js$/ }, (code, id) => {
+					transformed.push(path.basename(id));
+					return code;
+				});
+				build.onEnd(() => {
+					throw new Error(`transformed ${transformed.sort().join(', ')}`);
+				});
+			},
+		};
+		const build = async () => {
+			const bundle = await rolldown({
+				input: path.join(root, 'entry.js'),
+				cwd: root,
+				plugins: await createRolldownPluginBridge([plugin], root),
+			});
+			await bundle.generate();
+		};
+		await assert.rejects(build, /transformed child\.js, entry\.js/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('createRolldownPluginBridge skips onEnd when the build already failed', async () => {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'eco-bridge-end-'));
+	try {
+		writeFileSync(path.join(root, 'entry.js'), `export const entry = 1;`);
+		let ended = 0;
+		const plugin: EcoBuildPlugin = {
+			name: 'end-check',
+			setup(build) {
+				build.transform({ filter: /\.js$/ }, () => {
+					throw new Error('transform failed');
+				});
+				build.onEnd(() => {
+					ended += 1;
+				});
+			},
+		};
+		const build = async () => {
+			const bundle = await rolldown({
+				input: path.join(root, 'entry.js'),
+				cwd: root,
+				plugins: await createRolldownPluginBridge([plugin], root),
+			});
+			await bundle.generate();
+		};
+		await assert.rejects(build, /transform failed/);
+		assert.equal(ended, 0);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});

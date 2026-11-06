@@ -1,3 +1,4 @@
+/** @jsxImportSource @kitajs/html */
 import type { Todo } from './radiant-todo-app.script';
 
 export const NoTodosMessage = () => {

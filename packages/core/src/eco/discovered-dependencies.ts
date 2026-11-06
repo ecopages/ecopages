@@ -3,16 +3,21 @@ import type { ComponentIdentity } from './component-identity.ts';
 
 export type DiscoveredDependencies = {
 	components: () => unknown[];
+	/** Side-effect stylesheets the declaring module imports itself. */
 	stylesheets: string[];
+	/** Side-effect stylesheets of the plain local modules the declaring module imports. */
+	plainModuleStylesheets?: string[];
 	watchFiles?: string[];
 };
 
 const discoveries = new WeakMap<ComponentIdentity, DiscoveredDependencies>();
 const INFERRED_STYLESHEETS = Symbol.for('ecopages.identity.inferredStylesheets');
+const PLAIN_MODULE_STYLESHEETS = Symbol.for('ecopages.identity.plainModuleStylesheets');
 const DISCOVERED_WATCH_FILES = Symbol.for('ecopages.identity.watchFiles');
 
 type IdentityDiscoveryRecord = {
 	[INFERRED_STYLESHEETS]?: readonly string[];
+	[PLAIN_MODULE_STYLESHEETS]?: readonly string[];
 	[DISCOVERED_WATCH_FILES]?: readonly string[];
 };
 
@@ -21,7 +26,7 @@ function discoveryRecord(identity: ComponentIdentity): IdentityDiscoveryRecord {
 }
 
 /**
- * Records discovered Components, inferred styles, and barrel watch hops on identity.
+ * Records discovered Components, inferred styles, and watch paths on identity.
  *
  * @remarks
  * Styles and watch hops are stored on the identity object through interned symbols so
@@ -32,31 +37,49 @@ export function registerDiscoveredDependencies(identity: ComponentIdentity, disc
 	discoveries.set(identity, discovered);
 	const record = discoveryRecord(identity);
 	record[INFERRED_STYLESHEETS] = discovered.stylesheets;
+	record[PLAIN_MODULE_STYLESHEETS] = discovered.plainModuleStylesheets;
 	record[DISCOVERED_WATCH_FILES] = discovered.watchFiles;
 }
 
 /**
- * Inferred stylesheet paths registered for this component identity.
+ * Inferred stylesheet paths registered for this component identity, split by where the import sits.
  *
  * @remarks
- * Provenance stays on identity so copying or merging `config.dependencies` cannot
- * turn inferred styles into explicit ones. Paths are stored on the identity object
- * so collection still sees them when server modules bundle a separate copy of `eco`.
- * The collector prefers explicit entries across the whole graph by resolved path.
+ * `imported` are the declaring module's own side-effect imports; `plainModules` come from the plain local
+ * modules it imports. Provenance stays on identity so copying or merging `config.dependencies` cannot
+ * turn inferred styles into explicit ones. Paths are stored on the identity object so collection still
+ * sees them when server modules bundle a separate copy of `eco`. The collector prefers explicit entries
+ * across the whole graph by resolved path.
  */
-export function getInferredStylesheets(config: EcoComponentConfig | undefined): readonly string[] {
+export function getDiscoveredStylesheets(config: EcoComponentConfig | undefined): {
+	imported: readonly string[];
+	plainModules: readonly string[];
+} {
 	const identity = config?.identity;
-	if (!identity) return [];
-	return discoveryRecord(identity)[INFERRED_STYLESHEETS] ?? discoveries.get(identity)?.stylesheets ?? [];
+	if (!identity) return { imported: [], plainModules: [] };
+	const record = discoveryRecord(identity);
+	const discovered = discoveries.get(identity);
+	return {
+		imported: record[INFERRED_STYLESHEETS] ?? discovered?.stylesheets ?? [],
+		plainModules: record[PLAIN_MODULE_STYLESHEETS] ?? discovered?.plainModuleStylesheets ?? [],
+	};
 }
 
 /**
- * Named re-export hops recorded for this component identity.
+ * Every inferred stylesheet path registered for this component identity, for watch paths.
+ */
+export function getInferredStylesheets(config: EcoComponentConfig | undefined): readonly string[] {
+	const { imported, plainModules } = getDiscoveredStylesheets(config);
+	return [...imported, ...plainModules];
+}
+
+/**
+ * Watch paths discovery recorded for this component identity.
  *
  * @remarks
- * Barrel files are not Component identity files. Collecting them as watch paths
- * lets a barrel retarget invalidate HTML and Page Browser Graph caches without
- * editing the importing Page.
+ * Barrel hops and walked plain modules are not Component identity files. Collecting them as watch paths
+ * lets a barrel retarget or a plain module's import edit invalidate HTML and Page Browser Graph caches
+ * without editing the importing Page.
  */
 export function getDiscoveredWatchFiles(config: EcoComponentConfig | undefined): readonly string[] {
 	const identity = config?.identity;

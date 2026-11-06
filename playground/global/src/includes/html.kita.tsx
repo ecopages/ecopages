@@ -4,7 +4,7 @@ import { Head } from '@/includes/head.kita';
 
 export default eco.html({
 	dependencies: {
-		components: [Head],
+		stylesheets: ['../styles/tailwind.css', '../styles/alpine.css'],
 	},
 	render: ({ children, metadata, headContent, language = 'en' }: HtmlTemplateProps) => (
 		<html lang={language}>

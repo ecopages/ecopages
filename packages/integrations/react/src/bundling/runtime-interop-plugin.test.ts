@@ -37,6 +37,7 @@ function createPluginHarness() {
 		},
 		module: (_specifier, _callback) => {},
 		transform: () => {},
+		onEnd: () => {},
 	};
 
 	const plugin = createReactDomRuntimeInteropPlugin();
@@ -107,6 +108,7 @@ describe('createReactDomRuntimeInteropPlugin', () => {
 				},
 				module: (_specifier, _callback) => {},
 				transform: () => {},
+				onEnd: () => {},
 			});
 
 			const loader = onLoadRegistrations.find(({ options }) => options.filter.test('/tmp/react-dom/index.js'));

@@ -1,17 +1,15 @@
-import { eco } from '@ecopages/core';
+import './card.css';
 
 export type CardProps = {
 	title: string;
 	copy: string;
 };
 
-export const Card = eco.component<CardProps>({
-	dependencies: { stylesheets: ['./card.css'] },
-
-	render: ({ copy, title }) => (
+export function Card({ copy, title }: CardProps) {
+	return (
 		<article class="card">
 			<h1>{title}</h1>
 			<p>{copy}</p>
 		</article>
-	),
-});
+	);
+}

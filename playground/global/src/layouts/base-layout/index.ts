@@ -1,1 +1,1 @@
-export * from './base-layout.kita';
+export { type BaseLayoutProps, BaseLayout } from './base-layout.kita';

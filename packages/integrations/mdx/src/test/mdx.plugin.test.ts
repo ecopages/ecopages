@@ -121,6 +121,7 @@ describe('MDXPlugin', () => {
 			},
 			module() {},
 			transform() {},
+			onEnd() {},
 		};
 
 		loader?.setup(builder);

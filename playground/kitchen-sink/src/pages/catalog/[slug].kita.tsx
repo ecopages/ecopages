@@ -8,9 +8,6 @@ type CatalogPageProps = {
 };
 
 export default eco.page<CatalogPageProps>({
-	dependencies: {
-		components: [BaseLayout],
-	},
 	layout: BaseLayout,
 	staticPaths: async () => {
 		return {

@@ -1,10 +1,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
-import { attributeComponentIdentity, attributeMdxComponentIdentity } from './eco-component-meta-plugin.ts';
+import {
+	attributeComponentIdentity,
+	attributeMdxComponentIdentity,
+	createEcoComponentMetaPlugin,
+} from './eco-component-meta-plugin.ts';
+import { getPluginTransform } from '../__fixtures__/build/transform-plugin.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 
 const roots: string[] = [];
+const DISCOVERED_COMPONENT = /components: \(\) => \[\w/;
 function fixture() {
 	const root = mkdtempSync(path.join(tmpdir(), 'eco-discovery-'));
 	roots.push(root);
@@ -27,8 +35,7 @@ export function utility() { return 1; }`,
 			attributeComponentIdentity(
 				`${imports}\nimport { eco } from '@ecopages/core';\n${body}`,
 				path.join(root, 'page.ts'),
-				'lit',
-				root,
+				{ integration: 'lit', projectRoot: root },
 			).code,
 	};
 }
@@ -51,7 +58,10 @@ describe('component import discovery', () => {
 		expect(result).not.toContain(`import '@/style.css'`);
 		expect(result).toContain(`stylesheets: ${JSON.stringify([stylePath, stylePath])}`);
 		expect(result).toContain('import { eco, bindComponentIdentity }');
-		expect(attributeComponentIdentity(result, path.join(root, 'page.ts'), 'lit', root).code).toBe(result);
+		expect(
+			attributeComponentIdentity(result, path.join(root, 'page.ts'), { integration: 'lit', projectRoot: root })
+				.code,
+		).toBe(result);
 	});
 	it('keeps side-effect CSS when every Eco factory argument already has an identity', () => {
 		const { transform } = fixture();
@@ -77,12 +87,12 @@ describe('component import discovery', () => {
 		const result = transform(
 			`import type { Child } from './missing'; import * as children from './child'; import { utility } from './child'; import { Remote } from 'remote-package'; const later = () => import('./child');`,
 		);
-		expect(result).not.toContain('components: ()');
+		expect(result).not.toMatch(DISCOVERED_COMPONENT);
 	});
 	it('does not discover a component re-exported through export *', () => {
 		const { root, transform } = fixture();
 		writeFileSync(path.join(root, 'index.ts'), `export * from './child';`);
-		expect(transform(`import { Child } from './index';`)).not.toContain('components: ()');
+		expect(transform(`import { Child } from './index';`)).not.toMatch(DISCOVERED_COMPONENT);
 	});
 	it('records the imported factory module as a watch file', () => {
 		const { root, transform } = fixture();
@@ -114,7 +124,7 @@ describe('component import discovery', () => {
 		const { root, transform } = fixture();
 		writeFileSync(path.join(root, 'a.ts'), `export { Button } from './b';`);
 		writeFileSync(path.join(root, 'b.ts'), `export { Button } from './a';`);
-		expect(transform(`import { Button } from './a';`)).not.toContain('components: ()');
+		expect(transform(`import { Button } from './a';`)).not.toMatch(DISCOVERED_COMPONENT);
 	});
 	it('discovers default-to-named barrel re-exports', () => {
 		const { root, transform } = fixture();
@@ -133,17 +143,24 @@ export const Button = eco.component({ render: () => '' });`,
 		const imports = `import { Button } from './index';`;
 		expect(transform(imports)).toContain('components: () => [Button]');
 		writeFileSync(path.join(root, 'index.ts'), `export { Button } from './button-b';`);
-		expect(transform(imports)).not.toContain('components: ()');
+		expect(transform(imports)).not.toMatch(DISCOVERED_COMPONENT);
 		writeFileSync(path.join(root, 'index.ts'), `export { Button } from './button-a';`);
 		expect(transform(imports)).toContain('components: () => [Button]');
 	});
-	it('leaves CSS Modules, attributed imports and CSS in plain-function modules alone', () => {
+	it('leaves attributed and bound CSS imports alone', () => {
 		const { transform } = fixture();
-		expect(transform(`import './style.module.css'; import './style.css' with { type: 'text' };`)).not.toContain(
-			'stylesheets:',
+		const result = transform(`import './style.css' with { type: 'text' }; import styles from './style.css';`);
+		expect(result).not.toContain('stylesheets: ["');
+		expect(result).toContain(`import styles from './style.css'`);
+	});
+	it('fails on a CSS Module or a package stylesheet with the file and the import', () => {
+		const { transform } = fixture();
+		expect(() => transform(`import './style.module.css';`)).toThrow(
+			'page.ts: "./style.module.css" is a CSS Module, which Ecopages cannot add to a Page.',
 		);
-		const plain = transform(`import './style.css';`, `export function Plain() { return ''; }`);
-		expect(plain).toContain(`import './style.css'`);
+		expect(() => transform(`import 'swiper/css/swiper.css';`)).toThrow(
+			'page.ts: "swiper/css/swiper.css" is a package stylesheet, which Ecopages cannot add to a Page.',
+		);
 	});
 	it('reports missing relative or aliased imports with owner and specifier', () => {
 		const { transform, root } = fixture();
@@ -161,7 +178,268 @@ export const Button = eco.component({ render: () => '' });`,
 		const { root, transform } = fixture();
 		expect(transform(`import { Child } from './child';`)).toContain('components: () => [Child]');
 		writeFileSync(path.join(root, 'child.ts'), `export const Child = () => '';`);
-		expect(transform(`import { Child } from './child';`)).not.toContain('components: ()');
+		expect(transform(`import { Child } from './child';`)).not.toMatch(DISCOVERED_COMPONENT);
+	});
+
+	describe('plain modules', () => {
+		function plainFixture() {
+			const context = fixture();
+			const { root } = context;
+			const file = (name: string, source: string) => {
+				writeFileSync(path.join(root, name), source);
+				return realpathSync(path.join(root, name));
+			};
+			file('badge.css', '.badge {}');
+			file('card.css', '.card {}');
+			file('card-body.css', '.card-body {}');
+			file(
+				'badge.ts',
+				`import { eco } from '@ecopages/core';\nimport './badge.css';\nimport { Card } from './card';\nexport const Badge = eco.component({ render: () => Card() });`,
+			);
+			file(
+				'card.ts',
+				`import { CardBody } from './card-body';\nimport './card.css';\nexport function Card() { return CardBody(); }`,
+			);
+			file('card-body.ts', `import './card-body.css';\nexport const CardBody = () => '';`);
+			const attribute = (name: string, integration: string | null = 'lit', options = {}) =>
+				attributeComponentIdentity(fileSystem.readFileSync(path.join(root, name)), path.join(root, name), {
+					integration: integration ?? undefined,
+					projectRoot: root,
+					...options,
+				}).code;
+			return { ...context, file, attribute, real: (name: string) => realpathSync(path.join(root, name)) };
+		}
+
+		it('hands a plain component CSS to the nearest declaration, after its own CSS', () => {
+			const { attribute, real } = plainFixture();
+			const badge = attribute('badge.ts');
+			expect(badge).toContain(`stylesheets: ${JSON.stringify([real('badge.css')])}`);
+			expect(badge).toContain(
+				`plainModuleStylesheets: ${JSON.stringify([real('card.css'), real('card-body.css')])}`,
+			);
+			expect(badge).toContain(real('card.ts'));
+			expect(badge).toContain(real('card-body.ts'));
+			expect(badge).toContain('components: () => []');
+		});
+		it('strips the CSS import of a plain module', () => {
+			const { attribute } = plainFixture();
+			expect(attribute('card.ts')).not.toContain('card.css');
+		});
+		it('fails at the end of a build when no declaration reaches a plain module CSS import', async () => {
+			const { root } = plainFixture();
+			const build = () =>
+				getPluginTransform(
+					createEcoComponentMetaPlugin({
+						config: {
+							rootDir: root,
+							integrations: [{ name: 'lit', extensions: ['.ts'] }],
+						} as EcoPagesAppConfig,
+					}),
+				);
+			const read = (name: string) => fileSystem.readFileSync(path.join(root, name));
+			const unreached = build();
+			unreached.transform(read('card.ts'), path.join(root, 'card.ts'));
+			await expect(unreached.end()).rejects.toThrow(
+				'[ecopages] card.ts: "./card.css" never reaches a Page, because no eco.page(), eco.layout(), eco.html() or eco.component() module imports card.ts.',
+			);
+			const reached = build();
+			reached.transform(read('card.ts'), path.join(root, 'card.ts'));
+			reached.transform(read('badge.ts'), path.join(root, 'badge.ts'));
+			await expect(reached.end()).resolves.toBeUndefined();
+		});
+		it('forgets a plain module once the only declaration importing it drops the import', async () => {
+			const { root, file } = plainFixture();
+			const plugin = createEcoComponentMetaPlugin({
+				config: { rootDir: root, integrations: [{ name: 'lit', extensions: ['.ts'] }] } as EcoPagesAppConfig,
+			});
+			const read = (name: string) => fileSystem.readFileSync(path.join(root, name));
+			const build = () => {
+				const run = getPluginTransform(plugin);
+				run.transform(read('badge.ts'), path.join(root, 'badge.ts'));
+				run.transform(read('card.ts'), path.join(root, 'card.ts'));
+				return run.end();
+			};
+			await expect(build()).resolves.toBeUndefined();
+			file(
+				'badge.ts',
+				`import { eco } from '@ecopages/core';\nexport const Badge = eco.component({ render: () => '' });`,
+			);
+			await expect(build()).rejects.toThrow('[ecopages] card.ts: "./card.css" never reaches a Page');
+		});
+		it('shares plain module walks within a build without losing CSS through a cycle', () => {
+			const { root, file, real } = plainFixture();
+			file(
+				'card-body.ts',
+				`import './card-body.css';\nimport { Card } from './card';\nexport const CardBody = () => '';`,
+			);
+			file(
+				'page.ts',
+				`import { eco } from '@ecopages/core';\nimport { CardBody } from './card-body';\nexport default eco.page({ render: () => CardBody() });`,
+			);
+			const run = getPluginTransform(
+				createEcoComponentMetaPlugin({
+					config: {
+						rootDir: root,
+						integrations: [{ name: 'lit', extensions: ['.ts'] }],
+					} as EcoPagesAppConfig,
+				}),
+			);
+			const code = (name: string) => {
+				const result = run.transform(fileSystem.readFileSync(path.join(root, name)), path.join(root, name));
+				return typeof result === 'string' ? result : (result?.code ?? '');
+			};
+			expect(code('badge.ts')).toContain(JSON.stringify([real('card.css'), real('card-body.css')]));
+			expect(code('page.ts')).toContain(JSON.stringify([real('card-body.css'), real('card.css')]));
+		});
+		it('strips the CSS import of a plain module no Integration owns', () => {
+			const { attribute } = plainFixture();
+			expect(attribute('card-body.ts', null)).not.toContain(`import './card-body.css'`);
+		});
+		it('fails on a CSS Module or a package stylesheet in a reached plain module', () => {
+			const { attribute, file } = plainFixture();
+			file('card-body.ts', `import 'kit/dist/kit.css';\nexport const CardBody = () => '';`);
+			expect(() => attribute('badge.ts')).toThrow(
+				'[ecopages] card-body.ts: "kit/dist/kit.css" is a package stylesheet, which Ecopages cannot add to a Page.',
+			);
+			file('card-body.ts', `import styles from './card-body.module.css';\nexport const CardBody = () => styles;`);
+			expect(() => attribute('badge.ts')).toThrow(
+				'[ecopages] card-body.ts: "./card-body.module.css" is a CSS Module',
+			);
+		});
+		it('re-reads a plain module import edit on the next transform', () => {
+			const { attribute, file, real } = plainFixture();
+			expect(attribute('badge.ts')).toContain(real('card-body.css'));
+			file('card.ts', `import './card.css';\nexport function Card() { return ''; }`);
+			expect(attribute('badge.ts')).not.toContain(real('card-body.css'));
+		});
+		it('follows named barrels and stops at Eco modules, export *, packages and .server modules', () => {
+			const { attribute, file, real } = plainFixture();
+			file('kit.css', '.kit {}');
+			file('star.css', '.star {}');
+			file('server.css', '.server {}');
+			file('kit.ts', `export { Card } from './card';\nexport * from './star';`);
+			file('star.ts', `import './star.css';\nexport const Star = () => '';`);
+			file('data.server.ts', `import './server.css';\nexport const data = 1;`);
+			file(
+				'page.ts',
+				`import { eco } from '@ecopages/core';\nimport { Card, Star } from './kit';\nimport { Badge } from './badge';\nimport { data } from './data.server';\nimport { html } from 'lit';\nexport default eco.page({ render: () => html\`\${Card()}\${Star()}\${Badge({})}\${data}\` });`,
+			);
+			const page = attribute('page.ts');
+			expect(page).toContain(
+				`plainModuleStylesheets: ${JSON.stringify([real('card.css'), real('card-body.css')])}`,
+			);
+			expect(page).toContain('components: () => [Badge]');
+			expect(page).toContain(real('kit.ts'));
+			expect(page).not.toContain(real('star.ts'));
+			expect(page).not.toContain(real('badge.css'));
+		});
+		it('ends a cycle between plain modules and lists each stylesheet once', () => {
+			const { attribute, file, real } = plainFixture();
+			file(
+				'card-body.ts',
+				`import './card-body.css';\nimport { Card } from './card';\nimport { Badge } from './badge';\nexport const CardBody = () => '';`,
+			);
+			const badge = attribute('badge.ts');
+			expect(badge).toContain(
+				`plainModuleStylesheets: ${JSON.stringify([real('card.css'), real('card-body.css')])}`,
+			);
+		});
+		it('hands plain module CSS and Components to an MDX document', () => {
+			const { root, file, real } = plainFixture();
+			file(
+				'icon.ts',
+				`import { eco } from '@ecopages/core';\nexport const Icon = eco.component({ render: () => '' });`,
+			);
+			file(
+				'card.ts',
+				`import './card.css';\nimport { Icon } from './icon';\nexport function Card() { return Icon({}); }`,
+			);
+			const mdxJs = [
+				"import { jsx as _jsx } from 'react/jsx-runtime';",
+				"import { Card } from './card';",
+				'export default function MDXContent() { return _jsx(Card, {}); }',
+			].join('\n');
+			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root).code;
+			expect(result).toContain(`plainModuleStylesheets: ${JSON.stringify([real('card.css')])}`);
+			expect(result).toContain('components: () => [__ecoPlainModuleComponent0]');
+			expect(result).toContain(`import { Icon as __ecoPlainModuleComponent0 } from "${real('icon.ts')}";`);
+		});
+		it('makes Eco Components a plain module imports Components of the declaration', () => {
+			const { attribute, file, real } = plainFixture();
+			file(
+				'icon.ts',
+				`import { eco } from '@ecopages/core';\nexport const Icon = eco.component({ render: () => '' });\nexport default Icon;`,
+			);
+			file('icons.ts', `export { Icon as Glyph } from './icon';`);
+			file(
+				'card-body.ts',
+				`import './card-body.css';\nimport { Glyph } from './icons';\nimport Icon from './icon';\nexport const CardBody = () => \`\${Glyph({})}\${Icon({})}\`;`,
+			);
+			const badge = attribute('badge.ts');
+			expect(badge).toContain('components: () => [__ecoPlainModuleComponent0, __ecoPlainModuleComponent1]');
+			expect(badge).toContain(`import { Glyph as __ecoPlainModuleComponent0 } from "${real('icons.ts')}";`);
+			expect(badge).toContain(`import __ecoPlainModuleComponent1 from "${real('icon.ts')}";`);
+			file(
+				'badge.ts',
+				`import { eco } from '@ecopages/core';\nimport { Glyph } from './icons';\nimport { Card } from './card';\nexport const Badge = eco.component({ render: () => Card() + Glyph({}) });`,
+			);
+			const deduplicated = attribute('badge.ts');
+			expect(deduplicated).toContain('components: () => [Glyph, __ecoPlainModuleComponent0]');
+			expect(deduplicated).toContain(`import __ecoPlainModuleComponent0 from "${real('icon.ts')}";`);
+		});
+		it('fails when a plain component of another Integration is rendered, suggesting eco.component()', () => {
+			const { file, attribute } = plainFixture();
+			const integrationOf = (target: string) =>
+				target.endsWith('.react.tsx')
+					? { name: 'react', jsxImportSource: 'react' }
+					: { name: 'kitajs', jsxImportSource: '@kitajs/html' };
+			file('button.react.tsx', `export function Button() { return <button />; }\nexport const label = 'x';`);
+			file(
+				'page.kita.tsx',
+				`import { eco } from '@ecopages/core';\nimport { Button, label } from './button.react';\nexport default eco.page({ render: () => <main>{label}<Button /></main> });`,
+			);
+			expect(() => attribute('page.kita.tsx', 'kitajs', { integrationOf })).toThrow(
+				'[ecopages] page.kita.tsx renders Button from button.react.tsx, a plain react component, inside kitajs. Plain components do not cross Integrations: wrap Button in eco.component() so react renders it as a Foreign Child.',
+			);
+			file(
+				'button.react.tsx',
+				`import { eco } from '@ecopages/core';\nexport const Button = eco.component({ render: () => <button /> });\nexport const label = 'x';`,
+			);
+			expect(attribute('page.kita.tsx', 'kitajs', { integrationOf })).toContain('components: () => [Button]');
+		});
+		it('allows a plain component of another Integration that compiles JSX with the same runtime', () => {
+			const { file, attribute } = plainFixture();
+			const integrationOf = (target: string) =>
+				target.endsWith('.lit.tsx') ? { name: 'lit' } : { name: 'kitajs', jsxImportSource: '@kitajs/html' };
+			file('card.kita.tsx', `export function Card() { return <article />; }`);
+			file(
+				'page.lit.tsx',
+				`import { eco } from '@ecopages/core';\nimport { Card } from './card.kita';\nexport default eco.page({ render: () => <main><Card /></main> });`,
+			);
+			expect(() => attribute('page.lit.tsx', 'lit', { integrationOf })).not.toThrow();
+			file(
+				'page.react.tsx',
+				`/** @jsxImportSource @kitajs/html */\nimport { eco } from '@ecopages/core';\nimport { Card } from './card.kita';\nexport default eco.page({ render: () => <main><Card /></main> });`,
+			);
+			const withPragma = (target: string) =>
+				target.endsWith('.react.tsx')
+					? { name: 'react', jsxImportSource: 'react' }
+					: { name: 'kitajs', jsxImportSource: '@kitajs/html' };
+			expect(() => attribute('page.react.tsx', 'react', { integrationOf: withPragma })).not.toThrow();
+		});
+		it('allows a helper of another Integration that the importer does not render', () => {
+			const { file, attribute } = plainFixture();
+			const integrationOf = (target: string) =>
+				target.endsWith('.react.tsx')
+					? { name: 'react', jsxImportSource: 'react' }
+					: { name: 'kitajs', jsxImportSource: '@kitajs/html' };
+			file('helpers.react.tsx', `export const Label = 'x';\nexport function format() { return ''; }`);
+			file(
+				'page.kita.tsx',
+				`import { eco } from '@ecopages/core';\nimport { Label, format } from './helpers.react';\nexport default eco.page({ render: () => <main>{Label}{format()}</main> });`,
+			);
+			expect(() => attribute('page.kita.tsx', 'kitajs', { integrationOf })).not.toThrow();
+		});
 	});
 
 	describe('MDX component import discovery and attribution', () => {

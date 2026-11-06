@@ -16,9 +16,6 @@ export const getMetadata: GetMetadata = () => ({
 
 export default eco.page({
 	layout: BaseLayout,
-	dependencies: {
-		components: [RadiantCounter, AlpineCounter, LitCounter],
-	},
 	render: () => (
 		<div class="max-w-5xl mx-auto space-y-12">
 			<section class="text-center space-y-6 pt-12 pb-8">

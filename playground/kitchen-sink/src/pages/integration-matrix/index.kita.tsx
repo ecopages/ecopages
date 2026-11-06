@@ -22,7 +22,6 @@ function MatrixCard({ label, title, description, href, testId }: MatrixCardProps
 
 export default eco.page({
 	dependencies: {
-		components: [BaseLayout],
 		stylesheets: ['./integration-matrix.css'],
 	},
 	layout: BaseLayout,

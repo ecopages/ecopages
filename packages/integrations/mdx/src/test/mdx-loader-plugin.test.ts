@@ -38,6 +38,7 @@ function createBuilderHarness() {
 		},
 		module() {},
 		transform() {},
+		onEnd() {},
 	};
 
 	return {

@@ -1,0 +1,4 @@
+.discovery-plain-card {
+	--discovery-plain-card: 1;
+	border-top: 5px solid rgb(4, 5, 6);
+}

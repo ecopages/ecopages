@@ -6,7 +6,7 @@ import { EcoPropsScript } from '@ecopages/react-router';
 
 const HtmlTemplate = eco.component<HtmlTemplateProps, ReactNode>({
 	dependencies: {
-		components: [Head],
+		stylesheets: ['../styles/tailwind.css'],
 	},
 
 	render: ({ children, metadata, headContent, pageProps, pageModuleUrl, language = 'en' }) => {

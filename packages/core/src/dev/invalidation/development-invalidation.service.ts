@@ -6,6 +6,7 @@ import { isPathInside } from '../../utils/path-containment.ts';
 import { clearAppDevelopmentRouteModuleBuildCaches } from '../../build/server/route-module-build-cache-registry.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../../page-cache/page-cache-service.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
+import { forgetDiscoveryOwner } from '../../plugins/component-import-discovery.ts';
 
 export type DevelopmentInvalidationCategory =
 	| 'public-asset'
@@ -199,6 +200,7 @@ export class DevelopmentInvalidationService {
 		}
 		for (const filePath of changes.deleted) {
 			byPath.set(path.resolve(filePath), 'deleted');
+			forgetDiscoveryOwner(this.appConfig.rootDir, filePath);
 		}
 
 		const files: AppliedDevFileChange[] = [];

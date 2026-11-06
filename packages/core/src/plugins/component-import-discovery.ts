@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
+import { contentHash } from '../utils/content-hash.ts';
 import {
 	loadTsconfigPathPrefixes,
 	matchesTsconfigPathPrefix,
@@ -24,24 +25,134 @@ function identifierName(value: unknown): string | undefined {
 	return undefined;
 }
 
+function walk(value: unknown, visit: (node: Node) => void): void {
+	if (Array.isArray(value)) {
+		for (const child of value) walk(child, visit);
+		return;
+	}
+	const current = node(value);
+	if (!current) return;
+	visit(current);
+	for (const child of Object.values(current)) walk(child, visit);
+}
+
+function isFactoryCallee(callee: Node | undefined, names: readonly string[]): boolean {
+	return (
+		(callee?.type === 'MemberExpression' || callee?.type === 'StaticMemberExpression') &&
+		node(callee.object)?.type === 'Identifier' &&
+		node(callee.object)?.name === 'eco' &&
+		names.includes(String(node(callee.property)?.name))
+	);
+}
+
 function isFactory(value: unknown): boolean {
 	const call = node(value);
-	const callee = node(call?.callee);
-	return (
-		call?.type === 'CallExpression' &&
-		callee?.type === 'MemberExpression' &&
-		node(callee.object)?.name === 'eco' &&
-		['component', 'layout', 'html'].includes(String(node(callee.property)?.name))
-	);
+	return call?.type === 'CallExpression' && isFactoryCallee(node(call.callee), ['component', 'layout', 'html']);
+}
+
+/**
+ * Whether `program` calls `eco.page`, `eco.component`, `eco.layout` or `eco.html` anywhere.
+ */
+export function declaresEcoFactory(program: unknown): boolean {
+	let found = false;
+	walk(program, (current) => {
+		if (
+			current.type === 'CallExpression' &&
+			isFactoryCallee(node(current.callee), ['page', 'component', 'layout', 'html'])
+		) {
+			found = true;
+		}
+	});
+	return found;
 }
 
 function isServerSpecifier(source: string): boolean {
 	return /\.server(?:\.[cm]?[jt]sx?)?$/.test(source);
 }
 
-type ModuleExportIndex = {
+function isLocalSpecifier(source: string, pathPrefixes: string[]): boolean {
+	return source.startsWith('.') || matchesTsconfigPathPrefix(source, pathPrefixes);
+}
+
+function isLocalScript(file: string): boolean {
+	return /\.[cm]?[jt]sx?$/.test(file) && !file.includes(`${path.sep}node_modules${path.sep}`);
+}
+
+export function isCssImport(source: string): boolean {
+	return source.endsWith('.css') && !source.endsWith('.module.css');
+}
+
+/** One static `import` declaration with its value bindings. */
+export type StaticImport = {
+	source: string;
+	start: number;
+	end: number;
+	/** Named and default value bindings; type-only specifiers are dropped. */
+	bindings: Array<{ imported: string; local: string }>;
+	/** True for `import './module'`, which binds nothing. */
+	sideEffectOnly: boolean;
+	/** True when the import carries attributes such as `with { type: 'text' }`. */
+	attributed: boolean;
+};
+
+/**
+ * Lists the static value imports of a module body in source order.
+ */
+export function collectStaticImports(program: unknown): StaticImport[] {
+	const imports: StaticImport[] = [];
+	for (const statement of nodes(node(program)?.body)) {
+		if (statement.type !== 'ImportDeclaration' || statement.importKind === 'type') continue;
+		const source = node(statement.source)?.value;
+		if (typeof source !== 'string') continue;
+		const specifiers = nodes(statement.specifiers);
+		const bindings: StaticImport['bindings'] = [];
+		for (const specifier of specifiers) {
+			const local = identifierName(specifier.local);
+			if (!local || specifier.importKind === 'type') continue;
+			if (specifier.type === 'ImportDefaultSpecifier') bindings.push({ imported: 'default', local });
+			if (specifier.type === 'ImportSpecifier') {
+				bindings.push({ imported: identifierName(specifier.imported) ?? local, local });
+			}
+		}
+		imports.push({
+			source,
+			start: statement.start!,
+			end: statement.end!,
+			bindings,
+			sideEffectOnly: specifiers.length === 0,
+			attributed: nodes(statement.attributes).length > 0 || nodes(statement.assertions).length > 0,
+		});
+	}
+	return imports;
+}
+
+/**
+ * Names a module renders: JSX element names and called identifiers.
+ *
+ * @remarks
+ * Lit and string templates render a component by calling it, so a call counts as a render.
+ */
+function collectRenderedNames(program: unknown): Set<string> {
+	const names = new Set<string>();
+	walk(program, (current) => {
+		if (current.type === 'JSXOpeningElement' && node(current.name)?.type === 'JSXIdentifier') {
+			names.add(String(node(current.name)?.name));
+		}
+		if (current.type === 'CallExpression' && node(current.callee)?.type === 'Identifier') {
+			names.add(String(node(current.callee)?.name));
+		}
+	});
+	return names;
+}
+
+export type ModuleIndex = {
+	hash: string;
+	declaresEcoFactory: boolean;
+	jsxImportSource?: string;
+	renderedNames: Set<string>;
 	factories: Set<string>;
 	namedReexports: Map<string, { source: string; imported: string }>;
+	imports: StaticImport[];
 };
 
 function collectDeclaredFactoryBindings(body: Node[]): { declared: Set<string>; factories: Set<string> } {
@@ -106,86 +217,168 @@ function indexNamedExportStatement(
 	indexLocalNamedExportSpecifiers(specifiers, declared, factories);
 }
 
+const moduleIndexes = new Map<string, ModuleIndex>();
+
 /**
- * Indexes local `eco.*()` factory exports and named `export { X } from` re-exports.
+ * Indexes a module's `eco.*()` factory exports, named `export { X } from` re-exports and static imports.
  *
  * @remarks
- * `export *` is ignored so a barrel cannot pull an entire kit into the graph.
+ * The index lives for the process and is keyed by a hash of the file's contents, so each module is parsed
+ * once and an edit refreshes it on the next read without watcher wiring. It keeps only derived data, not
+ * the AST, which the bounded parse cache owns. `export *` is ignored so a barrel cannot
+ * pull an entire kit into the graph.
  */
-function indexModuleExports(file: string, cache: Map<string, ModuleExportIndex>): ModuleExportIndex {
-	const cached = cache.get(file);
-	if (cached) return cached;
-
+function indexModule(file: string, cache?: DiscoveryCache): ModuleIndex {
+	const built = cache?.indexes.get(file);
+	if (built) return built;
 	const source = fileSystem.readFileSync(file);
-	const parsed = parseModuleSource(file, source, { sourceType: 'module' });
-	const body = nodes(parsed.program.body);
+	const hash = contentHash(source, 16);
+	const cached = moduleIndexes.get(file);
+	if (cached?.hash === hash) {
+		cache?.indexes.set(file, cached);
+		return cached;
+	}
+
+	const program = parseModuleSource(file, source, { sourceType: 'module' }).program;
+	const body = nodes(node(program)?.body);
 	const { declared, factories } = collectDeclaredFactoryBindings(body);
 	const namedReexports = new Map<string, { source: string; imported: string }>();
-
 	for (const statement of body) {
 		indexNamedExportStatement(statement, declared, factories, namedReexports);
 	}
 
-	const indexed = { factories, namedReexports };
-	cache.set(file, indexed);
+	const indexed: ModuleIndex = {
+		hash,
+		declaresEcoFactory: source.includes('eco.') && declaresEcoFactory(program),
+		jsxImportSource: jsxPragmaOf(source),
+		renderedNames: collectRenderedNames(program),
+		factories,
+		namedReexports,
+		imports: collectStaticImports(program),
+	};
+	moduleIndexes.set(file, indexed);
+	cache?.indexes.set(file, indexed);
 	return indexed;
 }
 
-type FactoryExportState = {
-	moduleIndex: Map<string, ModuleExportIndex>;
-	resolved: Map<string, boolean>;
-	path: Set<string>;
-	watchFiles: Set<string>;
-};
+/** The leading `@jsxImportSource` pragma of a module, ignoring mentions further down. */
+function jsxPragmaOf(source: string): string | undefined {
+	return /^\s*\/\*[\s\S]*?@jsxImportSource\s+(\S+)[\s\S]*?\*\//.exec(source)?.[1];
+}
+
+/** Per app root: each walked plain module and the declaration files whose discovery walked it. */
+const reachOwners = new Map<string, { byModule: Map<string, Set<string>>; byOwner: Map<string, Set<string>> }>();
+
+function canonicalFile(file: string): string {
+	return fileSystem.exists(file) ? fileSystem.realpath(file) : path.resolve(file);
+}
+
+function reachIn(projectRoot: string) {
+	const key = path.resolve(projectRoot);
+	let reach = reachOwners.get(key);
+	if (!reach) {
+		reach = { byModule: new Map(), byOwner: new Map() };
+		reachOwners.set(key, reach);
+	}
+	return reach;
+}
 
 /**
- * True when `exportName` is an `eco.*()` factory, including through named barrel re-exports.
+ * Drops what discovery from the declaration in `ownerFile` recorded as reached.
  *
  * @remarks
- * Completed answers are memoized on `resolved`. `path` is only the current walk, so a
- * second alias of the same Component is not treated as a cycle miss.
+ * Each discovery of a declaration replaces its previous record, so a plain module stops counting as reached
+ * once no declaration imports it. The development watcher calls this for a deleted file, and the meta
+ * plugin for a module that no longer declares anything.
  */
-function isFactoryExport(
-	file: string,
-	exportName: string,
-	projectRoot: string,
-	pathPrefixes: string[],
-	state: FactoryExportState,
-): boolean {
-	const visitKey = `${file}\0${exportName}`;
-	const known = state.resolved.get(visitKey);
-	if (known !== undefined) return known;
-	if (state.path.has(visitKey)) return false;
-	state.path.add(visitKey);
-
-	let result = false;
-	if (!file.includes(`${path.sep}node_modules${path.sep}`) && !isServerSpecifier(file)) {
-		const { factories, namedReexports } = indexModuleExports(file, state.moduleIndex);
-		if (factories.has(exportName)) {
-			result = true;
-			state.watchFiles.add(file);
-		} else {
-			const reexport = namedReexports.get(exportName);
-			if (
-				reexport &&
-				!isServerSpecifier(reexport.source) &&
-				(reexport.source.startsWith('.') || matchesTsconfigPathPrefix(reexport.source, pathPrefixes))
-			) {
-				const resolved = resolveProjectModulePath(projectRoot, file, reexport.source, { preserveBarrel: true });
-				if (!resolved) {
-					throw new Error(`[ecopages] Cannot resolve import ${JSON.stringify(reexport.source)} from ${file}`);
-				}
-				if (/\.[jt]sx?$/.test(resolved) && !resolved.includes(`${path.sep}node_modules${path.sep}`)) {
-					result = isFactoryExport(resolved, reexport.imported, projectRoot, pathPrefixes, state);
-					if (result) state.watchFiles.add(file);
-				}
-			}
-		}
+export function forgetDiscoveryOwner(projectRoot: string, ownerFile: string): void {
+	const reach = reachIn(projectRoot);
+	const owner = canonicalFile(ownerFile);
+	for (const module of reach.byOwner.get(owner) ?? []) {
+		const owners = reach.byModule.get(module);
+		owners?.delete(owner);
+		if (owners?.size === 0) reach.byModule.delete(module);
 	}
+	reach.byOwner.delete(owner);
+}
 
-	state.path.delete(visitKey);
-	state.resolved.set(visitKey, result);
-	return result;
+function recordDiscoveryOwner(projectRoot: string, ownerFile: string, modules: Iterable<string>): void {
+	forgetDiscoveryOwner(projectRoot, ownerFile);
+	const reach = reachIn(projectRoot);
+	const owner = canonicalFile(ownerFile);
+	const reached = new Set(modules);
+	reach.byOwner.set(owner, reached);
+	for (const module of reached) {
+		const owners = reach.byModule.get(module) ?? new Set<string>();
+		owners.add(owner);
+		reach.byModule.set(module, owners);
+	}
+}
+
+/**
+ * Whether the latest discovery of some Eco declaration of the app at `projectRoot` walked into `file`.
+ *
+ * @remarks
+ * A bundler transforms an importer before the modules it imports in most builds, and the meta plugin checks
+ * again once its build is transformed, so a plain module reached from a declaration is recorded in time.
+ */
+export function isReachedByDiscovery(projectRoot: string, file: string): boolean {
+	return reachIn(projectRoot).byModule.has(canonicalFile(file));
+}
+
+function relativeToRoot(projectRoot: string, file: string): string {
+	const relative = path.relative(canonicalFile(projectRoot), canonicalFile(file));
+	return relative.startsWith('..') || path.isAbsolute(relative) ? file : relative.split(path.sep).join('/');
+}
+
+/**
+ * Throws for a CSS import that no Page can receive: a CSS Module or a package stylesheet.
+ *
+ * @remarks
+ * An import that carries attributes, or one that binds a plain stylesheet (`import styles from './x.css'`), is the
+ * module's own business and is left alone; a CSS Module fails however it is imported.
+ */
+export function assertDeliverableStylesheetImport(
+	entry: StaticImport,
+	importer: string,
+	projectRoot: string,
+	pathPrefixes: string[] = loadTsconfigPathPrefixes(projectRoot),
+): void {
+	if (entry.attributed || !entry.source.endsWith('.css')) return;
+	const where = `[ecopages] ${relativeToRoot(projectRoot, importer)}: ${JSON.stringify(entry.source)}`;
+	if (entry.source.endsWith('.module.css')) {
+		throw new Error(`${where} is a CSS Module, which Ecopages cannot add to a Page. Import a plain stylesheet.`);
+	}
+	if (entry.sideEffectOnly && !isLocalSpecifier(entry.source, pathPrefixes)) {
+		throw new Error(
+			`${where} is a package stylesheet, which Ecopages cannot add to a Page. Copy it into the app and import the copy.`,
+		);
+	}
+}
+
+/**
+ * Whether discovery delivers `entry`: a side-effect import of a local plain stylesheet without attributes.
+ *
+ * @remarks
+ * The meta plugin strips exactly these imports from plain modules, so stripping and delivery cannot drift.
+ */
+export function isDeliveredStylesheetImport(entry: StaticImport, pathPrefixes: string[]): boolean {
+	return (
+		!entry.attributed &&
+		entry.sideEffectOnly &&
+		isCssImport(entry.source) &&
+		isLocalSpecifier(entry.source, pathPrefixes)
+	);
+}
+
+/**
+ * Builds the error for a side-effect stylesheet import in a module no Eco declaration reaches.
+ */
+export function createUndeliverableStylesheetError(projectRoot: string, file: string, source: string): Error {
+	const module = relativeToRoot(projectRoot, file);
+	return new Error(
+		`[ecopages] ${module}: ${JSON.stringify(source)} never reaches a Page, because no eco.page(), eco.layout(), eco.html() or eco.component() module imports ${module}. Import it from one of them, or list the stylesheet in eco.component({ dependencies }).`,
+	);
 }
 
 /**
@@ -197,139 +390,380 @@ function isFactoryExport(
  */
 export type DiscoveredImports = {
 	components: string[];
+	/** Side-effect stylesheets the declaring module imports itself, in source order. */
 	stylesheets: string[];
+	/** Side-effect stylesheets of the plain local modules the declaring module imports. */
+	plainModuleStylesheets: string[];
+	/**
+	 * Eco Components that plain local modules import, which the declaring module has no binding for.
+	 *
+	 * @remarks
+	 * `file` is the module the plain module's import resolves to and `imported` the export it names.
+	 */
+	plainModuleComponents: Array<{ file: string; imported: string }>;
 	watchFiles: string[];
 	removals: Array<{ start: number; end: number; replacement: string }>;
 };
 
-export function isCssImport(source: string): boolean {
-	return source.endsWith('.css') && !source.endsWith('.module.css');
+/** The Integration that owns a file, as the cross-Integration check needs it. */
+export type DiscoveryIntegration = { name: string; jsxImportSource?: string };
+
+/**
+ * Options for {@link discoverComponentImports}.
+ */
+export type DiscoveryOptions = {
+	/**
+	 * Returns the Integration that owns a file, or `undefined` when none does.
+	 *
+	 * @remarks
+	 * Without it, discovery does not check plain components rendered across Integrations.
+	 */
+	integrationOf?: (file: string) => DiscoveryIntegration | undefined;
+	/** Source of the declaring module, read for a `@jsxImportSource` pragma; defaults to the file on disk. */
+	ownerSource?: string;
+	/** Results shared by every discovery of one build; see {@link createDiscoveryCache}. */
+	cache?: DiscoveryCache;
+};
+
+/** What one plain module and the plain modules it imports contribute to a declaration. */
+type PlainModuleWalk = {
+	stylesheets: string[];
+	components: Map<string, { file: string; imported: string }>;
+	/** Canonical paths of the walked plain modules. */
+	modules: Set<string>;
+	watchFiles: Set<string>;
+};
+
+/**
+ * Module indexes and plain module walks shared by the discoveries of one build.
+ *
+ * @remarks
+ * Files do not change during a build, so each declaration reuses what an earlier one read and walked.
+ * Create one per build; across builds the content-keyed module index is the only cache.
+ */
+export type DiscoveryCache = { indexes: Map<string, ModuleIndex>; walks: Map<string, PlainModuleWalk> };
+
+export function createDiscoveryCache(): DiscoveryCache {
+	return { indexes: new Map(), walks: new Map() };
 }
 
-function resolveStylesheetImportPath(
-	source: string,
-	ownerFile: string,
-	projectRoot: string,
-	pathPrefixes: string[],
-): string | undefined {
-	const isRelative = source.startsWith('.');
-	const isAlias = matchesTsconfigPathPrefix(source, pathPrefixes);
-	if (!isRelative && !isAlias) {
+type DiscoveryState = {
+	projectRoot: string;
+	pathPrefixes: string[];
+	integrationOf?: (file: string) => DiscoveryIntegration | undefined;
+	ownerFile: string;
+	ownerSource?: string;
+	cache?: DiscoveryCache;
+	resolved: Map<string, boolean>;
+	watchFiles: Set<string>;
+};
+
+function resolveReexport(
+	file: string,
+	reexport: { source: string; imported: string } | undefined,
+	state: DiscoveryState,
+): { file: string; imported: string } | undefined {
+	if (!reexport || isServerSpecifier(reexport.source) || !isLocalSpecifier(reexport.source, state.pathPrefixes)) {
 		return undefined;
 	}
-	if (isRelative) {
-		const candidate = path.resolve(path.dirname(ownerFile), source);
-		return fileSystem.exists(candidate) ? fileSystem.realpath(candidate) : undefined;
-	}
-	return resolveProjectModulePath(projectRoot, ownerFile, source, { preserveBarrel: true });
-}
-
-function tryRecordSideEffectStylesheetImport(
-	statement: Node,
-	source: string,
-	ownerFile: string,
-	projectRoot: string,
-	pathPrefixes: string[],
-	result: DiscoveredImports,
-): boolean {
-	const specifiers = nodes(statement.specifiers);
-	if (!isCssImport(source) || specifiers.length > 0) {
-		return false;
-	}
-	const resolved = resolveStylesheetImportPath(source, ownerFile, projectRoot, pathPrefixes);
+	const resolved = resolveProjectModulePath(state.projectRoot, file, reexport.source, { preserveBarrel: true });
 	if (!resolved) {
-		if (source.startsWith('.') || matchesTsconfigPathPrefix(source, pathPrefixes)) {
-			throw new Error(`[ecopages] Cannot resolve stylesheet import ${JSON.stringify(source)} from ${ownerFile}`);
-		}
-		return false;
+		throw new Error(`[ecopages] Cannot resolve import ${JSON.stringify(reexport.source)} from ${file}`);
 	}
-	if (!fileSystem.exists(resolved)) {
-		throw new Error(`[ecopages] Cannot resolve stylesheet import ${JSON.stringify(source)} from ${ownerFile}`);
-	}
-	result.stylesheets.push(resolved);
-	result.removals.push({ start: statement.start!, end: statement.end!, replacement: '' });
-	return true;
-}
-
-function collectFactoryComponentsFromImport(
-	statement: Node,
-	source: string,
-	ownerFile: string,
-	projectRoot: string,
-	pathPrefixes: string[],
-	factoryState: FactoryExportState,
-	result: DiscoveredImports,
-): void {
-	const specifiers = nodes(statement.specifiers);
-	const values = specifiers.filter(
-		(entry) =>
-			entry.importKind !== 'type' &&
-			(entry.type === 'ImportSpecifier' || entry.type === 'ImportDefaultSpecifier'),
-	);
-	if (!values.length || (!source.startsWith('.') && !matchesTsconfigPathPrefix(source, pathPrefixes))) {
-		return;
-	}
-	if (isServerSpecifier(source)) {
-		return;
-	}
-	const resolved = resolveProjectModulePath(projectRoot, ownerFile, source, { preserveBarrel: true });
-	if (!resolved) throw new Error(`[ecopages] Cannot resolve import ${JSON.stringify(source)} from ${ownerFile}`);
-	if (!/\.[jt]sx?$/.test(resolved) || resolved.includes(`${path.sep}node_modules${path.sep}`)) {
-		return;
-	}
-	for (const specifier of values) {
-		const imported = specifier.type === 'ImportDefaultSpecifier' ? 'default' : identifierName(specifier.imported);
-		const local = identifierName(specifier.local);
-		if (
-			typeof local === 'string' &&
-			imported &&
-			isFactoryExport(resolved, imported, projectRoot, pathPrefixes, {
-				...factoryState,
-				path: new Set(),
-			})
-		) {
-			result.components.push(local);
-			factoryState.watchFiles.add(resolved);
-		}
-	}
+	return isLocalScript(resolved) ? { file: resolved, imported: reexport.imported } : undefined;
 }
 
 /**
- * Discovers local Eco Component imports and relative or aliased side-effect CSS.
+ * True when `exportName` is an `eco.*()` factory, including through named barrel re-exports.
  *
  * @remarks
- * Named `export { X } from` barrels are followed for the imported binding only.
- * The imported module, the factory file, and successful re-export hops are recorded in
- * `watchFiles` so component and barrel edits invalidate caches.
- * `export *`, dynamic imports, namespace imports, packages, and `.server` modules are not.
+ * Completed answers are memoized on `resolved`. `pending` is only the current walk, so a
+ * second alias of the same Component is not treated as a cycle miss.
  */
-export function discoverComponentImports(program: unknown, ownerFile: string, projectRoot: string): DiscoveredImports {
-	const result: DiscoveredImports = { components: [], stylesheets: [], watchFiles: [], removals: [] };
-	const pathPrefixes = loadTsconfigPathPrefixes(projectRoot);
-	const factoryState: FactoryExportState = {
-		moduleIndex: new Map<string, ModuleExportIndex>(),
-		resolved: new Map<string, boolean>(),
-		watchFiles: new Set<string>(),
-		path: new Set(),
-	};
-	for (const statement of nodes(node(program)?.body)) {
-		if (statement.type !== 'ImportDeclaration' || statement.importKind === 'type') continue;
-		if (nodes(statement.attributes).length || nodes(statement.assertions).length) continue;
-		const source = node(statement.source)?.value;
-		if (typeof source !== 'string') continue;
-		if (tryRecordSideEffectStylesheetImport(statement, source, ownerFile, projectRoot, pathPrefixes, result)) {
-			continue;
+function isFactoryExport(
+	file: string,
+	exportName: string,
+	state: DiscoveryState,
+	pending = new Set<string>(),
+): boolean {
+	const visitKey = `${file}\0${exportName}`;
+	const known = state.resolved.get(visitKey);
+	if (known !== undefined) return known;
+	if (pending.has(visitKey)) return false;
+	pending.add(visitKey);
+
+	let result = false;
+	if (!file.includes(`${path.sep}node_modules${path.sep}`) && !isServerSpecifier(file)) {
+		const { factories, namedReexports } = indexModule(file, state.cache);
+		if (factories.has(exportName)) {
+			result = true;
+			state.watchFiles.add(file);
+		} else {
+			const target = resolveReexport(file, namedReexports.get(exportName), state);
+			if (target) {
+				result = isFactoryExport(target.file, target.imported, state, pending);
+				if (result) state.watchFiles.add(file);
+			}
 		}
-		collectFactoryComponentsFromImport(
-			statement,
-			source,
-			ownerFile,
-			projectRoot,
-			pathPrefixes,
-			factoryState,
-			result,
+	}
+
+	pending.delete(visitKey);
+	state.resolved.set(visitKey, result);
+	return result;
+}
+
+/**
+ * Follows named re-exports of `exportName` from `file` and lists every module on the way, ending with the
+ * module that defines the binding.
+ */
+function plainBindingModules(file: string, exportName: string, state: DiscoveryState): string[] {
+	const modules: string[] = [];
+	const seen = new Set<string>();
+	let current: { file: string; imported: string } | undefined = { file, imported: exportName };
+	while (current && !seen.has(`${current.file}\0${current.imported}`)) {
+		seen.add(`${current.file}\0${current.imported}`);
+		modules.push(current.file);
+		current = resolveReexport(
+			current.file,
+			indexModule(current.file, state.cache).namedReexports.get(current.imported),
+			state,
 		);
 	}
-	result.watchFiles.push(...factoryState.watchFiles);
+	return modules;
+}
+
+function resolveStylesheetImportPath(source: string, ownerFile: string, state: DiscoveryState): string | undefined {
+	if (source.startsWith('.')) {
+		const candidate = path.resolve(path.dirname(ownerFile), source);
+		return fileSystem.exists(candidate) ? fileSystem.realpath(candidate) : undefined;
+	}
+	return resolveProjectModulePath(state.projectRoot, ownerFile, source, { preserveBarrel: true });
+}
+
+/**
+ * Resolves a local side-effect stylesheet import, or returns `undefined` for any other import.
+ *
+ * @remarks
+ * Throws for a CSS Module, a package stylesheet, or a local stylesheet that does not exist.
+ */
+function resolveSideEffectStylesheet(entry: StaticImport, importer: string, state: DiscoveryState): string | undefined {
+	assertDeliverableStylesheetImport(entry, importer, state.projectRoot, state.pathPrefixes);
+	if (!isDeliveredStylesheetImport(entry, state.pathPrefixes)) return undefined;
+	const resolved = resolveStylesheetImportPath(entry.source, importer, state);
+	if (!resolved || !fileSystem.exists(resolved)) {
+		throw new Error(`[ecopages] Cannot resolve stylesheet import ${JSON.stringify(entry.source)} from ${importer}`);
+	}
+	return resolved;
+}
+
+function jsxRuntimeOf(file: string, state: DiscoveryState): { integration: string; runtime?: string } | undefined {
+	const integration = state.integrationOf?.(file);
+	if (!integration) return undefined;
+	const pragma =
+		file === state.ownerFile && state.ownerSource !== undefined
+			? jsxPragmaOf(state.ownerSource)
+			: indexModule(file, state.cache).jsxImportSource;
+	return { integration: integration.name, runtime: pragma ?? integration.jsxImportSource };
+}
+
+/**
+ * Throws when `importer` renders a plain component that another Integration owns.
+ *
+ * @remarks
+ * Only a capitalized binding the importer renders counts, so helpers shared across Integrations pass. Two
+ * Integrations that compile JSX with the same runtime, or one that leaves the runtime to the app's
+ * tsconfig, render each other's plain components, so the check needs both runtimes known and different.
+ * A `@jsxImportSource` pragma in either file wins over its Integration's runtime.
+ */
+function assertSameIntegration(
+	importer: string,
+	local: string,
+	component: string,
+	renderedNames: () => Set<string>,
+	state: DiscoveryState,
+): void {
+	if (!state.integrationOf || !/^[A-Z]/.test(local)) return;
+	const importerOwner = jsxRuntimeOf(importer, state);
+	const componentOwner = jsxRuntimeOf(component, state);
+	if (!importerOwner || !componentOwner || importerOwner.integration === componentOwner.integration) return;
+	if (!importerOwner.runtime || !componentOwner.runtime || importerOwner.runtime === componentOwner.runtime) return;
+	if (!renderedNames().has(local)) return;
+	throw new Error(
+		`[ecopages] ${relativeToRoot(state.projectRoot, importer)} renders ${local} from ${relativeToRoot(state.projectRoot, component)}, a plain ${componentOwner.integration} component, inside ${importerOwner.integration}. Plain components do not cross Integrations: wrap ${local} in eco.component() so ${componentOwner.integration} renders it as a Foreign Child.`,
+	);
+}
+
+/**
+ * Sorts the script imports of `importer` into Eco Component bindings and the plain local modules to walk.
+ */
+function collectModuleEdges(
+	importer: string,
+	imports: StaticImport[],
+	renderedNames: () => Set<string>,
+	state: DiscoveryState,
+	onComponent: (binding: { imported: string; local: string }, file: string) => void,
+): string[] {
+	const plainModules: string[] = [];
+	for (const entry of imports) {
+		if (entry.attributed || entry.source.endsWith('.css')) continue;
+		if (!isLocalSpecifier(entry.source, state.pathPrefixes) || isServerSpecifier(entry.source)) continue;
+		if (!entry.sideEffectOnly && entry.bindings.length === 0) continue;
+		const resolved = resolveProjectModulePath(state.projectRoot, importer, entry.source, { preserveBarrel: true });
+		if (!resolved) {
+			if (entry.sideEffectOnly) continue;
+			throw new Error(`[ecopages] Cannot resolve import ${JSON.stringify(entry.source)} from ${importer}`);
+		}
+		if (!isLocalScript(resolved)) continue;
+		if (entry.sideEffectOnly) {
+			plainModules.push(resolved);
+			continue;
+		}
+		for (const binding of entry.bindings) {
+			if (isFactoryExport(resolved, binding.imported, state)) {
+				onComponent(binding, resolved);
+				continue;
+			}
+			const modules = plainBindingModules(resolved, binding.imported, state);
+			assertSameIntegration(importer, binding.local, modules[modules.length - 1]!, renderedNames, state);
+			plainModules.push(...modules);
+		}
+	}
+	return plainModules;
+}
+
+/**
+ * Collects the side-effect stylesheets of a plain local module and of the plain modules it imports.
+ *
+ * @remarks
+ * A module's own stylesheets come before those of the modules it imports, the order collection gives a
+ * declaration and the Components it renders. The walk stops at Eco modules, packages and `.server`
+ * modules, and follows only static named, default and side-effect imports. An Eco Component it imports is
+ * recorded on the walk. A walk is kept in the build cache unless it skipped a module still being walked
+ * higher up a cycle, since that walk lacks what the skipped module contributes.
+ */
+function walkPlainModule(
+	file: string,
+	state: DiscoveryState,
+	inProgress: Set<string>,
+): { walk?: PlainModuleWalk; pending: Set<string> } {
+	const memo = state.cache?.walks.get(file);
+	if (memo) return { walk: memo, pending: new Set() };
+	if (inProgress.has(file)) return { pending: new Set([file]) };
+	const index = indexModule(file, state.cache);
+	const walk: PlainModuleWalk = { stylesheets: [], components: new Map(), modules: new Set(), watchFiles: new Set() };
+	if (index.declaresEcoFactory) return { walk, pending: new Set() };
+
+	inProgress.add(file);
+	const local: DiscoveryState = { ...state, resolved: new Map(), watchFiles: walk.watchFiles };
+	walk.modules.add(canonicalFile(file));
+	walk.watchFiles.add(file);
+	for (const entry of index.imports) {
+		const stylesheet = resolveSideEffectStylesheet(entry, file, local);
+		if (stylesheet && !walk.stylesheets.includes(stylesheet)) walk.stylesheets.push(stylesheet);
+	}
+	const children = collectModuleEdges(
+		file,
+		index.imports,
+		() => index.renderedNames,
+		local,
+		(binding, target) => {
+			const key = `${target}\0${binding.imported}`;
+			if (!walk.components.has(key)) walk.components.set(key, { file: target, imported: binding.imported });
+		},
+	);
+	const pending = new Set<string>();
+	for (const child of children) {
+		const result = walkPlainModule(child, state, inProgress);
+		for (const skipped of result.pending) pending.add(skipped);
+		if (result.walk) mergePlainModuleWalk(walk, result.walk);
+	}
+	inProgress.delete(file);
+	pending.delete(file);
+	if (pending.size === 0) state.cache?.walks.set(file, walk);
+	return { walk, pending };
+}
+
+function mergePlainModuleWalk(into: PlainModuleWalk, from: PlainModuleWalk): void {
+	for (const stylesheet of from.stylesheets)
+		if (!into.stylesheets.includes(stylesheet)) into.stylesheets.push(stylesheet);
+	for (const [key, component] of from.components) if (!into.components.has(key)) into.components.set(key, component);
+	for (const module of from.modules) into.modules.add(module);
+	for (const watchFile of from.watchFiles) into.watchFiles.add(watchFile);
+}
+
+/**
+ * Discovers local Eco Component imports and the side-effect CSS that reaches an Eco declaration.
+ *
+ * @remarks
+ * Relative and aliased side-effect CSS of the declaring module is kept apart from the CSS of the plain
+ * local modules it imports (see {@link walkPlainModule}), which collection places after the CSS of every
+ * declaration that imports those modules. Eco Components a plain module imports become Components of the
+ * declaration too, so their Dependencies reach the Page. Named `export { X } from`
+ * barrels are followed for the imported binding only. Imported Eco modules, successful re-export hops and
+ * every walked plain module are recorded in `watchFiles` so their edits invalidate caches.
+ * `export *`, dynamic imports, namespace imports, packages, and `.server` modules are not followed.
+ */
+export function discoverComponentImports(
+	program: unknown,
+	ownerFile: string,
+	projectRoot: string,
+	options: DiscoveryOptions = {},
+): DiscoveredImports {
+	const result: DiscoveredImports = {
+		components: [],
+		stylesheets: [],
+		plainModuleStylesheets: [],
+		plainModuleComponents: [],
+		watchFiles: [],
+		removals: [],
+	};
+	const state: DiscoveryState = {
+		projectRoot,
+		pathPrefixes: loadTsconfigPathPrefixes(projectRoot),
+		integrationOf: options.integrationOf,
+		ownerFile,
+		ownerSource: options.ownerSource,
+		cache: options.cache,
+		resolved: new Map(),
+		watchFiles: new Set(),
+	};
+	const imports = collectStaticImports(program);
+	for (const entry of imports) {
+		const stylesheet = resolveSideEffectStylesheet(entry, ownerFile, state);
+		if (!stylesheet) continue;
+		result.stylesheets.push(stylesheet);
+		result.removals.push({ start: entry.start, end: entry.end, replacement: '' });
+	}
+	let renderedNames: Set<string> | undefined;
+	const ownComponents = new Set<string>();
+	const plainModules = collectModuleEdges(
+		ownerFile,
+		imports,
+		() => (renderedNames ??= collectRenderedNames(program)),
+		state,
+		(binding, file) => {
+			result.components.push(binding.local);
+			ownComponents.add(`${file}\0${binding.imported}`);
+			state.watchFiles.add(file);
+		},
+	);
+	const plain: PlainModuleWalk = {
+		stylesheets: [],
+		components: new Map(),
+		modules: new Set(),
+		watchFiles: new Set(),
+	};
+	const inProgress = new Set([canonicalFile(ownerFile)]);
+	for (const file of plainModules) {
+		const { walk } = walkPlainModule(file, state, inProgress);
+		if (walk) mergePlainModuleWalk(plain, walk);
+	}
+	recordDiscoveryOwner(projectRoot, ownerFile, plain.modules);
+	for (const watchFile of plain.watchFiles) state.watchFiles.add(watchFile);
+	for (const [key, component] of plain.components) {
+		if (!ownComponents.has(key)) result.plainModuleComponents.push(component);
+	}
+	result.plainModuleStylesheets.push(...plain.stylesheets.filter((file) => !result.stylesheets.includes(file)));
+	result.watchFiles.push(...state.watchFiles);
 	return result;
 }

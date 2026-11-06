@@ -8,10 +8,6 @@ const getData = async () => {
 };
 
 export default eco.page({
-	dependencies: {
-		components: [BaseLayout],
-	},
-
 	render: async () => {
 		const data = await getData();
 

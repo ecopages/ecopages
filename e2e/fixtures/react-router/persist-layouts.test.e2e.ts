@@ -74,3 +74,28 @@ test('evaluates a Layout module once when navigating between a TSX and an MDX Pa
 
 	expect(await readDocsLayoutEvaluations()).toBe(1);
 });
+
+test('keeps the CSS of a plain component inside a persisted Layout across navigation', async ({ page, request }) => {
+	const banner = page.getByTestId('docs-layout-banner');
+	const bannerStylesheets = async () => {
+		const urls = await page
+			.locator('link[rel="stylesheet"]')
+			.evaluateAll((links) => links.map((link) => (link as HTMLLinkElement).href));
+		const contents = await Promise.all(urls.map(async (url) => (await request.get(url)).text()));
+		return contents.filter((content) => /--docs-layout-banner\s*:/.test(content)).length;
+	};
+
+	await gotoAndWait(page, '/docs');
+	await expect(banner).toHaveCSS('border-top-width', '5px');
+	expect(await bannerStylesheets()).toBe(1);
+
+	await page.getByTestId('link-getting-started').click();
+	await page.waitForURL('**/docs/getting-started');
+	await expect(banner).toHaveCSS('border-top-width', '5px');
+
+	await page.getByTestId('docs-nav-link').filter({ hasText: 'MDX Docs 1' }).click();
+	await page.waitForURL('**/docs/mdx-docs-1');
+	await expect(page.getByTestId('mdx-docs-1')).toBeVisible();
+	await expect(banner).toHaveCSS('border-top-width', '5px');
+	expect(await bannerStylesheets()).toBe(1);
+});

@@ -3,7 +3,6 @@ import { BaseLayout } from '@/layouts/base-layout';
 
 export default eco.page({
 	dependencies: {
-		components: [BaseLayout],
 		scripts: ['./client-images.script.ts'],
 	},
 

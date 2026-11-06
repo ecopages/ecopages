@@ -9,7 +9,6 @@ import { BaseLayout } from '@/layouts/base-layout';
 export default eco.page<{}, ReactNode>({
 	dependencies: {
 		stylesheets: ['./index.css'],
-		components: [Counter, BaseLayout, TanstackTable, Select, RadiantCounter],
 	},
 
 	metadata: () => ({

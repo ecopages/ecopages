@@ -54,7 +54,7 @@ Includes are applied automatically. Pages and route layouts render **inside** th
 
 ## Declared layout components
 
-Route layouts must be created with **`eco.layout()`** (or `eco.component()` when you need the broader factory). Plain functions — including standard React components without eco metadata — are **not** valid layout values.
+Route layouts must be created with **`eco.layout()`** (or `eco.component()` when you need the broader factory). Plain functions — including standard React components without eco metadata — are **not** valid layout values. The components a layout renders can be plain functions: their imported CSS stays with the layout across client-side navigation.
 
 **Why:** `eco.page({ layout })` merges layouts into `dependencies.components`. At render time, EcoPages validates that every dependency entry is a **declared** component with bound `config.identity` (`eco.component()`, `eco.layout()`, or `eco.html()`). Undeclared values throw `UndeclaredComponentDependencyError`.
 

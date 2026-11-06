@@ -1,1 +1,1 @@
-export * from './card.kita';
+export { type CardProps, Card } from './card.kita';

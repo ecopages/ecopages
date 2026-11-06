@@ -7,7 +7,6 @@ export type ReactCounterProps = {
 };
 
 export const ReactCounter = eco.component<ReactCounterProps, ReactNode>({
-	integration: 'react',
 	dependencies: {
 		stylesheets: ['./react-counter.css'],
 	},

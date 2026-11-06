@@ -491,3 +491,88 @@ test('a ledger file written by an earlier version asks for a new build', async (
 		restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => null as never }),
 	).rejects.toThrow(/Run `ecopages build` again\./);
 });
+
+test('restoreProductionPageBrowserGraphs fails at start when a planned route has a grouped graph script the ledger does not record', async () => {
+	const appConfig = await createAppConfig();
+	const routeFile = path.join(appConfig.rootDir, 'pages/index.tsx');
+	requireAppRuntime(appConfig).plannedProductionRoutes = [{ routeFile }];
+	writeProductionAssetLedger(appConfig, new Map());
+	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
+	const renderer = createRestoringRenderer({
+		integrationName: 'ecopages-jsx',
+		instances: [
+			{
+				routeFile,
+				dependencyInstanceKey: createPageDependencyInstanceKey({}),
+				contribution: {
+					dependencies: [
+						{
+							kind: 'script',
+							source: 'content',
+							content: 'console.log("hydrate");',
+							groupedBundle: { id: 'react-router-pages', entryName: 'index' },
+						},
+					],
+				},
+			},
+		],
+	});
+
+	await expect(
+		restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => renderer as never }),
+	).rejects.toThrow(/does not record .* Run `ecopages build` again\./);
+	assert.equal(renderer.prebuildProductionPageBrowserGraph.mock.calls.length, 0);
+});
+
+test('restoreProductionPageBrowserGraphs fails at start when a planned page-client entry is not in the ledger', async () => {
+	const appConfig = await createAppConfig();
+	const routeFile = path.join(appConfig.rootDir, 'pages/index.tsx');
+	requireAppRuntime(appConfig).plannedProductionRoutes = [{ routeFile }];
+	writeProductionAssetLedger(appConfig, new Map());
+	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
+	const renderer = createRestoringRenderer({
+		integrationName: 'ecopages-jsx',
+		instances: [
+			{
+				routeFile,
+				dependencyInstanceKey: createPageDependencyInstanceKey({}),
+				pageClientBuildEntries: [
+					{
+						integrationName: 'ecopages-jsx',
+						dependency: { kind: 'script', source: 'content', content: 'import "./island.ts";' },
+					},
+				],
+			},
+		],
+	});
+
+	await expect(
+		restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => renderer as never }),
+	).rejects.toThrow(/does not record .* Run `ecopages build` again\./);
+});
+
+test('restoreProductionPageBrowserGraphs seals the build before it warms the planned routes', async () => {
+	const appConfig = await createAppConfig();
+	const routeFile = path.join(appConfig.rootDir, 'pages/index.tsx');
+	requireAppRuntime(appConfig).plannedProductionRoutes = [{ routeFile }];
+	writeProductionAssetLedger(appConfig, new Map());
+	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
+	const sealedWhenWarmed: boolean[] = [];
+	const renderer = createRestoringRenderer({ integrationName: 'ecopages-jsx', instances: [] });
+	renderer.prebuildProductionPageBrowserGraph.mockImplementation(async () => {
+		sealedWhenWarmed.push(requireAppRuntime(runtimeAppConfig).productionBrowserGraphsSealed);
+	});
+
+	await restoreProductionPageBrowserGraphs(runtimeAppConfig, { getPageRenderer: () => renderer as never });
+
+	assert.deepEqual(sealedWhenWarmed, [true]);
+});
+
+test('restoreProductionPageBrowserGraphs asks for a new build when dist has only a browser client manifest', async () => {
+	const appConfig = await createAppConfig();
+	writeFile(path.join(path.dirname(ledgerPath(appConfig)), 'browser-client-manifest.json'), '{"version":2}');
+
+	await expect(
+		restoreProductionPageBrowserGraphs(appConfig, { getPageRenderer: () => null as never }),
+	).rejects.toThrow(/Run `ecopages build` again\./);
+});

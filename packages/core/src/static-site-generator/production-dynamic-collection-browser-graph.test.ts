@@ -129,6 +129,7 @@ describe('production Dynamic collection Page browser graphs', () => {
 			(entry.asset.bundledSourceFilepaths ?? []).some((filePath) => filePath.endsWith('chart.script.ts'));
 		expect(ledger.entries.some(builtFromChartScript)).toBe(true);
 		ledger.entries = ledger.entries.filter((entry) => !builtFromChartScript(entry));
+		ledger.plannedRoutes = ledger.plannedRoutes.filter((route) => route.params?.slug !== 'chart');
 		writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, '\t')}\n`);
 
 		const startConfig = await loadEcoPagesConfig({ configFile: path.join(appDir, 'eco.config.ts') });

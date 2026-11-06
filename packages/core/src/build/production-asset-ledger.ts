@@ -11,6 +11,9 @@ import { ensureProductionBuildId } from './production-build-id.ts';
 
 export const PRODUCTION_ASSET_LEDGER_FILENAME = 'processed-assets.json';
 
+/** The route-shaped browser manifest earlier versions wrote instead of the asset ledger. */
+const LEGACY_BROWSER_CLIENT_MANIFEST_FILENAME = 'browser-client-manifest.json';
+
 /**
  * One route instance the production prebuild planned.
  *
@@ -116,7 +119,15 @@ function isLedgerFile(value: unknown): value is ProductionAssetLedgerFile {
 
 function readProductionAssetLedger(appConfig: EcoPagesAppConfig): ProductionAssetLedgerFile | undefined {
 	const ledgerPath = getLedgerPath(appConfig);
-	if (!fileSystem.exists(ledgerPath)) return undefined;
+	if (!fileSystem.exists(ledgerPath)) {
+		const legacyManifestPath = path.join(path.dirname(ledgerPath), LEGACY_BROWSER_CLIENT_MANIFEST_FILENAME);
+		if (fileSystem.exists(legacyManifestPath)) {
+			throw new Error(
+				`${path.relative(appConfig.rootDir, legacyManifestPath)} was written by an earlier version of Ecopages. Run \`ecopages build\` again.`,
+			);
+		}
+		return undefined;
+	}
 	try {
 		const parsed: unknown = JSON.parse(fileSystem.readFileSync(ledgerPath).toString());
 		if (!isLedgerFile(parsed)) throw new Error('unsupported ledger shape');

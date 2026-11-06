@@ -182,15 +182,26 @@ async function refreshIntegrationDependencies(appConfig: EcoPagesAppConfig): Pro
 }
 
 /**
- * Fails when the restored ledger does not record a script the plan bundles.
+ * Fails when the restored ledger does not record a script the plan's routes need from the app-wide build.
  *
  * @remarks
- * The scripts are collected again from the current routes, so a script the ledger does not record means the
- * source changed since `ecopages build`.
+ * The plan is collected again from the current routes, so a component script, grouped Page Browser Graph script
+ * or bundleable page-client entry the ledger does not record means the source changed since `ecopages build`.
+ * Checking here fails `ecopages start` instead of building the script on its own while the route warms.
  */
 function assertPlannedScriptsRecorded(appConfig: EcoPagesAppConfig, plan: GroupedGraphBuildPlan): void {
 	const ledger = requireAppRuntime(appConfig).processedAssets;
-	for (const dependency of plan.bundledScripts ?? []) {
+	const integration = appConfig.integrations.find((entry) => entry.name === plan.integrationName);
+	const graphScripts = prepareAssetDependencies(
+		plan.instances.flatMap((instance) => [...(instance.contribution?.dependencies ?? [])]),
+		integration,
+		appConfig.rootDir,
+	).filter((dependency) => dependency.kind === 'script' && Boolean(dependency.groupedBundle?.id));
+	const pageClientEntries = plan.instances.flatMap((instance) =>
+		(instance.pageClientBuildEntries ?? []).map(({ dependency }) => dependency),
+	);
+	const required = [...(plan.bundledScripts ?? []), ...graphScripts, ...pageClientEntries].filter(isBundleableScript);
+	for (const dependency of required) {
 		if (ledger.lookup(dependency)) continue;
 		const source = 'filepath' in dependency ? ` ${path.relative(appConfig.rootDir, dependency.filepath)}` : '';
 		throw new Error(
@@ -204,8 +215,9 @@ function assertPlannedScriptsRecorded(appConfig: EcoPagesAppConfig, plan: Groupe
  *
  * @remarks
  * Rendering resolves every built script through the restored ledger. The routes are planned again only to warm
- * their preparations and Page Browser Graphs; #1010 removes that step. A successful restore sets
- * `productionBrowserGraphsSealed`, so a Page Browser Graph script the ledger does not record is an error.
+ * their preparations and Page Browser Graphs; #1010 removes that step. Every script those routes need from the
+ * app-wide build must be recorded, and the build is sealed before the routes warm, so a ledger miss fails start
+ * instead of building the script on its own and caching it.
  */
 export async function restoreProductionPageBrowserGraphs(
 	appConfig: EcoPagesAppConfig,
@@ -219,13 +231,13 @@ export async function restoreProductionPageBrowserGraphs(
 		assertPlannedScriptsRecorded(appConfig, plan);
 	}
 	await refreshIntegrationDependencies(appConfig);
-	for (const [renderer, routeInstances] of groupRouteInstancesByRenderer(
-		restored.plannedRoutes,
-		routeRendererFactory,
-	)) {
+	const renderersWithRoutes = groupRouteInstancesByRenderer(restored.plannedRoutes, routeRendererFactory);
+	for (const [renderer, routeInstances] of renderersWithRoutes) {
 		assertPlannedScriptsRecorded(appConfig, await renderer.buildGroupedGraphBuildPlan(routeInstances));
-		await prebuildRouteInstances(renderer, routeInstances);
 	}
 	requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
+	for (const [renderer, routeInstances] of renderersWithRoutes) {
+		await prebuildRouteInstances(renderer, routeInstances);
+	}
 	return true;
 }

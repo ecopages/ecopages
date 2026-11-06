@@ -12,7 +12,7 @@ sources:
 
 # Watcher and invalidation
 
-A save in `ecopages dev` passes through three stages: the Project Watcher batches filesystem events, `DevelopmentInvalidationService` classifies each file and marks results dirty, and `HmrManager` picks one HMR strategy per file and broadcasts one coalesced set of events to the browser. Nothing rebuilds on the file event itself; dirty results rebuild on the next request that needs them. This page covers the first two stages. [Strategies](/dev/hmr-strategies) covers the third, and [HMR client](/dev/hmr-client) what the browser does with the events. Module serving is in [Dev server](/dev/dev-server); process restarts in [Ledger and start](/dev/ledger-and-start).
+A save in `ecopages dev` passes through three stages: the Project Watcher batches filesystem events, `DevelopmentInvalidationService` classifies each file and marks results dirty, and `HmrManager` picks one HMR strategy per file and broadcasts one coalesced set of events to the browser. Nothing rebuilds on the file event itself; dirty results rebuild on the next request that needs them. This page covers the first two stages. [Strategies](/dev/hmr-strategies) covers the third, and [HMR client](/dev/hmr-client) what the browser does with the events. Module serving is in [Dev server](/dev/dev-server).
 
 ```mermaid
 flowchart TD
@@ -33,7 +33,7 @@ flowchart TD
 
 `ProjectWatcher` subscribes through `@ecopages/file-system` to the source directory, configured directories outside it, recorded build inputs, restart files, active linked-package roots and `additionalWatchPaths`. Events go into a trailing debounce (150 ms by default, `changeDebounceMs` or `ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS` to override, `0` to disable), and a maximum-wait timer flushes a sustained stream within one second. Batches are processed one at a time behind a promise queue.
 
-Why batch: one save often fires several events, and editors write several files at once. Handling a batch once means one invalidation pass, one Processor callback and one browser update instead of a storm of reloads.
+A batch is handled once: one invalidation pass, one `onChanges` call per Processor and one browser update.
 
 For each batch the watcher:
 
@@ -51,6 +51,7 @@ When the batch needs a full reload (a public file, an `additionalWatchPaths` mat
 | Category | Typical file | Invalidate server modules | Reload browser | Delegate to HMR |
 | --- | --- | --- | --- | --- |
 | `runtime-restart` | config imports, dotenv, linked package files | no | no | no |
+| `entry-watched-config` | the config module, when a runtime entry watcher owns it | no | no | no |
 | `public-asset` | file in the public directory | no | yes | no |
 | `additional-watch` | `additionalWatchPaths` match | yes | yes | no |
 | `processor-owned-asset` | asset a Processor can process, such as a stylesheet | no | no | no |

@@ -22,16 +22,16 @@ Two routers can run in one site: [browser-router](/dev/browser-router) for serve
 | `navigate` | Navigate to a request routed to this owner. |
 | `handoffNavigation` | Accept a document another runtime already fetched. |
 | `reloadCurrentPage` | Re-render the current URL in place; `clearCache` discards cached client state and `moduleUrl` forces a page entry. |
-| `cleanupBeforeHandoff` | Release client state before another runtime commits a document. The accepting runtime decides when it runs, so a stale handoff cannot blank the page. |
+| `cleanupBeforeHandoff` | Release client state before another runtime commits a document. `requestHandoff()` does not run it; the accepting runtime decides when, so the current page is not blanked before the incoming document is ready. |
 | `enableReloadStatePreservation` | Start keeping what `reloadCurrentPage` needs to preserve state. |
 
 The coordinator arbitrates three things:
 
 - **Ownership.** `claimOwnership` and `releaseOwnership` track the active owner (`browser-router`, `react-router` or `none`). A rendered document names its owner in `data-eco-document-owner`; `adoptDocumentOwner` reads it, and a document without the marker leaves the router on its local default.
-- **Transactions.** `beginNavigationTransaction` starts a new navigation and invalidates the previous one. A transaction exposes an `AbortSignal`, `isCurrent()` and `isSuperseded()`. Superseded differs from not current: a navigation that completed normally is no longer current, yet still owes work such as `eco:page-load`, which is skipped only when a newer navigation replaced it.
+- **Transactions.** `beginNavigationTransaction` starts a new navigation and invalidates the previous one. A transaction exposes an `AbortSignal`, `isCurrent()` and `isSuperseded()`. Superseded differs from not current: a navigation that completed normally is no longer current, yet still owes work such as `eco:page-load`, which is skipped only when a newer navigation replaced it or it was cancelled.
 - **Handoff and reload.** `requestNavigation` and `requestHandoff` send a request or a pre-fetched document to another registered runtime; `reloadCurrentPage` asks the active owner; `enableReloadStatePreservation` asks every runtime now and any that registers later.
 
-Why a coordinator instead of routers calling each other: a router that is not loaded on a page cannot be imported, and a mixed site would otherwise fetch the same document twice. Handing over the fetched `Document` lets the second runtime commit without another request.
+A handoff carries the already fetched `Document`, so the receiving runtime commits it without another request.
 
 ## Shared helpers
 

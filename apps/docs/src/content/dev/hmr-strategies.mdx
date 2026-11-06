@@ -19,8 +19,6 @@ sources:
 
 Strategies extend `HmrStrategy` and are tried in descending `priority` (`type` plus `priorityOffset`); the first whose `matches()` returns true wins. Core registers three, Integrations add their own in their `hmr()` hook through `registerStrategy()`, and `DefaultHmrStrategy` sits outside the list as the last resort.
 
-Why this split: core owns generic invalidation, Integrations own framework-specific update decisions, and adapters own the transport, so a new Integration can claim its files without core knowing its rendering model.
-
 | Strategy | Owner | Priority | Claims | Sends |
 | --- | --- | --- | --- | --- |
 | `ServerRenderedTemplateHmrStrategy` | core | 150 | files in the includes directory or `src/views` | `layout-update` |

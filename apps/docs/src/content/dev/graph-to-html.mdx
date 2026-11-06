@@ -44,7 +44,7 @@ flowchart TD
 3. The Page's `dependencies` function (for example `getEntryDependencies`) adds request-time roots to the same graph.
 4. Dependency collection, the Page Browser Graph, the page client plan, Integration runtimes and lazy-trigger injectors produce the asset list that becomes the Page Package.
 
-Only nodes with an identity file, under parents that also have one, take part in dependency collection. Why the Page Package is fixed before render: island builds, the Page Browser Graph and cache watch paths all need the asset set up front, and a package that rendering could grow would depend on which branches and Integrations happened to run. Renders return HTML and root attributes only, and the HTML transform injects the prepared package.
+Only nodes with an identity file, under parents that also have one, take part in dependency collection. The Page Package is fixed before render: renders return HTML and root attributes only, and the HTML transform injects the prepared package.
 
 The graph has a guard. In development, `assertComponentInPreparedGraph` fails a render of a Component with `dependencies` and an identity file that preparation never reached, naming the file. Production does not check, so such a Component renders without its assets.
 

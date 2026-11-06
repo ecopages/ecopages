@@ -61,7 +61,7 @@ Handlers must be registered before `setup` returns or its promise resolves; a la
 
 `cacheKey` exists because a build request is identified by its plugins' names in order. A factory that captures an output-changing option, such as the MDX loader with its compiler options or the foreign JSX override with its import source, sets `cacheKey` so two builds that differ only in that option are not deduplicated into one.
 
-Why an Ecopages-owned contract instead of raw Rolldown plugins: the contract is the boundary between Integrations and the bundler backend, so plugin authors stay free of Rolldown types (a transform `map` is `unknown`) and core can switch or upgrade the backend without breaking every Integration and Processor. It also lets core run every contributed hook in one place, where it attributes errors, records build inputs and composes source maps.
+The contract is the boundary between Integrations and bundler backends, so plugin authors stay free of Rolldown types (a transform `map` is `unknown`).
 
 ## Contributing plugins
 
@@ -69,7 +69,7 @@ Why an Ecopages-owned contract instead of raw Rolldown plugins: the contract is 
 
 Core calls `plugins(app)` exactly once per app, from `sealAppBuildManifest()` during config finalization (`finalizeEcoPagesConfig()` creates the app runtime, which seals the manifest). It is the only plugin method finalization calls, so it must be a pure read: no I/O, no generation. State a plugin needs is created in `setup()` or lazily in the plugin's own callbacks. The content and image Processors do the latter: their plugins close over an `ensure...()` callback that prepares state on first use, because a build can run before `setup()` has.
 
-Why read once and keep it pure: the manifest is sealed before any Processor `setup()` runs, and a server started from a complete `dist/` calls `restoreProductionRuntime()` instead of `setup()`. Declaring plugins must therefore not depend on lifecycle state, and the declaration stays cheap and repeatable.
+The manifest is sealed before any Processor `setup()` runs, and a server started from a complete `dist/` calls `restoreProductionRuntime()` instead of `setup()`, so declaring plugins cannot depend on lifecycle state.
 
 Real contributors:
 
@@ -87,7 +87,7 @@ Real contributors:
 
 A name identifies a plugin within an environment. Registering the same name twice for one environment throws at finalization and names both contributors, for example `Build plugin "x" for browser is registered by both Processor "a" and Integration "b"`. The same name may be registered once for `server` and once for `browser`.
 
-Why reject duplicates instead of letting the later one win: a silent replacement would drop one contributor's hooks with no signal, and request identity and caches key on plugin names.
+Overlapping registrations are rejected instead of silently dropping a contributor's hooks; request identity and caches key on plugin names.
 
 The browser list is not plain registration order. It holds the plugins that also apply to the server first, then the browser runtime plugin that core synthesizes from each Integration's `browserRuntimeManifest`, then the browser-only plugins. The browser runtime plugin resolves manifest specifiers to public URLs and marks them external. Vendor URL rewrites are data on the Integration, not a plugin it writes.
 
@@ -99,7 +99,7 @@ Position in the list is priority. The bridge asks `onResolve` and `onLoad` regis
 2. App plugins: the alias resolver, then the manifest list for the environment, then the JSX ownership plugins. Within the manifest, registration order is loaders, then Processors, then Integrations, each in config order. A browser request can drop app plugins it replaces by name with `excludeAppBuildPlugins`.
 3. Core transforms: component identity attribution (`eco-component-identity-attribution`), then any the request passes, such as the `import.meta` rewrite on development server requests. A contributed plugin with a core transform's name throws.
 
-Why core transforms run last: they must see each module after every contributed load and rewrite, and no contributed plugin should see their output. Why caller plugins first: per-request rewrites have to win over the general app loaders without being able to silently remove one.
+Core transforms run last, so no contributed plugin runs after them. Caller plugins run first so per-request rewrites win over the general app loaders without being able to silently remove one.
 
 ```mermaid
 flowchart TD
@@ -141,7 +141,7 @@ What the bridge adds on top of the hook mapping:
 - **Source maps.** Chained transforms compose their maps in order. A transform that changes code without a map clears earlier mappings and returns empty `mappings`, so debug locations never point at stale positions; `map: null` declares that the transform moves no code and keeps the incoming map.
 - **Error attribution.** Rolldown overwrites `plugin` on a thrown error with the hosting plugin's name, which is the bridge. The bridge wraps every throw in an `EcoBuildPluginError` that keeps the `EcoBuildPlugin` name, and `BuildLog.plugin` reports that name.
 
-Why one merged plugin instead of one Rolldown plugin each: one hook loop gives first-wins semantics in exactly the order core decided, and one place to attribute errors, record inputs and compose maps.
+One merged plugin keeps first-wins semantics in exactly the order core decided.
 
 Around the bridge, the adapter places a few native Rolldown plugins that are not part of the contract: the installed-package externalizer when packages are external, a server-only import guard on browser platform builds, a CSS shim on server builds, and, after the bridge, the Worker entries plugin on browser builds.
 
@@ -156,4 +156,4 @@ Ownership is by extension. `findIntegrationForFile()` returns the Integration wi
 - **Component identity attribution** looks up the owning Integration of each script module and attributes identity with that Integration's name and JSX runtime. It skips `node_modules` and leaves a module no Integration owns alone unless it is a plain module inside the app root or one discovery reached. [Pages, layouts and components](/dev/pages-layouts-components) covers discovery.
 - **Host-scoped overrides.** An Integration that bundles foreign files into its own client graph uses `getHostScopedJsxOwnershipPlugins()`, which compiles other Integrations' JSX extensions with the host's runtime. Its `scope` option narrows that per build: React's scope claims a foreign file only when a React entry reaches it, and fails the build when entries of both Integrations reach it.
 
-Why scope by ownership: without it, every JSX file would compile with the project tsconfig's JSX runtime, and a Kita file bundled into a React client graph would emit HTML strings instead of React elements. Deriving every filter from the owning Integration's extensions keeps each file compiled by the runtime that renders it, whichever Integration's entry pulled it in.
+A file bundled into another Integration's client graph must compile with the runtime that renders it, not the project default; deriving every filter from the owning Integration's extensions keeps it so.

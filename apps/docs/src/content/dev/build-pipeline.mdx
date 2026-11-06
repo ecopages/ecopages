@@ -20,6 +20,8 @@ sources:
   - packages/core/src/assets/asset-processing-service/app-browser-client-bundle.ts
   - packages/core/src/build/browser/browser-runtime-manifest.ts
   - packages/core/src/build/browser/browser-runtime-plugin.ts
+  - packages/core/src/build/server-bundle-publication.ts
+  - packages/core/src/adapters/shared/http/dist-file-handler.ts
 ---
 
 # Build pipeline
@@ -57,7 +59,7 @@ flowchart TD
 | Filesystem route list | `dist/server/routes.json` | `writeProductionRouteList` |
 | Processed-asset ledger | `dist/server/processed-assets.json` | `writeProductionAssetLedger` |
 
-Every build starts from an empty `dist/`. Why: each build renders from source in a fresh process, so nothing in an earlier output is reusable, and a clean directory cannot mix two builds.
+Every build starts from an empty `dist/`. Why: each build renders from source in a fresh process, so nothing in an earlier output is reusable.
 
 Only an app with API handlers, WebSocket handlers or endpoint files bundles a server entry. A static-only app gets `dist/client/` and is served by a static host or `ecopages preview`; `ecopages start` refuses it with a message that says so.
 
@@ -92,7 +94,7 @@ Before rendering any HTML, the static-site generator calls `prebuildProductionPa
 - a parameter-free instance of every non-exact Page route template and every view the server entry imports, without data hooks
 - each `app.static` route instance
 
-Each Integration renderer plans its instances with `planProductionRoutes()`. Planning processes nothing: it lists the bundleable scripts of the Page Browser Graph and the island and lazy entries, each prepared exactly as asset processing would prepare it. Why: preparation is a pure function of the dependency, so the key the plan records is the key rendering looks up later.
+Each Integration renderer plans its instances with `planProductionRoutes()`. Planning processes nothing: it lists the bundleable scripts of the Page Browser Graph and the island and lazy entries, each prepared as asset processing prepares it.
 
 ```mermaid
 flowchart LR
@@ -116,25 +118,8 @@ Only `define`, `minify`, `treeshaking` and plugin exclusions split entries into 
 
 A route that fails to plan is reported, not fatal on its own. A concrete instance becomes a page failure; a route template only warns, and `ecopages start` then fails the requests that need a dependency only that plan would have recorded.
 
-## Production: one URL per module
+## Outputs of the browser build
 
-`ecopages build` builds the browser client once for the whole app. `prebuildProductionPageBrowserGraphs` asks every Integration renderer to plan its routes, which collects the scripts they would bundle without processing them. `buildAppBrowserClient` then bundles all of those in one build: component scripts, Page Browser Graph dependencies, island and lazy entries, each Integration's global scripts and the module scripts of HTML Pages.
+Each entry is named `client-<hash of its dependency key>` (`html-<hash of path>` for an HTML module script), and every output name carries a content hash. Package imports are bundled into the same chunks, except a specifier in an Integration's browser runtime manifest: the browser runtime plugin marks it external and points it at the runtime's fixed public URL, so every Page shares one copy of the framework runtime.
 
-```mermaid
-flowchart TD
-  P1[Route plans] --> B
-  P3[HTML Page scripts] --> B
-  P4[Global scripts] --> B
-  B[One split build] --> O["dist/client/assets"]
-  B --> L[(processed-asset ledger)]
-  L --> PP[Page Package per route]
-  PP --> H[HTML script tags]
-```
-
-Because every entry is in one build with code splitting, a module that several Pages reach, across Integrations and HTML shell scripts, becomes one chunk with one URL and is evaluated once, including across browser-router navigations. Per-Page builds would inline shared code into each Page's bundle and give the same module a different URL per Page.
-
-Each entry is named `client-<hash of its dependency key>` (`html-<hash of path>` for an HTML module script), and every output name carries a content hash. Only build-wide options split entries into separate builds: `define`, `minify`, `treeshaking` and excluded app build plugins. Plugins do not split them: a module has one URL and so one compiled form, so the build runs every plugin any entry declares, and each plugin decides by the module itself whether to handle it. The plugin side is covered in [Plugin pipeline](/dev/plugin-pipeline).
-
-Package imports are bundled into the same chunks. The exception is a specifier in an Integration's browser runtime manifest: the browser runtime plugin marks it external and points it at the runtime's fixed public URL, the same URL the dev import rewriter uses, so every Page shares one copy of the framework runtime.
-
-The build writes outputs to `dist/client/assets`, gzips each `.js` and `.css` file and records every content-hashed output, so the server answers them with `Cache-Control: public, max-age=31536000, immutable`. Each entry's output goes into the processed-asset ledger under the dependency key of every declaration that named it. `ecopages start` restores and seals that ledger and never compiles; [Ledger and start](/dev/ledger-and-start) covers the ledger and the sealed start.
+The build writes outputs to `dist/client/assets`, gzips each `.js` and `.css` file and records every output in the processed-asset ledger under the dependency key of every declaration that named it; the server answers hashed files with `Cache-Control: public, max-age=31536000, immutable`. `ecopages start` restores and seals that ledger and never compiles; [Ledger and start](/dev/ledger-and-start) covers both.

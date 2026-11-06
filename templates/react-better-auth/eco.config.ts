@@ -7,10 +7,12 @@ import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 import rehypePrettyCode from 'rehype-pretty-code';
 import remarkGfm from 'remark-gfm';
+import { siteOrigin } from './src/lib/site-origin';
 
 const appRoot = process.cwd();
 
 export default defineConfig({
+	baseUrl: siteOrigin,
 	defaultMetadata: {
 		title: 'Ecopages Better Auth Playground',
 		description: 'A minimal, high-performance starter template for Ecopages with Better Auth integration.',

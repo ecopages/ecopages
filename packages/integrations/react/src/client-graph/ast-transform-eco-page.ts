@@ -1,6 +1,5 @@
 /**
- * Finds server-only Page code in browser-bound modules: server-only `eco.page(...)` options
- * and the legacy Page exports core reads on the server.
+ * Finds the server-only `eco.page(...)` options of browser-bound modules.
  */
 
 import { walkAstNodes } from './ast-walk.ts';
@@ -17,7 +16,7 @@ const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set([
 ]);
 
 /** Page module exports core reads on the server when the Page does not set the matching option. */
-const SERVER_ONLY_PAGE_EXPORT_NAMES = new Set(['getMetadata', 'getStaticProps', 'getStaticPaths']);
+export const SERVER_ONLY_PAGE_EXPORT_NAMES = new Set(['getMetadata', 'getStaticProps', 'getStaticPaths']);
 
 type SourceRange = { start: number; end: number };
 
@@ -26,6 +25,8 @@ export type ServerOnlyPageCode = {
 	edits: SourceEdit[];
 	/** Nodes whose subtrees the edits remove; references inside them do not reach the browser. */
 	strippedNodes: Set<unknown>;
+	/** Whether the module calls `eco.page(...)` with an options object. */
+	definesPage: boolean;
 };
 
 function isEcoPageOptionsCall(node: any): boolean {
@@ -97,48 +98,16 @@ function collectPageOptionEdits(node: any, code: ServerOnlyPageCode): void {
 }
 
 /**
- * Replaces the value of a legacy server-only Page export with `undefined`, keeping the export name.
- */
-function collectLegacyExportEdits(statement: any, code: ServerOnlyPageCode): void {
-	const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : undefined;
-	if (declaration?.type === 'FunctionDeclaration' && SERVER_ONLY_PAGE_EXPORT_NAMES.has(declaration.id?.name)) {
-		code.strippedNodes.add(declaration);
-		code.edits.push({
-			start: declaration.start,
-			end: declaration.end,
-			replacement: `const ${declaration.id.name} = undefined;`,
-		});
-		return;
-	}
-	if (declaration?.type !== 'VariableDeclaration') return;
-	for (const declarator of declaration.declarations) {
-		if (declarator.id?.type !== 'Identifier' || !declarator.init) continue;
-		if (!SERVER_ONLY_PAGE_EXPORT_NAMES.has(declarator.id.name)) continue;
-		code.strippedNodes.add(declarator.init);
-		code.edits.push({ start: declarator.init.start, end: declarator.init.end, replacement: 'undefined' });
-	}
-}
-
-/**
- * Collects the server-only Page code of a browser-bound module and the edits that remove it.
- *
- * @remarks
- * Legacy exports (`getMetadata`, `getStaticProps`, `getStaticPaths`) count as server-only only
- * in a module that calls `eco.page(...)`, so a helper with one of those names elsewhere is kept.
+ * Collects the server-only `eco.page(...)` options of a browser-bound module and the edits that remove them.
  */
 export function collectServerOnlyPageCode(program: any): ServerOnlyPageCode {
-	const code: ServerOnlyPageCode = { edits: [], strippedNodes: new Set() };
-	let definesPage = false;
+	const code: ServerOnlyPageCode = { edits: [], strippedNodes: new Set(), definesPage: false };
 
 	walkAstNodes(program, (node) => {
 		if (!isEcoPageOptionsCall(node)) return;
-		definesPage = true;
+		code.definesPage = true;
 		collectPageOptionEdits(node, code);
 	});
-
-	if (definesPage) {
-		for (const statement of program.body) collectLegacyExportEdits(statement, code);
-	}
 
 	return code;
 }

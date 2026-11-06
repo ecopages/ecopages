@@ -908,6 +908,26 @@ describe('client graph boundary: stripped imports', () => {
 			expect(module.getStaticProps).toBeUndefined();
 		}));
 
+	it('drops a helper export that needs a node built-in when the Page renders another export', () =>
+		withTempDir(async (tempDir) => {
+			const outputPath = await buildBrowserModule(tempDir, {
+				'mixed-utils.ts': [
+					"import { readFileSync } from 'node:fs';",
+					'export function formatDate(date: Date) { return date.toISOString().slice(0, 4); }',
+					"export function dbSecretQuery() { return readFileSync('/etc/passwd', 'utf8'); }",
+				].join('\n'),
+				'entry.tsx': [
+					"import { eco } from './eco';",
+					"import { formatDate, dbSecretQuery } from './mixed-utils';",
+					'export default eco.page({ render: () => formatDate(new Date(Date.UTC(2026, 0, 1))) });',
+				].join('\n'),
+			});
+			const output = readFileSync(outputPath, 'utf8');
+			expect(output).not.toContain('readFileSync');
+			expect(output).not.toContain('/etc/passwd');
+			expect(((await evaluate(outputPath)).default as { render: () => string }).render()).toBe('2026');
+		}));
+
 	it('treats destructured bindings and class member names as local', () =>
 		withTempDir(async (tempDir) => {
 			const outputPath = await buildBrowserModule(tempDir, {
@@ -933,8 +953,8 @@ describe('client graph boundary: stripped imports', () => {
 
 	it.each([
 		['an as expression', 'export const guard = authMiddleware as unknown;', 2, 22],
-		['a satisfies expression', 'export const guards = [authMiddleware] satisfies unknown[];', 2, 24],
-		['a JSX element name', 'export const Guard = () => <authMiddleware.Provider />;', 2, 29],
+		['a satisfies expression', 'export const guard = [authMiddleware] satisfies unknown[];', 2, 23],
+		['a JSX element name', 'export const guard = () => <authMiddleware.Provider />;', 2, 29],
 		[
 			'a name shadowed elsewhere in the module',
 			'export const guard = authMiddleware;\nconst wrap = (authMiddleware: unknown) => authMiddleware;',
@@ -949,7 +969,7 @@ describe('client graph boundary: stripped imports', () => {
 					'entry.tsx': [
 						"import { authMiddleware } from './auth.server';",
 						usage,
-						'export default { render: () => "Page" };',
+						'export default { render: () => "Page", guard };',
 					].join('\n'),
 				}),
 			).rejects.toThrow(
@@ -966,7 +986,7 @@ describe('client graph boundary: stripped imports', () => {
 					'entry.tsx': [
 						"import { Secret } from './secret.server';",
 						'export const Widget = () => <Secret />;',
-						'export default { render: () => "Page" };',
+						'export default { render: () => "Page", Widget };',
 					].join('\n'),
 				}),
 			).rejects.toThrow(
@@ -1015,14 +1035,13 @@ describe('client graph boundary: stripped imports', () => {
 			await expect(
 				buildBrowserModule(tempDir, {
 					'entry.tsx': [
-						"import { eco } from './eco';",
 						"import { entries } from 'ecopages:content/posts/server';",
 						'export const count = entries.length;',
-						'export default eco.page({ render: () => "Post" });',
+						'export default { render: () => "Post", count };',
 					].join('\n'),
 				}),
 			).rejects.toThrow(
-				`'entries' (imported from 'ecopages:content/posts/server') is used at ${join(tempDir, 'entry.tsx')}:3:22`,
+				`'entries' (imported from 'ecopages:content/posts/server') is used at ${join(tempDir, 'entry.tsx')}:2:22`,
 			);
 		}));
 });

@@ -258,7 +258,11 @@ describe('BundleService', () => {
 		return result.outputs[0]!.path;
 	};
 
-	const writeForeignJsxIsland = (tempDir: string, widgetBody: string[]) => {
+	const writeForeignJsxIsland = (
+		tempDir: string,
+		widgetBody: string[],
+		islandSource = "import Widget from './widget.kita.tsx';\nexport default Widget;",
+	) => {
 		const srcDir = join(tempDir, 'src');
 		mkdirSync(srcDir);
 		symlinkSync(
@@ -275,7 +279,7 @@ describe('BundleService', () => {
 				'\n',
 			),
 		);
-		writeFileSync(entrypoint, "import Widget from './widget.kita.tsx';\nexport default Widget;");
+		writeFileSync(entrypoint, islandSource);
 		return entrypoint;
 	};
 
@@ -301,14 +305,18 @@ describe('BundleService', () => {
 		}
 	});
 
-	it('fails the build when a stripped server binding is used outside Page options', async () => {
+	it('fails the build when an island uses an export that needs a stripped server binding', async () => {
 		const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-react-foreign-jsx-')));
 
 		try {
-			const entrypoint = writeForeignJsxIsland(tempDir, [
-				'export const guard = authMiddleware;',
-				'export default eco.page({ render: () => <div>Widget</div> });',
-			]);
+			const entrypoint = writeForeignJsxIsland(
+				tempDir,
+				[
+					'export const guard = authMiddleware;',
+					'export default eco.page({ render: () => <div>Widget</div> });',
+				],
+				"import Widget, { guard } from './widget.kita.tsx';\nexport default [Widget, guard];",
+			);
 			await expect(buildReactIsland(tempDir, entrypoint)).rejects.toThrow(
 				`'authMiddleware' (imported from './auth.server.ts') is used at ${join(tempDir, 'src', 'widget.kita.tsx')}:3:22`,
 			);

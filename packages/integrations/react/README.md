@@ -85,7 +85,7 @@ The React integration supports Node.js modules and server-only code **only on th
 
 Keep server helpers close, but separate them physically or logically so they do not leak into the client bundle.
 
-The `.server` naming rule comes from the browser-safe `@ecopages/core/build/contracts` entry. React applies it during import pruning before core's browser resolution guard runs. A Page that uses `.server.ts` imports only in server options such as `middleware`, or in helpers only those options use, still builds: the imports, the options and those helpers are removed before resolution, in every module of the client graph. A stripped import that kept code still uses fails the build and names the binding, its specifier and its `file:line:column`; see [AST Pipeline Order](#ast-pipeline-order).
+The `.server` naming rule comes from the browser-safe `@ecopages/core/build/contracts` entry. React applies it during import pruning before core's browser resolution guard runs. A Page that uses `.server.ts` imports only in server options such as `middleware`, or in helpers only those options use, still builds: the imports, the options and those helpers are removed before resolution, in every module of the client graph. Other top-level code the browser does not need that uses a stripped import is removed too. A stripped import that code the browser needs still uses fails the build and names the binding, its specifier and its `file:line:column`; see [AST Pipeline Order](#ast-pipeline-order).
 
 For a hydratable Page that renders collection MDX, call `createLazyCollectionComponents()` from `@ecopages/react/lazy-collection-components` once at module level with the collection's `/component` loader. Its `get(slug)` returns one `React.lazy` component per slug, so the Page reads `const Content = posts.get(entry.slug)` and renders `<Content />` inside a `<Suspense>` boundary. The server waits for the entry and sends it in the HTML, hydration keeps that HTML until the browser has loaded the entry, and `dependencies` stays server-only and is removed from the Page Browser Graph. Keep the boundary at a fixed place in the Page, not keyed by slug: when a client navigation moves to another entry, React then leaves the current Page on screen until the next entry has loaded instead of showing the fallback. When the browser cannot load an entry during a client navigation (a replaced chunk, a dropped connection), `@ecopages/react-router` falls back to a full navigation to that URL. The helper keeps one lookup per collection outside the Page module. In development, HMR of the Page module therefore renders the already-loaded entry again without the Suspense fallback; the Page's own DOM is still replaced, because the reloaded Page is a new component. An edited MDX file re-renders that entry in place without a document reload. On the server, a reloaded server module graph starts a new lookup.
 
@@ -149,12 +149,17 @@ The browser-bound transform in [src/client-graph/boundary-plugin.ts](src/client-
 
 1. Build a reachability view of the client render graph.
 2. Remove imports that are not allowed: Node built-ins, `.server` modules, `ecopages:content/*/server` modules and named imports outside the declared `pkg{name}` rules. An import reachable from a client root fails the build instead.
-3. Remove server-only `eco.page(...)` options and, in a module that calls `eco.page(...)`, replace the value of the legacy `getMetadata`, `getStaticProps` and `getStaticPaths` exports with `undefined`.
-4. Remove the non-exported top-level declarations that only removed code used, repeating until nothing else becomes unused, and the imports only that code used.
-5. Fail the build when kept code still uses a binding whose import step 2 removed.
-6. Apply the edits and return the rewritten source to the bundle step.
+3. Remove server-only `eco.page(...)` options.
+4. Work out which top-level code the browser module needs: every top-level statement that is not a declaration (the default export included), declarations that create a client root such as `eco.component(...)`, the named exports browser importers are known to request, and every declaration those reach. In a module that calls `eco.page(...)`, the legacy `getMetadata`, `getStaticProps` and `getStaticPaths` exports are never needed by themselves.
+5. Remove each declaration the browser module does not need when only removed code used it, or when it uses a removed import or another removed declaration, repeating until nothing else changes. An exported name keeps its binding, set to `undefined`. Imports only removed code used are removed too, so their modules stay out of the browser graph.
+6. Fail the build when needed code, or an `export { ... }` list, still uses a binding whose import step 2 removed.
+7. Apply the edits and return the rewritten source to the bundle step.
 
-The analysis is scope-aware ([src/client-graph/scope-walk.ts](src/client-graph/scope-walk.ts)): a parameter, local or destructured binding that shadows an import name, a property key and a class member name are not uses of the import. Type positions are not uses either, while the operand of `as`, `satisfies` and `!` is. A JSX element name such as `<Secret />` is a use.
+A named export nothing requests is not needed, because rolldown would tree-shake it anyway, and requests are unknown for imports through a path alias such as `@/utils/mixed-utils`. So a helper module can keep `export function dbSecretQuery() { return readFileSync(...) }` next to the `formatDate` a Page renders: in the browser, `dbSecretQuery` is `undefined` and `node:fs` is gone.
+
+Step 5 does not look at side effects. A declaration such as `const registered = register('x')` that only server-only options use is removed with its call. Code that must run in the browser for its effect, such as `customElements.define(...)`, belongs in a top-level statement of its own, which always stays.
+
+The analysis is scope-aware ([src/client-graph/scope-walk.ts](src/client-graph/scope-walk.ts)). A parameter, local or destructured binding that shadows an import name is not a use of the import, and neither is a property key or a class member name. A parameter default sees the parameters but not the function body's declarations. Type positions and the bare operand of `typeof` are not uses. The operand of `as`, `satisfies` and `!` is a use, as is code in enums and namespaces. A JSX element name such as `<Secret />` is a use.
 
 ### Why `eco.page(...)` Options Are Stripped
 
@@ -179,13 +184,13 @@ export default eco.page({
 
 If the client transform removed the `auth.server` import but left `middleware: [authMiddleware]` in place, the browser bundle would contain a dangling identifier and throw a `ReferenceError` when it loads. The boundary therefore strips the server-only options, then the `staticProps` helper they alone used, while keeping `render` intact.
 
-A stripped import still used by kept code fails the build with its `file:line:column`:
+A stripped import still used by code the browser module needs fails the build with its `file:line:column`:
 
 ```text
 [Ecopages Client Graph] 'authMiddleware' (imported from './auth.server') is used at src/widget.tsx:2:22, but that import is server-only and the browser build removes it. ...
 ```
 
-Move that code into a server-only Page option, or into a helper only those options use.
+Move that code into a server-only Page option, into a helper only those options use, or out of the code the browser module reaches.
 
 ### Hydration Contract for `locals`
 

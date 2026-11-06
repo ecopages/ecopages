@@ -1,0 +1,12 @@
+{
+	"name": "@ecopages/e2e-browser-identity",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./index.js",
+		"./hooks": "./hooks.js"
+	},
+	"peerDependencies": {
+		"react": "^19.0.0"
+	}
+}

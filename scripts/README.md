@@ -12,10 +12,6 @@ Official templates ship agent skill packs under `.agents/skills`. After changing
 
 `smoke-packed-templates.ts` (`pnpm smoke:packed`) is the slow release check: it installs the official templates from the `pnpm pack` tarballs of every public package, with `overrides` in the project's `pnpm-workspace.yaml` so sibling packages cannot resolve from the registry, then builds them and serves `html` with `preview`. Run it locally before a release; CI runs it only for the `changeset-release/main` pull request and on manual dispatch.
 
-## Developer pages
-
-`check-dev-pages.ts` (`pnpm check:dev-pages [base]`) reads the `sources:` of every page in `apps/docs/src/content/dev` and the files changed since the merge base with `base` (default `origin/next`). It fails when a page's sources changed while the page did not, listing the pages to update, and when a page has no sources or lists a path that does not exist. Tests (`*.test.ts`, `*.test.tsx`) and Markdown files do not count as changes. A `main` base skips the check, since a release only carries changes `next` already checked. The `Developer pages` workflow runs it on every pull request against its base branch and skips it when the pull request has the `docs-not-needed` label (listed in `.github/labels.yml`).
-
 ## Test guardrails
 
 `check-portability.ts` (run by `pnpm typecheck`) rejects Bun filesystem calls in packages, runtime subpath imports in apps, and direct `process.env` writes in `*.test.*` files. Both Vitest projects set `unstubEnvs`, `unstubGlobals` and `restoreMocks`, so a test changes the environment with `vi.stubEnv('NAME', value)` (`undefined` unsets it) and Vitest puts it back after the test, even when the test fails. A test that writes files uses a `mkdtemp` directory under `os.tmpdir()` and removes it in `afterEach`.

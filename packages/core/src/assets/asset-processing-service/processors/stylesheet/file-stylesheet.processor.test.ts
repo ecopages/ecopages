@@ -1,4 +1,13 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -79,6 +88,9 @@ test('changes the stylesheet URL when the processed bytes change', async () => {
 });
 
 function writePackageFile(name: string, contents: string | Buffer): string {
+	const packageRoot = path.join(rootDir, 'node_modules/some-lib');
+	mkdirSync(packageRoot, { recursive: true });
+	writeFileSync(path.join(packageRoot, 'package.json'), '{ "name": "some-lib" }');
 	const file = path.join(rootDir, 'node_modules/some-lib', name);
 	mkdirSync(path.dirname(file), { recursive: true });
 	writeFileSync(file, contents);
@@ -155,7 +167,20 @@ test('fails on a package stylesheet url that names a missing file', async () => 
 	).rejects.toThrow(`${stylesheet}: url(./missing.png) names`);
 });
 
-test('inlines a package @import once and fails on an @import with conditions', async () => {
+function processPackageStylesheet(filepath: string) {
+	return new FileStylesheetProcessor({ appConfig: createConfig() }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath,
+		fromPackage: true,
+	});
+}
+
+async function preparedCss(filepath: string): Promise<string> {
+	return readFileSync((await processPackageStylesheet(filepath)).filepath!, 'utf-8');
+}
+
+test('inlines a package @import once', async () => {
 	const other = path.join(rootDir, 'node_modules/other-lib');
 	mkdirSync(other, { recursive: true });
 	writeFileSync(
@@ -167,16 +192,83 @@ test('inlines a package @import once and fails on an @import with conditions', a
 		'dist/style.css',
 		"@import 'other-lib/x.css';\n@import './style.css';\n.top {}",
 	);
-	const process = (filepath: string) =>
-		new FileStylesheetProcessor({ appConfig: createConfig() }).process({
-			kind: 'stylesheet',
-			source: 'file',
-			filepath,
-			fromPackage: true,
-		});
 
-	expect(readFileSync((await process(stylesheet)).filepath!, 'utf-8')).toBe('.other {}\n\n.top {}');
+	expect(await preparedCss(stylesheet)).toBe('.other {}\n\n.top {}');
+});
 
-	const conditional = writePackageFile('dist/print.css', "@import './style.css' print;");
-	await expect(process(conditional)).rejects.toThrow('has conditions');
+test('leaves url() inside strings and comments alone and reads escaped urls', async () => {
+	writePackageFile('dist/i).svg', '<svg id="paren"/>');
+	const stylesheet = writePackageFile(
+		'dist/style.css',
+		[
+			'.a::before { content: "url(./nope.png)"; }',
+			'.b::before { content: "a\\"b url(x.png)"; }',
+			'.c::before { content: "/*"; }',
+			'.d { background: url(i\\).svg); }',
+		].join('\n'),
+	);
+	const css = await preparedCss(stylesheet);
+
+	expect(css).toContain('content: "url(./nope.png)";');
+	expect(css).toContain('content: "a\\"b url(x.png)";');
+	expect(css).toContain('.c::before { content: "/*"; }');
+	expect(css).toContain(`.d { background: url("${hashBrowserAssetBytes('<svg id="paren"/>')}.svg"); }`);
+});
+
+test('rewrites the string references of image-set()', async () => {
+	writePackageFile('dist/i.svg', '<svg/>');
+	const stylesheet = writePackageFile('dist/style.css', '.a { background: image-set("./i.svg" 1x, url(i.svg) 2x); }');
+
+	const name = `${hashBrowserAssetBytes('<svg/>')}.svg`;
+	expect(await preparedCss(stylesheet)).toBe(`.a { background: image-set("${name}" 1x, url("${name}") 2x); }`);
+});
+
+test('fails on a url() or @import that leaves the package', async () => {
+	mkdirSync(path.join(rootDir, 'outside'), { recursive: true });
+	writeFileSync(path.join(rootDir, 'outside/secret.txt'), 'secret');
+	const url = writePackageFile('dist/url.css', '.a { background: url(../../../outside/secret.txt); }');
+	const imported = writePackageFile('dist/import.css', "@import '../../../outside/secret.txt';");
+
+	await expect(processPackageStylesheet(url)).rejects.toThrow(
+		`${realpathSync(url)}: "../../../outside/secret.txt" resolves to`,
+	);
+	await expect(processPackageStylesheet(imported)).rejects.toThrow('outside the package at');
+	const assetsDir = path.join(rootDir, '.eco/public/assets');
+	expect(existsSync(assetsDir) ? readdirSync(assetsDir).filter((file) => file.endsWith('.txt')) : []).toEqual([]);
+});
+
+test('hoists remote @imports and @charset of inlined files and reads a final @import without a semicolon', async () => {
+	writePackageFile('dist/base.css', '@charset "utf-8";\n.base {}\n@import url("https://cdn.example/font.css");');
+	writePackageFile('dist/last.css', '.last {}');
+	const stylesheet = writePackageFile('dist/style.css', ".top {}\n@import './base.css';\n@import './last.css'");
+
+	expect(await preparedCss(stylesheet)).toBe(
+		'@charset "utf-8";\n@import url("https://cdn.example/font.css");\n.top {}\n\n.base {}\n\n.last {}',
+	);
+});
+
+test('wraps the inlined contents of a conditional @import in its layer, supports and media blocks', async () => {
+	writePackageFile('dist/part.css', '.part {}');
+	writePackageFile('dist/print.css', '.print {}');
+	const stylesheet = writePackageFile(
+		'dist/style.css',
+		"@import './part.css' layer(lib) supports(display: grid) screen and (min-width: 1px);\n@import url(print.css) layer print;",
+	);
+
+	expect(await preparedCss(stylesheet)).toBe(
+		[
+			'@layer lib {',
+			'@supports (display: grid) {',
+			'@media screen and (min-width: 1px) {',
+			'.part {}',
+			'}',
+			'}',
+			'}',
+			'@layer {',
+			'@media print {',
+			'.print {}',
+			'}',
+			'}',
+		].join('\n'),
+	);
 });

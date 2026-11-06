@@ -45,12 +45,13 @@ export interface FileWatcher {
 	close(): Promise<void>;
 }
 
-/** What kind of entry a path is, and its size in bytes. */
+/** What kind of entry a path is, its size in bytes, and when its content last changed. */
 export interface FileStats {
 	isFile: boolean;
 	isDirectory: boolean;
 	isSymbolicLink: boolean;
 	size: number;
+	mtimeMs: number;
 }
 
 /** An entry returned by {@link FileSystem.readdir}. */

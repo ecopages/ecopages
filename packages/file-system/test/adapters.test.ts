@@ -5,7 +5,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync, rmSync, statSync } from 'node:fs';
 import { NodeFileSystem } from '../src/adapters/node';
 import type { FileSystem } from '../src/types';
 
@@ -147,6 +147,7 @@ for (const [name, fs] of adapters) {
 					isDirectory: false,
 					isSymbolicLink: false,
 					size: 11,
+					mtimeMs: statSync(path.join(testDir, 'test.txt')).mtimeMs,
 				});
 			});
 

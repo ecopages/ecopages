@@ -7,6 +7,8 @@ import { appLogger } from '../../global/app-logger.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
+import { DevTransformInstallStamp } from './dev-transform-install-stamp.ts';
+import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { materializeDevTransformStylesheet, resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
 import { mergeContributorRuntimeSpecifierMaps } from './dev-transform-runtime-specifiers.ts';
 import { resolveWorkspacePackageWatchRoots } from '../../watchers/workspace-package-watch-roots.ts';
@@ -52,6 +54,7 @@ export class DevTransformServer {
 	private cacheGeneration = 0;
 	private readonly sourceGenerations = new Map<string, number>();
 	private readonly extraModuleRoots: readonly string[];
+	private readonly installStamp: DevTransformInstallStamp;
 
 	constructor(options: DevTransformServerOptions) {
 		this.appConfig = options.appConfig;
@@ -59,6 +62,7 @@ export class DevTransformServer {
 		this.onTransformError = options.onTransformError;
 		this.contributors.push(...(options.contributors ?? []));
 		this.extraModuleRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
+		this.installStamp = new DevTransformInstallStamp(this.appConfig.rootDir);
 		this.rebuildRuntimeSpecifierMap();
 		this.vendorRegistry = new DevTransformVendorRegistry({
 			appConfig: options.appConfig,
@@ -165,8 +169,17 @@ export class DevTransformServer {
 		this.invalidateAll();
 	}
 
+	/**
+	 * @remarks
+	 * An asset request first checks whether packages were installed since the last one, and if so invalidates
+	 * every compiled module and vendor graph, so an install during the session takes effect without a restart.
+	 */
 	async tryHandleRequest(request: Request): Promise<Response | null> {
 		const url = new URL(request.url);
+		if (url.pathname.startsWith(`/${RESOLVED_ASSETS_DIR}/`) && this.installStamp.changed()) {
+			appLogger.info('[dev-transform] Installed packages changed; rebuilding browser modules and vendors');
+			this.invalidateAll();
+		}
 
 		const vendorResponse = await this.vendorRegistry.tryHandleVendorRequest(
 			url.pathname,

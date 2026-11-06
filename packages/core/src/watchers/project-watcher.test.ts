@@ -832,8 +832,14 @@ describe('ProjectWatcher', () => {
 			const { watch } = await subscribe();
 
 			const ignored = watch.mock.calls[0]?.[1]?.ignored as NonNullable<WatchOptions['ignored']>;
-			const file: FileStats = { isFile: true, isDirectory: false, isSymbolicLink: false, size: 0 };
-			const directory: FileStats = { isFile: false, isDirectory: true, isSymbolicLink: false, size: 0 };
+			const file: FileStats = { isFile: true, isDirectory: false, isSymbolicLink: false, size: 0, mtimeMs: 0 };
+			const directory: FileStats = {
+				isFile: false,
+				isDirectory: true,
+				isSymbolicLink: false,
+				size: 0,
+				mtimeMs: 0,
+			};
 			expect(ignored('/test/project/README.md')).toBe(false);
 			expect(ignored('/test/project/README.md', file)).toBe(true);
 			expect(ignored('/test/project/docs', directory)).toBe(false);

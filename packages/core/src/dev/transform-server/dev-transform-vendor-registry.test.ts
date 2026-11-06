@@ -629,6 +629,50 @@ describe('DevTransformVendorRegistry', () => {
 		expect(await badResponse?.text()).toContain('Vendor prebundle failed for bad-lib');
 	});
 
+	it.each([
+		{ failure: 'every build fails', failResolver: false },
+		{ failure: 'the plugin resolver throws', failResolver: true },
+	])('keeps serving the last good output when a rebuild fails as a whole ($failure)', async ({ failResolver }) => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-transient');
+		for (const name of ['built-lib', 'new-lib']) {
+			writePackage(
+				path.join(modules, name),
+				name,
+				{ type: 'module', module: 'index.js' },
+				{ 'index.js': `export const marker = '${name}-code';\n` },
+			);
+		}
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		let failing = false;
+		const registry = new DevTransformVendorRegistry({
+			appConfig: config,
+			resolveVendorBundlePlugins: async () => {
+				if (failing && failResolver) throw new Error('transient resolver failure');
+				return [];
+			},
+		});
+		const builtUrl = await registry.resolveVendorUrl('built-lib');
+		await readVendorGraph(registry, [builtUrl]);
+
+		failing = true;
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		if (!failResolver) {
+			bundle.mockResolvedValue({ success: false, logs: [{ message: 'transient install failure' }] });
+		}
+		await expect(registry.resolveVendorUrl('new-lib')).rejects.toThrow(/transient/);
+		bundle.mockRestore();
+		failing = false;
+
+		expect([...(await readVendorGraph(registry, [builtUrl])).values()].join('\n')).toContain('built-lib-code');
+		const persisted = fs.readFileSync(path.join(config.absolutePaths.workDir, 'dev-vendor-entries.json'), 'utf8');
+		expect(persisted).toContain('built-lib');
+		expect(persisted).toContain('new-lib');
+
+		registry.invalidateAll();
+		const newUrl = await registry.resolveVendorUrl('new-lib');
+		expect([...(await readVendorGraph(registry, [newUrl])).values()].join('\n')).toContain('new-lib-code');
+	});
+
 	it('builds the entries a previous dev process discovered on the first request', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-persisted');
 		for (const name of ['first-lib', 'second-lib']) {

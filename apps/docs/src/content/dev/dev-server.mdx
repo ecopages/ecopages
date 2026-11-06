@@ -94,10 +94,11 @@ There are two graphs because a build takes one list of resolve conditions: `@eco
 | --- | --- |
 | Entry URL | `/assets/vendors/<specifier>.<hash of entry path>.js`, stable across rebuilds, so URLs already embedded in served modules stay valid |
 | Chunk URL | `/assets/vendors/<name>-<content hash>.js` |
-| Batching | a new entry schedules a rebuild after a 50 ms quiet period, so the bare imports of one page load share one build |
+| Batching | a new entry schedules a rebuild after a 50 ms quiet period, so the bare imports of one page load share one build; the import rewriter resolves a module's specifiers at once, so its new bare imports join one build |
 | Storage | outputs stay in process memory; nothing is written under `dist` |
-| Seeding | known specifiers are written to `dev-vendor-entries.json` in the work directory; the next process seeds from it and builds the full graph on its first request instead of rebuilding and reloading |
-| Failures | a failed graph build retries entry by entry; failing entries answer `500` with the prebundle error and the rest build without them |
+| Seeding | every known specifier, failing ones included, is written to `dev-vendor-entries.json` in the work directory; the next process seeds from it and builds the full graph on its first request instead of rebuilding and reloading |
+| Failures | a failed graph build retries entry by entry; entries that fail alone answer `500` with the prebundle error and the rest build without them. A graph that fails as a whole, with no single failing entry or a thrown error, logs the error and keeps serving each entry's last good output; an entry without one answers `500` and is retried by a request made 2 s or more later |
+| Installs | a change to a lockfile or install manifest (such as `node_modules/.modules.yaml`), checked on asset requests at most once per 300 ms, invalidates compiled modules and vendor graphs, so an install during the session takes effect without a restart; until the rebuild commits, chunk URLs are served from the previous build |
 | Changes | when a rebuild changes or drops a file a browser already received, the HMR manager broadcasts `reload`, since mixing old and new chunks could load a module twice |
 | Caching | responses carry `Cache-Control: no-cache` and a content `ETag`, so the browser revalidates and gets `304` while the content holds |
 

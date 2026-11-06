@@ -30,10 +30,15 @@ type VendorEntry = {
 
 /** The result of one build of a vendor graph. */
 type VendorGraphBuild = {
+	/** The registry generation the build started in; a build of an older generation is only a fallback. */
+	generation: number;
 	entryPaths: ReadonlySet<string>;
 	/** Output contents keyed by served URL: entries and shared chunks. */
 	outputs: ReadonlyMap<string, string>;
+	/** The error served for each entry that has no output in this build. */
 	errors: ReadonlyMap<string, Error>;
+	/** Entries that failed alone while others built; they stay out of later builds of the generation. */
+	failed: ReadonlyMap<string, Error>;
 	/** URLs of this build that a browser has received. */
 	servedUrls: Set<string>;
 };
@@ -63,8 +68,9 @@ type VendorGraph = {
 	key: VendorGraphKey;
 	conditions: readonly string[];
 	entries: Map<string, VendorEntry>;
-	/** Entries that failed in this generation; they stay out of later builds until {@link DevTransformVendorRegistry.invalidateAll}. */
+	/** Entries that failed alone in this generation; they stay out of later builds until {@link DevTransformVendorRegistry.invalidateAll}. */
 	failed: Map<string, Error>;
+	/** The last committed build; after {@link DevTransformVendorRegistry.invalidateAll} it only backs a failed rebuild. */
 	current?: VendorGraphBuild;
 	scheduled?: ScheduledVendorGraphBuild;
 	running?: RunningVendorGraphBuild;
@@ -109,6 +115,9 @@ export type DevTransformVendorRegistryOptions = {
  * A new entry rebuilds its graph after a short quiet period, which collects the bare imports of one page load
  * into one build. The known entries are written to the app's `workDir` after each build and seed the next dev
  * process, which then builds the full graph on its first request. Bundle contents stay in memory.
+ *
+ * A build that fails as a whole, rather than for some of its entries, keeps the previous build's outputs, so a
+ * transient failure such as one during a package install leaves working vendors serving.
  */
 export class DevTransformVendorRegistry {
 	private readonly appConfig: EcoPagesAppConfig;
@@ -177,16 +186,29 @@ export class DevTransformVendorRegistry {
 	}
 
 	/**
-	 * Drops every built output so the next request rebuilds it, keeping the known entries.
+	 * Rebuilds every graph on its next request and resolves each known specifier again, keeping the known
+	 * entries.
 	 *
 	 * @remarks
-	 * A build that started before this call still settles for its waiters but is not kept.
+	 * A build that started before this call still settles for its waiters but is not kept. The last build is kept
+	 * only as the fallback of a rebuild that fails as a whole. A specifier that now resolves to another entry file,
+	 * as after a package upgrade, moves to that file's URL.
 	 */
 	invalidateAll(): void {
 		this.generation += 1;
 		for (const graph of this.graphs.values()) {
-			graph.current = undefined;
 			graph.failed.clear();
+			for (const entry of [...graph.entries.values()]) {
+				const resolved = resolveBarePackageBrowserEntry(
+					this.appConfig.rootDir,
+					entry.specifier,
+					this.appConfig.rootDir,
+				);
+				if (!resolved || resolved.path === entry.entryPath) continue;
+				graph.entries.delete(entry.entryPath);
+				this.entriesByUrl.delete(entry.url);
+				this.addEntry(entry.specifier, resolved.path);
+			}
 		}
 	}
 
@@ -216,8 +238,9 @@ export class DevTransformVendorRegistry {
 	}
 
 	private waitForBuildContaining(graph: VendorGraph, entryPath: string): Promise<VendorGraphBuild> {
-		if (graph.current?.entryPaths.has(entryPath)) {
-			return Promise.resolve(graph.current);
+		const current = this.currentBuild(graph);
+		if (current?.entryPaths.has(entryPath)) {
+			return Promise.resolve(current);
 		}
 		if (graph.running?.generation === this.generation && graph.running.entryPaths.has(entryPath)) {
 			return graph.running.promise;
@@ -263,7 +286,7 @@ export class DevTransformVendorRegistry {
 	private async runBuild(graph: VendorGraph, scheduled: ScheduledVendorGraphBuild): Promise<void> {
 		const generation = this.generation;
 		const entries = [...graph.entries.values()];
-		const promise = this.buildGraph(graph, entries, new Map(graph.failed));
+		const promise = this.buildGraph(graph, entries, new Map(graph.failed), generation);
 		const running: RunningVendorGraphBuild = {
 			generation,
 			entryPaths: new Set(entries.map((entry) => entry.entryPath)),
@@ -289,7 +312,7 @@ export class DevTransformVendorRegistry {
 	private commitBuild(graph: VendorGraph, build: VendorGraphBuild): void {
 		const previous = graph.current;
 		graph.current = build;
-		for (const [entryPath, error] of build.errors) {
+		for (const [entryPath, error] of build.failed) {
 			graph.failed.set(entryPath, error);
 		}
 		if (previous && [...previous.servedUrls].some((url) => previous.outputs.get(url) !== build.outputs.get(url))) {
@@ -304,26 +327,30 @@ export class DevTransformVendorRegistry {
 	 * @remarks
 	 * When the graph fails, each entry builds alone to find the failing ones, and the graph builds again without
 	 * them, so one broken package does not take every vendor down. Entries in `failed` are left out and keep
-	 * their error.
+	 * their error. When no entry is isolated, because every entry builds alone or none does, or when anything
+	 * throws, the graph failed as a whole: see {@link DevTransformVendorRegistry.keepLastGoodBuild}.
 	 */
 	private async buildGraph(
 		graph: VendorGraph,
 		entries: readonly VendorEntry[],
-		failed: ReadonlyMap<string, Error>,
+		knownFailed: ReadonlyMap<string, Error>,
+		generation: number,
 	): Promise<VendorGraphBuild> {
-		const errors = new Map(failed);
-		const toBuild = entries.filter((entry) => !errors.has(entry.entryPath));
+		const failed = new Map(knownFailed);
+		const entryPaths = new Set(entries.map((entry) => entry.entryPath));
 		const finish = (outputs: ReadonlyMap<string, string>): VendorGraphBuild => ({
-			entryPaths: new Set(entries.map((entry) => entry.entryPath)),
+			generation,
+			entryPaths,
 			outputs,
-			errors,
+			errors: failed,
+			failed,
 			servedUrls: new Set(),
 		});
-		const failAll = (failing: readonly VendorEntry[], error: Error) => {
-			for (const entry of failing) errors.set(entry.entryPath, error);
-		};
+		const failGraph = (error: Error, entryErrors: ReadonlyMap<string, Error> = new Map()) =>
+			this.keepLastGoodBuild(graph, { generation, entries, entryPaths, failed, error, entryErrors });
 
 		try {
+			const toBuild = entries.filter((entry) => !failed.has(entry.entryPath));
 			if (toBuild.length === 0) {
 				return finish(new Map());
 			}
@@ -332,37 +359,77 @@ export class DevTransformVendorRegistry {
 			if (result.success) {
 				return finish(this.collectOutputs(result));
 			}
+			const graphError = createPrebundleError(describeEntries(toBuild), result);
 			if (toBuild.length === 1) {
-				failAll(toBuild, createPrebundleError(toBuild[0].specifier, result));
-				return finish(new Map());
+				return failGraph(graphError);
 			}
 
 			const isolated = await Promise.all(
 				toBuild.map(async (entry) => ({ entry, result: await this.bundleGraph(graph, [entry]) })),
 			);
+			const isolatedErrors = new Map<string, Error>();
 			for (const { entry, result: entryResult } of isolated) {
-				if (!entryResult.success) failAll([entry], createPrebundleError(entry.specifier, entryResult));
+				if (!entryResult.success) {
+					isolatedErrors.set(entry.entryPath, createPrebundleError(entry.specifier, entryResult));
+				}
+			}
+			if (isolatedErrors.size === 0 || isolatedErrors.size === toBuild.length) {
+				return failGraph(graphError, isolatedErrors);
 			}
 
-			const remaining = toBuild.filter((entry) => !errors.has(entry.entryPath));
-			if (remaining.length === toBuild.length) {
-				failAll(toBuild, createPrebundleError(describeEntries(toBuild), result));
-				return finish(new Map());
-			}
-			if (remaining.length === 0) {
-				return finish(new Map());
-			}
-
+			for (const [entryPath, error] of isolatedErrors) failed.set(entryPath, error);
+			const remaining = toBuild.filter((entry) => !failed.has(entry.entryPath));
 			const retried = await this.bundleGraph(graph, remaining);
 			if (!retried.success) {
-				failAll(remaining, createPrebundleError(describeEntries(remaining), retried));
-				return finish(new Map());
+				return failGraph(createPrebundleError(describeEntries(remaining), retried));
 			}
 			return finish(this.collectOutputs(retried));
 		} catch (error) {
-			failAll(toBuild, error instanceof Error ? error : new Error(String(error)));
-			return finish(new Map());
+			return failGraph(error instanceof Error ? error : new Error(String(error)));
 		}
+	}
+
+	/**
+	 * The build of a graph that failed as a whole: the outputs of the last build, with an error for each entry
+	 * that has none.
+	 *
+	 * @remarks
+	 * A whole-graph failure can be transient, such as one during a package install, so no entry is marked
+	 * failed and the next build tries every entry again. An entry without a previous output gets its own error
+	 * when it failed alone, otherwise the graph error.
+	 */
+	private keepLastGoodBuild(
+		graph: VendorGraph,
+		failure: {
+			generation: number;
+			entries: readonly VendorEntry[];
+			entryPaths: ReadonlySet<string>;
+			failed: ReadonlyMap<string, Error>;
+			error: Error;
+			entryErrors: ReadonlyMap<string, Error>;
+		},
+	): VendorGraphBuild {
+		const lastGood = graph.current;
+		const outputs = lastGood?.outputs ?? new Map<string, string>();
+		const errors = new Map<string, Error>();
+		for (const entry of failure.entries) {
+			if (outputs.has(entry.url)) continue;
+			errors.set(
+				entry.entryPath,
+				failure.failed.get(entry.entryPath) ?? failure.entryErrors.get(entry.entryPath) ?? failure.error,
+			);
+		}
+		appLogger.error(
+			`[dev-transform] Vendor graph build failed; built vendors keep their last good output.\n${failure.error.message}`,
+		);
+		return {
+			generation: failure.generation,
+			entryPaths: failure.entryPaths,
+			outputs,
+			errors,
+			failed: failure.failed,
+			servedUrls: lastGood?.servedUrls ?? new Set(),
+		};
 	}
 
 	private async bundleGraph(graph: VendorGraph, entries: readonly VendorEntry[]): Promise<BuildResult> {
@@ -423,7 +490,7 @@ export class DevTransformVendorRegistry {
 
 	private findBuiltOutput(url: string): VendorOutputLookup {
 		for (const graph of this.graphs.values()) {
-			const build = graph.current;
+			const build = this.currentBuild(graph);
 			const content = build?.outputs.get(url);
 			if (build && content !== undefined) {
 				return { build, url, content };
@@ -435,6 +502,11 @@ export class DevTransformVendorRegistry {
 			}
 		}
 		return null;
+	}
+
+	/** The graph's last build when it belongs to the current generation. */
+	private currentBuild(graph: VendorGraph): VendorGraphBuild | undefined {
+		return graph.current?.generation === this.generation ? graph.current : undefined;
 	}
 
 	private resolveOutdir(): string {
@@ -476,15 +548,14 @@ export class DevTransformVendorRegistry {
 
 	/**
 	 * @remarks
-	 * The write is synchronous so it finishes before the build's waiters resume; a failure only costs the next
-	 * process its seed, so it is logged at debug level.
+	 * Every known entry is written, failing ones included, so a failure never costs the next process its seed.
+	 * The write is synchronous so it finishes before the build's waiters resume; a failed write only costs the
+	 * next process its seed, so it is logged at debug level.
 	 */
 	private persistEntries(): void {
 		const persisted: PersistedVendorEntries = {
 			entries: [...this.graphs.values()].flatMap((graph) =>
-				[...graph.entries.values()]
-					.filter((entry) => !graph.failed.has(entry.entryPath))
-					.map((entry) => ({ specifier: entry.specifier, conditions: graph.key })),
+				[...graph.entries.values()].map((entry) => ({ specifier: entry.specifier, conditions: graph.key })),
 			),
 		};
 		const contents = `${JSON.stringify(persisted, null, '\t')}\n`;

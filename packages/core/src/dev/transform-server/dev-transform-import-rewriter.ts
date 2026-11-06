@@ -116,6 +116,10 @@ function rewriteWorkerUrls(
 
 /**
  * Rewrites static and dynamic import specifiers to dev-transform or vendor URLs.
+ *
+ * @remarks
+ * Every specifier resolves at once, so the new bare imports of one module join the same vendor build instead of
+ * waiting for one build each.
  */
 export async function rewriteModuleImports(options: RewriteModuleImportsOptions): Promise<{
 	code: string;
@@ -167,18 +171,22 @@ export async function rewriteModuleImports(options: RewriteModuleImportsOptions)
 	walk(parseResult.program);
 
 	const edits: ImportEdit[] = rewriteWorkerUrls(parseResult.program, options, normalizedSource, dependencies);
-	for (const specifierNode of specifierNodes) {
-		const rewritten = await resolveImportSpecifier({
-			specifier: specifierNode.value,
-			sourcePath: normalizedSource,
-			srcDir: options.srcDir,
-			projectRoot: options.projectRoot,
-			extraModuleRoots: options.extraModuleRoots,
-			runtimeSpecifierMap: options.runtimeSpecifierMap,
-			resolveVendorUrl: options.resolveVendorUrl,
-			dependencies,
-		});
-
+	const rewrittenSpecifiers = await Promise.all(
+		specifierNodes.map((specifierNode) =>
+			resolveImportSpecifier({
+				specifier: specifierNode.value,
+				sourcePath: normalizedSource,
+				srcDir: options.srcDir,
+				projectRoot: options.projectRoot,
+				extraModuleRoots: options.extraModuleRoots,
+				runtimeSpecifierMap: options.runtimeSpecifierMap,
+				resolveVendorUrl: options.resolveVendorUrl,
+				dependencies,
+			}),
+		),
+	);
+	for (const [index, specifierNode] of specifierNodes.entries()) {
+		const rewritten = rewrittenSpecifiers[index];
 		if (!rewritten || rewritten === specifierNode.value) {
 			continue;
 		}

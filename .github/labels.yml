@@ -34,3 +34,6 @@
 - name: needs-decision
   color: d876e3
   description: A maintainer must choose before work starts
+- name: docs-not-needed
+  color: ededed
+  description: Skips the Developer pages check when a change does not affect what a /dev page says

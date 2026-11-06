@@ -6,6 +6,10 @@ The sidebar is uncontrolled (`mobileDefaultOpen={false}`): crossing into the mob
 
 The default Open Graph and Twitter preview uses `src/public/assets/images/default-og.png`. It shows the Ecopages mark and the homepage hook; `src/lib/docs/site-meta.ts` supplies its public URL when a Page has no custom image.
 
+## Developer area
+
+`/dev` holds the architecture pages for people who change the framework. The pages are MDX in `src/content/dev`, a collection of their own, so the docs sidebar, pagination and `llms.txt` never list them; each sets `noindex`, which keeps it out of search results and `sitemap.xml`. The homepage footer links the area. Every page declares the code it describes in `sources:`, and the `Developer pages` workflow fails a pull request that changes that code without touching the page. Add the `docs-not-needed` label when a change does not affect what the page says.
+
 ## Local development
 
 ```bash

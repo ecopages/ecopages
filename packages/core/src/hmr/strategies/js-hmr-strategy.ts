@@ -164,7 +164,7 @@ export class JsHmrStrategy extends HmrStrategy {
 		);
 
 		if (devTransformReloadRequired) {
-			appLogger.debug(`[JsHmrStrategy] Full reload required (no HMR accept found)`);
+			appLogger.debug(`[JsHmrStrategy] Full reload required: a script entrypoint change handler requested it`);
 			return {
 				type: 'broadcast',
 				events: [{ type: 'reload' }],

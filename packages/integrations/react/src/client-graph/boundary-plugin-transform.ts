@@ -1,19 +1,19 @@
 import { extname } from 'node:path';
 import type { EcoBuildOnLoadResult } from '@ecopages/core/integration';
 import { recordModuleTransformProfile } from '@ecopages/core/build';
-import { inlineReadFileSyncCalls } from './boundary-plugin-read-file-inline.ts';
 import { transformModuleImports } from './ast-transform.ts';
 import { isPageOrLayoutEntry } from './module-classification.ts';
 import type { ClientGraphModuleKind } from './module-classification.ts';
 import type { RequestedExportRules } from './specifier-classification.ts';
+import type { PlannedModule } from './requested-exports-plan.ts';
 
 export type TransformClientGraphModuleOptions = {
 	filePath: string;
-	source: string;
-	absWorkingDir: string;
+	/** The module after read-file inlining, with its parse when the caller has one. */
+	module: PlannedModule;
 	category: ClientGraphModuleKind;
 	globallyDeclaredSources: Map<string, Set<string> | '*'>;
-	requestedExports: Map<string, RequestedExportRules>;
+	requestedExports: RequestedExportRules | undefined;
 	preserveUnreachableSideEffectImports?: boolean;
 };
 
@@ -23,22 +23,20 @@ function toLoaderResult(filePath: string, contents: string): EcoBuildOnLoadResul
 }
 
 /**
- * Applies read-file inlining and import transforms for one client-graph module.
+ * Applies import transforms to one client-graph module whose read-file calls are already inlined.
  */
 export function transformClientGraphModule(
 	options: TransformClientGraphModuleOptions,
 ): EcoBuildOnLoadResult | undefined {
-	const readFileInlining = inlineReadFileSyncCalls(options.source, options.filePath, options.absWorkingDir);
-	let transformed = readFileInlining.transformed;
-	let modified = readFileInlining.modified;
-
+	const { module } = options;
 	const analysisStartedAt = performance.now();
-	const { transformed: oxcTransformed, modified: importsModified } = transformModuleImports(
-		transformed,
+	const { transformed, modified } = transformModuleImports(
+		module.source,
 		options.filePath,
 		options.globallyDeclaredSources,
 		options.requestedExports,
 		Boolean(options.preserveUnreachableSideEffectImports) && !isPageOrLayoutEntry(options.filePath),
+		module.program,
 	);
 	recordModuleTransformProfile({
 		category: options.category,
@@ -46,11 +44,6 @@ export function transformClientGraphModule(
 		ms: performance.now() - analysisStartedAt,
 	});
 
-	if (importsModified) {
-		modified = true;
-		transformed = oxcTransformed;
-	}
-
-	if (!modified) return undefined;
+	if (!modified && !module.inlined) return undefined;
 	return toLoaderResult(options.filePath, transformed);
 }

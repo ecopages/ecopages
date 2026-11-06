@@ -38,6 +38,7 @@ function createPluginHarness() {
 		module: (_specifier, _callback) => {},
 		transform: () => {},
 		onEnd: () => {},
+		addWatchFile: () => {},
 	};
 
 	const plugin = createReactDomRuntimeInteropPlugin();
@@ -109,6 +110,7 @@ describe('createReactDomRuntimeInteropPlugin', () => {
 				module: (_specifier, _callback) => {},
 				transform: () => {},
 				onEnd: () => {},
+				addWatchFile: () => {},
 			});
 
 			const loader = onLoadRegistrations.find(({ options }) => options.filter.test('/tmp/react-dom/index.js'));
@@ -121,7 +123,6 @@ describe('createReactDomRuntimeInteropPlugin', () => {
 				await onResolveRegistrations[0]?.callback({
 					path: '/assets/vendors/react.js',
 					importer: filePath,
-					namespace: 'file',
 				}),
 			).toEqual({
 				path: '/assets/vendors/react.js',

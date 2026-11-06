@@ -25,6 +25,7 @@ export function getPluginTransform(plugin: EcoBuildPlugin): RegisteredTransform 
 		onEnd(callback) {
 			endCallbacks.push(callback);
 		},
+		addWatchFile() {},
 	});
 	if (!registered) {
 		throw new Error(`Plugin "${plugin.name}" registered no transform.`);

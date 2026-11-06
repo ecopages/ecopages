@@ -122,6 +122,7 @@ describe('MDXPlugin', () => {
 			module() {},
 			transform() {},
 			onEnd() {},
+			addWatchFile() {},
 		};
 
 		loader?.setup(builder);

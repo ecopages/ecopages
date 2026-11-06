@@ -23,7 +23,6 @@ import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import { BuildInputDependencyIndex, runWithBuildInputIndex } from '../cache/build-input-dependency-index.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
 import { assertBuildFailed } from '../../__fixtures__/build/build-result.ts';
 
@@ -271,35 +270,55 @@ describe('RolldownBuildAdapter', () => {
 		);
 	});
 
-	test('records the path a plugin loads during a real Rolldown build', async () => {
-		const entrypoint = writeFixture('entry.ts', 'export const title = "From plugin";');
-		const buildInputIndex = new BuildInputDependencyIndex();
+	test('adds a file a plugin declares to the closure of each entry that holds the module, and no other', async () => {
+		const first = realpathSync(writeFixture('first.ts', "import './inlined.ts';\nexport const first = 1;\n"));
+		const second = realpathSync(writeFixture('second.ts', 'export const second = 2;\n'));
+		writeFixture('inlined.ts', 'export const greeting = INLINED;\n');
+		const data = realpathSync(writeFixture('greeting.txt', 'hello'));
 
-		const result = await runWithBuildInputIndex(buildInputIndex, () =>
-			new RolldownBuildAdapter().build({
-				environment: 'browser',
-				entrypoints: [entrypoint],
-				outdir: path.join(workDir, 'dist'),
-				target: 'browser',
-				format: 'esm',
-				root: workDir,
-				plugins: [
-					{
-						name: 'entry-loader',
-						setup(build) {
-							build.onLoad({ filter: /entry\.ts$/ }, () => ({
-								contents: 'export const title = "Loaded by plugin";',
-								loader: 'js',
-							}));
-						},
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser',
+			entrypoints: [first, second],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			plugins: [
+				{
+					name: 'inline-greeting',
+					setup(build) {
+						build.transform({ filter: /inlined\.ts$/ }, (code) => {
+							build.addWatchFile(data);
+							return code.replace('INLINED', JSON.stringify(readFileSync(data, 'utf8')));
+						});
 					},
-				],
-			}),
-		);
+				},
+			],
+		});
 
 		assertBuildSucceeded(result, 'Build failed');
-		expect(result.loadedInputs).toContain(realpathSync(entrypoint));
-		expect(buildInputIndex.recordedWatchPaths()).toContain(realpathSync(entrypoint));
+		expect(result.dependencyGraph.entrypoints[first]).toContain(data);
+		expect(result.dependencyGraph.entrypoints[second]).not.toContain(data);
+	});
+
+	test('rejects addWatchFile outside an onLoad or transform callback', async () => {
+		const entrypoint = writeFixture('entry.ts', 'export const value = 1;\n');
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser',
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			plugins: [{ name: 'eager-watch', setup: (build) => build.addWatchFile(entrypoint) }],
+		});
+
+		assertBuildFailed(result);
+		expect(result.logs[0]).toMatchObject({
+			plugin: 'eager-watch',
+			message: expect.stringContaining('outside an onLoad or transform callback'),
+		});
 	});
 
 	test('externalPackages keeps bare package imports external', async () => {
@@ -476,7 +495,7 @@ describe('RolldownBuildAdapter', () => {
 			naming: '[name]-[hash].[ext]',
 			root: workDir,
 		};
-		const resolved = await resolveRolldownOptions(options, workDir, outdir, new Map(), () => {});
+		const resolved = await resolveRolldownOptions(options, workDir, outdir, new Map(), new Map());
 		const entryFileNames = resolved.outputOptions.entryFileNames;
 		if (typeof entryFileNames !== 'function') {
 			throw new Error('Expected preserved module naming to use a function.');
@@ -850,10 +869,8 @@ describe('RolldownBuildAdapter', () => {
 					name: 'virtual-images',
 					setup(build) {
 						build.module('ecopages:images', () => ({
-							loader: 'object',
-							exports: {
-								image: { src: '/images/example.png' },
-							},
+							contents: `export const image = ${JSON.stringify({ src: '/images/example.png' })};`,
+							loader: 'js',
 						}));
 					},
 				},

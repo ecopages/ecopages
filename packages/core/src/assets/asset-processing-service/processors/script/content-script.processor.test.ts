@@ -294,7 +294,6 @@ describe('ContentScriptProcessor', () => {
 						entries.map((entry) => [entry.entrypoint, [entry.entrypoint, buildInput]]),
 					),
 				},
-				loadedInputsByModule: Object.fromEntries(entries.map((entry) => [entry.entrypoint, [buildInput]])),
 			});
 		});
 		const processor = new ContentScriptProcessor({ appConfig: createMockConfig() });

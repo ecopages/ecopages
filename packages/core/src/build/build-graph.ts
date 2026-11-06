@@ -112,9 +112,11 @@ export function getBuildEntryOutput(
 	return undefined;
 }
 
-/** Collects one entry's source-module closure and plugin-recorded inputs. */
+/**
+ * Collects the files one entry's output depends on: its source-module closure and the files its plugins declared.
+ */
 export function collectBuildEntryInputPaths(
-	result: Pick<BuildSuccess, 'dependencyGraph' | 'loadedInputsByModule'>,
+	result: Pick<BuildSuccess, 'dependencyGraph'>,
 	entry: string,
 	root: string,
 	options: { includeNodeModules?: boolean } = {},
@@ -125,47 +127,12 @@ export function collectBuildEntryInputPaths(
 		(candidate) => candidate && entrypoints[candidate],
 	);
 	const moduleClosure = closureEntry ? entrypoints[closureEntry] : undefined;
-	const entryModules = moduleClosure?.length ? moduleClosure : [resolvedEntry];
-	const pluginInputs = collectInputsForModuleClosure(result.loadedInputsByModule, entryModules);
-	return [...new Set([...entryModules, ...pluginInputs])].filter(
+	return [...new Set(moduleClosure?.length ? moduleClosure : [resolvedEntry])].filter(
 		(filePath) =>
 			path.isAbsolute(filePath) &&
 			(options.includeNodeModules === true || !filePath.includes(`${path.sep}node_modules${path.sep}`)) &&
 			!filePath.includes('\0'),
 	);
-}
-
-function modulePathAliases(moduleId: string): Set<string> {
-	const aliases = new Set([moduleId]);
-	let filesystemPath: string | undefined;
-	if (moduleId.startsWith('file:')) {
-		try {
-			filesystemPath = fileURLToPath(moduleId);
-		} catch {
-			return aliases;
-		}
-	} else if (path.isAbsolute(moduleId)) {
-		filesystemPath = path.resolve(moduleId);
-	}
-	if (filesystemPath) {
-		aliases.add(filesystemPath);
-		const realPath = tryRealpath(filesystemPath);
-		if (realPath) aliases.add(realPath);
-	}
-	return aliases;
-}
-
-function collectInputsForModuleClosure(
-	loadedInputsByModule: Record<string, string[]>,
-	moduleClosure: readonly string[],
-): string[] {
-	const closureAliases = new Set(moduleClosure.flatMap((moduleId) => [...modulePathAliases(moduleId)]));
-	const inputs = new Set<string>();
-	for (const [moduleId, filePaths] of Object.entries(loadedInputsByModule)) {
-		if (![...modulePathAliases(moduleId)].some((alias) => closureAliases.has(alias))) continue;
-		for (const filePath of filePaths) inputs.add(filePath);
-	}
-	return [...inputs];
 }
 
 /**

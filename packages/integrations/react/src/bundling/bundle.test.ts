@@ -160,6 +160,7 @@ describe('BundleService', () => {
 			module() {},
 			transform() {},
 			onEnd() {},
+			addWatchFile() {},
 		});
 
 		return Object.fromEntries(

@@ -19,10 +19,10 @@ import { installConfiguredServerDom, type ServerDomInstaller } from './server-do
 export type { ServerDomInstaller, ServerDomSurfaceKind } from './server-dom.ts';
 
 export type {
+	EcoBuildFilter,
 	EcoBuildLoader,
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
-	EcoBuildImportKind,
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildPlugin,

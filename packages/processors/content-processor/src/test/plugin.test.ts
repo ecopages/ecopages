@@ -532,6 +532,7 @@ order: 2
 				module() {},
 				transform() {},
 				onEnd() {},
+				addWatchFile() {},
 			} as EcoBuildPluginBuilder);
 
 		const resolver = resolvers.find(({ filter }) => filter.test('ecopages:content/docs'));
@@ -569,8 +570,6 @@ order: 2
 					success: true,
 					outputs: [{ path: output }],
 					warnings: [],
-					loadedInputs: [],
-					loadedInputsByModule: {},
 					dependencyGraph: { entrypoints: {} },
 					entryOutputs: { [entry]: output },
 					outputGraph: {},
@@ -596,6 +595,7 @@ order: 2
 				module() {},
 				transform() {},
 				onEnd() {},
+				addWatchFile() {},
 			} as EcoBuildPluginBuilder);
 		const resolveServerModule = () =>
 			resolvers
@@ -637,8 +637,6 @@ order: 2
 					success: true,
 					outputs: [{ path: compiledOutput }],
 					warnings: [],
-					loadedInputs: [],
-					loadedInputsByModule: {},
 					dependencyGraph: { entrypoints: {} },
 					entryOutputs: { [entry]: compiledOutput },
 					outputGraph: {},
@@ -664,6 +662,7 @@ order: 2
 					module() {},
 					transform() {},
 					onEnd() {},
+					addWatchFile() {},
 				} as EcoBuildPluginBuilder);
 			}
 			return resolvers.find(({ filter }) => filter.test(specifier))?.callback({ path: specifier });

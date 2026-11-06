@@ -9,9 +9,9 @@ import {
 } from '../content-plugins.ts';
 
 describe('content-plugins', () => {
-	test('parseCollectionName handles full and rolldown-split specifiers', () => {
+	test('parseCollectionName reads full specifiers only', () => {
 		expect(parseCollectionName('ecopages:content/docs')).toBe('docs');
-		expect(parseCollectionName('content/docs')).toBe('docs');
+		expect(parseCollectionName('content/docs')).toBeNull();
 		expect(parseCollectionName('ecopages:content/blog-posts')).toBe('blog-posts');
 		expect(parseCollectionName('ecopages:content/docs/server')).toBe('docs');
 	});
@@ -57,7 +57,7 @@ describe('content-plugins', () => {
 				'browser',
 			),
 		).toBe(browserModules.docs);
-		expect(resolveCollectionPath('content/docs', modules, serverModules)).toBe(modules.docs);
+		expect(resolveCollectionPath('content/docs', modules, serverModules)).toBeNull();
 		expect(resolveCollectionPath('ecopages:content/missing', modules, serverModules)).toBeNull();
 	});
 
@@ -88,6 +88,7 @@ describe('content-plugins', () => {
 			module() {},
 			transform() {},
 			onEnd() {},
+			addWatchFile() {},
 		} as EcoBuildPluginBuilder);
 		await Promise.all(pending);
 
@@ -109,6 +110,7 @@ describe('content-plugins', () => {
 			module() {},
 			transform() {},
 			onEnd() {},
+			addWatchFile() {},
 		} as EcoBuildPluginBuilder);
 
 		expect(matched).toEqual([]);
@@ -119,7 +121,7 @@ describe('content-plugins', () => {
 			docs: '/tmp/.eco/cache/ecopages-content-processor/docs.browser.ts',
 		};
 		const plugin = createContentPluginBundler({}, {}, undefined, browserModules);
-		const resolved: Array<{ path?: string; namespace?: string }> = [];
+		const resolved: Array<{ path?: string }> = [];
 		const pending: Array<Promise<void>> = [];
 
 		await plugin.setup({
@@ -139,10 +141,10 @@ describe('content-plugins', () => {
 			module() {},
 			transform() {},
 			onEnd() {},
+			addWatchFile() {},
 		} as EcoBuildPluginBuilder);
 		await Promise.all(pending);
 
-		expect(resolved).toContainEqual({ path: browserModules.docs });
-		expect(resolved.some((result) => result.namespace === 'ecopages-content')).toBe(false);
+		expect(resolved).toEqual([{ path: browserModules.docs }]);
 	});
 });

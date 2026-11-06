@@ -13,7 +13,8 @@ export interface BuildOutput {
 export interface BuildDependencyGraph {
 	/**
 	 * Each entry's resolved absolute path, mapped to its static and dynamic source
-	 * module closure, including inlined and tree-shaken imports and the entry itself.
+	 * module closure, including inlined and tree-shaken imports and the entry itself,
+	 * plus the files a plugin declared with `addWatchFile` for a module in it.
 	 *
 	 * @remarks
 	 * Production caches hash these files to decide reuse, so an omitted module leaves stale output after it
@@ -46,17 +47,6 @@ export interface BuildSuccess {
 	outputs: BuildOutput[];
 	/** Warnings reported by the bundler. */
 	warnings: BuildLog[];
-	/** Absolute filesystem paths recorded by plugin load hooks during this build. */
-	loadedInputs: string[];
-	/**
-	 * Filesystem inputs recorded by each plugin-loaded module in this build.
-	 *
-	 * @remarks
-	 * Cache owners use module ownership to keep plugin inputs scoped to their
-	 * own entry closure, including when one entry's plugin explicitly reads a
-	 * file that another entry loads as a source module.
-	 */
-	loadedInputsByModule: Record<string, string[]>;
 	dependencyGraph: BuildDependencyGraph;
 	/**
 	 * Emitted absolute output paths keyed by the entry path or name the caller

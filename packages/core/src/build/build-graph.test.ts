@@ -21,7 +21,7 @@ afterEach(() => {
 	vi.unstubAllEnvs();
 });
 
-test('collects only local source paths for one entry and its plugin inputs', () => {
+test('collects only local source paths for one entry and the files its plugins declared', () => {
 	const entry = path.join(root, 'pages/about.tsx');
 	const helper = path.join(root, 'src/lib/posts.ts');
 	const pluginInput = path.join(root, 'data/posts.json');
@@ -29,45 +29,15 @@ test('collects only local source paths for one entry and its plugin inputs', () 
 		{
 			dependencyGraph: {
 				entrypoints: {
-					[entry]: [entry, helper, 'node:fs', path.join(root, 'node_modules/react/index.js')],
+					[entry]: [entry, helper, 'node:fs', path.join(root, 'node_modules/react/index.js'), pluginInput],
 				},
 			},
-			loadedInputsByModule: { [entry]: [pluginInput] },
 		},
 		entry,
 		root,
 	);
 
 	expect(paths).toEqual([entry, helper, pluginInput]);
-});
-
-test('attributes plugin inputs to their entry closure when inputs overlap another entry module', () => {
-	const firstEntry = path.join(root, 'pages/first.tsx');
-	const firstHelper = path.join(root, 'src/lib/first-helper.tsx');
-	const secondEntry = path.join(root, 'pages/second.tsx');
-	const secondHelper = path.join(root, 'src/lib/second-helper.tsx');
-	const pluginOnlyInput = path.join(root, 'data/generated-routes.json');
-	const result = {
-		dependencyGraph: {
-			entrypoints: {
-				[firstEntry]: [firstEntry, firstHelper],
-				[secondEntry]: [secondEntry, secondHelper],
-			},
-		},
-		loadedInputs: [firstHelper, secondHelper, pluginOnlyInput],
-		loadedInputsByModule: {
-			[firstEntry]: [firstHelper],
-			[secondEntry]: [firstHelper, pluginOnlyInput],
-		},
-	};
-
-	expect(collectBuildEntryInputPaths(result, firstEntry, root)).toEqual([firstEntry, firstHelper]);
-	expect(collectBuildEntryInputPaths(result, secondEntry, root)).toEqual([
-		secondEntry,
-		secondHelper,
-		firstHelper,
-		pluginOnlyInput,
-	]);
 });
 
 test('both cached entries miss after their shared inlined source changes', async () => {

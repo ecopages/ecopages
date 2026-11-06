@@ -186,23 +186,26 @@ export function resolveRequestedExportsKey(importer: string, specifier: string):
  * @param registry - Cross-module requested-export registry.
  * @param moduleKey - Normalized local module key.
  * @param rules - Newly observed reachable export rules for the module.
+ * @returns Whether the registry changed.
  */
 export function mergeRequestedExportRules(
 	registry: Map<string, RequestedExportRules>,
 	moduleKey: string,
 	rules: Set<string> | '*',
-) {
+): boolean {
 	const existing = registry.get(moduleKey);
-	if (existing === '*') return;
+	if (existing === '*') return false;
 	if (rules === '*') {
 		registry.set(moduleKey, '*');
-		return;
+		return true;
 	}
 	if (!existing) {
 		registry.set(moduleKey, new Set(rules));
-		return;
+		return true;
 	}
+	const size = existing.size;
 	for (const rule of rules) {
 		existing.add(rule);
 	}
+	return existing.size !== size;
 }

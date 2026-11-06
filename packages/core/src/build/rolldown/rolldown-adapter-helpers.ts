@@ -38,8 +38,7 @@ import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
-import type { BuildInputRecorder } from './rolldown-plugin-bridge.ts';
-import { createRolldownPluginBridge, getEcoBuildPluginName } from './rolldown-plugin-bridge.ts';
+import { createRolldownPluginBridge, type WatchFilesByModule } from './rolldown-plugin-bridge.ts';
 import { isDeclaredAppPackageImport, isWorkspacePackageImport } from './app-package-declarations.ts';
 import type {
 	BuildDependencyGraph,
@@ -479,10 +478,6 @@ export function toBuildLog(entry: unknown): BuildLog {
 	if (typeof source.stack === 'string') {
 		log.stack = source.stack;
 	}
-	const ecoBuildPluginName = getEcoBuildPluginName(entry);
-	if (ecoBuildPluginName) {
-		log.plugin = ecoBuildPluginName;
-	}
 	return log;
 }
 
@@ -490,14 +485,12 @@ export function toBuildLog(entry: unknown): BuildLog {
  * Converts a build failure into logs, one per underlying error of a Rolldown `BundleError`.
  *
  * @remarks
- * Only an unattributed `BundleError` is expanded. An `AggregateError` or an error an `EcoBuildPlugin`
- * threw is one failure and becomes one log.
+ * Only a `BundleError` is expanded. An `AggregateError` an `EcoBuildPlugin` setup threw is one failure
+ * and becomes one log.
  */
 export function toBuildLogs(error: unknown): BuildLog[] {
 	const errors =
-		error instanceof Error && !(error instanceof AggregateError) && !getEcoBuildPluginName(error)
-			? (error as BundleError).errors
-			: undefined;
+		error instanceof Error && !(error instanceof AggregateError) ? (error as BundleError).errors : undefined;
 	return (Array.isArray(errors) && errors.length > 0 ? errors : [error]).map(toBuildLog);
 }
 
@@ -526,7 +519,7 @@ async function buildRolldownInputPlugins(
 	contextRoot: string,
 	outdir: string,
 	rolldownPlatform: 'browser' | 'node',
-	recordBuildInput: BuildInputRecorder,
+	watchFiles: WatchFilesByModule,
 ): Promise<RolldownPlugin[]> {
 	const entrypoints = Array.isArray(options.entrypoints)
 		? Object.fromEntries(options.entrypoints.map((entry, index) => [String(index), entry]))
@@ -534,8 +527,7 @@ async function buildRolldownInputPlugins(
 	const appPlugins = await createRolldownPluginBridge(
 		(options.plugins ?? []).filter((plugin) => plugin.environments?.includes(options.environment) ?? true),
 		contextRoot,
-		recordBuildInput,
-		entrypoints,
+		{ entrypoints, watchFiles },
 	);
 	return [
 		...(options.externalPackages === true
@@ -560,7 +552,7 @@ async function buildRolldownInputOptions(
 	outdir: string,
 	external: (id: string) => boolean,
 	rolldownPlatform: 'browser' | 'node',
-	recordBuildInput: BuildInputRecorder,
+	watchFiles: WatchFilesByModule,
 ): Promise<InputOptions> {
 	return {
 		input: options.entrypoints,
@@ -580,7 +572,7 @@ async function buildRolldownInputOptions(
 		experimental: {
 			nativeMagicString: true,
 		},
-		plugins: await buildRolldownInputPlugins(options, contextRoot, outdir, rolldownPlatform, recordBuildInput),
+		plugins: await buildRolldownInputPlugins(options, contextRoot, outdir, rolldownPlatform, watchFiles),
 	};
 }
 
@@ -659,15 +651,15 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 /**
  * Translates a {@link BuildOptions} into Rolldown's `InputOptions` and
  * `OutputOptions`. Always sets `experimental.nativeMagicString: true`
- * and always consolidates eco plugins via the bridge, which runs every
- * plugin `setup`.
+ * and always maps eco plugins via the bridge, which runs every plugin
+ * `setup`. `watchFiles` receives the files those plugins declare.
  */
 export async function resolveRolldownOptions(
 	options: BuildOptions,
 	contextRoot: string,
 	outdir: string,
 	appRootRequireCache: Map<string, NodeJS.Require>,
-	recordBuildInput: BuildInputRecorder,
+	watchFiles: WatchFilesByModule,
 ): Promise<ResolvedRolldownOptions> {
 	const rolldownPlatform = options.environment === 'browser' ? 'browser' : 'node';
 	const external = createExternalMatcher(options, appRootRequireCache);
@@ -678,7 +670,7 @@ export async function resolveRolldownOptions(
 			outdir,
 			external,
 			rolldownPlatform,
-			recordBuildInput,
+			watchFiles,
 		),
 		outputOptions: buildRolldownOutputOptions(options, outdir),
 	};

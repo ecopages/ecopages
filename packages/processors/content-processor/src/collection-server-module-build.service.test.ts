@@ -17,8 +17,6 @@ function successfulBuild(outputPath: string, sourceFilePath: string): BuildResul
 		success: true,
 		outputs: [{ path: outputPath }],
 		warnings: [],
-		loadedInputs: [],
-		loadedInputsByModule: {},
 		dependencyGraph: { entrypoints: {} },
 		entryOutputs: { [sourceFilePath]: outputPath },
 		outputGraph: {},

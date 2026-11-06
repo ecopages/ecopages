@@ -152,11 +152,7 @@ describe('DevTransformBundler', () => {
 				{
 					name: 'ecopages:images',
 					setup(build) {
-						build.onResolve({ filter: /^ecopages:images$/ }, () => ({
-							namespace: 'ecopages-images',
-							path: 'ecopages:images',
-						}));
-						build.onLoad({ filter: /.*/, namespace: 'ecopages-images' }, () => ({
+						build.module('ecopages:images', () => ({
 							contents: 'export const hero = { src: "/hero.jpg" };',
 							loader: 'js',
 						}));

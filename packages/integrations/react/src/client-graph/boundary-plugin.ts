@@ -7,52 +7,43 @@
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
 import type {
+	EcoBuildFilter,
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
 } from '@ecopages/core/integration';
-import type { RequestedExportRules } from './specifier-classification.ts';
+import { parseModuleSource } from '@ecopages/core/build';
 import { parseDeclaredModules, toModuleBaseSpecifier } from './specifier-classification.ts';
 import { classifyClientGraphModule } from './module-classification.ts';
 import { transformClientGraphModule } from './boundary-plugin-transform.ts';
+import { inlineReadFileSyncCalls } from './boundary-plugin-read-file-inline.ts';
 import { scanForeignJsxReach, toRealPath, type ForeignJsxReach } from './foreign-jsx-reach.ts';
+import { createRequestedExportsPlan, type PlannedModule, type RequestedExportsPlan } from './requested-exports-plan.ts';
 
-const SOURCE_FILE_FILTER = /\.(tsx?|jsx?)$/;
+/** Source modules the boundary may transform; virtual ids and installed packages never reach it. */
+const SOURCE_FILES: EcoBuildFilter = { filter: /\.(tsx?|jsx?)$/, exclude: /^\0|\/node_modules\// };
 
 /**
- * Shares transitive export reachability among boundary plugins in one grouped build.
+ * The requested-export plan of one build and the modules read before it existed.
  *
  * @remarks
- * Grouped entries load one shared copy of each helper, so every entry's root analysis
- * must be visible to whichever boundary plugin transforms that helper first.
+ * The plan is made on the first load of a module that is not an entry, so a build that loads only its
+ * entries never scans the graph. An entry read before then is kept here for the scan to reuse.
  */
-const groupedRequestedExports = new WeakMap<readonly string[], Map<string, RequestedExportRules>>();
-const buildRequestedExports = new WeakMap<Readonly<Record<string, string>>, Map<string, RequestedExportRules>>();
+type PlanState = {
+	seeds: Set<string>;
+	plan?: RequestedExportsPlan;
+	loadedEntries: Map<string, PlannedModule | undefined>;
+};
 
-type ClientGraphBoundaryBuildContext = {
+type ClientGraphBoundaryBuildContext = PlanState & {
 	configs: NormalizedClientGraphBoundaryOptions[];
 	entrypointFiles: Set<string>;
-	requestedExports: Map<string, RequestedExportRules>;
 	foreignJsxReach?: ForeignJsxReach;
 };
 
 const buildContexts = new WeakMap<Readonly<Record<string, string>>, ClientGraphBoundaryBuildContext>();
-
-function getRequestedExports(groupedEntrypointFiles?: readonly string[]): Map<string, RequestedExportRules> {
-	if (!groupedEntrypointFiles) {
-		return new Map();
-	}
-
-	const existing = groupedRequestedExports.get(groupedEntrypointFiles);
-	if (existing) {
-		return existing;
-	}
-
-	const requestedExports = new Map<string, RequestedExportRules>();
-	groupedRequestedExports.set(groupedEntrypointFiles, requestedExports);
-	return requestedExports;
-}
 
 /**
  * Configuration options for the Client Graph Boundary build plugin.
@@ -114,10 +105,64 @@ function normalizeClientGraphBoundaryOptions(
 	};
 }
 
+function readBoundaryModule(filePath: string, absWorkingDir: string): PlannedModule | undefined {
+	let source: string;
+	try {
+		source = fileSystem.readFileSync(filePath);
+	} catch {
+		return undefined;
+	}
+	const inlining = inlineReadFileSyncCalls(source, filePath, absWorkingDir);
+	let program: PlannedModule['program'];
+	try {
+		program = parseModuleSource(filePath, inlining.transformed).program;
+	} catch {
+		program = undefined;
+	}
+	return { source: inlining.transformed, program, inlined: inlining.modified, inlinedFiles: inlining.inlinedFiles };
+}
+
+function isTransformedSource(filePath: string, projectRoot: string | undefined): boolean {
+	const category = classifyClientGraphModule(filePath, projectRoot);
+	return SOURCE_FILES.filter.test(filePath) && (category === 'app' || category === 'workspace');
+}
+
+/**
+ * Reads one module for its load: from the plan when the scan reached it, otherwise from disk.
+ *
+ * @remarks
+ * The first module to load that is not an entry makes the plan.
+ */
+function takeModule(
+	state: PlanState,
+	sourcePath: string,
+	options: NormalizedClientGraphBoundaryOptions,
+	transforms: () => (filePath: string) => boolean,
+): { module: PlannedModule | undefined; plan: RequestedExportsPlan | undefined } {
+	const realPath = toRealPath(sourcePath);
+	if (!state.plan && !state.seeds.has(realPath)) {
+		state.plan = createRequestedExportsPlan({
+			seeds: state.seeds,
+			projectRoot: options.projectRoot ?? options.absWorkingDir,
+			readModule: (filePath) =>
+				state.loadedEntries.has(filePath)
+					? state.loadedEntries.get(filePath)
+					: readBoundaryModule(filePath, options.absWorkingDir),
+			transforms: transforms(),
+		});
+		state.loadedEntries.clear();
+	}
+	const module = state.plan?.takeModule(realPath) ?? readBoundaryModule(sourcePath, options.absWorkingDir);
+	if (!state.plan) state.loadedEntries.set(realPath, module);
+	return { module, plan: state.plan };
+}
+
 function loadClientGraphBoundaryModule(
+	build: EcoBuildPluginBuilder,
 	args: EcoBuildOnLoadArgs,
 	options: NormalizedClientGraphBoundaryOptions,
-	requestedExports: Map<string, RequestedExportRules>,
+	state: PlanState,
+	transforms: () => (filePath: string) => boolean,
 	isEntrypoint = options.entrypointFile === path.resolve(options.absWorkingDir, args.path),
 ) {
 	const sourcePath = path.resolve(options.absWorkingDir, args.path);
@@ -142,20 +187,16 @@ function loadClientGraphBoundaryModule(
 		return undefined;
 	}
 
-	let source: string;
-	try {
-		source = fileSystem.readFileSync(args.path);
-	} catch {
-		return undefined;
-	}
+	const { module, plan } = takeModule(state, sourcePath, options, transforms);
+	if (!module) return undefined;
+	for (const inlinedFile of module.inlinedFiles) build.addWatchFile(inlinedFile);
 
 	return transformClientGraphModule({
 		filePath: args.path,
-		source,
-		absWorkingDir: options.absWorkingDir,
+		module,
 		category,
 		globallyDeclaredSources,
-		requestedExports,
+		requestedExports: plan?.requestedExports(sourcePath),
 		preserveUnreachableSideEffectImports: !isEntrypoint,
 	});
 }
@@ -188,9 +229,11 @@ function getBuildContext(
 	const context: ClientGraphBoundaryBuildContext = {
 		configs: [],
 		entrypointFiles,
-		requestedExports: buildRequestedExports.get(entrypoints) ?? new Map(),
+		seeds: new Set(
+			Object.values(entrypoints).map((entry) => toRealPath(path.resolve(options.absWorkingDir, entry))),
+		),
+		loadedEntries: new Map(),
 	};
-	buildRequestedExports.set(entrypoints, context.requestedExports);
 	buildContexts.set(entrypoints, context);
 	return context;
 }
@@ -204,6 +247,7 @@ function getReactEntrypointFiles(context: ClientGraphBoundaryBuildContext): Set<
 }
 
 function loadBuildClientGraphBoundaryModule(
+	build: EcoBuildPluginBuilder,
 	args: EcoBuildOnLoadArgs,
 	context: ClientGraphBoundaryBuildContext,
 ): EcoBuildOnLoadResult | undefined {
@@ -226,7 +270,17 @@ function loadBuildClientGraphBoundaryModule(
 		groupedDeclaredModules,
 		alwaysAllowSpecifiers: [...new Set(context.configs.flatMap((config) => config.alwaysAllowSpecifiers))],
 	};
-	return loadClientGraphBoundaryModule(args, options, context.requestedExports);
+	return loadClientGraphBoundaryModule(build, args, options, context, () => isTransformedByBuild(context));
+}
+
+/** Whether the shared build transforms a file: a source file that is not another Integration's entry. */
+function isTransformedByBuild(context: ClientGraphBoundaryBuildContext): (filePath: string) => boolean {
+	const projectRoot = context.configs[0]?.projectRoot;
+	const entrypointFiles = new Set([...context.entrypointFiles].map(toRealPath));
+	const reactEntrypointFiles = new Set([...getReactEntrypointFiles(context)].map(toRealPath));
+	return (filePath) =>
+		isTransformedSource(filePath, projectRoot) &&
+		(!entrypointFiles.has(filePath) || reactEntrypointFiles.has(filePath));
 }
 
 function getForeignJsxReach(
@@ -287,11 +341,15 @@ export function createForeignJsxScope(options: {
  * @remarks
  * In a build shared with other Integrations it decides by file, never by the entry that reached a module: it
  * leaves an entry file no boundary instance declares to its own Integration and transforms every other source
- * module the same way, since a module has one URL and so one compiled form.
+ * module the same way, since a module has one URL and so one compiled form. The instances of one build share
+ * their options through the build's `entrypoints`, and only the first registers a handler, so each module is
+ * read and analysed once whatever the number of React entries.
+ *
+ * A boundary without entry options, or in a build without `entrypoints`, works alone and starts its plan
+ * from the build's entries, or from its own entry files.
  */
 export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOptions): EcoBuildPlugin {
 	const normalizedOptions = normalizeClientGraphBoundaryOptions(options);
-	const requestedExports = getRequestedExports(options?.groupedEntrypointFiles);
 
 	return {
 		name: 'ecopages-client-graph-boundary',
@@ -306,11 +364,23 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 						path.resolve(normalizedOptions.absWorkingDir, entrypoint),
 					),
 				);
-				build.onLoad({ filter: SOURCE_FILE_FILTER }, (args) =>
+				const state: PlanState = {
+					seeds: new Set(
+						[...(build.entrypoints ? entrypointFiles : normalizedOptions.groupedEntrypointFiles)].map(
+							toRealPath,
+						),
+					),
+					loadedEntries: new Map(),
+				};
+				const transforms = () => (filePath: string) =>
+					isTransformedSource(filePath, normalizedOptions.projectRoot);
+				build.onLoad(SOURCE_FILES, (args) =>
 					loadClientGraphBoundaryModule(
+						build,
 						args,
 						normalizedOptions,
-						requestedExports,
+						state,
+						transforms,
 						entrypointFiles.has(path.resolve(normalizedOptions.absWorkingDir, args.path)),
 					),
 				);
@@ -319,7 +389,8 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 
 			const context = getBuildContext(build.entrypoints, normalizedOptions);
 			context.configs.push(normalizedOptions);
-			build.onLoad({ filter: SOURCE_FILE_FILTER }, (args) => loadBuildClientGraphBoundaryModule(args, context));
+			if (context.configs.length > 1) return;
+			build.onLoad(SOURCE_FILES, (args) => loadBuildClientGraphBoundaryModule(build, args, context));
 		},
 	};
 }

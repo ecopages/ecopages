@@ -39,6 +39,7 @@ function createBuilderHarness() {
 		module() {},
 		transform() {},
 		onEnd() {},
+		addWatchFile() {},
 	};
 
 	return {

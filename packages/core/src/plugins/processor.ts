@@ -8,10 +8,10 @@ import { contentHash } from '../utils/content-hash.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
 
 export type {
+	EcoBuildFilter,
 	EcoBuildLoader,
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
-	EcoBuildImportKind,
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildPlugin,

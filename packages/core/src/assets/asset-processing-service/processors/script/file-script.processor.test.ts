@@ -441,11 +441,9 @@ describe('FileScriptProcessor', () => {
 				createBuildSuccess({
 					outputs: [{ path: '/tmp/index.js' }],
 					entryOutputs: { [entrypoint]: '/tmp/index.js' },
-					loadedInputs: [pluginInput],
-					loadedInputsByModule: { [entrypoint]: [pluginInput] },
 					dependencyGraph: {
 						entrypoints: {
-							[entrypoint]: [entrypoint, helper],
+							[entrypoint]: [entrypoint, helper, pluginInput],
 						},
 					},
 				}),

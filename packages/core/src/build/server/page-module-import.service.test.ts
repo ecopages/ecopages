@@ -286,11 +286,9 @@ describe('PageModuleImportService', () => {
 				return createBuildResult(
 					{
 						outputs: [{ path: compiledOutput }],
-						loadedInputs: [pluginInputPath],
-						loadedInputsByModule: { [pagePath]: [pluginInputPath] },
 						dependencyGraph: {
 							entrypoints: {
-								[pagePath]: [pagePath, helperPath],
+								[pagePath]: [pagePath, helperPath, pluginInputPath],
 							},
 						},
 					},

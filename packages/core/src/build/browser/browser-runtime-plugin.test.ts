@@ -64,6 +64,7 @@ function setupPlugin(
 		module() {},
 		transform() {},
 		onEnd() {},
+		addWatchFile() {},
 	});
 }
 

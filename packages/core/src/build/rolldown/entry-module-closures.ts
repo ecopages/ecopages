@@ -3,13 +3,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { BuildDependencyGraph } from '../build-adapter.ts';
 import { resolveBuildEntryPath } from '../build-graph.ts';
+import type { WatchFilesByModule } from './rolldown-plugin-bridge.ts';
 
 /**
  * @remarks
  * Source dependencies come from the module graph before emission can inline or
  * remove modules. External ids are retained as leaves for local file hashing.
+ * The files a plugin declared with `addWatchFile` for a module join the closure
+ * of every entry that holds that module.
  */
-export function createEntryModuleClosuresPlugin(graph: BuildDependencyGraph, root: string): RolldownPlugin {
+export function createEntryModuleClosuresPlugin(
+	graph: BuildDependencyGraph,
+	root: string,
+	watchFiles: WatchFilesByModule,
+): RolldownPlugin {
 	return {
 		name: 'ecopages-entry-module-closures',
 		generateBundle() {
@@ -33,11 +40,13 @@ export function createEntryModuleClosuresPlugin(graph: BuildDependencyGraph, roo
 					if (!info) continue;
 					for (const imported of [...info.importedIds, ...info.dynamicallyImportedIds]) closure.add(imported);
 				}
-				graph.entrypoints[resolveBuildEntryPath(id, root)] = [...closure].map(
+				const modules = [...closure].map(
 					(moduleId) =>
 						normalizedIds.get(moduleId) ??
 						(moduleId.startsWith('file:') ? fileURLToPath(moduleId) : moduleId),
 				);
+				const declared = [...closure].flatMap((moduleId) => [...(watchFiles.get(moduleId) ?? [])]);
+				graph.entrypoints[resolveBuildEntryPath(id, root)] = [...new Set([...modules, ...declared])];
 			}
 		},
 	};

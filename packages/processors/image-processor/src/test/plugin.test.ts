@@ -238,8 +238,8 @@ describe('ImageProcessorPlugin', () => {
 		);
 		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		let loadModule: (() => Promise<EcoBuildOnLoadResult> | EcoBuildOnLoadResult) | undefined;
-		const serverPlugin = workerPlugin.plugins().find((plugin) => plugin.environments?.includes('server'));
-		await serverPlugin?.setup({
+		const [imagePlugin] = workerPlugin.plugins();
+		await imagePlugin?.setup({
 			module: (_specifier, callback) => {
 				loadModule = callback;
 			},

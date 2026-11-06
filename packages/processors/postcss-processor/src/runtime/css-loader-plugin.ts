@@ -19,19 +19,11 @@ export const createCssLoaderPlugin = ({ name, filter, transform }: CssLoaderOpti
 				filePath: args.path,
 			});
 
-			if (css instanceof Promise) {
-				return css.then((resolved) => ({
-					exports: { default: resolved },
-					loader: 'object' as const,
-				}));
-			}
-
-			return {
-				exports: {
-					default: css as string,
-				},
-				loader: 'object' as const,
-			};
+			const toModule = (resolved: string) => ({
+				contents: `export default ${JSON.stringify(resolved)};`,
+				loader: 'js' as const,
+			});
+			return css instanceof Promise ? css.then(toModule) : toModule(css);
 		});
 	},
 });

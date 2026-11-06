@@ -119,6 +119,7 @@ test('createServerBuildRequest keeps import.meta at the source for the directory
 				transform = callback;
 			},
 			onEnd() {},
+			addWatchFile() {},
 		});
 		const result = await transform?.('export const url = import.meta.url;', '/app/src/pages/index.ts');
 		return typeof result === 'object' && result && 'code' in result ? result.code : result;

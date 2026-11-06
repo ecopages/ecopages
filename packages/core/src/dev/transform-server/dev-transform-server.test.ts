@@ -7,6 +7,7 @@ import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformServer } from './dev-transform-server.ts';
 import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
+import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
 
 const tempRoots: string[] = [];
 
@@ -24,6 +25,50 @@ afterEach(() => {
 });
 
 describe('DevTransformServer', () => {
+	it('serves a module with the new contents of a file its plugin inlined after that file changes', async () => {
+		const rootDir = createTempRoot('dev-transform-watch-file');
+		const sourcePath = path.join(rootDir, 'src', 'greeting.ts');
+		const inlinedPath = path.join(rootDir, 'src', 'greeting.txt');
+		fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+		fs.writeFileSync(sourcePath, 'export const greeting = GREETING;');
+		fs.writeFileSync(inlinedPath, 'before');
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const index = new BuildInputDependencyIndex();
+		const server = new DevTransformServer({
+			appConfig: config,
+			contributors: [
+				{
+					ownsModule: () => true,
+					getModulePlugins: async () => [
+						{
+							name: 'inline-greeting',
+							setup(build) {
+								build.transform({ filter: /greeting\.ts$/ }, (code) => {
+									build.addWatchFile(inlinedPath);
+									return code.replace(
+										'GREETING',
+										JSON.stringify(fs.readFileSync(inlinedPath, 'utf8')),
+									);
+								});
+							},
+						},
+					],
+				},
+			],
+			onModuleDependencies: (modulePath, dependencies) =>
+				index.register({ consumer: 'entrypoint', key: modulePath }, [modulePath, ...dependencies]),
+		});
+		const outputUrl = server.registerModule(sourcePath);
+		const request = async () =>
+			(await server.tryHandleRequest(new Request(`http://localhost${outputUrl}`)))?.text();
+
+		expect(await request()).toContain('"before"');
+		fs.writeFileSync(inlinedPath, 'after');
+		for (const modulePath of index.resolveKeys('entrypoint', inlinedPath)) server.invalidateSource(modulePath);
+
+		expect(await request()).toContain('"after"');
+	});
+
 	it.each([true, false])(
 		'retries an edited source during compilation (watcher notified: %s)',
 		async (notifyWatcher) => {

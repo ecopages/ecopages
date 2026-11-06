@@ -6,8 +6,6 @@ export function createBuildSuccess(overrides: Partial<BuildSuccess> = {}): Build
 		success: true,
 		outputs: [],
 		warnings: [],
-		loadedInputs: [],
-		loadedInputsByModule: {},
 		dependencyGraph: { entrypoints: {} },
 		entryOutputs: {},
 		outputGraph: {},

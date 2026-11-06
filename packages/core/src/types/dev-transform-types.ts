@@ -2,6 +2,7 @@ import type { EcoBuildPlugin } from './build-types.ts';
 
 export type DevTransformBundleResult = {
 	code: string;
+	/** Files whose edit invalidates the module: its imports and the files its plugins inlined. */
 	dependencies?: string[];
 };
 

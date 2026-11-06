@@ -89,6 +89,24 @@ function isFileScriptBundle(dependencies: AssetDefinition[]): dependencies is Fi
  * output URL normalization, and production gzip preparation so route rendering
  * and HMR flows do not need to understand processor-specific behavior.
  */
+/**
+ * Applies the deduplication and Integration preparation that {@link AssetProcessingService.processDependencies}
+ * runs first.
+ *
+ * @remarks
+ * The production prebuild uses it to collect scripts under the same dependency keys that rendering later
+ * looks up in `AppRuntime.prebuiltBrowserScripts`.
+ */
+export function prepareAssetDependencies(
+	deps: AssetDefinition[],
+	integration: AssetProcessingIntegration | undefined,
+): AssetDefinition[] {
+	const dedupedDeps = deduplicateAssetDependencies(deps);
+	const preparedDeps = integration?.prepareAssetDependencies?.(dedupedDeps) ?? dedupedDeps;
+	ensureGroupedContentScriptsBundle(preparedDeps);
+	return preparedDeps;
+}
+
 export class AssetProcessingService {
 	static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
 	private readonly processors: AssetProcessorRecord = { script: {}, stylesheet: {} };
@@ -184,13 +202,22 @@ export class AssetProcessingService {
 		const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
 		fileSystem.ensureDir(depsDir);
 
-		const dedupedDeps = deduplicateAssetDependencies(deps);
-		const preparedDeps = integration?.prepareAssetDependencies?.(dedupedDeps) ?? dedupedDeps;
-		ensureGroupedContentScriptsBundle(preparedDeps);
-		const results = await this.processDependenciesParallel(preparedDeps);
+		const preparedDeps = prepareAssetDependencies(deps, integration);
+		const prebuiltScripts = this.config.appRuntime?.prebuiltBrowserScripts;
+		const prebuilt: ProcessedAsset[] = [];
+		const pending: AssetDefinition[] = [];
+		for (const dep of preparedDeps) {
+			const asset = prebuiltScripts?.get(getAssetDependencyKey(dep));
+			if (asset) {
+				prebuilt.push({ ...asset });
+			} else {
+				pending.push(dep);
+			}
+		}
+		const results = await this.processDependenciesParallel(pending);
 
 		await this.optimizeDependencies(results);
-		return results;
+		return [...prebuilt, ...results];
 	}
 
 	/**

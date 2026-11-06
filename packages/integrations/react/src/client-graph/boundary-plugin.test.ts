@@ -1157,7 +1157,7 @@ describe('client graph boundary: one plan per build', () => {
 		writeFileSync(join(tempDir, 'island-b.tsx'), "import { b } from './shared';\nexport default () => b();");
 	}
 
-	it('prunes a shared module to byte-identical output in either load order', () =>
+	it('emits the same bytes in either load order when the build succeeds', () =>
 		withTempDir(async (tempDir) => {
 			writeIslands(tempDir, [
 				"import { secret } from './secret.server';",
@@ -1190,6 +1190,55 @@ describe('client graph boundary: one plan per build', () => {
 
 			expect(first.error).toContain("Forbidden client import './secret.server'");
 			expect(second).toEqual(first);
+		}));
+
+	it('requests nothing from a module that only a stripped server-only Page option imports', () =>
+		withTempDir(async (tempDir) => {
+			mkdirSync(join(tempDir, 'pages'));
+			const entry = join(tempDir, 'pages', 'entry.tsx');
+			writeFileSync(
+				entry,
+				[
+					"import { load } from './loader';",
+					"import { x } from './helper';",
+					'export default eco.page({',
+					'\tstaticProps: async () => ({ props: { value: await load() } }),',
+					'\trender: () => x(),',
+					'});',
+				].join('\n'),
+			);
+			writeFileSync(
+				join(tempDir, 'pages', 'loader.ts'),
+				"import { serverFn } from './helper';\nexport const load = () => serverFn();",
+			);
+			writeFileSync(
+				join(tempDir, 'pages', 'helper.ts'),
+				"import { secret } from './secret.server';\nexport const x = () => 'from-x';\nexport const serverFn = () => secret;",
+			);
+			writeFileSync(join(tempDir, 'pages', 'secret.server.ts'), "export const secret = 'server-secret';");
+
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser',
+				entrypoints: [entry],
+				outdir: join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				writeToDisk: false,
+				plugins: [
+					createClientGraphBoundaryPlugin({
+						absWorkingDir: tempDir,
+						projectRoot: tempDir,
+						entrypointFile: entry,
+						groupedEntrypointFiles: [entry],
+					}),
+				],
+			});
+
+			assertBuildSucceeded(result, 'Build failed');
+			const code = result.outputs.map((output) => String(output.content)).join('\n');
+			expect(code).toContain('from-x');
+			expect(code).not.toContain('server-secret');
 		}));
 
 	it('registers one handler for every boundary instance of a build', async () => {

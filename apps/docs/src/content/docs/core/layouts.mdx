@@ -62,7 +62,7 @@ Route layouts must be created with **`eco.layout()`** (or `eco.component()` when
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 
-export const BaseLayout = eco.layout<{ children: ReactNode }>({
+export const BaseLayout = eco.layout<ReactNode>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 	},
@@ -125,14 +125,14 @@ layout: [
 	{
 		component: DocsSection,
 		props: ({ params, locals }) => ({
-			activeSlug: params.slug,
-			viewer: locals.user?.name,
+			activeSlug: params?.slug,
+			viewer: locals?.session?.user.email,
 		}),
 	},
 ],
 ```
 
-`props` receives `LayoutPropsContext` (`params`, `query`, `locals`). See [Request Locals](/docs/core/request-locals) for how `locals` reach layout tiers during SSR and hydration.
+`props` receives `LayoutPropsContext`, whose `params`, `query`, and `locals` are all optional. Reading `locals` throws `LocalsAccessError` unless the Page has `cache: 'dynamic'`, so the sample above fits only a Dynamic Page. See [Request Locals](/docs/core/request-locals) for how `locals` reach layout tiers during SSR and hydration.
 
 ### Shared outer layouts and SPA navigation
 

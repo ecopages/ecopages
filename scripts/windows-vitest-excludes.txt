@@ -3,15 +3,18 @@
 # Each file fails on windows-latest today and is excluded by scripts/test-vitest-windows.ts.
 # Remove a line when its draft issue is fixed. See the PR for ecopages/ecopages#1015.
 #
-# Draft: "Windows: the page transpile bundles the oxc-resolver native binding"
-e2e/fixtures/browser-router/lazy-dependencies.output.test.ts
+# Draft: "Windows: modules on another drive than the app break server module naming and fixture mocks"
+# The oxc-resolver native binding (ecopages/ecopages#1018) is no longer bundled; these files still fail for two other reasons.
+# Rolldown rejects a preserved module on another drive than preserveModulesRoot (INVALID_OPTION, absolute [name]);
+# the fixture apps live in the C: temp folder and import Core source from the D: checkout.
 e2e/fixtures/cache/cache.test.ts
 e2e/fixtures/imported-views/imported-views.test.ts
 e2e/fixtures/production-processors/production-processors.test.ts
 e2e/fixtures/production-server-modules/production-server-modules.test.ts
-packages/core/src/assets/asset-processing-service/processors/script/node-module-script.processor.test.ts
-packages/core/src/build/cache/pages-unified-graph-build.test.ts
+e2e/fixtures/page-script-splitting/page-script-splitting.test.ts
+# These two mock a POSIX project root (/test/project) that does not resolve on Windows.
 packages/core/src/static-site-generator/production-dynamic-collection-browser-graph.test.ts
+packages/core/src/assets/asset-processing-service/processors/script/node-module-script.processor.test.ts
 #
 # Draft: "Windows: unit tests assume POSIX paths and separators"
 packages/__internals/testing/src/index.test.ts

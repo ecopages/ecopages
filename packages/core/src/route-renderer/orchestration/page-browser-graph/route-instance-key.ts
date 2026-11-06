@@ -5,11 +5,6 @@ type PageDependencyInstance = {
 	query?: PageQuery;
 };
 
-export type GroupedGraphScope = {
-	integrationName: string;
-	planKey: string;
-};
-
 function formatParamEntries(entries: Iterable<[string, string | string[]]>): string {
 	return [...entries].map(([key, value]) => `${key}=${Array.isArray(value) ? value.join('/') : value}`).join(',');
 }
@@ -43,9 +38,7 @@ export function describePageDependencyInstance(input: PageDependencyInstance): s
 /**
  * Params encoded in a {@link createPageDependencyInstanceKey} value, ignoring query.
  */
-export function pageDependencyInstanceParams(
-	dependencyInstanceKey: string,
-): Array<[string, string | string[]]> | undefined {
+function pageDependencyInstanceParams(dependencyInstanceKey: string): Array<[string, string | string[]]> | undefined {
 	if (dependencyInstanceKey.length === 0) return [];
 	try {
 		const parsed: unknown = JSON.parse(dependencyInstanceKey);
@@ -82,20 +75,6 @@ export function describePageDependencyInstanceKey(dependencyInstanceKey: string)
 	if (params === undefined) return dependencyInstanceKey;
 	if (params.length === 0) return 'default';
 	return formatParamEntries(params);
-}
-
-/**
- * Combines a route file with an optional dependency-instance key for grouped graph maps.
- */
-export function createRouteGraphLookupKey(routeFile: string, dependencyInstanceKey = ''): string {
-	return JSON.stringify([routeFile, dependencyInstanceKey]);
-}
-
-/**
- * Serializes the grouped graph cache scope for one integration and dependency instance.
- */
-export function serializeGroupedGraphCacheKey(scope: GroupedGraphScope): string {
-	return JSON.stringify(['grouped', scope.integrationName, scope.planKey]);
 }
 
 function canonicalizeInput(input: PageParams | PageQuery | undefined): Array<[string, string | string[]]> {

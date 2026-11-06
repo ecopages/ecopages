@@ -28,6 +28,7 @@ import { clearPageCacheForBrowserRuntimeAssetChange } from '../browser-runtime-a
 import { isBrowserRuntimeAssetRole } from './asset-package-role.ts';
 import type { AssetProcessingIntegration } from './asset-processing-integration.ts';
 import { finalizeProcessedAsset } from './finalize-processed-asset.ts';
+import { isBundleableScript } from './bundleable-script.ts';
 import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,
@@ -95,7 +96,7 @@ function isFileScriptBundle(dependencies: AssetDefinition[]): dependencies is Fi
  *
  * @remarks
  * The production prebuild uses it to collect scripts under the same dependency keys that rendering later
- * looks up in `AppRuntime.prebuiltBrowserScripts`.
+ * looks up in `AppRuntime.processedAssets`.
  */
 export function prepareAssetDependencies(
 	deps: AssetDefinition[],
@@ -199,6 +200,9 @@ export class AssetProcessingService {
 	 * entries. Returned asset order is unspecified — consumers must re-associate
 	 * outputs with inputs via dependency metadata such as `groupedBundle`, not by
 	 * array index alignment with the input list.
+	 *
+	 * Once the app-wide browser build ran, in this process or in the restored build, a script it can bundle
+	 * resolves to the output the asset ledger records for it, so scripts it bundled together share chunks.
 	 */
 	async processDependencies(
 		deps: AssetDefinition[],
@@ -208,13 +212,13 @@ export class AssetProcessingService {
 		fileSystem.ensureDir(depsDir);
 
 		const preparedDeps = prepareAssetDependencies(deps, integration, this.config.rootDir);
-		const prebuiltScripts = this.config.appRuntime?.prebuiltBrowserScripts;
+		const resolvesBundledScripts = requireAppRuntime(this.config).processedAssets.hasBrowserBuild;
 		const prebuilt: ProcessedAsset[] = [];
 		const pending: AssetDefinition[] = [];
 		for (const dep of preparedDeps) {
-			const asset = prebuiltScripts?.get(this.getDependencyKey(dep));
+			const asset = resolvesBundledScripts && isBundleableScript(dep) ? this.lookupRecordedAsset(dep) : undefined;
 			if (asset) {
-				prebuilt.push({ ...asset });
+				prebuilt.push(asset);
 			} else {
 				pending.push(dep);
 			}
@@ -223,6 +227,22 @@ export class AssetProcessingService {
 
 		await this.optimizeDependencies(results);
 		return [...prebuilt, ...results];
+	}
+
+	/**
+	 * Returns the emitted form of `dep` the production build recorded, if any.
+	 *
+	 * @remarks
+	 * A recorded output that is gone is an error: serving the Page without it would drop its styles or scripts.
+	 */
+	private lookupRecordedAsset(dep: AssetDefinition): ProcessedAsset | undefined {
+		const recorded = requireAppRuntime(this.config).processedAssets.lookup(dep);
+		if (recorded?.filepath && !fileSystem.exists(recorded.filepath)) {
+			throw new Error(
+				`The production build recorded ${path.relative(this.config.rootDir, recorded.filepath)} but it is missing. Run \`ecopages build\` again.`,
+			);
+		}
+		return recorded;
 	}
 
 	/**
@@ -587,17 +607,12 @@ export class AssetProcessingService {
 	 *
 	 * @remarks
 	 * The record names files under `dist/`, so a restored build never reads the dependency's source.
-	 * A recorded output that is gone is an error: serving the Page without it would drop its styles or scripts.
 	 */
 	private restoreRecordedAsset(dep: AssetDefinition, depKey: string): ProcessedAsset | null {
-		const ledger = requireAppRuntime(this.config).processedAssets;
-		const recorded = ledger.isRestored ? ledger.lookup(dep) : undefined;
+		const recorded = requireAppRuntime(this.config).processedAssets.isRestored
+			? this.lookupRecordedAsset(dep)
+			: undefined;
 		if (!recorded) return null;
-		if (recorded.filepath && !fileSystem.exists(recorded.filepath)) {
-			throw new Error(
-				`The production build recorded ${path.relative(this.config.rootDir, recorded.filepath)} but it is missing. Run \`ecopages build\` again.`,
-			);
-		}
 		const asset = finalizeProcessedAsset(recorded, (processed) => this.resolveProcessedAssetSrcUrl(processed));
 		this.cache.set(depKey, { asset });
 		return asset;
@@ -713,7 +728,7 @@ export class AssetProcessingService {
 			asset,
 			sourceHash: this.getFileSourceHash(asset.sourceFilepath ?? this.getDependencySourceFilepath(dep)),
 		});
-		if (isProductionRuntime()) {
+		if (isProductionRuntime() && dep.source === 'file') {
 			requireAppRuntime(this.config).processedAssets.record(dep, asset);
 		}
 		if (asset.filepath) {

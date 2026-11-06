@@ -64,7 +64,7 @@ class BrowserGraphTestMdxRenderer extends MDXRenderer {
 		return this.collectPageBrowserGraphContribution(context);
 	}
 
-	protected override async resolveDependencies(
+	protected override async processComponentDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent>>,
 	): Promise<ProcessedAsset[]> {
 		this.resolvedComponents = components;

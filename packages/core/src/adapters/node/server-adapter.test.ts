@@ -22,14 +22,14 @@ import { getBuildInputRecordingContext } from '../../build/cache/build-input-dep
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));
 const devBridge = vi.hoisted(() => ({ reload: vi.fn() }));
-const browserManifestPrebuild = vi.hoisted(() => ({ run: vi.fn() }));
+const assetLedgerRestore = vi.hoisted(() => ({ run: vi.fn() }));
 
 vi.mock('../shared/ws/node-http-websocket-upgrades.ts', () => ({
 	attachNodeHttpWebSocketUpgrades: upgrades.attach,
 }));
 
 vi.mock('../../static-site-generator/production-page-browser-graph-prebuild.ts', () => ({
-	prebuildProductionPageBrowserGraphsFromManifest: browserManifestPrebuild.run,
+	restoreProductionPageBrowserGraphs: assetLedgerRestore.run,
 }));
 
 const devRuntime = vi.hoisted(() => ({
@@ -565,8 +565,8 @@ describe('NodeServerAdapter', () => {
 			expect(events).toEqual(['routes read', 'integration setup']);
 		});
 
-		it('restores the production browser manifest after Integration setup', async () => {
-			browserManifestPrebuild.run.mockReset();
+		it('restores the production asset ledger after Integration setup', async () => {
+			assetLedgerRestore.run.mockReset();
 			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-browser-manifest-'));
 			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 			const events: string[] = [];
@@ -578,10 +578,10 @@ describe('NodeServerAdapter', () => {
 			vi.spyOn(integration, 'setup').mockImplementation(async () => {
 				events.push('integration setup');
 			});
-			browserManifestPrebuild.run.mockImplementation(async () => {
-				events.push('browser manifest restore started');
+			assetLedgerRestore.run.mockImplementation(async () => {
+				events.push('asset ledger restore started');
 				await manifestRestore;
-				events.push('browser manifest restored');
+				events.push('asset ledger restored');
 			});
 			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [integration] });
 			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false } });
@@ -591,7 +591,7 @@ describe('NodeServerAdapter', () => {
 
 			await adapter.initialize();
 			const initialization = adapter.completeInitialization({} as import('node:http').Server);
-			await vi.waitFor(() => expect(events).toContain('browser manifest restore started'));
+			await vi.waitFor(() => expect(events).toContain('asset ledger restore started'));
 			const handleSharedRequest = vi
 				.spyOn(ServerRequestPipeline.prototype, 'handleSharedRequest')
 				.mockResolvedValue(new Response('ok'));
@@ -606,12 +606,12 @@ describe('NodeServerAdapter', () => {
 			expect(events).toEqual([
 				'routes read',
 				'integration setup',
-				'browser manifest restore started',
-				'browser manifest restored',
+				'asset ledger restore started',
+				'asset ledger restored',
 			]);
 			expect(handleSharedRequest).toHaveBeenCalledTimes(1);
-			expect(browserManifestPrebuild.run).toHaveBeenCalledTimes(1);
-			expect(browserManifestPrebuild.run.mock.calls[0]?.[0]).toBe(appConfig);
+			expect(assetLedgerRestore.run).toHaveBeenCalledTimes(1);
+			expect(assetLedgerRestore.run.mock.calls[0]?.[0]).toBe(appConfig);
 		});
 
 		it('empties dist before an export sets Processors up and keeps what they generate', async () => {

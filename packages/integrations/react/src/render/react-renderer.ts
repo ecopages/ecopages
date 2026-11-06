@@ -22,13 +22,14 @@ import {
 	type IntegrationRendererOptions,
 	type HtmlDocumentContribution,
 	type HtmlDocumentContributionContext,
+	type PageBrowserGraphContribution,
 	type PageBrowserGraphContributionContext,
 	selectHydrationIslandEntries,
 	type PageClientBrowserAssets,
 	type PageClientBuildEntry,
 	type PageClientPlan,
 } from '@ecopages/core/integration';
-import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/integration';
+import type { ProcessedAsset } from '@ecopages/core/integration';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
 import { resolveQueuedTokens } from '@ecopages/core/integration';
 import { ensurePageConfigLayouts } from '@ecopages/core/integration';
@@ -464,7 +465,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 
 	private async collectPageBrowserGraphContributionHook(
 		context: PageBrowserGraphContributionContext,
-	): Promise<{ dependencies?: AssetDefinition[]; assets?: ProcessedAsset[] }> {
+	): Promise<PageBrowserGraphContribution> {
 		try {
 			const { file: pagePath, pageModule } = context;
 			const shouldHydrate = this.forceBrowserGraph ? true : this.pageModuleService.shouldHydratePage(pageModule);
@@ -484,16 +485,14 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 				isMdx,
 				declaredModules,
 			);
-			const assets: ProcessedAsset[] = isMdx
-				? await this.mdxConfigDependencyService.processMdxConfigDependencies({
-						pagePath,
-						config: (pageModule as EcoPageFile & { config?: EcoComponentConfig }).config,
-						processComponentDependencies: async (components) =>
-							await this.processComponentDependencies(components),
-					})
-				: [];
-
-			return { dependencies, assets };
+			if (!isMdx) return { dependencies };
+			return {
+				dependencies,
+				...this.mdxConfigDependencyService.collectMdxConfigContribution(
+					pagePath,
+					(pageModule as EcoPageFile & { config?: EcoComponentConfig }).config,
+				),
+			};
 		} catch (error) {
 			if (error instanceof BundleError) {
 				console.error('[ecopages] Bundle errors:', error.logs);
@@ -669,8 +668,6 @@ function createReactRendererHookFactory(
 			mdxConfigDependencyService: new MdxConfigDependencyService({
 				integrationName: REACT_PLUGIN_NAME,
 				pageModuleService,
-				assetProcessingService,
-				assetProcessingIntegration,
 			}),
 			applyPendingLazyTriggers,
 		};

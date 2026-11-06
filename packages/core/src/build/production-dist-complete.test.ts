@@ -83,12 +83,12 @@ describe('assertProductionDistComplete', () => {
 		expect((failure as Error).cause).toBeInstanceOf(SyntaxError);
 	});
 
-	it('rejects an unreadable browser client manifest instead of starting without it', () => {
+	it('rejects an unreadable asset ledger instead of starting without it', () => {
 		const rootDir = createCompleteDist();
-		writeFileSync(path.join(rootDir, 'dist', SERVER_BUNDLE_DIR, 'browser-client-manifest.json'), '{ bad');
+		writeFileSync(path.join(rootDir, 'dist', SERVER_BUNDLE_DIR, 'processed-assets.json'), '{ bad');
 
 		expect(() => assertProductionDistComplete(rootDir, 'dist')).toThrow(
-			/The production browser client manifest .* is invalid or unreadable/,
+			/The production asset ledger .* is invalid or unreadable/,
 		);
 	});
 });

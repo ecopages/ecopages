@@ -1108,9 +1108,21 @@ export type PageBrowserGraphContributionContext = {
 	dependencyInstanceKey?: string;
 };
 
+/**
+ * What an Integration adds to one Page Browser Graph.
+ *
+ * @remarks
+ * The production prebuild calls the contribution hook while it plans routes, before the app-wide browser build,
+ * so the hook names what core should process and processes nothing itself: core processes `dependencies`,
+ * `components` and `bundledScripts` when it resolves the graph, and plans their scripts for the app-wide build.
+ */
 export interface PageBrowserGraphContribution {
 	dependencies?: AssetDefinition[];
 	assets?: ProcessedAsset[];
+	/** Components whose Dependencies join the graph; their scripts share chunks with every other component script. */
+	components?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
+	/** Scripts declared outside any component's Dependencies that the app-wide build bundles with the graph. */
+	bundledScripts?: AssetDefinition[];
 	/** Source files that should invalidate this graph entry when they change. */
 	watchPaths?: string[];
 }

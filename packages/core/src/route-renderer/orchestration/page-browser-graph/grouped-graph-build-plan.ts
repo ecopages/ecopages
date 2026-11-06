@@ -1,14 +1,9 @@
 import type { PageBrowserGraphContribution } from '../../../types/contracts.ts';
-import type { AssetDefinition, ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
+import type { AssetDefinition } from '../../../assets/asset-processing-service/assets.types.ts';
 import type { PageClientBuildEntry } from '../ownership-graph/page-client-plan.ts';
 
 export type PlannedPageClientBuildEntry = PageClientBuildEntry & {
 	integrationName: string;
-};
-
-export type PrebuiltPageClientBrowserAssets = {
-	processedAssets: ProcessedAsset[];
-	fallbackDependencies: Array<{ dependency: PageClientBuildEntry['dependency']; integrationName: string }>;
 };
 
 export type GroupedGraphBuildPlanInstance = {
@@ -17,45 +12,16 @@ export type GroupedGraphBuildPlanInstance = {
 	skipStaticProps?: boolean;
 	isRouteTemplate?: boolean;
 	contribution?: PageBrowserGraphContribution;
-	prebuiltGroupedAssets?: ReadonlyArray<ProcessedAsset>;
 	pageClientBuildEntries?: ReadonlyArray<PlannedPageClientBuildEntry>;
-	prebuiltPageClientBrowserAssets?: PrebuiltPageClientBrowserAssets;
-};
-
-export type GroupedGraphBuildPlan = {
-	integrationName: string;
-	planKey: string;
-	instances: ReadonlyArray<GroupedGraphBuildPlanInstance>;
-	/**
-	 * Component scripts route preparation bundles for these routes, collected before rendering so the app-wide
-	 * browser build includes them.
-	 */
-	bundledScripts?: ReadonlyArray<AssetDefinition>;
 };
 
 /**
- * Builds a stable grouped-cache identity for one integration static export plan.
+ * The browser scripts one renderer's production routes declare, collected before rendering so the app-wide
+ * browser build bundles them.
  */
-export function createGroupedGraphBuildPlanKey(
-	integrationName: string,
-	instances: ReadonlyArray<
-		Pick<
-			GroupedGraphBuildPlanInstance,
-			'routeFile' | 'dependencyInstanceKey' | 'skipStaticProps' | 'isRouteTemplate'
-		>
-	>,
-): string {
-	const canonicalInstances = [...instances]
-		.map(
-			(instance) =>
-				[
-					instance.routeFile,
-					instance.dependencyInstanceKey,
-					instance.skipStaticProps ?? false,
-					instance.isRouteTemplate ?? false,
-				] as const,
-		)
-		.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-
-	return JSON.stringify(['grouped-plan', integrationName, canonicalInstances]);
-}
+export type GroupedGraphBuildPlan = {
+	integrationName: string;
+	instances: ReadonlyArray<GroupedGraphBuildPlanInstance>;
+	/** Component scripts route preparation bundles for these routes. */
+	bundledScripts?: ReadonlyArray<AssetDefinition>;
+};

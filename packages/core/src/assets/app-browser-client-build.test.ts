@@ -9,6 +9,9 @@ import type { BuildSuccess } from '../build/build-adapter.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { AssetDefinition } from './asset-processing-service/assets.types.ts';
+import { ProcessedAssetLedger } from './asset-processing-service/processed-asset-ledger.ts';
+import { prepareAssetDependencies } from './asset-processing-service/asset-processing.service.ts';
+import type { AppRuntime } from '../config/assembly/app-runtime.ts';
 
 const { bundleGroupedEntries, setPrebuiltUrls, htmlScriptPath } = vi.hoisted(() => ({
 	bundleGroupedEntries: vi.fn(),
@@ -87,6 +90,7 @@ function createGroupedIntegration(name: string, bundleId: string) {
 function createTestAppConfig(rootDir: string): EcoPagesAppConfig {
 	return {
 		rootDir,
+		appRuntime: { processedAssets: new ProcessedAssetLedger(rootDir) } as AppRuntime,
 		integrations: [
 			createGroupedIntegration('ecopages-jsx', 'jsx-page'),
 			createGroupedIntegration('lit', 'lit-page'),
@@ -117,12 +121,18 @@ function createRouteInstance(
 	};
 }
 
-function assertRouteBuildAssets(plan: GroupedGraphBuildPlan, routeIndex: number, pageClientAssetCount = 1): void {
-	const route = required(plan.instances[routeIndex]);
-	const graphAsset = required(route.prebuiltGroupedAssets?.[0]);
-	assert.equal(route.prebuiltGroupedAssets?.length, 1);
-	assert.equal(graphAsset.groupedBundle?.id, 'ecopages-app-browser-client');
-	assert.equal(route.prebuiltPageClientBrowserAssets?.processedAssets.length ?? 0, pageClientAssetCount);
+function ledgerOf(appConfig: EcoPagesAppConfig): ProcessedAssetLedger {
+	return required(appConfig.appRuntime).processedAssets;
+}
+
+/** The route script as asset processing prepares it for `integrationName`, which is how rendering looks it up. */
+function preparedRouteScript(
+	appConfig: EcoPagesAppConfig,
+	routeScript: AssetDefinition,
+	integrationName: string,
+): AssetDefinition {
+	const integration = appConfig.integrations.find((entry) => entry.name === integrationName);
+	return required(prepareAssetDependencies([{ ...routeScript }], integration, appConfig.rootDir)[0]);
 }
 
 function assertHtmlModuleScriptUrls(): void {
@@ -183,7 +193,7 @@ afterEach(() => {
 	rmSync(rootDir, { recursive: true, force: true });
 });
 
-test('buildAppBrowserClient bundles route entries and HTML module scripts in one build', async () => {
+test('buildAppBrowserClient records each entry output in the ledger under every declaring dependency key', async () => {
 	const routeScript = {
 		kind: 'script' as const,
 		source: 'content' as const,
@@ -192,48 +202,97 @@ test('buildAppBrowserClient bundles route entries and HTML module scripts in one
 		position: 'head' as const,
 	};
 	const appConfig = createTestAppConfig(rootDir);
+	const islandA = createIslandEntry(rootDir, 'island-a');
+	const lazyEntry = createLazyEntry();
 	const plans = [
 		{
 			integrationName: 'ecopages-jsx',
-			planKey: 'routes',
 			instances: [
-				createRouteInstance(rootDir, 'a', routeScript, [
-					createIslandEntry(rootDir, 'island-a'),
-					createLazyEntry(),
-				]),
+				createRouteInstance(rootDir, 'a', routeScript, [islandA, lazyEntry]),
 				createRouteInstance(rootDir, 'b', routeScript),
 			],
 		},
 		{
 			integrationName: 'lit',
-			planKey: 'lit-routes',
 			instances: [createRouteInstance(rootDir, 'c', routeScript, [])],
 		},
 	];
 
-	const build = await buildAppBrowserClient(appConfig, plans);
-	const [jsxPlan, litPlan] = build.plans;
+	await buildAppBrowserClient(appConfig, plans);
 
 	assert.equal(bundleGroupedEntries.mock.calls.length, 1);
 	assert.equal(required(bundleGroupedEntries.mock.calls[0])[0].length, 6);
-	const plan = required(jsxPlan);
-	const secondRendererPlan = required(litPlan);
-	assertRouteBuildAssets(plan, 0, 2);
-	assertRouteBuildAssets(plan, 1);
-	assertRouteBuildAssets(secondRendererPlan, 0, 0);
-	const lazyAsset = required(
-		plan.instances[0]?.prebuiltPageClientBrowserAssets?.processedAssets.find(
-			(asset) => asset.attributes?.['data-eco-lazy-key'] === 'lazy-route-a',
-		),
-	);
-	assert.match(lazyAsset.srcUrl ?? '', /^\/assets\/client-[a-f0-9]+-hash\.js$/);
-	assert.equal(
-		required(plan.instances[0]?.prebuiltGroupedAssets?.[0]).filepath,
-		required(plan.instances[1]?.prebuiltGroupedAssets?.[0]).filepath,
-	);
+	const ledger = ledgerOf(appConfig);
+	const jsxRouteAsset = required(ledger.lookup(preparedRouteScript(appConfig, routeScript, 'ecopages-jsx')));
+	const litRouteAsset = required(ledger.lookup(preparedRouteScript(appConfig, routeScript, 'lit')));
+	assert.match(jsxRouteAsset.srcUrl ?? '', /^\/assets\/client-[a-f0-9]+-hash\.js$/);
+	assert.notEqual(jsxRouteAsset.srcUrl, litRouteAsset.srcUrl);
+	assert.match(required(ledger.lookup(islandA.dependency)).srcUrl ?? '', /^\/assets\/client-[a-f0-9]+-hash\.js$/);
+	assert.equal(required(ledger.lookup(lazyEntry.dependency)).attributes?.['data-eco-lazy-key'], 'lazy-route-a');
+	assert.equal(ledger.hasBrowserBuild, true);
+	assert.ok(ledger.serialize().browserOutputs?.includes('dist/client/assets/shared-chunk.js'));
 	assertHtmlModuleScriptUrls();
-	assert.ok(build.sourceFiles.includes(path.join(rootDir, 'node_modules/html-only-package/index.js')));
-	assert.ok(build.outputPaths.includes(path.join(rootDir, 'dist/client/assets/shared-chunk.js')));
+});
+
+test('buildAppBrowserClient records a shared script once however many routes declare it', async () => {
+	const routeScript: Extract<AssetDefinition, { kind: 'script' }> = {
+		kind: 'script',
+		source: 'content',
+		content: 'import "./shared-store.js";',
+		bundle: true,
+		position: 'head',
+	};
+	const recordFor = async (routeCount: number) => {
+		bundleGroupedEntries.mockClear();
+		const appConfig = createTestAppConfig(rootDir);
+		await buildAppBrowserClient(appConfig, [
+			{
+				integrationName: 'ecopages-jsx',
+				instances: Array.from({ length: routeCount }, (_, index) =>
+					createRouteInstance(rootDir, `route-${index}`, routeScript, [
+						createIslandEntry(rootDir, 'shared-island'),
+					]),
+				),
+				bundledScripts: Array.from({ length: routeCount }, () => ({
+					kind: 'script' as const,
+					source: 'file' as const,
+					filepath: path.join(rootDir, 'src', 'counter.script.ts'),
+				})),
+			},
+		]);
+		return ledgerOf(appConfig).serialize();
+	};
+
+	const twoRoutes = await recordFor(2);
+	const sixRoutes = await recordFor(6);
+
+	assert.equal(twoRoutes.entries.length, 3);
+	assert.deepEqual(sixRoutes, twoRoutes);
+});
+
+test('buildAppBrowserClient records outputs that a build moved to another folder restores', async () => {
+	const componentScript = (appRoot: string): Extract<AssetDefinition, { source: 'file' }> => ({
+		kind: 'script',
+		source: 'file',
+		filepath: path.join(appRoot, 'src', 'components', 'counter.script.ts'),
+		position: 'head',
+	});
+	const appConfig = createTestAppConfig(rootDir);
+	await buildAppBrowserClient(appConfig, [
+		{ integrationName: 'lit', instances: [], bundledScripts: [componentScript(rootDir)] },
+	]);
+	const built = required(ledgerOf(appConfig).lookup(componentScript(rootDir)));
+
+	const movedRoot = path.join(rootDir, 'moved');
+	const moved = new ProcessedAssetLedger(movedRoot);
+	moved.restore(JSON.parse(JSON.stringify(ledgerOf(appConfig).serialize())));
+	const restored = required(moved.lookup(componentScript(movedRoot)));
+
+	assert.equal(restored.srcUrl, built.srcUrl);
+	assert.equal(restored.filepath, path.join(movedRoot, path.relative(rootDir, required(built.filepath))));
+	assert.equal(restored.sourceFilepath, componentScript(movedRoot).filepath);
+	assert.doesNotMatch(JSON.stringify(ledgerOf(appConfig).serialize()), /\\/);
+	assert.ok(!JSON.stringify(ledgerOf(appConfig).serialize()).includes(rootDir));
 });
 
 test('buildAppBrowserClient builds entries apart only when build-wide options differ', async () => {
@@ -260,7 +319,6 @@ test('buildAppBrowserClient builds entries apart only when build-wide options di
 	};
 	const plan = {
 		integrationName: 'ecopages-jsx',
-		planKey: 'option-scopes',
 		instances: [
 			createRouteInstance(rootDir, 'special', specialRouteScript, []),
 			createRouteInstance(rootDir, 'default', defaultRouteScript, []),
@@ -308,7 +366,6 @@ test('buildAppBrowserClient combines compatible entry-scoped plugins and keeps e
 	secondIsland.dependency.bundleOptions = { plugins: [secondBoundary] };
 	const plan = {
 		integrationName: 'ecopages-jsx',
-		planKey: 'grouped-entry-plugins',
 		instances: [
 			createRouteInstance(
 				rootDir,
@@ -361,7 +418,6 @@ test('buildAppBrowserClient builds entries with different plugins together and s
 	island.dependency.bundleOptions = { plugins: [islandPlugin], external: ['island-runtime'] };
 	const plan = {
 		integrationName: 'react',
-		planKey: 'scoped-entry-plugins',
 		instances: [
 			createRouteInstance(
 				rootDir,
@@ -409,7 +465,6 @@ test('buildAppBrowserClient separates entry-scoped plugins with different hook p
 	secondIsland.dependency.bundleOptions = { plugins: [sharedPlugin, secondBoundary] };
 	const plan = {
 		integrationName: 'react',
-		planKey: 'grouped-entry-plugin-order',
 		instances: [
 			{
 				routeFile: path.join(rootDir, 'pages', 'first.tsx'),

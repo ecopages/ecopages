@@ -276,7 +276,7 @@ export class RouteRegistry {
 	 * @remarks
 	 * The return shape is {@link PathExpansion}, the same records `staticPaths` produces. They are
 	 * not Static Path Expansions: HTML still uses Request-Time Rendering. The build uses them so
-	 * each Params list's graph is in the browser client manifest.
+	 * each Params list's graph scripts are in the production asset ledger.
 	 */
 	async listDynamicPagePathExpansions(input: { runtimeOrigin: string }): Promise<readonly PathExpansion[]> {
 		return this.listPathExpansions(input, {

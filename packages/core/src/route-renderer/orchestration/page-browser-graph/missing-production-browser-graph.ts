@@ -21,18 +21,18 @@ export function describeProductionBrowserGraphEntry(params?: PageParams, depende
  * Returns whether production serving must reject a Page Browser Graph that was not built.
  *
  * @remarks
- * True only after `ecopages start` restores the browser client manifest. Static export still
- * builds a graph while writing HTML, including Lit workers that never load that manifest.
+ * True only after `ecopages start`, or the Lit static-render worker, restores the production asset ledger.
+ * Static export itself still builds a graph while writing HTML.
  */
 export function shouldRejectUnplannedProductionBrowserGraph(appConfig: EcoPagesAppConfig): boolean {
 	return isProductionRuntime() && requireAppRuntime(appConfig).productionBrowserGraphsSealed;
 }
 
 /**
- * Error for a production request whose Page Browser Graph was not built by `ecopages build`.
+ * Error for a production request whose Page Browser Graph scripts `ecopages build` did not build.
  */
 export function missingProductionBrowserGraphError(routeFile: string, entry: string): Error {
 	return new Error(
-		`The production Page Browser Graph for ${routeFile} is missing from the manifest (entry ${entry}). Run \`ecopages build\` again.`,
+		`The production Page Browser Graph for ${routeFile} is missing from the production asset ledger (entry ${entry}). Run \`ecopages build\` again.`,
 	);
 }

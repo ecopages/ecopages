@@ -155,7 +155,7 @@ export class DependencyResolverService {
 	 *
 	 * @remarks
 	 * Each script is prepared as asset processing prepares it, so its dependency key is the one rendering later looks
-	 * up in `AppRuntime.prebuiltBrowserScripts`. The production prebuild hands them to the app-wide browser build.
+	 * up in `AppRuntime.processedAssets`. The production prebuild hands them to the app-wide browser build.
 	 */
 	collectBundleableScripts(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,

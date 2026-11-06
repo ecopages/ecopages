@@ -20,6 +20,7 @@ import type {
 import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategyType, type HmrAction, type HmrStrategy } from '../../../hmr/hmr-strategy.ts';
 import { DefaultHmrStrategy } from '../../../hmr/strategies/default-hmr-strategy.ts';
+import { TemplateSourceHmrStrategy } from '../../../hmr/strategies/template-source-hmr-strategy.ts';
 import { JsHmrStrategy } from '../../../hmr/strategies/js-hmr-strategy.ts';
 import { ServerRenderedTemplateHmrStrategy } from '../../../hmr/strategies/server-rendered-template-hmr-strategy.ts';
 import {
@@ -179,6 +180,7 @@ export class HmrManager implements IHmrManager {
 		this.strategies = [
 			new JsHmrStrategy(jsContext),
 			new ServerRenderedTemplateHmrStrategy(this.invalidationService),
+			new TemplateSourceHmrStrategy(this.invalidationService, jsContext),
 		];
 	}
 

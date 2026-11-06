@@ -45,11 +45,11 @@ Server builds register nothing for CSS: the bundler replaces their stylesheet im
 | Development | `setup()` prewarms the runtime cache; `onChanges` keeps it current and broadcasts. |
 | Production runtime | `persistProcessedCss` writes `distDir/assets/<hash>.css` from the output bytes (`writeHashedBrowserAsset`). |
 
-In development the persisted file keeps its source-relative path under `distDir/assets`, rewritten only when the bytes change. Why: a stable href is what lets `css-update` refresh the same `link`. Only stylesheets inside `srcDir` are persisted.
+In development the persisted file keeps its source-relative path under `distDir/assets`, rewritten only when the bytes change. Only stylesheets inside `srcDir` are persisted.
 
 ## Config loading
 
-The plugin list loads lazily, once, on the first `transformStylesheet` (`ensurePostcssPlugins`); a failed load is dropped so the next stylesheet retries. Why lazily: `plugins(app)` runs at finalization and must not do I/O, and an app without stylesheets never pays for it.
+The plugin list loads lazily, once, on the first `transformStylesheet` (`ensurePostcssPlugins`); a failed load is dropped so the next stylesheet retries. Config finalization does not load the plugins, so a build that starts before `setup()` and an app without stylesheets both work.
 
 Resolution order in `resolvePostcssPluginsFromSources`:
 
@@ -65,7 +65,7 @@ Note that a config file wins over options.
 
 `src/presets/` holds `tailwindV3Preset()` and `tailwindV4Preset({ referencePath })`. Both return `plugins` for immediate use and `pluginFactories`, with `postcss-import` (app-aware, resolving from the app root), nesting, Tailwind, autoprefixer and cssnano.
 
-Why factories: Tailwind keeps internal caches in long-lived plugin instances. When a non-CSS file changes, `refreshConfiguredPlugins` rebuilds the list from the factories so newly used classes are found.
+Factories exist because Tailwind keeps internal caches in long-lived plugin instances: when a non-CSS file changes, `refreshConfiguredPlugins` rebuilds the list from them so newly used classes are found.
 
 The v4 preset also sets `dependencyEntryPaths: [referencePath]` and a `transformInput` that rewrites `@import 'tailwindcss'` to the reference file, or prepends `@reference` to files that use `@apply`, so component stylesheets see the theme. It skips the reference file itself and files that already reference it.
 
@@ -76,7 +76,7 @@ The v4 preset also sets `dependencyEntryPaths: [referencePath]` and a `transform
 In `onChanges` (queued, so batches run in order):
 
 - A changed CSS file that is an import of an entry rebuilds that entry, not the file.
-- A changed non-CSS file (watch extensions include `.ts`, `.tsx`, `.mdx`, `.html` and others) rebuilds the entries from `dependencyEntryPaths`, or every tracked entry when none is set, because utility classes may have changed.
+- A changed non-CSS file (watch extensions include `.ts`, `.tsx`, `.mdx`, `.html` and others) rebuilds the entries from `dependencyEntryPaths`, or every tracked entry when none is set.
 - `processAndBroadcast` re-runs the transform and calls `bridge.cssUpdate(file)` only when the output differs from the cached one. A failure calls `bridge.error`.
 
 The bridge sends a `css-update` message and the client refreshes matching stylesheet `link` hrefs; see [/dev/hmr-watcher-invalidation](/dev/hmr-watcher-invalidation) and [/dev/hmr-client](/dev/hmr-client). CSS does not go through HMR strategies.

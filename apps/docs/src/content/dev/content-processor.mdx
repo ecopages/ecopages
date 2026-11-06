@@ -40,7 +40,7 @@ Per collection, `regenerateCollectionModule` writes three files under the Proces
 | `ecopages:content/<c>/server` | `<c>.server.ts` | Per-slug lazy `import()` of each MDX file, `getComponent(slug)`, `getEntryDependencies(slug)`. |
 | `ecopages:content/<c>/component` | `<c>.server.ts` or `<c>.browser.ts` | `loadComponent(slug)` with a `collection` property. |
 
-`/component` is one specifier with two resolutions. The server graph backs it with the same module as `/server`, so a Page importing both shares one component cache per slug. The Page Browser Graph backs it with the browser module, which loads a browser-compiled entry and returns the module's own default export. Why: a hydratable Page needs the entry in the browser, but `/server` must never become browser-reachable.
+`/component` is one specifier with two resolutions. The server graph backs it with the same module as `/server`, so a Page importing both shares one component cache per slug. The Page Browser Graph backs it with the browser module, which loads a browser-compiled entry and returns the module's own default export.
 
 ## Server and client boundary
 
@@ -49,7 +49,7 @@ Per collection, `regenerateCollectionModule` writes three files under the Proces
 - Server: resolves all three specifiers. For `/server` and `/component` it first builds a compiled collection artifact, then externalizes it so Node loads one instance. In the unified production graph (`shouldBuildPagesUnifiedGraph()`) the generated files are inlined instead and emitted to `dist/server/`.
 - Browser: resolves entries and `/component` to generated files on disk (not a virtual namespace, so relative MDX imports resolve), and omits `/server`. `createContentServerBoundaryPlugin` throws if `/server` is still reached, with a message to move the import into a server-only Page option.
 
-Every resolve awaits `ensureCollectionsGenerated()`, which `setup()` also calls. Why: a build can start before `setup()`, and the shared promise makes both wait on the same generation. A failed generation is dropped so the next caller retries.
+Every resolve awaits `ensureCollectionsGenerated()`, which `setup()` also calls. `setup()` and every resolve share one generation promise, so a build that starts before `setup()` waits for the generated modules instead of finding none. A failed generation is dropped so the next caller retries.
 
 The compiled artifact (`ensureCollectionServerArtifact`) is built lazily, single-flight per collection, because it bundles every entry's MDX. It is named from a hash of the generated file plus entry sources and the app module loader's development generation, and discarded when a source changes during the build.
 
@@ -59,7 +59,7 @@ Each entry component is wrapped by `invokeContentEntry`, which compares the entr
 
 ## Joining route preparation
 
-`getEntryDependencies(slug)` returns `{ components: [entryComponent] }`. A Page passes it as its `dependencies` function, and `collectPageDependencyComponents` expands the result into collector roots like any other Component. Why a Component and not asset paths: the entry's scripts and stylesheets come from its identity, so content needs no separate asset channel. It does not copy `config.dependencies` or set `ownerFile`. See [/dev/pages-layouts-components](/dev/pages-layouts-components).
+`getEntryDependencies(slug)` returns `{ components: [entryComponent] }`. A Page passes it as its `dependencies` function, and `collectPageDependencyComponents` expands the result into collector roots like any other Component. The collector walks the entry's MDX identity. It does not copy `config.dependencies` or set `ownerFile`. See [/dev/pages-layouts-components](/dev/pages-layouts-components).
 
 ## Setup, watch and production
 

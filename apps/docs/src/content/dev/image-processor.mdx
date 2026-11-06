@@ -37,11 +37,13 @@ There are two different identifiers, and they do different jobs.
 | File name | A hash of the encoded bytes (`writeHashedBrowserAsset`) | The output file and its public URL |
 | `cacheKey` | Source basename, source file hash, quality, format, and the `width:label` list | The Processor cache entry holding the finished specification |
 
-Why: the file name follows the bytes, so a quality or format change produces a new URL and browsers never serve a stale variant. The cache key includes the encoding options so such a change also cannot reuse a previous specification. Identical encoded bytes share one file across source images.
+The file name comes from the encoded bytes, not from the cache key. The cache key includes the encoding options so a quality or format change cannot reuse a previous variant. Identical encoded bytes share one file across source images.
+
+The core Processor cache stores each entry as `<digest of key>.json`, so a key containing `:` or `/` (as this one does) is safe on every platform.
 
 A cache hit is only accepted when the main file and every variant file still exist in `outputDir`; otherwise the image is re-encoded. `cacheEnabled` defaults to true.
 
-The public `src` is `publicPath` joined with the file name using `/` on every platform (`toPublicImageSrc`). It lives in its own module because `image-utils.ts` is imported by client code and cannot use `node:path`.
+The public `src` and every `srcset` entry are `publicPath` joined with the file name using `path.posix`, so they use `/` on every platform (`toPublicImageSrc`). It lives in its own module because `image-utils.ts` is imported by client code and cannot use `node:path`.
 
 ## The `ecopages:images` module
 
@@ -52,7 +54,7 @@ The public `src` is `publicPath` joined with the file name using `/` on every pl
 
 Both call `ensurePrepared()` and then emit one `export const <camelCase name> = <specification JSON>` per image. Both close over the same `processedImages` object, which is why the plugin mutates it in place (`replaceProcessedImages`) instead of reassigning.
 
-Why `plugins()` does no work: core reads it once at config finalization and it must not do I/O, so all generation is deferred to `setup()` or to the load callback.
+`plugins()` does no work: core reads it once at config finalization and it must not do I/O, so generation is deferred to `setup()` or to the load callback.
 
 ## Setup versus restore
 

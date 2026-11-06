@@ -8,14 +8,9 @@
  */
 
 import { createClientGraphBoundaryPlugin, createForeignJsxScope } from '../client-graph/boundary-plugin.ts';
-import { getReactClientGraphAllowSpecifiers, getReactRuntimeExternalSpecifiers } from './runtime-alias-map.ts';
-import { createBrowserRuntimePlugin } from '@ecopages/core/build';
-import { findJsxExtensionOwner, getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build';
+import { findJsxExtensionOwner, getHostScopedJsxOwnershipPlugins, isProductionRuntime } from '@ecopages/core/build';
 import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/integration';
-import type { AssetDefinition, AssetProcessingIntegration } from '@ecopages/core/integration';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
-import { RuntimeBundleService, type ReactRuntimeImports } from './runtime-bundle.ts';
-import { isReactProductionRuntime } from './runtime-mode.ts';
 
 /**
  * Configuration for the BundleService.
@@ -23,43 +18,31 @@ import { isReactProductionRuntime } from './runtime-mode.ts';
 export interface BundleServiceConfig {
 	rootDir: string;
 	appConfig: IntegrationRuntimeContext['appConfig'];
-	assetProcessingIntegration?: AssetProcessingIntegration;
 	hostIntegrationName: string;
 	routerAdapter?: ReactRouterAdapter;
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 }
 
 /**
- * Optional flags that adjust how a React client entry is bundled.
+ * Packages whose imports the client-graph boundary keeps whatever a module's declared `modules` say.
+ *
+ * @remarks
+ * Hydration needs React, React DOM, core's browser entry and the configured router in every client graph.
  */
-export interface ReactClientBundleOptions {
-	/**
-	 * When `true`, bundle React runtime dependencies into the emitted entry instead of
-	 * rewriting them to external runtime specifiers.
-	 */
-	includeRuntime?: boolean;
-	/**
-	 * When set, overrides the build adapter chunk splitting mode for this entry.
-	 */
-	splitting?: boolean;
+export function getReactClientGraphAllowSpecifiers(routerAdapter?: ReactRouterAdapter): string[] {
+	return ['@ecopages/core', 'react', 'react-dom', ...(routerAdapter ? [routerAdapter.importPath] : [])];
 }
 
 /**
  * Manages bundle configuration and plugin creation for React page/component builds.
  */
 export class BundleService {
-	private readonly runtimeBundleService: RuntimeBundleService;
 	private readonly config: BundleServiceConfig;
 	private readonly foreignJsxOverridePlugin: EcoBuildPlugin | undefined;
-	private readonly runtimeRewritePlugin: EcoBuildPlugin | null;
 	private mdxLoaderPlugin: EcoBuildPlugin | null | undefined;
 
 	constructor(config: BundleServiceConfig) {
 		this.config = config;
-		this.runtimeBundleService = new RuntimeBundleService({
-			rootDir: config.rootDir,
-			routerAdapter: config.routerAdapter,
-		});
 		[this.foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(
 			config.appConfig,
 			config.hostIntegrationName,
@@ -75,36 +58,14 @@ export class BundleService {
 				}),
 			},
 		);
-		this.runtimeRewritePlugin = createBrowserRuntimePlugin({
-			name: 'react-renderer-runtime-import-rewrite',
-			manifest: this.runtimeBundleService.getRuntimeManifest(),
-		});
-	}
-
-	/**
-	 * Returns resolved runtime import paths for the React runtime.
-	 */
-	getRuntimeImports(): ReactRuntimeImports {
-		return this.runtimeBundleService.getRuntimeImports();
-	}
-
-	/**
-	 * Returns the MDX-only page-layout-normalization vendor, which an MDX Page Browser Graph declares.
-	 *
-	 * @remarks
-	 * It is a browser runtime asset left out of the HTML: core processes it with the graph, and the runtime
-	 * specifier rewrite points the page bootstrap at its fixed URL.
-	 */
-	getPageLayoutNormalizationDependencies(): AssetDefinition[] {
-		return this.runtimeBundleService.getPageLayoutNormalizationDependencies();
 	}
 
 	/**
 	 * Creates bundle options for a page or component entry.
 	 *
 	 * @remarks
-	 * React derives runtime specifier mappings from the core browser runtime manifest
-	 * so ESM imports resolve to concrete runtime asset URLs during module loading.
+	 * React, React DOM and the router are ordinary packages of the build, so the bundler resolves and shares them
+	 * like any other import.
 	 *
 	 * @param componentName - Generated unique component name for output naming
 	 * @param declaredModules - Explicitly declared browser module specifiers
@@ -113,48 +74,24 @@ export class BundleService {
 	async createBundleOptions(
 		componentName: string,
 		declaredModules: string[],
-		bundleOptions: ReactClientBundleOptions = {},
 		entrypointFile?: string,
 		groupedEntrypointFiles?: readonly string[],
 		groupedDeclaredModules?: readonly string[],
 	): Promise<Record<string, unknown>> {
-		const runtimeImports = this.getRuntimeImports();
-		const options: Record<string, unknown> = {
+		return {
 			mainFields: ['module', 'browser', 'main'],
 			naming: `${componentName}.[ext]`,
-			...(isReactProductionRuntime() && {
+			...(isProductionRuntime() && {
 				minify: true,
 				treeshaking: true,
 			}),
-			...(bundleOptions.splitting === undefined ? {} : { splitting: bundleOptions.splitting }),
+			plugins: this.createClientBuildPlugins({
+				declaredModules,
+				entrypointFile,
+				groupedEntrypointFiles,
+				groupedDeclaredModules,
+			}),
 		};
-
-		if (!bundleOptions.includeRuntime) {
-			const reactRuntimeSpecifiers = new Set(getReactRuntimeExternalSpecifiers());
-			options.external = [
-				...Object.values(runtimeImports).filter(
-					(specifier): specifier is string =>
-						Boolean(specifier) &&
-						!reactRuntimeSpecifiers.has(
-							specifier as typeof getReactRuntimeExternalSpecifiers extends () => infer T
-								? T extends readonly (infer U)[]
-									? U
-									: never
-								: never,
-						),
-				),
-			];
-		}
-
-		options.plugins = this.createClientBuildPlugins({
-			declaredModules,
-			entrypointFile,
-			groupedEntrypointFiles,
-			groupedDeclaredModules,
-			includeRuntime: bundleOptions.includeRuntime,
-		});
-
-		return options;
 	}
 
 	private createClientBuildPlugins(options: {
@@ -162,7 +99,6 @@ export class BundleService {
 		entrypointFile?: string;
 		groupedEntrypointFiles?: readonly string[];
 		groupedDeclaredModules?: readonly string[];
-		includeRuntime?: boolean;
 	}): EcoBuildPlugin[] {
 		const graphBoundaryPlugin = createClientGraphBoundaryPlugin({
 			projectRoot: this.config.appConfig?.absolutePaths?.projectDir ?? this.config.rootDir,
@@ -174,15 +110,10 @@ export class BundleService {
 			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(this.config.routerAdapter),
 		});
 
-		const runtimePlugins = options.includeRuntime
-			? []
-			: [this.runtimeRewritePlugin].filter((plugin): plugin is NonNullable<typeof plugin> => plugin !== null);
-
 		const mdxPlugin = this.getMdxLoaderPlugin();
 		return [
 			...(this.foreignJsxOverridePlugin ? [this.foreignJsxOverridePlugin] : []),
 			graphBoundaryPlugin,
-			...runtimePlugins,
 			...(mdxPlugin ? [mdxPlugin] : []),
 		];
 	}

@@ -13,6 +13,15 @@ const reactDomUrl = dataUrl(`
 	};
 `);
 
+/** Points each package import of a generated entry at a stand-in module, as the bundler or the dev rewrite would. */
+function linkImports(source: string, modules: Record<string, string>): string {
+	let linked = source;
+	for (const [specifier, url] of Object.entries(modules)) {
+		linked = linked.replaceAll(`from ${JSON.stringify(specifier)}`, `from ${JSON.stringify(url)}`);
+	}
+	return linked;
+}
+
 type PageRuntime = {
 	islandComponents?: Record<string, unknown>;
 	hmrHandlers?: Record<string, unknown>;
@@ -39,18 +48,19 @@ describe('createIslandEntrySource', () => {
 		const scriptId = `island-entry-${hmrEnabled}`;
 		const importPath = dataUrl(`export default function Component() {} // ${scriptId}`);
 
+		const source = createIslandEntrySource({
+			importPath,
+			scriptId,
+			targetSelector: '[data-eco-component-key="component"]',
+			hmrEnabled,
+		});
+
 		await import(
 			dataUrl(
-				createIslandEntrySource({
-					importPath,
-					scriptId,
-					reactImportPath: dataUrl(
-						'export const createElement = () => ({}); export const useEffect = () => {};',
-					),
-					reactDomClientImportPath: reactDomUrl,
-					islandHydrationImportPath: islandHydrationUrl,
-					targetSelector: '[data-eco-component-key="component"]',
-					hmrEnabled,
+				linkImports(source, {
+					react: dataUrl('export const createElement = () => ({}); export const useEffect = () => {};'),
+					'react-dom/client': reactDomUrl,
+					'@ecopages/react/island-hydration': islandHydrationUrl,
 				}),
 			)
 		);
@@ -77,19 +87,22 @@ describe('createPageEntrySource', () => {
 		const scriptId = `page-entry-${hmrEnabled}-${isMdx}`;
 		const pageUrl = dataUrl(`export default function Page() {} export const config = {}; // ${scriptId}`);
 
+		const source = createPageEntrySource({
+			importPath: pageUrl,
+			pageModuleUrlExpression: JSON.stringify(pageUrl),
+			scriptId,
+			hmrEnabled,
+			isMdx,
+		});
+
 		await import(
 			dataUrl(
-				createPageEntrySource({
-					importPath: pageUrl,
-					pageModuleUrlExpression: JSON.stringify(pageUrl),
-					scriptId,
-					reactImportPath: dataUrl('export const createElement = () => ({});'),
-					reactDomClientImportPath: reactDomUrl,
-					pageHydrationImportPath: pageHydrationUrl,
-					layoutComposeImportPath: dataUrl('export const composeLayoutPageTree = () => ({});'),
-					pageLayoutNormalizationImportPath: dataUrl('export const ensurePageConfigLayouts = () => {};'),
-					hmrEnabled,
-					isMdx,
+				linkImports(source, {
+					react: dataUrl('export const createElement = () => ({});'),
+					'react-dom/client': reactDomUrl,
+					'@ecopages/react/page-hydration': pageHydrationUrl,
+					'@ecopages/react/layout-compose': dataUrl('export const composeLayoutPageTree = () => ({});'),
+					'@ecopages/core/client': dataUrl('export const ensurePageConfigLayouts = () => {};'),
 				}),
 			)
 		);

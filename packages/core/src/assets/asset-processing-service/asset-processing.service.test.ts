@@ -547,16 +547,16 @@ test('AssetProcessingService - deduplication preserves package role distinctions
 		filepath: 'path/to/dedup-role.js',
 		packageRole: 'page-script' as const,
 	};
-	const runtimeDependency: AssetDefinition = {
+	const separateDependency: AssetDefinition = {
 		...pageDependency,
-		packageRole: 'runtime' as const,
+		packageRole: 'keep-separate' as const,
 	};
 
-	const results = await service.processDependencies([pageDependency, runtimeDependency], undefined);
+	const results = await service.processDependencies([pageDependency, separateDependency], undefined);
 
 	expect(processMock).toHaveBeenCalledTimes(2);
 	expect(results).toHaveLength(2);
-	expect(results.map((result) => result.packageRole)).toEqual(['page-script', 'runtime']);
+	expect(results.map((result) => result.packageRole)).toEqual(['page-script', 'keep-separate']);
 });
 
 test('AssetProcessingService - integration prepareAssetDependencies runs before grouped processing', async () => {
@@ -873,7 +873,7 @@ test('AssetProcessingService - a change to a produced file evicts its cached ass
 	expect(processMock).toHaveBeenCalledTimes(2);
 });
 
-test('AssetProcessingService clears the page cache when the source of a runtime asset changes', async () => {
+test('AssetProcessingService clears the page cache when the source of a page script changes', async () => {
 	vi.stubEnv('NODE_ENV', 'development');
 	fileSystem.exists = vi.fn(() => true);
 	fileSystem.hash = vi.fn().mockReturnValueOnce('source-v1').mockReturnValue('source-v2');
@@ -886,24 +886,24 @@ test('AssetProcessingService clears the page cache when the source of a runtime 
 	const processMock = vi
 		.fn()
 		.mockResolvedValueOnce({
-			filepath: '/test/dist/client/assets/vendors/runtime-v1.js',
+			filepath: '/test/dist/client/assets/page-v1.js',
 			kind: 'script' as const,
 			inline: false,
-			packageRole: 'runtime' as const,
+			packageRole: 'page-script' as const,
 		})
 		.mockResolvedValueOnce({
-			filepath: '/test/dist/client/assets/vendors/runtime-v2.js',
+			filepath: '/test/dist/client/assets/page-v2.js',
 			kind: 'script' as const,
 			inline: false,
-			packageRole: 'runtime' as const,
+			packageRole: 'page-script' as const,
 		});
 	service.registerProcessor('script', 'file', { process: processMock });
 
 	const dependency: AssetDefinition = {
 		kind: 'script' as const,
 		source: 'file',
-		filepath: '/test/src/runtime.ts',
-		packageRole: 'runtime' as const,
+		filepath: '/test/src/page.ts',
+		packageRole: 'page-script' as const,
 	};
 
 	await service.processDependencies([dependency], undefined);

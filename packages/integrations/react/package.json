@@ -31,7 +31,6 @@
 		},
 		"./utils/dynamic": "./src/app/dynamic.ts",
 		"./utils/client-only": "./src/app/client-only.ts",
-		"./runtime/use-sync-external-store-with-selector": "./src/runtime/use-sync-external-store-with-selector.ts",
 		"./router-adapter": "./src/contracts/router-adapter.ts",
 		"./layout-compose": "./src/render/layout-compose.ts",
 		"./island-hydration": "./src/hydration/browser/island-hydration.ts",

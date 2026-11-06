@@ -67,6 +67,7 @@ describe('IntegrationPlugin', () => {
 			registerDevTransformContributor: vi.fn(),
 			registerEntrypoint: vi.fn(),
 			registerScriptEntrypoint: vi.fn(),
+			rewriteModuleImports: vi.fn(),
 			setEnabled: vi.fn(),
 			stop: vi.fn(),
 			isEnabled: vi.fn(() => true),

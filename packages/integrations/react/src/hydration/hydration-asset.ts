@@ -12,11 +12,9 @@ import type { EcoComponentConfig } from '@ecopages/core';
 import { contentHash } from '@ecopages/core/build';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/build';
 import type { PageClientBuildEntry } from '@ecopages/core/integration';
-import { isReactProductionRuntime } from '../bundling/runtime-mode.ts';
 import {
 	APP_BROWSER_CLIENT_BUNDLE_ID,
 	AssetFactory,
-	createAppBrowserClientEntry,
 	type AssetDefinition,
 	type ContentScriptAsset,
 	type ProcessedAsset,
@@ -24,7 +22,6 @@ import {
 import type { AssetProcessingIntegration, AssetProcessingService } from '@ecopages/core/integration';
 import { createIslandEntrySource } from './hydration-island-entry-source.ts';
 import { createPageEntrySource } from './hydration-page-entry-source.ts';
-import { resolveHydrationBootstrapImports } from './bootstrap-imports.ts';
 import { collectDeclaredModulesInConfig } from '../client-graph/declared-modules.ts';
 import type { BundleService } from '../bundling/bundle.ts';
 import type { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
@@ -49,7 +46,6 @@ type PageDependencyOptions = {
 	pageModuleUrlExpression: string;
 	bundleOptions: Record<string, unknown>;
 	hmrEnabled: boolean;
-	useBrowserRuntimeImports: boolean;
 	isMdx: boolean;
 };
 
@@ -74,7 +70,6 @@ export function getIslandComponentKey(componentFile: string, config?: EcoCompone
  */
 export class HydrationAssetService {
 	private readonly config: HydrationAssetServiceConfig;
-	private static readonly ROUTER_PAGE_GROUPED_BUNDLE_ID = APP_BROWSER_CLIENT_BUNDLE_ID;
 
 	constructor(config: HydrationAssetServiceConfig) {
 		this.config = config;
@@ -88,7 +83,7 @@ export class HydrationAssetService {
 		return `${bundleName}-hydration-${componentKey}`;
 	}
 
-	private getRouterPageGroupedEntryName(pagePath: string): string {
+	private getPageGroupedEntryName(pagePath: string): string {
 		const relativePath = path.relative(this.config.srcDir, pagePath);
 		return relativePath
 			.replace(/\.(tsx?|jsx?|mdx?)$/, '')
@@ -121,44 +116,22 @@ export class HydrationAssetService {
 	 * Creates the page-owned route entry asset for hydration and client navigation.
 	 *
 	 * @remarks
-	 * The entry imports the `@ecopages/react/page-hydration` lifecycle.
-	 * Production router pages may be grouped into the Page Browser Graph, while
-	 * HMR entries remain separate ESM scripts with browser-resolvable imports.
+	 * The entry imports the `@ecopages/react/page-hydration` lifecycle and React by package name. Outside HMR it is
+	 * an entry of the app-wide browser build, so React and every other shared module are chunks it shares with the
+	 * islands and the other Pages. With HMR it stays a separate unbundled ESM script whose imports core rewrites to
+	 * dev-transform and vendor URLs.
 	 */
 	async createPageDependencies(options: PageDependencyOptions): Promise<AssetDefinition[]> {
-		const {
-			pagePath,
-			componentName,
-			importPath,
-			pageModuleUrlExpression,
-			bundleOptions,
-			hmrEnabled,
-			useBrowserRuntimeImports,
-			isMdx,
-		} = options;
-		const runtimeImports = this.config.bundleService.getRuntimeImports();
-		const groupedBundle =
-			!hmrEnabled && this.config.routerAdapter
-				? {
-						id: HydrationAssetService.ROUTER_PAGE_GROUPED_BUNDLE_ID,
-						entryName: this.getRouterPageGroupedEntryName(pagePath),
-					}
-				: undefined;
-		const bootstrapImports = resolveHydrationBootstrapImports({
-			useBrowserRuntimeImports,
-			runtimeImports,
-			routerAdapterImportPath: this.config.routerAdapter?.bundle.importPath,
-		});
+		const { pagePath, componentName, importPath, pageModuleUrlExpression, bundleOptions, hmrEnabled, isMdx } =
+			options;
+		const groupedBundle = hmrEnabled
+			? undefined
+			: { id: APP_BROWSER_CLIENT_BUNDLE_ID, entryName: this.getPageGroupedEntryName(pagePath) };
 		const pageHydrationScript = createPageEntrySource({
 			importPath: hmrEnabled ? importPath : pagePath,
 			pageModuleUrlExpression,
 			scriptId: componentName,
-			reactImportPath: bootstrapImports.reactImportPath,
-			reactDomClientImportPath: bootstrapImports.reactDomClientImportPath,
-			pageHydrationImportPath: bootstrapImports.pageHydrationImportPath,
-			routerImportPath: bootstrapImports.routerImportPath,
-			layoutComposeImportPath: bootstrapImports.layoutComposeImportPath,
-			pageLayoutNormalizationImportPath: bootstrapImports.pageLayoutNormalizationImportPath,
+			routerImportPath: this.config.routerAdapter?.importPath,
 			routerComponents: this.config.routerAdapter?.components,
 			routerPropsExpression: this.config.routerAdapter?.getRouterProps('Page', 'props'),
 			hmrEnabled,
@@ -170,12 +143,6 @@ export class HydrationAssetService {
 				content: pageHydrationScript,
 				name: componentName,
 				packageRole: 'page-script',
-				/**
-				 * @remarks
-				 * HMR bootstraps stay unbundled write-through ESM. Helper imports must
-				 * already be browser-resolvable vendor URLs from
-				 * {@link resolveHydrationBootstrapImports}.
-				 */
 				bundle: !hmrEnabled,
 				groupedBundle,
 				bundleOptions,
@@ -215,7 +182,7 @@ export class HydrationAssetService {
 		return this.buildGroupedPageClientAssets(uniqueIslands, input.lazyEntries);
 	}
 
-	/** Collects React island hydration entries for the production app browser build. */
+	/** Collects React island hydration entries for a grouped browser build, which is the app-wide build in production. */
 	async collectAppBrowserClientBuildEntries(
 		islands: Array<{ file: string; config?: EcoComponentConfig }>,
 	): Promise<PageClientBuildEntry[]> {
@@ -232,7 +199,6 @@ export class HydrationAssetService {
 			const bundleOptions = await this.config.bundleService.createBundleOptions(
 				componentName,
 				declaredModules,
-				{},
 				island.file,
 				groupedEntrypointFiles,
 				groupedDeclaredModules,
@@ -293,96 +259,26 @@ export class HydrationAssetService {
 		return processedAssets;
 	}
 
+	/**
+	 * Builds the island hydration entries and lazy entries in one grouped browser build.
+	 *
+	 * @remarks
+	 * Each hydration entry imports its island module and React by package name, so the build shares React, the
+	 * bootstrap and every common module between them as chunks.
+	 */
 	private async buildGroupedPageClientAssets(
 		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
 		lazyEntries?: AssetDefinition[],
 	): Promise<ProcessedAsset[]> {
-		const islandEntries = await this.createGroupedIslandEntries(uniqueIslands);
-		const clientEntries = [...islandEntries, ...(lazyEntries ?? [])];
-		const processedClientEntries =
-			clientEntries.length > 0
-				? await this.config.assetProcessingService.processDependencies(
-						clientEntries,
-						this.config.assetProcessingIntegration,
-					)
-				: [];
-		const srcUrlByEntryName = this.indexSrcUrlsByEntryName(processedClientEntries);
-		const hydrationScripts = await this.createGroupedHydrationScripts(uniqueIslands, srcUrlByEntryName);
-		const processedHydration =
-			hydrationScripts.length > 0
-				? await this.config.assetProcessingService.processDependencies(
-						hydrationScripts,
-						this.config.assetProcessingIntegration,
-					)
-				: [];
-
-		return [...processedClientEntries, ...processedHydration];
-	}
-
-	private async createGroupedIslandEntries(
-		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
-	): Promise<AssetDefinition[]> {
-		const islandEntries: AssetDefinition[] = [];
-		const declaredModulesByFile = new Map<string, Set<string>>();
-		for (const { file, config } of uniqueIslands) {
-			const declaredModules = declaredModulesByFile.get(file) ?? new Set<string>();
-			for (const module of collectDeclaredModulesInConfig(config)) declaredModules.add(module);
-			declaredModulesByFile.set(file, declaredModules);
+		const hydrationEntries = await this.collectAppBrowserClientBuildEntries(uniqueIslands);
+		const clientEntries = [...hydrationEntries.map(({ dependency }) => dependency), ...(lazyEntries ?? [])];
+		if (clientEntries.length === 0) {
+			return [];
 		}
-		const groupedEntrypointFiles = [...declaredModulesByFile.keys()];
-		const groupedDeclaredModules = [
-			...new Set(uniqueIslands.flatMap(({ config }) => collectDeclaredModulesInConfig(config))),
-		];
-		for (const [file, declaredModules] of declaredModulesByFile) {
-			const componentName = this.getIslandBundleName(file);
-			const bundleOptions = await this.config.bundleService.createBundleOptions(
-				componentName,
-				[...declaredModules],
-				{},
-				file,
-				groupedEntrypointFiles,
-				groupedDeclaredModules,
-			);
-			islandEntries.push(
-				createAppBrowserClientEntry({
-					entryName: componentName,
-					importPath: file,
-					reexport: true,
-					packageRole: 'dynamic-chunk',
-					bundleOptions,
-					attributes: {
-						'data-eco-persist': 'true',
-					},
-				}),
-			);
-		}
-		return islandEntries;
-	}
-
-	private indexSrcUrlsByEntryName(processedClientEntries: ProcessedAsset[]): Map<string, string> {
-		const srcUrlByEntryName = new Map<string, string>();
-		for (const processed of processedClientEntries) {
-			const entryName = processed.groupedBundle?.entryName;
-			if (entryName && processed.srcUrl) {
-				srcUrlByEntryName.set(entryName, processed.srcUrl);
-			}
-		}
-		return srcUrlByEntryName;
-	}
-
-	private async createGroupedHydrationScripts(
-		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
-		srcUrlByEntryName: Map<string, string>,
-	): Promise<AssetDefinition[]> {
-		const hydrationScripts: AssetDefinition[] = [];
-		for (const island of uniqueIslands) {
-			const importPath = srcUrlByEntryName.get(this.getIslandBundleName(island.file));
-			if (!importPath) {
-				throw new Error(`Missing grouped browser output for island ${island.file}`);
-			}
-			hydrationScripts.push(this.createIslandHydrationScript(island.file, island.config, importPath, false));
-		}
-		return hydrationScripts;
+		return this.config.assetProcessingService.processDependencies(
+			clientEntries,
+			this.config.assetProcessingIntegration,
+		);
 	}
 
 	private async buildHmrIslandAssets(componentFile: string, config?: EcoComponentConfig): Promise<ProcessedAsset[]> {
@@ -403,13 +299,9 @@ export class HydrationAssetService {
 		const componentName = this.getIslandBundleName(componentFile);
 		const componentKey = getIslandComponentKey(componentFile, config);
 		const hydrationName = this.getIslandHydrationName(componentName, componentKey);
-		const runtimeImports = this.config.bundleService.getRuntimeImports();
 		const islandHydrationScript = createIslandEntrySource({
 			importPath,
 			scriptId: hydrationName,
-			reactImportPath: runtimeImports.react,
-			reactDomClientImportPath: runtimeImports.reactDomClient,
-			islandHydrationImportPath: runtimeImports.islandHydration,
 			targetSelector: `[data-eco-component-key="${componentKey}"]`,
 			componentRef: config?.identity?.id,
 			hmrEnabled,
@@ -434,12 +326,6 @@ export class HydrationAssetService {
 	/**
 	 * Creates the page browser graph dependency declarations for a React page.
 	 *
-	 * @remarks
-	 * Chooses shared vendor import URLs when HMR is on, when running a non-production
-	 * hosted runtime with HMR off, or when a router adapter is configured (router
-	 * pages always externalize to shared runtimes). Production non-router pages
-	 * may inline React into the page bundle instead.
-	 *
 	 * @param pagePath - Absolute file path of the page
 	 * @param isMdx - Whether the page is an MDX file
 	 * @param declaredModules - Explicitly declared browser module specifiers
@@ -452,21 +338,16 @@ export class HydrationAssetService {
 		const componentName = `ecopages-react-${BigInt(`0x${contentHash(pagePath, 16)}`).toString()}`;
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
 		const hmrEnabled = hmrManager?.isEnabled() ?? false;
-		const productionRuntime = isReactProductionRuntime();
-		const usesRouterRuntime = Boolean(this.config.routerAdapter);
-		const useBrowserRuntimeImports = hmrEnabled || !productionRuntime || usesRouterRuntime;
 		if (hmrEnabled) {
 			this.config.hmrPageMetadataCache?.setDeclaredModules(pagePath, declaredModules);
 		}
 
 		const importPath = await this.resolveAssetImportPath(pagePath, componentName);
 		const pageModuleUrlExpression = hmrEnabled ? JSON.stringify(importPath) : 'import.meta.url';
-		const bundleOptions = await this.config.bundleService.createBundleOptions(
-			componentName,
-			declaredModules,
-			{ includeRuntime: !useBrowserRuntimeImports, splitting: usesRouterRuntime },
-			pagePath,
-		);
+		const bundleOptions = {
+			...(await this.config.bundleService.createBundleOptions(componentName, declaredModules, pagePath)),
+			splitting: true,
+		};
 		const dependencies = await this.createPageDependencies({
 			pagePath,
 			componentName,
@@ -474,7 +355,6 @@ export class HydrationAssetService {
 			pageModuleUrlExpression,
 			bundleOptions,
 			hmrEnabled,
-			useBrowserRuntimeImports,
 			isMdx,
 		});
 

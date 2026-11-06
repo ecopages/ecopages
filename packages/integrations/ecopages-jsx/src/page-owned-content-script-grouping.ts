@@ -19,7 +19,7 @@ function isPageOwnedGroupableContentScript(dep: AssetDefinition): dep is Content
 		return false;
 	}
 
-	if (dep.packageRole === 'keep-separate' || dep.packageRole === 'runtime' || dep.packageRole === 'dynamic-chunk') {
+	if (dep.packageRole === 'keep-separate' || dep.packageRole === 'dynamic-chunk') {
 		return false;
 	}
 

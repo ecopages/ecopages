@@ -46,10 +46,10 @@ Pages and Islands hydrate through two different bootstraps, and React ships both
 
 | Bootstrap | Used by | Behavior |
 | --- | --- | --- |
-| `page-hydration` | the Page entry of a React Page | Owns the document tree, navigation ownership, cleanup and HMR for the page root. A production Page entry that inlines React bundles it; every other entry imports its `/assets/vendors/` URL. |
-| `island-hydration` | one entry per React Island | `mountIslands` hydrates every matching host that has no root yet, and `readProps` decodes `data-eco-props`. The entry always imports the vendor URL. |
+| `page-hydration` | the Page entry of a React Page | Owns the document tree, navigation ownership, cleanup and HMR for the page root. |
+| `island-hydration` | one entry per React Island | `mountIslands` hydrates every matching host that has no root yet, and `readProps` decodes `data-eco-props`. |
 
-The island bootstrap receives React as a value (`hydrateRoot`, `createElement`, `useEffect`), so its `/assets/vendors/` build never bundles React and every island entry on a page shares one copy of it. All island entries share one runtime object on `window.__ECO_PAGES__`, with a single `MutationObserver` that unmounts the root of a host removed from the document. The host gets `data-eco-hydrated` after its first commit, and in development `registerIslandHmr` re-renders hosts with a hot-updated module; see [HMR client](/dev/hmr-client). The vendor build itself is the one described in [Dev server](/dev/dev-server) and [Build pipeline](/dev/build-pipeline).
+Entries import the bootstrap, React and React DOM by package name, like any other module. In production every Page and island entry is an entry of the app-wide browser build, so the bootstrap and React are content-hashed chunks shared by all of them; in development the entries are unbundled scripts whose imports core rewrites to the one vendor URL of each package. A page therefore loads React once, whether it has a Page entry, island entries or both. The island bootstrap receives React as a value (`hydrateRoot`, `createElement`, `useEffect`) from its entry rather than importing it. All island entries share one runtime object on `window.__ECO_PAGES__`, with a single `MutationObserver` that unmounts the root of a host removed from the document. The host gets `data-eco-hydrated` after its first commit, and in development `registerIslandHmr` re-renders hosts with a hot-updated module; see [HMR client](/dev/hmr-client). The vendor graph and the app-wide build are described in [Dev server](/dev/dev-server) and [Build pipeline](/dev/build-pipeline).
 
 ## Lazy triggers
 

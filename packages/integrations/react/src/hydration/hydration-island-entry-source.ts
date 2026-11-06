@@ -1,10 +1,9 @@
+import { ISLAND_HYDRATION_PACKAGE } from '../bundling/bootstrap-package-paths.ts';
+
 /** Complete inputs that affect an Island Host entry's generated source. */
 export type IslandEntrySourceOptions = {
 	importPath: string;
 	scriptId: string;
-	reactImportPath: string;
-	reactDomClientImportPath: string;
-	islandHydrationImportPath: string;
 	targetSelector: string;
 	componentRef?: string;
 	hmrEnabled?: boolean;
@@ -15,20 +14,18 @@ export type IslandEntrySourceOptions = {
  * delegates lifecycle behavior to `@ecopages/react/island-hydration`.
  *
  * @remarks
- * The entry imports the bootstrap's `/assets/vendors/` URL, like React itself.
- * Route preparation serves it as written; static export bundles it into the
- * app browser build with that URL kept external. No server process compiles
- * the bootstrap.
+ * The entry imports React and the bootstrap by package name. Production bundles it into the app-wide build, and
+ * development rewrites those imports to their vendor URLs. No server process compiles the bootstrap.
  */
 export function createIslandEntrySource(options: IslandEntrySourceOptions): string {
 	const hmrSource = options.hmrEnabled
 		? `registerIslandHmr(configuration, (url) => import(url), ${JSON.stringify(options.importPath)});`
 		: '';
 	return `
-import { hydrateRoot } from ${JSON.stringify(options.reactDomClientImportPath)};
-import { createElement, useEffect } from ${JSON.stringify(options.reactImportPath)};
+import { hydrateRoot } from "react-dom/client";
+import { createElement, useEffect } from "react";
 import * as ComponentModule from ${JSON.stringify(options.importPath)};
-import { getIslandHydrationRuntime, mountIslands, registerIslandHmr } from ${JSON.stringify(options.islandHydrationImportPath)};
+import { getIslandHydrationRuntime, mountIslands, registerIslandHmr } from ${JSON.stringify(ISLAND_HYDRATION_PACKAGE)};
 
 const configuration = {
   targetSelector: ${JSON.stringify(options.targetSelector)},

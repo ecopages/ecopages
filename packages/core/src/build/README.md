@@ -55,7 +55,7 @@ build/
   server-bundle-publication.ts   staged server/config artifact publication
   rolldown/                       bundler adapter, plugin bridge, package externalization
   cache/                          fingerprints, build-input reverse index, production server-module graph
-  browser/                        client runtime rewrites, JSX ownership, Lit worker guard
+  browser/                        JSX ownership, Lit worker guard
 ```
 
 - `contracts/build-manifest.ts` + `app-build-manifest-runtime.ts`: the `AppBuildManifest` sealed once, with its plugins selected by environment, and contributor validation.
@@ -89,21 +89,20 @@ build/
 
 ## App build manifest
 
-`AppBuildManifest` stores a `server` and a `browser` plugin list, already selected by environment, and a separate `browserRuntimeManifest` on `AppRuntime.buildManifest`. Integrations and Processors both expose `plugins(app)`. Each build plugin declares `environments: ['server']`, `['browser']`, or both; omitted environments apply to both. Config loaders are registered with them. The browser list holds the plugins that also apply to the server first, then the browser runtime plugin, then the browser-only plugins; readers take a list as it is.
+`AppBuildManifest` stores a `server` and a `browser` plugin list, already selected by environment, on `AppRuntime.buildManifest`. Integrations and Processors both expose `plugins(app)`. Each build plugin declares `environments: ['server']`, `['browser']`, or both; omitted environments apply to both. Config loaders are registered with them. The browser list holds the plugins that also apply to the server first, then the browser-only plugins; readers take a list as it is.
 
-Config finalization rejects duplicate plugin names within an environment and identifies both contributors. The same name can be registered once for server and once for browser. Browser runtime declarations remain data from an Integration's `browserRuntimeManifest`, from which core synthesizes import rewrites.
+Config finalization rejects duplicate plugin names within an environment and identifies both contributors. The same name can be registered once for server and once for browser. No Integration rewrites framework imports to fixed URLs: React and every other package resolve like any import, bundled into the app-wide build in production and served from the vendor graph in development.
 
 **Sealing flow**
 
 1. `sealAppBuildManifest(config)` registers the config loaders, then reads `plugins(app)` of each processor and integration once. It is synchronous and calls no other Processor method.
-2. `createAppBuildManifest(registrations, browserRuntimeManifest)` validates every registration once and stores `{ server, browser, browserRuntimeManifest }`.
+2. `createAppBuildManifest(registrations)` validates every registration once and stores `{ server, browser }`.
 3. `createServerBuildRequest` / `createBrowserBuildRequest` order the request's plugins with `resolveBuildPluginOrder` (`runtime/build-request-policy.ts`): caller plugins that apply to the environment, then the app plugins (the alias resolver, the manifest list, JSX ownership), then core's own `transform` plugins: component identity attribution and, on development server requests, the `import.meta` rewrite. Rolldown asks plugins in that order and the first result of a resolve or load hook wins, so the position is the priority.
 
 **Rule of thumb**
 
 - Shared transforms (MDX loaders, virtual modules, route-module hooks) → `plugins`, with both environments.
-- Client-bundle-only work (vendor aliasing, async production CSS) → `plugins`, with `environments: ['browser']`.
-- Vendor specifier → public URL rewrites → `browserRuntimeManifest` (not a plugin list).
+- Client-bundle-only work (async production CSS) → `plugins`, with `environments: ['browser']`.
 
 `createAppRuntime(config)` calls `sealAppBuildManifest(config)` once and stores the manifest on `AppRuntime.buildManifest`.
 
@@ -112,7 +111,7 @@ Caller intent
   → createServerBuildRequest / createBrowserBuildRequest (plugins assembled once, with core's own transforms last)
   → BuildQueue.build(options, lane)   (lane: build | nested | hmr)
       → RolldownBuildAdapter
-  → RolldownBuildAdapter resolves Node and browser runtime specifiers during the build
+  → RolldownBuildAdapter resolves Node and browser specifiers during the build
 ```
 
 The queue uses one-shot Rolldown in both dev and production. The `build` and `hmr` lanes each run at most their limit of builds at once and start the rest in arrival order: `build` serves ordinary server and browser builds (all cores but one), and `hmr` serves the development server's browser rebuilds (at most three). `nested` serves a build that a running build waits for, such as the collection bundle a content plugin requests from `onResolve`. A running build keeps its lane's slot, so a child in the same lane could wait for a slot its parent holds; the `nested` lane therefore has no limit, and a `nested` build starts at once even when another `nested` build waits for it. A request identical to a queued or running one, by `createBuildRequestIdentity`, shares that build whichever lane it asks for. Inside `withRequestScope`, which wraps each development watch-mode request, a finished build is also shared with later identical requests of the same scope. Production requests are not wrapped. A build that rejects is not kept.
@@ -121,7 +120,7 @@ Runtime code calls `requireBuildQueue(appConfig).build(options, lane)` with a co
 
 Runtime code uses `requireAppRuntime(appConfig).buildAdapter`, `requireBuildQueue()`, `createServerBuildRequest()` and `createBrowserBuildRequest()`.
 
-Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. Browser requests also define `import.meta.env.NODE_ENV` from the Ecopages process mode so browser runtime helpers receive the same mode. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults, one table per environment; a request names only what differs, as the server entry and the emitted config do with `reportPackagesOutsideRoot`. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` takes an explicit lane; regular browser bundles use `build`, and development HMR rebuilds use `hmr`. Every request retains browser defaults on either lane.
+Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. Browser requests also define `import.meta.env.NODE_ENV` and `process.env.NODE_ENV` from the Ecopages process mode, so browser runtime helpers receive the same mode and a CommonJS package such as React picks its development or production build the same way in the app-wide build, route builds and the development vendor graph, whatever `minify` says. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults, one table per environment; a request names only what differs, as the server entry and the emitted config do with `reportPackagesOutsideRoot`. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` takes an explicit lane; regular browser bundles use `build`, and development HMR rebuilds use `hmr`. Every request retains browser defaults on either lane.
 
 Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` into `plugins` with `environments: ['browser']`. Keep server-only hooks in `plugins` with `environments: ['server']`. Replace the old transpile profile arguments with `'browser'` or `'server'`.
 
@@ -132,7 +131,7 @@ Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` i
 - `name: string`
 - `environments?: ('server' | 'browser')[]` (omitted means both)
 - `setup(build: EcoBuildPluginBuilder): void | Promise<void>`
-- `cacheKey?: string` — set by a factory that captures an option which changes its output: the `import.meta` transform sets its runtime directory, the alias resolver its project root and tsconfig path prefixes, the browser runtime plugin its manifest entries and resolve options, the foreign JSX override its import source and extensions, and the MDX loader its compiler options (plugin functions by name). A build request is identified by every `BuildOptions` field except `plugins`, plus each plugin's name, environments and `cacheKey` in order, so two plugins of one name from different options are separate builds only through `cacheKey`. A script dependency that declares the plugin in `bundleOptions` keys its name and `cacheKey` the same way, so processed assets stay apart too. The source of `setup` is not hashed.
+- `cacheKey?: string` — set by a factory that captures an option which changes its output: the `import.meta` transform sets its runtime directory, the alias resolver its project root and tsconfig path prefixes, the foreign JSX override its import source and extensions, and the MDX loader its compiler options (plugin functions by name). A build request is identified by every `BuildOptions` field except `plugins`, plus each plugin's name, environments and `cacheKey` in order, so two plugins of one name from different options are separate builds only through `cacheKey`. A script dependency that declares the plugin in `bundleOptions` keys its name and `cacheKey` the same way, so processed assets stay apart too. The source of `setup` is not hashed.
 
 A plugin applies to every module of a build its filters match. One browser build can serve the entries of several Integrations, and a module has one URL, so it has one compiled form whichever entry reached it: a plugin decides by the module itself, its path, extension or specifier, whether it handles it, never by the entry that imported it.
 
@@ -154,7 +153,7 @@ Core's own transforms use MagicString to keep unchanged source locations through
 
 App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins that the request replaces; the environment cannot express that. A core transform whose name is the name of a plugin in the same request throws instead of being dropped. A contributed plugin that registers a `transform` runs before the core transforms, in manifest order: loaders, processors, then integrations.
 
-The browser runtime plugin maps each manifest specifier to its public URL in `onResolve` only, for every form a bundler resolves (static import, re-export, side-effect import, `import()`), and marks it external. It does not read or rewrite source. Package subpaths that the manifest does not list are left alone. Two consequences of resolving instead of rewriting: a browser request drops a manifest specifier from its `external` list (Rolldown checks `external` before any plugin, so it would otherwise stay a bare import and skip the public URL), and a tsconfig `paths` alias with the same name as a manifest specifier wins over the public URL, because the alias resolver runs first.
+`BuildSuccess.dependencyGraph.commonJsEntrypoints` lists the resolved entries whose own module Rolldown detected as CommonJS (`inputFormat: 'cjs'`). Such an entry's output has `module.exports` as its default export and no named exports; the development vendor graph reads the list so importers can take named bindings from the default export.
 
 ## Build diagnostics
 

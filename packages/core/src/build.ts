@@ -1,14 +1,3 @@
-export {
-	type BrowserRuntimeAssetDeclaration,
-	type BrowserRuntimeManifest,
-	createBrowserRuntimeManifest,
-	getBrowserRuntimeSpecifierMap,
-} from './build/browser/browser-runtime-manifest.ts';
-export {
-	createBrowserRuntimePlugin,
-	DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME,
-	getBrowserRuntimeManifestFromPlugin,
-} from './build/browser/browser-runtime-plugin.ts';
 export { findJsxExtensionOwner, getHostScopedJsxOwnershipPlugins } from './build/browser/jsx-ownership-plugins.ts';
 export { isLitStaticRenderWorkerThread } from './build/browser/lit-static-render-worker-context.ts';
 export { restoreProductionBrowserBuild } from './static-site-generator/production-page-browser-graph-prebuild.ts';

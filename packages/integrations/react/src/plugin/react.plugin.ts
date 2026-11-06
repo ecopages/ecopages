@@ -13,7 +13,6 @@ import {
 } from '@ecopages/core/integration';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
-import path from 'node:path';
 import type React from 'react';
 import { REACT_PLUGIN_NAME, REACT_SSR_RENDER_TIMEOUT_MAX_MS } from './react.constants.ts';
 import { ReactRenderer } from '../render/react-renderer.ts';
@@ -21,7 +20,6 @@ import type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from '.
 import { ReactHmrStrategy } from '../hmr/hmr-strategy.ts';
 import { ReactDevTransformContributor } from '../dev-transform/react-dev-transform-contributor.ts';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
-import { RuntimeBundleService } from '../bundling/runtime-bundle.ts';
 import { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
 import { createReactMdxLoaderPlugin } from '../mdx/mdx-loader-plugin.ts';
 import { appendMdxExtensions, resolveMdxCompilerOptions } from '@ecopages/mdx/core';
@@ -116,9 +114,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	private readonly mdxExtensions: string[];
 	private readonly mdxCompilerOptions: CompileOptions | undefined;
 	private readonly getMdxLoaderPlugin?: () => EcoBuildPlugin;
-	private readonly runtimeBundleService: RuntimeBundleService;
 	private readonly hmrPageMetadataCache: HmrPageMetadataCache;
-	private runtimeDependenciesInitialized = false;
 	/**
 	 * When true, always emit page browser graph / hydration assets.
 	 *
@@ -131,16 +127,12 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	constructor(options?: ReactPluginOptions) {
 		const config = resolveReactPluginOptions(options);
 		const { extensions, rendererConfig, integrationDependencies, mdxCompilerOptions, ...baseConfig } = config;
-		const runtimeBundleService = new RuntimeBundleService({
-			routerAdapter: rendererConfig.routerAdapter,
-		});
 
 		super({
 			name: PLUGIN_NAME,
 			extensions,
 			jsxImportSource: 'react',
 			integrationDependencies,
-			browserRuntimeManifest: runtimeBundleService.getRuntimeManifest(),
 			...baseConfig,
 		});
 
@@ -172,8 +164,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		if (mdxCompilerOptions) {
 			appLogger.debug('MDX mode enabled with React jsx runtime');
 		}
-
-		this.runtimeBundleService = runtimeBundleService;
 	}
 
 	/**
@@ -190,20 +180,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		});
 		renderer.name ||= this.name;
 		return renderer;
-	}
-
-	private ensureRuntimeDependencies(appConfig: IntegrationRuntimeContext['appConfig']): void {
-		if (this.runtimeDependenciesInitialized) {
-			return;
-		}
-
-		this.runtimeBundleService.setRootDir(appConfig.rootDir);
-		this.runtimeBundleService.setWorkDir(
-			appConfig.absolutePaths.workDir ?? path.join(appConfig.rootDir, appConfig.workDir ?? '.eco'),
-		);
-
-		this.integrationDependencies.unshift(...this.runtimeBundleService.getDependencies());
-		this.runtimeDependenciesInitialized = true;
 	}
 
 	/**
@@ -231,14 +207,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	}
 
 	/**
-	 * Adds the React runtime vendor assets to the global dependencies, then processes them.
-	 */
-	override async setup(context: IntegrationRuntimeContext): Promise<void> {
-		this.ensureRuntimeDependencies(context.appConfig);
-		await super.setup(context);
-	}
-
-	/**
 	 * Provides React-specific HMR strategy with Fast Refresh support.
 	 *
 	 * The strategy shares a React-only page metadata cache with the renderer so
@@ -255,7 +223,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			context: manager.getDefaultContext(),
 			projectRoot: context.appConfig.rootDir,
 			pageMetadataCache: this.hmrPageMetadataCache,
-			runtimeManifest: this.runtimeBundleService.getRuntimeManifest('development'),
+			routerAdapter: this.routerAdapter,
 			getMdxLoaderPlugin: this.getMdxLoaderPlugin,
 			ownedTemplateExtensions: this.extensions,
 			allTemplateExtensions: context.appConfig.templatesExt,

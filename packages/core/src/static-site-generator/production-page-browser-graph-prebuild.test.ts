@@ -327,13 +327,6 @@ test('restoreProductionBrowserBuild restores Integration scripts before refreshi
 		filepath: path.join(appConfig.rootDir, 'node_modules/lit-runtime/hydrate.ts'),
 		position: 'head',
 	};
-	const runtimeScript: AssetDefinition = {
-		kind: 'script',
-		source: 'node-module',
-		importPath: 'react',
-		position: 'head',
-		packageRole: 'runtime',
-	};
 	recordBuiltScript(appConfig, globalScript, {
 		filepath: path.join(appConfig.absolutePaths.distDir, 'assets/client-hydrate.js'),
 		srcUrl: '/assets/client-hydrate.js',
@@ -344,7 +337,7 @@ test('restoreProductionBrowserBuild restores Integration scripts before refreshi
 	const recordedWhenRefreshed: Array<ProcessedAsset | undefined> = [];
 	const integration = {
 		name: 'lit',
-		getIntegrationDependencies: () => [{ ...globalScript }, runtimeScript],
+		getIntegrationDependencies: () => [{ ...globalScript }],
 		refreshResolvedIntegrationDependencies: vi.fn(async () => {
 			recordedWhenRefreshed.push(requireAppRuntime(runtimeAppConfig).processedAssets.lookup(globalScript));
 		}),

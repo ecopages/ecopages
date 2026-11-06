@@ -10,6 +10,19 @@ export function resolveTranspileOptions(environment: BuildEnvironment): BuildTra
 	};
 }
 
+/**
+ * Replaces `import.meta.env.NODE_ENV` and `process.env.NODE_ENV` with the current Node environment in browser code.
+ *
+ * @remarks
+ * CommonJS packages such as React pick their development or production build from `process.env.NODE_ENV`. Defining it
+ * for every browser build gives the app-wide build, route builds and the development vendor graph the same choice;
+ * Rolldown would otherwise choose by `minify`.
+ */
+function createBrowserNodeEnvironmentDefines(): Record<string, string> {
+	const nodeEnvironment = JSON.stringify(getNodeEnvironment() ?? 'development');
+	return { 'import.meta.env.NODE_ENV': nodeEnvironment, 'process.env.NODE_ENV': nodeEnvironment };
+}
+
 export function resolveBuildEnvironmentOptions(
 	environment: BuildEnvironment,
 	appConfig: EcoPagesAppConfig,
@@ -19,9 +32,7 @@ export function resolveBuildEnvironmentOptions(
 		root: appConfig.rootDir,
 		...resolveTranspileOptions(environment),
 		minify: false,
-		...(environment === 'browser'
-			? { define: { 'import.meta.env.NODE_ENV': JSON.stringify(getNodeEnvironment() ?? 'development') } }
-			: {}),
+		...(environment === 'browser' ? { define: createBrowserNodeEnvironmentDefines() } : {}),
 		...(environment === 'server' ? { externalPackages: true } : {}),
 	};
 }

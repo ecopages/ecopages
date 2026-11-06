@@ -11,6 +11,7 @@ import {
 	trackRuntimeErrors,
 } from './helpers';
 import { fireRapidLinkClicks, settleAfterRapidHops } from './rapid-navigation-sequences';
+import { trackReactModules } from '../../../e2e/utils/react-modules';
 
 async function waitForReactPageHydration(page: Page) {
 	await page.waitForFunction(() => !!window.__ECO_PAGES__?.react?.pageRoot, null, {
@@ -35,6 +36,7 @@ async function assertReactPageBootstrapHasNoBareCoreImports(page: Page) {
 test.describe('React routes interactivity @content', () => {
 	test('cold-loads React MDX and increments the page counter', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
+		const readReactModules = trackReactModules(page);
 
 		await gotoPath(page, '/react-content');
 		await expect(page.getByTestId('page-react-content')).toBeVisible();
@@ -46,6 +48,7 @@ test.describe('React routes interactivity @content', () => {
 		await incrementCounter(root.locator('[data-react-inc]'), root.locator('[data-react-value]'), '1');
 		await expect(root.locator('lit-counter')).toHaveCount(1);
 		await expect.poll(() => page.evaluate(() => customElements.get('lit-counter') !== undefined)).toBe(true);
+		expect(await readReactModules()).toHaveLength(1);
 
 		runtime.assertClean();
 	});
@@ -96,16 +99,13 @@ test.describe('React routes interactivity @content', () => {
 
 	test('cold-loads Kita-hosted React islands without prior React page activation', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
+		const readReactModules = trackReactModules(page);
 
 		await gotoPath(page, '/integration-matrix/react-entry');
 		await expect(page.getByTestId(integrationMatrixTestIds.hostShellStack)).toBeVisible({ timeout: 15_000 });
 
-		const reactVendor = await page.request.get('/assets/vendors/react.development.js');
-		const reactDomVendor = await page.request.get('/assets/vendors/react-dom.development.js');
-		expect(reactVendor.ok()).toBe(true);
-		expect(reactDomVendor.ok()).toBe(true);
-
 		await assertAllCountersInteractivity(page.getByTestId('integration-matrix-shell-counters-react'));
+		expect(await readReactModules()).toHaveLength(1);
 
 		runtime.assertClean();
 	});

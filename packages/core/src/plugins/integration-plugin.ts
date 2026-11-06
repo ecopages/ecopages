@@ -1,8 +1,4 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
-import {
-	createBrowserRuntimeManifest,
-	type BrowserRuntimeManifest,
-} from '../build/browser/browser-runtime-manifest.ts';
 import type { AppRuntime } from '../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { EcoPageFile, EcoPagesElement } from '../types/contracts.ts';
@@ -44,8 +40,8 @@ export type {
  * renderer still owns its framework-specific render payload type internally.
  *
  * @remarks
- * The plugin contract currently constructs the Build-layer asset service and runtime manifest; #556
- * tracks moving those implementations behind the plugin contracts layer.
+ * The plugin contract currently constructs the Build-layer asset service; #556 tracks moving that
+ * implementation behind the plugin contracts layer.
  */
 export type AnyIntegrationPlugin = IntegrationPlugin<unknown>;
 
@@ -92,8 +88,6 @@ export interface IntegrationPluginConfig {
 	 * integration.
 	 */
 	jsxImportSource?: string;
-	/** Browser runtime rewrites declared as data for the app build manifest. */
-	browserRuntimeManifest?: BrowserRuntimeManifest;
 }
 
 type RendererClass<C> = new (
@@ -120,8 +114,7 @@ export type IntegrationRendererBase = IntegrationRendererOptions & {
  *
  * Core owns lifecycle ordering. Integrations declare contributions through the
  * hooks on this class, while config finalization and app startup decide when
- * those hooks run. `plugins` declares environment-selected build hooks and
- * `browserRuntimeManifest` declares client import rewrites. For page-browser and
+ * those hooks run. `plugins` declares environment-selected build hooks. For page-browser and
  * document shaping, integrations should prefer the contribution contracts
  * re-exported from this module:
  * `PageBrowserGraphContribution` / `PageBrowserGraphContributionContext` and
@@ -132,7 +125,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly extensions: string[];
 	abstract renderer: RendererClass<C>;
 	readonly jsxImportSource?: string;
-	readonly browserRuntimeManifest: BrowserRuntimeManifest;
 
 	/**
 	 * Whether this Integration's Pages can receive Params from `[param]` and `[...param]`
@@ -190,7 +182,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.extensions = config.extensions;
 		this.integrationDependencies = config.integrationDependencies || [];
 		this.jsxImportSource = config.jsxImportSource;
-		this.browserRuntimeManifest = config.browserRuntimeManifest ?? createBrowserRuntimeManifest();
 	}
 
 	/**

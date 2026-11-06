@@ -128,8 +128,19 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 	},
 	{
 		name: 'react-production-start-e2e',
-		testMatch: 'e2e/fixtures/react-production-start/**/*.test.e2e.ts',
+		testMatch: 'e2e/fixtures/react-production-start/react-production-start.test.e2e.ts',
 		use: { ...chrome, baseURL: 'http://localhost:4623' },
+	},
+	{
+		name: 'react-production-start-preview-e2e',
+		testMatch: 'e2e/fixtures/react-production-start/react-production-start.preview.test.e2e.ts',
+		use: { ...chrome, baseURL: 'http://localhost:4628' },
+	},
+	{
+		name: 'react-production-start-dev-e2e',
+		testMatch: 'e2e/fixtures/react-production-start/react-production-start.dev.test.e2e.ts',
+		timeout: 60_000,
+		use: { ...chrome, appOptions: { source: 'e2e/fixtures/react-production-start' } },
 	},
 	{
 		name: 'web-workers-dev-e2e',
@@ -355,6 +366,19 @@ const projectWebServers: ProjectWebServer[] = [
 			NODE_ENV: 'production',
 			ECOPAGES_PORT: '4623',
 			ECOPAGES_E2E_ARTIFACT_SCOPE: 'react-production-start-e2e',
+		},
+	},
+	{
+		projects: ['react-production-start-preview-e2e'],
+		command: 'node ../../../packages/ecopages/bin/cli.js preview --runtime node --port 4628',
+		cwd: 'e2e/fixtures/react-production-start',
+		url: 'http://localhost:4628',
+		timeout: 180_000,
+		reuseExistingServer: !process.env.CI,
+		env: {
+			NODE_ENV: 'production',
+			ECOPAGES_PORT: '4628',
+			ECOPAGES_E2E_ARTIFACT_SCOPE: 'react-production-start-preview-e2e',
 		},
 	},
 	{

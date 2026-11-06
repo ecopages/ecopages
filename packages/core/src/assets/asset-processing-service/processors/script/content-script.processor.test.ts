@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { ContentScriptProcessor } from './content-script.processor';
-import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '../../../../config/internal-types.ts';
 import type { ContentScriptAsset } from '../../assets.types.ts';
 import type { BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';
 import { BrowserBundleService } from '../../../browser-bundle.service.ts';
@@ -87,6 +87,50 @@ describe('ContentScriptProcessor', () => {
 
 	afterEach(() => {
 		vi.restoreAllMocks();
+	});
+
+	describe('an unbundled script file under HMR', () => {
+		const script = (attributes?: Record<string, string>): ContentScriptAsset => ({
+			kind: 'script',
+			source: 'content',
+			name: 'bootstrap',
+			content: 'import { createElement } from "react";',
+			bundle: false,
+			attributes,
+		});
+		const writtenSource = () => vi.mocked(fileSystem.write).mock.calls.at(-1)?.[1];
+
+		test('a module script is written with its imports rewritten', async () => {
+			const rewriteModuleImports = vi.fn(async () => 'import React from "/assets/vendors/react.js";');
+			const processor = new ContentScriptProcessor({
+				appConfig: createMockConfig(),
+				getHmrManager: () => ({ isEnabled: () => true, rewriteModuleImports }) as unknown as IHmrManager,
+			});
+
+			await processor.process(script({ type: 'module' }));
+
+			expect(rewriteModuleImports).toHaveBeenCalledWith(
+				'import { createElement } from "react";',
+				path.join('/test/project/.eco/public/assets/scripts', 'bootstrap.js'),
+			);
+			expect(writtenSource()).toBe('import React from "/assets/vendors/react.js";');
+		});
+
+		test.each([
+			{ label: 'a classic script', attributes: undefined, hmrEnabled: true },
+			{ label: 'a module script with HMR off', attributes: { type: 'module' }, hmrEnabled: false },
+		])('$label keeps its source', async ({ attributes, hmrEnabled }) => {
+			const rewriteModuleImports = vi.fn();
+			const processor = new ContentScriptProcessor({
+				appConfig: createMockConfig(),
+				getHmrManager: () => ({ isEnabled: () => hmrEnabled, rewriteModuleImports }) as unknown as IHmrManager,
+			});
+
+			await processor.process(script(attributes));
+
+			expect(rewriteModuleImports).not.toHaveBeenCalled();
+			expect(writtenSource()).toBe('import { createElement } from "react";');
+		});
 	});
 
 	test.each([false, true])('maps blog and blog-post to their own outputs with reversed order %s', async (reverse) => {

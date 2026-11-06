@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
-import { createBrowserRuntimeManifest } from '../../build/browser/browser-runtime-manifest.ts';
 import { requireAppRuntime } from './app-runtime.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -241,14 +240,6 @@ describe('finalizeEcoPagesConfig', () => {
 		})({
 			name: 'test-integration',
 			extensions: ['.test'],
-			browserRuntimeManifest: createBrowserRuntimeManifest([
-				{
-					specifier: 'react',
-					owner: '@ecopages/react',
-					importPath: 'react',
-					publicPath: '/assets/vendors/react.js',
-				},
-			]),
 		});
 
 		try {
@@ -267,10 +258,7 @@ describe('finalizeEcoPagesConfig', () => {
 			].map((plugin) => plugin.name);
 			const manifest = requireAppRuntime(config).buildManifest;
 			expect(manifest.server.map((plugin) => plugin.name)).toEqual(contributed);
-			expect(manifest.browser.map((plugin) => plugin.name)).toEqual([...contributed, 'browser-runtime-plugin']);
-			expect(manifest.browserRuntimeManifest.bySpecifier.get('react')?.publicPath).toBe(
-				'/assets/vendors/react.js',
-			);
+			expect(manifest.browser.map((plugin) => plugin.name)).toEqual(contributed);
 		} finally {
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}

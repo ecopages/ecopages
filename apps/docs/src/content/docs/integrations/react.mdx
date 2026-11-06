@@ -214,7 +214,7 @@ This is the recommended approach when using a client-side router, as it ensures 
 
 With [`ecoRouter()`](/docs/ecosystem/react-router), Ecopages can keep outer Layout tiers mounted across client navigation (`persistLayouts` defaults to `true`). A package used by both a Layout and a Page must then be one browser module instance, or libraries with shared state, such as React context and TanStack Query, break.
 
-Ecopages keeps every package to one instance without configuration. A production build bundles every browser entry of the app in one build with code splitting, so a package that several Pages, Layouts or islands import is one chunk with one URL. In `ecopages dev`, Page modules are served from `/assets/__eco_dev__/` and import each package from one vendor URL under `/assets/vendors/`. React, React DOM and the configured router are served from fixed vendor URLs. Use the dev toolbar **Deps** panel to inspect the vendor URLs loaded by the active Page.
+Ecopages keeps every package to one instance without configuration. A production build bundles every browser entry of the app in one build with code splitting, so a package that several Pages, Layouts or islands import is one chunk with one URL. In `ecopages dev`, Page modules are served from `/assets/__eco_dev__/` and import each package from one vendor URL under `/assets/vendors/`; React, React DOM and the configured router are no exception. In production they are content-hashed chunks, cached `immutable`, and each page loads React once. Use the dev toolbar **Deps** panel to inspect the vendor URLs loaded by the active Page.
 
 A library that depends on a singleton such as MobX or TanStack Query should declare it as a `peerDependency` and keep it external in its own build, so it imports the app's copy instead of inlining its own.
 
@@ -225,7 +225,7 @@ A library that depends on a singleton such as MobX or TanStack Query should decl
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Store updates / `reaction` / `observer` no-op | Duplicate singleton (for example MobX) — a library inlines one copy and app code loads another | Peer the singleton in the library and keep it external in the library build |
-| Stale bootstrap script hash in dev | Rendered HTML cached before runtime vendors changed | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation |
+| `does not provide an export named …` in dev | An inline or non-module script imports a CommonJS package such as React by name, which the dev rewrite skips | Move the import into a module file or a non-inline `type="module"` script |
 
 ## Related guides
 

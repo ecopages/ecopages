@@ -48,7 +48,6 @@ describe('DevTransformBundler', () => {
 					],
 				},
 			],
-			getRuntimeSpecifierMap: () => new Map(),
 			vendorRegistry: new DevTransformVendorRegistry({
 				appConfig: config,
 			}),
@@ -83,7 +82,6 @@ describe('DevTransformBundler', () => {
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const bundler = new DevTransformBundler({
 			appConfig: config,
-			getRuntimeSpecifierMap: () => new Map(),
 			vendorRegistry: new DevTransformVendorRegistry({
 				appConfig: config,
 			}),
@@ -116,7 +114,6 @@ describe('DevTransformBundler', () => {
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const bundler = new DevTransformBundler({
 			appConfig: config,
-			getRuntimeSpecifierMap: () => new Map(),
 			vendorRegistry: new DevTransformVendorRegistry({
 				appConfig: config,
 			}),
@@ -163,7 +160,6 @@ describe('DevTransformBundler', () => {
 
 		const bundler = new DevTransformBundler({
 			appConfig: config,
-			getRuntimeSpecifierMap: () => new Map(),
 			vendorRegistry: new DevTransformVendorRegistry({
 				appConfig: config,
 			}),
@@ -187,7 +183,6 @@ describe('DevTransformBundler', () => {
 			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 			const bundler = new DevTransformBundler({
 				appConfig: config,
-				getRuntimeSpecifierMap: () => new Map(),
 				vendorRegistry: new DevTransformVendorRegistry({ appConfig: config }),
 			});
 			return bundler.transpileModule(scriptPath);
@@ -228,7 +223,6 @@ describe('DevTransformBundler', () => {
 			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 			const after = await new DevTransformBundler({
 				appConfig: config,
-				getRuntimeSpecifierMap: () => new Map(),
 				vendorRegistry: new DevTransformVendorRegistry({ appConfig: config }),
 			}).transpileModule(path.join(rootDir, 'src', 'components', 'demo.script.ts'));
 

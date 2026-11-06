@@ -1,4 +1,3 @@
-import { mergeBrowserRuntimeManifests } from './browser/browser-runtime-manifest.ts';
 import { seedProcessorWatchPaths } from './cache/build-input-dependency-index.ts';
 import {
 	createAppBuildManifest,
@@ -17,15 +16,14 @@ import { installConfiguredServerDom } from '../plugins/server-dom.ts';
  *
  * @remarks
  * Called during runtime assembly. Loaders come first, then processors, then integrations. Each one's
- * `plugins(app)` is read once; every registration is validated once, by {@link createAppBuildManifest}. Browser
- * runtime manifests are data, not lifecycle hooks. Runtime setup happens after finalization.
+ * `plugins(app)` is read once; every registration is validated once, by {@link createAppBuildManifest}. Runtime
+ * setup happens after finalization.
  */
 export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManifest {
 	const registrations: BuildPluginRegistration[] = [...appConfig.loaders.values()].map((plugin) => ({
 		plugin,
 		source: `Loader "${plugin.name}"`,
 	}));
-	const browserRuntimeManifests = [];
 
 	for (const processor of appConfig.processors.values()) {
 		for (const plugin of processor.plugins(appConfig)) {
@@ -37,10 +35,9 @@ export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildMani
 		for (const plugin of integration.plugins(appConfig)) {
 			registrations.push({ plugin, source: `Integration "${integration.name}"` });
 		}
-		browserRuntimeManifests.push(integration.browserRuntimeManifest);
 	}
 
-	return createAppBuildManifest(registrations, mergeBrowserRuntimeManifests(...browserRuntimeManifests));
+	return createAppBuildManifest(registrations);
 }
 
 /**

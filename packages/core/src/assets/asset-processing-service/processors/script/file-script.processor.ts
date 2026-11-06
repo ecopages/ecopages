@@ -81,8 +81,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	 * is copied to its source-relative path. A classic script inside `srcDir` is compiled and written
 	 * under that path with a `.js` name. A file outside `srcDir` has no such path that stays inside
 	 * `dist`: an unbundled or classic script is written under a content hash, and a bundled script
-	 * is emitted in `dist/client/assets` under the bundler's `[name]-[hash]` name. Vendor runtimes inside
-	 * `src` keep their stable names.
+	 * is emitted in `dist/client/assets` under the bundler's `[name]-[hash]` name.
 	 */
 	async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
 		const hmrManager = this.getActiveHmrManager();
@@ -121,7 +120,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		let filepath = output?.filepath;
 
 		if (!dep.classic && !dep.inline) {
-			if (outFilepath && (dep.packageRole === 'runtime' || !this.isProduction)) {
+			if (outFilepath && !this.isProduction) {
 				const destination = path.join(this.getAssetsDir(), outFilepath);
 				assertBrowserOutputInsideDist(this.appConfig.absolutePaths.distDir, destination);
 				fileSystem.copyFile(dep.filepath, destination);

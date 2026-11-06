@@ -34,6 +34,7 @@ function createHmrAssetManager(runtimePath: string, enabled = true): IHmrManager
 	return {
 		registerEntrypoint: vi.fn(),
 		registerScriptEntrypoint: vi.fn(),
+		rewriteModuleImports: vi.fn(),
 		registerStrategy: vi.fn(),
 		registerDevTransformContributor: vi.fn(),
 		setEnabled: vi.fn(),

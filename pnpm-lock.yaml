@@ -341,6 +341,9 @@ importers:
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../../packages/integrations/react
+      '@ecopages/react-router':
+        specifier: workspace:*
+        version: link:../../../packages/react-router
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13

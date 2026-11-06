@@ -3,7 +3,7 @@ import type { EcoBuildPlugin } from './build-types.ts';
 export type AssetSource = 'content' | 'file' | 'node-module';
 export type AssetKind = 'script' | 'stylesheet';
 export type AssetPosition = 'head' | 'body';
-export type AssetPackageRole = 'page-script' | 'page-style' | 'runtime' | 'keep-separate' | 'dynamic-chunk';
+export type AssetPackageRole = 'page-script' | 'page-style' | 'keep-separate' | 'dynamic-chunk';
 
 export type GroupedScriptBundle = {
 	id: string;

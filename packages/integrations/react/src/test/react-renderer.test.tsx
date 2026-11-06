@@ -18,7 +18,7 @@ import type {
 	PageBrowserGraphResult,
 } from '@ecopages/core/integration';
 import { type PageClientPlan, type RouteModuleLoadOptions } from '@ecopages/core/integration';
-import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/integration';
+import type { ProcessedAsset } from '@ecopages/core/integration';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { describeRendererContract } from '@ecopages/testing/renderer-contract';
@@ -30,11 +30,7 @@ import { Page } from './fixture/test-page';
 
 const mockRouterAdapter = {
 	name: 'test-router',
-	bundle: {
-		importPath: '@test/router/browser',
-		outputName: 'test-router',
-		externals: ['react', 'react-dom'],
-	},
+	importPath: '@test/router/browser',
 	components: {
 		router: 'TestRouter',
 		pageContent: 'TestPageContent',
@@ -378,7 +374,11 @@ describe('ReactRenderer', () => {
 				createPageClientPlan('kitajs', Component),
 			);
 
-			expect(islandAssets.processedAssets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/mock.js' }));
+			expect(islandAssets.processedAssets).toEqual([
+				expect.objectContaining({
+					srcUrl: expect.stringMatching(/^\/assets\/ecopages-react-island-\d+-hydration-\d+\.js$/),
+				}),
+			]);
 		});
 
 		it('stamps an attachable component root as an island host', async () => {
@@ -937,40 +937,6 @@ describe('ReactRenderer', () => {
 
 		expect(withoutForceSpy).not.toHaveBeenCalled();
 		expect(withForceSpy).toHaveBeenCalledWith('/app/src/pages/with-force.tsx', false, []);
-	});
-
-	it('declares the page-layout-normalization vendor only in MDX page graphs, without processing it', async () => {
-		const tsxRenderer = createRenderer({ forceBrowserGraph: true });
-		const mdxAssetProcessingService = createAssetProcessingServiceMock();
-		const mdxRenderer = new TestReactRenderer({
-			appConfig: Config,
-			assetProcessingService: mdxAssetProcessingService as any,
-			resolvedIntegrationDependencies: [],
-			reactConfig: {
-				forceBrowserGraph: true,
-				mdxExtensions: ['.mdx'],
-			},
-		});
-		const pageModule = {
-			default: Page,
-			config: {},
-		} as EcoPageFile;
-		tsxRenderer.importedPageFileOverride = pageModule;
-		mdxRenderer.importedPageFileOverride = pageModule;
-		vi.spyOn(tsxRenderer.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
-		vi.spyOn(mdxRenderer.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
-		tsxRenderer.isMdxFileOverride = false;
-		mdxRenderer.isMdxFileOverride = true;
-		const context = { file: '/app/src/pages/guide.mdx', pageModule, props: {} };
-
-		const tsxContribution = await tsxRenderer['collectPageBrowserGraphContributionHook'](context);
-		const mdxContribution = await mdxRenderer['collectPageBrowserGraphContributionHook'](context);
-
-		const isVendor = (dependency: AssetDefinition) =>
-			'name' in dependency && dependency.name === 'page-layout-normalization';
-		expect(tsxContribution.dependencies?.some(isVendor) ?? false).toBe(false);
-		expect(mdxContribution.dependencies?.filter(isVendor)).toHaveLength(1);
-		expect(mdxAssetProcessingService.processDependencies).not.toHaveBeenCalled();
 	});
 
 	it('should emit canonical page data for router-backed pages inside non-react html templates', async () => {

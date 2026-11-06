@@ -483,7 +483,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			);
 			if (!isMdx) return { dependencies };
 			return {
-				dependencies: [...dependencies, ...this.bundleService.getPageLayoutNormalizationDependencies()],
+				dependencies,
 				...this.mdxConfigDependencyService.collectMdxConfigContribution(
 					pagePath,
 					(pageModule as EcoPageFile & { config?: EcoComponentConfig }).config,
@@ -634,7 +634,6 @@ function createReactRendererHookFactory(
 		const bundleService = new BundleService({
 			rootDir: appConfig.rootDir,
 			appConfig,
-			assetProcessingIntegration,
 			hostIntegrationName: REACT_PLUGIN_NAME,
 			routerAdapter,
 			getMdxLoaderPlugin: reactConfig?.getMdxLoaderPlugin,

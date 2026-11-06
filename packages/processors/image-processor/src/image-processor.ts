@@ -5,6 +5,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
 import sharp, { type Metadata } from 'sharp';
+import { toPublicImageSrc } from './image-public-src.ts';
 import { ImageUtils } from './image-utils.ts';
 import type { ImageMap, ImageProcessorConfig } from './plugin.ts';
 import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types.ts';
@@ -98,7 +99,7 @@ export class ImageProcessor {
 					.toFormat(this.config.format, { quality: this.config.quality })
 					.toBuffer();
 				const outputPath = this.writeEncodedVariant(encoded);
-				const src = ImageUtils.toPublicSrc(this.config.publicPath, outputPath);
+				const src = toPublicImageSrc(this.config.publicPath, outputPath);
 
 				const imageSpecifications: ImageSpecifications = {
 					attributes: {
@@ -134,7 +135,7 @@ export class ImageProcessor {
 						.toFormat(this.config.format, { quality: this.config.quality })
 						.toBuffer();
 					const outputPath = this.writeEncodedVariant(encoded);
-					const src = ImageUtils.toPublicSrc(this.config.publicPath, outputPath);
+					const src = toPublicImageSrc(this.config.publicPath, outputPath);
 
 					return {
 						width,

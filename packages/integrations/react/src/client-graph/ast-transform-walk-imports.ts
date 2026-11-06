@@ -5,7 +5,7 @@
 import type { ReachabilityResult } from './reachability-analyzer.ts';
 import { isServerOnlySpecifier, toModuleBaseSpecifier } from './specifier-classification.ts';
 import { walkAstNodes } from './ast-walk.ts';
-import { buildImportDeclarationRewrite, type SourceEdit } from './ast-transform-import-edits.ts';
+import { buildImportDeclarationRewrite, isImportSpecifierKept, type SourceEdit } from './ast-transform-import-edits.ts';
 
 export type ProcessSpecifierResult = { allowed: boolean; rules?: Set<string> | '*' };
 
@@ -15,6 +15,10 @@ export type WalkImportsContext = {
 	edits: SourceEdit[];
 	allowedMap: Map<string, Set<string> | '*'>;
 	preserveUnreachableSideEffectImports: boolean;
+	/** Receives the local name of each removed value binding, mapped to its import specifier. */
+	strippedBindings: Map<string, string>;
+	/** Receives each import declaration that gets an edit. */
+	editedImports: Set<unknown>;
 };
 
 function processSpecifier(specifier: string, allowedMap: Map<string, Set<string> | '*'>): ProcessSpecifierResult {
@@ -42,6 +46,20 @@ function pruneForbiddenSpecifier(
 	ctx.edits.push({ start: node.start, end: node.end, replacement });
 }
 
+function recordStrippedBindings(
+	node: any,
+	specifier: string,
+	ctx: WalkImportsContext,
+	isKept: (specifierNode: any) => boolean = () => false,
+): void {
+	if (node.importKind === 'type') return;
+	for (const specifierNode of node.specifiers ?? []) {
+		if (specifierNode.importKind !== 'type' && !isKept(specifierNode)) {
+			ctx.strippedBindings.set(specifierNode.local.name, specifier);
+		}
+	}
+}
+
 function handleImportDeclaration(node: any, ctx: WalkImportsContext): boolean {
 	const specifier = node.source.value as string;
 	const reachableRules = ctx.reachability.reachableImports.get(specifier);
@@ -49,6 +67,8 @@ function handleImportDeclaration(node: any, ctx: WalkImportsContext): boolean {
 
 	if (!allowed) {
 		pruneForbiddenSpecifier(node, ctx, specifier, `Forbidden client import '${specifier}'`, '');
+		recordStrippedBindings(node, specifier, ctx);
+		ctx.editedImports.add(node);
 		return true;
 	}
 
@@ -56,6 +76,10 @@ function handleImportDeclaration(node: any, ctx: WalkImportsContext): boolean {
 		const rewrite = buildImportDeclarationRewrite(node, specifier, rules);
 		if (rewrite) {
 			ctx.edits.push(rewrite);
+			recordStrippedBindings(node, specifier, ctx, (specifierNode) =>
+				isImportSpecifierKept(specifierNode, rules),
+			);
+			ctx.editedImports.add(node);
 		}
 		return true;
 	}
@@ -66,6 +90,7 @@ function handleImportDeclaration(node: any, ctx: WalkImportsContext): boolean {
 		(!node.specifiers || node.specifiers.length === 0)
 	) {
 		ctx.edits.push({ start: node.start, end: node.end, replacement: '' });
+		ctx.editedImports.add(node);
 	}
 
 	return true;

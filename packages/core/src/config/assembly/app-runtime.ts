@@ -1,3 +1,4 @@
+import { ProcessedAssetLedger } from '../../assets/asset-processing-service/processed-asset-ledger.ts';
 import { createBuildAdapter } from '../../build/build-adapter.ts';
 import { sealAppBuildManifest } from '../../build/app-build-manifest-runtime.ts';
 import { BuildInputDependencyIndex, seedProcessorWatchPaths } from '../../build/cache/build-input-dependency-index.ts';
@@ -100,6 +101,14 @@ export interface AppRuntime {
 	 */
 	prebuiltBrowserScripts: Map<string, ProcessedAsset>;
 	/**
+	 * Processed file dependencies of the production build, shared by every asset-processing service.
+	 *
+	 * @remarks
+	 * `ecopages build` fills it and writes it to `dist/server/processed-assets.json`; `ecopages start`
+	 * restores it so rendering never reads source files for recorded dependencies.
+	 */
+	processedAssets: ProcessedAssetLedger;
+	/**
 	 * True while static generation (`ecopages build`) runs. An asset that cannot be processed then
 	 * fails the build.
 	 */
@@ -155,6 +164,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		hmr: null,
 		productionBrowserGraphsSealed: false,
 		prebuiltBrowserScripts: new Map(),
+		processedAssets: new ProcessedAssetLedger(appConfig.rootDir),
 		staticGenerationActive: false,
 	};
 	appConfig.appRuntime = runtime;

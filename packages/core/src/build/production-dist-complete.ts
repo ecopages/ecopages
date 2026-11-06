@@ -5,6 +5,7 @@ import { PRODUCTION_ROUTES_FILENAME } from './production-route-list.ts';
 import { SERVER_MODULES_MANIFEST_FILENAME } from './server/server-modules-manifest.ts';
 
 const BROWSER_CLIENT_MANIFEST_FILENAME = 'browser-client-manifest.json';
+const ASSET_LEDGER_FILENAME = 'processed-assets.json';
 
 function describe(rootDir: string, filePath: string): string {
 	return path.relative(rootDir, filePath) || '.';
@@ -122,6 +123,23 @@ function requireOptionalBrowserManifest(
 	}
 }
 
+function requireOptionalAssetLedger(
+	rootDir: string,
+	serverDir: string,
+	buildId: string,
+	deployManifestPath: string,
+): void {
+	const ledgerPath = path.join(serverDir, ASSET_LEDGER_FILENAME);
+	if (!fileSystem.exists(ledgerPath)) return;
+	const ledger = requireJsonObject(rootDir, ledgerPath, 'asset ledger');
+	requireMatchingBuildId(rootDir, buildId, deployManifestPath, ledgerPath, ledger);
+	if (!Array.isArray(ledger.entries)) return;
+	const outputPaths = ledger.entries.flatMap(
+		(entry: { asset?: { filepath?: unknown } }) => entry.asset?.filepath ?? [],
+	);
+	requireListedFiles(rootDir, outputPaths, (relativePath) => path.resolve(rootDir, relativePath), 'asset output');
+}
+
 /**
  * Checks that `dist/` is a complete production export: one build id across its
  * manifests, and every listed output exists. It does not read sources.
@@ -149,4 +167,5 @@ export function assertProductionDistComplete(rootDir: string, distDir: string): 
 	requireMatchingBuildId(resolvedRoot, buildId, deployManifestPath, routeListPath, routeList);
 	requireServerModules(resolvedRoot, serverDir, buildId, deployManifestPath);
 	requireOptionalBrowserManifest(resolvedRoot, serverDir, buildId, deployManifestPath);
+	requireOptionalAssetLedger(resolvedRoot, serverDir, buildId, deployManifestPath);
 }

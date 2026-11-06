@@ -5,13 +5,29 @@
 export type SourceEdit = { start: number; end: number; replacement: string };
 
 /**
- * Applies range replacements from last-to-first so earlier offsets stay valid.
+ * Applies range replacements; an edit inside the range of another edit is dropped.
+ *
+ * @remarks
+ * Edits come from independent passes, so an import pruning edit can sit inside a declaration
+ * another pass removes. Ranges that overlap without one containing the other are a bug.
  */
-export function applySourceEdits(source: string, edits: SourceEdit[]): string {
-	edits.sort((a, b) => b.start - a.start);
+export function applySourceEdits(source: string, edits: readonly SourceEdit[]): string {
+	const sorted = [...edits].sort((a, b) => a.start - b.start || b.end - a.end);
+	const outermost: SourceEdit[] = [];
+	for (const edit of sorted) {
+		const last = outermost.at(-1);
+		if (last && edit.start < last.end) {
+			if (edit.end > last.end) {
+				throw new Error(`Overlapping source edits at ${last.start}-${last.end} and ${edit.start}-${edit.end}`);
+			}
+			continue;
+		}
+		outermost.push(edit);
+	}
+
 	let transformed = source;
-	for (const edit of edits) {
-		transformed = transformed.slice(0, edit.start) + edit.replacement + transformed.slice(edit.end);
+	for (const edit of outermost.reverse()) {
+		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
 	}
 	return transformed;
 }
@@ -40,9 +56,23 @@ function collectKeptImportSpecifiers(node: any, rules: Set<string>): KeptImportS
 	return kept;
 }
 
+function getImportedName(spec: any): string {
+	return spec.imported.type === 'Identifier' ? spec.imported.name : (spec.imported.value as string);
+}
+
+/**
+ * Returns whether {@link buildImportDeclarationRewrite} keeps an import specifier under `rules`.
+ */
+export function isImportSpecifierKept(spec: any, rules: Set<string>): boolean {
+	if (spec.type === 'ImportSpecifier') return rules.has(getImportedName(spec));
+	if (spec.type === 'ImportDefaultSpecifier') return rules.has('default');
+	if (spec.type === 'ImportNamespaceSpecifier') return rules.has('*');
+	return false;
+}
+
 function appendKeptNamedSpecifier(spec: any, rules: Set<string>, kept: KeptImportSpecifiers): void {
-	const importedName = spec.imported.type === 'Identifier' ? spec.imported.name : (spec.imported.value as string);
-	if (!rules.has(importedName)) return;
+	if (!isImportSpecifierKept(spec, rules)) return;
+	const importedName = getImportedName(spec);
 	kept.keptSpecifierCount += 1;
 	const localName = spec.local?.name;
 	kept.namedImportNodes.push(

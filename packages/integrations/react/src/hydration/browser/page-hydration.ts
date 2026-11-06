@@ -3,8 +3,9 @@
  *
  * @remarks
  * The entry module supplies the page tree and module resolution details. This
- * module owns document state, navigation ownership, cleanup, and HMR so those
- * behaviors stay identical for readable and compiled bootstraps.
+ * module owns document state, navigation ownership, cleanup, and HMR. It ships
+ * as `@ecopages/react/page-hydration`: a production Page entry that inlines React
+ * bundles it, and every other entry imports its `/assets/vendors/` build.
  */
 
 export type PageRoot = {
@@ -28,6 +29,7 @@ export type PageData = {
 };
 
 export { resolvePageComponent } from './page-hydration-module.ts';
+export { getPageDataFromDocument, readPageDataDocument } from '../page-data-reader.ts';
 import { handlePageHmr } from './page-hydration-hmr.ts';
 
 /** Configuration passed from a generated Page hydration entry. */

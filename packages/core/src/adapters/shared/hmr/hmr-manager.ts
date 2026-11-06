@@ -111,6 +111,7 @@ export class HmrManager implements IHmrManager {
 				]);
 			},
 			onTransformError: (message) => this.broadcast({ type: 'error', message }),
+			onVendorGraphChange: () => this.broadcast({ type: 'reload' }),
 		});
 		this.ensureRuntimeWorkDir();
 		this.initializeStrategies();

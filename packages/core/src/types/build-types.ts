@@ -124,4 +124,13 @@ export type EcoBuildPlugin = {
 	 * still join that build.
 	 */
 	bundleGroupKey?: string;
+	/**
+	 * Entry names whose module graph this plugin applies to. Omitted, it applies to the whole build.
+	 *
+	 * @remarks
+	 * Core sets it when browser entries with different plugin lists share one build, so a module reached
+	 * only by other entries is built without this plugin. A module this plugin changed must not also be
+	 * reached by an entry outside the scope; the build fails instead of shipping two builds of one module.
+	 */
+	entryScope?: readonly string[];
 };

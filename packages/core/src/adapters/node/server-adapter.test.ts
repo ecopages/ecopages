@@ -196,6 +196,33 @@ describe('NodeServerAdapter', () => {
 		vi.restoreAllMocks();
 	});
 
+	it('adds configured headers to matching responses and keeps the handler headers', async () => {
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir: fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-response-headers-')),
+			headers: [{ source: '/api/*', headers: { 'Access-Control-Allow-Origin': '*', 'X-Own': 'config' } }],
+		});
+		const adapter = makeNodeServerAdapter({
+			appConfig,
+			options: { watch: false },
+			apiHandlers: [
+				{
+					path: '/api/health',
+					method: 'GET',
+					handler: () => new Response('ok', { headers: { 'X-Own': 'handler', 'X-Keep': '1' } }),
+				},
+			],
+		});
+		adapter.setReadyForTest();
+
+		const api = await adapter.handleRequest(new Request('http://localhost:3000/api/health'));
+		const other = await adapter.handleRequest(new Request('http://localhost:3000/other'));
+
+		expect(api.headers.get('Access-Control-Allow-Origin')).toBe('*');
+		expect(api.headers.get('X-Own')).toBe('config');
+		expect(api.headers.get('X-Keep')).toBe('1');
+		expect(other.headers.has('Access-Control-Allow-Origin')).toBe(false);
+	});
+
 	it('returns 499 for normalized client aborts', async () => {
 		const adapter = makeNodeServerAdapter({ options: { watch: false } });
 		adapter.setReadyForTest();

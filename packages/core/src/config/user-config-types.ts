@@ -6,6 +6,19 @@ import type { EcoPagesAppConfig, RobotsPreference } from '../config/internal-typ
 import type { PageMetadataProps, SitemapConfig } from '../types/contracts.ts';
 
 /**
+ * Extra response headers for the requests a `source` pattern matches.
+ *
+ * @remarks
+ * `source` is a URL pathname pattern that starts with `/`: `*` matches any characters except `/`, `**` matches
+ * any characters including `/`, and everything else is literal. `/**` matches every path, `/assets/*` the files
+ * directly in `/assets/`, and `/**\/*.wasm` every `.wasm` file.
+ */
+export type ResponseHeaderRule = {
+	source: string;
+	headers: Record<string, string>;
+};
+
+/**
  * Author-owned Ecopages configuration declared in `eco.config.ts`.
  *
  * @remarks
@@ -123,6 +136,23 @@ export type EcoPagesUserConfig = {
 	 * URL route paths to prewarm in the background when the development server starts.
 	 */
 	devPrewarmPaths?: string[];
+
+	/**
+	 * Headers added to every response the server sends: rendered pages, explicit routes and endpoints, and files
+	 * from `public/` and `dist/client`, under `ecopages dev`, `start` and `preview`.
+	 *
+	 * @remarks
+	 * Rules apply in order. A header here replaces one of the same name set by the framework or a handler.
+	 * A static export carries no headers; configure them on the host.
+	 *
+	 * @example
+	 * ```ts
+	 * headers: [
+	 *   { source: '/**', headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
+	 * ]
+	 * ```
+	 */
+	headers?: ResponseHeaderRule[];
 
 	/**
 	 * Default fallback HTML `<head>` metadata (title, description, OpenGraph tags) applied across all pages.

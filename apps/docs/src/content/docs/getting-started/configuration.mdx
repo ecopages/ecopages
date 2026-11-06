@@ -163,6 +163,51 @@ Ecopages now discovers the document shell and error pages semantically:
 	[Dev toolbar](/docs/core/dev-toolbar).
 </ApiField>
 
+## Response headers
+
+<ApiField name="headers" type="{ source: string; headers: Record<string, string> }[]">
+	Headers added to every response Ecopages serves: rendered Pages, Explicit Routes and Endpoints, and files from `public/`
+	and `dist/client`, under `ecopages dev`, `ecopages start` and `ecopages preview`. `source` is a URL pathname pattern
+	that starts with `/`. `*` matches any characters except `/`, and `**` matches any characters including `/`; nothing
+	else is a pattern. `/**` matches every path, `/assets/*` the files directly in `/assets/`, `/assets/**` everything
+	below it, and `/**/*.wasm` every `.wasm` file. Rules apply in order. Framework headers such as `Content-Type`,
+	`Cache-Control`, `ETag`, `Content-Encoding` and `Vary` stay, except that a configured header replaces one of the
+	same name, so a rule can override one on purpose. An invalid `source` or header fails when the config loads.
+	A static export carries no headers: set them on the host (see [Deployment](/docs/reference/deployment)), for example in a
+	`_headers` file or the platform settings.
+</ApiField>
+
+```typescript
+export default defineConfig({
+	headers: [
+		{ source: '/assets/*', headers: { 'Access-Control-Allow-Origin': '*' } },
+	],
+});
+```
+
+### WebAssembly and cross-origin isolation
+
+`SharedArrayBuffer` and threaded WebAssembly need a cross-origin isolated page, which the browser grants from headers
+on the HTML document itself:
+
+```typescript
+export default defineConfig({
+	headers: [
+		{
+			source: '/**',
+			headers: {
+				'Cross-Origin-Opener-Policy': 'same-origin',
+				'Cross-Origin-Embedder-Policy': 'require-corp',
+			},
+		},
+	],
+});
+```
+
+`self.crossOriginIsolated` is then `true`. Every cross-origin resource the page loads (images, scripts, fonts, iframes,
+CDN files) must now send `Cross-Origin-Resource-Policy: cross-origin` or a matching CORS response, or the browser
+blocks it. Same-origin files are unaffected. On a static export, send the same two headers from the host.
+
 ## Integrations
 
 Ecopages supports various integrations to extend its capabilities. Here are some commonly used integrations:

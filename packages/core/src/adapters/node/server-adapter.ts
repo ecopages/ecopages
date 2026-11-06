@@ -23,6 +23,7 @@ import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstr
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import type { RuntimeHost } from './runtime-host.ts';
 import { serveDistFile } from '../shared/http/dist-file-handler.ts';
+import { applyResponseHeaders } from '../shared/http/response-headers.ts';
 import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import { DevSession } from './dev-session.ts';
 import { restoreProductionBrowserBuild } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
@@ -311,12 +312,16 @@ export class NodeServerAdapter {
 				serveOptions: {
 					hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
 					port: Number(this.serveOptions.port ?? DEFAULT_ECOPAGES_PORT),
-					handleRequest: (request) =>
-						serveDistFile(request, {
-							distDir: this.appConfig.absolutePaths.distDir,
-							watchMode: false,
-							resolveExportedPages: true,
-						}),
+					handleRequest: async (request) =>
+						applyResponseHeaders(
+							await serveDistFile(request, {
+								distDir: this.appConfig.absolutePaths.distDir,
+								watchMode: false,
+								resolveExportedPages: true,
+							}),
+							request,
+							this.appConfig.headers,
+						),
 				},
 				allowPortFallback: this.allowPortFallback,
 				usePortManager: true,
@@ -440,9 +445,17 @@ export class NodeServerAdapter {
 			if (waitForReadiness) {
 				await this.requestReadiness;
 			}
-			return await this.requestPipeline.handleSharedRequest(request, context);
+			return applyResponseHeaders(
+				await this.requestPipeline.handleSharedRequest(request, context),
+				request,
+				this.appConfig.headers,
+			);
 		} catch (error) {
-			return await this.requestPipeline.handleUnexpectedRequestError(error, request, context);
+			return applyResponseHeaders(
+				await this.requestPipeline.handleUnexpectedRequestError(error, request, context),
+				request,
+				this.appConfig.headers,
+			);
 		}
 	}
 

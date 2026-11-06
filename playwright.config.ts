@@ -106,6 +106,20 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		use: { ...chrome, appOptions: { source: 'e2e/fixtures/html-pages' } },
 	},
 	{
+		name: 'response-headers-dev-e2e',
+		testMatch: 'e2e/fixtures/response-headers/*.dev.test.e2e.ts',
+		timeout: 60_000,
+		use: {
+			...chrome,
+			appOptions: { source: 'e2e/fixtures/html-pages', configFile: 'eco.config.headers.ts' },
+		},
+	},
+	{
+		name: 'response-headers-preview-e2e',
+		testMatch: 'e2e/fixtures/response-headers/*.preview.test.e2e.ts',
+		use: { ...chrome, baseURL: 'http://localhost:4624' },
+	},
+	{
 		name: 'react-production-start-e2e',
 		testMatch: 'e2e/fixtures/react-production-start/**/*.test.e2e.ts',
 		use: { ...chrome, baseURL: 'http://localhost:4623' },
@@ -284,6 +298,22 @@ const projectWebServers: ProjectWebServer[] = [
 			NODE_ENV: 'production',
 			ECOPAGES_PORT: '4620',
 			ECOPAGES_E2E_ARTIFACT_SCOPE: 'html-pages-e2e',
+			ECOPAGES_PREVIEW_SERVE_ONLY: 'true',
+		},
+	},
+	{
+		projects: ['response-headers-preview-e2e'],
+		command:
+			'node ../../../packages/ecopages/bin/cli.js build --runtime node && node ../../../packages/ecopages/bin/cli.js preview --runtime node --port 4624',
+		cwd: 'e2e/fixtures/html-pages',
+		url: 'http://localhost:4624',
+		timeout: 180_000,
+		reuseExistingServer: !process.env.CI,
+		env: {
+			NODE_ENV: 'production',
+			ECOPAGES_PORT: '4624',
+			ECOPAGES_CONFIG_FILE: 'eco.config.headers.ts',
+			ECOPAGES_E2E_ARTIFACT_SCOPE: 'response-headers-e2e',
 			ECOPAGES_PREVIEW_SERVE_ONLY: 'true',
 		},
 	},

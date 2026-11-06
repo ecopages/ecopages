@@ -80,6 +80,20 @@ describe('finalizeEcoPagesConfig configModuleFiles', () => {
 	});
 });
 
+describe('finalizeEcoPagesConfig headers', () => {
+	test('keeps a valid headers option on the config', async () => {
+		const headers = [{ source: '/**', headers: { 'Cross-Origin-Opener-Policy': 'same-origin' } }];
+
+		expect((await finalize({ headers })).headers).toEqual(headers);
+	});
+
+	test('rejects a source that is not a path pattern', async () => {
+		await expect(finalize({ headers: [{ source: 'assets', headers: {} }] })).rejects.toThrow(
+			'Invalid "headers" option at index 0',
+		);
+	});
+});
+
 describe('finalizeEcoPagesConfig', () => {
 	test('does not run processor setup while finalizing config', async () => {
 		const setup = vi.fn(async () => {

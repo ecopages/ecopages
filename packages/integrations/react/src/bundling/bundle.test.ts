@@ -5,9 +5,10 @@ import type {
 	EcoBuildPlugin,
 	IntegrationRuntimeContext,
 } from '@ecopages/core/integration';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
 import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
 import { BundleService } from './bundle.ts';
@@ -233,51 +234,92 @@ describe('BundleService', () => {
 		expect(processDependencies).toHaveBeenCalledTimes(1);
 	});
 
-	it('strips server imports from foreign-JSX files in the React client graph', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'eco-react-foreign-jsx-'));
+	const buildReactIsland = async (tempDir: string, entrypoint: string) => {
+		const service = new BundleService({
+			rootDir: tempDir,
+			appConfig: {
+				...testAppConfig,
+				rootDir: tempDir,
+				absolutePaths: { projectDir: tempDir },
+			} as unknown as IntegrationRuntimeContext['appConfig'],
+			hostIntegrationName: 'react',
+		});
+		const options = await service.createBundleOptions('island', [], { includeRuntime: true }, entrypoint);
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: join(tempDir, 'dist'),
+			root: tempDir,
+			target: 'browser',
+			format: 'esm',
+			plugins: options.plugins as EcoBuildPlugin[],
+		});
+		assertBuildSucceeded(result, 'Build failed');
+		return result.outputs[0]!.path;
+	};
+
+	const writeForeignJsxIsland = (
+		tempDir: string,
+		widgetBody: string[],
+		islandSource = "import Widget from './widget.kita.tsx';\nexport default Widget;",
+	) => {
 		const srcDir = join(tempDir, 'src');
 		mkdirSync(srcDir);
+		symlinkSync(
+			fileURLToPath(new URL('../../node_modules', import.meta.url)),
+			join(tempDir, 'node_modules'),
+			'dir',
+		);
 		const entrypoint = join(srcDir, 'island.tsx');
 		writeFileSync(join(srcDir, 'auth.server.ts'), 'export const authMiddleware = "server-secret";');
 		writeFileSync(join(srcDir, 'eco.ts'), 'export const eco = { page: (options) => options };');
 		writeFileSync(
 			join(srcDir, 'widget.kita.tsx'),
-			[
-				"import { eco } from './eco';",
-				"import { authMiddleware } from './auth.server.ts';",
+			["import { eco } from './eco';", "import { authMiddleware } from './auth.server.ts';", ...widgetBody].join(
+				'\n',
+			),
+		);
+		writeFileSync(entrypoint, islandSource);
+		return entrypoint;
+	};
+
+	it('strips server imports from foreign-JSX files in the React client graph', async () => {
+		const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-react-foreign-jsx-')));
+
+		try {
+			const entrypoint = writeForeignJsxIsland(tempDir, [
 				'export default eco.page({',
 				'middleware: [authMiddleware],',
 				'render: () => <div>Widget</div>,',
 				'});',
-			].join('\n'),
-		);
-		writeFileSync(entrypoint, "import Widget from './widget.kita.tsx';\nexport default Widget;");
-
-		try {
-			const service = new BundleService({
-				rootDir: tempDir,
-				appConfig: {
-					...testAppConfig,
-					rootDir: tempDir,
-					absolutePaths: { projectDir: tempDir },
-				} as unknown as IntegrationRuntimeContext['appConfig'],
-				hostIntegrationName: 'react',
-			});
-			const options = await service.createBundleOptions('island', [], { includeRuntime: true }, entrypoint);
-			const result = await new RolldownBuildAdapter().build({
-				environment: 'browser' as const,
-				entrypoints: [entrypoint],
-				outdir: join(tempDir, 'dist'),
-				root: tempDir,
-				target: 'browser',
-				format: 'esm',
-				plugins: options.plugins as EcoBuildPlugin[],
-			});
-			assertBuildSucceeded(result, 'Build failed');
-			const output = readFileSync(result.outputs[0]!.path, 'utf8');
+			]);
+			const outputPath = await buildReactIsland(tempDir, entrypoint);
+			const output = readFileSync(outputPath, 'utf8');
 			expect(output).toContain('Widget');
 			expect(output).not.toContain('server-secret');
 			expect(output).not.toContain('auth.server');
+			expect(output).not.toContain('authMiddleware');
+			await expect(import(pathToFileURL(outputPath).href)).resolves.toHaveProperty('default');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('fails the build when an island uses an export that needs a stripped server binding', async () => {
+		const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-react-foreign-jsx-')));
+
+		try {
+			const entrypoint = writeForeignJsxIsland(
+				tempDir,
+				[
+					'export const guard = authMiddleware;',
+					'export default eco.page({ render: () => <div>Widget</div> });',
+				],
+				"import Widget, { guard } from './widget.kita.tsx';\nexport default [Widget, guard];",
+			);
+			await expect(buildReactIsland(tempDir, entrypoint)).rejects.toThrow(
+				`'authMiddleware' (imported from './auth.server.ts') is used at ${join(tempDir, 'src', 'widget.kita.tsx')}:3:22`,
+			);
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}

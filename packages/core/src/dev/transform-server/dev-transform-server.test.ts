@@ -389,6 +389,7 @@ describe('DevTransformServer', () => {
 		fs.writeFileSync(lockfile, 'lockfileVersion: two, reinstalled\n');
 		const later = new Date(Date.now() + 60_000);
 		fs.utimesSync(lockfile, later, later);
+		vi.spyOn(Date, 'now').mockReturnValue(later.getTime());
 		expect(await readVendor()).toContain('release-two');
 	});
 });

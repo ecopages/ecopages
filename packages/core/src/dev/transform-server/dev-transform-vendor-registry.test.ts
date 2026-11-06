@@ -668,9 +668,47 @@ describe('DevTransformVendorRegistry', () => {
 		expect(persisted).toContain('built-lib');
 		expect(persisted).toContain('new-lib');
 
-		registry.invalidateAll();
+		const retries = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		await expect(registry.resolveVendorUrl('new-lib')).rejects.toThrow(/transient/);
+		expect(bundleCallsUnder(retries, rootDir)).toBe(0);
+
+		const failedAt = Date.now();
+		vi.spyOn(Date, 'now').mockReturnValue(failedAt + 2_000);
 		const newUrl = await registry.resolveVendorUrl('new-lib');
 		expect([...(await readVendorGraph(registry, [newUrl])).values()].join('\n')).toContain('new-lib-code');
+		expect(bundleCallsUnder(retries, rootDir)).toBe(1);
+		vi.restoreAllMocks();
+	});
+
+	it('serves the chunks of the previous build until the rebuild after an invalidation commits', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-stale-chunk');
+		writePackage(
+			path.join(modules, 'chunked-lib'),
+			'chunked-lib',
+			{ type: 'module', exports: { '.': './index.js', './hooks': './hooks.js' } },
+			{
+				'shared.js': "export const context = { marker: 'chunked-shared-code' };\n",
+				'index.js': "import { context } from './shared.js';\nexport const providerContext = context;\n",
+				'hooks.js': "import { context } from './shared.js';\nexport const hookContext = context;\n",
+			},
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const urls = await Promise.all([
+			registry.resolveVendorUrl('chunked-lib'),
+			registry.resolveVendorUrl('chunked-lib/hooks'),
+		]);
+		const chunkUrl = [...(await readVendorGraph(registry, urls)).keys()].find((url) => !urls.includes(url));
+		assert.ok(chunkUrl, 'expected a shared chunk');
+
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		registry.invalidateAll();
+		const chunk = await registry.tryHandleVendorRequest(chunkUrl);
+
+		expect(chunk?.status).toBe(200);
+		expect(await chunk?.text()).toContain('chunked-shared-code');
+		expect(bundleCallsUnder(bundle, rootDir)).toBe(0);
+		bundle.mockRestore();
 	});
 
 	it('builds the entries a previous dev process discovered on the first request', async () => {

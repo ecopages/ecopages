@@ -2,6 +2,8 @@ import path from 'node:path';
 
 import { fileSystem } from '@ecopages/file-system';
 
+const CHECK_INTERVAL_MS = 300;
+
 const LOCKFILE_NAMES = [
 	'pnpm-lock.yaml',
 	'package-lock.json',
@@ -24,20 +26,27 @@ const INSTALL_MANIFEST_PATHS = [
  * app and of the nearest ancestor directory with a lockfile, such as a workspace root.
  *
  * @remarks
- * A missing file counts as a state of its own, so creating or deleting one is a change too. Checking costs one
- * `stat` per candidate file and reads no contents.
+ * A missing file counts as a state of its own, so creating or deleting one is a change too. A check costs one
+ * `stat` per candidate file and reads no contents, and runs at most once per 300 ms.
  */
 export class DevTransformInstallStamp {
 	private readonly files: readonly string[];
 	private stamp: string;
+	private checkedAt: number;
 
 	constructor(rootDir: string) {
 		this.files = resolveInstallStampFiles(rootDir);
 		this.stamp = this.read();
+		this.checkedAt = Date.now();
 	}
 
 	/** Whether the install changed since construction or the previous call that returned `true`. */
 	changed(): boolean {
+		const now = Date.now();
+		if (now - this.checkedAt < CHECK_INTERVAL_MS) {
+			return false;
+		}
+		this.checkedAt = now;
 		const next = this.read();
 		if (next === this.stamp) {
 			return false;

@@ -17,6 +17,7 @@ const BROWSER_FIRST_VENDOR_CONDITIONS = ['browser', 'module', 'import', 'default
 const MODULE_FIRST_VENDOR_CONDITIONS = ['module', 'import', 'default'] as const;
 const BROWSER_NODE_BUILTIN_GUARD_MARKER = '[browser-build] Node builtin';
 const VENDOR_GRAPH_QUIET_PERIOD_MS = 50;
+const VENDOR_GRAPH_RETRY_BACKOFF_MS = 2_000;
 const VENDOR_ENTRIES_FILE = 'dev-vendor-entries.json';
 
 type VendorGraphKey = 'browser-first' | 'module-first';
@@ -41,6 +42,8 @@ type VendorGraphBuild = {
 	failed: ReadonlyMap<string, Error>;
 	/** URLs of this build that a browser has received. */
 	servedUrls: Set<string>;
+	/** When the graph failed as a whole; set only on a build that kept the last good outputs. */
+	failedAt?: number;
 };
 
 type ScheduledVendorGraphBuild = {
@@ -239,7 +242,7 @@ export class DevTransformVendorRegistry {
 
 	private waitForBuildContaining(graph: VendorGraph, entryPath: string): Promise<VendorGraphBuild> {
 		const current = this.currentBuild(graph);
-		if (current?.entryPaths.has(entryPath)) {
+		if (current?.entryPaths.has(entryPath) && !isRetryDue(current, entryPath)) {
 			return Promise.resolve(current);
 		}
 		if (graph.running?.generation === this.generation && graph.running.entryPaths.has(entryPath)) {
@@ -396,7 +399,9 @@ export class DevTransformVendorRegistry {
 	 * @remarks
 	 * A whole-graph failure can be transient, such as one during a package install, so no entry is marked
 	 * failed and the next build tries every entry again. An entry without a previous output gets its own error
-	 * when it failed alone, otherwise the graph error.
+	 * when it failed alone, otherwise the graph error. A request for such an entry made after a backoff schedules
+	 * that next build, so the error does not stick; the backoff keeps a lasting failure from rebuilding the graph,
+	 * with its per-entry isolation builds, on every request.
 	 */
 	private keepLastGoodBuild(
 		graph: VendorGraph,
@@ -429,6 +434,7 @@ export class DevTransformVendorRegistry {
 			errors,
 			failed: failure.failed,
 			servedUrls: lastGood?.servedUrls ?? new Set(),
+			failedAt: Date.now(),
 		};
 	}
 
@@ -488,15 +494,23 @@ export class DevTransformVendorRegistry {
 		return null;
 	}
 
+	/**
+	 * @remarks
+	 * After {@link DevTransformVendorRegistry.invalidateAll} an entry URL waits for the rebuild, but a chunk or an
+	 * entry URL that is no longer known is still served from the previous build until the rebuild commits, so an
+	 * open page can load its lazy chunks; a rebuild that changes a served file then reloads the page.
+	 */
 	private findBuiltOutput(url: string): VendorOutputLookup {
+		const known = this.entriesByUrl.get(url);
 		for (const graph of this.graphs.values()) {
-			const build = this.currentBuild(graph);
-			const content = build?.outputs.get(url);
-			if (build && content !== undefined) {
+			const build = graph.current;
+			if (!build || (known && build.generation !== this.generation)) continue;
+			const content = build.outputs.get(url);
+			if (content !== undefined) {
 				return { build, url, content };
 			}
-			const known = this.entriesByUrl.get(url);
-			const error = known?.graph === graph ? build?.errors.get(known.entry.entryPath) : undefined;
+			const entryPath = known?.graph === graph ? known.entry.entryPath : undefined;
+			const error = entryPath && !isRetryDue(build, entryPath) ? build.errors.get(entryPath) : undefined;
 			if (error) {
 				return { error };
 			}
@@ -598,6 +612,16 @@ function isPersistedVendorEntries(value: unknown): value is PersistedVendorEntri
 			typeof entry.specifier === 'string' &&
 			'conditions' in entry &&
 			(entry.conditions === 'browser-first' || entry.conditions === 'module-first'),
+	);
+}
+
+/** Whether a request for an entry with no output in a build that failed as a whole should build the graph again. */
+function isRetryDue(build: VendorGraphBuild, entryPath: string): boolean {
+	return (
+		build.failedAt !== undefined &&
+		Date.now() - build.failedAt >= VENDOR_GRAPH_RETRY_BACKOFF_MS &&
+		build.errors.has(entryPath) &&
+		!build.failed.has(entryPath)
 	);
 }
 

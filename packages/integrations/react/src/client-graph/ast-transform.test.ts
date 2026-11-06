@@ -8,7 +8,6 @@ function transform(
 	options?: {
 		globallyAllowed?: Map<string, Set<string> | '*'>;
 		requestedExports?: Map<string, RequestedExportRules>;
-		stripServerOnlyPageOptions?: boolean;
 	},
 ) {
 	return transformModuleImports(
@@ -16,11 +15,33 @@ function transform(
 		filename,
 		options?.globallyAllowed ?? new Map(),
 		options?.requestedExports ?? new Map(),
-		options?.stripServerOnlyPageOptions ?? false,
 	);
 }
 
 describe('transformModuleImports', () => {
+	it('fails when a stripped server import is still referenced outside Page options', () => {
+		const source = [
+			"import { authMiddleware } from './auth.server';",
+			'export const guard = authMiddleware;',
+			'export default eco.page({ middleware: [authMiddleware], render: () => null });',
+		].join('\n');
+
+		expect(() => transform(source, '/app/src/widget.tsx')).toThrow(
+			/authMiddleware.*widget\.tsx|widget\.tsx.*authMiddleware/s,
+		);
+	});
+
+	it('strips server-only Page options from modules outside pages and layouts', () => {
+		const source = [
+			"import { authMiddleware } from './auth.server';",
+			'export default eco.page({ middleware: [authMiddleware], render: () => null });',
+		].join('\n');
+
+		const { transformed } = transform(source, '/app/src/widget.tsx');
+
+		expect(transformed).not.toContain('authMiddleware');
+	});
+
 	it('still transforms nested import() inside require() after handling the outer require call', () => {
 		const source = [
 			"const dynamicFs = require(import('node:fs'));",
@@ -97,9 +118,7 @@ describe('transformModuleImports', () => {
 			'});',
 		].join('\n');
 
-		const { transformed, modified } = transform(source, '/app/src/pages/index.tsx', {
-			stripServerOnlyPageOptions: true,
-		});
+		const { transformed, modified } = transform(source, '/app/src/pages/index.tsx');
 
 		expect(modified).toBe(true);
 		expect(transformed).not.toContain('cache:');
@@ -117,9 +136,7 @@ describe('transformModuleImports', () => {
 			'});',
 		].join('\n');
 
-		const { transformed, modified } = transform(source, '/app/src/pages/index.tsx', {
-			stripServerOnlyPageOptions: true,
-		});
+		const { transformed, modified } = transform(source, '/app/src/pages/index.tsx');
 
 		expect(modified).toBe(false);
 		expect(transformed).toContain('[key]: []');

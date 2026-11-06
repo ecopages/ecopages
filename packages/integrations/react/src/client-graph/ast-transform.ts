@@ -7,6 +7,7 @@ import { analyzeReachability } from './reachability-analyzer.ts';
 import { stripServerOnlyEcoPageOptions } from './ast-transform-eco-page.ts';
 import { collectImportTransformEdits } from './ast-transform-walk-imports.ts';
 import { walkAstNodes } from './ast-walk.ts';
+import { assertNoDanglingBindingReferences } from './ast-transform-dangling-references.ts';
 import { applySourceEdits } from './ast-transform-import-edits.ts';
 import {
 	mergeDeclaredModulesMap,
@@ -75,7 +76,6 @@ export function transformModuleImports(
 	filename: string,
 	globallyAllowed: Map<string, Set<string> | '*'>,
 	requestedExports: Map<string, RequestedExportRules>,
-	stripServerOnlyPageOptions = false,
 	preserveUnreachableSideEffectImports = false,
 ): { transformed: string; modified: boolean } {
 	let result;
@@ -94,17 +94,17 @@ export function transformModuleImports(
 
 	propagateRequestedExportRules(program, filename, reachability, requestedExports);
 
+	const removedBindings: string[] = [];
 	const edits = collectImportTransformEdits(program, {
 		filename,
 		reachability,
 		allowedMap,
 		preserveUnreachableSideEffectImports,
+		removedBindings,
 	});
 
 	if (edits.length === 0) {
-		return stripServerOnlyPageOptions
-			? stripServerOnlyEcoPageOptions(source, program)
-			: { transformed: source, modified: false };
+		return stripServerOnlyEcoPageOptions(source, program);
 	}
 
 	const transformed = applySourceEdits(source, edits);
@@ -116,12 +116,18 @@ export function transformModuleImports(
 		return { transformed, modified: true };
 	}
 
-	const strippedPageOptions = stripServerOnlyPageOptions
-		? stripServerOnlyEcoPageOptions(transformed, reparsedResult.program)
-		: { transformed, modified: false };
-	if (strippedPageOptions.modified) {
-		return strippedPageOptions;
+	const strippedPageOptions = stripServerOnlyEcoPageOptions(transformed, reparsedResult.program);
+	if (!strippedPageOptions.modified) {
+		assertNoDanglingBindingReferences(filename, reparsedResult.program, removedBindings);
+		return { transformed, modified: true };
 	}
 
-	return { transformed, modified: true };
+	let strippedProgram;
+	try {
+		strippedProgram = parseModuleSource(filename, strippedPageOptions.transformed).program;
+	} catch {
+		return strippedPageOptions;
+	}
+	assertNoDanglingBindingReferences(filename, strippedProgram, removedBindings);
+	return strippedPageOptions;
 }

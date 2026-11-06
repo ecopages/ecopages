@@ -38,7 +38,6 @@ export function transformClientGraphModule(
 		options.filePath,
 		options.globallyDeclaredSources,
 		options.requestedExports,
-		isPageOrLayoutEntry(options.filePath),
 		Boolean(options.preserveUnreachableSideEffectImports) && !isPageOrLayoutEntry(options.filePath),
 	);
 	recordModuleTransformProfile({

@@ -2,6 +2,7 @@
  * AST walk that prunes forbidden imports and rewrites named import surfaces.
  */
 
+import { isServerOnlyModuleSpecifier } from '@ecopages/core/build/contracts';
 import type { ReachabilityResult } from './reachability-analyzer.ts';
 import { isServerOnlySpecifier, toModuleBaseSpecifier } from './specifier-classification.ts';
 import { walkAstNodes } from './ast-walk.ts';
@@ -15,6 +16,8 @@ export type WalkImportsContext = {
 	edits: SourceEdit[];
 	allowedMap: Map<string, Set<string> | '*'>;
 	preserveUnreachableSideEffectImports: boolean;
+	/** Receives the local names of bindings imported from `.server` modules that were removed. Node built-ins are not tracked. */
+	removedBindings: string[];
 };
 
 function processSpecifier(specifier: string, allowedMap: Map<string, Set<string> | '*'>): ProcessSpecifierResult {
@@ -42,6 +45,15 @@ function pruneForbiddenSpecifier(
 	ctx.edits.push({ start: node.start, end: node.end, replacement });
 }
 
+function recordRemovedServerBindings(node: any, specifier: string, ctx: WalkImportsContext): void {
+	if (node.importKind === 'type' || !isServerOnlyModuleSpecifier(specifier)) return;
+	for (const specifierNode of node.specifiers ?? []) {
+		if (specifierNode.importKind !== 'type' && specifierNode.local?.name) {
+			ctx.removedBindings.push(specifierNode.local.name);
+		}
+	}
+}
+
 function handleImportDeclaration(node: any, ctx: WalkImportsContext): boolean {
 	const specifier = node.source.value as string;
 	const reachableRules = ctx.reachability.reachableImports.get(specifier);
@@ -49,6 +61,7 @@ function handleImportDeclaration(node: any, ctx: WalkImportsContext): boolean {
 
 	if (!allowed) {
 		pruneForbiddenSpecifier(node, ctx, specifier, `Forbidden client import '${specifier}'`, '');
+		recordRemovedServerBindings(node, specifier, ctx);
 		return true;
 	}
 

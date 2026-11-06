@@ -275,6 +275,12 @@ export class AssetProcessingService {
 		}
 
 		if (dep.source === 'file' && 'filepath' in dep && !fileSystem.exists(dep.filepath)) {
+			const ledger = requireAppRuntime(this.config).processedAssets;
+			if (ledger.isRestored) {
+				throw new Error(
+					`The production build did not record the ${dep.kind} file ${ledger.describe(dep)} and it is missing from the app folder. Run \`ecopages build\` again.`,
+				);
+			}
 			appLogger.warn(`Skipping missing ${dep.kind} file: ${dep.filepath}`);
 			return null;
 		}
@@ -538,7 +544,7 @@ export class AssetProcessingService {
 		}
 
 		if (isProductionRuntime()) {
-			return this.cache.get(depKey)?.asset ?? null;
+			return this.cache.get(depKey)?.asset ?? this.restoreRecordedAsset(dep, depKey);
 		}
 
 		const currentCache = this.cache.get(depKey);
@@ -563,6 +569,27 @@ export class AssetProcessingService {
 		}
 
 		return currentCache.asset;
+	}
+
+	/**
+	 * Serves a dependency the production build recorded from its emitted output.
+	 *
+	 * @remarks
+	 * The record names files under `dist/`, so a restored build never reads the dependency's source.
+	 * A recorded output that is gone is an error: serving the Page without it would drop its styles or scripts.
+	 */
+	private restoreRecordedAsset(dep: AssetDefinition, depKey: string): ProcessedAsset | null {
+		const ledger = requireAppRuntime(this.config).processedAssets;
+		const recorded = ledger.isRestored ? ledger.lookup(dep) : undefined;
+		if (!recorded) return null;
+		if (recorded.filepath && !fileSystem.exists(recorded.filepath)) {
+			throw new Error(
+				`The production build recorded ${path.relative(this.config.rootDir, recorded.filepath)} but it is missing. Run \`ecopages build\` again.`,
+			);
+		}
+		const asset = finalizeProcessedAsset(recorded, (processed) => this.resolveProcessedAssetSrcUrl(processed));
+		this.cache.set(depKey, { asset });
+		return asset;
 	}
 
 	private getGroupedBundleCacheKey(deps: AssetDefinition[]): string | undefined {
@@ -675,6 +702,9 @@ export class AssetProcessingService {
 			asset,
 			sourceHash: this.getFileSourceHash(asset.sourceFilepath ?? this.getDependencySourceFilepath(dep)),
 		});
+		if (isProductionRuntime()) {
+			requireAppRuntime(this.config).processedAssets.record(dep, asset);
+		}
 		if (asset.filepath) {
 			this.gzippedFiles.delete(asset.filepath);
 		}

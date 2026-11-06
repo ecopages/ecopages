@@ -12,6 +12,7 @@ import { syncDocumentElementAttributes } from './document-element-sync.ts';
 export type NavigationCommitOptions = {
 	html?: string;
 	isStaleNavigation?: () => boolean;
+	isSupersededNavigation?: () => boolean;
 	allowFullDocumentFallback?: boolean;
 };
 
@@ -66,6 +67,7 @@ export class NavigationCommit {
 			direction,
 			newDocument,
 			isStale: isStaleNavigation,
+			isSuperseded: options.isSupersededNavigation,
 			viewTransitionsEnabled: this.options.viewTransitions,
 			persistAttribute: this.options.persistAttribute,
 			onReloadRequested: async () => {

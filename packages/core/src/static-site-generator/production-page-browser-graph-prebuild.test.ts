@@ -1,13 +1,18 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
+import { getServerBundleOutputPaths } from '../build/server-bundle-deploy-manifest.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
 import { createPageDependencyInstanceKey } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
-import type { ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
+import type { AssetDefinition, ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
+import { getAssetDependencyKey } from '../assets/asset-processing-service/asset-dependency-keys.ts';
+import { AssetFactory } from '../assets/asset-processing-service/asset.factory.ts';
+import { APP_BROWSER_CLIENT_BUNDLE_ID } from '../assets/asset-processing-service/app-browser-client-bundle.ts';
+import { packagePageDependencies } from '../route-renderer/page-loading/page-dependency-bundling.ts';
 import {
 	assertAppBrowserClientManifestHtmlOutputsExist,
 	readAppBrowserClientManifest,
@@ -30,8 +35,6 @@ const { buildAppBrowserClientMock } = vi.hoisted(() => ({ buildAppBrowserClientM
 
 vi.mock('../assets/app-browser-client-build.ts', () => ({
 	buildAppBrowserClient: buildAppBrowserClientMock,
-	createAppBrowserClientEntryKey: (integrationName: string, dependency: unknown) =>
-		JSON.stringify([integrationName, dependency]),
 }));
 
 beforeEach(() => {
@@ -97,8 +100,10 @@ test('prebuildProductionPageBrowserGraphs deduplicates, sorts, and groups route 
 		plans: [reactAppBrowserPlan, litAppBrowserPlan],
 		sourceFiles: [],
 		outputPaths: [],
+		bundledScriptAssets: new Map(),
 	});
 	const createRenderer = (rendererName: string, groupedBuildPlan: { planKey: string }) => ({
+		materializeCollectedScripts: vi.fn(async () => {}),
 		buildGroupedGraphBuildPlan: vi.fn(async (_instances: unknown[], _options: unknown) => groupedBuildPlan),
 		prebuildProductionPageBrowserGraph: async (
 			filePath: string,
@@ -204,9 +209,11 @@ test('prebuildProductionPageBrowserGraphs skips routes whose preparation failed'
 		plans: [{ ...groupedBuildPlan, planKey: 'app-browser-plan' }],
 		sourceFiles: [],
 		outputPaths: [],
+		bundledScriptAssets: new Map(),
 	});
 	const prebuiltRoutes: string[] = [];
 	const renderer = {
+		materializeCollectedScripts: vi.fn(async () => {}),
 		buildGroupedGraphBuildPlan: vi.fn(
 			async (
 				instances: Array<{ routeFile: string; params?: Record<string, string | string[]> }>,
@@ -307,6 +314,7 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs 
 	await writeAppBrowserClientManifest(appConfig, [buildPlan], [{ routeFile, params }], {
 		sourceFiles: [],
 		outputPaths: [],
+		bundledScriptAssets: new Map(),
 	});
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 
@@ -328,6 +336,7 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs 
 	let installedPlan: GroupedGraphBuildPlan | undefined;
 	const renderer = {
 		name: 'ecopages-jsx',
+		materializeCollectedScripts: vi.fn(async () => {}),
 		buildGroupedGraphBuildPlan: vi.fn(async () => currentPlan),
 		prebuildProductionPageBrowserGraph: vi.fn(
 			async (_file: string, options: { groupedBuildPlan?: GroupedGraphBuildPlan }) => {
@@ -356,6 +365,206 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs 
 	assert.ok(restoredPageClientAssets);
 	assert.equal(restoredPageClientAssets.processedAssets[0]?.filepath, islandAsset.filepath);
 	assert.deepEqual(restoredPageClientAssets.fallbackDependencies, [fallbackEntry]);
+});
+
+test('prebuildProductionPageBrowserGraphsFromManifest restores bundled component scripts before rendering', async () => {
+	const appConfig = await createAppConfig();
+	const routeFile = path.join(appConfig.rootDir, 'pages/index.tsx');
+	const script: AssetDefinition = {
+		kind: 'script',
+		source: 'file',
+		filepath: path.join(appConfig.rootDir, 'src/counter.script.ts'),
+		position: 'head',
+	};
+	const scriptAsset: ProcessedAsset = {
+		filepath: path.join(appConfig.absolutePaths.distDir, 'assets/client-counter.js'),
+		srcUrl: '/assets/client-counter.js',
+		kind: 'script',
+	};
+	writeFile(scriptAsset.filepath!);
+	const createPlan = (planKey: string): GroupedGraphBuildPlan => ({
+		integrationName: 'ecopages-jsx',
+		planKey,
+		instances: [{ routeFile, dependencyInstanceKey: createPageDependencyInstanceKey({}) }],
+		bundledScripts: [{ ...script }],
+	});
+	await writeAppBrowserClientManifest(appConfig, [createPlan('app-browser-build-plan')], [{ routeFile }], {
+		sourceFiles: [],
+		outputPaths: [],
+		bundledScriptAssets: new Map([[getAssetDependencyKey(script, appConfig.rootDir), scriptAsset]]),
+	});
+	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
+	const prebuiltScriptsWhenMaterialized: Array<ProcessedAsset | undefined> = [];
+	const renderer = {
+		name: 'ecopages-jsx',
+		materializeCollectedScripts: vi.fn(async () => {
+			prebuiltScriptsWhenMaterialized.push(
+				requireAppRuntime(runtimeAppConfig).prebuiltBrowserScripts.get(
+					getAssetDependencyKey(script, appConfig.rootDir),
+				),
+			);
+		}),
+		buildGroupedGraphBuildPlan: vi.fn(async () => createPlan('runtime-plan')),
+		prebuildProductionPageBrowserGraph: vi.fn(async () => {}),
+	};
+
+	assert.equal(
+		await prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, {
+			getPageRenderer: () => renderer as never,
+		}),
+		true,
+	);
+
+	assert.equal(prebuiltScriptsWhenMaterialized.length, 1);
+	assert.equal(prebuiltScriptsWhenMaterialized[0]?.filepath, scriptAsset.filepath);
+	assert.equal(prebuiltScriptsWhenMaterialized[0]?.srcUrl, '/assets/client-counter.js');
+});
+
+test('prebuildProductionPageBrowserGraphsFromManifest restores a build moved to another folder', async () => {
+	const parentDir = mkdtempSync(path.join(os.tmpdir(), 'eco-moved-build-'));
+	temporaryRoots.push(parentDir);
+	const buildRoot = path.join(parentDir, 'built-here');
+	const startRoot = path.join(parentDir, 'started-there');
+	const memberFiles = ['src/a.script.ts', 'src/b.script.ts'];
+	for (const file of memberFiles) writeFile(path.join(buildRoot, file));
+	/** The Page script route preparation bundles, named into its grouped bundle as ecopages-jsx does. */
+	const pageScriptUnder = (rootDir: string): AssetDefinition => {
+		const [pageScript] = packagePageDependencies(
+			memberFiles.map((file) =>
+				AssetFactory.createFileScript({
+					filepath: path.join(rootDir, file),
+					position: 'head',
+					attributes: { type: 'module', defer: '' },
+				}),
+			),
+			'ecopages-jsx',
+			true,
+			rootDir,
+		);
+		assert.ok(pageScript?.kind === 'script' && pageScript.source === 'content' && 'name' in pageScript);
+		const entryName = String(pageScript.name);
+		return { ...pageScript, groupedBundle: { id: APP_BROWSER_CLIENT_BUNDLE_ID, entryName } };
+	};
+	const createPlan = (rootDir: string): GroupedGraphBuildPlan => ({
+		integrationName: 'ecopages-jsx',
+		planKey: 'plan',
+		instances: [
+			{
+				routeFile: path.join(rootDir, 'pages/index.tsx'),
+				dependencyInstanceKey: createPageDependencyInstanceKey({}),
+				pageClientBuildEntries: [
+					{
+						integrationName: 'ecopages-jsx',
+						dependency: {
+							kind: 'script',
+							source: 'file',
+							filepath: path.join(rootDir, 'src/island.ts'),
+							position: 'head',
+						},
+					},
+				],
+			},
+		],
+		bundledScripts: [pageScriptUnder(rootDir)],
+	});
+	const buildConfig = await createAppConfig(buildRoot);
+	const builtAsset: ProcessedAsset = {
+		filepath: path.join(buildConfig.absolutePaths.distDir, 'assets/client-page.js'),
+		srcUrl: '/assets/client-page.js',
+		kind: 'script',
+	};
+	writeFile(builtAsset.filepath!);
+	await writeAppBrowserClientManifest(
+		buildConfig,
+		[createPlan(buildRoot)],
+		[{ routeFile: path.join(buildRoot, 'pages/index.tsx') }],
+		{
+			sourceFiles: [],
+			outputPaths: [],
+			bundledScriptAssets: new Map([[getAssetDependencyKey(pageScriptUnder(buildRoot), buildRoot), builtAsset]]),
+		},
+	);
+	renameSync(buildRoot, startRoot);
+	const startConfig = await createAppConfig(startRoot);
+	const renderer = {
+		name: 'ecopages-jsx',
+		materializeCollectedScripts: vi.fn(async () => {}),
+		buildGroupedGraphBuildPlan: vi.fn(async () => createPlan(startRoot)),
+		prebuildProductionPageBrowserGraph: vi.fn(async () => {}),
+	};
+
+	assert.equal(
+		await prebuildProductionPageBrowserGraphsFromManifest(startConfig, {
+			getPageRenderer: () => renderer as never,
+		}),
+		true,
+	);
+
+	const restored = requireAppRuntime(startConfig).prebuiltBrowserScripts.get(
+		getAssetDependencyKey(pageScriptUnder(startRoot), startRoot),
+	);
+	assert.equal(restored?.filepath, path.join(startConfig.absolutePaths.distDir, 'assets/client-page.js'));
+	assert.equal(restored?.srcUrl, '/assets/client-page.js');
+});
+
+test('prebuildProductionPageBrowserGraphsFromManifest restores Integration scripts and refreshes their assets', async () => {
+	const appConfig = await createAppConfig();
+	const globalScript: AssetDefinition = {
+		kind: 'script',
+		source: 'file',
+		filepath: path.join(appConfig.rootDir, 'node_modules/lit-runtime/hydrate.ts'),
+		position: 'head',
+	};
+	const runtimeScript: AssetDefinition = {
+		kind: 'script',
+		source: 'node-module',
+		importPath: 'react',
+		position: 'head',
+		packageRole: 'runtime',
+	};
+	const globalAsset: ProcessedAsset = {
+		filepath: path.join(appConfig.absolutePaths.distDir, 'assets/client-hydrate.js'),
+		srcUrl: '/assets/client-hydrate.js',
+		kind: 'script',
+	};
+	writeFile(globalAsset.filepath!);
+	await writeAppBrowserClientManifest(
+		appConfig,
+		[{ integrationName: 'lit', planKey: 'integration-scripts:lit', instances: [], bundledScripts: [globalScript] }],
+		[],
+		{
+			sourceFiles: [],
+			outputPaths: [],
+			bundledScriptAssets: new Map([[getAssetDependencyKey(globalScript, appConfig.rootDir), globalAsset]]),
+		},
+	);
+	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
+	const prebuiltWhenRefreshed: Array<ProcessedAsset | undefined> = [];
+	const integration = {
+		name: 'lit',
+		getIntegrationDependencies: () => [{ ...globalScript }, runtimeScript],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {
+			prebuiltWhenRefreshed.push(
+				requireAppRuntime(runtimeAppConfig).prebuiltBrowserScripts.get(
+					getAssetDependencyKey(globalScript, appConfig.rootDir),
+				),
+			);
+		}),
+	};
+	runtimeAppConfig.integrations.push(integration as never);
+
+	assert.equal(
+		await prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, {
+			getPageRenderer: () => {
+				throw new Error('no routes');
+			},
+		}),
+		true,
+	);
+
+	assert.equal(integration.refreshResolvedIntegrationDependencies.mock.calls.length, 1);
+	assert.equal(prebuiltWhenRefreshed[0]?.srcUrl, '/assets/client-hydrate.js');
+	assert.equal(requireAppRuntime(runtimeAppConfig).prebuiltBrowserScripts.size, 1);
 });
 
 test('prebuildProductionPageBrowserGraphsFromManifest restores dynamic route templates without static props', async () => {
@@ -387,6 +596,7 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores dynamic route tem
 		{
 			sourceFiles: [],
 			outputPaths: [],
+			bundledScriptAssets: new Map(),
 		},
 	);
 	assert.equal(readAppBrowserClientManifest(appConfig)?.entries[0]?.skipStaticProps, true);
@@ -395,6 +605,7 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores dynamic route tem
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 	const renderer = {
 		name: 'ecopages-jsx',
+		materializeCollectedScripts: vi.fn(async () => {}),
 		buildGroupedGraphBuildPlan: vi.fn(
 			async (
 				_instances: Array<{
@@ -433,7 +644,11 @@ test('prebuildProductionPageBrowserGraphsFromManifest reuses outputs after HTML 
 	writeFile(htmlScriptFile, 'export const documentScript = true;');
 	writeFile(path.join(appConfig.absolutePaths.distDir, 'assets/document.js'));
 	setPrebuiltHtmlPageModuleScriptUrls(appConfig, new Map([[htmlScriptFile, '/assets/document.js']]));
-	await writeAppBrowserClientManifest(appConfig, [], [], { sourceFiles: [], outputPaths: [] });
+	await writeAppBrowserClientManifest(appConfig, [], [], {
+		sourceFiles: [],
+		outputPaths: [],
+		bundledScriptAssets: new Map(),
+	});
 	writeFile(htmlScriptFile, 'export const documentScript = false;');
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 
@@ -474,11 +689,13 @@ test('prebuildProductionPageBrowserGraphsFromManifest reuses outputs after route
 	await writeAppBrowserClientManifest(appConfig, [plan], [{ routeFile }], {
 		sourceFiles: [routeSource],
 		outputPaths: [routeOutput],
+		bundledScriptAssets: new Map(),
 	});
 	writeFile(routeSource, 'export const pageClient = false;');
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 	const renderer = {
 		name: 'ecopages-jsx',
+		materializeCollectedScripts: vi.fn(async () => {}),
 		buildGroupedGraphBuildPlan: vi.fn(async () => plan),
 		prebuildProductionPageBrowserGraph: vi.fn(async () => {}),
 	};
@@ -515,7 +732,11 @@ test('the app browser manifest records and validates shared build outputs', asyn
 	const sharedChunk = path.join(appConfig.absolutePaths.distDir, 'assets/shared-chunk.js');
 	writeFile(sharedChunk);
 	setPrebuiltHtmlPageModuleScriptUrls(appConfig, new Map());
-	await writeAppBrowserClientManifest(appConfig, [], [], { sourceFiles: [], outputPaths: [sharedChunk] });
+	await writeAppBrowserClientManifest(appConfig, [], [], {
+		sourceFiles: [],
+		outputPaths: [sharedChunk],
+		bundledScriptAssets: new Map(),
+	});
 
 	const manifest = readAppBrowserClientManifest(appConfig);
 	assert.deepEqual(manifest?.browserOutputPaths, ['dist/client/assets/shared-chunk.js']);
@@ -525,4 +746,18 @@ test('the app browser manifest records and validates shared build outputs', asyn
 	await expect(
 		prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, { getPageRenderer: () => null as never }),
 	).rejects.toThrow(/missing output dist\/client\/assets\/shared-chunk\.js/);
+});
+
+test('a manifest written by an earlier version asks for a new build', async () => {
+	const appConfig = await createAppConfig();
+	setPrebuiltHtmlPageModuleScriptUrls(appConfig, new Map());
+	await writeAppBrowserClientManifest(appConfig, [], [], {
+		sourceFiles: [],
+		outputPaths: [],
+		bundledScriptAssets: new Map(),
+	});
+	const manifestPath = path.join(getServerBundleOutputPaths(appConfig).serverOutdir, 'browser-client-manifest.json');
+	writeFileSync(manifestPath, JSON.stringify({ ...JSON.parse(readFileSync(manifestPath, 'utf8')), version: 1 }));
+
+	expect(() => readAppBrowserClientManifest(appConfig)).toThrow(/Run `ecopages build` again\./);
 });

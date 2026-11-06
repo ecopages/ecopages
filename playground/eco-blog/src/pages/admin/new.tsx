@@ -4,7 +4,7 @@ import { PostEditor } from '@/components/post-editor/post-editor';
 import { AdminShell } from '@/layouts/admin-shell/admin-shell';
 import { requireSession } from '@/lib/require-session.server';
 
-export default eco.page<{}, JsxRenderable>({
+export default eco.page<{}, JsxRenderable, 'session'>({
 	cache: 'dynamic',
 	middleware: [requireSession],
 	requires: ['session'] as const,

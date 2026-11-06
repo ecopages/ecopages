@@ -111,7 +111,7 @@ A build plugin rewrites module source with its `transform` hook. Register it in 
 import { defineConfig } from '@ecopages/core/config';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
+	rootDir: process.cwd(),
 	loaders: [
 		{
 			name: 'banner-transform',

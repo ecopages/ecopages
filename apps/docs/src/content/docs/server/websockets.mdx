@@ -58,7 +58,7 @@ A single registration matches all variations of the pattern. `/ws/chat/abc`, `/w
 
 | Hook | When | Purpose |
 |------|------|---------|
-| `context()` | Once per upgrade | Build per-connection state. Return value becomes `socket.context`. Rejecting the promise aborts the upgrade. |
+| `context()` | Once per upgrade | Build per-connection state. Return value becomes `socket.context`. Rejecting the promise refuses the upgrade with HTTP 403, or with the status of a thrown `HttpError`, so the client never receives `open`. |
 | `onConnect(socket)` | After upgrade | Register the client, send initial data. |
 | `onMessage(socket, message)` | Each frame | Handle incoming text or binary frames. |
 | `onClose(socket, event)` | After disconnect | Clean up resources. |

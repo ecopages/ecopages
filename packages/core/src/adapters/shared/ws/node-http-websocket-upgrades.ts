@@ -1,5 +1,5 @@
 import type { Duplex } from 'node:stream';
-import type { Server as NodeHttpServer, IncomingMessage } from 'node:http';
+import { STATUS_CODES, type Server as NodeHttpServer, type IncomingMessage } from 'node:http';
 import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
 import { HttpError } from '../../../errors/http-error.ts';
 import { appLogger } from '../../../global/app-logger.ts';
@@ -61,28 +61,25 @@ async function resolveNodeContext<TContext, TParams extends Record<string, strin
 	try {
 		return (await handler.context({ request, kind, params, search })) as TContext;
 	} catch (error) {
-		appLogger.error(`[WS:${kind}] context() failed; closing connection.`, error as Error);
+		appLogger.error(`[WS:${kind}] context() failed; refusing upgrade.`, error as Error);
 		throw error;
 	}
+}
+
+function refuseUpgrade(socket: Duplex, error: unknown): void {
+	const status = HttpError.isHttpError(error) && error.status >= 400 && error.status < 600 ? error.status : 403;
+	socket.end(
+		`HTTP/1.1 ${status} ${STATUS_CODES[status] ?? 'Error'}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
+	);
 }
 
 async function setupNodeWebSocketConnection(
 	ws: WsWebSocket,
 	wsMatch: WebSocketRouteMatch,
-	req: IncomingMessage,
-	runtimeOrigin: string,
 	search: PageQuery,
+	context: unknown,
 ): Promise<void> {
 	const handler = wsMatch.handler as EcopagesWebSocketHandler<unknown, Record<string, string>>;
-	const baseRequest = toUpgradeRequest(runtimeOrigin, req);
-
-	let context: unknown;
-	try {
-		context = await resolveNodeContext(baseRequest, handler, wsMatch.kind, wsMatch.params, search);
-	} catch {
-		ws.close(1011, 'context initialization failed');
-		return;
-	}
 
 	const socket = adaptNodeWebSocket(ws, wsMatch.kind, wsMatch.params, search, context);
 
@@ -170,12 +167,28 @@ export function attachNodeHttpWebSocketUpgrades(
 			return;
 		}
 
-		userWss.handleUpgrade(req, socket, head, (ws) => {
-			const search = parseSearchParams(url.searchParams);
-			void setupNodeWebSocketConnection(ws, wsMatch, req, options.runtimeOrigin, search).catch((error) => {
-				appLogger.error(`[WS:${wsMatch.kind}] unexpected error:`, error as Error);
-				ws.close(1011, 'internal error');
-			});
-		});
+		const search = parseSearchParams(url.searchParams);
+		const handler = wsMatch.handler as EcopagesWebSocketHandler<unknown, Record<string, string>>;
+		const baseRequest = toUpgradeRequest(options.runtimeOrigin, req);
+
+		void resolveNodeContext(baseRequest, handler, wsMatch.kind, wsMatch.params, search).then(
+			(context) => {
+				if (socket.destroyed) {
+					return;
+				}
+
+				userWss.handleUpgrade(req, socket, head, (ws) => {
+					void setupNodeWebSocketConnection(ws, wsMatch, search, context).catch((error) => {
+						appLogger.error(`[WS:${wsMatch.kind}] unexpected error:`, error as Error);
+						ws.close(1011, 'internal error');
+					});
+				});
+			},
+			(error) => {
+				if (!socket.destroyed) {
+					refuseUpgrade(socket, error);
+				}
+			},
+		);
 	});
 }

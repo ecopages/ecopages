@@ -5,8 +5,12 @@ import type {
 	EcoBuildPlugin,
 	IntegrationRuntimeContext,
 } from '@ecopages/core/integration';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
+import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
 import { BundleService } from './bundle.ts';
-import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 
 const withNodeEnv = async <T>(nodeEnv: string | undefined, run: () => Promise<T>): Promise<T> => {
 	if (nodeEnv === undefined) {
@@ -57,7 +61,7 @@ describe('BundleService', () => {
 			},
 		});
 
-		const options = await service.createBundleOptions('ecopages-react-page', false, []);
+		const options = await service.createBundleOptions('ecopages-react-page', []);
 		const pluginNames = (options.plugins as Array<{ name: string }>).map((plugin) => plugin.name);
 		const runtimeImports = service.getRuntimeImports();
 
@@ -69,7 +73,7 @@ describe('BundleService', () => {
 		expect(options.external).not.toEqual(expect.arrayContaining(['react', 'react-dom', 'react-dom/client']));
 	});
 
-	it('adds the plugin-owned MDX loader to MDX bundles only', async () => {
+	it('gives MDX and TSX entries the same plugins so they share one build group', async () => {
 		const mdxLoader = { name: 'react-mdx-loader', setup: () => {} };
 		const service = new BundleService({
 			rootDir: '/app',
@@ -78,11 +82,14 @@ describe('BundleService', () => {
 			getMdxLoaderPlugin: () => mdxLoader,
 		});
 
-		const mdxOptions = await service.createBundleOptions('ecopages-react-page', true, []);
-		const tsxOptions = await service.createBundleOptions('ecopages-react-page', false, []);
+		const mdxPageOptions = await service.createBundleOptions('ecopages-react-mdx-page', [], {}, '/app/page.mdx');
+		const tsxPageOptions = await service.createBundleOptions('ecopages-react-tsx-page', [], {}, '/app/page.tsx');
+		const pluginNames = (options: Record<string, unknown>) =>
+			(options.plugins as Array<{ name: string }>).map((plugin) => plugin.name);
 
-		expect(mdxOptions.plugins).toContain(mdxLoader);
-		expect(tsxOptions.plugins).not.toContain(mdxLoader);
+		expect(mdxPageOptions.plugins).toContain(mdxLoader);
+		expect(tsxPageOptions.plugins).toContain(mdxLoader);
+		expect(pluginNames(mdxPageOptions)).toEqual(pluginNames(tsxPageOptions));
 	});
 
 	it('enables minify only for production runtimes', async () => {
@@ -93,10 +100,10 @@ describe('BundleService', () => {
 		});
 
 		const developmentOptions = await withNodeEnv('development', () =>
-			service.createBundleOptions('ecopages-react-page', false, []),
+			service.createBundleOptions('ecopages-react-page', []),
 		);
 		const productionOptions = await withNodeEnv('production', () =>
-			service.createBundleOptions('ecopages-react-page', false, []),
+			service.createBundleOptions('ecopages-react-page', []),
 		);
 
 		expect(developmentOptions.minify).toBeUndefined();
@@ -126,7 +133,7 @@ describe('BundleService', () => {
 			},
 		});
 
-		const options = await service.createBundleOptions('ecopages-react-page', false, [], {
+		const options = await service.createBundleOptions('ecopages-react-page', [], {
 			includeRuntime: true,
 		});
 		const pluginNames = (options.plugins as Array<{ name: string }>).map((plugin) => plugin.name);
@@ -140,7 +147,7 @@ describe('BundleService', () => {
 		service: BundleService,
 		specifiers: string[],
 	): Promise<Record<string, EcoBuildOnResolveResult | undefined>> {
-		const options = await service.createBundleOptions('ecopages-react-page', false, []);
+		const options = await service.createBundleOptions('ecopages-react-page', []);
 		const runtimeRewritePlugin = (options.plugins as EcoBuildPlugin[]).find(
 			(plugin) => plugin.name === 'react-renderer-runtime-import-rewrite',
 		);
@@ -186,22 +193,6 @@ describe('BundleService', () => {
 		}
 	});
 
-	it('resolves configured runtime module imports to shared vendor URLs', async () => {
-		const service = new BundleService({
-			rootDir: '/app',
-			appConfig: testAppConfig,
-			hostIntegrationName: 'react',
-			runtimeModules: resolveReactPluginRuntimeModules(['@tanstack/react-query']),
-		});
-
-		const resolved = await resolveRuntimeSpecifiers(service, ['@tanstack/react-query']);
-
-		expect(resolved['@tanstack/react-query']).toEqual({
-			path: '/assets/vendors/tanstack-react-query.js',
-			external: true,
-		});
-	});
-
 	it('processes page-layout-normalization vendor once for concurrent MDX callers', async () => {
 		const assetProcessingIntegration = { name: 'react' };
 		const service = new BundleService({
@@ -240,5 +231,55 @@ describe('BundleService', () => {
 
 		await service.ensurePageLayoutNormalizationVendorProcessed(assetProcessingService);
 		expect(processDependencies).toHaveBeenCalledTimes(1);
+	});
+
+	it('strips server imports from foreign-JSX files in the React client graph', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-react-foreign-jsx-'));
+		const srcDir = join(tempDir, 'src');
+		mkdirSync(srcDir);
+		const entrypoint = join(srcDir, 'island.tsx');
+		writeFileSync(join(srcDir, 'auth.server.ts'), 'export const authMiddleware = "server-secret";');
+		writeFileSync(join(srcDir, 'eco.ts'), 'export const eco = { page: (options) => options };');
+		writeFileSync(
+			join(srcDir, 'widget.kita.tsx'),
+			[
+				"import { eco } from './eco';",
+				"import { authMiddleware } from './auth.server.ts';",
+				'export default eco.page({',
+				'middleware: [authMiddleware],',
+				'render: () => <div>Widget</div>,',
+				'});',
+			].join('\n'),
+		);
+		writeFileSync(entrypoint, "import Widget from './widget.kita.tsx';\nexport default Widget;");
+
+		try {
+			const service = new BundleService({
+				rootDir: tempDir,
+				appConfig: {
+					...testAppConfig,
+					rootDir: tempDir,
+					absolutePaths: { projectDir: tempDir },
+				} as unknown as IntegrationRuntimeContext['appConfig'],
+				hostIntegrationName: 'react',
+			});
+			const options = await service.createBundleOptions('island', [], { includeRuntime: true }, entrypoint);
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser' as const,
+				entrypoints: [entrypoint],
+				outdir: join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				plugins: options.plugins as EcoBuildPlugin[],
+			});
+			assertBuildSucceeded(result, 'Build failed');
+			const output = readFileSync(result.outputs[0]!.path, 'utf8');
+			expect(output).toContain('Widget');
+			expect(output).not.toContain('server-secret');
+			expect(output).not.toContain('auth.server');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 });

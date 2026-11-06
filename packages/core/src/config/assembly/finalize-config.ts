@@ -16,6 +16,7 @@ import {
 	DEFAULT_ECOPAGES_PORT,
 	DEFAULT_ECOPAGES_WORK_DIR,
 } from '../../constants.ts';
+import { assertResponseHeaderRules } from '../../adapters/shared/http/response-headers.ts';
 import { collectConfigModuleFiles } from '../config-module-files.ts';
 import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from '../resolve-eco-config-path.ts';
 import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from '../user-config-types.ts';
@@ -346,6 +347,7 @@ export async function finalizeEcoPagesConfig(
 		let rootDir = resolveUserConfigRootDir(userConfig.rootDir, cwd);
 		const configFilePath = options.configFilePath ?? path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
 		rootDir = resolveEmittedConfigRootDir(rootDir, configFilePath, directories.distDir, cwd);
+		if (userConfig.headers !== undefined) assertResponseHeaderRules(userConfig.headers);
 		const integrations = withHtmlPagesIntegration(userConfig.integrations ?? []);
 		const partialConfig: Omit<EcoPagesAppConfig, 'absolutePaths'> = {
 			baseUrl: resolveBaseUrl(userConfig.baseUrl),
@@ -365,6 +367,7 @@ export async function finalizeEcoPagesConfig(
 			additionalWatchPaths: userConfig.additionalWatchPaths ?? [],
 			devPrewarmPaths: userConfig.devPrewarmPaths ?? [],
 			serverFiles: userConfig.serverFiles,
+			headers: userConfig.headers,
 			cache: userConfig.cache,
 			devToolbar: userConfig.devToolbar,
 		};

@@ -2,6 +2,7 @@ import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { AppRuntime } from './assembly/app-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
+import type { ResponseHeaderRule } from './user-config-types.ts';
 import type {
 	CacheConfig,
 	ComponentRenderInput,
@@ -118,6 +119,8 @@ export type EcoPagesAppConfig = {
 	 * before the server reports that it is listening; core reads the list once, after that.
 	 */
 	devPrewarmPaths?: string[];
+	/** Response headers from the user's `headers` option, validated at finalization. */
+	headers?: ResponseHeaderRule[];
 	/**
 	 * @default { title: 'Ecopages', description: 'Ecopages' }
 	 */

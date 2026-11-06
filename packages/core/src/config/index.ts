@@ -19,4 +19,5 @@ export type {
 	EcoPagesUserConfigFactory,
 	LoadedEcoPagesUserConfig,
 	LoadEcoPagesConfigOptions,
+	ResponseHeaderRule,
 } from './user-config-types.ts';

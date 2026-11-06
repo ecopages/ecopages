@@ -44,6 +44,14 @@ If your site **does not** use API routes or programmatic server logic, point you
 	</RuiAlertDescription>
 </RuiAlert>
 
+Response headers from `headers` in `eco.config.ts` apply only while Ecopages serves the files. A static host sends its own, so repeat them there, such as a `_headers` file on Netlify or Cloudflare Pages:
+
+```text
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+```
+
 ---
 
 ## Server Hosting (Node/Bun)

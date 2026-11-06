@@ -29,6 +29,7 @@ const writes: Array<{ filePath: string; contents: string | Buffer }> = [];
 const createMockConfig = (): EcoPagesAppConfig => {
 	const config = {
 		rootDir: '/test/project',
+		baseUrl: 'https://example.com',
 		distDir: 'dist',
 		workDir: DEFAULT_ECOPAGES_WORK_DIR,
 		srcDir: 'src',

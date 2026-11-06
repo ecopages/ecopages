@@ -65,11 +65,7 @@ export class ProcessedAssetLedger {
 	}
 
 	private keyOf(dep: FileAssetDefinition): string {
-		return getAssetDependencyKey({
-			...dep,
-			filepath: this.relative(dep.filepath),
-			bundledSourceFilepaths: dep.bundledSourceFilepaths?.map((filepath) => this.relative(filepath)),
-		});
+		return getAssetDependencyKey(dep, this.rootDir);
 	}
 
 	private relative(filepath: string): string {

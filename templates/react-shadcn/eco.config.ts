@@ -5,14 +5,16 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
+import { siteOrigin } from './src/lib/site-origin';
 
 export default defineConfig({
+	baseUrl: siteOrigin,
 	integrations: [reactPlugin({ router: ecoRouter(), mdx: {} })],
 	processors: [
 		imageProcessorPlugin({
 			options: {
-				sourceDir: path.resolve(import.meta.dirname, 'src/images'),
-				outputDir: path.resolve(import.meta.dirname, 'dist/client/images'),
+				sourceDir: path.resolve(process.cwd(), 'src/images'),
+				outputDir: path.resolve(process.cwd(), 'dist/client/images'),
 				publicPath: '/images',
 				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 				quality: 80,
@@ -27,7 +29,7 @@ export default defineConfig({
 		}),
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
+				referencePath: path.resolve(process.cwd(), 'src/styles/tailwind.css'),
 			}),
 		),
 	],

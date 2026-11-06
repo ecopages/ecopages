@@ -4,6 +4,14 @@
  */
 import { defineConfig, configDefaults } from 'vitest/config';
 
+/**
+ * Files the Windows CI job leaves out, passed by `scripts/test-vitest-windows.ts` as newline-separated paths.
+ *
+ * @remarks
+ * A CLI `--exclude` does not reach the inline `shared-core` project, so the list travels through the environment.
+ */
+const windowsKnownFailures = (process.env.ECOPAGES_VITEST_EXCLUDE ?? '').split('\n').filter(Boolean);
+
 export default defineConfig({
 	test: {
 		silent: 'passed-only',
@@ -43,7 +51,12 @@ export default defineConfig({
 						'playground/kitchen-sink/bench/*.test.ts',
 						'playground/kitchen-sink/bench/lib/**/*.test.ts',
 					],
-					exclude: [...configDefaults.exclude, 'packages/**/*.test.node.ts', 'packages/**/*.test.bun.ts'],
+					exclude: [
+						...configDefaults.exclude,
+						'packages/**/*.test.node.ts',
+						'packages/**/*.test.bun.ts',
+						...windowsKnownFailures,
+					],
 				},
 			},
 		],

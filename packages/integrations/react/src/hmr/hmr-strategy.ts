@@ -94,9 +94,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	private getBuildPlugins(declaredModules?: readonly string[]): EcoBuildPlugin[] {
-		const allowSpecifiers = getReactClientGraphAllowSpecifiers(
-			this.runtimeManifest.assets.map((asset) => asset.specifier),
-		);
+		const allowSpecifiers = [
+			...getReactClientGraphAllowSpecifiers(),
+			...this.runtimeManifest.assets.map((asset) => asset.specifier),
+		];
 		const runtimeRewritePlugin = createBrowserRuntimePlugin({
 			name: 'react-hmr-runtime-import-rewrite',
 			manifest: this.runtimeManifest,

@@ -16,7 +16,6 @@ export default defineConfig({
 	integrations: [
 		reactPlugin({
 			router: ecoRouter({ persistLayouts }),
-			runtimeModules: ['@tanstack/react-query'],
 			mdx: {},
 		}),
 	],

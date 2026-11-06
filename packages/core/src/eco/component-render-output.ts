@@ -111,7 +111,7 @@ function openingTagHasTriggerAttribute(str: string, insertAt: number): boolean {
 	return /(?:^|\s)data-eco-trigger=/.test(opening);
 }
 
-function injectTriggerAttributeIntoString(content: string, triggerId: string): string {
+function injectTriggerAttributeIntoString(content: string, triggerId: string): StampedContent<string> {
 	const str = content;
 	let i = 0;
 
@@ -141,15 +141,59 @@ function injectTriggerAttributeIntoString(content: string, triggerId: string): s
 			}
 			const insertAt = i + 1 + nameEnd;
 			if (openingTagHasTriggerAttribute(str, insertAt)) {
-				return str;
+				return { content: str, reachedElement: true };
 			}
-			return `${str.slice(0, insertAt)} data-eco-trigger="${triggerId}"${str.slice(insertAt)}`;
+			return {
+				content: `${str.slice(0, insertAt)} data-eco-trigger="${triggerId}"${str.slice(insertAt)}`,
+				reachedElement: true,
+			};
 		}
 
 		break;
 	}
 
-	return str;
+	return { content: str, reachedElement: false };
+}
+
+type StampedContent<T> = {
+	content: T;
+	/** Whether an element opening tag was found, so later fragment siblings must stay untouched. */
+	reachedElement: boolean;
+};
+
+function stampContent(content: unknown, triggerId: string): StampedContent<unknown> {
+	if (Array.isArray(content)) {
+		let reachedElement = false;
+		const stamped = content.map((item: unknown) => {
+			if (reachedElement) return item;
+			const result = stampContent(item, triggerId);
+			reachedElement = result.reachedElement;
+			return result.reachedElement ? result.content : item;
+		});
+		return { content: stamped, reachedElement };
+	}
+
+	if (isTemplateContentShape(content)) {
+		if (content.strings.length === 0) {
+			return { content: String(content), reachedElement: false };
+		}
+
+		const first = injectTriggerAttributeIntoString(content.strings[0] ?? '', triggerId);
+		return {
+			content: cloneTemplateContentWithUpdatedFirstString(content, first.content),
+			reachedElement: first.reachedElement,
+		};
+	}
+
+	if (isMarkupNodeLikeShape(content) && typeof content.outerHTML === 'string') {
+		const outer = injectTriggerAttributeIntoString(content.outerHTML, triggerId);
+		return {
+			content: cloneMarkupNodeLikeWithUpdatedOuterHtml(content, outer.content),
+			reachedElement: outer.reachedElement,
+		};
+	}
+
+	return injectTriggerAttributeIntoString(String(content), triggerId);
 }
 
 /**
@@ -170,6 +214,10 @@ function injectTriggerAttributeIntoString(content: string, triggerId: string): s
  * When no eligible opening tag is found the original string is returned
  * unchanged so callers never receive a broken fragment.
  *
+ * An array (a JSX fragment) keeps its shape: the trigger goes on the first
+ * element found in document order, skipping text, `null`, booleans and nested
+ * arrays that hold no element, and later siblings are returned untouched.
+ *
  * @remarks
  * `@ecopages/jsx` beta.8+ keeps attribute names in `parts`, so template
  * `strings[0]` is often just the opening tag name (`<html`) with no trailing
@@ -181,31 +229,8 @@ function injectTriggerAttributeIntoString(content: string, triggerId: string): s
 export function addTriggerAttribute(content: string, triggerId: string): string;
 export function addTriggerAttribute<T extends TemplateContentShape>(content: T, triggerId: string): T;
 export function addTriggerAttribute<T extends MarkupNodeLikeShape>(content: T, triggerId: string): T;
-export function addTriggerAttribute(
-	content: unknown,
-	triggerId: string,
-): string | TemplateContentShape | MarkupNodeLikeShape;
-export function addTriggerAttribute(
-	content: unknown,
-	triggerId: string,
-): string | TemplateContentShape | MarkupNodeLikeShape {
-	if (isTemplateContentShape(content)) {
-		if (content.strings.length === 0) {
-			return String(content);
-		}
-
-		return cloneTemplateContentWithUpdatedFirstString(
-			content,
-			injectTriggerAttributeIntoString(content.strings[0] ?? '', triggerId),
-		);
-	}
-
-	if (isMarkupNodeLikeShape(content) && typeof content.outerHTML === 'string') {
-		return cloneMarkupNodeLikeWithUpdatedOuterHtml(
-			content,
-			injectTriggerAttributeIntoString(content.outerHTML, triggerId),
-		);
-	}
-
-	return injectTriggerAttributeIntoString(String(content), triggerId);
+export function addTriggerAttribute<T extends readonly unknown[]>(content: T, triggerId: string): T;
+export function addTriggerAttribute(content: unknown, triggerId: string): unknown;
+export function addTriggerAttribute(content: unknown, triggerId: string): unknown {
+	return stampContent(content, triggerId).content;
 }

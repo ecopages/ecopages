@@ -35,7 +35,7 @@ import { type PageState } from './navigation.ts';
 import { PageErrorBoundary } from './page-error-boundary.ts';
 import { runRouterNavigate, type RouterNavigateOptions } from './router-navigate-runner.ts';
 import { applyViewTransitionNames, ensureRootViewTransitionStyles } from '@ecopages/core/client';
-import { manageWindowScroll } from '@ecopages/core/client';
+import { manageWindowScroll, schedulePageLoad } from '@ecopages/core/client';
 import {
 	getEcoNavigationRuntime,
 	type EcoNavigationRequest,
@@ -235,6 +235,11 @@ function useNavigationCoordinator(
 		unregisterRuntime = unregister;
 		navigationRuntime.claimOwnership('react-router');
 		runtimeActiveRef.current = true;
+		schedulePageLoad(
+			document,
+			{ url: new URL(window.location.href), direction: 'replace' },
+			{ isSuperseded: () => !runtimeActiveRef.current },
+		);
 		return () => {
 			runtimeActiveRef.current = false;
 			navigationRuntime.releaseOwnership('react-router');

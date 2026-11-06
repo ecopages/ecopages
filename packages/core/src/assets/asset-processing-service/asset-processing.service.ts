@@ -89,6 +89,25 @@ function isFileScriptBundle(dependencies: AssetDefinition[]): dependencies is Fi
  * output URL normalization, and production gzip preparation so route rendering
  * and HMR flows do not need to understand processor-specific behavior.
  */
+/**
+ * Applies the deduplication and Integration preparation that {@link AssetProcessingService.processDependencies}
+ * runs first.
+ *
+ * @remarks
+ * The production prebuild uses it to collect scripts under the same dependency keys that rendering later
+ * looks up in `AppRuntime.prebuiltBrowserScripts`.
+ */
+export function prepareAssetDependencies(
+	deps: AssetDefinition[],
+	integration: AssetProcessingIntegration | undefined,
+	rootDir: string,
+): AssetDefinition[] {
+	const dedupedDeps = deduplicateAssetDependencies(deps, rootDir);
+	const preparedDeps = integration?.prepareAssetDependencies?.(dedupedDeps) ?? dedupedDeps;
+	ensureGroupedContentScriptsBundle(preparedDeps);
+	return preparedDeps;
+}
+
 export class AssetProcessingService {
 	static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
 	private readonly processors: AssetProcessorRecord = { script: {}, stylesheet: {} };
@@ -113,6 +132,10 @@ export class AssetProcessingService {
 				this.invalidateCacheForFile(filePath);
 			}
 		});
+	}
+
+	private getDependencyKey(dep: AssetDefinition): string {
+		return getAssetDependencyKey(dep, this.config.rootDir);
 	}
 
 	/**
@@ -184,13 +207,22 @@ export class AssetProcessingService {
 		const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
 		fileSystem.ensureDir(depsDir);
 
-		const dedupedDeps = deduplicateAssetDependencies(deps);
-		const preparedDeps = integration?.prepareAssetDependencies?.(dedupedDeps) ?? dedupedDeps;
-		ensureGroupedContentScriptsBundle(preparedDeps);
-		const results = await this.processDependenciesParallel(preparedDeps);
+		const preparedDeps = prepareAssetDependencies(deps, integration, this.config.rootDir);
+		const prebuiltScripts = this.config.appRuntime?.prebuiltBrowserScripts;
+		const prebuilt: ProcessedAsset[] = [];
+		const pending: AssetDefinition[] = [];
+		for (const dep of preparedDeps) {
+			const asset = prebuiltScripts?.get(this.getDependencyKey(dep));
+			if (asset) {
+				prebuilt.push({ ...asset });
+			} else {
+				pending.push(dep);
+			}
+		}
+		const results = await this.processDependenciesParallel(pending);
 
 		await this.optimizeDependencies(results);
-		return results;
+		return [...prebuilt, ...results];
 	}
 
 	/**
@@ -207,12 +239,12 @@ export class AssetProcessingService {
 			const { groupedBundleDeps, ungroupedDeps } = partitionGroupedContentScriptDependencies(typeDeps);
 
 			const typePromises = ungroupedDeps.map((dep) =>
-				this.shareInFlight(getAssetDependencyKey(dep), () => this.processUngroupedDependency(dep)),
+				this.shareInFlight(this.getDependencyKey(dep), () => this.processUngroupedDependency(dep)),
 			);
 
 			const groupedBundles = Array.from(groupedBundleDeps.values());
 			const groupedKey = groupedBundles
-				.flatMap((bundle) => bundle.map(getAssetDependencyKey))
+				.flatMap((bundle) => bundle.map((dep) => this.getDependencyKey(dep)))
 				.sort()
 				.join('|');
 			const groupedResults = await this.shareInFlight(`grouped:${groupedKey}`, () =>
@@ -236,7 +268,7 @@ export class AssetProcessingService {
 	}
 
 	private async processUngroupedDependency(dep: AssetDefinition): Promise<ProcessedAsset | null> {
-		const dependencyKey = getAssetDependencyKey(dep);
+		const dependencyKey = this.getDependencyKey(dep);
 		const cached = this.getCachedAsset(dep, dependencyKey);
 		if (cached) {
 			return finalizeProcessedAsset(cached, (processed) => this.resolveProcessedAssetSrcUrl(processed));
@@ -299,7 +331,7 @@ export class AssetProcessingService {
 	private async processGroupedDependencyBundles(bundles: AssetDefinition[][]): Promise<ProcessedAsset[]> {
 		const processedBundles = await Promise.all(
 			bundles.map(async (bundleDeps) => {
-				const dependencyKeys = bundleDeps.map(getAssetDependencyKey);
+				const dependencyKeys = bundleDeps.map((dep) => this.getDependencyKey(dep));
 				const cachedBundle = this.getCachedGroupedBundle(bundleDeps, dependencyKeys);
 				if (cachedBundle) {
 					return cachedBundle.map((asset) =>

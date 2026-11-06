@@ -125,7 +125,7 @@ export default defineConfig({
   processors: [
     postcssProcessorPlugin(
       tailwindV4Preset({
-        referencePath: path.resolve(import.meta.dirname, "src/styles/app.css"),
+        referencePath: path.resolve(process.cwd(), "src/styles/app.css"),
       })
     ),
   ],
@@ -550,7 +550,7 @@ export const Head = eco.component<PageHeadProps, ReactNode>({
 ```tsx
 import type { PageMetadataProps } from "@ecopages/core";
 
-const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${path}`;
+import { absoluteUrl } from "../lib/site-origin";
 
 export function Seo({
   title,
@@ -572,7 +572,7 @@ export function Seo({
       <meta property="og:description" content={description} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
-      {url ? <link rel="canonical" href={withBaseUrl(url)} /> : null}
+      {url ? <link rel="canonical" href={absoluteUrl(url)} /> : null}
     </>
   );
 }
@@ -583,7 +583,8 @@ export function Seo({
 - `head.tsx` spreads metadata to `Seo` component: `<Seo {...metadata} />`
 - `seo.tsx` uses `PageMetadataProps` type from `@ecopages/core`
 - Default metadata from `eco.config.ts` merges with page-specific metadata automatically
-- The `withBaseUrl` helper converts relative paths to absolute URLs using `import.meta.env.ECOPAGES_BASE_URL`
+- `absoluteUrl` is a small helper (for example in `src/lib/site-origin.ts`) that joins the canonical origin with a pathname. The origin is the config `baseUrl`; `--base-url` or `ECOPAGES_BASE_URL` feeds it when the config leaves it unset, so import one origin value instead of reading the environment in each component
+- Resolve the app root from `process.cwd()`, not `import.meta.dirname`: the production build bundles `eco.config.ts` into `dist/server/`
 
 ## Metadata and SEO
 
@@ -733,10 +734,10 @@ export default eco.page({
 
 ### Environment Variables
 
-Access via `process.env` or `import.meta.env`:
+`baseUrl` in `eco.config.ts` is the canonical origin. When the config does not set it, `--base-url` or `ECOPAGES_BASE_URL` supplies it, then `http://localhost:3000`. Access other variables via `process.env`:
 
 ```typescript
-const baseUrl = process.env.ECOPAGES_BASE_URL ?? "http://localhost:3000";
+const authUrl = process.env.BETTER_AUTH_URL;
 ```
 
 ## Best Practices

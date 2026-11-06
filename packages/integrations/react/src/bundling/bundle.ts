@@ -15,7 +15,6 @@ import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/i
 import type { AssetProcessingIntegration, AssetProcessingService } from '@ecopages/core/integration';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { RuntimeBundleService, type ReactRuntimeImports } from './runtime-bundle.ts';
-import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
 import { isReactProductionRuntime } from './runtime-mode.ts';
 
 /**
@@ -27,7 +26,6 @@ export interface BundleServiceConfig {
 	assetProcessingIntegration?: AssetProcessingIntegration;
 	hostIntegrationName: string;
 	routerAdapter?: ReactRouterAdapter;
-	runtimeModules?: ResolvedReactPluginRuntimeModule[];
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 }
 
@@ -62,7 +60,6 @@ export class BundleService {
 		this.runtimeBundleService = new RuntimeBundleService({
 			rootDir: config.rootDir,
 			routerAdapter: config.routerAdapter,
-			runtimeModules: config.runtimeModules,
 		});
 		[this.foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(
 			config.appConfig,
@@ -116,13 +113,11 @@ export class BundleService {
 	 * so ESM imports resolve to concrete runtime asset URLs during module loading.
 	 *
 	 * @param componentName - Generated unique component name for output naming
-	 * @param isMdx - Whether the source file is an MDX file
 	 * @param declaredModules - Explicitly declared browser module specifiers
 	 * @returns Bundle options object for the build adapter
 	 */
 	async createBundleOptions(
 		componentName: string,
-		isMdx: boolean,
 		declaredModules: string[],
 		bundleOptions: ReactClientBundleOptions = {},
 		entrypointFile?: string,
@@ -163,7 +158,6 @@ export class BundleService {
 			groupedEntrypointFiles,
 			groupedDeclaredModules,
 			includeRuntime: bundleOptions.includeRuntime,
-			isMdx,
 		});
 
 		return options;
@@ -175,7 +169,6 @@ export class BundleService {
 		groupedEntrypointFiles?: readonly string[];
 		groupedDeclaredModules?: readonly string[];
 		includeRuntime?: boolean;
-		isMdx: boolean;
 	}): EcoBuildPlugin[] {
 		const graphBoundaryPlugin = createClientGraphBoundaryPlugin({
 			projectRoot: this.config.appConfig?.absolutePaths?.projectDir ?? this.config.rootDir,
@@ -184,17 +177,14 @@ export class BundleService {
 			groupedEntrypointFiles: options.groupedEntrypointFiles,
 			groupedDeclaredModules: options.groupedDeclaredModules,
 			declaredModules: options.declaredModules,
-			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(
-				this.runtimeBundleService.getConfiguredRuntimeModuleSpecifiers(),
-				this.config.routerAdapter,
-			),
+			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(this.config.routerAdapter),
 		});
 
 		const runtimePlugins = options.includeRuntime
 			? []
 			: [this.runtimeRewritePlugin].filter((plugin): plugin is NonNullable<typeof plugin> => plugin !== null);
 
-		const mdxPlugin = options.isMdx ? this.getMdxLoaderPlugin() : undefined;
+		const mdxPlugin = this.getMdxLoaderPlugin();
 		return [
 			...(this.foreignJsxOverridePlugin ? [this.foreignJsxOverridePlugin] : []),
 			graphBoundaryPlugin,

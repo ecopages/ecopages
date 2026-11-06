@@ -22,6 +22,7 @@ import type { CustomElementScriptPreloadScopeState } from '../../route-renderer/
 import type { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
 import type { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import type { IHmrManager } from '../../types/contracts.ts';
+import type { ProcessedAsset } from '../../assets/asset-processing-service/assets.types.ts';
 import { MISSING_APP_RUNTIME } from '../../utils/app-runtime.ts';
 
 export { requireAppRuntime } from '../../utils/app-runtime.ts';
@@ -91,6 +92,15 @@ export interface AppRuntime {
 	 */
 	productionBrowserGraphsSealed: boolean;
 	/**
+	 * Outputs of the production app-wide browser build for Page Package scripts, by dependency key.
+	 *
+	 * @remarks
+	 * The production prebuild collects every route's component scripts before rendering and builds them in the
+	 * app-wide build, so a module they share is one chunk. Asset processing returns these outputs instead of
+	 * bundling the script on its own. `ecopages start` restores them from the browser client manifest.
+	 */
+	prebuiltBrowserScripts: Map<string, ProcessedAsset>;
+	/**
 	 * Processed file dependencies of the production build, shared by every asset-processing service.
 	 *
 	 * @remarks
@@ -148,6 +158,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		origin: appConfig.baseUrl,
 		hmr: null,
 		productionBrowserGraphsSealed: false,
+		prebuiltBrowserScripts: new Map(),
 		processedAssets: new ProcessedAssetLedger(appConfig.rootDir),
 	};
 	appConfig.appRuntime = runtime;

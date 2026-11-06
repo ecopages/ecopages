@@ -70,7 +70,7 @@ For persistent UI across navigations (headers, sidebars), assign a **declared** 
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 
-export const BaseLayout = eco.layout<{ children: ReactNode }>({
+export const BaseLayout = eco.layout<ReactNode>({
 	render: ({ children }) => (
 		<>
 			<header>My Site</header>
@@ -91,7 +91,7 @@ export default eco.page({
 
 When navigating between pages that share the same layout key (`config.identity.file` or `id`), `persistLayouts` (enabled by default with `ecoRouter()`) keeps the layout mounted. Only page content updates.
 
-**Shared npm vendors:** persisted layouts stay mounted across navigation, so shared-state libraries such as TanStack Query, MobX, or Redux need one browser module instance. Add those packages to the React plugin's `runtimeModules`. See [Shared runtime vendors](/docs/integrations/react#shared-runtime-vendors).
+**Shared npm packages:** persisted layouts stay mounted across navigation, so shared-state libraries such as TanStack Query, MobX, or Redux need one browser module instance. Ecopages loads each package once without configuration. See [Shared browser modules](/docs/integrations/react#shared-browser-modules).
 
 #### Nested layouts
 

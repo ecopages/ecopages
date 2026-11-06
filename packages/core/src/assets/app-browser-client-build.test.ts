@@ -236,7 +236,7 @@ test('buildAppBrowserClient bundles route entries and HTML module scripts in one
 	assert.ok(build.outputPaths.includes(path.join(rootDir, 'dist/client/assets/shared-chunk.js')));
 });
 
-test('buildAppBrowserClient scopes bundle options to entries with matching options', async () => {
+test('buildAppBrowserClient builds entries apart only when build-wide options differ', async () => {
 	const appConfig = createTestAppConfig(rootDir);
 	const specialRouteScript: AssetDefinition = {
 		kind: 'script',
@@ -275,7 +275,7 @@ test('buildAppBrowserClient scopes bundle options to entries with matching optio
 	);
 	assert.equal(specialBuild[0].length, 1);
 	assert.equal(specialBuild[1].excludeAppBuildPlugins?.includes('special-plugin'), true);
-	assert.equal(specialBuild[1].splitting, false);
+	assert.equal(specialBuild[1].splitting, true);
 	assert.equal(specialBuild[1].minify, false);
 	const defaultBuild = required(
 		bundleGroupedEntries.mock.calls.find(([, options]) => options.external === undefined),
@@ -342,7 +342,51 @@ test('buildAppBrowserClient combines compatible entry-scoped plugins and keeps e
 	assert.equal(bundleGroupedEntries.mock.calls.length, 1);
 	const buildCall = required(bundleGroupedEntries.mock.calls[0]);
 	assert.equal(buildCall[0].length, 5);
-	assert.deepEqual(buildCall[1].plugins, [firstBoundary, secondBoundary]);
+	const plugins = buildCall[1].plugins as EcoBuildPlugin[];
+	assert.deepEqual(
+		plugins.map((plugin) => plugin.cacheKey),
+		['first-island', 'second-island'],
+	);
+	const entryNames = new Set(buildCall[0].map((entry: { entryName: string }) => entry.entryName));
+	for (const plugin of plugins) {
+		assert.equal(plugin.entryScope?.length, 2);
+		assert.ok(plugin.entryScope?.every((entryName) => entryNames.has(entryName)));
+		assert.deepEqual(plugin.entryScope, plugins[0]?.entryScope);
+	}
+});
+
+test('buildAppBrowserClient builds entries with different plugins together and scopes each plugin', async () => {
+	const islandPlugin: EcoBuildPlugin = { name: 'island-only-plugin', setup() {} };
+	const island = createIslandEntry(rootDir, 'island-scoped');
+	island.dependency.bundleOptions = { plugins: [islandPlugin], external: ['island-runtime'] };
+	const plan = {
+		integrationName: 'react',
+		planKey: 'scoped-entry-plugins',
+		instances: [
+			createRouteInstance(
+				rootDir,
+				'scoped',
+				{
+					kind: 'script',
+					source: 'content',
+					content: 'import "./scoped-route.js";',
+					bundle: true,
+					position: 'head',
+				},
+				[island],
+			),
+		],
+	};
+
+	await buildAppBrowserClient(createTestAppConfig(rootDir), [plan]);
+
+	assert.equal(bundleGroupedEntries.mock.calls.length, 1);
+	const [entries, options] = required(bundleGroupedEntries.mock.calls[0]);
+	const [scopedPlugin] = options.plugins as EcoBuildPlugin[];
+	assert.equal(scopedPlugin?.name, 'island-only-plugin');
+	assert.equal(scopedPlugin?.entryScope?.length, 1);
+	assert.ok(entries.length > 1);
+	assert.deepEqual(options.external, ['island-runtime']);
 });
 
 test('buildAppBrowserClient separates entry-scoped plugins with different hook positions', async () => {
@@ -384,16 +428,14 @@ test('buildAppBrowserClient separates entry-scoped plugins with different hook p
 
 	await buildAppBrowserClient(createTestAppConfig(rootDir), [plan]);
 
-	assert.equal(bundleGroupedEntries.mock.calls.length, 3);
-	const boundaryBuilds = bundleGroupedEntries.mock.calls.filter(([, options]) =>
-		(options.plugins as EcoBuildPlugin[] | undefined)?.some((plugin) => plugin.bundleGroupKey),
-	);
-	assert.equal(boundaryBuilds.length, 2);
+	assert.equal(bundleGroupedEntries.mock.calls.length, 2);
 	assert.deepEqual(
-		boundaryBuilds.map(([, options]) => options.plugins),
+		bundleGroupedEntries.mock.calls.map(([, options]) =>
+			(options.plugins as EcoBuildPlugin[]).map((plugin) => plugin.cacheKey ?? plugin.name),
+		),
 		[
-			[firstBoundary, sharedPlugin],
-			[sharedPlugin, secondBoundary],
+			['first-island', 'shared-plugin'],
+			['shared-plugin', 'second-island'],
 		],
 	);
 });

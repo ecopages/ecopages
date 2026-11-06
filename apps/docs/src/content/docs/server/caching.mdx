@@ -132,7 +132,7 @@ EcoPages automatically sets appropriate headers based on the chosen strategy.
 | Strategy    | `Cache-Control`                                  | `X-Cache`                |
 | :---------- | :----------------------------------------------- | :----------------------- |
 | **Static**  | `public, max-age=0, must-revalidate`              | `HIT` / `MISS`           |
-| **Dynamic** | `no-store, must-revalidate`                      | `MISS`                   |
+| **Dynamic** | `no-store, must-revalidate`                      | `DISABLED`               |
 | **ISR**     | `public, max-age=60, stale-while-revalidate=120` | `HIT` / `MISS` / `STALE` |
 
 In development, HTML is always sent with `Cache-Control: no-store, must-revalidate`, whatever the strategy, so the browser never shows a page from before an edit.

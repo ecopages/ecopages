@@ -12,17 +12,19 @@ Framework skill packs live in the vault root at [`../.agents`](../.agents). See 
 - Generated: `src/content/wiki` and `src/public/wiki` are written from the vault on every `pnpm dev` / `pnpm build`. Ingest replaces a file that already exists and does not delete directories. A page you remove from the vault stays in the generated folders until you delete that file.
 - Ingest: `src/lib/wiki/ingest.ts` validates frontmatter, normalizes both layouts to
   category/page slugs, and regenerates `../index.md`. Link rewrite lives in `src/lib/wiki/links.ts`.
+- Diagrams: `src/lib/remark-mermaid.ts` renders `mermaid` code blocks to inline SVG while the page compiles, so no diagram JavaScript reaches the browser. An invalid diagram fails `dev` and `build` with the file and line:column. Diagram colours follow the light and dark theme through `--pele-*` variables, with no re-render.
 - Nav / sort: the root `../wiki/sortspec.md` orders categories; each category's `sortspec.md` orders pages. Ingest writes the result to `src/content/wiki-sort-order.json` only when the order changed, so an unchanged vault does not restart `ecopages dev`.
 
 ## Systems (`src/lib`)
 
-| System          | Role                                                                                                        |
-| --------------- | ----------------------------------------------------------------------------------------------------------- |
-| **obsidian**    | Build-plugin watch/rebuild, and `pnpm sync:obsidian` which asks before copying into the vault               |
-| **wiki**        | Vault load, ingest, catalog, graph lint, link rewrite, catch-all slugs ([README](./src/lib/wiki/README.md)) |
-| **md-response** | Markdown negotiation (`Accept`, `.md` suffix, `/api/wiki/[...slug]`)                                        |
-| **search**      | Token search engine, `/api/search` for agents, `search-index.json` for the browser                          |
-| **cx**          | `cx(...classes)` — join class names, skip falsy values                                                      |
+| System             | Role                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **obsidian**       | Build-plugin watch/rebuild, and `pnpm sync:obsidian` which asks before copying into the vault                            |
+| **wiki**           | Vault load, ingest, catalog, graph lint, link rewrite, catch-all slugs ([README](./src/lib/wiki/README.md))              |
+| **md-response**    | Markdown negotiation (`Accept`, `.md` suffix, `/api/wiki/[...slug]`)                                                     |
+| **search**         | Token search engine, `/api/search` for agents, `search-index.json` for the browser                                       |
+| **remark-mermaid** | Build-time ` ```mermaid ` blocks to inline SVG with Pele; colours from `--pele-*` in `src/styles/components/diagram.css` |
+| **cx**             | `cx(...classes)` — join class names, skip falsy values                                                                   |
 
 ## Commands
 

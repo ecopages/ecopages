@@ -58,6 +58,10 @@ Open `/` after starting the dev server. That is the catalog of wiki pages.
 `/wiki` redirects there. Set `WIKI_HOME_SLUG` to land on a specific wiki page
 instead of the catalog.
 
+## Diagrams
+
+A fenced `mermaid` block in a wiki page is rendered to inline SVG at build time with [Pele](https://pele.run), the renderer Obsidian uses. The browser receives plain SVG and no diagram JavaScript, and colours follow the light and dark theme. An invalid diagram fails `pnpm dev` and `pnpm build` with the file and the line and column of the error. Pele supports the common Mermaid diagram types; others fail the same way.
+
 ## Agent markdown
 
 ```bash

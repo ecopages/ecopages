@@ -506,7 +506,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			},
 		};
 		if (!routeInstance.skipStaticProps) {
-			this.prebuiltRoutePreparations.set(createPrebuiltRoutePreparationKey(routeOptions), {
+			const preparationKey = createPrebuiltRoutePreparationKey({
+				...routeOptions,
+				isRouteTemplate: routeInstance.isRouteTemplate,
+			});
+			this.prebuiltRoutePreparations.set(preparationKey, {
 				resolvedInputs,
 				graphContext: context,
 				resolvedPageDependencies: resolvedPageDependencies && {
@@ -535,8 +539,20 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		}
 	}
 
-	private getPrebuiltRoutePreparation(routeOptions: RouteRendererOptions): PrebuiltRoutePreparation | undefined {
-		if (routeOptions.pageModule || routeOptions.props || routeOptions.skipStaticProps) {
+	/**
+	 * @remarks
+	 * Planning never reuses a preparation: one made while planning would process its page Dependencies inside the
+	 * planning scope, which returns no assets.
+	 */
+	private getPrebuiltRoutePreparation(
+		routeOptions: RouteRendererOptions & { isRouteTemplate?: boolean },
+	): PrebuiltRoutePreparation | undefined {
+		if (
+			routeOptions.pageModule ||
+			routeOptions.props ||
+			routeOptions.skipStaticProps ||
+			routePlanning.getStore()?.renderer === this
+		) {
 			return undefined;
 		}
 
@@ -637,7 +653,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	protected async resolvePageBrowserGraphForRoute(
 		filePath: string,
-		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query' | 'skipStaticProps'>,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query' | 'skipStaticProps'> & {
+			isRouteTemplate?: boolean;
+		},
 		groupedBuildPlan?: GroupedGraphBuildPlan,
 	): Promise<PageBrowserGraphResult | undefined> {
 		const groupedPlan =
@@ -652,6 +670,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			file: filePath,
 			params: routeOptions?.params,
 			query: routeOptions?.query,
+			isRouteTemplate: routeOptions?.isRouteTemplate,
 		});
 
 		return await this.routeRenderOrchestrator.resolveDeclaredPageBrowserGraph({
@@ -1128,7 +1147,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	private async resolvePageDependenciesForContext(
 		context: PageBrowserGraphContributionContext,
-		routeOptions: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
+		routeOptions: Pick<RouteRendererOptions, 'file' | 'params' | 'query'> & { isRouteTemplate?: boolean },
 	): Promise<ResolvedPageDependencies | undefined> {
 		const preparation = this.getPrebuiltRoutePreparation(routeOptions);
 		if (preparation) {

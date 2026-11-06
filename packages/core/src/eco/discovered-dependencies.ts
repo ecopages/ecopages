@@ -7,17 +7,21 @@ export type DiscoveredDependencies = {
 	stylesheets: string[];
 	/** Side-effect stylesheets of the plain local modules the declaring module imports. */
 	plainModuleStylesheets?: string[];
+	/** The entries of `stylesheets` and `plainModuleStylesheets` whose import named a package. */
+	packageStylesheets?: string[];
 	watchFiles?: string[];
 };
 
 const discoveries = new WeakMap<ComponentIdentity, DiscoveredDependencies>();
 const INFERRED_STYLESHEETS = Symbol.for('ecopages.identity.inferredStylesheets');
 const PLAIN_MODULE_STYLESHEETS = Symbol.for('ecopages.identity.plainModuleStylesheets');
+const PACKAGE_STYLESHEETS = Symbol.for('ecopages.identity.packageStylesheets');
 const DISCOVERED_WATCH_FILES = Symbol.for('ecopages.identity.watchFiles');
 
 type IdentityDiscoveryRecord = {
 	[INFERRED_STYLESHEETS]?: readonly string[];
 	[PLAIN_MODULE_STYLESHEETS]?: readonly string[];
+	[PACKAGE_STYLESHEETS]?: readonly string[];
 	[DISCOVERED_WATCH_FILES]?: readonly string[];
 };
 
@@ -38,6 +42,7 @@ export function registerDiscoveredDependencies(identity: ComponentIdentity, disc
 	const record = discoveryRecord(identity);
 	record[INFERRED_STYLESHEETS] = discovered.stylesheets;
 	record[PLAIN_MODULE_STYLESHEETS] = discovered.plainModuleStylesheets;
+	record[PACKAGE_STYLESHEETS] = discovered.packageStylesheets;
 	record[DISCOVERED_WATCH_FILES] = discovered.watchFiles;
 }
 
@@ -46,31 +51,37 @@ export function registerDiscoveredDependencies(identity: ComponentIdentity, disc
  *
  * @remarks
  * `imported` are the declaring module's own side-effect imports; `plainModules` come from the plain local
- * modules it imports. Provenance stays on identity so copying or merging `config.dependencies` cannot
- * turn inferred styles into explicit ones. Paths are stored on the identity object so collection still
+ * modules it imports. `packages` lists those of either whose import named a package. Provenance stays on
+ * identity so copying or merging `config.dependencies` cannot turn inferred styles into explicit ones. Paths are stored on the identity object so collection still
  * sees them when server modules bundle a separate copy of `eco`. The collector prefers explicit entries
  * across the whole graph by resolved path.
  */
 export function getDiscoveredStylesheets(config: EcoComponentConfig | undefined): {
 	imported: readonly string[];
 	plainModules: readonly string[];
+	packages: readonly string[];
 } {
 	const identity = config?.identity;
-	if (!identity) return { imported: [], plainModules: [] };
+	if (!identity) return { imported: [], plainModules: [], packages: [] };
 	const record = discoveryRecord(identity);
 	const discovered = discoveries.get(identity);
 	return {
 		imported: record[INFERRED_STYLESHEETS] ?? discovered?.stylesheets ?? [],
 		plainModules: record[PLAIN_MODULE_STYLESHEETS] ?? discovered?.plainModuleStylesheets ?? [],
+		packages: record[PACKAGE_STYLESHEETS] ?? discovered?.packageStylesheets ?? [],
 	};
 }
 
 /**
  * Every inferred stylesheet path registered for this component identity, for watch paths.
+ *
+ * @remarks
+ * A package stylesheet installed under `node_modules` is left out, as the development watcher ignores that
+ * directory; one in a linked workspace package stays a watch path.
  */
 export function getInferredStylesheets(config: EcoComponentConfig | undefined): readonly string[] {
 	const { imported, plainModules } = getDiscoveredStylesheets(config);
-	return [...imported, ...plainModules];
+	return [...imported, ...plainModules].filter((file) => !file.split(/[\\/]/).includes('node_modules'));
 }
 
 /**

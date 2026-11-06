@@ -7,9 +7,13 @@ import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { RESOLVED_ASSETS_DIR } from '../constants.ts';
-import { isCssImport } from '../plugins/component-import-discovery.ts';
+import { isCssImport, isDeliveredStylesheetImport } from '../plugins/component-import-discovery.ts';
 import { stripsSideEffectStylesheetImports } from '../plugins/eco-component-meta-plugin.ts';
-import { isBarePackageImportSpecifier, resolveProjectModulePath } from '../plugins/tsconfig-import-resolver.ts';
+import {
+	isBarePackageImportSpecifier,
+	loadTsconfigPathPrefixes,
+	resolveProjectModulePath,
+} from '../plugins/tsconfig-import-resolver.ts';
 import { BrowserBundleService } from '../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { isProductionRuntime } from '../utils/runtime.ts';
@@ -182,6 +186,27 @@ function stylesheetPath(
 }
 
 /**
+ * Whether the component meta transform moves the side-effect import of a package specifier into Component
+ * Dependencies, by the rule it applies.
+ *
+ * @remarks
+ * An import the transform would refuse is reported here instead.
+ */
+function deliversPackageStylesheet(appConfig: EcoPagesAppConfig, importer: string, specifier: string): boolean {
+	const entry = { source: specifier, start: 0, end: 0, bindings: [], sideEffectOnly: true, attributed: false };
+	try {
+		return isDeliveredStylesheetImport(
+			entry,
+			importer,
+			appConfig.rootDir,
+			loadTsconfigPathPrefixes(appConfig.rootDir),
+		);
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Returns the first side-effect stylesheet import of `file`, or the local modules it imports.
  */
 function readModuleImports(
@@ -199,11 +224,15 @@ function readModuleImports(
 		const specifier = statement.source?.value;
 		if (!specifier || isTypeOnly(statement)) continue;
 		const resolved = resolve(specifier);
-		const strippedByTransform =
-			stripped && statement.type === 'ImportDeclaration' && resolved !== undefined && isCssImport(specifier);
-		if (bindsNothing(statement) && !strippedByTransform) {
+		if (bindsNothing(statement)) {
 			const stylesheet = stylesheetPath(appConfig, file, specifier, resolved);
-			if (stylesheet) return { stylesheet, dependencies };
+			const strippedByTransform =
+				stripped &&
+				statement.type === 'ImportDeclaration' &&
+				(resolved === undefined
+					? deliversPackageStylesheet(appConfig, file, specifier)
+					: isCssImport(specifier));
+			if (stylesheet && !strippedByTransform) return { stylesheet, dependencies };
 		}
 		if (resolved) dependencies.push(resolved);
 	}
@@ -228,7 +257,8 @@ function readModuleImports(
  * component meta transform moves into Component Dependencies are not reported.
  *
  * Relative and tsconfig-alias imports are followed; packages are not scanned, but a side-effect
- * import of a package stylesheet is reported. The result is kept while the visited files keep
+ * import of a package stylesheet is reported, except in a module with an `eco.*()` declaration,
+ * which moves it into its Dependencies. The result is kept while the visited files keep
  * their contents. The scan stops at the first stylesheet import, so the visited
  * files then include every file whose edit can remove it.
  */

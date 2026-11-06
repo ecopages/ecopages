@@ -5,23 +5,35 @@ import { assertBrowserOutputInsideDist, sourceRelativeBrowserAssetPath } from '.
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 import { BaseProcessor } from '../base/base-processor.ts';
 import { applyStylesheetProcessors } from './stylesheet-processor-pipeline.ts';
+import { preparePackageStylesheet } from './package-stylesheet.ts';
 
+/**
+ * Processes a stylesheet file through the app's Processors and writes it under `dist/client/assets`.
+ *
+ * @remarks
+ * A package stylesheet (`fromPackage`) skips Processors (see {@link preparePackageStylesheet}) and is always
+ * written under its content hash, beside the files its `url()` references were emitted as.
+ */
 export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> {
 	getStyleContent = (srcUrl: string): Buffer => {
 		return fileSystem.readFileAsBuffer(srcUrl);
 	};
 
 	async process(dep: FileStylesheetAsset): Promise<ProcessedAsset> {
-		const buffer = this.getStyleContent(dep.filepath);
-		const rawContent = buffer.toString();
-		const processedContent = await applyStylesheetProcessors(this.appConfig, rawContent, dep.filepath);
+		const directory = this.getAssetsDir();
+		const processedContent = dep.fromPackage
+			? preparePackageStylesheet(dep.filepath, directory)
+			: await applyStylesheetProcessors(
+					this.appConfig,
+					this.getStyleContent(dep.filepath).toString(),
+					dep.filepath,
+				);
 		let filepath: string | undefined;
 
 		if (!dep.inline) {
 			const relativePath = sourceRelativeBrowserAssetPath(this.appConfig.absolutePaths.srcDir, dep.filepath);
-			const directory = this.getAssetsDir();
 
-			if (this.isProduction || !relativePath) {
+			if (this.isProduction || dep.fromPackage || !relativePath) {
 				filepath = writeHashedBrowserAsset({
 					bytes: processedContent,
 					directory,

@@ -714,6 +714,38 @@ describe('DependencyResolverService', () => {
 		}
 	});
 
+	it('keeps a package stylesheet out of the Page stylesheet bundle, in order', () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-package-css-'));
+		const paths = ['first.css', 'second.css', 'package.css', 'fourth.css', 'fifth.css'].map((file) =>
+			join(tempDir, file),
+		);
+
+		try {
+			for (const [index, filepath] of paths.entries()) {
+				writeFileSync(filepath, `.example { order: ${index}; }`, 'utf-8');
+			}
+
+			const dependencies = paths.map((filepath, index) =>
+				AssetFactory.createFileStylesheet({
+					filepath,
+					attributes: { rel: 'stylesheet' },
+					...(index === 2 ? { fromPackage: true } : {}),
+				}),
+			);
+			const packaged = deduplicateAssetDependencies(
+				packagePageDependencies(dependencies, 'react', true, appConfig.rootDir),
+				appConfig.rootDir,
+			);
+
+			expect(packaged.map((dependency) => dependency.source)).toEqual(['content', 'file', 'content']);
+			expect(packaged[1]).toMatchObject({ filepath: paths[2], fromPackage: true });
+		} finally {
+			vi.unstubAllEnvs();
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('keeps bundleable module scripts in order around a script with custom attributes', () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-script-order-'));

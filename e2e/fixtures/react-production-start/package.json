@@ -4,6 +4,7 @@
 	"type": "module",
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
+		"@ecopages/e2e-package-css-lib": "workspace:*",
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/react": "workspace:*",
 		"@kitajs/html": "^4.2.13",

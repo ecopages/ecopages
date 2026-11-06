@@ -84,6 +84,39 @@ describe('discovered dependency graph', () => {
 		expect(styles).toEqual(['/app/page.css', '/app/badge.css', '/app/card.css']);
 		expect(collectDependencyWatchPaths('/app/page.ts', [page])).toContain('/app/card.css');
 	});
+	it('links a package stylesheet once, marked as from a package, where a declaration imports it itself', () => {
+		const pkg = '/app/node_modules/some-lib/dist/style.css';
+		const badge = eco.component(
+			bindComponentIdentity(
+				identity('badge.ts'),
+				{ render: () => '' },
+				{
+					components: () => [],
+					stylesheets: ['./badge.css'],
+					plainModuleStylesheets: [pkg, './card.css'],
+					packageStylesheets: [pkg],
+				},
+			),
+		);
+		const page = eco.component(
+			bindComponentIdentity(
+				identity('page.ts'),
+				{ render: () => '' },
+				{ components: () => [badge], stylesheets: ['./page.css', pkg], packageStylesheets: [pkg] },
+			),
+		);
+		const styles = collect([page]).dependencies;
+		expect(styles.map((asset) => (asset as { filepath?: string }).filepath)).toEqual([
+			'/app/page.css',
+			pkg,
+			'/app/badge.css',
+			'/app/card.css',
+		]);
+		expect(styles.filter((asset) => 'fromPackage' in asset && asset.fromPackage)).toEqual([
+			expect.objectContaining({ filepath: pkg }),
+		]);
+		expect(collectDependencyWatchPaths('/app/page.ts', [page])).not.toContain(pkg);
+	});
 	it('keeps a plain component stylesheet next to the only declaration importing it', () => {
 		const child = eco.component(
 			bindComponentIdentity(

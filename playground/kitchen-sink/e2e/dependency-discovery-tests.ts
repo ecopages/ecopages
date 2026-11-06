@@ -74,6 +74,38 @@ export function registerDependencyDiscoveryTests() {
 		runtime.assertClean();
 	});
 
+	test('links a package stylesheet once, after the CSS of the component importing its module, with its font emitted @parity', async ({
+		page,
+		request,
+	}) => {
+		const runtime = trackRuntimeErrors(page);
+		await page.goto('/discovery-plain');
+		for (const card of await page.locator('.discovery-plain-card').all()) {
+			await expect(card).toHaveCSS('outline-width', '3px');
+		}
+		const stylesheetUrls = await page
+			.locator('link[rel="stylesheet"]')
+			.evaluateAll((links) => links.map((link) => (link as HTMLLinkElement).href));
+		const stylesheets = await Promise.all(
+			stylesheetUrls.map(async (url) => ({ url, text: await (await request.get(url)).text() })),
+		);
+		const packageIndexes = stylesheets.flatMap(({ text }, index) =>
+			text.includes('.package-css-lib-badge') ? [index] : [],
+		);
+		expect(packageIndexes).toHaveLength(1);
+		const badgeIndex = stylesheets.findIndex(({ text }) => text.includes('.discovery-plain-badge'));
+		expect(badgeIndex).toBeGreaterThanOrEqual(0);
+		expect(packageIndexes[0]).toBeGreaterThan(badgeIndex);
+		const packageStylesheet = stylesheets[packageIndexes[0]!]!;
+		const fontReference = /url\(["']?([^"')]+\.woff2)["']?\)/.exec(packageStylesheet.text)?.[1];
+		expect(fontReference).toBeDefined();
+		expect(fontReference).not.toContain('fonts/');
+		const font = await request.get(new URL(fontReference!, packageStylesheet.url).href);
+		expect(font.ok()).toBe(true);
+		expect(await font.text()).toBe('package-css-lib font fixture\n');
+		runtime.assertClean();
+	});
+
 	test('discovers React component CSS without additional hydration @parity', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 		await page.goto('/discovery-react');

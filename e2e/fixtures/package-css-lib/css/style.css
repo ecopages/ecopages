@@ -1,0 +1,8 @@
+@font-face {
+	font-family: 'Package Css Lib';
+	src: url('./fonts/package-css-lib.woff2') format('woff2');
+}
+
+.package-css-lib-badge {
+	outline: 3px solid rgb(10, 20, 30);
+}

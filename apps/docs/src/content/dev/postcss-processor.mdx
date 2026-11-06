@@ -31,7 +31,7 @@ flowchart TD
   T --> D["Page stylesheet asset, or default export of an imported CSS module"]
 ```
 
-- Asset pipeline: for every `.css`, `.scss`, `.sass` or `.less` dependency, core calls `transformStylesheet` on each Processor whose `stylesheet` capability matches, in registration order, each receiving the previous output. This is how `config.dependencies.stylesheets` and content stylesheets get processed.
+- Asset pipeline: for every `.css`, `.scss`, `.sass` or `.less` dependency, core calls `transformStylesheet` on each Processor whose `stylesheet` capability matches, in registration order, each receiving the previous output. This is how `config.dependencies.stylesheets` and content stylesheets get processed. A package stylesheet that discovery found (`import 'some-lib/style.css'`, an asset with `fromPackage`) skips this step: core only rewrites its `url()` references and inlines its `@import`s, so Tailwind and the preset plugins never run on third-party CSS (see [/dev/pages-layouts-components](/dev/pages-layouts-components#package-stylesheets)).
 - Browser build loader: `plugins()` returns one loader with `environments: ['browser']`. It runs PostCSS on any matching stylesheet a browser build imports and returns it as the module's `default` export (`loader: 'object'`), including files outside `srcDir` or added after the prewarm.
 
 Server builds register nothing for CSS: the bundler replaces their stylesheet imports with an empty module before any plugin loads them.

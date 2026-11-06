@@ -24,6 +24,7 @@
 		"@ecopages/content-processor": "workspace:*",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/ecopages-jsx": "workspace:*",
+		"@ecopages/e2e-package-css-lib": "workspace:*",
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/jsx": "^0.6.0",

@@ -6,6 +6,7 @@ import type {
 } from '../../assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { contentHash } from '../../utils/content-hash.ts';
+import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 
 /**
@@ -90,6 +91,7 @@ export function shouldBundlePageDependencies(bundlesPageDependencies: boolean): 
 function createPageDependencyPackagingPlan(
 	dependencies: AssetDefinition[],
 	integrationName: string,
+	rootDir: string,
 ): PageDependencyPackagingPlan | undefined {
 	const shouldBundleDependencies = isProductionRuntime();
 
@@ -167,7 +169,7 @@ function createPageDependencyPackagingPlan(
 	for (const run of collectContiguousEligibleRuns(dependencies, isEligibleScript)) {
 		const pageScriptImports = [...new Set(run.assets.map((dependency) => dependency.filepath))];
 		const bundledScript = AssetFactory.createContentScript({
-			name: `${integrationName}-page-${contentHash(pageScriptImports.join('|'), 16)}`,
+			name: `${integrationName}-page-${contentHash(pageScriptImports.map((filepath) => toRootRelativePath(rootDir, filepath)).join('|'), 16)}`,
 			content: pageScriptImports.map((filepath) => `import ${JSON.stringify(filepath)};`).join('\n'),
 			position: 'head',
 			attributes: { type: 'module', defer: '' },
@@ -253,12 +255,13 @@ export function packagePageDependencies(
 	dependencies: AssetDefinition[],
 	integrationName: string,
 	bundlesPageDependencies: boolean,
+	rootDir: string,
 ): AssetDefinition[] {
 	if (!shouldBundlePageDependencies(bundlesPageDependencies)) {
 		return dependencies;
 	}
 
-	const plan = createPageDependencyPackagingPlan(dependencies, integrationName);
+	const plan = createPageDependencyPackagingPlan(dependencies, integrationName, rootDir);
 	if (!plan) {
 		return dependencies;
 	}

@@ -11,7 +11,7 @@ import { resolveAssetProcessingIntegration } from '../../../assets/asset-process
 import { appLogger } from '../../../global/app-logger.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
-import { createAppBrowserClientEntryKey } from '../../../assets/app-browser-client-build.ts';
+import { getIntegrationDependencyKey } from '../../../assets/asset-processing-service/asset-dependency-keys.ts';
 import {
 	collectPageBrowserGraphDependencyPaths,
 	createPageBrowserGraphEntryFingerprint,
@@ -38,6 +38,7 @@ function isGroupedContentScriptAsset(asset: AssetDefinition): asset is GroupedCo
 }
 
 function groupedDependencyKeys(
+	rootDir: string,
 	integrationName: string,
 	contribution: PageBrowserGraphContribution | undefined,
 ): string[] {
@@ -45,12 +46,13 @@ function groupedDependencyKeys(
 		...new Set(
 			(contribution?.dependencies ?? [])
 				.filter(isGroupedContentScriptAsset)
-				.map((dependency) => createAppBrowserClientEntryKey(integrationName, dependency)),
+				.map((dependency) => getIntegrationDependencyKey(integrationName, dependency, rootDir)),
 		),
 	].sort();
 }
 
 function applyPrebuiltGroupedDependencyMetadata(
+	rootDir: string,
 	currentContribution: PageBrowserGraphContribution,
 	plannedContribution: PageBrowserGraphContribution | undefined,
 	integrationName: string,
@@ -58,31 +60,34 @@ function applyPrebuiltGroupedDependencyMetadata(
 	const plannedDependenciesByKey = new Map(
 		(plannedContribution?.dependencies ?? [])
 			.filter(isGroupedContentScriptAsset)
-			.map((dependency) => [createAppBrowserClientEntryKey(integrationName, dependency), dependency]),
+			.map((dependency) => [getIntegrationDependencyKey(integrationName, dependency, rootDir), dependency]),
 	);
 	return {
 		...currentContribution,
 		dependencies: currentContribution.dependencies?.map((dependency) => {
 			if (!isGroupedContentScriptAsset(dependency)) return dependency;
 			return (
-				plannedDependenciesByKey.get(createAppBrowserClientEntryKey(integrationName, dependency)) ?? dependency
+				plannedDependenciesByKey.get(getIntegrationDependencyKey(integrationName, dependency, rootDir)) ??
+				dependency
 			);
 		}),
 	};
 }
 
 function groupedKeysMatch(
+	rootDir: string,
 	integrationName: string,
 	left: PageBrowserGraphContribution | undefined,
 	right: PageBrowserGraphContribution | undefined,
 ): boolean {
 	return (
-		JSON.stringify(groupedDependencyKeys(integrationName, left)) ===
-		JSON.stringify(groupedDependencyKeys(integrationName, right))
+		JSON.stringify(groupedDependencyKeys(rootDir, integrationName, left)) ===
+		JSON.stringify(groupedDependencyKeys(rootDir, integrationName, right))
 	);
 }
 
 function findPlannedGroupedInstance(
+	rootDir: string,
 	input: PageBrowserGraphResolveInput,
 	contribution: PageBrowserGraphContribution,
 	dependencyInstanceKey: string,
@@ -99,7 +104,7 @@ function findPlannedGroupedInstance(
 	const requestParams = pageDependencyInstanceParams(dependencyInstanceKey);
 	const paramsMatch = instances.find((instance) => {
 		if (instance.isRouteTemplate || instance.routeFile !== input.routeFile) return false;
-		if (!groupedKeysMatch(input.integrationName, instance.contribution, contribution)) return false;
+		if (!groupedKeysMatch(rootDir, input.integrationName, instance.contribution, contribution)) return false;
 		return (
 			JSON.stringify(pageDependencyInstanceParams(instance.dependencyInstanceKey)) ===
 			JSON.stringify(requestParams)
@@ -111,7 +116,7 @@ function findPlannedGroupedInstance(
 			instance.routeFile === input.routeFile &&
 			instance.isRouteTemplate === true &&
 			instance.prebuiltGroupedAssets !== undefined &&
-			groupedKeysMatch(input.integrationName, instance.contribution, contribution),
+			groupedKeysMatch(rootDir, input.integrationName, instance.contribution, contribution),
 	);
 }
 
@@ -137,6 +142,7 @@ function remapPlannedInstanceKey(
 }
 
 function resolveGroupedBuildPlan(
+	rootDir: string,
 	input: PageBrowserGraphResolveInput,
 	contribution: PageBrowserGraphContribution,
 	dependencyInstanceKey: string,
@@ -153,14 +159,19 @@ function resolveGroupedBuildPlan(
 		};
 	}
 
-	const plannedInstance = findPlannedGroupedInstance(input, contribution, dependencyInstanceKey);
+	const plannedInstance = findPlannedGroupedInstance(rootDir, input, contribution, dependencyInstanceKey);
 	const groupedBuildPlan =
 		plannedInstance && input.groupedBuildPlan
 			? remapPlannedInstanceKey(input.groupedBuildPlan, plannedInstance, dependencyInstanceKey)
 			: undefined;
 	const usesPrebuiltGroupedAssets = plannedInstance?.prebuiltGroupedAssets !== undefined;
 	const graphContribution = plannedInstance?.isRouteTemplate
-		? applyPrebuiltGroupedDependencyMetadata(contribution, plannedInstance.contribution, input.integrationName)
+		? applyPrebuiltGroupedDependencyMetadata(
+				rootDir,
+				contribution,
+				plannedInstance.contribution,
+				input.integrationName,
+			)
 		: usesPrebuiltGroupedAssets
 			? (plannedInstance.contribution ?? contribution)
 			: contribution;
@@ -288,7 +299,7 @@ export class PageBrowserGraphService {
 			return undefined;
 		}
 
-		const groupedPlan = resolveGroupedBuildPlan(input, contribution, dependencyInstanceKey);
+		const groupedPlan = resolveGroupedBuildPlan(this.appConfig.rootDir, input, contribution, dependencyInstanceKey);
 		const graphInput = { ...input, groupedBuildPlan: groupedPlan.groupedBuildPlan };
 		const entryFingerprint = [
 			createPageBrowserGraphEntryFingerprint(groupedPlan.graphContribution),

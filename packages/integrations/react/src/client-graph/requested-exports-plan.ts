@@ -1,12 +1,10 @@
-import path from 'node:path';
 import type { ParseResult } from 'oxc-parser';
-import { resolveProjectModulePath } from '@ecopages/core/build';
-import { fileSystem } from '@ecopages/file-system';
 import { analyzeReachability } from './reachability-analyzer.ts';
 import { walkAstNodes } from './ast-walk.ts';
 import {
 	mergeRequestedExportRules,
 	normalizeRequestedExportsKey,
+	isServerOnlySpecifier,
 	resolveRequestedExportsKey,
 	type RequestedExportRules,
 } from './specifier-classification.ts';
@@ -22,10 +20,17 @@ export type PlannedModule = {
 	inlinedFiles: string[];
 };
 
+/**
+ * Where an import leads: a module the scan follows, one it leaves alone (a package, an external or a
+ * virtual module), or nowhere the build could find.
+ */
+export type ResolvedImport = { kind: 'module'; filePath: string } | { kind: 'skip' } | { kind: 'unresolved' };
+
 export type RequestedExportsPlanOptions = {
 	/** Entry files of the build; the scan starts from them. */
 	seeds: Iterable<string>;
-	projectRoot: string;
+	/** Resolves an import the way the build does. */
+	resolveImport(specifier: string, importer: string): Promise<ResolvedImport>;
 	/** Reads and parses a module the way the boundary transforms it, or `undefined` when it cannot be read. */
 	readModule(filePath: string): PlannedModule | undefined;
 	/** Whether the boundary transforms `filePath`, so its imports pass requested exports on. */
@@ -56,15 +61,6 @@ function importSpecifiers(program: ParseResult['program']): string[] {
 	return specifiers;
 }
 
-function resolveImport(projectRoot: string, importer: string, specifier: string): string | undefined {
-	const resolved = path.isAbsolute(specifier)
-		? fileSystem.exists(specifier)
-			? specifier
-			: undefined
-		: resolveProjectModulePath(projectRoot, importer, specifier, { preserveBarrel: true });
-	return resolved && !resolved.split(/[\\/]/).includes('node_modules') ? toRealPath(resolved) : undefined;
-}
-
 /** Specifiers of the top-level import and re-export statements, the edges that pass requested exports on. */
 function statementSpecifiers(program: ParseResult['program']): Set<string> {
 	const specifiers = new Set<string>();
@@ -88,20 +84,21 @@ function statementSpecifiers(program: ParseResult['program']): Set<string> {
  * made the result depend on which importer Rolldown loaded first. The plan starts from the build's entries
  * and follows only the imports a module's browser code reaches, after server-only Page options are set
  * aside, as the boundary's own analysis finds them: a module reached only through a stripped `staticProps`
- * is never loaded, so it requests nothing. Relative, absolute and tsconfig path imports of the app's own
- * files are followed; packages are never scanned. A module the boundary does not transform, such as a
+ * is never loaded, so it requests nothing. A module the boundary does not transform, such as a
  * bootstrap entry, passes every import on and requests nothing. Requested exports flow from importers to
  * imports through a worklist that analyses a module again whenever its requests grow, so a cycle settles on
  * the union of what reaches it. Each module is read and parsed once, and its load reuses that parse. An
  * entry keeps all of its exports, so a build that loads only its entries, such as a development transform,
  * never needs the plan.
  *
- * A module reached through an import the registry has no key for (a tsconfig path alias) keeps all of its
- * exports, as it does when no importer requests anything, and still passes its own imports on. A module
- * the scan does not reach (one imported through a package name or a plugin's virtual module) is
- * transformed with no requested exports, so it keeps all of its exports.
+ * Imports resolve the way the build resolves them, so a workspace package imported by name is followed like
+ * a relative import; installed packages, externals and virtual modules are not. A module reached through
+ * an import the registry has no key for (a package name or a tsconfig path alias) keeps all of its exports,
+ * as it does when no importer requests anything, and still passes its own imports on. When an import the
+ * scan follows resolves nowhere, the plan cannot know what reaches its target, so it requests nothing from
+ * any module and every module keeps all of its exports.
  */
-export function createRequestedExportsPlan(options: RequestedExportsPlanOptions): RequestedExportsPlan {
+export async function createRequestedExportsPlan(options: RequestedExportsPlanOptions): Promise<RequestedExportsPlan> {
 	const modules = new Map<string, PlannedModule | undefined>();
 	const readModule = (filePath: string) => {
 		if (!modules.has(filePath)) modules.set(filePath, options.readModule(filePath));
@@ -109,8 +106,19 @@ export function createRequestedExportsPlan(options: RequestedExportsPlanOptions)
 	};
 	const seeds = new Set([...options.seeds].map(toRealPath));
 	const registry = new Map<string, RequestedExportRules>();
+	let complete = true;
 	const requestedExports = (filePath: string) =>
-		seeds.has(filePath) ? undefined : registry.get(normalizeRequestedExportsKey(filePath));
+		!complete || seeds.has(filePath) ? undefined : registry.get(normalizeRequestedExportsKey(filePath));
+	const resolveAll = (specifiers: Iterable<string>, importer: string) =>
+		Promise.all(
+			[...new Set(specifiers)]
+				.filter((specifier) => !isServerOnlySpecifier(specifier))
+				.map(async (specifier) => {
+					const resolved = await options.resolveImport(specifier, importer);
+					if (resolved.kind === 'unresolved') complete = false;
+					return [specifier, resolved.kind === 'module' ? resolved.filePath : undefined] as const;
+				}),
+		).then((entries) => new Map(entries));
 
 	const reached = new Set<string>();
 	const queued = new Set<string>();
@@ -127,22 +135,22 @@ export function createRequestedExportsPlan(options: RequestedExportsPlanOptions)
 	};
 
 	for (const seed of [...seeds].sort()) reach(seed);
-	while (queue.length > 0) {
+	while (complete && queue.length > 0) {
 		const filePath = queue.shift()!;
 		queued.delete(filePath);
 		const module = readModule(filePath);
 		if (!module?.program) continue;
 		if (!options.transforms(filePath)) {
-			for (const specifier of importSpecifiers(module.program)) {
-				const target = resolveImport(options.projectRoot, filePath, specifier);
+			for (const target of (await resolveAll(importSpecifiers(module.program), filePath)).values()) {
 				if (target) reach(target);
 			}
 			continue;
 		}
 		const reachability = analyzeReachability(module.source, filePath, module.program, requestedExports(filePath));
 		const keyed = statementSpecifiers(module.program);
+		const targets = await resolveAll(reachability.reachableImports.keys(), filePath);
 		for (const [specifier, rules] of reachability.reachableImports) {
-			const target = resolveImport(options.projectRoot, filePath, specifier);
+			const target = targets.get(specifier);
 			const key = keyed.has(specifier) ? resolveRequestedExportsKey(filePath, specifier) : undefined;
 			if (key && mergeRequestedExportRules(registry, key, rules) && target) enqueue(target);
 			if (target) reach(target);

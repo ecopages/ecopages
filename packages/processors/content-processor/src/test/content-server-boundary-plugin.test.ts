@@ -14,6 +14,7 @@ describe('createContentServerBoundaryPlugin', () => {
 			transform() {},
 			onEnd() {},
 			addWatchFile() {},
+			resolve: async () => undefined,
 		};
 
 		createContentServerBoundaryPlugin().setup(build);

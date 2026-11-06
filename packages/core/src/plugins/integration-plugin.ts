@@ -27,6 +27,7 @@ export type {
 	EcoBuildOnResolveResult,
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
+	EcoBuildResolvedId,
 } from '../build/contracts/build-types.ts';
 export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../types/contracts.ts';
 export type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';

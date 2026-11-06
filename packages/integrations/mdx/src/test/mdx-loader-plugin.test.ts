@@ -40,6 +40,7 @@ function createBuilderHarness() {
 		transform() {},
 		onEnd() {},
 		addWatchFile() {},
+		resolve: async () => undefined,
 	};
 
 	return {

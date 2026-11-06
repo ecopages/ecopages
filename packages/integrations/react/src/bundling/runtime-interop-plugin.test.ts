@@ -39,6 +39,7 @@ function createPluginHarness() {
 		transform: () => {},
 		onEnd: () => {},
 		addWatchFile: () => {},
+		resolve: async () => undefined,
 	};
 
 	const plugin = createReactDomRuntimeInteropPlugin();
@@ -111,6 +112,7 @@ describe('createReactDomRuntimeInteropPlugin', () => {
 				transform: () => {},
 				onEnd: () => {},
 				addWatchFile: () => {},
+				resolve: async () => undefined,
 			});
 
 			const loader = onLoadRegistrations.find(({ options }) => options.filter.test('/tmp/react-dom/index.js'));

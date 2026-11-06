@@ -6,6 +6,7 @@ export {
 	type EcoBuildOnResolveArgs,
 	type EcoBuildPlugin,
 	type EcoBuildPluginBuilder,
+	type EcoBuildResolvedId,
 	mergeProcessorOptions,
 	Processor,
 	type ProcessorConfig,

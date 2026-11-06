@@ -51,6 +51,7 @@ export {
 	type EcoBuildOnResolveResult,
 	type EcoBuildPlugin,
 	type EcoBuildPluginBuilder,
+	type EcoBuildResolvedId,
 	IntegrationPlugin,
 	type IntegrationPluginConfig,
 	type IntegrationRendererBase,

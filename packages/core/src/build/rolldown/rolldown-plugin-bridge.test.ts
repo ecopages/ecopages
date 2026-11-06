@@ -201,6 +201,31 @@ test('addWatchFile declares a file to Rolldown and under the module the callback
 	]);
 });
 
+test('resolve answers inside a callback through the other plugins and the bundler', async () => {
+	const resolved: unknown[] = [];
+	await bundle({ 'entry.ts': "import './helper.ts';\n", 'helper.ts': 'export {};\n' }, [
+		{
+			name: 'resolver',
+			setup(build) {
+				build.transform({ filter: /entry\.ts$/ }, async (code, id) => {
+					resolved.push(await build.resolve('./helper.ts', id), await build.resolve('aliased', id));
+					return code;
+				});
+			},
+		},
+		{
+			name: 'alias',
+			setup: (build) =>
+				build.onResolve({ filter: /^aliased$/ }, () => ({ path: 'https://cdn/x.js', external: true })),
+		},
+	]);
+
+	assert.deepEqual(resolved, [
+		{ id: path.join(root, 'helper.ts'), external: false },
+		{ id: 'https://cdn/x.js', external: true },
+	]);
+});
+
 test('load returns moduleType for .tsx files with explicit loader', async () => {
 	const plugin = await bridgeOne({
 		name: 'rewrite',

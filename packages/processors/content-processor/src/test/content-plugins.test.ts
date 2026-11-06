@@ -89,6 +89,7 @@ describe('content-plugins', () => {
 			transform() {},
 			onEnd() {},
 			addWatchFile() {},
+			resolve: async () => undefined,
 		} as EcoBuildPluginBuilder);
 		await Promise.all(pending);
 
@@ -111,6 +112,7 @@ describe('content-plugins', () => {
 			transform() {},
 			onEnd() {},
 			addWatchFile() {},
+			resolve: async () => undefined,
 		} as EcoBuildPluginBuilder);
 
 		expect(matched).toEqual([]);
@@ -142,6 +144,7 @@ describe('content-plugins', () => {
 			transform() {},
 			onEnd() {},
 			addWatchFile() {},
+			resolve: async () => undefined,
 		} as EcoBuildPluginBuilder);
 		await Promise.all(pending);
 

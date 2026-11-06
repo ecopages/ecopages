@@ -13,13 +13,18 @@ import type {
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
 } from '@ecopages/core/integration';
-import { parseModuleSource } from '@ecopages/core/build';
+import { parseModuleSource, resolveProjectModulePath } from '@ecopages/core/build';
 import { parseDeclaredModules, toModuleBaseSpecifier } from './specifier-classification.ts';
 import { classifyClientGraphModule } from './module-classification.ts';
 import { transformClientGraphModule } from './boundary-plugin-transform.ts';
 import { inlineReadFileSyncCalls } from './boundary-plugin-read-file-inline.ts';
 import { scanForeignJsxReach, toRealPath, type ForeignJsxReach } from './foreign-jsx-reach.ts';
-import { createRequestedExportsPlan, type PlannedModule, type RequestedExportsPlan } from './requested-exports-plan.ts';
+import {
+	createRequestedExportsPlan,
+	type PlannedModule,
+	type RequestedExportsPlan,
+	type ResolvedImport,
+} from './requested-exports-plan.ts';
 
 /** Source modules the boundary may transform; virtual ids and installed packages never reach it. */
 const SOURCE_FILES: EcoBuildFilter = { filter: /\.(tsx?|jsx?)$/, exclude: /^\0|\/node_modules\// };
@@ -33,7 +38,7 @@ const SOURCE_FILES: EcoBuildFilter = { filter: /\.(tsx?|jsx?)$/, exclude: /^\0|\
  */
 type PlanState = {
 	seeds: Set<string>;
-	plan?: RequestedExportsPlan;
+	plan?: Promise<RequestedExportsPlan>;
 	loadedEntries: Map<string, PlannedModule | undefined>;
 };
 
@@ -122,6 +127,38 @@ function readBoundaryModule(filePath: string, absWorkingDir: string): PlannedMod
 	return { source: inlining.transformed, program, inlined: inlining.modified, inlinedFiles: inlining.inlinedFiles };
 }
 
+/**
+ * Resolves an import for the requested-export scan through the build's own resolver.
+ *
+ * @remarks
+ * A module outside `node_modules` that the build bundles is followed, so a workspace package imported by
+ * name counts like a relative import. Without a build resolver (a plugin driven outside Rolldown, as in
+ * unit tests) relative and tsconfig path imports still resolve from the project. A resolve that throws is
+ * an import the build itself rejects, such as a Node builtin in a browser build, so it is not followed.
+ */
+async function resolveScanImport(
+	build: EcoBuildPluginBuilder,
+	specifier: string,
+	importer: string,
+	projectRoot: string,
+): Promise<ResolvedImport> {
+	let resolved: Awaited<ReturnType<EcoBuildPluginBuilder['resolve']>>;
+	try {
+		resolved = await build.resolve(specifier, importer);
+	} catch {
+		return { kind: 'skip' };
+	}
+	const local = path.isAbsolute(specifier)
+		? fileSystem.exists(specifier)
+			? specifier
+			: undefined
+		: resolveProjectModulePath(projectRoot, importer, specifier, { preserveBarrel: true });
+	const id = resolved ? (resolved.external ? undefined : resolved.id) : local;
+	if (!resolved && !local) return { kind: 'unresolved' };
+	if (!id || id.startsWith('\0') || id.split(/[\\/]/).includes('node_modules')) return { kind: 'skip' };
+	return { kind: 'module', filePath: toRealPath(id.replace(/[?#].*$/, '')) };
+}
+
 function isTransformedSource(filePath: string, projectRoot: string | undefined): boolean {
 	const category = classifyClientGraphModule(filePath, projectRoot);
 	return SOURCE_FILES.filter.test(filePath) && (category === 'app' || category === 'workspace');
@@ -131,33 +168,37 @@ function isTransformedSource(filePath: string, projectRoot: string | undefined):
  * Reads one module for its load: from the plan when the scan reached it, otherwise from disk.
  *
  * @remarks
- * The first module to load that is not an entry makes the plan.
+ * The first module to load that is not an entry makes the plan, with that load's resolver; every other
+ * load waits for the same plan.
  */
-function takeModule(
+async function takeModule(
+	build: EcoBuildPluginBuilder,
 	state: PlanState,
 	sourcePath: string,
 	options: NormalizedClientGraphBoundaryOptions,
 	transforms: () => (filePath: string) => boolean,
-): { module: PlannedModule | undefined; plan: RequestedExportsPlan | undefined } {
+): Promise<{ module: PlannedModule | undefined; plan: RequestedExportsPlan | undefined }> {
 	const realPath = toRealPath(sourcePath);
 	if (!state.plan && !state.seeds.has(realPath)) {
+		const projectRoot = options.projectRoot ?? options.absWorkingDir;
 		state.plan = createRequestedExportsPlan({
 			seeds: state.seeds,
-			projectRoot: options.projectRoot ?? options.absWorkingDir,
+			resolveImport: (specifier, importer) => resolveScanImport(build, specifier, importer, projectRoot),
 			readModule: (filePath) =>
 				state.loadedEntries.has(filePath)
 					? state.loadedEntries.get(filePath)
 					: readBoundaryModule(filePath, options.absWorkingDir),
 			transforms: transforms(),
 		});
-		state.loadedEntries.clear();
+		void state.plan.then(() => state.loadedEntries.clear());
 	}
-	const module = state.plan?.takeModule(realPath) ?? readBoundaryModule(sourcePath, options.absWorkingDir);
-	if (!state.plan) state.loadedEntries.set(realPath, module);
-	return { module, plan: state.plan };
+	const plan = await state.plan;
+	const module = plan?.takeModule(realPath) ?? readBoundaryModule(sourcePath, options.absWorkingDir);
+	if (!plan) state.loadedEntries.set(realPath, module);
+	return { module, plan };
 }
 
-function loadClientGraphBoundaryModule(
+async function loadClientGraphBoundaryModule(
 	build: EcoBuildPluginBuilder,
 	args: EcoBuildOnLoadArgs,
 	options: NormalizedClientGraphBoundaryOptions,
@@ -187,7 +228,7 @@ function loadClientGraphBoundaryModule(
 		return undefined;
 	}
 
-	const { module, plan } = takeModule(state, sourcePath, options, transforms);
+	const { module, plan } = await takeModule(build, state, sourcePath, options, transforms);
 	if (!module) return undefined;
 	for (const inlinedFile of module.inlinedFiles) build.addWatchFile(inlinedFile);
 
@@ -250,7 +291,7 @@ function loadBuildClientGraphBoundaryModule(
 	build: EcoBuildPluginBuilder,
 	args: EcoBuildOnLoadArgs,
 	context: ClientGraphBoundaryBuildContext,
-): EcoBuildOnLoadResult | undefined {
+): Promise<EcoBuildOnLoadResult | undefined> | undefined {
 	const sourcePath = path.resolve(context.configs[0]?.absWorkingDir ?? process.cwd(), args.path);
 	const rootConfigs = context.configs.filter((config) => config.entrypointFile === sourcePath);
 	const reactEntrypointFiles = getReactEntrypointFiles(context);

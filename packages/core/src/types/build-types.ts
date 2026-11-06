@@ -40,6 +40,15 @@ export type EcoBuildOnLoadResult = {
 };
 
 /**
+ * A module id the bundler resolved a specifier to.
+ */
+export type EcoBuildResolvedId = {
+	id: string;
+	/** Whether the build leaves the module out of its output. */
+	external: boolean;
+};
+
+/**
  * Module ids a build plugin handler runs for.
  *
  * @remarks
@@ -112,6 +121,13 @@ export interface EcoBuildPluginBuilder {
 	 * and the development watcher invalidate on. A call outside those callbacks throws.
 	 */
 	addWatchFile(filePath: string): void;
+	/**
+	 * Resolves `specifier` from `importer` the way the build does, through the other plugins and the bundler.
+	 *
+	 * @remarks
+	 * Returns `undefined` when nothing resolves it. A call outside an `onLoad` or `transform` callback throws.
+	 */
+	resolve(specifier: string, importer: string): Promise<EcoBuildResolvedId | undefined>;
 }
 
 /**

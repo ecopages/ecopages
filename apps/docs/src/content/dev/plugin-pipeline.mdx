@@ -56,6 +56,7 @@ export type EcoBuildPlugin = {
 | `transform({ filter, exclude? }, cb)` | `transform` | Rewrite source after load, optionally returning a source map. |
 | `onEnd(cb)` | `buildEnd` | Check the finished build; skipped when the build already failed, and a throw fails it. |
 | `addWatchFile(path)` | `this.addWatchFile` | Declare a file the running `onLoad` or `transform` callback read, so an edit to it rebuilds the module. |
+| `resolve(specifier, importer)` | `this.resolve` | Resolve a specifier the way the build does, from inside an `onLoad` or `transform` callback. |
 | `entrypoints` | (data) | The entry names and paths of this build request, the same map for every plugin of the build. |
 
 Handlers must be registered before `setup` returns or its promise resolves; a later call throws. Rolldown reads hook filters when a plugin is registered, so the bridge closes registration before it hands its plugins to Rolldown. Rolldown tests `filter` and `exclude` itself, against ids with `/` separators, so `exclude: /\/node_modules\//` keeps installed packages out of a handler on every platform.

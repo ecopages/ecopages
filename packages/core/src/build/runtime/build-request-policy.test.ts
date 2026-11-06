@@ -120,6 +120,7 @@ test('createServerBuildRequest keeps import.meta at the source for the directory
 			},
 			onEnd() {},
 			addWatchFile() {},
+			resolve: async () => undefined,
 		});
 		const result = await transform?.('export const url = import.meta.url;', '/app/src/pages/index.ts');
 		return typeof result === 'object' && result && 'code' in result ? result.code : result;

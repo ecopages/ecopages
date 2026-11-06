@@ -19,7 +19,15 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import path from 'node:path';
-import type { LoadResult, PartialResolvedId, Plugin, RolldownLog, SourceDescription, SourceMapInput } from 'rolldown';
+import type {
+	LoadResult,
+	PartialResolvedId,
+	Plugin,
+	PluginContext,
+	RolldownLog,
+	SourceDescription,
+	SourceMapInput,
+} from 'rolldown';
 import { exclude, id as idFilter, include, type TopLevelFilterExpression } from 'rolldown/filter';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
 import { isUsableSourceMap } from '../source-maps.ts';
@@ -30,6 +38,7 @@ import type {
 	EcoBuildOnTransformResult,
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
+	EcoBuildResolvedId,
 } from '../contracts/build-types.ts';
 
 /** Files each module's plugins declared with `addWatchFile`, keyed by Rolldown module id. */
@@ -166,14 +175,19 @@ function exactIdFilter(value: string): TopLevelFilterExpression[] {
 	return [include(idFilter(new RegExp(`^${escapeRegExp(value)}$`)))];
 }
 
+type HookScope = {
+	addWatchFile(filePath: string): void;
+	resolve(specifier: string, importer: string): Promise<EcoBuildResolvedId | undefined>;
+};
+
 /**
- * The `onLoad` or `transform` call a builder's `addWatchFile` belongs to.
+ * The `onLoad` or `transform` call a builder's `addWatchFile` and `resolve` belong to.
  *
  * @remarks
  * Rolldown runs hooks for many modules at once, so the module a call is for travels with its async
  * context instead of living on the builder.
  */
-const hookScope = new AsyncLocalStorage<(filePath: string) => void>();
+const hookScope = new AsyncLocalStorage<HookScope>();
 
 /**
  * Creates the Rolldown plugins that drive the supplied `EcoBuildPlugin` instances.
@@ -203,15 +217,33 @@ export async function createRolldownPluginBridge(
 			);
 		}
 	};
-	const inModule = <T>(context: { addWatchFile(id: string): void }, moduleId: string, run: () => T): T =>
-		hookScope.run((filePath) => {
-			const resolved = path.resolve(contextRoot, filePath);
-			context.addWatchFile(resolved);
-			if (!options.watchFiles) return;
-			const files = options.watchFiles.get(moduleId) ?? new Set<string>();
-			files.add(resolved);
-			options.watchFiles.set(moduleId, files);
-		}, run);
+	const inModule = <T>(context: Pick<PluginContext, 'addWatchFile' | 'resolve'>, moduleId: string, run: () => T): T =>
+		hookScope.run(
+			{
+				addWatchFile(filePath) {
+					const resolved = path.resolve(contextRoot, filePath);
+					context.addWatchFile(resolved);
+					if (!options.watchFiles) return;
+					const files = options.watchFiles.get(moduleId) ?? new Set<string>();
+					files.add(resolved);
+					options.watchFiles.set(moduleId, files);
+				},
+				async resolve(specifier, importer) {
+					const resolved = await context.resolve(specifier, importer, { skipSelf: true });
+					return resolved ? { id: resolved.id, external: Boolean(resolved.external) } : undefined;
+				},
+			},
+			run,
+		);
+	const currentScope = (method: string, name: string): HookScope => {
+		const scope = hookScope.getStore();
+		if (!scope) {
+			throw new Error(
+				`[ecopages] build.${method}() was called outside an onLoad or transform callback of "${name}".`,
+			);
+		}
+		return scope;
+	};
 
 	for (const ecoPlugin of plugins) {
 		const name = ecoPlugin.name;
@@ -285,13 +317,10 @@ export async function createRolldownPluginBridge(
 				});
 			},
 			addWatchFile(filePath) {
-				const addWatchFile = hookScope.getStore();
-				if (!addWatchFile) {
-					throw new Error(
-						`[ecopages] build.addWatchFile() was called outside an onLoad or transform callback of "${name}".`,
-					);
-				}
-				addWatchFile(filePath);
+				currentScope('addWatchFile', name).addWatchFile(filePath);
+			},
+			resolve(specifier, importer) {
+				return currentScope('resolve', name).resolve(specifier, importer);
 			},
 		};
 

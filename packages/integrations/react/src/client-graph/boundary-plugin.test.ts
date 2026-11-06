@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -38,6 +38,7 @@ function createPluginTestHarness(
 		transform: () => {},
 		onEnd: () => {},
 		addWatchFile: () => {},
+		resolve: async () => undefined,
 	};
 
 	const plugin = createClientGraphBoundaryPlugin(pluginOptions);
@@ -154,6 +155,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 			transform: () => {},
 			onEnd: () => {},
 			addWatchFile: () => {},
+			resolve: async () => undefined,
 		};
 
 		try {
@@ -239,6 +241,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 			transform: () => {},
 			onEnd: () => {},
 			addWatchFile: () => {},
+			resolve: async () => undefined,
 		};
 
 		try {
@@ -294,6 +297,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 			transform: () => {},
 			onEnd: () => {},
 			addWatchFile: () => {},
+			resolve: async () => undefined,
 		};
 
 		try {
@@ -1241,6 +1245,64 @@ describe('client graph boundary: one plan per build', () => {
 			expect(code).not.toContain('server-secret');
 		}));
 
+	it('passes requests on from a workspace package imported by name to an app module it shares', () =>
+		withTempDir(async (tempDir) => {
+			const app = join(tempDir, 'app');
+			const kit = join(tempDir, 'packages', 'kit');
+			mkdirSync(join(app, 'src'), { recursive: true });
+			mkdirSync(join(app, 'node_modules', '@ws'), { recursive: true });
+			mkdirSync(kit, { recursive: true });
+			symlinkSync(kit, join(app, 'node_modules', '@ws', 'kit'), 'dir');
+			writeFileSync(join(kit, 'package.json'), JSON.stringify({ name: '@ws/kit', main: 'index.ts' }));
+			writeFileSync(
+				join(kit, 'index.ts'),
+				"import { y } from '../../app/src/shared';\nexport const useKit = () => y();",
+			);
+			writeFileSync(join(app, 'src', 'secret.server.ts'), "export const secret = 'server-secret';");
+			writeFileSync(
+				join(app, 'src', 'shared.ts'),
+				[
+					"import { secret } from './secret.server';",
+					"export const x = () => 'from-x';",
+					'export const y = () => secret;',
+				].join('\n'),
+			);
+			const island = join(app, 'src', 'island.tsx');
+			writeFileSync(
+				island,
+				[
+					"import { x } from './shared';",
+					"import { useKit } from '@ws/kit';",
+					'export default () => x() + useKit();',
+				].join('\n'),
+			);
+
+			const result = await new RolldownBuildAdapter()
+				.build({
+					environment: 'browser',
+					entrypoints: { island },
+					outdir: join(app, 'dist'),
+					root: app,
+					target: 'browser',
+					format: 'esm',
+					writeToDisk: false,
+					plugins: [
+						createClientGraphBoundaryPlugin({
+							absWorkingDir: app,
+							projectRoot: app,
+							entrypointFile: island,
+							groupedEntrypointFiles: [island],
+						}),
+					],
+				})
+				.catch((error: unknown) => ({ success: false as const, logs: [{ message: String(error) }] }));
+
+			expect(result.success).toBe(false);
+			expect(result.success ? '' : result.logs.map((log) => log.message).join('\n')).toContain(
+				"Forbidden client import './secret.server'",
+			);
+		}));
+
 	it('registers one handler for every boundary instance of a build', async () => {
 		const registrations: OnLoadRegistration[] = [];
 		const builder: EcoBuildPluginBuilder = {
@@ -1251,6 +1313,7 @@ describe('client graph boundary: one plan per build', () => {
 			transform: () => {},
 			onEnd: () => {},
 			addWatchFile: () => {},
+			resolve: async () => undefined,
 		};
 		for (const entrypointFile of ['/app/a.tsx', '/app/b.tsx']) {
 			await createClientGraphBoundaryPlugin({

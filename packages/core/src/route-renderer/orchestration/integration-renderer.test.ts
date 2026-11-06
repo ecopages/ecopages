@@ -281,7 +281,6 @@ describe('IntegrationRenderer', () => {
 		const resolveDependencies = vi.fn(async () => ({ components: [pageDependency] }));
 		Page.resolveDependencies = resolveDependencies;
 		let preparedContributionHookCalls = 0;
-		let preparedDependencyCalls = 0;
 		const renderer = new (class extends TestIntegrationRenderer {
 			protected override async resolvePageBrowserGraphContributionFromComponents(
 				components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
@@ -290,16 +289,6 @@ describe('IntegrationRenderer', () => {
 			) {
 				preparedContributionHookCalls += 1;
 				return super.resolvePageBrowserGraphContributionFromComponents(components, ownerFile, preparedNodes);
-			}
-
-			protected override async processComponentDependencies(
-				components: (EcoComponent | Partial<EcoComponent>)[],
-				options?: { preparedGraph?: true },
-			) {
-				if (options?.preparedGraph) {
-					preparedDependencyCalls += 1;
-				}
-				return super.processComponentDependencies(components, options);
 			}
 		})({
 			appConfig: testAppConfig,
@@ -317,8 +306,7 @@ describe('IntegrationRenderer', () => {
 		expect(staticProps).toHaveBeenCalledTimes(1);
 		expect(metadata).toHaveBeenCalledTimes(1);
 		expect(resolveDependencies).toHaveBeenCalledTimes(1);
-		expect(preparedContributionHookCalls).toBe(1);
-		expect(preparedDependencyCalls).toBe(1);
+		expect(preparedContributionHookCalls).toBe(2);
 		expect(validateGraph).toHaveBeenCalledTimes(2);
 		expect(result.metadata?.title).toBe('captured');
 		validateGraph.mockRestore();
@@ -359,6 +347,98 @@ describe('IntegrationRenderer', () => {
 		expect(groupedBuildPlan.instances).toHaveLength(1);
 		expect(groupedBuildPlan.instances[0]?.routeFile).toBe(routeFile);
 		expect(groupedBuildPlan.instances[0]?.dependencyInstanceKey).toContain('healthy');
+	});
+
+	it('plans component scripts as definitions without changing a render that runs meanwhile', async () => {
+		const routeFile = '/app/pages/index.tsx';
+		const appConfig = createMockAppConfig({ rootDir: '/app' });
+		const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
+			deps.map((dep) => ({ kind: dep.kind, srcUrl: `/assets/${dep.kind}.js` }) as ProcessedAsset),
+		);
+		const Card = (() => '<div>card</div>') as EcoComponent;
+		Card.config = {
+			identity: { id: 'card', file: '/app/components/card.tsx', integration: 'test-renderer' },
+			dependencies: { scripts: ['./card.script.ts'] },
+		};
+		const pendingStaticProps: Array<() => void> = [];
+		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+		Page.config = {
+			identity: { id: 'index', file: routeFile, integration: 'test-renderer' },
+			dependencies: { components: [Card] },
+		};
+		const staticPropsStarted = new Promise<void>((resolveStarted) => {
+			Page.staticProps = async () => {
+				resolveStarted();
+				await new Promise<void>((resolveRelease) => pendingStaticProps.push(resolveRelease));
+				return { props: {} };
+			};
+		});
+		const renderer = new (class extends TestIntegrationRenderer {
+			processForRender(components: EcoComponent[]) {
+				return this.processComponentDependencies(components, { preparedGraph: true });
+			}
+		})({
+			appConfig,
+			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+
+		const planning = renderer.buildGroupedGraphBuildPlan([{ routeFile }, { routeFile: '/app/pages/other.tsx' }]);
+		await staticPropsStarted;
+		const resolvedDependencies = await renderer.processForRender([Card]);
+		for (const release of pendingStaticProps) release();
+		const groupedBuildPlan = await planning;
+
+		expect(resolvedDependencies).toEqual([{ kind: 'script', srcUrl: '/assets/script.js' }]);
+		expect(groupedBuildPlan.bundledScripts).toEqual([
+			expect.objectContaining({ kind: 'script', filepath: '/app/components/card.script.ts' }),
+		]);
+		expect(processDependencies).toHaveBeenCalledOnce();
+	});
+
+	it('processes planned page dependencies after the app-wide build', async () => {
+		const routeFile = '/app/pages/index.tsx';
+		const appConfig = createMockAppConfig({ rootDir: '/app' });
+		const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
+			deps.map((dep) => ({ kind: dep.kind, srcUrl: '/assets/card-built.js' }) as ProcessedAsset),
+		);
+		const Card = (() => '<div>card</div>') as EcoComponent;
+		Card.config = {
+			identity: { id: 'card', file: '/app/components/card.tsx', integration: 'test-renderer' },
+			dependencies: { scripts: ['./card.script.ts'] },
+		};
+		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+		Page.resolveDependencies = async () => ({ components: [Card] });
+		const renderer = new (class extends TestIntegrationRenderer {
+			resolveGraphForRoute(file: string) {
+				return this.resolvePageBrowserGraphForRoute(file);
+			}
+		})({
+			appConfig,
+			assetProcessingService: {
+				processDependencies,
+				getHmrManager: () => undefined,
+			} as unknown as AssetProcessingService,
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+
+		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
+		const scriptProcessingCallsWhilePlanning = processDependencies.mock.calls.filter(([deps]) =>
+			deps.some((dep) => dep.kind === 'script'),
+		);
+		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
+		const graph = await renderer.resolveGraphForRoute(routeFile);
+
+		expect(scriptProcessingCallsWhilePlanning).toEqual([]);
+		expect(groupedBuildPlan.bundledScripts).toEqual([
+			expect.objectContaining({ kind: 'script', filepath: '/app/components/card.script.ts' }),
+		]);
+		expect([...(graph?.entryAssets ?? []), ...(graph?.chunkAssets ?? [])]).toContainEqual({
+			kind: 'script',
+			srcUrl: '/assets/card-built.js',
+		});
 	});
 
 	it('resolves lazy triggers from the prebuilt app browser client assets', async () => {

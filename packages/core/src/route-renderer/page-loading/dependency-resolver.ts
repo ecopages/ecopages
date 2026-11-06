@@ -8,7 +8,6 @@ import type {
 	ProcessedAsset,
 } from '../../assets/asset-processing-service/index.ts';
 import { resolveAssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
-import { getAssetDependencyKey } from '../../assets/asset-processing-service/asset-dependency-keys.ts';
 import { prepareAssetDependencies } from '../../assets/asset-processing-service/asset-processing.service.ts';
 import { isBundleableScript } from '../../assets/asset-processing-service/bundleable-script.ts';
 import { contentHash } from '../../utils/content-hash.ts';
@@ -69,13 +68,6 @@ function copyProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
 	});
 }
 
-/** A script the app-wide browser build can bundle, collected while {@link DependencyResolverService} collects. */
-type CollectedScript = {
-	dependency: AssetDefinition;
-	integrationName: string;
-	placeholders: ProcessedAsset[];
-};
-
 function isLazyClientScript(dep: AssetDefinition): boolean {
 	return dep.kind === 'script' && Boolean(dep.attributes?.['data-eco-lazy-key']);
 }
@@ -92,8 +84,6 @@ export class DependencyResolverService {
 	private readonly processedDependenciesCache = new Map<string, Promise<ProcessedAsset[]>>();
 	private readonly componentCacheIds = new WeakMap<object, number>();
 	private nextComponentCacheId = 0;
-	private scriptCollection: Map<string, CollectedScript> | null = null;
-	private collectedScripts = new Map<string, CollectedScript>();
 
 	private getAssetProcessingIntegration(name: string): AssetProcessingIntegration | undefined {
 		return resolveAssetProcessingIntegration(name, this.assetProcessingIntegration, this.appConfig.integrations);
@@ -161,79 +151,42 @@ export class DependencyResolverService {
 	}
 
 	/**
-	 * Starts collecting the scripts that dependency processing would bundle, instead of bundling them.
+	 * Returns the scripts that processing `components` would bundle, without processing anything.
 	 *
 	 * @remarks
-	 * The production prebuild prepares every route before the app-wide browser build exists. While collecting,
-	 * each bundleable script gets a placeholder asset and is recorded under its dependency key; other assets are
-	 * processed as usual. {@link materializeCollectedScripts} later fills every placeholder in place from the
-	 * app-wide build, so contributions and route preparations that hold it see the built asset.
+	 * Each script is prepared as asset processing prepares it, so its dependency key is the one rendering later looks
+	 * up in `AppRuntime.prebuiltBrowserScripts`. The production prebuild hands them to the app-wide browser build.
 	 */
-	startScriptCollection(): void {
-		this.scriptCollection = new Map();
-	}
-
-	/** Ends collection and returns each collected script by dependency key. */
-	finishScriptCollection(): AssetDefinition[] {
-		const scripts = [...(this.scriptCollection?.values() ?? [])].map(({ dependency }) => dependency);
-		this.collectedScripts = this.scriptCollection ?? new Map();
-		this.scriptCollection = null;
-		return scripts;
-	}
-
-	/**
-	 * Fills the placeholders handed out while collecting.
-	 *
-	 * @remarks
-	 * A script the app-wide build did not produce, such as one it cannot bundle, is processed on its own.
-	 */
-	async materializeCollectedScripts(prebuiltScripts: ReadonlyMap<string, ProcessedAsset>): Promise<void> {
-		const collected = [...this.collectedScripts.values()];
-		this.collectedScripts = new Map();
-		for (const { dependency, integrationName, placeholders } of collected) {
-			const asset =
-				prebuiltScripts.get(getAssetDependencyKey(dependency, this.appConfig.rootDir)) ??
-				(
-					await this.assetProcessingService.processDependencies(
-						[dependency],
-						this.getAssetProcessingIntegration(integrationName),
-					)
-				)[0];
-			if (!asset) continue;
-			for (const placeholder of placeholders) {
-				Object.assign(placeholder, asset);
-			}
-		}
-	}
-
-	private async processWhileCollecting(
-		eagerDeps: AssetDefinition[],
+	collectBundleableScripts(
+		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
-		collection: Map<string, CollectedScript>,
-	): Promise<ProcessedAsset[]> {
-		const integration = this.getAssetProcessingIntegration(integrationName);
-		const prepared = prepareAssetDependencies(eagerDeps, integration, this.appConfig.rootDir);
-		const scripts = prepared.filter(isBundleableScript);
-		const processed = await this.assetProcessingService.processDependencies(
-			prepared.filter((dep) => !isBundleableScript(dep)),
-			integration,
+		skipNestedComponents: boolean,
+	): AssetDefinition[] {
+		const { dependencies } = this.collectDependencies(components, integrationName, false, skipNestedComponents);
+		const eagerDeps = this.packageDependencies(dependencies, integrationName).filter(
+			(dep) => !isLazyClientScript(dep),
 		);
-		const placeholders = scripts.map((dependency) => {
-			const key = getAssetDependencyKey(dependency, this.appConfig.rootDir);
-			const placeholder: ProcessedAsset = {
-				kind: 'script',
-				inline: false,
-				position: dependency.position,
-				attributes: dependency.attributes,
-				excludeFromHtml: dependency.kind === 'script' ? dependency.excludeFromHtml : undefined,
-				packageRole: dependency.packageRole,
-			};
-			const collected = collection.get(key) ?? { dependency, integrationName, placeholders: [] };
-			collected.placeholders.push(placeholder);
-			collection.set(key, collected);
-			return placeholder;
-		});
-		return [...processed, ...placeholders];
+		return prepareAssetDependencies(
+			eagerDeps,
+			this.getAssetProcessingIntegration(integrationName),
+			this.appConfig.rootDir,
+		).filter(isBundleableScript);
+	}
+
+	private bundlesPageDependencies(integrationName: string): boolean {
+		return (
+			this.appConfig.integrations?.find((integration) => integration.name === integrationName)
+				?.bundlesPageDependencies ?? false
+		);
+	}
+
+	private packageDependencies(dependencies: AssetDefinition[], integrationName: string): AssetDefinition[] {
+		return packagePageDependencies(
+			dependencies,
+			integrationName,
+			this.bundlesPageDependencies(integrationName),
+			this.appConfig.rootDir,
+		);
 	}
 
 	/** Collects lazy client entries from prepared graph nodes without processing eager assets. */
@@ -264,23 +217,11 @@ export class DependencyResolverService {
 			skipNestedComponents,
 		);
 
-		const bundlesPageDependencies =
-			this.appConfig.integrations?.find((integration) => integration.name === integrationName)
-				?.bundlesPageDependencies ?? false;
-		const packagedDependencies = packagePageDependencies(
-			dependencies,
-			integrationName,
-			bundlesPageDependencies,
-			this.appConfig.rootDir,
-		);
+		const packagedDependencies = this.packageDependencies(dependencies, integrationName);
 		const lazyDeps = packagedDependencies.filter(isLazyClientScript);
 		const eagerDeps = packagedDependencies.filter((dep) => !isLazyClientScript(dep));
 
 		this.storePendingLazyClientDependencies(lazyScriptsByConfig, lazyDeps);
-
-		if (this.scriptCollection) {
-			return this.processWhileCollecting(eagerDeps, integrationName, this.scriptCollection);
-		}
 
 		if (!this.shouldCacheProcessedDependencies()) {
 			return this.assetProcessingService.processDependencies(
@@ -293,7 +234,7 @@ export class DependencyResolverService {
 			components,
 			integrationName,
 			skipNestedComponents,
-			bundlesPageDependencies,
+			this.bundlesPageDependencies(integrationName),
 		);
 		if (!cacheKey) {
 			return this.assetProcessingService.processDependencies(

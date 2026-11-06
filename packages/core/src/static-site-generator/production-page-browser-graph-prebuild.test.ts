@@ -103,7 +103,6 @@ test('prebuildProductionPageBrowserGraphs deduplicates, sorts, and groups route 
 		bundledScriptAssets: new Map(),
 	});
 	const createRenderer = (rendererName: string, groupedBuildPlan: { planKey: string }) => ({
-		materializeCollectedScripts: vi.fn(async () => {}),
 		buildGroupedGraphBuildPlan: vi.fn(async (_instances: unknown[], _options: unknown) => groupedBuildPlan),
 		prebuildProductionPageBrowserGraph: async (
 			filePath: string,
@@ -213,7 +212,6 @@ test('prebuildProductionPageBrowserGraphs skips routes whose preparation failed'
 	});
 	const prebuiltRoutes: string[] = [];
 	const renderer = {
-		materializeCollectedScripts: vi.fn(async () => {}),
 		buildGroupedGraphBuildPlan: vi.fn(
 			async (
 				instances: Array<{ routeFile: string; params?: Record<string, string | string[]> }>,
@@ -336,7 +334,6 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs 
 	let installedPlan: GroupedGraphBuildPlan | undefined;
 	const renderer = {
 		name: 'ecopages-jsx',
-		materializeCollectedScripts: vi.fn(async () => {}),
 		buildGroupedGraphBuildPlan: vi.fn(async () => currentPlan),
 		prebuildProductionPageBrowserGraph: vi.fn(
 			async (_file: string, options: { groupedBuildPlan?: GroupedGraphBuildPlan }) => {
@@ -394,18 +391,17 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores bundled component
 		bundledScriptAssets: new Map([[getAssetDependencyKey(script, appConfig.rootDir), scriptAsset]]),
 	});
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
-	const prebuiltScriptsWhenMaterialized: Array<ProcessedAsset | undefined> = [];
+	const prebuiltScriptsWhenRendered: Array<ProcessedAsset | undefined> = [];
 	const renderer = {
 		name: 'ecopages-jsx',
-		materializeCollectedScripts: vi.fn(async () => {
-			prebuiltScriptsWhenMaterialized.push(
+		buildGroupedGraphBuildPlan: vi.fn(async () => createPlan('runtime-plan')),
+		prebuildProductionPageBrowserGraph: vi.fn(async () => {
+			prebuiltScriptsWhenRendered.push(
 				requireAppRuntime(runtimeAppConfig).prebuiltBrowserScripts.get(
 					getAssetDependencyKey(script, appConfig.rootDir),
 				),
 			);
 		}),
-		buildGroupedGraphBuildPlan: vi.fn(async () => createPlan('runtime-plan')),
-		prebuildProductionPageBrowserGraph: vi.fn(async () => {}),
 	};
 
 	assert.equal(
@@ -415,9 +411,9 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores bundled component
 		true,
 	);
 
-	assert.equal(prebuiltScriptsWhenMaterialized.length, 1);
-	assert.equal(prebuiltScriptsWhenMaterialized[0]?.filepath, scriptAsset.filepath);
-	assert.equal(prebuiltScriptsWhenMaterialized[0]?.srcUrl, '/assets/client-counter.js');
+	assert.equal(prebuiltScriptsWhenRendered.length, 1);
+	assert.equal(prebuiltScriptsWhenRendered[0]?.filepath, scriptAsset.filepath);
+	assert.equal(prebuiltScriptsWhenRendered[0]?.srcUrl, '/assets/client-counter.js');
 });
 
 test('prebuildProductionPageBrowserGraphsFromManifest restores a build moved to another folder', async () => {
@@ -488,7 +484,6 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores a build moved to 
 	const startConfig = await createAppConfig(startRoot);
 	const renderer = {
 		name: 'ecopages-jsx',
-		materializeCollectedScripts: vi.fn(async () => {}),
 		buildGroupedGraphBuildPlan: vi.fn(async () => createPlan(startRoot)),
 		prebuildProductionPageBrowserGraph: vi.fn(async () => {}),
 	};
@@ -605,7 +600,6 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores dynamic route tem
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 	const renderer = {
 		name: 'ecopages-jsx',
-		materializeCollectedScripts: vi.fn(async () => {}),
 		buildGroupedGraphBuildPlan: vi.fn(
 			async (
 				_instances: Array<{
@@ -695,7 +689,6 @@ test('prebuildProductionPageBrowserGraphsFromManifest reuses outputs after route
 	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
 	const renderer = {
 		name: 'ecopages-jsx',
-		materializeCollectedScripts: vi.fn(async () => {}),
 		buildGroupedGraphBuildPlan: vi.fn(async () => plan),
 		prebuildProductionPageBrowserGraph: vi.fn(async () => {}),
 	};

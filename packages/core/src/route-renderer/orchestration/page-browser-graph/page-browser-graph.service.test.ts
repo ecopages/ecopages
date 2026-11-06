@@ -505,6 +505,42 @@ test('PageBrowserGraphService reuses a dynamic route template when grouped depen
 	expect(processDependencies).not.toHaveBeenCalled();
 });
 
+test('PageBrowserGraphService takes processed assets from the current contribution of a planned route', async () => {
+	const routeFile = '/app/pages/planned.tsx';
+	const prebuiltAsset = {
+		filepath: '/app/dist/assets/planned.js',
+		srcUrl: '/assets/planned.js',
+		kind: 'script' as const,
+	};
+	const renderedScript = { srcUrl: '/assets/card-script.js', kind: 'script' as const };
+	const dependency = createGroupedDependency();
+	const service = new PageBrowserGraphService(appConfig, {
+		processDependencies: vi.fn(async (): Promise<ProcessedAsset[]> => []),
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService);
+	const instance = { routeFile, dependencyInstanceKey: createPageDependencyInstanceKey({}) };
+
+	const result = await service.resolvePageBrowserGraph({
+		routeFile,
+		dependencyInstanceKey: instance.dependencyInstanceKey,
+		integrationName: 'react',
+		groupedBuildPlan: {
+			integrationName: 'react',
+			planKey: createGroupedGraphBuildPlanKey('react', [instance]),
+			instances: [
+				{
+					...instance,
+					contribution: { dependencies: [dependency], assets: [] },
+					prebuiltGroupedAssets: [prebuiltAsset],
+				},
+			],
+		},
+		collectContribution: async () => ({ dependencies: [dependency], assets: [renderedScript] }),
+	});
+
+	expect(result?.entryAssets).toEqual(expect.arrayContaining([prebuiltAsset, renderedScript]));
+});
+
 test('PageBrowserGraphService keeps the request-time build when a dynamic route adds grouped dependencies', async () => {
 	vi.stubEnv('NODE_ENV', 'production');
 	requireAppRuntime(appConfig).productionBrowserGraphsSealed = false;

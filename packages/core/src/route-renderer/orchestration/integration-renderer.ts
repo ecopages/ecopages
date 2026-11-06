@@ -31,7 +31,7 @@ import {
 } from '../../assets/asset-processing-service/index.ts';
 import type { AssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
 import { resolveAssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
-import { createAppBrowserClientEntryKey } from '../../assets/app-browser-client-build.ts';
+import { getIntegrationDependencyKey } from '../../assets/asset-processing-service/asset-dependency-keys.ts';
 import { HtmlTransformerService } from '../../html/html-transformer.service.ts';
 import type { HtmlDocumentContribution } from '../../html/html-transformer.service.ts';
 import { invariant } from '../../utils/invariant.ts';
@@ -1532,12 +1532,16 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const hasMatchingEntries =
 			JSON.stringify(
 				currentEntries
-					.map((entry) => createAppBrowserClientEntryKey(entry.integrationName, entry.dependency))
+					.map((entry) =>
+						getIntegrationDependencyKey(entry.integrationName, entry.dependency, this.appConfig.rootDir),
+					)
 					.sort(),
 			) ===
 			JSON.stringify(
 				plannedEntries
-					.map((entry) => createAppBrowserClientEntryKey(entry.integrationName, entry.dependency))
+					.map((entry) =>
+						getIntegrationDependencyKey(entry.integrationName, entry.dependency, this.appConfig.rootDir),
+					)
 					.sort(),
 			);
 		const prebuilt = hasMatchingEntries ? prebuiltInstance.prebuiltPageClientBrowserAssets : undefined;

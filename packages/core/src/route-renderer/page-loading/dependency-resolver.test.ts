@@ -25,6 +25,7 @@ import assert from 'node:assert/strict';
 
 describe('DependencyResolverService', () => {
 	const appConfig = {
+		rootDir: '/app',
 		srcDir: '/app',
 	} as EcoPagesAppConfig;
 
@@ -701,7 +702,7 @@ describe('DependencyResolverService', () => {
 				}),
 				AssetFactory.createFileStylesheet({ filepath: paths[2]!, attributes: { rel: 'stylesheet' } }),
 			];
-			const packaged = packagePageDependencies(dependencies, 'react', true);
+			const packaged = packagePageDependencies(dependencies, 'react', true, appConfig.rootDir);
 			const packagedPaths = packaged.flatMap((dependency) =>
 				dependency.bundledSourceFilepaths?.length
 					? dependency.bundledSourceFilepaths
@@ -744,7 +745,7 @@ describe('DependencyResolverService', () => {
 					attributes: { type: 'module', defer: '' },
 				}),
 			];
-			const packaged = packagePageDependencies(dependencies, 'react', true);
+			const packaged = packagePageDependencies(dependencies, 'react', true, appConfig.rootDir);
 			const packagedPaths = packaged.flatMap((dependency) =>
 				dependency.bundledSourceFilepaths?.length
 					? dependency.bundledSourceFilepaths
@@ -787,8 +788,8 @@ describe('DependencyResolverService', () => {
 				AssetFactory.createFileStylesheet({ filepath: paths[3]!, attributes: { rel: 'stylesheet' } }),
 				AssetFactory.createFileStylesheet({ filepath: paths[4]!, attributes: { rel: 'stylesheet' } }),
 			];
-			const packaged = packagePageDependencies(dependencies, 'react', true);
-			const deduplicated = deduplicateAssetDependencies(packaged);
+			const packaged = packagePageDependencies(dependencies, 'react', true, appConfig.rootDir);
+			const deduplicated = deduplicateAssetDependencies(packaged, appConfig.rootDir);
 
 			expect(deduplicated).toHaveLength(3);
 			expect(deduplicated[0]?.bundledSourceFilepaths).toEqual([paths[0], paths[1]]);
@@ -1152,7 +1153,7 @@ describe('DependencyResolverService', () => {
 			await service.materializeCollectedScripts(
 				new Map([
 					[
-						getAssetDependencyKey(prebuiltScript),
+						getAssetDependencyKey(prebuiltScript, appConfig.rootDir),
 						{ kind: 'script', srcUrl: '/assets/client-shared.js' } as ProcessedAsset,
 					],
 				]),

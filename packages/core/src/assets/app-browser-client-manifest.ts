@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { isPathStrictlyInside } from '../utils/path-containment.ts';
+import { toRootRelativePath } from '../utils/root-relative-path.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { PageParams } from '../types/contracts.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
@@ -10,13 +11,15 @@ import {
 	getPrebuiltHtmlPageModuleScriptUrls,
 } from '../html-pages/html-page-module-scripts.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
-import { createAppBrowserClientEntryKey } from './app-browser-client-build.ts';
 import {
 	createPageDependencyInstanceKey,
 	createRouteGraphLookupKey,
 } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
-import type { AssetDefinition, ProcessedAsset } from './asset-processing-service/assets.types.ts';
-import { getAssetDependencyKey } from './asset-processing-service/asset-dependency-keys.ts';
+import type { ProcessedAsset } from './asset-processing-service/assets.types.ts';
+import {
+	getAssetDependencyKey,
+	getIntegrationDependencyKey,
+} from './asset-processing-service/asset-dependency-keys.ts';
 
 const APP_BROWSER_CLIENT_MANIFEST_FILENAME = 'browser-client-manifest.json';
 
@@ -56,7 +59,7 @@ export type AppBrowserClientManifestBundledScript = {
 };
 
 export type AppBrowserClientManifest = {
-	version: 1;
+	version: 2;
 	buildId?: string;
 	entries: AppBrowserClientManifestEntry[];
 	bundledScripts: AppBrowserClientManifestBundledScript[];
@@ -69,58 +72,6 @@ function getManifestPath(appConfig: EcoPagesAppConfig): string {
 	return path.join(getServerBundleOutputPaths(appConfig).serverOutdir, APP_BROWSER_CLIENT_MANIFEST_FILENAME);
 }
 
-function toProjectPath(rootDir: string, filePath: string): string {
-	return path.relative(rootDir, filePath).split(path.sep).join('/');
-}
-
-/** Rewrites the file path inside a client dependency key so it survives moving the project root. */
-export function normalizeAppBrowserClientEntryKey(rootDir: string, key: string): string {
-	try {
-		const parsedKey: unknown = JSON.parse(key);
-		if (!Array.isArray(parsedKey) || parsedKey.length !== 2 || typeof parsedKey[1] !== 'string') return key;
-		const dependency: unknown = JSON.parse(parsedKey[1]);
-		if (!isRecord(dependency) || typeof dependency.filepath !== 'string') return key;
-		return JSON.stringify([
-			parsedKey[0],
-			JSON.stringify({ ...dependency, filepath: toProjectPath(rootDir, path.resolve(dependency.filepath)) }),
-		]);
-	} catch {
-		return key;
-	}
-}
-
-/** Creates a browser client key with a project-relative file path. */
-export function createNormalizedAppBrowserClientEntryKey(
-	rootDir: string,
-	integrationName: string,
-	dependency: Parameters<typeof createAppBrowserClientEntryKey>[1],
-): string {
-	return normalizeAppBrowserClientEntryKey(rootDir, createAppBrowserClientEntryKey(integrationName, dependency));
-}
-
-/**
- * Creates the dependency key of a component script with project-relative paths.
- *
- * @remarks
- * A Page script's content imports its member files by absolute path, so the content is normalized as well.
- */
-export function createNormalizedBundledScriptKey(rootDir: string, dependency: AssetDefinition): string {
-	const root = `${path.resolve(rootDir)}${path.sep}`;
-	const normalized = {
-		...dependency,
-		...('filepath' in dependency ? { filepath: toProjectPath(rootDir, path.resolve(dependency.filepath)) } : {}),
-		...('content' in dependency ? { content: dependency.content.replaceAll(root, '<root>/') } : {}),
-		...(dependency.bundledSourceFilepaths
-			? {
-					bundledSourceFilepaths: dependency.bundledSourceFilepaths.map((filePath) =>
-						toProjectPath(rootDir, filePath),
-					),
-				}
-			: {}),
-	} as AssetDefinition;
-	return getAssetDependencyKey(normalized);
-}
-
 function serializeBundledScripts(
 	rootDir: string,
 	plans: readonly GroupedGraphBuildPlan[],
@@ -128,9 +79,9 @@ function serializeBundledScripts(
 ): AppBrowserClientManifestBundledScript[] {
 	const scripts = new Map<string, AppBrowserClientManifestBundledScript>();
 	for (const dependency of plans.flatMap((plan) => plan.bundledScripts ?? [])) {
-		const asset = bundledScriptAssets.get(getAssetDependencyKey(dependency));
+		const key = getAssetDependencyKey(dependency, rootDir);
+		const asset = bundledScriptAssets.get(key);
 		if (!asset) continue;
-		const key = createNormalizedBundledScriptKey(rootDir, dependency);
 		scripts.set(key, { key, asset: serializeProcessedAsset(rootDir, asset) });
 	}
 	return [...scripts.values()].sort((left, right) => left.key.localeCompare(right.key));
@@ -139,9 +90,9 @@ function serializeBundledScripts(
 function serializeProcessedAsset(rootDir: string, asset: ProcessedAsset): SerializedProcessedAsset {
 	return {
 		...asset,
-		filepath: asset.filepath ? toProjectPath(rootDir, asset.filepath) : undefined,
-		sourceFilepath: asset.sourceFilepath ? toProjectPath(rootDir, asset.sourceFilepath) : undefined,
-		bundledSourceFilepaths: asset.bundledSourceFilepaths?.map((filePath) => toProjectPath(rootDir, filePath)),
+		filepath: asset.filepath ? toRootRelativePath(rootDir, asset.filepath) : undefined,
+		sourceFilepath: asset.sourceFilepath ? toRootRelativePath(rootDir, asset.sourceFilepath) : undefined,
+		bundledSourceFilepaths: asset.bundledSourceFilepaths?.map((filePath) => toRootRelativePath(rootDir, filePath)),
 	};
 }
 
@@ -217,7 +168,7 @@ function isManifestEntry(value: unknown): value is AppBrowserClientManifestEntry
 function isManifest(value: unknown): value is AppBrowserClientManifest {
 	return (
 		isRecord(value) &&
-		value.version === 1 &&
+		value.version === 2 &&
 		isOptionalString(value, 'buildId') &&
 		Array.isArray(value.entries) &&
 		value.entries.every(isManifestEntry) &&
@@ -239,10 +190,10 @@ function serializeEntry(
 ): AppBrowserClientManifestEntry {
 	const pageClientAssets = instance.prebuiltPageClientBrowserAssets;
 	const pageClientBuildEntryKeys = (instance.pageClientBuildEntries ?? [])
-		.map((entry) => createNormalizedAppBrowserClientEntryKey(rootDir, entry.integrationName, entry.dependency))
+		.map((entry) => getIntegrationDependencyKey(entry.integrationName, entry.dependency, rootDir))
 		.sort();
 	const fallbackPageClientBuildEntryKeys = (pageClientAssets?.fallbackDependencies ?? []).map((fallback) =>
-		createNormalizedAppBrowserClientEntryKey(rootDir, fallback.integrationName, fallback.dependency),
+		getIntegrationDependencyKey(fallback.integrationName, fallback.dependency, rootDir),
 	);
 	for (const fallbackKey of fallbackPageClientBuildEntryKeys) {
 		if (!pageClientBuildEntryKeys.includes(fallbackKey)) {
@@ -253,7 +204,7 @@ function serializeEntry(
 	}
 	return {
 		integrationName: plan.integrationName,
-		routeFile: toProjectPath(rootDir, instance.routeFile),
+		routeFile: toRootRelativePath(rootDir, instance.routeFile),
 		params,
 		skipStaticProps: instance.skipStaticProps,
 		isRouteTemplate: instance.isRouteTemplate,
@@ -261,7 +212,7 @@ function serializeEntry(
 		groupedDependencyKeys: [
 			...new Set(
 				(instance.contribution?.dependencies ?? []).map((dependency) =>
-					createNormalizedAppBrowserClientEntryKey(rootDir, plan.integrationName, dependency),
+					getIntegrationDependencyKey(plan.integrationName, dependency, rootDir),
 				),
 			),
 		].sort(),
@@ -359,13 +310,13 @@ export async function writeAppBrowserClientManifest(
 	);
 	const htmlPageModuleScriptUrls = Object.fromEntries(
 		[...(await getPrebuiltHtmlPageModuleScriptUrls(appConfig))].map(([filePath, url]) => [
-			toProjectPath(appConfig.rootDir, filePath),
+			toRootRelativePath(appConfig.rootDir, filePath),
 			url,
 		]),
 	);
 	const htmlBuildInputs = collectHtmlPageModuleScriptBuildInputs(appConfig);
 	const manifest: AppBrowserClientManifest = {
-		version: 1,
+		version: 2,
 		buildId: ensureProductionBuildId(appConfig),
 		entries,
 		bundledScripts: serializeBundledScripts(appConfig.rootDir, plans, browserBuild.bundledScriptAssets),
@@ -374,7 +325,7 @@ export async function writeAppBrowserClientManifest(
 		browserOutputPaths: [
 			...collectOutputFilepaths(appConfig, plans, htmlPageModuleScriptUrls, browserBuild.outputPaths),
 		]
-			.map((filepath) => toProjectPath(appConfig.rootDir, filepath))
+			.map((filepath) => toRootRelativePath(appConfig.rootDir, filepath))
 			.sort(),
 	};
 	const manifestPath = getManifestPath(appConfig);

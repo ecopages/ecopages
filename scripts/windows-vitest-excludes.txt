@@ -3,18 +3,12 @@
 # Each file fails on windows-latest today and is excluded by scripts/test-vitest-windows.ts.
 # Remove a line when its draft issue is fixed. See the PR for ecopages/ecopages#1015.
 #
-# Fixture apps that still fail with the temp folder on the checkout drive (ecopages/ecopages#1018):
-# dynamic routes answer 404 on Windows, and the image processor cache key contains a colon that Windows cannot write.
-e2e/fixtures/cache/cache.test.ts
-e2e/fixtures/production-processors/production-processors.test.ts
-e2e/fixtures/production-server-modules/production-server-modules.test.ts
 # Cross-drive server build, kept visible on purpose (ecopages/ecopages#1018).
 # When the app root and an imported module sit on different drives, Rolldown cannot name the module inside
 # preserveModulesRoot, keeps its ../ prefix and rejects it (INVALID_OPTION, "Invalid substitution ... for placeholder [name]")
 # before entryFileNames can rewrite it, so the naming cannot be fixed in Core. The test maps a second drive with subst.
 packages/core/src/build/rolldown/rolldown-cross-drive-build.test.ts
-# These two mock a POSIX project root (/test/project) that does not resolve on Windows.
-packages/core/src/static-site-generator/production-dynamic-collection-browser-graph.test.ts
+# This one mocks a POSIX project root (/test/project) that does not resolve on Windows.
 packages/core/src/assets/asset-processing-service/processors/script/node-module-script.processor.test.ts
 #
 # Draft: "Windows: unit tests assume POSIX paths and separators"
@@ -22,7 +16,6 @@ packages/__internals/testing/src/index.test.ts
 packages/codemod/src/transforms/migrate-core-entrypoints.test.ts
 packages/codemod/src/transforms/migrate-to-eco-component.test.ts
 packages/codemod/src/transforms/migrate-to-eco-page.test.ts
-packages/core/src/adapters/shared/runtime/server-request-pipeline.test.ts
 packages/core/src/assets/asset-processing-service/asset-processing.service.test.ts
 packages/core/src/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts
 packages/core/src/assets/asset-processing-service/processors/script/file-script.processor.test.ts
@@ -50,8 +43,6 @@ packages/core/src/route-renderer/orchestration/route-pipeline/route-render-orche
 packages/core/src/route-renderer/page-loading/dependency-resolver.test.ts
 packages/core/src/route-renderer/page-loading/file-scoped-dependency-components.test.ts
 packages/core/src/route-renderer/page-loading/page-module-loader.test.ts
-packages/core/src/router/server/route-registry.test.ts
-packages/core/src/static-site-generator/production-page-browser-graph-prebuild.test.ts
 packages/core/src/static-site-generator/static-site-generator.production-export.test.ts
 packages/core/src/static-site-generator/static-site-generator.test.ts
 packages/core/src/watchers/project-watcher.test.ts
@@ -63,9 +54,6 @@ packages/integrations/ecopages-jsx/src/ecopages-jsx-hmr-strategy.test.ts
 packages/integrations/ecopages-jsx/src/test/ecopages-jsx-renderer.test.ts
 packages/integrations/ecopages-jsx/src/test/ecopages-jsx.plugin.test.ts
 packages/integrations/react/src/hmr/hmr-strategy.test.ts
-packages/processors/image-processor/src/test/image-processor.test.ts
-packages/processors/image-processor/src/test/plugin.test.ts
 packages/processors/postcss-processor/src/test/plugin.test.ts
 packages/processors/postcss-processor/src/test/presets.test.ts
 playground/kitchen-sink/bench/lib/startup-bench-process.test.ts
-playground/kitchen-sink/bench/static-build-unified-graph-parity.test.ts

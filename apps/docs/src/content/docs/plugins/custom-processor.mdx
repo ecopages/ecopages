@@ -182,7 +182,7 @@ Work that needs the file system, such as generating modules or loading a config 
 
 ## Working with Cache
 
-Processors have built-in caching capabilities:
+Processors have built-in caching capabilities. Each entry is a JSON file in the Processor's cache folder under the work directory, named after a digest of its key, so a key may contain any character:
 
 ```typescript
 class CustomProcessor extends Processor {

@@ -4,6 +4,7 @@ import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../config/internal-types.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 import { GENERATED_BASE_PATHS } from '../constants.ts';
+import { contentHash } from '../utils/content-hash.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
 
 export type {
@@ -242,14 +243,22 @@ export abstract class Processor<TOptions = unknown> {
 	 */
 	transformStylesheet?(css: string, file: string): Promise<string>;
 
+	/**
+	 * @remarks
+	 * The file name is a digest of `key`, so a key may hold any character, including `:` and `/`,
+	 * which some platforms reject in a file name.
+	 */
 	protected getCachePath(key: string): string {
-		return `${this.context?.cache}/${key}`;
+		if (!this.context?.cache) {
+			throw new Error(PROCESSOR_ERRORS.CACHE_DIRECTORY_NOT_SET);
+		}
+
+		return path.join(this.context.cache, `${contentHash(key)}.json`);
 	}
 
 	protected async readCache<T>(key: string): Promise<T | null> {
-		const cachePath = this.getCachePath(key);
 		try {
-			const data = await fileSystem.readFile(cachePath);
+			const data = await fileSystem.readFile(this.getCachePath(key));
 			return JSON.parse(data) as T;
 		} catch {
 			return null;
@@ -257,12 +266,7 @@ export abstract class Processor<TOptions = unknown> {
 	}
 
 	protected async writeCache<T>(key: string, data: T): Promise<void> {
-		if (!this.context?.cache) {
-			throw new Error(PROCESSOR_ERRORS.CACHE_DIRECTORY_NOT_SET);
-		}
-
-		const cachePath = this.getCachePath(key);
-		fileSystem.write(cachePath, JSON.stringify(data, null, 2));
+		fileSystem.write(this.getCachePath(key), JSON.stringify(data, null, 2));
 	}
 
 	getWatchConfig(): ProcessorWatchConfig | undefined {

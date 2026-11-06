@@ -26,6 +26,8 @@ const productionRuntimeImports = {
 	useSyncExternalStoreWithSelector: 'use-sync-external-store/shim/with-selector',
 	pageLayoutNormalization: '@ecopages/core/integration',
 	layoutCompose: '@ecopages/react/layout-compose',
+	islandHydration: '@ecopages/react/island-hydration',
+	pageHydration: '@ecopages/react/page-hydration',
 	router: undefined as string | undefined,
 };
 
@@ -38,6 +40,8 @@ const browserRuntimeImports = {
 	useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
 	pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
 	layoutCompose: '/assets/vendors/layout-compose.js',
+	islandHydration: '/assets/vendors/island-hydration.js',
+	pageHydration: '/assets/vendors/page-hydration.js',
 	router: '/assets/vendors/react-router-esm.js' as string | undefined,
 };
 
@@ -618,9 +622,9 @@ describe('HydrationAssetService', () => {
 			.filter((content) => content.includes('data-eco-component-key'));
 		expect(hydration).toHaveLength(2);
 		expect(hydration[0]).toContain(getIslandComponentKey(file, counter));
-		expect(hydration[0]).toContain('componentRef:`counter`');
+		expect(hydration[0]).toContain('componentRef: "counter"');
 		expect(hydration[1]).toContain(getIslandComponentKey(file, cart));
-		expect(hydration[1]).toContain('componentRef:`cart`');
+		expect(hydration[1]).toContain('componentRef: "cart"');
 	});
 
 	it('reuses the same grouped island entry name for different component instances', async () => {

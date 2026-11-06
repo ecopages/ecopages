@@ -23,6 +23,8 @@ describe('RuntimeBundleService', () => {
 			useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
 			pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
 			layoutCompose: '/assets/vendors/layout-compose.js',
+			islandHydration: '/assets/vendors/island-hydration.js',
+			pageHydration: '/assets/vendors/page-hydration.js',
 		});
 
 		const dependencies = service.getDependencies();
@@ -80,6 +82,8 @@ describe('RuntimeBundleService', () => {
 			useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.development.js',
 			pageLayoutNormalization: '/assets/vendors/page-layout-normalization.development.js',
 			layoutCompose: '/assets/vendors/layout-compose.development.js',
+			islandHydration: '/assets/vendors/island-hydration.development.js',
+			pageHydration: '/assets/vendors/page-hydration.development.js',
 			router: '/assets/vendors/react-router-esm.development.js',
 		});
 

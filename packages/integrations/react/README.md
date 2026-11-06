@@ -29,6 +29,7 @@ For component-level islands, Ecopages React uses this contract:
 - During non-HMR runtime rendering, island and lazy-entry client modules are built together from the page client plan, in one grouped browser build during route preparation. Static production export contributes React hydration and lazy entries, every Integration's Page Browser Graph entries, and HTML Page and `html.html` shell module scripts to the app-wide browser build. React's client build plugins apply only to modules React entries reach, so React and other Integrations share one build, and a Layout or package that MDX Pages, TSX Pages and other Integrations' scripts share loads once across client navigation. Hydration scripts import the recorded output URLs. Same-integration Page, Layout, and includes are hydrated by the page bootstrap. The Html shell is not an island, even when its Integration differs from the page owner. Only a React component whose Integration differs from its parent's, on another owner's page, receives a per-component island script. Those scripts join the page's assets during route preparation; SSR only stamps the host and never starts a per-island build.
 - Each island component gets its own hydration script, keyed by its component identity. A file that exports several island components is built once and its declared modules are merged, while each component's hosts hydrate the export whose identity matches.
 - The island runtime keeps the SSR host and its children in place and hydrates that host with `hydrateRoot()`. The host uses `display: contents` so it does not introduce an extra layout box. Full-page hydration paths also use `hydrateRoot()`.
+- Hydration scripts are short generated entries that import the lifecycle from `@ecopages/react/island-hydration` or `@ecopages/react/page-hydration`. Each bootstrap is built once into `/assets/vendors/` like the React runtime. A production Page entry that inlines React bundles `@ecopages/react/page-hydration` instead, and every other entry imports the vendor URL. No server process compiles a bootstrap, so `ecopages start` serves islands from the bundled server.
 
 > [!TIP]
 > **Full React SPA Routing:**
@@ -85,7 +86,7 @@ The React integration supports Node.js modules and server-only code **only on th
 
 Keep server helpers close, but separate them physically or logically so they do not leak into the client bundle.
 
-The `.server` naming rule comes from the browser-safe `@ecopages/core/build/contracts` entry. React applies it during import pruning before core's browser resolution guard runs. A Page that uses `.server.ts` imports only in server options such as `middleware` still builds: the imports and server options are removed before resolution.
+The `.server` naming rule comes from the browser-safe `@ecopages/core/build/contracts` entry. React applies it during import pruning before core's browser resolution guard runs. A Page that uses `.server.ts` imports only in server options such as `middleware`, or in helpers only those options use, still builds: the imports, the options and those helpers are removed before resolution, in every module of the client graph. Other top-level code the browser does not need that uses a stripped import is removed too. A stripped import that code the browser needs still uses fails the build and names the binding, its specifier and its `file:line:column`; see [AST Pipeline Order](#ast-pipeline-order).
 
 For a hydratable Page that renders collection MDX, call `createLazyCollectionComponents()` from `@ecopages/react/lazy-collection-components` once at module level with the collection's `/component` loader. Its `get(slug)` returns one `React.lazy` component per slug, so the Page reads `const Content = posts.get(entry.slug)` and renders `<Content />` inside a `<Suspense>` boundary. The server waits for the entry and sends it in the HTML, hydration keeps that HTML until the browser has loaded the entry, and `dependencies` stays server-only and is removed from the Page Browser Graph. Keep the boundary at a fixed place in the Page, not keyed by slug: when a client navigation moves to another entry, React then leaves the current Page on screen until the next entry has loaded instead of showing the fallback. When the browser cannot load an entry during a client navigation (a replaced chunk, a dropped connection), `@ecopages/react-router` falls back to a full navigation to that URL. The helper keeps one lookup per collection outside the Page module. In development, HMR of the Page module therefore renders the already-loaded entry again without the Suspense fallback; the Page's own DOM is still replaced, because the reloaded Page is a new component. An edited MDX file re-renders that entry in place without a document reload. On the server, a reloaded server module graph starts a new lookup.
 
@@ -145,15 +146,21 @@ Important:
 
 ### AST Pipeline Order
 
-The browser-bound transform in [src/client-graph/boundary-plugin.ts](src/client-graph/boundary-plugin.ts) follows this order:
+The browser-bound transform in [src/client-graph/boundary-plugin.ts](src/client-graph/boundary-plugin.ts) runs on every module of the client graph, not only on Page and Layout entries, and plans all of its edits on one parse of the module:
 
-1. Parse the module and build a reachability view of the client render graph.
-2. Remove imports that are not allowed or not reachable from the client graph.
-3. Reparse the transformed source.
-4. Strip server-only `eco.page(...)` object properties from the reparsed AST.
-5. Return the rewritten source to the bundle step.
+1. Build a reachability view of the client render graph.
+2. Remove imports that are not allowed: Node built-ins, `.server` modules, `ecopages:content/*/server` modules and named imports outside the declared `pkg{name}` rules. An import reachable from a client root fails the build instead.
+3. Remove server-only `eco.page(...)` options.
+4. Work out which top-level code the browser module needs: every top-level statement that is not a declaration (the default export included), declarations that create a client root such as `eco.component(...)`, the named exports browser importers are known to request, and every declaration those reach. In a module that calls `eco.page(...)`, the legacy `getMetadata`, `getStaticProps` and `getStaticPaths` exports are never needed by themselves.
+5. Remove each declaration the browser module does not need when only removed code used it, or when it uses a removed import or another removed declaration, repeating until nothing else changes. An exported name keeps its binding, set to `undefined`. Imports only removed code used are removed too, so their modules stay out of the browser graph.
+6. Fail the build when needed code, or an `export { ... }` list, still uses a binding whose import step 2 removed.
+7. Apply the edits and return the rewritten source to the bundle step.
 
-The reparse step is important. Once import edits change source offsets, the original AST locations are stale. Reusing them for later edits can corrupt the output or remove the wrong code.
+A named export nothing requests is not needed, because rolldown would tree-shake it anyway, and requests are unknown for imports through a path alias such as `@/utils/mixed-utils`. So a helper module can keep `export function dbSecretQuery() { return readFileSync(...) }` next to the `formatDate` a Page renders: in the browser, `dbSecretQuery` is `undefined` and `node:fs` is gone.
+
+Step 5 does not look at side effects. A declaration such as `const registered = register('x')` that only server-only options use is removed with its call. Code that must run in the browser for its effect, such as `customElements.define(...)`, belongs in a top-level statement of its own, which always stays.
+
+The analysis is scope-aware ([src/client-graph/scope-walk.ts](src/client-graph/scope-walk.ts)). A parameter, local or destructured binding that shadows an import name is not a use of the import, and neither is a property key or a class member name. A parameter default sees the parameters but not the function body's declarations. Type positions and the bare operand of `typeof` are not uses. The operand of `as`, `satisfies` and `!` is a use, as is code in enums and namespaces. A JSX element name such as `<Secret />` is a use.
 
 ### Why `eco.page(...)` Options Are Stripped
 
@@ -163,18 +170,28 @@ Consider a page like this:
 
 ```tsx
 import { authMiddleware } from './auth.server';
+import { getPost } from './posts.server';
+
+const staticProps = async () => ({ props: { post: await getPost() } });
 
 export default eco.page({
 	cache: 'dynamic',
 	middleware: [authMiddleware],
 	requires: ['session'] as const,
+	staticProps,
 	render: () => <div>Dashboard</div>,
 });
 ```
 
-If the client transform removes the `auth.server` import but leaves `middleware: [authMiddleware]` in place, the browser bundle still contains a dangling identifier. That breaks production hydration even though the import was removed correctly.
+If the client transform removed the `auth.server` import but left `middleware: [authMiddleware]` in place, the browser bundle would contain a dangling identifier and throw a `ReferenceError` when it loads. The boundary therefore strips the server-only options, then the `staticProps` helper they alone used, while keeping `render` intact.
 
-The fix is to strip server-only `eco.page(...)` options after import pruning, while keeping `render` intact.
+A stripped import still used by code the browser module needs fails the build with its `file:line:column`:
+
+```text
+[Ecopages Client Graph] 'authMiddleware' (imported from './auth.server') is used at src/widget.tsx:2:22, but that import is server-only and the browser build removes it. ...
+```
+
+Move that code into a server-only Page option, into a helper only those options use, or out of the code the browser module reaches.
 
 ### Hydration Contract for `locals`
 
@@ -216,7 +233,8 @@ The main regression coverage lives in:
 
 - [src/client-graph/boundary-plugin.test.ts](src/client-graph/boundary-plugin.test.ts): verifies server-only `eco.page(...)` options are stripped from browser bundles.
 - [src/render/react-renderer.locals.test.ts](src/render/react-renderer.locals.test.ts): verifies only declared `requires` keys are serialized into hydration payloads.
-- [src/hydration/hydration-script-compiler.test.ts](src/hydration/hydration-script-compiler.test.ts): verifies editable browser sources compile to readable and minified entries.
+- [src/hydration/hydration-entry-source.test.ts](src/hydration/hydration-entry-source.test.ts): a generated island entry registers, and a generated Page entry hydrates, through the bootstrap module it imports.
+- [../../../e2e/fixtures/react-production-start/react-production-start.test.e2e.ts](../../../e2e/fixtures/react-production-start/react-production-start.test.e2e.ts): a built app serves a static and a dynamic Page under `ecopages start`, and their React island hydrates.
 - [../../react-router/test/layout-persistence.test.browser.ts](../../react-router/test/layout-persistence.test.browser.ts): verifies router-backed layout hydration receives `locals` with `persistLayouts` both enabled and disabled.
 - [src/hydration/hydration-lifecycle.test.browser.ts](src/hydration/hydration-lifecycle.test.browser.ts): an uncaught `React.lazy` rejection during first hydration restores the server HTML, keeps body nodes added after mount, drops the page root and makes the next HMR update reload; a Page-level error boundary around the entry still shows its fallback.
 - [../../../playground/kitchen-sink/e2e/content-lazy.test.e2e.ts](../../../playground/kitchen-sink/e2e/content-lazy.test.e2e.ts): a collection chunk that fails during first hydration restores the server HTML (including the playground shell) and is not retried. A Page-level error boundary around the entry keeps the rest of the Page and shows the boundary fallback.

@@ -54,28 +54,30 @@ function importerFilePath(importer) {
 	return importer;
 }
 
-function resolveImportedPath(specifier, importer, appRoot) {
-	if (path.isAbsolute(specifier)) {
-		return specifier;
-	}
-	const importerPath = importerFilePath(importer);
-	const fromDir = importerPath ? path.dirname(importerPath) : appRoot;
-	return path.resolve(fromDir, specifier);
-}
-
 /**
- * The Integration whose view this import is, or `undefined` when the file loads as itself.
+ * Resolves an import the way Bun does, so tsconfig aliases reach the file.
  *
  * @remarks
- * A path that does not exist, such as a tsconfig alias the Bun resolve hook joined
- * naively, is left to the runtime's resolver.
+ * `Bun.resolveSync` does not run plugins. A specifier Bun cannot resolve is left to
+ * the import itself to report.
  */
+function resolveImportedPath(specifier, importer, appRoot) {
+	const importerPath = importerFilePath(importer);
+	const fromDir = importerPath ? path.dirname(importerPath) : appRoot;
+	try {
+		return globalThis.Bun.resolveSync(specifier, fromDir);
+	} catch {
+		return undefined;
+	}
+}
+
+/** The Integration whose view this import is, or `undefined` when the file loads as itself. */
 function viewOwnerToRewrite(filePath, entryPath, appRoot) {
 	if (isExemptFromViewReference(filePath, { entryPath, appRoot })) {
 		return undefined;
 	}
 	const owner = findViewOwner(integrations, filePath);
-	if (!owner || !fileSystem.exists(filePath) || !isViewModule(filePath, fileSystem.readFileSync(filePath))) {
+	if (!owner || !isViewModule(filePath, fileSystem.readFileSync(filePath))) {
 		return undefined;
 	}
 	return owner;
@@ -101,7 +103,7 @@ if (process.versions.bun) {
 			setup(builder) {
 				builder.onResolve({ filter: viewExtensionFilter(extensions) }, (args) => {
 					const filePath = resolveImportedPath(args.path, args.importer, appRoot);
-					const owner = viewOwnerToRewrite(filePath, entryPath, appRoot);
+					const owner = filePath ? viewOwnerToRewrite(filePath, entryPath, appRoot) : undefined;
 					if (!owner) {
 						return undefined;
 					}

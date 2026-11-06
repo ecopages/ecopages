@@ -33,8 +33,8 @@ describe('isViewModule', () => {
 		assert.equal(isViewModule('/app/src/views/post.tsx', "export { default } from './post-view';"), true);
 	});
 
-	it('treats a script module that does not parse as a view', () => {
-		assert.equal(isViewModule('/app/src/views/post.tsx', 'export default <h1>;'), true);
+	it('does not treat a script module that does not parse as a view, so its loader reports the error', () => {
+		assert.equal(isViewModule('/app/src/views/post.tsx', 'export default <h1>;'), false);
 	});
 
 	it('treats files that are not script modules as views', () => {

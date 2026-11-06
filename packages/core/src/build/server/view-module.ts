@@ -9,8 +9,9 @@ const SCRIPT_MODULE_EXTENSION = /\.[cm]?[jt]sx?$/;
  * @remarks
  * A view is the default export, so a script module without one, such as a file of
  * plain components or a barrel, is not a view and loads as itself. Type-only
- * exports do not count. Files that are not script modules (`.html`, `.mdx`) and
- * script modules that do not parse are views, and their compile reports any error.
+ * exports do not count. Files that are not script modules (`.html`, `.mdx`) are
+ * views. A script module that does not parse is not, so the runtime or bundler
+ * loading it reports the syntax error.
  */
 export function isViewModule(filePath: string, source: string): boolean {
 	if (!SCRIPT_MODULE_EXTENSION.test(filePath)) {
@@ -19,7 +20,7 @@ export function isViewModule(filePath: string, source: string): boolean {
 
 	const result = parseModuleSource(filePath, source);
 	if (result.errors.length > 0) {
-		return true;
+		return false;
 	}
 
 	return result.module.staticExports.some((staticExport) =>

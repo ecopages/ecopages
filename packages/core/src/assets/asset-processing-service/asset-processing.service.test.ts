@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition, ContentScriptAsset, ProcessedAsset } from './assets.types';
+import { getAssetDependencyKey } from './asset-dependency-keys.ts';
 import { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
@@ -11,6 +12,7 @@ import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 
 function createTestConfig(overrides: Record<string, unknown> = {}): EcoPagesAppConfig {
 	return {
+		rootDir: '/test',
 		absolutePaths: {
 			distDir: '/test/dist/client',
 		},
@@ -160,6 +162,32 @@ test('AssetProcessingService - processDependencies - success', async () => {
 	);
 
 	expect(gzipDirMock).not.toHaveBeenCalled();
+});
+
+test('AssetProcessingService - processDependencies - returns the app-wide build output of a prebuilt script', async () => {
+	fileSystem.exists = vi.fn(() => true);
+	const prebuiltScript: AssetDefinition = { kind: 'script', source: 'file', filepath: '/app/src/counter.script.ts' };
+	const prebuiltAsset: ProcessedAsset = {
+		kind: 'script',
+		filepath: '/test/dist/client/assets/client-shared.js',
+		srcUrl: '/assets/client-shared.js',
+		inline: false,
+	};
+	Config.appRuntime.prebuiltBrowserScripts = new Map([
+		[getAssetDependencyKey(prebuiltScript, Config.rootDir), prebuiltAsset],
+	]);
+	const service = new AssetProcessingService(Config);
+	const scriptProcessor = { process: vi.fn(Processor.process) };
+	service.registerProcessor('script', 'file', scriptProcessor);
+
+	const results = await service.processDependencies(
+		[prebuiltScript, { kind: 'script', source: 'file', filepath: '/app/src/other.script.ts' }],
+		undefined,
+	);
+
+	expect(scriptProcessor.process).toHaveBeenCalledTimes(1);
+	expect(results).toContainEqual(prebuiltAsset);
+	expect(results).toHaveLength(2);
 });
 
 test('AssetProcessingService - processDependencies - processor not found', async () => {

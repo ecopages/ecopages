@@ -44,7 +44,7 @@ export type DispatchBeforeSwapResult = {
 };
 
 export type SchedulePageLoadOptions = {
-	isStale?: () => boolean;
+	isSuperseded?: () => boolean;
 	schedule?: (callback: FrameRequestCallback) => number;
 };
 
@@ -82,13 +82,20 @@ export function completeNavigationLifecycle(
 }
 
 /**
- * Schedules `eco:page-load` on the next animation frame unless navigation is stale.
+ * Schedules `eco:page-load` on the next animation frame unless a newer navigation replaced this one.
+ *
+ * @remarks
+ * Supersession is not staleness: a navigation that completed normally still owes its page-load event.
  */
-function schedulePageLoad(doc: Document, detail: EcoNavigationEvent, options: SchedulePageLoadOptions = {}): void {
+export function schedulePageLoad(
+	doc: Document,
+	detail: EcoNavigationEvent,
+	options: SchedulePageLoadOptions = {},
+): void {
 	const schedule = options.schedule ?? ((callback: FrameRequestCallback) => requestAnimationFrame(callback));
 
 	schedule(() => {
-		if (options.isStale?.()) {
+		if (options.isSuperseded?.()) {
 			return;
 		}
 

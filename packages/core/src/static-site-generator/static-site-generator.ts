@@ -204,27 +204,8 @@ export class StaticSiteGenerator {
 		fileSystem.write(path.join(this.getExportDir(), fileName), renderSitemap(locations));
 	}
 
-	/**
-	 * Collects parent directories that must exist for the generated route set.
-	 */
-	getDirectories(routes: string[]) {
-		const directories = new Set<string>();
-
-		for (const route of routes) {
-			const path = route.startsWith('http') ? new URL(route).pathname : route;
-
-			const segments = path.split('/');
-
-			if (segments.length > 2) {
-				directories.add(segments.slice(0, segments.length - 1).join('/'));
-			}
-		}
-
-		return Array.from(directories);
-	}
-
-	private writeStaticOutput(routePath: string, contents: string | Buffer, directories: string[] = []): string {
-		const outputPath = this.getOutputPath(routePath, directories);
+	private writeStaticOutput(routePath: string, contents: string | Buffer, sourceFile?: string): string {
+		const outputPath = this.getOutputPath(routePath, sourceFile);
 		fileSystem.ensureDir(path.dirname(outputPath));
 		fileSystem.write(outputPath, contents);
 		return outputPath;
@@ -232,18 +213,17 @@ export class StaticSiteGenerator {
 
 	private async writeStaticPageArtifact(options: {
 		pathname: string;
-		directories?: string[];
+		sourceFile?: string;
 		createContents: () => Promise<string | Buffer | null>;
 		activeStaticPathnames?: Set<string>;
 		onSuccessfulExport?: () => Promise<void>;
 	}): Promise<void> {
-		const directories = options.directories ?? this.getDirectories([options.pathname]);
 		const contents = await options.createContents();
 		if (contents === null) {
 			return;
 		}
 
-		this.writeStaticOutput(options.pathname, contents, directories);
+		this.writeStaticOutput(options.pathname, contents, options.sourceFile);
 		options.activeStaticPathnames?.add(options.pathname);
 		await options.onSuccessfulExport?.();
 	}
@@ -345,7 +325,6 @@ export class StaticSiteGenerator {
 			routes.map((route) => route.requestUrl),
 		);
 
-		const directories = this.getDirectories(routes.map((route) => route.requestUrl));
 		const failures = input.failures ?? [];
 
 		await runWithConcurrency(routes, resolveBuildParallelism(), async (route) => {
@@ -353,7 +332,7 @@ export class StaticSiteGenerator {
 				let renderedMetadata: PageMetadataProps | undefined;
 				await this.writeStaticPageArtifact({
 					pathname: route.pathname,
-					directories,
+					sourceFile: route.templateRoute.filePath,
 					activeStaticPathnames,
 					onSuccessfulExport: () =>
 						this.considerSitemapEligibility({
@@ -553,8 +532,12 @@ export class StaticSiteGenerator {
 		}).export(input.activeStaticPathnames);
 	}
 
+	/**
+	 * @remarks
+	 * Sitemap locations use `appConfig.baseUrl` (config, `ECOPAGES_BASE_URL`, `--base-url`), the same canonical
+	 * origin Pages resolve. The `baseUrl` passed to `run` is the serve origin used to enumerate routes and is not public.
+	 */
 	private finalizeStaticGenerationRun(input: {
-		baseUrl: string;
 		skippedDynamicPages: string[];
 		sitemapEligiblePathnames?: Set<string>;
 	}): void {
@@ -562,7 +545,7 @@ export class StaticSiteGenerator {
 			const locations = resolveSitemapLocations({
 				eligiblePathnames: [...input.sitemapEligiblePathnames],
 				sitemap: this.appConfig.sitemap,
-				baseUrl: input.baseUrl,
+				baseUrl: this.appConfig.baseUrl,
 			});
 			this.generateSitemap(locations, this.appConfig.sitemap);
 		}
@@ -648,7 +631,6 @@ export class StaticSiteGenerator {
 			}
 
 			this.finalizeStaticGenerationRun({
-				baseUrl,
 				skippedDynamicPages,
 				sitemapEligiblePathnames,
 			});
@@ -857,16 +839,23 @@ export class StaticSiteGenerator {
 
 	/**
 	 * Get the output file path for a given route.
+	 *
+	 * @remarks
+	 * The path depends only on the route and its own source file, never on sibling Pages. `/` is `index.html`
+	 * and a trailing-slash route is `<route>index.html`. Otherwise a Page whose source file is named `index`
+	 * (`pages/blog/index.tsx`, also for a dynamic `[slug]/index.tsx`) writes `<route>/index.html`, and any other
+	 * Page (`pages/blog.tsx`, `[slug].tsx`) writes `<route>.html`. Explicit static routes and semantic error
+	 * pages have no filesystem source, so they write `<route>.html`. Static serving resolves both layouts.
 	 */
-	private getOutputPath(routePath: string, directories: string[] = []): string {
+	private getOutputPath(routePath: string, sourceFile?: string): string {
 		let outputName: string;
 
 		if (routePath === '/') {
 			outputName = 'index.html';
-		} else if (directories.includes(routePath)) {
-			outputName = `${routePath}/index.html`;
 		} else if (routePath.endsWith('/')) {
 			outputName = `${routePath}index.html`;
+		} else if (sourceFile && path.basename(sourceFile).split('.')[0] === 'index') {
+			outputName = `${routePath}/index.html`;
 		} else {
 			outputName = `${routePath}.html`;
 		}

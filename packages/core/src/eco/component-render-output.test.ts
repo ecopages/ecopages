@@ -178,6 +178,45 @@ describe('addTriggerAttribute', () => {
 		});
 	});
 
+	describe('fragments', () => {
+		const template = (...strings: string[]) => ({ strings, values: [] as unknown[] });
+
+		test('stamps only the first element of a fragment and keeps its siblings', () => {
+			const fragment = [template('<button>Go</button>'), template('<p>note</p>')];
+
+			const result = addTriggerAttribute(fragment, TRIGGER_ID) as unknown as Array<{ strings: string[] }>;
+
+			expect(Array.isArray(result)).toBe(true);
+			expect(result.map((item) => item.strings.join(''))).toEqual([
+				`<button data-eco-trigger="${TRIGGER_ID}">Go</button>`,
+				'<p>note</p>',
+			]);
+		});
+
+		test('stamps the first element past leading text, nulls and nested fragments', () => {
+			const fragment = ['text ', null, false, [template('<em>a</em>'), template('<em>b</em>')]];
+
+			const result = addTriggerAttribute(fragment, TRIGGER_ID) as unknown as [
+				string,
+				null,
+				false,
+				Array<{ strings: string[] }>,
+			];
+
+			expect(result[0]).toBe('text ');
+			expect(result[3].map((item) => item.strings.join(''))).toEqual([
+				`<em data-eco-trigger="${TRIGGER_ID}">a</em>`,
+				'<em>b</em>',
+			]);
+		});
+
+		test('never stringifies a fragment', () => {
+			const result = addTriggerAttribute([template('<i>a</i>'), template('<i>b</i>')], TRIGGER_ID);
+
+			expect(typeof result).not.toBe('string');
+		});
+	});
+
 	describe('non-string input coercion', () => {
 		test('coerces a number to string before injecting', () => {
 			const result = addTriggerAttribute(42, TRIGGER_ID);

@@ -19,7 +19,11 @@ import {
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { BrowserBundleService, type BrowserBundleGroupedEntry } from './browser-bundle.service.ts';
 import { APP_BROWSER_CLIENT_BUNDLE_ID } from './asset-processing-service/app-browser-client-bundle.ts';
-import { deduplicateAssetDependencies } from './asset-processing-service/asset-dependency-keys.ts';
+import {
+	deduplicateAssetDependencies,
+	getAssetDependencyKey,
+	getIntegrationDependencyKey,
+} from './asset-processing-service/asset-dependency-keys.ts';
 import type { AssetDefinition, ProcessedAsset, ScriptAsset } from './asset-processing-service/assets.types.ts';
 import { ensureGroupedContentScriptsBundle } from './asset-processing-service/grouped-content-bundles.ts';
 
@@ -29,6 +33,8 @@ type BuildEntry = {
 	dependencies: AssetDefinition[];
 	dependencyRoutes: Map<AssetDefinition, Set<string>>;
 	pageClientRoutes: Map<string, Set<string>>;
+	/** Component scripts this entry builds, as route preparation declares them, by dependency key. */
+	bundledScripts: Map<string, AssetDefinition>;
 	cleanup?: () => void;
 };
 
@@ -55,40 +61,12 @@ export type AppBrowserClientBuildResult = {
 	plans: GroupedGraphBuildPlan[];
 	sourceFiles: string[];
 	outputPaths: string[];
+	/** Outputs for every route's component scripts, by dependency key; see `AppRuntime.prebuiltBrowserScripts`. */
+	bundledScriptAssets: Map<string, ProcessedAsset>;
 };
 
 function hash(value: string): string {
 	return contentHash(value, 16);
-}
-
-function dependencyAssociationKey(dependency: AssetDefinition): string {
-	const bundleOptions = dependency.kind === 'script' ? dependency.bundleOptions : undefined;
-	return JSON.stringify({
-		kind: dependency.kind,
-		source: dependency.source,
-		filepath: 'filepath' in dependency ? path.resolve(dependency.filepath) : undefined,
-		content: 'content' in dependency ? hash(dependency.content) : undefined,
-		importPath: 'importPath' in dependency ? dependency.importPath : undefined,
-		name: 'name' in dependency ? dependency.name : undefined,
-		position: dependency.position,
-		attributes: dependency.attributes,
-		packageRole: dependency.packageRole,
-		inline: dependency.inline,
-		classic: dependency.kind === 'script' ? dependency.classic : undefined,
-		excludeFromHtml: dependency.kind === 'script' ? dependency.excludeFromHtml : undefined,
-		bundleOptions: bundleOptions
-			? {
-					treeshaking: bundleOptions.treeshaking,
-					define: bundleOptions.define,
-					minify: bundleOptions.minify,
-					external: bundleOptions.external,
-					splitting: bundleOptions.splitting,
-					excludeAppBuildPlugins: bundleOptions.excludeAppBuildPlugins,
-					naming: bundleOptions.naming,
-					plugins: bundleOptions.plugins?.map((plugin) => [plugin.name, plugin.cacheKey]),
-				}
-			: undefined,
-	});
 }
 
 function canBundle(dependency: AssetDefinition): dependency is AssetDefinition & {
@@ -104,10 +82,6 @@ function canBundle(dependency: AssetDefinition): dependency is AssetDefinition &
 	);
 }
 
-export function createAppBrowserClientEntryKey(integrationName: string, dependency: AssetDefinition): string {
-	return JSON.stringify([integrationName, dependencyAssociationKey(dependency)]);
-}
-
 function getOrCreateBuildEntry(
 	appConfig: EcoPagesAppConfig,
 	entriesByKey: Map<string, BuildEntry>,
@@ -115,7 +89,7 @@ function getOrCreateBuildEntry(
 	dependency: AssetDefinition,
 	cleanupEntries: Array<() => void>,
 ): BuildEntry {
-	const key = createAppBrowserClientEntryKey(integrationName, dependency);
+	const key = getIntegrationDependencyKey(integrationName, dependency, appConfig.rootDir);
 	const existing = entriesByKey.get(key);
 	if (existing) return existing;
 
@@ -126,6 +100,7 @@ function getOrCreateBuildEntry(
 		dependencies: [],
 		dependencyRoutes: new Map(),
 		pageClientRoutes: new Map(),
+		bundledScripts: new Map(),
 		...(entrypoint.cleanup ? { cleanup: entrypoint.cleanup } : {}),
 	};
 	entriesByKey.set(key, entry);
@@ -133,7 +108,11 @@ function getOrCreateBuildEntry(
 	return entry;
 }
 
-function prepareAppClientDependency(dependency: AssetDefinition): AssetDefinition {
+function prepareAppClientDependency(
+	appConfig: EcoPagesAppConfig,
+	integrationName: string,
+	dependency: AssetDefinition,
+): AssetDefinition {
 	if (
 		dependency.kind !== 'script' ||
 		dependency.bundle === false ||
@@ -143,7 +122,9 @@ function prepareAppClientDependency(dependency: AssetDefinition): AssetDefinitio
 		return dependency;
 	}
 
-	const entryName = dependency.groupedBundle?.entryName ?? `client-${hash(dependencyAssociationKey(dependency))}`;
+	const entryName =
+		dependency.groupedBundle?.entryName ??
+		`client-${hash(getIntegrationDependencyKey(integrationName, dependency, appConfig.rootDir))}`;
 	const prepared = {
 		...dependency,
 		groupedBundle: { id: APP_BROWSER_CLIENT_BUNDLE_ID, entryName },
@@ -206,139 +187,6 @@ function getEntryBuildOptions(entry: BuildEntry): NonNullable<ScriptAsset['bundl
 	return entry.dependencies[0]?.kind === 'script' ? (entry.dependencies[0].bundleOptions ?? {}) : {};
 }
 
-function arraysEqual<T>(left: readonly T[] = [], right: readonly T[] = []): boolean {
-	return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-type GroupablePluginLayout = {
-	valid: boolean;
-	slotsByName: Map<string, string>;
-	orderBySlot: Map<number, string[]>;
-};
-
-function getGroupablePluginLayout(plugins: readonly EcoBuildPlugin[]): GroupablePluginLayout {
-	const slotsByName = new Map<string, string>();
-	const orderBySlot = new Map<number, string[]>();
-	let slot = 0;
-	let valid = true;
-	for (const plugin of plugins) {
-		if (plugin.bundleGroupKey === undefined) {
-			slot += 1;
-			continue;
-		}
-		const token = JSON.stringify([plugin.name, plugin.bundleGroupKey]);
-		const slotIdentity = JSON.stringify([plugin.bundleGroupKey, slot]);
-		const existingSlot = slotsByName.get(plugin.name);
-		if (existingSlot && existingSlot !== slotIdentity) valid = false;
-		slotsByName.set(plugin.name, slotIdentity);
-		const order = orderBySlot.get(slot) ?? [];
-		if (!order.includes(token)) order.push(token);
-		orderBySlot.set(slot, order);
-	}
-	return { valid, slotsByName, orderBySlot };
-}
-
-function groupablePluginsCompatible(
-	left: readonly EcoBuildPlugin[] = [],
-	right: readonly EcoBuildPlugin[] = [],
-): boolean {
-	const leftLayout = getGroupablePluginLayout(left);
-	const rightLayout = getGroupablePluginLayout(right);
-	if (!leftLayout.valid || !rightLayout.valid) return false;
-	for (const [name, slot] of leftLayout.slotsByName) {
-		if (rightLayout.slotsByName.has(name) && rightLayout.slotsByName.get(name) !== slot) return false;
-	}
-	for (const [slot, leftOrder] of leftLayout.orderBySlot) {
-		const rightOrder = rightLayout.orderBySlot.get(slot) ?? [];
-		if (rightOrder.length > 0 && !isSubsequence(leftOrder, rightOrder) && !isSubsequence(rightOrder, leftOrder)) {
-			return false;
-		}
-	}
-	return true;
-}
-
-function isSubsequence(candidate: readonly string[], sequence: readonly string[]): boolean {
-	let candidateIndex = 0;
-	for (const item of sequence) {
-		if (item === candidate[candidateIndex]) candidateIndex += 1;
-	}
-	return candidateIndex === candidate.length;
-}
-
-function bundlePluginsEqual(left: readonly EcoBuildPlugin[] = [], right: readonly EcoBuildPlugin[] = []): boolean {
-	return (
-		arraysEqual(
-			left.filter((plugin) => plugin.bundleGroupKey === undefined),
-			right.filter((plugin) => plugin.bundleGroupKey === undefined),
-		) && groupablePluginsCompatible(left, right)
-	);
-}
-
-type GroupedPluginsBySlot = Map<number, Map<string, EcoBuildPlugin[]>>;
-
-function collectGroupedPluginsBySlot(sequences: readonly (readonly EcoBuildPlugin[])[]): GroupedPluginsBySlot {
-	const groupedPluginsBySlot: GroupedPluginsBySlot = new Map();
-	for (const sequence of sequences) {
-		let slot = 0;
-		for (const plugin of sequence) {
-			if (plugin.bundleGroupKey === undefined) {
-				slot += 1;
-				continue;
-			}
-			const token = JSON.stringify([plugin.name, plugin.bundleGroupKey]);
-			const groupedPluginsByIdentity = groupedPluginsBySlot.get(slot) ?? new Map<string, EcoBuildPlugin[]>();
-			const groupedPlugins = groupedPluginsByIdentity.get(token) ?? [];
-			if (!groupedPlugins.includes(plugin)) groupedPlugins.push(plugin);
-			groupedPluginsByIdentity.set(token, groupedPlugins);
-			groupedPluginsBySlot.set(slot, groupedPluginsByIdentity);
-		}
-	}
-	return groupedPluginsBySlot;
-}
-
-function getMergedGroupOrder(leftOrder: readonly string[], rightOrder: readonly string[]): readonly string[] {
-	return isSubsequence(leftOrder, rightOrder) ? rightOrder : leftOrder;
-}
-
-function appendGroupedPluginsAtSlot(
-	merged: EcoBuildPlugin[],
-	groupedPluginsBySlot: GroupedPluginsBySlot,
-	groupOrder: readonly string[],
-	slot: number,
-): void {
-	for (const token of groupOrder) {
-		merged.push(...(groupedPluginsBySlot.get(slot)?.get(token) ?? []));
-	}
-}
-
-function mergePluginSlots(
-	commonPlugins: readonly EcoBuildPlugin[],
-	groupedPluginsBySlot: GroupedPluginsBySlot,
-	leftLayout: GroupablePluginLayout,
-	rightLayout: GroupablePluginLayout,
-): EcoBuildPlugin[] {
-	const merged: EcoBuildPlugin[] = [];
-	for (let slot = 0; slot <= commonPlugins.length; slot += 1) {
-		const leftOrder = leftLayout.orderBySlot.get(slot) ?? [];
-		const rightOrder = rightLayout.orderBySlot.get(slot) ?? [];
-		appendGroupedPluginsAtSlot(merged, groupedPluginsBySlot, getMergedGroupOrder(leftOrder, rightOrder), slot);
-		const commonPlugin = commonPlugins[slot];
-		if (commonPlugin) merged.push(commonPlugin);
-	}
-	return merged;
-}
-
-function mergeBundlePlugins(
-	left: readonly EcoBuildPlugin[] = [],
-	right: readonly EcoBuildPlugin[] = [],
-): EcoBuildPlugin[] {
-	const commonPlugins = left.filter((plugin) => plugin.bundleGroupKey === undefined);
-	const groupedPluginsBySlot = collectGroupedPluginsBySlot([left, right]);
-	const leftLayout = getGroupablePluginLayout(left);
-	const rightLayout = getGroupablePluginLayout(right);
-	return mergePluginSlots(commonPlugins, groupedPluginsBySlot, leftLayout, rightLayout);
-}
-
 function setsEqual(left: readonly string[] = [], right: readonly string[] = []): boolean {
 	return left.length === right.length && left.every((value) => right.includes(value));
 }
@@ -349,42 +197,137 @@ function recordsEqual(left: Record<string, string> = {}, right: Record<string, s
 	return leftEntries.length === rightEntries.length && leftEntries.every(([key, value]) => right[key] === value);
 }
 
-function buildOptionsEqual(
+/**
+ * Whether two entries can share one build.
+ *
+ * @remarks
+ * Only options that apply to the whole build keep entries apart. Plugins and external modules do not: each
+ * plugin is scoped to the entries that declared it (see {@link mergeEntryPlugins}), and an external module
+ * stays external for the whole build. Splitting is always on in the app-wide build.
+ */
+function buildWideOptionsEqual(
 	left: NonNullable<ScriptAsset['bundleOptions']>,
 	right: NonNullable<ScriptAsset['bundleOptions']>,
 ): boolean {
 	return (
 		(left.minify ?? true) === (right.minify ?? true) &&
-		(left.splitting ?? true) === (right.splitting ?? true) &&
 		(left.treeshaking ?? true) === (right.treeshaking ?? true) &&
-		setsEqual(left.external, right.external) &&
 		setsEqual(left.excludeAppBuildPlugins, right.excludeAppBuildPlugins) &&
-		recordsEqual(left.define, right.define) &&
-		bundlePluginsEqual(left.plugins, right.plugins)
+		recordsEqual(left.define, right.define)
 	);
 }
+
+/** Instances with one `bundleGroupKey` count as one plugin; any other plugin is its own identity. */
+function pluginIdentity(plugin: EcoBuildPlugin): unknown {
+	return plugin.bundleGroupKey === undefined ? plugin : JSON.stringify([plugin.name, plugin.bundleGroupKey]);
+}
+
+function pluginIdentityOrder(plugins: readonly EcoBuildPlugin[]): unknown[] {
+	return [...new Set(plugins.map(pluginIdentity))];
+}
+
+/**
+ * Whether `plugins` keeps the relative order of every plugin it shares with `merged`.
+ *
+ * @remarks
+ * The first plugin that returns a result wins a hook, so two entries that order the same plugins differently
+ * need different builds.
+ */
+function pluginOrderCompatible(merged: readonly EcoBuildPlugin[], plugins: readonly EcoBuildPlugin[]): boolean {
+	const entryOrder = pluginIdentityOrder(plugins);
+	const mergedOrder = pluginIdentityOrder(merged);
+	const shared = new Set(entryOrder.filter((identity) => mergedOrder.includes(identity)));
+	const mergedShared = mergedOrder.filter((identity) => shared.has(identity));
+	const entryShared = entryOrder.filter((identity) => shared.has(identity));
+	return mergedShared.every((identity, index) => entryShared[index] === identity);
+}
+
+/** Adds `plugins` to `merged`, keeping the relative order of both lists and instances of one identity together. */
+function insertEntryPlugins(merged: EcoBuildPlugin[], plugins: readonly EcoBuildPlugin[]): void {
+	let insertAt = 0;
+	for (const plugin of plugins) {
+		const existing = merged.indexOf(plugin);
+		if (existing !== -1) {
+			insertAt = existing + 1;
+			continue;
+		}
+		const identity = pluginIdentity(plugin);
+		const lastSameIdentity = merged.findLastIndex((candidate) => pluginIdentity(candidate) === identity);
+		const position = lastSameIdentity === -1 ? insertAt : lastSameIdentity + 1;
+		merged.splice(position, 0, plugin);
+		insertAt = position + 1;
+	}
+}
+
+/**
+ * Scopes each merged plugin to the entries that declared it.
+ *
+ * @remarks
+ * A plugin that every entry of the build declares applies to the whole build. Any other plugin gets an
+ * `entryScope`, so the bridge applies it only to modules those entries reach and fails the build when a module
+ * it changed is also reached by another entry.
+ */
+function scopeEntryPlugins(
+	merged: readonly EcoBuildPlugin[],
+	entries: ReadonlyArray<{ entryName: string; plugins: readonly EcoBuildPlugin[] }>,
+): EcoBuildPlugin[] {
+	const carriers = new Map<unknown, Set<string>>();
+	for (const { entryName, plugins } of entries) {
+		for (const plugin of plugins) {
+			const identity = pluginIdentity(plugin);
+			carriers.set(identity, (carriers.get(identity) ?? new Set<string>()).add(entryName));
+		}
+	}
+	return merged.map((plugin) => {
+		const scope = carriers.get(pluginIdentity(plugin)) ?? new Set<string>();
+		return scope.size === entries.length ? plugin : { ...plugin, entryScope: [...scope].sort() };
+	});
+}
+
+type BuildGroup = {
+	entries: BuildEntry[];
+	options: NonNullable<ScriptAsset['bundleOptions']>;
+	plugins: EcoBuildPlugin[];
+};
 
 function groupBuildEntriesByOptions(
 	entries: BuildEntry[],
 ): Array<{ entries: BuildEntry[]; options: NonNullable<ScriptAsset['bundleOptions']> }> {
-	const groups: Array<{ entries: BuildEntry[]; options: NonNullable<ScriptAsset['bundleOptions']> }> = [];
+	const groups: BuildGroup[] = [];
 	for (const entry of entries) {
 		const options = getEntryBuildOptions(entry);
-		const group = groups.find((candidate) => buildOptionsEqual(candidate.options, options));
+		const plugins = options.plugins ?? [];
+		const group = groups.find(
+			(candidate) =>
+				buildWideOptionsEqual(candidate.options, options) && pluginOrderCompatible(candidate.plugins, plugins),
+		);
 		if (group) {
 			group.entries.push(entry);
-			group.options = {
-				...group.options,
-				plugins: mergeBundlePlugins(group.options.plugins, options.plugins),
-			};
+			insertEntryPlugins(group.plugins, plugins);
 		} else {
-			groups.push({
-				entries: [entry],
-				options: { ...options, plugins: options.plugins ? [...options.plugins] : undefined },
-			});
+			const merged: EcoBuildPlugin[] = [];
+			insertEntryPlugins(merged, plugins);
+			groups.push({ entries: [entry], options, plugins: merged });
 		}
 	}
-	return groups;
+	return groups.map((group) => {
+		const external = [...new Set(group.entries.flatMap((entry) => getEntryBuildOptions(entry).external ?? []))];
+		const plugins = scopeEntryPlugins(
+			group.plugins,
+			group.entries.map((entry) => ({
+				entryName: entry.entryName,
+				plugins: getEntryBuildOptions(entry).plugins ?? [],
+			})),
+		);
+		return {
+			entries: group.entries,
+			options: {
+				...group.options,
+				external: external.length > 0 ? external : undefined,
+				plugins: plugins.length > 0 ? plugins : undefined,
+			},
+		};
+	});
 }
 
 function registerGroupedDependency(
@@ -412,7 +355,7 @@ function registerPageClientEntry(
 	routeKey: string,
 	clientEntry: NonNullable<GroupedGraphBuildPlanInstance['pageClientBuildEntries']>[number],
 ): NonNullable<GroupedGraphBuildPlanInstance['pageClientBuildEntries']>[number] {
-	const dependency = prepareAppClientDependency(clientEntry.dependency);
+	const dependency = prepareAppClientDependency(appConfig, clientEntry.integrationName, clientEntry.dependency);
 	if (!canBundle(dependency)) {
 		instance.prebuiltPageClientBrowserAssets ??= {
 			processedAssets: [],
@@ -432,8 +375,12 @@ function registerPageClientEntry(
 		dependency,
 		cleanupEntries,
 	);
-	const identity = dependencyAssociationKey(dependency);
-	if (!entry.dependencies.some((entryDependency) => dependencyAssociationKey(entryDependency) === identity)) {
+	const identity = getAssetDependencyKey(dependency, appConfig.rootDir);
+	if (
+		!entry.dependencies.some(
+			(entryDependency) => getAssetDependencyKey(entryDependency, appConfig.rootDir) === identity,
+		)
+	) {
 		entry.dependencies.push(dependency);
 	}
 	const routes = entry.pageClientRoutes.get(identity) ?? new Set<string>();
@@ -458,21 +405,23 @@ function prepareRouteBuildPlan(
 	const routesByDependencyIdentity = new Map<string, Set<string>>();
 	const dependencies = instances.flatMap(({ routeKey, dependencies: routeDependencies }) =>
 		routeDependencies.map((dependency) => {
-			const identity = dependencyAssociationKey(dependency);
+			const identity = getIntegrationDependencyKey(plan.integrationName, dependency, appConfig.rootDir);
 			const routes = routesByDependencyIdentity.get(identity) ?? new Set<string>();
 			routes.add(routeKey);
 			routesByDependencyIdentity.set(identity, routes);
 			return dependency;
 		}),
 	);
-	const deduplicatedDependencies = deduplicateAssetDependencies(dependencies);
+	const deduplicatedDependencies = deduplicateAssetDependencies(dependencies, appConfig.rootDir);
 	const preparedDependencies =
 		integration?.prepareAssetDependencies?.(deduplicatedDependencies) ?? deduplicatedDependencies;
 	ensureGroupedContentScriptsBundle(preparedDependencies);
 
 	for (const { instance, routeKey } of instances) {
 		const routeDependencies = preparedDependencies.filter((dependency) =>
-			routesByDependencyIdentity.get(dependencyAssociationKey(dependency))?.has(routeKey),
+			routesByDependencyIdentity
+				.get(getIntegrationDependencyKey(plan.integrationName, dependency, appConfig.rootDir))
+				?.has(routeKey),
 		);
 		const updatedDependencies = routeDependencies.map((dependency) =>
 			registerGroupedDependency(
@@ -492,8 +441,31 @@ function prepareRouteBuildPlan(
 			registerPageClientEntry(appConfig, entriesByKey, cleanupEntries, instance, routeKey, clientEntry),
 		);
 	}
+	for (const script of plan.bundledScripts ?? []) {
+		registerBundledScript(appConfig, entriesByKey, cleanupEntries, plan.integrationName, script);
+	}
 
 	return { plan, instances };
+}
+
+/**
+ * Adds one component script that route preparation bundles to the app-wide build.
+ *
+ * @remarks
+ * Rendering processes the script as it was declared, so its output is recorded under the dependency key of that
+ * declaration, not of the copy prepared for the app-wide build.
+ */
+function registerBundledScript(
+	appConfig: EcoPagesAppConfig,
+	entriesByKey: Map<string, BuildEntry>,
+	cleanupEntries: Array<() => void>,
+	integrationName: string,
+	script: AssetDefinition,
+): void {
+	const dependency = prepareAppClientDependency(appConfig, integrationName, script);
+	if (!canBundle(dependency)) return;
+	const entry = getOrCreateBuildEntry(appConfig, entriesByKey, integrationName, dependency, cleanupEntries);
+	entry.bundledScripts.set(getAssetDependencyKey(script, appConfig.rootDir), dependency);
 }
 
 function prepareRouteBuildPlans(
@@ -513,12 +485,13 @@ function attachPageClientAsset(instance: GroupedGraphBuildPlanInstance, asset: P
 }
 
 function attachEntryAssetToRoutes(
+	appConfig: EcoPagesAppConfig,
 	entry: BuildEntry,
 	dependency: AssetDefinition,
 	asset: ProcessedAsset,
 	routePlans: RouteBuildPlan[],
 ): void {
-	const pageClientRoutes = entry.pageClientRoutes.get(dependencyAssociationKey(dependency));
+	const pageClientRoutes = entry.pageClientRoutes.get(getAssetDependencyKey(dependency, appConfig.rootDir));
 	for (const routePlan of routePlans) {
 		for (const { instance, routeKey } of routePlan.instances) {
 			if (entry.dependencyRoutes.get(dependency)?.has(routeKey)) {
@@ -527,6 +500,31 @@ function attachEntryAssetToRoutes(
 			if (pageClientRoutes?.has(routeKey)) {
 				attachPageClientAsset(instance, asset);
 			}
+		}
+	}
+}
+
+function collectBundledScriptAssets(
+	appConfig: EcoPagesAppConfig,
+	result: BuildSuccess,
+	entries: BuildEntry[],
+	bundledScriptAssets: Map<string, ProcessedAsset>,
+): void {
+	for (const entry of entries) {
+		if (entry.bundledScripts.size === 0) continue;
+		const output = getBuildEntryOutput(result, entry.entryName, appConfig.rootDir);
+		if (!output) throw new Error(`No build output generated for app browser client entry ${entry.entryName}`);
+		const inputPaths = collectBuildEntryInputPaths(result, entry.entryName, appConfig.rootDir);
+		for (const [key, dependency] of entry.bundledScripts) {
+			const { groupedBundle: _groupedBundle, ...asset } = createProcessedAsset(
+				appConfig,
+				dependency as AssetDefinition & { kind: 'script'; groupedBundle: { id: string; entryName: string } },
+				entry.entryName,
+				output,
+				entry.entrypoint,
+				inputPaths,
+			);
+			bundledScriptAssets.set(key, asset);
 		}
 	}
 }
@@ -550,7 +548,7 @@ function attachBuiltEntryAssets(
 				entry.entrypoint,
 				inputPaths,
 			);
-			attachEntryAssetToRoutes(entry, dependency, asset, routePlans);
+			attachEntryAssetToRoutes(appConfig, entry, dependency, asset, routePlans);
 		}
 	}
 }
@@ -583,7 +581,9 @@ async function executeAppBrowserBuild(
 	htmlScriptUrls: Map<string, string>;
 	sourceFiles: string[];
 	outputPaths: string[];
+	bundledScriptAssets: Map<string, ProcessedAsset>;
 }> {
+	const bundledScriptAssets = new Map<string, ProcessedAsset>();
 	const htmlScriptUrls = new Map<string, string>();
 	const sourceFiles = new Set<string>();
 	const outputPaths: string[] = [];
@@ -598,7 +598,7 @@ async function executeAppBrowserBuild(
 			outdir: path.join(appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR),
 			root: appConfig.rootDir,
 			...group.options,
-			splitting: group.options.splitting ?? true,
+			splitting: true,
 			naming: '[name]-[hash].[ext]',
 			minify: group.options.minify ?? true,
 		});
@@ -620,6 +620,7 @@ async function executeAppBrowserBuild(
 			group.entries.filter((entry) => entry.dependencies.length > 0),
 			routePlans,
 		);
+		collectBundledScriptAssets(appConfig, result, group.entries, bundledScriptAssets);
 		const groupHtmlEntries = new Map(
 			[...htmlEntryNames].filter(([, entryName]) => group.entries.some((entry) => entry.entryName === entryName)),
 		);
@@ -633,6 +634,7 @@ async function executeAppBrowserBuild(
 		htmlScriptUrls,
 		sourceFiles: [...sourceFiles],
 		outputPaths,
+		bundledScriptAssets,
 	};
 }
 
@@ -657,6 +659,7 @@ export async function buildAppBrowserClient(
 				dependencies: [],
 				dependencyRoutes: new Map(),
 				pageClientRoutes: new Map(),
+				bundledScripts: new Map(),
 			});
 		}
 
@@ -668,6 +671,7 @@ export async function buildAppBrowserClient(
 						htmlScriptUrls: new Map<string, string>(),
 						sourceFiles: [],
 						outputPaths: [],
+						bundledScriptAssets: new Map<string, ProcessedAsset>(),
 					};
 		setPrebuiltHtmlPageModuleScriptUrls(appConfig, build.htmlScriptUrls);
 		return {
@@ -677,6 +681,7 @@ export async function buildAppBrowserClient(
 			})),
 			sourceFiles: build.sourceFiles,
 			outputPaths: build.outputPaths,
+			bundledScriptAssets: build.bundledScriptAssets,
 		};
 	} finally {
 		for (const cleanup of cleanupEntries) cleanup();

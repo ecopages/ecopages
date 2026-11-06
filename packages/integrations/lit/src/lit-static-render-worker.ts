@@ -1,6 +1,7 @@
 import { parentPort } from 'node:worker_threads';
 import { loadEcoPagesConfig } from '@ecopages/core/config';
 import {
+	prebuildProductionPageBrowserGraphsFromManifest,
 	setupAppRuntimeIntegrations,
 	setupAppRuntimePlugins,
 	teardownAppRuntimeIntegrations,
@@ -20,6 +21,7 @@ type LoadedAppConfig = Awaited<ReturnType<typeof loadEcoPagesConfig>>;
 
 let appConfig: LoadedAppConfig | null = null;
 let routeRendererFactory: RouteRendererFactory | null = null;
+let appBrowserBuildRestore: Promise<boolean> | undefined;
 let activeRenders = 0;
 let shutdownRequested = false;
 let resolveRendersIdle: (() => void) | undefined;
@@ -47,10 +49,24 @@ async function initializeWorker(configModulePath: string, runtimeOrigin: string)
 	});
 }
 
+/**
+ * Restores the production app-wide browser build once, before the first render.
+ *
+ * @remarks
+ * Static export starts the worker before the main thread builds the app browser client and writes its manifest,
+ * so the worker reads the manifest on its first render instead of at init. A Lit Page then links the same
+ * outputs as every other Page instead of building its own scripts and Page Browser Graph.
+ */
+function restoreAppBrowserBuild(config: LoadedAppConfig, factory: RouteRendererFactory): Promise<boolean> {
+	appBrowserBuildRestore ??= prebuildProductionPageBrowserGraphsFromManifest(config, factory);
+	return appBrowserBuildRestore;
+}
+
 async function renderPage(filePath: string, params: PageParams, query?: PageQuery): Promise<LitStaticRenderResult> {
-	if (!routeRendererFactory) {
+	if (!routeRendererFactory || !appConfig) {
 		throw new Error('Lit static render worker is not initialized');
 	}
+	await restoreAppBrowserBuild(appConfig, routeRendererFactory);
 
 	const result = await routeRendererFactory.getPageRenderer(filePath).execute({
 		file: filePath,

@@ -56,3 +56,21 @@ test('back navigation restores the sidebar scroll of the page it returns to, not
 	await page.waitForURL('**/docs');
 	await expect.poll(() => sidebar.evaluate((element) => element.scrollTop)).toBe(firstPagePosition);
 });
+
+test('evaluates a Layout module once when navigating between a TSX and an MDX Page', async ({ page }) => {
+	const readDocsLayoutEvaluations = () =>
+		page.evaluate(
+			() =>
+				(window as Window & { __ECO_E2E_DOCS_LAYOUT_EVALUATIONS__?: number })
+					.__ECO_E2E_DOCS_LAYOUT_EVALUATIONS__,
+		);
+
+	await gotoAndWait(page, '/docs');
+	await expect.poll(readDocsLayoutEvaluations).toBe(1);
+
+	await page.getByTestId('docs-nav-link').filter({ hasText: 'MDX Docs 1' }).click();
+	await page.waitForURL('**/docs/mdx-docs-1');
+	await expect(page.getByTestId('mdx-docs-1')).toBeVisible();
+
+	expect(await readDocsLayoutEvaluations()).toBe(1);
+});

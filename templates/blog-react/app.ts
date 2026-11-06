@@ -4,7 +4,7 @@ import { createApp } from '@ecopages/core/create-app';
 import { POSTS_CONTENT_DIR, comparePosts, postsFrontmatterSchema } from './src/content/posts';
 import { generateRss } from './src/content/generate-rss';
 
-const appRoot = import.meta.dirname;
+const appRoot = process.cwd();
 const appConfig = await loadEcoPagesConfig();
 const app = await createApp({ appConfig });
 

@@ -15,6 +15,8 @@ export type NavigationCommitPipelineInput = {
 	direction: EcoNavigationDirection;
 	newDocument: Document;
 	isStale: () => boolean;
+	/** Defaults to `isStale`; pass a predicate that stays false after completion to keep `eco:page-load` after `complete()`. */
+	isSuperseded?: () => boolean;
 	viewTransitionsEnabled: boolean;
 	persistAttribute?: string;
 	includeBodyScripts?: boolean;
@@ -31,6 +33,10 @@ export type NavigationCommitPipelineInput = {
 async function requestReload(input: NavigationCommitPipelineInput): Promise<NavigationCommitPipelineResult> {
 	await input.onReloadRequested?.();
 	return input.isStale() ? 'stale' : 'reload-requested';
+}
+
+function resolveIsSuperseded(input: NavigationCommitPipelineInput): () => boolean {
+	return input.isSuperseded ?? input.isStale;
 }
 
 /** Runs shared document work around the router-specific page swap. */
@@ -97,7 +103,7 @@ export async function commitNavigationPage(
 		completeNavigationLifecycle(
 			document,
 			{ url: input.url, direction: input.direction },
-			{ isStale: input.isStale },
+			{ isSuperseded: resolveIsSuperseded(input) },
 		);
 		await input.afterLifecycle?.();
 		return input.isStale() ? 'stale' : 'committed';

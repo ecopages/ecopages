@@ -140,6 +140,102 @@ describe('RolldownBuildAdapter', () => {
 		expect(result.logs.map((log) => log.message).join('\n')).toContain(entrypoint);
 	});
 
+	describe('entry-scoped plugins', () => {
+		/** Rewrites the marker in every module it loads, so the output shows which modules it built. */
+		function createMarkerPlugin(entryScope: readonly string[]): EcoBuildPlugin {
+			return {
+				name: 'marker-rewrite',
+				entryScope,
+				setup(build) {
+					build.onLoad({ filter: /\.ts$/ }, (args) => {
+						const source = readFileSync(args.path, 'utf8');
+						if (!source.includes('MARKER')) return undefined;
+						return { contents: source.replaceAll('MARKER', 'SCOPED'), loader: 'ts' };
+					});
+				},
+			};
+		}
+
+		function buildEntries(entrypoints: Record<string, string>, plugins: EcoBuildPlugin[]) {
+			return new RolldownBuildAdapter().build({
+				environment: 'browser' as const,
+				entrypoints,
+				outdir: path.join(workDir, 'dist'),
+				target: 'browser',
+				format: 'esm',
+				root: workDir,
+				splitting: true,
+				plugins,
+			});
+		}
+
+		function readOutput(result: Awaited<ReturnType<typeof buildEntries>>): string {
+			assertBuildSucceeded(result, 'Build failed');
+			return result.outputs
+				.filter((output) => output.path.endsWith('.js'))
+				.map((output) => readFileSync(output.path, 'utf8'))
+				.join('\n');
+		}
+
+		test('applies a scoped plugin only to modules its entries reach', async () => {
+			writeFixture('react-only.ts', "export const reactValue = 'MARKER-react';");
+			writeFixture('lit-only.ts', "export const litValue = 'MARKER-lit';");
+			writeFixture('shared.ts', "export const shared = 'shared-value';");
+			const react = writeFixture(
+				'react-entry.ts',
+				"import { reactValue } from './react-only.ts'; import { shared } from './shared.ts'; console.log(reactValue, shared);",
+			);
+			const lit = writeFixture(
+				'lit-entry.ts',
+				"import { litValue } from './lit-only.ts'; import { shared } from './shared.ts'; console.log(litValue, shared);",
+			);
+
+			const result = await buildEntries({ react, lit }, [createMarkerPlugin(['react'])]);
+
+			assertBuildSucceeded(result, 'Build failed');
+			const output = readOutput(result);
+			expect(output).toContain('SCOPED-react');
+			expect(output).toContain('MARKER-lit');
+			expect(output.match(/shared-value/g)).toHaveLength(1);
+		});
+
+		test('applies a scoped plugin to a module reached through a module it did not change', async () => {
+			writeFixture('component.ts', "export const component = 'MARKER-component';");
+			writeFixture('barrel.ts', "export { component } from './component.ts';");
+			const react = writeFixture(
+				'react-entry.ts',
+				"import { component } from './barrel.ts'; console.log(component);",
+			);
+			const lit = writeFixture('lit-entry.ts', "console.log('lit');");
+
+			const result = await buildEntries({ react, lit }, [createMarkerPlugin(['react'])]);
+
+			assertBuildSucceeded(result, 'Build failed');
+			expect(readOutput(result)).toContain('SCOPED-component');
+		});
+
+		test('fails when an entry outside the scope reaches a module the plugin changed', async () => {
+			writeFixture('component.ts', "export const component = 'MARKER-component';");
+			writeFixture('barrel.ts', "export { component } from './component.ts';");
+			const react = writeFixture(
+				'react-entry.ts',
+				"import { component } from './component.ts'; console.log(component);",
+			);
+			const lit = writeFixture(
+				'lit-entry.ts',
+				"import { component } from './barrel.ts'; console.log(component);",
+			);
+
+			const result = await buildEntries({ react, lit }, [createMarkerPlugin(['react'])]);
+
+			assertBuildFailed(result);
+			const message = result.logs.map((log) => log.message).join('\n');
+			expect(message).toContain('component.ts');
+			expect(message).toContain('"marker-rewrite"');
+			expect(message).toContain('"lit"');
+		});
+	});
+
 	test('rejects a server-only module reached through a package.json import alias in a browser build', async () => {
 		writeFixture('package.json', JSON.stringify({ name: 'app', imports: { '#db': './db.server.ts' } }));
 		writeFixture('db.server.ts', 'export const secret = "server-secret";');

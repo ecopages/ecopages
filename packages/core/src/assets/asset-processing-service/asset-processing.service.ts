@@ -237,11 +237,10 @@ export class AssetProcessingService {
 	 *
 	 * @remarks
 	 * A recorded output that is gone is an error: serving the Page without it would drop its styles or scripts.
-	 * An inline asset carries its content and has no output to check.
 	 */
 	private lookupRecordedAsset(dep: AssetDefinition): ProcessedAsset | undefined {
 		const recorded = requireAppRuntime(this.config).processedAssets.lookup(dep);
-		if (recorded?.filepath && !recorded.inline && !fileSystem.exists(recorded.filepath)) {
+		if (recorded?.filepath && !fileSystem.exists(recorded.filepath)) {
 			throw new Error(
 				`The production build recorded ${path.relative(this.config.rootDir, recorded.filepath)} but it is missing. Run \`ecopages build\` again.`,
 			);

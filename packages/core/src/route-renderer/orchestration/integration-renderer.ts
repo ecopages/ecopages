@@ -279,9 +279,12 @@ export type ProductionRoutesPlan = {
 	 * it processes is recorded in the asset ledger, which is what `ecopages start` serves the route from.
 	 */
 	prepare: () => Promise<void>;
+	/** Each planned instance with its preparation, which the build's static export renders the instance with. */
+	preparations: ReadonlyArray<{ instance: PlannedRouteInstance; preparation: PlannedRoutePreparation }>;
 };
 
 type PlannedRoute = {
+	instance: PlannedRouteInstance;
 	routeOptions: RouteRendererOptions;
 	preparation: PlannedRoutePreparation;
 	bundledScripts: AssetDefinition[];
@@ -377,6 +380,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					);
 				}
 			},
+			preparations: plannedRoutes.map(({ instance, preparation }) => ({ instance, preparation })),
 		};
 	}
 
@@ -436,6 +440,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			).filter((dependency) => isBundleableScript(dependency) && dependency.packageRole !== 'runtime'),
 		];
 		return {
+			instance: routeInstance,
 			routeOptions,
 			preparation: { resolvedInputs, graphContext },
 			bundledScripts,
@@ -898,12 +903,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * It imports the page file, collects dependencies, and prepares the render options.
 	 *
 	 * @param options - The route renderer options.
+	 * @param planned - The preparation the production build planned for this route, which skips its data hooks.
 	 * @returns The prepared render options.
 	 */
 	protected async prepareRenderOptions(
 		options: RouteRendererOptions,
+		planned?: PlannedRoutePreparation,
 	): Promise<InternalIntegrationRendererRenderOptions<C>> {
-		const renderOptions = await this.routeRenderOrchestrator.prepareRenderOptions(options, this);
+		const renderOptions = await this.routeRenderOrchestrator.prepareRenderOptions(options, this, planned);
 		invariant(renderOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');
 		return renderOptions;
 	}
@@ -923,9 +930,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * response-body errors.
 	 *
 	 * @param options Route renderer options.
+	 * @param planned The preparation `planProductionRoutes` returned for this route, which static export passes so
+	 * the route's data hooks run once per build. A remote render ignores it.
 	 * @returns Rendered route body plus effective cache strategy.
 	 */
-	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
+	public async execute(options: RouteRendererOptions, planned?: PlannedRoutePreparation): Promise<RouteRenderResult> {
 		await this.ensureIntegrationRuntimeActivated();
 		const remoteResult = await this.renderRemote(options);
 		if (remoteResult) {
@@ -933,7 +942,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		}
 
 		return this.runInRenderSession(async () => {
-			const renderOptions = await this.prepareRenderOptions(options);
+			const renderOptions = await this.prepareRenderOptions(options, planned);
 			const renderState = getComponentRenderContext<RouteRenderContextState>()?.renderState;
 			if (renderState) {
 				renderState.pageClientPlan = renderOptions.pageClientPlan;
@@ -1251,12 +1260,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @remarks
 	 * The planning and merging live in `ownership-graph/page-client-browser-assets.ts`; this method
 	 * supplies what only the renderer has: the owning renderers of other Integrations and its asset service.
+	 * A route render passes `resolveFromAppBuild` to link the entries the app-wide browser build recorded; a plan
+	 * contributed by another Integration's page does not.
 	 */
 	async buildPageClientBrowserAssets(
 		plan: PageClientPlan,
-		route?: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
+		resolveFromAppBuild = false,
 	): Promise<PageClientBrowserAssets> {
-		const prebuilt = route ? await this.buildPrebuiltPageClientBrowserAssets(plan) : undefined;
+		const prebuilt = resolveFromAppBuild ? await this.buildPrebuiltPageClientBrowserAssets(plan) : undefined;
 		if (prebuilt) return prebuilt;
 
 		const buildAssetsHook = this.integrationHooks.buildIslandClientAssets;

@@ -81,6 +81,7 @@ function createPlanningRenderer(plan: GroupedGraphBuildPlan, events: string[] = 
 			prepare: async () => {
 				for (const { routeFile } of instances) events.push(`prepare ${path.basename(path.dirname(routeFile))}`);
 			},
+			preparations: [],
 		})),
 	};
 }
@@ -156,6 +157,7 @@ test('prebuildProductionPageBrowserGraphs writes the ledger once every planned r
 				ledgerExistedWhenPrepared.push(existsSync(ledgerPath(appConfig)));
 				requireAppRuntime(appConfig).processedAssets.record(stylesheet, preparedAsset);
 			},
+			preparations: [],
 		})),
 	};
 

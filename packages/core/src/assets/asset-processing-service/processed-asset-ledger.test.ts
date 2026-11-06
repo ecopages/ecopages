@@ -45,6 +45,19 @@ describe('ProcessedAssetLedger', () => {
 		expect(ledger.isSealed).toBe(true);
 	});
 
+	it('records an inline asset without the file it never writes', () => {
+		const ledger = new ProcessedAssetLedger(buildRoot);
+		const inlineScript = { kind: 'script', source: 'content', content: 'go()', inline: true } as const;
+		ledger.record(inlineScript, {
+			kind: 'script',
+			inline: true,
+			content: 'go()',
+			filepath: path.join(buildRoot, 'dist/client/assets/scripts/go.js'),
+		});
+
+		expect(ledger.lookup(inlineScript)).toMatchObject({ inline: true, content: 'go()', filepath: undefined });
+	});
+
 	it('records no path of the build machine', () => {
 		const ledger = new ProcessedAssetLedger(buildRoot);
 		ledger.record(createDependency(buildRoot), createAsset(buildRoot));

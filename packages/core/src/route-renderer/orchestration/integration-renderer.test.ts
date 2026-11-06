@@ -574,10 +574,7 @@ describe('IntegrationRenderer', () => {
 			const { renderer } = createBuiltRenderer();
 			const changedPlan = collectPageClientPlan([{ component: otherComponent }], 'test-renderer');
 
-			const fallbackAssets = await renderer.buildPageClientBrowserAssets(changedPlan, {
-				file: routeFile,
-				params: { slug: 'new-product' },
-			});
+			const fallbackAssets = await renderer.buildPageClientBrowserAssets(changedPlan, true);
 
 			expect(fallbackAssets.processedAssets).toEqual([integrationBuiltAsset]);
 		});
@@ -612,7 +609,7 @@ describe('IntegrationRenderer', () => {
 			ledger.recordBrowserOutputs([]);
 
 			const pageClientPlan = collectPageClientPlan([{ component: lazyClientComponent }], 'test-renderer');
-			const result = await renderer.buildPageClientBrowserAssets(pageClientPlan, { file: lazyRouteFile });
+			const result = await renderer.buildPageClientBrowserAssets(pageClientPlan, true);
 
 			expect(result.lazyTriggers).toHaveLength(1);
 			expect(result.lazyTriggers[0]?.rules).toEqual([{ 'on:idle': { scripts: ['/assets/lazy-entry-hash.js'] } }]);

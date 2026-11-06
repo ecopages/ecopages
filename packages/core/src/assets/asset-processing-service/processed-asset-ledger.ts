@@ -54,8 +54,13 @@ export class ProcessedAssetLedger {
 		return this.browserOutputs !== undefined;
 	}
 
+	/**
+	 * @remarks
+	 * An inline asset carries its content and no file reaches `dist/`, so its `filepath` is not recorded.
+	 */
 	record(dep: AssetDefinition, asset: ProcessedAsset): void {
-		this.entries.set(getAssetDependencyKey(dep, this.rootDir), this.toPortable(asset));
+		const recorded = asset.inline ? { ...asset, filepath: undefined } : asset;
+		this.entries.set(getAssetDependencyKey(dep, this.rootDir), this.toPortable(recorded));
 	}
 
 	/** Records the files one app-wide browser build emitted, which marks the ledger as holding that build. */

@@ -111,9 +111,7 @@ function requireOptionalAssetLedger(
 	const ledger = requireJsonObject(rootDir, ledgerPath, 'asset ledger');
 	requireMatchingBuildId(rootDir, buildId, deployManifestPath, ledgerPath, ledger);
 	const entryOutputs = Array.isArray(ledger.entries)
-		? ledger.entries.flatMap((entry: { asset?: { filepath?: unknown; inline?: unknown } }) =>
-				entry.asset?.inline === true ? [] : (entry.asset?.filepath ?? []),
-			)
+		? ledger.entries.flatMap((entry: { asset?: { filepath?: unknown } }) => entry.asset?.filepath ?? [])
 		: [];
 	const browserOutputs = Array.isArray(ledger.browserOutputs) ? ledger.browserOutputs : [];
 	requireListedFiles(

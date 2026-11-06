@@ -3,6 +3,7 @@ import { isProductionRuntime } from '../utils/runtime.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { PageRendererResolver } from '../route-renderer/route-renderer.ts';
+import type { PlannedRoutePreparation } from '../route-renderer/orchestration/route-pipeline/route-render-orchestrator.ts';
 import type {
 	IntegrationRenderer,
 	PlannedRouteInstance,
@@ -49,7 +50,8 @@ export function clearProductionPageBrowserGraphSession(appConfig: EcoPagesAppCon
 	clearProductionAssetLedger(appConfig);
 }
 
-function serializeProductionRouteInstance(instance: PlannedRouteInstance): string {
+/** Identifies one planned route instance: its file, Params and whether it is a template without static props. */
+export function getPlannedRouteKey(instance: PlannedRouteInstance): string {
 	const routeFile = path.resolve(instance.routeFile);
 	const dependencyInstanceKey = createPageDependencyInstanceKey({ params: instance.params });
 	return JSON.stringify([
@@ -82,27 +84,31 @@ function groupRouteInstancesByRenderer(
  * without processing them. The app-wide browser build then records every planned script in the asset ledger, and
  * each planned route processes its dependencies through it, so the ledger records everything `ecopages start`
  * serves those routes with. The ledger is then written beside the server bundle, where the Lit static-render
- * worker restores it during the export. A route that fails to plan is left out; the export reports it.
+ * worker restores it during the export. A route that fails to plan is left out and reported to `onRouteFailure`.
+ *
+ * Returns the preparation of every planned instance that runs its static props, by {@link getPlannedRouteKey}, so
+ * static export renders it without running its data hooks again. The caller owns the map for the build; no
+ * renderer keeps it.
  */
 export async function prebuildProductionPageBrowserGraphs(
 	appConfig: EcoPagesAppConfig,
 	routeInstances: readonly PlannedRouteInstance[],
 	routeRendererFactory: PageRendererResolver,
-): Promise<void> {
+	options: { onRouteFailure?: (routeInstance: PlannedRouteInstance, error: unknown) => void } = {},
+): Promise<Map<string, PlannedRoutePreparation>> {
 	const uniqueRouteInstances = [
-		...new Map(
-			routeInstances.map((instance) => [serializeProductionRouteInstance(instance), instance] as const),
-		).values(),
-	].sort((left, right) =>
-		serializeProductionRouteInstance(left).localeCompare(serializeProductionRouteInstance(right)),
-	);
+		...new Map(routeInstances.map((instance) => [getPlannedRouteKey(instance), instance] as const)).values(),
+	].sort((left, right) => getPlannedRouteKey(left).localeCompare(getPlannedRouteKey(right)));
 
 	const routePlans: ProductionRoutesPlan[] = [];
 	for (const [renderer, instances] of groupRouteInstancesByRenderer(uniqueRouteInstances, routeRendererFactory)) {
-		const routePlan = await renderer.planProductionRoutes(instances, { onRouteFailure: () => {} });
+		const routePlan = await renderer.planProductionRoutes(instances, {
+			onRouteFailure: options.onRouteFailure ?? (() => {}),
+		});
 		if (routePlan) routePlans.push(routePlan);
 	}
-	if (routePlans.length === 0) return;
+	const preparations = new Map<string, PlannedRoutePreparation>();
+	if (routePlans.length === 0) return preparations;
 	await buildAppBrowserClient(appConfig, [
 		...routePlans.map(({ plan }) => plan),
 		...collectIntegrationScriptPlans(appConfig),
@@ -112,6 +118,10 @@ export async function prebuildProductionPageBrowserGraphs(
 		await prepare();
 	}
 	writeProductionAssetLedger(appConfig, await getPrebuiltHtmlPageModuleScriptUrls(appConfig));
+	for (const { instance, preparation } of routePlans.flatMap((routePlan) => routePlan.preparations)) {
+		if (!instance.skipStaticProps) preparations.set(getPlannedRouteKey(instance), preparation);
+	}
+	return preparations;
 }
 
 /**

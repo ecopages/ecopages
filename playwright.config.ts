@@ -106,7 +106,7 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		use: { ...chrome, appOptions: { source: 'e2e/fixtures/html-pages' } },
 	},
 	{
-		name: 'react-router-runtime-modules-e2e',
+		name: 'react-router-preview-e2e',
 		testMatch: 'e2e/fixtures/react-router/persist-layouts.test.e2e.ts',
 		use: { ...chrome, baseURL: 'http://localhost:4004' },
 	},
@@ -277,7 +277,7 @@ const projectWebServers: ProjectWebServer[] = [
 		},
 	},
 	{
-		projects: ['react-router-runtime-modules-e2e'],
+		projects: ['react-router-preview-e2e'],
 		command: 'node ../../../packages/ecopages/bin/cli.js preview --runtime node --port 4004',
 		cwd: 'e2e/fixtures/react-router',
 		url: 'http://localhost:4004',
@@ -287,7 +287,7 @@ const projectWebServers: ProjectWebServer[] = [
 			NODE_ENV: 'production',
 			ECOPAGES_PORT: '4004',
 			ECOPAGES_PERSIST_LAYOUTS: 'true',
-			ECOPAGES_E2E_ARTIFACT_SCOPE: 'react-router-runtime-modules-e2e',
+			ECOPAGES_E2E_ARTIFACT_SCOPE: 'react-router-preview-e2e',
 		},
 	},
 ];

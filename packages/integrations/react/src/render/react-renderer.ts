@@ -638,7 +638,6 @@ function createReactRendererHookFactory(
 			assetProcessingIntegration,
 			hostIntegrationName: REACT_PLUGIN_NAME,
 			routerAdapter,
-			runtimeModules: reactConfig?.runtimeModules,
 			getMdxLoaderPlugin: reactConfig?.getMdxLoaderPlugin,
 		});
 		const pageModuleService = new PageModuleService({

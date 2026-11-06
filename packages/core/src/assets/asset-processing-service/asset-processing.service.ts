@@ -247,11 +247,10 @@ export class AssetProcessingService {
 				.flatMap((bundle) => bundle.map((dep) => this.getDependencyKey(dep)))
 				.sort()
 				.join('|');
-			const groupedResults = await this.shareInFlight(`grouped:${groupedKey}`, () =>
-				this.processGroupedDependencyBundles(groupedBundles),
-			);
-
-			const typeResults = await Promise.all(typePromises);
+			const [groupedResults, typeResults] = await Promise.all([
+				this.shareInFlight(`grouped:${groupedKey}`, () => this.processGroupedDependencyBundles(groupedBundles)),
+				Promise.all(typePromises),
+			]);
 			const processedTypeResults = typeResults.flatMap((result) => {
 				if (!result) {
 					return [];
@@ -296,9 +295,25 @@ export class AssetProcessingService {
 			this.setCachedAsset(dep, dependencyKey, finalized);
 			return finalized;
 		} catch (error) {
-			appLogger.error(`Failed to process ${dep.kind}/${dep.source} dependency:`, error);
-			return null;
+			return this.handleProcessingFailure(`${dep.kind}/${dep.source} dependency`, error, null);
 		}
+	}
+
+	/**
+	 * Rethrows a processor failure so the build, or the request, fails with the bundler's message.
+	 *
+	 * @remarks
+	 * A production server answering requests outside a build keeps serving the Page without the
+	 * asset and logs the error: its request-time rebuilds can fail where the build did not, for example
+	 * when the source tree was not deployed, and that is a separate defect from a build that exits 0.
+	 * During static generation and in development a failed asset is never dropped silently.
+	 */
+	private handleProcessingFailure<T>(label: string, error: unknown, fallback: T): T {
+		if (!isProductionRuntime() || requireAppRuntime(this.config).staticGenerationActive) {
+			throw error;
+		}
+		appLogger.error(`Failed to process ${label}:`, error);
+		return fallback;
 	}
 
 	private runProcessor(dep: AssetDefinition): Promise<ProcessedAsset> | undefined {
@@ -339,44 +354,40 @@ export class AssetProcessingService {
 					);
 				}
 
+				let processedAssets: ProcessedAsset[] | undefined;
 				try {
-					const processedAssets = await this.runGroupedProcessor(bundleDeps);
-					if (!processedAssets) {
-						return [];
-					}
-
-					const processedByEntryKey = new Map<string, ProcessedAsset>();
-					for (const processed of processedAssets) {
-						if (processed.groupedBundle) {
-							processedByEntryKey.set(
-								`${processed.groupedBundle.id}:${processed.groupedBundle.entryName}`,
-								processed,
-							);
-						}
-					}
-
-					const processedBundle = bundleDeps.flatMap((dep) => {
-						if (dep.kind !== 'script' || !dep.groupedBundle) {
-							return [];
-						}
-						const asset = processedByEntryKey.get(`${dep.groupedBundle.id}:${dep.groupedBundle.entryName}`);
-						return asset
-							? [
-									finalizeProcessedAsset(asset, (processed) =>
-										this.resolveProcessedAssetSrcUrl(processed),
-									),
-								]
-							: [];
-					});
-
-					if (processedBundle.length === bundleDeps.length) {
-						this.setCachedGroupedBundle(bundleDeps, dependencyKeys, processedBundle);
-					}
-					return processedBundle;
+					processedAssets = await this.runGroupedProcessor(bundleDeps);
 				} catch (error) {
-					appLogger.error('Failed to process grouped dependency bundle:', error);
+					return this.handleProcessingFailure('grouped dependency bundle', error, []);
+				}
+				if (!processedAssets) {
 					return [];
 				}
+
+				const processedByEntryKey = new Map<string, ProcessedAsset>();
+				for (const processed of processedAssets) {
+					if (processed.groupedBundle) {
+						processedByEntryKey.set(
+							`${processed.groupedBundle.id}:${processed.groupedBundle.entryName}`,
+							processed,
+						);
+					}
+				}
+
+				const processedBundle = bundleDeps.flatMap((dep) => {
+					if (dep.kind !== 'script' || !dep.groupedBundle) {
+						return [];
+					}
+					const asset = processedByEntryKey.get(`${dep.groupedBundle.id}:${dep.groupedBundle.entryName}`);
+					return asset
+						? [finalizeProcessedAsset(asset, (processed) => this.resolveProcessedAssetSrcUrl(processed))]
+						: [];
+				});
+
+				if (processedBundle.length === bundleDeps.length) {
+					this.setCachedGroupedBundle(bundleDeps, dependencyKeys, processedBundle);
+				}
+				return processedBundle;
 			}),
 		);
 

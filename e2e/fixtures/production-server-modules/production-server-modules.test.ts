@@ -586,3 +586,75 @@ export default eco.page({
 		},
 	);
 });
+
+describe('production build with an unbundlable Page script', () => {
+	const appDirs: string[] = [];
+
+	afterEach(() => {
+		for (const appDir of appDirs.splice(0)) {
+			rmSync(appDir, { recursive: true, force: true });
+		}
+	});
+
+	function addKitaPageScript(appDir: string, scriptSource: string): void {
+		const pagePath = path.join(appDir, 'src/pages/index.kita.tsx');
+		writeFileSync(path.join(appDir, 'src/pages/index.script.ts'), `${scriptSource}console.log('index-script');\n`);
+		writeFileSync(
+			pagePath,
+			readFileSync(pagePath, 'utf8').replace(
+				'layout: KitaLayout,',
+				"layout: KitaLayout,\n\tdependencies: { scripts: ['./index.script.ts'] },",
+			),
+		);
+	}
+
+	function copyAppWithPackage(files: Record<string, string>): string {
+		const appDir = copyFixtureApp(fixtureDir);
+		appDirs.push(appDir);
+		const linkedModules = path.join(appDir, 'node_modules');
+		const sourceModules = realpathSync(linkedModules);
+		unlinkSync(linkedModules);
+		mkdirSync(linkedModules);
+		for (const entry of readdirSync(sourceModules)) {
+			symlinkSync(path.join(sourceModules, entry), path.join(linkedModules, entry));
+		}
+		for (const [relativePath, contents] of Object.entries(files)) {
+			const target = path.join(linkedModules, relativePath);
+			mkdirSync(path.dirname(target), { recursive: true });
+			writeFileSync(target, contents);
+		}
+		return appDir;
+	}
+
+	it('fails the build when a Page script imports a server module', { timeout: 180_000 }, () => {
+		const appDir = copyFixtureApp(fixtureDir);
+		appDirs.push(appDir);
+		addKitaPageScript(appDir, "import './secret.server.ts';\n");
+		writeFileSync(path.join(appDir, 'src/pages/secret.server.ts'), "export const secret = 'server-only';\n");
+
+		const built = runCliBuild(appDir);
+
+		expect(built.error).toBeUndefined();
+		expect(built.status).not.toBe(0);
+		expect(`${built.stdout}\n${built.stderr}`).toContain('secret.server.ts');
+	});
+
+	it('fails the build when a package CSS import cannot be bundled', { timeout: 180_000 }, () => {
+		const appDir = copyAppWithPackage({
+			'eco-css-widget/package.json': JSON.stringify({
+				name: 'eco-css-widget',
+				version: '1.0.0',
+				type: 'module',
+				main: './index.js',
+			}),
+			'eco-css-widget/index.js': "import './style.css';\nexport const widget = 'widget';\n",
+			'eco-css-widget/style.css': '.eco-css-widget-marker { color: red; }\n',
+		});
+		addKitaPageScript(appDir, "import 'eco-css-widget';\n");
+
+		const built = runCliBuild(appDir);
+
+		expect(built.error).toBeUndefined();
+		expect(built.status).not.toBe(0);
+	});
+});

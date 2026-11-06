@@ -11,7 +11,7 @@ export const Counter = eco.component<CounterProps, JsxRenderable>({
 		scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count = 0 }) => (
-		<demo-counter count={count}>
+		<demo-counter attr:count={count}>
 			<button type="button" data-ref="decrement" aria-label="Decrement">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"

@@ -1,6 +1,5 @@
 import type { PageMetadataProps } from '@ecopages/core';
-
-const withBaseUrl = (path: string) => `${process.env.ECOPAGES_BASE_URL}/${path}`;
+import { absoluteUrl } from '@/lib/site-origin';
 
 export function Seo({ title, description, url, keywords }: PageMetadataProps) {
 	return (
@@ -28,7 +27,7 @@ export function Seo({ title, description, url, keywords }: PageMetadataProps) {
 			<meta property="og:description" content={description} />
 			<meta name="twitter:title" content={title} />
 			<meta name="twitter:description" content={description} />
-			{url ? <link rel="canonical" href={withBaseUrl(url)} /> : null}
+			{url ? <link rel="canonical" href={absoluteUrl(url)} /> : null}
 		</>
 	);
 }

@@ -98,7 +98,7 @@ export class ImageProcessor {
 					.toFormat(this.config.format, { quality: this.config.quality })
 					.toBuffer();
 				const outputPath = this.writeEncodedVariant(encoded);
-				const src = path.join(this.config.publicPath, path.basename(outputPath));
+				const src = ImageUtils.toPublicSrc(this.config.publicPath, outputPath);
 
 				const imageSpecifications: ImageSpecifications = {
 					attributes: {
@@ -134,7 +134,7 @@ export class ImageProcessor {
 						.toFormat(this.config.format, { quality: this.config.quality })
 						.toBuffer();
 					const outputPath = this.writeEncodedVariant(encoded);
-					const src = path.join(this.config.publicPath, path.basename(outputPath));
+					const src = ImageUtils.toPublicSrc(this.config.publicPath, outputPath);
 
 					return {
 						width,

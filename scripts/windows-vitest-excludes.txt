@@ -54,7 +54,6 @@ packages/integrations/ecopages-jsx/src/ecopages-jsx-hmr-strategy.test.ts
 packages/integrations/ecopages-jsx/src/test/ecopages-jsx-renderer.test.ts
 packages/integrations/ecopages-jsx/src/test/ecopages-jsx.plugin.test.ts
 packages/integrations/react/src/hmr/hmr-strategy.test.ts
-packages/processors/image-processor/src/test/image-processor.test.ts
 packages/processors/postcss-processor/src/test/plugin.test.ts
 packages/processors/postcss-processor/src/test/presets.test.ts
 playground/kitchen-sink/bench/lib/startup-bench-process.test.ts

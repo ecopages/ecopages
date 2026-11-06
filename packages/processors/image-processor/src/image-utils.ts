@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { DEFAULT_LAYOUT } from './constants.ts';
 import type { EcoImageProps } from './image-renderer.ts';
 
@@ -19,6 +20,17 @@ export class ImageUtils {
 	} as const;
 
 	static readonly DEFAULT_LAYOUT = DEFAULT_LAYOUT;
+
+	/**
+	 * Public URL of an optimized file written under the output directory.
+	 *
+	 * @param outputPath - Native filesystem path of the written file.
+	 * @remarks
+	 * Joins with `/` on every platform: `path.join` would give a backslash URL on Windows.
+	 */
+	static toPublicSrc(publicPath: string, outputPath: string): string {
+		return path.posix.join(publicPath, path.basename(outputPath));
+	}
 
 	/**
 	 * Generates a srcset string from processed image variants using relative paths

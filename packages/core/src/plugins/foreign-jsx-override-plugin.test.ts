@@ -1,17 +1,9 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import path from 'node:path';
-import { tmpdir } from 'node:os';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { getPluginTransform } from '../__fixtures__/build/transform-plugin.ts';
 import { createForeignJsxOverridePlugin } from './foreign-jsx-override-plugin.ts';
 
 describe('foreign-jsx-override-plugin', () => {
-	const tempDirs: string[] = [];
-
-	afterEach(async () => {
-		await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
-	});
-
-	it('loads only files that end with every dot of a foreign extension', () => {
+	it('matches only files that end with every dot of a foreign extension', () => {
 		const plugin = createForeignJsxOverridePlugin({
 			hostJsxImportSource: 'react',
 			foreignExtensions: ['.kita.tsx'],
@@ -19,7 +11,7 @@ describe('foreign-jsx-override-plugin', () => {
 		let filter: RegExp | undefined;
 
 		plugin.setup({
-			onLoad(options: { filter: RegExp }) {
+			transform(options: { filter: RegExp }) {
 				filter = options.filter;
 			},
 		} as never);
@@ -28,52 +20,38 @@ describe('foreign-jsx-override-plugin', () => {
 		expect(filter?.test('/src/a.kitaXtsx')).toBe(false);
 	});
 
-	it('preserves jsx loader selection for jsx files', async () => {
-		const tempDir = await mkdtemp(path.join(tmpdir(), 'foreign-jsx-override-'));
-		tempDirs.push(tempDir);
-		const filePath = path.join(tempDir, 'component.jsx');
-		await writeFile(filePath, 'export const Component = () => <div />;');
+	it('prepends the host pragma and keeps a source map to the original file', () => {
+		const transform = getPluginTransform(
+			createForeignJsxOverridePlugin({ hostJsxImportSource: 'react', foreignExtensions: ['.jsx'] }),
+		);
 
-		const plugin = createForeignJsxOverridePlugin({
-			hostJsxImportSource: 'react',
-			foreignExtensions: ['.jsx'],
-		});
+		const result = transform.transform('export const Component = () => <div />;', '/src/component.jsx?x=1');
 
-		let onLoad: ((args: { path: string }) => { contents: string; loader: string } | undefined) | undefined;
-
-		plugin.setup({
-			onLoad(_options: unknown, callback: unknown) {
-				onLoad = callback as typeof onLoad;
-			},
-		} as never);
-
-		const result = onLoad?.({ path: filePath });
-
-		expect(result).toEqual({
-			contents: '/** @jsxImportSource react */\nexport const Component = () => <div />;',
-			loader: 'jsx',
+		expect(result).toMatchObject({
+			code: '/** @jsxImportSource react */\nexport const Component = () => <div />;',
+			map: expect.objectContaining({ sources: ['/src/component.jsx'] }),
 		});
 	});
 
-	it('returns undefined when a file already declares jsxImportSource', async () => {
-		const tempDir = await mkdtemp(path.join(tmpdir(), 'foreign-jsx-override-'));
-		tempDirs.push(tempDir);
-		const filePath = path.join(tempDir, 'component.tsx');
-		await writeFile(filePath, '/** @jsxImportSource react */\nexport const Component = () => <div />;');
+	it('returns undefined when a file already declares jsxImportSource', () => {
+		const transform = getPluginTransform(
+			createForeignJsxOverridePlugin({ hostJsxImportSource: 'react', foreignExtensions: ['.tsx'] }),
+		);
 
-		const plugin = createForeignJsxOverridePlugin({
-			hostJsxImportSource: 'react',
-			foreignExtensions: ['.tsx'],
-		});
+		expect(
+			transform.transform('/** @jsxImportSource react */\nexport const Component = () => <div />;', '/src/c.tsx'),
+		).toBeUndefined();
+	});
 
-		let onLoad: ((args: { path: string }) => unknown) | undefined;
+	it('skips excluded extensions', () => {
+		const transform = getPluginTransform(
+			createForeignJsxOverridePlugin({
+				hostJsxImportSource: 'react',
+				foreignExtensions: ['.tsx'],
+				excludeExtensions: ['.react.tsx'],
+			}),
+		);
 
-		plugin.setup({
-			onLoad(_options: unknown, callback: unknown) {
-				onLoad = callback as typeof onLoad;
-			},
-		} as never);
-
-		expect(onLoad?.({ path: filePath })).toBeUndefined();
+		expect(transform.transform('export default 1;', '/src/c.react.tsx')).toBeUndefined();
 	});
 });

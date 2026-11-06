@@ -7,7 +7,7 @@ import { postIdParams } from '@/lib/post-form.server';
 import { postsService, type Post } from '@/lib/posts.server';
 import { requireSession } from '@/lib/require-session.server';
 
-export default eco.page<{ post: Post }, JsxRenderable>({
+export default eco.page<{ post: Post }, JsxRenderable, 'session'>({
 	cache: 'dynamic',
 	middleware: [requireSession],
 	requires: ['session'] as const,

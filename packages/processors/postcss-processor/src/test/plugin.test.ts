@@ -642,4 +642,30 @@ describe('PostCssProcessorPlugin HMR', () => {
 			vi.unstubAllEnvs();
 		}
 	});
+
+	test('does not emit processed copies of stylesheets under the public directory', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		try {
+			const publicCss = path.join(srcDir, 'public', 'vendor', 'public.css');
+			fs.mkdirSync(path.dirname(publicCss), { recursive: true });
+			fs.writeFileSync(publicCss, '.public-marker { color: red; }');
+			fs.writeFileSync(path.join(srcDir, 'page.css'), '.page-marker { color: blue; }');
+
+			const plugin = new PostCssProcessorPlugin({ options: { filter: /\.css$/ } });
+			const config = await finalizeEcoPagesConfig({
+				rootDir: tmpDir,
+				srcDir: 'src',
+				distDir: 'dist',
+				baseUrl: 'http://localhost:3000',
+			});
+			plugin.setContext(config);
+			await plugin.setup();
+
+			const emitted = hashedCssContents();
+			expect(emitted.some((css) => css.includes('.page-marker'))).toBe(true);
+			expect(emitted.some((css) => css.includes('.public-marker'))).toBe(false);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
 });

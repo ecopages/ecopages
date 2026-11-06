@@ -147,7 +147,7 @@ The shared navigation pipeline emits these events around the router-specific swa
 
 - `eco:before-swap` — pre-commit hook with `newDocument` and `reload()`
 - `eco:after-swap` — post-commit signal after the runtime has applied the new page
-- `eco:page-load` — scheduled on the next animation frame after `eco:after-swap`
+- `eco:page-load` — scheduled on the next animation frame after `eco:after-swap`. It is skipped only when a newer navigation began before the frame (`EcoNavigationTransaction.isSuperseded`), not because the navigation completed. Routers dispatch it once on first load too, through `schedulePageLoad`.
 
 Scripts listening to client navigation events (`eco:after-swap`, `eco:page-load`) should be registered as client scripts (e.g., using `scripts: ['./component.script.ts']`) or guarded by `isServer` from `@ecopages/radiant/is-server` when used in Radiant projects where `document` is defined during SSR.
 

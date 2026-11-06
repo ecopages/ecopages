@@ -1,6 +1,6 @@
 # Ecopages JSX template
 
-An Ecopages JSX app with MDX Pages, Tailwind v4, and Radiant hosts for small interactive islands.
+An Ecopages JSX app with MDX Pages, Tailwind v4, and custom elements for small interactive components.
 
 ## Getting started
 
@@ -14,12 +14,12 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Structure
 
 - `src/pages` — Filesystem Routes, including the JSX index and MDX Pages
-- `src/components` — interactive islands and theme controls
+- `src/components` — the counter, theme toggle, and other components
 - `src/lib` — shared utilities such as `cx`
 - `src/layouts` — Layout shell and navigation
 - `.agents/skills` — agent skill packs for this app
 
-Start customization in `src/pages/index.tsx` and `eco.config.ts`. Interactive islands are Radiant custom elements.
+Start customization in `src/pages/index.tsx` and `eco.config.ts`. The counter and theme toggle are plain custom elements (`HTMLElement` subclasses with `connectedCallback`); only the 500 Page script uses Radiant. Add Radiant (see the skill pack below) when a component needs reactive properties.
 
 The image showcase keeps the shared-element transition between `/image` and `/image-detail`; returning from `/image` to `/` uses a full-page navigation.
 

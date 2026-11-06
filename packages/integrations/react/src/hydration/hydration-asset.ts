@@ -232,7 +232,6 @@ export class HydrationAssetService {
 			const declaredModules = collectDeclaredModulesInConfig(island.config);
 			const bundleOptions = await this.config.bundleService.createBundleOptions(
 				componentName,
-				false,
 				declaredModules,
 				{},
 				island.file,
@@ -344,7 +343,6 @@ export class HydrationAssetService {
 			const componentName = this.getIslandBundleName(file);
 			const bundleOptions = await this.config.bundleService.createBundleOptions(
 				componentName,
-				false,
 				[...declaredModules],
 				{},
 				file,
@@ -473,7 +471,6 @@ export class HydrationAssetService {
 		const pageModuleUrlExpression = hmrEnabled ? JSON.stringify(importPath) : 'import.meta.url';
 		const bundleOptions = await this.config.bundleService.createBundleOptions(
 			componentName,
-			isMdx,
 			declaredModules,
 			{ includeRuntime: !useBrowserRuntimeImports, splitting: usesRouterRuntime },
 			pagePath,

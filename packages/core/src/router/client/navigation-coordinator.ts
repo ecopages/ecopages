@@ -80,6 +80,14 @@ export type EcoNavigationTransaction = {
 	id: number;
 	signal: AbortSignal;
 	isCurrent: () => boolean;
+	/**
+	 * Whether a newer navigation began or this one was cancelled.
+	 *
+	 * @remarks
+	 * Unlike `!isCurrent()`, this stays false after `complete()`, so work scheduled for a committed
+	 * navigation (such as `eco:page-load`) is skipped only when another navigation replaced it.
+	 */
+	isSuperseded: () => boolean;
 	cancel: () => void;
 	complete: () => void;
 };
@@ -229,6 +237,7 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 				id: navigationId,
 				signal: abortController.signal,
 				isCurrent: () => navigationSequence === navigationId && navigationAbortController === abortController,
+				isSuperseded: () => navigationSequence !== navigationId,
 				cancel: () => {
 					cancelNavigationTransaction(navigationId, abortController);
 				},

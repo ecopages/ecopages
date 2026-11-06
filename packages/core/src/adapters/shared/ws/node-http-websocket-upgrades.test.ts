@@ -84,3 +84,66 @@ describe('attachNodeHttpWebSocketUpgrades query parsing', () => {
 		expect(search).toEqual(expected);
 	});
 });
+
+describe('attachNodeHttpWebSocketUpgrades context()', () => {
+	async function withServer<T>(run: (url: (path: string) => string) => Promise<T>): Promise<T> {
+		const handler: EcopagesWebSocketHandler<{ itemId: string }, { itemId: string }> = {
+			context: ({ params }) => {
+				if (params.itemId !== 'ok') {
+					throw new Error('rejected');
+				}
+				return { itemId: params.itemId };
+			},
+			onConnect: (socket) => socket.send(`connected:${socket.context.itemId}`),
+		};
+		const server = createServer();
+		attachNodeHttpWebSocketUpgrades(server, {
+			runtimeOrigin: 'http://localhost',
+			websocketHandlers: new Map([['/ws/items/:itemId', handler as EcopagesWebSocketHandler]]),
+		});
+		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+		const { port } = server.address() as AddressInfo;
+
+		try {
+			return await run((path) => `ws://127.0.0.1:${port}${path}`);
+		} finally {
+			server.closeAllConnections();
+			await new Promise((resolve) => server.close(resolve));
+		}
+	}
+
+	it('refuses the upgrade with an HTTP error when context() rejects', async () => {
+		const events: string[] = [];
+		let status: number | undefined;
+
+		await withServer(async (url) => {
+			const client = new WebSocket(url('/ws/items/nope'));
+			client.on('open', () => events.push('open'));
+			client.on('unexpected-response', (_req, res) => {
+				status = res.statusCode;
+				res.resume();
+				client.terminate();
+				events.push('unexpected-response');
+			});
+			client.on('error', () => events.push('error'));
+			await new Promise<void>((resolve) => client.once('close', () => resolve()));
+		});
+
+		expect(events).not.toContain('open');
+		expect(status).toBe(403);
+	});
+
+	it('still sends the connect payload for an accepted context()', async () => {
+		const message = await withServer(async (url) => {
+			const client = new WebSocket(url('/ws/items/ok'));
+			const received = await new Promise<string>((resolve, reject) => {
+				client.once('message', (data) => resolve(data.toString()));
+				client.once('error', reject);
+			});
+			client.close();
+			return received;
+		});
+
+		expect(message).toBe('connected:ok');
+	});
+});

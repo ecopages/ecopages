@@ -227,6 +227,24 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		return this.resolvedIntegrationDependencies;
 	}
 
+	/** Returns the global assets this Integration adds to every Page it takes part in, before processing. */
+	getIntegrationDependencies(): readonly AssetDefinition[] {
+		return this.integrationDependencies;
+	}
+
+	/**
+	 * Processes the global assets again and replaces the resolved list in place.
+	 *
+	 * @remarks
+	 * The production prebuild calls it once the app-wide browser build has recorded its script outputs, so a
+	 * global script resolves to that build. The renderer holds the same list, so it sees the new assets.
+	 */
+	async refreshResolvedIntegrationDependencies(): Promise<void> {
+		if (!this.assetProcessingService) return;
+		const resolved = await this.assetProcessingService.processDependencies(this.integrationDependencies, this);
+		this.resolvedIntegrationDependencies.splice(0, this.resolvedIntegrationDependencies.length, ...resolved);
+	}
+
 	/**
 	 * Creates the common renderer options from runtime setup state.
 	 *

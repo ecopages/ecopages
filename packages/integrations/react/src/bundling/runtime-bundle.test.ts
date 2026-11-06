@@ -1,9 +1,7 @@
 import { rmSync } from 'node:fs';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { getBrowserRuntimeManifestFromPlugin } from '@ecopages/core/build';
 import { copyFixtureApp } from '../../../../core/__fixtures__/app/copy-fixture-app.ts';
 import { RuntimeBundleService } from './runtime-bundle.ts';
-import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 
 const fixtureAppRoot = copyFixtureApp();
 
@@ -158,70 +156,5 @@ describe('RuntimeBundleService', () => {
 
 		expect(service.getRuntimeImports().react).toBe('/assets/vendors/react.development.js');
 		expect(service.getRuntimeImports().reactDomClient).toBe('/assets/vendors/react-dom.development.js');
-	});
-
-	it('registers configured runtime modules as shared browser vendors', () => {
-		vi.stubEnv('NODE_ENV', 'development');
-		const service = new RuntimeBundleService({
-			rootDir: fixtureAppRoot,
-			runtimeModules: resolveReactPluginRuntimeModules(['@mdx-js/mdx']),
-		});
-
-		expect(service.getConfiguredRuntimeModuleSpecifiers()).toEqual(['@mdx-js/mdx']);
-		expect(service.getRuntimeManifest().bySpecifier.get('@mdx-js/mdx')).toEqual({
-			specifier: '@mdx-js/mdx',
-			owner: '@ecopages/react',
-			importPath: '@mdx-js/mdx',
-			publicPath: '/assets/vendors/mdx-js-mdx.development.js',
-			externals: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
-		});
-		expect(service.getRuntimeAliasMap()['@mdx-js/mdx']).toBe('/assets/vendors/mdx-js-mdx.development.js');
-
-		const dependencies = service.getDependencies();
-		const mdxAsset = dependencies.find((dependency) => 'name' in dependency && dependency.name === 'mdx-js-mdx');
-		expect(mdxAsset).toEqual(
-			expect.objectContaining({
-				name: 'mdx-js-mdx',
-				bundleOptions: expect.objectContaining({
-					naming: 'mdx-js-mdx.development.js',
-					plugins: expect.any(Array),
-				}),
-			}),
-		);
-		if (!mdxAsset || mdxAsset.kind !== 'script') {
-			throw new Error('expected mdx-js-mdx script asset');
-		}
-
-		const mdxPlugin = mdxAsset.bundleOptions?.plugins?.[0];
-		expect(mdxPlugin).toBeDefined();
-		const mdxManifest = getBrowserRuntimeManifestFromPlugin(mdxPlugin!);
-		expect(mdxManifest?.bySpecifier.has('@mdx-js/mdx')).toBe(false);
-		expect(mdxManifest?.bySpecifier.has('react')).toBe(true);
-		expect(mdxAsset.bundleOptions?.external).toBeUndefined();
-	});
-
-	it('rewrites sibling runtime modules to their shared vendor URLs', () => {
-		vi.stubEnv('NODE_ENV', 'development');
-		const service = new RuntimeBundleService({
-			rootDir: fixtureAppRoot,
-			runtimeModules: resolveReactPluginRuntimeModules([
-				{ specifier: 'mobx', outputName: 'mobx' },
-				{ specifier: '@acme/ui', outputName: 'acme-ui' },
-			]),
-		});
-
-		expect(service.getRuntimeAliasMap().mobx).toBe('/assets/vendors/mobx.development.js');
-
-		const libraryManifest = getBrowserRuntimeManifestFromPlugin(
-			service.createRuntimeAliasPlugin('development', ['@acme/ui']),
-		);
-		expect(libraryManifest?.bySpecifier.get('mobx')?.publicPath).toBe('/assets/vendors/mobx.development.js');
-		expect(libraryManifest?.bySpecifier.has('@acme/ui')).toBe(false);
-
-		const mobxManifest = getBrowserRuntimeManifestFromPlugin(
-			service.createRuntimeAliasPlugin('development', ['mobx']),
-		);
-		expect(mobxManifest?.bySpecifier.has('mobx')).toBe(false);
-		expect(mobxManifest?.bySpecifier.get('@acme/ui')?.publicPath).toBe('/assets/vendors/acme-ui.development.js');
 	});
 });

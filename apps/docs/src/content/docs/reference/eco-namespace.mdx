@@ -348,7 +348,7 @@ layout: [
 	AppShell,
 	{
 		component: DocsSection,
-		props: ({ params }) => ({ activeSection: params.slug }),
+		props: ({ params }) => ({ activeSection: params?.slug }),
 	},
 ],
 ```

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '@ecopages/core/create-app';
 import { requireAppRuntime } from '@ecopages/core/integration';
@@ -40,26 +41,27 @@ describe('LitPlugin', () => {
 		expect(new LitPlugin().serverDom?.kind).toBe('repair');
 	});
 
-	it('keeps the global hydrate-support bootstrap stable across browser-router swaps', () => {
+	it('loads hydrate support as a module of the app browser graph that browser-router swaps keep', () => {
 		const plugin = new LitPlugin();
 		const [dependency] = plugin.getDependencies();
 
 		expect(dependency).toMatchObject({
 			kind: 'script',
-			source: 'content',
-			inline: true,
+			source: 'file',
+			position: 'head',
 			attributes: {
+				type: 'module',
 				'data-eco-script-id': 'lit-hydrate-support',
 			},
 		});
-		expect(dependency.attributes?.['data-eco-rerun']).toBeUndefined();
-
-		if (dependency.kind !== 'script' || dependency.source !== 'content') {
-			throw new Error('Expected Lit hydrate dependency to be an inline content script');
+		expect(dependency?.attributes?.['data-eco-rerun']).toBeUndefined();
+		if (dependency?.kind !== 'script' || dependency.source !== 'file') {
+			throw new Error('Expected Lit hydrate support to be a file script');
 		}
-
-		expect(dependency.content).toContain('(() => {');
-		expect(dependency.content).toContain('globalThis.litElementHydrateSupport');
+		expect(dependency.filepath).toBe(fileURLToPath(import.meta.resolve('@ecopages/lit/hydrate-support')));
+		expect(fs.readFileSync(dependency.filepath, 'utf8')).toContain(
+			"import '@lit-labs/ssr-client/lit-element-hydrate-support.js';",
+		);
 	});
 
 	it('initializes its configured renderer class', async () => {

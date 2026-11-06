@@ -19,7 +19,6 @@ import {
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { createReactDomRuntimeInteropPlugin } from './runtime-interop-plugin.ts';
 import { buildReactRuntimeManifest } from './runtime-alias-map.ts';
-import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
 import {
 	createBrowserRuntimeManifest,
 	getBrowserRuntimeSpecifierMap,
@@ -48,7 +47,6 @@ export type ReactRuntimeImports = {
 
 export interface RuntimeBundleServiceConfig {
 	routerAdapter?: ReactRouterAdapter;
-	runtimeModules?: ResolvedReactPluginRuntimeModule[];
 	rootDir?: string;
 	workDir?: string;
 }
@@ -70,10 +68,6 @@ export class RuntimeBundleService {
 		this.config.workDir = workDir;
 	}
 
-	setRuntimeModules(runtimeModules: ResolvedReactPluginRuntimeModule[]): void {
-		this.config.runtimeModules = runtimeModules;
-	}
-
 	private get isDevelopment(): boolean {
 		return isDevelopmentRuntime();
 	}
@@ -93,14 +87,6 @@ export class RuntimeBundleService {
 
 	private getVendorFileName(name: string, mode: RuntimeMode): string {
 		return `${name}${mode === 'development' ? '.development' : ''}.js`;
-	}
-
-	private getConfiguredRuntimeModules(): ResolvedReactPluginRuntimeModule[] {
-		return this.config.runtimeModules ?? [];
-	}
-
-	getConfiguredRuntimeModuleSpecifiers(): string[] {
-		return this.getConfiguredRuntimeModules().map((module) => module.specifier);
 	}
 
 	private createReactVendorImportRewritePlugin(mode: RuntimeMode): EcoBuildPlugin {
@@ -151,12 +137,9 @@ export class RuntimeBundleService {
 	}
 
 	getRuntimeManifest(mode = this.getCurrentRuntimeMode()): BrowserRuntimeManifest {
-		return buildReactRuntimeManifest(
-			this.getRuntimeImports(mode),
-			this.getConfiguredRuntimeModules(),
-			(outputName) => buildBrowserRuntimeAssetUrl(this.getVendorFileName(outputName, mode)),
-			{ routerImportPath: this.config.routerAdapter?.bundle.importPath },
-		);
+		return buildReactRuntimeManifest(this.getRuntimeImports(mode), {
+			routerImportPath: this.config.routerAdapter?.bundle.importPath,
+		});
 	}
 
 	getDependencies(options?: { modes?: RuntimeMode[] }): AssetDefinition[] {
@@ -273,24 +256,6 @@ export class RuntimeBundleService {
 									'@ecopages/react-router',
 								]),
 							],
-						},
-					}),
-				);
-			}
-
-			for (const runtimeModule of this.getConfiguredRuntimeModules()) {
-				dependencies.push(
-					createBrowserRuntimeModuleAsset({
-						modules: [{ specifier: runtimeModule.specifier, defaultExport: true }],
-						name: runtimeModule.outputName,
-						fileName: this.getVendorFileName(runtimeModule.outputName, mode),
-						cacheDirName: `ecopages-react-runtime-module-${runtimeModule.outputName}-${mode}`,
-						rootDir: this.config.rootDir,
-						workDir: this.config.workDir,
-						bundleOptions: {
-							define: this.createRuntimeDefines(mode),
-							excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
-							plugins: [this.createRuntimeAliasPlugin(mode, [runtimeModule.specifier])],
 						},
 					}),
 				);

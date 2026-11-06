@@ -89,17 +89,17 @@ describe('navigation lifecycle dispatch', () => {
 		}
 	});
 
-	it('skips page-load when navigation becomes stale before the frame callback', () => {
+	it('skips page-load when navigation is superseded before the frame callback', () => {
 		const pageLoadSpy = vi.fn();
-		let stale = true;
+		let superseded = true;
 		document.addEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, pageLoadSpy);
 
 		try {
 			completeNavigationLifecycle(
 				document,
-				{ url: new URL('https://example.test/stale'), direction: 'forward' },
+				{ url: new URL('https://example.test/superseded'), direction: 'forward' },
 				{
-					isStale: () => stale,
+					isSuperseded: () => superseded,
 					schedule: (callback) => {
 						callback(0);
 						return 1;

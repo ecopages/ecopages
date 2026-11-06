@@ -1,5 +1,9 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { resolveStaticFilePath } from '../utils/server-utils.module.ts';
 import { StaticSiteGenerator } from './static-site-generator';
 import type { EcoPagesAppConfig } from '../config/internal-types';
 import { appLogger } from '../global/app-logger.ts';
@@ -64,24 +68,6 @@ describe('StaticSiteGenerator', () => {
 		vi.restoreAllMocks();
 	});
 
-	describe('getDirectories', () => {
-		test.each([
-			{ name: 'root-level routes', routes: ['/about', '/contact'], directories: [] },
-			{ name: 'nested routes', routes: ['/blog/post-1', '/docs/api'], directories: ['/blog', '/docs'] },
-			{
-				name: 'absolute URLs by their pathname',
-				routes: ['http://localhost:3000/blog/post'],
-				directories: ['/blog'],
-			},
-			{ name: 'siblings once', routes: ['/blog/a', '/blog/b', '/blog/c'], directories: ['/blog'] },
-			{ name: 'deeply nested paths', routes: ['/a/b/c/page'], directories: ['/a/b/c'] },
-		])('lists directories for $name', ({ routes, directories }) => {
-			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-
-			expect(ssg.getDirectories(routes)).toEqual(directories);
-		});
-	});
-
 	describe('generateRobotsTxt', () => {
 		test('should generate robots.txt with preferences from config', () => {
 			const config = createMockConfig();
@@ -134,6 +120,83 @@ describe('StaticSiteGenerator', () => {
 
 		const createStaticPageModule = () => ({
 			default: Object.assign(() => null, { cache: 'static' }),
+		});
+
+		describe('Page output path', () => {
+			const exportDir = '/test/project/dist/client';
+
+			async function exportedFiles(pages: Array<{ pathname: string; file: string }>): Promise<string[]> {
+				writeMock.mockClear();
+				const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+				const Router = createMockRouter(
+					Object.fromEntries(
+						pages.map(({ pathname, file }) => [pathname, { filePath: `/src/pages/${file}`, pathname }]),
+					),
+				);
+				const RendererFactory = {
+					getPageRenderer: vi.fn(() => ({
+						loadPageModule: vi.fn(async () => createStaticPageModule()),
+						execute: vi.fn(async () => ({ body: '<html></html>' })),
+					})),
+				} satisfies StaticPageRouteRendererFactory;
+
+				await ssg.generateStaticPages({
+					router: Router,
+					baseUrl: 'http://localhost:3000',
+					routeRendererFactory: RendererFactory,
+				});
+
+				return writeMock.mock.calls.map((call: unknown[]) => String(call[0]));
+			}
+
+			test.each([
+				{ name: 'index.tsx', file: 'blog/index.tsx', expected: `${exportDir}/blog/index.html` },
+				{ name: 'index.mdx', file: 'blog/index.mdx', expected: `${exportDir}/blog/index.html` },
+				{ name: 'blog.tsx', file: 'blog.tsx', expected: `${exportDir}/blog.html` },
+			])(
+				'writes /blog from $name to the same file with and without a sibling Page',
+				async ({ file, expected }) => {
+					const alone = await exportedFiles([{ pathname: '/blog', file }]);
+					const withSibling = await exportedFiles([
+						{ pathname: '/blog', file },
+						{ pathname: '/blog/about', file: 'blog/about.tsx' },
+					]);
+
+					expect(alone).toEqual([expected]);
+					expect(withSibling).toContain(expected);
+					expect(withSibling).toContain(`${exportDir}/blog/about.html`);
+				},
+			);
+
+			test('keeps the root and a dynamic index Page deterministic', async () => {
+				const files = await exportedFiles([
+					{ pathname: '/', file: 'index.tsx' },
+					{ pathname: '/docs/intro', file: 'docs/[slug]/index.tsx' },
+					{ pathname: '/news/today', file: 'news/[slug].tsx' },
+				]);
+
+				expect(files).toEqual(
+					expect.arrayContaining([
+						`${exportDir}/index.html`,
+						`${exportDir}/docs/intro/index.html`,
+						`${exportDir}/news/today.html`,
+					]),
+				);
+			});
+
+			test('static serving resolves both layouts', () => {
+				const dir = mkdtempSync(path.join(tmpdir(), 'eco-ssg-layout-'));
+				try {
+					mkdirSync(path.join(dir, 'blog'), { recursive: true });
+					writeFileSync(path.join(dir, 'blog', 'index.html'), 'index');
+					writeFileSync(path.join(dir, 'news.html'), 'flat');
+
+					expect(resolveStaticFilePath(path.join(dir, 'blog'))).toBe(path.join(dir, 'blog', 'index.html'));
+					expect(resolveStaticFilePath(path.join(dir, 'news'))).toBe(path.join(dir, 'news.html'));
+				} finally {
+					rmSync(dir, { recursive: true, force: true });
+				}
+			});
 		});
 
 		test('uses the shared build parallelism for static export', async () => {
@@ -821,6 +884,55 @@ describe('StaticSiteGenerator', () => {
 			for (const pageWriteOrder of pageWriteOrders) {
 				expect(pageWriteOrder).toBeLessThan(writeMock.mock.invocationCallOrder[sitemapWriteIndex]!);
 			}
+		});
+
+		test('writes sitemap locations from the configured baseUrl, not the serve origin', async () => {
+			const appConfig = createMockConfig({
+				baseUrl: 'https://example.com',
+				sitemap: { enabled: true, fileName: 'sitemap.xml', extraUrls: ['/rss.xml'], exclude: [] },
+			});
+			const ssg = new StaticSiteGenerator({ appConfig });
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => [
+						{
+							requestUrl: 'http://localhost:3001/',
+							pathname: '/',
+							templateRoute: {
+								pathname: '/',
+								kind: 'exact' as const,
+								role: 'page' as const,
+								filePath: '/src/pages/index.tsx',
+								paramNames: [],
+							},
+							params: {},
+						},
+					]),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3001',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn(() => ({
+						loadPageModule: vi.fn(async () => ({
+							default: Object.assign(() => null, { cache: 'static' }),
+						})),
+						execute: vi.fn(async () => ({
+							body: '<html>Page</html>',
+							metadata: appConfig.defaultMetadata,
+						})),
+					})),
+					getExplicitViewRenderer: vi.fn(),
+				} satisfies StaticGenerationRendererFactory,
+				keepGoing: true,
+			});
+
+			const sitemapWrite = writeMock.mock.calls.find((call: unknown[]) =>
+				String(call[0]).endsWith('sitemap.xml'),
+			);
+			const sitemapContent = String(sitemapWrite?.[1]);
+			expect(sitemapContent).toContain('<loc>https://example.com/</loc>');
+			expect(sitemapContent).toContain('<loc>https://example.com/rss.xml</loc>');
+			expect(sitemapContent).not.toContain('localhost');
 		});
 
 		test('uses rendered metadata for sitemap eligibility without resolving it again', async () => {

@@ -30,6 +30,8 @@ It should not invent a parallel rendering stack just for build mode.
 
 Static export uses the same CPU-based concurrency limit as the build queue, and the startup trace reports that limit.
 
+A Page's output file depends only on its route and its own source file, never on sibling Pages. `/` is `index.html`. A Page whose source file is named `index` (`pages/blog/index.tsx`, `pages/docs/[slug]/index.tsx`) writes `<route>/index.html`, and any other Page (`pages/blog.tsx`, `[slug].tsx`) writes `<route>.html`. Explicit static routes and semantic error pages have no filesystem source and write `<route>.html`. Static serving and `ecopages start` resolve `/blog` to `blog.html` first, then `blog/index.html`, so both layouts are served.
+
 Semantic error pages are excluded from ordinary page enumeration and emitted once by `route-renderer/error-pages/semantic-error-page-exporter.ts`, so runtime and static output share source precedence and rendering behavior.
 
 ## Files
@@ -57,6 +59,8 @@ Integrations may implement:
 Core calls no other Integration hook around generation.
 
 When `appConfig.sitemap.enabled` is true, `sitemap.xml` is written **after** every page, so a file an Integration writes during export can be listed through `extraUrls`. Development (`ecopages dev`) does not emit this file.
+
+Sitemap `<loc>` values resolve against `appConfig.baseUrl` (config `baseUrl`, `ECOPAGES_BASE_URL` or `--base-url`), never the serve origin, so `ECOPAGES_PORT` does not change them.
 
 Sitemap eligibility uses the metadata returned by the successful route render (`activeStaticPathnames` plus `robots.index !== false`, fail-closed when render metadata is unavailable). It does not load the route or rerun its `staticProps` and metadata hooks after writing the page. `resolveSitemapLocations` then applies `exclude` and appends `extraUrls`.
 

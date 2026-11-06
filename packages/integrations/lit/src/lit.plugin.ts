@@ -16,8 +16,8 @@ import {
 	type StaticExportRelease,
 } from '@ecopages/core/integration';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/integration';
-import { litElementHydrateScript } from './lit-element-hydrate.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { ensureLitDomShim } from './dom-shim.ts';
 import { createLitRenderer, LitRenderer } from './lit-renderer.ts';
@@ -27,6 +27,8 @@ import { LitStaticRenderSession } from './lit-static-render-session.ts';
  * The name of the Lit plugin
  */
 export const PLUGIN_NAME = LIT_PLUGIN_NAME;
+
+const litHydrateSupportPath = fileURLToPath(import.meta.resolve('@ecopages/lit/hydrate-support'));
 
 /**
  * @remarks
@@ -59,19 +61,16 @@ export class LitPlugin extends IntegrationPlugin {
 	 * Returns the global integration dependencies required in the browser.
 	 *
 	 * @remarks
-	 * Injects Lit's hydration support script into the document head before any
-	 * custom element connects. While `@lit-labs/ssr-client/lit-element-hydrate-support.js`
-	 * can be resolved directly in modern Bun and Node environments, an inline self-contained
-	 * script is currently emitted to ensure synchronous availability before custom-element
-	 * registration without requiring an import map for `@lit-labs/ssr-client` subpath imports.
+	 * Lit's SSR hydration support is a module script of the app's browser graph, so it imports the app's `lit`
+	 * instead of carrying its own copy. It is placed first in the head, before any custom element is defined.
 	 */
 	getDependencies(): AssetDefinition[] {
 		return [
-			AssetFactory.createInlineContentScript({
+			AssetFactory.createFileScript({
 				position: 'head',
-				content: `(() => {${litElementHydrateScript}})();`,
-				bundle: false,
+				filepath: litHydrateSupportPath,
 				attributes: {
+					type: 'module',
 					'data-eco-script-id': 'lit-hydrate-support',
 				},
 			}),

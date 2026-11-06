@@ -90,3 +90,7 @@ JSON report default: `.audit/debug-app-bench.json` (directory is gitignored).
 4. Fix the owning layer (app SSR vs core transform), rebuild, re-run the same command
 
 Keep product-specific notes (DB, auth seeds, ports) in the product repo — not here.
+
+`smoke-start.ts` (`pnpm smoke:start`) builds `playground/explicit-routes`, runs `ecopages start` under Node on a free port and expects `GET /` to return 200. It uses `explicit-routes` because the static templates have no server bundle for `start` and `kitchen-sink` needs React islands. The `windows` job in CI runs it after the typecheck.
+
+`test-vitest-windows.ts` runs the non-browser vitest projects for that job and leaves out the files listed in `windows-vitest-excludes.txt`, each a known Windows failure with a tracking issue. Remove a line when its file passes on Windows.

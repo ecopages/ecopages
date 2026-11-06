@@ -48,6 +48,7 @@ export type ResolveReactNavigationInput = {
 
 export type SpaCommitEffects = {
 	isStale: () => boolean;
+	isSuperseded: () => boolean;
 	hardAssign: (href: string) => void;
 	viewTransitionsEnabled: boolean;
 	saveScrollPositions: () => void;
@@ -192,6 +193,7 @@ export async function applySpaNavigation(
 		direction: outcome.direction,
 		newDocument: page.doc,
 		isStale: effects.isStale,
+		isSuperseded: effects.isSuperseded,
 		viewTransitionsEnabled: !options.skipViewTransition && effects.viewTransitionsEnabled,
 		persistAttribute: ECO_PERSIST_ATTRIBUTE,
 		includeBodyScripts: false,

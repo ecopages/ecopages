@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ENTRY_COMMAND_FLAGS } from './entry-command-flags.ts';
 import { parseCliArgs } from './parse-cli-args.ts';
 import { isDevelopmentRuntime, isProductionRuntime } from './runtime.ts';
 
@@ -47,6 +48,18 @@ describe('parseCliArgs', () => {
 		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build', '--keep-going'];
 
 		expect(parseCliArgs()).toMatchObject({ build: true, keepGoing: true });
+	});
+
+	it.each(Object.keys(ENTRY_COMMAND_FLAGS))('parses the declared entry flag --%s', (flag) => {
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build', `--${flag}`];
+
+		expect(() => parseCliArgs()).not.toThrow();
+	});
+
+	it('parses the serve-only preview option', () => {
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'preview', '--serve-only'];
+
+		expect(parseCliArgs()).toMatchObject({ preview: true, serveOnly: true });
 	});
 
 	it('keeps development NODE_ENV for dev commands', () => {

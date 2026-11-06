@@ -51,7 +51,6 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 				mdx: {
 					...withContentMdxPlugins(),
 				},
-				runtimeModules: ['zod'],
 			}),
 			mdxPlugin({
 				extensions: ['.md'],

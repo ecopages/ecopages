@@ -1,6 +1,5 @@
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import type { ReactRuntimeImports } from './runtime-bundle.ts';
-import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
 import {
 	createBrowserRuntimeManifest,
 	type BrowserRuntimeAssetDeclaration,
@@ -20,23 +19,8 @@ export const REACT_RUNTIME_SPECIFIERS = [
 	'react-dom/client',
 ] as const;
 
-export function buildConfiguredRuntimeModuleManifestEntries(
-	modules: readonly ResolvedReactPluginRuntimeModule[],
-	getPublicPath: (outputName: string) => string,
-): BrowserRuntimeAssetDeclaration[] {
-	return modules.map((module) => ({
-		specifier: module.specifier,
-		owner: '@ecopages/react',
-		importPath: module.specifier,
-		publicPath: getPublicPath(module.outputName),
-		externals: getReactRuntimeExternalSpecifiers(),
-	}));
-}
-
 export function buildReactRuntimeManifest(
 	runtimeImports: ReactRuntimeImports,
-	configuredRuntimeModules: readonly ResolvedReactPluginRuntimeModule[] = [],
-	getConfiguredRuntimeModulePublicPath: (outputName: string) => string = () => '',
 	options?: BuildReactRuntimeManifestOptions,
 ): BrowserRuntimeManifest {
 	const frameworkDeclarations: BrowserRuntimeAssetDeclaration[] = [
@@ -133,7 +117,6 @@ export function buildReactRuntimeManifest(
 			publicPath: runtimeImports.useSyncExternalStoreWithSelector,
 		},
 		...frameworkDeclarations,
-		...buildConfiguredRuntimeModuleManifestEntries(configuredRuntimeModules, getConfiguredRuntimeModulePublicPath),
 	]);
 }
 
@@ -141,14 +124,6 @@ export function getReactRuntimeExternalSpecifiers(): string[] {
 	return [...REACT_RUNTIME_SPECIFIERS];
 }
 
-export function getReactClientGraphAllowSpecifiers(
-	runtimeSpecifiers: Iterable<string>,
-	routerAdapter?: ReactRouterAdapter,
-): string[] {
-	return [
-		'@ecopages/core',
-		...REACT_RUNTIME_SPECIFIERS,
-		...(routerAdapter ? [routerAdapter.bundle.importPath] : []),
-		...Array.from(runtimeSpecifiers),
-	];
+export function getReactClientGraphAllowSpecifiers(routerAdapter?: ReactRouterAdapter): string[] {
+	return ['@ecopages/core', ...REACT_RUNTIME_SPECIFIERS, ...(routerAdapter ? [routerAdapter.bundle.importPath] : [])];
 }

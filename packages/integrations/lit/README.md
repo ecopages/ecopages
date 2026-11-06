@@ -62,7 +62,7 @@ Important:
 - Direct local imports of declared Eco Components contribute their Dependencies automatically, including Foreign Children and named `export { X } from` barrels. Use `dependencies.components` for `export *` barrels and package imports.
 - Ecopages validates ownership from declared dependencies during render preparation instead of relying on post-render HTML discovery.
 - Route-level dependency resolvers can supply Components at request time; Lit includes those resolved roots when deciding whether a Foreign Subtree needs handoff.
-- Lit keeps slot transport, shadow-root handling, and SSR preload behavior inside the Lit renderer.
+- Lit keeps slot transport, shadow-root handling, and SSR preload behavior inside the Lit renderer. Children go where the template renders its children slot; only a document shell without a slot gets them before `</body>`, so a layout that drops its children fails the render.
 - Lit renderers use the required core `AssetProcessingService` to process declared component dependencies.
 
 ## Discovered assets and lazy custom elements

@@ -42,6 +42,12 @@ describe('lit-html-rendering', () => {
 		);
 	});
 
+	it('drops children that a component template does not render', () => {
+		expect(injectLitRenderedChildren('<aside>no slot</aside>', '<article>page</article>')).toBe(
+			'<aside>no slot</aside>',
+		);
+	});
+
 	it('renders lit values to normalized strings', async () => {
 		const rendered = await renderLitValueToString(litHtml`<section><span>Lit value</span></section>`);
 

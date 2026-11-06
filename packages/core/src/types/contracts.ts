@@ -713,20 +713,31 @@ export type LayoutPropsContext = {
 };
 
 /**
- * One layout tier in a page layout stack (outer→inner).
+ * One normalized layout tier in a page layout stack (outer→inner), as stored on page config.
  */
-export type EcoPageLayoutEntry<E = EcoPagesElement> = {
-	component: EcoComponent<any, E>;
+export type EcoPageLayoutEntry = {
+	component: EcoComponent;
 	props?: (context: LayoutPropsContext) => Record<string, unknown>;
 };
 
 /**
- * Layout declaration accepted by `eco.page()`.
+ * A layout tier with a props factory, as written in `eco.page({ layout })`.
+ */
+export type EcoPageLayoutEntrySpec<E = EcoPagesElement> = {
+	component: EcoLayoutComponent<E>;
+	props?: (context: LayoutPropsContext) => Record<string, unknown>;
+};
+
+/**
+ * Layout declaration accepted by `eco.page()`: an `eco.layout()` result, a plain function typed with
+ * {@link LayoutProps}, or an entry that adds a props factory to either.
  *
  * @remarks
- * Array order is outer→inner, matching Next.js App Router segment nesting.
+ * Array order is outer→inner, matching Next.js App Router segment nesting. A function with fewer parameters is
+ * still assignable, so the type cannot prove that a layout renders `children`; layout composition checks that
+ * when it renders the page.
  */
-export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoComponent<any, E> | EcoPageLayoutEntry<E>;
+export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoLayoutComponent<E> | EcoPageLayoutEntrySpec<E>;
 
 /**
  * One or more layout tiers for `eco.page({ layout })`.
@@ -738,15 +749,7 @@ export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoComponent<any, E> | EcoP
 export type EcoPageLayouts<E = EcoPagesElement> = EcoPageLayoutSpec<E> | EcoPageLayoutSpec<E>[];
 
 /**
- * Layout components accepted by pages.
- *
- * This preserves compatibility with existing `eco.component()` layouts while
- * also supporting semantic `eco.layout()` declarations.
- */
-type EcoPageLayoutComponent<T = EcoPagesElement> = EcoLayoutComponent<T> | EcoComponent<any, T>;
-
-/**
- * Represents a layout component created with eco.layout().
+ * A layout component: an `eco.layout()` result or a plain function that takes {@link LayoutProps}.
  */
 export type EcoLayoutComponent<T = EcoPagesElement> = EcoComponent<LayoutProps<T>, T>;
 
@@ -1019,7 +1022,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	HtmlTemplate: EcoHtmlComponent<C>;
 	Page: EcoComponent<PageProps, C>;
 	Layouts?: EcoComponent[];
-	Layout?: EcoPageLayoutComponent<any>;
+	Layout?: EcoComponent;
 	layoutEntries?: EcoPageLayoutEntry[];
 	dependencies?: EcoComponentDependencies;
 	/** Components returned by the page's dependency resolver, available to Integration render hooks. */

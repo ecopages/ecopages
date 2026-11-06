@@ -7,6 +7,7 @@ import type {
 import type { InternalComponentRenderInput } from '../../../config/internal-types.ts';
 import { getComponentRenderContext } from '../../../eco/component-render-context.ts';
 import type { RouteRenderContextState } from '../foreign-child/render-session.ts';
+import { LayoutChildrenNotRenderedError } from './layout-children-not-rendered-error.ts';
 
 export type DocumentShellLayoutInput = {
 	component: EcoComponent;
@@ -80,23 +81,31 @@ function resolveDocumentShellLayouts(
 	return input.layout ? [input.layout] : [];
 }
 
+/** Marks where a layout's `children` start, so composition can tell whether the layout rendered them. */
+const LAYOUT_CHILDREN_MARKER = '<!--eco-layout-children-->';
+
 /**
  * Default sequential string-child composition for document shell layers.
+ *
+ * @throws {LayoutChildrenNotRenderedError} When a layout's output does not contain its children.
  */
 export async function composeSequentialLayoutChildren(
 	context: DocumentShellComposeChildrenContext,
 	primaryHtml: string,
 ): Promise<DocumentShellComposeChildrenResult> {
-	let children: unknown = primaryHtml;
+	let children = primaryHtml;
 
 	for (const layout of [...context.layouts].reverse()) {
 		const layoutRender = await context.renderComponentWithForeignChildren({
 			component: layout.component,
 			props: layout.props ?? {},
-			children,
+			children: `${LAYOUT_CHILDREN_MARKER}${children}`,
 			integrationContext: { rendererCache: context.rendererCache },
 		});
-		children = layoutRender.html;
+		if (!layoutRender.html.includes(LAYOUT_CHILDREN_MARKER)) {
+			throw LayoutChildrenNotRenderedError.forLayout(layout.component, context.primaryComponent);
+		}
+		children = layoutRender.html.replaceAll(LAYOUT_CHILDREN_MARKER, '');
 	}
 
 	return { children };

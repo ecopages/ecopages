@@ -6,6 +6,7 @@ import {
 	composeSequentialLayoutChildren,
 	type DocumentShellComposeChildrenContext,
 } from './document-shell-render.service.ts';
+import { LayoutChildrenNotRenderedError } from './layout-children-not-rendered-error.ts';
 
 function stubComponent(id: string): EcoComponent {
 	const component = (() => '') as EcoComponent;
@@ -132,12 +133,11 @@ describe('document-shell-render.service', () => {
 
 	it('wraps the primary HTML in layouts from innermost to outermost', async () => {
 		const rendererCache = new Map<string, unknown>();
-		const layoutRender = {
-			html: '<layout><page /></layout>',
+		const renderComponentWithForeignChildren = vi.fn(async (input: { children?: unknown }) => ({
+			html: `<layout>${String(input.children)}</layout>`,
 			canAttachAttributes: true,
 			integrationName: 'test',
-		};
-		const renderComponentWithForeignChildren = vi.fn(async () => layoutRender);
+		}));
 		const Layout = stubComponent('layout');
 
 		const result = await composeSequentialLayoutChildren(
@@ -155,8 +155,62 @@ describe('document-shell-render.service', () => {
 		expect(renderComponentWithForeignChildren).toHaveBeenCalledWith({
 			component: Layout,
 			props: { section: 'docs' },
-			children: '<page />',
+			children: expect.stringContaining('<page />'),
 			integrationContext: { rendererCache },
+		});
+	});
+
+	describe('a layout that does not render its children', () => {
+		const renderWithoutChildren = vi.fn(async (input: { component: EcoComponent; children?: unknown }) => ({
+			html: input.component === Dropping ? '<aside />' : `<main>${String(input.children ?? '')}</main>`,
+			canAttachAttributes: true,
+			integrationName: 'test',
+		}));
+		const Dropping = stubComponent('dropping-layout');
+		const Outer = stubComponent('outer-layout');
+
+		function compose(layouts: EcoComponent[], primaryComponent = stubComponent('page')) {
+			return composeSequentialLayoutChildren(
+				{
+					primaryComponent,
+					primaryProps: {},
+					layouts: layouts.map((component) => ({ component })),
+					rendererCache: new Map(),
+					renderComponentWithForeignChildren: renderWithoutChildren,
+				},
+				'<page />',
+			);
+		}
+
+		it('fails with the name and file of a declared layout', async () => {
+			await expect(compose([Outer, Dropping])).rejects.toThrow(
+				'Layout dropping-layout (/app/dropping-layout.tsx) did not render its children',
+			);
+		});
+
+		it('names a plain layout by its function name and the file of the page that uses it', async () => {
+			const PlainLayout = () => '<aside />';
+
+			await expect(
+				composeSequentialLayoutChildren(
+					{
+						primaryComponent: stubComponent('page'),
+						primaryProps: {},
+						layouts: [{ component: PlainLayout as EcoComponent }],
+						rendererCache: new Map(),
+						renderComponentWithForeignChildren: async () => ({
+							html: '<aside />',
+							canAttachAttributes: true,
+							integrationName: 'test',
+						}),
+					},
+					'<page />',
+				),
+			).rejects.toThrow(new LayoutChildrenNotRenderedError('PlainLayout', '/app/page.tsx'));
+		});
+
+		it('passes a layout that renders its children and removes the check from the output', async () => {
+			await expect(compose([Outer])).resolves.toEqual({ children: '<main><page /></main>' });
 		});
 	});
 });

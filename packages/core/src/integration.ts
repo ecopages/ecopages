@@ -36,6 +36,7 @@ export {
 	type DocumentShellLayoutResolutionInput,
 	type LayoutShellPropsContext,
 } from './route-renderer/orchestration/document-shell/layout-shell-props.service.ts';
+export { LayoutChildrenNotRenderedError } from './route-renderer/orchestration/document-shell/layout-children-not-rendered-error.ts';
 export { isRegisteredDevTransformEntrypoint, isRegisteredScriptEntrypoint } from './hmr/hmr-entrypoint-output.ts';
 export { type HmrRegisteredEntrypointsContext } from './hmr/hmr-registered-entrypoints-context.ts';
 export { HmrStrategy, HmrStrategyType } from './hmr/hmr-strategy.ts';

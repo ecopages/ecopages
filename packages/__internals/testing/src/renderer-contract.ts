@@ -95,8 +95,8 @@ function createDeferredWidget(): EcoComponent {
  * host attributes) against a test renderer. These rows pin what each real
  * renderer must add on top of it: structured output and name, the foreign
  * subtree payload, island stamping, foreign boundaries, a deferred layout that
- * leaves no marker behind, explicit view and filesystem page parity, and a
- * failed render that keeps core's message prefix and the original error as
+ * leaves no marker behind, explicit view and filesystem page parity, a layout
+ * that drops its children failing the render, and a failed render that keeps core's message prefix and the original error as
  * `cause`. Framework-specific cases stay in the Integration's own tests.
  */
 export function describeRendererContract(harness: RendererContractHarness): void {
@@ -217,6 +217,23 @@ export function describeRendererContract(harness: RendererContractHarness): void
 			expect(htmlDocumentHead(explicitHtml)).toContain('Contract title');
 			expect(htmlDocumentHead(explicitHtml)).toBe(htmlDocumentHead(pageHtml));
 			expect(explicitHtml).toBe(pageHtml);
+		});
+
+		it('fails a view whose layout does not render its children', async () => {
+			const renderer = await createPlainRenderer();
+			const layout = makeComponent({ tag: 'aside', asLayout: true });
+			const view = makeView({ text: 'Dropped page', layout });
+
+			const error = await renderer
+				.renderExplicitView(view as EcoFunctionComponent<Record<string, unknown>, unknown>, {}, {})
+				.then(
+					() => undefined,
+					(rejection: unknown) => rejection,
+				);
+
+			expect(((error as Error | undefined)?.cause as Error | undefined)?.message).toMatch(
+				/Layout .+ \(.+\) did not render its children/,
+			);
 		});
 
 		it('fails a view that throws with the core error prefix and the cause', async () => {

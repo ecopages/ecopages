@@ -12,6 +12,7 @@ export type {
 	EcoPagesAppConfig,
 	EcoPagesElement,
 	EcoPageLayoutEntry,
+	EcoPageLayoutEntrySpec,
 	EcoPageLayoutSpec,
 	EcoPageLayouts,
 	EcoHtmlComponent,

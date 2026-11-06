@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EcoComponentConfig, LayoutPropsContext } from '../types/contracts.ts';
+import type { EcoComponentConfig, LayoutProps, LayoutPropsContext } from '../types/contracts.ts';
 import { eco } from './eco.ts';
 import {
 	applyPageLayoutConfig,
@@ -52,6 +52,14 @@ describe('page-layout-normalization', () => {
 		);
 
 		expect(merged?.components).toEqual([Button, OuterLayout, InnerLayout]);
+	});
+
+	it('should keep plain layout functions out of dependencies', () => {
+		const PlainLayout = ({ children }: LayoutProps) => `<plain>${children}</plain>`;
+
+		const merged = mergeLayoutDependencies(undefined, normalizePageLayouts([OuterLayout, PlainLayout]));
+
+		expect(merged?.components).toEqual([OuterLayout]);
 	});
 
 	it('should write layouts and layoutEntries onto page config', () => {

@@ -19,6 +19,7 @@
 		"check:ignored": "node --experimental-strip-types scripts/check-ignored-files.ts",
 		"check:portability": "node scripts/check-portability.ts",
 		"smoke:templates": "pnpm --filter '@ecopages/template-*' --workspace-concurrency=1 exec sh -c 'pnpm run build && test -f dist/client/index.html'",
+		"smoke:recipes": "pnpm --filter '@ecopages/recipe-*' --workspace-concurrency=1 exec sh -c 'ecopages build && test -f dist/client/index.html'",
 		"smoke:start": "node --experimental-strip-types scripts/smoke-start.ts playground/explicit-routes",
 		"smoke:packed": "node --experimental-strip-types scripts/smoke-packed-templates.ts",
 		"check:templates": "node --experimental-strip-types scripts/check-templates.ts",

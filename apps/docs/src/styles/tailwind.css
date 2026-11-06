@@ -5,6 +5,7 @@
 @import './fonts.css';
 @import './components/prose.css';
 @import './components/button.css';
+@import './components/diagram.css';
 @import './vendor/shiki.css';
 
 .rui-heading__title {

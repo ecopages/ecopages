@@ -85,7 +85,7 @@ The React integration supports Node.js modules and server-only code **only on th
 
 Keep server helpers close, but separate them physically or logically so they do not leak into the client bundle.
 
-The `.server` naming rule comes from the browser-safe `@ecopages/core/build/contracts` entry. React applies it during import pruning before core's browser resolution guard runs. A Page that uses `.server.ts` imports only in server options such as `middleware` still builds: the imports and server options are removed before resolution, in every module of the client graph and not only in entries. A binding imported from a `.server` module that is still used outside server options fails the build and names the module and the binding.
+The `.server` naming rule comes from the browser-safe `@ecopages/core/build/contracts` entry. React applies it during import pruning before core's browser resolution guard runs. A Page that uses `.server.ts` imports only in server options such as `middleware`, or in helpers only those options use, still builds: the imports, the options and those helpers are removed before resolution, in every module of the client graph. A stripped import that kept code still uses fails the build and names the binding, its specifier and its `file:line:column`; see [AST Pipeline Order](#ast-pipeline-order).
 
 For a hydratable Page that renders collection MDX, call `createLazyCollectionComponents()` from `@ecopages/react/lazy-collection-components` once at module level with the collection's `/component` loader. Its `get(slug)` returns one `React.lazy` component per slug, so the Page reads `const Content = posts.get(entry.slug)` and renders `<Content />` inside a `<Suspense>` boundary. The server waits for the entry and sends it in the HTML, hydration keeps that HTML until the browser has loaded the entry, and `dependencies` stays server-only and is removed from the Page Browser Graph. Keep the boundary at a fixed place in the Page, not keyed by slug: when a client navigation moves to another entry, React then leaves the current Page on screen until the next entry has loaded instead of showing the fallback. When the browser cannot load an entry during a client navigation (a replaced chunk, a dropped connection), `@ecopages/react-router` falls back to a full navigation to that URL. The helper keeps one lookup per collection outside the Page module. In development, HMR of the Page module therefore renders the already-loaded entry again without the Suspense fallback; the Page's own DOM is still replaced, because the reloaded Page is a new component. An edited MDX file re-renders that entry in place without a document reload. On the server, a reloaded server module graph starts a new lookup.
 
@@ -145,15 +145,16 @@ Important:
 
 ### AST Pipeline Order
 
-The browser-bound transform in [src/client-graph/boundary-plugin.ts](src/client-graph/boundary-plugin.ts) follows this order:
+The browser-bound transform in [src/client-graph/boundary-plugin.ts](src/client-graph/boundary-plugin.ts) runs on every module of the client graph, not only on Page and Layout entries, and plans all of its edits on one parse of the module:
 
-1. Parse the module and build a reachability view of the client render graph.
-2. Remove imports that are not allowed or not reachable from the client graph.
-3. Reparse the transformed source.
-4. Strip server-only `eco.page(...)` object properties from the reparsed AST.
-5. Return the rewritten source to the bundle step.
+1. Build a reachability view of the client render graph.
+2. Remove imports that are not allowed: Node built-ins, `.server` modules, `ecopages:content/*/server` modules and named imports outside the declared `pkg{name}` rules. An import reachable from a client root fails the build instead.
+3. Remove server-only `eco.page(...)` options and, in a module that calls `eco.page(...)`, replace the value of the legacy `getMetadata`, `getStaticProps` and `getStaticPaths` exports with `undefined`.
+4. Remove the non-exported top-level declarations that only removed code used, repeating until nothing else becomes unused, and the imports only that code used.
+5. Fail the build when kept code still uses a binding whose import step 2 removed.
+6. Apply the edits and return the rewritten source to the bundle step.
 
-The reparse step is important. Once import edits change source offsets, the original AST locations are stale. Reusing them for later edits can corrupt the output or remove the wrong code.
+The analysis is scope-aware ([src/client-graph/scope-walk.ts](src/client-graph/scope-walk.ts)): a parameter, local or destructured binding that shadows an import name, a property key and a class member name are not uses of the import. Type positions are not uses either, while the operand of `as`, `satisfies` and `!` is. A JSX element name such as `<Secret />` is a use.
 
 ### Why `eco.page(...)` Options Are Stripped
 
@@ -163,18 +164,28 @@ Consider a page like this:
 
 ```tsx
 import { authMiddleware } from './auth.server';
+import { getPost } from './posts.server';
+
+const staticProps = async () => ({ props: { post: await getPost() } });
 
 export default eco.page({
 	cache: 'dynamic',
 	middleware: [authMiddleware],
 	requires: ['session'] as const,
+	staticProps,
 	render: () => <div>Dashboard</div>,
 });
 ```
 
-If the client transform removes the `auth.server` import but leaves `middleware: [authMiddleware]` in place, the browser bundle still contains a dangling identifier. That breaks production hydration even though the import was removed correctly.
+If the client transform removed the `auth.server` import but left `middleware: [authMiddleware]` in place, the browser bundle would contain a dangling identifier and throw a `ReferenceError` when it loads. The boundary therefore strips the server-only options, then the `staticProps` helper they alone used, while keeping `render` intact.
 
-The fix is to strip server-only `eco.page(...)` options after import pruning, while keeping `render` intact.
+A stripped import still used by kept code fails the build with its `file:line:column`:
+
+```text
+[Ecopages Client Graph] 'authMiddleware' (imported from './auth.server') is used at src/widget.tsx:2:22, but that import is server-only and the browser build removes it. ...
+```
+
+Move that code into a server-only Page option, or into a helper only those options use.
 
 ### Hydration Contract for `locals`
 

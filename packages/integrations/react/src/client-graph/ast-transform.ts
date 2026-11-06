@@ -4,10 +4,10 @@
 
 import { parseModuleSource } from '@ecopages/core/build';
 import { analyzeReachability } from './reachability-analyzer.ts';
-import { stripServerOnlyEcoPageOptions } from './ast-transform-eco-page.ts';
+import { collectServerOnlyPageCode } from './ast-transform-eco-page.ts';
 import { collectImportTransformEdits } from './ast-transform-walk-imports.ts';
 import { walkAstNodes } from './ast-walk.ts';
-import { assertNoDanglingBindingReferences } from './ast-transform-dangling-references.ts';
+import { planStrippedImportCleanup } from './ast-transform-stripped-imports.ts';
 import { applySourceEdits } from './ast-transform-import-edits.ts';
 import {
 	mergeDeclaredModulesMap,
@@ -68,8 +68,13 @@ function propagateRequestedExportRules(
 }
 
 /**
- * Parses a module using Oxc AST and surgically removes forbidden imports.
- * Filters down to the exact specifiers requested via `{namedImport}` syntax.
+ * Parses a module using Oxc AST and removes what must not reach the browser: forbidden imports,
+ * named imports outside the declared rules, server-only Page code, and the top-level code only
+ * that removed code used.
+ *
+ * @remarks
+ * Every edit is planned on the one parse of `source`, so error positions point into it. Throws
+ * when kept code still references a binding whose import is removed.
  */
 export function transformModuleImports(
 	source: string,
@@ -94,40 +99,29 @@ export function transformModuleImports(
 
 	propagateRequestedExportRules(program, filename, reachability, requestedExports);
 
-	const removedBindings: string[] = [];
-	const edits = collectImportTransformEdits(program, {
+	const strippedBindings = new Map<string, string>();
+	const editedImports = new Set<unknown>();
+	const importEdits = collectImportTransformEdits(program, {
 		filename,
 		reachability,
 		allowedMap,
 		preserveUnreachableSideEffectImports,
-		removedBindings,
+		strippedBindings,
+		editedImports,
+	});
+	const pageCode = collectServerOnlyPageCode(program);
+	const cleanupEdits = planStrippedImportCleanup({
+		program,
+		source,
+		filename,
+		strippedNodes: pageCode.strippedNodes,
+		strippedBindings,
+		editedImports,
 	});
 
+	const edits = [...importEdits, ...pageCode.edits, ...cleanupEdits];
 	if (edits.length === 0) {
-		return stripServerOnlyEcoPageOptions(source, program);
+		return { transformed: source, modified: false };
 	}
-
-	const transformed = applySourceEdits(source, edits);
-
-	let reparsedResult;
-	try {
-		reparsedResult = parseModuleSource(filename, transformed);
-	} catch {
-		return { transformed, modified: true };
-	}
-
-	const strippedPageOptions = stripServerOnlyEcoPageOptions(transformed, reparsedResult.program);
-	if (!strippedPageOptions.modified) {
-		assertNoDanglingBindingReferences(filename, reparsedResult.program, removedBindings);
-		return { transformed, modified: true };
-	}
-
-	let strippedProgram;
-	try {
-		strippedProgram = parseModuleSource(filename, strippedPageOptions.transformed).program;
-	} catch {
-		return strippedPageOptions;
-	}
-	assertNoDanglingBindingReferences(filename, strippedProgram, removedBindings);
-	return strippedPageOptions;
+	return { transformed: applySourceEdits(source, edits), modified: true };
 }

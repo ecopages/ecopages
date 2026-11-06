@@ -108,6 +108,11 @@ export interface AppRuntime {
 	 * restores it so rendering never reads source files for recorded dependencies.
 	 */
 	processedAssets: ProcessedAssetLedger;
+	/**
+	 * True while static generation (`ecopages build`) runs. An asset that cannot be processed then
+	 * fails the build.
+	 */
+	staticGenerationActive: boolean;
 }
 
 /**
@@ -160,6 +165,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		productionBrowserGraphsSealed: false,
 		prebuiltBrowserScripts: new Map(),
 		processedAssets: new ProcessedAssetLedger(appConfig.rootDir),
+		staticGenerationActive: false,
 	};
 	appConfig.appRuntime = runtime;
 	try {

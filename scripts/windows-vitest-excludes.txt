@@ -8,6 +8,11 @@
 e2e/fixtures/cache/cache.test.ts
 e2e/fixtures/production-processors/production-processors.test.ts
 e2e/fixtures/production-server-modules/production-server-modules.test.ts
+# Cross-drive server build, kept visible on purpose (ecopages/ecopages#1018).
+# When the app root and an imported module sit on different drives, Rolldown cannot name the module inside
+# preserveModulesRoot, keeps its ../ prefix and rejects it (INVALID_OPTION, "Invalid substitution ... for placeholder [name]")
+# before entryFileNames can rewrite it, so the naming cannot be fixed in Core. The test maps a second drive with subst.
+packages/core/src/build/rolldown/rolldown-cross-drive-build.test.ts
 # These two mock a POSIX project root (/test/project) that does not resolve on Windows.
 packages/core/src/static-site-generator/production-dynamic-collection-browser-graph.test.ts
 packages/core/src/assets/asset-processing-service/processors/script/node-module-script.processor.test.ts

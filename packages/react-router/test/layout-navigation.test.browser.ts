@@ -33,12 +33,11 @@ type LayoutComponent = FC<{ children?: ReactNode }> & {
 type RoutedPage = FC & { config?: { layouts: LayoutComponent[] } };
 
 /**
- * Builds a layout the way each page bundle does: a new function per call, carrying
- * the injected component identity that persistence keys on.
+ * Builds one layout module's export.
  *
  * @remarks
- * Every layout shares one function source and name, as `eco.component` wrappers do, so only
- * the identity tells two layouts apart.
+ * Every layout shares one function source and name, as `eco.layout` wrappers do, so tests that tell layouts
+ * apart rely on the function reference alone.
  */
 function createLayout(
 	testId: string,
@@ -134,7 +133,7 @@ describe('react-router layout navigation', () => {
 	describe('persisted layouts', () => {
 		const docsIdentity = { id: 'docs-layout', file: '/app/src/layouts/docs-layout.tsx' };
 
-		it('keeps the same layout element mounted across pages that import their own copy of it', async () => {
+		it('keeps the same layout element mounted across pages that import the same layout', async () => {
 			let mounts = 0;
 			const MountCounter: FC = () => {
 				useEffect(() => {
@@ -147,12 +146,9 @@ describe('react-router layout navigation', () => {
 			};
 			const withMountCount = (id: string, children: ReactNode) =>
 				createElement('div', { 'data-testid': id }, createElement(MountCounter), children);
-			const indexPage = createPage(
-				'docs-index',
-				[createLayout('docs-layout', docsIdentity, withMountCount)],
-				link('/docs/start', 'go-start'),
-			);
-			const startPage = createPage('docs-start', [createLayout('docs-layout', docsIdentity, withMountCount)]);
+			const docsLayout = createLayout('docs-layout', docsIdentity, withMountCount);
+			const indexPage = createPage('docs-index', [docsLayout], link('/docs/start', 'go-start'));
+			const startPage = createPage('docs-start', [docsLayout]);
 			routeTo({ '/docs/start': startPage });
 
 			mount(indexPage, { persistLayouts: true });
@@ -192,16 +188,13 @@ describe('react-router layout navigation', () => {
 					createElement('button', { type: 'button', onClick: increment, 'data-testid': 'increment' }, '+'),
 				);
 			};
+			const docsLayout = createLayout('docs-layout', docsIdentity, withCounter);
 			const indexPage = createPage(
 				'docs-index',
-				[createLayout('docs-layout', docsIdentity, withCounter)],
+				[docsLayout],
 				createElement('div', null, createElement(CountReadout), link('/docs/start', 'go-start')),
 			);
-			const startPage = createPage(
-				'docs-start',
-				[createLayout('docs-layout', docsIdentity, withCounter)],
-				createElement(CountReadout),
-			);
+			const startPage = createPage('docs-start', [docsLayout], createElement(CountReadout));
 			routeTo({ '/docs/start': startPage });
 
 			mount(indexPage, { persistLayouts: true });

@@ -203,6 +203,15 @@ export async function rewriteModuleImports(options: RewriteModuleImportsOptions)
 	};
 }
 
+/**
+ * @remarks
+ * Plain-module discovery imports the Eco Components of plain modules by absolute file path, so a module
+ * whose plain imports reach a Component carries such a specifier into the browser.
+ */
+function resolveAbsoluteModulePath(specifier: string): string | undefined {
+	return path.isAbsolute(specifier) && fileSystem.exists(specifier) ? path.resolve(specifier) : undefined;
+}
+
 async function resolveImportSpecifier(options: {
 	specifier: string;
 	sourcePath: string;
@@ -226,7 +235,9 @@ async function resolveImportSpecifier(options: {
 	}
 
 	if (options.specifier.startsWith('.') || !isBarePackageImportSpecifier(options.specifier, options.projectRoot)) {
-		const resolvedPath = resolveProjectModulePath(options.projectRoot, options.sourcePath, options.specifier);
+		const resolvedPath =
+			resolveAbsoluteModulePath(options.specifier) ??
+			resolveProjectModulePath(options.projectRoot, options.sourcePath, options.specifier);
 		if (!resolvedPath) {
 			return undefined;
 		}

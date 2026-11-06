@@ -1,22 +1,16 @@
-import { eco } from '@ecopages/core';
+import type { LayoutProps } from '@ecopages/core';
 import type { ReactNode } from 'react';
+import './base-layout.css';
 
-export type BaseLayoutProps = {
-	children: ReactNode;
+export interface BaseLayoutProps extends LayoutProps<ReactNode> {
 	className?: string;
 	id?: string;
-};
+}
 
-export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./base-layout.css'],
-	},
-
-	render: ({ children, className }) => {
-		return (
-			<body>
-				<main className={className}>{children}</main>
-			</body>
-		);
-	},
-});
+export function BaseLayout({ children, className }: BaseLayoutProps) {
+	return (
+		<body>
+			<main className={className}>{children}</main>
+		</body>
+	);
+}

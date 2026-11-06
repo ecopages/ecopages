@@ -12,6 +12,13 @@ export function normalizeLitHtml(markup: string): string {
 	return markup.replace(DUPLICATE_DECLARATIVE_SHADOW_ROOT_ATTRIBUTE, '');
 }
 
+/**
+ * Puts rendered children where the template's slot marker is.
+ *
+ * @remarks
+ * Only a document shell without a marker gets its children before `</body>` or `</html>`. Any other template
+ * without a marker did not render its children, and they are dropped, so layout composition can report it.
+ */
 export function injectLitRenderedChildren(template: string, renderedChildren: string): string {
 	for (const marker of [
 		LIT_COMPONENT_CHILDREN_SLOT_MARKER,
@@ -27,15 +34,15 @@ export function injectLitRenderedChildren(template: string, renderedChildren: st
 		return template.split(LIT_HTML_TEMPLATE_SLOT_MARKER).join(renderedChildren);
 	}
 
+	if (!template.includes('</html>')) {
+		return template;
+	}
+
 	if (template.includes('</body>')) {
 		return template.replace('</body>', `${renderedChildren}</body>`);
 	}
 
-	if (template.includes('</html>')) {
-		return template.replace('</html>', `${renderedChildren}</html>`);
-	}
-
-	return `${template}${renderedChildren}`;
+	return template.replace('</html>', `${renderedChildren}</html>`);
 }
 
 export async function renderLitValueToString(value: unknown): Promise<string> {

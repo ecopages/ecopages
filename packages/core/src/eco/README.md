@@ -18,7 +18,7 @@ The `eco` namespace provides a consistent, type-safe interface for:
 
 ## Layout assignment
 
-Layouts are assigned explicitly on each `eco.page({ layout })` call — either one layout component or an outer→inner array. EcoPages normalizes the stack at factory time to `config.layouts` and `config.layoutEntries`.
+Layouts are assigned explicitly on each `eco.page({ layout })` call — either one layout component or an outer→inner array. `layout` takes an `eco.layout()` result or a plain function typed with `LayoutProps` (its `children` are required), and an entry `{ component, props }` adds a props factory to either. EcoPages normalizes the stack at factory time to `config.layouts` and `config.layoutEntries`, and merges only `eco.layout()` results into `dependencies.components`: a plain layout is composed, not a declared dependency, and its imports reach the page through discovery. Layout composition reports a layout that did not render its `children` (`LayoutChildrenNotRenderedError`): static build output fails, a development request-time render warns, and a production request-time render returns the HTML unchanged.
 
 EcoPages does **not** infer layouts from `src/layouts/` file paths or route segment directories. A file under `src/layouts/` is only used when a page imports it and passes it to `layout`.
 
@@ -26,7 +26,7 @@ EcoPages does **not** infer layouts from `src/layouts/` file paths or route segm
 
 Discovery is enabled by default for modules declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, as well as MDX documents compiled through `@ecopages/mdx/core`. From there it also walks the plain local modules those declarations import, so a plain function can import its own CSS.
 
-Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. Layouts still use `eco.layout()` (or `eco.component()`), and the document shell uses `eco.html()`. Everything else can be a plain function.
+Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. A layout uses `eco.layout()` only for those needs, and the document shell uses `eco.html()`. Everything else, layouts included, can be a plain function.
 
 ```tsx
 import { eco } from '@ecopages/core';

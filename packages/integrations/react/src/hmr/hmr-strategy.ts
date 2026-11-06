@@ -19,10 +19,9 @@ import type { BrowserRuntimeManifest } from '@ecopages/core/build';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core/integration';
 import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
-import { someInConfigTree } from '../client-graph/component-config-traversal.ts';
 import { getReactClientGraphAllowSpecifiers } from '../bundling/runtime-alias-map.ts';
 import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
-import { getComponentIdentity, type EcoComponentConfig } from '@ecopages/core';
+import type { EcoComponentConfig } from '@ecopages/core';
 import {
 	buildReactDevTransformPlugins,
 	resolveReactDeclaredModulesForEntrypoint,
@@ -173,43 +172,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 	private ownsWatchedEntrypoint(filePath: string): boolean {
 		return this.pageMetadataCache.ownsEntrypoint(filePath);
-	}
-
-	private configContainsFile(config: EcoComponentConfig | undefined, filePath: string): boolean {
-		const resolvedFilePath = path.resolve(filePath);
-
-		return someInConfigTree(config, (node) => {
-			const identity = getComponentIdentity(node);
-			if (!identity?.file) {
-				return false;
-			}
-
-			return path.resolve(identity.file) === resolvedFilePath;
-		});
-	}
-
-	private pageModuleRequiresLayoutRefresh(pageModule: ImportedReactPageModule, filePath: string): boolean {
-		return [pageModule.default?.config, pageModule.config].some((config) => {
-			return (config?.layouts ?? []).some((layout) => this.configContainsFile(layout?.config, filePath));
-		});
-	}
-
-	private async hasLayoutOwnedDependencyTarget(
-		changedFilePath: string,
-		requestedTargets: ReactHmrBuildTarget[],
-	): Promise<boolean> {
-		for (const target of requestedTargets) {
-			if (!this.isPageEntrypoint(target.entrypointPath)) {
-				continue;
-			}
-
-			const pageModule = await this.importNodePageModule(target.entrypointPath);
-			if (this.pageModuleRequiresLayoutRefresh(pageModule, changedFilePath)) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	matches(filePath: string): boolean {
@@ -370,8 +332,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 			ownsWatchedEntrypoint: (filePath) => this.ownsWatchedEntrypoint(filePath),
 			isDevTransformOutputUrl: (outputUrl) => this.isDevTransformOutputUrl(outputUrl),
 			collectReactPageBuildTargets: () => this.collectReactPageBuildTargets(),
-			hasLayoutOwnedDependencyTarget: (changedFilePath, requestedTargets) =>
-				this.hasLayoutOwnedDependencyTarget(changedFilePath, requestedTargets),
 			resolveBuildTargets: (requestedTargets, changedFilePath) =>
 				this.resolveBuildTargets(requestedTargets, changedFilePath),
 			partitionBuildTargets: (requestedTargets, groupedPageTargets) =>
@@ -414,7 +374,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			return { type: 'none' };
 		}
 
-		const { requestedTargets, hasLayoutOwnedRequestedTarget: initialLayoutOwned } = await resolveRequestedTargets(
+		const requestedTargets = await resolveRequestedTargets(
 			processContext,
 			changedEntrypointOutput,
 			isLayout,
@@ -430,16 +390,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			groupedPageTargets,
 		);
 
-		let hasLayoutOwnedRequestedTarget = initialLayoutOwned;
-		if (!changedEntrypointOutput) {
-			hasLayoutOwnedRequestedTarget = await processContext.hasLayoutOwnedDependencyTarget(
-				resolvedFilePath,
-				requestedTargets,
-			);
-		}
-
-		const requiresLayoutRefresh =
-			isLayout || dependencyScan.hasOwnedLayoutDependencyHit || hasLayoutOwnedRequestedTarget;
+		const requiresLayoutRefresh = isLayout || dependencyScan.hasOwnedLayoutDependencyHit;
 		const updates = collectHmrUpdateUrls(processContext, requestedTargets, pageTargets, nonPageTargets);
 
 		if (requiresLayoutRefresh) {

@@ -1,7 +1,7 @@
 import type {
 	EcoComponent,
 	EcoHtmlComponent,
-	EcoLayoutComponent,
+	LayoutProps,
 	EcoPagesElement,
 	EcoPageComponent,
 	FileRouteMiddleware,
@@ -59,8 +59,10 @@ function html<E = EcoPagesElement>(options: HtmlOptions<E>): EcoHtmlComponent<E>
 	return createComponentFactory(options) as EcoHtmlComponent<E>;
 }
 
-function layout<E = EcoPagesElement>(options: LayoutOptions<E>): EcoLayoutComponent<E> {
-	return createComponentFactory(options) as EcoLayoutComponent<E>;
+function layout<E = EcoPagesElement, P extends LayoutProps<E> = LayoutProps<E>>(
+	options: LayoutOptions<E, P>,
+): EcoComponent<P, E> {
+	return createComponentFactory(options);
 }
 
 function page<T, E>(

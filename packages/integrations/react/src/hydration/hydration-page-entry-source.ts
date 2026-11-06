@@ -60,9 +60,7 @@ function buildNormalizationImport(options: PageEntrySourceOptions): string {
 
 function buildHmrOptions(options: PageEntrySourceOptions): string {
 	if (!options.hmrEnabled) return '';
-	const layoutStack = options.routerComponents
-		? 'getLayoutStack: (Page) => (Page.config?.layouts ?? []).map((layout) => layout?.config?.identity?.id ?? "").join("|"),'
-		: '';
+	const layoutStack = options.routerComponents ? 'getLayouts: (Page) => Page.config?.layouts ?? [],' : '';
 	return `hmr: {
     importPath: ${JSON.stringify(options.importPath)},
     ${layoutStack}

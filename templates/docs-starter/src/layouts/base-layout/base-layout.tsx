@@ -1,20 +1,19 @@
-import { eco } from '@ecopages/core';
+import { eco, type LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { ThemeToggle } from '@/components/theme-toggle/theme-toggle';
 import { docsNav } from '@/content-nav';
 import './base-layout.css';
 
-export type BaseLayoutProps = {
-	children: JsxRenderable;
+export interface BaseLayoutProps extends LayoutProps<JsxRenderable> {
 	class?: string;
 	/** When `false`, the caller owns the page chrome. */
 	showHeader?: boolean;
-};
+}
 
 const docsIndexHref = docsNav.sections[0]?.items[0]?.href ?? '/docs/getting-started/introduction';
 
-export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
+export const BaseLayout = eco.layout<JsxRenderable, BaseLayoutProps>({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},

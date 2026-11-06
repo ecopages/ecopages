@@ -359,7 +359,7 @@ describe('eco namespace', () => {
 		});
 
 		test('should store layout in config and include in dependencies', async () => {
-			const Layout = eco.component<{ children: string }>({
+			const Layout = eco.layout({
 				render: ({ children }) => `<main class="layout">${children}</main>`,
 			});
 
@@ -375,7 +375,7 @@ describe('eco namespace', () => {
 		});
 
 		test('should render raw content (layout wrapping happens at render time)', async () => {
-			const Layout = eco.component<{ children: string }>({
+			const Layout = eco.layout({
 				render: ({ children }) => `<main class="layout">${children}</main>`,
 			});
 
@@ -393,7 +393,7 @@ describe('eco namespace', () => {
 		});
 
 		test('should include layout in dependencies when provided', () => {
-			const Layout = eco.component<{ children: string }>({
+			const Layout = eco.layout({
 				dependencies: {
 					stylesheets: ['./layout.css'],
 				},

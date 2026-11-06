@@ -30,10 +30,6 @@ const paginationData = JSON.stringify({
 const ECO_NAVIGATION_EVENTS = 'eco:page-load,eco:after-swap';
 const DOCS_SIDEBAR_ID = 'docs-sidebar';
 
-export type DocsLayoutProps = {
-	children: JsxRenderable;
-};
-
 const DocsNavigation = () => (
 	<>
 		{docsNav.sections.map((section, index) => (
@@ -101,7 +97,7 @@ const DocsSiteHeader = () => (
 	</div>
 );
 
-export const DocsLayout = eco.component<DocsLayoutProps, JsxRenderable>({
+export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
 		scripts: [{ src: './docs-layout.script.ts', ssr: true }],

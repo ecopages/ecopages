@@ -27,7 +27,6 @@ export type ReactNavigationOutcome =
 			kind: 'spa';
 			page: LoadedPageModule;
 			direction: NavigationDirection;
-			refreshPersistedLayout: boolean;
 			requestedUrl: string;
 	  }
 	| {
@@ -55,15 +54,10 @@ export type SpaCommitEffects = {
 	restoreScrollPositions: (finalPath: string, isPopState: boolean) => void;
 	updateHistory: (finalPath: string, requestedUrl: string, direction: NavigationDirection) => void;
 	commitPageData: (moduleUrl: string, props: Record<string, unknown>) => void;
-	setCurrentPage: (page: {
-		Component: LoadedPageModule['Component'];
-		props: Record<string, unknown>;
-		refreshPersistedLayout: boolean;
-	}) => void;
+	setCurrentPage: (page: { Component: LoadedPageModule['Component']; props: Record<string, unknown> }) => void;
 	waitForRender: (page: {
 		Component: LoadedPageModule['Component'];
 		props: Record<string, unknown>;
-		refreshPersistedLayout: boolean;
 	}) => Promise<void>;
 	runInReactTransition: (update: () => void) => void;
 	onCommittedPath: (finalPath: string) => void;
@@ -155,7 +149,6 @@ export async function resolveReactNavigation(input: ResolveReactNavigationInput)
 			kind: 'spa',
 			page,
 			direction,
-			refreshPersistedLayout: Boolean(input.moduleUrlOverride),
 			requestedUrl: input.url,
 		};
 	}
@@ -180,12 +173,11 @@ export async function applySpaNavigation(
 	effects: SpaCommitEffects,
 	options: { skipViewTransition: boolean; isPopState: boolean },
 ): Promise<SpaCommitResult> {
-	const { page, requestedUrl, refreshPersistedLayout } = outcome;
+	const { page, requestedUrl } = outcome;
 	const navigationUrl = new URL(page.finalPath, window.location.origin);
 	const nextPage = {
 		Component: page.Component,
 		props: page.props,
-		refreshPersistedLayout,
 	};
 
 	return await commitNavigationPage({

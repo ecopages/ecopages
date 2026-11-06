@@ -1,11 +1,6 @@
 import { eco } from '@ecopages/core';
-import type { EcoPagesElement } from '@ecopages/core';
 
-type LayoutProps = {
-	children: EcoPagesElement;
-};
-
-export const BaseLayout = eco.component<LayoutProps>({
+export const BaseLayout = eco.layout({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},

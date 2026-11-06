@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createContext, useContext, type ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HtmlTemplateProps } from '@ecopages/core';
 import type { IntegrationRendererRenderOptions } from '@ecopages/core/integration';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
@@ -106,5 +106,78 @@ describe('ReactRenderer unified SSR layout composition', () => {
 		const html = String(body);
 		expect(html.indexOf('data-layout="outer"')).toBeLessThan(html.indexOf('data-layout="inner"'));
 		expect(html.indexOf('data-layout="inner"')).toBeLessThan(html.indexOf('data-layout="page"'));
+	});
+
+	describe('a layout that does not render its children', () => {
+		function renderNested(layouts: Array<(props: { children?: ReactNode }) => ReactNode>) {
+			const renderer = new TestReactRenderer({ appConfig, assetProcessingService: assetService });
+			const Page = () => <p>content</p>;
+			Page.config = {
+				identity: { id: 'page', file: '/tmp/pages/nested.tsx', integration: 'react' },
+				layouts,
+				layoutEntries: layouts.map((component) => ({ component })),
+			};
+
+			return renderer.render({
+				file: '/tmp/pages/nested.tsx',
+				params: {},
+				query: {},
+				props: {},
+				locals: undefined,
+				pageLocals: undefined,
+				metadata: appConfig.defaultMetadata,
+				Page: Page as IntegrationRendererRenderOptions<ReactNode>['Page'],
+				HtmlTemplate: (({ children }: HtmlTemplateProps) =>
+					children) as IntegrationRendererRenderOptions<ReactNode>['HtmlTemplate'],
+				resolvedDependencies: [],
+				pageProps: {},
+			});
+		}
+
+		const message = '[ecopages] Layout DroppingLayout (/tmp/pages/nested.tsx) did not render its children';
+		const Outer = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
+		const DroppingLayout = () => <aside>sign in first</aside>;
+
+		afterEach(() => {
+			appConfig.appRuntime!.staticGenerationActive = false;
+			vi.unstubAllEnvs();
+			vi.restoreAllMocks();
+		});
+
+		it('fails static build output, naming a plain layout and the page that uses it', async () => {
+			appConfig.appRuntime!.staticGenerationActive = true;
+
+			await expect(renderNested([Outer, DroppingLayout])).rejects.toThrow(
+				expect.objectContaining({ cause: expect.objectContaining({ message }) }),
+			);
+		});
+
+		it('warns and returns the layout output on a development request-time render', async () => {
+			const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+			await expect(renderNested([Outer, DroppingLayout]).then(String)).resolves.toContain(
+				'<div><aside>sign in first</aside></div>',
+			);
+			expect(warn).toHaveBeenCalledWith(expect.anything(), message, expect.anything());
+		});
+
+		it('returns the layout output without a log on a production request-time render', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+			await expect(renderNested([Outer, DroppingLayout]).then(String)).resolves.toContain(
+				'<div><aside>sign in first</aside></div>',
+			);
+			expect(warn).not.toHaveBeenCalledWith(expect.anything(), message, expect.anything());
+		});
+
+		it('renders a stack whose layouts all render their children', async () => {
+			const Outer = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
+			const Inner = ({ children }: { children?: ReactNode }) => <section>{children}</section>;
+
+			await expect(renderNested([Outer, Inner]).then(String)).resolves.toContain(
+				'<div><section><p>content</p></section></div>',
+			);
+		});
 	});
 });

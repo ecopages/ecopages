@@ -1,14 +1,13 @@
-import { eco } from '@ecopages/core';
+import { eco, type EcoPagesElement, type LayoutProps } from '@ecopages/core';
 import { ThemeToggle } from '@/components/theme-toggle.kita';
+import './base-layout.css';
 
-export type BaseLayoutProps = {
-	children: JSX.Element | JSX.Element[];
+export interface BaseLayoutProps extends LayoutProps<EcoPagesElement> {
 	id?: string;
-};
+}
 
-export const BaseLayout = eco.component<BaseLayoutProps>({
+export const BaseLayout = eco.layout<EcoPagesElement, BaseLayoutProps>({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
 

@@ -1,23 +1,22 @@
-import { eco } from '@ecopages/core';
+import { eco, type LayoutProps } from '@ecopages/core';
 import type { ReactNode } from 'react';
 import { cn } from 'cn';
 import { Logo } from '@/components/logo';
 import { useThemeHotkey } from '@/lib/theme';
 import './base-layout.css';
 
-export type BaseLayoutProps = {
-	children: ReactNode;
+export interface BaseLayoutProps extends LayoutProps<ReactNode> {
 	class?: string;
 	id?: string;
 	prose?: boolean;
-};
+}
 
 function ThemeHotkey(): null {
 	useThemeHotkey();
 	return null;
 }
 
-export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
+export const BaseLayout = eco.layout<ReactNode, BaseLayoutProps>({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},

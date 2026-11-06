@@ -34,7 +34,7 @@ export default eco.page({
 Key elements:
 
 1. **`eco.page`**: Factory for a file-based route page.
-2. **`layout`**: Declared layout component (`eco.layout()` or `eco.component()`). EcoPages wraps `render` output automatically.
+2. **`layout`**: A plain function typed with `LayoutProps`, or an `eco.layout()` result. EcoPages wraps `render` output automatically.
 3. **`metadata`**: Page title, description, and social metadata.
 4. **`dependencies`**: Page-level scripts and components discovery cannot follow (`export *` barrels, packages). Local component and CSS imports, including those of plain function components, are discovered automatically.
 5. **`render`**: Returns JSX for the page body (inside the layout and document shell).
@@ -43,7 +43,7 @@ See [Creating Layouts](/docs/core/layouts) for single and nested layout stacks.
 
 ## Using Components in Pages
 
-Import components directly. Ecopages discovers local `eco.component()`, `eco.layout()`, and `eco.html()` imports automatically, and follows plain function components too: a CSS file a plain component imports reaches the page through the nearest declared component, layout or page that imports it. Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. Layouts use `eco.layout()` and the document shell uses `eco.html()`; every other component can be a plain function.
+Import components directly. Ecopages discovers local `eco.component()`, `eco.layout()`, and `eco.html()` imports automatically, and follows plain function components too: a CSS file a plain component imports reaches the page through the nearest declared component, layout or page that imports it. Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. A layout is a plain function typed with `LayoutProps` unless it needs one of those, then `eco.layout()`; the document shell uses `eco.html()`.
 
 ```tsx
 import { RadiantCounter } from '@/components/radiant-counter';

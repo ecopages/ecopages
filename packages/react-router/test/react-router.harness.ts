@@ -3,7 +3,6 @@ import { act, createElement, type ReactNode } from 'react';
 import type { Root } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/client';
 import { clearNavigationHtmlCache } from '../../core/src/router/client/navigation-document.ts';
-import { clearLayoutCache } from '../src/router.ts';
 
 export function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
 	return new Response(body, {
@@ -200,9 +199,7 @@ export function useRouterTestEnvironment(): RouterTestEnvironment {
 		ctx.container?.remove();
 		vi.restoreAllMocks();
 		clearNavigationHtmlCache();
-		clearLayoutCache();
 		delete window.__ECO_PAGES__;
-		delete (window as typeof window & { __ecoLayoutCache?: unknown }).__ecoLayoutCache;
 	});
 
 	return ctx;

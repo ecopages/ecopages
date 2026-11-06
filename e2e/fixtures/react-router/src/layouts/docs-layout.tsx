@@ -1,12 +1,10 @@
-import { eco } from '@ecopages/core';
+import type { LayoutProps } from '@ecopages/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { DocsLayoutBanner } from './docs-layout-banner';
 import { DocsLayoutSidebarLink } from './docs-layout-sidebar-link';
-
-export type DocsLayoutProps = {
-	children: ReactNode;
-};
+import { LayoutCounter } from './layout-counter';
+import './docs.css';
 
 const sidebarItems = [
 	{ href: '/docs', label: 'Introduction' },
@@ -36,30 +34,25 @@ function countDocsLayoutEvaluation() {
 
 countDocsLayoutEvaluation();
 
-export const DocsLayout = eco.layout<DocsLayoutProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./docs.css'],
-		components: [DocsLayoutSidebarLink],
-	},
-	render: ({ children }) => {
-		return (
-			<QueryClientProvider client={queryClient}>
-				<div className="docs-layout" data-testid="docs-layout">
-					<aside className="docs-sidebar" data-testid="docs-sidebar" data-eco-persist="scroll">
-						<DocsLayoutBanner />
-						<nav>
-							<ul>
-								{sidebarItems.map((item) => (
-									<li key={item.href}>
-										<DocsLayoutSidebarLink href={item.href}>{item.label}</DocsLayoutSidebarLink>
-									</li>
-								))}
-							</ul>
-						</nav>
-					</aside>
-					<main className="docs-content">{children}</main>
-				</div>
-			</QueryClientProvider>
-		);
-	},
-});
+export function DocsLayout({ children }: LayoutProps<ReactNode>) {
+	return (
+		<QueryClientProvider client={queryClient}>
+			<div className="docs-layout" data-testid="docs-layout">
+				<aside className="docs-sidebar" data-testid="docs-sidebar" data-eco-persist="scroll">
+					<DocsLayoutBanner />
+					<LayoutCounter testId="docs-layout-counter" />
+					<nav>
+						<ul>
+							{sidebarItems.map((item) => (
+								<li key={item.href}>
+									<DocsLayoutSidebarLink href={item.href}>{item.label}</DocsLayoutSidebarLink>
+								</li>
+							))}
+						</ul>
+					</nav>
+				</aside>
+				<main className="docs-content">{children}</main>
+			</div>
+		</QueryClientProvider>
+	);
+}

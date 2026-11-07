@@ -4,6 +4,7 @@
  */
 
 import { warnStylesheetOnce } from '@ecopages/core/processor';
+import { path, type PathApi } from '@ecopages/file-system/path';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
 
@@ -86,14 +87,25 @@ export async function transformWithPostcss(
 	const result = await postcss(getPlugins(options)).process(contents, { from: options?.filePath });
 	logWarnings(result, contents, options?.filePath);
 	const css = options?.transformOutput ? await options.transformOutput(result.css) : result.css;
-	const dependencies = result.messages.flatMap((message) =>
+	return { css, dependencies: collectDependencies(result.messages) };
+}
+
+/**
+ * The files the plugins reported reading, with forward slashes.
+ *
+ * @remarks
+ * PostCSS plugins report paths in the host's native form, backslashes on Windows, while every path in core uses
+ * forward slashes. `pathApi` is a parameter so a test can run the Windows form on any host.
+ */
+export function collectDependencies(messages: postcss.Message[], pathApi: PathApi = path): string[] {
+	const dependencies = messages.flatMap((message) =>
 		message.type === 'dependency' &&
 		typeof message.file === 'string' &&
 		!CONTENT_SCANNING_PLUGINS.has(String(message.plugin))
-			? [message.file]
+			? [pathApi.fromNative(message.file)]
 			: [],
 	);
-	return { css, dependencies: [...new Set(dependencies)] };
+	return [...new Set(dependencies)];
 }
 
 /**

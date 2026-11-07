@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { Logger } from '@ecopages/logger';
-import { path } from '@ecopages/file-system/path';
+import { createPath, path } from '@ecopages/file-system/path';
 import postcss, { CssSyntaxError } from 'postcss';
 import postCssSimpleVars from 'postcss-simple-vars';
 import postcssImport from 'postcss-import';
-import { PostCssProcessor, transformWithPostcss } from '../postcss-processor';
+import { PostCssProcessor, collectDependencies, transformWithPostcss } from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
 
 const noop: postcss.AcceptedPlugin = { postcssPlugin: 'noop' };
@@ -114,6 +114,21 @@ describe('PostCssProcessor', () => {
 		});
 
 		expect(result.dependencies).toEqual([path.resolve(__dirname, './css/base.css')]);
+	});
+
+	test('collectDependencies reports a Windows path with forward slashes, once', () => {
+		const message = (file: string): postcss.Message => ({
+			type: 'dependency',
+			plugin: 'postcss-import',
+			file,
+			parent: '',
+		});
+		expect(
+			collectDependencies(
+				[message('D:\\app\\css\\base.css'), message('D:/app/css/base.css'), message('D:\\app\\css\\b.css')],
+				createPath('win32'),
+			),
+		).toEqual(['D:/app/css/base.css', 'D:/app/css/b.css']);
 	});
 
 	describe('warnings', () => {

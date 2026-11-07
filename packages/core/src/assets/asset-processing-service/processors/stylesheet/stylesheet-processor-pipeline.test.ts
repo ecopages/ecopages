@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { Processor } from '../../../../plugins/processor.ts';
@@ -73,7 +74,7 @@ describe('applyStylesheetProcessors', () => {
 		const config = { processors } as unknown as EcoPagesAppConfig;
 		expect(await applyStylesheetProcessors(config, '.a {}', '/app/card.scss')).toEqual({
 			css: '.a {}',
-			dependencies: ['/app/base.scss'],
+			dependencies: [path.resolve('/app/base.scss')],
 		});
 	});
 

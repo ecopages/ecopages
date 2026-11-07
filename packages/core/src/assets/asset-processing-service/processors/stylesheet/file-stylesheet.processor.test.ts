@@ -272,3 +272,72 @@ test('wraps the inlined contents of a conditional @import in its layer, supports
 		].join('\n'),
 	);
 });
+
+function writeAppFile(name: string, contents: string | Buffer): string {
+	const file = path.join(rootDir, name);
+	mkdirSync(path.dirname(file), { recursive: true });
+	writeFileSync(file, contents);
+	return file;
+}
+
+test('emits the files the processed output of an app stylesheet references, resolved from the source file', async () => {
+	writePackageFile('files/x.woff2', 'font-x');
+	writeAppFile('src/images/bg.png', 'png');
+	const stylesheet = writeAppFile('src/styles/site.css', '@import "some-lib";');
+	const appConfig = createConfig();
+	appConfig.processors.set('postcss', {
+		transformStylesheet: async () =>
+			"@import url(/remote.css);\n@font-face { src: url('../../node_modules/some-lib/files/x.woff2?v=1'); }\n.a { background: url(../images/bg.png), url(/root.png); }",
+		canProcessAsset: () => true,
+	} as never);
+
+	const processed = await new FileStylesheetProcessor({ appConfig }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+	});
+	const assetsDir = path.join(rootDir, '.eco/public/assets');
+	const fontName = `${hashBrowserAssetBytes('font-x')}.woff2`;
+	const imageName = `${hashBrowserAssetBytes('png')}.png`;
+
+	expect(readFileSync(processed.filepath!, 'utf-8')).toBe(
+		`@import url(/remote.css);\n@font-face { src: url("${fontName}?v=1"); }\n.a { background: url("${imageName}"), url(/root.png); }`,
+	);
+	expect(readFileSync(path.join(assetsDir, fontName), 'utf-8')).toBe('font-x');
+	expect(existsSync(path.join(assetsDir, imageName))).toBe(true);
+});
+
+test('names emitted files relative to a development stylesheet and root-relative in an inline one', async () => {
+	vi.stubEnv('NODE_ENV', 'development');
+	writeAppFile('src/images/bg.png', 'png');
+	const stylesheet = writeAppFile('src/styles/site.css', '.a { background: url(../images/bg.png); }');
+	const imageName = `${hashBrowserAssetBytes('png')}.png`;
+
+	const linked = await new FileStylesheetProcessor({ appConfig: createConfig() }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+	});
+	const inline = await new FileStylesheetProcessor({ appConfig: createConfig() }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+		inline: true,
+	});
+
+	expect(linked.filepath).toBe(path.join(rootDir, '.eco/public/assets/styles/site.css'));
+	expect(readFileSync(linked.filepath!, 'utf-8')).toBe(`.a { background: url("../${imageName}"); }`);
+	expect(inline.content).toBe(`.a { background: url("/assets/${imageName}"); }`);
+});
+
+test('fails on an app stylesheet url that names a missing file', async () => {
+	const stylesheet = writeAppFile('src/site.css', '.a { background: url(./missing.png); }');
+
+	await expect(
+		new FileStylesheetProcessor({ appConfig: createConfig() }).process({
+			kind: 'stylesheet',
+			source: 'file',
+			filepath: stylesheet,
+		}),
+	).rejects.toThrow(`${stylesheet}: url(./missing.png) names`);
+});

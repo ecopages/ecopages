@@ -12,6 +12,7 @@ sources:
   - packages/processors/postcss-processor/src/presets/
   - packages/core/src/plugins/processor.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts
+  - packages/core/src/assets/asset-processing-service/processors/stylesheet/file-stylesheet.processor.ts
 ---
 
 # PostCSS processor
@@ -31,7 +32,7 @@ flowchart TD
   T --> D["Page stylesheet asset, or default export of an imported CSS module"]
 ```
 
-- Asset pipeline: for every `.css`, `.scss`, `.sass` or `.less` dependency, core calls `transformStylesheet` on each Processor whose `stylesheet` capability matches, in registration order, each receiving the previous output. This is how `config.dependencies.stylesheets` and content stylesheets get processed. A package stylesheet that discovery found (`import 'some-lib/style.css'`, an asset with `fromPackage`) skips this step: core only rewrites its `url()` references and inlines its `@import`s, so Tailwind and the preset plugins never run on third-party CSS (see [/dev/pages-layouts-components](/dev/pages-layouts-components#package-stylesheets)).
+- Asset pipeline: for every `.css`, `.scss`, `.sass` or `.less` dependency, core calls `transformStylesheet` on each Processor whose `stylesheet` capability matches, in registration order, each receiving the previous output. This is how `config.dependencies.stylesheets` and content stylesheets get processed. For a file stylesheet, core then resolves each relative `url()` and `image-set()` string in the output from the real directory of the source file, emits the file it names to `dist/client/assets` under a content hash, and rewrites the reference relative to where the stylesheet is written, or root-relative when it is inlined; a reference to a missing file fails the build (`emitStylesheetReferences`). A package stylesheet that discovery found (`import 'some-lib/style.css'`, an asset with `fromPackage`) skips this step: core only rewrites its `url()` references and inlines its `@import`s, so Tailwind and the preset plugins never run on third-party CSS (see [/dev/pages-layouts-components](/dev/pages-layouts-components#package-stylesheets)).
 - Browser build loader: `plugins()` returns one loader with `environments: ['browser']`. It runs PostCSS on any matching stylesheet a browser build imports and returns it as the module's `default` export (`loader: 'object'`), including files outside `srcDir` or added after the prewarm.
 
 Server builds register nothing for CSS: the bundler replaces their stylesheet imports with an empty module before any plugin loads them.
@@ -63,7 +64,7 @@ Note that a config file wins over options.
 
 ## Presets
 
-`src/presets/` holds `tailwindV3Preset()` and `tailwindV4Preset({ referencePath })`. Both return `plugins` for immediate use and `pluginFactories`, with `postcss-import` (app-aware, resolving from the app root), nesting, Tailwind, autoprefixer and cssnano.
+`src/presets/` holds `tailwindV3Preset()` and `tailwindV4Preset({ referencePath })`. Both return `plugins` for immediate use and `pluginFactories`, with `postcss-import` (app-aware, resolving from the app root), nesting, Tailwind, autoprefixer and cssnano. `createAppAwarePostcssImport` runs `postcss-import` and then rebases the relative `url()` references of every declaration it inlined from another file onto the importing stylesheet, so `url(files/font.woff2)` from `@import '@fontsource/inter'` still names the package's file when core resolves it from the app's stylesheet. Both ends are real paths, since `postcss-import` reads an imported file through its symlinks.
 
 Factories exist because Tailwind keeps internal caches in long-lived plugin instances: when a non-CSS file changes, `refreshConfiguredPlugins` rebuilds the list from them so newly used classes are found.
 

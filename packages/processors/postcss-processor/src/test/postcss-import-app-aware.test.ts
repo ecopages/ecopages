@@ -53,4 +53,39 @@ describe('createAppAwarePostcssImport', () => {
 
 		expect(result).toContain('.theme{color:red}');
 	});
+
+	test('rebases the relative urls of inlined files onto the importing stylesheet', async () => {
+		const tempRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-import-'));
+		tempDirs.push(tempRoot);
+
+		const appRoot = path.join(tempRoot, 'app');
+		const stylesDir = path.join(appRoot, 'src', 'styles');
+		const packageDir = path.join(appRoot, 'node_modules', '@fontsource', 'mono');
+		mkdirSync(path.join(stylesDir, 'partials'), { recursive: true });
+		mkdirSync(packageDir, { recursive: true });
+		writeFileSync(path.join(appRoot, 'package.json'), JSON.stringify({ name: 'app', private: true }));
+		writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: '@fontsource/mono', style: 'index.css' }),
+		);
+		writeFileSync(
+			path.join(packageDir, 'index.css'),
+			"@font-face{src:url(files/mono.woff2?v=1) format('woff2'),url('./files/mono.woff') format('woff'),url(data:font/woff2;base64,AA)}",
+		);
+		writeFileSync(
+			path.join(stylesDir, 'partials', 'bg.css'),
+			'.bg{background:url("../images/bg.png#x"),url(/root.png)}',
+		);
+
+		const result = await PostCssProcessor.processStringOrBuffer(
+			"@import '@fontsource/mono';\n@import './partials/bg.css';\n.own{background:url(own.png)}",
+			{ filePath: path.join(stylesDir, 'site.css'), plugins: [createAppAwarePostcssImport(appRoot)] },
+		);
+
+		expect(result).toContain(
+			'src:url("../../node_modules/@fontsource/mono/files/mono.woff2?v=1") format(\'woff2\'),url("../../node_modules/@fontsource/mono/files/mono.woff") format(\'woff\'),url(data:font/woff2;base64,AA)',
+		);
+		expect(result).toContain('.bg{background:url("images/bg.png#x"),url(/root.png)}');
+		expect(result).toContain('.own{background:url(own.png)}');
+	});
 });

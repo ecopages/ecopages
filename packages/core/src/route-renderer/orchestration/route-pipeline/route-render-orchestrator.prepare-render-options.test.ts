@@ -51,6 +51,11 @@ function createScriptAsset(srcUrl: string, overrides: Partial<ProcessedAsset> = 
 	return { kind: 'script', srcUrl, position: 'head', ...overrides } as ProcessedAsset;
 }
 
+/** The asset as the page package lists an Integration's global script. */
+function asGlobalScript(asset: ProcessedAsset): ProcessedAsset {
+	return { ...asset, attributes: { ...asset.attributes, 'data-eco-global-script': '' } };
+}
+
 /**
  * Builds a {@link RouteRenderOrchestrator} over a recording `processDependencies` double.
  *
@@ -234,7 +239,11 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect((result as typeof result & { layoutMode?: string }).layoutMode).toBe('full');
 		expect(result.pagePackage).toEqual(
 			expect.objectContaining({
-				assets: expect.arrayContaining([resolvedDependency, integrationDependency, pageDependency]),
+				assets: expect.arrayContaining([
+					resolvedDependency,
+					asGlobalScript(integrationDependency),
+					pageDependency,
+				]),
 				pageBrowserGraph: {
 					entryAssets: [pageDependency],
 					chunkAssets: [],
@@ -359,7 +368,9 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		expect(result.pageDependencyComponents).toEqual([resolvedContent]);
 		expect(result.pagePackage).toEqual(
-			expect.objectContaining({ assets: expect.arrayContaining([integrationDependency, pageDependency]) }),
+			expect.objectContaining({
+				assets: expect.arrayContaining([asGlobalScript(integrationDependency), pageDependency]),
+			}),
 		);
 	});
 
@@ -595,7 +606,9 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			createFlowRenderer({ Page }),
 		);
 
-		expect(result.pagePackage).toEqual(expect.objectContaining({ assets: [integrationDependency] }));
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({ assets: [asGlobalScript(integrationDependency)] }),
+		);
 	});
 
 	it('places the global scripts of a foreign Integration before the component scripts of the page', async () => {
@@ -621,7 +634,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		});
 
 		expect(result.pagePackage).toEqual(
-			expect.objectContaining({ assets: [hydrateSupport, elementScript, clientAsset] }),
+			expect.objectContaining({ assets: [asGlobalScript(hydrateSupport), elementScript, clientAsset] }),
 		);
 	});
 
@@ -655,7 +668,9 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		});
 
 		expect(result.pagePackage).toEqual(
-			expect.objectContaining({ assets: [hydrateSupport, radiantHydrator, elementScript] }),
+			expect.objectContaining({
+				assets: [asGlobalScript(hydrateSupport), asGlobalScript(radiantHydrator), elementScript],
+			}),
 		);
 	});
 

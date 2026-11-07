@@ -144,7 +144,7 @@ describe('HydrationAssetService', () => {
 				groupedBundle: { id: APP_BROWSER_CLIENT_BUNDLE_ID },
 			},
 		});
-		expect(contentOf(entries[0]?.dependency)).toContain(islandA);
+		expect(contentOf(entries[0]?.dependency)).toContain(JSON.stringify(islandA));
 		expect(importedSpecifiers(contentOf(entries[0]?.dependency))).toEqual([
 			'react-dom/client',
 			'react',

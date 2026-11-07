@@ -26,7 +26,7 @@ sources:
 
 ## Bundling
 
-`bundleStylesheet` calls `bundleAsync` with a resolver whose `read` serves the in-memory source of the entry, so the stylesheet that core hands over is the one bundled, and reads a partial from disk. Each file goes through core's CSS scanner (`scanCss`) before Lightning CSS sees it:
+`bundleStylesheet` first walks the imports depth first, in the order written, so what is hoisted and which import closes a cycle do not depend on the order Lightning CSS reads files in. It then calls `bundleAsync` with a resolver whose `read` serves the prepared CSS: the in-memory source of the entry, so the stylesheet that core hands over is the one bundled, and each partial from disk. Each file goes through core's CSS scanner (`scanCss`) as it is walked:
 
 - Its relative `url()` references are rebased onto the entry with `rebaseStylesheetReferences`. Lightning CSS does not rewrite them, and core resolves the output's references from the entry's directory.
 - Its `@import` specifiers are resolved by `resolveImport`, as core does: a path relative to the importer or a sibling first, then a tsconfig alias (`resolveProjectImportPath`), then a package (`resolvePackageStylesheetPath`). Only a `.css` file that is not a dotfile is bundled.

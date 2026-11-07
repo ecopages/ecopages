@@ -27,19 +27,29 @@ export type BundledStylesheet = {
 	dependencies: string[];
 };
 
-/** How an `@import` specifier resolves: to the real path of a stylesheet, or to nothing, so the statement stays as written. */
-type Resolution = { file: string } | { file?: undefined };
+/** A stylesheet an `@import` names: the path as core reads it, and its real path, which identifies it. */
+type ImportedStylesheet = { located: string; real: string };
 
 const resolutionKey = (importer: string, specifier: string): string => `${importer}\0${specifier}`;
 
-/** The state of bundling one stylesheet. */
+/**
+ * The state of bundling one stylesheet.
+ *
+ * @remarks
+ * `prepare` walks the imports depth first, in the order written, before Lightning CSS runs, so what is hoisted and
+ * which import closes a cycle do not depend on the order Lightning CSS reads files in. A relative `@import` resolves
+ * from the path as written, symlinks included, and a `url()` from the real directory, as core's scanner does for the
+ * same file. Lightning CSS only ever sees real paths.
+ */
 class StylesheetBundle {
 	readonly dependencies = new Set<string>();
-	/** What each file imported, in the order written: a statement that stays external, or a partial bundled. */
-	private readonly written = new Map<string, ({ external: string } | { partial: string })[]>();
+	/** The `@import` statements that stay external, in the order core hoists them. */
+	readonly hoisted: string[] = [];
+	/** The prepared CSS of each file, by real path. */
+	private readonly scanned = new Map<string, string>();
 	private readonly resolutions = new Map<string, string>();
-	/** The partials each file has imported so far, to find an `@import` that closes a cycle. */
-	private readonly imports = new Map<string, Set<string>>();
+	/** The real paths of the files being walked, innermost last. */
+	private readonly stack: string[] = [];
 
 	constructor(
 		private readonly entry: string,
@@ -74,108 +84,74 @@ class StylesheetBundle {
 	 * names nothing usable is left as written with a warning that names the importer, and a missing `.css` file is
 	 * a dependency, so creating it rebuilds the stylesheet.
 	 */
-	private resolveImport(specifier: string, importer: string): Resolution {
-		if (isExternalReference(specifier)) return {};
+	private resolveImport(specifier: string, importer: string): ImportedStylesheet | undefined {
+		if (isExternalReference(specifier)) return undefined;
 		const located = this.locate(specifier, importer);
 		if (!located || !fileSystem.exists(located)) {
 			if (located && path.extname(located).toLowerCase() === '.css') this.dependencies.add(path.resolve(located));
 			this.warn(
 				`@import ${JSON.stringify(specifier)} in ${importer} names ${located ?? 'nothing that resolves'}, which does not exist, so it is left as written.`,
 			);
-			return {};
+			return undefined;
 		}
 		const real = fileSystem.realpath(located);
 		if (path.extname(real).toLowerCase() !== '.css' || path.basename(real).startsWith('.')) {
 			this.warn(
 				`@import ${JSON.stringify(specifier)} in ${importer} names ${real}, which is not a stylesheet, so it is left as written.`,
 			);
-			return {};
+			return undefined;
 		}
-		return { file: real };
-	}
-
-	private reaches(from: string, to: string): boolean {
-		const seen = new Set<string>();
-		const pending = [from];
-		for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
-			if (file === to) return true;
-			if (seen.has(file)) continue;
-			seen.add(file);
-			pending.push(...(this.imports.get(file) ?? []));
-		}
-		return false;
+		return { located, real };
 	}
 
 	/**
-	 * Whether the `@import` of `target` from `importer` closes a cycle, which is then skipped with a warning.
+	 * Prepares `file` for Lightning CSS: its `url()` references rebased onto the entry, and its `@import`s resolved, with
+	 * each partial prepared where it is imported.
 	 *
 	 * @remarks
-	 * Lightning CSS drops the CSS of every stylesheet in a cycle, so the `@import` that closes it is removed instead,
-	 * and each stylesheet in it is inlined once, as core does.
+	 * An external `@import` is taken out to be hoisted, since Lightning CSS fails on one that follows a bundled
+	 * `@import`, where core hoists them all to the top of the output. An `@import` that closes a cycle is taken out
+	 * with a warning, since Lightning CSS drops the CSS of every stylesheet in a cycle, where core inlines each once.
 	 */
-	private closesCycle(specifier: string, importer: string, target: string): boolean {
-		if (!this.reaches(target, importer)) {
-			this.imports.set(importer, (this.imports.get(importer) ?? new Set()).add(target));
-			return false;
-		}
-		this.warn(
-			`@import ${JSON.stringify(specifier)} in ${importer} names ${target}, which imports ${importer}, so it is skipped.`,
-		);
-		return true;
-	}
-
-	private record(importer: string, item: { external: string } | { partial: string }): void {
-		this.written.set(importer, [...(this.written.get(importer) ?? []), item]);
-	}
-
-	/**
-	 * The external `@import`s in the order core hoists them: depth first, so a partial's come where its `@import` was
-	 * written.
-	 *
-	 * @remarks
-	 * Lightning CSS reads the files in an order of its own, so the order is rebuilt from what each file held.
-	 */
-	hoisted(): string[] {
-		const seen = new Set<string>();
-		const visit = (file: string): string[] => {
-			if (seen.has(file)) return [];
-			seen.add(file);
-			return (this.written.get(file) ?? []).flatMap((item) =>
-				'external' in item ? [item.external] : visit(item.partial),
-			);
-		};
-		return visit(this.entry);
-	}
-
-	/**
-	 * Reads one file for Lightning CSS: the entry from memory, a partial from disk with its `url()` references
-	 * rebased onto the entry, and its external `@import`s taken out to be hoisted.
-	 *
-	 * @remarks
-	 * Lightning CSS fails on an external `@import` that follows a bundled one, where core hoists them all to the top
-	 * of the output, so they are removed here and put back by the caller.
-	 */
-	read(file: string): string {
-		const importer = path.resolve(file);
-		const isEntry = importer === this.entry;
-		let css = isEntry ? this.source : fileSystem.readFileSync(importer);
+	prepare(file = this.entry): void {
+		const real = fileSystem.exists(file) ? fileSystem.realpath(file) : file;
+		if (this.scanned.has(real)) return;
+		this.scanned.set(real, '');
+		this.stack.push(real);
+		const isEntry = file === this.entry;
+		let css = isEntry ? this.source : fileSystem.readFileSync(file);
 		if (!isEntry) {
-			this.dependencies.add(importer);
-			css = rebaseStylesheetReferences(css, importer, this.entry);
+			this.dependencies.add(file);
+			css = rebaseStylesheetReferences(css, file, this.entry);
 		}
-		return scanCss(css, {
-			import: (statement) => {
-				const { file: resolved } = this.resolveImport(statement.specifier, importer);
-				if (!resolved) {
-					this.record(importer, { external: statement.statement });
-					return '';
-				}
-				if (this.closesCycle(statement.specifier, importer, resolved)) return '';
-				this.record(importer, { partial: resolved });
-				this.resolutions.set(resolutionKey(importer, statement.specifier), resolved);
-				return undefined;
-			},
-		});
+		this.scanned.set(
+			real,
+			scanCss(css, {
+				import: (statement) => {
+					const imported = this.resolveImport(statement.specifier, file);
+					if (!imported) {
+						this.hoisted.push(statement.statement);
+						return '';
+					}
+					if (this.stack.includes(imported.real)) {
+						this.warn(
+							`@import ${JSON.stringify(statement.specifier)} in ${file} names ${imported.real}, which imports ${file}, so it is skipped.`,
+						);
+						return '';
+					}
+					this.resolutions.set(resolutionKey(real, statement.specifier), imported.real);
+					this.prepare(imported.located);
+					return undefined;
+				},
+			}),
+		);
+		this.stack.pop();
+	}
+
+	read(file: string): string {
+		const css = this.scanned.get(path.resolve(file));
+		if (css === undefined) throw new Error(`${file} was not prepared before bundling.`);
+		return css;
 	}
 
 	resolve(specifier: string, originatingFile: string): string {
@@ -203,11 +179,12 @@ export async function bundleStylesheet(
 	options: ResolvedLightningCssOptions,
 ): Promise<BundledStylesheet> {
 	const { bundleAsync } = await loadLightningCss();
-	const entry = fileSystem.exists(file) ? fileSystem.realpath(file) : path.resolve(file);
+	const entry = path.resolve(file);
 	const bundle = new StylesheetBundle(entry, css, rootDir);
+	bundle.prepare();
 	const result = await bundleAsync({
 		...options,
-		filename: entry,
+		filename: fileSystem.exists(entry) ? fileSystem.realpath(entry) : entry,
 		resolver: {
 			read: (source) => bundle.read(source),
 			resolve: (specifier, originatingFile) => bundle.resolve(specifier, originatingFile),
@@ -215,7 +192,7 @@ export async function bundleStylesheet(
 	});
 	return {
 		code: result.code,
-		hoisted: bundle.hoisted(),
+		hoisted: bundle.hoisted,
 		warnings: result.warnings,
 		dependencies: [...bundle.dependencies].filter((dependency) => dependency !== entry),
 	};

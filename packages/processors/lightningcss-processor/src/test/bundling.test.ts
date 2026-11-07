@@ -115,19 +115,22 @@ describe('@import bundling', () => {
 		);
 	});
 
-	test('does not hang on an import cycle, and skips the import that closes it', async () => {
-		write('src/styles/a.css', '@import "./b.css";\n.a { color: red; }');
-		write('src/styles/b.css', '@import "./a.css";\n.b { color: red; }');
-		const main = write('src/styles/main.css', '@import "./a.css";');
+	test.each([
+		['a then b', '@import "./a.css";\n@import "./b.css";', '.a{color:red}.b{color:green}'],
+		['b then a', '@import "./b.css";\n@import "./a.css";', '.b{color:green}.a{color:red}'],
+	])(
+		'skips the import that closes a cycle whatever the read order, importing %s',
+		async (_name, imports, expected) => {
+			write('src/styles/a.css', '@import "./b.css";\n.a { color: red; }');
+			write('src/styles/b.css', '@import "./a.css";\n.b { color: green; }');
+			const main = write('src/styles/main.css', imports);
 
-		const result = await transform(main);
+			const result = await transform(main);
 
-		expect(result.css).toBe('.b{color:red}.a{color:red}');
-		expect(warn).toHaveBeenCalledTimes(1);
-		expect(String(warn.mock.calls[0]?.[0])).toContain(
-			`@import "./a.css" in ${path.join(rootDir, 'src/styles/b.css')}`,
-		);
-	});
+			expect(result.css).toBe(expected);
+			expect(warn).toHaveBeenCalledTimes(1);
+		},
+	);
 
 	test('warns about a missing partial, naming the importer, and depends on it', async () => {
 		const main = write('src/styles/main.css', '@import "./missing.css";\n.a { color: red; }');

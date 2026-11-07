@@ -37,7 +37,9 @@ const contentOf = (dependency: unknown): string => String((dependency as { conte
 
 /** Package specifiers a generated entry imports. */
 const importedSpecifiers = (source: string): string[] =>
-	[...source.matchAll(/from "([^"]+)"/g)].map((match) => match[1]!).filter((specifier) => !path.isAbsolute(JSON.parse(`"${specifier}"`)));
+	[...source.matchAll(/from "([^"]+)"/g)]
+		.map((match) => match[1]!)
+		.filter((specifier) => !path.isAbsolute(JSON.parse(`"${specifier}"`)));
 
 describe('HydrationAssetService', () => {
 	it('makes a Page entry without a router an entry of the app-wide browser build', async () => {

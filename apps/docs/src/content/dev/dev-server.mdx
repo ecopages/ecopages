@@ -105,7 +105,7 @@ There are two graphs because a build takes one list of resolve conditions: `@eco
 
 A rebuild must not change a file the browser already loaded, or the page reloads. Two rules keep served files stable as packages arrive:
 
-- A dev-transform contributor declares the bare specifiers its generated modules import (`getVendorEntries`), and they join the graph before its first build. They resolve from the app root. React declares `react`, its JSX runtimes, `react-dom`, `react-dom/client`, its bootstraps and the router.
+- A dev-transform contributor declares the bare specifiers its generated modules import (`getVendorEntries`), with a directory inside its own package (`resolveFrom`), and they join the graph before its first build. They resolve from that directory, so a dependency only the integration declares is in the first build. React declares `react`, its JSX runtimes, `react-dom`, `react-dom/client`, its bootstraps and the router.
 - Each build has a pin entry that re-exports every Rolldown runtime helper and the namespace of every entry with no `import` or `export` statement. The shared runtime chunk then has the same content in every build, and a CommonJS entry exports its `require` function from the first build instead of from the build that adds a second importer.
 
 | Behavior | Rule |
@@ -114,9 +114,9 @@ A rebuild must not change a file the browser already loaded, or the page reloads
 | Chunk URL | `/assets/vendors/<name>-<content hash>.js` |
 | Batching | a new entry schedules a rebuild after a 50 ms quiet period, so the bare imports of one page load share one build; the import rewriter resolves a module's specifiers at once, so its new bare imports join one build |
 | Storage | outputs stay in process memory; nothing is written under `dist` |
-| Seeding | every known specifier and the directory it resolved from, failing ones included, is written to `dev-vendor-entries.json` in the work directory; the next process seeds from it and builds the full graph on its first request instead of rebuilding and reloading |
+| Seeding | every known specifier and directory pair that reached an entry, failing ones included, is written to `dev-vendor-entries.json` in the work directory; the next process seeds from it and builds the full graph on its first request instead of rebuilding and reloading |
 | Failures | a failed graph build retries entry by entry; entries that fail alone answer `500` with the prebundle error and the rest build without them. A graph that fails as a whole, with no single failing entry or a thrown error, logs the error and keeps serving each entry's last good output; an entry without one answers `500` and is retried by a request made 2 s or more later |
-| Installs | a change to a lockfile or install manifest (such as `node_modules/.modules.yaml`), checked on asset requests at most once per 300 ms, invalidates compiled modules and vendor graphs, so an install during the session takes effect without a restart; until the rebuild commits, chunk URLs are served from the previous build |
+| Installs | a change to a lockfile or install manifest (such as `node_modules/.modules.yaml`), checked on asset requests at most once per 300 ms, invalidates compiled modules and vendor graphs and resolves each specifier again from every directory that reached its entry, so an install during the session takes effect without a restart; until the rebuild commits, chunk URLs are served from the previous build |
 | Changes | when a rebuild changes or drops a file a browser already received, from that build or an earlier one the rebuild kept it from, the HMR manager broadcasts `reload`, since mixing old and new chunks could load a module twice |
 | Caching | responses carry `Cache-Control: no-cache` and a content `ETag`, so the browser revalidates and gets `304` while the content holds |
 

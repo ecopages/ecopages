@@ -6,7 +6,10 @@ import { RESOLVED_ASSETS_VENDORS_DIR } from '../../constants.ts';
 import { resolveAppBuildPlugins } from '../../build/runtime/build-request-policy.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import type { BuildFailure, BuildResult } from '../../build/contracts/build-contracts.ts';
-import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
+import {
+	clearBarePackageResolverCaches,
+	resolveBarePackageBrowserEntry,
+} from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
@@ -15,6 +18,7 @@ import { appLogger } from '../../global/app-logger.ts';
 import { parseModuleSource } from '../../cache/module-parse-cache.ts';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
 import type { VendorImport } from './dev-transform-import-rewriter.ts';
+import type { DevTransformVendorEntries } from '../../types/dev-transform-types.ts';
 
 const BROWSER_FIRST_VENDOR_CONDITIONS = ['browser', 'module', 'import', 'default'] as const;
 const MODULE_FIRST_VENDOR_CONDITIONS = ['module', 'import', 'default'] as const;
@@ -25,12 +29,19 @@ const VENDOR_ENTRIES_FILE = 'dev-vendor-entries.json';
 
 type VendorGraphKey = 'browser-first' | 'module-first';
 
-/** One known dependency entry: a bare specifier, the directory it resolves from, and the package file it resolves to. */
-type VendorEntry = {
+/** A bare specifier and the directory an importer resolved it from. */
+type VendorEntrySource = {
 	specifier: string;
 	resolveDir: string;
+};
+
+/** One known dependency entry: the package file it resolves to, and every specifier and directory that reached it. */
+type VendorEntry = {
+	/** The first specifier that reached the file; it names the URL. */
+	specifier: string;
 	entryPath: string;
 	url: string;
+	sources: VendorEntrySource[];
 };
 
 /** The result of one build of a vendor graph. */
@@ -272,14 +283,16 @@ export class DevTransformVendorRegistry {
 	/**
 	 * Adds the entries of bare specifiers that modules are known to import, without building.
 	 *
+	 * @param resolveFrom - A directory inside the package that declares them, which they resolve from.
+	 *
 	 * @remarks
 	 * Generated modules such as hydration bootstraps import their packages one request after another. Knowing
 	 * them up front puts them all in the first build of their graph, so a later build does not move a module a
-	 * browser already loaded into a new shared chunk and reload the page. They resolve from the app root; a
-	 * specifier that does not resolve there is skipped.
+	 * browser already loaded into a new shared chunk and reload the page. A specifier that does not resolve is
+	 * skipped.
 	 */
-	addKnownEntries(specifiers: readonly string[]): void {
-		const resolveDir = this.rootResolveDir;
+	addKnownEntries({ resolveFrom, specifiers }: DevTransformVendorEntries): void {
+		const resolveDir = resolveDirectory(resolveFrom);
 		for (const specifier of specifiers) {
 			const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier, resolveDir);
 			if (resolved) this.addEntry(specifier, resolveDir, resolved.path);
@@ -292,30 +305,42 @@ export class DevTransformVendorRegistry {
 	 *
 	 * @remarks
 	 * A build that started before this call still settles for its waiters but is not kept. The last build is kept
-	 * only as the fallback of a rebuild that fails as a whole. A specifier that now resolves to another entry file
-	 * from the directory it first resolved from, as after a package upgrade, moves to that file's URL.
+	 * only as the fallback of a rebuild that fails as a whole. Each specifier resolves again from every directory
+	 * that reached its entry, so after a package upgrade each importer moves to the file it now reaches; an entry
+	 * that no source resolves any more is kept as it was.
 	 */
 	invalidateAll(): void {
 		this.generation += 1;
+		clearBarePackageResolverCaches();
 		for (const graph of this.graphs.values()) {
 			graph.failed.clear();
-			for (const entry of [...graph.entries.values()]) {
-				const resolved = resolveBarePackageBrowserEntry(
-					this.appConfig.rootDir,
-					entry.specifier,
-					entry.resolveDir,
-				);
-				if (!resolved || resolved.path === entry.entryPath) continue;
-				graph.entries.delete(entry.entryPath);
-				this.entriesByUrl.delete(entry.url);
-				this.addEntry(entry.specifier, entry.resolveDir, resolved.path);
+			const previous = [...graph.entries.values()];
+			graph.entries.clear();
+			for (const entry of previous) this.entriesByUrl.delete(entry.url);
+			for (const entry of previous) {
+				let reached = false;
+				for (const source of entry.sources) {
+					const resolved = resolveBarePackageBrowserEntry(
+						this.appConfig.rootDir,
+						source.specifier,
+						source.resolveDir,
+					);
+					if (!resolved) continue;
+					this.addEntry(source.specifier, source.resolveDir, resolved.path);
+					reached = true;
+				}
+				if (!reached && !graph.entries.has(entry.entryPath)) {
+					graph.entries.set(entry.entryPath, entry);
+					this.entriesByUrl.set(entry.url, { graph, entry });
+				}
 			}
 		}
 	}
 
 	/**
 	 * @remarks
-	 * Entries are keyed by the resolved file, so the first specifier and directory that reach a file name its entry.
+	 * Entries are keyed by the resolved file, so importers that reach one file share its entry and URL; the first
+	 * specifier names the URL, and every specifier and directory pair is kept as a source of the entry.
 	 */
 	private addEntry(
 		specifier: string,
@@ -325,14 +350,19 @@ export class DevTransformVendorRegistry {
 		const graph = this.requireGraph(getVendorGraphKey(specifier));
 		const existing = graph.entries.get(entryPath);
 		if (existing) {
+			if (
+				!existing.sources.some((source) => source.specifier === specifier && source.resolveDir === resolveDir)
+			) {
+				existing.sources.push({ specifier, resolveDir });
+			}
 			return { graph, entry: existing };
 		}
 
 		const entry: VendorEntry = {
 			specifier,
-			resolveDir,
 			entryPath,
 			url: `/${RESOLVED_ASSETS_VENDORS_DIR}/${sanitizeSpecifierForFileName(specifier)}.${contentHash(entryPath, 8)}.js`,
+			sources: [{ specifier, resolveDir }],
 		};
 		graph.entries.set(entryPath, entry);
 		this.entriesByUrl.set(entry.url, { graph, entry });
@@ -724,11 +754,9 @@ export class DevTransformVendorRegistry {
 	private persistEntries(): void {
 		const persisted: PersistedVendorEntries = {
 			entries: [...this.graphs.values()].flatMap((graph) =>
-				[...graph.entries.values()].map((entry) => ({
-					specifier: entry.specifier,
-					resolveDir: entry.resolveDir,
-					conditions: graph.key,
-				})),
+				[...graph.entries.values()].flatMap((entry) =>
+					entry.sources.map((source) => ({ ...source, conditions: graph.key })),
+				),
 			),
 		};
 		const contents = `${JSON.stringify(persisted, null, '\t')}\n`;
@@ -762,6 +790,15 @@ export class DevTransformVendorRegistry {
 	}
 }
 
+/** A directory with its symlinks resolved, or as given when it does not exist. */
+function resolveDirectory(directory: string): string {
+	try {
+		return fileSystem.realpath(path.resolve(directory));
+	} catch {
+		return path.resolve(directory);
+	}
+}
+
 /**
  * The directory a module's bare imports resolve from.
  *
@@ -770,12 +807,7 @@ export class DevTransformVendorRegistry {
  * dependencies beside it in the store rather than in the linking `node_modules`.
  */
 function resolveImporterDir(importer: string): string {
-	const directory = path.dirname(path.resolve(importer));
-	try {
-		return fileSystem.realpath(directory);
-	} catch {
-		return directory;
-	}
+	return resolveDirectory(path.dirname(path.resolve(importer)));
 }
 
 function createVendorGraph(key: VendorGraphKey, conditions: readonly string[]): VendorGraph {

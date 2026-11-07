@@ -421,7 +421,7 @@ describe('DevTransformServer', () => {
 			const contributor = {
 				ownsModule: () => false,
 				getModulePlugins: async () => [],
-				getVendorEntries: () => ['lib-a', 'lib-b'],
+				getVendorEntries: () => ({ resolveFrom: rootDir, specifiers: ['lib-a', 'lib-b'] }),
 			};
 			const server = new DevTransformServer({
 				appConfig: config,

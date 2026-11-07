@@ -10,7 +10,11 @@ export {
 } from './assets/asset-processing-service/index.ts';
 export type { AppRuntime } from './config/assembly/app-runtime.ts';
 export { requireAppRuntime } from './utils/app-runtime.ts';
-export { DEV_TRANSFORM_URL_PREFIX, type DevTransformBundleContributor } from './dev/transform-server/index.ts';
+export {
+	DEV_TRANSFORM_URL_PREFIX,
+	type DevTransformBundleContributor,
+	type DevTransformVendorEntries,
+} from './dev/transform-server/index.ts';
 export {
 	type ForeignChildInterceptionInput,
 	type ForeignChildInterceptionResult,

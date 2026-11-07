@@ -185,6 +185,17 @@ function getBrowserPackageResolver(
 }
 
 /**
+ * Drops what the bare package resolvers cached about the filesystem.
+ *
+ * @remarks
+ * The resolvers cache directory lookups and symlink targets, so after a package install a specifier would keep
+ * resolving to the file it reached before.
+ */
+export function clearBarePackageResolverCaches(): void {
+	for (const resolver of browserPackageResolvers.values()) resolver.clearCache();
+}
+
+/**
  * Resolves a bare npm package entry for browser vendor prebundles.
  *
  * @param fromDirectory - Where resolution starts: the importing module's directory, since strict installs do

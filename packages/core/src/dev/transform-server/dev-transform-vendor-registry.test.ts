@@ -165,23 +165,71 @@ describe('DevTransformVendorRegistry', () => {
 
 	it('builds the entries a contributor declares up front with the first requested one', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-known-entries');
+		const contributorDir = path.join(rootDir, 'packages', 'contributor');
 		for (const name of ['known-a', 'known-b']) {
 			writePackage(
-				path.join(modules, name),
+				path.join(contributorDir, 'node_modules', name),
 				name,
 				{ type: 'module', exports: './index.js' },
 				{ 'index.js': `export const name = '${name}';\n` },
 			);
 		}
+		expect(fs.existsSync(path.join(modules, 'known-a'))).toBe(false);
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const registry = new DevTransformVendorRegistry({ appConfig: config });
 		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		const generatedModule = path.join(contributorDir, 'src', 'bootstrap.js');
 
-		registry.addKnownEntries(['known-a', 'known-b', 'not-installed']);
-		await registry.resolveVendorUrl('known-a');
-		await registry.resolveVendorUrl('known-b');
+		registry.addKnownEntries({
+			resolveFrom: path.join(contributorDir, 'src'),
+			specifiers: ['known-a', 'known-b', 'not-installed'],
+		});
+		await registry.resolveVendorUrl('known-a', generatedModule);
+		await registry.resolveVendorUrl('known-b', generatedModule);
 
-		expect(bundleEntriesUnder(bundle, rootDir)).toHaveLength(1);
+		expect(bundleEntriesUnder(bundle, rootDir)).toEqual([
+			[expect.stringContaining('known-a'), expect.stringContaining('known-b')],
+		]);
+	});
+
+	it('moves each importer of a shared entry to the file it reaches after an invalidation', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-invalidate-sources');
+		const hostModules = path.join(rootDir, 'packages', 'host', 'node_modules');
+		const store = path.join(modules, '.pnpm');
+		for (const version of ['1.0.0', '2.0.0']) {
+			writePackage(
+				path.join(store, `shared-lib@${version}`, 'node_modules', 'shared-lib'),
+				'shared-lib',
+				{ type: 'module', module: 'index.js', version },
+				{ 'index.js': `export const marker = 'shared-${version}';\n` },
+			);
+		}
+		const linkTo = (modulesDir: string, version: string) => {
+			fs.mkdirSync(modulesDir, { recursive: true });
+			fs.rmSync(path.join(modulesDir, 'shared-lib'), { force: true });
+			fs.symlinkSync(
+				path.join(store, `shared-lib@${version}`, 'node_modules', 'shared-lib'),
+				path.join(modulesDir, 'shared-lib'),
+				'dir',
+			);
+		};
+		linkTo(modules, '1.0.0');
+		linkTo(hostModules, '1.0.0');
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const appUrl = await registry.resolveVendorUrl('shared-lib');
+		expect(
+			await registry.resolveVendorUrl('shared-lib', path.join(rootDir, 'packages', 'host', 'src', 'index.js')),
+		).toBe(appUrl);
+
+		linkTo(hostModules, '2.0.0');
+		registry.invalidateAll();
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		await registry.tryHandleVendorRequest(appUrl);
+
+		expect(bundleEntriesUnder(bundle, rootDir)).toEqual([
+			[expect.stringContaining('shared-lib@1.0.0'), expect.stringContaining('shared-lib@2.0.0')],
+		]);
 	});
 
 	it('reports an actionable error when a bare import resolves to a server-only entry', async () => {

@@ -67,7 +67,8 @@ export class DevTransformServer {
 			onVendorGraphChange: options.onVendorGraphChange,
 		});
 		for (const contributor of this.contributors) {
-			this.vendorRegistry.addKnownEntries(contributor.getVendorEntries?.() ?? []);
+			const vendorEntries = contributor.getVendorEntries?.();
+			if (vendorEntries) this.vendorRegistry.addKnownEntries(vendorEntries);
 		}
 		this.bundler = new DevTransformBundler({
 			appConfig: options.appConfig,
@@ -101,7 +102,8 @@ export class DevTransformServer {
 	addContributor(contributor: DevTransformBundleContributor): void {
 		this.contributors.push(contributor);
 		this.bundler.addContributor(contributor);
-		this.vendorRegistry.addKnownEntries(contributor.getVendorEntries?.() ?? []);
+		const vendorEntries = contributor.getVendorEntries?.();
+		if (vendorEntries) this.vendorRegistry.addKnownEntries(vendorEntries);
 	}
 
 	/**

@@ -4,6 +4,8 @@
  */
 
 import { fileSystem } from '@ecopages/file-system';
+import { warnStylesheetOnce } from '@ecopages/core/processor';
+import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
 
 /**
@@ -51,6 +53,26 @@ export function getFileAsBuffer(path: string): Buffer {
 	}
 }
 
+const appLogger = new Logger('[@ecopages/postcss-processor]');
+
+/**
+ * Logs the warnings PostCSS collected, each with its file, line and column.
+ *
+ * @remarks
+ * A stylesheet is processed in several passes, so a warning is logged once per stylesheet and message until its
+ * contents change (see `warnStylesheetOnce`).
+ */
+const logWarnings = (
+	result: { warnings(): postcss.Warning[] },
+	source: string | Buffer,
+	file: string | undefined,
+): void => {
+	const contents = source.toString();
+	for (const warning of result.warnings()) {
+		warnStylesheetOnce(file ?? '', contents, warning.toString(), (message) => appLogger.warn(message));
+	}
+};
+
 const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[] => {
 	if (!options || !options.plugins) return [];
 	return Array.isArray(options.plugins) ? options.plugins : Object.values(options.plugins);
@@ -75,7 +97,10 @@ const processPath: ProcessPath = async (path, options) => {
 
 	return postcss(getPlugins(options))
 		.process(contents, { from: path })
-		.then((result) => result.css);
+		.then((result) => {
+			logWarnings(result, contents, path);
+			return result.css;
+		});
 };
 
 /**
@@ -99,6 +124,7 @@ const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) =
 	return postcss(getPlugins(options))
 		.process(contents, { from: options?.filePath })
 		.then(async (result) => {
+			logWarnings(result, contents, options?.filePath);
 			let css = result.css;
 			if (options?.transformOutput) {
 				css = await options.transformOutput(css);
@@ -113,6 +139,7 @@ const processStringOrBufferSync: ProcessStringOrBufferSync = (contents, options)
 	if (!contents) return '';
 
 	const result = postcss(getPlugins(options)).process(contents, { from: options?.filePath });
+	logWarnings(result, contents, options?.filePath);
 	let css = result.css;
 	if (options?.transformOutput) {
 		const output = options.transformOutput(css);

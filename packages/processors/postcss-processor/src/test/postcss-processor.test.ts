@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+import { Logger } from '@ecopages/logger';
 import { path } from '@ecopages/file-system/path';
 import postcss, { CssSyntaxError } from 'postcss';
 import postCssSimpleVars from 'postcss-simple-vars';
@@ -134,5 +135,54 @@ describe('PostCssProcessor', () => {
 			plugins: plugins ? Object.values(plugins) : [],
 		});
 		expect(result).toEqual(expected);
+	});
+	describe('warnings', () => {
+		const warnOnWord: postcss.AcceptedPlugin = {
+			postcssPlugin: 'warn-on-word',
+			Once(root, { result }) {
+				root.walkDecls('color', (decl) => {
+					decl.warn(result, 'Prefer a token');
+				});
+			},
+		};
+		const warnSpy = () => vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined as never);
+
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		test('logs a plugin warning with its file, line and column', async () => {
+			const warn = warnSpy();
+			const filePath = '/app/src/warn-with-position.css';
+
+			await PostCssProcessor.processStringOrBuffer('.a {\n  color: red;\n}', {
+				filePath,
+				plugins: [warnOnWord],
+			});
+
+			expect(warn).toHaveBeenCalledTimes(1);
+			expect(warn).toHaveBeenCalledWith(`warn-on-word: ${filePath}:2:3: Prefer a token`);
+		});
+
+		test('logs one warning when a stylesheet is processed in two passes', async () => {
+			const warn = warnSpy();
+			const options = { filePath: '/app/src/warn-two-passes.css', plugins: [warnOnWord] };
+
+			await PostCssProcessor.processStringOrBuffer('.a { color: red; }', options);
+			await PostCssProcessor.processStringOrBuffer('.a { color: red; }', options);
+			PostCssProcessor.processStringOrBufferSync('.a { color: red; }', options);
+
+			expect(warn).toHaveBeenCalledTimes(1);
+		});
+
+		test('logs the warning again after the stylesheet changes', async () => {
+			const warn = warnSpy();
+			const options = { filePath: '/app/src/warn-after-edit.css', plugins: [warnOnWord] };
+
+			await PostCssProcessor.processStringOrBuffer('.a { color: red; }', options);
+			await PostCssProcessor.processStringOrBuffer('.a { color: blue; }', options);
+
+			expect(warn).toHaveBeenCalledTimes(2);
+		});
 	});
 });

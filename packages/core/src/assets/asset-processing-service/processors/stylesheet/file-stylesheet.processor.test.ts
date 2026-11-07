@@ -373,6 +373,17 @@ test('leaves an app stylesheet url to a missing file as written, with a warning'
 	expect(warn).toHaveBeenCalledWith(expect.stringContaining(`${stylesheet}: url(hero.png) names`));
 });
 
+test('warns once about a missing reference when the stylesheet is processed in two passes', async () => {
+	const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+	const stylesheet = writeAppFile('src/site.css', '.a { background: url(hero.png); }');
+	const dep = { kind: 'stylesheet', source: 'file', filepath: stylesheet } as const;
+
+	await new FileStylesheetProcessor({ appConfig: createConfig() }).process(dep);
+	await new FileStylesheetProcessor({ appConfig: createConfig() }).process({ ...dep, inline: true });
+
+	expect(warn).toHaveBeenCalledTimes(1);
+});
+
 test('never copies a dotfile an app stylesheet names, such as one an inlined package reaches', async () => {
 	const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
 	writeAppFile('package.json', '{ "name": "app" }');

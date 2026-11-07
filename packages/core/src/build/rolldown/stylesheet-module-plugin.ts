@@ -79,10 +79,11 @@ function collectSideEffectStylesheetImports(
  */
 export function createStylesheetModulePlugin(
 	build: { environment: 'server' | 'browser'; root: string },
-	stylesheets: BuildStylesheets = PLAIN_CSS_STYLESHEETS,
-	watchFiles?: WatchFilesByModule,
+	stylesheets: BuildStylesheets | undefined,
+	watchFiles: WatchFilesByModule,
 ): RolldownPlugin {
-	const extensionPattern = stylesheets.extensions.map(escapeRegExp).join('|');
+	const compiler = stylesheets ?? PLAIN_CSS_STYLESHEETS;
+	const extensionPattern = compiler.extensions.map(escapeRegExp).join('|');
 	const STYLESHEET_ID = new RegExp(`(?:${extensionPattern})$`, 'iu');
 	const SIDE_EFFECT_ID = new RegExp(`(?:${extensionPattern})${escapeRegExp(SIDE_EFFECT_QUERY)}$`, 'iu');
 	const STYLESHEET_REFERENCE = new RegExp(`(?:${extensionPattern})['"]`, 'iu');
@@ -110,8 +111,8 @@ export function createStylesheetModulePlugin(
 				const fromPackage = importerFile.includes('/node_modules/') || !isPathInside(importerFile, appRoot);
 				if (build.environment === 'browser' && fromPackage) {
 					const error = createUndeliverablePackageStylesheetError(appRoot, importerFile, source);
-					if (!stylesheets.reportUndeliverable) throw error;
-					stylesheets.reportUndeliverable(error);
+					if (!compiler.reportUndeliverable) throw error;
+					compiler.reportUndeliverable(error);
 				}
 				return toRolldownModuleId(`${fromRolldownModuleId(resolved.id)}${SIDE_EFFECT_QUERY}`);
 			},
@@ -123,11 +124,11 @@ export function createStylesheetModulePlugin(
 					return { code: 'export default "";', moduleType: 'js', moduleSideEffects: true };
 				}
 				const file = fromRolldownModuleId(id);
-				const { code, dependencies = [] } = await stylesheets.compileModule(file);
+				const { code, dependencies = [] } = await compiler.compileModule(file);
 				for (const dependency of dependencies) {
 					this.addWatchFile(dependency);
 				}
-				if (watchFiles && dependencies.length > 0) {
+				if (dependencies.length > 0) {
 					watchFiles.set(file, new Set([...(watchFiles.get(file) ?? []), ...dependencies]));
 				}
 				return { code, moduleType: 'js' };

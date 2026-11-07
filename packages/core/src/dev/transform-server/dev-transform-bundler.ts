@@ -58,6 +58,7 @@ export class DevTransformBundler {
 	 * edit to one of its `@import` partials gives the importer a new URL.
 	 */
 	rewriteImports(code: string, sourcePath: string): Promise<{ code: string; dependencies: string[] }> {
+		const stylesheets = getDevelopmentStylesheetService(this.appConfig);
 		return rewriteModuleImports({
 			code,
 			sourcePath,
@@ -65,7 +66,7 @@ export class DevTransformBundler {
 			projectRoot: this.appConfig.rootDir,
 			extraModuleRoots: this.extraModuleRoots,
 			resolveVendorImport: (specifier) => this.vendorRegistry.resolveVendorImport(specifier, sourcePath),
-			moduleVersion: (resolvedPath) => getDevelopmentStylesheetService(this.appConfig).version(resolvedPath),
+			moduleVersion: (resolvedPath) => stylesheets.version(resolvedPath),
 		});
 	}
 

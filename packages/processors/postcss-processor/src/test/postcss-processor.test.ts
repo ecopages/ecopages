@@ -99,6 +99,23 @@ describe('PostCssProcessor', () => {
 		},
 	);
 
+	test('transformWithPostcss leaves out the content files Tailwind reports scanning', async () => {
+		const scanned = path.resolve(__dirname, './css/correct.css');
+		const tailwindLike: postcss.AcceptedPlugin = {
+			postcssPlugin: '@tailwindcss/postcss',
+			Once(_root, { result }) {
+				result.messages.push({ type: 'dependency', plugin: '@tailwindcss/postcss', file: scanned, parent: '' });
+			},
+		};
+
+		const result = await transformWithPostcss("@import './base.css';\n", {
+			filePath: path.resolve(__dirname, './css/import.css'),
+			plugins: [postcssImport(), tailwindLike],
+		});
+
+		expect(result.dependencies).toEqual([path.resolve(__dirname, './css/base.css')]);
+	});
+
 	describe('warnings', () => {
 		const warnOnWord: postcss.AcceptedPlugin = {
 			postcssPlugin: 'warn-on-word',

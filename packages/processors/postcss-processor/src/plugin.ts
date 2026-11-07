@@ -34,10 +34,9 @@ export type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
 /**
  * Lazily creates PostCSS plugins.
  *
- * This is primarily used in development when a non-CSS file change forces the
- * processor to rebuild tracked stylesheets. Some plugins, including Tailwind,
- * keep internal caches in long-lived plugin instances, so recreating them is
- * required to pick up newly discovered classes.
+ * @remarks
+ * `invalidateStylesheets` recreates the plugins from these after a template or script changes. Some plugins, including
+ * Tailwind, keep internal caches in long-lived plugin instances, so fresh ones are needed to find new classes.
  */
 export type PluginFactoryRecord = Record<string, () => postcss.AcceptedPlugin>;
 

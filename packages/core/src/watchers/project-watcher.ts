@@ -372,9 +372,8 @@ export class ProjectWatcher {
 			context,
 		);
 		return {
+			...applied,
 			files: [...applied.files, ...dependents.files],
-			invalidateServerModules: applied.invalidateServerModules || dependents.invalidateServerModules,
-			refreshRoutes: applied.refreshRoutes || dependents.refreshRoutes,
 			reloadBrowser: applied.reloadBrowser || dependents.reloadBrowser,
 			delegateToHmr: applied.delegateToHmr || dependents.delegateToHmr,
 		};
@@ -688,8 +687,9 @@ export class ProjectWatcher {
 			});
 		});
 
+		const readyWatcher = await this.waitForWatcherReady();
 		await this.stylesheets.prewarm();
-		return this.waitForWatcherReady();
+		return readyWatcher;
 	}
 
 	private handleWatchChange(change: FileChange): Promise<void> {

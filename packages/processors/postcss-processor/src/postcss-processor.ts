@@ -57,6 +57,15 @@ const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[]
 	return Array.isArray(options.plugins) ? options.plugins : Object.values(options.plugins);
 };
 
+/**
+ * Plugins whose `dependency` messages name the content they scanned for class names, not files the CSS inlined.
+ *
+ * @remarks
+ * Tailwind reports every file it scanned, stylesheets included. Counting them would make each scanned stylesheet look
+ * like a partial of the Tailwind entry; a change to scanned content reaches the entry through `invalidateStylesheets`.
+ */
+const CONTENT_SCANNING_PLUGINS = new Set(['tailwindcss', '@tailwindcss/postcss']);
+
 /** The CSS PostCSS produced and the files its plugins read, such as the partials `postcss-import` inlined. */
 export type PostCssTransformResult = { css: string; dependencies: string[] };
 
@@ -65,7 +74,8 @@ export type PostCssTransformResult = { css: string; dependencies: string[] };
  *
  * @remarks
  * The dependencies are the `file` of each `dependency` message, which `postcss-import` sends for every stylesheet it
- * inlines, whatever the form of the `@import` (a `layer()`, a media query, an unquoted `url()` or an alias).
+ * inlines, whatever the form of the `@import` (a `layer()`, a media query, an unquoted `url()` or an alias). The
+ * messages of {@link CONTENT_SCANNING_PLUGINS} are left out.
  */
 export async function transformWithPostcss(
 	contents: string | Buffer,
@@ -77,7 +87,11 @@ export async function transformWithPostcss(
 	logWarnings(result, contents, options?.filePath);
 	const css = options?.transformOutput ? await options.transformOutput(result.css) : result.css;
 	const dependencies = result.messages.flatMap((message) =>
-		message.type === 'dependency' && typeof message.file === 'string' ? [message.file] : [],
+		message.type === 'dependency' &&
+		typeof message.file === 'string' &&
+		!CONTENT_SCANNING_PLUGINS.has(String(message.plugin))
+			? [message.file]
+			: [],
 	);
 	return { css, dependencies: [...new Set(dependencies)] };
 }
@@ -86,7 +100,7 @@ export async function transformWithPostcss(
  * It processes the given string or buffer using PostCSS
  * @param contents string | Buffer
  * @param options {@link PostCssProcessorOptions}
- * @returns string
+ * @returns the processed CSS
  *
  * @remarks
  * A PostCSS failure rejects. A `CssSyntaxError` names the file, line and column in its message.
@@ -95,7 +109,7 @@ export async function transformWithPostcss(
  * ```ts
  * const css = `body { @apply bg-blue-500; }`;
  *
- * PostCssProcessor.processString(css).then((processedCss) => {
+ * PostCssProcessor.processStringOrBuffer(css).then((processedCss) => {
  * console.log(processedCss);
  * });
  * ```

@@ -169,7 +169,7 @@ The stylesheet Processor is a transform with an optional invalidation hook; core
 - `invalidateStylesheets(files)` is called in development with the changed paths of a batch that are not stylesheets, and returns the stylesheets to rebuild or `'all'` for every entry stylesheet. It is where a Processor whose output depends on content, such as Tailwind, resets its state. Without it, a change to a file that is not a stylesheet rebuilds none.
 - Core persists, caches, queues and broadcasts in development (`DevelopmentStylesheetService`, see [PostCSS processor](/dev/postcss-processor#development-lifecycle)); with no stylesheet Processor, plain CSS passes through as written.
 
-`@ecopages/core/processor/contract` exports `stylesheetProcessorContract`, the cases every first-party stylesheet Processor runs against this contract.
+`@ecopages/core/processor/contract` exports `stylesheetProcessorContract({ createProcessor })`, cases any test runner can register to check a stylesheet Processor against this contract; the PostCSS Processor runs them.
 
 ## Scoping by module ownership
 

@@ -131,7 +131,8 @@ export function stylesheetProcessorContract(
 			name: 'the stylesheets a transform reads drive rebuilds',
 			run: () =>
 				withApp(subject.createProcessor(), async (app) => {
-					const partial = app.write('src/styles/base.css', '.base { color: red; }\n');
+					const partial = app.write('src/styles/base.css', "@import './deep.css';\n.base { color: red; }\n");
+					const deep = app.write('src/styles/deep.css', '.deep { color: red; }\n');
 					const main = app.write('src/styles/main.css', "@import './base.css' layer(base);\n");
 					const entry = app.write(
 						'src/styles/main.script.ts',
@@ -140,21 +141,22 @@ export function stylesheetProcessorContract(
 
 					const result = await buildServerEntry(app, entry);
 					assert.ok(result.success, 'the server build failed');
+					const inputs = collectBuildEntryInputPaths(result, entry, app.rootDir);
 					assert.ok(
-						collectBuildEntryInputPaths(result, entry, app.rootDir).includes(partial),
-						'the server module of a script that imports main.css does not list the partial main.css imports',
+						inputs.includes(partial) && inputs.includes(deep),
+						'the server module of a script that imports main.css does not list the partials main.css inlines',
 					);
 
 					const stylesheets = new DevelopmentStylesheetService(app.config);
 					await stylesheets.prewarm();
 					const { bridge, refreshed } = createRecordingBridge();
-					app.write('src/styles/base.css', '.base { color: blue; }\n');
+					app.write('src/styles/deep.css', '.deep { color: blue; }\n');
 					assert.deepEqual(
-						await stylesheets.applyChanges(changed(partial), bridge),
+						await stylesheets.applyChanges(changed(deep), bridge),
 						[main],
-						'an edit to the partial does not rebuild main.css in development',
+						'an edit to a nested partial does not rebuild main.css in development',
 					);
-					assert.deepEqual(refreshed, [main], 'an edit to the partial does not refresh only main.css');
+					assert.deepEqual(refreshed, [main], 'an edit to a nested partial does not refresh only main.css');
 				}),
 		},
 		{

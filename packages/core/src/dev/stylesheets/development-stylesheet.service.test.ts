@@ -5,40 +5,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../../config/internal-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { Processor, type StylesheetInvalidation } from '../../plugins/processor.ts';
+import type { StylesheetInvalidation } from '../../plugins/processor.ts';
+import { InliningProcessor } from '../../__fixtures__/stylesheets/inlining-processor.ts';
 import { DevelopmentStylesheetService } from './development-stylesheet.service.ts';
-
-const IMPORT = /@import\s+['"](\.[^'"]+)['"]\s*(?:layer\((\w+)\))?\s*;/gu;
-
-/** Inlines relative `@import`s, reporting each as a dependency, and rejects an unclosed block. */
-class InliningProcessor extends Processor {
-	async setup(): Promise<void> {}
-
-	override async transformStylesheet(css: string, file: string) {
-		if (css.split('{').length !== css.split('}').length) throw new Error(`${file}: Unclosed block`);
-		const dependencies: string[] = [];
-		const inlined = css.replace(IMPORT, (_statement, specifier: string, layer: string | undefined) => {
-			const imported = path.resolve(path.dirname(file), specifier);
-			dependencies.push(imported);
-			const contents = fs.readFileSync(imported, 'utf8');
-			return layer ? `@layer ${layer} {\n${contents}}\n` : contents;
-		});
-		return { css: inlined, dependencies };
-	}
-}
-
-const INLINING = { name: 'inlining', capabilities: [{ kind: 'stylesheet' as const, extensions: ['*.css'] }] };
 
 /** An {@link InliningProcessor} whose invalidation hook answers `invalidation` and records the files it got. */
 class InvalidatingProcessor extends InliningProcessor {
 	readonly received: string[][] = [];
 
-	constructor(private readonly invalidation: StylesheetInvalidation) {
-		super(INLINING);
+	constructor(private readonly invalidation: StylesheetInvalidation | Error) {
+		super();
 	}
 
 	override invalidateStylesheets(files: readonly string[]): StylesheetInvalidation {
 		this.received.push([...files]);
+		if (this.invalidation instanceof Error) throw this.invalidation;
 		return this.invalidation;
 	}
 }
@@ -57,7 +38,7 @@ function persisted(relativeToAssets: string): string | undefined {
 	return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
 }
 
-async function createService(processor = new InliningProcessor(INLINING)): Promise<DevelopmentStylesheetService> {
+async function createService(processor = new InliningProcessor()): Promise<DevelopmentStylesheetService> {
 	const config: EcoPagesAppConfig = await finalizeEcoPagesConfig({
 		rootDir,
 		integrations: [],
@@ -88,22 +69,78 @@ describe('DevelopmentStylesheetService', () => {
 	it('prewarms the stylesheets in srcDir at their source-relative href, leaving the public directory alone', async () => {
 		write('src/styles/main.css', '.main { color: red; }\n');
 		write('src/public/vendor.css', '.vendor { color: red; }\n');
+		write('src/styles/theme.scss', '.theme { color: red; }\n');
 		const service = await createService();
 
 		await service.prewarm();
 
 		expect(persisted('styles/main.css')).toBe('.main { color: red; }\n');
 		expect(persisted('public/vendor.css')).toBeUndefined();
+		expect(persisted('styles/theme.scss.css')).toBeUndefined();
 	});
 
-	it('persists nothing in production', async () => {
-		vi.stubEnv('NODE_ENV', 'production');
-		write('src/styles/main.css', '.main { color: red; }\n');
+	it('logs a stylesheet that fails to prewarm and goes on with the others', async () => {
+		const broken = write('src/styles/a-broken.css', '.broken {\n');
+		write('src/styles/b-good.css', '.good { color: red; }\n');
+		const logError = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
 		const service = await createService();
 
 		await service.prewarm();
 
-		expect(persisted('styles/main.css')).toBeUndefined();
+		expect(persisted('styles/b-good.css')).toBe('.good { color: red; }\n');
+		expect(logError).toHaveBeenCalledWith(expect.stringContaining(broken));
+	});
+
+	it('rebuilds a created stylesheet, retries the one that failed on its missing import, and drops a deleted one', async () => {
+		const main = write('src/styles/main.css', "@import './tokens.css';\n");
+		const old = write('src/styles/old.css', '.old {}\n');
+		vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+		const service = await createService();
+		await service.prewarm();
+		const { bridge, cssUpdate } = createBridge();
+
+		const tokens = write('src/styles/tokens.css', ':root { --c: red; }\n');
+		fs.rmSync(old);
+		const restyled = await service.applyChanges({ created: [tokens], changed: [], deleted: [old] }, bridge);
+
+		expect(restyled.sort()).toEqual([main, tokens].sort());
+		expect(cssUpdate.mock.calls.flat().sort()).toEqual([main, tokens].sort());
+		expect(persisted('styles/main.css')).toContain('--c: red');
+		expect(service.version(old)).toBeUndefined();
+	});
+
+	it('shows the error of a stylesheet whose partial is deleted', async () => {
+		const main = write('src/styles/main.css', "@import './base.css';\n");
+		const base = write('src/styles/base.css', '.base {}\n');
+		vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+		const service = await createService();
+		await service.prewarm();
+		const { bridge, error } = createBridge();
+
+		fs.rmSync(base);
+		expect(await service.applyChanges({ created: [], changed: [], deleted: [base] }, bridge)).toEqual([]);
+		expect(error).toHaveBeenCalledWith(expect.stringContaining('base.css'));
+		expect(service.version(main)).toBeDefined();
+	});
+
+	it('shows the error of a hook that throws and keeps running the batches queued after it', async () => {
+		const main = write('src/styles/main.css', '.main { color: red; }\n');
+		const page = write('src/pages/index.tsx', 'export default () => null;\n');
+		vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+		const service = await createService(new InvalidatingProcessor(new Error('hook failed')));
+		await service.prewarm();
+		const { bridge, cssUpdate, error } = createBridge();
+
+		write('src/styles/main.css', '.main { color: blue; }\n');
+		const first = service.applyChanges(changed(page), bridge);
+		const second = service.applyChanges(changed(main), bridge);
+		write('src/styles/main.css', '.main { color: green; }\n');
+
+		expect(await first).toEqual([]);
+		expect(error).toHaveBeenCalledWith('hook failed');
+		expect(await second).toEqual([main]);
+		expect(persisted('styles/main.css')).toBe('.main { color: green; }\n');
+		expect(cssUpdate).toHaveBeenCalledTimes(1);
 	});
 
 	it('rebuilds the stylesheet that imports a partial with a layer, and refreshes only its link', async () => {
@@ -119,6 +156,32 @@ describe('DevelopmentStylesheetService', () => {
 		expect(restyled).toEqual([main]);
 		expect(cssUpdate.mock.calls).toEqual([[main]]);
 		expect(persisted('styles/main.css')).toContain('@layer base {\n.base { color: blue; }\n}');
+	});
+
+	it('rebuilds the other of two stylesheets that import each other when one changes', async () => {
+		const a = write('src/styles/a.css', "@import './b.css';\n.a { color: red; }\n");
+		const b = write('src/styles/b.css', "@import './a.css';\n.b { color: blue; }\n");
+		const cyclic = new (class extends InliningProcessor {
+			override async transformStylesheet(css: string, file: string) {
+				const other = file === a ? b : a;
+				return {
+					css: css.replace(
+						/@import[^;]*;\n/u,
+						fs.readFileSync(other, 'utf8').replace(/@import[^;]*;\n/u, ''),
+					),
+					dependencies: [other],
+				};
+			}
+		})();
+		const service = await createService(cyclic);
+		await service.prewarm();
+		const { bridge, cssUpdate } = createBridge();
+
+		write('src/styles/a.css', "@import './b.css';\n.a { color: green; }\n");
+
+		expect(await service.applyChanges(changed(a), bridge)).toEqual([b]);
+		expect(cssUpdate.mock.calls).toEqual([[b]]);
+		expect(persisted('styles/b.css')).toContain('color: green');
 	});
 
 	it('sends nothing when a save leaves the output as it was', async () => {

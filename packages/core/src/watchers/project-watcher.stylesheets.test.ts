@@ -6,27 +6,11 @@ import { createServerBuildRequest } from '../build/runtime/build-request-policy.
 import { assertBuildSucceeded } from '../build/build-log.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
-import { Processor } from '../plugins/processor.ts';
+import type { StylesheetInvalidation } from '../plugins/processor.ts';
+import { InliningProcessor } from '../__fixtures__/stylesheets/inlining-processor.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { createTempRoot, startHmrManager, writeSourceFile } from '../adapters/shared/hmr/hmr-manager.test-helpers.ts';
 import { createMockBridge, subscribeWithFakeFileSystemWatch } from './project-watcher.test-helpers.ts';
-
-const IMPORT = /@import\s+['"](\.[^'"]+)['"]\s*;/gu;
-
-/** Inlines relative `@import`s and reports each as a dependency, as `postcss-import` does. */
-class InliningProcessor extends Processor {
-	async setup(): Promise<void> {}
-
-	override async transformStylesheet(css: string, file: string) {
-		const dependencies: string[] = [];
-		const inlined = css.replace(IMPORT, (_statement, specifier: string) => {
-			const imported = path.resolve(path.dirname(file), specifier);
-			dependencies.push(imported);
-			return fs.readFileSync(imported, 'utf8');
-		});
-		return { css: inlined, dependencies };
-	}
-}
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -66,12 +50,7 @@ describe('a stylesheet a component imports as text, when one of its partials cha
 		const config = await finalizeEcoPagesConfig({
 			rootDir,
 			integrations: [],
-			processors: [
-				new InliningProcessor({
-					name: 'inlining',
-					capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }],
-				}),
-			],
+			processors: [new InliningProcessor()],
 		});
 		const { manager, broadcasts } = startHmrManager(config, 1);
 		const { emit } = await subscribeWithFakeFileSystemWatch({
@@ -103,5 +82,60 @@ describe('a stylesheet a component imports as text, when one of its partials cha
 		expect(await request(after!)).toContain('--accent: blue');
 		expect(requireAppRuntime(config).serverInvalidation.currentGeneration()).toBeGreaterThan(serverGeneration);
 		expect(await buildServerModule(config, script)).toContain('--accent: blue');
+	});
+});
+
+/** An {@link InliningProcessor} that invalidates every entry stylesheet for a content change and appends `extra`. */
+class ContentScanningProcessor extends InliningProcessor {
+	extra = '';
+
+	override invalidateStylesheets(): StylesheetInvalidation {
+		return 'all';
+	}
+
+	override async transformStylesheet(css: string, file: string) {
+		const result = await super.transformStylesheet(css, file);
+		return { ...result, css: `${result.css}${this.extra}` };
+	}
+}
+
+describe('a stylesheet a component imports as text, when content its Processor scans changes', () => {
+	test('hot-updates the importer with the CSS the invalidation hook asked for', async () => {
+		const rootDir = fs.realpathSync(createTempRoot('ecopages-watcher-stylesheet-content'));
+		writeSourceFile(rootDir, 'src/components/card.css', '.card { color: red; }\n');
+		const template = writeSourceFile(rootDir, 'src/components/template.ts', 'export const a = 1;\n');
+		const script = writeSourceFile(
+			rootDir,
+			'src/components/card.script.ts',
+			"import styles from './card.css';\nimport { a } from './template.ts';\nexport default [styles, a];\n",
+		);
+		const processor = new ContentScanningProcessor();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [], processors: [processor] });
+		const { manager, broadcasts } = startHmrManager(config, 1);
+		const { emit } = await subscribeWithFakeFileSystemWatch({
+			config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager: manager,
+			bridge: createMockBridge(),
+			changeDebounceMs: 0,
+		});
+		const { outputUrl } = await manager.registerScriptEntrypoint(script);
+		const request = async (url: string) =>
+			(await manager.tryHandleDevClientRequest(new Request(`http://localhost${url}`)))?.text();
+		const stylesheetImport = async () =>
+			/from ['"]([^'"]+card\.css\?v=[^'"]+)['"]/u.exec((await request(outputUrl)) ?? '')?.[1];
+		const before = await stylesheetImport();
+		await request(before!);
+
+		processor.extra = '.scanned { color: blue; }\n';
+		fs.writeFileSync(template, 'export const a = 2;\n');
+		await emit('change', template);
+
+		await vi.waitFor(() =>
+			expect(broadcasts).toContainEqual(expect.objectContaining({ type: 'update', path: outputUrl })),
+		);
+		const after = await stylesheetImport();
+		expect(after).not.toBe(before);
+		expect(await request(after!)).toContain('.scanned');
 	});
 });

@@ -25,7 +25,7 @@ sources:
 
 ## Two routes to the page
 
-CSS reaches the page by two routes that share one function, `transformStylesheet(css, file)`, and core calls it for both. It returns `{ css, dependencies }`: the `dependencies` are the `file` of each PostCSS message of type `dependency`, which `postcss-import` sends for every stylesheet it inlines, whatever the form of the `@import` (a `layer()`, a media query, an unquoted `url()`, an alias).
+CSS reaches the page by two routes that share one function, `transformStylesheet(css, file)`, and core calls it for both. It returns `{ css, dependencies }`: the `dependencies` are the `file` of each PostCSS message of type `dependency`, which `postcss-import` sends for every stylesheet it inlines, whatever the form of the `@import` (a `layer()`, a media query, an unquoted `url()`, an alias). Tailwind's own `dependency` messages are left out: they name every file it scanned for class names, stylesheets included, which would make each scanned stylesheet look like a partial of the Tailwind entry; a change to scanned content reaches it through `invalidateStylesheets` instead.
 
 ```mermaid
 flowchart TD
@@ -90,7 +90,7 @@ Core's `DevelopmentStylesheetService` (`dev/stylesheets/development-stylesheet.s
 
 - A changed file rebuilds every stylesheet whose transform read it, so an edit to an `@import` partial rebuilds the stylesheets that inline it. A changed stylesheet that no other stylesheet read is rebuilt itself; a partial is not rebuilt alone.
 - The changed files that are not stylesheets go to `invalidateStylesheets`.
-- A rebuild writes the output at its source-relative path under `distDir/assets` through core's `writeSourceRelativeStylesheet`, so the files its relative `url()` references name are emitted after an edit as on first load. Only stylesheets inside `srcDir` are written, and production writes nothing. It sends `bridge.cssUpdate(file)` only when the bytes changed, or on the first success after a failure.
+- A rebuild writes the output at its source-relative path under `distDir/assets` through core's `writeSourceRelativeStylesheet`, so the files its relative `url()` references name are emitted after an edit as on first load. Only stylesheets inside `srcDir` are written; the service runs only in development, so production writes nothing. It sends `bridge.cssUpdate(file)` only when the bytes changed, or on the first success after a failure.
 
 The bridge sends a `css-update` message with the exact href the stylesheet was delivered at, and the client refreshes that one `link`; see [/dev/hmr-watcher-invalidation](/dev/hmr-watcher-invalidation) and [/dev/hmr-client](/dev/hmr-client). A stylesheet whose output changed while its own bytes did not, such as one whose partial changed, is then planned as changed, so a module that imports it as text is hot-updated by core's HMR and the server modules that embed it are rebuilt ([/dev/hmr-strategies](/dev/hmr-strategies)).
 

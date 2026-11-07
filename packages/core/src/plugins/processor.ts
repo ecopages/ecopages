@@ -150,7 +150,9 @@ export interface StylesheetTransformResult {
 	 *
 	 * @remarks
 	 * Take them from the transform itself (PostCSS `dependency` messages, Lightning CSS `dependencies`), never from a
-	 * scan of the source. Core rebuilds the stylesheet, and every module that imports it, when one of them changes.
+	 * scan of the source. Core keeps the ones that are stylesheets and rebuilds the stylesheet, and every module that
+	 * imports it, when one of them changes; a change to any other input reaches the stylesheet through
+	 * {@link Processor.invalidateStylesheets}.
 	 */
 	dependencies?: readonly string[];
 }

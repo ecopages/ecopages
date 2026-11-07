@@ -165,7 +165,7 @@ test('prebuildProductionPageBrowserGraphs writes the ledger once every planned r
 
 	const ledger = readLedgerFile(appConfig);
 	assert.deepEqual(ledgerExistedWhenPrepared, [false]);
-	assert.equal(ledger.version, 3);
+	assert.equal(ledger.version, 4);
 	assert.equal('plannedRoutes' in ledger, false);
 	assert.ok(ledger.entries.some((entry) => entry.asset.filepath === 'dist/client/assets/page.css'));
 });
@@ -244,6 +244,17 @@ test('restoreProductionBrowserBuild refuses to seal without a ledger, and the wo
 	);
 	assert.equal(await restoreProductionBrowserBuild(appConfig, { seal: false }), false);
 	assert.equal(requireAppRuntime(appConfig).processedAssets.isSealed, false);
+});
+
+test('restoreProductionBrowserBuild refuses a ledger in an earlier format and asks for a new build', async () => {
+	const appConfig = await createAppConfig();
+	writeProductionAssetLedger(appConfig, new Map());
+	writeFileSync(ledgerPath(appConfig), JSON.stringify({ ...readLedgerFile(appConfig), version: 3 }));
+
+	await assert.rejects(
+		restoreProductionBrowserBuild(await createAppConfig(appConfig.rootDir), { seal: true }),
+		/unsupported ledger shape\)\. Run `ecopages build` again\./,
+	);
 });
 
 test('restoreProductionBrowserBuild leaves the ledger open for the Lit static-render worker', async () => {

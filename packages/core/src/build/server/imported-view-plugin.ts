@@ -72,7 +72,7 @@ export function createImportedViewPlugin(
 				}
 				recordImportedViewPath(appConfig, args.path);
 				return {
-					contents: viewReferenceModuleSource(args.path, owner.name),
+					contents: viewReferenceModuleSource(args.path, owner.name, appConfig.rootDir),
 					loader: 'js',
 				};
 			});

@@ -121,7 +121,7 @@ test('emits the files a package stylesheet references and rewrites its relative 
 		kind: 'stylesheet',
 		source: 'file',
 		filepath: stylesheet,
-		fromPackage: true,
+		fromPackage: 'some-lib/dist/style.css',
 	});
 	const assetsDir = path.join(rootDir, '.eco/public/assets');
 	const css = readFileSync(processed.filepath!, 'utf-8');
@@ -146,7 +146,7 @@ test('inlines the relative @import of a package stylesheet with its urls rewritt
 		kind: 'stylesheet',
 		source: 'file',
 		filepath: stylesheet,
-		fromPackage: true,
+		fromPackage: 'some-lib/dist/style.css',
 	});
 
 	expect(readFileSync(processed.filepath!, 'utf-8')).toBe(
@@ -162,7 +162,7 @@ test('fails on a package stylesheet url that names a missing file', async () => 
 			kind: 'stylesheet',
 			source: 'file',
 			filepath: stylesheet,
-			fromPackage: true,
+			fromPackage: 'some-lib/dist/style.css',
 		}),
 	).rejects.toThrow(`${stylesheet}: url(./missing.png) names`);
 });
@@ -172,7 +172,7 @@ function processPackageStylesheet(filepath: string) {
 		kind: 'stylesheet',
 		source: 'file',
 		filepath,
-		fromPackage: true,
+		fromPackage: 'some-lib/dist/style.css',
 	});
 }
 

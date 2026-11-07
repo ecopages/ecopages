@@ -1,9 +1,11 @@
+/// <reference path="./postcss-import-resolve-id.d.ts" />
 import { fileSystem } from '@ecopages/file-system';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import type postcss from 'postcss';
 import postcssImportDefault from 'postcss-import';
 import type postcssImport from 'postcss-import';
+import resolveImportIdDefault from 'postcss-import/lib/resolve-id.js';
 
 type PostcssImportOptions = NonNullable<Parameters<typeof postcssImport>[0]>;
 type ResolveImportId = (id: string, base: string, options: PostcssImportOptions, node: unknown) => Promise<string>;
@@ -12,8 +14,6 @@ type PackageJson = {
 	main?: string;
 	exports?: Record<string, string | { style?: string; import?: string; require?: string; default?: string }>;
 };
-
-const requireFromProcessor = createRequire(import.meta.url);
 
 /**
  * Finds the nearest directory containing a package.json by walking up from a file path.
@@ -46,11 +46,16 @@ function loadPostcssImport(requireFromApp: NodeRequire): typeof postcssImportDef
 	}
 }
 
+/**
+ * @remarks
+ * The fallback is imported statically: a server bundle that inlines this module keeps the import, where a
+ * `require` relative to this module would resolve from the bundle's folder.
+ */
 function loadResolveImportId(requireFromApp: NodeRequire): ResolveImportId {
 	try {
 		return requireFromApp('postcss-import/lib/resolve-id') as ResolveImportId;
 	} catch {
-		return requireFromProcessor('postcss-import/lib/resolve-id') as ResolveImportId;
+		return resolveImportIdDefault;
 	}
 }
 

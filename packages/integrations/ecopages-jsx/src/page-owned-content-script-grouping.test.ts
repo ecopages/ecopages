@@ -80,6 +80,22 @@ describe('page-owned-content-script-grouping', () => {
 		assert.equal((prepared as ContentScriptAsset).groupedBundle?.id, 'ecopages-react-router-pages');
 	});
 
+	test('assignPageOwnedContentScriptGroupedBundles names a generated script by its own name, whatever its text', () => {
+		const generated = (root: string): ContentScriptAsset => ({
+			kind: 'script',
+			source: 'content',
+			name: 'ecopages-jsx-page-abc',
+			content: `import "${root}/src/a.script.ts";`,
+			bundledSourceFilepaths: [`${root}/src/a.script.ts`],
+		});
+
+		const [first] = assignPageOwnedContentScriptGroupedBundles([generated('/builds/one/app')]);
+		const [second] = assignPageOwnedContentScriptGroupedBundles([generated('/srv/two/app')]);
+
+		expect((first as ContentScriptAsset).groupedBundle?.entryName).toBe('ecopages-jsx-page-abc');
+		expect((second as ContentScriptAsset).groupedBundle?.entryName).toBe('ecopages-jsx-page-abc');
+	});
+
 	test('assignPageOwnedContentScriptGroupedBundles names a script the same in any batch, without changing it', () => {
 		const script: ContentScriptAsset = {
 			kind: 'script',

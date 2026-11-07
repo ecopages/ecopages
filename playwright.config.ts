@@ -51,6 +51,7 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 			'playground/kitchen-sink/e2e/**/*.preview.test.e2e.ts',
 			'playground/kitchen-sink/e2e/*-hmr.test.e2e.ts',
 			'playground/kitchen-sink/e2e/*.fresh-dev.test.e2e.ts',
+			'playground/kitchen-sink/e2e/*.start.test.e2e.ts',
 		],
 		timeout: 90_000,
 		grep: prKitchenSinkTests,
@@ -92,6 +93,12 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 			...chrome,
 			appOptions: { source: 'playground/kitchen-sink', env: { ECOPAGES_CROSS_INTEGRATION_E2E: 'true' } },
 		},
+	},
+	{
+		name: 'cross-integration-moved-start-e2e',
+		testMatch: 'playground/kitchen-sink/e2e/moved-build.start.test.e2e.ts',
+		timeout: 60_000,
+		use: { ...chrome, appOptions: { source: 'playground/kitchen-sink', serve: 'moved-start' } },
 	},
 	{
 		name: 'cross-integration-preview-e2e',
@@ -145,6 +152,12 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		name: 'react-production-start-preview-e2e',
 		testMatch: 'e2e/fixtures/react-production-start/react-production-start.preview.test.e2e.ts',
 		use: { ...chrome, baseURL: 'http://localhost:4628' },
+	},
+	{
+		name: 'react-production-start-moved-e2e',
+		testMatch: 'e2e/fixtures/react-production-start/react-production-start.moved.test.e2e.ts',
+		timeout: 60_000,
+		use: { ...chrome, appOptions: { source: 'e2e/fixtures/react-production-start', serve: 'moved-start' } },
 	},
 	{
 		name: 'react-production-start-dev-e2e',

@@ -11,7 +11,7 @@ function transformConfigSource(
 	id = '/project/eco.config.ts',
 	runtimeDir = '/project/dist/server',
 ): string {
-	const transform = getPluginTransform(createPreserveImportMetaPlugin(runtimeDir));
+	const transform = getPluginTransform(createPreserveImportMetaPlugin(runtimeDir, '/project'));
 	const result = transform.transform(code, id);
 	if (!result || typeof result === 'string') return result ?? code;
 	return result.code;
@@ -51,10 +51,18 @@ describe('createPreserveImportMetaPlugin', () => {
 		expect(transformed).toContain('new URL("../../eco.config.ts", import.meta.url).href');
 	});
 
+	it('keys the transform by its runtime directory relative to the app root', () => {
+		const keyUnder = (rootDir: string) =>
+			createPreserveImportMetaPlugin(`${rootDir}/dist/server`, rootDir).cacheKey;
+
+		expect(keyUnder('/srv/two/app')).toBe(keyUnder('/builds/one/app'));
+		expect(keyUnder('/builds/one/app')).toBe('dist/server');
+	});
+
 	it('maps rewritten import.meta expressions back to their source line', () => {
 		const filePath = '/project/eco.config.ts';
 		const source = '\nexport const root = import.meta.dirname;\n';
-		const result = getPluginTransform(createPreserveImportMetaPlugin('/project/dist/server')).transform(
+		const result = getPluginTransform(createPreserveImportMetaPlugin('/project/dist/server', '/project')).transform(
 			source,
 			filePath,
 		) as {

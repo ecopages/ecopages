@@ -25,6 +25,7 @@ import { describeRendererContract } from '@ecopages/testing/renderer-contract';
 import React, { type JSX, type ReactNode } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
 import type { ReactRuntimeModules } from '../render/react-runtime.ts';
+import { toRootRelativePath } from '@ecopages/core/build';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
 import { Page } from './fixture/test-page';
 
@@ -407,7 +408,7 @@ describe('ReactRenderer', () => {
 			expect(result.rootAttributes?.['data-eco-island-integration']).toBe('react');
 			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-1');
 			expect(result.rootAttributes?.['data-eco-component-key']).toBe(
-				getIslandComponentKey(pageFilePath, Component.config),
+				getIslandComponentKey(toRootRelativePath(Config.rootDir, pageFilePath), Component.config),
 			);
 			expect(result.rootAttributes?.['data-eco-props']).toBe(btoa(JSON.stringify({ title: 'Island' })));
 		});
@@ -677,7 +678,10 @@ describe('ReactRenderer', () => {
 				html: '<eco-island style="display:contents"><h3>Island</h3></eco-island>',
 				rootAttributes: {
 					'data-eco-component-id': 'island-1',
-					'data-eco-component-key': getIslandComponentKey(pageFilePath, Component.config),
+					'data-eco-component-key': getIslandComponentKey(
+						toRootRelativePath(Config.rootDir, pageFilePath),
+						Component.config,
+					),
 					'data-eco-props': btoa(JSON.stringify({ title: 'Island' })),
 					'data-eco-island': '',
 					'data-eco-island-integration': 'react',

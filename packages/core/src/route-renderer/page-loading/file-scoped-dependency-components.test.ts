@@ -107,7 +107,7 @@ describe('collectComponentConfigFilePaths', () => {
 		};
 		const child = (() => null) as EcoComponent;
 		child.config = {
-			identity: { id: 'child', file: '/app/components/demo.tsx', integration: 'ecopages-jsx' },
+			identity: { id: 'child', file: 'components/demo.tsx', integration: 'ecopages-jsx' },
 		};
 		const page = (() => null) as EcoComponent;
 		page.config = {
@@ -116,25 +116,33 @@ describe('collectComponentConfigFilePaths', () => {
 			layouts: [layout],
 		};
 
-		const withoutLayouts = collectComponentConfigFilePaths([page]);
+		const withoutLayouts = collectComponentConfigFilePaths([page], { rootDir: '/app' });
 		expect(withoutLayouts.has('/app/pages/docs/index.tsx')).toBe(true);
 		expect(withoutLayouts.has('/app/components/demo.tsx')).toBe(true);
 		expect(withoutLayouts.has('/app/layouts/docs.tsx')).toBe(false);
 
-		const withLayouts = collectComponentConfigFilePaths([page], { includeLayouts: true });
+		const withLayouts = collectComponentConfigFilePaths([page], { rootDir: '/app', includeLayouts: true });
 		expect(withLayouts.has('/app/layouts/docs.tsx')).toBe(true);
 	});
 });
 
 describe('collectDependencyWatchPaths', () => {
 	test('includes owner file and nested dependency component files', () => {
-		const watchPaths = collectDependencyWatchPaths('/app/content/demo.mdx', [
-			{
-				config: {
-					identity: { id: 'demo-component', file: '/app/components/demo.tsx', integration: 'ecopages-jsx' },
+		const watchPaths = collectDependencyWatchPaths(
+			'/app/content/demo.mdx',
+			[
+				{
+					config: {
+						identity: {
+							id: 'demo-component',
+							file: '/app/components/demo.tsx',
+							integration: 'ecopages-jsx',
+						},
+					},
 				},
-			},
-		]);
+			],
+			'/app',
+		);
 
 		expect(watchPaths).toEqual(expect.arrayContaining(['/app/content/demo.mdx', '/app/components/demo.tsx']));
 		expect(watchPaths).toHaveLength(2);

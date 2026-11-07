@@ -36,6 +36,7 @@ export function createMockIntegrationPlugin(
 
 export function createMockAppConfig(overrides: Partial<EcoPagesAppConfig> = {}): EcoPagesAppConfig {
 	const config = {
+		rootDir: '/app',
 		absolutePaths: {
 			pagesDir: '/app/pages',
 			htmlTemplatePath: '/app/index.ts',

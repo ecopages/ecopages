@@ -316,7 +316,7 @@ export class ServerRequestPipeline {
 			integrations: this.appConfig.integrations,
 			ensureIntegrationReady: (integrationName) =>
 				ensureIntegrationRuntimeReady({ appConfig: this.appConfig, integrationName }),
-			importServerModule: (filePath) => this.importServerModule(filePath),
+			importServerModule: (filePath) => this.importServerModule(path.resolve(this.appConfig.rootDir, filePath)),
 		});
 	}
 

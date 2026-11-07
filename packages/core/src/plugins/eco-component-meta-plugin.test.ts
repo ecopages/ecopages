@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
 import {
@@ -10,10 +11,11 @@ import type { EcoPagesAppConfig } from '../config/internal-types';
 
 /**
  * Creates a regex pattern to match identity attribution with any id hash.
- * The id is a base36 hash that varies, so we match it with a pattern.
+ * The id is a base36 hash that varies, so we match it with a pattern. `file` is absolute; the attribution names it
+ * relative to the `/path/to` app root of these tests.
  */
 function ecoMetaPattern(file: string, integration: string): RegExp {
-	const escapedFile = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const escapedFile = path.posix.relative('/path/to', file).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 	return new RegExp(
 		`bindComponentIdentity\\(\\{ id: "[a-z0-9]+", file: "${escapedFile}", integration: "${integration}" \\},`,
 	);
@@ -368,7 +370,7 @@ export const Input = eco.component({
 
 		expect(result).toBeDefined();
 		const matches = result.contents.match(
-			/bindComponentIdentity\(\{ id: "[a-z0-9]+", file: "\/path\/to\/components\.tsx", integration: "react" \},/g,
+			/bindComponentIdentity\(\{ id: "[a-z0-9]+", file: "components\.tsx", integration: "react" \},/g,
 		);
 		expect(matches).toHaveLength(2);
 	});

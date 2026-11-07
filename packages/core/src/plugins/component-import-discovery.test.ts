@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync, realpathSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
@@ -52,7 +52,7 @@ describe('component import discovery', () => {
 	});
 	it('extracts relative and aliased CSS regardless of position and is idempotent', () => {
 		const { root, transform } = fixture();
-		const stylePath = realpathSync(path.join(root, 'style.css'));
+		const stylePath = 'style.css';
 		const result = transform(`import './style.css';\nimport '@/style.css';`);
 		expect(result).not.toContain(`import './style.css'`);
 		expect(result).not.toContain(`import '@/style.css'`);
@@ -95,8 +95,8 @@ describe('component import discovery', () => {
 		expect(transform(`import { Child } from './index';`)).not.toMatch(DISCOVERED_COMPONENT);
 	});
 	it('records the imported factory module as a watch file', () => {
-		const { root, transform } = fixture();
-		const childPath = realpathSync(path.join(root, 'child.ts'));
+		const { transform } = fixture();
+		const childPath = 'child.ts';
 		expect(transform(`import { Child } from './child';`)).toContain(`watchFiles: ${JSON.stringify([childPath])}`);
 	});
 	it('discovers named barrel re-exports of the imported binding only', () => {
@@ -106,8 +106,8 @@ describe('component import discovery', () => {
 		expect(transform(`import { Child } from './index';`)).toContain('components: () => [Child]');
 		expect(transform(`import { Child } from './index';`)).not.toContain('Alias');
 		const barrel = transform(`import { Child } from './index';`);
-		expect(barrel).toContain(realpathSync(path.join(root, 'index.ts')));
-		expect(barrel).toContain(realpathSync(path.join(root, 'child.ts')));
+		expect(barrel).toContain('"index.ts"');
+		expect(barrel).toContain('"child.ts"');
 	});
 	it('follows nested named barrel re-exports', () => {
 		const { root, transform } = fixture();
@@ -192,17 +192,17 @@ export const Button = eco.component({ render: () => '' });`,
 		}
 
 		it('resolves a package stylesheet through its exports with the style condition and strips the import', () => {
-			const { transform, real } = packageFixture();
-			const style = real('node_modules/some-lib/dist/style.css');
+			const { transform } = packageFixture();
+			const style = '|some-lib/dist/style.css';
 			const result = transform(`import 'some-lib/style.css';\nimport 'some-lib/dist/style.css';`);
 			expect(result).not.toContain(`import 'some-lib`);
 			expect(result).toContain(`stylesheets: ${JSON.stringify([style])}`);
 			expect(result).toContain(`packageStylesheets: ${JSON.stringify([style])}`);
 		});
 		it('reads a package import without .css as a stylesheet only when it resolves to one', () => {
-			const { transform, real } = packageFixture();
+			const { transform } = packageFixture();
 			const result = transform(`import 'some-lib/theme';\nimport 'some-lib';`);
-			expect(result).toContain(`stylesheets: ${JSON.stringify([real('node_modules/some-lib/dist/theme.css')])}`);
+			expect(result).toContain(`stylesheets: ${JSON.stringify(['|some-lib/dist/theme.css'])}`);
 			expect(result).not.toContain(`import 'some-lib/theme'`);
 			expect(result).toContain(`import 'some-lib';`);
 		});
@@ -226,7 +226,7 @@ export const Button = eco.component({ render: () => '' });`,
 			);
 		});
 		it('hands a package stylesheet of a plain module to the nearest declaration, after the declaration CSS', () => {
-			const { root, write, real } = packageFixture();
+			const { root, write } = packageFixture();
 			write('badge.css', '.badge {}');
 			write('card.css', '.card {}');
 			write('card.ts', `import 'some-lib/style.css';\nimport './card.css';\nexport const Card = () => '';`);
@@ -239,12 +239,68 @@ export const Button = eco.component({ render: () => '' });`,
 					integration: 'lit',
 					projectRoot: root,
 				}).code;
-			const style = real('node_modules/some-lib/dist/style.css');
+			const style = '|some-lib/dist/style.css';
 			const badge = attribute('badge.ts');
-			expect(badge).toContain(`stylesheets: ${JSON.stringify([real('badge.css')])}`);
-			expect(badge).toContain(`plainModuleStylesheets: ${JSON.stringify([style, real('card.css')])}`);
+			expect(badge).toContain(`stylesheets: ${JSON.stringify(['badge.css'])}`);
+			expect(badge).toContain(`plainModuleStylesheets: ${JSON.stringify([style, 'card.css'])}`);
 			expect(badge).toContain(`packageStylesheets: ${JSON.stringify([style])}`);
 			expect(attribute('card.ts')).not.toContain('some-lib');
+		});
+	});
+	it('names a package stylesheet from the folder of the module that imports it, with its version', () => {
+		const { root, transform } = fixture();
+		const install = (dir: string, version: string) => {
+			const packageDir = path.join(root, dir, 'node_modules', 'dep');
+			mkdirSync(packageDir, { recursive: true });
+			writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: 'dep', version }));
+			writeFileSync(path.join(packageDir, 'x.css'), `.v${version.replace(/\./g, '')} {}`);
+		};
+		install('.', '2.0.0');
+		install('packages/ui', '1.0.0');
+		writeFileSync(path.join(root, 'packages', 'ui', 'package.json'), JSON.stringify({ name: '@acme/ui' }));
+		writeFileSync(
+			path.join(root, 'packages', 'ui', 'badge.ts'),
+			`import 'dep/x.css';\nexport const Badge = () => '';`,
+		);
+
+		const result = transform(`import 'dep/x.css';\nimport { Badge } from './packages/ui/badge';`);
+
+		expect(result).toContain(
+			`packageStylesheets: ${JSON.stringify(['|dep@2.0.0/x.css', 'packages/ui|dep@1.0.0/x.css'])}`,
+		);
+	});
+	describe('a moved app', () => {
+		/** Writes one app into a new folder, with `some-lib` in a pnpm-style store folder of `version`. */
+		function appIn(version: string) {
+			const { root, transform } = fixture();
+			const packageDir = path.join(
+				root,
+				'node_modules',
+				'.pnpm',
+				`some-lib@${version}`,
+				'node_modules',
+				'some-lib',
+			);
+			mkdirSync(path.join(packageDir, 'css'), { recursive: true });
+			writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: 'some-lib', version }));
+			writeFileSync(path.join(packageDir, 'css', 'style.css'), '.some-lib {}');
+			symlinkSync(packageDir, path.join(root, 'node_modules', 'some-lib'), 'junction');
+			return transform(
+				`import './style.css';\nimport 'some-lib/css/style.css';\nimport { Child } from './child';`,
+			);
+		}
+
+		it('emits the same module from any folder, naming no path of the machine', () => {
+			const first = appIn('1.0.0');
+			const second = appIn('1.0.0');
+
+			expect(second).toBe(first);
+			expect(first).toContain('file: "page.ts"');
+			expect(first).toContain(`stylesheets: ${JSON.stringify(['style.css', '|some-lib@1.0.0/css/style.css'])}`);
+			expect(first).toContain(`packageStylesheets: ${JSON.stringify(['|some-lib@1.0.0/css/style.css'])}`);
+			expect(first).toContain(`watchFiles: ${JSON.stringify(['child.ts'])}`);
+			for (const root of roots) expect(first).not.toContain(realpathSync(root));
+			expect(first).not.toContain('\\\\');
 		});
 	});
 	it('reports missing relative or aliased imports with owner and specifier', () => {
@@ -296,14 +352,12 @@ export const Button = eco.component({ render: () => '' });`,
 		}
 
 		it('hands a plain component CSS to the nearest declaration, after its own CSS', () => {
-			const { attribute, real } = plainFixture();
+			const { attribute } = plainFixture();
 			const badge = attribute('badge.ts');
-			expect(badge).toContain(`stylesheets: ${JSON.stringify([real('badge.css')])}`);
-			expect(badge).toContain(
-				`plainModuleStylesheets: ${JSON.stringify([real('card.css'), real('card-body.css')])}`,
-			);
-			expect(badge).toContain(real('card.ts'));
-			expect(badge).toContain(real('card-body.ts'));
+			expect(badge).toContain(`stylesheets: ${JSON.stringify(['badge.css'])}`);
+			expect(badge).toContain(`plainModuleStylesheets: ${JSON.stringify(['card.css', 'card-body.css'])}`);
+			expect(badge).toContain('"card.ts"');
+			expect(badge).toContain('"card-body.ts"');
 			expect(badge).toContain('components: () => []');
 		});
 		it('strips the CSS import of a plain module', () => {
@@ -352,7 +406,7 @@ export const Button = eco.component({ render: () => '' });`,
 			await expect(build()).rejects.toThrow('[ecopages] card.ts: "./card.css" never reaches a Page');
 		});
 		it('shares plain module walks within a build without losing CSS through a cycle', () => {
-			const { root, file, real } = plainFixture();
+			const { root, file } = plainFixture();
 			file(
 				'card-body.ts',
 				`import './card-body.css';\nimport { Card } from './card';\nexport const CardBody = () => '';`,
@@ -373,8 +427,8 @@ export const Button = eco.component({ render: () => '' });`,
 				const result = run.transform(fileSystem.readFileSync(path.join(root, name)), path.join(root, name));
 				return typeof result === 'string' ? result : (result?.code ?? '');
 			};
-			expect(code('badge.ts')).toContain(JSON.stringify([real('card.css'), real('card-body.css')]));
-			expect(code('page.ts')).toContain(JSON.stringify([real('card-body.css'), real('card.css')]));
+			expect(code('badge.ts')).toContain(JSON.stringify(['card.css', 'card-body.css']));
+			expect(code('page.ts')).toContain(JSON.stringify(['card-body.css', 'card.css']));
 		});
 		it('strips the CSS import of a plain module no Integration owns', () => {
 			const { attribute } = plainFixture();
@@ -388,13 +442,13 @@ export const Button = eco.component({ render: () => '' });`,
 			);
 		});
 		it('re-reads a plain module import edit on the next transform', () => {
-			const { attribute, file, real } = plainFixture();
-			expect(attribute('badge.ts')).toContain(real('card-body.css'));
+			const { attribute, file } = plainFixture();
+			expect(attribute('badge.ts')).toContain('"card-body.css"');
 			file('card.ts', `import './card.css';\nexport function Card() { return ''; }`);
-			expect(attribute('badge.ts')).not.toContain(real('card-body.css'));
+			expect(attribute('badge.ts')).not.toContain('"card-body.css"');
 		});
 		it('follows named barrels and stops at Eco modules, export *, packages and .server modules', () => {
-			const { attribute, file, real } = plainFixture();
+			const { attribute, file } = plainFixture();
 			file('kit.css', '.kit {}');
 			file('star.css', '.star {}');
 			file('server.css', '.server {}');
@@ -406,24 +460,20 @@ export const Button = eco.component({ render: () => '' });`,
 				`import { eco } from '@ecopages/core';\nimport { Card, Star } from './kit';\nimport { Badge } from './badge';\nimport { data } from './data.server';\nimport { html } from 'lit';\nexport default eco.page({ render: () => html\`\${Card()}\${Star()}\${Badge({})}\${data}\` });`,
 			);
 			const page = attribute('page.ts');
-			expect(page).toContain(
-				`plainModuleStylesheets: ${JSON.stringify([real('card.css'), real('card-body.css')])}`,
-			);
+			expect(page).toContain(`plainModuleStylesheets: ${JSON.stringify(['card.css', 'card-body.css'])}`);
 			expect(page).toContain('components: () => [Badge]');
-			expect(page).toContain(real('kit.ts'));
-			expect(page).not.toContain(real('star.ts'));
-			expect(page).not.toContain(real('badge.css'));
+			expect(page).toContain('"kit.ts"');
+			expect(page).not.toContain('"star.ts"');
+			expect(page).not.toContain('"badge.css"');
 		});
 		it('ends a cycle between plain modules and lists each stylesheet once', () => {
-			const { attribute, file, real } = plainFixture();
+			const { attribute, file } = plainFixture();
 			file(
 				'card-body.ts',
 				`import './card-body.css';\nimport { Card } from './card';\nimport { Badge } from './badge';\nexport const CardBody = () => '';`,
 			);
 			const badge = attribute('badge.ts');
-			expect(badge).toContain(
-				`plainModuleStylesheets: ${JSON.stringify([real('card.css'), real('card-body.css')])}`,
-			);
+			expect(badge).toContain(`plainModuleStylesheets: ${JSON.stringify(['card.css', 'card-body.css'])}`);
 		});
 		it('hands plain module CSS and Components to an MDX document', () => {
 			const { root, file, real } = plainFixture();
@@ -441,7 +491,7 @@ export const Button = eco.component({ render: () => '' });`,
 				'export default function MDXContent() { return _jsx(Card, {}); }',
 			].join('\n');
 			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root).code;
-			expect(result).toContain(`plainModuleStylesheets: ${JSON.stringify([real('card.css')])}`);
+			expect(result).toContain(`plainModuleStylesheets: ${JSON.stringify(['card.css'])}`);
 			expect(result).toContain('components: () => [__ecoPlainModuleComponent0]');
 			expect(result).toContain(`import { Icon as __ecoPlainModuleComponent0 } from "${real('icon.ts')}";`);
 		});
@@ -526,7 +576,7 @@ export const Button = eco.component({ render: () => '' });`,
 	describe('MDX component import discovery and attribution', () => {
 		it('discovers component and stylesheet imports in MDX and strips bare CSS', () => {
 			const { root } = fixture();
-			const stylePath = realpathSync(path.join(root, 'style.css'));
+			const stylePath = 'style.css';
 			const mdxJs = [
 				"import { jsx as _jsx, jsxs as _jsxs } from 'react/jsx-runtime';",
 				"import { Child } from './child';",
@@ -549,7 +599,7 @@ export const Button = eco.component({ render: () => '' });`,
 
 		it('preserves existing export const config and merges discovered dependencies', () => {
 			const { root } = fixture();
-			const stylePath = realpathSync(path.join(root, 'style.css'));
+			const stylePath = 'style.css';
 			const mdxJs = [
 				"import { jsx as _jsx } from 'react/jsx-runtime';",
 				"import { Child } from './child';",
@@ -568,7 +618,7 @@ export const Button = eco.component({ render: () => '' });`,
 
 		it('distinguishes top-level imports from imports and functions inside code blocks', () => {
 			const { root } = fixture();
-			const stylePath = realpathSync(path.join(root, 'style.css'));
+			const stylePath = 'style.css';
 			const mdxJs = [
 				"import { jsx as _jsx, jsxs as _jsxs } from 'react/jsx-runtime';",
 				"import { Child } from './child';",

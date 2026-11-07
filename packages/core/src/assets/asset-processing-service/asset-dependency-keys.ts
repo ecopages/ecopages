@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { contentHash } from '../../utils/content-hash.ts';
+import { toPackagePath } from '../../utils/package-path.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import type { AssetDefinition } from './assets.types.ts';
 
@@ -47,20 +48,47 @@ function getScriptDependencyBuildSignature(dep: AssetDefinition): string | undef
 }
 
 /**
+ * The text of a generated script with each member it imports written relative to `rootDir`.
+ *
  * @remarks
- * A Page script bundle (`packageRole: 'page-script'` with bundled sources) is generated from its members and
- * imports them by absolute path, so it is identified by its members rather than by its text.
+ * Both the raw path and its JSON-escaped form are replaced, as a generator writes either into an import
+ * specifier, and the escaped form differs on Windows.
+ */
+function toPortableGeneratedText(content: string, members: readonly string[], rootDir: string): string {
+	let text = content;
+	for (const member of members) {
+		const relative = toRootRelativePath(rootDir, member);
+		text = text.replaceAll(JSON.stringify(member).slice(1, -1), relative).replaceAll(member, relative);
+	}
+	return text;
+}
+
+/**
+ * @remarks
+ * A generated script, a content script that lists `bundledSourceFilepaths`, imports those members by absolute
+ * path, so its text is hashed with each member written relative to the app root, beside its `name`, which its
+ * generator derives from root-relative paths. Any other change to the text still changes the key. A package
+ * stylesheet is identified by its package path (`fromPackage`), not by where the package is installed.
  */
 function getSourceSignature(dep: AssetDefinition, rootDir: string): string[] {
+	if (dep.kind === 'stylesheet' && dep.source === 'file' && dep.fromPackage) {
+		return [`package:${dep.fromPackage}`];
+	}
 	if ('filepath' in dep) {
 		return [toRootRelativePath(rootDir, dep.filepath)];
 	}
 	if ('importPath' in dep) {
-		return [path.isAbsolute(dep.importPath) ? toRootRelativePath(rootDir, dep.importPath) : dep.importPath];
+		if (!path.isAbsolute(dep.importPath)) return [dep.importPath];
+		const packagePath = toPackagePath(dep.importPath);
+		return [packagePath ? `package:${packagePath}` : toRootRelativePath(rootDir, dep.importPath)];
 	}
-	const isPageScriptBundle =
-		dep.kind === 'script' && dep.packageRole === 'page-script' && dep.bundledSourceFilepaths?.length;
-	const parts = isPageScriptBundle ? [] : [`content:${generateHash(dep.content)}`];
+	const members = dep.kind === 'script' ? dep.bundledSourceFilepaths : undefined;
+	const parts = members?.length
+		? [
+				`generated:${('name' in dep && dep.name) || ''}`,
+				`content:${generateHash(toPortableGeneratedText(dep.content, members, rootDir))}`,
+			]
+		: [`content:${generateHash(dep.content)}`];
 	if ('processingOrigin' in dep && dep.processingOrigin) {
 		parts.push(`origin:${toRootRelativePath(rootDir, dep.processingOrigin)}`);
 	}
@@ -77,12 +105,14 @@ function getSourceSignature(dep: AssetDefinition, rootDir: string): string[] {
  * Script dependencies include a build signature: bundle flags, grouped-bundle metadata and every
  * `bundleOptions` field, with each plugin as its name and `cacheKey`. `NODE_ENV` and plugin objects are left
  * out, so a plugin factory that captures an option which changes its output must set `cacheKey`.
- * `attributes` (hashed), `inline` and a stylesheet's `fromPackage` join the key so dedupe and cache reuse do not
- * collapse declarations that would emit different tags or files. `name` only names output files and is left out.
+ * `attributes` (hashed) and `inline` join the key so dedupe and cache reuse do not collapse declarations that
+ * would emit different tags or files. `name` only names output files and is left out, except for a generated
+ * script, which it helps identify.
  *
- * File paths, bundled sources and a Page script bundle's members are relative to `rootDir`, so the key survives
- * moving the project. Other content is hashed as written: generated content that embeds an absolute path
- * still keys by location.
+ * File paths, bundled sources and a generated script's members are relative to `rootDir`, and a package
+ * stylesheet, like a node-module script, keys by its package path, so the key survives moving the project or
+ * reinstalling its packages in another store layout.
+ * Other content is hashed as written. A plugin `cacheKey` must not capture an absolute path for the same reason.
  *
  * Runtime minify in {@link ContentScriptProcessor} still follows `NODE_ENV` via
  * `isProduction`, not `bundleOptions.minify`.
@@ -102,10 +132,6 @@ export function getAssetDependencyKey(dep: AssetDefinition, rootDir: string): st
 
 	if ('packageRole' in dep && dep.packageRole) {
 		parts.push(`package:${dep.packageRole}`);
-	}
-
-	if (dep.kind === 'stylesheet' && dep.source === 'file' && dep.fromPackage) {
-		parts.push('from-package');
 	}
 
 	if ((dep.kind === 'script' || dep.kind === 'stylesheet') && dep.attributes) {

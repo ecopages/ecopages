@@ -730,7 +730,7 @@ describe('DependencyResolverService', () => {
 				AssetFactory.createFileStylesheet({
 					filepath,
 					attributes: { rel: 'stylesheet' },
-					...(index === 2 ? { fromPackage: true } : {}),
+					...(index === 2 ? { fromPackage: 'some-lib/package.css' } : {}),
 				}),
 			);
 			const packaged = deduplicateAssetDependencies(
@@ -739,7 +739,7 @@ describe('DependencyResolverService', () => {
 			);
 
 			expect(packaged.map((dependency) => dependency.source)).toEqual(['content', 'file', 'content']);
-			expect(packaged[1]).toMatchObject({ filepath: paths[2], fromPackage: true });
+			expect(packaged[1]).toMatchObject({ filepath: paths[2], fromPackage: 'some-lib/package.css' });
 		} finally {
 			vi.unstubAllEnvs();
 			rmSync(tempDir, { recursive: true, force: true });

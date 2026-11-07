@@ -117,35 +117,19 @@ function modulePathWithoutQuery(filePath: string): string {
 }
 
 /**
- * Finds the production map key for `filePath`.
+ * Finds the production map key for `filePath`: its path relative to `rootDir`, when the map records it.
  *
  * @remarks
- * Prefers the path relative to `rootDir`. When `identity.file` still names the
- * build machine (an absolute path outside the deploy root), the longest map key
- * that is a suffix of that path wins, so a copied `dist/` can load scripts
- * resolved from that identity.
+ * Emitted modules name their sources relative to the app root, so a moved or copied deploy resolves every
+ * key against its own root.
  */
 export function matchProductionModuleKey(
 	rootDir: string,
 	filePath: string,
 	modules: Record<string, string>,
 ): string | undefined {
-	const file = modulePathWithoutQuery(filePath);
-	const sourceKey = toRootRelativePath(rootDir, file);
-	if (sourceKey in modules) {
-		return sourceKey;
-	}
-
-	const posix = file.split(path.sep).join('/');
-	let match: string | undefined;
-	for (const key of Object.keys(modules)) {
-		if (posix === key || posix.endsWith(`/${key}`)) {
-			if (!match || key.length > match.length) {
-				match = key;
-			}
-		}
-	}
-	return match;
+	const sourceKey = toRootRelativePath(rootDir, modulePathWithoutQuery(filePath));
+	return sourceKey in modules ? sourceKey : undefined;
 }
 
 /**

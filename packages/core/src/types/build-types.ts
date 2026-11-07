@@ -146,7 +146,8 @@ export type EcoBuildPlugin = {
 	 * a factory captured would otherwise share an identity, and with it a deduplicated build or a reused
 	 * artifact. A factory that captures an option which changes its output sets this to a string of that option.
 	 * The dependency key of a script that declares the plugin in `bundleOptions` includes it too, so the
-	 * processed-asset cache keeps such scripts apart.
+	 * processed-asset cache keeps such scripts apart. It must hold no absolute path: name a file relative to the
+	 * app root instead, or the production ledger misses every such script once the build moves.
 	 */
 	cacheKey?: string;
 };

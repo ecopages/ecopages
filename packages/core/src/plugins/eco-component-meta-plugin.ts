@@ -9,6 +9,9 @@ import { createMappedSourceTransformResult } from '../build/mapped-source-transf
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { contentHash } from '../utils/content-hash.ts';
 import { escapeRegExp } from '../utils/regex-escaping.ts';
+import { toPackagePath } from '../utils/package-path.ts';
+import { formatPackageStylesheetEntry } from '../eco/discovered-dependency-paths.ts';
+import { toRootRelativePath } from '../utils/root-relative-path.ts';
 import {
 	assertDeliverableStylesheetImport,
 	collectStaticImports,
@@ -140,9 +143,33 @@ function walkEcoFactoryCalls(node: unknown, binding: string, visit: (call: AstNo
 	for (const value of Object.values(node)) walkEcoFactoryCalls(value, scope, visit);
 }
 
-function createIdentityLiteral(identitySource: string, filePath: string, integration: string): string {
+/**
+ * Returns the function that names a file the way server modules and the ledger store it: relative to the app
+ * root, with forward slashes.
+ *
+ * @remarks
+ * Both sides are real paths, so a root reached through a symlink, such as macOS `/tmp`, relativizes the
+ * real module ids the bundler reports. A file not on disk, such as a virtual module, takes the real path of its
+ * folder.
+ */
+function createSourceKeyResolver(projectRoot: string): (file: string) => string {
+	const toRealPath = (file: string): string => {
+		if (fileSystem.exists(file)) return fileSystem.realpath(file);
+		const dir = path.dirname(file);
+		return fileSystem.exists(dir) ? path.join(fileSystem.realpath(dir), path.basename(file)) : path.resolve(file);
+	};
+	const realRoot = toRealPath(projectRoot);
+	return (file) => toRootRelativePath(realRoot, toRealPath(file));
+}
+
+/**
+ * @remarks
+ * `file` is the root-relative source key and `id` hashes it, so an emitted module names its source the same
+ * wherever the app was built and keeps working after the app folder moves.
+ */
+function createIdentityLiteral(identitySource: string, sourceKey: string, integration: string): string {
 	const id = BigInt(`0x${contentHash(identitySource, 16)}`).toString(36);
-	return `{ id: ${JSON.stringify(id)}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
+	return `{ id: ${JSON.stringify(id)}, file: ${JSON.stringify(sourceKey)}, integration: ${JSON.stringify(integration)} }`;
 }
 
 function createNamedImportEdit(
@@ -227,8 +254,19 @@ function createPlainModuleComponentImports(discovered: DiscoveredImports): { loc
 	return { locals, code: code ? `${code}\n` : '' };
 }
 
+/**
+ * Serializes discovery as the third argument of `bindComponentIdentity`.
+ *
+ * @remarks
+ * Local stylesheets and watch files are written relative to the app root, and a package stylesheet as the folder of
+ * the module that imported it and its package path (`src/components|some-lib@1.2.0/css/style.css`, see
+ * {@link formatPackageStylesheetEntry}), which `packageStylesheets` lists. Core
+ * resolves both at load, so no emitted module holds a path of the machine that built it. A package stylesheet
+ * outside any named package is written as a local one.
+ */
 function serializeDiscoveryArgument(
 	discovered: DiscoveredImports | undefined,
+	toSourceKey: (file: string) => string,
 	plainModuleComponents: string[] = [],
 ): string {
 	if (
@@ -241,17 +279,26 @@ function serializeDiscoveryArgument(
 	) {
 		return '';
 	}
+	const packagePaths = new Map<string, string>();
+	for (const { file, importer } of discovered.packageStylesheets) {
+		const packagePath = toPackagePath(file);
+		if (packagePath) {
+			packagePaths.set(file, formatPackageStylesheetEntry(toSourceKey(path.dirname(importer)), packagePath));
+		}
+	}
+	const toStylesheetKey = (file: string) => packagePaths.get(file) ?? toSourceKey(file);
 	const components = [...discovered.components, ...plainModuleComponents].join(', ');
+	const stylesheets = discovered.stylesheets.map(toStylesheetKey);
 	const plain =
 		discovered.plainModuleStylesheets.length > 0
-			? `, plainModuleStylesheets: ${JSON.stringify(discovered.plainModuleStylesheets)}`
+			? `, plainModuleStylesheets: ${JSON.stringify(discovered.plainModuleStylesheets.map(toStylesheetKey))}`
 			: '';
-	const packages =
-		discovered.packageStylesheets.length > 0
-			? `, packageStylesheets: ${JSON.stringify(discovered.packageStylesheets)}`
+	const packages = packagePaths.size > 0 ? `, packageStylesheets: ${JSON.stringify([...packagePaths.values()])}` : '';
+	const watchFiles =
+		discovered.watchFiles.length > 0
+			? `, watchFiles: ${JSON.stringify(discovered.watchFiles.map(toSourceKey))}`
 			: '';
-	const watchFiles = discovered.watchFiles.length > 0 ? `, watchFiles: ${JSON.stringify(discovered.watchFiles)}` : '';
-	return `, { components: () => [${components}], stylesheets: ${JSON.stringify(discovered.stylesheets)}${plain}${packages}${watchFiles} }`;
+	return `, { components: () => [${components}], stylesheets: ${JSON.stringify(stylesheets)}${plain}${packages}${watchFiles} }`;
 }
 
 /**
@@ -332,7 +379,7 @@ function stripPlainModuleStylesheetImports(
  * file share that name. Server and browser builds of one source derive the same id, and a named declaration
  * keeps it while other code in the file changes. Calls bound to no name (an inline argument, a call inside an
  * anonymous function) are numbered in source order, so adding or removing another unnamed call before them
- * changes their id. `file` stays the module path for every call in the file. A module without calls only
+ * changes their id. `file` stays the module's root-relative source key for every call in the file. A module without calls only
  * loses its side-effect stylesheet imports (see {@link stripPlainModuleStylesheetImports}).
  */
 export function attributeComponentIdentity(
@@ -368,6 +415,8 @@ export function attributeComponentIdentity(
 		});
 	}
 
+	const toSourceKey = createSourceKeyResolver(projectRoot);
+	const sourceKey = toSourceKey(filePath);
 	const factoryArguments: Array<{ start: number; end: number; identityLiteral: string }> = [];
 	const bindingOccurrences = new Map<string, number>();
 	walkEcoFactoryCalls(program, '', (node, binding) => {
@@ -380,7 +429,7 @@ export function attributeComponentIdentity(
 		factoryArguments.push({
 			start: firstArgument.start,
 			end: firstArgument.end,
-			identityLiteral: createIdentityLiteral(`${filePath}:${binding}:${occurrence}`, filePath, integration),
+			identityLiteral: createIdentityLiteral(`${sourceKey}:${binding}:${occurrence}`, sourceKey, integration),
 		});
 	});
 
@@ -394,7 +443,7 @@ export function attributeComponentIdentity(
 		cache: options.discoveryCache,
 	});
 	const plainModuleImports = createPlainModuleComponentImports(discovered);
-	const discoveryArgument = serializeDiscoveryArgument(discovered, plainModuleImports.locals);
+	const discoveryArgument = serializeDiscoveryArgument(discovered, toSourceKey, plainModuleImports.locals);
 	const edits: SourceEdit[] = factoryArguments.map((firstArgument) => ({
 		start: firstArgument.start,
 		end: firstArgument.end,
@@ -501,9 +550,11 @@ export function attributeMdxComponentIdentity(
 	}
 
 	const discovered = discoverComponentImports(program, filePath, projectRoot);
-	const identityLiteral = createIdentityLiteral(filePath, filePath, integration);
+	const toSourceKey = createSourceKeyResolver(projectRoot);
+	const sourceKey = toSourceKey(filePath);
+	const identityLiteral = createIdentityLiteral(sourceKey, sourceKey, integration);
 	const plainModuleImports = createPlainModuleComponentImports(discovered);
-	const discoveryArgument = serializeDiscoveryArgument(discovered, plainModuleImports.locals);
+	const discoveryArgument = serializeDiscoveryArgument(discovered, toSourceKey, plainModuleImports.locals);
 
 	const edits = buildMdxConfigIdentityEdits({
 		contents,

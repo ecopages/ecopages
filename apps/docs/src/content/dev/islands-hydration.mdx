@@ -38,7 +38,7 @@ At render, a resolved Foreign Subtree carries a component instance id. `finalize
 
 ## Matching a host to its entry
 
-A host is matched to its browser entry by identity, not by position. Each declaration has a component identity id, and each server render of a Component gets its own instance id, stamped as `data-eco-component-id`. React derives `data-eco-component-key` from the component file and its identity id (`getIslandComponentKey`), so every instance of one Component shares the key and the browser assets, but each host gets its own React root. The generated island entry selects hosts with `[data-eco-component-key="<key>"]` and passes the identity id as `componentRef`; `resolveComponent` then picks the export whose `config.identity.id` equals it. That matters when one file declares several Components. Only when no export carries the id does it fall back to the default export and then the first function.
+A host is matched to its browser entry by identity, not by position. Each declaration has a component identity id, and each server render of a Component gets its own instance id, stamped as `data-eco-component-id`. React derives `data-eco-component-key` from the component file, relative to the app root, and its identity id (`getIslandComponentKey`), so every instance of one Component shares the key and the browser assets, but each host gets its own React root. The generated island entry selects hosts with `[data-eco-component-key="<key>"]` and passes the identity id as `componentRef`; `resolveComponent` then picks the export whose `config.identity.id` equals it. That matters when one file declares several Components. Only when no export carries the id does it fall back to the default export and then the first function.
 
 ## Bootstraps
 

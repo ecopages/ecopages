@@ -14,12 +14,13 @@ function collect(components: EcoComponent[]) {
 	return collectComponentDependencies({
 		components,
 		integrationName: 'lit',
+		rootDir: '/app',
 		resolveLazyScripts: (_dir, scripts) => scripts.join(','),
 		createEcopagesJsxLazyEntryName: (_, key) => key,
 		errors: { invalidStylesheetEntry: 'style', invalidScriptEntry: 'script', lazyScriptMissingSrc: 'lazy' },
 	});
 }
-const identity = (file: string) => ({ id: file, file: `/app/${file}`, integration: 'lit' });
+const identity = (file: string) => ({ id: file, file, integration: 'lit' });
 
 describe('discovered dependency graph', () => {
 	it('defers circular bindings and keeps separate components from one module', () => {
@@ -39,7 +40,7 @@ describe('discovered dependency graph', () => {
 		);
 		expect(first.config?.dependencies?.components).toEqual([second]);
 		expect(collect([first, second]).dependencies.filter((asset) => asset.kind === 'stylesheet')).toHaveLength(2);
-		expect(collectDependencyWatchPaths('/app/shared.ts', [first])).toEqual([
+		expect(collectDependencyWatchPaths('/app/shared.ts', [first], '/app')).toEqual([
 			'/app/shared.ts',
 			'/app/first.css',
 			'/app/second.css',
@@ -82,9 +83,10 @@ describe('discovered dependency graph', () => {
 		);
 		const styles = collect([page]).dependencies.map((asset) => (asset as { filepath?: string }).filepath);
 		expect(styles).toEqual(['/app/page.css', '/app/badge.css', '/app/card.css']);
-		expect(collectDependencyWatchPaths('/app/page.ts', [page])).toContain('/app/card.css');
+		expect(collectDependencyWatchPaths('/app/page.ts', [page], '/app')).toContain('/app/card.css');
 	});
 	it('links a package stylesheet once, marked as from a package, where a declaration imports it itself', () => {
+		const packagePath = 'some-lib/dist/style.css';
 		const pkg = '/app/node_modules/some-lib/dist/style.css';
 		const badge = eco.component(
 			bindComponentIdentity(
@@ -93,8 +95,8 @@ describe('discovered dependency graph', () => {
 				{
 					components: () => [],
 					stylesheets: ['./badge.css'],
-					plainModuleStylesheets: [pkg, './card.css'],
-					packageStylesheets: [pkg],
+					plainModuleStylesheets: [packagePath, './card.css'],
+					packageStylesheets: [packagePath],
 				},
 			),
 		);
@@ -102,7 +104,11 @@ describe('discovered dependency graph', () => {
 			bindComponentIdentity(
 				identity('page.ts'),
 				{ render: () => '' },
-				{ components: () => [badge], stylesheets: ['./page.css', pkg], packageStylesheets: [pkg] },
+				{
+					components: () => [badge],
+					stylesheets: ['./page.css', packagePath],
+					packageStylesheets: [packagePath],
+				},
 			),
 		);
 		const styles = collect([page]).dependencies;
@@ -113,9 +119,9 @@ describe('discovered dependency graph', () => {
 			'/app/card.css',
 		]);
 		expect(styles.filter((asset) => 'fromPackage' in asset && asset.fromPackage)).toEqual([
-			expect.objectContaining({ filepath: pkg }),
+			expect.objectContaining({ filepath: pkg, fromPackage: packagePath }),
 		]);
-		expect(collectDependencyWatchPaths('/app/page.ts', [page])).not.toContain(pkg);
+		expect(collectDependencyWatchPaths('/app/page.ts', [page], '/app')).not.toContain(pkg);
 	});
 	it('keeps a plain component stylesheet next to the only declaration importing it', () => {
 		const child = eco.component(
@@ -193,7 +199,7 @@ describe('discovered dependency graph', () => {
 			),
 		);
 		expect(collect([page]).dependencies).toEqual([expect.objectContaining({ filepath: '/app/a.css' })]);
-		expect(collectDependencyWatchPaths('/app/page.ts', [page])).toEqual([
+		expect(collectDependencyWatchPaths('/app/page.ts', [page], '/app')).toEqual([
 			'/app/page.ts',
 			'/app/button-a.ts',
 			'/app/a.css',
@@ -207,7 +213,7 @@ describe('discovered dependency graph', () => {
 			),
 		);
 		expect(collect([page]).dependencies).toEqual([expect.objectContaining({ filepath: '/app/b.css' })]);
-		expect(collectDependencyWatchPaths('/app/page.ts', [page])).toEqual([
+		expect(collectDependencyWatchPaths('/app/page.ts', [page], '/app')).toEqual([
 			'/app/page.ts',
 			'/app/button-b.ts',
 			'/app/b.css',

@@ -16,6 +16,14 @@ export interface BaseAsset {
 	attributes?: Record<string, string>;
 	position?: AssetPosition;
 	packageRole?: AssetPackageRole;
+	/**
+	 * The source files this asset was built or generated from.
+	 *
+	 * @remarks
+	 * On a content script it marks a generated script, which imports these files by absolute path: its dependency
+	 * key hashes its text with these files written relative to the app root, and its `name`, so a moved build
+	 * still finds it.
+	 */
 	bundledSourceFilepaths?: string[];
 }
 
@@ -100,13 +108,15 @@ export interface FileStylesheetAsset extends StylesheetAsset {
 	filepath: string;
 	name?: string;
 	/**
-	 * Marks a stylesheet a package import named, such as `import 'some-lib/style.css'`.
+	 * The package path, such as `some-lib/css/style.css`, of a stylesheet a package import named.
 	 *
 	 * @remarks
 	 * Processors do not transform it, a Page stylesheet bundle never merges it, and each file its relative
-	 * `url()` references is emitted under a content hash with the reference rewritten to it.
+	 * `url()` references is emitted under a content hash with the reference rewritten to it. Its dependency key
+	 * is this path, not `filepath`, so a reinstalled package, such as a pnpm store path after a version bump,
+	 * keeps the key.
 	 */
-	fromPackage?: boolean;
+	fromPackage?: string;
 }
 
 export interface InlineFileStylesheetAsset extends FileStylesheetAsset {

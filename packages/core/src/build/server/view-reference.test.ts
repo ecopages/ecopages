@@ -91,10 +91,10 @@ describe('view references', () => {
 		);
 	});
 
-	it('writes a module that constructs the reference for the resolved file', () => {
+	it('writes a module that constructs the reference for the file relative to the app root', () => {
 		const filePath = '/app/src/views/post.kita.tsx';
-		const source = viewReferenceModuleSource(filePath, 'kitajs');
-		assert.match(source, /createViewReference/);
+		const source = viewReferenceModuleSource(filePath, 'kitajs', '/app');
+		assert.match(source, /createViewReference\("src\/views\/post\.kita\.tsx", "kitajs"\)/);
 		assert.match(source, /@ecopages\/core\/view-reference/);
 		assert.equal(viewExtensionFilter(['.kita.tsx', '.html']).test('/app/src/views/post.kita.tsx'), true);
 		assert.equal(viewExtensionFilter(['.kita.tsx']).test('/app/src/views/post.tsx'), false);

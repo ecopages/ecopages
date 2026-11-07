@@ -268,8 +268,18 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		const browserOutputFile = getCollectionBrowserCachePath(this.context.cache, collectionName);
 		const outputDir = path.dirname(outputFile);
 		const entriesOutput = renderCollectionEntriesModule(collectionName, manifest);
-		const componentsOutput = renderCollectionComponentsModule(collectionName, outputDir, entrySources);
-		const browserOutput = renderCollectionBrowserModule(collectionName, outputDir, entrySources);
+		const componentsOutput = renderCollectionComponentsModule(
+			collectionName,
+			outputDir,
+			this.context.rootDir,
+			entrySources,
+		);
+		const browserOutput = renderCollectionBrowserModule(
+			collectionName,
+			outputDir,
+			this.context.rootDir,
+			entrySources,
+		);
 
 		this.writeGeneratedFile(outputFile, entriesOutput);
 		this.writeGeneratedFile(serverOutputFile, componentsOutput);

@@ -606,5 +606,5 @@ export class RouteRenderOrchestrator {
  */
 function collectRenderShellSourcePaths(appConfig: EcoPagesAppConfig, graph: PreparedComponentGraph): string[] {
 	const additionalPaths = appConfig.absolutePaths?.htmlTemplatePath ? [appConfig.absolutePaths.htmlTemplatePath] : [];
-	return collectComponentGraphWatchPaths(graph.nodes, additionalPaths);
+	return collectComponentGraphWatchPaths(graph.nodes, appConfig.rootDir, additionalPaths);
 }

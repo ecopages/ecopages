@@ -65,7 +65,7 @@ describe('imported-view-plugin', () => {
 
 		const viewPath = path.join(rootDir, 'src', 'views', 'post.kita.tsx');
 		assert.deepEqual(load(viewPath), {
-			contents: viewReferenceModuleSource(viewPath, 'kitajs'),
+			contents: viewReferenceModuleSource(viewPath, 'kitajs', rootDir),
 			loader: 'js',
 		});
 		assert.deepEqual(getImportedViewPaths(appConfig), [path.resolve(viewPath)]);

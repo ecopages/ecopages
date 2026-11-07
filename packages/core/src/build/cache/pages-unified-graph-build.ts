@@ -25,7 +25,6 @@ import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import {
 	type ProductionServerModulesManifest,
 	loadProductionServerModules,
-	matchProductionModuleKey,
 	writeProductionServerModulesManifest,
 } from '../server/server-modules-manifest.ts';
 import { getServerBundleOutputPaths } from '../server-bundle-deploy-manifest.ts';
@@ -112,39 +111,6 @@ function reviveCompiledPageModuleFromDisk(appConfig: EcoPagesAppConfig, filePath
 	});
 }
 
-/**
- * Points `identity.file` at the current app root when the emitted module still
- * names the build machine, so a copied `dist/` does not read that path.
- *
- * @remarks
- * Relative `dependencies.scripts` resolve from this directory, so the remap
- * keeps the source key. Emitting the module path here breaks the asset
- * pipeline (`./hello.script.ts` would resolve under `dist/server/`).
- */
-function remapProductionIdentityFile(identity: { file?: string } | undefined, appConfig: EcoPagesAppConfig): void {
-	if (!identity?.file) {
-		return;
-	}
-	const manifest = loadProductionServerModules(appConfig);
-	if (!manifest) {
-		return;
-	}
-	const key = matchProductionModuleKey(appConfig.rootDir, identity.file, manifest.modules);
-	if (key) {
-		identity.file = path.resolve(appConfig.rootDir, key);
-	}
-}
-
-function remapLoadedModuleIdentities(loaded: object, appConfig: EcoPagesAppConfig): void {
-	for (const value of Object.values(loaded)) {
-		if ((typeof value !== 'object' && typeof value !== 'function') || value === null) {
-			continue;
-		}
-		const record = value as { config?: { identity?: { file?: string } }; identity?: { file?: string } };
-		remapProductionIdentityFile(record.config?.identity ?? record.identity, appConfig);
-	}
-}
-
 export async function importEmittedServerModule<T>(
 	appConfig: EcoPagesAppConfig,
 	filePath: string,
@@ -154,11 +120,7 @@ export async function importEmittedServerModule<T>(
 	if (owner?.reviveCompiledPageModule) {
 		return reviveCompiledPageModuleFromDisk(appConfig, filePath, outputPath) as T;
 	}
-	const loaded = (await import(/* @vite-ignore */ pathToFileURL(outputPath).href)) as T;
-	if (loaded && typeof loaded === 'object') {
-		remapLoadedModuleIdentities(loaded, appConfig);
-	}
-	return loaded;
+	return (await import(/* @vite-ignore */ pathToFileURL(outputPath).href)) as T;
 }
 
 async function emitRolldownServerModules(
@@ -284,6 +246,7 @@ export async function emitProductionServerModules(options: {
 			manifest,
 			rolldownEntries.map((entryPath) => toRootRelativePath(appConfig.rootDir, entryPath)),
 		),
+		appConfig.rootDir,
 	).filter(
 		(scriptPath) =>
 			fileSystem.exists(scriptPath) && !(toRootRelativePath(appConfig.rootDir, scriptPath) in modules),

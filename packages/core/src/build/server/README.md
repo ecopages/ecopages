@@ -24,7 +24,7 @@ A server-entry import becomes a View Reference only when the file is a view: its
 
 Config finalization creates one `AppModuleLoader` for the app runtime. It requires the app config and uses that app's root directory and build queue for every import. Runtime call sites share it through `requireAppRuntime(appConfig).moduleLoader`; callers provide only the module path and request-specific build options.
 
-Production imports the module `ecopages build` emitted. A missing entry is an error that names the source file and says to run `ecopages build`; it is never compiled. When the requested path sits outside the deploy root, the longest recorded source key that is a suffix of that path still matches, so `identity.file` from the build machine can load. Development still goes through the Ecopages build pipeline, and HTML Pages can still compile in process. Bun and Node both use that pipeline. The Lit static-render worker uses the same production map; `ECOPAGES_LIT_STATIC_RENDER_WORKER` only skips Processor setup and nested worker creation.
+Production imports the module `ecopages build` emitted. A missing entry is an error that names the source file and says to run `ecopages build`; it is never compiled. Emitted modules name their sources relative to the app root (`identity.file`, view references), so every lookup resolves against the root of the deploy, wherever it was built. Development still goes through the Ecopages build pipeline, and HTML Pages can still compile in process. Bun and Node both use that pipeline. The Lit static-render worker uses the same production map; `ECOPAGES_LIT_STATIC_RENDER_WORKER` only skips Processor setup and nested worker creation.
 
 ## Caching layers
 

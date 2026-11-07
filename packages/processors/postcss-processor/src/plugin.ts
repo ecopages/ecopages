@@ -163,7 +163,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	/**
 	 * @remarks
 	 * A stylesheet that fails here is logged and skipped, so one broken file does not stop the dev server from
-	 * starting. The build loader and the dev watcher process it again and report the failure.
+	 * starting. A build that imports it, through core's stylesheet module compiler, and the dev watcher process it
+	 * again and report the failure.
 	 */
 	private async prewarmRuntimeCssCache(): Promise<void> {
 		if (!this.context) {

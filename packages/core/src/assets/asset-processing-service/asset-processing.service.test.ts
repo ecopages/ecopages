@@ -476,6 +476,34 @@ test('AssetProcessingService - reuses file stylesheets until their source change
 	expect(processMock).toHaveBeenCalledTimes(2);
 });
 
+test('AssetProcessingService - a stylesheet that failed in development is processed again once it is fixed', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+	let sourceHash = 'style-good';
+	fileSystem.hash = vi.fn(() => sourceHash);
+
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => {
+		if (sourceHash === 'style-broken') {
+			throw new Error('path/to/main.css:1:1: Unclosed block');
+		}
+		return { filepath: '/test/dist/client/assets/main.css', kind: 'stylesheet' as const, inline: false };
+	});
+	service.registerProcessor('stylesheet', 'file', { process: processMock });
+	const dependency: AssetDefinition = { kind: 'stylesheet' as const, source: 'file', filepath: 'path/to/main.css' };
+
+	await service.processDependencies([dependency], undefined);
+	sourceHash = 'style-broken';
+	await expect(service.processDependencies([dependency], undefined)).rejects.toThrow('Unclosed block');
+	await expect(service.processDependencies([dependency], undefined)).rejects.toThrow('Unclosed block');
+	sourceHash = 'style-good';
+	const fixed = await service.processDependencies([dependency], undefined);
+
+	expect(fixed).toHaveLength(1);
+	expect(processMock).toHaveBeenCalledTimes(4);
+});
+
 test('AssetProcessingService - stale cached emitted files are rebuilt when output is missing', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});

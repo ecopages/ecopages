@@ -2,7 +2,7 @@
 title: "Islands and hydration"
 description: "How Islands are planned and stamped on the server, matched to their browser entries by identity, hydrated by the Integration bootstrap, and loaded lazily."
 section: rendering
-order: 7
+order: 14
 sources:
   - packages/core/src/islands/
   - packages/core/src/route-renderer/orchestration/ownership-graph/
@@ -35,6 +35,8 @@ sequenceDiagram
 An Island is a graph edge where a Component's Integration differs from its parent's, excluding the Html shell. `collectPageClientPlanFromGraph` lists these as `islandEntries`, and `selectHydrationIslandEntries` gives each hydrating Integration only the islands it owns on a Page owned by another Integration; the page owner's own tree is hydrated by its page bootstrap. The page owner asks every other island-hydrating Integration on the plan for its grouped client build, so a React island on a Kita Page still gets a hydration script.
 
 At render, a resolved Foreign Subtree carries a component instance id. `finalizeIslandComponentRender` stamps the root as an Island Host (`data-eco-island`, `data-eco-island-integration`, `data-eco-component-id`) when the result has one root element and the Component's own Dependencies, excluding Foreign Children, include a script. React stamps through `buildIslandHostAttributes`, adds `data-eco-component-key` and base64 `data-eco-props`, and wraps the root in `<eco-island style="display:contents">`.
+
+`data-eco-island` is an empty presence marker, so select hosts with `[data-eco-island]`. The attribute set does not depend on the Integration, which lets the dev toolbar find every Island; an Integration with extra host metadata should build on `buildIslandHostAttributes` rather than add its own selectors. `data-eco-props` is base64 of the UTF-8 JSON: `btoa` alone accepts Latin-1 only and throws on text such as `€`. Browser code that cannot import core (React's island bootstrap and the dev toolbar) keeps its own decoder, so a format change must update those too.
 
 ## Matching a host to its entry
 

@@ -2,11 +2,12 @@
 title: "Navigation"
 description: "The browser-side navigation coordinator that browser-router, react-router and the HMR client share, and the helpers both routers build on."
 section: development
-order: 10
+order: 17
 sources:
   - packages/core/src/router/client/
   - packages/core/src/client/navigation-attributes.ts
   - packages/core/src/client/navigation-scripts/
+  - packages/core/src/client/view-transitions.ts
 ---
 
 # Navigation
@@ -45,6 +46,16 @@ A handoff carries the already fetched `Document`, so the receiving runtime commi
 | `navigation-view-transition` | Wraps the swap in a View Transition. |
 | `navigation-replay` | Decides what happens to a click queued during a navigation: nothing for the same page and hash, otherwise a local navigation or one through the coordinator. |
 | `navigation-lifecycle` | Dispatches the public events. |
+
+## Contract for router authors
+
+`@ecopages/core/client` exports the pipeline for browser runtime authors: document loading and cache control (`fetchNavigationPage`, `parseNavigationDocument`, `cacheNavigationHtml`, `getCachedNavigationHtml`, `invalidateNavigationHtml`, `clearNavigationHtmlCache`), prefetch and replay policy (`shouldPrefetchLink`, `isSamePageHref`, `decideQueuedNavigationReplay`), staged updates (`prepareNavigationHead`, `activatePreparedNavigationScripts`, `commitNavigationPage`), script activation (`activateNavigationScripts`, `activateScriptsInOrder`, `collectBodyScripts`), `runNavigationViewTransition`, the view-transition style helpers and `ECO_PERSIST_ATTRIBUTE`. A custom runtime commits through `commitNavigationPage` and never dispatches the lifecycle events itself. The order of a commit is in [Browser router](/dev/browser-router#the-commit).
+
+- **Head keys.** Head elements are keyed by identity: meta `name`, `property`, `http-equiv` or `charset`; a link by `rel` and resolved `href` (one key for all icons, one for the canonical), so two links to the same stylesheet URL count as one; a script by its navigation identity. Elements the incoming page lacks are removed unless persisted, and a link whose URL already resolves to the incoming one is not rewritten, so the stylesheet does not reload.
+- **Staged stylesheets.** New stylesheets load with `media="not all"` so they cannot affect the outgoing page, and uniquely keyed styles follow the destination's cascade order. `prepareNavigationHead()` exposes `requiresReload`, re-evaluated on every read: true when a stylesheet failed, a persisted style or stylesheet would change order, or a later update broke the prepared order. A caller checks it right before committing and navigates the document instead; `commit()` throws when it is true. A later commit that removes a staged link settles its load wait, so the superseded navigation finishes.
+- **Script identity.** A script matches across pages by `data-eco-script-id`, then `id`, then its `src` resolved against the document base, then its trimmed inline content. A `data-eco-rerun` script keeps its original `src` in `data-eco-rerun-src`, so it is replaced across pages with different `<base>` URLs while the new copy loads from the incoming page's resolved URL.
+- **HTML cache.** Browser-router prefetches into the shared cache and reads it on click; react-router fetches with `bypassCache` and only writes to it.
+- **View transitions.** The update callback of `runNavigationViewTransition()` returns `false` when it did not commit; a void result counts as committed. A later navigation supersedes cleanup from earlier transitions, and a failed or uncommitted swap clears transition names.
 
 ## Lifecycle events
 

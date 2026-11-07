@@ -2,11 +2,15 @@
 title: "Integrations and foreign children"
 description: "The IntegrationPlugin and Processor contracts, per-Integration SSR Policy, and how Foreign Children and Foreign Subtrees cross Integration boundaries."
 section: rendering
-order: 6
+order: 13
 sources:
   - packages/core/src/plugins/integration-plugin.ts
   - packages/core/src/plugins/find-integration-for-file.ts
   - packages/core/src/plugins/processor.ts
+  - packages/core/src/plugins/server-dom.ts
+  - packages/core/src/adapters/shared/runtime/runtime-server-lifecycle.ts
+  - packages/core/src/build/app-build-manifest-runtime.ts
+  - packages/core/src/build/server/app-module-loader.service.ts
   - packages/core/src/eco/eco.ts
   - packages/core/src/route-renderer/orchestration/ownership-graph/
   - packages/core/src/route-renderer/orchestration/foreign-child/
@@ -30,6 +34,12 @@ An Integration subclasses `IntegrationPlugin` ([`integration-plugin.ts`](https:/
 | `setup()` / `hmr()` / `teardown()` | Runtime activation, development behavior, and release. `setup()` does not resolve `integrationDependencies`. Activation (`ensureIntegrationRuntimeReady()`) calls `refreshResolvedIntegrationDependencies()` right after a successful `setup()`, in dev, `ecopages start` and request-only `app.fetch()`, including a later retry of a failed warmup. A production build and the Lit worker activate with `deferGlobalScripts` and resolve once their browser build is known: after the app-wide browser build, or after the worker's ledger restore. The resolved list is one array updated in place, so a renderer that holds it sees each resolution; a third-party Integration must not read it inside `setup()`. |
 | `staticExport()` | Export-wide work before the first page renders, returning a release. |
 | `serverDom`, `acceptsParams`, `bundlesPageDependencies` | Server DOM installer, whether Pages take Params, and whether core may bundle Page assets. |
+| `compilePageModule()` with `serializeCompiledPageModule()` / `reviveCompiledPageModule()` | For files that are not JavaScript modules: compile in process, and record the result for production. [HTML Pages](/dev/html-pages) use it. |
+
+Core owns the order of these hooks; the public sequence is in [Plugin lifecycle](/docs/core/plugin-lifecycle). Two rules are not visible there:
+
+- Before any Integration's `setup()` continues, core installs the configured server DOM surfaces process-wide: every `complete` installer, then every `repair`, whatever the config order, serializing concurrent callers so a second app is not skipped (`installConfiguredServerDom`). [Lit](/dev/lit#why-serverdom-is-a-repair) explains why.
+- Shutdown and restart wait for in-flight `setup()` calls, prewarm renders and page-cache regenerations before calling `teardown()` on each activated Integration, so a late render cannot use released resources. A failed `teardown()` still clears activation, so the next start runs `setup()` again.
 
 ## SSR Policy and hydration
 
@@ -57,6 +67,10 @@ sequenceDiagram
 
 A route that still contains an unresolved `<eco-marker>` artifact fails in `executePrepared`; there is no route-level fallback.
 
+Every possible Foreign Child of a static Component must be declared in `config.dependencies.components`; a Page `dependencies` function can add request-time roots for a Component loaded dynamically. `OwnershipValidationService` checks those declarations during preparation and throws before anything renders. At render time the renderer still discovers the actual Foreign Children through the active render context.
+
+`renderComponentWithForeignChildren()` is the renderer entrypoint for mixed trees. It reuses the render session's owning-renderer cache, renders inline when the Component has no declared Foreign Child descendant, and otherwise installs a foreign-child runtime. Queueing is optional: a renderer that can resolve a Foreign Child inline returns its HTML at once. In the queue model, `resolveQueuedForeignSubtreeTokens` renders a token's children first, so nested tokens resolve before their parent, throws on a cycle, applies the owning renderer's root attributes to the first element of its HTML and splices the result over the token. The queue lives inside one render pass of one renderer; children of the same Integration never pass through it.
+
 Only a declared Component can be a Foreign Child. A plain function has no identity, so it renders inline in whatever Integration calls it. Discovery fails the build when a module renders a plain component of another Integration that compiles JSX with a different runtime, and suggests `eco.component()`. Lit, which leaves the runtime to the tsconfig, is not checked.
 
 ## Processors
@@ -75,5 +89,7 @@ A Processor subclasses `Processor` ([`processor.ts`](https://github.com/ecopages
 Watch extensions only select which changes `onChanges` receives; ownership comes from `capabilities` alone, and it decides whether development invalidation skips server modules and HMR for an asset.
 
 
+
+There is no invalidation hook. A Processor that keeps compiled server artifacts outside the route-module graph compares `moduleLoader.getDevelopmentGeneration()` on the app runtime, which development invalidation advances when it invalidates server modules, with the generation it built at, and rebuilds on a mismatch. The content Processor's collection bundles do this.
 
 For the content Processor and its `ecopages:content` virtual modules, see [Content processor](/dev/content-processor).

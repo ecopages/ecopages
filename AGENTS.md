@@ -1,8 +1,8 @@
 # Agent instructions
 
-Coding standards for agents. Domain vocabulary: [CONTEXT.md](./CONTEXT.md). Architecture: the developer pages in [apps/docs/src/content/dev](./apps/docs/src/content/dev) (served at `/dev`); each lists the code it describes in its `sources:` frontmatter. The inner READMEs under `packages/*/src` are moving into those pages; until they are gone, the index at [packages/core/README.md](./packages/core/README.md) still lists them.
+Coding standards for agents. Domain vocabulary: [CONTEXT.md](./CONTEXT.md). Architecture: the developer pages in [apps/docs/src/content/dev](./apps/docs/src/content/dev) (served at `/dev`); each lists the code it describes in its `sources:` frontmatter.
 
-When behavior changes, update the developer page whose `sources:` cover the file you changed. Package READMEs cover install and overview; update one when its package's public use changes. Use CONTEXT.md terms consistently. User-facing public package changes also need a changeset (`pnpm changeset`); do not hand-edit package versions or `CHANGELOG.md` for release notes.
+When behavior changes, update the developer page whose `sources:` cover the file you changed. Architecture belongs in those pages, not in READMEs below a package root. Package READMEs cover install and overview; update one when its package's public use changes. Use CONTEXT.md terms consistently. User-facing public package changes also need a changeset (`pnpm changeset`); do not hand-edit package versions or `CHANGELOG.md` for release notes.
 
 ## Board
 

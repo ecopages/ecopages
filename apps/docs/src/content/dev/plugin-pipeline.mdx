@@ -2,7 +2,7 @@
 title: "Plugin pipeline"
 description: "How Integrations, Processors and config loaders contribute EcoBuildPlugins, how core orders them per environment, and how the bridge turns them into Rolldown plugins."
 section: build
-order: 4
+order: 6
 sources:
   - packages/core/src/types/build-types.ts
   - packages/core/src/plugins/integration-plugin.ts
@@ -155,6 +155,6 @@ Ownership is by extension. `findIntegrationForFile()` returns the Integration wi
 - **Loaders** filter on the extensions they compile. The MDX loader's filter comes from its configured MDX extensions, so it never claims another Integration's files.
 - **JSX ownership plugins.** `getJsxOwnershipPlugins()` creates one `transform` per JSX-capable `(Integration, extension)` pair, longest extensions first. Each prepends that Integration's `@jsxImportSource` pragma to its files, unless the file already has one, and excludes longer extensions that end with its own, so the `.tsx` owner skips `.kita.tsx` files.
 - **Component identity attribution** looks up the owning Integration of each script module and attributes identity with that Integration's name and JSX runtime. It skips `node_modules` and leaves a module no Integration owns alone unless it is a plain module inside the app root or one discovery reached. [Pages, layouts and components](/dev/pages-layouts-components) covers discovery.
-- **Host-scoped overrides.** An Integration that bundles foreign files into its own client graph uses `getHostScopedJsxOwnershipPlugins()`, which compiles other Integrations' JSX extensions with the host's runtime. Its `scope` option narrows that per build: React's scope claims a foreign file only when a React entry reaches it, and fails the build when entries of both Integrations reach it.
+- **Host-scoped overrides.** An Integration that bundles foreign files into its own client graph uses `getHostScopedJsxOwnershipPlugins()`, which compiles other Integrations' JSX extensions with the host's runtime. Its `scope` option narrows that per build: React's scope claims a foreign file only when a React entry reaches it, and fails the build when entries of both Integrations reach it. The override is a `transform`, not an `onLoad`, so it composes with an earlier loader such as React's client-graph boundary instead of replacing its output.
 
 A file bundled into another Integration's client graph must compile with the runtime that renders it, not the project default; deriving every filter from the owning Integration's extensions keeps it so.

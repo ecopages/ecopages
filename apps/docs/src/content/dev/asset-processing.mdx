@@ -1,0 +1,45 @@
+---
+title: "Asset processing"
+description: "How AssetProcessingService turns declared Dependencies into served files: its processors and cache, where outputs land, grouped script bundles, and what a failed asset does."
+section: build
+order: 8
+sources:
+  - packages/core/src/assets/asset-processing-service/asset-processing.service.ts
+  - packages/core/src/assets/asset-processing-service/asset-dependency-keys.ts
+  - packages/core/src/assets/asset-processing-service/grouped-content-bundles.ts
+  - packages/core/src/assets/asset-processing-service/processors/
+  - packages/core/src/assets/browser-asset-output.ts
+  - packages/core/src/assets/hashed-browser-asset.ts
+  - packages/core/src/plugins/integration-plugin.ts
+---
+
+# Asset processing
+
+`AssetProcessingService` turns a declared asset, a script or stylesheet from a file, inline content or a package, into the file or inline content a Page links. Route preparation calls it for every Dependency it collects; [From graph to HTML](/dev/graph-to-html) covers how its results become the Page Package, and [Ledger and start](/dev/ledger-and-start) how production records and later replays them.
+
+## One service per Integration
+
+Each Integration creates its own service in `setup()`, and calls it with itself as the owner, so its optional `prepareAssetDependencies()` hook runs on the list before dispatch; a call without an owning Integration passes `undefined`. All services of an app share the processed-asset ledger on `AppRuntime`.
+
+The service dispatches each asset to one of five processors by kind and source: content, file and node-module scripts, content and file stylesheets. It holds the only processed-asset cache, keyed by `getAssetDependencyKey`, the dependency identity that deduplication and the ledger use too. File outputs keep their source path, so development can check freshness.
+
+In development, each applied change batch is announced on the build-input index, and every service evicts the cached assets whose source or bundled inputs the batch touched. Shared layout styles are therefore not rebuilt per navigated page, and a bundle is never served after one of its imports changed.
+
+## Where outputs land
+
+| Asset | Output |
+| --- | --- |
+| A bundled script with HMR on | Its dev-transform URL, compiled when the browser requests it |
+| A bundled script | `dist/client/assets`, under Rolldown's `[name]-[hash]` name |
+| An unbundled file inside `srcDir`, in development | Its source-relative path, with a TypeScript extension turned into `.js` |
+| An unbundled file outside `srcDir`, or any unbundled file in production | `dist/client/assets`, named by a hash of its bytes (`writeHashedBrowserAsset`) |
+
+A file outside `srcDir` has no source-relative path that stays inside `dist/`, which is why it always gets a hashed name; the write checks containment before creating the file. Stylesheet `url()` references and package stylesheets are covered in [PostCSS processor](/dev/postcss-processor) and [Pages, layouts and components](/dev/pages-layouts-components#package-stylesheets).
+
+## Grouped script bundles
+
+Scripts that carry a `groupedBundle`, such as Page Browser Graph scripts and lazy entries, are built together, one build per group, through one processing path for file and content entries. A grouped build carries every entry's external modules, `define` values and plugin instances; conflicting `define` values fail before bundling. Each entry's output is found by its exact facade, so Pages named `blog` and `blog-post` never pick up each other's output. A grouped result is cached only when complete and reused only while its whole dependency-key set matches, so entries from differently composed Pages never mix. In production these scripts come from the app-wide browser build instead; see [Build pipeline](/dev/build-pipeline#the-app-wide-browser-graph).
+
+## Failures
+
+A processor error, grouped or not, rejects `processDependencies`, so the build or the request fails with the bundler's message and a Page is never written without a script it declared. A missing processor or a missing source file is logged and skipped. One exception keeps a production server serving: outside static generation (`staticGenerationActive`), a processor error there is logged and the Page renders without the asset, because a request-time rebuild can fail for reasons the build did not, such as a deploy without sources.

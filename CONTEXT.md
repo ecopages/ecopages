@@ -176,7 +176,6 @@ _Avoid_: URL list, crawl map
 
 ## Further reading
 
-- [AGENTS.md](./AGENTS.md) — coding standards, documentation routing, and README maintenance
-- [packages/core/README.md](./packages/core/README.md) — subsystem architecture index
+- [AGENTS.md](./AGENTS.md) — coding standards, and documentation routing
+- [Developer pages](./apps/docs/src/content/dev) — architecture, served at `/dev`
 - [Sitemap](./apps/docs/src/content/docs/core/sitemap.mdx) — user guide for automatic `sitemap.xml` generation
-- [docs/adr/](./docs/adr/) — accepted product and release decisions

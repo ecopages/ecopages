@@ -34,7 +34,7 @@ async function importByRealPath<T>(filePath: string): Promise<T> {
 
 describe('build → start contract', () => {
 	const tempDirs: string[] = [];
-	const originalCwd = process.cwd();
+	const originalCwd = path.cwd();
 
 	afterEach(() => {
 		process.chdir(originalCwd);

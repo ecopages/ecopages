@@ -51,7 +51,7 @@ describe('view-reference preload', () => {
 				'utf8',
 			);
 
-			const previousCwd = process.cwd();
+			const previousCwd = path.cwd();
 			process.chdir(rootDir);
 			try {
 				const plan = await createLaunchPlan([], { runtime }, 'entry.ts', 'dev');
@@ -106,7 +106,7 @@ describe('view-reference preload', () => {
 				'utf8',
 			);
 
-			const previousCwd = process.cwd();
+			const previousCwd = path.cwd();
 			process.chdir(rootDir);
 			try {
 				const plan = await createLaunchPlan([], { runtime }, 'entry.ts', 'dev');
@@ -149,7 +149,7 @@ describe('view-reference preload', () => {
 			fs.writeFileSync(path.join(rootDir, relativePath), source, 'utf8');
 		}
 
-		const previousCwd = process.cwd();
+		const previousCwd = path.cwd();
 		process.chdir(rootDir);
 		try {
 			const plan = await createLaunchPlan([], { runtime }, 'entry.ts', 'dev');

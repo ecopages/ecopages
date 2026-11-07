@@ -10,12 +10,12 @@ type PackageManifest = {
 };
 
 function readManifest(relativePath: string): PackageManifest {
-	const manifestPath = path.resolve(import.meta.dirname, '../../../..', relativePath);
+	const manifestPath = path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../../../..', relativePath);
 	return JSON.parse(readFileSync(manifestPath, 'utf-8')) as PackageManifest;
 }
 
 function resolveRepoPath(relativePath: string): string {
-	return path.resolve(import.meta.dirname, '../../../..', relativePath);
+	return path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../../../..', relativePath);
 }
 
 function collectPackageManifestPaths(relativeDir: string): string[] {

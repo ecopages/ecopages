@@ -364,7 +364,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 	});
 
 	it('inlines the global injector bootstrap when resolved lazy triggers are present', async () => {
-		const fixtureRootDir = path.join(process.cwd(), 'playground/react');
+		const fixtureRootDir = path.join(path.cwd(), 'playground/react');
 		const ownerIntegration = { name: 'string' };
 		const { flow, processDependencies } = createOrchestrator({
 			integrations: [ownerIntegration],

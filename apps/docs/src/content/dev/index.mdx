@@ -89,7 +89,7 @@ Every path Ecopages holds uses forward slashes, on every host. An absolute path 
 
 The drive letter is not upper-cased on purpose: Node's ESM loader keys modules by URL and keeps the drive case, so a process started from a lower-case cwd loads its config as `file:///d:/...`, and an upper-cased path would load the same module a second time. Containment goes through `path.isWithin`, which compares drives without regard to case.
 
-Package code takes its path operations from `@ecopages/file-system/path`, never from `node:path` (or its `posix` and `win32` subpaths), and takes `file:` URL conversion from it rather than from `node:url`; a lint rule enforces both in `packages/`. `packages/codemod` is exempt: its jscodeshift transforms run on their own and do not depend on Ecopages packages. The module mirrors the `node:path` operations Ecopages uses and returns every result in this form. Node's file system APIs accept forward slashes on Windows, so most code never needs the native form.
+Package code takes its path operations from `@ecopages/file-system/path`, never from `node:path` (or its `posix` and `win32` subpaths), and takes `file:` URL conversion from it rather than from `node:url`. It also reads the working directory with `path.cwd()` rather than `process.cwd()`, and a module's own location with `path.fromFileUrl(import.meta.url)` rather than `import.meta.dirname` or `import.meta.filename`. Lint rules enforce all of this in `packages/`: `no-restricted-imports` for static imports, `no-restricted-properties` for `process.cwd`, and the JS plugin `scripts/oxlint-path-convention.ts` for `node:path` loaded through `require`, a `createRequire` result or `import()`, and for the `import.meta` paths. App fixtures under `test/fixtures/` keep `import.meta.dirname`, as an app's config does. `packages/codemod` is exempt: its jscodeshift transforms run on their own and do not depend on Ecopages packages. The module mirrors the `node:path` operations Ecopages uses and returns every result in this form. Node's file system APIs accept forward slashes on Windows, so most code never needs the native form.
 
 A native path is converted once, where it enters Ecopages:
 
@@ -98,7 +98,7 @@ A native path is converted once, where it enters Ecopages:
 | `fileSystem.realpath`, `glob`, `readdir`, `readlink`, `mkdtemp` and watcher events | Converted inside `@ecopages/file-system` |
 | Config directories and `additionalWatchPaths` | `path.resolve` while the config is finalized; `path.fromNative` for a glob |
 | `import.meta.url`, `import.meta.resolve` and other `file:` URLs | `path.fromFileUrl` |
-| `import.meta.dirname`, `process.cwd()`, `require.resolve` and oxc-resolver results | `path.fromNative`, or `path.cwd()` |
+| `process.cwd()`, `require.resolve` and oxc-resolver results | `path.cwd()`, or `path.fromNative` |
 | Rolldown module ids in hooks and build output | `fromRolldownModuleId` |
 
 On the way out, `import()` of a file takes `path.toFileUrl(file).href`. A path a resolve hook hands back to Rolldown goes through `toRolldownModuleId`, which returns the native form on Windows: Rolldown keys modules by id, and its own resolver produces native paths, so a forward-slash id for the same file would become a second module. `path.toNative` is for any other consumer that needs backslashes.

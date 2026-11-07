@@ -4,6 +4,7 @@ import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createTestAppConfig } from '@ecopages/testing';
+import { LitPlugin } from '../lit.plugin.ts';
 import { ensureLitDomShim } from '../dom-shim.ts';
 import { LitRenderer } from '../lit-renderer.ts';
 
@@ -33,7 +34,7 @@ async function createRenderer(): Promise<TestLitRenderer> {
 	const workDir = await mkdtemp(path.join(tmpdir(), 'lit-ssr-preload-'));
 	tempDirs.push(workDir);
 	await symlink(path.join(PACKAGE_ROOT, 'node_modules'), path.join(workDir, 'node_modules'), 'dir');
-	const appConfig = await createTestAppConfig({ rootDir: PACKAGE_ROOT, workDir });
+	const appConfig = await createTestAppConfig({ rootDir: PACKAGE_ROOT, workDir, integrations: [new LitPlugin()] });
 
 	return new TestLitRenderer({
 		appConfig,

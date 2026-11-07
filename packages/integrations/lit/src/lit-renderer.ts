@@ -38,6 +38,8 @@ export function createLitRenderer(
 			const ssrScriptPreloader = new CustomElementScriptPreloader({
 				cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
 				preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
+				integrationName: LIT_PLUGIN_NAME,
+				integrations: appConfig.integrations,
 				logLabel: 'lit',
 				resolveDependencyPath,
 				importServerModule: createCustomElementServerModuleImporter(appConfig, '.lit-ssr'),

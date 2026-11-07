@@ -777,8 +777,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Collects the dependencies for the provided components.
-	 * Combines component-specific dependencies with global integration dependencies.
+	 * Collects the dependencies of the provided components.
+	 *
+	 * @remarks
+	 * The result holds component assets only. Core places every Integration's global scripts on the Page, this
+	 * Integration's included (see {@link resolveRouteDependencies}).
 	 *
 	 * @param components - The components to collect dependencies from.
 	 */
@@ -786,20 +789,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		components: (EcoComponent | Partial<EcoComponent>)[],
 		options?: { preparedGraph?: true },
 	): Promise<ProcessedAsset[]> {
-		const componentDeps = await this.processComponentDependencies(components, options);
-		return this.prependResolvedIntegrationDependencies(componentDeps);
-	}
-
-	private prependResolvedIntegrationDependencies(componentDependencies: ProcessedAsset[]): ProcessedAsset[] {
-		const integrationDependencies =
-			getComponentRenderContext<RouteRenderContextState>()?.renderState?.session
-				?.resolvedIntegrationDependencies ?? this.resolvedIntegrationDependencies;
-		return integrationDependencies.concat(componentDependencies);
+		return this.processComponentDependencies(components, options);
 	}
 
 	/**
-	 * Processes component-specific dependencies WITHOUT prepending global integration dependencies.
-	 * Use this method when you need only the component's own assets.
+	 * Processes component-specific dependencies.
 	 *
 	 * @param components - The components to collect dependencies from.
 	 */
@@ -901,11 +895,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return resolvePageDependenciesFromContext(context, this.name);
 	}
 
+	/**
+	 * Resolves a route's component assets and this Integration's global scripts.
+	 *
+	 * @remarks
+	 * The global scripts come from the active render session, else from the renderer outside a render. The route
+	 * orchestrator places them with the other Integrations' global scripts, in config order.
+	 */
 	async resolveRouteDependencies(input: {
 		components: (EcoComponent | Partial<EcoComponent>)[];
-	}): Promise<{ resolvedDependencies: ProcessedAsset[] }> {
+	}): Promise<{ resolvedDependencies: ProcessedAsset[]; integrationDependencies: ProcessedAsset[] }> {
 		return {
 			resolvedDependencies: await this.resolveDependencies(input.components, { preparedGraph: true }),
+			integrationDependencies:
+				getComponentRenderContext<RouteRenderContextState>()?.renderState?.session
+					?.resolvedIntegrationDependencies ?? this.resolvedIntegrationDependencies,
 		};
 	}
 

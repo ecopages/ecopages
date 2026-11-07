@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import postcss from 'postcss';
 import postcssNested from 'postcss-nested';
 import { PostCssProcessorPlugin } from '../plugin';
+import { createAppAwarePostcssImport } from '../postcss-import-app-aware';
 import type { IClientBridge } from '@ecopages/core/integration';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 
@@ -662,5 +663,47 @@ describe('PostCssProcessorPlugin HMR', () => {
 
 		expect(fs.readFileSync(path.join(distDir, 'assets', 'page.css'), 'utf-8')).toContain('.page-marker');
 		expect(fs.existsSync(path.join(distDir, 'assets', 'public', 'vendor', 'public.css'))).toBe(false);
+	});
+
+	test('emits the fonts a package stylesheet imports and rewrites their urls after a CSS edit', async () => {
+		fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'app', private: true }));
+		const packageDir = path.join(tmpDir, 'node_modules', '@fontsource', 'mono');
+		fs.mkdirSync(path.join(packageDir, 'files'), { recursive: true });
+		fs.writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: '@fontsource/mono', style: 'index.css' }),
+		);
+		fs.writeFileSync(path.join(packageDir, 'index.css'), '@font-face{src:url(files/mono.woff2)}');
+		fs.writeFileSync(path.join(packageDir, 'files', 'mono.woff2'), 'font-bytes');
+		const cssFile = path.join(srcDir, 'styles', 'fonts.css');
+		fs.mkdirSync(path.dirname(cssFile), { recursive: true });
+		fs.writeFileSync(cssFile, "@import '@fontsource/mono';");
+
+		const plugin = new PostCssProcessorPlugin({
+			options: { filter: /\.css$/, plugins: { 'postcss-import': createAppAwarePostcssImport(tmpDir) } },
+		});
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
+		plugin.setContext(config);
+		const bridge = {
+			cssUpdate: () => {},
+			error: (msg: string) => {
+				throw new Error(msg);
+			},
+			reload: () => {},
+		} as unknown as IClientBridge;
+
+		fs.writeFileSync(cssFile, "@import '@fontsource/mono';\n.edited { color: red; }");
+		await plugin.getWatchConfig()!.onChanges!({ created: [], changed: [cssFile], deleted: [], bridge });
+
+		const output = fs.readFileSync(path.join(distDir, 'assets', 'styles', 'fonts.css'), 'utf-8');
+		const reference = /url\("([^"]+)"\)/.exec(output)?.[1];
+		expect(output).toContain('.edited');
+		expect(reference).toMatch(/^\.\.\/[a-f0-9]{16}\.woff2$/);
+		expect(fs.readFileSync(path.join(distDir, 'assets', 'styles', reference!), 'utf-8')).toBe('font-bytes');
 	});
 });

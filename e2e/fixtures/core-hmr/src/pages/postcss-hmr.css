@@ -1,3 +1,5 @@
+@import '@ecopages/e2e-package-css-lib/style.css';
+
 .postcss-title {
 	font-size: 1.5rem;
 	line-height: 2rem;

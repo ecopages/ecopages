@@ -13,6 +13,7 @@ sources:
   - packages/core/src/plugins/processor.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/file-stylesheet.processor.ts
+  - packages/core/src/assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts
 ---
 
 # PostCSS processor
@@ -46,7 +47,7 @@ Server builds register nothing for CSS: the bundler replaces their stylesheet im
 | Development | `setup()` prewarms the runtime cache; `onChanges` keeps it current and broadcasts. |
 | Production runtime | `setup()` prewarms the runtime cache and writes nothing to `distDir`. |
 
-In development `persistProcessedCss` writes each processed stylesheet at its source-relative path under `distDir/assets`, rewritten only when the bytes change, so CSS HMR refreshes that href. Only stylesheets inside `srcDir` are persisted. Production persists nothing: the stylesheet pipeline writes each stylesheet a Page links under a hash of its bytes, and a bundle that imports CSS carries it, so a copy from this plugin would be a file no Page references.
+In development `persistProcessedCss` writes each processed stylesheet at its source-relative path under `distDir/assets`, rewritten only when the bytes change, so CSS HMR refreshes that href. Only stylesheets inside `srcDir` are persisted. It calls core's `writeSourceRelativeStylesheet` (from `@ecopages/core/processor`), the function core's stylesheet pipeline uses for the same file, so the files its relative `url()` references name are emitted and the references rewritten after an edit as on first load. The prewarm and the browser build loader log a reference to a missing file instead of failing, since no Page may link that stylesheet; an HMR rebuild reports it to the browser. Production persists nothing: the stylesheet pipeline writes each stylesheet a Page links under a hash of its bytes, and a bundle that imports CSS carries it, so a copy from this plugin would be a file no Page references.
 
 ## Config loading
 

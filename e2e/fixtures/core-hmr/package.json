@@ -5,9 +5,10 @@
 	"type": "module",
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/testing": "workspace:*",
+		"@ecopages/e2e-package-css-lib": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
+		"@ecopages/testing": "workspace:*",
 		"react": "^19.2.6",
 		"react-dom": "^19.2.6"
 	},

@@ -4,7 +4,7 @@
  */
 
 import { path } from '@ecopages/file-system/path';
-import { isEcopagesEnvEnabled, isProductionRuntime } from '@ecopages/core/processor';
+import { isEcopagesEnvEnabled, isProductionRuntime, writeSourceRelativeStylesheet } from '@ecopages/core/processor';
 import type { IClientBridge } from '@ecopages/core/integration';
 import { fileSystem } from '@ecopages/file-system';
 import {
@@ -147,25 +147,35 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	/**
-	 * Writes processed CSS at its source-relative path under `dist/assets` in development, where CSS HMR refreshes
-	 * that href.
+	 * Writes processed CSS at its source-relative path under `dist/client/assets` in development, where CSS HMR
+	 * refreshes that href.
 	 *
 	 * @remarks
-	 * Production writes nothing: the stylesheet pipeline emits each stylesheet a Page links under its content hash,
-	 * and a bundle that imports CSS carries it. A copy written here would be a file no Page references.
+	 * Core's {@link writeSourceRelativeStylesheet} writes it, the same path core takes when a Page links the
+	 * stylesheet, so the files its relative `url()` references name are emitted after an edit too. Production writes
+	 * nothing: the stylesheet pipeline emits each stylesheet a Page links under its content hash, and a bundle that
+	 * imports CSS carries it. A copy written here would be a file no Page references.
 	 */
-	private async persistProcessedCss(filePath: string, css: string): Promise<void> {
+	private persistProcessedCss(filePath: string, css: string): void {
 		if (!this.context || isProductionRuntime() || !this.isCssInsideSrc(filePath)) {
 			return;
 		}
 
-		const outputPath = path.join(this.context.distDir, 'assets', path.relative(this.context.srcDir, filePath));
-		fileSystem.ensureDir(path.dirname(outputPath));
-		if (fileSystem.exists(outputPath) && fileSystem.readFileSync(outputPath) === css) {
-			return;
-		}
+		writeSourceRelativeStylesheet(this.context.config, filePath, css);
+	}
 
-		fileSystem.write(outputPath, css);
+	/**
+	 * @remarks
+	 * For the prewarm and the browser build loader, which process stylesheets no Page may link: a reference to a
+	 * missing file is logged rather than stopping the server or the build that imports the stylesheet. Core fails
+	 * the build when a Page links it.
+	 */
+	private tryPersistProcessedCss(filePath: string, css: string): void {
+		try {
+			this.persistProcessedCss(filePath, css);
+		} catch (error) {
+			logger.error(`Failed to write CSS: ${filePath}`, error instanceof Error ? error.message : String(error));
+		}
 	}
 
 	private async prewarmRuntimeCssCache(): Promise<void> {
@@ -189,7 +199,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			const processed = await this.transformStylesheet(rawContents, filePath);
 			this.runtimeCssCache.set(filePath, processed);
-			await this.persistProcessedCss(filePath, processed);
+			this.tryPersistProcessedCss(filePath, processed);
 		}
 
 		this.buildCssDependencyMap();
@@ -278,7 +288,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 		const processed = await this.transformStylesheet(transformed, filePath);
 		this.runtimeCssCache.set(filePath, processed);
-		await this.persistProcessedCss(filePath, processed);
+		this.tryPersistProcessedCss(filePath, processed);
 		return processed;
 	}
 
@@ -452,7 +462,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			}
 
 			this.runtimeCssCache.set(filePath, processed);
-			await this.persistProcessedCss(filePath, processed);
+			this.persistProcessedCss(filePath, processed);
 
 			bridge.cssUpdate(filePath);
 

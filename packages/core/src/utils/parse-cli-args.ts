@@ -66,6 +66,35 @@ function deriveCliCommandFlags(
 }
 
 /**
+ * Whether the process runs a production export: `ecopages build`, or `ecopages preview` without `--serve-only`.
+ *
+ * @remarks
+ * Reads the same arguments as {@link parseCliArgs} without setting the runtime mode, and ignores options it does not
+ * know, so config finalization can call it in any process, a test runner included.
+ */
+export function isProductionExportCommand(): boolean {
+	const runtimeArgv = getRuntimeArgv();
+	const { values } = parseArgs({
+		args: runtimeArgv,
+		options: {
+			dev: { type: 'boolean' },
+			preview: { type: 'boolean' },
+			build: { type: 'boolean' },
+			'serve-only': { type: 'boolean' },
+		},
+		allowPositionals: true,
+		strict: false,
+	});
+	const { isBuildCommand, isPreviewCommand } = deriveCliCommandFlags(resolveEcopagesSubcommand(runtimeArgv), {
+		dev: values.dev === true,
+		build: values.build === true,
+		preview: values.preview === true,
+	});
+	const serveOnly = values['serve-only'] === true || isEcopagesEnvEnabled('ECOPAGES_PREVIEW_SERVE_ONLY');
+	return isBuildCommand || (isPreviewCommand && !serveOnly);
+}
+
+/**
  * Parses command line arguments for the server.
  * It returns {@link ReturnParseCliArgs}
  */

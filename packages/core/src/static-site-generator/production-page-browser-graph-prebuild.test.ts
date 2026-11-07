@@ -50,7 +50,7 @@ afterEach(() => {
 async function createAppConfig(rootDir?: string): Promise<EcoPagesAppConfig> {
 	const appRoot = rootDir ?? path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'eco-production-prebuild-')));
 	if (!rootDir) temporaryRoots.push(appRoot);
-	return await finalizeEcoPagesConfig({ rootDir: appRoot });
+	return await finalizeEcoPagesConfig({ rootDir: appRoot }, { globalScriptResolution: 'browser-build' });
 }
 
 function writeFile(filePath: string, content = ''): void {

@@ -126,7 +126,11 @@ describe('Kita static export', () => {
 		}
 
 		const integration = new StaticExportKitaPlugin();
-		const appConfig = await createTestAppConfig({ rootDir, integrations: [integration] });
+		const appConfig = await createTestAppConfig({
+			rootDir,
+			integrations: [integration],
+			globalScriptResolution: 'browser-build',
+		});
 		const routeRendererFactory = new RouteRendererFactory({
 			appConfig,
 		});

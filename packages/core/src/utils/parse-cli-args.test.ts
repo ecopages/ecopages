@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ENTRY_COMMAND_FLAGS } from './entry-command-flags.ts';
-import { parseCliArgs } from './parse-cli-args.ts';
+import { isProductionExportCommand, parseCliArgs } from './parse-cli-args.ts';
 import { isDevelopmentRuntime, isProductionRuntime } from './runtime.ts';
 
 const originalArgv = [...process.argv];
@@ -116,5 +116,33 @@ describe('parseCliArgs', () => {
 			port: 4321,
 			hostname: '127.0.0.1',
 		});
+	});
+});
+
+describe('isProductionExportCommand', () => {
+	afterEach(() => {
+		process.argv = [...originalArgv];
+		vi.unstubAllEnvs();
+	});
+
+	it.each([
+		[['node', '/app/app.ts', '--build'], true],
+		[['node', '/app/app.ts', '--preview'], true],
+		[['node', '/usr/local/bin/ecopages.js', 'build'], true],
+		[['node', '/app/app.ts', '--preview', '--serve-only'], false],
+		[['node', '/app/app.ts', '--dev'], false],
+		[['node', '/app/app.ts'], false],
+		[['node', '/repo/node_modules/vitest/vitest.mjs', 'run', '--project', 'shared-core'], false],
+	])('reads %j as a production export: %s', (argv, expected) => {
+		process.argv = argv;
+
+		expect(isProductionExportCommand()).toBe(expected);
+	});
+
+	it('does not count a serve-only preview from the environment', () => {
+		vi.stubEnv('ECOPAGES_PREVIEW_SERVE_ONLY', 'true');
+		process.argv = ['node', '/app/app.ts', '--preview'];
+
+		expect(isProductionExportCommand()).toBe(false);
 	});
 });

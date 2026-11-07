@@ -56,7 +56,10 @@ describe('build → start contract', () => {
 			'utf8',
 		);
 
-		const appConfig = await finalizeEcoPagesConfig({ rootDir, distDir: 'dist', workDir: '.eco' });
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'dist', workDir: '.eco' },
+			{ globalScriptResolution: 'browser-build' },
+		);
 
 		const staticSiteGenerator = {
 			run: async () => {},
@@ -106,7 +109,7 @@ describe('build → start contract', () => {
 
 		const appConfig = await finalizeEcoPagesConfig(
 			{ rootDir, distDir: 'dist', workDir: '.eco' },
-			{ configFilePath: configPath },
+			{ configFilePath: configPath, globalScriptResolution: 'browser-build' },
 		);
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
@@ -143,7 +146,7 @@ describe('build → start contract', () => {
 
 		const appConfig = await finalizeEcoPagesConfig(
 			{ rootDir, distDir: 'build', workDir: '.eco' },
-			{ configFilePath: configPath },
+			{ configFilePath: configPath, globalScriptResolution: 'browser-build' },
 		);
 		const builder = new ServerStaticBuilder({
 			appConfig,
@@ -183,7 +186,10 @@ describe('build → start contract', () => {
 
 		writeFileSync(path.join(rootDir, 'app.ts'), 'export const ready = true;\n', 'utf8');
 
-		const appConfig = await finalizeEcoPagesConfig({ rootDir, distDir: 'dist', workDir: '.eco' });
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'dist', workDir: '.eco' },
+			{ globalScriptResolution: 'browser-build' },
+		);
 		fileSystem.ensureDir(appConfig.absolutePaths.publicDir);
 		writeFileSync(path.join(appConfig.absolutePaths.publicDir, 'public.txt'), 'public');
 
@@ -237,7 +243,7 @@ describe('build → start contract', () => {
 
 		const appConfig = await finalizeEcoPagesConfig(
 			{ rootDir, distDir: 'dist', workDir: '.eco' },
-			{ configFilePath: configPath },
+			{ configFilePath: configPath, globalScriptResolution: 'browser-build' },
 		);
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
@@ -290,7 +296,7 @@ describe('build → start contract', () => {
 
 		const appConfig = await finalizeEcoPagesConfig(
 			{ rootDir, distDir: 'dist', workDir: '.eco' },
-			{ configFilePath: configPath },
+			{ configFilePath: configPath, globalScriptResolution: 'browser-build' },
 		);
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;

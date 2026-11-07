@@ -387,7 +387,7 @@ export async function finalizeEcoPagesConfig(
 			),
 		};
 
-		createAppRuntime(config);
+		createAppRuntime(config, { globalScriptResolution: options.globalScriptResolution });
 
 		return config;
 	} catch (error) {

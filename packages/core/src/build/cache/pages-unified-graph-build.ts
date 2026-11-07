@@ -10,7 +10,10 @@ import { fileSystem } from '@ecopages/file-system';
 import { isEcopagesEnvDisabled } from '../../env.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
-import { setupAppRuntimeIntegrations } from '../app-build-manifest-runtime.ts';
+import {
+	requireBrowserBuildGlobalScriptResolution,
+	setupAppRuntimeIntegrations,
+} from '../app-build-manifest-runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { buildOrThrow } from '../runtime/build-queue.ts';
@@ -209,8 +212,8 @@ export async function emitProductionServerModules(options: {
 	outdir?: string;
 }): Promise<ProductionServerModulesManifest> {
 	const appConfig = options.appConfig;
-	requireAppRuntime(appConfig);
-	await setupAppRuntimeIntegrations({ appConfig, deferGlobalScripts: true });
+	requireBrowserBuildGlobalScriptResolution(appConfig);
+	await setupAppRuntimeIntegrations({ appConfig });
 	const outdir = path.resolve(options.outdir ?? getServerBundleOutputPaths(appConfig).serverOutdir);
 	fileSystem.ensureDir(outdir);
 

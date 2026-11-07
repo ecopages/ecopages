@@ -325,6 +325,11 @@ export class RouteRenderOrchestrator {
 	 * collects processed assets, and produces the page package consumed by downstream
 	 * HTML transformation. With a `planned` preparation it reuses the inputs and graphs the production build
 	 * planned and only processes the route's dependencies.
+	 *
+	 * @remarks
+	 * The global scripts of foreign Integrations the page uses come first, before the page's own dependencies,
+	 * as the owning Integration's global scripts already do. A global script such as Lit's hydration support must
+	 * run before any component script defines a custom element.
 	 */
 	async prepareRenderOptions<C = unknown>(
 		routeOptions: RouteRendererOptions,
@@ -393,9 +398,9 @@ export class RouteRenderOrchestrator {
 		}
 
 		const allDependencies = [
+			...collectUsedIntegrationDependenciesFromNames(this.appConfig, clientPlan.integrationNames, renderer.name),
 			...resolvedDependencies,
 			...clientBrowserAssets.processedAssets,
-			...collectUsedIntegrationDependenciesFromNames(this.appConfig, clientPlan.integrationNames, renderer.name),
 		];
 
 		const triggers = clientPlan.lazyTriggers;

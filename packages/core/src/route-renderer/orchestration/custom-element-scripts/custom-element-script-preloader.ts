@@ -49,7 +49,6 @@ function collectSsrScriptsFromConfig(
 	scriptPaths: Set<string>,
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string,
 	componentFile?: string,
-	requireLazyScriptEntry = false,
 ): void {
 	if (!componentFile) {
 		return;
@@ -58,10 +57,6 @@ function collectSsrScriptsFromConfig(
 	const componentDir = path.dirname(componentFile);
 	for (const script of config.dependencies?.scripts ?? []) {
 		if (typeof script === 'string' || script.ssr !== true || !script.src) {
-			continue;
-		}
-
-		if (requireLazyScriptEntry && !script.lazy) {
 			continue;
 		}
 
@@ -75,7 +70,6 @@ function collectSsrScriptsFromConfig(
 export function collectCustomElementSsrPreloadScripts(
 	components: Array<CustomElementSsrPreloadComponent | undefined>,
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string,
-	requireLazyScriptEntry = false,
 	collectForIntegration?: string,
 ): string[] {
 	const scriptPaths = new Set<string>();
@@ -94,13 +88,7 @@ export function collectCustomElementSsrPreloadScripts(
 		const ownsScripts = !collectForIntegration || integration === collectForIntegration;
 		const componentFile = ownsScripts ? identity?.file : undefined;
 		if (ownsScripts) {
-			collectSsrScriptsFromConfig(
-				config,
-				scriptPaths,
-				resolveDependencyPath,
-				componentFile,
-				requireLazyScriptEntry,
-			);
+			collectSsrScriptsFromConfig(config, scriptPaths, resolveDependencyPath, componentFile);
 		}
 
 		for (const layout of config.layouts ?? []) {
@@ -123,14 +111,6 @@ export interface CustomElementScriptPreloaderOptions {
 	cacheScope: string;
 	preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
 	enabled?: boolean;
-	/**
-	 * When true, only lazy script entries with `ssr: true` are preloaded.
-	 *
-	 * @remarks
-	 * Lit keeps this enabled so eager `ssr: true` scripts are not evaluated in an
-	 * isolated module graph that would register incompatible custom elements.
-	 */
-	requireLazyScriptEntry?: boolean;
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	/**
 	 * Evaluates one script for the custom-element registry named by `registryKey`.
@@ -166,7 +146,6 @@ export class CustomElementScriptPreloader {
 	private readonly cacheScope: string;
 	private readonly preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
 	private readonly enabled: boolean;
-	private readonly requireLazyScriptEntry: boolean;
 	private readonly resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	private readonly importServerModule: CustomElementScriptPreloaderOptions['importServerModule'];
 	private readonly collectForIntegration?: string;
@@ -176,7 +155,6 @@ export class CustomElementScriptPreloader {
 		cacheScope,
 		preloadScopes,
 		enabled = true,
-		requireLazyScriptEntry = false,
 		resolveDependencyPath,
 		importServerModule,
 		collectForIntegration,
@@ -185,7 +163,6 @@ export class CustomElementScriptPreloader {
 		this.cacheScope = cacheScope;
 		this.preloadScopes = preloadScopes;
 		this.enabled = enabled;
-		this.requireLazyScriptEntry = requireLazyScriptEntry;
 		this.resolveDependencyPath = resolveDependencyPath;
 		this.importServerModule = importServerModule;
 		this.collectForIntegration = collectForIntegration;
@@ -204,7 +181,6 @@ export class CustomElementScriptPreloader {
 		return collectCustomElementSsrPreloadScripts(
 			components,
 			this.resolveDependencyPath,
-			this.requireLazyScriptEntry,
 			this.collectForIntegration,
 		);
 	}

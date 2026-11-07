@@ -30,7 +30,7 @@ const tempDirs: string[] = [];
  * links the package's `node_modules` for Node to resolve it from there.
  */
 async function createRenderer(): Promise<TestLitRenderer> {
-	const workDir = await mkdtemp(path.join(tmpdir(), 'lit-ssr-lazy-preload-'));
+	const workDir = await mkdtemp(path.join(tmpdir(), 'lit-ssr-preload-'));
 	tempDirs.push(workDir);
 	await symlink(path.join(PACKAGE_ROOT, 'node_modules'), path.join(workDir, 'node_modules'), 'dir');
 	const appConfig = await createTestAppConfig({ rootDir: PACKAGE_ROOT, workDir });
@@ -48,6 +48,17 @@ function createLazyHost(tagName: string, script: string): EcoComponent<object> {
 		identity: { id: tagName, file: path.join(FIXTURES_DIR, 'host.lit.ts'), integration: 'lit' },
 		dependencies: {
 			scripts: [{ src: `./${script}`, lazy: { 'on:interaction': 'click' }, ssr: true }],
+		},
+		render: () => `<${tagName} count="3"></${tagName}>`,
+	}) as EcoComponent<object>;
+}
+
+function createEagerHost(tagName: string, script: string): EcoComponent<object> {
+	return eco.component<object, string>({
+		integration: 'lit',
+		identity: { id: tagName, file: path.join(FIXTURES_DIR, 'host.lit.ts'), integration: 'lit' },
+		dependencies: {
+			scripts: [{ src: `./${script}`, ssr: true }],
 		},
 		render: () => `<${tagName} count="3"></${tagName}>`,
 	}) as EcoComponent<object>;
@@ -120,5 +131,40 @@ describe('Lit SSR lazy script preload', () => {
 		expect(html).toContain('data-ssr-lazy-page');
 		expect(html).toContain('data-ssr-lazy-layout');
 		expect(html).toContain('data-ssr-route-root');
+	});
+});
+
+describe('Lit SSR eager script preload', () => {
+	it('server-renders the shadow DOM of an element a non-lazy ssr script registers in a component-level render', async () => {
+		const renderer = await createRenderer();
+
+		const result = await renderer.renderComponent({
+			component: createEagerHost('lit-ssr-eager-component', 'ssr-eager-component.script.ts'),
+			props: {},
+		});
+
+		expect(result.html).toContain('<template shadowrootmode="open">');
+		expect(result.html).toContain('data-ssr-eager-component');
+		expect(result.html).toContain('<!--lit-part-->3<!--/lit-part-->');
+	});
+
+	it('server-renders the shadow DOM of an element a non-lazy ssr script of the page registers', async () => {
+		const renderer = await createRenderer();
+
+		const result = await renderer.render({
+			params: {},
+			query: {},
+			props: {},
+			file: '/app/pages/index.lit.ts',
+			resolvedDependencies: [],
+			metadata: { title: 'Page', description: 'Page' },
+			Page: createEagerHost('lit-ssr-eager-page', 'ssr-eager-page.script.ts'),
+			HtmlTemplate,
+		});
+
+		const html = await new Response(result as BodyInit).text();
+
+		expect(html).toContain('<template shadowrootmode="open">');
+		expect(html).toContain('data-ssr-eager-page');
 	});
 });

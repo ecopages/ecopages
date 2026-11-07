@@ -39,7 +39,6 @@ export function createLitRenderer(
 				cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
 				preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
 				logLabel: 'lit',
-				requireLazyScriptEntry: true,
 				resolveDependencyPath,
 				importServerModule: createCustomElementServerModuleImporter(appConfig, '.lit-ssr'),
 			});

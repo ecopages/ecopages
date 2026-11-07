@@ -34,7 +34,7 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
  * @remarks
  * The real preload installs a fresh global custom element registry on every
  * call, so elements defined by a test before rendering would be dropped.
- * Preload is therefore skipped here; `lit-ssr-lazy-preload.test.ts` covers it
+ * Preload is therefore skipped here; `lit-ssr-preload.test.ts` covers it
  * with real scripts.
  */
 class TestLitRenderer extends LitRenderer {

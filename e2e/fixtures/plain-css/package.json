@@ -1,0 +1,8 @@
+{
+	"name": "@ecopages/e2e-plain-css-app",
+	"private": true,
+	"type": "module",
+	"devDependencies": {
+		"@ecopages/core": "workspace:*"
+	}
+}

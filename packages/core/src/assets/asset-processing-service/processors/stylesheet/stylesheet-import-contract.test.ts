@@ -96,7 +96,7 @@ describe('a stylesheet imported as text', () => {
 });
 
 describe("a package's own side-effect stylesheet import outside production", () => {
-	it.fails('warns once per file and builds, since its CSS never reaches a Page', async () => {
+	it('warns once per file and builds, since its CSS never reaches a Page', async () => {
 		const packageDir = path.join(rootDir, 'node_modules', 'css-widget');
 		fs.mkdirSync(packageDir, { recursive: true });
 		fs.writeFileSync(

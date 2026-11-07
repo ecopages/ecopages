@@ -420,6 +420,24 @@ export function createUndeliverableStylesheetError(projectRoot: string, file: st
 }
 
 /**
+ * Builds the error for a side-effect stylesheet import of a package module that reaches a browser build.
+ *
+ * @remarks
+ * Discovery delivers the side-effect stylesheet imports of app modules and of the packages it reaches. A package
+ * module's own import reaches the build untouched, so its CSS would never load.
+ */
+export function createUndeliverablePackageStylesheetError(
+	projectRoot: string,
+	importer: string,
+	source: string,
+): Error {
+	const module = relativeToRoot(projectRoot, importer);
+	return new Error(
+		`[ecopages] ${module}: ${JSON.stringify(source)} never reaches a Page, because no eco.page(), eco.layout(), eco.html() or eco.component() delivers the stylesheets a package module imports. List the stylesheet in eco.component({ dependencies: { stylesheets } }) of the component that uses the package.`,
+	);
+}
+
+/**
  * Component dependencies discovered from a source module.
  *
  * @remarks

@@ -541,7 +541,7 @@ async function buildRolldownInputPlugins(
 				]
 			: []),
 		...(rolldownPlatform === 'browser' ? [createBrowserServerOnlyGuardPlugin()] : []),
-		createStylesheetModulePlugin(options.stylesheets),
+		createStylesheetModulePlugin({ environment: options.environment, root: contextRoot }, options.stylesheets),
 		...appPlugins,
 		...(options.environment === 'browser' && options.workerEntries !== false ? [createWorkerEntriesPlugin()] : []),
 	];

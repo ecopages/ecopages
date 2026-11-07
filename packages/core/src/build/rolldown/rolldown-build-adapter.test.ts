@@ -751,28 +751,50 @@ describe('RolldownBuildAdapter', () => {
 		return writeFixture('widget-entry.ts', "import { widget } from 'css-widget';\nconsole.log(widget);\n");
 	}
 
-	test.fails(
-		"a browser build fails on a package's own side-effect stylesheet import, naming both files",
-		async () => {
-			const entrypoint = writeCssWidgetPackage();
+	test("a browser build fails on a package's own side-effect stylesheet import, naming both files", async () => {
+		const entrypoint = writeCssWidgetPackage();
 
-			const result = await new RolldownBuildAdapter().build({
-				environment: 'browser' as const,
-				entrypoints: [entrypoint],
-				outdir: path.join(workDir, 'dist'),
-				target: 'browser',
-				format: 'esm',
-				root: workDir,
-				writeToDisk: false,
-			});
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+		});
 
-			assertBuildFailed(result);
-			const message = result.logs.map((log) => log.message).join('\n');
-			expect(message).toContain('css-widget/index.js');
-			expect(message).toContain('"./style.css"');
-			expect(message).toContain('never reaches a Page');
-		},
-	);
+		assertBuildFailed(result);
+		const message = result.logs.map((log) => log.message).join('\n');
+		expect(message).toContain('css-widget/index.js');
+		expect(message).toContain('"./style.css"');
+		expect(message).toContain('never reaches a Page');
+	});
+
+	test("a browser build hands a package's own side-effect stylesheet import to the reporter and builds", async () => {
+		const entrypoint = writeCssWidgetPackage();
+		const reported: string[] = [];
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+			stylesheets: {
+				extensions: ['.css'],
+				compileModule: async () => 'export default "compiled";',
+				reportUndeliverable: (error) => reported.push(error.message),
+			},
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(result.outputs[0]!.content).not.toContain('css-widget-marker');
+		expect(reported).toHaveLength(1);
+		expect(reported[0]).toContain('css-widget/index.js');
+	});
 
 	test("a server build gives a package's side-effect stylesheet import an empty module", async () => {
 		const entrypoint = writeCssWidgetPackage();

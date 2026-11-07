@@ -1,7 +1,12 @@
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { RolldownPlugin } from 'rolldown';
 import { code as codeFilter, id as idFilter, include } from 'rolldown/filter';
-import { collectStaticImports } from '../../plugins/component-import-discovery.ts';
+import {
+	collectStaticImports,
+	createUndeliverablePackageStylesheetError,
+} from '../../plugins/component-import-discovery.ts';
+import { isPathInside } from '../../utils/path-containment.ts';
 import { PLAIN_CSS_KINDS } from '../../plugins/stylesheet-kinds.ts';
 import { parseModuleSource } from '../../cache/module-parse-cache.ts';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
@@ -60,15 +65,24 @@ function collectSideEffectStylesheetImports(
  * result when it is external, so a build that externalizes its imports, such as the dev transform server's, keeps
  * doing so; its id gets a query, so the same file imported with a binding stays a separate, compiled module.
  *
+ * A package module's own side-effect import in a browser build fails it, since its CSS would never reach a Page, unless
+ * `stylesheets.reportUndeliverable` takes the error. The import of a package discovery reached never gets here: the
+ * component meta transform removed it.
+ *
+ * @param build - The build's environment and root; a module under `node_modules` or outside the root is a package.
  * @param stylesheets - The stylesheet extensions and the compiler; defaults to plain `.css` exported as written.
  */
-export function createStylesheetModulePlugin(stylesheets: BuildStylesheets = PLAIN_CSS_STYLESHEETS): RolldownPlugin {
+export function createStylesheetModulePlugin(
+	build: { environment: 'server' | 'browser'; root: string },
+	stylesheets: BuildStylesheets = PLAIN_CSS_STYLESHEETS,
+): RolldownPlugin {
 	const extensionPattern = stylesheets.extensions.map(escapeRegExp).join('|');
 	const STYLESHEET_ID = new RegExp(`(?:${extensionPattern})$`, 'iu');
 	const SIDE_EFFECT_ID = new RegExp(`(?:${extensionPattern})${escapeRegExp(SIDE_EFFECT_QUERY)}$`, 'iu');
 	const STYLESHEET_REFERENCE = new RegExp(`(?:${extensionPattern})['"]`, 'iu');
 	const isStylesheet = (specifier: string) => STYLESHEET_ID.test(specifier);
 	const sideEffectImportsByImporter = new Map<string, Set<string>>();
+	const appRoot = fileSystem.exists(build.root) ? path.fromNative(fileSystem.realpath(build.root)) : build.root;
 
 	return {
 		name: 'ecopages:stylesheet-modules',
@@ -86,6 +100,13 @@ export function createStylesheetModulePlugin(stylesheets: BuildStylesheets = PLA
 				if (!importer || !sideEffectImportsByImporter.get(importer)?.has(source)) return null;
 				const resolved = await this.resolve(source, importer, { ...extraOptions, skipSelf: true });
 				if (!resolved || resolved.external) return resolved;
+				const importerFile = fromRolldownModuleId(importer).replace(/[?#].*$/u, '');
+				const fromPackage = importerFile.includes('/node_modules/') || !isPathInside(importerFile, appRoot);
+				if (build.environment === 'browser' && fromPackage) {
+					const error = createUndeliverablePackageStylesheetError(appRoot, importerFile, source);
+					if (!stylesheets.reportUndeliverable) throw error;
+					stylesheets.reportUndeliverable(error);
+				}
 				return toRolldownModuleId(`${fromRolldownModuleId(resolved.id)}${SIDE_EFFECT_QUERY}`);
 			},
 		},

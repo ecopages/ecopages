@@ -9,6 +9,7 @@ import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
 import { createEcoComponentMetaPlugin } from '../../plugins/eco-component-meta-plugin.ts';
 import { getStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { isProductionRuntime } from '../../env.ts';
+import { appLogger } from '../../global/app-logger.ts';
 import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transform.ts';
 import { compileStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 
@@ -95,11 +96,31 @@ export function resolveBuildPluginOrder(
 	return [...plugins, ...coreTransforms];
 }
 
-/** The app's stylesheets, which every build request compiles with {@link compileStylesheetModule}. */
+/** Messages of undeliverable stylesheet imports already warned about, by app. */
+const warnedUndeliverableStylesheets = new WeakMap<EcoPagesAppConfig, Set<string>>();
+
+/**
+ * The app's stylesheets, which every build request compiles with {@link compileStylesheetModule}.
+ *
+ * @remarks
+ * Outside production, a package module's own side-effect stylesheet import warns once per import instead of failing
+ * the build, so `ecopages dev` keeps running; `ecopages build` fails on it.
+ */
 function resolveBuildStylesheets(appConfig: EcoPagesAppConfig): BuildStylesheets {
 	return {
 		extensions: getStylesheetKinds(appConfig).extensions,
 		compileModule: (file) => compileStylesheetModule(appConfig, file),
+		...(isProductionRuntime()
+			? {}
+			: {
+					reportUndeliverable: (error: Error) => {
+						let warned = warnedUndeliverableStylesheets.get(appConfig);
+						if (!warned) warnedUndeliverableStylesheets.set(appConfig, (warned = new Set()));
+						if (warned.has(error.message)) return;
+						warned.add(error.message);
+						appLogger.warn(error.message);
+					},
+				}),
 	};
 }
 

@@ -644,29 +644,25 @@ describe('production build with an unbundlable Page script', () => {
 		expect(`${built.stdout}\n${built.stderr}`).toContain('secret.server.ts');
 	});
 
-	it.fails(
-		"fails the build when a package's own stylesheet import would never reach a Page",
-		{ timeout: 180_000 },
-		() => {
-			const appDir = copyAppWithPackage({
-				'eco-css-widget/package.json': JSON.stringify({
-					name: 'eco-css-widget',
-					version: '1.0.0',
-					type: 'module',
-					main: './index.js',
-				}),
-				'eco-css-widget/index.js': "import './style.css';\nexport const widget = 'widget';\n",
-				'eco-css-widget/style.css': '.eco-css-widget-marker { color: red; }\n',
-			});
-			addKitaPageScript(appDir, "import 'eco-css-widget';\n");
+	it("fails the build when a package's own stylesheet import would never reach a Page", { timeout: 180_000 }, () => {
+		const appDir = copyAppWithPackage({
+			'eco-css-widget/package.json': JSON.stringify({
+				name: 'eco-css-widget',
+				version: '1.0.0',
+				type: 'module',
+				main: './index.js',
+			}),
+			'eco-css-widget/index.js': "import './style.css';\nexport const widget = 'widget';\n",
+			'eco-css-widget/style.css': '.eco-css-widget-marker { color: red; }\n',
+		});
+		addKitaPageScript(appDir, "import 'eco-css-widget';\n");
 
-			const built = runCliBuild(appDir);
-			const output = `${built.stdout}\n${built.stderr}`;
+		const built = runCliBuild(appDir);
+		const output = `${built.stdout}\n${built.stderr}`;
 
-			expect(built.error).toBeUndefined();
-			expect(built.status).not.toBe(0);
-			expect(output).toContain('eco-css-widget/index.js');
-			expect(output).toContain('never reaches a Page');
-		},
-	);
+		expect(built.error).toBeUndefined();
+		expect(built.status).not.toBe(0);
+		expect(output).toContain('eco-css-widget/index.js');
+		expect(output).toContain('never reaches a Page');
+	});
 });

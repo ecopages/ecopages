@@ -1,6 +1,7 @@
 import { path } from '@ecopages/file-system/path';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import type { PageMetadataProps, PageRobotsMetadata } from '../types/contracts.ts';
+import { listCssReferences } from '../assets/asset-processing-service/processors/stylesheet/css-scanner.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { isPathInside } from '../utils/path-containment.ts';
 import {
@@ -117,20 +118,6 @@ const URL_SCHEME = /^[a-z][a-z\d+.-]*:/i;
 function isRelativeUrl(value: string): boolean {
 	const url = value.trim();
 	return url.length > 0 && !URL_SCHEME.test(url) && !/^[/#?]/.test(url);
-}
-
-/**
- * @remarks
- * Reads `url()` and the string URLs of `image-set()`, and skips comments.
- */
-export function findRelativeCssUrls(css: string): string[] {
-	const code = css.replace(/\/\*[\s\S]*?\*\//g, '');
-	const urls = [...code.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)].map((match) => match[2]!);
-	for (const [, args] of code.matchAll(/image-set\(((?:[^()]|\([^()]*\))*)\)/gi)) {
-		const strings = args!.replace(/url\([^)]*\)/gi, '').matchAll(/(['"])(.*?)\1/g);
-		urls.push(...[...strings].map((match) => match[2]!));
-	}
-	return [...new Set(urls)].filter(isRelativeUrl);
 }
 
 function attributeValue(element: HtmlElementNode, name: string): string | undefined {
@@ -291,7 +278,7 @@ const FETCHED_URLS = new Map<string, FetchedUrls>([
 	['href', hrefUrls],
 	['xlink:href', hrefUrls],
 	['data', (element, value) => (element.tagName === 'object' ? [value] : [])],
-	['style', (_element, value) => findRelativeCssUrls(value)],
+	['style', (_element, value) => listCssReferences(value).references],
 ]);
 
 const SOCIAL_IMAGE_KEY = /^meta:(og:image(?::url|:secure_url)?|twitter:image(?::src)?)$/;

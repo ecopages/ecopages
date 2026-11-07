@@ -38,11 +38,11 @@ function persisted(relativeToAssets: string): string | undefined {
 	return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
 }
 
-async function createService(processor = new InliningProcessor()): Promise<DevelopmentStylesheetService> {
+async function createService(processor: InliningProcessor | null = new InliningProcessor()) {
 	const config: EcoPagesAppConfig = await finalizeEcoPagesConfig({
 		rootDir,
 		integrations: [],
-		processors: [processor],
+		processors: processor ? [processor] : [],
 	});
 	return new DevelopmentStylesheetService(config);
 }
@@ -327,5 +327,45 @@ describe('DevelopmentStylesheetService', () => {
 		write('src/styles/main.css', '.main { color: red; }\n');
 
 		expect(await service.applyChanges(changed(page), createBridge().bridge)).toEqual([]);
+	});
+});
+
+describe('DevelopmentStylesheetService with no Processor', () => {
+	it('inlines an @import partial, rebuilds the stylesheet when the partial changes and sends css-update', async () => {
+		const main = write('src/styles/main.css', "@import './base.css';\n.main {}\n");
+		const base = write('src/styles/base.css', '.base { color: red; }\n');
+		const service = await createService(null);
+		await service.prewarm();
+		const { bridge, cssUpdate } = createBridge();
+		const before = service.version(main);
+		expect(persisted('styles/main.css')).toContain('.base { color: red; }');
+
+		write('src/styles/base.css', '.base { color: blue; }\n');
+		const restyled = await service.applyChanges(changed(base), bridge);
+
+		expect(restyled).toContain(main);
+		expect(persisted('styles/main.css')).toContain('.base { color: blue; }');
+		expect(persisted('styles/main.css')).not.toContain('@import');
+		expect(service.version(main)).not.toBe(before);
+		expect(cssUpdate).toHaveBeenCalledWith(main);
+	});
+
+	it('warns about a missing partial and recovers, with no restart, when the file appears', async () => {
+		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+		const main = write('src/styles/main.css', "@import './later.css';\n.main {}\n");
+		const service = await createService(null);
+		await service.prewarm();
+		expect(persisted('styles/main.css')).toContain("@import './later.css'");
+		expect(warn).toHaveBeenCalledWith(expect.stringContaining('later.css'));
+
+		const later = write('src/styles/later.css', '.later { color: red; }\n');
+		const restyled = await service.applyChanges(
+			{ created: [later], changed: [], deleted: [] },
+			createBridge().bridge,
+		);
+
+		expect(restyled).toContain(main);
+		expect(persisted('styles/main.css')).toContain('.later { color: red; }');
+		expect(persisted('styles/main.css')).not.toContain('@import');
 	});
 });

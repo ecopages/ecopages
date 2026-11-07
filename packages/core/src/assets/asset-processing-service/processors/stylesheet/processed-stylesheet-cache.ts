@@ -7,6 +7,8 @@ export interface ProcessedStylesheet {
 	css: string;
 	/** Absolute paths, without duplicates or the stylesheet itself. */
 	dependencies: string[];
+	/** The class map of a CSS Module, from the same transform as `css`; absent for any other stylesheet. */
+	exports?: Readonly<Record<string, string>>;
 }
 
 interface CacheEntry {

@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
+import { applyStylesheetProcessors } from './assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts';
 import { collectBuildEntryInputPaths } from './build/build-graph.ts';
 import { createServerBuildRequest } from './build/runtime/build-request-policy.ts';
 import { finalizeEcoPagesConfig } from './config/assembly/finalize-config.ts';
@@ -26,6 +27,14 @@ export interface StylesheetProcessorContractSubject {
 	createProcessor(): AnyProcessor;
 	/** A stylesheet the Processor rejects; defaults to an unclosed block. */
 	invalidCss?: string;
+	/**
+	 * Whether the Processor declares `cssModules`, which adds the cases that check its scoping.
+	 *
+	 * @remarks
+	 * `createProcessor` must then return a Processor whose `stylesheet` capability scopes `*.module.css` files: each
+	 * class of `.name` gets a scoped name, and `exports` maps `name` to it.
+	 */
+	cssModules?: boolean;
 }
 
 /** One check of the contract: `run` rejects when the Processor breaks it. */
@@ -131,6 +140,7 @@ export function stylesheetProcessorContract(
 ): StylesheetProcessorContractCase[] {
 	const invalidCss = subject.invalidCss ?? '.broken {\n';
 	return [
+		...(subject.cssModules ? cssModuleCases(subject) : []),
 		{
 			name: 'the stylesheets a transform reads drive rebuilds',
 			run: () =>
@@ -206,6 +216,47 @@ export function stylesheetProcessorContract(
 					);
 					assert.deepEqual(refreshed, [card], 'the save that fixes the stylesheet does not refresh it');
 				}),
+		},
+	];
+}
+
+const MODULE_CSS = '.primary { color: red; }\n.secondary { color: blue; }\n';
+
+/** Processes the CSS Module `src/button.module.css` of a fresh app, written with `css`. */
+async function scopeButton(subject: StylesheetProcessorContractSubject, css: string) {
+	const processor = subject.createProcessor();
+	const app = await createContractApp(processor);
+	try {
+		const file = app.write('src/button.module.css', css);
+		return await applyStylesheetProcessors(app.config, css, file);
+	} finally {
+		app.dispose();
+	}
+}
+
+function cssModuleCases(subject: StylesheetProcessorContractSubject): StylesheetProcessorContractCase[] {
+	return [
+		{
+			name: 'a CSS Module returns the scoped CSS and the class map that names it',
+			run: async () => {
+				const { css, exports } = await scopeButton(subject, MODULE_CSS);
+				assert.ok(exports, 'a CSS Module returned no exports');
+				assert.deepEqual(Object.keys(exports).sort(), ['primary', 'secondary']);
+				for (const [local, scoped] of Object.entries(exports)) {
+					assert.ok(scoped.split(' ')[0]!.includes(local), `the scoped name of ${local} does not keep it`);
+					assert.ok(css.includes(`.${scoped.split(' ')[0]}`), `the CSS does not define the scoped ${local}`);
+					assert.ok(!new RegExp(`\\.${local}\\b`).test(css), `the CSS still defines the unscoped ${local}`);
+				}
+			},
+		},
+		{
+			name: 'the scoped names are the same in two folders',
+			run: async () => {
+				const first = await scopeButton(subject, MODULE_CSS);
+				const second = await scopeButton(subject, MODULE_CSS);
+				assert.deepEqual(second.exports, first.exports, 'the class map depends on the app folder');
+				assert.equal(second.css, first.css, 'the scoped CSS depends on the app folder');
+			},
 		},
 	];
 }

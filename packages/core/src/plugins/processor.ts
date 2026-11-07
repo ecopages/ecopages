@@ -125,6 +125,15 @@ export interface ProcessorAssetCapability {
 	 * including grouped values (e.g. `*.{ CSS, ScSs }`).
 	 */
 	extensions?: ProcessorExtensionPattern[];
+	/**
+	 * Whether a `stylesheet` capability scopes CSS Modules.
+	 *
+	 * @remarks
+	 * A Processor that sets it returns `exports` from {@link Processor.transformStylesheet} for every CSS Module it is
+	 * given: a stylesheet named `*.module.css`, or `*.module.<ext>` for a declared extension. Without it, core fails
+	 * a build that imports a CSS Module and names the Processor to install.
+	 */
+	cssModules?: boolean;
 }
 
 export interface ProcessorConfig<TOptions = unknown> {
@@ -145,6 +154,17 @@ export interface ProcessorContext {
 /** What {@link Processor.transformStylesheet} returns for one stylesheet. */
 export interface StylesheetTransformResult {
 	css: string;
+	/**
+	 * The class map of a CSS Module: each local class name mapped to its scoped name, followed by the names it
+	 * composes, separated by spaces.
+	 *
+	 * @remarks
+	 * Required for a CSS Module when the Processor declares `cssModules`, and ignored for any other stylesheet. The
+	 * scoped names must derive from the path relative to the app's `rootDir`, never from the absolute path, so a build
+	 * gives the same names in any folder. Core serves the map as the module the importer receives and `css` as the
+	 * stylesheet the Page links, both from this one result.
+	 */
+	exports?: Readonly<Record<string, string>>;
 	/**
 	 * Absolute paths of the other files the transform read, such as the partials an `@import` inlined.
 	 *

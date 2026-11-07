@@ -19,6 +19,8 @@ export interface StylesheetKinds {
 	isStylesheet(file: string): boolean;
 	/** Whether `file` names a CSS Module: `.module.css`, or `.module.<ext>` for a declared extension. */
 	isCssModule(file: string): boolean;
+	/** Whether the stylesheet Processor declares that it scopes CSS Modules. */
+	readonly scopesCssModules: boolean;
 }
 
 /**
@@ -63,9 +65,10 @@ export function findStylesheetProcessor(processors: Iterable<Processor>): Proces
  * @throws When two Processors declare a `stylesheet` capability.
  */
 export function createStylesheetKinds(processors: Iterable<Processor> = []): StylesheetKinds {
-	const declared = (findStylesheetProcessor(processors)?.getAssetCapabilities() ?? [])
-		.filter((capability) => capability.kind === 'stylesheet')
-		.flatMap((capability) => (capability.extensions ?? []).flatMap(extensionsOfPattern));
+	const capabilities = (findStylesheetProcessor(processors)?.getAssetCapabilities() ?? []).filter(
+		(capability) => capability.kind === 'stylesheet',
+	);
+	const declared = capabilities.flatMap((capability) => (capability.extensions ?? []).flatMap(extensionsOfPattern));
 	const extensions = [...new Set([CSS_EXTENSION, ...declared])];
 	const moduleSuffixes = extensions.map((extension) => `${CSS_MODULE_INFIX}${extension}`);
 	const endsWithAny = (file: string, suffixes: readonly string[]) => {
@@ -76,8 +79,13 @@ export function createStylesheetKinds(processors: Iterable<Processor> = []): Sty
 		extensions,
 		isStylesheet: (file) => endsWithAny(file, extensions),
 		isCssModule: (file) => endsWithAny(file, moduleSuffixes),
+		scopesCssModules: capabilities.some((capability) => capability.cssModules === true),
 	};
 }
+
+/** What to do about a CSS Module when no registered stylesheet Processor scopes them. */
+export const CSS_MODULE_PROCESSOR_FIX =
+	'No stylesheet Processor scopes CSS Modules. Install @ecopages/lightningcss-processor and register it in the Processors of eco.config.ts.';
 
 /** The kinds of an app with no stylesheet Processor. */
 export const PLAIN_CSS_KINDS: StylesheetKinds = createStylesheetKinds();

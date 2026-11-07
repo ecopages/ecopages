@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { Processor } from '../../plugins/processor.ts';
-import { materializeDevTransformStylesheet, resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
+import { resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
 
 describe('dev transform module kind', () => {
 	it('classifies script and stylesheet paths', () => {
@@ -21,11 +21,5 @@ describe('dev transform module kind', () => {
 		expect(resolveDevTransformModuleKind('/app/src/card.scss', createStylesheetKinds([sass]))).toBe('stylesheet');
 		expect(resolveDevTransformModuleKind('/app/src/card.scss', createStylesheetKinds([]))).toBe('script');
 		expect(resolveDevTransformModuleKind('/app/src/card.scss')).toBe('script');
-	});
-
-	it('materializes stylesheet modules as default-exported strings', () => {
-		expect(materializeDevTransformStylesheet(':host { display: block; }\n')).toBe(
-			'export default ":host { display: block; }\\n";\n',
-		);
 	});
 });

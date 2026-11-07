@@ -9,7 +9,7 @@ The Processor contributes no build plugins: core compiles every stylesheet an ap
 - **Ecopages Processor Plugin**: Hook right into the build pipeline. In development, processed CSS is written at its source-relative path for CSS HMR; in production the stylesheet pipeline emits each linked stylesheet under a hash of its bytes, and the plugin writes no copy of its own.
 - **Tailwind Presets**: Pre-configured pipelines for Tailwind CSS v3 and v4.
 - **Automatic Configuration**: Detects existing `postcss.config.{js,ts,etc}`.
-- **CSS imports**: `import styles from './card.css'` gets the CSS PostCSS produced in server builds and browser bundles alike, since core runs the Processor for both.
+- **CSS imports**: `import styles from './card.css'` gets the CSS PostCSS produced in server builds, browser bundles and `ecopages dev` alike, since core runs the Processor for each of them.
 
 ## Installation
 

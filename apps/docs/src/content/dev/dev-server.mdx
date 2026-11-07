@@ -56,9 +56,9 @@ sequenceDiagram
 
 `DevTransformBundler` runs a Rolldown build with a single entry on the `hmr` lane. The `ecopages-dev-transform-externalize-imports` plugin marks every import external, so only the requested file is compiled; a specifier with a scheme, such as `ecopages:images`, stays internal so its virtual-module plugin can inline it. The files the build inlined, including those a plugin declared with `addWatchFile`, join the module's dependencies, so an edit to one recompiles the module. The Integration that claims the module through its `DevTransformBundleContributor` adds its own plugins, for example a client-graph boundary or the MDX loader.
 
-The server keeps one cache entry per source file, keyed by the file's content hash, and one in-flight compile per source. A result is committed only if the source did not change or get invalidated while it compiled; otherwise the request compiles again. A failed compile of a source that changed meanwhile is retried the same way, so its error is neither returned nor reported. A stylesheet needs no build: it becomes `export default "<css>"`, since real stylesheet delivery goes through Dependencies.
+The server keeps one cache entry per source file, keyed by the file's content hash, and one in-flight compile per source. A result is committed only if the source did not change or get invalidated while it compiled; otherwise the request compiles again. A failed compile of a source that changed meanwhile is retried the same way, so its error is neither returned nor reported. A stylesheet a module imports with a binding is not bundled: `compileStylesheetModule` runs the app's stylesheet Processor and answers `export default "<processed css>"`, the same module server builds and browser bundles give the import.
 
-A failed compile answers `500` with the error text and reports it to the HMR manager, which shows it in the page. See [HMR client](/dev/hmr-client) for how errors and updates reach the browser.
+A failed compile answers `500` with the error text and reports it to the HMR manager, which shows it in the page. A stylesheet that compiled before answers with its last compiled module instead, so the importer keeps loading while the error shows, and the next save that compiles replaces it. See [HMR client](/dev/hmr-client) for how errors and updates reach the browser.
 
 ### Import rewriting
 

@@ -83,7 +83,7 @@ describe('a stylesheet imported as text', () => {
 		expect(output).not.toContain('@apply');
 	});
 
-	it.fails('compiles to the processed CSS in the dev transform server', async () => {
+	it('compiles to the processed CSS in the dev transform server', async () => {
 		const server = new DevTransformServer({ appConfig: config });
 		const response = await server.tryHandleRequest(
 			new Request(`http://localhost${server.registerModule(cssFile)}`),

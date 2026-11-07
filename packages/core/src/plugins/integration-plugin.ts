@@ -11,6 +11,7 @@ import type { AssetDefinition, ProcessedAsset } from '../assets/asset-processing
 import { deepMerge } from '../utils/deep-merge.ts';
 import type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';
 import { installConfiguredServerDom, type ServerDomInstaller } from './server-dom.ts';
+import type { SsrScriptPreload } from '../route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader.ts';
 
 export type { ServerDomInstaller, ServerDomSurfaceKind } from './server-dom.ts';
 
@@ -147,6 +148,15 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Omit this when the Integration does not install DOM globals.
 	 */
 	readonly serverDom?: ServerDomInstaller;
+	/**
+	 * Which `ssr: true` Component scripts this Integration's custom-element preloader evaluates.
+	 *
+	 * @remarks
+	 * Core assigns each `ssr: true` script to exactly one preloader: the preloading Integration that owns the
+	 * declaring Component, else the first `'own-and-foreign'` Integration in config order. Omit this when the
+	 * Integration has no custom-element preloader: a preloader whose Integration omits it is assigned no script.
+	 */
+	readonly ssrScriptPreload?: SsrScriptPreload;
 
 	protected integrationDependencies: AssetDefinition[];
 	protected readonly resolvedIntegrationDependencies: ProcessedAsset[] = [];

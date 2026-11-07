@@ -22,6 +22,7 @@ import {
 } from 'node:fs';
 import { cp as cpAsync, mkdir as mkdirAsync, readdir, rm as rmAsync, stat as statAsync } from 'node:fs/promises';
 import { path } from '../path.ts';
+import { tmpdir } from 'node:os';
 import zlib from 'node:zlib';
 import {
 	type DirectoryEntry,
@@ -222,6 +223,10 @@ export abstract class BaseFileSystem {
 
 	mkdtemp(prefix: string): string {
 		return path.fromNative(mkdtempSync(prefix));
+	}
+
+	tempDir(): string {
+		return path.fromNative(tmpdir());
 	}
 
 	rename(source: string, destination: string): void {

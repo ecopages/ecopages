@@ -4,7 +4,6 @@
  */
 
 import assert from 'node:assert/strict';
-import { tmpdir } from 'node:os';
 import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
 import { collectBuildEntryInputPaths } from './build/build-graph.ts';
@@ -44,7 +43,7 @@ interface ContractApp {
 }
 
 async function createContractApp(processor: AnyProcessor): Promise<ContractApp> {
-	const rootDir = fileSystem.realpath(fileSystem.mkdtemp(path.join(path.fromNative(tmpdir()), 'eco-css-contract-')));
+	const rootDir = fileSystem.realpath(fileSystem.mkdtemp(path.join(fileSystem.tempDir(), 'eco-css-contract-')));
 	const write = (relativePath: string, contents: string) => {
 		const file = path.join(rootDir, relativePath);
 		fileSystem.write(file, contents);

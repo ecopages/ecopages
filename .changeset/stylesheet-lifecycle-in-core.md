@@ -1,6 +1,7 @@
 ---
 '@ecopages/core': minor
 '@ecopages/postcss-processor': minor
+'@ecopages/file-system': minor
 ---
 
 Core now owns the development lifecycle of stylesheets, and a stylesheet Processor only transforms them.
@@ -12,3 +13,4 @@ Breaking: `Processor.transformStylesheet(css, file)` returns `{ css, dependencie
 - `writeSourceRelativeStylesheet` and `SourceRelativeStylesheetDirs` are no longer exported from `@ecopages/core/processor`, since core writes processed stylesheets itself.
 - `@ecopages/core/processor/contract` exports `stylesheetProcessorContract`, the cases a stylesheet Processor must pass.
 - `@ecopages/postcss-processor` no longer prewarms, caches, writes or broadcasts stylesheets itself and has no default `watch`. `PostCssProcessor.processPath`, `PostCssProcessor.processStringOrBufferSync`, `getFileAsBuffer` and the `ProcessPath` and `ProcessStringOrBufferSync` types are removed; use `PostCssProcessor.processStringOrBuffer`, or `transformWithPostcss` for the CSS with its dependencies. The package `main` and `types` now point at `src/index.ts`.
+- `@ecopages/file-system` adds `fileSystem.tempDir()`, the operating system's directory for temporary files.

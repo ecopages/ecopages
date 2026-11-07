@@ -1,0 +1,76 @@
+---
+title: 'Lightning CSS Processor'
+description: 'Bundle @import, lower CSS for browser targets and minify with Lightning CSS.'
+order: 9
+---
+
+import { CodeTabs } from '@/components/code-tabs';
+
+# Lightning CSS Processor
+
+The `@ecopages/lightningcss-processor` package is a stylesheet Processor that runs [Lightning CSS](https://lightningcss.dev). It bundles `@import`, lowers modern CSS for the browsers you target, and minifies, in one native step with nothing else to configure.
+
+## Which processor to pick
+
+| Your stylesheets                                                               | Pick                                                                      |
+| :----------------------------------------------------------------------------- | :------------------------------------------------------------------------ |
+| Plain CSS: nesting, `color-mix()`, `@import` with `layer()` and media          | Lightning CSS                                                             |
+| CSS Modules (planned for this package)                                         | Lightning CSS                                                             |
+| Tailwind v4 through a preset (planned for this package)                        | Lightning CSS                                                             |
+| A setup built on PostCSS plugins                                               | [PostCSS Processor](/docs/ecosystem/postcss-processor)                    |
+| Tailwind v3                                                                    | [PostCSS Processor](/docs/ecosystem/postcss-processor)                    |
+
+An app has one stylesheet Processor, so choosing this one replaces the PostCSS Processor. Do not register both.
+
+## Installation
+
+<CodeTabs
+	name="lightningcss-processor-install"
+	tabs={[
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/lightningcss-processor' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/lightningcss-processor' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/lightningcss-processor' },
+	]}
+	defaultSelectedKey="npm"
+/>
+
+## Usage
+
+```typescript
+import { defineConfig } from '@ecopages/core/config';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+
+export default defineConfig({
+	processors: [lightningCssProcessorPlugin({ targets: ['chrome >= 90', 'safari >= 15'] })],
+});
+```
+
+## Options
+
+| Option          | Description                                                                                          |
+| :-------------- | :--------------------------------------------------------------------------------------------------- |
+| `targets`       | Browserslist queries, a string or an array. Unset, nothing is lowered.                               |
+| `minify`        | Minify the CSS. On in production, off otherwise.                                                     |
+| `drafts`        | Draft syntax, such as `{ customMedia: true }`.                                                       |
+| `nonStandard`   | Non-standard syntax, such as `{ deepSelectorCombinator: true }`.                                     |
+| `include`       | Names of Lightning CSS `Features` to compile even when `targets` support them, such as `['Nesting']`. |
+| `exclude`       | Names of `Features` to leave as written even when `targets` do not support them.                     |
+| `visitor`       | A Lightning CSS visitor, run over every stylesheet.                                                  |
+| `errorRecovery` | Drop a rule Lightning CSS cannot parse with a warning, instead of failing the stylesheet.            |
+| `filter`        | Regex that picks the stylesheets to process. Default `/\.css$/`.                                     |
+
+## Imports
+
+`@import` is bundled with its `layer()`, `supports()` and media conditions. A relative path, a tsconfig alias or a package name resolves. A stylesheet imported twice appears once, at its last import, and an import that closes a cycle is skipped with a warning.
+
+A root-relative or remote `@import` stays external and moves to the top of the output. An `@import` of a missing file, a dotfile or a file that is not `.css` is left as written with a warning that names the importing file. Relative `url()` references of an imported partial are rewritten to name the same file from the importing stylesheet, and the files they name are copied to the build output.
+
+## Error Handling
+
+- A stylesheet Lightning CSS rejects throws an error with the file, line and column. `ecopages build` fails, and `ecopages dev` shows the error overlay and keeps the last good stylesheet until a save fixes it.
+- Warnings are logged with their location, once per stylesheet.
+
+## See also
+
+- [PostCSS Processor](/docs/ecosystem/postcss-processor)
+- [Custom Processor](/docs/plugins/custom-processor) — authoring processors

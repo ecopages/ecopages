@@ -1,7 +1,7 @@
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import type { BuildEnvironment, BuildOptions } from '../contracts/build-contracts.ts';
+import type { BuildEnvironment, BuildOptions, BuildStylesheets } from '../contracts/build-contracts.ts';
 import { appliesToBuildEnvironment } from '../contracts/build-manifest.ts';
 import { createAliasResolverPlugin } from '../../plugins/alias-resolver-plugin.ts';
 import { resolveBuildEnvironmentOptions } from './build-environment-options.ts';
@@ -9,7 +9,9 @@ import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
 import { createEcoComponentMetaPlugin } from '../../plugins/eco-component-meta-plugin.ts';
 import { getStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { isProductionRuntime } from '../../env.ts';
+import { appLogger } from '../../global/app-logger.ts';
 import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transform.ts';
+import { compileStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 
 /**
  * App-owned plugins of one environment, in the order their hooks run.
@@ -94,6 +96,34 @@ export function resolveBuildPluginOrder(
 	return [...plugins, ...coreTransforms];
 }
 
+/** Messages of undeliverable stylesheet imports already warned about, by app. */
+const warnedUndeliverableStylesheets = new WeakMap<EcoPagesAppConfig, Set<string>>();
+
+/**
+ * The app's stylesheets, which every build request compiles with {@link compileStylesheetModule}.
+ *
+ * @remarks
+ * Outside production, a package module's own side-effect stylesheet import warns once per import instead of failing
+ * the build, so `ecopages dev` keeps running; `ecopages build` fails on it.
+ */
+function resolveBuildStylesheets(appConfig: EcoPagesAppConfig): BuildStylesheets {
+	return {
+		extensions: getStylesheetKinds(appConfig).extensions,
+		compileModule: (file) => compileStylesheetModule(appConfig, file),
+		...(isProductionRuntime()
+			? {}
+			: {
+					reportUndeliverable: (error: Error) => {
+						let warned = warnedUndeliverableStylesheets.get(appConfig);
+						if (!warned) warnedUndeliverableStylesheets.set(appConfig, (warned = new Set()));
+						if (warned.has(error.message)) return;
+						warned.add(error.message);
+						appLogger.warn(error.message);
+					},
+				}),
+	};
+}
+
 export type ServerBuildRequestInput = Partial<BuildOptions> & {
 	entrypoints: BuildOptions['entrypoints'];
 };
@@ -132,7 +162,7 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
 		...overrides,
 		environment: 'server',
 		entrypoints: input.entrypoints,
-		stylesheetExtensions: getStylesheetKinds(appConfig).extensions,
+		stylesheets: resolveBuildStylesheets(appConfig),
 		...(plugins.length > 0 ? { plugins } : {}),
 	};
 }
@@ -161,6 +191,7 @@ export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: B
 		define: { ...environmentOptions.define, ...callerDefines },
 		environment: 'browser',
 		entrypoints: input.entrypoints,
+		stylesheets: resolveBuildStylesheets(appConfig),
 		plugins,
 	};
 }

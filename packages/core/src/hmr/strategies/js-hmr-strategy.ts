@@ -33,6 +33,9 @@ export interface JsHmrContext extends HmrRegisteredEntrypointsContext {
 
 	getTemplateExtensions(): string[];
 
+	/** Whether `filePath` is a stylesheet, which a served module can import as text. */
+	isStylesheet(filePath: string): boolean;
+
 	/**
 	 * @remarks
 	 * Integrations with higher-priority HMR strategies can use this to keep the
@@ -61,12 +64,13 @@ export class JsHmrStrategy extends HmrStrategy {
 	 * With a selective dependency graph, a file the dev transform has not served and no served module
 	 * imports is left to the fallback reload: hot-updating the watched entrypoints would not apply it.
 	 * That covers server-only modules and HTML Page classic scripts, which are compiled outside the dev
-	 * transform.
+	 * transform. A stylesheet a served module imports as text matches the same way, so its importer re-imports
+	 * the new CSS.
 	 */
 	matches(filePath: string): boolean {
 		const watchedFiles = this.context.getWatchedFiles();
 		const resolvedPath = path.resolve(filePath);
-		const isJsTs = /\.(ts|tsx|js|jsx)$/.test(resolvedPath);
+		const isModule = /\.(ts|tsx|js|jsx)$/.test(resolvedPath) || this.context.isStylesheet(resolvedPath);
 		const srcDir = path.resolve(this.context.getSrcDir());
 		const isInSrc = resolvedPath.startsWith(`${srcDir}/`) || resolvedPath === srcDir;
 		const isIntegrationTemplate = this.context
@@ -77,7 +81,7 @@ export class JsHmrStrategy extends HmrStrategy {
 			return false;
 		}
 
-		if (!isJsTs || !isInSrc) {
+		if (!isModule || !isInSrc) {
 			return false;
 		}
 

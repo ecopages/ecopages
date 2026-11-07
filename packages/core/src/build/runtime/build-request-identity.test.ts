@@ -89,7 +89,10 @@ test('createBuildRequestIdentity distinguishes every BuildOptions field', () => 
 		external: [['react'], ['react-dom']],
 		jsx: [{ importSource: 'react' }, { importSource: 'preact' }],
 		workerEntries: [true, false],
-		stylesheetExtensions: [['.css'], ['.css', '.scss']],
+		stylesheets: [
+			{ extensions: ['.css'], compileModule: async () => '' },
+			{ extensions: ['.css', '.scss'], compileModule: async () => '' },
+		],
 	} satisfies Record<Exclude<keyof BuildOptions, 'plugins'>, [unknown, unknown]>;
 
 	for (const [field, [left, right]] of Object.entries(fields)) {
@@ -99,6 +102,16 @@ test('createBuildRequestIdentity distinguishes every BuildOptions field', () => 
 			`expected different identities for ${field}`,
 		);
 	}
+});
+
+test('createBuildRequestIdentity keys stylesheets by their extensions, not by their compiler', () => {
+	const request = (compileModule: () => Promise<string>) =>
+		createBuildRequestIdentity({ ...baseOptions, stylesheets: { extensions: ['.css'], compileModule } });
+
+	assert.equal(
+		request(async () => 'export default "a";'),
+		request(async () => 'export default "b";'),
+	);
 });
 
 test('createBuildRequestIdentity treats unset and empty collections alike', () => {

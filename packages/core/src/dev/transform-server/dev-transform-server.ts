@@ -10,7 +10,7 @@ import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 import { DevTransformInstallStamp } from './dev-transform-install-stamp.ts';
 import { getStylesheetKinds, type StylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
-import { materializeDevTransformStylesheet, resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
+import { compileStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 import { resolveWorkspacePackageWatchRoots } from '../../watchers/workspace-package-watch-roots.ts';
 import { resolveDevTransformModuleSourcePath, resolveDevTransformModuleUrl } from './dev-transform-url.ts';
 import type { DevTransformBundleContributor } from './types.ts';
@@ -49,6 +49,14 @@ export class DevTransformServer {
 	private readonly urlToSource = new Map<string, string>();
 	private readonly sourceToUrl = new Map<string, string>();
 	private readonly cache = new Map<string, CacheEntry>();
+	/**
+	 * The module each stylesheet last compiled to, by source path.
+	 *
+	 * @remarks
+	 * A stylesheet whose compile fails keeps answering with it, so the importer still loads while the error shows in
+	 * the page, and the next save that compiles replaces it. A stylesheet that never compiled answers `500`.
+	 */
+	private readonly lastCompiledStylesheets = new Map<string, string>();
 	private readonly inFlight = new Map<string, Promise<CacheEntry>>();
 	private cacheGeneration = 0;
 	private readonly sourceGenerations = new Map<string, number>();
@@ -176,6 +184,7 @@ export class DevTransformServer {
 	reset(): void {
 		this.urlToSource.clear();
 		this.sourceToUrl.clear();
+		this.lastCompiledStylesheets.clear();
 		this.invalidateAll();
 	}
 
@@ -219,6 +228,13 @@ export class DevTransformServer {
 			const message = error instanceof Error ? error.message : String(error);
 			this.failedSources.set(path.resolve(sourcePath), message);
 			this.onTransformError?.(message);
+			const lastCompiled =
+				error instanceof StylesheetCompileError
+					? this.lastCompiledStylesheets.get(path.resolve(sourcePath))
+					: undefined;
+			if (lastCompiled !== undefined) {
+				return this.createJavaScriptResponse(lastCompiled);
+			}
 			return new Response(message, {
 				status: 500,
 				headers: {
@@ -255,6 +271,15 @@ export class DevTransformServer {
 		});
 	}
 
+	/** Compiles a stylesheet import into the module of its processed CSS, as server builds and bundles do. */
+	private async compileStylesheet(sourcePath: string): Promise<{ code: string }> {
+		try {
+			return { code: await compileStylesheetModule(this.appConfig, sourcePath) };
+		} catch (error) {
+			throw new StylesheetCompileError(sourcePath, error);
+		}
+	}
+
 	private async materialize(sourcePath: string): Promise<CacheEntry> {
 		const normalized = path.resolve(sourcePath);
 		if (!fileSystem.exists(normalized)) {
@@ -272,16 +297,7 @@ export class DevTransformServer {
 			return pending;
 		}
 
-		const moduleKind = resolveDevTransformModuleKind(normalized, this.stylesheetKinds);
-		if (moduleKind === 'stylesheet') {
-			const entry: CacheEntry = {
-				code: materializeDevTransformStylesheet(fileSystem.readFileSync(normalized)),
-				sourceHash,
-			};
-			this.cache.set(normalized, entry);
-			return entry;
-		}
-
+		const isStylesheet = this.stylesheetKinds.isStylesheet(normalized);
 		const generation = this.cacheGeneration;
 		const sourceGeneration = this.sourceGenerations.get(normalized) ?? 0;
 		const isStale = () =>
@@ -289,8 +305,10 @@ export class DevTransformServer {
 			sourceGeneration !== (this.sourceGenerations.get(normalized) ?? 0) ||
 			!fileSystem.exists(normalized) ||
 			fileSystem.hash(normalized) !== sourceHash;
-		const promise = this.bundler
-			.transpileModule(normalized)
+		const compile: Promise<{ code: string; dependencies?: string[] }> = isStylesheet
+			? this.compileStylesheet(normalized)
+			: this.bundler.transpileModule(normalized);
+		const promise = compile
 			.then((result) => {
 				if (isStale()) {
 					return undefined;
@@ -302,6 +320,7 @@ export class DevTransformServer {
 
 				const entry: CacheEntry = { code: result.code, sourceHash };
 				this.cache.set(normalized, entry);
+				if (isStylesheet) this.lastCompiledStylesheets.set(normalized, result.code);
 				return entry;
 			})
 			.catch((error: unknown) => {
@@ -317,5 +336,16 @@ export class DevTransformServer {
 
 		this.inFlight.set(normalized, promise);
 		return promise;
+	}
+}
+
+/**
+ * A stylesheet whose Processor threw, which the server answers with the stylesheet's last compiled module when it has one.
+ */
+class StylesheetCompileError extends Error {
+	constructor(sourcePath: string, cause: unknown) {
+		const message = cause instanceof Error ? cause.message : String(cause);
+		super(`[dev-transform] Failed to compile stylesheet ${sourcePath}: ${message}`, { cause });
+		this.name = 'StylesheetCompileError';
 	}
 }

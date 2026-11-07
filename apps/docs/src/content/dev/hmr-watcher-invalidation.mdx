@@ -13,6 +13,7 @@ sources:
   - packages/core/src/dev/invalidation/
   - packages/core/src/adapters/shared/hmr/hmr-manager.ts
   - packages/core/src/adapters/node/node-client-bridge.ts
+  - packages/core/src/adapters/shared/hmr/client-bridge.ts
 ---
 
 # Watcher and invalidation
@@ -63,7 +64,7 @@ When the batch needs a full reload (a public file, an `additionalWatchPaths` mat
 | `entry-watched-config` | the config module, when a runtime entry watcher owns it | no | no | no |
 | `public-asset` | file in the public directory | no | yes | no |
 | `additional-watch` | `additionalWatchPaths` match | yes | yes | no |
-| `processor-owned-asset` | asset a Processor can process, such as a stylesheet | no | no | no |
+| `processor-owned-asset` | asset a Processor can process, such as a stylesheet | no | no | no, unless a browser module imports the stylesheet as text |
 | `route-source` | file under the pages directory | yes | no | yes |
 | `source` | recorded build input or server source | yes | no | yes |
 | `other` | anything else | no | no | yes |

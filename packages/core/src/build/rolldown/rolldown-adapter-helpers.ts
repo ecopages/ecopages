@@ -34,7 +34,7 @@ import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-reso
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.ts';
 import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
-import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
+import { createStylesheetModulePlugin } from './stylesheet-module-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
 import { fromRolldownModuleId } from './rolldown-module-id.ts';
@@ -541,7 +541,7 @@ async function buildRolldownInputPlugins(
 				]
 			: []),
 		...(rolldownPlatform === 'browser' ? [createBrowserServerOnlyGuardPlugin()] : []),
-		...(options.environment === 'server' ? [createServerSideCssShimPlugin(options.stylesheetExtensions)] : []),
+		createStylesheetModulePlugin({ environment: options.environment, root: contextRoot }, options.stylesheets),
 		...appPlugins,
 		...(options.environment === 'browser' && options.workerEntries !== false ? [createWorkerEntriesPlugin()] : []),
 	];

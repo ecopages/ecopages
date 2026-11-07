@@ -37,7 +37,7 @@ const contentOf = (dependency: unknown): string => String((dependency as { conte
 
 /** Package specifiers a generated entry imports. */
 const importedSpecifiers = (source: string): string[] =>
-	[...source.matchAll(/from "([^"]+)"/g)].map((match) => match[1]!).filter((specifier) => !specifier.startsWith('/'));
+	[...source.matchAll(/from "([^"]+)"/g)].map((match) => match[1]!).filter((specifier) => !path.isAbsolute(JSON.parse(`"${specifier}"`)));
 
 describe('HydrationAssetService', () => {
 	it('makes a Page entry without a router an entry of the app-wide browser build', async () => {
@@ -150,7 +150,7 @@ describe('HydrationAssetService', () => {
 			'react',
 			'@ecopages/react/island-hydration',
 		]);
-		expect(contentOf(entries[1]?.dependency)).toContain(islandB);
+		expect(contentOf(entries[1]?.dependency)).toContain(JSON.stringify(islandB));
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			1,
 			islandBundleName(islandA),

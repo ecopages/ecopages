@@ -2,9 +2,10 @@
  * @module @ecopages/file-system/path
  * @description The one path convention of Ecopages, and the path operations that keep it.
  *
- * Every path Ecopages holds uses forward slashes. An absolute path keeps its Windows drive letter in upper case
- * (`D:/app/src/page.tsx`); on POSIX it is the usual `/app/src/page.tsx`. Every operation here returns a path in
- * that form, so paths compare as strings, split on `/`, and become URLs or cache keys without a separator check.
+ * Every path Ecopages holds uses forward slashes. An absolute path keeps its Windows drive letter as the source
+ * spelled it (`D:/app/src/page.tsx`); on POSIX it is the usual `/app/src/page.tsx`. Every operation here returns
+ * a path in that form, so paths split on `/` and become URLs or cache keys without a separator check. Containment
+ * goes through {@link PathApi.isWithin}, which also matches a drive letter spelled in the other case.
  *
  * Node's file system APIs accept forward slashes on Windows, so a path in this form goes to `fileSystem`, `import()`
  * (through {@link PathApi.toFileUrl}) and most child processes unchanged. A path that Node or a tool hands back in
@@ -69,11 +70,15 @@ export interface PathApi {
 	toFileUrl(filePath: string): URL;
 }
 
-const WINDOWS_DRIVE = /^[a-z]:/;
-
+/**
+ * @remarks
+ * The drive letter keeps the case it arrived with. Node's ESM loader keys modules by URL and does not normalise
+ * drive case, so a module Node first loaded from a lower-case drive URL (a process started from a lower-case cwd) would
+ * load a second time from an upper-cased one. `relative` and `isWithin` compare drives without regard
+ * to case, as `node:path` does on Windows.
+ */
 function fromWindowsPath(filePath: string): string {
-	const slashed = filePath.replaceAll('\\', '/');
-	return WINDOWS_DRIVE.test(slashed) ? `${slashed[0].toUpperCase()}${slashed.slice(1)}` : slashed;
+	return filePath.replaceAll('\\', '/');
 }
 
 /**

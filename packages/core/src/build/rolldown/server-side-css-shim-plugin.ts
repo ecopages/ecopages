@@ -25,6 +25,7 @@ import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { RolldownPlugin } from 'rolldown';
 import { id as idFilter, include } from 'rolldown/filter';
+import { fromRolldownModuleId, toRolldownModuleId } from './rolldown-module-id.ts';
 
 const CSS_PATH = /\.css$/u;
 const CSS_QUERY = '?ecopages-css-shim';
@@ -45,8 +46,10 @@ export function createServerSideCssShimPlugin(): RolldownPlugin {
 		resolveId: {
 			filter: [include(idFilter(CSS_PATH))],
 			handler(source, importer) {
-				const resolved = importer ? path.resolve(path.dirname(importer), source) : path.resolve(source);
-				return fileSystem.exists(resolved) ? `${resolved}${CSS_QUERY}` : null;
+				const resolved = importer
+					? path.resolve(path.dirname(fromRolldownModuleId(importer)), source)
+					: path.resolve(source);
+				return fileSystem.exists(resolved) ? toRolldownModuleId(`${resolved}${CSS_QUERY}`) : null;
 			},
 		},
 		load: {

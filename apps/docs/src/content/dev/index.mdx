@@ -66,9 +66,11 @@ Integrations render files and own a JSX runtime; Processors own asset semantics.
 
 ## Paths
 
-Every path Ecopages holds uses forward slashes, on every host. An absolute path keeps its Windows drive letter in upper case (`D:/app/src/pages/index.tsx`); on POSIX it is the usual `/app/src/pages/index.tsx`. Paths therefore compare as strings, split on `/`, and become URLs, cache keys and route names without a separator check.
+Every path Ecopages holds uses forward slashes, on every host. An absolute path keeps its Windows drive letter as Node or the user spelled it (`D:/app/src/pages/index.tsx`); on POSIX it is the usual `/app/src/pages/index.tsx`. Paths therefore split on `/` and become URLs, cache keys and route names without a separator check.
 
-Package code takes its path operations from `@ecopages/file-system/path`, never from `node:path`, and a lint rule enforces it in `packages/`. The module mirrors the `node:path` operations Ecopages uses and returns every result in this form. Node's file system APIs accept forward slashes on Windows, so most code never needs the native form.
+The drive letter is not upper-cased on purpose: Node's ESM loader keys modules by URL and keeps the drive case, so a process started from a lower-case cwd loads its config as `file:///d:/...`, and an upper-cased path would load the same module a second time. Containment goes through `path.isWithin`, which compares drives without regard to case.
+
+Package code takes its path operations from `@ecopages/file-system/path`, never from `node:path` (or its `posix` and `win32` subpaths), and takes `file:` URL conversion from it rather than from `node:url`; a lint rule enforces both in `packages/`. `packages/codemod` is exempt: its jscodeshift transforms run on their own and do not depend on Ecopages packages. The module mirrors the `node:path` operations Ecopages uses and returns every result in this form. Node's file system APIs accept forward slashes on Windows, so most code never needs the native form.
 
 A native path is converted once, where it enters Ecopages:
 

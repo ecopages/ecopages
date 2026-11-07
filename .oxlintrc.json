@@ -60,8 +60,24 @@
 								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
 							},
 							{
+								"name": "node:path/posix",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "node:path/win32",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path/posix",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path/win32",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
 								"name": "node:url",
-								"importNames": ["fileURLToPath", "pathToFileURL"],
+								"importNames": ["default", "fileURLToPath", "pathToFileURL"],
 								"message": "Use path.fromFileUrl or path.toFileUrl from @ecopages/file-system/path, which keep every path in forward slashes."
 							}
 						]
@@ -92,8 +108,24 @@
 								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
 							},
 							{
+								"name": "node:path/posix",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "node:path/win32",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path/posix",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path/win32",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
 								"name": "node:url",
-								"importNames": ["fileURLToPath", "pathToFileURL"],
+								"importNames": ["default", "fileURLToPath", "pathToFileURL"],
 								"message": "Use path.fromFileUrl or path.toFileUrl from @ecopages/file-system/path, which keep every path in forward slashes."
 							}
 						]

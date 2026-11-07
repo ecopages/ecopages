@@ -52,7 +52,7 @@ await watcher.close();
 
 ## Paths
 
-`@ecopages/file-system/path` holds the path convention of Ecopages: every path uses forward slashes, and an absolute Windows path keeps its drive letter in upper case (`D:/app/src/page.tsx`). Its operations mirror `node:path` (`join`, `resolve`, `relative`, `dirname`, `basename`, `extname`, `isAbsolute`, `normalize`, `parse`, `format`, `matchesGlob`) and always return that form. Paths that `fileSystem` returns, from `realpath`, `glob`, `readdir`, `readlink`, `mkdtemp` and `watch`, are in it too.
+`@ecopages/file-system/path` holds the path convention of Ecopages: every path uses forward slashes, and an absolute Windows path keeps its drive letter as given (`D:/app/src/page.tsx`); use `path.isWithin` rather than a string prefix to test containment. Its operations mirror `node:path` (`join`, `resolve`, `relative`, `dirname`, `basename`, `extname`, `isAbsolute`, `normalize`, `parse`, `format`, `matchesGlob`) and always return that form. Paths that `fileSystem` returns, from `realpath`, `glob`, `readdir`, `readlink`, `mkdtemp` and `watch`, are in it too.
 
 ```typescript
 import { path } from '@ecopages/file-system/path';

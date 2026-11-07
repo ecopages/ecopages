@@ -19,9 +19,10 @@ describe('createPath win32', () => {
 		});
 	});
 
-	it('keeps the drive letter in upper case', () => {
-		expect(path.fromNative('d:\\app\\src')).toBe('D:/app/src');
-		expect(path.resolve('d:/app')).toBe('D:/app');
+	it('keeps the case of the drive letter, so Node loads a module once', () => {
+		expect(path.fromNative('d:\\app\\src')).toBe('d:/app/src');
+		expect(path.resolve('d:/app')).toBe('d:/app');
+		expect(path.isWithin('D:/app', 'd:/app/src/page.tsx')).toBe(true);
 	});
 
 	it('returns a path on another drive as absolute from relative', () => {
@@ -37,7 +38,7 @@ describe('createPath win32', () => {
 	});
 
 	it('converts file URLs in both directions', () => {
-		expect(path.fromFileUrl('file:///d:/app/a%20b.ts')).toBe('D:/app/a b.ts');
+		expect(path.fromFileUrl('file:///D:/app/a%20b.ts')).toBe('D:/app/a b.ts');
 		expect(path.toFileUrl('D:/app/a b.ts').href).toBe('file:///D:/app/a%20b.ts');
 	});
 

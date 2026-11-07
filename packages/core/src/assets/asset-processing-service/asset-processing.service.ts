@@ -521,7 +521,7 @@ export class AssetProcessingService {
 			return true;
 		}
 
-		return /^[A-Za-z]:\//.test(value);
+		return /^[A-Za-z]:\//.test(path.fromNative(value));
 	}
 
 	/**

@@ -198,6 +198,7 @@ export class DevTransformVendorRegistry {
 	private readonly graphs = new Map<VendorGraphKey, VendorGraph>();
 	private readonly entriesByUrl = new Map<string, { graph: VendorGraph; entry: VendorEntry }>();
 	private generation = 0;
+	private readonly warnedPackageCopies = new Set<string>();
 	private persistedContents?: string;
 
 	constructor(options: DevTransformVendorRegistryOptions) {
@@ -307,7 +308,8 @@ export class DevTransformVendorRegistry {
 	 * A build that started before this call still settles for its waiters but is not kept. The last build is kept
 	 * only as the fallback of a rebuild that fails as a whole. Each specifier resolves again from every directory
 	 * that reached its entry, so after a package upgrade each importer moves to the file it now reaches; an entry
-	 * that no source resolves any more is kept as it was.
+	 * that no source resolves any more is kept as it was. A source whose directory no longer exists, such as a
+	 * deleted workspace package, is dropped, and an entry left without sources goes with it.
 	 */
 	invalidateAll(): void {
 		this.generation += 1;
@@ -318,8 +320,10 @@ export class DevTransformVendorRegistry {
 			graph.entries.clear();
 			for (const entry of previous) this.entriesByUrl.delete(entry.url);
 			for (const entry of previous) {
+				const sources = entry.sources.filter((source) => fileSystem.exists(source.resolveDir));
+				if (sources.length === 0) continue;
 				let reached = false;
-				for (const source of entry.sources) {
+				for (const source of sources) {
 					const resolved = resolveBarePackageBrowserEntry(
 						this.appConfig.rootDir,
 						source.specifier,
@@ -330,6 +334,7 @@ export class DevTransformVendorRegistry {
 					reached = true;
 				}
 				if (!reached && !graph.entries.has(entry.entryPath)) {
+					entry.sources = sources;
 					graph.entries.set(entry.entryPath, entry);
 					this.entriesByUrl.set(entry.url, { graph, entry });
 				}
@@ -366,7 +371,42 @@ export class DevTransformVendorRegistry {
 		};
 		graph.entries.set(entryPath, entry);
 		this.entriesByUrl.set(entry.url, { graph, entry });
+		this.warnOnDuplicatePackageCopies(specifier);
 		return { graph, entry };
+	}
+
+	/**
+	 * Warns when the package of `specifier` is reached in more than one installed copy.
+	 *
+	 * @remarks
+	 * Each copy is its own vendor entry and loads as its own module, as in the production build. That is right for
+	 * two versions an app means to have, but an accidental second copy of a package such as React, from a pnpm peer
+	 * variant or a workspace package with its own install, otherwise surfaces only as a confusing runtime error.
+	 * The warning names each copy's directory and the directories of the modules that import it, once per set of
+	 * copies.
+	 */
+	private warnOnDuplicatePackageCopies(specifier: string): void {
+		const packageName = toPackageRootSpecifier(specifier);
+		const copies = new Map<string, Set<string>>();
+		for (const graph of this.graphs.values()) {
+			for (const entry of graph.entries.values()) {
+				if (toPackageRootSpecifier(entry.specifier) !== packageName) continue;
+				const packageDir = findPackageDir(entry.entryPath, packageName);
+				const importers = copies.get(packageDir) ?? new Set<string>();
+				for (const source of entry.sources) importers.add(source.resolveDir);
+				copies.set(packageDir, importers);
+			}
+		}
+		if (copies.size < 2) return;
+		const key = `${packageName}\0${[...copies.keys()].sort().join('\0')}`;
+		if (this.warnedPackageCopies.has(key)) return;
+		this.warnedPackageCopies.add(key);
+		const lines = [...copies].map(
+			([packageDir, importers]) => `  ${packageDir}\n    imported from ${[...importers].join(', ')}`,
+		);
+		appLogger.warn(
+			`[dev-transform] Package "${packageName}" resolves to ${copies.size} installed copies, and each loads as its own module:\n${lines.join('\n')}`,
+		);
 	}
 
 	private requireGraph(key: VendorGraphKey): VendorGraph {
@@ -786,7 +826,31 @@ export class DevTransformVendorRegistry {
 
 	/** Where a bare import that no module imports resolves from. */
 	private get rootResolveDir(): string {
-		return path.resolve(this.appConfig.rootDir);
+		return resolveDirectory(this.appConfig.rootDir);
+	}
+}
+
+/** The `name` of a `package.json`, or `undefined` when the file is missing or unreadable. */
+function readPackageName(manifest: string): string | undefined {
+	if (!fileSystem.exists(manifest)) return undefined;
+	try {
+		const parsed: unknown = JSON.parse(fileSystem.readFileSync(manifest));
+		return typeof parsed === 'object' && parsed !== null && 'name' in parsed && typeof parsed.name === 'string'
+			? parsed.name
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/** The installed directory of `packageName` that holds `entryPath`, or the entry's directory when none is found. */
+function findPackageDir(entryPath: string, packageName: string): string {
+	let directory = path.dirname(entryPath);
+	while (true) {
+		if (readPackageName(path.join(directory, 'package.json')) === packageName) return directory;
+		const parent = path.dirname(directory);
+		if (parent === directory) return path.dirname(entryPath);
+		directory = parent;
 	}
 }
 

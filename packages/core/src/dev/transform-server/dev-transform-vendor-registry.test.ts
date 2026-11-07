@@ -9,6 +9,7 @@ import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-re
 import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import { contentHash } from '../../utils/content-hash.ts';
 import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
+import { appLogger } from '../../global/app-logger.ts';
 
 const tempRoots: string[] = [];
 const repoRoot = path.resolve(import.meta.dirname, '../../../../..');
@@ -215,6 +216,7 @@ describe('DevTransformVendorRegistry', () => {
 		};
 		linkTo(modules, '1.0.0');
 		linkTo(hostModules, '1.0.0');
+		fs.mkdirSync(path.join(rootDir, 'packages', 'host', 'src'), { recursive: true });
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const registry = new DevTransformVendorRegistry({ appConfig: config });
 		const appUrl = await registry.resolveVendorUrl('shared-lib');
@@ -1042,6 +1044,74 @@ describe('DevTransformVendorRegistry', () => {
 
 		expect([...(await readVendorGraph(registry, [url])).values()].join('\n')).toContain('kept-lib-code');
 		expect(bundleCallsUnder(bundle, rootDir)).toBe(1);
+	});
+
+	it('warns once when a package resolves to two installed copies, naming each copy and its importers', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-duplicate-copies');
+		const hostDir = path.join(rootDir, 'packages', 'host');
+		for (const [dir, version] of [
+			[path.join(modules, 'dup-lib'), '1.0.0'],
+			[path.join(hostDir, 'node_modules', 'dup-lib'), '2.0.0'],
+		] as const) {
+			writePackage(
+				dir,
+				'dup-lib',
+				{ type: 'module', exports: { '.': './index.js', './extra': './extra.js' }, version },
+				{ 'index.js': `export const version = '${version}';\n`, 'extra.js': 'export const extra = true;\n' },
+			);
+		}
+		for (const dir of [path.join(rootDir, 'src'), path.join(hostDir, 'src')])
+			fs.mkdirSync(dir, { recursive: true });
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const warn = vi.spyOn(appLogger, 'warn');
+		const pageModule = path.join(config.absolutePaths.srcDir, 'page.js');
+
+		await registry.resolveVendorUrl('dup-lib', pageModule);
+		await registry.resolveVendorUrl('dup-lib/extra', pageModule);
+		expect(warn).not.toHaveBeenCalled();
+		await registry.resolveVendorUrl('dup-lib', path.join(hostDir, 'src', 'hydrate.js'));
+		await registry.resolveVendorUrl('dup-lib/extra', path.join(hostDir, 'src', 'hydrate.js'));
+
+		expect(warn).toHaveBeenCalledTimes(1);
+		const message = String(warn.mock.calls[0]?.[0]);
+		expect(message).toContain('Package "dup-lib" resolves to 2 installed copies');
+		expect(message).toContain(fs.realpathSync(path.join(modules, 'dup-lib')));
+		expect(message).toContain(fs.realpathSync(path.join(hostDir, 'node_modules', 'dup-lib')));
+		expect(message).toContain(path.join(fs.realpathSync(rootDir), 'src'));
+		expect(message).toContain(path.join(fs.realpathSync(rootDir), 'packages', 'host', 'src'));
+	});
+
+	it('drops the sources of a deleted importer directory after an invalidation', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-prune-sources');
+		const hostDir = path.join(rootDir, 'packages', 'host');
+		writePackage(
+			path.join(modules, 'kept-lib'),
+			'kept-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': "export const marker = 'kept-lib-code';\n" },
+		);
+		fs.mkdirSync(path.join(hostDir, 'src'), { recursive: true });
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const url = await registry.resolveVendorUrl('kept-lib');
+		await registry.resolveVendorUrl('kept-lib', path.join(hostDir, 'src', 'hydrate.js'));
+		const entriesFile = path.join(config.absolutePaths.workDir, 'dev-vendor-entries.json');
+		const persistedDirs = () =>
+			(JSON.parse(fs.readFileSync(entriesFile, 'utf8')) as { entries: { resolveDir: string }[] }).entries.map(
+				(entry) => entry.resolveDir,
+			);
+		fs.writeFileSync(path.join(modules, 'kept-lib', 'index.js'), "export const marker = 'kept-lib-rebuilt';\n");
+		registry.invalidateAll();
+		await registry.tryHandleVendorRequest(url);
+		expect(persistedDirs()).toContain(path.join(fs.realpathSync(rootDir), 'packages', 'host', 'src'));
+
+		fs.rmSync(hostDir, { recursive: true, force: true });
+		fs.writeFileSync(path.join(modules, 'kept-lib', 'index.js'), "export const marker = 'kept-lib-again';\n");
+		registry.invalidateAll();
+		await registry.tryHandleVendorRequest(url);
+
+		expect(persistedDirs()).toEqual([fs.realpathSync(rootDir)]);
 	});
 
 	/** Guards existing behaviour: Rolldown resolves an entry's imports from its real path in the store. */

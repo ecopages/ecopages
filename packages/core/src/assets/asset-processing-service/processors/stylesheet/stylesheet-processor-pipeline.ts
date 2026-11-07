@@ -18,8 +18,8 @@ export interface ProcessedStylesheet {
  * the Processor's capability filter matches it, and it implements `transformStylesheet`.
  *
  * Only the dependencies that are stylesheets are kept. A Processor that scans content, such as Tailwind, also reports
- * every file it scanned; a change to one reaches the stylesheet through the Processor instead, so a content edit does
- * not invalidate every Page and module that uses the stylesheet.
+ * every file it scanned; a change to one reaches the stylesheet through the Processor's `invalidateStylesheets` hook
+ * instead, so a content edit does not invalidate every Page and module that uses the stylesheet.
  */
 export async function applyStylesheetProcessors(
 	appConfig: EcoPagesAppConfig,

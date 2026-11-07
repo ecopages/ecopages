@@ -20,6 +20,7 @@ export {
 	type ProcessorWatchChanges,
 	type ProcessorWatchConfig,
 	resolveGeneratedPath,
+	type StylesheetInvalidation,
 	type StylesheetTransformResult,
 	writeGeneratedTypesPackage,
 } from './plugins/processor.ts';

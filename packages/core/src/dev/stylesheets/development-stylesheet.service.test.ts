@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../../config/internal-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { Processor, type ProcessorWatchConfig } from '../../plugins/processor.ts';
+import { Processor, type StylesheetInvalidation } from '../../plugins/processor.ts';
 import { DevelopmentStylesheetService } from './development-stylesheet.service.ts';
 
 const IMPORT = /@import\s+['"](\.[^'"]+)['"]\s*(?:layer\((\w+)\))?\s*;/gu;
@@ -27,6 +27,22 @@ class InliningProcessor extends Processor {
 	}
 }
 
+const INLINING = { name: 'inlining', capabilities: [{ kind: 'stylesheet' as const, extensions: ['*.css'] }] };
+
+/** An {@link InliningProcessor} whose invalidation hook answers `invalidation` and records the files it got. */
+class InvalidatingProcessor extends InliningProcessor {
+	readonly received: string[][] = [];
+
+	constructor(private readonly invalidation: StylesheetInvalidation) {
+		super(INLINING);
+	}
+
+	override invalidateStylesheets(files: readonly string[]): StylesheetInvalidation {
+		this.received.push([...files]);
+		return this.invalidation;
+	}
+}
+
 let rootDir: string;
 
 function write(relativePath: string, contents: string): string {
@@ -41,17 +57,11 @@ function persisted(relativeToAssets: string): string | undefined {
 	return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
 }
 
-async function createService(watch?: ProcessorWatchConfig): Promise<DevelopmentStylesheetService> {
+async function createService(processor = new InliningProcessor(INLINING)): Promise<DevelopmentStylesheetService> {
 	const config: EcoPagesAppConfig = await finalizeEcoPagesConfig({
 		rootDir,
 		integrations: [],
-		processors: [
-			new InliningProcessor({
-				name: 'inlining',
-				capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }],
-				watch,
-			}),
-		],
+		processors: [processor],
 	});
 	return new DevelopmentStylesheetService(config);
 }
@@ -170,16 +180,41 @@ describe('DevelopmentStylesheetService', () => {
 		expect(service.version(main)).not.toBe(before);
 	});
 
-	it('rebuilds every entry stylesheet when content the Processor watches changes', async () => {
-		const main = write('src/styles/main.css', "@import './base.css';\n");
-		write('src/styles/base.css', '.base { color: red; }\n');
-		const page = write('src/pages/index.tsx', 'export default () => null;\n');
-		const service = await createService({ paths: [], extensions: ['.tsx'] });
-		await service.prewarm();
-		write('src/styles/main.css', "@import './base.css';\n.added {}\n");
-		const { bridge, cssUpdate } = createBridge();
+	it.each([
+		{ invalidation: 'all' as const, rebuilt: ['main', 'other'] },
+		{ invalidation: ['src/styles/other.css'], rebuilt: ['other'] },
+		{ invalidation: [], rebuilt: [] },
+	])(
+		'rebuilds the stylesheets the invalidation hook names for a content change: $invalidation',
+		async ({ invalidation, rebuilt }) => {
+			const files = {
+				main: write('src/styles/main.css', "@import './base.css';\n"),
+				other: write('src/styles/other.css', '.other {}\n'),
+			};
+			write('src/styles/base.css', '.base { color: red; }\n');
+			const page = write('src/pages/index.tsx', 'export default () => null;\n');
+			const processor = new InvalidatingProcessor(
+				Array.isArray(invalidation) ? invalidation.map((file) => path.join(rootDir, file)) : invalidation,
+			);
+			const service = await createService(processor);
+			await service.prewarm();
+			write('src/styles/main.css', "@import './base.css';\n.added {}\n");
+			write('src/styles/other.css', '.other { color: red; }\n');
 
-		expect(await service.applyChanges(changed(page), bridge)).toEqual([main]);
-		expect(cssUpdate.mock.calls).toEqual([[main]]);
+			const restyled = await service.applyChanges(changed(page), createBridge().bridge);
+
+			expect(processor.received).toEqual([[page]]);
+			expect(restyled.sort()).toEqual(rebuilt.map((name) => files[name as keyof typeof files]).sort());
+		},
+	);
+
+	it('rebuilds nothing for a content change when the Processor has no invalidation hook', async () => {
+		write('src/styles/main.css', '.main {}\n');
+		const page = write('src/pages/index.tsx', 'export default () => null;\n');
+		const service = await createService();
+		await service.prewarm();
+		write('src/styles/main.css', '.main { color: red; }\n');
+
+		expect(await service.applyChanges(changed(page), createBridge().bridge)).toEqual([]);
 	});
 });

@@ -7,6 +7,7 @@ import {
 	isEcopagesEnvEnabled,
 	Processor,
 	type ProcessorConfig,
+	type StylesheetInvalidation,
 	type StylesheetTransformResult,
 } from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
@@ -17,6 +18,9 @@ import {
 	type LoadedPostcssConfig,
 } from './postcss-config-loading.ts';
 import { transformWithPostcss } from './postcss-processor.ts';
+
+/** Files whose class names Tailwind and similar plugins scan, so a change to one can change a stylesheet. */
+const CONTENT_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js', '.mdx', '.html', '.svelte', '.vue'];
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
 	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
@@ -46,10 +50,9 @@ export interface PostCssProcessorPluginConfig {
 	 */
 	filter?: RegExp;
 	/**
-	 * CSS entry files to rebuild when a non-CSS dependency changes.
+	 * The stylesheets to rebuild when a template or script changes; every entry stylesheet when unset.
 	 *
-	 * Use this when the processor watches template or script files that affect a
-	 * known stylesheet entry, such as a Tailwind reference file.
+	 * Use this when only known stylesheets read those files, such as a Tailwind reference file.
 	 */
 	dependencyEntryPaths?: string[];
 	/**
@@ -124,12 +127,23 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 					filter,
 				},
 			],
-			watch: config.watch ?? {
-				paths: [],
-				extensions: ['.tsx', '.ts', '.jsx', '.js', '.mdx', '.html', '.svelte', '.vue'],
-				onChanges: async () => this.refreshConfiguredPlugins(),
-			},
 		});
+	}
+
+	/**
+	 * Recreates the plugins from their factories and names the stylesheets to rebuild when a scanned file changes.
+	 *
+	 * @remarks
+	 * Tailwind keeps the class names it found in long-lived plugin instances, so fresh ones are needed to find new
+	 * ones. A change to no template or script invalidates nothing.
+	 */
+	override invalidateStylesheets(files: readonly string[]): StylesheetInvalidation {
+		if (!files.some((file) => CONTENT_EXTENSIONS.some((extension) => file.endsWith(extension)))) {
+			return [];
+		}
+
+		this.refreshConfiguredPlugins();
+		return this.options?.dependencyEntryPaths ?? 'all';
 	}
 
 	/**

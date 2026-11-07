@@ -155,6 +155,9 @@ export interface StylesheetTransformResult {
 	dependencies?: readonly string[];
 }
 
+/** What {@link Processor.invalidateStylesheets} returns: the stylesheets to rebuild, or `'all'` for every entry. */
+export type StylesheetInvalidation = 'all' | readonly string[];
+
 /**
  * Unconstrained processor type for heterogeneous processor collections.
  */
@@ -256,6 +259,20 @@ export abstract class Processor<TOptions = unknown> {
 	 * @param file - Absolute path of the stylesheet, or the `processingOrigin` of a content dependency.
 	 */
 	transformStylesheet?(css: string, file: string): Promise<StylesheetTransformResult>;
+
+	/**
+	 * Names the stylesheets a change to other files makes stale, such as the stylesheets Tailwind generates from the
+	 * class names it scans in templates.
+	 *
+	 * @remarks
+	 * In development core calls it once per watcher batch that changed a file that is not a stylesheet, with those
+	 * absolute paths, before it rebuilds. `'all'` rebuilds every stylesheet no other stylesheet imports. The Processor
+	 * may reset state here that would hide the change, as the PostCSS Processor recreates its plugins. A stylesheet
+	 * whose own `@import` partials changed needs no hook: core rebuilds it from the transform's `dependencies`.
+	 *
+	 * @param files - The changed paths that are not stylesheets.
+	 */
+	invalidateStylesheets?(files: readonly string[]): StylesheetInvalidation | Promise<StylesheetInvalidation>;
 
 	/**
 	 * @remarks

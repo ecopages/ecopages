@@ -65,7 +65,7 @@ export class DevelopmentStylesheetService {
 	/** Processes every stylesheet the Processor owns in `srcDir`, logging and skipping one that fails. */
 	prewarm(): Promise<void> {
 		return this.enqueue(async () => {
-			if (!this.processor?.transformStylesheet) return;
+			if (!this.processor) return;
 			const srcDir = this.appConfig.absolutePaths.srcDir;
 			const patterns = getStylesheetKinds(this.appConfig).extensions.map((extension) => `**/*${extension}`);
 			for (const relativePath of await fileSystem.glob(patterns, { cwd: srcDir })) {
@@ -81,11 +81,13 @@ export class DevelopmentStylesheetService {
 	 * @remarks
 	 * A changed file rebuilds every stylesheet whose transform read it. A changed stylesheet that none read is
 	 * rebuilt itself; one that others read is a partial and is not rebuilt alone, since it may only compile inside
-	 * them.
+	 * them. The changed files that are not stylesheets go to the Processor's `invalidateStylesheets` hook, which names
+	 * the stylesheets they make stale.
 	 */
 	applyChanges(changes: StylesheetChanges, bridge: IClientBridge): Promise<string[]> {
 		return this.enqueue(async () => {
-			if (!this.processor?.transformStylesheet) return [];
+			const processor = this.processor;
+			if (!processor) return [];
 			const resolve = (files: readonly string[]) => files.map((file) => path.resolve(file));
 			const created = resolve(changes.created);
 			const changed = resolve(changes.changed);
@@ -99,8 +101,8 @@ export class DevelopmentStylesheetService {
 			for (const file of [...created, ...changed]) {
 				if (this.owns(file) && !this.dependents.get(file)?.size) affected.add(file);
 			}
-			if ([...created, ...changed, ...deleted].some((file) => this.isWatchedContent(file))) {
-				for (const entry of this.entries()) affected.add(entry);
+			for (const file of await this.invalidatedByContent(processor, [...created, ...changed, ...deleted])) {
+				affected.add(file);
 			}
 
 			const restyled: string[] = [];
@@ -123,18 +125,14 @@ export class DevelopmentStylesheetService {
 		return css === undefined ? undefined : contentHash(css);
 	}
 
-	/**
-	 * Whether `file` is content the Processor watches, such as a template Tailwind scans for class names.
-	 *
-	 * @remarks
-	 * A change to one rebuilds every entry stylesheet, after the Processor's own watch handler ran.
-	 */
-	private isWatchedContent(file: string): boolean {
-		const extensions = this.processor?.getWatchConfig()?.extensions ?? [];
-		return (
-			!getStylesheetKinds(this.appConfig).isStylesheet(file) &&
-			extensions.some((extension) => file.endsWith(extension))
-		);
+	/** The stylesheets the Processor's invalidation hook names for the files of a batch that are not stylesheets. */
+	private async invalidatedByContent(processor: AnyProcessor, files: readonly string[]): Promise<string[]> {
+		const kinds = getStylesheetKinds(this.appConfig);
+		const content = files.filter((file) => !kinds.isStylesheet(file));
+		if (content.length === 0 || !processor.invalidateStylesheets) return [];
+		const invalidated = await processor.invalidateStylesheets(content);
+		if (invalidated === 'all') return this.entries();
+		return invalidated.map((file) => path.resolve(file)).filter((file) => this.owns(file));
 	}
 
 	/** The stylesheets the service processed, or failed to, that no other stylesheet read. */

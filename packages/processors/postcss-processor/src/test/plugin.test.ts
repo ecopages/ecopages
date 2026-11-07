@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import { path } from '@ecopages/file-system/path';
 import type postcss from 'postcss';
 import postcssNested from 'postcss-nested';
-import type { IClientBridge } from '@ecopages/core/integration';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { PostCssProcessorPlugin } from '../plugin';
 
@@ -27,8 +26,6 @@ async function setUp(plugin: PostCssProcessorPlugin): Promise<void> {
 	plugin.setContext(config);
 	await plugin.setup();
 }
-
-const bridge = {} as IClientBridge;
 
 describe('PostCssProcessorPlugin', () => {
 	beforeEach(() => {
@@ -67,14 +64,17 @@ describe('PostCssProcessorPlugin', () => {
 		expect((await plugin.transformStylesheet('.foo { color: red; }', cssFile)).css).toContain('color: green');
 
 		refreshedColor = 'purple';
-		await plugin.getWatchConfig()!.onChanges!({
-			created: [],
-			changed: [path.join(srcDir, 'component.tsx')],
-			deleted: [],
-			bridge,
-		});
+		expect(plugin.invalidateStylesheets([path.join(srcDir, 'component.tsx')])).toBe('all');
 
 		expect((await plugin.transformStylesheet('.foo { color: red; }', cssFile)).css).toContain('color: purple');
+	});
+
+	test('invalidates its dependency entry paths for a template change, and nothing for other files', () => {
+		const entry = path.join(srcDir, 'tailwind.css');
+		const plugin = new PostCssProcessorPlugin({ options: { dependencyEntryPaths: [entry] } });
+
+		expect(plugin.invalidateStylesheets([path.join(srcDir, 'pages', 'index.mdx')])).toEqual([entry]);
+		expect(plugin.invalidateStylesheets([path.join(srcDir, 'data.json')])).toEqual([]);
 	});
 
 	test('loads the configured plugins on the first transform instead of at finalization', async () => {
@@ -123,6 +123,5 @@ describe('PostCssProcessorPlugin', () => {
 		expect(plugin.canProcessAsset('stylesheet', path.join(srcDir, 'page.css'))).toBe(true);
 		expect(plugin.canProcessAsset('stylesheet', path.join(srcDir, 'theme.scss'))).toBe(false);
 		expect(plugin.canProcessAsset('stylesheet', path.join(srcDir, 'theme.less'))).toBe(false);
-		expect(plugin.getWatchConfig()?.extensions).not.toContain('.scss');
 	});
 });

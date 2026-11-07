@@ -31,12 +31,15 @@ export interface TailwindV4PresetOptions {
  *
  * @remarks
  * `postcss-import` inlines an `@import` only when every statement before it is an `@import`, a `@charset` or an empty
- * `@layer`, so a `@reference` placed first would leave the stylesheet's imports unresolved.
+ * `@layer`, so a `@reference` placed first would leave the stylesheet's imports unresolved. PostCSS counts offsets
+ * after a leading byte order mark, so the mark is set aside while the stylesheet is cut.
  */
 function insertReference(css: string, referencePath: string): string {
 	const statement = `@reference "${referencePath}";`;
+	const bom = css.startsWith('\uFEFF') ? '\uFEFF' : '';
+	const body = css.slice(bom.length);
 	let end = 0;
-	for (const node of postcss.parse(css).nodes) {
+	for (const node of postcss.parse(body).nodes) {
 		const isLeading =
 			node.type === 'comment' ||
 			(node.type === 'atrule' &&
@@ -44,8 +47,8 @@ function insertReference(css: string, referencePath: string): string {
 		if (!isLeading) break;
 		end = node.source?.end ? node.source.end.offset : end;
 	}
-	if (end === 0) return `${statement}\n\n${css}`;
-	return `${css.slice(0, end)}\n${statement}${css.slice(end)}`;
+	if (end === 0) return `${bom}${statement}\n\n${body}`;
+	return `${bom}${body.slice(0, end)}\n${statement}${body.slice(end)}`;
 }
 
 /**

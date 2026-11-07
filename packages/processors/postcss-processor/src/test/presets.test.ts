@@ -285,6 +285,15 @@ describe('Tailwind v4 transformInput', () => {
 		);
 	});
 
+	test('should place @reference after the imports of a stylesheet that starts with a byte order mark', async () => {
+		const preset = tailwindV4Preset({ referencePath });
+		const css = `\uFEFF@import './a.css';\n.x { @apply flex; }`;
+
+		const result = await preset.transformInput!(css, '/abs/path/src/pages/index.css');
+
+		expect(result).toBe(`\uFEFF@import './a.css';\n@reference "${referencePath}";\n.x { @apply flex; }`);
+	});
+
 	test('should inject the same absolute @reference regardless of importing file location', async () => {
 		const preset = tailwindV4Preset({ referencePath });
 		const css = `.main-title { @apply text-2xl font-bold; }`;

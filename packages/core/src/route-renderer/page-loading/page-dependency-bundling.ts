@@ -5,6 +5,10 @@ import type {
 	FileStylesheetAsset,
 } from '../../assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
+import {
+	isExternalReference,
+	listCssReferences,
+} from '../../assets/asset-processing-service/processors/stylesheet/css-scanner.ts';
 import { contentHash } from '../../utils/content-hash.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
@@ -27,43 +31,13 @@ function hasOnlyExpectedAttributes(
 	return expectedKeys.every((key) => attributes?.[key] === expected[key]);
 }
 
-function isSafeBundledStylesheetReference(reference: string): boolean {
-	return (
-		reference.startsWith('/') ||
-		reference.startsWith('data:') ||
-		reference.startsWith('http://') ||
-		reference.startsWith('https://') ||
-		reference.startsWith('#')
-	);
-}
-
-/**
- * Normalizes CSS URL tokens before safety checks so quoted and unquoted forms are treated equally.
- */
-function normalizeCssReferenceToken(token: string): string {
-	return token.trim().replace(/^['"]|['"]$/g, '');
-}
-
 /**
  * Rejects stylesheet content that contains relative references which would stop
  * working once multiple files are collapsed into one page-owned bundle.
  */
 function isSafeBundledStylesheetContent(content: string): boolean {
-	for (const match of content.matchAll(/@import\s+(?:url\()?['"]?([^'")\s]+)['"]?\)?/g)) {
-		const reference = normalizeCssReferenceToken(match[1] ?? '');
-		if (reference && !isSafeBundledStylesheetReference(reference)) {
-			return false;
-		}
-	}
-
-	for (const match of content.matchAll(/url\(([^)]+)\)/g)) {
-		const reference = normalizeCssReferenceToken(match[1] ?? '');
-		if (reference && !isSafeBundledStylesheetReference(reference)) {
-			return false;
-		}
-	}
-
-	return true;
+	const { references, imports } = listCssReferences(content);
+	return references.length === 0 && imports.every((statement) => isExternalReference(statement.specifier));
 }
 
 function isBundleableFileStylesheetAsset(dependency: AssetDefinition): dependency is FileStylesheetAsset {

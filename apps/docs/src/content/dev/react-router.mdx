@@ -9,6 +9,7 @@ sources:
   - packages/core/src/router/client/navigation-coordinator.ts
   - packages/core/src/router/client/navigation-lifecycle.ts
   - packages/core/src/router/client/navigation-commit.ts
+  - packages/core/src/client/navigation-scripts/global-scripts.ts
   - packages/integrations/react/src/hydration/hydration-page-entry-source.ts
   - packages/integrations/react/src/hydration/browser/page-hydration.ts
   - packages/integrations/react/src/hydration/browser/page-hydration-hmr.ts
@@ -45,7 +46,9 @@ flowchart TD
   S -->|yes| H1["hard-navigation: assign"]
   S -->|no| F["fetchNavigationPage, bypassCache"]
   F -->|"fetch error or non-HTML or non-2xx"| H2["hard-navigation: location"]
-  F --> M["Read page data, import module"]
+  F --> G["Load global scripts"]
+  G -->|"a script fails to load"| H2
+  G --> M["Read page data, import module"]
   M -->|"import fails"| H2
   M -->|"no page module"| HO["handoff to browser-router"]
   M --> SPA["spa: commitNavigationPage with React render"]
@@ -53,6 +56,8 @@ flowchart TD
 ```
 
 Every step checks `isStale()` and returns `stale` instead of acting, so a newer navigation never races an older one; `isNavigating` is cleared by non-stale terminals only. A failed fetch or module import becomes a full document navigation so the link never goes dead. Fetches always pass `bypassCache`: react-router does not read the prefetch cache that browser-router fills.
+
+Before it imports the module, `resolveReactNavigation()` calls `loadNavigationGlobalScripts()` on the fetched document. The scripts the document marks `data-eco-global-script` (the global scripts of every Integration the Page uses, which core tags when it assembles the Page Package, see [From graph to HTML](/dev/graph-to-html)) and the live head lacks are inserted in document order, and the navigation waits until each has run. The shared commit starts the other head scripts only after the swap, which is too late for a hook such as Lit's hydration support, which must be in place before a Component module defines its elements and before a Foreign Subtree is inserted. A script that fails to load becomes a full document navigation. The scripts stay in the head, so the commit's head diff sees them as present.
 
 Module discovery reads the `#__ECO_PAGE_DATA__` JSON envelope (`EcoPropsScript` renders it in the Html shell), then `window.__ECO_PAGES__.page.module` for the current document, then the `src` of `script[data-eco-page-bootstrap="react-router"]`. Hydration JavaScript is never parsed. In development the import URL gets a `t=<timestamp>` query so a revisited page is not served from the module cache; production URLs are content-hashed and used as they are.
 

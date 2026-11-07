@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '../path.ts';
 import { expect, test, vi } from 'vitest';
 
 type NativeWatcher = {
@@ -431,7 +431,7 @@ test('reports a directory the ignore predicate allows after a later add', async 
 			stats !== undefined &&
 			watchedPath !== rootDir &&
 			![...allowed].some(
-				(allowedPath) => allowedPath === watchedPath || allowedPath.startsWith(`${watchedPath}${path.sep}`),
+				(allowedPath) => allowedPath === watchedPath || allowedPath.startsWith(`${watchedPath}/`),
 			),
 	});
 
@@ -491,7 +491,7 @@ test('opens no native watcher for a directory found after close', async () => {
 	let closing: Promise<void> | undefined;
 	const watcher = new NodeFileSystem().watch([rootDir], {
 		onChange: (change) => {
-			if (change.type === 'addDir' && change.path.endsWith(`${path.sep}b`)) closing = watcher.close();
+			if (change.type === 'addDir' && change.path.endsWith(`/b`)) closing = watcher.close();
 		},
 		onError: (error) => {
 			throw error;

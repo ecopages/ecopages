@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponent, EcoComponentConfig } from '@ecopages/core';
 import type { ResolvedHmrEntrypoint } from '@ecopages/core/integration';
 

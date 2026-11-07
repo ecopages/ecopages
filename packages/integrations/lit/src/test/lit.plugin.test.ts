@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '@ecopages/core/create-app';
 import { requireAppRuntime } from '@ecopages/core/integration';
@@ -58,7 +57,7 @@ describe('LitPlugin', () => {
 		if (dependency?.kind !== 'script' || dependency.source !== 'file') {
 			throw new Error('Expected Lit hydrate support to be a file script');
 		}
-		expect(dependency.filepath).toBe(fileURLToPath(import.meta.resolve('@ecopages/lit/hydrate-support')));
+		expect(dependency.filepath).toBe(path.fromFileUrl(import.meta.resolve('@ecopages/lit/hydrate-support')));
 		expect(fs.readFileSync(dependency.filepath, 'utf8')).toContain(
 			"import '@lit-labs/ssr-client/lit-element-hydrate-support.js';",
 		);

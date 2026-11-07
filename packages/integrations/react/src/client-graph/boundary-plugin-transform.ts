@@ -1,4 +1,4 @@
-import { extname } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { EcoBuildOnLoadResult } from '@ecopages/core/integration';
 import { recordModuleTransformProfile } from '@ecopages/core/build';
 import { transformModuleImports } from './ast-transform.ts';
@@ -18,7 +18,7 @@ export type TransformClientGraphModuleOptions = {
 };
 
 function toLoaderResult(filePath: string, contents: string): EcoBuildOnLoadResult {
-	const ext = extname(filePath).slice(1) as 'ts' | 'tsx' | 'js' | 'jsx';
+	const ext = path.extname(filePath).slice(1) as 'ts' | 'tsx' | 'js' | 'jsx';
 	return { contents, loader: ext };
 }
 

@@ -1,5 +1,5 @@
 import { type Server as NodeHttpServer } from 'node:http';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimeIntegrations, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';

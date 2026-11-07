@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs, { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { test } from 'vitest';
 import type { EcoBuildOnResolveResult } from '../build/contracts/build-types.ts';
 import { createAliasResolverPlugin } from './alias-resolver-plugin.ts';

@@ -1,7 +1,7 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BuildResult, BuildSuccess } from '../../build/build-adapter.js';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
@@ -61,7 +61,7 @@ describe('PageModuleImportService', () => {
 	let appRootDir: string;
 
 	beforeEach(async () => {
-		appRootDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-app-'));
+		appRootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-app-'));
 		appConfig = await finalizeEcoPagesConfig({ rootDir: appRootDir });
 		fakeDependencies = createFakeDependencies();
 		service = new PageModuleImportService(appConfig, fakeDependencies.dependencies);
@@ -144,8 +144,8 @@ describe('PageModuleImportService', () => {
 	});
 
 	it('should import the transpiled output in node runtimes', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-'));
-		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-'));
+		const compiledOutput = path.join(tempDir, 'page-hash123.mjs');
 		writeFileSync(compiledOutput, 'export const value = 42; export default { ok: true };', 'utf8');
 		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
 
@@ -177,9 +177,9 @@ describe('PageModuleImportService', () => {
 	});
 
 	it('imports the entry output when the build also emitted other files', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-entry-'));
-		const sharedChunk = join(tempDir, 'chunk-1.mjs');
-		const compiledOutput = join(tempDir, 'entry-abc.mjs');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-entry-'));
+		const sharedChunk = path.join(tempDir, 'chunk-1.mjs');
+		const compiledOutput = path.join(tempDir, 'entry-abc.mjs');
 		writeFileSync(sharedChunk, 'export const value = "chunk";', 'utf8');
 		writeFileSync(compiledOutput, 'export const value = "entry";', 'utf8');
 		fakeDependencies.setNextBuildResult(
@@ -203,8 +203,8 @@ describe('PageModuleImportService', () => {
 	});
 
 	it('should await top-level await in transpiled ESM output', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-tla-'));
-		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-tla-'));
+		const compiledOutput = path.join(tempDir, 'page-hash123.mjs');
 		writeFileSync(
 			compiledOutput,
 			['export const value = await Promise.resolve(42);', 'export default { ok: value === 42 };'].join('\n'),
@@ -242,8 +242,8 @@ describe('PageModuleImportService', () => {
 
 	it('should keep a stable node module path in development for unchanged files', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-dev-'));
-		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-dev-'));
+		const compiledOutput = path.join(tempDir, 'page-hash123.mjs');
 		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
 		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
 
@@ -263,14 +263,14 @@ describe('PageModuleImportService', () => {
 
 	it('reuses an unchanged server route build across development generations', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
-		const rootDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-inputs-'));
-		const pagePath = join(rootDir, 'src/pages/page.tsx');
-		const helperPath = join(rootDir, 'src/lib/posts.ts');
-		const pluginInputPath = join(rootDir, 'data/posts.json');
-		const compiledOutput = join(rootDir, 'page-hash123.mjs');
-		mkdirSync(join(rootDir, 'src/pages'), { recursive: true });
-		mkdirSync(join(rootDir, 'src/lib'), { recursive: true });
-		mkdirSync(join(rootDir, 'data'), { recursive: true });
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-inputs-'));
+		const pagePath = path.join(rootDir, 'src/pages/page.tsx');
+		const helperPath = path.join(rootDir, 'src/lib/posts.ts');
+		const pluginInputPath = path.join(rootDir, 'data/posts.json');
+		const compiledOutput = path.join(rootDir, 'page-hash123.mjs');
+		mkdirSync(path.join(rootDir, 'src/pages'), { recursive: true });
+		mkdirSync(path.join(rootDir, 'src/lib'), { recursive: true });
+		mkdirSync(path.join(rootDir, 'data'), { recursive: true });
 		writeFileSync(pagePath, 'export default {};', 'utf8');
 		writeFileSync(helperPath, 'export const posts = [];', 'utf8');
 		writeFileSync(pluginInputPath, '[]', 'utf8');
@@ -326,8 +326,8 @@ describe('PageModuleImportService', () => {
 	});
 
 	it('should bypass the service cache when requested for bundled module imports', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-bypass-'));
-		const compiledOutput = join(tempDir, 'page-hash123.js');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-bypass-'));
+		const compiledOutput = path.join(tempDir, 'page-hash123.js');
 		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
 		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
 
@@ -357,8 +357,8 @@ describe('PageModuleImportService', () => {
 		['code splitting', { splitting: false }],
 	])('lets callers override the default for %s', async (_name, override) => {
 		vi.stubEnv('NODE_ENV', 'development');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-override-'));
-		const compiledOutput = join(tempDir, 'page-hash123.js');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-override-'));
+		const compiledOutput = path.join(tempDir, 'page-hash123.js');
 		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
 		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
 
@@ -378,10 +378,10 @@ describe('PageModuleImportService', () => {
 	});
 
 	it('should bundle a page module once for repeated imports without cache scope (static export probe + render)', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-static-export-'));
-		const outdir = join(tempDir, 'server-modules');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-static-export-'));
+		const outdir = path.join(tempDir, 'server-modules');
 		mkdirSync(outdir, { recursive: true });
-		const compiledOutput = join(outdir, 'page-hash123.js');
+		const compiledOutput = path.join(outdir, 'page-hash123.js');
 		writeFileSync(
 			compiledOutput,
 			'let sideEffectCount = 0; sideEffectCount += 1; export default { sideEffectCount };',
@@ -410,8 +410,8 @@ describe('PageModuleImportService', () => {
 	});
 
 	it('should not reuse in-memory imports across different output directories', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-cache-'));
-		const compiledOutput = join(tempDir, 'page-hash123.js');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-cache-'));
+		const compiledOutput = path.join(tempDir, 'page-hash123.js');
 		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
 		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
 
@@ -419,13 +419,13 @@ describe('PageModuleImportService', () => {
 			const first = await service.importModule<{ default: { ok: boolean } }>({
 				filePath: '/app/pages/page.tsx',
 				rootDir: '/app',
-				outdir: join(tempDir, 'meta'),
+				outdir: path.join(tempDir, 'meta'),
 			});
 
 			const second = await service.importModule<{ default: { ok: boolean } }>({
 				filePath: '/app/pages/page.tsx',
 				rootDir: '/app',
-				outdir: join(tempDir, 'render'),
+				outdir: path.join(tempDir, 'render'),
 			});
 
 			assert.deepEqual(first.default, { ok: true });
@@ -438,27 +438,27 @@ describe('PageModuleImportService', () => {
 
 	it('loads a production module from the emitted map and never compiles', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const pagesDir = join(appRootDir, 'src/pages');
+		const pagesDir = path.join(appRootDir, 'src/pages');
 		mkdirSync(pagesDir, { recursive: true });
-		const filePath = join(pagesDir, 'page.tsx');
+		const filePath = path.join(pagesDir, 'page.tsx');
 		writeFileSync(filePath, 'export default { from: "source" };', 'utf8');
-		const serverOutdir = join(appRootDir, 'dist/server');
+		const serverOutdir = path.join(appRootDir, 'dist/server');
 		mkdirSync(serverOutdir, { recursive: true });
-		writeFileSync(join(serverOutdir, 'page.mjs'), 'export default { from: "emitted" };', 'utf8');
+		writeFileSync(path.join(serverOutdir, 'page.mjs'), 'export default { from: "emitted" };', 'utf8');
 		writeFileSync(
-			join(serverOutdir, 'server-modules.json'),
+			path.join(serverOutdir, 'server-modules.json'),
 			`${JSON.stringify({ modules: { 'src/pages/page.tsx': 'page.mjs' } })}\n`,
 			'utf8',
 		);
 		const loaded = await service.importModule<{ default: { from: string } }>({
 			filePath,
 			rootDir: appRootDir,
-			outdir: join(appRootDir, '.eco'),
+			outdir: path.join(appRootDir, '.eco'),
 		});
 		const again = await service.importModule<{ default: { from: string } }>({
 			filePath,
 			rootDir: appRootDir,
-			outdir: join(appRootDir, '.eco'),
+			outdir: path.join(appRootDir, '.eco'),
 			bypassCache: true,
 		});
 
@@ -470,10 +470,10 @@ describe('PageModuleImportService', () => {
 
 	it('loads a production module by the root-relative identity file it emits', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const serverOutdir = join(appRootDir, 'dist/server');
+		const serverOutdir = path.join(appRootDir, 'dist/server');
 		mkdirSync(serverOutdir, { recursive: true });
 		writeFileSync(
-			join(serverOutdir, 'hello.mjs'),
+			path.join(serverOutdir, 'hello.mjs'),
 			`const Page = () => null;
 Page.config = { identity: { id: 'hello', file: 'src/pages/hello.script.ts', integration: 'lit' } };
 export default Page;
@@ -481,7 +481,7 @@ export default Page;
 			'utf8',
 		);
 		writeFileSync(
-			join(serverOutdir, 'server-modules.json'),
+			path.join(serverOutdir, 'server-modules.json'),
 			`${JSON.stringify({ modules: { 'src/pages/hello.script.ts': 'hello.mjs' } })}\n`,
 			'utf8',
 		);
@@ -491,7 +491,7 @@ export default Page;
 		}>({
 			filePath: 'src/pages/hello.script.ts',
 			rootDir: appRootDir,
-			outdir: join(appRootDir, '.eco'),
+			outdir: path.join(appRootDir, '.eco'),
 		});
 
 		assert.equal(loaded.default.config.identity.file, 'src/pages/hello.script.ts');
@@ -501,11 +501,11 @@ export default Page;
 
 	it('compiles a production module from source when the map has not been loaded', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-build-'));
-		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-build-'));
+		const compiledOutput = path.join(tempDir, 'page-hash123.mjs');
 		writeFileSync(compiledOutput, 'export default { from: "compiled" };', 'utf8');
-		const filePath = join(appRootDir, 'src/pages/page.tsx');
-		mkdirSync(join(appRootDir, 'src/pages'), { recursive: true });
+		const filePath = path.join(appRootDir, 'src/pages/page.tsx');
+		mkdirSync(path.join(appRootDir, 'src/pages'), { recursive: true });
 		writeFileSync(filePath, 'export default { from: "source" };', 'utf8');
 		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }, filePath));
 
@@ -524,10 +524,10 @@ export default Page;
 
 	it('errors when a production module is missing from the map and does not compile', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const filePath = join(appRootDir, 'src/pages/missing.tsx');
-		const serverOutdir = join(appRootDir, 'dist/server');
+		const filePath = path.join(appRootDir, 'src/pages/missing.tsx');
+		const serverOutdir = path.join(appRootDir, 'dist/server');
 		mkdirSync(serverOutdir, { recursive: true });
-		writeFileSync(join(serverOutdir, 'server-modules.json'), `${JSON.stringify({ modules: {} })}\n`, 'utf8');
+		writeFileSync(path.join(serverOutdir, 'server-modules.json'), `${JSON.stringify({ modules: {} })}\n`, 'utf8');
 
 		await assert.rejects(
 			() =>
@@ -543,8 +543,8 @@ export default Page;
 
 	it('should hash the page file on every import in development', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-rehash-'));
-		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-rehash-'));
+		const compiledOutput = path.join(tempDir, 'page-hash123.mjs');
 		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
 		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
@@ -566,9 +566,9 @@ export default Page;
 	});
 
 	it('should isolate cached builds when JSX or plugin inputs differ', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-jsx-cache-'));
-		const reactCompiledOutput = join(tempDir, 'page-hash123-react.js');
-		const kitaCompiledOutput = join(tempDir, 'page-hash123-kita.js');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-jsx-cache-'));
+		const reactCompiledOutput = path.join(tempDir, 'page-hash123-react.js');
+		const kitaCompiledOutput = path.join(tempDir, 'page-hash123-kita.js');
 		writeFileSync(reactCompiledOutput, 'export const runtime = "react"; export default { ok: true };', 'utf8');
 		writeFileSync(kitaCompiledOutput, 'export const runtime = "kita"; export default { ok: true };', 'utf8');
 
@@ -590,7 +590,7 @@ export default Page;
 			const reactModule = await service.importModule<{ runtime: string }>({
 				filePath: '/app/pages/page.tsx',
 				rootDir: '/app',
-				outdir: join(tempDir, 'react'),
+				outdir: path.join(tempDir, 'react'),
 				jsx: {
 					importSource: 'react',
 					runtime: 'automatic',
@@ -601,7 +601,7 @@ export default Page;
 			const kitaModule = await service.importModule<{ runtime: string }>({
 				filePath: '/app/pages/page.tsx',
 				rootDir: '/app',
-				outdir: join(tempDir, 'kita'),
+				outdir: path.join(tempDir, 'kita'),
 				jsx: {
 					importSource: '@kitajs/html',
 					runtime: 'automatic',
@@ -620,7 +620,7 @@ export default Page;
 	});
 
 	it('should reload the same node module path after development graph invalidation without relying on NODE_ENV', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-'));
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-invalidate-'));
 		let buildCount = 0;
 
 		service = new PageModuleImportService(appConfig, {
@@ -628,7 +628,7 @@ export default Page;
 			async buildModule(options) {
 				fakeDependencies.calls.buildModule.push({ options });
 				buildCount += 1;
-				const compiledOutput = join(tempDir, `page-hash123-build-${buildCount}.mjs`);
+				const compiledOutput = path.join(tempDir, `page-hash123-build-${buildCount}.mjs`);
 				writeFileSync(
 					compiledOutput,
 					`export const version = ${buildCount}; export default { ok: true };`,
@@ -663,15 +663,15 @@ export default Page;
 
 	it('should reuse the in-memory dev cache until the development graph is invalidated', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-dev-graph-cache-'));
-		const rootDir = join(tempDir, 'app');
-		const pagesDir = join(rootDir, 'pages');
-		const layoutsDir = join(rootDir, 'layouts');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-dev-graph-cache-'));
+		const rootDir = path.join(tempDir, 'app');
+		const pagesDir = path.join(rootDir, 'pages');
+		const layoutsDir = path.join(rootDir, 'layouts');
 		mkdirSync(pagesDir, { recursive: true });
 		mkdirSync(layoutsDir, { recursive: true });
 
-		const pagePath = join(pagesDir, 'page.tsx');
-		const layoutPath = join(layoutsDir, 'shared.tsx');
+		const pagePath = path.join(pagesDir, 'page.tsx');
+		const layoutPath = path.join(layoutsDir, 'shared.tsx');
 		writeFileSync(pagePath, 'import "../layouts/shared.tsx"; export default {};\n', 'utf8');
 		writeFileSync(layoutPath, 'export const v = 1;\n', 'utf8');
 
@@ -682,7 +682,7 @@ export default Page;
 			},
 			async buildModule(): Promise<BuildResult> {
 				buildCount += 1;
-				const compiledOutput = join(tempDir, `page-build-${buildCount}.mjs`);
+				const compiledOutput = path.join(tempDir, `page-build-${buildCount}.mjs`);
 				writeFileSync(compiledOutput, `export const build = ${buildCount};`, 'utf8');
 				return createBuildResult(
 					{
@@ -736,7 +736,7 @@ export default Page;
 
 	it('gives a new compiled filename after development graph invalidation', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-filename-'));
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-module-import-invalidate-filename-'));
 		const rootDir = appRootDir;
 		let buildCount = 0;
 
@@ -745,7 +745,7 @@ export default Page;
 			async buildModule(options) {
 				fakeDependencies.calls.buildModule.push({ options });
 				buildCount += 1;
-				const compiledOutput = join(tempDir, `page-hash123-build-${buildCount}.mjs`);
+				const compiledOutput = path.join(tempDir, `page-hash123-build-${buildCount}.mjs`);
 				writeFileSync(
 					compiledOutput,
 					`export const version = ${buildCount}; export default { ok: true };`,

@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
@@ -38,7 +38,7 @@ const ECO_CONFIG_BASENAME = /^eco\.config(?:\.[cm]?[jt]sx?)?$/;
 
 /** True when a native import of this path must stay a real module. */
 export function isIgnoredViewPath(filePath: string): boolean {
-	return filePath.split(path.sep).includes('node_modules');
+	return filePath.split('/').includes('node_modules');
 }
 
 function isInsideDir(filePath: string, dir: string): boolean {

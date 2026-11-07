@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { isPathInside } from '../utils/path-containment.ts';
 
 /**

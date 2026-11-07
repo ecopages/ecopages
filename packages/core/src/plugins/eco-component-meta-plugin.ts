@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import MagicString from 'magic-string';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
@@ -243,7 +243,7 @@ function createPlainModuleComponentImports(discovered: DiscoveredImports): { loc
 	if (discovered.plainModuleComponents.length === 0) return { locals, code };
 	discovered.plainModuleComponents.forEach(({ file, imported }, index) => {
 		const local = `__ecoPlainModuleComponent${index}`;
-		const specifier = JSON.stringify(file.split(path.sep).join('/'));
+		const specifier = JSON.stringify(file);
 		const name = /^[A-Za-z_$][\w$]*$/.test(imported) ? imported : JSON.stringify(imported);
 		code +=
 			imported === 'default'
@@ -620,10 +620,10 @@ export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptio
 		setup(build) {
 			const strippedStylesheets = new Map<string, string>();
 			const discoveryCache = createDiscoveryCache();
-			const appRoot = `${fileSystem.exists(rootDir) ? fileSystem.realpath(rootDir) : path.resolve(rootDir)}${path.sep}`;
+			const appRoot = `${fileSystem.exists(rootDir) ? fileSystem.realpath(rootDir) : path.resolve(rootDir)}/`;
 			build.transform({ filter: /\.[cm]?[jt]sx?(\?.*)?$/ }, (code, rawId) => {
 				const id = rawId.replace(/[?#].*$/, '');
-				if (id.includes('/node_modules/') || id.includes('\\node_modules\\')) {
+				if (id.includes('/node_modules/')) {
 					return { code };
 				}
 				const integration = findIntegrationForFile(integrations, id);

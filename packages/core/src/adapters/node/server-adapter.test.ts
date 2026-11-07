@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';

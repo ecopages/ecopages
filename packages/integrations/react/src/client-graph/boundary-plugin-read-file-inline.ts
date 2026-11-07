@@ -1,24 +1,24 @@
 import { fileSystem } from '@ecopages/file-system';
-import { dirname, resolve, sep } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 const READ_FILE_SYNC_PATTERN =
 	/\bfs\.readFileSync\s*\(\s*path\.resolve\s*\(\s*(['"`])([^'"`\n]+)\1\s*\)\s*,\s*['"`]utf-?8['"`]\s*\)/g;
 
 function inferProjectRootFromSourcePath(filePath: string): string | undefined {
-	const parts = filePath.split(/[\\/]/);
+	const parts = filePath.split('/');
 	const srcIndex = parts.lastIndexOf('src');
 	if (srcIndex <= 0) return undefined;
-	return parts.slice(0, srcIndex).join(sep);
+	return parts.slice(0, srcIndex).join('/');
 }
 
 function resolveReadFileCandidate(relPath: string, sourcePath: string, absWorkingDir: string): string | undefined {
-	const sourceDir = dirname(sourcePath);
+	const sourceDir = path.dirname(sourcePath);
 	const inferredProjectRoot = inferProjectRootFromSourcePath(sourcePath);
 	const candidates = [
-		resolve(absWorkingDir, relPath),
-		resolve(process.cwd(), relPath),
-		resolve(sourceDir, relPath),
-		...(inferredProjectRoot ? [resolve(inferredProjectRoot, relPath)] : []),
+		path.resolve(absWorkingDir, relPath),
+		path.resolve(path.cwd(), relPath),
+		path.resolve(sourceDir, relPath),
+		...(inferredProjectRoot ? [path.resolve(inferredProjectRoot, relPath)] : []),
 	];
 	return candidates.find((candidate) => fileSystem.exists(candidate));
 }

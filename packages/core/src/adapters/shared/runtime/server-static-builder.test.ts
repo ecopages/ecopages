@@ -14,7 +14,7 @@ import type { StaticSiteGenerator } from '../../../static-site-generator/static-
 import type { RouteRegistry } from '../../../router/server/route-registry';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer';
 import fs from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import os from 'node:os';
 import { createBuildSuccess } from '../../../__fixtures__/build/build-result.ts';
 import { defineGet } from '../http/define-api-handler.ts';

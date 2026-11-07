@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildSuccess } from '../build/contracts/build-contracts.ts';
 import { createServerBuildRequest } from '../build/runtime/build-request-policy.ts';

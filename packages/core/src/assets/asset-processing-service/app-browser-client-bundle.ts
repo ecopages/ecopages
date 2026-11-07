@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { AssetFactory } from './asset.factory.ts';
 import type { ContentScriptAsset, ScriptAsset } from './assets.types.ts';
 

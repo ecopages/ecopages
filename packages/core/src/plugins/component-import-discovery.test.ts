@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync, realpathSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileSystem } from '@ecopages/file-system';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import {
 	attributeComponentIdentity,
 	attributeMdxComponentIdentity,

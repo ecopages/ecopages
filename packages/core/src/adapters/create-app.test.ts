@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import type { Server as NodeHttpServer } from 'node:http';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it, vi } from 'vitest';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';

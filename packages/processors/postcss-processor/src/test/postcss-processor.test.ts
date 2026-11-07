@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import postCssSimpleVars from 'postcss-simple-vars';
 import { PostCssProcessor } from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';

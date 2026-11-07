@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { fileSystem } from '@ecopages/file-system';
 import { DEV_TRANSFORM_URL_PREFIX, stripModuleUrlQuery } from '../../hmr/hmr-asset-paths.ts';
@@ -13,7 +13,7 @@ const FS_URL_SEGMENT = '@fs';
 
 function toDevTransformUrlPath(relativeOrAbsolutePath: string): string {
 	const relativePathJs = relativeOrAbsolutePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-	return encodeHmrDynamicSegments(relativePathJs).split(path.sep).map(encodeURIComponent).join('/');
+	return encodeHmrDynamicSegments(relativePathJs).split('/').map(encodeURIComponent).join('/');
 }
 
 function isInsideAllowedRoot(filePath: string, allowedRoots: readonly string[]): boolean {
@@ -104,7 +104,7 @@ export function resolveDevTransformModuleSourcePath(
 		return resolveExistingModuleFile(absoluteJsPath, allowedRoots);
 	}
 
-	const relativePathJs = relativeUrlPath.split('/').join(path.sep);
+	const relativePathJs = relativeUrlPath.split('/').join('/');
 	const decodedRelativePathJs = decodeHmrDynamicSegments(relativePathJs);
 	return resolveExistingModuleFile(path.resolve(resolvedSrcDir, decodedRelativePathJs), allowedRoots);
 }

@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { ResolverFactory, type ResolverFactory as ResolverFactoryType } from 'oxc-resolver';
 import { toPackageRootSpecifier } from './package-specifier.ts';
@@ -225,9 +225,15 @@ export function resolveBarePackageBrowserEntry(
 	}
 
 	try {
-		return { path: fileSystem.realpath(result.path), packageJsonPath: result.packageJsonPath };
+		return {
+			path: fileSystem.realpath(result.path),
+			packageJsonPath: result.packageJsonPath && path.fromNative(result.packageJsonPath),
+		};
 	} catch {
-		return { path: result.path, packageJsonPath: result.packageJsonPath };
+		return {
+			path: path.fromNative(result.path),
+			packageJsonPath: result.packageJsonPath && path.fromNative(result.packageJsonPath),
+		};
 	}
 }
 

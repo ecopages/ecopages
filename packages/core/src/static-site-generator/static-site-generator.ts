@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { appLogger } from '../global/app-logger.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { resolveBuildParallelism } from '../build/build-parallelism.ts';

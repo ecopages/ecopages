@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';

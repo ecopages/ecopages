@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { SERVER_BUNDLE_DIR } from '../utils/resolve-entry-file.ts';
 import { PRODUCTION_ROUTES_FILENAME } from './production-route-list.ts';

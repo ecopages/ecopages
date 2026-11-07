@@ -5,7 +5,7 @@
  */
 
 import { fileSystem } from '@ecopages/file-system';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type {
 	EcoBuildFilter,
 	EcoBuildOnLoadArgs,
@@ -81,7 +81,7 @@ type NormalizedClientGraphBoundaryOptions = {
  */
 function createBoundaryCacheKey(options: Omit<NormalizedClientGraphBoundaryOptions, 'cacheKey'>): string {
 	const keyRoot = options.projectRoot ?? options.absWorkingDir;
-	const toKeyPath = (filePath: string) => path.relative(keyRoot, filePath).split(path.sep).join('/');
+	const toKeyPath = (filePath: string) => path.relative(keyRoot, filePath);
 	return JSON.stringify({
 		workingDir: toKeyPath(options.absWorkingDir),
 		entrypointFile: options.entrypointFile ? toKeyPath(options.entrypointFile) : undefined,
@@ -95,7 +95,7 @@ function createBoundaryCacheKey(options: Omit<NormalizedClientGraphBoundaryOptio
 function normalizeClientGraphBoundaryOptions(
 	options?: ClientGraphBoundaryOptions,
 ): NormalizedClientGraphBoundaryOptions {
-	const absWorkingDir = path.resolve(options?.absWorkingDir ?? process.cwd());
+	const absWorkingDir = path.resolve(options?.absWorkingDir ?? path.cwd());
 	const projectRoot = options?.projectRoot ? path.resolve(absWorkingDir, options.projectRoot) : undefined;
 	const entrypointFile = options?.entrypointFile ? path.resolve(absWorkingDir, options.entrypointFile) : undefined;
 	const groupedEntrypointFiles = new Set(
@@ -163,7 +163,7 @@ async function resolveScanImport(
 		: resolveProjectModulePath(projectRoot, importer, specifier, { preserveBarrel: true });
 	const id = resolved ? (resolved.external ? undefined : resolved.id) : local;
 	if (!resolved && !local) return { kind: 'unresolved' };
-	if (!id || id.startsWith('\0') || id.split(/[\\/]/).includes('node_modules')) return { kind: 'skip' };
+	if (!id || id.startsWith('\0') || id.split('/').includes('node_modules')) return { kind: 'skip' };
 	return { kind: 'module', filePath: toRealPath(id.replace(/[?#].*$/, '')) };
 }
 
@@ -300,7 +300,7 @@ function loadBuildClientGraphBoundaryModule(
 	args: EcoBuildOnLoadArgs,
 	context: ClientGraphBoundaryBuildContext,
 ): Promise<EcoBuildOnLoadResult | undefined> | undefined {
-	const sourcePath = path.resolve(context.configs[0]?.absWorkingDir ?? process.cwd(), args.path);
+	const sourcePath = path.resolve(context.configs[0]?.absWorkingDir ?? path.cwd(), args.path);
 	const rootConfigs = context.configs.filter((config) => config.entrypointFile === sourcePath);
 	const reactEntrypointFiles = getReactEntrypointFiles(context);
 	if (context.entrypointFiles.has(sourcePath) && !reactEntrypointFiles.has(sourcePath)) {

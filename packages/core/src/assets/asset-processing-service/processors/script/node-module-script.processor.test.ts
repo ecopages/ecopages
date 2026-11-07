@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { NodeModuleScriptProcessor } from './node-module-script.processor';

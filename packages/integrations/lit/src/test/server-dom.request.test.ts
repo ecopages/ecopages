@@ -1,15 +1,14 @@
 import { cpSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadEcoPagesConfig } from '../../../../core/src/config/load-eco-config.ts';
 import { createNodeApp } from '../../../../core/src/adapters/node/create-app.ts';
 import type { EcopagesApp } from '@ecopages/core/create-app';
 
 const ORIGIN = 'http://localhost:3000';
-const FIXTURE_SOURCE = fileURLToPath(new URL('./fixtures/mixed-server-dom-app', import.meta.url));
-const WORKSPACE_NODE_MODULES = fileURLToPath(
+const FIXTURE_SOURCE = path.fromFileUrl(new URL('./fixtures/mixed-server-dom-app', import.meta.url));
+const WORKSPACE_NODE_MODULES = path.fromFileUrl(
 	new URL('../../../../../playground/kitchen-sink/node_modules', import.meta.url),
 );
 

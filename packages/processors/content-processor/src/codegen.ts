@@ -1,4 +1,4 @@
-import { relative, resolve, dirname, join } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { ContentEntry } from './types.ts';
 
 function serializeEntry(entry: ContentEntry): string {
@@ -146,9 +146,9 @@ function renderMdxLoaderMaps(
 	const entrySourceFilesBySlugLines: string[] = [];
 
 	for (const { entry, filePath } of entrySources) {
-		const importPath = relative(outputDir, filePath).split('\\').join('/');
+		const importPath = path.relative(outputDir, filePath);
 		const escapedImportPath = importPath.replace(/'/g, "\\'");
-		const sourceFile = relative(rootDir, filePath).split('\\').join('/');
+		const sourceFile = path.relative(rootDir, filePath);
 		const escapedSourceFile = sourceFile.replace(/'/g, "\\'");
 		loaderLines.push(`\t'${entry.slug}': () => import('${escapedImportPath}'),`);
 		entrySourceFilesBySlugLines.push(`\t'${entry.slug}': '${escapedSourceFile}',`);
@@ -298,15 +298,15 @@ function resolveEntryTypeImport(
 	typesOutputFile: string,
 ): { module: string; name: string } {
 	const { module, name } = parseEntryTypeImport(entryType);
-	const absoluteModule = resolve(rootDir, module);
-	const srcDir = join(rootDir, 'src');
-	const relativeToSrc = relative(srcDir, absoluteModule).split('\\').join('/');
+	const absoluteModule = path.resolve(rootDir, module);
+	const srcDir = path.join(rootDir, 'src');
+	const relativeToSrc = path.relative(srcDir, absoluteModule);
 
 	if (!relativeToSrc.startsWith('..') && !relativeToSrc.startsWith('/')) {
 		return { module: `@/${relativeToSrc}`, name };
 	}
 
-	let relativeModule = relative(dirname(typesOutputFile), absoluteModule).split('\\').join('/');
+	let relativeModule = path.relative(path.dirname(typesOutputFile), absoluteModule);
 	if (!relativeModule.startsWith('.')) {
 		relativeModule = `./${relativeModule}`;
 	}

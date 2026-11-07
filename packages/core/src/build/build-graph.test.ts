@@ -1,7 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildOptions } from './build-adapter.ts';
@@ -85,7 +84,7 @@ test('a missing local external generated module invalidates a cached build', asy
 	const entry = path.join(root, 'entry.js');
 	writeFileSync(
 		entry,
-		`import { value } from ${JSON.stringify(pathToFileURL(generated).href)}; export const read = () => value;`,
+		`import { value } from ${JSON.stringify(path.toFileUrl(generated).href)}; export const read = () => value;`,
 	);
 	const outdir = path.join(root, 'dist');
 	const buildOptions = {
@@ -94,7 +93,7 @@ test('a missing local external generated module invalidates a cached build', asy
 		root,
 		outdir,
 		target: 'node',
-		external: [pathToFileURL(generated).href],
+		external: [path.toFileUrl(generated).href],
 	} satisfies BuildOptions;
 	const result = await new RolldownBuildAdapter().build(buildOptions);
 	assertBuildSucceeded(result, 'Build failed');
@@ -131,7 +130,7 @@ test('walks static and dynamic chunk edges through cycles and retains missing le
 	const graph = {
 		outputGraph: {
 			[output]: chunk(output, [shared, 'react'], [lazy]),
-			[shared]: chunk(shared, [output, pathToFileURL(missing).href], []),
+			[shared]: chunk(shared, [output, path.toFileUrl(missing).href], []),
 			[lazy]: chunk(lazy, [shared], []),
 		},
 	};

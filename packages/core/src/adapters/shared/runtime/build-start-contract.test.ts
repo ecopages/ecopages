@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { tmpdir } from 'node:os';
-import { pathToFileURL } from 'node:url';
 import { afterEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
@@ -30,7 +29,7 @@ import type { StaticSiteGenerator } from '../../../static-site-generator/static-
  * path computed against the wrong one.
  */
 async function importByRealPath<T>(filePath: string): Promise<T> {
-	return (await import(pathToFileURL(realpathSync(filePath)).href)) as T;
+	return (await import(path.toFileUrl(realpathSync(filePath)).href)) as T;
 }
 
 describe('build → start contract', () => {

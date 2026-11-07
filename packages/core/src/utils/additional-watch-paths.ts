@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { isPathInside } from './path-containment.ts';
 
 /**
@@ -30,7 +30,7 @@ export function resolveAdditionalWatchPath(pattern: string, rootDir: string): Ad
 		return { base: path.resolve(rootDir, pattern) };
 	}
 
-	const segments = pattern.replaceAll(path.sep, '/').split('/');
+	const segments = path.fromNative(pattern).split('/');
 	const firstGlobIndex = segments.findIndex((segment) => GLOB_SEGMENT.test(segment));
 	const staticPrefix = segments.slice(0, firstGlobIndex).join('/') || (firstGlobIndex > 0 ? '/' : '');
 	return { base: path.resolve(rootDir, staticPrefix), glob: segments.slice(firstGlobIndex).join('/') };
@@ -53,9 +53,7 @@ function allowsDotSegments(relativePath: string, glob: string): boolean {
 }
 
 function relativeToBase(filePath: string, base: string): string | undefined {
-	return isPathInside(filePath, base)
-		? path.relative(base, path.resolve(filePath)).split(path.sep).join('/')
-		: undefined;
+	return isPathInside(filePath, base) ? path.relative(base, path.resolve(filePath)) : undefined;
 }
 
 export function matchesAdditionalWatchPath(filePath: string, watchPath: AdditionalWatchPath): boolean {

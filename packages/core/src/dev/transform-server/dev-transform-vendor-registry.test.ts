@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
@@ -31,7 +30,7 @@ afterEach(() => {
 /** Relative imports of a served vendor file, resolved to the URLs the browser would request. */
 function relativeVendorImports(url: string, code: string): string[] {
 	const specifiers = [...code.matchAll(/(?:from|import)\s*\(?\s*["'](\.\.?\/[^"']+)["']/g)].map((match) => match[1]);
-	return specifiers.map((specifier) => path.posix.join(path.posix.dirname(url), specifier));
+	return specifiers.map((specifier) => path.join(path.dirname(url), specifier));
 }
 
 /** Every vendor file the browser loads for `urls`, by URL. */
@@ -66,7 +65,7 @@ async function importVendorGraph(registry: DevTransformVendorRegistry, urls: str
 	}
 	const modules: unknown[] = [];
 	for (const url of urls) {
-		modules.push(await import(/* @vite-ignore */ pathToFileURL(path.join(directory, url.slice('/'.length))).href));
+		modules.push(await import(/* @vite-ignore */ path.toFileUrl(path.join(directory, url.slice('/'.length))).href));
 	}
 	return modules;
 }

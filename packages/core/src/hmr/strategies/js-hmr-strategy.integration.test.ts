@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';

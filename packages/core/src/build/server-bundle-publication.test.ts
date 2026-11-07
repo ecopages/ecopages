@@ -1,5 +1,5 @@
 import { mkdtempSync, mkdirSync, readFileSync, statSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';

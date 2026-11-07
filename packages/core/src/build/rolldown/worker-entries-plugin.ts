@@ -10,7 +10,7 @@ import {
 	isUnbundledWorkerUrl,
 } from '../worker-urls.ts';
 
-const NODE_MODULES_PATTERN = /[\\/]node_modules[\\/]/;
+const NODE_MODULES_PATTERN = /\/node_modules\//;
 
 const PARSER_LANGUAGES = ['js', 'jsx', 'ts', 'tsx'] as const;
 

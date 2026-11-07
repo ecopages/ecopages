@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { rmSync } from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { ReactRenderer } from '../render/react-renderer.ts';
 import { reactPlugin } from '../plugin/react.plugin.ts';

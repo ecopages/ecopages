@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { APP_TEST_ROUTES } from '../../../../__fixtures__/constants.ts';
 import { copyFixtureApp } from '../../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../../__fixtures__/app/test-app-config.ts';

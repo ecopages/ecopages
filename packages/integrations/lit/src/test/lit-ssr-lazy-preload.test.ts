@@ -1,7 +1,6 @@
 import { mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createTestAppConfig } from '@ecopages/testing';
@@ -10,8 +9,8 @@ import { LitRenderer } from '../lit-renderer.ts';
 
 ensureLitDomShim();
 
-const PACKAGE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const FIXTURES_DIR = fileURLToPath(new URL('./fixtures/', import.meta.url));
+const PACKAGE_ROOT = path.fromFileUrl(new URL('../..', import.meta.url));
+const FIXTURES_DIR = path.fromFileUrl(new URL('./fixtures/', import.meta.url));
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => `<html><body>${children}</body></html>`;
 

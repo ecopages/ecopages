@@ -1,6 +1,5 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
-import { fileURLToPath } from 'node:url';
 import type { BuildOptions, BuildSuccess } from './build-adapter.ts';
 
 function tryRealpath(filePath: string): string | undefined {
@@ -59,15 +58,15 @@ export function recordBuildEntryOutput(
 		root: string;
 	},
 ): void {
-	const keys = new Set<string>([options.facadeModuleId]);
-	const facadeReal = tryRealpath(options.facadeModuleId);
+	const facadeModuleId = path.fromNative(options.facadeModuleId);
+	const keys = new Set<string>([facadeModuleId]);
+	const facadeReal = tryRealpath(facadeModuleId);
 	if (facadeReal) {
 		keys.add(facadeReal);
 	}
 	for (const requested of requestedBuildEntries(options.entrypoints, options.root)) {
 		const matchesFacade =
-			isSameBuildEntry(options.facadeModuleId, requested.resolved) ||
-			isSameBuildEntry(options.facadeModuleId, requested.entry);
+			isSameBuildEntry(facadeModuleId, requested.resolved) || isSameBuildEntry(facadeModuleId, requested.entry);
 		const matchesName = options.chunkName !== undefined && options.chunkName === requested.name;
 		if (!matchesFacade && !matchesName) {
 			continue;
@@ -130,7 +129,7 @@ export function collectBuildEntryInputPaths(
 	return [...new Set(moduleClosure?.length ? moduleClosure : [resolvedEntry])].filter(
 		(filePath) =>
 			path.isAbsolute(filePath) &&
-			(options.includeNodeModules === true || !filePath.includes(`${path.sep}node_modules${path.sep}`)) &&
+			(options.includeNodeModules === true || !filePath.includes(`/node_modules/`)) &&
 			!filePath.includes('\0'),
 	);
 }
@@ -148,9 +147,9 @@ export function collectBuildOutputImports(result: Pick<BuildSuccess, 'outputGrap
 		if (!chunk) continue;
 		for (const imported of [...chunk.imports, ...chunk.dynamicImports]) {
 			const local = imported.startsWith('file:')
-				? fileURLToPath(imported)
+				? path.fromFileUrl(imported)
 				: path.isAbsolute(imported)
-					? imported
+					? path.fromNative(imported)
 					: imported.startsWith('.')
 						? path.resolve(path.dirname(current), imported)
 						: undefined;

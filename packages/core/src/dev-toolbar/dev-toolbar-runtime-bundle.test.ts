@@ -1,14 +1,13 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { bundleDevClientRuntime } from '../hmr/dev-client-runtime.ts';
 import { BrowserBundleService } from '../assets/browser-bundle.service.ts';
 import { createDevToolbarClientRuntime } from './dev-toolbar-runtime.ts';
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const repoRoot = path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../../../..');
 const kitchenSinkRoot = path.join(repoRoot, 'playground', 'kitchen-sink');
 const workDirs: string[] = [];
 

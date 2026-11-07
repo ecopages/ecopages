@@ -1,9 +1,9 @@
 import type { RolldownPlugin } from 'rolldown';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import type { BuildDependencyGraph } from '../build-adapter.ts';
 import { resolveBuildEntryPath } from '../build-graph.ts';
 import type { WatchFilesByModule } from './rolldown-plugin-bridge.ts';
+import { fromRolldownModuleId } from './rolldown-module-id.ts';
 
 /**
  * @remarks
@@ -27,9 +27,9 @@ export function createEntryModuleClosuresPlugin(
 				[...ids].map((id) => [
 					id,
 					id.startsWith('file:')
-						? fileURLToPath(id)
+						? path.fromFileUrl(id)
 						: id.startsWith('\0') || !infoById.get(id) || !path.isAbsolute(id)
-							? id
+							? fromRolldownModuleId(id)
 							: resolveBuildEntryPath(id, root),
 				]),
 			);
@@ -50,9 +50,11 @@ export function createEntryModuleClosuresPlugin(
 				const modules = [...closure].map(
 					(moduleId) =>
 						normalizedIds.get(moduleId) ??
-						(moduleId.startsWith('file:') ? fileURLToPath(moduleId) : moduleId),
+						(moduleId.startsWith('file:') ? path.fromFileUrl(moduleId) : fromRolldownModuleId(moduleId)),
 				);
-				const declared = [...closure].flatMap((moduleId) => [...(watchFiles.get(moduleId) ?? [])]);
+				const declared = [...closure].flatMap((moduleId) => [
+					...(watchFiles.get(fromRolldownModuleId(moduleId)) ?? []),
+				]);
 				graph.entrypoints[entryPath] = [...new Set([...modules, ...declared])];
 			}
 		},

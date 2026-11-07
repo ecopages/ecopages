@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { createRequire } from 'node:module';
 
-globalThis.require = createRequire(path.join(process.cwd(), 'package.json'));
+globalThis.require = createRequire(path.join(path.cwd(), 'package.json'));

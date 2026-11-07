@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { rolldown } from 'rolldown';
 import { appLogger } from '../global/app-logger.ts';
@@ -7,7 +7,7 @@ import { isPathStrictlyInside } from '../utils/path-containment.ts';
 const SCRIPT_MODULE_PATTERN = /\.(?:[cm]?[jt]sx?|json)$/;
 
 function toProjectPath(id: string, realRoot: string, root: string): string | undefined {
-	if (!path.isAbsolute(id) || id.split(path.sep).includes('node_modules')) {
+	if (!path.isAbsolute(id) || id.split('/').includes('node_modules')) {
 		return undefined;
 	}
 	const relativePath = path.relative(realRoot, id);

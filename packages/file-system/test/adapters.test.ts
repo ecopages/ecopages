@@ -4,7 +4,7 @@
 
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '../src/path.ts';
 import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync, rmSync, statSync } from 'node:fs';
 import { NodeFileSystem } from '../src/adapters/node';
 import type { FileSystem } from '../src/types';

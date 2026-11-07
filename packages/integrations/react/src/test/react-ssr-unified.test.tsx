@@ -1,5 +1,4 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { createContext, useContext, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HtmlTemplateProps } from '@ecopages/core';
@@ -24,7 +23,7 @@ class TestReactRenderer extends ReactRenderer {
 	}
 }
 
-const integrationRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const integrationRoot = path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '..');
 const appConfig = await finalizeEcoPagesConfig({
 	rootDir: integrationRoot,
 	defaultMetadata: {

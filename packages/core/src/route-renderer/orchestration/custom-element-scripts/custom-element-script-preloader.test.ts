@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bindComponentIdentity, eco } from '@ecopages/core';
 import {

@@ -1,6 +1,6 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from './path.ts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { nodeFs } from './adapters/node.ts';
 import { fileSystem, installFileSystem } from './install.ts';

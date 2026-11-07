@@ -1,16 +1,9 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 export type ClientGraphModuleKind = 'app' | 'workspace' | 'package' | 'vendored' | 'virtual';
 
-/**
- * Splits a file path into OS-agnostic segments.
- *
- * @remarks
- * Bundlers may pass POSIX or Windows separators; classification must not depend
- * on the host's `path.sep` alone.
- */
 function pathSegments(filePath: string): string[] {
-	return filePath.split(/[\\/]+/).filter(Boolean);
+	return filePath.split('/').filter(Boolean);
 }
 
 function hasPathSegment(filePath: string, segment: string): boolean {
@@ -34,7 +27,7 @@ export function classifyClientGraphModule(filePath: string, projectRoot?: string
 	if (projectRoot) {
 		const resolvedRoot = path.resolve(projectRoot);
 		const resolvedFile = path.resolve(filePath);
-		if (resolvedFile === resolvedRoot || resolvedFile.startsWith(`${resolvedRoot}${path.sep}`)) {
+		if (resolvedFile === resolvedRoot || resolvedFile.startsWith(`${resolvedRoot}/`)) {
 			return 'app';
 		}
 	}

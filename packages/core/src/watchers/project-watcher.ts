@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem, type FileChange, type FileWatcher, type WatchOptions } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import { getEcopagesEnv } from '../env.ts';

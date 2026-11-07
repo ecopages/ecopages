@@ -4,7 +4,7 @@
  * @module
  */
 
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';

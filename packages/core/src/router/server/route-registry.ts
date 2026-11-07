@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
 import { loadProductionTemplateRoutes } from '../../build/production-route-list.ts';
@@ -398,7 +398,7 @@ export class RouteRegistry {
 		const extension = endpointExtension ?? findLongestExtension(this.templatesExt, file) ?? '';
 		const cleanedRoute = file
 			.slice(0, file.length - extension.length)
-			.split(path.sep)
+			.split('/')
 			.join('/')
 			.replace(/\/?index$/, '');
 

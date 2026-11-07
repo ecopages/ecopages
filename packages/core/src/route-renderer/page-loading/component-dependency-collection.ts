@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { DependencyLazyTrigger, EcoComponent, EcoComponentDependencies } from '../../types/contracts.ts';
 import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';

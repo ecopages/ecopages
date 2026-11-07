@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { createApp, type EcopagesAppOptions } from '../../src/adapters/create-app.ts';
 import { finalizeEcoPagesConfig } from '../../src/config/assembly/finalize-config.ts';
 import { loadEcoPagesConfig } from '../../src/config/load-eco-config.ts';

@@ -1,8 +1,7 @@
 /** @jsxImportSource @ecopages/jsx */
 import { mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
@@ -21,8 +20,10 @@ declare module '@ecopages/jsx' {
 	}
 }
 
-const PACKAGE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const RADIANT_HOST_SCRIPT = fileURLToPath(new URL('./fixtures/ssr-preload-radiant-host.script.tsx', import.meta.url));
+const PACKAGE_ROOT = path.fromFileUrl(new URL('../..', import.meta.url));
+const RADIANT_HOST_SCRIPT = path.fromFileUrl(
+	new URL('./fixtures/ssr-preload-radiant-host.script.tsx', import.meta.url),
+);
 
 const Config = await createTestAppConfig();
 

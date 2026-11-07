@@ -1,5 +1,4 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { loadEcoPagesUserConfig } from '@ecopages/core/config';
 import { fileSystem } from '@ecopages/file-system';
 import {
@@ -18,12 +17,12 @@ async function loadViewRewriteContext() {
 		const { config } = await loadEcoPagesUserConfig();
 		return {
 			integrations: collectViewIntegrations(config.integrations ?? []),
-			appRoot: config.rootDir ?? process.cwd(),
+			appRoot: config.rootDir ?? path.cwd(),
 		};
 	} catch {
 		return {
 			integrations: collectViewIntegrations([]),
-			appRoot: process.cwd(),
+			appRoot: path.cwd(),
 		};
 	}
 }
@@ -46,7 +45,7 @@ function importerFilePath(importer) {
 	}
 	if (importer.startsWith('file:')) {
 		try {
-			return fileURLToPath(importer);
+			return path.fromFileUrl(importer);
 		} catch {
 			return null;
 		}
@@ -129,7 +128,7 @@ if (process.versions.bun) {
 
 			let filePath;
 			try {
-				filePath = fileURLToPath(url);
+				filePath = path.fromFileUrl(url);
 			} catch {
 				return nextLoad(url, context);
 			}

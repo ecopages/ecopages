@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 
 function readPackageIdentity(packageJsonPath: string): { name: string; version?: string } | undefined {
@@ -43,7 +43,7 @@ function findPackagePath(filePath: string): string | undefined {
 	while (true) {
 		const identity = readPackageIdentity(path.join(dir, 'package.json'));
 		if (identity) {
-			const subpath = path.relative(dir, filePath).split(path.sep).join('/');
+			const subpath = path.relative(dir, filePath);
 			return `${identity.name}${identity.version ? `@${identity.version}` : ''}/${subpath}`;
 		}
 		const parent = path.dirname(dir);

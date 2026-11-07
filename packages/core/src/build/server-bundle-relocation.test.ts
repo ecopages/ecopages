@@ -14,11 +14,10 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, expect, test } from 'vitest';
 
-const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
+const repoRoot = path.fromFileUrl(new URL('../../../../', import.meta.url));
 const cliPath = path.join(repoRoot, 'packages/ecopages/bin/cli.js');
 const HOME_MARKER = 'Relocated home';
 
@@ -75,7 +74,7 @@ function installIsolated(appDir: string, packages: Record<string, string>): void
 			dependencies?: Record<string, string>;
 			optionalDependencies?: Record<string, string>;
 		};
-		const isWorkspacePackage = !sourceDir.split(path.sep).includes('node_modules');
+		const isWorkspacePackage = !sourceDir.split('/').includes('node_modules');
 		const entries = isWorkspacePackage && packageJson.files ? ['package.json', ...packageJson.files] : ['.'];
 		const nativeBindings: string[] = [];
 		for (const entry of entries) {
@@ -84,7 +83,7 @@ function installIsolated(appDir: string, packages: Record<string, string>): void
 				dereference: true,
 				filter: (source) => {
 					const relative = path.relative(sourceDir, source);
-					if (relative.split(path.sep).includes('node_modules')) return false;
+					if (relative.split('/').includes('node_modules')) return false;
 					if (!source.endsWith('.node')) return true;
 					nativeBindings.push(relative);
 					return false;

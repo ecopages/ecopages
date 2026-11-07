@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 
 type InternalPathConfig = {
@@ -11,7 +11,7 @@ type InternalPathConfig = {
 };
 
 function isInsideNodeModules(directory: string): boolean {
-	return path.normalize(directory).split(path.sep).includes('node_modules');
+	return path.normalize(directory).split('/').includes('node_modules');
 }
 
 export function resolveInternalWorkDir(appConfig: InternalPathConfig): string {

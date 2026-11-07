@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildEnvOverrides, buildLaunchEnv, createLaunchPlan, detectRuntime } from './launch-plan.js';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/build';
@@ -11,7 +10,7 @@ import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/build'
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
 const viewReferencePreload = import.meta.resolve('./view-reference-preload.js');
-const viewReferencePreloadPath = fileURLToPath(viewReferencePreload);
+const viewReferencePreloadPath = path.fromFileUrl(viewReferencePreload);
 
 const originalCwd = process.cwd();
 
@@ -604,7 +603,7 @@ describe('launch-plan', () => {
 	});
 
 	describe('real node CLI path', () => {
-		const cliPath = fileURLToPath(import.meta.resolve('./cli.js'));
+		const cliPath = path.fromFileUrl(import.meta.resolve('./cli.js'));
 		let tempDir: string;
 		let run: { exitCode: number | null; stdout: string; stderr: string };
 		let output: Record<string, unknown> | undefined;
@@ -712,7 +711,7 @@ describe('launch-plan', () => {
 				metaEnv: null,
 				dirname: realTempDir,
 				filename: path.join(realTempDir, 'app.ts'),
-				sibling: new URL('./sibling.txt', pathToFileURL(path.join(realTempDir, 'app.ts'))).href,
+				sibling: new URL('./sibling.txt', path.toFileUrl(path.join(realTempDir, 'app.ts'))).href,
 			});
 		});
 

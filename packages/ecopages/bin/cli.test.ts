@@ -5,7 +5,7 @@ import * as fs from 'node:fs';
 import os from 'node:os';
 import * as launchPlan from './launch-plan.js';
 import * as childProcess from 'node:child_process';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import * as prompts from '@clack/prompts';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,

@@ -1,8 +1,7 @@
 /** @jsxImportSource @ecopages/jsx */
 import { cpSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { eco } from '@ecopages/core';
 import { type JsxRenderable } from '@ecopages/jsx';
@@ -24,8 +23,8 @@ import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer';
  * The Lit integration renders on a worker thread that loads the app's
  * `eco.config.ts` from `rootDir`, so the app needs a real config file.
  */
-const fixtureSourceDir = fileURLToPath(new URL('./fixtures/cross-integration-app', import.meta.url));
-const packageNodeModulesDir = fileURLToPath(new URL('../../node_modules', import.meta.url));
+const fixtureSourceDir = path.fromFileUrl(new URL('./fixtures/cross-integration-app', import.meta.url));
+const packageNodeModulesDir = path.fromFileUrl(new URL('../../node_modules', import.meta.url));
 const fixtureAppDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-cross-integration-')));
 cpSync(path.join(fixtureSourceDir, 'eco.config.ts'), path.join(fixtureAppDir, 'eco.config.ts'));
 symlinkSync(packageNodeModulesDir, path.join(fixtureAppDir, 'node_modules'), 'dir');

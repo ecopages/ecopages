@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { isDevelopmentRuntime, isProductionRuntime } from '../../utils/runtime.ts';
 import type { BuildOptions } from '../../build/build-adapter.ts';
 import { createBuildRequestIdentity } from '../../build/runtime/build-request-identity.ts';

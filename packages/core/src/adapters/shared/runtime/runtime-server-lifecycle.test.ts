@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import type { Server as NodeHttpServer } from 'node:http';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { test, vi } from 'vitest';
 import { appLogger } from '../../../global/app-logger.ts';
 import * as appBuildManifestRuntime from '../../../build/app-build-manifest-runtime.ts';

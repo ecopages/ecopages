@@ -10,7 +10,7 @@
  */
 
 import { createRequire } from 'node:module';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { rolldown } from 'rolldown';
 
 import type { BuildAdapter, BuildLog, BuildOptions, BuildResult, BuildSuccess } from '../build-adapter.ts';
@@ -43,7 +43,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 			throw new Error('Build requests require environment: "server" or "browser".');
 		}
 		recordRolldownBuildInvocation();
-		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
+		const contextRoot = options.root ? path.resolve(options.root) : path.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/client/assets');
 		const watchFiles: WatchFilesByModule = new Map();
 
@@ -105,7 +105,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 	}
 
 	resolve(importPath: string, rootDir: string): string {
-		return moduleRequire.resolve(importPath, { paths: [rootDir] });
+		return path.fromNative(moduleRequire.resolve(importPath, { paths: [rootDir] }));
 	}
 }
 

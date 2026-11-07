@@ -1,6 +1,6 @@
 import type { EcoComponent, EcoComponentConfig, EcoComponentDependencies } from '../../types/contracts.ts';
 import type { PageDependenciesResult } from '../../types/contracts.ts';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { contentHash } from '../../utils/content-hash.ts';
 import { bindComponentIdentity, getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';
 import { resolveDiscoveredWatchFiles, resolveInferredStylesheets } from '../../eco/discovered-dependency-paths.ts';

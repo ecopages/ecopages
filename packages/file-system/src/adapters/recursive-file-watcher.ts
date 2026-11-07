@@ -8,7 +8,7 @@ import {
 	type WatchOptionsWithStringEncoding,
 } from 'node:fs';
 import { lstat as lstatAsync, readdir as readdirAsync, stat as statAsync } from 'node:fs/promises';
-import path from 'node:path';
+import { path } from '../path.ts';
 import type { FileChange, FileStats, FileWatcher, WatchOptions } from '../types.ts';
 
 type PathScope = 'directory' | 'file' | 'unknown';
@@ -294,7 +294,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 			if (watchedPath.scope !== 'directory' || !isSameOrInside(canonicalPath, watchedPath.canonicalPath))
 				continue;
 			covered = true;
-			const segments = path.relative(watchedPath.canonicalPath, canonicalPath).split(path.sep).filter(Boolean);
+			const segments = path.relative(watchedPath.canonicalPath, canonicalPath).split('/').filter(Boolean);
 			let reportedPath = watchedPath.requestedPath;
 			let skipped = false;
 			for (const segment of ['', ...segments]) {
@@ -605,7 +605,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 
 	private catchUpMissingPath(watchedPath: WatchedPath, existingAncestor: string): void {
 		const relativePath = path.relative(existingAncestor, watchedPath.canonicalPath);
-		const segments = relativePath.split(path.sep).filter(Boolean);
+		const segments = relativePath.split('/').filter(Boolean);
 		let currentPath = existingAncestor;
 		for (const segment of segments.slice(0, -1)) {
 			currentPath = path.join(currentPath, segment);
@@ -938,7 +938,7 @@ function resolveWatchedPath(input: string): WatchedPath {
 	while (true) {
 		const stats = tryStat(currentPath);
 		if (stats) {
-			const canonicalCurrentPath = realpathSync(currentPath);
+			const canonicalCurrentPath = path.fromNative(realpathSync(currentPath));
 			if (missingSegments.length === 0) {
 				const isDirectory = stats.isDirectory();
 				return {
@@ -1050,11 +1050,7 @@ function toFileStats(stats: Stats): FileStats {
 }
 
 function isSameOrInside(candidate: string, root: string): boolean {
-	const relativePath = path.relative(root, candidate);
-	return (
-		relativePath === '' ||
-		(relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath))
-	);
+	return path.isWithin(root, candidate);
 }
 
 function isPathWatchedByRoot(filePath: string, root: WatchRoot): boolean {

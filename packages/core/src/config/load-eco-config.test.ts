@@ -1,8 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { pathToFileURL } from 'node:url';
 import { defineConfig } from './define-config.ts';
 import { finalizeEcoPagesConfig } from './assembly/finalize-config.ts';
 import { loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
@@ -169,7 +168,7 @@ describe('loadEcoPagesConfig', () => {
 	});
 
 	it('caches the config module while its factory creates distinct plugin instances and runtimes', async () => {
-		const processorModule = pathToFileURL(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
+		const processorModule = path.toFileUrl(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		const otherRoot = path.join(tempDir, 'other-root');
 		fs.mkdirSync(otherRoot);
@@ -215,7 +214,7 @@ describe('loadEcoPagesConfig', () => {
 	});
 
 	it('rejects reusing mutable plugin instances from an object config for a second app', async () => {
-		const processorModule = pathToFileURL(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
+		const processorModule = path.toFileUrl(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		fs.writeFileSync(
 			configPath,
@@ -236,7 +235,7 @@ describe('loadEcoPagesConfig', () => {
 	});
 
 	it('rejects a config factory that reuses a plugin instance across fresh config objects', async () => {
-		const processorModule = pathToFileURL(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
+		const processorModule = path.toFileUrl(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		fs.writeFileSync(
 			configPath,

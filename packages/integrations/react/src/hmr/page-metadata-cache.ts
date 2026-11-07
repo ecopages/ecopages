@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 /**
  * React-only cache for page metadata that HMR rebuilds need during development.

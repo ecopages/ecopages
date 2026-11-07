@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { contentHash } from '@ecopages/core/build';
 import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/integration';
 import { describe, expect, it, vi } from 'vitest';
@@ -29,7 +29,7 @@ const routerAdapter: ReactRouterAdapter = {
 };
 
 /** A path of the `/app` root of these tests, relative to it as entry names and keys hash it. */
-const sourceKey = (file: string) => path.relative(path.resolve('/app'), path.resolve(file)).split(path.sep).join('/');
+const sourceKey = (file: string) => path.relative(path.resolve('/app'), path.resolve(file));
 const islandBundleName = (file: string) =>
 	`ecopages-react-island-${BigInt(`0x${contentHash(sourceKey(file), 16)}`).toString()}`;
 

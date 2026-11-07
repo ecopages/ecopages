@@ -9,7 +9,7 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { hashBrowserAssetBytes } from '../../../hashed-browser-asset.ts';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';

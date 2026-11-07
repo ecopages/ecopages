@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { isPathInside } from '../utils/path-containment.ts';
 import { isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
 
@@ -19,7 +19,7 @@ export function createProjectWatcherIgnorePredicate(
 	const ignoredDirectories = [absolutePaths.workDir, absolutePaths.distDir];
 
 	return (watchedPath: string): boolean => {
-		const segments = path.normalize(watchedPath).split(path.sep);
+		const segments = path.normalize(watchedPath).split('/');
 		if (segments.includes('node_modules') || segments.includes('.git')) {
 			return true;
 		}
@@ -29,7 +29,7 @@ export function createProjectWatcherIgnorePredicate(
 					isWorkspacePackageFile(watchedPath, [root]) &&
 					path
 						.relative(root, watchedPath)
-						.split(path.sep)
+						.split('/')
 						.some((segment) => segment.startsWith('.')),
 			)
 		)

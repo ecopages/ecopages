@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { toRootRelativePath } from '../utils/root-relative-path.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
@@ -77,7 +77,7 @@ function collectImportMetaEdits(
 	pathBinding: string;
 } {
 	const program = parseModuleSource(id, code, { sourceType: 'module' }).program as unknown as AstNode;
-	const relativeDir = path.relative(runtimeDir, path.dirname(id)).replaceAll('\\', '/');
+	const relativeDir = path.relative(runtimeDir, path.dirname(id));
 	const relativeFile = relativeDir ? `${relativeDir}/${path.basename(id)}` : `./${path.basename(id)}`;
 	const edits: SourceEdit[] = [];
 	let needsNodePath = false;

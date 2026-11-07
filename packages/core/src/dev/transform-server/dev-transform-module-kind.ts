@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 export type DevTransformModuleKind = 'script' | 'stylesheet';
 

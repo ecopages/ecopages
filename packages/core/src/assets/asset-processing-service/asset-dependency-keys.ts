@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { contentHash } from '../../utils/content-hash.ts';
 import { toPackagePath } from '../../utils/package-path.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';

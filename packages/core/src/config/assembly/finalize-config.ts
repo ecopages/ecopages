@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { getEcopagesEnv } from '../../env.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -69,7 +69,7 @@ function resolveEmittedConfigRootDir(
 	if (path.basename(serverDir) === SERVER_BUNDLE_DIR) {
 		const emittedDistDir = path.dirname(serverDir);
 		const normalizedDistDir = path.normalize(distDirName);
-		const distSegments = normalizedDistDir.split(/[\\/]/u).filter((segment) => segment !== '' && segment !== '.');
+		const distSegments = normalizedDistDir.split('/').filter((segment) => segment !== '' && segment !== '.');
 		const deployRoot = path.resolve(emittedDistDir, ...distSegments.map(() => '..'));
 		if (path.resolve(deployRoot, distDirName) === emittedDistDir) {
 			return deployRoot;
@@ -342,7 +342,7 @@ export async function finalizeEcoPagesConfig(
 	for (const plugin of pluginInstances) finalizedPluginInstances.add(plugin);
 
 	try {
-		const cwd = options.cwd ?? process.cwd();
+		const cwd = options.cwd ?? path.cwd();
 		const directories = resolveDirectories(userConfig);
 		let rootDir = resolveUserConfigRootDir(userConfig.rootDir, cwd);
 		const configFilePath = options.configFilePath ?? path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);

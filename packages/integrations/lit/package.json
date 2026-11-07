@@ -43,6 +43,9 @@
 	"scripts": {
 		"typecheck": "tsc --noEmit"
 	},
+	"dependencies": {
+		"@ecopages/file-system": "workspace:*"
+	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/testing": "workspace:*"

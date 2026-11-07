@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { getAssetDependencyKey } from './asset-dependency-keys.ts';
 import type { AssetDefinition, ProcessedAsset } from './assets.types.ts';
 
@@ -106,7 +106,7 @@ export class ProcessedAssetLedger {
 	}
 
 	private relative(filepath: string): string {
-		return path.relative(this.rootDir, path.resolve(this.rootDir, filepath)).split(path.sep).join('/');
+		return path.relative(this.rootDir, path.resolve(this.rootDir, filepath));
 	}
 
 	private toPortable(asset: ProcessedAsset): LedgerProcessedAsset {

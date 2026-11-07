@@ -12,9 +12,8 @@
 
 import { createHash } from 'node:crypto';
 import { builtinModules, createRequire } from 'node:module';
-import path from 'node:path';
+import { path, type PathApi } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { recordBuildEntryOutput, resolveBuildEntryPath } from '../build-graph.ts';
 import type {
@@ -50,7 +49,7 @@ import type {
 	BuildSourcemap,
 } from '../build-adapter.ts';
 
-const coreSourceFile = fileURLToPath(import.meta.url);
+const coreSourceFile = path.fromFileUrl(import.meta.url);
 const nodeBuiltinSpecifiers = new Set(builtinModules);
 const MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES = 120;
 const PRESERVED_MODULE_NAME_HASH_LENGTH = 16;
@@ -72,7 +71,7 @@ function getCorePackageNames(): Set<string> {
 		return corePackageNames;
 	}
 
-	const packageJsonPath = fileURLToPath(new URL('../../../package.json', import.meta.url));
+	const packageJsonPath = path.fromFileUrl(new URL('../../../package.json', import.meta.url));
 	corePackageNames = new Set<string>();
 
 	try {
@@ -146,7 +145,7 @@ function createExternalMatcher(
 ): (id: string) => boolean {
 	const explicitExternals = new Set(options.external ?? []);
 	const externalPackages = options.externalPackages === true;
-	const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
+	const contextRoot = options.root ? path.resolve(options.root) : path.cwd();
 
 	return (id: string): boolean => {
 		if (explicitExternals.has(id)) {
@@ -213,17 +212,13 @@ function isInstalledCompiledModule(filePath: string): boolean {
  * @remarks
  * The specifier is a `./` or `../` path relative to `outdir`. On Windows a package installed on another drive
  * than `outdir` (a temp folder on `C:` and a checkout on `D:`) has no relative path, so it is a `file:` URL,
- * which Node's ESM loader accepts where a bare `D:\` path is rejected. `pathApi` exists so tests can run the
+ * which Node's ESM loader accepts where a bare `D:/` path is rejected. `pathApi` exists so tests can run the
  * Windows rules on any platform.
  */
-export function toInstalledPackageExternalId(
-	resolvedPath: string,
-	outdir: string,
-	pathApi: Pick<typeof path, 'relative' | 'isAbsolute' | 'sep'> = path,
-): string {
-	const relativePath = pathApi.relative(outdir, resolvedPath).split(pathApi.sep).join('/');
+export function toInstalledPackageExternalId(resolvedPath: string, outdir: string, pathApi: PathApi = path): string {
+	const relativePath = pathApi.relative(outdir, resolvedPath);
 	if (pathApi.isAbsolute(relativePath)) {
-		return pathToFileURL(resolvedPath, { windows: pathApi === path.win32 || undefined }).href;
+		return pathApi.toFileUrl(resolvedPath).href;
 	}
 	return relativePath.startsWith('../') ? relativePath : `./${relativePath}`;
 }
@@ -318,9 +313,7 @@ export function createInstalledPackageExternalPlugin(
 			}
 			if (reportDir) {
 				const outputLabel = entryFileNames
-					.map((fileName) =>
-						path.relative(contextRoot, path.join(reportDir, fileName)).split(path.sep).join('/'),
-					)
+					.map((fileName) => path.relative(contextRoot, path.join(reportDir, fileName)))
 					.join(', ');
 				warnPackagesOutsideAppRoot(outputLabel, outsideRootPackages);
 			}
@@ -608,7 +601,12 @@ function truncateUtf8(value: string, maximumBytes: number): string {
 }
 
 function flattenPreservedModuleName(sourceName: string): string {
-	const flattened = sourceName.replaceAll(/[\\/]/g, '-');
+	const flattened = path
+		.fromNative(sourceName)
+		.split('/')
+		.filter((segment) => segment !== '' && segment !== '.' && segment !== '..')
+		.join('-')
+		.replaceAll(':', '');
 	if (Buffer.byteLength(flattened) <= MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES) return flattened;
 	const digest = createHash('sha256').update(sourceName).digest('hex').slice(0, PRESERVED_MODULE_NAME_HASH_LENGTH);
 	const prefixBytes = MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES - digest.length - 1;
@@ -640,7 +638,9 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 		...(options.preserveModules
 			? {
 					preserveModules: true,
-					...(options.preserveModulesRoot ? { preserveModulesRoot: options.preserveModulesRoot } : {}),
+					...(options.preserveModulesRoot
+						? { preserveModulesRoot: path.toNative(options.preserveModulesRoot) }
+						: {}),
 				}
 			: {}),
 		sourcemap: mapRolldownSourcemap(options.sourcemap),
@@ -688,10 +688,10 @@ export async function resolveRolldownOptions(
 function isContentHashedOutput(entry: RolldownOutput['output'][number], entryNamingHashed: boolean): boolean {
 	if (entry.type === 'chunk') return entry.isEntry ? entryNamingHashed : true;
 
-	const fileName = path.posix.basename(entry.fileName);
+	const fileName = path.basename(entry.fileName);
 	return entry.names.some((name) => {
-		const extension = path.posix.extname(name);
-		const stem = path.posix.basename(name, extension);
+		const extension = path.extname(name);
+		const stem = path.basename(name, extension);
 		return (
 			fileName.startsWith(`${stem}-`) &&
 			fileName.endsWith(extension) &&
@@ -710,7 +710,7 @@ function isHashedSourceMap(fileName: string, hashedFileNames: ReadonlySet<string
  */
 function sourceModulePath(moduleId: string, root: string): string[] {
 	if (moduleId.startsWith('\0')) return [];
-	const filePath = moduleId.startsWith('file:') ? fileURLToPath(moduleId) : moduleId;
+	const filePath = moduleId.startsWith('file:') ? path.fromFileUrl(moduleId) : moduleId;
 	return path.isAbsolute(filePath) ? [resolveBuildEntryPath(filePath, root)] : [];
 }
 

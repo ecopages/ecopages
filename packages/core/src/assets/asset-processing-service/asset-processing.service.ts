@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
@@ -476,7 +476,7 @@ export class AssetProcessingService {
 		const distDir = this.config.absolutePaths.distDir;
 		if (!path.isAbsolute(filepath) || !isPathInside(filepath, distDir)) return undefined;
 
-		return `/${path.relative(distDir, filepath).replace(/\\/g, '/')}`;
+		return `/${path.relative(distDir, filepath)}`;
 	}
 
 	/**
@@ -521,7 +521,7 @@ export class AssetProcessingService {
 			return true;
 		}
 
-		return /^[A-Za-z]:\\/.test(value);
+		return /^[A-Za-z]:\//.test(value);
 	}
 
 	/**

@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, test } from 'vitest';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { getAssetDependencyKey, getDeclaredDependencyKey } from './asset-dependency-keys.ts';

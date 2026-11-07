@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { createAppRuntime } from '../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';

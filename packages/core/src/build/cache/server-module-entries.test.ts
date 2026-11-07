@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, it } from 'vitest';
 import { Processor } from '../../plugins/processor.ts';
 import { collectServerModuleEntries } from './server-module-entries.ts';

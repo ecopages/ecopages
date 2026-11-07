@@ -12,8 +12,7 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { appLogger } from '../../global/app-logger.ts';
@@ -45,7 +44,7 @@ function writeFixture(filename: string, source: string): string {
 function relativeImportPath(outputPath: string, targetPath: string): string {
 	return path
 		.relative(path.dirname(realpathSync(outputPath)), targetPath)
-		.split(path.sep)
+		.split('/')
 		.join('/');
 }
 
@@ -427,7 +426,7 @@ describe('RolldownBuildAdapter', () => {
 			[
 				'--input-type=module',
 				'-e',
-				`const m = await import(${JSON.stringify(pathToFileURL(outputPath).href)}); console.log(JSON.stringify(m.binding));`,
+				`const m = await import(${JSON.stringify(path.toFileUrl(outputPath).href)}); console.log(JSON.stringify(m.binding));`,
 			],
 			{ encoding: 'utf8' },
 		);
@@ -460,7 +459,7 @@ describe('RolldownBuildAdapter', () => {
 		assertBuildSucceeded(result, 'Build failed');
 		const outputs = Object.keys(result.outputGraph).map((outputPath) => path.relative(outdir, outputPath));
 		expect(outputs.length).toBeGreaterThan(1);
-		expect(outputs.filter((output) => output.includes(path.sep))).toEqual([]);
+		expect(outputs.filter((output) => output.includes('/'))).toEqual([]);
 		const layoutSource = realpathSync(path.join(workDir, 'src/layouts/base.ts'));
 		const layoutChunk = Object.values(result.outputGraph).find((chunk) =>
 			chunk.modules.some((moduleId) => realpathSync(moduleId) === layoutSource),
@@ -472,7 +471,7 @@ describe('RolldownBuildAdapter', () => {
 			[
 				'--input-type=module',
 				'-e',
-				`const m = await import(${JSON.stringify(pathToFileURL(entryOutput!).href)}); console.log(JSON.stringify({ dir: m.dir, parse: m.parse }));`,
+				`const m = await import(${JSON.stringify(path.toFileUrl(entryOutput!).href)}); console.log(JSON.stringify({ dir: m.dir, parse: m.parse }));`,
 			],
 			{ encoding: 'utf8' },
 		);
@@ -542,7 +541,7 @@ describe('RolldownBuildAdapter', () => {
 			[
 				'--input-type=module',
 				'-e',
-				`const m = await import(${JSON.stringify(pathToFileURL(entryOutput!).href)}); console.log(typeof m.parseSync);`,
+				`const m = await import(${JSON.stringify(path.toFileUrl(entryOutput!).href)}); console.log(typeof m.parseSync);`,
 			],
 			{ encoding: 'utf8' },
 		);

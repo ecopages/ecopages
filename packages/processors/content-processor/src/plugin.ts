@@ -3,7 +3,7 @@
  * @module @ecopages/content-processor
  */
 
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
 import { loadProductionServerModules, missingProductionServerModuleError } from '@ecopages/core/build';
@@ -191,7 +191,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			throw new Error('Content processor requires context to be set');
 		}
 
-		return path.relative(this.context.rootDir, filePath).split(path.sep).join('/');
+		return path.relative(this.context.rootDir, filePath);
 	}
 
 	private resolveEmittedModule(
@@ -386,7 +386,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 				const normalizedPath = path.normalize(filePath);
 				for (const [collectionName, definition] of Object.entries(this.getCollectionsConfig())) {
 					const contentRoot = this.getCollectionContentRoot(definition.contentDir);
-					if (normalizedPath.startsWith(contentRoot + path.sep) || normalizedPath === contentRoot) {
+					if (normalizedPath.startsWith(contentRoot + '/') || normalizedPath === contentRoot) {
 						const changes = collectionChanges.get(collectionName) ?? {
 							regenerate: false,
 							changedEntries: [],

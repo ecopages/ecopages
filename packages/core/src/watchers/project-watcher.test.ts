@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, afterEach, vi, type Mock } from 'vitest';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import os from 'node:os';
 import { mkdirSync, mkdtempSync, writeFileSync, utimesSync, rmSync, realpathSync } from 'node:fs';
 import { fileSystem, type FileStats, type WatchOptions } from '@ecopages/file-system';

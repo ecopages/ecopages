@@ -1,7 +1,7 @@
 /** @jsxImportSource @ecopages/jsx */
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { eco, type EcoComponent, type EcoPagesElement, type HtmlTemplateProps } from '@ecopages/core';

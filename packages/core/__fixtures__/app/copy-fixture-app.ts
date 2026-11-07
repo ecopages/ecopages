@@ -1,6 +1,6 @@
 import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 const coreFixtureAppDir = import.meta.dirname;
 const FIXTURE_COPY_SKIPPED = /^(?:node_modules|dist(?:-.+)?|\.eco(?:-.+)?)$/;

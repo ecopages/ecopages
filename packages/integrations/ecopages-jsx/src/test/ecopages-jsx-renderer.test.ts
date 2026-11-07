@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponent, EcoFunctionComponent, EcoPageFile, HtmlTemplateProps, PageProps } from '@ecopages/core';
 import { AssetProcessingService } from '@ecopages/core/integration';
 import type { AppRuntime } from '@ecopages/core/integration';
@@ -47,7 +46,7 @@ function createScopedModuleUrl(moduleUrl: string, token: string): string {
 async function createAppConfig(rootDir: string): Promise<FinalizedAppConfig> {
 	const appModuleLoader = {
 		async importModule<T = unknown>(options: { filePath: string }): Promise<T> {
-			const moduleUrl = pathToFileURL(options.filePath).href;
+			const moduleUrl = path.toFileUrl(options.filePath).href;
 			return (await import(moduleUrl)) as T;
 		},
 		invalidateDevelopmentGraph(): void {

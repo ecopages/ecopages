@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { onTestFinished, test } from 'vitest';
 import { isDeclaredAppPackageImport, isWorkspacePackageImport } from './app-package-declarations.ts';
 

@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { getEcopagesEnv } from '../env.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { SERVER_BUNDLE_DIR } from '../utils/resolve-entry-file.ts';
@@ -17,7 +17,7 @@ export const ECOPAGES_CONFIG_FILE_ENV = 'ECOPAGES_CONFIG_FILE';
  * and production loads of `dist/server/eco.config.mjs` share one rule.
  * `path.resolve` keeps an explicit absolute `rootDir` unchanged.
  */
-export function resolveUserConfigRootDir(rootDir?: string, cwd = process.cwd()): string {
+export function resolveUserConfigRootDir(rootDir?: string, cwd = path.cwd()): string {
 	return path.resolve(cwd, rootDir ?? '.');
 }
 
@@ -84,7 +84,7 @@ function resolveEcoConfigPathWithServerBundleDir(
 	options: ResolveEcoConfigPathOptions,
 	serverBundleDir: string | undefined,
 ): string | undefined {
-	const cwd = options.cwd ?? process.cwd();
+	const cwd = options.cwd ?? path.cwd();
 	const required = options.required ?? true;
 
 	const explicitPath = options.configFile || getEcopagesEnv(ECOPAGES_CONFIG_FILE_ENV);

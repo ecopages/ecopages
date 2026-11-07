@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '../path.ts';
 import { expect, test, vi } from 'vitest';
 import { NodeFileSystem } from './node.ts';
 
@@ -45,7 +45,7 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 			throw error;
 		},
 		ignored: (watchedPath) => {
-			const ignored = watchedPath.split(path.sep).includes('node_modules');
+			const ignored = watchedPath.split('/').includes('node_modules');
 			if (ignored) ignoredPaths.push(watchedPath);
 			return ignored;
 		},

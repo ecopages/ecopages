@@ -4,7 +4,7 @@ import { HmrStrategyType } from '../hmr-strategy';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
 import fs from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import os from 'node:os';
 
 let tmpDir: string;

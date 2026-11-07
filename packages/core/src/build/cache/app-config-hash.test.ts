@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { hashAppConfigFile } from './app-config-hash.ts';

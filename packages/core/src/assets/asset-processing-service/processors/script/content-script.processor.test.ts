@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { ContentScriptProcessor } from './content-script.processor';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../../config/internal-types.ts';

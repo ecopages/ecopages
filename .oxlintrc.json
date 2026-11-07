@@ -50,7 +50,20 @@
 							{ "name": "node:fs", "message": "Use fileSystem from @ecopages/file-system." },
 							{ "name": "node:fs/promises", "message": "Use fileSystem from @ecopages/file-system." },
 							{ "name": "fs", "message": "Use fileSystem from @ecopages/file-system." },
-							{ "name": "fs/promises", "message": "Use fileSystem from @ecopages/file-system." }
+							{ "name": "fs/promises", "message": "Use fileSystem from @ecopages/file-system." },
+							{
+								"name": "node:path",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "node:url",
+								"importNames": ["fileURLToPath", "pathToFileURL"],
+								"message": "Use path.fromFileUrl or path.toFileUrl from @ecopages/file-system/path, which keep every path in forward slashes."
+							}
 						]
 					}
 				]
@@ -59,13 +72,37 @@
 		{
 			"files": [
 				"packages/file-system/**",
-				"packages/codemod/**",
-				"**/*.test.*",
-				"**/*.test-helpers.ts",
-				"**/test/**",
-				"**/__tests__/**",
-				"**/__fixtures__/**"
+				"packages/**/*.test.*",
+				"packages/**/*.test-helpers.ts",
+				"packages/**/test/**",
+				"packages/**/__tests__/**",
+				"packages/**/__fixtures__/**"
 			],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"paths": [
+							{
+								"name": "node:path",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "node:url",
+								"importNames": ["fileURLToPath", "pathToFileURL"],
+								"message": "Use path.fromFileUrl or path.toFileUrl from @ecopages/file-system/path, which keep every path in forward slashes."
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": ["packages/file-system/src/path.ts", "packages/codemod/**"],
 			"rules": {
 				"no-restricted-imports": "off"
 			}

@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponentConfig } from '../types/contracts.ts';
 import { resolvePackagePath } from '../utils/package-path.ts';
 import { getDiscoveredStylesheets, getDiscoveredWatchFiles } from './discovered-dependencies.ts';
@@ -66,7 +66,7 @@ export function resolveDiscoveredStylesheets(
  */
 export function resolveInferredStylesheets(config: EcoComponentConfig | undefined, rootDir: string): string[] {
 	const { imported, plainModules } = resolveDiscoveredStylesheets(config, rootDir);
-	return [...imported, ...plainModules].filter((file) => !file.split(/[\\/]/).includes('node_modules'));
+	return [...imported, ...plainModules].filter((file) => !file.split('/').includes('node_modules'));
 }
 
 /** The watch files discovery recorded for a declaration, as paths of this app. */

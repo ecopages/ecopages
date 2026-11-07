@@ -4,7 +4,7 @@
  * @module
  */
 
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { EcoPagesAppConfig, IHmrManager, InternalComponentRenderInput } from '../../config/internal-types.ts';
 import type {
 	ComponentRenderInput,

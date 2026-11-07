@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import fs from 'node:fs';
 import postcssNested from 'postcss-nested';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';

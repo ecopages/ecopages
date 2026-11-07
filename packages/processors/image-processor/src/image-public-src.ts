@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 /**
  * Public URL of an optimized file written under the output directory.
@@ -9,5 +9,5 @@ import path from 'node:path';
  * `image-utils.ts`, which client code imports and so cannot use `node:path`.
  */
 export function toPublicImageSrc(publicPath: string, outputPath: string): string {
-	return path.posix.join(publicPath, path.basename(outputPath));
+	return path.join(publicPath, path.basename(outputPath));
 }

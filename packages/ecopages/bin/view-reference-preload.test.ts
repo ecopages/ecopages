@@ -1,14 +1,13 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createLaunchPlan } from './launch-plan.js';
 
 const tsxLoader = import.meta.resolve('tsx/esm');
 const viewReferencePreload = import.meta.resolve('./view-reference-preload.js');
-const viewReferencePreloadPath = fileURLToPath(viewReferencePreload);
+const viewReferencePreloadPath = path.fromFileUrl(viewReferencePreload);
 
 describe('view-reference preload', () => {
 	const roots: string[] = [];
@@ -24,7 +23,7 @@ describe('view-reference preload', () => {
 		async (runtime) => {
 			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-entry-preload-'));
 			roots.push(rootDir);
-			const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
+			const repoRoot = path.fromFileUrl(new URL('../../..', import.meta.url));
 			fs.mkdirSync(path.join(rootDir, 'node_modules/@ecopages'), { recursive: true });
 			fs.symlinkSync(
 				path.join(repoRoot, 'packages/core'),
@@ -76,7 +75,7 @@ describe('view-reference preload', () => {
 		async (runtime) => {
 			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-preload-'));
 			roots.push(rootDir);
-			const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
+			const repoRoot = path.fromFileUrl(new URL('../../..', import.meta.url));
 			fs.mkdirSync(path.join(rootDir, 'node_modules/@ecopages'), { recursive: true });
 			fs.symlinkSync(
 				path.join(repoRoot, 'packages/core'),
@@ -137,7 +136,7 @@ describe('view-reference preload', () => {
 	async function runTsxEntry(runtime: 'node' | 'bun', files: Record<string, string>): Promise<unknown> {
 		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-exports-preload-'));
 		roots.push(rootDir);
-		const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
+		const repoRoot = path.fromFileUrl(new URL('../../..', import.meta.url));
 		fs.mkdirSync(path.join(rootDir, 'node_modules/@ecopages'), { recursive: true });
 		fs.symlinkSync(path.join(repoRoot, 'packages/core'), path.join(rootDir, 'node_modules/@ecopages/core'), 'dir');
 		const appFiles: Record<string, string> = {

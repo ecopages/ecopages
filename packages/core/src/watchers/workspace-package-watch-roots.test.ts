@@ -1,5 +1,5 @@
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import os from 'node:os';
 import { afterEach, expect, test } from 'vitest';
 import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';

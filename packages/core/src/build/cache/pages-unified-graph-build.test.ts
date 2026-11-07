@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { copyFixtureApp } from '../../../__fixtures__/app/copy-fixture-app.ts';

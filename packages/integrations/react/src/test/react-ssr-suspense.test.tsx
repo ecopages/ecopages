@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { AssetProcessingService, IntegrationRendererRenderOptions } from '@ecopages/core/integration';

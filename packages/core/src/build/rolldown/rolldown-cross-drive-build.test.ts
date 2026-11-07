@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { afterEach, describe, expect, test } from 'vitest';
 import { assertBuildSucceeded } from '../build-log.ts';
@@ -68,7 +68,7 @@ describe('RolldownBuildAdapter across drives', () => {
 			assertBuildSucceeded(result, 'Build failed');
 			const outputs = Object.keys(result.outputGraph).map((outputPath) => path.relative(outdir, outputPath));
 			expect(outputs.length).toBeGreaterThan(1);
-			expect(outputs.filter((output) => output.includes(path.sep))).toEqual([]);
+			expect(outputs.filter((output) => output.includes('/'))).toEqual([]);
 		},
 	);
 });

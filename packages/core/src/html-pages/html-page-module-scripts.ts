@@ -2,7 +2,7 @@ import { contentHash } from '../utils/content-hash.ts';
 import { getBuildEntryOutput } from '../build/build-graph.ts';
 import { assertBuildSucceeded } from '../build/build-log.ts';
 import { createRequire } from 'node:module';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
@@ -163,7 +163,7 @@ function bindsNothing(statement: ModuleStatement): boolean {
 
 function resolvePackageFile(importer: string, specifier: string): string | undefined {
 	try {
-		return createRequire(importer).resolve(specifier);
+		return path.fromNative(createRequire(importer).resolve(specifier));
 	} catch {
 		return undefined;
 	}
@@ -310,7 +310,7 @@ function listHtmlFiles(appConfig: EcoPagesAppConfig): string[] {
 function fingerprint(files: string[], rootDir: string): string {
 	return files
 		.map((file) => {
-			const relativePath = path.relative(rootDir, file).split(path.sep).join('/');
+			const relativePath = path.relative(rootDir, file);
 			if (!fileSystem.exists(file)) return `${relativePath}:missing`;
 			return `${relativePath}:${contentHash(fileSystem.readFileSync(file))}`;
 		})
@@ -368,7 +368,7 @@ async function buildModuleScripts(
 	for (const script of scripts) {
 		const baseName = path
 			.relative(srcDir, script)
-			.split(path.sep)
+			.split('/')
 			.join('/')
 			.replace(/\.[^./]+$/, '');
 		let name = baseName;
@@ -396,8 +396,7 @@ async function buildModuleScripts(
 	const urls = new Map<string, string>();
 	for (const script of scripts) {
 		const output = getBuildEntryOutput(result, script, appConfig.rootDir);
-		if (output)
-			urls.set(fileSystem.realpath(script), `/${path.relative(distDir, output).split(path.sep).join('/')}`);
+		if (output) urls.set(fileSystem.realpath(script), `/${path.relative(distDir, output)}`);
 	}
 	return urls;
 }

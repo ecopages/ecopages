@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { ContentScanner } from '../content-scanner.ts';
@@ -11,7 +11,7 @@ afterEach(() => {
 
 describe('ContentScanner updateEntryForPath', () => {
 	it('returns manifest or no-op for change events, never structure', async () => {
-		const introPath = join(contentRoot, 'intro.mdx');
+		const introPath = path.join(contentRoot, 'intro.mdx');
 		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['intro.mdx']);
 		vi.spyOn(fileSystem, 'readFile').mockImplementation(async (filePath) => {
 			if (filePath === introPath) {

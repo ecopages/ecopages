@@ -15,8 +15,7 @@ import {
 	type StaticExportContext,
 	type StaticExportRelease,
 } from '@ecopages/core/integration';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/integration';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { ensureLitDomShim } from './dom-shim.ts';
@@ -28,7 +27,7 @@ import { LitStaticRenderSession } from './lit-static-render-session.ts';
  */
 export const PLUGIN_NAME = LIT_PLUGIN_NAME;
 
-const litHydrateSupportPath = fileURLToPath(import.meta.resolve('@ecopages/lit/hydrate-support'));
+const litHydrateSupportPath = path.fromFileUrl(import.meta.resolve('@ecopages/lit/hydrate-support'));
 
 /**
  * @remarks

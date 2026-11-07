@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { onTestFinished } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';

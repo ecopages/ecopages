@@ -1,6 +1,5 @@
 import { collectBuildOutputImports, getBuildEntryOutput } from '../../build/build-graph.ts';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { type BuildOptions, type BuildResult, type BuildSuccess } from '../../build/build-adapter.ts';
@@ -319,7 +318,7 @@ export class PageModuleImportService {
 			cacheBuildOptions.filePath,
 			Object.keys(cachedBuild.entry.dependencyHashes ?? {}),
 		);
-		const loadedModule = (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
+		const loadedModule = (await import(/* @vite-ignore */ path.toFileUrl(cachedBuild.outputPath).href)) as T;
 		this.recordPipelineLoad('route-module-cache-hit');
 		return loadedModule;
 	}
@@ -367,7 +366,7 @@ export class PageModuleImportService {
 			outputImports: collectBuildOutputImports(buildResult, compiledOutput),
 		});
 
-		const compiledOutputUrl = pathToFileURL(compiledOutput);
+		const compiledOutputUrl = path.toFileUrl(compiledOutput);
 		if (shouldAddRuntimeUpdateQuery()) {
 			compiledOutputUrl.searchParams.set('update', `${fileHash}-${this.getDevelopmentGeneration()}`);
 		}

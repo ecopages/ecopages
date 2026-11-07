@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { isEcopagesEnvEnabled } from '../../../env.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT, RESOLVED_ASSETS_DIR } from '../../../constants.ts';

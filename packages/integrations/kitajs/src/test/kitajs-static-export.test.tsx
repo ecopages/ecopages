@@ -1,6 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { jsx as kitaJsx } from '@kitajs/html/jsx-runtime';
 import type { EcoComponent, EcoPageComponent, EcoPageFile, HtmlTemplateProps } from '@ecopages/core';

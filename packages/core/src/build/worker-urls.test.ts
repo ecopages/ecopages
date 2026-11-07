@@ -1,7 +1,7 @@
 import { parseSync } from 'oxc-parser';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { findWorkerEntrySource, findWorkerUrls } from './worker-urls.ts';
 

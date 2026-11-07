@@ -1,5 +1,5 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it, vi } from 'vitest';
 import { extractEcopagesVirtualImports, isBrowserEcopagesVirtualImport } from './ecopages-virtual-imports.ts';
@@ -13,8 +13,8 @@ describe('ecopages-virtual-imports', () => {
 	});
 
 	it('extractEcopagesVirtualImports skips content server modules', () => {
-		const dir = mkdtempSync(join(tmpdir(), 'ecopages-virtual-imports-'));
-		const file = join(dir, 'page.tsx');
+		const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-virtual-imports-'));
+		const file = path.join(dir, 'page.tsx');
 
 		try {
 			writeFileSync(
@@ -43,8 +43,8 @@ import type { Entry } from 'ecopages:content/docs';
 	});
 
 	it('reads a component file once in production and on every call otherwise', () => {
-		const dir = mkdtempSync(join(tmpdir(), 'ecopages-virtual-imports-memo-'));
-		const file = join(dir, 'component.ts');
+		const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-virtual-imports-memo-'));
+		const file = path.join(dir, 'component.ts');
 		try {
 			writeFileSync(file, "import { a } from 'ecopages:content/first';\n");
 

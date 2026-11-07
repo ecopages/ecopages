@@ -1,7 +1,7 @@
 /// <reference path="./postcss-import-resolve-id.d.ts" />
 import { fileSystem } from '@ecopages/file-system';
 import { createRequire } from 'node:module';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type postcss from 'postcss';
 import postcssImportDefault from 'postcss-import';
 import type postcssImport from 'postcss-import';
@@ -35,7 +35,7 @@ export function resolveAppRootFromPath(filePath: string): string {
 		dir = parent;
 	}
 
-	return process.cwd();
+	return path.cwd();
 }
 
 function loadPostcssImport(requireFromApp: NodeRequire): typeof postcssImportDefault {

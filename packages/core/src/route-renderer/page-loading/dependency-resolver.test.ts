@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { join } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { DEPENDENCY_ERRORS, DependencyResolverService } from './dependency-resolver.ts';
@@ -311,8 +311,8 @@ describe('DependencyResolverService', () => {
 	});
 
 	it('should detect ecopages virtual imports via parser', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-dependency-resolver-'));
-		const componentFile = join(tempDir, 'component.tsx');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-dependency-resolver-'));
+		const componentFile = path.join(tempDir, 'component.tsx');
 
 		writeFileSync(
 			componentFile,
@@ -351,11 +351,11 @@ describe('DependencyResolverService', () => {
 	});
 
 	it('holds lazy client entries for the page client build instead of processing them with eager scripts', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-jsx-script-dedupe-'));
-		const componentFile = join(tempDir, 'component.tsx');
-		const widgetScript = join(tempDir, 'widget.script.ts');
-		const siblingScript = join(tempDir, 'other.ts');
-		const lazyScript = join(tempDir, 'lazy.ts');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-jsx-script-dedupe-'));
+		const componentFile = path.join(tempDir, 'component.tsx');
+		const widgetScript = path.join(tempDir, 'widget.script.ts');
+		const siblingScript = path.join(tempDir, 'other.ts');
+		const lazyScript = path.join(tempDir, 'lazy.ts');
 
 		writeFileSync(componentFile, "import './widget.script';\nexport const Component = () => null;\n", 'utf-8');
 		writeFileSync(widgetScript, 'export const widget = true;\n', 'utf-8');
@@ -425,9 +425,9 @@ describe('DependencyResolverService', () => {
 	});
 
 	it('should not promote SSR-imported lazy ecopages-jsx scripts into the page bundle', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-jsx-lazy-imported-script-'));
-		const componentFile = join(tempDir, 'component.tsx');
-		const lazyScript = join(tempDir, 'theme-toggle.script.ts');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-jsx-lazy-imported-script-'));
+		const componentFile = path.join(tempDir, 'component.tsx');
+		const lazyScript = path.join(tempDir, 'theme-toggle.script.ts');
 
 		writeFileSync(
 			componentFile,
@@ -479,9 +479,9 @@ describe('DependencyResolverService', () => {
 	});
 
 	it('should ignore ecopages-jsx SSR imports that are not declared in dependencies', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-jsx-undeclared-import-'));
-		const componentFile = join(tempDir, 'component.tsx');
-		const declaredScript = join(tempDir, 'declared.ts');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-jsx-undeclared-import-'));
+		const componentFile = path.join(tempDir, 'component.tsx');
+		const declaredScript = path.join(tempDir, 'declared.ts');
 
 		writeFileSync(
 			componentFile,
@@ -606,12 +606,12 @@ describe('DependencyResolverService', () => {
 
 	it('should collapse bundleable page stylesheets and scripts into page-owned assets', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-bundle-'));
-		const componentFile = join(tempDir, 'component.tsx');
-		const stylesheetA = join(tempDir, 'first.css');
-		const stylesheetB = join(tempDir, 'second.css');
-		const scriptA = join(tempDir, 'first.ts');
-		const scriptB = join(tempDir, 'second.ts');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-bundle-'));
+		const componentFile = path.join(tempDir, 'component.tsx');
+		const stylesheetA = path.join(tempDir, 'first.css');
+		const stylesheetB = path.join(tempDir, 'second.css');
+		const scriptA = path.join(tempDir, 'first.ts');
+		const scriptB = path.join(tempDir, 'second.ts');
 
 		writeFileSync(componentFile, 'export const Component = () => null;', 'utf-8');
 		writeFileSync(stylesheetA, '.first { color: red; }', 'utf-8');
@@ -638,7 +638,7 @@ describe('DependencyResolverService', () => {
 			rootDir: tempDir,
 			absolutePaths: {
 				srcDir: tempDir,
-				distDir: join(tempDir, '.eco/public'),
+				distDir: path.join(tempDir, '.eco/public'),
 			},
 		} as EcoPagesAppConfig;
 
@@ -682,8 +682,8 @@ describe('DependencyResolverService', () => {
 
 	it('keeps bundleable assets in order around stylesheets with custom attributes', () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-order-'));
-		const paths = ['first.css', 'screen.css', 'last.css'].map((file) => join(tempDir, file));
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-order-'));
+		const paths = ['first.css', 'screen.css', 'last.css'].map((file) => path.join(tempDir, file));
 
 		try {
 			for (const [index, filepath] of paths.entries()) {
@@ -716,9 +716,9 @@ describe('DependencyResolverService', () => {
 
 	it('keeps a package stylesheet out of the Page stylesheet bundle, in order', () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-package-css-'));
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-package-css-'));
 		const paths = ['first.css', 'second.css', 'package.css', 'fourth.css', 'fifth.css'].map((file) =>
-			join(tempDir, file),
+			path.join(tempDir, file),
 		);
 
 		try {
@@ -748,8 +748,8 @@ describe('DependencyResolverService', () => {
 
 	it('keeps bundleable module scripts in order around a script with custom attributes', () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-script-order-'));
-		const paths = ['first.ts', 'integrity.ts', 'last.ts'].map((file) => join(tempDir, file));
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-script-order-'));
+		const paths = ['first.ts', 'integrity.ts', 'last.ts'].map((file) => path.join(tempDir, file));
 
 		try {
 			for (const [index, filepath] of paths.entries()) {
@@ -791,9 +791,9 @@ describe('DependencyResolverService', () => {
 
 	it('retains identical stylesheet bundles on either side of an ordered stylesheet', () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-order-repeat-'));
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-order-repeat-'));
 		const paths = ['first.css', 'second.css', 'screen.css', 'fourth.css', 'fifth.css'].map((file) =>
-			join(tempDir, file),
+			path.join(tempDir, file),
 		);
 		const content = [
 			'.example { color: orange; }',
@@ -830,12 +830,12 @@ describe('DependencyResolverService', () => {
 
 	it('should keep bundleable page stylesheets and scripts as file assets during development', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-style-dev-'));
-		const componentFile = join(tempDir, 'component.tsx');
-		const stylesheetA = join(tempDir, 'first.css');
-		const stylesheetB = join(tempDir, 'second.css');
-		const scriptA = join(tempDir, 'first.ts');
-		const scriptB = join(tempDir, 'second.ts');
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-page-style-dev-'));
+		const componentFile = path.join(tempDir, 'component.tsx');
+		const stylesheetA = path.join(tempDir, 'first.css');
+		const stylesheetB = path.join(tempDir, 'second.css');
+		const scriptA = path.join(tempDir, 'first.ts');
+		const scriptB = path.join(tempDir, 'second.ts');
 
 		writeFileSync(componentFile, 'export const Component = () => null;', 'utf-8');
 		writeFileSync(stylesheetA, '.first { color: red; }', 'utf-8');
@@ -862,7 +862,7 @@ describe('DependencyResolverService', () => {
 			rootDir: tempDir,
 			absolutePaths: {
 				srcDir: tempDir,
-				distDir: join(tempDir, '.eco/public'),
+				distDir: path.join(tempDir, '.eco/public'),
 			},
 		} as EcoPagesAppConfig;
 

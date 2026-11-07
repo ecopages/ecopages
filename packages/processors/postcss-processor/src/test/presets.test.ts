@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { path } from '@ecopages/file-system/path';
-import { PostCssProcessor } from '../postcss-processor';
+import postcss from 'postcss';
+import { collectDependencies, PostCssProcessor } from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
 import { tailwindV4Preset } from '../presets/tailwind-v4';
 
@@ -271,6 +272,17 @@ describe('Tailwind v4 transformInput', () => {
 		expect(result).toContain('@apply');
 	});
 
+	test('should place @reference after the leading @charset, @layer and @import statements', async () => {
+		const preset = tailwindV4Preset({ referencePath });
+		const css = `@charset "UTF-8";\n@layer base, theme;\n@import './a.css';\n@import './b.css';\n.x { @apply flex; }`;
+
+		const result = await preset.transformInput!(css, '/abs/path/src/pages/index.css');
+
+		expect(result).toBe(
+			`@charset "UTF-8";\n@layer base, theme;\n@import './a.css';\n@import './b.css';\n@reference "${referencePath}";\n.x { @apply flex; }`,
+		);
+	});
+
 	test('should inject the same absolute @reference regardless of importing file location', async () => {
 		const preset = tailwindV4Preset({ referencePath });
 		const css = `.main-title { @apply text-2xl font-bold; }`;
@@ -345,4 +357,26 @@ describe('Tailwind v4 preset @apply resolution (regression)', () => {
 		expect(result).toContain('font-size');
 		expect(result).toContain('.main-title');
 	});
+});
+
+describe('Tailwind v4 preset with @import and @apply together', () => {
+	test('keeps the partials of a stylesheet that uses @apply and reports them as dependencies', async () => {
+		const pagesDir = path.join(tailwindAppDir, 'src/pages');
+		const partialPath = path.join(pagesDir, 'part.css');
+		const pagePath = path.join(pagesDir, 'a.css');
+		mkdirSync(pagesDir, { recursive: true });
+		writeFileSync(partialPath, '.from-partial { color: red; }\n');
+		const preset = tailwindV4Preset({ referencePath: tailwindReferencePath });
+
+		const input = await preset.transformInput!(
+			`@charset "UTF-8";\n@import './part.css';\n.x { @apply flex; }\n`,
+			pagePath,
+		);
+		const result = await postcss(Object.values(preset.plugins!)).process(input, { from: pagePath });
+
+		expect(result.css).toContain('.from-partial');
+		expect(result.css).toContain('display:flex');
+		expect(collectDependencies(result.messages)).toContain(path.fromNative(realpathSync(partialPath)));
+		expect(result.warnings().map((warning) => warning.text)).toEqual([]);
+	}, 30_000);
 });

@@ -74,6 +74,7 @@ export {
 	fetchNavigationPage,
 	getCachedNavigationHtml,
 	invalidateNavigationHtml,
+	loadNavigationGlobalScripts,
 	type NavigationHeadUpdate,
 	parseNavigationDocument,
 	prepareNavigationHead,

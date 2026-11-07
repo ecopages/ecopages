@@ -3,6 +3,13 @@ import type { ProcessedAsset } from '../../../assets/asset-processing-service/in
 import { path } from '@ecopages/file-system/path';
 import { resolveDiscoveredWatchFiles, resolveInferredStylesheets } from '../../../eco/discovered-dependency-paths.ts';
 import type { PreparedComponentGraphNode } from './component-graph.ts';
+import { ECO_GLOBAL_SCRIPT_ATTRIBUTE } from '../../../client/navigation-attributes.ts';
+
+function markGlobalScript(asset: ProcessedAsset): ProcessedAsset {
+	return asset.kind === 'script'
+		? { ...asset, attributes: { ...asset.attributes, [ECO_GLOBAL_SCRIPT_ATTRIBUTE]: '' } }
+		: asset;
+}
 
 /**
  * Lists the global scripts of every Integration a Page uses, in config order.
@@ -12,6 +19,8 @@ import type { PreparedComponentGraphNode } from './component-graph.ts';
  * session.
  * The other names come from the Page client plan, so the component graph is not walked a second time. The order is
  * the same whichever Integration owns the Page.
+ *
+ * Each script carries `data-eco-global-script`, which is how a client navigation tells them from Component scripts.
  */
 export function collectPageIntegrationDependencies(
 	appConfig: EcoPagesAppConfig,
@@ -21,14 +30,14 @@ export function collectPageIntegrationDependencies(
 	const usedNames = new Set(integrationNames);
 	return appConfig.integrations.flatMap((integration) => {
 		if (integration.name === owner.name) {
-			return owner.dependencies;
+			return owner.dependencies.map(markGlobalScript);
 		}
 
 		if (!usedNames.has(integration.name) || typeof integration.getResolvedIntegrationDependencies !== 'function') {
 			return [];
 		}
 
-		return integration.getResolvedIntegrationDependencies();
+		return integration.getResolvedIntegrationDependencies().map(markGlobalScript);
 	});
 }
 

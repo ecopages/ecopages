@@ -153,7 +153,7 @@ describe('Foreign Subtree in a hydrated React tree', () => {
 		const errors = trackErrors();
 		const key = getForeignSubtreeKey(LitCounter, { count: 1 });
 		const fetched = new DOMParser().parseFromString(
-			`<main>${renderForeignSubtreeBoundary(key, '<lit-counter count="1"></lit-counter>')}</main>`,
+			`<main>${renderForeignSubtreeBoundary(key, '<lit-counter count="1"><template shadowrootmode="open"><span>1</span></template></lit-counter>')}</main>`,
 			'text/html',
 		);
 		installForeignSubtreeHost(createReactRuntime(errors));
@@ -169,6 +169,8 @@ describe('Foreign Subtree in a hydrated React tree', () => {
 
 		expect(container.querySelector('button')?.textContent).toBe('1');
 		expect(litCounter?.getAttribute('count')).toBe('1');
+		expect(litCounter?.shadowRoot?.textContent).toBe('1');
+		expect(litCounter?.querySelector('template')).toBeNull();
 		expect(container.querySelector('lit-counter')).toBe(litCounter);
 		expect(errors).toEqual([]);
 		root.unmount();

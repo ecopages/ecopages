@@ -34,7 +34,7 @@ export function registerReactForeignLitTests() {
 			runtime.assertClean();
 		});
 
-		test('keeps the foreign Lit Component interactive after a React router navigation', async ({ page }) => {
+		test('hydrates the foreign Lit Component after a React router navigation', async ({ page }) => {
 			const runtime = trackRuntimeErrors(page);
 			await gotoPath(page, '/react-lab');
 			await waitForReactPageHydration(page);
@@ -44,7 +44,9 @@ export function registerReactForeignLitTests() {
 			await expect(page.getByTestId('page-react-content')).toBeVisible({ timeout: 15_000 });
 			expect(await page.evaluate(() => (window as { __ecoSameDocument?: boolean }).__ecoSameDocument)).toBe(true);
 
+			expect(await hasServerRenderedShadowRoot(page)).toBe(true);
 			await assertCounterInteractivity(page.getByTestId('page-react-content'), { kita: false, lit: '1' });
+			expect(runtime.consoleMessages.filter((message) => /declarative shadow/i.test(message))).toEqual([]);
 			runtime.assertClean();
 		});
 	});

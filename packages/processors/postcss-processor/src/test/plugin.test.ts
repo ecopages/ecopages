@@ -666,6 +666,30 @@ describe('PostCssProcessorPlugin HMR', () => {
 		expect(fs.existsSync(path.join(distDir, 'assets', 'public', 'vendor', 'public.css'))).toBe(false);
 	});
 
+	test('declares .css only, so it neither claims nor prewarms a Sass or Less file', async () => {
+		fs.writeFileSync(path.join(srcDir, 'page.css'), '.page-marker { color: blue; }');
+		fs.writeFileSync(path.join(srcDir, 'theme.scss'), '.scss-marker { color: red; }');
+		fs.writeFileSync(path.join(srcDir, 'theme.less'), '.less-marker { color: red; }');
+
+		const plugin = new PostCssProcessorPlugin({ options: { filter: /\.css$/ } });
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
+		plugin.setContext(config);
+		await plugin.setup();
+
+		expect(plugin.getAssetCapabilities().map((capability) => capability.extensions)).toEqual([['*.css']]);
+		expect(plugin.canProcessAsset('stylesheet', path.join(srcDir, 'page.css'))).toBe(true);
+		expect(plugin.canProcessAsset('stylesheet', path.join(srcDir, 'theme.scss'))).toBe(false);
+		expect(plugin.canProcessAsset('stylesheet', path.join(srcDir, 'theme.less'))).toBe(false);
+		expect(plugin.getWatchConfig()?.extensions).not.toContain('.scss');
+		expect(fs.existsSync(path.join(distDir, 'assets', 'page.css'))).toBe(true);
+		expect(fs.existsSync(path.join(distDir, 'assets', 'theme.css'))).toBe(false);
+	});
+
 	test('emits the fonts a package stylesheet imports and rewrites their urls after a CSS edit', async () => {
 		fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'app', private: true }));
 		const packageDir = path.join(tmpDir, 'node_modules', '@fontsource', 'mono');

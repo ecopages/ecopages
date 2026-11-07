@@ -1,6 +1,6 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
@@ -16,7 +16,7 @@ describe('production route list', () => {
 	});
 
 	it('round-trips filesystem routes relative to the app root', () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-route-list-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-route-list-')));
 		tempDirs.push(rootDir);
 		const appConfig = {
 			rootDir,

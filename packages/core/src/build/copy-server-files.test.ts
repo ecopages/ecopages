@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
@@ -17,7 +17,7 @@ describe('copyDeclaredServerFiles', () => {
 	});
 
 	function createApp(serverFiles?: string[]) {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-files-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-server-files-')));
 		tempDirs.push(rootDir);
 		const distDir = path.join(rootDir, 'dist');
 		fileSystem.ensureDir(path.join(distDir, SERVER_BUNDLE_DIR));

@@ -431,6 +431,9 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../core
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../file-system
       '@ecopages/jsx':
         specifier: ^0.6.0
         version: 0.6.0(@ecopages/signals@0.6.0)
@@ -549,6 +552,9 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../..
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../../file-system
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../../integrations/mdx
@@ -660,12 +666,18 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../core
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../file-system
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../../__internals/testing
 
   packages/integrations/lit:
     dependencies:
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../file-system
       '@lit-labs/ssr':
         specifier: ^3.3.0
         version: 3.3.1

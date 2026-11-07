@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { contentHash } from '../utils/content-hash.ts';
@@ -77,7 +77,7 @@ function isLocalSpecifier(source: string, pathPrefixes: string[]): boolean {
 }
 
 function isLocalScript(file: string): boolean {
-	return /\.[cm]?[jt]sx?$/.test(file) && !file.includes(`${path.sep}node_modules${path.sep}`);
+	return /\.[cm]?[jt]sx?$/.test(file) && !file.includes(`/node_modules/`);
 }
 
 export function isCssImport(source: string): boolean {
@@ -330,7 +330,7 @@ export function isReachedByDiscovery(projectRoot: string, file: string): boolean
 
 function relativeToRoot(projectRoot: string, file: string): string {
 	const relative = path.relative(canonicalFile(projectRoot), canonicalFile(file));
-	return relative.startsWith('..') || path.isAbsolute(relative) ? file : relative.split(path.sep).join('/');
+	return relative.startsWith('..') || path.isAbsolute(relative) ? file : relative;
 }
 
 /**
@@ -533,7 +533,7 @@ function isFactoryExport(
 	pending.add(visitKey);
 
 	let result = false;
-	if (!file.includes(`${path.sep}node_modules${path.sep}`) && !isServerSpecifier(file)) {
+	if (!file.includes(`/node_modules/`) && !isServerSpecifier(file)) {
 		const { factories, namedReexports } = indexModule(file, state.cache);
 		if (factories.has(exportName)) {
 			result = true;

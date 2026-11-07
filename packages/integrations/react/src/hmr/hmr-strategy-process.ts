@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { HmrAction } from '@ecopages/core/integration';
 import type { ReactHmrBuildTarget } from './react-hmr-dev-transform-plugins.ts';
 

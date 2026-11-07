@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { AssetProcessingService, IntegrationRendererRenderOptions } from '@ecopages/core/integration';
@@ -29,7 +29,7 @@ class TestReactRenderer extends ReactRenderer {
 	}
 }
 
-const testDir = mkdtempSync(path.join(os.tmpdir(), 'react-ssr-suspense-'));
+const testDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'react-ssr-suspense-')));
 const SUSPENSE_FALLBACK = <i>loading</i>;
 const FALLBACK = renderToStaticMarkup(SUSPENSE_FALLBACK);
 

@@ -7,7 +7,7 @@
  * @module
  */
 
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/integration';
 import { isRegisteredScriptEntrypoint } from '@ecopages/core/integration';
@@ -212,7 +212,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * resolved from this package.
 	 */
 	getVendorEntries(): DevTransformVendorEntries {
-		return { resolveFrom: import.meta.dirname, specifiers: getReactBrowserPackages(this.routerAdapter) };
+		return {
+			resolveFrom: path.fromNative(import.meta.dirname),
+			specifiers: getReactBrowserPackages(this.routerAdapter),
+		};
 	}
 
 	async getVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {

@@ -218,7 +218,7 @@ export function findWorkerEntrySource(
 	sourcePaths: readonly string[],
 ): { sourcePath: string; url: WorkerUrl } | undefined {
 	for (const sourcePath of sourcePaths) {
-		if (/[\\/]node_modules[\\/]/.test(sourcePath) || !fileSystem.exists(sourcePath)) continue;
+		if (sourcePath.includes('/node_modules/') || !fileSystem.exists(sourcePath)) continue;
 		const code = fileSystem.readFileSync(sourcePath).toString();
 		if (!WORKER_CONSTRUCTOR_PATTERN.test(code)) continue;
 		const url = findWorkerUrls(parseModuleSource(sourcePath, code, { sourceType: 'module' }).program, code).find(

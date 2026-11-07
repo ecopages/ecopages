@@ -1,6 +1,6 @@
 import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 const coreFixtureAppDir = import.meta.dirname;
 const FIXTURE_COPY_SKIPPED = /^(?:node_modules|dist(?:-.+)?|\.eco(?:-.+)?)$/;
@@ -20,7 +20,9 @@ export function copyFixtureApp(sourceDir: string = coreFixtureAppDir, destinatio
 		rmSync(destinationDir, { recursive: true, force: true });
 		mkdirSync(destinationDir, { recursive: true });
 	}
-	const appDir = realpathSync(destinationDir ?? mkdtempSync(path.join(tmpdir(), 'eco-fixture-app-')));
+	const appDir = path.fromNative(
+		realpathSync(destinationDir ?? mkdtempSync(path.join(tmpdir(), 'eco-fixture-app-'))),
+	);
 	try {
 		cpSync(sourceDir, appDir, {
 			recursive: true,

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
@@ -121,7 +121,7 @@ function makeNodeServerAdapter(
 }
 
 async function requestApiAndPageWithBuildScopeCapture(watch: boolean) {
-	const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-request-build-scope-'));
+	const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-request-build-scope-')));
 	onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 	fs.mkdirSync(path.join(rootDir, 'src', 'pages'), { recursive: true });
 	const appConfig = await finalizeEcoPagesConfig({ rootDir });
@@ -189,7 +189,7 @@ describe('NodeServerAdapter', () => {
 
 	it('adds configured headers to matching responses and keeps the handler headers', async () => {
 		const appConfig = await finalizeEcoPagesConfig({
-			rootDir: fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-response-headers-')),
+			rootDir: path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-response-headers-'))),
 			headers: [{ source: '/api/*', headers: { 'Access-Control-Allow-Origin': '*', 'X-Own': 'config' } }],
 		});
 		const adapter = makeNodeServerAdapter({
@@ -263,7 +263,7 @@ describe('NodeServerAdapter', () => {
 	});
 
 	it('serves preview output through the runtime host', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-preview-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-preview-')));
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
 		fs.writeFileSync(path.join(appConfig.absolutePaths.distDir, 'about.html'), '<h1>About</h1>');
@@ -287,7 +287,7 @@ describe('NodeServerAdapter', () => {
 	});
 
 	it('previewing a finished build leaves it untouched', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-serve-only-untouched-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-serve-only-untouched-')));
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const distDir = appConfig.absolutePaths.distDir;
 		const publicDir = appConfig.absolutePaths.publicDir;
@@ -324,7 +324,7 @@ describe('NodeServerAdapter', () => {
 	});
 
 	it('serves a page from a read-only dist in serve-only preview', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-serve-only-readonly-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-serve-only-readonly-')));
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const distDir = appConfig.absolutePaths.distDir;
 		fs.mkdirSync(distDir, { recursive: true });
@@ -354,7 +354,7 @@ describe('NodeServerAdapter', () => {
 	});
 
 	it('does not restart a preview after disposal begins during replacement shutdown', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-preview-stop-race-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-preview-stop-race-')));
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
 		const runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge());
@@ -403,7 +403,7 @@ describe('NodeServerAdapter', () => {
 	});
 
 	it('stops a preview whose replacement finishes binding after disposal begins', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-preview-start-race-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-preview-start-race-')));
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
 		const runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge());
@@ -451,7 +451,7 @@ describe('NodeServerAdapter', () => {
 	});
 
 	it('retries preview shutdown after a failed close through the public preview path', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-preview-stop-retry-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-preview-stop-retry-')));
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
 		fs.writeFileSync(path.join(appConfig.absolutePaths.distDir, 'about.html'), '<h1>About</h1>');
@@ -490,7 +490,7 @@ describe('NodeServerAdapter', () => {
 
 	describe('runtime asset setup', () => {
 		async function initializeWith(runtimeAssetSetup: 'start' | 'export' | 'none') {
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-asset-setup-'));
+			const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-asset-setup-')));
 			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 			const events: string[] = [];
 			const processor = new (class extends Processor {
@@ -521,7 +521,7 @@ describe('NodeServerAdapter', () => {
 			onTestFinished(() => {
 				vi.unstubAllEnvs();
 			});
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-incomplete-dist-'));
+			const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-incomplete-dist-')));
 			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 			fs.mkdirSync(path.join(rootDir, 'src', 'public'), { recursive: true });
 			fs.writeFileSync(path.join(rootDir, 'src', 'public', 'logo.svg'), '<svg />');
@@ -562,7 +562,9 @@ describe('NodeServerAdapter', () => {
 		});
 
 		it('sets Integrations up before non-watch network requests are released', async () => {
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-integration-setup-'));
+			const rootDir = path.fromNative(
+				fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-integration-setup-')),
+			);
 			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 			const events: string[] = [];
 			const integration = new HtmlPagesPlugin();
@@ -589,7 +591,7 @@ describe('NodeServerAdapter', () => {
 				vi.unstubAllEnvs();
 			});
 			assetLedgerRestore.run.mockReset();
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-source-tree-start-'));
+			const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-source-tree-start-')));
 			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [new HtmlPagesPlugin()] });
 			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false } });
@@ -656,7 +658,9 @@ describe('NodeServerAdapter', () => {
 		});
 
 		it('waits for watch-mode Integration setup before handling requests', async () => {
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-watch-integration-readiness-'));
+			const rootDir = path.fromNative(
+				fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-watch-integration-readiness-')),
+			);
 			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 			fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 			let finishSetup!: () => void;
@@ -704,7 +708,7 @@ describe('NodeServerAdapter', () => {
 		});
 
 		it('renders a filesystem Page for request-only fetches in watch mode', async () => {
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-watch-fetch-page-'));
+			const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-watch-fetch-page-')));
 			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 			fs.mkdirSync(path.join(rootDir, 'src', 'pages'), { recursive: true });
 			fs.writeFileSync(path.join(rootDir, 'src', 'pages', 'index.html'), '<h1>Request-only page</h1>');
@@ -742,7 +746,7 @@ describe('NodeServerAdapter', () => {
 		});
 
 		it('does not initialize unused Integrations for request-only API fetches in watch mode', async () => {
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-watch-fetch-api-'));
+			const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-watch-fetch-api-')));
 			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 			fs.mkdirSync(path.join(rootDir, 'src', 'pages'), { recursive: true });
 			let setupCalls = 0;
@@ -777,7 +781,7 @@ describe('NodeServerAdapter', () => {
 		});
 
 		it('does not initialize unused Integrations for request-only API fetches without watch mode', async () => {
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-fetch-api-'));
+			const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-fetch-api-')));
 			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 			fs.mkdirSync(path.join(rootDir, 'src', 'pages'), { recursive: true });
 			let setupCalls = 0;
@@ -920,7 +924,7 @@ describe('NodeServerAdapter', () => {
 				await teardown();
 			}
 		}
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dispose-errors-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dispose-errors-')));
 		onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [new ResourceIntegration()] });
 		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });

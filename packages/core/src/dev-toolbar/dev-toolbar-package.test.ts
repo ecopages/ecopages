@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import {
 	getDevToolbarPackageSpec,
@@ -10,7 +9,7 @@ import {
 
 const referenceDevToolbarPackage = '@ecopages/dev-toolbar';
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const repoRoot = path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../../../..');
 const devToolbarRoot = path.join(repoRoot, 'packages', 'dev-toolbar');
 
 describe('dev-toolbar package resolution', () => {
@@ -32,12 +31,12 @@ describe('dev-toolbar package resolution', () => {
 			path.join(repoRoot, 'playground', 'kitchen-sink'),
 			referenceDevToolbarPackage,
 		);
-		expect(entry).toContain(`${path.sep}packages${path.sep}dev-toolbar${path.sep}`);
+		expect(entry).toContain(`/packages/dev-toolbar/`);
 	});
 
 	it('resolves the reference toolbar package from the monorepo root', () => {
 		const entry = resolveDevToolbarPackageEntry(repoRoot, referenceDevToolbarPackage);
-		expect(entry).toContain(`${path.sep}packages${path.sep}dev-toolbar${path.sep}`);
+		expect(entry).toContain(`/packages/dev-toolbar/`);
 	});
 
 	it('prefers published bootstrap.js over TypeScript source when present', () => {

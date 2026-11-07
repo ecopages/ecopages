@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { beforeEach, afterEach, test, vi } from 'vitest';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
@@ -148,7 +148,7 @@ function preparedRouteScript(
 function assertHtmlModuleScriptUrls(): void {
 	const buildCall = required(setPrebuiltUrls.mock.calls[0]);
 	const urls = buildCall[1] as Map<string, string> | undefined;
-	const htmlUrl = required(urls?.get(realpathSync(htmlScript)));
+	const htmlUrl = required(urls?.get(path.fromNative(realpathSync(htmlScript))));
 	assert.ok(htmlUrl.startsWith('/assets/html-'));
 	assert.ok(htmlUrl.endsWith('-hash.js'));
 }
@@ -158,7 +158,7 @@ let htmlScript = '';
 let originalGzipFile: typeof fileSystem.gzipFile;
 
 beforeEach(() => {
-	rootDir = mkdtempSync(path.join(os.tmpdir(), 'eco-app-browser-build-'));
+	rootDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'eco-app-browser-build-')));
 	htmlScript = path.join(rootDir, 'src', 'shell.ts');
 	mkdirSync(path.dirname(htmlScript), { recursive: true });
 	writeFileSync(htmlScript, 'export const shell = true;');

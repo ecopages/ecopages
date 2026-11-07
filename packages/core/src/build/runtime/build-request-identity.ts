@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
 import { createPluginCacheKey } from '../cache/cache-keys.ts';
 

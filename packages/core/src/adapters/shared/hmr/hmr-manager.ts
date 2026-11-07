@@ -1,6 +1,5 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { getServerModuleBuildCacheOutdir } from '../../../build/server/route-module-build-cache-registry.ts';
-import { fileURLToPath } from 'node:url';
 import { HMR_RUNTIME_SCRIPT_URL, resolveHmrRuntimeWorkDir } from '../../../hmr/hmr-runtime-paths.ts';
 import {
 	bundleDevClientRuntime,
@@ -92,7 +91,7 @@ export class HmrManager implements IHmrManager {
 			name: 'HMR',
 			url: HMR_RUNTIME_SCRIPT_URL,
 			workDir: this.runtimeWorkDir,
-			resolveEntry: () => fileURLToPath(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime')),
+			resolveEntry: () => path.fromFileUrl(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime')),
 			onFailure: (error) => this.onRuntimeBundleFailure(error),
 		};
 		this.devToolbarRuntime = createDevToolbarClientRuntime(appConfig);

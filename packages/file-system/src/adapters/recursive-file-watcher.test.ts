@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '../path.ts';
 import { expect, test, vi } from 'vitest';
 
 type NativeWatcher = {
@@ -102,7 +102,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 import { NodeFileSystem } from './node.ts';
 
 test('reconciles a watched root when native events omit the filename', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-null-name-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-null-name-'))));
 	const requestedRoot = path.join(path.dirname(rootDir), `${path.basename(rootDir)}-link`);
 	const changedFile = path.join(rootDir, 'entry.ts');
 	const ignoredDirectory = path.join(rootDir, '.cache');
@@ -148,7 +148,7 @@ test('reconciles a watched root when native events omit the filename', async () 
 }, 20_000);
 
 test('reports native change events when file metadata is unchanged', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-change-event-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-change-event-'))));
 	const changedFile = path.join(rootDir, 'entry.ts');
 	writeFileSync(changedFile, 'export const value = 1;', 'utf8');
 	nativeWatchers.watchers.length = 0;
@@ -173,7 +173,7 @@ test('reports native change events when file metadata is unchanged', async () =>
 }, 20_000);
 
 test('retries adding a path after native watcher registration fails', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-add-retry-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-add-retry-'))));
 	const initialRoot = path.join(rootDir, 'initial');
 	const addedRoot = path.join(rootDir, 'added');
 	const addedFile = path.join(addedRoot, 'entry.ts');
@@ -209,7 +209,7 @@ test('retries adding a path after native watcher registration fails', async () =
 }, 20_000);
 
 test('keeps existing native watchers when adding a wider root fails during catch-up', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-add-rollback-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-add-rollback-'))));
 	const existingRoot = path.join(rootDir, 'existing');
 	const existingFile = path.join(existingRoot, 'entry.ts');
 	mkdirSync(existingRoot);
@@ -253,7 +253,7 @@ test('keeps existing native watchers when adding a wider root fails during catch
 }, 20_000);
 
 test('skips permission-denied children while indexing the rest of a watched root', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-permission-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-permission-'))));
 	const deniedFile = path.join(rootDir, 'a-denied.ts');
 	const visibleFile = path.join(rootDir, 'z-visible.ts');
 	writeFileSync(deniedFile, 'export const denied = true;', 'utf8');
@@ -284,7 +284,7 @@ test('skips permission-denied children while indexing the rest of a watched root
 }, 20_000);
 
 test('maps a filename-less parent watcher event to a requested directory root', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-parent-rescan-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-parent-rescan-'))));
 	const realRoot = path.join(rootDir, 'real');
 	const requestedRoot = path.join(rootDir, 'linked');
 	mkdirSync(realRoot);
@@ -313,7 +313,7 @@ test('maps a filename-less parent watcher event to a requested directory root', 
 }, 20_000);
 
 test('does not report an initial rescan for an event received while indexing a new root', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-index-rescan-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-index-rescan-'))));
 	writeFileSync(path.join(rootDir, 'entry.ts'), 'export const value = 1;', 'utf8');
 	nativeWatchers.watchers.length = 0;
 	nativeWatchers.notifications.push({ eventType: 'rename', filename: null });
@@ -336,7 +336,7 @@ test('does not report an initial rescan for an event received while indexing a n
 }, 20_000);
 
 test('catches a file edit during native watcher registration before add resolves', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-add-race-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-add-race-'))));
 	const initialRoot = path.join(rootDir, 'initial');
 	const addedRoot = path.join(rootDir, 'added');
 	const initialFile = path.join(initialRoot, 'initial.ts');
@@ -389,7 +389,7 @@ test('catches a file edit during native watcher registration before add resolves
 }, 20_000);
 
 test('lets native recursive watchers skip subtrees the caller always ignores', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-native-ignore-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-native-ignore-'))));
 	mkdirSync(path.join(rootDir, 'node_modules'));
 	mkdirSync(path.join(rootDir, 'data'));
 	nativeWatchers.watchers.length = 0;
@@ -415,7 +415,7 @@ test('lets native recursive watchers skip subtrees the caller always ignores', a
 }, 20_000);
 
 test('reports a directory the ignore predicate allows after a later add', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-widened-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-widened-'))));
 	const dataFile = path.join(rootDir, 'data', 'x.json');
 	mkdirSync(path.join(rootDir, 'data'));
 	writeFileSync(dataFile, '1');
@@ -431,7 +431,7 @@ test('reports a directory the ignore predicate allows after a later add', async 
 			stats !== undefined &&
 			watchedPath !== rootDir &&
 			![...allowed].some(
-				(allowedPath) => allowedPath === watchedPath || allowedPath.startsWith(`${watchedPath}${path.sep}`),
+				(allowedPath) => allowedPath === watchedPath || allowedPath.startsWith(`${watchedPath}/`),
 			),
 	});
 
@@ -455,7 +455,7 @@ test('reports a directory the ignore predicate allows after a later add', async 
 }, 20_000);
 
 test('treats a new directory removed while it is indexed as gone, not as a watcher error', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-vanished-dir-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-vanished-dir-'))));
 	const addedDirectory = path.join(rootDir, 'added');
 	nativeWatchers.watchers.length = 0;
 	const errors: unknown[] = [];
@@ -486,12 +486,14 @@ test('treats a new directory removed while it is indexed as gone, not as a watch
 }, 20_000);
 
 test('opens no native watcher for a directory found after close', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-close-during-index-')));
+	const rootDir = path.fromNative(
+		realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-close-during-index-'))),
+	);
 	nativeWatchers.watchers.length = 0;
 	let closing: Promise<void> | undefined;
 	const watcher = new NodeFileSystem().watch([rootDir], {
 		onChange: (change) => {
-			if (change.type === 'addDir' && change.path.endsWith(`${path.sep}b`)) closing = watcher.close();
+			if (change.type === 'addDir' && change.path.endsWith(`/b`)) closing = watcher.close();
 		},
 		onError: (error) => {
 			throw error;

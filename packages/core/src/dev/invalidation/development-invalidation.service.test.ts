@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
@@ -23,7 +23,7 @@ class StylesheetProcessor extends Processor {
 		super({
 			name: 'css',
 			watch: {
-				paths: ['/test/project/src'],
+				paths: [path.resolve('/test/project/src')],
 				extensions: ['.css'],
 			},
 			capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }],
@@ -38,7 +38,7 @@ class ContentCollectionProcessor extends Processor {
 		super({
 			name: 'ecopages-content-processor',
 			watch: {
-				paths: ['/test/project/src/content/docs'],
+				paths: [path.resolve('/test/project/src/content/docs')],
 				extensions: ['mdx'],
 			},
 		});
@@ -49,8 +49,8 @@ class ContentCollectionProcessor extends Processor {
 
 describe('DevelopmentInvalidationService', () => {
 	it('keeps one service on each app runtime', async () => {
-		const firstApp = await finalizeEcoPagesConfig({ rootDir: '/test/first-app' });
-		const secondApp = await finalizeEcoPagesConfig({ rootDir: '/test/second-app' });
+		const firstApp = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/first-app') });
+		const secondApp = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/second-app') });
 
 		const firstService = getDevelopmentInvalidationService(firstApp);
 
@@ -59,8 +59,8 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('uses one plan row for each change category', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
-		appConfig.additionalWatchPaths = ['/test/project/tailwind.config.ts'];
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
+		appConfig.additionalWatchPaths = [path.resolve('/test/project/tailwind.config.ts')];
 		appConfig.processors.set('css', new StylesheetProcessor());
 		const service = new DevelopmentInvalidationService(appConfig);
 		const categories: Array<{
@@ -69,7 +69,7 @@ describe('DevelopmentInvalidationService', () => {
 			expected: DevelopmentInvalidationPlan;
 		}> = [
 			{
-				filePath: '/test/project/.env.local',
+				filePath: path.resolve('/test/project/.env.local'),
 				expected: {
 					category: 'runtime-restart',
 					invalidateServerModules: false,
@@ -91,7 +91,7 @@ describe('DevelopmentInvalidationService', () => {
 				},
 			},
 			{
-				filePath: '/test/project/tailwind.config.ts',
+				filePath: path.resolve('/test/project/tailwind.config.ts'),
 				expected: {
 					category: 'additional-watch',
 					invalidateServerModules: true,
@@ -165,10 +165,10 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('returns restart batches without marking their files dirty', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		const service = new DevelopmentInvalidationService(appConfig);
 		const invalidateServerModules = vi.spyOn(service, 'invalidateServerModules');
-		const restartPath = '/test/project/.env.local';
+		const restartPath = path.resolve('/test/project/.env.local');
 
 		const applied = await service.applyDevFileChanges({
 			changed: [restartPath],
@@ -181,7 +181,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('leaves an entry-watcher-owned config module out of invalidation batches', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		const service = new DevelopmentInvalidationService(appConfig);
 		const configPath = appConfig.absolutePaths.config;
 		const context = { entryWatcherOwnsConfig: true };
@@ -207,36 +207,38 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('classifies route, include, processor-owned, and additional-watch changes explicitly', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.additionalWatchPaths = ['**/*.config.ts'];
 		appConfig.processors.set('css', new StylesheetProcessor());
 
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.planFileChange('/test/project/src/pages/index.tsx')).toMatchObject({
+		expect(service.planFileChange(path.resolve('/test/project/src/pages/index.tsx'))).toMatchObject({
 			category: 'route-source',
 			invalidateServerModules: true,
 			refreshRoutes: true,
 			delegateToHmr: true,
 		});
-		expect(service.planFileChange('/test/project/src/includes/seo.kita.tsx')).toMatchObject({
+		expect(service.planFileChange(path.resolve('/test/project/src/includes/seo.kita.tsx'))).toMatchObject({
 			category: 'source',
 			invalidateServerModules: true,
 			reloadBrowser: false,
 			delegateToHmr: true,
 		});
-		expect(service.planFileChange('/test/project/src/views/explicit-team-view.kita.tsx')).toMatchObject({
+		expect(
+			service.planFileChange(path.resolve('/test/project/src/views/explicit-team-view.kita.tsx')),
+		).toMatchObject({
 			category: 'source',
 			invalidateServerModules: true,
 			reloadBrowser: false,
 			delegateToHmr: true,
 		});
-		expect(service.planFileChange('/test/project/src/styles/main.css')).toMatchObject({
+		expect(service.planFileChange(path.resolve('/test/project/src/styles/main.css'))).toMatchObject({
 			category: 'processor-owned-asset',
 			invalidateServerModules: false,
 			processorHandledAsset: true,
 		});
-		expect(service.planFileChange('/test/project/tailwind.config.ts')).toMatchObject({
+		expect(service.planFileChange(path.resolve('/test/project/tailwind.config.ts'))).toMatchObject({
 			category: 'additional-watch',
 			reloadBrowser: true,
 			invalidateServerModules: true,
@@ -244,19 +246,20 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('reloads when a source module is shared by server-rendered markup and an island', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		const service = new DevelopmentInvalidationService(appConfig);
-		const sharedModule = '/test/project/src/components/shared.tsx';
-		const serverOnlyModule = '/test/project/src/components/server-only.tsx';
+		const sharedModule = path.resolve('/test/project/src/components/shared.tsx');
+		const serverOnlyModule = path.resolve('/test/project/src/components/server-only.tsx');
 		const inputIndex = requireAppRuntime(appConfig).buildInputIndex;
-		inputIndex.register({ consumer: 'server-route-module', key: '/test/project/src/pages/index.tsx' }, [
-			'/test/project/src/pages/index.tsx',
+		inputIndex.register(
+			{ consumer: 'server-route-module', key: path.resolve('/test/project/src/pages/index.tsx') },
+			[path.resolve('/test/project/src/pages/index.tsx'), sharedModule, serverOnlyModule],
+		);
+		inputIndex.register({ consumer: 'entrypoint', key: path.resolve('/test/project/src/islands/counter.tsx') }, [
 			sharedModule,
-			serverOnlyModule,
 		]);
-		inputIndex.register({ consumer: 'entrypoint', key: '/test/project/src/islands/counter.tsx' }, [sharedModule]);
-		inputIndex.register({ consumer: 'entrypoint', key: '/test/project/src/islands/standalone.tsx' }, [
-			'/test/project/src/components/island-only.tsx',
+		inputIndex.register({ consumer: 'entrypoint', key: path.resolve('/test/project/src/islands/standalone.tsx') }, [
+			path.resolve('/test/project/src/components/island-only.tsx'),
 		]);
 
 		expect(service.planFileChange(sharedModule)).toMatchObject({
@@ -270,7 +273,7 @@ describe('DevelopmentInvalidationService', () => {
 			invalidateServerModules: true,
 			reloadBrowser: false,
 		});
-		expect(service.planFileChange('/test/project/src/components/island-only.tsx')).toMatchObject({
+		expect(service.planFileChange(path.resolve('/test/project/src/components/island-only.tsx'))).toMatchObject({
 			category: 'source',
 			invalidateServerModules: true,
 			reloadBrowser: false,
@@ -279,25 +282,27 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('announces each applied change batch to the build-input index', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		const announced: string[][] = [];
 		requireAppRuntime(appConfig).buildInputIndex.subscribeToChanges((filePaths) => announced.push([...filePaths]));
 		const service = new DevelopmentInvalidationService(appConfig);
 
 		await service.applyDevFileChanges({
-			changed: ['/test/project/src/lib/helper.ts'],
+			changed: [path.resolve('/test/project/src/lib/helper.ts')],
 			created: [],
-			deleted: ['/test/project/src/styles/old.css'],
+			deleted: [path.resolve('/test/project/src/styles/old.css')],
 		});
 
-		expect(announced).toEqual([['/test/project/src/lib/helper.ts', '/test/project/src/styles/old.css']]);
+		expect(announced).toEqual([
+			[path.resolve('/test/project/src/lib/helper.ts'), path.resolve('/test/project/src/styles/old.css')],
+		]);
 	});
 
 	it('invalidates cached Page Browser Graphs that depend on a changed file', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		const session = requireAppRuntime(appConfig).pageBrowserGraphSession;
-		const routeFile = '/test/project/src/pages/index.kita.tsx';
-		const helperFile = '/test/project/src/lib/helper.ts';
+		const routeFile = path.resolve('/test/project/src/pages/index.kita.tsx');
+		const helperFile = path.resolve('/test/project/src/lib/helper.ts');
 		const build = vi.fn(async () => ({
 			result: { entryAssets: [], chunkAssets: [] },
 			dependencyPaths: new Set([routeFile, helperFile]),
@@ -327,10 +332,10 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('unregisters route-module inputs when a route is removed', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		const index = requireAppRuntime(appConfig).buildInputIndex;
-		const routeFile = '/test/project/src/pages/about.tsx';
-		const helperFile = '/test/project/src/lib/page-title.ts';
+		const routeFile = path.resolve('/test/project/src/pages/about.tsx');
+		const helperFile = path.resolve('/test/project/src/lib/page-title.ts');
 		index.register({ consumer: 'server-route-module', key: routeFile }, [routeFile, helperFile]);
 		const service = new DevelopmentInvalidationService(appConfig);
 
@@ -341,62 +346,66 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('does not treat siblings that share a directory prefix as inside it', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.planFileChange('/test/project/src/public/logo.svg')).toMatchObject({ category: 'public-asset' });
+		expect(service.planFileChange(path.resolve('/test/project/src/public/logo.svg'))).toMatchObject({
+			category: 'public-asset',
+		});
 		for (const sibling of ['src/public-api/client.ts', 'src/pages-old/a.ts', 'src/includes-old/a.ts']) {
 			expect(service.planFileChange(`/test/project/${sibling}`)).toMatchObject({ category: 'source' });
 		}
-		expect(service.planFileChange('/test/project/src-old/a.ts')).toMatchObject({ category: 'other' });
+		expect(service.planFileChange(path.resolve('/test/project/src-old/a.ts'))).toMatchObject({ category: 'other' });
 	});
 
 	it('matches directory and root-relative additionalWatchPaths', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.additionalWatchPaths = ['src/registry'];
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.matchesAdditionalWatchPaths('/test/project/src/registry/widget.ts')).toBe(true);
-		expect(service.matchesAdditionalWatchPaths('/test/project/src/registry')).toBe(true);
-		expect(service.matchesAdditionalWatchPaths('/test/project/src/pages/index.tsx')).toBe(false);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/src/registry/widget.ts'))).toBe(true);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/src/registry'))).toBe(true);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/src/pages/index.tsx'))).toBe(false);
 	});
 
 	it('matches universal additionalWatchPaths globs under the root directory', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.additionalWatchPaths = ['**/*'];
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.matchesAdditionalWatchPaths('/test/project/elsewhere/widget.ts')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/elsewhere/widget.ts'))).toBe(true);
 		expect(service.matchesAdditionalWatchPaths('/elsewhere/widget.ts')).toBe(false);
 	});
 
 	it('matches additionalWatchPaths globs with intermediate directories', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.additionalWatchPaths = ['content/**/*.md'];
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.matchesAdditionalWatchPaths('/test/project/content/blog/post.md')).toBe(true);
-		expect(service.matchesAdditionalWatchPaths('/test/project/src/post.md')).toBe(false);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/content/blog/post.md'))).toBe(true);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/src/post.md'))).toBe(false);
 	});
 
 	it('matches a leading ** glob at any depth inside the root directory only', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.additionalWatchPaths = ['**/*.config.ts'];
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.matchesAdditionalWatchPaths('/test/project/packages/ui/vite.config.ts')).toBe(true);
-		expect(service.matchesAdditionalWatchPaths('/test/project/src/not-a.config.ts.bak')).toBe(false);
-		expect(service.matchesAdditionalWatchPaths('/test/project/src/config.ts')).toBe(false);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/packages/ui/vite.config.ts'))).toBe(
+			true,
+		);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/src/not-a.config.ts.bak'))).toBe(false);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/src/config.ts'))).toBe(false);
 		expect(service.matchesAdditionalWatchPaths('/elsewhere/vite.config.ts')).toBe(false);
 	});
 
 	it('anchors additionalWatchPaths globs at the root directory', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.additionalWatchPaths = ['*.css'];
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.matchesAdditionalWatchPaths('/test/project/global.css')).toBe(true);
-		expect(service.matchesAdditionalWatchPaths('/test/project/src/global.css')).toBe(false);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/global.css'))).toBe(true);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/src/global.css'))).toBe(false);
 	});
 
 	it('matches additionalWatchPaths globs under a root directory with glob characters', async () => {
@@ -409,30 +418,30 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('matches additionalWatchPaths globs outside the root directory and with literal brackets', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.additionalWatchPaths = ['../shared/**/*.ts', '/abs/data/*.json', 'src/pages/[[]slug]/*.md'];
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.matchesAdditionalWatchPaths('/test/shared/lib/format.ts')).toBe(true);
-		expect(service.matchesAdditionalWatchPaths('/test/project/lib/format.ts')).toBe(false);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/shared/lib/format.ts'))).toBe(true);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/lib/format.ts'))).toBe(false);
 		expect(service.matchesAdditionalWatchPaths('/abs/data/site.json')).toBe(true);
-		expect(service.matchesAdditionalWatchPaths('/test/project/src/pages/[slug]/intro.md')).toBe(true);
-		expect(service.matchesAdditionalWatchPaths('/test/project/src/pages/s/intro.md')).toBe(false);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/src/pages/[slug]/intro.md'))).toBe(true);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/src/pages/s/intro.md'))).toBe(false);
 	});
 
 	it('matches dot segments only through pattern segments that start with a dot', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.additionalWatchPaths = ['**/*.md', '.github/**/*.yml'];
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.matchesAdditionalWatchPaths('/test/project/docs/intro.md')).toBe(true);
-		expect(service.matchesAdditionalWatchPaths('/test/project/.cache/intro.md')).toBe(false);
-		expect(service.matchesAdditionalWatchPaths('/test/project/docs/.draft.md')).toBe(false);
-		expect(service.matchesAdditionalWatchPaths('/test/project/.github/workflows/ci.yml')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/docs/intro.md'))).toBe(true);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/.cache/intro.md'))).toBe(false);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/docs/.draft.md'))).toBe(false);
+		expect(service.matchesAdditionalWatchPaths(path.resolve('/test/project/.github/workflows/ci.yml'))).toBe(true);
 	});
 
 	it('advances the app module loader development generation once per invalidation', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		const moduleLoader = requireAppRuntime(appConfig).moduleLoader;
 		const service = new DevelopmentInvalidationService(appConfig);
 
@@ -443,14 +452,14 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('invalidates server modules for a public file or processor-owned asset a route module read', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.processors.set('css', new StylesheetProcessor());
 		const service = new DevelopmentInvalidationService(appConfig);
 		const publicFile = path.join(appConfig.absolutePaths.publicDir, 'data.json');
 		const stylesheet = path.join(appConfig.absolutePaths.srcDir, 'styles/main.css');
 		const unreadStylesheet = path.join(appConfig.absolutePaths.srcDir, 'styles/other.css');
 		requireAppRuntime(appConfig).buildInputIndex.register(
-			{ consumer: 'server-route-module', key: '/test/project/page.tsx' },
+			{ consumer: 'server-route-module', key: path.resolve('/test/project/page.tsx') },
 			[publicFile, stylesheet],
 		);
 
@@ -477,7 +486,7 @@ describe('DevelopmentInvalidationService', () => {
 
 	it('clears in-process route-module entries before a route imports them', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-development-invalidation-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-development-invalidation-')));
 
 		try {
 			const appConfig = await finalizeEcoPagesConfig({ rootDir });
@@ -544,12 +553,14 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('does not treat watch-only processors as asset owners', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.processors.set('content', new ContentCollectionProcessor());
 
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.planFileChange('/test/project/src/content/docs/getting-started.mdx')).toMatchObject({
+		expect(
+			service.planFileChange(path.resolve('/test/project/src/content/docs/getting-started.mdx')),
+		).toMatchObject({
 			category: 'source',
 			invalidateServerModules: true,
 			delegateToHmr: true,
@@ -558,7 +569,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('classifies eco.config and dotenv files as runtime-restart', async () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-runtime-restart-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-runtime-restart-')));
 		const configPath = path.join(rootDir, 'eco.config.ts');
 		const envPath = path.join(rootDir, '.env');
 
@@ -579,7 +590,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('classifies a project file the config imports as runtime-restart', async () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-config-import-restart-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-config-import-restart-')));
 		const configPath = path.join(rootDir, 'eco.config.ts');
 		const optionsPath = path.join(rootDir, 'mdx-plugin-options.ts');
 
@@ -602,7 +613,7 @@ describe('DevelopmentInvalidationService', () => {
 
 	it('marks a 50-file batch dirty with one server invalidation and one route-module cache clear', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-dev-file-batch-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-dev-file-batch-')));
 		let appConfig: Awaited<ReturnType<typeof finalizeEcoPagesConfig>> | undefined;
 
 		try {
@@ -657,7 +668,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('plans created and deleted pages in one batch without rebuilding them', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		const moduleLoader = requireAppRuntime(appConfig).moduleLoader;
 		let imported = false;
 		vi.spyOn(moduleLoader, 'importModule').mockImplementation(async <T = unknown>() => {
@@ -665,8 +676,8 @@ describe('DevelopmentInvalidationService', () => {
 			return {} as T;
 		});
 		const service = new DevelopmentInvalidationService(appConfig);
-		const created = '/test/project/src/pages/new-page.tsx';
-		const deleted = '/test/project/src/pages/old-page.tsx';
+		const created = path.resolve('/test/project/src/pages/new-page.tsx');
+		const deleted = path.resolve('/test/project/src/pages/old-page.tsx');
 
 		const applied = await service.applyDevFileChanges({
 			changed: [],
@@ -681,7 +692,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('does not drop cached HTML when a processor-owned stylesheet is created', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.processors.set('css', new StylesheetProcessor());
 		const pageCache = new PageCacheService();
 		requireAppRuntime(appConfig).pageCache = pageCache;
@@ -690,7 +701,7 @@ describe('DevelopmentInvalidationService', () => {
 
 		await service.applyDevFileChanges({
 			changed: [],
-			created: ['/test/project/src/styles/main.css'],
+			created: [path.resolve('/test/project/src/styles/main.css')],
 			deleted: [],
 		});
 
@@ -699,7 +710,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('evicts only the cached HTML documents that recorded a changed processor-owned stylesheet', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.processors.set('css', new StylesheetProcessor());
 		const runtime = requireAppRuntime(appConfig);
 		const pageCache = new PageCacheService({ dependencyIndex: runtime.buildInputIndex });
@@ -709,24 +720,24 @@ describe('DevelopmentInvalidationService', () => {
 		const service = new DevelopmentInvalidationService(appConfig);
 
 		await service.applyDevFileChanges({
-			changed: ['/test/project/src/styles/main.css'],
+			changed: [path.resolve('/test/project/src/styles/main.css')],
 			created: [],
 			deleted: [],
 		});
 
 		expect(clearHtml).not.toHaveBeenCalled();
-		expect(invalidateHtml).toHaveBeenCalledWith(['/test/project/src/styles/main.css']);
+		expect(invalidateHtml).toHaveBeenCalledWith([path.resolve('/test/project/src/styles/main.css')]);
 		runtime.pageCache = null;
 	});
 
 	it('evicts only the cached HTML documents that recorded a changed source file', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		const runtime = requireAppRuntime(appConfig);
 		const pageCache = new PageCacheService({ dependencyIndex: runtime.buildInputIndex });
 		runtime.pageCache = pageCache;
 		const clearHtml = vi.spyOn(pageCache, 'clear');
 		const service = new DevelopmentInvalidationService(appConfig);
-		const changedSource = '/test/project/src/components/dependency-discovery/counter.lit.tsx';
+		const changedSource = path.resolve('/test/project/src/components/dependency-discovery/counter.lit.tsx');
 		let affectedRenders = 0;
 		let unrelatedRenders = 0;
 		const renderAffected = async () => {
@@ -742,7 +753,7 @@ describe('DevelopmentInvalidationService', () => {
 			return {
 				html: `<p>unrelated ${unrelatedRenders}</p>`,
 				strategy: 'static' as const,
-				sourceDependencyPaths: ['/test/project/src/components/other.tsx'],
+				sourceDependencyPaths: [path.resolve('/test/project/src/components/other.tsx')],
 			};
 		};
 
@@ -765,7 +776,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('clears cached HTML when an additional watch path has no page-level dependency mapping', async () => {
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.additionalWatchPaths = ['data'];
 		const runtime = requireAppRuntime(appConfig);
 		const pageCache = new PageCacheService({ dependencyIndex: runtime.buildInputIndex });
@@ -777,11 +788,11 @@ describe('DevelopmentInvalidationService', () => {
 		await pageCache.getOrCreate('/page', 'static', async () => ({
 			html: `<p>${++renders}</p>`,
 			strategy: 'static',
-			sourceDependencyPaths: ['/test/project/src/pages/page.tsx'],
+			sourceDependencyPaths: [path.resolve('/test/project/src/pages/page.tsx')],
 		}));
 
 		await service.applyDevFileChanges({
-			changed: ['/test/project/data/site.json'],
+			changed: [path.resolve('/test/project/data/site.json')],
 			created: [],
 			deleted: [],
 		});
@@ -789,7 +800,7 @@ describe('DevelopmentInvalidationService', () => {
 		await pageCache.getOrCreate('/page', 'static', async () => ({
 			html: `<p>${++renders}</p>`,
 			strategy: 'static',
-			sourceDependencyPaths: ['/test/project/src/pages/page.tsx'],
+			sourceDependencyPaths: [path.resolve('/test/project/src/pages/page.tsx')],
 		}));
 
 		expect(clearHtml).toHaveBeenCalledTimes(1);

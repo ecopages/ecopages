@@ -2,8 +2,7 @@
 
 import { spawn } from 'node:child_process';
 import os from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
 import { createLaunchPlan, resolveEcoConfigFilePath } from './launch-plan.js';
@@ -20,7 +19,7 @@ import { withBrandBanner } from './brand.js';
 
 const logger = new Logger('[ecopages:cli]', { debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG') });
 
-const pkg = JSON.parse(fileSystem.readFileSync(fileURLToPath(new URL('../package.json', import.meta.url))));
+const pkg = JSON.parse(fileSystem.readFileSync(path.fromFileUrl(new URL('../package.json', import.meta.url))));
 
 const sharedServerOptionDefinitions = {
 	port: {
@@ -388,7 +387,7 @@ const SERVER_COMMANDS = {
 		description:
 			'Load eco.config.ts so processors write the types for virtual modules such as ecopages:images, then exit. The app entry does not run. Run it before tsc.',
 		entryArgs: [],
-		resolveEntry: () => fileURLToPath(import.meta.resolve('@ecopages/core/config/write-types')),
+		resolveEntry: () => path.fromFileUrl(import.meta.resolve('@ecopages/core/config/write-types')),
 		ignoredOptions: ['port', 'hostname', 'base-url', 'entry-file'],
 		optionOverrides: { nodeEnv: 'production' },
 	},

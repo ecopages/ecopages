@@ -1,6 +1,6 @@
 import { describe, expect, test, afterEach, beforeEach, vi } from 'vitest';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import fs from 'node:fs';
 import postcss from 'postcss';
 import postcssNested from 'postcss-nested';
@@ -26,7 +26,7 @@ function hashedCssContents(): string[] {
 
 describe('PostCssProcessorPlugin HMR', () => {
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'postcss-plugin-test-'));
+		tmpDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'postcss-plugin-test-')));
 		srcDir = path.join(tmpDir, 'src');
 		distDir = path.join(tmpDir, 'dist', 'client');
 		fs.mkdirSync(srcDir, { recursive: true });

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponent, EcoComponentConfig } from '@ecopages/core';
 
 type OwnershipModule = typeof import('./ecopages-jsx-hmr-ownership.ts');
@@ -7,8 +8,8 @@ let getEjsxHmrOwnership: OwnershipModule['getEjsxHmrOwnership'];
 let recordEjsxHmrOwnership: OwnershipModule['recordEjsxHmrOwnership'];
 let withEjsxHmrOwnershipScope: OwnershipModule['withEjsxHmrOwnershipScope'];
 
-const PAGE_FILE = '/test/project/src/pages/docs/[...slug]/index.tsx';
-const MDX_FILE = '/test/project/src/content/docs/intro.mdx';
+const PAGE_FILE = path.resolve('/test/project/src/pages/docs/[...slug]/index.tsx');
+const MDX_FILE = path.resolve('/test/project/src/content/docs/intro.mdx');
 
 function makeComponent(file: string): EcoComponent {
 	const fn = (() => undefined) as unknown as EcoComponent;

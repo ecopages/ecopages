@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../types/contracts.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type {

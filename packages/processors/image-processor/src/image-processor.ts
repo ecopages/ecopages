@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { writeHashedBrowserAsset } from '@ecopages/core/processor';
 import { mergeProcessorOptions } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';

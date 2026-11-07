@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { EcoPageComponent, ViewLoader } from '../../types/contracts.ts';

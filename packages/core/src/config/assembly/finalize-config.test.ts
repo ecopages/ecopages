@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import { requireAppRuntime } from './app-runtime.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
@@ -43,7 +43,7 @@ describe('finalizeEcoPagesConfig configModuleFiles', () => {
 		{ source: 'a config loaded from source', configFile: 'eco.config.ts', scanned: true },
 		{ source: 'the emitted production config', configFile: 'dist/server/eco.config.mjs', scanned: false },
 	])('lists the files that $source imports only when it is scanned', async ({ configFile, scanned }) => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-module-files-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-module-files-')));
 		try {
 			const optionsPath = path.join(rootDir, 'src/options.ts');
 			const configFilePath = path.join(rootDir, configFile);
@@ -66,7 +66,7 @@ describe('finalizeEcoPagesConfig configModuleFiles', () => {
 	});
 
 	test('lists only the default config path for an in-memory config', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-module-files-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-module-files-')));
 		try {
 			fs.writeFileSync(path.join(rootDir, 'eco.config.ts'), "import './never-scanned';\nexport default {};\n");
 
@@ -112,8 +112,8 @@ describe('finalizeEcoPagesConfig', () => {
 	});
 
 	test('rejects plugin instances reused through direct config finalization', async () => {
-		const firstRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-plugin-owner-first-'));
-		const secondRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-plugin-owner-second-'));
+		const firstRoot = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'eco-plugin-owner-first-')));
+		const secondRoot = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'eco-plugin-owner-second-')));
 		const processor = new (class extends Processor {
 			constructor() {
 				super({ name: 'shared-processor' });
@@ -170,7 +170,7 @@ describe('finalizeEcoPagesConfig', () => {
 		const config = await finalize({ baseUrl: 'https://example.com' });
 
 		expect(config.baseUrl).toBe('https://example.com');
-		expect(config.rootDir).toBe('/project');
+		expect(config.rootDir).toBe(path.resolve('/project'));
 	});
 
 	test('should set default baseUrl it is not set', async () => {
@@ -179,8 +179,8 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(config.baseUrl).toBe(`http://${DEFAULT_ECOPAGES_HOSTNAME}:${DEFAULT_ECOPAGES_PORT}`);
 		expect(config.distDir).toBe('dist');
 		expect(config.workDir).toBe('.eco');
-		expect(config.absolutePaths.distDir).toBe(path.join('/project', 'dist', 'client'));
-		expect(config.absolutePaths.workDir).toBe(path.join('/project', '.eco'));
+		expect(config.absolutePaths.distDir).toBe(path.resolve('/project', 'dist', 'client'));
+		expect(config.absolutePaths.workDir).toBe(path.resolve('/project', '.eco'));
 	});
 
 	test('should fall back to ECOPAGES_BASE_URL when baseUrl is not set', async () => {
@@ -191,7 +191,7 @@ describe('finalizeEcoPagesConfig', () => {
 
 	test('should default absolutePaths.config to eco.config.ts in rootDir', async () => {
 		const config = await finalize();
-		expect(config.absolutePaths.config).toBe(path.join('/project', 'eco.config.ts'));
+		expect(config.absolutePaths.config).toBe(path.resolve('/project', 'eco.config.ts'));
 	});
 
 	test('should honor configFilePath for absolutePaths.config', async () => {
@@ -200,12 +200,12 @@ describe('finalizeEcoPagesConfig', () => {
 			{ configFilePath: '/project/config/eco.staging.ts' },
 		);
 
-		expect(config.absolutePaths.config).toBe('/project/config/eco.staging.ts');
+		expect(config.absolutePaths.config).toBe(path.resolve('/project/config/eco.staging.ts'));
 	});
 
 	test('should resolve a relative rootDir against cwd', async () => {
 		const config = await finalizeEcoPagesConfig({ rootDir: 'app' }, { cwd: '/workspace' });
-		expect(config.rootDir).toBe(path.join('/workspace', 'app'));
+		expect(config.rootDir).toBe(path.resolve('/workspace', 'app'));
 	});
 
 	test('should create a dedicated build adapter per app config', async () => {
@@ -219,7 +219,7 @@ describe('finalizeEcoPagesConfig', () => {
 	});
 
 	test('should finalize processor and integration manifest contributions during config build', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-finalize-config-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-finalize-config-')));
 		const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
 		const processorBrowserPlugin = { name: 'processor-browser-plugin', setup() {} };
 		const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
@@ -284,15 +284,15 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(config.publicDir).toBe('custom-public');
 		expect(config.distDir).toBe('custom-dist');
 		expect(config.workDir).toBe('custom-work');
-		expect(config.absolutePaths.workDir).toBe(path.join('/project', 'custom-work'));
+		expect(config.absolutePaths.workDir).toBe(path.resolve('/project', 'custom-work'));
 	});
 
 	test('should derive semantic html, 404, and 500 template paths', async () => {
 		vi.spyOn(fileSystem, 'exists').mockImplementation((candidate) => {
 			return (
-				candidate === path.join('/project', 'src', 'includes', 'html.test1') ||
-				candidate === path.join('/project', 'src', 'pages', '404.test2') ||
-				candidate === path.join('/project', 'src', 'pages', '500.test2')
+				candidate === path.resolve('/project', 'src', 'includes', 'html.test1') ||
+				candidate === path.resolve('/project', 'src', 'pages', '404.test2') ||
+				candidate === path.resolve('/project', 'src', 'pages', '500.test2')
 			);
 		});
 
@@ -300,16 +300,16 @@ describe('finalizeEcoPagesConfig', () => {
 			integrations: [createMockIntegration('test-integration', ['.test1', '.test2'])],
 		});
 
-		expect(config.absolutePaths.htmlTemplatePath).toBe(path.join('/project', 'src', 'includes', 'html.test1'));
-		expect(config.absolutePaths.error404TemplatePath).toBe(path.join('/project', 'src', 'pages', '404.test2'));
-		expect(config.absolutePaths.error500TemplatePath).toBe(path.join('/project', 'src', 'pages', '500.test2'));
+		expect(config.absolutePaths.htmlTemplatePath).toBe(path.resolve('/project', 'src', 'includes', 'html.test1'));
+		expect(config.absolutePaths.error404TemplatePath).toBe(path.resolve('/project', 'src', 'pages', '404.test2'));
+		expect(config.absolutePaths.error500TemplatePath).toBe(path.resolve('/project', 'src', 'pages', '500.test2'));
 	});
 
 	test('should throw for duplicate semantic html templates', async () => {
 		vi.spyOn(fileSystem, 'exists').mockImplementation((candidate) => {
 			return (
-				candidate === path.join('/project', 'src', 'includes', 'html.test1') ||
-				candidate === path.join('/project', 'src', 'includes', 'html.test2')
+				candidate === path.resolve('/project', 'src', 'includes', 'html.test1') ||
+				candidate === path.resolve('/project', 'src', 'includes', 'html.test2')
 			);
 		});
 
@@ -365,8 +365,8 @@ describe('finalizeEcoPagesConfig', () => {
 	test('should derive absolutePaths correctly', async () => {
 		const config = await finalize({ srcDir: 'custom-src', pagesDir: 'custom-pages' });
 
-		expect(config.absolutePaths.srcDir).toBe(path.join('/project', 'custom-src'));
-		expect(config.absolutePaths.pagesDir).toBe(path.join('/project', 'custom-src', 'custom-pages'));
+		expect(config.absolutePaths.srcDir).toBe(path.resolve('/project', 'custom-src'));
+		expect(config.absolutePaths.pagesDir).toBe(path.resolve('/project', 'custom-src', 'custom-pages'));
 	});
 
 	test('should derive templatesExt correctly', async () => {
@@ -385,13 +385,13 @@ describe('finalizeEcoPagesConfig', () => {
 
 		expect(config.integrations.map((integration) => integration.name)).toEqual(['html-pages']);
 		expect(config.templatesExt).toEqual(['.html']);
-		expect(config.absolutePaths.htmlTemplatePath).toBe(path.join('/project', 'src', 'includes', 'html.html'));
-		expect(config.absolutePaths.error404TemplatePath).toBe(path.join('/project', 'src', 'pages', '404.html'));
-		expect(config.absolutePaths.error500TemplatePath).toBe(path.join('/project', 'src', 'pages', '500.html'));
+		expect(config.absolutePaths.htmlTemplatePath).toBe(path.resolve('/project', 'src', 'includes', 'html.html'));
+		expect(config.absolutePaths.error404TemplatePath).toBe(path.resolve('/project', 'src', 'pages', '404.html'));
+		expect(config.absolutePaths.error500TemplatePath).toBe(path.resolve('/project', 'src', 'pages', '500.html'));
 	});
 
 	test('resolves semantic templates from the production map when sources are gone', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-semantic-from-map-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'eco-semantic-from-map-')));
 		try {
 			const serverOutdir = path.join(rootDir, 'dist/server');
 			fs.mkdirSync(serverOutdir, { recursive: true });

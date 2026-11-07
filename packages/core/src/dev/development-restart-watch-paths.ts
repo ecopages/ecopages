@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { getNodeEnvironment } from '../env.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { getDevEnvFileNames } from './development-restart.ts';

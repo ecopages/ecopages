@@ -1,5 +1,5 @@
 import { contentHash } from '../../utils/content-hash.ts';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { fileSystem } from '@ecopages/file-system';
 import { RESOLVED_ASSETS_VENDORS_DIR } from '../../constants.ts';
@@ -666,7 +666,7 @@ export class DevTransformVendorRegistry {
 		return this.browserBundleService.bundle({
 			lane: 'build',
 			entrypoints: {
-				...Object.fromEntries(entries.map((entry) => [path.posix.basename(entry.url, '.js'), entry.entryPath])),
+				...Object.fromEntries(entries.map((entry) => [path.basename(entry.url, '.js'), entry.entryPath])),
 				[PIN_ENTRY_NAME]: PIN_SPECIFIER,
 			},
 			outdir: this.resolveOutdir(),
@@ -692,7 +692,7 @@ export class DevTransformVendorRegistry {
 		const outputs = new Map<string, string>();
 		for (const output of result.outputs) {
 			if (typeof output.content !== 'string') continue;
-			const relative = path.relative(outdir, output.path).split(path.sep).join('/');
+			const relative = path.relative(outdir, output.path);
 			outputs.set(`/${RESOLVED_ASSETS_VENDORS_DIR}/${relative}`, output.content);
 		}
 		return outputs;

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { onTestFinished, test } from 'vitest';
 import { isDeclaredAppPackageImport, isWorkspacePackageImport } from './app-package-declarations.ts';
 
 test('isWorkspacePackageImport detects workspace protocol dependencies', () => {
-	const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-workspace-'));
+	const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-workspace-')));
 	onTestFinished(() => rmSync(rootDir, { recursive: true, force: true }));
 	writeFileSync(
 		path.join(rootDir, 'package.json'),
@@ -24,7 +24,7 @@ test('isWorkspacePackageImport detects workspace protocol dependencies', () => {
 });
 
 test('isDeclaredAppPackageImport detects app-declared dependencies', () => {
-	const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-declared-'));
+	const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-declared-')));
 	onTestFinished(() => rmSync(rootDir, { recursive: true, force: true }));
 	writeFileSync(
 		path.join(rootDir, 'package.json'),

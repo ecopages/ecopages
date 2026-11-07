@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponent } from '../../../types/contracts.ts';
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
 import { appLogger } from '../../../global/app-logger.ts';
@@ -27,7 +28,7 @@ export class LayoutChildrenNotRenderedError extends Error {
 	static forLayout(layout: EcoComponent, page: EcoComponent): LayoutChildrenNotRenderedError {
 		const layoutFile = getComponentIdentity(layout)?.file;
 		if (layoutFile) {
-			const fileName = layoutFile.split(/[\\/]/).pop() ?? layoutFile;
+			const fileName = path.basename(layoutFile);
 			return new LayoutChildrenNotRenderedError(fileName.replace(/\..*$/, ''), layoutFile);
 		}
 

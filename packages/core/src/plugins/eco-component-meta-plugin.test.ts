@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
 import {
@@ -15,7 +15,7 @@ import type { EcoPagesAppConfig } from '../config/internal-types';
  * relative to the `/path/to` app root of these tests.
  */
 function ecoMetaPattern(file: string, integration: string): RegExp {
-	const escapedFile = path.posix.relative('/path/to', file).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const escapedFile = path.relative('/path/to', file).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 	return new RegExp(
 		`bindComponentIdentity\\(\\{ id: "[a-z0-9]+", file: "${escapedFile}", integration: "${integration}" \\},`,
 	);

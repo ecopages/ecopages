@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { shouldBuildPagesUnifiedGraph } from '@ecopages/core/build';
 import type { EcoBuildPlugin } from '@ecopages/core/processor';
 import {

@@ -33,7 +33,11 @@ describe('startup-bench-process', () => {
 		expect(child.signalCode).toBe('SIGTERM');
 	});
 
-	it('kills a child that ignores SIGTERM once the timeout passes', async () => {
+	/**
+	 * @remarks
+	 * Windows has no signals: `kill('SIGTERM')` ends the process at once, so a child cannot ignore it there.
+	 */
+	it.skipIf(process.platform === 'win32')('kills a child that ignores SIGTERM once the timeout passes', async () => {
 		const child = spawnNode(`process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)`);
 		await waitForSpawn(child);
 		await new Promise((resolve) => setTimeout(resolve, 300));

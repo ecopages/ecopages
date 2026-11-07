@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, afterEach, vi, type Mock } from 'vitest';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import os from 'node:os';
 import { mkdirSync, mkdtempSync, writeFileSync, utimesSync, rmSync, realpathSync } from 'node:fs';
 import { fileSystem, type FileStats, type WatchOptions } from '@ecopages/file-system';
@@ -19,7 +19,7 @@ import {
 	type FakeFileSystemWatchOptions,
 } from './project-watcher.test-helpers.ts';
 
-const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
+const createMockConfig = async (rootDir = path.resolve('/test/project')): Promise<EcoPagesAppConfig> => {
 	return await finalizeEcoPagesConfig({ rootDir });
 };
 
@@ -29,7 +29,7 @@ const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppC
 function stylesheetProcessor(onChanges: Mock<() => Promise<void>>): never {
 	return {
 		getWatchConfig: vi.fn(() => ({
-			paths: ['/test/project/src'],
+			paths: [path.resolve('/test/project/src')],
 			extensions: ['.css', '.tsx'],
 			onChanges,
 		})),
@@ -299,7 +299,10 @@ describe('ProjectWatcher', () => {
 				file: (c) => path.join(c.absolutePaths.srcDir, 'app.js'),
 				arrange: ({ config }) =>
 					config.processors.set('css', {
-						getWatchConfig: vi.fn(() => ({ paths: ['/test/project/src'], extensions: ['.css'] })),
+						getWatchConfig: vi.fn(() => ({
+							paths: [path.resolve('/test/project/src')],
+							extensions: ['.css'],
+						})),
 					} as never),
 				expected: delegated,
 			},
@@ -333,7 +336,10 @@ describe('ProjectWatcher', () => {
 				file: (c) => path.join(c.absolutePaths.srcDir, 'content.mdx'),
 				arrange: ({ config }) =>
 					config.processors.set('mdx', {
-						getWatchConfig: vi.fn(() => ({ paths: ['/test/project/src'], extensions: ['.mdx'] })),
+						getWatchConfig: vi.fn(() => ({
+							paths: [path.resolve('/test/project/src')],
+							extensions: ['.mdx'],
+						})),
 						getAssetCapabilities: vi.fn(() => [{ kind: 'script', extensions: ['*.mdx'] }]),
 						canProcessAsset: vi.fn(
 							(kind: string, filepath?: string) => kind === 'script' && filepath?.endsWith('.mdx'),
@@ -343,7 +349,7 @@ describe('ProjectWatcher', () => {
 			},
 			{
 				name: 'a file matching an additionalWatchPaths glob',
-				file: () => '/test/project/app.config.ts',
+				file: () => path.resolve('/test/project/app.config.ts'),
 				arrange: ({ config }) => {
 					config.additionalWatchPaths = ['**/*.config.ts'];
 				},
@@ -351,19 +357,23 @@ describe('ProjectWatcher', () => {
 			},
 			{
 				name: 'a file named exactly by additionalWatchPaths',
-				file: () => '/test/project/tailwind.config.ts',
+				file: () => path.resolve('/test/project/tailwind.config.ts'),
 				arrange: ({ config }) => {
-					config.additionalWatchPaths = ['/test/project/tailwind.config.ts'];
+					config.additionalWatchPaths = [path.resolve('/test/project/tailwind.config.ts')];
 				},
 				expected: reloaded,
 			},
 			{
 				name: 'an additionalWatchPaths file a processor also watches',
-				file: () => '/test/project/app.config.ts',
+				file: () => path.resolve('/test/project/app.config.ts'),
 				arrange: ({ config, onChanges }) => {
 					config.additionalWatchPaths = ['**/*.config.ts'];
 					config.processors.set('ts', {
-						getWatchConfig: vi.fn(() => ({ paths: ['/test/project'], extensions: ['.ts'], onChanges })),
+						getWatchConfig: vi.fn(() => ({
+							paths: [path.resolve('/test/project')],
+							extensions: ['.ts'],
+							onChanges,
+						})),
 					} as never);
 				},
 				expected: { ...reloaded, processorNotified: true },
@@ -524,7 +534,7 @@ describe('ProjectWatcher', () => {
 			const onChanges = vi.fn(async () => {});
 			const watchConfig = (handler: typeof onChanges) => ({
 				getWatchConfig: vi.fn(() => ({
-					paths: ['/test/project/src'],
+					paths: [path.resolve('/test/project/src')],
 					extensions: ['.tsx'],
 					onChanges: handler,
 				})),
@@ -652,7 +662,7 @@ describe('ProjectWatcher', () => {
 		test('watches the source tree, Processor paths, and runtime restart files', async () => {
 			Config.processors.set('css', {
 				getWatchConfig: vi.fn(() => ({
-					paths: ['/test/project/custom-watch'],
+					paths: [path.resolve('/test/project/custom-watch')],
 					extensions: ['.css'],
 				})),
 			} as never);
@@ -670,7 +680,7 @@ describe('ProjectWatcher', () => {
 			expect(watchedPaths).toEqual(
 				expect.arrayContaining([
 					Config.absolutePaths.srcDir,
-					'/test/project/custom-watch',
+					path.resolve('/test/project/custom-watch'),
 					Config.absolutePaths.config,
 				]),
 			);
@@ -686,7 +696,7 @@ describe('ProjectWatcher', () => {
 		});
 
 		test('watches a configured source directory that resolves outside srcDir', async () => {
-			const outsidePublicDir = '/test/project/public';
+			const outsidePublicDir = path.resolve('/test/project/public');
 			Config.absolutePaths.publicDir = outsidePublicDir;
 			vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) => String(targetPath) === outsidePublicDir);
 
@@ -755,7 +765,7 @@ describe('ProjectWatcher', () => {
 		test.each(['fresh', 'preserved'])(
 			'processes a new source file with %s timestamps immediately after subscription',
 			async (timestamps) => {
-				const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-create-')));
+				const root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-create-'))));
 				try {
 					mkdirSync(path.join(root, 'src/components'), { recursive: true });
 					Config = await finalizeEcoPagesConfig({ rootDir: root, integrations: [] });
@@ -795,10 +805,10 @@ describe('ProjectWatcher', () => {
 		});
 
 		test.each([
-			['/test/project', 'content/**/*.md', '/test/project/content'],
-			['/test/project', '**/*.config.ts', '/test/project'],
-			['/test/project', '../shared/**/*.ts', '/test/shared'],
-			['/home/me/[client]/site', 'content/**/*.md', '/home/me/[client]/site/content'],
+			[path.resolve('/test/project'), 'content/**/*.md', path.resolve('/test/project/content')],
+			[path.resolve('/test/project'), '**/*.config.ts', path.resolve('/test/project')],
+			[path.resolve('/test/project'), '../shared/**/*.ts', path.resolve('/test/shared')],
+			[path.resolve('/home/me/[client]/site'), 'content/**/*.md', path.resolve('/home/me/[client]/site/content')],
 		])(
 			'watches the static base directory of the %s root %s glob before it exists',
 			async (rootDir, pattern, base) => {
@@ -840,11 +850,11 @@ describe('ProjectWatcher', () => {
 				size: 0,
 				mtimeMs: 0,
 			};
-			expect(ignored('/test/project/README.md')).toBe(false);
-			expect(ignored('/test/project/README.md', file)).toBe(true);
-			expect(ignored('/test/project/docs', directory)).toBe(false);
-			expect(ignored('/test/project/.cache', directory)).toBe(true);
-			expect(ignored('/test/project/vite.config.ts', file)).toBe(false);
+			expect(ignored(path.resolve('/test/project/README.md'))).toBe(false);
+			expect(ignored(path.resolve('/test/project/README.md'), file)).toBe(true);
+			expect(ignored(path.resolve('/test/project/docs'), directory)).toBe(false);
+			expect(ignored(path.resolve('/test/project/.cache'), directory)).toBe(true);
+			expect(ignored(path.resolve('/test/project/vite.config.ts'), file)).toBe(false);
 			expect(ignored(path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx'), file)).toBe(false);
 		});
 

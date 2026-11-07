@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { SerializedProcessedAssetLedger } from '../assets/asset-processing-service/processed-asset-ledger.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';

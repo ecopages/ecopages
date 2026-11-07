@@ -18,7 +18,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type {
 	LoadResult,
 	PartialResolvedId,
@@ -28,6 +28,7 @@ import type {
 	SourceDescription,
 	SourceMapInput,
 } from 'rolldown';
+import { fromRolldownModuleId, toRolldownModuleId } from './rolldown-module-id.ts';
 import { exclude, id as idFilter, include, type TopLevelFilterExpression } from 'rolldown/filter';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
 import { isUsableSourceMap } from '../source-maps.ts';
@@ -82,7 +83,10 @@ function toResolveResult(
 		return null;
 	}
 	return {
-		id: typeof result.path === 'string' ? resolvePluginPath(result.path, importer, contextRoot) : source,
+		id:
+			typeof result.path === 'string'
+				? toRolldownModuleId(resolvePluginPath(result.path, importer, contextRoot))
+				: source,
 		...(typeof result.external === 'boolean' ? { external: result.external } : {}),
 	};
 }
@@ -230,7 +234,9 @@ export async function createRolldownPluginBridge(
 				},
 				async resolve(specifier, importer) {
 					const resolved = await context.resolve(specifier, importer, { skipSelf: true });
-					return resolved ? { id: resolved.id, external: Boolean(resolved.external) } : undefined;
+					return resolved
+						? { id: fromRolldownModuleId(resolved.id), external: Boolean(resolved.external) }
+						: undefined;
 				},
 			},
 			run,
@@ -255,13 +261,16 @@ export async function createRolldownPluginBridge(
 					name,
 					resolveId: {
 						filter: toHookFilter(filter),
-						handler: async (source, importer) =>
-							toResolveResult(
+						handler: async (source, rolldownImporter) => {
+							const importer =
+								rolldownImporter === undefined ? undefined : fromRolldownModuleId(rolldownImporter);
+							return toResolveResult(
 								await attribute(importer, () => callback({ path: source, importer })),
 								source,
 								importer,
 								contextRoot,
-							),
+							);
+						},
 					},
 				});
 			},
@@ -271,7 +280,8 @@ export async function createRolldownPluginBridge(
 					name,
 					load: {
 						filter: toHookFilter(filter),
-						async handler(id) {
+						async handler(rolldownId) {
+							const id = fromRolldownModuleId(rolldownId);
 							return toLoadResult(
 								await attribute(id, () => inModule(this, id, () => callback({ path: id }))),
 								id,
@@ -298,7 +308,8 @@ export async function createRolldownPluginBridge(
 					name,
 					transform: {
 						filter: [exclude(idFilter(VIRTUAL_MODULE_ID)), ...toHookFilter(filter, true)],
-						async handler(code, id) {
+						async handler(code, rolldownId) {
+							const id = fromRolldownModuleId(rolldownId);
 							return toTransformResult(
 								await attribute(id, () => inModule(this, id, () => callback(code, id))),
 								code,

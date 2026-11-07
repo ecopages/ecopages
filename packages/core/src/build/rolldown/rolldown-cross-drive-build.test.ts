@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { afterEach, describe, expect, test } from 'vitest';
 import { assertBuildSucceeded } from '../build-log.ts';
@@ -36,7 +36,7 @@ describe('RolldownBuildAdapter across drives', () => {
 	test.skipIf(process.platform !== 'win32')(
 		'preserveModules names a module on another drive than the preserveModulesRoot',
 		async (context) => {
-			const workDir = mkdtempSync(path.join(tmpdir(), 'rolldown-cross-drive-'));
+			const workDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'rolldown-cross-drive-')));
 			cleanups.push(() => rmSync(workDir, { recursive: true, force: true }));
 			const sharedDir = path.join(workDir, 'shared');
 			const appDir = path.join(workDir, 'app');
@@ -68,7 +68,7 @@ describe('RolldownBuildAdapter across drives', () => {
 			assertBuildSucceeded(result, 'Build failed');
 			const outputs = Object.keys(result.outputGraph).map((outputPath) => path.relative(outdir, outputPath));
 			expect(outputs.length).toBeGreaterThan(1);
-			expect(outputs.filter((output) => output.includes(path.sep))).toEqual([]);
+			expect(outputs.filter((output) => output.includes('/'))).toEqual([]);
 		},
 	);
 });

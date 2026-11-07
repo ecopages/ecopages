@@ -1,5 +1,4 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it, vi } from 'vitest';
 import type { HtmlTemplateProps } from '@ecopages/core';
 import type { IntegrationRendererRenderOptions } from '@ecopages/core/integration';
@@ -30,7 +29,7 @@ function extractLayoutMarkerOrder(html: string): string[] {
 	return matches.map((match) => match[1] ?? '');
 }
 
-const integrationRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const integrationRoot = path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '..');
 const appConfig = await finalizeEcoPagesConfig({
 	rootDir: integrationRoot,
 	defaultMetadata: { title: 'Test', description: 'Test' },

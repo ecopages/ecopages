@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
@@ -13,7 +13,7 @@ describe('HtmlPagesPlugin', () => {
 	const at = (relativePath: string) => path.join(rootDir, relativePath);
 
 	beforeEach(async () => {
-		rootDir = mkdtempSync(path.join(tmpdir(), 'eco-html-plugin-'));
+		rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-html-plugin-')));
 		mkdirSync(at('src/pages/blog'), { recursive: true });
 		mkdirSync(at('src/includes'), { recursive: true });
 		appConfig = await finalizeEcoPagesConfig({

@@ -37,6 +37,7 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
+		"@ecopages/file-system": "workspace:*",
 		"@ecopages/testing": "workspace:*"
 	},
 	"peerDependencies": {

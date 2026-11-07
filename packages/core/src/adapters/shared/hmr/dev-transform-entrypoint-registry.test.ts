@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { test } from 'vitest';
 import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
 

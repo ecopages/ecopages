@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import fs from 'node:fs';
 import postcssNested from 'postcss-nested';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
@@ -12,7 +12,7 @@ describe('PostCssProcessorPlugin build loaders', () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'postcss-loaders-'));
+		tmpDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'postcss-loaders-')));
 		fs.mkdirSync(path.join(tmpDir, 'src'), { recursive: true });
 		fs.mkdirSync(path.join(tmpDir, 'vendor'), { recursive: true });
 	});

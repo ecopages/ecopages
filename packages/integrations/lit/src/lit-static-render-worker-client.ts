@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import type { PageParams, PageQuery } from '@ecopages/core';
 import { fromLitStaticRenderErrorMessage } from './lit-static-render-error.ts';
 import type {
@@ -241,4 +241,4 @@ export class LitStaticRenderWorkerClient {
 	}
 }
 
-export const litStaticRenderWorkerEntryPath = fileURLToPath(resolveLitStaticRenderWorkerUrl());
+export const litStaticRenderWorkerEntryPath = path.fromFileUrl(resolveLitStaticRenderWorkerUrl());

@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { resolveStaticFilePath } from '../utils/server-utils.module.ts';
 import { StaticSiteGenerator } from './static-site-generator';
@@ -185,7 +185,7 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			test('static serving resolves both layouts', () => {
-				const dir = mkdtempSync(path.join(tmpdir(), 'eco-ssg-layout-'));
+				const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-ssg-layout-')));
 				try {
 					mkdirSync(path.join(dir, 'blog'), { recursive: true });
 					writeFileSync(path.join(dir, 'blog', 'index.html'), 'index');

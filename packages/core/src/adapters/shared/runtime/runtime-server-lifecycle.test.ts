@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import type { Server as NodeHttpServer } from 'node:http';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { test, vi } from 'vitest';
 import { appLogger } from '../../../global/app-logger.ts';
 import * as appBuildManifestRuntime from '../../../build/app-build-manifest-runtime.ts';
@@ -273,7 +273,7 @@ test('A regeneration in progress when the app stops', async () => {
 		}
 	}
 
-	const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-isr-shutdown-'));
+	const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-isr-shutdown-')));
 	const pagesDir = path.join(rootDir, 'src', 'pages');
 	fs.mkdirSync(pagesDir, { recursive: true });
 	fs.writeFileSync(

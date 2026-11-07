@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { inspect } from 'node:util';
 import { describe, test, vi } from 'vitest';
 import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';

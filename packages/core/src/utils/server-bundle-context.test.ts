@@ -1,7 +1,6 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
 	createServerBundleLoaderSource,
@@ -39,7 +38,7 @@ describe('server-bundle-context', () => {
 	});
 
 	it('keeps concurrent loader imports in their own bundle contexts', async () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-context-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-context-')));
 		tempDirs.push(rootDir);
 		const serverDirs = ['first', 'second'].map((name) => {
 			const serverDir = path.join(rootDir, name, 'server');
@@ -61,7 +60,7 @@ describe('server-bundle-context', () => {
 		});
 
 		const imports = serverDirs.map(
-			(serverDir) => import(/* @vite-ignore */ pathToFileURL(path.join(serverDir, 'app.mjs')).href),
+			(serverDir) => import(/* @vite-ignore */ path.toFileUrl(path.join(serverDir, 'app.mjs')).href),
 		);
 		expect(getProductionServerBundleDir()).toBeUndefined();
 		await Promise.all(imports);
@@ -70,19 +69,19 @@ describe('server-bundle-context', () => {
 		expect(captures.map((capture) => path.resolve(capture as string)).sort()).toEqual(
 			serverDirs.map((serverDir) => path.resolve(serverDir)).sort(),
 		);
-		expect(serverDirs.map((serverDir) => `${serverDir}${path.sep}`)).toContain(getProductionServerBundleDir());
+		expect(serverDirs.map((serverDir) => `${serverDir}/`)).toContain(getProductionServerBundleDir());
 	});
 
 	it('falls back to the last loaded bundle when the async context is not carried into the import', async () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-context-fallback-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-context-fallback-')));
 		tempDirs.push(rootDir);
 		const serverDir = path.join(rootDir, 'server');
 		mkdirSync(serverDir, { recursive: true });
 		writeFileSync(path.join(serverDir, 'app.mjs'), createServerBundleLoaderSource());
 		writeFileSync(path.join(serverDir, 'app.bundle.mjs'), 'export {};\n');
 
-		await import(/* @vite-ignore */ pathToFileURL(path.join(serverDir, 'app.mjs')).href);
+		await import(/* @vite-ignore */ path.toFileUrl(path.join(serverDir, 'app.mjs')).href);
 
-		expect(getProductionServerBundleDir()).toBe(`${serverDir}${path.sep}`);
+		expect(getProductionServerBundleDir()).toBe(`${serverDir}/`);
 	});
 });

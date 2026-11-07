@@ -8,7 +8,7 @@
  * @module
  */
 
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { isRegisteredDevTransformEntrypoint, isRegisteredScriptEntrypoint } from '../hmr-entrypoint-output.ts';
@@ -68,7 +68,7 @@ export class JsHmrStrategy extends HmrStrategy {
 		const resolvedPath = path.resolve(filePath);
 		const isJsTs = /\.(ts|tsx|js|jsx)$/.test(resolvedPath);
 		const srcDir = path.resolve(this.context.getSrcDir());
-		const isInSrc = resolvedPath.startsWith(`${srcDir}${path.sep}`) || resolvedPath === srcDir;
+		const isInSrc = resolvedPath.startsWith(`${srcDir}/`) || resolvedPath === srcDir;
 		const isIntegrationTemplate = this.context
 			.getTemplateExtensions()
 			.some((extension) => resolvedPath.endsWith(extension));

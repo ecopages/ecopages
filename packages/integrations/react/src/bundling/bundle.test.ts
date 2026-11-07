@@ -2,8 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/integration';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
 import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
 import { getBuildEntryOutput } from '../../../../core/src/build/build-graph.ts';
@@ -117,7 +116,7 @@ describe('BundleService', () => {
 		const result = await new RolldownBuildAdapter().build({
 			environment: 'browser' as const,
 			entrypoints: [entrypoint],
-			outdir: join(tempDir, 'dist'),
+			outdir: path.join(tempDir, 'dist'),
 			root: tempDir,
 			target: 'browser',
 			format: 'esm',
@@ -132,18 +131,18 @@ describe('BundleService', () => {
 		widgetBody: string[],
 		islandSource = "import Widget from './widget.kita.tsx';\nexport default Widget;",
 	) => {
-		const srcDir = join(tempDir, 'src');
+		const srcDir = path.join(tempDir, 'src');
 		mkdirSync(srcDir);
 		symlinkSync(
-			fileURLToPath(new URL('../../node_modules', import.meta.url)),
-			join(tempDir, 'node_modules'),
+			path.fromFileUrl(new URL('../../node_modules', import.meta.url)),
+			path.join(tempDir, 'node_modules'),
 			'dir',
 		);
-		const entrypoint = join(srcDir, 'island.tsx');
-		writeFileSync(join(srcDir, 'auth.server.ts'), 'export const authMiddleware = "server-secret";');
-		writeFileSync(join(srcDir, 'eco.ts'), 'export const eco = { page: (options) => options };');
+		const entrypoint = path.join(srcDir, 'island.tsx');
+		writeFileSync(path.join(srcDir, 'auth.server.ts'), 'export const authMiddleware = "server-secret";');
+		writeFileSync(path.join(srcDir, 'eco.ts'), 'export const eco = { page: (options) => options };');
 		writeFileSync(
-			join(srcDir, 'widget.kita.tsx'),
+			path.join(srcDir, 'widget.kita.tsx'),
 			["import { eco } from './eco';", "import { authMiddleware } from './auth.server.ts';", ...widgetBody].join(
 				'\n',
 			),
@@ -153,7 +152,7 @@ describe('BundleService', () => {
 	};
 
 	it('strips server imports from foreign-JSX files in the React client graph', async () => {
-		const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-react-foreign-jsx-')));
+		const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-foreign-jsx-'))));
 
 		try {
 			const entrypoint = writeForeignJsxIsland(tempDir, [
@@ -168,14 +167,14 @@ describe('BundleService', () => {
 			expect(output).not.toContain('server-secret');
 			expect(output).not.toContain('auth.server');
 			expect(output).not.toContain('authMiddleware');
-			await expect(import(pathToFileURL(outputPath).href)).resolves.toHaveProperty('default');
+			await expect(import(path.toFileUrl(outputPath).href)).resolves.toHaveProperty('default');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
 
 	it('fails the build when an island uses an export that needs a stripped server binding', async () => {
-		const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-react-foreign-jsx-')));
+		const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-foreign-jsx-'))));
 
 		try {
 			const entrypoint = writeForeignJsxIsland(
@@ -187,7 +186,7 @@ describe('BundleService', () => {
 				"import Widget, { guard } from './widget.kita.tsx';\nexport default [Widget, guard];",
 			);
 			await expect(buildReactIsland(tempDir, entrypoint)).rejects.toThrow(
-				`'authMiddleware' (imported from './auth.server.ts') is used at ${join(tempDir, 'src', 'widget.kita.tsx')}:3:22`,
+				`'authMiddleware' (imported from './auth.server.ts') is used at ${path.join(tempDir, 'src', 'widget.kita.tsx')}:3:22`,
 			);
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
@@ -210,7 +209,7 @@ describe('BundleService', () => {
 			return new RolldownBuildAdapter().build({
 				environment: 'browser' as const,
 				entrypoints,
-				outdir: join(tempDir, 'dist'),
+				outdir: path.join(tempDir, 'dist'),
 				root: tempDir,
 				target: 'browser',
 				format: 'esm',
@@ -221,15 +220,15 @@ describe('BundleService', () => {
 		};
 
 		const writeSharedApp = (tempDir: string, islandImport: string) => {
-			writeFileSync(join(tempDir, 'button.tsx'), 'export const Button = () => <button>button</button>;');
-			writeFileSync(join(tempDir, 'card.tsx'), 'export const Card = () => <article>card</article>;');
+			writeFileSync(path.join(tempDir, 'button.tsx'), 'export const Button = () => <button>button</button>;');
+			writeFileSync(path.join(tempDir, 'card.tsx'), 'export const Card = () => <article>card</article>;');
 			writeFileSync(
-				join(tempDir, 'foo.script.ts'),
+				path.join(tempDir, 'foo.script.ts'),
 				"import { Button } from './button.tsx';\ncustomElements.define('x-button', class extends HTMLElement { render = Button; });",
 			);
-			const island = join(tempDir, 'island.react.tsx');
+			const island = path.join(tempDir, 'island.react.tsx');
 			writeFileSync(island, `${islandImport}\nexport default () => null;`);
-			return { island, radiant: join(tempDir, 'foo.script.ts') };
+			return { island, radiant: path.join(tempDir, 'foo.script.ts') };
 		};
 
 		const readEntry = (result: Awaited<ReturnType<typeof buildSharedEntries>>, name: string, tempDir: string) => {
@@ -238,7 +237,7 @@ describe('BundleService', () => {
 		};
 
 		it('compiles a foreign file only another Integration imports with its owner runtime', async () => {
-			const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-react-shared-jsx-')));
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
 			try {
 				const entrypoints = writeSharedApp(tempDir, "import { Card } from './card.tsx'; console.log(Card);");
 				const radiant = readEntry(await buildSharedEntries(tempDir, entrypoints), 'radiant', tempDir);
@@ -250,7 +249,7 @@ describe('BundleService', () => {
 		});
 
 		it('compiles a foreign file a React island imports with the React runtime', async () => {
-			const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-react-shared-jsx-')));
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
 			try {
 				const entrypoints = writeSharedApp(tempDir, "import { Card } from './card.tsx'; console.log(Card);");
 				const island = readEntry(await buildSharedEntries(tempDir, entrypoints), 'island', tempDir);
@@ -263,7 +262,7 @@ describe('BundleService', () => {
 		});
 
 		it('fails the build when a React island and another Integration import one foreign file', async () => {
-			const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-react-shared-jsx-')));
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
 			try {
 				const entrypoints = writeSharedApp(
 					tempDir,
@@ -272,10 +271,10 @@ describe('BundleService', () => {
 				const result = await buildSharedEntries(tempDir, entrypoints);
 				assertBuildFailed(result);
 				const message = result.logs.map((log) => log.message).join('\n');
-				expect(message).toContain(join(tempDir, 'button.tsx'));
+				expect(message).toContain(path.join(tempDir, 'button.tsx'));
 				expect(message).toContain('ecopages-jsx file');
 				expect(message).toContain('react browser entries');
-				expect(message).toContain(join(tempDir, 'foo.script.ts'));
+				expect(message).toContain(path.join(tempDir, 'foo.script.ts'));
 			} finally {
 				rmSync(tempDir, { recursive: true, force: true });
 			}

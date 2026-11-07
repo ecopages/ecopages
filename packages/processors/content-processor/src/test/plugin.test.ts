@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { requireAppRuntime, type IClientBridge } from '@ecopages/core/integration';
@@ -174,11 +174,11 @@ order: 1
 		const workDir = appConfig.absolutePaths.workDir;
 		const entriesKey = path
 			.relative(rootDir, path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts'))
-			.split(path.sep)
+			.split('/')
 			.join('/');
 		const serverKey = path
 			.relative(rootDir, path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.server.ts'))
-			.split(path.sep)
+			.split('/')
 			.join('/');
 		const outdir = path.join(rootDir, 'dist', 'server');
 		const entriesOutput = 'docs-entries.mjs';

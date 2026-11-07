@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 function normalizeSourcePath(sourcePath: string): string {
 	return path.resolve(sourcePath);

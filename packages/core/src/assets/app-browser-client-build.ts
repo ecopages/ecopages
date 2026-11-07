@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { contentHash } from '../utils/content-hash.ts';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { getBuildEntryOutput, collectBuildEntryInputPaths } from '../build/build-graph.ts';
 import type { BuildSuccess } from '../build/build-adapter.ts';
@@ -35,7 +35,7 @@ function hash(value: string): string {
 }
 
 function toPublicUrl(appConfig: EcoPagesAppConfig, filepath: string): string {
-	return `/${path.relative(appConfig.absolutePaths.distDir, filepath).split(path.sep).join('/')}`;
+	return `/${path.relative(appConfig.absolutePaths.distDir, filepath)}`;
 }
 
 function createBundleEntryPath(

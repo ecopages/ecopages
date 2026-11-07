@@ -1,5 +1,4 @@
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { buildServerModule, contentHash, recordCollectionBuild } from '@ecopages/core/build';
 import { requireAppRuntime } from '@ecopages/core/integration';
@@ -56,7 +55,7 @@ export async function buildCollectionServerModule(input: {
 	const artifact: CollectionServerBuildArtifact = {
 		collectionName,
 		outputPath,
-		outputUrl: pathToFileURL(outputPath).href,
+		outputUrl: path.toFileUrl(outputPath).href,
 		sourcePaths: [...ownedSourcePaths, sourceFilePath],
 		buildIdentity,
 		invalidationVersion,

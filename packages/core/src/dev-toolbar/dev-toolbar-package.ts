@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 
@@ -26,7 +26,7 @@ export function getDevToolbarPackageSpec(appConfig: Pick<EcoPagesAppConfig, 'dev
  */
 export function resolveDevToolbarPackageRoot(rootDir: string, packageSpec: string): string {
 	const require = createRequire(path.join(rootDir, 'package.json'));
-	let dir = path.dirname(require.resolve(packageSpec));
+	let dir = path.dirname(path.fromNative(require.resolve(packageSpec)));
 
 	while (dir !== path.dirname(dir)) {
 		if (fileSystem.exists(path.join(dir, 'package.json'))) {
@@ -56,7 +56,7 @@ export function resolveDevToolbarClient(rootDir: string, packageSpec: string): D
 	}
 
 	try {
-		return { entryPath: require.resolve(packageSpec) };
+		return { entryPath: path.fromNative(require.resolve(packageSpec)) };
 	} catch {
 		return undefined;
 	}
@@ -83,7 +83,7 @@ export function resolveDevToolbarPackageEntry(rootDir: string, packageSpec: stri
 	const client = resolveDevToolbarClient(rootDir, packageSpec);
 	if (!client) {
 		const require = createRequire(path.join(rootDir, 'package.json'));
-		return require.resolve(packageSpec);
+		return path.fromNative(require.resolve(packageSpec));
 	}
 
 	return client.entryPath;

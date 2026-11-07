@@ -1,6 +1,6 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { assertProductionDistComplete } from './production-dist-complete.ts';
@@ -24,7 +24,7 @@ describe('assertProductionDistComplete', () => {
 	}
 
 	function createCompleteDist(buildId = 'build-1') {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-dist-complete-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-dist-complete-')));
 		tempDirs.push(rootDir);
 		const serverDir = path.join(rootDir, 'dist', SERVER_BUNDLE_DIR);
 		fileSystem.ensureDir(serverDir);

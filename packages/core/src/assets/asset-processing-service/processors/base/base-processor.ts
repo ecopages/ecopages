@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { RESOLVED_ASSETS_DIR } from '../../../../constants.ts';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { contentHash } from '../../../../utils/content-hash.ts';

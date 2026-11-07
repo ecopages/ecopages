@@ -8,7 +8,7 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createRequire } from 'node:module';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { text } from 'node:stream/consumers';
 import { Logger } from '@ecopages/logger';
 import type { ReactNode } from 'react';
@@ -61,7 +61,7 @@ export type ReactRuntimeModules = {
 };
 
 export function resolveReactRuntimeModules(rootDir: string | undefined): ReactRuntimeModules {
-	const appPackageJsonPath = path.resolve(rootDir || process.cwd(), 'package.json');
+	const appPackageJsonPath = path.resolve(rootDir || path.cwd(), 'package.json');
 
 	try {
 		const requireFromApp = createRequire(appPackageJsonPath);

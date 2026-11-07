@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { createAppRuntime, requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
@@ -20,7 +21,7 @@ let appConfig: EcoPagesAppConfig;
 
 beforeEach(() => {
 	appConfig = {
-		rootDir: '/app',
+		rootDir: path.resolve('/app'),
 		loaders: new Map(),
 		processors: new Map(),
 		integrations: [
@@ -31,7 +32,7 @@ beforeEach(() => {
 			},
 		],
 		absolutePaths: {
-			pagesDir: '/app/pages',
+			pagesDir: path.resolve('/app/pages'),
 		},
 	} as unknown as EcoPagesAppConfig;
 	createAppRuntime(appConfig);
@@ -59,24 +60,24 @@ describe('SessionPageBrowserGraphCache', () => {
 
 		const key = {
 			integrationName: 'react',
-			routeFile: '/app/pages/index.tsx',
+			routeFile: path.resolve('/app/pages/index.tsx'),
 			dependencyInstanceKey: '',
 			entryFingerprint: 'file:/app/pages/index.tsx',
 			policy: 'development' as const,
 		};
 
-		const first = await session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => {
+		const first = await session.resolveGraph(key, new Set([path.resolve('/app/pages/index.tsx')]), async () => {
 			builds += 1;
 			return {
 				result: { entryAssets: [], chunkAssets: [] },
-				dependencyPaths: new Set(['/app/pages/index.tsx']),
+				dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
 			};
 		});
-		const second = await session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => {
+		const second = await session.resolveGraph(key, new Set([path.resolve('/app/pages/index.tsx')]), async () => {
 			builds += 1;
 			return {
 				result: { entryAssets: [], chunkAssets: [] },
-				dependencyPaths: new Set(['/app/pages/index.tsx']),
+				dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
 			};
 		});
 
@@ -95,13 +96,13 @@ describe('SessionPageBrowserGraphCache', () => {
 
 		const key = {
 			integrationName: 'react',
-			routeFile: '/app/pages/index.tsx',
+			routeFile: path.resolve('/app/pages/index.tsx'),
 			dependencyInstanceKey: '',
 			entryFingerprint: 'file:/app/pages/index.tsx',
 			policy: 'development' as const,
 		};
 
-		const build = session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => {
+		const build = session.resolveGraph(key, new Set([path.resolve('/app/pages/index.tsx')]), async () => {
 			builds += 1;
 			await buildGate;
 			return {
@@ -109,14 +110,14 @@ describe('SessionPageBrowserGraphCache', () => {
 					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/index.js' }],
 					chunkAssets: [],
 				},
-				dependencyPaths: new Set(['/app/pages/index.tsx']),
+				dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
 			};
 		});
-		const concurrent = session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => {
+		const concurrent = session.resolveGraph(key, new Set([path.resolve('/app/pages/index.tsx')]), async () => {
 			builds += 1;
 			return {
 				result: { entryAssets: [], chunkAssets: [] },
-				dependencyPaths: new Set(['/app/pages/index.tsx']),
+				dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
 			};
 		});
 
@@ -135,31 +136,31 @@ describe('SessionPageBrowserGraphCache', () => {
 		});
 		const key = {
 			integrationName: 'react',
-			routeFile: '/app/pages/index.tsx',
+			routeFile: path.resolve('/app/pages/index.tsx'),
 			dependencyInstanceKey: '',
 			entryFingerprint: 'file:/app/pages/index.tsx',
 			policy: 'production' as const,
 		};
 
-		const cachedBuild = session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => {
+		const cachedBuild = session.resolveGraph(key, new Set([path.resolve('/app/pages/index.tsx')]), async () => {
 			await cachedBuildGate;
 			return {
 				result: {
 					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/cached.js' }],
 					chunkAssets: [],
 				},
-				dependencyPaths: new Set(['/app/pages/index.tsx']),
+				dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
 			};
 		});
 		const nonCacheableBuild = session.resolveGraph(
 			key,
-			new Set(['/app/pages/index.tsx']),
+			new Set([path.resolve('/app/pages/index.tsx')]),
 			async () => ({
 				result: {
 					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/fresh.js' }],
 					chunkAssets: [],
 				},
-				dependencyPaths: new Set(['/app/pages/index.tsx']),
+				dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
 				cacheable: false,
 			}),
 			{ reuseCachedResult: false },
@@ -176,15 +177,15 @@ describe('SessionPageBrowserGraphCache', () => {
 		const session = new SessionPageBrowserGraphCache();
 		const key = {
 			integrationName: 'react',
-			routeFile: '/app/pages/index.tsx',
+			routeFile: path.resolve('/app/pages/index.tsx'),
 			dependencyInstanceKey: '',
 			entryFingerprint: 'file:/app/pages/index.tsx',
 			policy: 'development' as const,
 		};
 
-		await session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => ({
+		await session.resolveGraph(key, new Set([path.resolve('/app/pages/index.tsx')]), async () => ({
 			result: { entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/index.js' }], chunkAssets: [] },
-			dependencyPaths: new Set(['/app/pages/index.tsx']),
+			dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
 		}));
 
 		await expect(
@@ -193,16 +194,16 @@ describe('SessionPageBrowserGraphCache', () => {
 					...key,
 					entryFingerprint: 'changed',
 				},
-				new Set(['/app/pages/index.tsx']),
+				new Set([path.resolve('/app/pages/index.tsx')]),
 				async () => {
 					throw new Error('build failed');
 				},
 			),
 		).rejects.toThrow('build failed');
 
-		const cached = await session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => ({
+		const cached = await session.resolveGraph(key, new Set([path.resolve('/app/pages/index.tsx')]), async () => ({
 			result: { entryAssets: [], chunkAssets: [] },
-			dependencyPaths: new Set(['/app/pages/index.tsx']),
+			dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
 		}));
 
 		expect(cached?.entryAssets[0]?.filepath).toBe('/assets/index.js');
@@ -210,10 +211,10 @@ describe('SessionPageBrowserGraphCache', () => {
 
 	test('does not commit stale graph when invalidated during in-flight build', async () => {
 		const session = new SessionPageBrowserGraphCache();
-		const contentFile = '/app/content/docs/intro.mdx';
+		const contentFile = path.resolve('/app/content/docs/intro.mdx');
 		const key = {
 			integrationName: 'react',
-			routeFile: '/app/pages/index.tsx',
+			routeFile: path.resolve('/app/pages/index.tsx'),
 			dependencyInstanceKey: '',
 			entryFingerprint: 'file:/app/pages/index.tsx',
 			policy: 'development' as const,
@@ -224,16 +225,20 @@ describe('SessionPageBrowserGraphCache', () => {
 			releaseFirstBuild = resolve;
 		});
 
-		const firstBuild = session.resolveGraph(key, new Set(['/app/pages/index.tsx', contentFile]), async () => {
-			await firstBuildGate;
-			return {
-				result: {
-					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/stale.js' }],
-					chunkAssets: [],
-				},
-				dependencyPaths: new Set(['/app/pages/index.tsx']),
-			};
-		});
+		const firstBuild = session.resolveGraph(
+			key,
+			new Set([path.resolve('/app/pages/index.tsx'), contentFile]),
+			async () => {
+				await firstBuildGate;
+				return {
+					result: {
+						entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/stale.js' }],
+						chunkAssets: [],
+					},
+					dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
+				};
+			},
+		);
 
 		session.invalidateByFilePath(contentFile);
 
@@ -241,16 +246,20 @@ describe('SessionPageBrowserGraphCache', () => {
 		await firstBuild;
 
 		let rebuilds = 0;
-		const freshResult = await session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => {
-			rebuilds += 1;
-			return {
-				result: {
-					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/fresh.js' }],
-					chunkAssets: [],
-				},
-				dependencyPaths: new Set(['/app/pages/index.tsx']),
-			};
-		});
+		const freshResult = await session.resolveGraph(
+			key,
+			new Set([path.resolve('/app/pages/index.tsx')]),
+			async () => {
+				rebuilds += 1;
+				return {
+					result: {
+						entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/fresh.js' }],
+						chunkAssets: [],
+					},
+					dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
+				};
+			},
+		);
 
 		expect(freshResult?.entryAssets[0]?.filepath).toBe('/assets/fresh.js');
 		expect(rebuilds).toBe(1);
@@ -258,34 +267,34 @@ describe('SessionPageBrowserGraphCache', () => {
 
 	test('invalidates only graphs that depend on the changed file', async () => {
 		const session = new SessionPageBrowserGraphCache();
-		const sharedLayout = '/app/src/layouts/root.tsx';
+		const sharedLayout = path.resolve('/app/src/layouts/root.tsx');
 
 		await session.resolveGraph(
 			{
 				integrationName: 'react',
-				routeFile: '/app/pages/a.tsx',
+				routeFile: path.resolve('/app/pages/a.tsx'),
 				dependencyInstanceKey: '',
 				entryFingerprint: 'a',
 				policy: 'development',
 			},
-			new Set(['/app/pages/a.tsx', sharedLayout]),
+			new Set([path.resolve('/app/pages/a.tsx'), sharedLayout]),
 			async () => ({
 				result: { entryAssets: [], chunkAssets: [] },
-				dependencyPaths: new Set(['/app/pages/a.tsx', sharedLayout]),
+				dependencyPaths: new Set([path.resolve('/app/pages/a.tsx'), sharedLayout]),
 			}),
 		);
 		await session.resolveGraph(
 			{
 				integrationName: 'react',
-				routeFile: '/app/pages/b.tsx',
+				routeFile: path.resolve('/app/pages/b.tsx'),
 				dependencyInstanceKey: '',
 				entryFingerprint: 'b',
 				policy: 'development',
 			},
-			new Set(['/app/pages/b.tsx']),
+			new Set([path.resolve('/app/pages/b.tsx')]),
 			async () => ({
 				result: { entryAssets: [], chunkAssets: [] },
-				dependencyPaths: new Set(['/app/pages/b.tsx']),
+				dependencyPaths: new Set([path.resolve('/app/pages/b.tsx')]),
 			}),
 		);
 
@@ -295,34 +304,34 @@ describe('SessionPageBrowserGraphCache', () => {
 		await session.resolveGraph(
 			{
 				integrationName: 'react',
-				routeFile: '/app/pages/a.tsx',
+				routeFile: path.resolve('/app/pages/a.tsx'),
 				dependencyInstanceKey: '',
 				entryFingerprint: 'a',
 				policy: 'development',
 			},
-			new Set(['/app/pages/a.tsx', sharedLayout]),
+			new Set([path.resolve('/app/pages/a.tsx'), sharedLayout]),
 			async () => {
 				rebuilds += 1;
 				return {
 					result: { entryAssets: [], chunkAssets: [] },
-					dependencyPaths: new Set(['/app/pages/a.tsx', sharedLayout]),
+					dependencyPaths: new Set([path.resolve('/app/pages/a.tsx'), sharedLayout]),
 				};
 			},
 		);
 		await session.resolveGraph(
 			{
 				integrationName: 'react',
-				routeFile: '/app/pages/b.tsx',
+				routeFile: path.resolve('/app/pages/b.tsx'),
 				dependencyInstanceKey: '',
 				entryFingerprint: 'b',
 				policy: 'development',
 			},
-			new Set(['/app/pages/b.tsx']),
+			new Set([path.resolve('/app/pages/b.tsx')]),
 			async () => {
 				rebuilds += 1;
 				return {
 					result: { entryAssets: [], chunkAssets: [] },
-					dependencyPaths: new Set(['/app/pages/b.tsx']),
+					dependencyPaths: new Set([path.resolve('/app/pages/b.tsx')]),
 				};
 			},
 		);
@@ -348,7 +357,7 @@ test('PageBrowserGraphService warns when grouped assets lose groupedBundle metad
 
 	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
 	const result = await service.resolvePageBrowserGraph({
-		routeFile: '/app/pages/index.tsx',
+		routeFile: path.resolve('/app/pages/index.tsx'),
 		integrationName: 'react',
 		collectContribution: async () => ({
 			dependencies: [createGroupedDependency()],
@@ -357,7 +366,7 @@ test('PageBrowserGraphService warns when grouped assets lose groupedBundle metad
 
 	expect(result?.entryAssets).toEqual([]);
 	expect(warnSpy).toHaveBeenCalledWith(
-		'Grouped page-browser assets for /app/pages/index.tsx are missing groupedBundle metadata after processing. Hydration scripts may be omitted from HTML.',
+		`Grouped page-browser assets for ${path.resolve('/app/pages/index.tsx')} are missing groupedBundle metadata after processing. Hydration scripts may be omitted from HTML.`,
 	);
 });
 
@@ -367,7 +376,7 @@ test('PageBrowserGraphService reuses HMR graph records for unchanged requests', 
 			filepath: '/assets/index.js',
 			kind: 'script',
 			inline: false,
-			sourceFilepath: '/app/pages/index.tsx',
+			sourceFilepath: path.resolve('/app/pages/index.tsx'),
 		},
 	]);
 	const assetProcessingService = {
@@ -377,14 +386,14 @@ test('PageBrowserGraphService reuses HMR graph records for unchanged requests', 
 	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
 
 	const input = {
-		routeFile: '/app/pages/index.tsx',
+		routeFile: path.resolve('/app/pages/index.tsx'),
 		integrationName: 'react',
 		collectContribution: async () => ({
 			dependencies: [
 				{
 					kind: 'script',
 					source: 'file',
-					filepath: '/app/pages/index.tsx',
+					filepath: path.resolve('/app/pages/index.tsx'),
 				} satisfies AssetDefinition,
 			],
 		}),
@@ -411,11 +420,15 @@ test('rebuilds an existing graph when one render disables graph caching', async 
 	} as unknown as AssetProcessingService;
 	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
 	const input = {
-		routeFile: '/app/pages/index.tsx',
+		routeFile: path.resolve('/app/pages/index.tsx'),
 		integrationName: 'react',
 		collectContribution: async () => ({
 			dependencies: [
-				{ kind: 'script', source: 'file', filepath: '/app/pages/index.tsx' } satisfies AssetDefinition,
+				{
+					kind: 'script',
+					source: 'file',
+					filepath: path.resolve('/app/pages/index.tsx'),
+				} satisfies AssetDefinition,
 			],
 		}),
 	};
@@ -431,10 +444,10 @@ test('rebuilds an existing graph when one render disables graph caching', async 
 
 test('createPageBrowserGraphEntryFingerprint includes direct contribution assets', () => {
 	const withoutAssets = createPageBrowserGraphEntryFingerprint({
-		dependencies: [{ kind: 'script', source: 'file', filepath: '/app/pages/index.tsx' }],
+		dependencies: [{ kind: 'script', source: 'file', filepath: path.resolve('/app/pages/index.tsx') }],
 	});
 	const withAssets = createPageBrowserGraphEntryFingerprint({
-		dependencies: [{ kind: 'script', source: 'file', filepath: '/app/pages/index.tsx' }],
+		dependencies: [{ kind: 'script', source: 'file', filepath: path.resolve('/app/pages/index.tsx') }],
 		assets: [{ kind: 'script', inline: true, content: 'console.log("inline")' }],
 	});
 
@@ -443,10 +456,10 @@ test('createPageBrowserGraphEntryFingerprint includes direct contribution assets
 
 test('createPageBrowserGraphEntryFingerprint avoids cross-integration collisions', () => {
 	const reactFingerprint = createPageBrowserGraphEntryFingerprint({
-		dependencies: [{ kind: 'script', source: 'file', filepath: '/app/pages/index.tsx' }],
+		dependencies: [{ kind: 'script', source: 'file', filepath: path.resolve('/app/pages/index.tsx') }],
 	});
 	const kitaFingerprint = createPageBrowserGraphEntryFingerprint({
-		dependencies: [{ kind: 'script', source: 'file', filepath: '/app/pages/index.kita.tsx' }],
+		dependencies: [{ kind: 'script', source: 'file', filepath: path.resolve('/app/pages/index.kita.tsx') }],
 	});
 
 	expect(reactFingerprint).not.toBe(kitaFingerprint);
@@ -454,36 +467,36 @@ test('createPageBrowserGraphEntryFingerprint avoids cross-integration collisions
 
 test('collectPageBrowserGraphDependencyPaths includes watch paths', () => {
 	const dependencyPaths = collectPageBrowserGraphDependencyPaths(
-		'/app/pages/docs/[...slug]/index.tsx',
+		path.resolve('/app/pages/docs/[...slug]/index.tsx'),
 		{
-			watchPaths: ['/app/content/docs/intro.mdx', '/app/components/demo.tsx'],
+			watchPaths: [path.resolve('/app/content/docs/intro.mdx'), path.resolve('/app/components/demo.tsx')],
 		},
 		[],
 	);
 
-	expect(dependencyPaths.has('/app/pages/docs/[...slug]/index.tsx')).toBe(true);
-	expect(dependencyPaths.has('/app/content/docs/intro.mdx')).toBe(true);
-	expect(dependencyPaths.has('/app/components/demo.tsx')).toBe(true);
+	expect(dependencyPaths.has(path.resolve('/app/pages/docs/[...slug]/index.tsx'))).toBe(true);
+	expect(dependencyPaths.has(path.resolve('/app/content/docs/intro.mdx'))).toBe(true);
+	expect(dependencyPaths.has(path.resolve('/app/components/demo.tsx'))).toBe(true);
 });
 
 test('collectPageBrowserGraphDependencyPaths includes bundled source paths', () => {
 	const dependencyPaths = collectPageBrowserGraphDependencyPaths(
-		'/app/pages/index.tsx',
+		path.resolve('/app/pages/index.tsx'),
 		{
-			dependencies: [{ kind: 'script', source: 'file', filepath: '/app/pages/index.tsx' }],
+			dependencies: [{ kind: 'script', source: 'file', filepath: path.resolve('/app/pages/index.tsx') }],
 		},
 		[
 			{
 				kind: 'script',
 				inline: false,
-				sourceFilepath: '/app/pages/index.tsx',
-				bundledSourceFilepaths: ['/app/src/components/Button.tsx'],
+				sourceFilepath: path.resolve('/app/pages/index.tsx'),
+				bundledSourceFilepaths: [path.resolve('/app/src/components/Button.tsx')],
 			},
 		],
 	);
 
-	expect(dependencyPaths.has('/app/pages/index.tsx')).toBe(true);
-	expect(dependencyPaths.has('/app/src/components/Button.tsx')).toBe(true);
+	expect(dependencyPaths.has(path.resolve('/app/pages/index.tsx'))).toBe(true);
+	expect(dependencyPaths.has(path.resolve('/app/src/components/Button.tsx'))).toBe(true);
 });
 
 test('PageBrowserGraphService isolates graphs for sibling catch-all route instances', async () => {
@@ -501,7 +514,7 @@ test('PageBrowserGraphService isolates graphs for sibling catch-all route instan
 	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
 
 	const weatherResult = await service.resolvePageBrowserGraph({
-		routeFile: '/app/pages/docs/[...slug]/index.tsx',
+		routeFile: path.resolve('/app/pages/docs/[...slug]/index.tsx'),
 		dependencyInstanceKey: 'slug=examples/weather-app',
 		integrationName: 'react',
 		collectContribution: async () => ({
@@ -509,7 +522,7 @@ test('PageBrowserGraphService isolates graphs for sibling catch-all route instan
 		}),
 	});
 	const todoResult = await service.resolvePageBrowserGraph({
-		routeFile: '/app/pages/docs/[...slug]/index.tsx',
+		routeFile: path.resolve('/app/pages/docs/[...slug]/index.tsx'),
 		dependencyInstanceKey: 'slug=examples/todo-app',
 		integrationName: 'react',
 		collectContribution: async () => ({
@@ -529,7 +542,7 @@ test('PageBrowserGraphService isolates query-dependent graph contributions', asy
 	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
 	const resolve = async (mode: string) =>
 		await service.resolvePageBrowserGraph({
-			routeFile: '/app/pages/docs/[...slug]/index.tsx',
+			routeFile: path.resolve('/app/pages/docs/[...slug]/index.tsx'),
 			dependencyInstanceKey: createPageDependencyInstanceKey({
 				params: { slug: ['docs', 'intro'] },
 				query: { mode },
@@ -547,7 +560,7 @@ test('PageBrowserGraphService isolates query-dependent graph contributions', asy
 });
 
 test('does not commit an in-flight graph after one of its watch paths changes', async () => {
-	const contentFile = '/app/content/docs/intro.mdx';
+	const contentFile = path.resolve('/app/content/docs/intro.mdx');
 	let releaseFirstBuild: (() => void) | undefined;
 	const firstBuildGate = new Promise<void>((resolve) => {
 		releaseFirstBuild = resolve;
@@ -572,11 +585,17 @@ test('does not commit an in-flight graph after one of its watch paths changes', 
 	} as unknown as AssetProcessingService;
 	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
 	const input = {
-		routeFile: '/app/pages/docs/[...slug]/index.tsx',
+		routeFile: path.resolve('/app/pages/docs/[...slug]/index.tsx'),
 		dependencyInstanceKey: createPageDependencyInstanceKey({ params: { slug: ['docs', 'intro'] } }),
 		integrationName: 'react',
 		collectContribution: async () => ({
-			dependencies: [{ kind: 'script' as const, source: 'file' as const, filepath: '/app/components/demo.tsx' }],
+			dependencies: [
+				{
+					kind: 'script' as const,
+					source: 'file' as const,
+					filepath: path.resolve('/app/components/demo.tsx'),
+				},
+			],
 			watchPaths: [contentFile],
 		}),
 	};
@@ -594,7 +613,7 @@ test('does not commit an in-flight graph after one of its watch paths changes', 
 });
 
 test('preserves processed grouped-asset order for a route', async () => {
-	const routeFile = '/app/pages/docs/index.tsx';
+	const routeFile = path.resolve('/app/pages/docs/index.tsx');
 	const dependencyInstanceKey = createPageDependencyInstanceKey({});
 	const firstDependency: AssetDefinition = {
 		kind: 'script',
@@ -641,13 +660,13 @@ test('preserves processed grouped-asset order for a route', async () => {
 });
 
 test('builds a route render override from its current grouped dependencies', async () => {
-	const routeFile = '/app/pages/docs/index.tsx';
+	const routeFile = path.resolve('/app/pages/docs/index.tsx');
 	const dependencyInstanceKey = '';
 	const overrideDependency = { ...createGroupedDependency(), content: 'console.log("override")' };
 	const overrideAsset: ProcessedAsset = {
 		kind: 'script',
 		inline: false,
-		filepath: '/app/.eco/assets/override.js',
+		filepath: path.resolve('/app/.eco/assets/override.js'),
 		srcUrl: '/assets/override.js',
 		groupedBundle: { id: 'react-router-pages', entryName: 'index' },
 	};
@@ -669,7 +688,7 @@ test('builds a route render override from its current grouped dependencies', asy
 });
 
 test('PageBrowserGraphService does not commit route graphs whose grouped scripts no app-wide build recorded', async () => {
-	const routeFile = '/app/pages/docs/[...slug]/index.tsx';
+	const routeFile = path.resolve('/app/pages/docs/[...slug]/index.tsx');
 	const dependencyInstanceKey = createPageDependencyInstanceKey({ params: { slug: ['docs', 'intro'] } });
 	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => [
 		{
@@ -704,31 +723,31 @@ test('SessionPageBrowserGraphCache skips committing non-cacheable route graph bu
 	let builds = 0;
 	const key = {
 		integrationName: 'react',
-		routeFile: '/app/pages/index.tsx',
+		routeFile: path.resolve('/app/pages/index.tsx'),
 		dependencyInstanceKey: '',
 		entryFingerprint: 'file:/app/pages/index.tsx',
 		policy: 'production' as const,
 	};
 
-	await session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => {
+	await session.resolveGraph(key, new Set([path.resolve('/app/pages/index.tsx')]), async () => {
 		builds += 1;
 		return {
 			result: {
 				entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/stale.js' }],
 				chunkAssets: [],
 			},
-			dependencyPaths: new Set(['/app/pages/index.tsx']),
+			dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
 			cacheable: false,
 		};
 	});
-	await session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => {
+	await session.resolveGraph(key, new Set([path.resolve('/app/pages/index.tsx')]), async () => {
 		builds += 1;
 		return {
 			result: {
 				entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/fresh.js' }],
 				chunkAssets: [],
 			},
-			dependencyPaths: new Set(['/app/pages/index.tsx']),
+			dependencyPaths: new Set([path.resolve('/app/pages/index.tsx')]),
 		};
 	});
 
@@ -741,24 +760,24 @@ test('performs one graph build per cache key per request scope', async () => {
 
 	const key = {
 		integrationName: 'react',
-		routeFile: '/app/pages/docs/[...slug].tsx',
+		routeFile: path.resolve('/app/pages/docs/[...slug].tsx'),
 		dependencyInstanceKey: 'slug:intro',
 		entryFingerprint: 'file:/app/pages/docs/[...slug].tsx',
 		policy: 'development' as const,
 	};
 
-	await session.resolveGraph(key, new Set(['/app/pages/docs/[...slug].tsx']), async () => {
+	await session.resolveGraph(key, new Set([path.resolve('/app/pages/docs/[...slug].tsx')]), async () => {
 		builds += 1;
 		return {
 			result: { entryAssets: [], chunkAssets: [] },
-			dependencyPaths: new Set(['/app/pages/docs/[...slug].tsx']),
+			dependencyPaths: new Set([path.resolve('/app/pages/docs/[...slug].tsx')]),
 		};
 	});
-	await session.resolveGraph(key, new Set(['/app/pages/docs/[...slug].tsx']), async () => {
+	await session.resolveGraph(key, new Set([path.resolve('/app/pages/docs/[...slug].tsx')]), async () => {
 		builds += 1;
 		return {
 			result: { entryAssets: [], chunkAssets: [] },
-			dependencyPaths: new Set(['/app/pages/docs/[...slug].tsx']),
+			dependencyPaths: new Set([path.resolve('/app/pages/docs/[...slug].tsx')]),
 		};
 	});
 
@@ -766,12 +785,12 @@ test('performs one graph build per cache key per request scope', async () => {
 });
 
 describe('PageBrowserGraphService with an app-wide browser build', () => {
-	const routeFile = '/app/pages/products/[slug].tsx';
+	const routeFile = path.resolve('/app/pages/products/[slug].tsx');
 	const dependencyInstanceKey = createPageDependencyInstanceKey({ params: { slug: 'new-product' } });
 	const builtAsset: ProcessedAsset = {
 		kind: 'script',
 		inline: false,
-		filepath: '/app/dist/client/assets/client-page.js',
+		filepath: path.resolve('/app/dist/client/assets/client-page.js'),
 		srcUrl: '/assets/client-page.js',
 		groupedBundle: { id: 'react-router-pages', entryName: 'index' },
 	};

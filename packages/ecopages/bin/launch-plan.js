@@ -1,5 +1,4 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { parseEnv } from 'node:util';
 import { fileSystem } from '@ecopages/file-system';
 import {
@@ -14,7 +13,7 @@ import { ECOPAGES_ENTRY_WATCH_ENV, getDevEnvFileNames, getEcopagesEnv } from '@e
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
 const viewReferencePreload = import.meta.resolve('./view-reference-preload.js');
-const viewReferencePreloadPath = fileURLToPath(viewReferencePreload);
+const viewReferencePreloadPath = path.fromFileUrl(viewReferencePreload);
 
 function getEnvFilePaths(nodeEnv) {
 	return getDevEnvFileNames(nodeEnv).filter((envFile) => fileSystem.exists(envFile));
@@ -30,7 +29,7 @@ export function buildEnvOverrides(options) {
 	if (options.configFile) {
 		env.ECOPAGES_CONFIG_FILE = path.isAbsolute(options.configFile)
 			? options.configFile
-			: path.resolve(process.cwd(), options.configFile);
+			: path.resolve(path.cwd(), options.configFile);
 	}
 	if (options.watch) {
 		env[ECOPAGES_ENTRY_WATCH_ENV] = '1';
@@ -38,7 +37,7 @@ export function buildEnvOverrides(options) {
 	return env;
 }
 
-export function resolveEcoConfigFilePath(options = {}, cwd = process.cwd(), resolverOptions = {}) {
+export function resolveEcoConfigFilePath(options = {}, cwd = path.cwd(), resolverOptions = {}) {
 	return resolveEcoConfigPath({
 		configFile: options.configFile,
 		cwd,
@@ -138,23 +137,23 @@ export async function createLaunchPlan(args, options, entryFile, launchMode) {
 	const resolvedLaunchMode = inferLaunchMode(args, launchMode);
 	const shouldUseBundle = usesProductionBundle(resolvedLaunchMode);
 	const distDir = shouldUseBundle
-		? await resolveProductionDistDir({ cwd: process.cwd(), distDir: resolvedOptions.distDir })
+		? await resolveProductionDistDir({ cwd: path.cwd(), distDir: resolvedOptions.distDir })
 		: undefined;
 	const isExplicitConfig = Boolean(resolvedOptions.configFile || getEcopagesEnv('ECOPAGES_CONFIG_FILE'));
-	const resolvedConfigFile = resolveEcoConfigFilePath(resolvedOptions, process.cwd(), {
+	const resolvedConfigFile = resolveEcoConfigFilePath(resolvedOptions, path.cwd(), {
 		preferEmitted: shouldUseBundle && !isExplicitConfig,
 		distDir,
 	});
 
 	if (shouldUseBundle) {
-		const distServerApp = resolveProductionServerEntry(process.cwd(), distDir);
+		const distServerApp = resolveProductionServerEntry(path.cwd(), distDir);
 		if (!distServerApp) {
 			throw new Error(
-				`Production server entry not found in ${path.relative(process.cwd(), distDir) || '.'}. Run \`ecopages build\` again.`,
+				`Production server entry not found in ${path.relative(path.cwd(), distDir) || '.'}. Run \`ecopages build\` again.`,
 			);
 		}
-		const runtimeConfigFile = resolveEmittedEcoConfigPath(process.cwd(), distDir) ?? resolvedConfigFile;
-		assertProductionConfigIdentity(process.cwd(), runtimeConfigFile, {
+		const runtimeConfigFile = resolveEmittedEcoConfigPath(path.cwd(), distDir) ?? resolvedConfigFile;
+		assertProductionConfigIdentity(path.cwd(), runtimeConfigFile, {
 			distDir,
 		});
 		if (runtimeConfigFile) {

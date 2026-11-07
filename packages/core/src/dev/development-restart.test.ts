@@ -1,11 +1,11 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { expect, test } from 'vitest';
 import { resolveDevelopmentRecoveryWatch } from './development-restart.ts';
 
 test('watches the project and linked packages, skipping dependencies and build output', () => {
-	const workspace = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-dev-recovery-')));
+	const workspace = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-dev-recovery-'))));
 	const root = path.join(workspace, 'app');
 	const linkedPackage = path.join(workspace, 'linked-ui');
 	try {

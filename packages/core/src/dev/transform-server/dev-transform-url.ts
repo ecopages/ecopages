@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { fileSystem } from '@ecopages/file-system';
 import { DEV_TRANSFORM_URL_PREFIX, stripModuleUrlQuery } from '../../hmr/hmr-asset-paths.ts';
@@ -13,7 +13,7 @@ const FS_URL_SEGMENT = '@fs';
 
 function toDevTransformUrlPath(relativeOrAbsolutePath: string): string {
 	const relativePathJs = relativeOrAbsolutePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-	return encodeHmrDynamicSegments(relativePathJs).split(path.sep).map(encodeURIComponent).join('/');
+	return encodeHmrDynamicSegments(relativePathJs).split('/').map(encodeURIComponent).join('/');
 }
 
 function isInsideAllowedRoot(filePath: string, allowedRoots: readonly string[]): boolean {
@@ -26,7 +26,8 @@ function isInsideAllowedRoot(filePath: string, allowedRoots: readonly string[]):
  * @remarks
  * Files under `srcDir` keep path-relative URLs. Files in `extraRoots` (workspace
  * packages) use `/assets/__eco_dev__/@fs/...` so an island outside the app folder
- * can still hydrate.
+ * can still hydrate. The absolute path follows `@fs/` without its leading `/`, so a Windows path keeps its drive
+ * letter as the first segment (`@fs/D%3A/repo/...`).
  */
 export function resolveDevTransformModuleUrl(
 	srcDir: string,
@@ -100,11 +101,11 @@ export function resolveDevTransformModuleSourcePath(
 	const fsPrefix = `${FS_URL_SEGMENT}/`;
 
 	if (relativeUrlPath.startsWith(fsPrefix)) {
-		const absoluteJsPath = path.resolve(`/${decodeHmrDynamicSegments(relativeUrlPath.slice(fsPrefix.length))}`);
+		const fsPath = decodeHmrDynamicSegments(relativeUrlPath.slice(fsPrefix.length));
+		const absoluteJsPath = path.resolve(path.isAbsolute(fsPath) ? fsPath : `/${fsPath}`);
 		return resolveExistingModuleFile(absoluteJsPath, allowedRoots);
 	}
 
-	const relativePathJs = relativeUrlPath.split('/').join(path.sep);
-	const decodedRelativePathJs = decodeHmrDynamicSegments(relativePathJs);
+	const decodedRelativePathJs = decodeHmrDynamicSegments(relativeUrlPath);
 	return resolveExistingModuleFile(path.resolve(resolvedSrcDir, decodedRelativePathJs), allowedRoots);
 }

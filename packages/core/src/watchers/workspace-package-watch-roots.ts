@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { isPathStrictlyInside } from '../utils/path-containment.ts';
 
@@ -53,7 +53,7 @@ function resolveInstalledPackageRoot(packageRoot: string, name: string): string 
 		const installed = path.join(directory, 'node_modules', name);
 		if (fileSystem.exists(path.join(installed, 'package.json'))) {
 			const realRoot = fileSystem.realpath(installed);
-			return realRoot.split(path.sep).includes('node_modules') ? undefined : realRoot;
+			return realRoot.split('/').includes('node_modules') ? undefined : realRoot;
 		}
 		const parent = path.dirname(directory);
 		if (parent === directory) return undefined;

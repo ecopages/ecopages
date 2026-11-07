@@ -1,5 +1,4 @@
-import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime } from '../../../../utils/app-runtime.ts';
 import type { NodeModuleScriptAsset } from '../../assets.types.ts';
@@ -101,8 +100,8 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 	 */
 	private resolveModulePathFallback(importPath: string, rootDir: string, maxDepth = 5): string {
 		try {
-			return fileURLToPath(
-				import.meta.resolve(importPath, pathToFileURL(path.join(rootDir, 'package.json')).href),
+			return path.fromFileUrl(
+				import.meta.resolve(importPath, path.toFileUrl(path.join(rootDir, 'package.json')).href),
 			);
 		} catch {}
 

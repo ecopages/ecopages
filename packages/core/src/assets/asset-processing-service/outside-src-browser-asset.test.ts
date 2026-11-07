@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { createAppRuntime } from '../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
@@ -71,7 +71,7 @@ function expectHashedAsset(filepath: string | undefined, distDir: string, bytes:
 }
 
 test('emits a bundled script outside src inside dist', async () => {
-	const workspace = mkdtempSync(path.join(tmpdir(), 'outside-src-script-'));
+	const workspace = path.fromNative(mkdtempSync(path.join(tmpdir(), 'outside-src-script-')));
 	workspaces.push(workspace);
 	const scriptPath = path.join(workspace, 'packages', 'kit', 'src', 'sidebar', 'sidebar.script.ts');
 	mkdirSync(path.dirname(scriptPath), { recursive: true });
@@ -92,7 +92,7 @@ test('emits a bundled script outside src inside dist', async () => {
 });
 
 test('emits an unbundled dev script outside src under a content hash', async () => {
-	const workspace = mkdtempSync(path.join(tmpdir(), 'outside-src-copy-'));
+	const workspace = path.fromNative(mkdtempSync(path.join(tmpdir(), 'outside-src-copy-')));
 	workspaces.push(workspace);
 	const bytes = 'console.log("sidebar");\n';
 	const scriptPath = path.join(workspace, 'packages', 'kit', 'src', 'sidebar', 'sidebar.script.js');
@@ -111,7 +111,7 @@ test('emits an unbundled dev script outside src under a content hash', async () 
 });
 
 test('copies an unbundled dev script inside src to its source-relative path', async () => {
-	const workspace = mkdtempSync(path.join(tmpdir(), 'inside-src-copy-'));
+	const workspace = path.fromNative(mkdtempSync(path.join(tmpdir(), 'inside-src-copy-')));
 	workspaces.push(workspace);
 	const { config, srcDir, distDir } = createApp(workspace);
 	const bytes = 'console.log("sidebar");\n';
@@ -129,7 +129,7 @@ test('copies an unbundled dev script inside src to its source-relative path', as
 });
 
 test('emits a classic script outside src under a content hash', async () => {
-	const workspace = mkdtempSync(path.join(tmpdir(), 'outside-src-classic-'));
+	const workspace = path.fromNative(mkdtempSync(path.join(tmpdir(), 'outside-src-classic-')));
 	workspaces.push(workspace);
 	const scriptPath = path.join(workspace, 'packages', 'kit', 'src', 'sidebar', 'sidebar.script.ts');
 	mkdirSync(path.dirname(scriptPath), { recursive: true });
@@ -147,7 +147,7 @@ test('emits a classic script outside src under a content hash', async () => {
 });
 
 test('writes a dev stylesheet outside src under a content hash', async () => {
-	const workspace = mkdtempSync(path.join(tmpdir(), 'outside-src-css-'));
+	const workspace = path.fromNative(mkdtempSync(path.join(tmpdir(), 'outside-src-css-')));
 	workspaces.push(workspace);
 	const bytes = 'body { color: red; }\n';
 	const stylesheetPath = path.join(workspace, 'packages', 'kit', 'src', 'sidebar', 'sidebar.css');
@@ -166,7 +166,7 @@ test('writes a dev stylesheet outside src under a content hash', async () => {
 });
 
 test('writes a dev stylesheet inside src to its source-relative path', async () => {
-	const workspace = mkdtempSync(path.join(tmpdir(), 'inside-src-css-'));
+	const workspace = path.fromNative(mkdtempSync(path.join(tmpdir(), 'inside-src-css-')));
 	workspaces.push(workspace);
 	const { config, srcDir, distDir } = createApp(workspace);
 	const bytes = 'body { color: red; }\n';

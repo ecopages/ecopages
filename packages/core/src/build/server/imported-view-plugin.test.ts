@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, it } from 'vitest';
 import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult } from '../contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
@@ -40,7 +40,9 @@ describe('imported-view-plugin', () => {
 	});
 
 	function createApp(files: Record<string, string>): string {
-		const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-plugin-')));
+		const rootDir = path.fromNative(
+			fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-plugin-'))),
+		);
 		roots.push(rootDir);
 		for (const [relativePath, source] of Object.entries(files)) {
 			const filePath = path.join(rootDir, relativePath);

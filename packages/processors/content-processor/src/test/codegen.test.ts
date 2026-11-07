@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponent } from '@ecopages/core';
 import type { ContentCollectionLoader } from '../types.ts';
 import {
@@ -121,8 +122,7 @@ describe('codegen', () => {
 
 	test('fallback content-virtual-modules.d.ts separates server and component wildcards and omits them from catch-all', async () => {
 		const { readFileSync } = await import('node:fs');
-		const { resolve } = await import('node:path');
-		const dtsContent = readFileSync(resolve(import.meta.dirname, '../content-virtual-modules.d.ts'), 'utf-8');
+		const dtsContent = readFileSync(path.resolve(import.meta.dirname, '../content-virtual-modules.d.ts'), 'utf-8');
 
 		const serverIndex = dtsContent.indexOf("declare module 'ecopages:content/*/server'");
 		const componentIndex = dtsContent.indexOf("declare module 'ecopages:content/*/component'");
@@ -178,25 +178,24 @@ describe('attachMdxExports ownership guard', () => {
 	test('throws for mismatched lanes, skips async invocation in a foreign lane, and passes in the owning lane', async () => {
 		const { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync, rmSync } = await import('node:fs');
 		const { tmpdir } = await import('node:os');
-		const { join } = await import('node:path');
 		const { runWithComponentRenderContext } = await import('@ecopages/core/integration');
 
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-codegen-'));
-		mkdirSync(join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
-		const packageRoot = join(import.meta.dirname, '..', '..');
-		symlinkSync(packageRoot, join(tempDir, 'node_modules', '@ecopages', 'content-processor'), 'dir');
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-codegen-')));
+		mkdirSync(path.join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
+		const packageRoot = path.join(import.meta.dirname, '..', '..');
+		symlinkSync(packageRoot, path.join(tempDir, 'node_modules', '@ecopages', 'content-processor'), 'dir');
 		symlinkSync(
-			realpathSync(join(packageRoot, 'node_modules', '@ecopages', 'core')),
-			join(tempDir, 'node_modules', '@ecopages', 'core'),
+			path.fromNative(realpathSync(path.join(packageRoot, 'node_modules', '@ecopages', 'core'))),
+			path.join(tempDir, 'node_modules', '@ecopages', 'core'),
 			'dir',
 		);
-		const cacheDir = join(tempDir, 'cache');
+		const cacheDir = path.join(tempDir, 'cache');
 		mkdirSync(cacheDir, { recursive: true });
-		mkdirSync(join(tempDir, 'src'), { recursive: true });
+		mkdirSync(path.join(tempDir, 'src'), { recursive: true });
 
-		const reactEntryPath = join(tempDir, 'src', 'intro.react.mjs');
-		const hostEntryPath = join(tempDir, 'src', 'intro.host.mjs');
-		const asyncEntryPath = join(tempDir, 'src', 'intro.async.mjs');
+		const reactEntryPath = path.join(tempDir, 'src', 'intro.react.mjs');
+		const hostEntryPath = path.join(tempDir, 'src', 'intro.host.mjs');
+		const asyncEntryPath = path.join(tempDir, 'src', 'intro.async.mjs');
 		writeFileSync(
 			reactEntryPath,
 			[
@@ -238,7 +237,7 @@ describe('attachMdxExports ownership guard', () => {
 				filePath: asyncEntryPath,
 			},
 		]);
-		const serverModulePath = join(cacheDir, 'docs.server.mts');
+		const serverModulePath = path.join(cacheDir, 'docs.server.mts');
 		writeFileSync(serverModulePath, serverModule);
 
 		try {
@@ -303,22 +302,21 @@ describe('generated browser loader', () => {
 	test('loads an entry once for concurrent callers and rejects an unknown slug with NotFound', async () => {
 		const { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync, rmSync } = await import('node:fs');
 		const { tmpdir } = await import('node:os');
-		const { join } = await import('node:path');
 
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-codegen-browser-'));
-		mkdirSync(join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
-		const packageRoot = join(import.meta.dirname, '..', '..');
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-codegen-browser-')));
+		mkdirSync(path.join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
+		const packageRoot = path.join(import.meta.dirname, '..', '..');
 		symlinkSync(
-			realpathSync(join(packageRoot, 'node_modules', '@ecopages', 'core')),
-			join(tempDir, 'node_modules', '@ecopages', 'core'),
+			path.fromNative(realpathSync(path.join(packageRoot, 'node_modules', '@ecopages', 'core'))),
+			path.join(tempDir, 'node_modules', '@ecopages', 'core'),
 			'dir',
 		);
-		const cacheDir = join(tempDir, 'cache');
+		const cacheDir = path.join(tempDir, 'cache');
 		mkdirSync(cacheDir, { recursive: true });
-		const entryPath = join(tempDir, 'intro.mjs');
+		const entryPath = path.join(tempDir, 'intro.mjs');
 		writeFileSync(entryPath, 'export default () => "browser-entry";\n');
 
-		const browserModulePath = join(cacheDir, 'docs.browser.mts');
+		const browserModulePath = path.join(cacheDir, 'docs.browser.mts');
 		writeFileSync(
 			browserModulePath,
 			renderCollectionBrowserModule('docs', cacheDir, tempDir, [

@@ -12,9 +12,8 @@
 
 import { createHash } from 'node:crypto';
 import { builtinModules, createRequire } from 'node:module';
-import path from 'node:path';
+import { path, type PathApi } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { recordBuildEntryOutput, resolveBuildEntryPath } from '../build-graph.ts';
 import type {
@@ -38,6 +37,7 @@ import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
+import { fromRolldownModuleId } from './rolldown-module-id.ts';
 import { createRolldownPluginBridge, type WatchFilesByModule } from './rolldown-plugin-bridge.ts';
 import { isDeclaredAppPackageImport, isWorkspacePackageImport } from './app-package-declarations.ts';
 import type {
@@ -50,7 +50,7 @@ import type {
 	BuildSourcemap,
 } from '../build-adapter.ts';
 
-const coreSourceFile = fileURLToPath(import.meta.url);
+const coreSourceFile = path.fromFileUrl(import.meta.url);
 const nodeBuiltinSpecifiers = new Set(builtinModules);
 const MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES = 120;
 const PRESERVED_MODULE_NAME_HASH_LENGTH = 16;
@@ -72,7 +72,7 @@ function getCorePackageNames(): Set<string> {
 		return corePackageNames;
 	}
 
-	const packageJsonPath = fileURLToPath(new URL('../../../package.json', import.meta.url));
+	const packageJsonPath = path.fromFileUrl(new URL('../../../package.json', import.meta.url));
 	corePackageNames = new Set<string>();
 
 	try {
@@ -146,7 +146,7 @@ function createExternalMatcher(
 ): (id: string) => boolean {
 	const explicitExternals = new Set(options.external ?? []);
 	const externalPackages = options.externalPackages === true;
-	const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
+	const contextRoot = options.root ? path.resolve(options.root) : path.cwd();
 
 	return (id: string): boolean => {
 		if (explicitExternals.has(id)) {
@@ -204,7 +204,7 @@ function isUndeclaredPackageImport(id: string, contextRoot: string): boolean {
  * loader, so PnP installs are not supported for relocated server output.
  */
 function isInstalledCompiledModule(filePath: string): boolean {
-	return /\.[cm]?js$/u.test(filePath) && /[\\/]node_modules[\\/]/u.test(filePath) && !/\.zip[\\/]/u.test(filePath);
+	return /\.[cm]?js$/u.test(filePath) && filePath.includes('/node_modules/') && !filePath.includes('.zip/');
 }
 
 /**
@@ -213,17 +213,13 @@ function isInstalledCompiledModule(filePath: string): boolean {
  * @remarks
  * The specifier is a `./` or `../` path relative to `outdir`. On Windows a package installed on another drive
  * than `outdir` (a temp folder on `C:` and a checkout on `D:`) has no relative path, so it is a `file:` URL,
- * which Node's ESM loader accepts where a bare `D:\` path is rejected. `pathApi` exists so tests can run the
+ * which Node's ESM loader accepts where a bare `D:/` path is rejected. `pathApi` exists so tests can run the
  * Windows rules on any platform.
  */
-export function toInstalledPackageExternalId(
-	resolvedPath: string,
-	outdir: string,
-	pathApi: Pick<typeof path, 'relative' | 'isAbsolute' | 'sep'> = path,
-): string {
-	const relativePath = pathApi.relative(outdir, resolvedPath).split(pathApi.sep).join('/');
+export function toInstalledPackageExternalId(resolvedPath: string, outdir: string, pathApi: PathApi = path): string {
+	const relativePath = pathApi.relative(outdir, resolvedPath);
 	if (pathApi.isAbsolute(relativePath)) {
-		return pathToFileURL(resolvedPath, { windows: pathApi === path.win32 || undefined }).href;
+		return pathApi.toFileUrl(resolvedPath).href;
 	}
 	return relativePath.startsWith('../') ? relativePath : `./${relativePath}`;
 }
@@ -288,15 +284,16 @@ export function createInstalledPackageExternalPlugin(
 				const resolved =
 					(importer ? await this.resolve(id, importer, resolveOptions) : null) ??
 					(coreNames.has(packageName) ? await this.resolve(id, coreSourceFile, resolveOptions) : null);
-				if (!resolved || resolved.external || !isInstalledCompiledModule(resolved.id)) {
+				const resolvedPath = resolved && !resolved.external ? fromRolldownModuleId(resolved.id) : undefined;
+				if (!resolvedPath || !isInstalledCompiledModule(resolvedPath)) {
 					return null;
 				}
 				realOutdir ??= realpathOfDirectory(outdir);
 				realContextRoot ??= realpathOfDirectory(contextRoot);
-				if (reportDir && !isPathInside(resolved.id, realContextRoot)) {
+				if (reportDir && !isPathInside(resolvedPath, realContextRoot)) {
 					outsideRootPackages.add(packageName);
 				}
-				const externalId = toInstalledPackageExternalId(resolved.id, realOutdir);
+				const externalId = toInstalledPackageExternalId(resolvedPath, realOutdir);
 				if (externalId.startsWith('file:')) {
 					return { id: externalId, external: true };
 				}
@@ -318,9 +315,7 @@ export function createInstalledPackageExternalPlugin(
 			}
 			if (reportDir) {
 				const outputLabel = entryFileNames
-					.map((fileName) =>
-						path.relative(contextRoot, path.join(reportDir, fileName)).split(path.sep).join('/'),
-					)
+					.map((fileName) => path.relative(contextRoot, path.join(reportDir, fileName)))
 					.join(', ');
 				warnPackagesOutsideAppRoot(outputLabel, outsideRootPackages);
 			}
@@ -351,9 +346,9 @@ const nodeBuiltinFilter = new RegExp(
  */
 export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 	const rejectServerOnly = (id: string, importer: string | undefined): never => {
-		const from = importer ? ` (imported from ${importer})` : '';
+		const from = importer ? ` (imported from ${fromRolldownModuleId(importer)})` : '';
 		throw new Error(
-			`[browser-build] server-only module "${id}" cannot be bundled for the browser${from}. Check the browser graph boundary for the importer.`,
+			`[browser-build] server-only module "${fromRolldownModuleId(id)}" cannot be bundled for the browser${from}. Check the browser graph boundary for the importer.`,
 		);
 	};
 	return {
@@ -364,7 +359,7 @@ export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 				if (!isNodeBuiltinSpecifier(id)) {
 					return null;
 				}
-				const from = importer ? ` (imported from ${importer})` : '';
+				const from = importer ? ` (imported from ${fromRolldownModuleId(importer)})` : '';
 				throw new Error(
 					`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. Check package "browser" exports and the client-graph boundary for the importer.`,
 				);
@@ -471,6 +466,12 @@ export function toBuildLog(entry: unknown): BuildLog {
 		if (source[key] !== undefined) {
 			Object.assign(log, { [key]: source[key] });
 		}
+	}
+	if (typeof log.id === 'string') {
+		log.id = fromRolldownModuleId(log.id);
+	}
+	if (typeof log.loc?.file === 'string') {
+		log.loc = { ...log.loc, file: fromRolldownModuleId(log.loc.file) };
 	}
 	if (typeof source.frame === 'string') {
 		log.frame = stripVTControlCharacters(source.frame);
@@ -608,7 +609,12 @@ function truncateUtf8(value: string, maximumBytes: number): string {
 }
 
 function flattenPreservedModuleName(sourceName: string): string {
-	const flattened = sourceName.replaceAll(/[\\/]/g, '-');
+	const flattened = path
+		.fromNative(sourceName)
+		.split('/')
+		.filter((segment) => segment !== '' && segment !== '.' && segment !== '..')
+		.join('-')
+		.replaceAll(':', '');
 	if (Buffer.byteLength(flattened) <= MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES) return flattened;
 	const digest = createHash('sha256').update(sourceName).digest('hex').slice(0, PRESERVED_MODULE_NAME_HASH_LENGTH);
 	const prefixBytes = MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES - digest.length - 1;
@@ -628,6 +634,18 @@ function flattenPreservedModuleFileNames(pattern: string): (chunk: PreRenderedCh
 	return (chunk) => pattern.replaceAll('[name]', () => flattenPreservedModuleName(chunk.name));
 }
 
+/**
+ * Sanitizes the name Rolldown gives a preserved module before it fills `[name]`.
+ *
+ * @remarks
+ * A module on another drive than `preserveModulesRoot` has no path relative to it, and Rolldown names it with a
+ * `../` prefix that it rejects as a `[name]` substitution before `entryFileNames` can rewrite it. The prefix is
+ * dropped here, along with the characters Rolldown's default sanitizer removes.
+ */
+function sanitizePreservedModuleName(name: string): string {
+	return name.replace(/^(?:\.\.?\/)+/u, '').replaceAll(/[\0?*:]/gu, '_');
+}
+
 function buildRolldownOutputOptions(options: BuildOptions, outdir: string): OutputOptions {
 	const entryFileNames = resolveRolldownEntryFileNames(options);
 	return {
@@ -640,7 +658,10 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 		...(options.preserveModules
 			? {
 					preserveModules: true,
-					...(options.preserveModulesRoot ? { preserveModulesRoot: options.preserveModulesRoot } : {}),
+					sanitizeFileName: sanitizePreservedModuleName,
+					...(options.preserveModulesRoot
+						? { preserveModulesRoot: path.toNative(options.preserveModulesRoot) }
+						: {}),
 				}
 			: {}),
 		sourcemap: mapRolldownSourcemap(options.sourcemap),
@@ -688,10 +709,10 @@ export async function resolveRolldownOptions(
 function isContentHashedOutput(entry: RolldownOutput['output'][number], entryNamingHashed: boolean): boolean {
 	if (entry.type === 'chunk') return entry.isEntry ? entryNamingHashed : true;
 
-	const fileName = path.posix.basename(entry.fileName);
+	const fileName = path.basename(entry.fileName);
 	return entry.names.some((name) => {
-		const extension = path.posix.extname(name);
-		const stem = path.posix.basename(name, extension);
+		const extension = path.extname(name);
+		const stem = path.basename(name, extension);
 		return (
 			fileName.startsWith(`${stem}-`) &&
 			fileName.endsWith(extension) &&
@@ -710,7 +731,7 @@ function isHashedSourceMap(fileName: string, hashedFileNames: ReadonlySet<string
  */
 function sourceModulePath(moduleId: string, root: string): string[] {
 	if (moduleId.startsWith('\0')) return [];
-	const filePath = moduleId.startsWith('file:') ? fileURLToPath(moduleId) : moduleId;
+	const filePath = moduleId.startsWith('file:') ? path.fromFileUrl(moduleId) : moduleId;
 	return path.isAbsolute(filePath) ? [resolveBuildEntryPath(filePath, root)] : [];
 }
 

@@ -36,6 +36,10 @@
 		"./node": {
 			"import": "./src/adapters/node.ts",
 			"types": "./src/adapters/node.ts"
+		},
+		"./path": {
+			"import": "./src/path.ts",
+			"types": "./src/path.ts"
 		}
 	},
 	"devDependencies": {

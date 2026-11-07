@@ -1,6 +1,6 @@
 import { getComponentIdentity, getComponentOwner } from '../../../eco/component-identity.ts';
 import type { EcoComponent, EcoComponentConfig } from '../../../types/contracts.ts';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { randomUUID } from 'node:crypto';
 import { isEcopagesEnvEnabled } from '../../../env.ts';
 import {

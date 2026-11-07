@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../../config/internal-types.ts';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types.ts';

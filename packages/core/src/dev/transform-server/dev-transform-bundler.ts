@@ -1,5 +1,5 @@
 import { contentHash } from '../../utils/content-hash.ts';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { fileSystem } from '@ecopages/file-system';
 import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';

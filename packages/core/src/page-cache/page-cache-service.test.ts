@@ -2,7 +2,7 @@
  * Unit tests for PageCacheService
  */
 
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, test, beforeEach, vi } from 'vitest';
 import { appLogger } from '../global/app-logger.ts';
 import { PageCacheService, getCacheControlHeader } from './page-cache-service.js';

@@ -9,7 +9,7 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getAssetDependencyKey } from '../assets/asset-processing-service/asset-dependency-keys.ts';
 import type { FileStylesheetAsset } from '../assets/asset-processing-service/assets.types.ts';
@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 function tempRoot(): string {
-	const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-discovered-paths-')));
+	const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-discovered-paths-'))));
 	roots.push(root);
 	return root;
 }

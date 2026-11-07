@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, test } from 'vitest';
 import { collectHtmlCacheSourceDependencyPaths } from './html-page-cache-dependency-index.ts';
 import { BuildInputDependencyIndex } from '../build/cache/build-input-dependency-index.ts';
@@ -24,10 +25,10 @@ describe('HTML cache source paths', () => {
 
 		expect(paths).toEqual(
 			expect.arrayContaining([
-				'/app/pages/docs/[...slug].tsx',
-				'/app/content/docs/intro.mdx',
-				'/app/src/lib/posts.ts',
-				'/app/src/components/Button.tsx',
+				path.resolve('/app/pages/docs/[...slug].tsx'),
+				path.resolve('/app/content/docs/intro.mdx'),
+				path.resolve('/app/src/lib/posts.ts'),
+				path.resolve('/app/src/components/Button.tsx'),
 			]),
 		);
 		expect(paths).toHaveLength(4);

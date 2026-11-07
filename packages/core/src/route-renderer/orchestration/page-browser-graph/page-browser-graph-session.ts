@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { contentHash } from '../../../utils/content-hash.ts';
 import type { PageBrowserGraphContribution, PageBrowserGraphResult } from '../../../types/contracts.ts';
 import type { AssetDefinition, ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';

@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestAppConfig } from '@ecopages/testing';
 import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
@@ -44,7 +44,7 @@ describe('explicit views rendered through real renderers', () => {
 	});
 
 	async function createPlugin(): Promise<{ plugin: ExplicitViewTestPlugin; appConfig: EcoPagesAppConfig }> {
-		rootDir = mkdtempSync(path.join(tmpdir(), 'explicit-view-'));
+		rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'explicit-view-')));
 		const appConfig = await createTestAppConfig({ rootDir, integrations: [] });
 		const plugin = new ExplicitViewTestPlugin({ name: 'kitajs', extensions: ['.kita.tsx'] });
 		await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });

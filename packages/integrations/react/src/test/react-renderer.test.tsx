@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import {
 	eco,
 	getComponentIdentity,
@@ -39,7 +39,7 @@ const mockRouterAdapter = {
 	getRouterProps: (page: string, props: string) => `{ page: ${page}, pageProps: ${props} }`,
 };
 
-const testDir = mkdtempSync(path.join(os.tmpdir(), 'react-renderer-test-'));
+const testDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'react-renderer-test-')));
 
 const Config = await createTestAppConfig({
 	distDir: testDir,
@@ -304,7 +304,7 @@ describe('ReactRenderer', () => {
 		it.each(['layoutsDir', 'componentsDir'] as const)(
 			'resolves a page relative script against the app %s',
 			async (dir) => {
-				const rootDir = mkdtempSync(path.join(os.tmpdir(), 'react-renderer-app-dirs-'));
+				const rootDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'react-renderer-app-dirs-')));
 				try {
 					const config = await createTestAppConfig({ rootDir, distDir: testDir });
 					const scriptDir = config.absolutePaths[dir];

@@ -3,7 +3,7 @@
  * @module @ecopages/postcss-processor
  */
 
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { isEcopagesEnvEnabled, isProductionRuntime } from '@ecopages/core/processor';
 import type { IClientBridge } from '@ecopages/core/integration';
 import { fileSystem } from '@ecopages/file-system';

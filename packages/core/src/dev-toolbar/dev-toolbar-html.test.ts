@@ -1,12 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HmrManager } from '../adapters/shared/hmr/hmr-manager.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 
-const toolbarPackageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../dev-toolbar');
+const toolbarPackageDir = path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../../../dev-toolbar');
 const HMR_RUNTIME_IMPORT = "import '/_hmr_runtime.js'";
 const DEV_TOOLBAR_RUNTIME_IMPORT = "import '/_dev_toolbar.js'";
 const tempRoots: string[] = [];
@@ -24,7 +23,7 @@ afterEach(() => {
 
 /** Creates a manager for an app whose `node_modules` holds the workspace Dev Toolbar package, or none. */
 async function createManager(options: { toolbarPackage: string; installToolbar: boolean }): Promise<HmrManager> {
-	const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dev-client-runtimes-'));
+	const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dev-client-runtimes-')));
 	tempRoots.push(rootDir);
 	if (options.installToolbar) {
 		const scopeDir = path.join(rootDir, 'node_modules', '@ecopages');

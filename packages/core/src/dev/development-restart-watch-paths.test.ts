@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, test } from 'vitest';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { resolveRuntimeRestartWatchPaths } from './development-restart-watch-paths.ts';

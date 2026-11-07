@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import os from 'node:os';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig } from '../config/internal-types';
@@ -43,7 +43,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 		}).then(({ emit }) => ({ emit, bridge, hmrManager }));
 
 	beforeEach(() => {
-		testRoot = mkdtempSync(path.join(os.tmpdir(), 'ecopages-integration-test-'));
+		testRoot = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-integration-test-')));
 	});
 
 	afterEach(() => {

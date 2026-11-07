@@ -1,5 +1,5 @@
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { tmpdir } from 'node:os';
 import { expect, it, vi } from 'vitest';
 import { createClientGraphBoundaryPlugin } from './boundary-plugin.ts';
@@ -20,9 +20,9 @@ vi.mock('@ecopages/core/build', async (importOriginal) => {
 });
 
 it('parses each module once in a build with one boundary instance per React entry', async () => {
-	const tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'eco-client-graph-parse-')));
-	const islands = ['a', 'b', 'c'].map((name) => join(tempDir, `island-${name}.tsx`));
-	const helper = join(tempDir, 'helper.ts');
+	const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-parse-'))));
+	const islands = ['a', 'b', 'c'].map((name) => path.join(tempDir, `island-${name}.tsx`));
+	const helper = path.join(tempDir, 'helper.ts');
 	writeFileSync(helper, 'export const label = (name) => `island-${name}`;');
 	for (const island of islands) {
 		writeFileSync(
@@ -35,7 +35,7 @@ it('parses each module once in a build with one boundary instance per React entr
 		const result = await new RolldownBuildAdapter().build({
 			environment: 'browser',
 			entrypoints: Object.fromEntries(islands.map((island, index) => [`island${index}`, island])),
-			outdir: join(tempDir, 'dist'),
+			outdir: path.join(tempDir, 'dist'),
 			root: tempDir,
 			target: 'browser',
 			format: 'esm',

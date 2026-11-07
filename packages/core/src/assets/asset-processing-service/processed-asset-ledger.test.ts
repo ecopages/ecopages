@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import type { FileStylesheetAsset, ProcessedAsset } from './assets.types.ts';
 import { ProcessedAssetLedger } from './processed-asset-ledger.ts';

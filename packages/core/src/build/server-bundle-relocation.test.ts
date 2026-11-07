@@ -14,11 +14,10 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, expect, test } from 'vitest';
 
-const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
+const repoRoot = path.fromFileUrl(new URL('../../../../', import.meta.url));
 const cliPath = path.join(repoRoot, 'packages/ecopages/bin/cli.js');
 const HOME_MARKER = 'Relocated home';
 
@@ -39,7 +38,7 @@ afterEach(async () => {
 function findPackageDir(fromDir: string, name: string): string | undefined {
 	for (let dir = fromDir; ; dir = path.dirname(dir)) {
 		const candidate = path.join(dir, 'node_modules', name);
-		if (existsSync(path.join(candidate, 'package.json'))) return realpathSync(candidate);
+		if (existsSync(path.join(candidate, 'package.json'))) return path.fromNative(realpathSync(candidate));
 		if (path.dirname(dir) === dir) return undefined;
 	}
 }
@@ -75,7 +74,7 @@ function installIsolated(appDir: string, packages: Record<string, string>): void
 			dependencies?: Record<string, string>;
 			optionalDependencies?: Record<string, string>;
 		};
-		const isWorkspacePackage = !sourceDir.split(path.sep).includes('node_modules');
+		const isWorkspacePackage = !sourceDir.split('/').includes('node_modules');
 		const entries = isWorkspacePackage && packageJson.files ? ['package.json', ...packageJson.files] : ['.'];
 		const nativeBindings: string[] = [];
 		for (const entry of entries) {
@@ -84,7 +83,7 @@ function installIsolated(appDir: string, packages: Record<string, string>): void
 				dereference: true,
 				filter: (source) => {
 					const relative = path.relative(sourceDir, source);
-					if (relative.split(path.sep).includes('node_modules')) return false;
+					if (relative.split('/').includes('node_modules')) return false;
 					if (!source.endsWith('.node')) return true;
 					nativeBindings.push(relative);
 					return false;
@@ -262,7 +261,7 @@ test(
 	'a server build keeps serving after dist and node_modules move to another root',
 	{ timeout: 120_000 },
 	async () => {
-		workDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-')));
+		workDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-'))));
 		const buildDir = path.join(workDir, 'build/app');
 		const deployDir = path.join(workDir, 'srv/deploy/app');
 		writeApp(buildDir);
@@ -381,7 +380,7 @@ test(
 	'a moved build still links the Page stylesheet and script without the source tree',
 	{ timeout: 120_000 },
 	async () => {
-		workDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-assets-')));
+		workDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-assets-'))));
 		const buildDir = path.join(workDir, 'build/app');
 		const deployDir = path.join(workDir, 'srv/deploy/app');
 		writeStyledApp(buildDir);

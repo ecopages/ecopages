@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type { ResolvedLazyTrigger } from '../../../types/contracts.ts';
 import {
@@ -18,10 +18,12 @@ export async function buildGlobalInjectorAssets(
 	triggers: ResolvedLazyTrigger[],
 	currentIntegrationName: string,
 ): Promise<ProcessedAsset[]> {
-	const appProjectDir = appConfig.rootDir ?? appConfig.absolutePaths?.projectDir ?? process.cwd();
+	const appProjectDir = appConfig.rootDir ?? appConfig.absolutePaths?.projectDir ?? path.cwd();
 	const appPackageRequire = createRequire(path.join(appProjectDir, 'package.json'));
 	const corePackageEntryPath = appPackageRequire.resolve('@ecopages/core');
-	const globalInjectorImportPath = createRequire(corePackageEntryPath).resolve('@ecopages/scripts-injector/global');
+	const globalInjectorImportPath = path.fromNative(
+		createRequire(corePackageEntryPath).resolve('@ecopages/scripts-injector/global'),
+	);
 
 	const mapScript = AssetFactory.createInlineContentScript({
 		position: 'head',

@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { assertBuildSucceeded } from '../build-log.ts';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
@@ -9,7 +9,7 @@ import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 let workDir: string;
 
 beforeEach(() => {
-	workDir = mkdtempSync(path.join(tmpdir(), 'worker-entries-plugin-test-'));
+	workDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'worker-entries-plugin-test-')));
 });
 
 afterEach(() => {

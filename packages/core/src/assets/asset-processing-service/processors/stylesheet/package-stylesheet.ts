@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { resolvePackageStylesheetPath } from '../../../../plugins/tsconfig-import-resolver.ts';
 import { isPathInside } from '../../../../utils/path-containment.ts';

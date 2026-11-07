@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { PostCssProcessor } from '../postcss-processor';
 import { createAppAwarePostcssImport, resolveAppRootFromPath } from '../postcss-import-app-aware';
@@ -24,7 +24,7 @@ describe('resolveAppRootFromPath', () => {
 
 describe('createAppAwarePostcssImport', () => {
 	test('should resolve hoisted bare package imports through package exports', async () => {
-		const tempRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-import-'));
+		const tempRoot = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-import-')));
 		tempDirs.push(tempRoot);
 
 		const appRoot = path.join(tempRoot, 'apps', 'synapse');

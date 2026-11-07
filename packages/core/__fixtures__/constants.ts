@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 export const FIXTURE_APP_PROJECT_DIR = path.resolve(__dirname, 'app');
 

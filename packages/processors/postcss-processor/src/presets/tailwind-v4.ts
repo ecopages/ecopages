@@ -9,7 +9,7 @@ import tailwindcss from '@tailwindcss/postcss';
 import autoprefixer from 'autoprefixer';
 import browserslist from 'browserslist';
 import cssnano from 'cssnano';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type postcss from 'postcss';
 import postcssNested from 'postcss-nested';
 import { createAppAwarePostcssImport, resolveAppRootFromPath } from '../postcss-import-app-aware.ts';
@@ -59,7 +59,7 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 	const appRoot = resolveAppRootFromPath(referencePath);
 
 	// Check if browserslist config exists
-	const browserslistConfig = browserslist.loadConfig({ path: process.cwd() });
+	const browserslistConfig = browserslist.loadConfig({ path: path.cwd() });
 	const autoprefixerOptions = browserslistConfig
 		? {}
 		: {

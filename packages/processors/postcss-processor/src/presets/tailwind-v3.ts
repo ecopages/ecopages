@@ -5,6 +5,7 @@
  * Install the peer: pnpm add -D tailwindcss@3
  */
 
+import { path } from '@ecopages/file-system/path';
 import autoprefixer from 'autoprefixer';
 import browserslist from 'browserslist';
 import cssnano from 'cssnano';
@@ -42,10 +43,10 @@ type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
  * ```
  */
 export function tailwindV3Preset(): PostCssProcessorPluginConfig {
-	const appRoot = process.cwd();
+	const appRoot = path.cwd();
 
 	// Check if browserslist config exists
-	const browserslistConfig = browserslist.loadConfig({ path: process.cwd() });
+	const browserslistConfig = browserslist.loadConfig({ path: path.cwd() });
 	const autoprefixerOptions = browserslistConfig
 		? {}
 		: {

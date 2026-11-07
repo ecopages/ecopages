@@ -1,4 +1,4 @@
-import { join, relative, resolve, sep } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { validateStandardSchema, type StandardSchema } from '@ecopages/core';
 import { VFile } from 'vfile';
 import { matter } from 'vfile-matter';
@@ -39,10 +39,10 @@ export type ContentEntryPathUpdateResult = 'no-op' | 'manifest' | 'structure';
 function slugFromRelativePath(relativePath: string, extensions: string[]): string {
 	for (const ext of extensions) {
 		if (relativePath.endsWith(ext)) {
-			return relativePath.slice(0, -ext.length).split(sep).join('/');
+			return relativePath.slice(0, -ext.length);
 		}
 	}
-	return relativePath.split(sep).join('/');
+	return relativePath;
 }
 
 /**
@@ -79,7 +79,7 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 
 		const files = await Promise.all(
 			relativePaths.map(async (relativePath) => {
-				const filePath = join(this.contentRoot, relativePath);
+				const filePath = path.join(this.contentRoot, relativePath);
 				const slug = slugFromRelativePath(relativePath, this.extensions);
 				const raw = await fileSystem.readFile(filePath);
 				const entry: ContentEntry<T> = {
@@ -155,14 +155,14 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 	 * rewriting generated collection modules during dev HMR.
 	 */
 	async updateEntryForPath(filePath: string, event: 'change' | 'delete'): Promise<ContentEntryPathUpdateResult> {
-		const resolvedPath = resolve(filePath);
+		const resolvedPath = path.resolve(filePath);
 		const cache = await this.getCache();
 
 		if (event === 'delete') {
 			return this.removeEntryAtPath(cache, resolvedPath);
 		}
 
-		const relativePath = relative(this.contentRoot, resolvedPath);
+		const relativePath = path.relative(this.contentRoot, resolvedPath);
 		const nextSlug = slugFromRelativePath(relativePath, this.extensions);
 		const previousSlug = this.findSlugForFilePath(cache, resolvedPath);
 
@@ -171,7 +171,7 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 
 	private findSlugForFilePath(cache: ContentCache<T>, filePath: string): string | undefined {
 		for (const [slug, currentPath] of cache.filePathsBySlug) {
-			if (resolve(currentPath) === filePath) {
+			if (path.resolve(currentPath) === filePath) {
 				return slug;
 			}
 		}

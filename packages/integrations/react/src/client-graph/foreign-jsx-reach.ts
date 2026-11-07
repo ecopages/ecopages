@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { resolveProjectModulePath } from '@ecopages/core/build';
 
@@ -60,7 +60,7 @@ function collectForeignFiles(
 			const resolved = resolveProjectModulePath(options.projectRoot, filePath, specifier, {
 				preserveBarrel: true,
 			});
-			if (!resolved || resolved.split(/[\\/]/).includes('node_modules')) continue;
+			if (!resolved || resolved.split('/').includes('node_modules')) continue;
 			const target = toRealPath(resolved);
 			if (stopAt.has(target)) continue;
 			if (options.isForeignFile(target) && !foreign.has(target)) foreign.set(target, root);

@@ -1,10 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, expect, test } from 'vitest';
 
-const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
+const repoRoot = path.fromFileUrl(new URL('../../../../', import.meta.url));
 const cliPath = path.join(repoRoot, 'packages/ecopages/bin/cli.js');
 let appDir: string | undefined;
 
@@ -14,7 +13,7 @@ afterEach(() => {
 });
 
 test('ecopages build finishes healthy exports after a Page data hook failure', { timeout: 120_000 }, () => {
-	appDir = mkdtempSync(path.join(repoRoot, '.static-build-render-failure-'));
+	appDir = path.fromNative(mkdtempSync(path.join(repoRoot, '.static-build-render-failure-')));
 	symlinkSync(path.join(repoRoot, 'node_modules/.pnpm/node_modules'), path.join(appDir, 'node_modules'), 'dir');
 	mkdirSync(path.join(appDir, 'src/pages'), { recursive: true });
 	mkdirSync(path.join(appDir, 'src/includes'), { recursive: true });

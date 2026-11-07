@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem, type FileChange, type FileWatcher, type WatchOptions } from '@ecopages/file-system';
 import { onTestFinished, vi, type Mock } from 'vitest';
 import { ProjectWatcher, type ProjectWatcherConfig } from './project-watcher.ts';
@@ -180,6 +180,5 @@ function rejectHandleReady(handle: FakeFileSystemWatchHandle, error: unknown): v
 }
 
 function isSameOrInside(candidate: string, root: string): boolean {
-	const relativePath = path.relative(path.resolve(root), path.resolve(candidate));
-	return relativePath === '' || (relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`));
+	return path.isWithin(root, candidate);
 }

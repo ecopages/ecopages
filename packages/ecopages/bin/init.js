@@ -1,16 +1,15 @@
 import { downloadTemplate } from 'giget';
 import * as prompts from '@clack/prompts';
 import { spawn } from 'node:child_process';
-import { basename, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { parseArgs } from 'node:util';
 import { fileSystem } from '@ecopages/file-system';
 import { printBrandBanner, withBrandBanner } from './brand.js';
 import { normalizeGitSource } from './git-template-source.js';
 
-const pkg = JSON.parse(fileSystem.readFileSync(fileURLToPath(new URL('../package.json', import.meta.url))));
+const pkg = JSON.parse(fileSystem.readFileSync(path.fromFileUrl(new URL('../package.json', import.meta.url))));
 const templateManifest = JSON.parse(
-	fileSystem.readFileSync(fileURLToPath(new URL('../templates.json', import.meta.url))),
+	fileSystem.readFileSync(path.fromFileUrl(new URL('../templates.json', import.meta.url))),
 );
 const officialTemplates = [...templateManifest.templates].sort((left, right) => left.order - right.order);
 const defaultOfficialTemplate = officialTemplates.find((template) => template.default) ?? officialTemplates[0];
@@ -190,13 +189,13 @@ function rewriteWorkspaceDependencies(projectPkg) {
 }
 
 function updateProjectManifest(targetDir, packageDirectory, isOfficial) {
-	const packagePath = join(targetDir, packageDirectory, 'package.json');
+	const packagePath = path.join(targetDir, packageDirectory, 'package.json');
 	if (!fileSystem.exists(packagePath)) {
 		throw new Error(`Template package directory '${packageDirectory}' does not contain a package.json.`);
 	}
 
 	const projectPkg = JSON.parse(fileSystem.readFileSync(packagePath));
-	projectPkg.name = basename(targetDir);
+	projectPkg.name = path.basename(targetDir);
 	if (isOfficial) rewriteWorkspaceDependencies(projectPkg);
 
 	if (isOfficial) {
@@ -374,7 +373,7 @@ export async function runInitCommand(rawArgs, logger) {
 		updateProjectManifest(dir, packageDirectory, Boolean(officialTemplate));
 		prompts.log.step(`Project created in ${dir}.`);
 
-		const packageCwd = join(dir, packageDirectory);
+		const packageCwd = path.join(dir, packageDirectory);
 		if (install) {
 			prompts.log.step(`Installing dependencies with ${packageManager}...`);
 			await runChildCommand(packageManager, ['install'], packageCwd);
@@ -384,7 +383,7 @@ export async function runInitCommand(rawArgs, logger) {
 			await runChildCommand(packageManager, ['run', 'dev'], packageCwd);
 		}
 
-		const relativeCwd = packageDirectory === '.' ? dir : join(dir, packageDirectory);
+		const relativeCwd = packageDirectory === '.' ? dir : path.join(dir, packageDirectory);
 		logger.info(
 			`Project initialized. Run 'cd "${relativeCwd}" && ${packageManager} install && ${packageManager} run dev'.`,
 		);

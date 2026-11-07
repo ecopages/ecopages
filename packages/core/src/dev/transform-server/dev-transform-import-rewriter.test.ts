@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { appLogger } from '../../global/app-logger.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
@@ -16,7 +16,9 @@ afterEach(() => {
 
 describe('rewriteModuleImports', () => {
 	it('rewrites an absolute specifier of a project file to its dev-transform URL', async () => {
-		const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-absolute-import-')));
+		const rootDir = path.fromNative(
+			fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-absolute-import-'))),
+		);
 		tempRoots.push(rootDir);
 		const srcDir = path.join(rootDir, 'src');
 		const linkPath = path.join(srcDir, 'layouts', 'sidebar-link.tsx');
@@ -38,7 +40,9 @@ describe('rewriteModuleImports', () => {
 
 	describe('a named import from a CommonJS vendor', () => {
 		const rewriteVendorImports = async (code: string) => {
-			const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-cjs-import-')));
+			const rootDir = path.fromNative(
+				fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-cjs-import-'))),
+			);
 			tempRoots.push(rootDir);
 			const srcDir = path.join(rootDir, 'src');
 			const result = await rewriteModuleImports({

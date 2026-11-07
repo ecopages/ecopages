@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
@@ -13,7 +13,7 @@ import { resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 const tempRoots: string[] = [];
 
 function createTempRoot(prefix: string): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`)));
 	tempRoots.push(root);
 	return root;
 }

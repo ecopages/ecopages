@@ -9,7 +9,7 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { resolvePackagePath, toPackagePath } from './package-path.ts';
 
@@ -27,7 +27,7 @@ function write(file: string, content: string): string {
 
 /** An app whose `some-lib` lives in a pnpm-style store folder of `version`, linked from `node_modules`. */
 function pnpmApp() {
-	const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-package-path-')));
+	const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-package-path-'))));
 	roots.push(root);
 	const storeDir = (version: string) =>
 		path.join(root, 'node_modules', '.pnpm', `some-lib@${version}`, 'node_modules', 'some-lib');
@@ -48,7 +48,7 @@ describe('toPackagePath', () => {
 	});
 
 	it('skips a nested package.json without a name and keeps the scope of a scoped package', () => {
-		const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-package-path-')));
+		const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-package-path-'))));
 		roots.push(root);
 		const packageDir = path.join(root, 'node_modules', '@scope', 'kit');
 		write(path.join(packageDir, 'package.json'), JSON.stringify({ name: '@scope/kit' }));
@@ -88,7 +88,7 @@ describe('resolvePackagePath', () => {
 	});
 
 	it('returns the path under the app node_modules when no folder holds the package', () => {
-		const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-package-path-')));
+		const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-package-path-'))));
 		roots.push(root);
 
 		expect(resolvePackagePath(root, '@scope/kit/theme.css')).toBe(

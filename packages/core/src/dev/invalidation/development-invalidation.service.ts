@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { isDevEnvFilePath } from '../development-restart-watch-paths.ts';
 import { matchesAdditionalWatchPath, resolveAdditionalWatchPath } from '../../utils/additional-watch-paths.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';

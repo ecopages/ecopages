@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import type { PageMetadataProps, PageRobotsMetadata } from '../types/contracts.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';

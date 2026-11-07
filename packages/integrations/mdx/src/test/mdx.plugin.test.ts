@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compile } from '@mdx-js/mdx';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
@@ -95,7 +95,7 @@ describe('MDXPlugin', () => {
 	});
 
 	it('forwards configured compiler options to its loader', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-plugin-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-plugin-')));
 		tempDirs.push(tempDir);
 		const filePath = path.join(tempDir, 'page.mdx');
 		writeFileSync(filePath, '# Hello\n');

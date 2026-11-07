@@ -1,5 +1,5 @@
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { ScriptAsset } from '../../assets.types.ts';
 import { BaseProcessor } from './base-processor.ts';
 import { BrowserBundleService, type BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';

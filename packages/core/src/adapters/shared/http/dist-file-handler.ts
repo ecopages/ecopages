@@ -1,7 +1,7 @@
 import { STATUS_MESSAGE } from '../../../constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { fileSystem } from '@ecopages/file-system';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import {
 	HASHED_BROWSER_ASSET_INDEX_FILENAME,
 	hashBrowserAssetBytes,
@@ -69,7 +69,7 @@ function resolveRequestTarget(request: Request, distDir: string): RequestTarget 
 
 	const relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
 	const requestedPath = path.resolve(distDir, relativePath);
-	return isPathInside(distDir, requestedPath) ? { pathname, requestedPath } : undefined;
+	return path.isWithin(distDir, requestedPath) ? { pathname, requestedPath } : undefined;
 }
 
 /**
@@ -109,11 +109,6 @@ async function createNotFoundResponse(
 	return method === 'HEAD' ? responseWithoutBody(response) : response;
 }
 
-function isPathInside(root: string, candidate: string): boolean {
-	const relativePath = path.relative(root, candidate);
-	return relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath);
-}
-
 function createBadRequestResponse(method: string): Response {
 	return new Response(method === 'HEAD' ? null : 'Invalid path', {
 		status: 400,
@@ -143,7 +138,7 @@ async function createDistNotFoundResponse(request: Request, distDir: string): Pr
 
 function isRealPathInside(root: string, candidate: string): boolean {
 	try {
-		return isPathInside(fileSystem.realpath(root), fileSystem.realpath(candidate));
+		return path.isWithin(fileSystem.realpath(root), fileSystem.realpath(candidate));
 	} catch {
 		return false;
 	}

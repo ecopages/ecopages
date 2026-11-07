@@ -5,8 +5,7 @@
  * `server-modules.json`. `ecopages start` imports those modules and never compiles.
  */
 
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { isEcopagesEnvDisabled } from '../../env.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
@@ -120,7 +119,7 @@ export async function importEmittedServerModule<T>(
 	if (owner?.reviveCompiledPageModule) {
 		return reviveCompiledPageModuleFromDisk(appConfig, filePath, outputPath) as T;
 	}
-	return (await import(/* @vite-ignore */ pathToFileURL(outputPath).href)) as T;
+	return (await import(/* @vite-ignore */ path.toFileUrl(outputPath).href)) as T;
 }
 
 async function emitRolldownServerModules(
@@ -181,7 +180,7 @@ async function importEmittedModules(
 		if (!relativePath) {
 			continue;
 		}
-		modules.push(await import(/* @vite-ignore */ pathToFileURL(path.join(manifest.outdir, relativePath)).href));
+		modules.push(await import(/* @vite-ignore */ path.toFileUrl(path.join(manifest.outdir, relativePath)).href));
 	}
 	return modules;
 }

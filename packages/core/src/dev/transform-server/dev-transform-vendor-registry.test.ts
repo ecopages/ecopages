@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
@@ -16,7 +15,7 @@ const repoRoot = path.resolve(import.meta.dirname, '../../../../..');
 const docsRoot = path.join(repoRoot, 'apps', 'docs');
 
 function createTempRoot(prefix: string): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`)));
 	tempRoots.push(root);
 	return root;
 }
@@ -31,7 +30,7 @@ afterEach(() => {
 /** Relative imports of a served vendor file, resolved to the URLs the browser would request. */
 function relativeVendorImports(url: string, code: string): string[] {
 	const specifiers = [...code.matchAll(/(?:from|import)\s*\(?\s*["'](\.\.?\/[^"']+)["']/g)].map((match) => match[1]);
-	return specifiers.map((specifier) => path.posix.join(path.posix.dirname(url), specifier));
+	return specifiers.map((specifier) => path.join(path.dirname(url), specifier));
 }
 
 /** Every vendor file the browser loads for `urls`, by URL. */
@@ -58,7 +57,7 @@ async function readVendorGraph(registry: DevTransformVendorRegistry, urls: strin
  * Node evaluates them as the browser would: one module per file, linked by their relative imports.
  */
 async function importVendorGraph(registry: DevTransformVendorRegistry, urls: string[]): Promise<unknown[]> {
-	const directory = fs.realpathSync(createTempRoot('dev-transform-vendor-eval'));
+	const directory = path.fromNative(fs.realpathSync(createTempRoot('dev-transform-vendor-eval')));
 	for (const [url, code] of await readVendorGraph(registry, urls)) {
 		const file = path.join(directory, url.slice('/'.length));
 		fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -66,7 +65,7 @@ async function importVendorGraph(registry: DevTransformVendorRegistry, urls: str
 	}
 	const modules: unknown[] = [];
 	for (const url of urls) {
-		modules.push(await import(/* @vite-ignore */ pathToFileURL(path.join(directory, url.slice('/'.length))).href));
+		modules.push(await import(/* @vite-ignore */ path.toFileUrl(path.join(directory, url.slice('/'.length))).href));
 	}
 	return modules;
 }
@@ -83,7 +82,7 @@ function bundleCallsUnder(bundle: { mock: { calls: unknown[][] } }, rootDir: str
 
 /** The entry files of each `bundle()` call for entries under `rootDir`. */
 function bundleEntriesUnder(bundle: { mock: { calls: unknown[][] } }, rootDir: string): string[][] {
-	const realRoot = fs.realpathSync(rootDir);
+	const realRoot = path.fromNative(fs.realpathSync(rootDir));
 	return bundle.mock.calls
 		.map(([options]) => Object.values((options as { entrypoints: Record<string, string> }).entrypoints))
 		.filter((entries) => entries.some((entry) => entry.startsWith(realRoot)))
@@ -139,7 +138,7 @@ describe('DevTransformVendorRegistry', () => {
 	});
 
 	it("points a package's @ecopages/core imports at core's browser-first entry", async () => {
-		const rootDir = fs.realpathSync(createTempRoot('dev-transform-vendor-core-import'));
+		const rootDir = path.fromNative(fs.realpathSync(createTempRoot('dev-transform-vendor-core-import')));
 		fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ name: 'app', type: 'module' }));
 		const modules = path.join(rootDir, 'node_modules');
 		fs.mkdirSync(path.join(modules, '@ecopages'), { recursive: true });
@@ -1076,10 +1075,10 @@ describe('DevTransformVendorRegistry', () => {
 		expect(warn).toHaveBeenCalledTimes(1);
 		const message = String(warn.mock.calls[0]?.[0]);
 		expect(message).toContain('Package "dup-lib" resolves to 2 installed copies');
-		expect(message).toContain(fs.realpathSync(path.join(modules, 'dup-lib')));
-		expect(message).toContain(fs.realpathSync(path.join(hostDir, 'node_modules', 'dup-lib')));
-		expect(message).toContain(path.join(fs.realpathSync(rootDir), 'src'));
-		expect(message).toContain(path.join(fs.realpathSync(rootDir), 'packages', 'host', 'src'));
+		expect(message).toContain(path.fromNative(fs.realpathSync(path.join(modules, 'dup-lib'))));
+		expect(message).toContain(path.fromNative(fs.realpathSync(path.join(hostDir, 'node_modules', 'dup-lib'))));
+		expect(message).toContain(path.join(path.fromNative(fs.realpathSync(rootDir)), 'src'));
+		expect(message).toContain(path.join(path.fromNative(fs.realpathSync(rootDir)), 'packages', 'host', 'src'));
 	});
 
 	it('drops the sources of a deleted importer directory after an invalidation', async () => {
@@ -1104,14 +1103,16 @@ describe('DevTransformVendorRegistry', () => {
 		fs.writeFileSync(path.join(modules, 'kept-lib', 'index.js'), "export const marker = 'kept-lib-rebuilt';\n");
 		registry.invalidateAll();
 		await registry.tryHandleVendorRequest(url);
-		expect(persistedDirs()).toContain(path.join(fs.realpathSync(rootDir), 'packages', 'host', 'src'));
+		expect(persistedDirs()).toContain(
+			path.join(path.fromNative(fs.realpathSync(rootDir)), 'packages', 'host', 'src'),
+		);
 
 		fs.rmSync(hostDir, { recursive: true, force: true });
 		fs.writeFileSync(path.join(modules, 'kept-lib', 'index.js'), "export const marker = 'kept-lib-again';\n");
 		registry.invalidateAll();
 		await registry.tryHandleVendorRequest(url);
 
-		expect(persistedDirs()).toEqual([fs.realpathSync(rootDir)]);
+		expect(persistedDirs()).toEqual([path.fromNative(fs.realpathSync(rootDir))]);
 	});
 
 	/** Guards existing behaviour: Rolldown resolves an entry's imports from its real path in the store. */

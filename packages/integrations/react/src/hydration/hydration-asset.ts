@@ -7,7 +7,7 @@
  * @module
  */
 
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { contentHash, RESOLVED_ASSETS_DIR, toRootRelativePath } from '@ecopages/core/build';
 import type { PageClientBuildEntry } from '@ecopages/core/integration';
@@ -98,7 +98,7 @@ export class HydrationAssetService {
 		const relativePath = path.relative(this.config.srcDir, pagePath);
 		return relativePath
 			.replace(/\.(tsx?|jsx?|mdx?)$/, '')
-			.replace(/[\\/]+/g, '__')
+			.replace(/\/+/g, '__')
 			.replace(/\[([^\]]+)\]/g, '_$1_');
 	}
 
@@ -119,8 +119,7 @@ export class HydrationAssetService {
 
 		return `/${path
 			.join(RESOLVED_ASSETS_DIR, path.relative(this.config.srcDir, pagePath))
-			.replace(path.basename(pagePath), `${assetName}.js`)
-			.replace(/\\/g, '/')}`;
+			.replace(path.basename(pagePath), `${assetName}.js`)}`;
 	}
 
 	/**

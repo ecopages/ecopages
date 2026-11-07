@@ -1,6 +1,6 @@
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { DevTransformVendorRegistry } from '../dev/transform-server/dev-transform-vendor-registry.ts';
@@ -21,7 +21,7 @@ afterEach(async () => {
 test.each(['package', 'dependency', 'add', 'unlink'])(
 	'a linked package %s event requests a restart and serves current browser code',
 	async (edited) => {
-		const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-')));
+		const root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-'))));
 		roots.push(root);
 		const rootDir = path.join(root, 'app');
 		const packageDir = path.join(root, 'ui');
@@ -104,7 +104,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 );
 
 test('ignores installed and hidden linked-package files while app source retains HMR', async () => {
-	const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-ignore-')));
+	const root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-ignore-'))));
 	roots.push(root);
 	const rootDir = path.join(root, 'app');
 	const linked = path.join(root, 'ui');
@@ -163,7 +163,7 @@ test('ignores installed and hidden linked-package files while app source retains
 });
 
 test('activates a linked package root when a build input is recorded after startup', async () => {
-	const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-late-')));
+	const root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-late-'))));
 	roots.push(root);
 	const rootDir = path.join(root, 'app');
 	const packageDir = path.join(root, 'ui');
@@ -217,7 +217,7 @@ test('activates a linked package root when a build input is recorded after start
 });
 
 test('watches a build input recorded after startup under an additional watch path base', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-glob-base-input-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-glob-base-input-'))));
 	roots.push(rootDir);
 	const dataFile = path.join(rootDir, 'data', 'site.json');
 	mkdirSync(path.dirname(dataFile), { recursive: true });

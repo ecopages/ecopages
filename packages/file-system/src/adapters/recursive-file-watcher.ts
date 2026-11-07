@@ -8,7 +8,7 @@ import {
 	type WatchOptionsWithStringEncoding,
 } from 'node:fs';
 import { lstat as lstatAsync, readdir as readdirAsync, stat as statAsync } from 'node:fs/promises';
-import path from 'node:path';
+import { path } from '../path.ts';
 import type { FileChange, FileStats, FileWatcher, WatchOptions } from '../types.ts';
 
 type PathScope = 'directory' | 'file' | 'unknown';
@@ -294,7 +294,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 			if (watchedPath.scope !== 'directory' || !isSameOrInside(canonicalPath, watchedPath.canonicalPath))
 				continue;
 			covered = true;
-			const segments = path.relative(watchedPath.canonicalPath, canonicalPath).split(path.sep).filter(Boolean);
+			const segments = path.relative(watchedPath.canonicalPath, canonicalPath).split('/').filter(Boolean);
 			let reportedPath = watchedPath.requestedPath;
 			let skipped = false;
 			for (const segment of ['', ...segments]) {
@@ -605,7 +605,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 
 	private catchUpMissingPath(watchedPath: WatchedPath, existingAncestor: string): void {
 		const relativePath = path.relative(existingAncestor, watchedPath.canonicalPath);
-		const segments = relativePath.split(path.sep).filter(Boolean);
+		const segments = relativePath.split('/').filter(Boolean);
 		let currentPath = existingAncestor;
 		for (const segment of segments.slice(0, -1)) {
 			currentPath = path.join(currentPath, segment);
@@ -700,10 +700,8 @@ export class RecursiveFileWatcher implements FileWatcher {
 			const existing = this.pendingChanges.get(canonicalPath);
 			if (existing) clearTimeout(existing.timer);
 			const timer = setTimeout(() => {
-				const pending = this.pendingChanges.get(canonicalPath);
-				this.pendingChanges.delete(canonicalPath);
 				try {
-					this.flushChange(canonicalPath, pending?.forceChange === true);
+					this.flushPendingChange(canonicalPath);
 				} catch (error) {
 					this.handleError(error);
 				}
@@ -715,6 +713,31 @@ export class RecursiveFileWatcher implements FileWatcher {
 		} catch (error) {
 			this.handleError(error);
 		}
+	}
+
+	/**
+	 * @remarks
+	 * Native events for a new directory and a file inside it arrive in either order (Windows reports the file
+	 * first), so the new parent directories of a path, those not indexed yet, are flushed before the path itself,
+	 * and `addDir` always precedes the entries the directory holds.
+	 */
+	private flushPendingChange(canonicalPath: string): void {
+		const forceChange = this.pendingChanges.get(canonicalPath)?.forceChange === true;
+		this.cancelPendingChange(canonicalPath);
+		const newParents: string[] = [];
+		for (
+			let parent = path.dirname(canonicalPath);
+			parent !== path.dirname(parent) && !this.knownEntries.has(parent) && this.getMappedPaths(parent).length > 0;
+			parent = path.dirname(parent)
+		) {
+			newParents.unshift(parent);
+		}
+		for (const parent of newParents) {
+			const parentForceChange = this.pendingChanges.get(parent)?.forceChange === true;
+			this.cancelPendingChange(parent);
+			this.flushChange(parent, parentForceChange);
+		}
+		this.flushChange(canonicalPath, forceChange);
 	}
 
 	private flushChange(canonicalPath: string, forceChange: boolean): void {
@@ -938,7 +961,7 @@ function resolveWatchedPath(input: string): WatchedPath {
 	while (true) {
 		const stats = tryStat(currentPath);
 		if (stats) {
-			const canonicalCurrentPath = realpathSync(currentPath);
+			const canonicalCurrentPath = path.fromNative(realpathSync(currentPath));
 			if (missingSegments.length === 0) {
 				const isDirectory = stats.isDirectory();
 				return {
@@ -1050,11 +1073,7 @@ function toFileStats(stats: Stats): FileStats {
 }
 
 function isSameOrInside(candidate: string, root: string): boolean {
-	const relativePath = path.relative(root, candidate);
-	return (
-		relativePath === '' ||
-		(relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath))
-	);
+	return path.isWithin(root, candidate);
 }
 
 function isPathWatchedByRoot(filePath: string, root: WatchRoot): boolean {

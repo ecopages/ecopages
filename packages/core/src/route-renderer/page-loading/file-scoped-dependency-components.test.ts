@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, test } from 'vitest';
 import type { EcoComponent } from '../../types/contracts.ts';
 import {
@@ -13,7 +14,7 @@ describe('createFileScopedDependencyComponent', () => {
 	test('returns undefined when no direct assets are declared', () => {
 		expect(
 			createFileScopedDependencyComponent({
-				ownerFile: '/app/pages/demo.tsx',
+				ownerFile: path.resolve('/app/pages/demo.tsx'),
 				integrationName: 'react',
 				dependencies: {},
 			}),
@@ -22,7 +23,7 @@ describe('createFileScopedDependencyComponent', () => {
 
 	test('attaches owner file metadata for direct scripts', () => {
 		const component = createFileScopedDependencyComponent({
-			ownerFile: '/app/pages/demo.tsx',
+			ownerFile: path.resolve('/app/pages/demo.tsx'),
 			integrationName: 'react',
 			dependencies: {
 				scripts: ['./demo.client.ts'],
@@ -31,7 +32,7 @@ describe('createFileScopedDependencyComponent', () => {
 
 		expect(component?.config?.identity).toEqual(
 			expect.objectContaining({
-				file: '/app/pages/demo.tsx',
+				file: path.resolve('/app/pages/demo.tsx'),
 				integration: 'react',
 			}),
 		);
@@ -43,11 +44,11 @@ describe('collectFileScopedDependencyComponents', () => {
 	test('keeps declared components and adds a file-scoped owner for direct assets', () => {
 		const child = (() => null) as EcoComponent;
 		child.config = {
-			identity: { id: 'child', file: '/app/components/child.tsx', integration: 'react' },
+			identity: { id: 'child', file: path.resolve('/app/components/child.tsx'), integration: 'react' },
 		};
 
 		const components = collectFileScopedDependencyComponents({
-			ownerFile: '/app/pages/demo.tsx',
+			ownerFile: path.resolve('/app/pages/demo.tsx'),
 			integrationName: 'react',
 			dependencies: {
 				components: [child],
@@ -57,7 +58,7 @@ describe('collectFileScopedDependencyComponents', () => {
 
 		expect(components).toHaveLength(2);
 		expect(components[0]).toBe(child);
-		expect(components[1]?.config?.identity?.file).toBe('/app/pages/demo.tsx');
+		expect(components[1]?.config?.identity?.file).toBe(path.resolve('/app/pages/demo.tsx'));
 		expect(components[1]?.config?.dependencies?.modules).toEqual(['react-aria-components{Table}']);
 	});
 });
@@ -68,16 +69,16 @@ describe('collectPageDependencyComponents', () => {
 			result: {
 				contributions: [
 					{ stylesheets: ['./page.css'] },
-					{ stylesheets: ['./post.css'], ownerFile: '/app/content/post.mdx' },
+					{ stylesheets: ['./post.css'], ownerFile: path.resolve('/app/content/post.mdx') },
 				],
 			},
-			fallbackOwnerFile: '/app/pages/posts/[slug].tsx',
+			fallbackOwnerFile: path.resolve('/app/pages/posts/[slug].tsx'),
 			integrationName: 'react',
 		});
 
 		expect(components.map((component) => component.config?.identity?.file)).toEqual([
-			'/app/pages/posts/[slug].tsx',
-			'/app/content/post.mdx',
+			path.resolve('/app/pages/posts/[slug].tsx'),
+			path.resolve('/app/content/post.mdx'),
 		]);
 	});
 });
@@ -86,13 +87,13 @@ describe('attachEcoFileMetadataToConfig', () => {
 	test('attaches owner file metadata to one config', () => {
 		const config = attachEcoFileMetadataToConfig(
 			{ dependencies: { scripts: ['./demo.ts'] } },
-			'/app/pages/demo.tsx',
+			path.resolve('/app/pages/demo.tsx'),
 			'react',
 		);
 
 		expect(config.identity).toEqual(
 			expect.objectContaining({
-				file: '/app/pages/demo.tsx',
+				file: path.resolve('/app/pages/demo.tsx'),
 				integration: 'react',
 			}),
 		);
@@ -103,7 +104,7 @@ describe('collectComponentConfigFilePaths', () => {
 	test('walks nested dependency components and optional layouts', () => {
 		const layout = (() => null) as EcoComponent;
 		layout.config = {
-			identity: { id: 'layout', file: '/app/layouts/docs.tsx', integration: 'ecopages-jsx' },
+			identity: { id: 'layout', file: path.resolve('/app/layouts/docs.tsx'), integration: 'ecopages-jsx' },
 		};
 		const child = (() => null) as EcoComponent;
 		child.config = {
@@ -111,40 +112,45 @@ describe('collectComponentConfigFilePaths', () => {
 		};
 		const page = (() => null) as EcoComponent;
 		page.config = {
-			identity: { id: 'page', file: '/app/pages/docs/index.tsx', integration: 'ecopages-jsx' },
+			identity: { id: 'page', file: path.resolve('/app/pages/docs/index.tsx'), integration: 'ecopages-jsx' },
 			dependencies: { components: [child] },
 			layouts: [layout],
 		};
 
-		const withoutLayouts = collectComponentConfigFilePaths([page], { rootDir: '/app' });
-		expect(withoutLayouts.has('/app/pages/docs/index.tsx')).toBe(true);
-		expect(withoutLayouts.has('/app/components/demo.tsx')).toBe(true);
-		expect(withoutLayouts.has('/app/layouts/docs.tsx')).toBe(false);
+		const withoutLayouts = collectComponentConfigFilePaths([page], { rootDir: path.resolve('/app') });
+		expect(withoutLayouts.has(path.resolve('/app/pages/docs/index.tsx'))).toBe(true);
+		expect(withoutLayouts.has(path.resolve('/app/components/demo.tsx'))).toBe(true);
+		expect(withoutLayouts.has(path.resolve('/app/layouts/docs.tsx'))).toBe(false);
 
-		const withLayouts = collectComponentConfigFilePaths([page], { rootDir: '/app', includeLayouts: true });
-		expect(withLayouts.has('/app/layouts/docs.tsx')).toBe(true);
+		const withLayouts = collectComponentConfigFilePaths([page], {
+			rootDir: path.resolve('/app'),
+			includeLayouts: true,
+		});
+		expect(withLayouts.has(path.resolve('/app/layouts/docs.tsx'))).toBe(true);
 	});
 });
 
 describe('collectDependencyWatchPaths', () => {
 	test('includes owner file and nested dependency component files', () => {
 		const watchPaths = collectDependencyWatchPaths(
-			'/app/content/demo.mdx',
+			path.resolve('/app/content/demo.mdx'),
 			[
 				{
 					config: {
 						identity: {
 							id: 'demo-component',
-							file: '/app/components/demo.tsx',
+							file: path.resolve('/app/components/demo.tsx'),
 							integration: 'ecopages-jsx',
 						},
 					},
 				},
 			],
-			'/app',
+			path.resolve('/app'),
 		);
 
-		expect(watchPaths).toEqual(expect.arrayContaining(['/app/content/demo.mdx', '/app/components/demo.tsx']));
+		expect(watchPaths).toEqual(
+			expect.arrayContaining([path.resolve('/app/content/demo.mdx'), path.resolve('/app/components/demo.tsx')]),
+		);
 		expect(watchPaths).toHaveLength(2);
 	});
 });

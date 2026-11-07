@@ -4,7 +4,7 @@ import { HmrStrategyType } from '../hmr-strategy';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
 import fs from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import os from 'node:os';
 
 let tmpDir: string;
@@ -38,7 +38,7 @@ function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext 
 
 describe('JsHmrStrategy', () => {
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'js-hmr-strategy-test-'));
+		tmpDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'js-hmr-strategy-test-')));
 		srcDir = path.join(tmpDir, 'src');
 		fs.mkdirSync(srcDir, { recursive: true });
 	});

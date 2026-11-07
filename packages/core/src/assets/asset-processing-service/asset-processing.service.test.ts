@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
@@ -171,7 +171,7 @@ test('AssetProcessingService - processDependencies - returns the app-wide build 
 	const prebuiltScript: AssetDefinition = { kind: 'script', source: 'file', filepath: '/app/src/counter.script.ts' };
 	const prebuiltAsset: ProcessedAsset = {
 		kind: 'script',
-		filepath: '/test/dist/client/assets/client-shared.js',
+		filepath: path.resolve('/test/dist/client/assets/client-shared.js'),
 		srcUrl: '/assets/client-shared.js',
 		inline: false,
 	};
@@ -1186,6 +1186,50 @@ test('AssetProcessingService - a production build records every dependency it pr
 	await service.processDependencies([contentScript], undefined);
 
 	expect(requireAppRuntime(appConfig).processedAssets.lookup(contentScript)?.filepath).toBe(
-		'/test/dist/client/assets/test.js',
+		path.resolve('/test/dist/client/assets/test.js'),
 	);
+});
+
+/**
+ * @remarks
+ * Loads the service with the Windows flavor of `@ecopages/file-system/path`, so a processor's backslash path is
+ * read as a Windows file path on any OS.
+ */
+test('AssetProcessingService - processDependencies - reads a backslash Windows srcUrl as a file path, not a URL', async () => {
+	vi.resetModules();
+	vi.doMock('@ecopages/file-system/path', async (importOriginal) => {
+		const actual = await importOriginal<typeof import('@ecopages/file-system/path')>();
+		return { ...actual, path: actual.createPath('win32') };
+	});
+	try {
+		const { fileSystem: windowsFileSystem } = await import('@ecopages/file-system');
+		vi.spyOn(windowsFileSystem, 'ensureDir').mockImplementation(() => {});
+		vi.spyOn(windowsFileSystem, 'exists').mockReturnValue(true);
+		vi.spyOn(windowsFileSystem, 'hash').mockReturnValue('hash');
+		const { AssetProcessingService: WindowsAssetProcessingService } = await import('./asset-processing.service');
+		const service = new WindowsAssetProcessingService(
+			createTestConfig({
+				rootDir: 'D:/app',
+				absolutePaths: { ...Config.absolutePaths, distDir: 'D:/app/dist/client', srcDir: 'D:/app/src' },
+			}),
+		);
+		service.registerProcessor('script', 'file', {
+			process: vi.fn(async () => ({
+				srcUrl: 'C:\\other\\x.js',
+				filepath: 'D:/app/dist/client/assets/x.js',
+				kind: 'script' as const,
+				inline: false,
+			})),
+		});
+
+		const results = await service.processDependencies(
+			[{ kind: 'script' as const, source: 'file', filepath: 'D:/app/src/x.js' }],
+			undefined,
+		);
+
+		expect(results[0].srcUrl).toBe('/assets/x.js');
+	} finally {
+		vi.doUnmock('@ecopages/file-system/path');
+		vi.resetModules();
+	}
 });

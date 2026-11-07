@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, it } from 'vitest';
 import { eco } from '../../eco/eco.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';

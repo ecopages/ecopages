@@ -1,5 +1,5 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createNodeApp } from '../adapters/node/create-app.ts';
 import type { BuildAdapter, BuildResult } from '../build/build-adapter.ts';

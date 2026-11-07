@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { MdxConfigDependencyService } from './mdx-config-dependency.ts';

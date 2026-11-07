@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
 import MagicString from 'magic-string';
 import { rolldown, type LoadResult, type Plugin, type ResolveIdResult } from 'rolldown';
 import { afterEach, beforeEach, test } from 'vitest';
 import { createRolldownPluginBridge, type WatchFilesByModule } from './rolldown-plugin-bridge.ts';
+import { toRolldownModuleId } from './rolldown-module-id.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 
 type ResolveHook = (source: string, importer?: string) => Promise<ResolveIdResult>;
@@ -39,7 +40,7 @@ async function bridgeOne(plugin: EcoBuildPlugin): Promise<Plugin> {
 let root: string;
 
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-bridge-')));
+	root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-bridge-'))));
 });
 
 afterEach(() => {
@@ -149,7 +150,7 @@ test('resolveId resolves relative paths against the importer', async () => {
 		setup: (build) => build.onResolve({ filter: /.*/ }, () => ({ path: './sibling.ts' })),
 	});
 	const result = (await callResolveId(plugin, 'X', '/app/sub/index.ts')) as { id: string } | null;
-	assert.equal(result?.id, path.resolve('/app/sub', './sibling.ts'));
+	assert.equal(result?.id, toRolldownModuleId(path.resolve('/app/sub', './sibling.ts')));
 });
 
 test('resolveId leaves absolute paths and virtual ids untouched', async () => {
@@ -568,7 +569,7 @@ test('transforms a module whose id has a query, also when the query holds a colo
 	assert.match(chunk.code, /tagged/);
 });
 
-test('passes a Windows drive path to callbacks unchanged', async () => {
+test('hands callbacks a Windows module id as an Ecopages path', async () => {
 	const seen: string[] = [];
 	const plugins = await createRolldownPluginBridge(
 		[
@@ -593,7 +594,7 @@ test('passes a Windows drive path to callbacks unchanged', async () => {
 	await callLoad(plugins[1]!, 'D:/app/a.txt');
 
 	assert.match(transformed?.code ?? '', /tagged/);
-	assert.deepEqual(seen, ['C:\\app\\src\\a.ts', 'D:/app/a.txt']);
+	assert.deepEqual(seen, [path.fromNative('C:\\app\\src\\a.ts'), 'D:/app/a.txt']);
 });
 
 test('runs onEnd after every module is transformed and fails the build when it throws', async () => {

@@ -46,6 +46,7 @@ async function initializeWorker(
 	await setupAppRuntimePlugins({
 		appConfig,
 	});
+	runtime.integrationDependenciesDeferred = true;
 	await setupAppRuntimeIntegrations({ appConfig });
 
 	routeRendererFactory = new RouteRendererFactory({
@@ -61,7 +62,8 @@ async function initializeWorker(
  * so the worker restores the ledger on its first render instead of at init. It reads the ledger of the build it
  * renders for, whose directories the main thread passed at init, so an older build in the configured output cannot
  * leak in. A Lit Page then links the same outputs as every other Page. The ledger stays unsealed: the export
- * still processes the dependencies only rendering reveals.
+ * still processes the dependencies only rendering reveals. Integration setup at init defers each Integration's
+ * global scripts, and this restore resolves them, so the worker never bundles them on its own into `dist/`.
  */
 function restoreAppBrowserBuild(config: LoadedAppConfig): Promise<boolean> {
 	appBrowserBuildRestore ??= restoreProductionBrowserBuild(config, { seal: false });

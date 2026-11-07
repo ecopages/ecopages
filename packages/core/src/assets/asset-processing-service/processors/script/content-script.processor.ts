@@ -95,6 +95,36 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 	}
 
 	/**
+	 * Bundles an inline script and returns its code as the asset content, with no output file.
+	 *
+	 * @remarks
+	 * The page embeds the code, so nothing may load a file. The bundle is built without chunks in a work-directory
+	 * folder that is removed once read, so no bundle reaches `dist/`.
+	 */
+	private async processInlineBundledScript(dep: ContentScriptAsset, filename: string): Promise<ProcessedAsset> {
+		const bundleDir = path.join(this.getContentScriptEntryDir(), randomUUID());
+		const entryPath = path.join(bundleDir, 'entry.js');
+		fileSystem.ensureDir(bundleDir);
+		fileSystem.write(entryPath, dep.content);
+		try {
+			const bundledOutput = await this.bundleScript({
+				entrypoint: entryPath,
+				outdir: path.join(bundleDir, 'out'),
+				minify: this.isProduction,
+				naming: `${path.parse(filename).name}-[hash].[ext]`,
+				...this.getBundlerOptions(dep),
+				splitting: false,
+			});
+			return {
+				...this.toProcessedAsset(dep, bundledOutput.filepath, bundledOutput.inputPaths, entryPath),
+				filepath: undefined,
+			};
+		} finally {
+			fileSystem.remove(bundleDir);
+		}
+	}
+
+	/**
 	 * Emits one content script asset. Cache reuse is owned by {@link AssetProcessingService}.
 	 */
 	async process(dep: ContentScriptAsset): Promise<ProcessedAsset> {
@@ -114,6 +144,10 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 
 		if (!dep.content) {
 			throw new Error('No content found for script asset');
+		}
+
+		if (dep.inline) {
+			return this.processInlineBundledScript(dep, filename);
 		}
 
 		const entryPath = this.getContentScriptEntryPath();

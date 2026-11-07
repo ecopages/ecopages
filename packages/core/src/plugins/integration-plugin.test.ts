@@ -60,6 +60,33 @@ describe('IntegrationPlugin', () => {
 		await expect(plugin.teardown()).resolves.toBeUndefined();
 	});
 
+	it('leaves global scripts unresolved in setup while deferred and resolves them on refresh', async () => {
+		const script: AssetDefinition = {
+			kind: 'script',
+			source: 'content',
+			content: 'globalThis.x = 1;',
+			position: 'head',
+		};
+		const resolved = { kind: 'script' as const, content: 'globalThis.x = 1;', inline: true };
+		const deferredPlugin = new TestIntegrationPlugin({ ...config, integrationDependencies: [script] });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [deferredPlugin] });
+		const processDependencies = vi
+			.spyOn(AssetProcessingService.prototype, 'processDependencies')
+			.mockResolvedValue([resolved]);
+		const runtime = requireAppRuntime(appConfig);
+		runtime.integrationDependenciesDeferred = true;
+
+		await deferredPlugin.setup({ appConfig, runtime });
+		const rendererDependencies = deferredPlugin.getResolvedIntegrationDependencies();
+
+		expect(processDependencies).not.toHaveBeenCalled();
+		expect(rendererDependencies).toEqual([]);
+
+		await deferredPlugin.refreshResolvedIntegrationDependencies();
+
+		expect(rendererDependencies).toEqual([resolved]);
+	});
+
 	it('allows integrations to register their HMR strategy from the runtime context', async () => {
 		const registerStrategy = vi.fn();
 		const hmrManager = {

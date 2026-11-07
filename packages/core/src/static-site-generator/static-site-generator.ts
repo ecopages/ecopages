@@ -37,6 +37,7 @@ import {
 	clearProductionPageBrowserGraphSession,
 	getPlannedRouteKey,
 	prebuildProductionPageBrowserGraphs,
+	resolveIntegrationDependencies,
 	shouldPrebuildProductionPageBrowserGraphs,
 } from './production-page-browser-graph-prebuild.ts';
 import { renderSitemap } from './sitemap.ts';
@@ -576,6 +577,9 @@ export class StaticSiteGenerator {
 						}),
 				},
 			);
+		}
+		if (requireAppRuntime(this.appConfig).integrationDependenciesDeferred) {
+			await resolveIntegrationDependencies(this.appConfig);
 		}
 
 		this.generateRobotsTxt();

@@ -14,10 +14,7 @@ import {
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { BrowserBundleService, type BrowserBundleGroupedEntry } from './browser-bundle.service.ts';
-import {
-	getAssetDependencyKey,
-	getIntegrationDependencyKey,
-} from './asset-processing-service/asset-dependency-keys.ts';
+import { getAssetDependencyKey, getDeclaredDependencyKey } from './asset-processing-service/asset-dependency-keys.ts';
 import type { AssetDefinition, ProcessedAsset, ScriptAsset } from './asset-processing-service/assets.types.ts';
 import { isBundleableScript } from './asset-processing-service/bundleable-script.ts';
 
@@ -61,7 +58,7 @@ function createBundleEntryPath(
 }
 
 /**
- * The entries of one app-wide build, one per Integration dependency key.
+ * The entries of one app-wide build, one per declared dependency key.
  *
  * @remarks
  * Each entry keeps the dependencies that declared it under their own dependency key, so the output is recorded
@@ -82,9 +79,9 @@ class BuildEntries {
 	}
 
 	/** Adds `dependency` to the build when it can be bundled, and records it as one of its entry's declarations. */
-	add(integrationName: string, dependency: AssetDefinition): void {
+	add(dependency: AssetDefinition): void {
 		if (dependency.kind !== 'script' || !isBundleableScript(dependency)) return;
-		const key = getIntegrationDependencyKey(integrationName, dependency, this.appConfig.rootDir);
+		const key = getDeclaredDependencyKey(dependency, this.appConfig.rootDir);
 		let entry = this.entriesByKey.get(key);
 		if (!entry) {
 			const entrypoint = createBundleEntryPath(this.appConfig, dependency);
@@ -206,10 +203,10 @@ function groupBuildEntriesByOptions(entries: BuildEntry[]): BuildGroup[] {
  */
 function addPlanEntries(plan: GroupedGraphBuildPlan, entries: BuildEntries): void {
 	for (const script of plan.bundledScripts) {
-		entries.add(plan.integrationName, script);
+		entries.add(script);
 	}
-	for (const { integrationName, dependency } of plan.pageClientEntries) {
-		entries.add(integrationName, dependency);
+	for (const { dependency } of plan.pageClientEntries) {
+		entries.add(dependency);
 	}
 }
 

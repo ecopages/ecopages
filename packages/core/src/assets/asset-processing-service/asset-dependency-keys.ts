@@ -147,21 +147,19 @@ export function getAssetDependencyKey(dep: AssetDefinition, rootDir: string): st
 }
 
 /**
- * The key of a dependency that one Integration declares for the app-wide browser build.
+ * The key of a dependency declared for the app-wide browser build.
  *
  * @remarks
  * The app-wide build and dependency preparation (the Integration hook and `ensureGroupedContentScriptsBundle`)
  * set `groupedBundle` and `bundle`. This key leaves both out of {@link getAssetDependencyKey}, so a declaration
- * keys the same before and after, including when `ecopages start` restores the build without running it.
+ * keys the same before and after, including when `ecopages start` restores the build without running it. It
+ * names no Integration: the ledger records one output per dependency key, so a script two Integrations declare
+ * is one entry of the build.
  */
-export function getIntegrationDependencyKey(
-	integrationName: string,
-	dependency: AssetDefinition,
-	rootDir: string,
-): string {
+export function getDeclaredDependencyKey(dependency: AssetDefinition, rootDir: string): string {
 	const declared =
 		dependency.kind === 'script' ? { ...dependency, groupedBundle: undefined, bundle: undefined } : dependency;
-	return JSON.stringify([integrationName, getAssetDependencyKey(declared, rootDir)]);
+	return getAssetDependencyKey(declared, rootDir);
 }
 
 export function deduplicateAssetDependencies(deps: AssetDefinition[], rootDir: string): AssetDefinition[] {

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, test } from 'vitest';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
-import { getAssetDependencyKey, getIntegrationDependencyKey } from './asset-dependency-keys.ts';
+import { getAssetDependencyKey, getDeclaredDependencyKey } from './asset-dependency-keys.ts';
 import { AssetFactory } from './asset.factory.ts';
 import { createAppBrowserClientEntry } from './app-browser-client-bundle.ts';
 import type { ContentScriptAsset, ContentStylesheetAsset, ScriptAsset } from './assets.types.ts';
@@ -259,22 +259,21 @@ describe('getAssetDependencyKey', () => {
 		});
 	});
 
-	describe('getIntegrationDependencyKey', () => {
+	describe('getDeclaredDependencyKey', () => {
 		const declared = createContentScript();
 
 		it('keys a declaration the same after the app-wide build assigns its bundle', () => {
 			expect(
-				getIntegrationDependencyKey(
-					'react',
+				getDeclaredDependencyKey(
 					{ ...declared, bundle: true, groupedBundle: { id: 'app-browser-client', entryName: 'client-1' } },
 					ROOT,
 				),
-			).toBe(getIntegrationDependencyKey('react', declared, ROOT));
+			).toBe(getDeclaredDependencyKey(declared, ROOT));
 		});
 
-		it('keeps the declarations of two Integrations apart', () => {
-			expect(getIntegrationDependencyKey('react', declared, ROOT)).not.toBe(
-				getIntegrationDependencyKey('preact', declared, ROOT),
+		it('keeps declarations with different build options apart', () => {
+			expect(getDeclaredDependencyKey(declared, ROOT)).not.toBe(
+				getDeclaredDependencyKey({ ...declared, bundleOptions: { minify: false } }, ROOT),
 			);
 		});
 	});

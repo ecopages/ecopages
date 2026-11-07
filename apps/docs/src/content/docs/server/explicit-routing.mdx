@@ -74,10 +74,16 @@ When neither a pages error file nor an app loader is configured, Ecopages serves
 | Hook | Usage |
 | :--- | :--- |
 | `eco-error-page` | Root `<body>` class on built-in pages |
-| `eco-error-page--not-found` / `eco-error-page--server-error` | Status modifier |
-| `eco-error-page__title`, `eco-error-page__message`, `eco-error-page__stack` | Text regions |
-| `eco-error-page__copy` | Development-only copy button on the default 500 page (icon + label; adds `eco-error-page__copy--copied` after a successful copy) |
-| `eco-error-page__copy-icon`, `eco-error-page__copy-label` | Clipboard / check icons and label text inside the copy button |
+| `eco-error-page--bad-request`, `eco-error-page--unauthorized`, `eco-error-page--forbidden`, `eco-error-page--not-found`, `eco-error-page--conflict` | Status modifier for 400, 401, 403, 404 and 409 |
+| `eco-error-page--server-error` | Status modifier for 500 and any other 5xx |
+| `eco-error-page--status-<code>` | Status modifier for any other 4xx, such as `eco-error-page--status-418` |
+| `eco-error-page__content` | The card that holds the page text |
+| `eco-error-page__status`, `eco-error-page__title`, `eco-error-page__message` | Status line (`ERROR 404`), heading and message |
+| `eco-error-page__diagnostic-message` | Development-only message on the default 500 page, shown when there is no stack or the stack does not open with it; also carries `eco-error-page__message` |
+| `eco-error-page__diagnostics`, `eco-error-page__diagnostics-header`, `eco-error-page__diagnostics-label` | Development-only stack panel on the default 500 page, its header row and its `Stack trace` label |
+| `eco-error-page__stack` | The stack trace inside the panel |
+| `eco-error-page__copy` | Development-only copy button, in the panel header, or after the message when there is no stack; adds `eco-error-page__copy--copied` after a successful copy and `eco-error-page__copy--failed` after a failed one |
+| `eco-error-page__copy-icon`, `eco-error-page__copy-label` | Icons and label inside the copy button. It holds both `eco-error-page__copy-icon--clipboard` and `eco-error-page__copy-icon--success`; the stylesheet shows the success icon only after a successful copy |
 
 To match your site chrome, register `eco.page` views with `app.notFound()` / `app.serverError()` and style them like any other view. Common conventions:
 

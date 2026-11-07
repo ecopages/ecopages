@@ -58,6 +58,44 @@ describe('default error pages', () => {
 		expect(html).toContain('Error: render &lt;failed&gt;');
 	});
 
+	it('shows the message of a thrown error once, inside its stack', () => {
+		vi.stubEnv('NODE_ENV', 'development');
+		const html = buildDefaultErrorHtml(500, getDefaultServerErrorDetails(new Error('Cannot find module /x')));
+
+		expect(html).toContain('Error: Cannot find module /x');
+		expect(html).not.toContain('role="alert"');
+	});
+
+	it.each([
+		['a bare message', 'failed', 'failed\n    at resolve'],
+		['a message that also occurs in the error name', 'r', 'Error: r\n    at resolve'],
+		['a multi-line message', 'first line\nsecond line', 'TypeError: first line\nsecond line\n    at resolve'],
+	])('omits the message block when the stack opens with %s', (_case, message, stack) => {
+		vi.stubEnv('NODE_ENV', 'development');
+		const html = buildDefaultErrorHtml(500, { message, stack });
+
+		expect(html).not.toContain('role="alert"');
+	});
+
+	it('keeps the message block when the message only appears in a wrapped cause', () => {
+		vi.stubEnv('NODE_ENV', 'development');
+		const html = buildDefaultErrorHtml(500, {
+			message: 'failed',
+			stack: 'Error: wrapper\nCaused by: Error: failed',
+		});
+
+		expect(html).toContain('role="alert"');
+	});
+
+	it('marks a message with no stack as a diagnostic message', () => {
+		vi.stubEnv('NODE_ENV', 'development');
+		const html = buildDefaultErrorHtml(500, { message: 'failed' });
+
+		expect(html).toContain(
+			`${DEFAULT_ERROR_PAGE_CLASS_NAMES.message} ${DEFAULT_ERROR_PAGE_CLASS_NAMES.diagnosticMessage}`,
+		);
+	});
+
 	it('includes the stack of the wrapped cause in development details', () => {
 		vi.stubEnv('NODE_ENV', 'development');
 		const cause = new Error('original failure');

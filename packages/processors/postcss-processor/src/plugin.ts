@@ -7,12 +7,7 @@ import { path } from '@ecopages/file-system/path';
 import { isEcopagesEnvEnabled, isProductionRuntime, writeSourceRelativeStylesheet } from '@ecopages/core/processor';
 import type { IClientBridge } from '@ecopages/core/integration';
 import { fileSystem } from '@ecopages/file-system';
-import {
-	Processor,
-	type EcoBuildPlugin,
-	type ProcessorConfig,
-	type ProcessorWatchChanges,
-} from '@ecopages/core/processor';
+import { Processor, type ProcessorConfig, type ProcessorWatchChanges } from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
 import {
@@ -21,8 +16,6 @@ import {
 	type LoadedPostcssConfig,
 } from './postcss-config-loading.ts';
 import { PostCssProcessor } from './postcss-processor.ts';
-import { createCssLoaderPlugin } from './runtime/css-loader-plugin.ts';
-import type { CssTransformInput } from './runtime/css-runtime-contract.ts';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
 	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
@@ -119,8 +112,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	 * Used to resolve which parent entry files need re-processing when a dependency changes.
 	 */
 	private readonly cssDependencyMap = new Map<string, Set<string>>();
-
-	private readonly cssFilter: RegExp;
 
 	/**
 	 * @remarks
@@ -282,16 +273,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		return Array.from(entries);
 	}
 
-	private async transformCssAsync(input: CssTransformInput): Promise<string> {
-		const { contents, filePath } = input;
-		const transformed: string = typeof contents === 'string' ? contents : contents.toString('utf-8');
-
-		const processed = await this.transformStylesheet(transformed, filePath);
-		this.runtimeCssCache.set(filePath, processed);
-		this.persistProcessedCss(filePath, processed);
-		return processed;
-	}
-
 	private materializePluginFactories(pluginFactories: PluginFactoryRecord): postcss.AcceptedPlugin[] {
 		return Object.values(pluginFactories).map((factory) => factory());
 	}
@@ -373,7 +354,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 				onChanges: async (changes) => this.handleWatchChanges(changes),
 			},
 		});
-		this.cssFilter = filter;
 	}
 
 	private async handleWatchChanges({ created, changed, deleted, bridge }: ProcessorWatchChanges): Promise<void> {
@@ -464,27 +444,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			logger.error(`Failed to process CSS: ${filePath}`, errorMessage);
 			bridge.error(errorMessage);
 		}
-	}
-
-	/**
-	 * Processes every stylesheet a browser build imports.
-	 *
-	 * @remarks
-	 * The loader awaits PostCSS for each file, so a stylesheet outside `srcDir` or one added after the prewarm
-	 * is processed too. Server builds register nothing: the bundler replaces their stylesheet imports with an
-	 * empty module before any plugin loads them.
-	 */
-	override plugins(): EcoBuildPlugin[] {
-		return [
-			{
-				...createCssLoaderPlugin({
-					name: 'postcss-processor-build-loader',
-					filter: this.cssFilter,
-					transform: this.transformCssAsync.bind(this),
-				}),
-				environments: ['browser'],
-			},
-		];
 	}
 
 	/**

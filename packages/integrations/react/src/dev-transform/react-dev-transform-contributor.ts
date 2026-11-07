@@ -1,5 +1,5 @@
 import type { EcoBuildPlugin } from '@ecopages/core/integration';
-import type { DevTransformBundleContributor } from '@ecopages/core/integration';
+import type { DevTransformBundleContributor, DevTransformVendorEntries } from '@ecopages/core/integration';
 import type { ReactHmrStrategy } from '../hmr/hmr-strategy.ts';
 
 export type ReactDevTransformContributorOptions = {
@@ -24,7 +24,7 @@ export class ReactDevTransformContributor implements DevTransformBundleContribut
 		return this.strategy.createDevTransformPlugins(sourcePath);
 	}
 
-	getVendorEntries(): readonly string[] {
+	getVendorEntries(): DevTransformVendorEntries {
 		return this.strategy.getVendorEntries();
 	}
 

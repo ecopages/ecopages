@@ -54,3 +54,5 @@ To inspect locally:
 ## Dependency discovery fixtures
 
 `/discovery` and `/discovery-explicit` compare imported versus explicit Lit Dependencies. `/discovery-foreign` exercises the same custom element under Kita, and `/discovery-react` verifies imported CSS and React hydration. The parity and preview suites check server shadow markup, delayed browser registration, interactivity, and stylesheet delivery. Registration policy stays explicit in both Lit variants; inference removes the parent Component list and the stylesheet declaration.
+
+E2E coverage for Lit hydration on a fresh dev cache: `e2e/lit-hydration.fresh-dev.test.e2e.ts` (runs under `cross-integration-fresh-dev-e2e` on a private copy of the app with no `.eco`).

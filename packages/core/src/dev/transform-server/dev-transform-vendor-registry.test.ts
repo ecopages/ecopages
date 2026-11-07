@@ -9,6 +9,7 @@ import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-re
 import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import { contentHash } from '../../utils/content-hash.ts';
 import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
+import { appLogger } from '../../global/app-logger.ts';
 
 const tempRoots: string[] = [];
 const repoRoot = path.resolve(import.meta.dirname, '../../../../..');
@@ -165,23 +166,72 @@ describe('DevTransformVendorRegistry', () => {
 
 	it('builds the entries a contributor declares up front with the first requested one', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-known-entries');
+		const contributorDir = path.join(rootDir, 'packages', 'contributor');
 		for (const name of ['known-a', 'known-b']) {
 			writePackage(
-				path.join(modules, name),
+				path.join(contributorDir, 'node_modules', name),
 				name,
 				{ type: 'module', exports: './index.js' },
 				{ 'index.js': `export const name = '${name}';\n` },
 			);
 		}
+		expect(fs.existsSync(path.join(modules, 'known-a'))).toBe(false);
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const registry = new DevTransformVendorRegistry({ appConfig: config });
 		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		const generatedModule = path.join(contributorDir, 'src', 'bootstrap.js');
 
-		registry.addKnownEntries(['known-a', 'known-b', 'not-installed']);
-		await registry.resolveVendorUrl('known-a');
-		await registry.resolveVendorUrl('known-b');
+		registry.addKnownEntries({
+			resolveFrom: path.join(contributorDir, 'src'),
+			specifiers: ['known-a', 'known-b', 'not-installed'],
+		});
+		await registry.resolveVendorUrl('known-a', generatedModule);
+		await registry.resolveVendorUrl('known-b', generatedModule);
 
-		expect(bundleEntriesUnder(bundle, rootDir)).toHaveLength(1);
+		expect(bundleEntriesUnder(bundle, rootDir)).toEqual([
+			[expect.stringContaining('known-a'), expect.stringContaining('known-b')],
+		]);
+	});
+
+	it('moves each importer of a shared entry to the file it reaches after an invalidation', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-invalidate-sources');
+		const hostModules = path.join(rootDir, 'packages', 'host', 'node_modules');
+		const store = path.join(modules, '.pnpm');
+		for (const version of ['1.0.0', '2.0.0']) {
+			writePackage(
+				path.join(store, `shared-lib@${version}`, 'node_modules', 'shared-lib'),
+				'shared-lib',
+				{ type: 'module', module: 'index.js', version },
+				{ 'index.js': `export const marker = 'shared-${version}';\n` },
+			);
+		}
+		const linkTo = (modulesDir: string, version: string) => {
+			fs.mkdirSync(modulesDir, { recursive: true });
+			fs.rmSync(path.join(modulesDir, 'shared-lib'), { force: true });
+			fs.symlinkSync(
+				path.join(store, `shared-lib@${version}`, 'node_modules', 'shared-lib'),
+				path.join(modulesDir, 'shared-lib'),
+				'dir',
+			);
+		};
+		linkTo(modules, '1.0.0');
+		linkTo(hostModules, '1.0.0');
+		fs.mkdirSync(path.join(rootDir, 'packages', 'host', 'src'), { recursive: true });
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const appUrl = await registry.resolveVendorUrl('shared-lib');
+		expect(
+			await registry.resolveVendorUrl('shared-lib', path.join(rootDir, 'packages', 'host', 'src', 'index.js')),
+		).toBe(appUrl);
+
+		linkTo(hostModules, '2.0.0');
+		registry.invalidateAll();
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		await registry.tryHandleVendorRequest(appUrl);
+
+		expect(bundleEntriesUnder(bundle, rootDir)).toEqual([
+			[expect.stringContaining('shared-lib@1.0.0'), expect.stringContaining('shared-lib@2.0.0')],
+		]);
 	});
 
 	it('reports an actionable error when a bare import resolves to a server-only entry', async () => {
@@ -578,8 +628,8 @@ describe('DevTransformVendorRegistry', () => {
 		const registry = new DevTransformVendorRegistry({ appConfig: config });
 
 		const [cjs, esm] = await Promise.all([
-			registry.resolveVendorImport('cjs-lib'),
-			registry.resolveVendorImport('esm-lib'),
+			registry.resolveVendorImport('cjs-lib', path.join(config.absolutePaths.srcDir, 'page.js')),
+			registry.resolveVendorImport('esm-lib', path.join(config.absolutePaths.srcDir, 'page.js')),
 		]);
 
 		expect(cjs.commonJs).toBe(true);
@@ -916,6 +966,180 @@ describe('DevTransformVendorRegistry', () => {
 		expect(builds[0]).toHaveLength(2);
 	});
 
+	it('builds a persisted entry from the directory its importer resolved it from', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-persisted-importer');
+		const hostDir = path.join(rootDir, 'packages', 'host');
+		writePackage(
+			path.join(hostDir, 'node_modules', 'host-only-lib'),
+			'host-only-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': "export const marker = 'host-only-code';\n" },
+		);
+		writePackage(
+			path.join(modules, 'app-lib'),
+			'app-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': "export const marker = 'app-lib-code';\n" },
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const previous = new DevTransformVendorRegistry({ appConfig: config });
+		const hostUrl = await previous.resolveVendorUrl('host-only-lib', path.join(hostDir, 'src', 'hydrate.js'));
+
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		const restarted = new DevTransformVendorRegistry({ appConfig: config });
+		await restarted.resolveVendorUrl('app-lib');
+
+		expect(await (await restarted.tryHandleVendorRequest(hostUrl))?.text()).toContain('host-only-code');
+		expect(bundleEntriesUnder(bundle, rootDir)).toEqual([
+			[expect.stringContaining('host-only-lib'), expect.stringContaining('app-lib')],
+		]);
+	});
+
+	it('keeps two installed versions on their own URLs after an invalidation', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-invalidate-versions');
+		const hostDir = path.join(rootDir, 'packages', 'host');
+		writePackage(
+			path.join(modules, 'dup-lib'),
+			'dup-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': "export const marker = 'dup-one';\n" },
+		);
+		writePackage(
+			path.join(hostDir, 'node_modules', 'dup-lib'),
+			'dup-lib',
+			{ type: 'module', module: 'index.js', version: '2.0.0' },
+			{ 'index.js': "export const marker = 'dup-two';\n" },
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const urls = await Promise.all([
+			registry.resolveVendorUrl('dup-lib', path.join(config.absolutePaths.srcDir, 'page.js')),
+			registry.resolveVendorUrl('dup-lib', path.join(hostDir, 'src', 'hydrate.js')),
+		]);
+
+		registry.invalidateAll();
+
+		const [appLib, hostLib] = (await importVendorGraph(registry, urls)) as { marker: string }[];
+		expect([appLib.marker, hostLib.marker]).toEqual(['dup-one', 'dup-two']);
+	});
+
+	it('ignores a seed file written without resolve directories', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-persisted-legacy');
+		writePackage(
+			path.join(modules, 'kept-lib'),
+			'kept-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': "export const marker = 'kept-lib-code';\n" },
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		fs.mkdirSync(config.absolutePaths.workDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(config.absolutePaths.workDir, 'dev-vendor-entries.json'),
+			JSON.stringify({ entries: [{ specifier: 'kept-lib', conditions: 'module-first' }] }),
+		);
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+
+		const url = await registry.resolveVendorUrl('kept-lib');
+
+		expect([...(await readVendorGraph(registry, [url])).values()].join('\n')).toContain('kept-lib-code');
+		expect(bundleCallsUnder(bundle, rootDir)).toBe(1);
+	});
+
+	it('warns once when a package resolves to two installed copies, naming each copy and its importers', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-duplicate-copies');
+		const hostDir = path.join(rootDir, 'packages', 'host');
+		for (const [dir, version] of [
+			[path.join(modules, 'dup-lib'), '1.0.0'],
+			[path.join(hostDir, 'node_modules', 'dup-lib'), '2.0.0'],
+		] as const) {
+			writePackage(
+				dir,
+				'dup-lib',
+				{ type: 'module', exports: { '.': './index.js', './extra': './extra.js' }, version },
+				{ 'index.js': `export const version = '${version}';\n`, 'extra.js': 'export const extra = true;\n' },
+			);
+		}
+		for (const dir of [path.join(rootDir, 'src'), path.join(hostDir, 'src')])
+			fs.mkdirSync(dir, { recursive: true });
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const warn = vi.spyOn(appLogger, 'warn');
+		const pageModule = path.join(config.absolutePaths.srcDir, 'page.js');
+
+		await registry.resolveVendorUrl('dup-lib', pageModule);
+		await registry.resolveVendorUrl('dup-lib/extra', pageModule);
+		expect(warn).not.toHaveBeenCalled();
+		await registry.resolveVendorUrl('dup-lib', path.join(hostDir, 'src', 'hydrate.js'));
+		await registry.resolveVendorUrl('dup-lib/extra', path.join(hostDir, 'src', 'hydrate.js'));
+
+		expect(warn).toHaveBeenCalledTimes(1);
+		const message = String(warn.mock.calls[0]?.[0]);
+		expect(message).toContain('Package "dup-lib" resolves to 2 installed copies');
+		expect(message).toContain(fs.realpathSync(path.join(modules, 'dup-lib')));
+		expect(message).toContain(fs.realpathSync(path.join(hostDir, 'node_modules', 'dup-lib')));
+		expect(message).toContain(path.join(fs.realpathSync(rootDir), 'src'));
+		expect(message).toContain(path.join(fs.realpathSync(rootDir), 'packages', 'host', 'src'));
+	});
+
+	it('drops the sources of a deleted importer directory after an invalidation', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-prune-sources');
+		const hostDir = path.join(rootDir, 'packages', 'host');
+		writePackage(
+			path.join(modules, 'kept-lib'),
+			'kept-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': "export const marker = 'kept-lib-code';\n" },
+		);
+		fs.mkdirSync(path.join(hostDir, 'src'), { recursive: true });
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const url = await registry.resolveVendorUrl('kept-lib');
+		await registry.resolveVendorUrl('kept-lib', path.join(hostDir, 'src', 'hydrate.js'));
+		const entriesFile = path.join(config.absolutePaths.workDir, 'dev-vendor-entries.json');
+		const persistedDirs = () =>
+			(JSON.parse(fs.readFileSync(entriesFile, 'utf8')) as { entries: { resolveDir: string }[] }).entries.map(
+				(entry) => entry.resolveDir,
+			);
+		fs.writeFileSync(path.join(modules, 'kept-lib', 'index.js'), "export const marker = 'kept-lib-rebuilt';\n");
+		registry.invalidateAll();
+		await registry.tryHandleVendorRequest(url);
+		expect(persistedDirs()).toContain(path.join(fs.realpathSync(rootDir), 'packages', 'host', 'src'));
+
+		fs.rmSync(hostDir, { recursive: true, force: true });
+		fs.writeFileSync(path.join(modules, 'kept-lib', 'index.js'), "export const marker = 'kept-lib-again';\n");
+		registry.invalidateAll();
+		await registry.tryHandleVendorRequest(url);
+
+		expect(persistedDirs()).toEqual([fs.realpathSync(rootDir)]);
+	});
+
+	/** Guards existing behaviour: Rolldown resolves an entry's imports from its real path in the store. */
+	it("bundles an entry's own dependency from the entry's installed location", async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-entry-deps');
+		const store = path.join(modules, '.pnpm', 'outer-lib@1.0.0', 'node_modules');
+		writePackage(
+			path.join(store, 'outer-lib'),
+			'outer-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': "export { marker } from 'inner-lib';\n" },
+		);
+		writePackage(
+			path.join(store, 'inner-lib'),
+			'inner-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': "export const marker = 'inner-lib-code';\n" },
+		);
+		fs.symlinkSync(path.join(store, 'outer-lib'), path.join(modules, 'outer-lib'), 'dir');
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+
+		const url = await registry.resolveVendorUrl('outer-lib');
+
+		const [outer] = (await importVendorGraph(registry, [url])) as { marker: string }[];
+		expect(outer.marker).toBe('inner-lib-code');
+	});
+
 	it('skips a persisted entry that no longer resolves', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-persisted-missing');
 		writePackage(
@@ -930,8 +1154,8 @@ describe('DevTransformVendorRegistry', () => {
 			path.join(config.absolutePaths.workDir, 'dev-vendor-entries.json'),
 			JSON.stringify({
 				entries: [
-					{ specifier: 'removed-lib', conditions: 'module-first' },
-					{ specifier: 'kept-lib', conditions: 'module-first' },
+					{ specifier: 'removed-lib', resolveDir: rootDir, conditions: 'module-first' },
+					{ specifier: 'kept-lib', resolveDir: rootDir, conditions: 'module-first' },
 				],
 			}),
 		);

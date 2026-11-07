@@ -43,7 +43,7 @@ Lit page components receive the resolved page props and request locals prepared 
 
 - `.lit.tsx` route files.
 - Nested Lit component boundaries rendered inside pages owned by other integrations.
-- The Lit hydration support required for SSR custom elements and declarative shadow DOM: `@ecopages/lit/hydrate-support`, a module script placed first in `document.head`. It imports `@lit-labs/ssr-client` and `lit` from the app's install, so it patches the same `LitElement` and `lit-html` the custom elements use. Production builds it in the app-wide browser build and development serves it through the transform server, so the page loads one copy of Lit.
+- The Lit hydration support required for SSR custom elements and declarative shadow DOM: `@ecopages/lit/hydrate-support`, a module script placed first in `document.head`. It imports `@lit-labs/ssr-client` and `lit`, which resolve from `@ecopages/lit` as any package's imports do, so with one installed `lit` it patches the same `LitElement` and `lit-html` the custom elements use. Production builds it in the app-wide browser build and development serves it through the transform server, so the page loads one copy of Lit.
 
 ## Hydration Architecture
 

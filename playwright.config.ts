@@ -50,6 +50,7 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		testIgnore: [
 			'playground/kitchen-sink/e2e/**/*.preview.test.e2e.ts',
 			'playground/kitchen-sink/e2e/*-hmr.test.e2e.ts',
+			'playground/kitchen-sink/e2e/*.fresh-dev.test.e2e.ts',
 		],
 		timeout: 90_000,
 		grep: prKitchenSinkTests,
@@ -81,6 +82,15 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 				source: 'playground/kitchen-sink',
 				env: { ECOPAGES_CROSS_INTEGRATION_E2E: 'true', ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS: '0' },
 			},
+		},
+	},
+	{
+		name: 'cross-integration-fresh-dev-e2e',
+		testMatch: 'playground/kitchen-sink/e2e/*.fresh-dev.test.e2e.ts',
+		timeout: 90_000,
+		use: {
+			...chrome,
+			appOptions: { source: 'playground/kitchen-sink', env: { ECOPAGES_CROSS_INTEGRATION_E2E: 'true' } },
 		},
 	},
 	{

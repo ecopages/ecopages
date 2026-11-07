@@ -61,8 +61,8 @@ export class LitPlugin extends IntegrationPlugin {
 	 * Returns the global integration dependencies required in the browser.
 	 *
 	 * @remarks
-	 * Lit's SSR hydration support is a module script of the app's browser graph, so it imports the app's `lit`
-	 * instead of carrying its own copy. It is placed first in the head, before any custom element is defined.
+	 * Lit's SSR hydration support is a module script of the app's browser graph, so it shares the `lit` module the
+	 * app's elements load instead of carrying its own copy. It is placed first in the head, before any custom element is defined.
 	 */
 	getDependencies(): AssetDefinition[] {
 		return [

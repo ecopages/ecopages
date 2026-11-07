@@ -13,7 +13,7 @@ import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/int
 import { isRegisteredScriptEntrypoint } from '@ecopages/core/integration';
 import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/integration';
 import { isPathInside } from '@ecopages/core/build';
-import type { EcoBuildPlugin } from '@ecopages/core/integration';
+import type { DevTransformVendorEntries, EcoBuildPlugin } from '@ecopages/core/integration';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core/integration';
 import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
@@ -208,10 +208,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Packages the generated Page and island entries import, plus the JSX runtimes of compiled React modules.
+	 * Packages the generated Page and island entries import, plus the JSX runtimes of compiled React modules,
+	 * resolved from this package.
 	 */
-	getVendorEntries(): readonly string[] {
-		return getReactBrowserPackages(this.routerAdapter);
+	getVendorEntries(): DevTransformVendorEntries {
+		return { resolveFrom: import.meta.dirname, specifiers: getReactBrowserPackages(this.routerAdapter) };
 	}
 
 	async getVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {

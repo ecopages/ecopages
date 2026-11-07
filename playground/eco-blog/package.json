@@ -4,7 +4,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "ecopages dev",
-		"build": "ecopages build",
+		"build": "pnpm run db:migrate && ecopages build",
 		"start": "pnpm run build && ecopages start",
 		"preview": "ecopages preview",
 		"typecheck": "ecopages types && tsc --noEmit",

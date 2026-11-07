@@ -9,13 +9,10 @@ import { path } from '@ecopages/file-system/path';
 import autoprefixer from 'autoprefixer';
 import browserslist from 'browserslist';
 import cssnano from 'cssnano';
-import type postcss from 'postcss';
 import { createAppAwarePostcssImport } from '../postcss-import-app-aware.ts';
 import tailwindcss from 'tailwindcss';
 import tailwindcssNesting from 'tailwindcss/nesting/index.js';
-import type { PluginFactoryRecord, PostCssProcessorPluginConfig } from '../plugin.ts';
-
-type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
+import type { PluginFactoryRecord, PluginsRecord, PostCssProcessorPluginConfig } from '../plugin.ts';
 
 /**
  * Creates a PostCSS processor config preset for Tailwind CSS v3.

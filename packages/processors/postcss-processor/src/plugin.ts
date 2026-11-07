@@ -186,10 +186,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			}
 		}
 
-		logger.warn(
-			'No PostCSS plugins configured. Use a preset like tailwindV3Preset() or tailwindV4Preset(), ' +
-				'provide plugins via options, or create a postcss.config file.',
-		);
 		this.pluginFactories = undefined;
 		this.postcssPlugins = [];
 	}
@@ -222,7 +218,10 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		this.resolvePostcssPluginsFromSources(loaded);
 
 		if (!this.postcssPlugins || this.postcssPlugins.length === 0) {
-			logger.warn('No PostCSS plugins configured or loaded. CSS processing might be minimal.');
+			logger.warn(
+				'No PostCSS plugins configured. Use a preset like tailwindV3Preset() or tailwindV4Preset(), ' +
+					'provide plugins via options, or create a postcss.config file.',
+			);
 			this.postcssPlugins = [];
 		}
 	}

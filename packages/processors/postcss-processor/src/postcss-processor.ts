@@ -3,7 +3,6 @@
  * @module
  */
 
-import { fileSystem } from '@ecopages/file-system';
 import { warnStylesheetOnce } from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
@@ -26,32 +25,12 @@ export type PostCssProcessorOptions = {
 };
 
 /**
- * ProcessPath
- * @param path string
- * @param options {@link PostCssProcessorOptions}
- * @returns string
- */
-export type ProcessPath = (path: string, options?: PostCssProcessorOptions) => Promise<string>;
-
-/**
  * ProcessStringOrBuffer
  * @param contents string | Buffer
  * @param options {@link PostCssProcessorOptions}
  * @returns string
  */
 export type ProcessStringOrBuffer = (contents: string | Buffer, options?: PostCssProcessorOptions) => Promise<string>;
-
-export function getFileAsBuffer(path: string): Buffer {
-	try {
-		if (!fileSystem.exists(path)) {
-			throw new Error(`File: ${path} not found`);
-		}
-		return fileSystem.readFileAsBuffer(path);
-	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
-	}
-}
 
 const appLogger = new Logger('[@ecopages/postcss-processor]');
 
@@ -76,31 +55,6 @@ const logWarnings = (
 const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[] => {
 	if (!options || !options.plugins) return [];
 	return Array.isArray(options.plugins) ? options.plugins : Object.values(options.plugins);
-};
-
-/**
- * It processes the given path using PostCSS
- * @param path string
- * @param options {@link PostCssProcessorOptions}
- * @returns string
- *
- * @remarks
- * A PostCSS failure rejects. A `CssSyntaxError` names the file, line and column in its message.
- *
- * @example
- * ```ts
- * PostCssProcessor.processPath('path/to/file.css').then((processedCss) => {
- *  console.log(processedCss);
- * });\n */
-const processPath: ProcessPath = async (path, options) => {
-	const contents = getFileAsBuffer(path);
-
-	return postcss(getPlugins(options))
-		.process(contents, { from: path })
-		.then((result) => {
-			logWarnings(result, contents, path);
-			return result.css;
-		});
 };
 
 /** The CSS PostCSS produced and the files its plugins read, such as the partials `postcss-import` inlined. */
@@ -134,6 +88,9 @@ export async function transformWithPostcss(
  * @param options {@link PostCssProcessorOptions}
  * @returns string
  *
+ * @remarks
+ * A PostCSS failure rejects. A `CssSyntaxError` names the file, line and column in its message.
+ *
  * @example
  * ```ts
  * const css = `body { @apply bg-blue-500; }`;
@@ -146,36 +103,12 @@ export async function transformWithPostcss(
 const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) =>
 	(await transformWithPostcss(contents, options)).css;
 
-export type ProcessStringOrBufferSync = (contents: string | Buffer, options?: PostCssProcessorOptions) => string;
-
-const processStringOrBufferSync: ProcessStringOrBufferSync = (contents, options) => {
-	if (!contents) return '';
-
-	const result = postcss(getPlugins(options)).process(contents, { from: options?.filePath });
-	logWarnings(result, contents, options?.filePath);
-	let css = result.css;
-	if (options?.transformOutput) {
-		const output = options.transformOutput(css);
-		if (output instanceof Promise) {
-			throw new Error('transformOutput must be synchronous when used with processStringOrBufferSync');
-		}
-		css = output;
-	}
-	return css;
-};
-
 /**
  * PostCSS Processor
- * - {@link processPath} : It processes the given path using PostCSS
  * - {@link processStringOrBuffer}: It processes the given string or buffer using PostCSS
- * - {@link processStringOrBufferSync}: It processes the given string or buffer synchronously using PostCSS (requires all plugins to be sync)
  */
 export const PostCssProcessor: {
-	processPath: ProcessPath;
 	processStringOrBuffer: ProcessStringOrBuffer;
-	processStringOrBufferSync: ProcessStringOrBufferSync;
 } = {
-	processPath,
 	processStringOrBuffer,
-	processStringOrBufferSync,
 };

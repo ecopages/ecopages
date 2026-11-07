@@ -8,9 +8,9 @@
 		"css"
 	],
 	"license": "MIT",
-	"main": "./src/postcss-processor.ts",
+	"main": "./src/index.ts",
 	"type": "module",
-	"types": "./src/postcss-processor.ts",
+	"types": "./src/index.ts",
 	"publishConfig": {
 		"access": "public"
 	},

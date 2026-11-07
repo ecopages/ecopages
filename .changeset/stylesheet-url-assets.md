@@ -1,5 +1,5 @@
 ---
-'@ecopages/core': patch
+'@ecopages/core': minor
 '@ecopages/postcss-processor': patch
 ---
 

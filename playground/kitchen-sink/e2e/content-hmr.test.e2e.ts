@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { Locator } from '@playwright/test';
 import { expect, test } from '../../../e2e/app-fixture';
 import {
 	HMR_MUTATION_ASSERT_TIMEOUT_MS,
@@ -16,6 +17,7 @@ test('renders an edited content entry without a reload or restarting the dev ser
 		await gotoPathSimple(page, '/posts/first-post');
 		await hmrReady;
 		await expect(page.getByTestId('post-content-first-post')).toContainText('It verifies markdown rendering');
+		await expectHydrated(page.getByTestId('post-content-first-post'));
 		await page.evaluate(() => {
 			(window as Window & { __keptDocument?: boolean }).__keptDocument = true;
 		});
@@ -29,12 +31,34 @@ test('renders an edited content entry without a reload or restarting the dev ser
 		});
 		expect(await page.evaluate(() => (window as Window & { __keptDocument?: boolean }).__keptDocument)).toBe(true);
 
-		const html = await (await requestGetAndWait(page.request, '/posts/first-post')).text();
-		expect(html).toContain('It re-renders edited content');
+		await expect
+			.poll(async () => (await requestGetAndWait(page.request, '/posts/first-post')).text(), {
+				timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+			})
+			.toContain('It re-renders edited content');
 	} finally {
 		fs.writeFileSync(postFile, originalPost);
 	}
 });
+
+/**
+ * Waits until React has hydrated the element.
+ *
+ * @remarks
+ * The server-rendered HTML already satisfies `toBeVisible()` and `toContainText()`. The collection Page hydrates only
+ * after its lazy MDX module loads, so acting on the page earlier races hydration: an edit made mid-hydration is
+ * picked up by the module import instead of by HMR, and the React fiber is not there to read yet.
+ */
+async function expectHydrated(locator: Locator): Promise<void> {
+	await expect
+		.poll(
+			() => locator.evaluate((element) => Object.keys(element).some((key) => key.startsWith('__reactFiber$'))),
+			{
+				timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+			},
+		)
+		.toBe(true);
+}
 
 /**
  * Marks the `React.lazy` type that renders the entry and returns whether it was already marked.
@@ -70,7 +94,7 @@ test('HMR of a collection Page keeps the loaded entry without showing the fallba
 		await gotoPathSimple(page, '/posts/first-post');
 		await hmrReady;
 		const postContent = page.getByTestId('post-content-first-post');
-		await expect(postContent).toBeVisible();
+		await expectHydrated(postContent);
 		await page.evaluate(() => {
 			(window as Window & { __keptDocument?: boolean }).__keptDocument = true;
 		});

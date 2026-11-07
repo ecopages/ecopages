@@ -270,6 +270,15 @@ importers:
         specifier: ^4.2.13
         version: 4.2.13
 
+  e2e/fixtures/lightningcss:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../../packages/processors/lightningcss-processor
+
   e2e/fixtures/package-css-lib: {}
 
   e2e/fixtures/page-script-splitting:

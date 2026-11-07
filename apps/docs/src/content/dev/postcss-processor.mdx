@@ -12,6 +12,8 @@ sources:
   - packages/processors/postcss-processor/src/presets/
   - packages/core/src/plugins/processor.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts
+  - packages/core/src/assets/asset-processing-service/processors/stylesheet/file-stylesheet.processor.ts
+  - packages/core/src/assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts
 ---
 
 # PostCSS processor
@@ -31,7 +33,7 @@ flowchart TD
   T --> D["Page stylesheet asset, or default export of an imported CSS module"]
 ```
 
-- Asset pipeline: for every `.css`, `.scss`, `.sass` or `.less` dependency, core calls `transformStylesheet` on each Processor whose `stylesheet` capability matches, in registration order, each receiving the previous output. This is how `config.dependencies.stylesheets` and content stylesheets get processed. A package stylesheet that discovery found (`import 'some-lib/style.css'`, an asset with `fromPackage`) skips this step: core only rewrites its `url()` references and inlines its `@import`s, so Tailwind and the preset plugins never run on third-party CSS (see [/dev/pages-layouts-components](/dev/pages-layouts-components#package-stylesheets)).
+- Asset pipeline: for every `.css`, `.scss`, `.sass` or `.less` dependency, core calls `transformStylesheet` on each Processor whose `stylesheet` capability matches, in registration order, each receiving the previous output. This is how `config.dependencies.stylesheets` and content stylesheets get processed. For a file stylesheet, core then resolves each relative `url()` and `image-set()` string in the output from the real directory of the source file, emits the file it names to `dist/client/assets` under a content hash, and rewrites the reference relative to where the stylesheet is written, or root-relative when it is inlined (`emitStylesheetReferences`). A reference to a missing file is left as written with a warning, since Tailwind can generate a `url()` from a class it finds in content. Only a font (`woff2`, `woff`, `ttf`, `otf`, `eot`), image (`png`, `jpg`, `jpeg`, `gif`, `webp`, `avif`, `svg`, `ico`, `bmp`, `cur`) or media file (`mp4`, `webm`, `ogg`, `mp3`, `wav`) is copied, never a dotfile; a reference to any other file is left as written with a warning, so a reference such as `url(../../.env)` cannot publish a secret. The rule goes by file type, not location, because in a monorepo the app's packages sit outside its folder and a package may name a sibling dependency's files. A package stylesheet that discovery found (`import 'some-lib/style.css'`, an asset with `fromPackage`) skips this step: core only rewrites its `url()` references and inlines its `@import`s, so Tailwind and the preset plugins never run on third-party CSS (see [/dev/pages-layouts-components](/dev/pages-layouts-components#package-stylesheets)).
 - Browser build loader: `plugins()` returns one loader with `environments: ['browser']`. It runs PostCSS on any matching stylesheet a browser build imports and returns it as the module's `default` export (`loader: 'object'`), including files outside `srcDir` or added after the prewarm.
 
 Server builds register nothing for CSS: the bundler replaces their stylesheet imports with an empty module before any plugin loads them.
@@ -45,7 +47,7 @@ Server builds register nothing for CSS: the bundler replaces their stylesheet im
 | Development | `setup()` prewarms the runtime cache; `onChanges` keeps it current and broadcasts. |
 | Production runtime | `setup()` prewarms the runtime cache and writes nothing to `distDir`. |
 
-In development `persistProcessedCss` writes each processed stylesheet at its source-relative path under `distDir/assets`, rewritten only when the bytes change, so CSS HMR refreshes that href. Only stylesheets inside `srcDir` are persisted. Production persists nothing: the stylesheet pipeline writes each stylesheet a Page links under a hash of its bytes, and a bundle that imports CSS carries it, so a copy from this plugin would be a file no Page references.
+In development `persistProcessedCss` writes each processed stylesheet at its source-relative path under `distDir/assets`, rewritten only when the bytes change, so CSS HMR refreshes that href. Only stylesheets inside `srcDir` are persisted. It calls core's `writeSourceRelativeStylesheet` (from `@ecopages/core/processor`), the function core's stylesheet pipeline uses for the same file, so the files its relative `url()` references name are emitted and the references rewritten after an edit as on first load. The runtime cache records a stylesheet only after that write succeeds. Production persists nothing: the stylesheet pipeline writes each stylesheet a Page links under a hash of its bytes, and a bundle that imports CSS carries it, so a copy from this plugin would be a file no Page references.
 
 ## Config loading
 
@@ -63,7 +65,7 @@ Note that a config file wins over options.
 
 ## Presets
 
-`src/presets/` holds `tailwindV3Preset()` and `tailwindV4Preset({ referencePath })`. Both return `plugins` for immediate use and `pluginFactories`, with `postcss-import` (app-aware, resolving from the app root), nesting, Tailwind, autoprefixer and cssnano.
+`src/presets/` holds `tailwindV3Preset()` and `tailwindV4Preset({ referencePath })`. Both return `plugins` for immediate use and `pluginFactories`, with `postcss-import` (app-aware, resolving from the app root), nesting, Tailwind, autoprefixer and cssnano. `createAppAwarePostcssImport` runs `postcss-import` and then, through core's `rebaseStylesheetReferences` and its stylesheet tokenizer, rebases the relative `url()` references of every declaration it inlined from another file onto the importing stylesheet, so `url(files/font.woff2)` from `@import '@fontsource/inter'` still names the package's file when core resolves it from the app's stylesheet. Both ends are real paths, since `postcss-import` reads an imported file through its symlinks.
 
 Factories exist because Tailwind keeps internal caches in long-lived plugin instances: when a non-CSS file changes, `refreshConfiguredPlugins` rebuilds the list from them so newly used classes are found.
 

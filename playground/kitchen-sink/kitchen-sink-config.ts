@@ -75,7 +75,7 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 			imageProcessorPlugin({
 				options: {
 					sourceDir: path.resolve(projectRoot, 'src/images'),
-					outputDir: path.resolve(projectRoot, distDir, 'images'),
+					outputDir: path.resolve(projectRoot, distDir, 'client', 'images'),
 					publicPath: '/images',
 					acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 					quality: 80,

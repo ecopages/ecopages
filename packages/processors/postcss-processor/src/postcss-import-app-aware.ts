@@ -1,8 +1,9 @@
 /// <reference path="./postcss-import-resolve-id.d.ts" />
 import { fileSystem } from '@ecopages/file-system';
+import { rebaseStylesheetReferences } from '@ecopages/core/processor';
 import { createRequire } from 'node:module';
 import { path } from '@ecopages/file-system/path';
-import type postcss from 'postcss';
+import postcss from 'postcss';
 import postcssImportDefault from 'postcss-import';
 import type postcssImport from 'postcss-import';
 import resolveImportIdDefault from 'postcss-import/lib/resolve-id.js';
@@ -170,7 +171,33 @@ function resolveBarePackageImport(id: string, appRoot: string): string {
 }
 
 /**
- * Creates a postcss-import instance that resolves bare package imports from the app root.
+ * Rebases the relative `url()` references of the declarations postcss-import inlined from other files, so they
+ * resolve from the importing stylesheet as they did from their own file.
+ *
+ * @remarks
+ * Core resolves a processed stylesheet's relative references from its source file's real directory and emits the
+ * files they name; without this, `url(files/font.woff2)` from `@import '@fontsource/inter'` would resolve beside
+ * the app's file. Core's {@link rebaseStylesheetReferences} does the rewrite with its stylesheet tokenizer; core
+ * decides which referenced files it copies.
+ */
+function rebaseInlinedUrls(): postcss.Plugin {
+	return {
+		postcssPlugin: 'ecopages-rebase-inlined-urls',
+		Once(root) {
+			const entry = root.source?.input.file;
+			if (!entry) return;
+			root.walkDecls((decl) => {
+				const file = decl.source?.input.file;
+				if (!file || file === entry || !/url\(|image-set\(/i.test(decl.value)) return;
+				decl.value = rebaseStylesheetReferences(decl.value, file, entry);
+			});
+		},
+	};
+}
+
+/**
+ * Creates a postcss-import instance that resolves bare package imports from the app root, and rebases the relative
+ * `url()` references of the files it inlines onto the importing stylesheet.
  */
 export function createAppAwarePostcssImport(appRoot: string): postcss.AcceptedPlugin {
 	const requireFromApp = createRequire(path.join(appRoot, 'package.json'));
@@ -191,8 +218,11 @@ export function createAppAwarePostcssImport(appRoot: string): postcss.AcceptedPl
 		});
 	};
 
-	return postcssImport({
-		root: appRoot,
-		resolve: resolve as unknown as NonNullable<PostcssImportOptions['resolve']>,
-	});
+	return postcss([
+		postcssImport({
+			root: appRoot,
+			resolve: resolve as unknown as NonNullable<PostcssImportOptions['resolve']>,
+		}),
+		rebaseInlinedUrls(),
+	]);
 }

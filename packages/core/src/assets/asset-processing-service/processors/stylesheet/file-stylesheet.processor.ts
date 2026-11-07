@@ -1,18 +1,25 @@
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { FileStylesheetAsset, ProcessedAsset } from '../../assets.types.ts';
-import { assertBrowserOutputInsideDist, sourceRelativeBrowserAssetPath } from '../../../browser-asset-output.ts';
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 import { BaseProcessor } from '../base/base-processor.ts';
 import { applyStylesheetProcessors } from './stylesheet-processor-pipeline.ts';
-import { preparePackageStylesheet } from './package-stylesheet.ts';
+import {
+	emitStylesheetReferences,
+	preparePackageStylesheet,
+	type StylesheetReferenceOutput,
+} from './package-stylesheet.ts';
+import { type SourceRelativeStylesheetDirs, writeSourceRelativeStylesheet } from './source-relative-stylesheet.ts';
 
 /**
  * Processes a stylesheet file through the app's Processors and writes it under `dist/client/assets`.
  *
  * @remarks
  * A package stylesheet (`fromPackage`) skips Processors (see {@link preparePackageStylesheet}) and is always
- * written under its content hash, beside the files its `url()` references were emitted as.
+ * written under its content hash. The files any stylesheet's relative `url()` references name are emitted to
+ * `dist/client/assets` under a content hash (see {@link emitStylesheetReferences}); a linked stylesheet names them
+ * relative to where it is written, and an inline one root-relative, since a `<style>` resolves against the Page. In
+ * development a stylesheet inside `srcDir` keeps its source-relative path (see {@link writeSourceRelativeStylesheet}).
  */
 export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> {
 	getStyleContent = (srcUrl: string): Buffer => {
@@ -21,36 +28,46 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 
 	async process(dep: FileStylesheetAsset): Promise<ProcessedAsset> {
 		const directory = this.getAssetsDir();
-		const processedContent = dep.fromPackage
-			? preparePackageStylesheet(dep.filepath, directory)
-			: await applyStylesheetProcessors(
-					this.appConfig,
-					this.getStyleContent(dep.filepath).toString(),
-					dep.filepath,
-				);
-		let filepath: string | undefined;
+		const distDir = this.appConfig.absolutePaths.distDir;
+		const output: StylesheetReferenceOutput = {
+			assetsDir: directory,
+			toReference: (emitted) =>
+				dep.inline ? `/${path.relative(distDir, emitted)}` : path.relative(directory, emitted),
+		};
 
-		if (!dep.inline) {
-			const relativePath = sourceRelativeBrowserAssetPath(this.appConfig.absolutePaths.srcDir, dep.filepath);
+		if (dep.fromPackage) return this.toProcessedAsset(dep, preparePackageStylesheet(dep.filepath, output));
 
-			if (this.isProduction || dep.fromPackage || !relativePath) {
-				filepath = writeHashedBrowserAsset({
-					bytes: processedContent,
-					directory,
-					extension: '.css',
-				});
-			} else {
-				filepath = path.join(directory, relativePath);
-				assertBrowserOutputInsideDist(this.appConfig.absolutePaths.distDir, filepath);
-				fileSystem.ensureDir(path.dirname(filepath));
-				fileSystem.write(filepath, processedContent);
-			}
-		}
+		const css = await applyStylesheetProcessors(
+			this.appConfig,
+			this.getStyleContent(dep.filepath).toString(),
+			dep.filepath,
+		);
+		const sourceRelativePath =
+			dep.inline || this.isProduction
+				? undefined
+				: writeSourceRelativeStylesheet(this.appDirs(), dep.filepath, css);
+		if (sourceRelativePath) return this.toProcessedAsset(dep, undefined, sourceRelativePath);
+
+		return this.toProcessedAsset(dep, emitStylesheetReferences(css, dep.filepath, output));
+	}
+
+	private appDirs(): SourceRelativeStylesheetDirs {
+		const { distDir, srcDir } = this.appConfig.absolutePaths;
+		return { srcDir, distDir };
+	}
+
+	/** Writes `content` under its content hash unless the stylesheet is inline or already written at `filepath`. */
+	private toProcessedAsset(dep: FileStylesheetAsset, content: string | undefined, filepath?: string): ProcessedAsset {
+		const output =
+			filepath ??
+			(dep.inline || content === undefined
+				? undefined
+				: writeHashedBrowserAsset({ bytes: content, directory: this.getAssetsDir(), extension: '.css' }));
 
 		return {
-			filepath,
+			filepath: output,
 			sourceFilepath: dep.filepath,
-			content: dep.inline ? processedContent : undefined,
+			content: dep.inline ? content : undefined,
 			kind: 'stylesheet',
 			position: dep.position,
 			attributes: dep.attributes,

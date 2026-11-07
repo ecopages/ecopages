@@ -366,7 +366,7 @@ test('PageBrowserGraphService warns when grouped assets lose groupedBundle metad
 
 	expect(result?.entryAssets).toEqual([]);
 	expect(warnSpy).toHaveBeenCalledWith(
-		'Grouped page-browser assets for /app/pages/index.tsx are missing groupedBundle metadata after processing. Hydration scripts may be omitted from HTML.',
+		`Grouped page-browser assets for ${path.resolve('/app/pages/index.tsx')} are missing groupedBundle metadata after processing. Hydration scripts may be omitted from HTML.`,
 	);
 });
 

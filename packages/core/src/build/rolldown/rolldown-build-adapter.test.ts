@@ -477,7 +477,7 @@ describe('RolldownBuildAdapter', () => {
 			],
 			{ encoding: 'utf8' },
 		);
-		expect(JSON.parse(loaded)).toEqual({ dir: path.fromNative(realpathSync(outdir)), parse: 'function' });
+		expect(JSON.parse(loaded)).toEqual({ dir: realpathSync(outdir), parse: 'function' });
 	});
 
 	test('shortens flattened preserved module names from deep pnpm store paths', async () => {

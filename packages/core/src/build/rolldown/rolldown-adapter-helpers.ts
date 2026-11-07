@@ -634,6 +634,18 @@ function flattenPreservedModuleFileNames(pattern: string): (chunk: PreRenderedCh
 	return (chunk) => pattern.replaceAll('[name]', () => flattenPreservedModuleName(chunk.name));
 }
 
+/**
+ * Sanitizes the name Rolldown gives a preserved module before it fills `[name]`.
+ *
+ * @remarks
+ * A module on another drive than `preserveModulesRoot` has no path relative to it, and Rolldown names it with a
+ * `../` prefix that it rejects as a `[name]` substitution before `entryFileNames` can rewrite it. The prefix is
+ * dropped here, along with the characters Rolldown's default sanitizer removes.
+ */
+function sanitizePreservedModuleName(name: string): string {
+	return name.replace(/^(?:\.\.?\/)+/u, '').replaceAll(/[\0?*:]/gu, '_');
+}
+
 function buildRolldownOutputOptions(options: BuildOptions, outdir: string): OutputOptions {
 	const entryFileNames = resolveRolldownEntryFileNames(options);
 	return {
@@ -646,6 +658,7 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 		...(options.preserveModules
 			? {
 					preserveModules: true,
+					sanitizeFileName: sanitizePreservedModuleName,
 					...(options.preserveModulesRoot
 						? { preserveModulesRoot: path.toNative(options.preserveModulesRoot) }
 						: {}),

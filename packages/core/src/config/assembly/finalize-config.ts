@@ -345,7 +345,9 @@ export async function finalizeEcoPagesConfig(
 		const cwd = options.cwd ?? path.cwd();
 		const directories = resolveDirectories(userConfig);
 		let rootDir = resolveUserConfigRootDir(userConfig.rootDir, cwd);
-		const configFilePath = options.configFilePath ?? path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
+		const configFilePath = options.configFilePath
+			? path.resolve(cwd, options.configFilePath)
+			: path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
 		rootDir = resolveEmittedConfigRootDir(rootDir, configFilePath, directories.distDir, cwd);
 		if (userConfig.headers !== undefined) assertResponseHeaderRules(userConfig.headers);
 		const integrations = withHtmlPagesIntegration(userConfig.integrations ?? []);

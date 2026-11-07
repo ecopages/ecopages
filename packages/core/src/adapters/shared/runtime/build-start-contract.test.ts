@@ -264,7 +264,7 @@ describe('build → start contract', () => {
 		const configObj = importedModule.default;
 		assert.equal(
 			configObj.rootDir,
-			path.fromNative(realpathSync(serverOutdir)),
+			realpathSync(serverOutdir),
 			'production import.meta.dirname is dist/server, not the source root',
 		);
 

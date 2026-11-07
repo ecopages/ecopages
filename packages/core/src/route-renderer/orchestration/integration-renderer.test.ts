@@ -186,8 +186,8 @@ describe('IntegrationRenderer', () => {
 		expect(processDependencies).toHaveBeenCalledOnce();
 		expect(processDependencies).toHaveBeenCalledWith([], assetProcessingIntegration);
 
-		expect(firstResult.html).toBe('<main>/app/first</main>');
-		expect(firstRenderAgain.html).toBe('<main>/app/first</main>');
+		expect(firstResult.html).toBe(`<main>${path.resolve('/app/first')}</main>`);
+		expect(firstRenderAgain.html).toBe(`<main>${path.resolve('/app/first')}</main>`);
 		expect(secondResult.html).toBe('<main>/app/second</main>');
 		expect(secondRenderAgain.html).toBe('<main>/app/second</main>');
 		expect(hookFactory).toHaveBeenCalledTimes(2);
@@ -1013,9 +1013,9 @@ describe('IntegrationRenderer', () => {
 
 		expect(seen).toEqual(
 			new Set([
-				path.resolve('/app/includes/html.ts,/app/pages/a.tsx'),
-				path.resolve('/app/includes/html.ts,/app/pages/b.tsx'),
-				path.resolve('/app/includes/html.ts,/app/views/explicit.tsx'),
+				`${path.resolve('/app/includes/html.ts')},${path.resolve('/app/pages/a.tsx')}`,
+				`${path.resolve('/app/includes/html.ts')},${path.resolve('/app/pages/b.tsx')}`,
+				`${path.resolve('/app/includes/html.ts')},${path.resolve('/app/views/explicit.tsx')}`,
 			]),
 		);
 	});
@@ -1467,7 +1467,7 @@ describe('IntegrationRenderer', () => {
 
 		expect(html).toContain('data-layout-locals="absent"');
 		expect(html).toContain(
-			"[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: /app/pages/static-page.ts",
+			`[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: ${path.resolve('/app/pages/static-page.ts')}`,
 		);
 	});
 

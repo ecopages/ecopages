@@ -20,6 +20,7 @@ import type { HtmlPageWarningState } from '../../html-pages/html-page-warning-st
 import type { HtmlPageModuleScriptState } from '../../html-pages/html-page-module-scripts.ts';
 import type { CustomElementScriptPreloadScopeState } from '../../route-renderer/orchestration/custom-element-scripts/custom-element-script-preload-invalidation.ts';
 import type { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
+import type { DevelopmentStylesheetService } from '../../dev/stylesheets/development-stylesheet.service.ts';
 import type { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import type { IHmrManager } from '../../types/contracts.ts';
 import { MISSING_APP_RUNTIME } from '../../utils/app-runtime.ts';
@@ -54,7 +55,8 @@ export class ServerInvalidationState {
  * `origin` starts as `baseUrl` and updates when the runtime binds its listening origin. `hmr` stays
  * `null` until a watch-mode dev session creates an HMR manager, and resets to `null` when dev resources
  * are disposed. `developmentInvalidation` stays `null` until development services need it, then the
- * watcher and HMR manager share that instance. `pageCache` stays `null` until the server adapter stores one.
+ * watcher and HMR manager share that instance. `developmentStylesheets` stays `null` until the watcher or the dev
+ * transform server needs it. `pageCache` stays `null` until the server adapter stores one.
  */
 export interface AppRuntime {
 	buildAdapter: BuildAdapter;
@@ -65,6 +67,7 @@ export interface AppRuntime {
 	pageBrowserGraphSession: SessionPageBrowserGraphCache;
 	serverInvalidation: ServerInvalidationState;
 	developmentInvalidation: DevelopmentInvalidationService | null;
+	developmentStylesheets: DevelopmentStylesheetService | null;
 	moduleLoader: AppModuleLoaderContract;
 	routeModuleBuildCaches: Map<string, RouteModuleBuildCache>;
 	pageCache: PageCacheService | null;
@@ -136,6 +139,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		pageBrowserGraphSession: new SessionPageBrowserGraphCache(buildInputIndex),
 		serverInvalidation: new ServerInvalidationState(),
 		developmentInvalidation: null,
+		developmentStylesheets: null,
 		moduleLoader: new AppModuleLoader(appConfig),
 		routeModuleBuildCaches: new Map(),
 		pageCache: null,

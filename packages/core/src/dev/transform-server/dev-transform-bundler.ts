@@ -6,6 +6,7 @@ import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { createDevTransformExternalizeImportsPlugin } from './dev-transform-externalize-plugin.ts';
 import { rewriteModuleImports } from './dev-transform-import-rewriter.ts';
+import { getDevelopmentStylesheetService } from '../stylesheets/development-stylesheet.service.ts';
 import type { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 import type { DevTransformBundleContributor, DevTransformBundleResult } from './types.ts';
 import { collectBuildEntryInputPaths, getBuildEntryOutput } from '../../build/build-graph.ts';
@@ -49,7 +50,13 @@ export class DevTransformBundler {
 		return path.join(distDir, '.dev-transform');
 	}
 
-	/** Rewrites the imports of browser ESM `code` whose source is `sourcePath`; see {@link rewriteModuleImports}. */
+	/**
+	 * Rewrites the imports of browser ESM `code` whose source is `sourcePath`; see {@link rewriteModuleImports}.
+	 *
+	 * @remarks
+	 * A stylesheet import is versioned by the output the development stylesheet service last produced for it, so an
+	 * edit to one of its `@import` partials gives the importer a new URL.
+	 */
 	rewriteImports(code: string, sourcePath: string): Promise<{ code: string; dependencies: string[] }> {
 		return rewriteModuleImports({
 			code,
@@ -58,6 +65,7 @@ export class DevTransformBundler {
 			projectRoot: this.appConfig.rootDir,
 			extraModuleRoots: this.extraModuleRoots,
 			resolveVendorImport: (specifier) => this.vendorRegistry.resolveVendorImport(specifier, sourcePath),
+			moduleVersion: (resolvedPath) => getDevelopmentStylesheetService(this.appConfig).version(resolvedPath),
 		});
 	}
 

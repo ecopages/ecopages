@@ -15,6 +15,10 @@ import {
 	type DevelopmentInvalidationPlanningContext,
 } from '../dev/invalidation/development-invalidation.service.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
+import {
+	getDevelopmentStylesheetService,
+	type DevelopmentStylesheetService,
+} from '../dev/stylesheets/development-stylesheet.service.ts';
 import { resolveRuntimeRestartWatchPaths } from '../dev/development-restart-watch-paths.ts';
 import {
 	type AdditionalWatchPath,
@@ -53,8 +57,9 @@ export interface ProjectWatcherConfig {
 /**
  * ProjectWatcher subscribes to project files and applies each non-restart
  * debounce batch through one `applyDevFileChanges` call. Dirty results rebuild
- * on the next request. For those batches, it notifies matching Processors once
- * and runs browser update handling once.
+ * on the next request. For those batches, it notifies matching Processors once,
+ * has the development stylesheet service rebuild the stylesheets the batch
+ * affects, and runs browser update handling once. Subscribing prewarms that service.
  *
  * @remarks
  * The maximum-wait timer schedules a batch no later than one second after its
@@ -73,6 +78,7 @@ export class ProjectWatcher {
 	private hmrManager: IHmrManager;
 	private bridge: IClientBridge;
 	private readonly invalidationService: DevelopmentInvalidationService;
+	private readonly stylesheets: DevelopmentStylesheetService;
 	private readonly changeDebounceMs: number;
 	private readonly onRestartRequest?: (filePath: string) => Promise<void>;
 	private readonly entryWatcherOwnsConfig: boolean;
@@ -132,6 +138,7 @@ export class ProjectWatcher {
 		this.onRestartRequest = onRestartRequest;
 		this.entryWatcherOwnsConfig = entryWatcherOwnsConfig === true;
 		this.invalidationService = getDevelopmentInvalidationService(config);
+		this.stylesheets = getDevelopmentStylesheetService(config);
 		this.handleError = this.handleError.bind(this);
 		this.handleFileChange = this.handleFileChange.bind(this);
 	}
@@ -329,10 +336,48 @@ export class ProjectWatcher {
 				return;
 			}
 			await this.notifyProcessorsForBatch(applied.files);
-			await this.notifyBatchClientUpdate(applied);
+			await this.notifyBatchClientUpdate(await this.restyleStylesheets(applied, planningContext));
 		} catch (error) {
 			this.handleError(error);
 		}
+	}
+
+	/**
+	 * Rebuilds the stylesheets the batch affects, then marks every stylesheet whose output changed as changed itself.
+	 *
+	 * @remarks
+	 * An edit to an `@import` partial changes the CSS of the stylesheets that inline it while their own bytes stay the
+	 * same. Planning them as changed reaches every consumer the usual way: the server modules that embed them, the
+	 * Pages that cached them, and the browser modules that import them as text. Processors are not notified of them,
+	 * since no file changed on disk.
+	 */
+	private async restyleStylesheets(
+		applied: AppliedDevFileChanges,
+		context: DevelopmentInvalidationPlanningContext,
+	): Promise<AppliedDevFileChanges> {
+		const pathsOf = (kind: DevFileChangeKind) =>
+			applied.files.filter((file) => file.kind === kind).map((file) => file.filePath);
+		const restyled = await this.stylesheets.applyChanges(
+			{ created: pathsOf('created'), changed: pathsOf('changed'), deleted: pathsOf('deleted') },
+			this.bridge,
+		);
+		const inBatch = new Set(applied.files.map((file) => file.filePath));
+		const changed = restyled.filter((filePath) => !inBatch.has(filePath));
+		if (changed.length === 0) {
+			return applied;
+		}
+
+		const dependents = await this.invalidationService.applyDevFileChanges(
+			{ changed, created: [], deleted: [] },
+			context,
+		);
+		return {
+			files: [...applied.files, ...dependents.files],
+			invalidateServerModules: applied.invalidateServerModules || dependents.invalidateServerModules,
+			refreshRoutes: applied.refreshRoutes || dependents.refreshRoutes,
+			reloadBrowser: applied.reloadBrowser || dependents.reloadBrowser,
+			delegateToHmr: applied.delegateToHmr || dependents.delegateToHmr,
+		};
 	}
 
 	private async applyFileChanges(
@@ -643,6 +688,7 @@ export class ProjectWatcher {
 			});
 		});
 
+		await this.stylesheets.prewarm();
 		return this.waitForWatcherReady();
 	}
 

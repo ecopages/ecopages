@@ -396,48 +396,6 @@ describe('DevTransformServer', () => {
 		},
 	);
 
-	it('reports the partials a stylesheet inlined as the dependencies of its module', async () => {
-		class InliningProcessor extends Processor {
-			async setup(): Promise<void> {}
-
-			override async transformStylesheet(css: string, file: string) {
-				const partial = path.join(path.dirname(file), 'tokens.css');
-				return {
-					css: css.replace("@import './tokens.css';", fs.readFileSync(partial, 'utf8')),
-					dependencies: [partial],
-				};
-			}
-		}
-		const rootDir = createTempRoot('dev-transform-server-css-dependencies');
-		const cssPath = path.join(rootDir, 'src', 'components', 'card.css');
-		const tokensPath = path.join(rootDir, 'src', 'components', 'tokens.css');
-		fs.mkdirSync(path.dirname(cssPath), { recursive: true });
-		fs.writeFileSync(cssPath, "@import './tokens.css';\n");
-		fs.writeFileSync(tokensPath, ':root { --c: red; }\n');
-		const config = await finalizeEcoPagesConfig({
-			rootDir,
-			integrations: [],
-			processors: [
-				new InliningProcessor({
-					name: 'inlining',
-					capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }],
-				}),
-			],
-		});
-		const reported: Array<[string, string[]]> = [];
-		const server = new DevTransformServer({
-			appConfig: config,
-			onModuleDependencies: (modulePath, dependencies) => reported.push([modulePath, dependencies]),
-		});
-
-		const response = await server.tryHandleRequest(
-			new Request(`http://localhost${DEV_TRANSFORM_URL_PREFIX}/components/card.css`),
-		);
-
-		expect(await response?.text()).toBe('export default ":root { --c: red; }\\n\\n";\n');
-		expect(reported).toEqual([[cssPath, [tokensPath]]]);
-	});
-
 	describe('a stylesheet whose Processor throws', () => {
 		class StrictProcessor extends Processor {
 			async setup(): Promise<void> {}

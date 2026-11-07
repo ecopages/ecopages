@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { expect, test } from '../../../e2e/app-fixture.ts';
 import { findAbsolutePathsInBuildOutput, listServedPagePathnames } from '../../../e2e/utils/moved-build.ts';
-import { listUnreachableClientAssets } from '../../../e2e/utils/client-asset-reachability.ts';
+import { checkClientAssetReachability } from '../../../e2e/utils/client-asset-reachability.ts';
 import { assertAllCountersInteractivity } from './counters';
 import { integrationMatrixHostPages } from '../src/data/integration-matrix';
 
@@ -27,13 +27,16 @@ test.describe('A kitchen-sink build moved to another folder under `ecopages star
 		expect(failures, app.getServerOutput()).toEqual([]);
 	});
 
-	test('writes no browser asset that a served Page cannot reach', async ({ app, request }) => {
+	test('writes every file a served Page references, and no other browser asset', async ({ app, request }) => {
 		const servedHtml: string[] = [];
 		for (const pathname of [...listServedPagePathnames(app.dir), ...explicitRoutes]) {
 			servedHtml.push(await (await request.get(pathname)).text());
 		}
 
-		expect(listUnreachableClientAssets(path.join(app.dir, 'dist', 'client'), servedHtml)).toEqual([]);
+		expect(checkClientAssetReachability(path.join(app.dir, 'dist', 'client'), servedHtml)).toEqual({
+			unreachable: [],
+			missing: [],
+		});
 	});
 
 	test('hydrates the counters of every Integration', async ({ page }) => {

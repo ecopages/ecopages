@@ -34,7 +34,7 @@ In development, each applied change batch is announced on the build-input index,
 | An unbundled file inside `srcDir`, in development | Its source-relative path, with a TypeScript extension turned into `.js` |
 | An unbundled file outside `srcDir`, or any unbundled file in production | `dist/client/assets`, named by a hash of its bytes (`writeHashedBrowserAsset`) |
 
-A file outside `srcDir` has no source-relative path that stays inside `dist/`, which is why it always gets a hashed name; the write checks containment before creating the file. Stylesheet `url()` references and package stylesheets are covered in [PostCSS processor](/dev/postcss-processor) and [Pages, layouts and components](/dev/pages-layouts-components#package-stylesheets).
+A file outside `srcDir` has no source-relative path that stays inside `dist/`, which is why it always gets a hashed name; the write checks containment before creating the file. A stylesheet's relative `@import`s are inlined and its `url()` references emitted before it is written, whether or not a Processor ran; that, and package stylesheets, are covered in [PostCSS processor](/dev/postcss-processor) and [Pages, layouts and components](/dev/pages-layouts-components#package-stylesheets).
 
 ## Grouped script bundles
 

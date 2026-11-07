@@ -142,6 +142,19 @@ export interface ProcessorContext {
 	cache?: string;
 }
 
+/** What {@link Processor.transformStylesheet} returns for one stylesheet. */
+export interface StylesheetTransformResult {
+	css: string;
+	/**
+	 * Absolute paths of the other files the transform read, such as the partials an `@import` inlined.
+	 *
+	 * @remarks
+	 * Take them from the transform itself (PostCSS `dependency` messages, Lightning CSS `dependencies`), never from a
+	 * scan of the source. Core rebuilds the stylesheet, and every module that imports it, when one of them changes.
+	 */
+	dependencies?: readonly string[];
+}
+
 /**
  * Unconstrained processor type for heterogeneous processor collections.
  */
@@ -242,7 +255,7 @@ export abstract class Processor<TOptions = unknown> {
 	 * @param css - Stylesheet source.
 	 * @param file - Absolute path of the stylesheet, or the `processingOrigin` of a content dependency.
 	 */
-	transformStylesheet?(css: string, file: string): Promise<string>;
+	transformStylesheet?(css: string, file: string): Promise<StylesheetTransformResult>;
 
 	/**
 	 * @remarks

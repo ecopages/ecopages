@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
-import { Processor } from './plugins/processor.ts';
+import { Processor, type StylesheetTransformResult } from './plugins/processor.ts';
 import { stylesheetProcessorContract } from './processor-contract.ts';
 
 const IMPORT = /@import\s+['"](\.[^'"]+)['"]\s*(?:layer\((\w+)\))?\s*;/gu;
@@ -13,12 +13,16 @@ const IMPORT = /@import\s+['"](\.[^'"]+)['"]\s*(?:layer\((\w+)\))?\s*;/gu;
 class InliningProcessor extends Processor {
 	async setup(): Promise<void> {}
 
-	override async transformStylesheet(css: string, file: string): Promise<string> {
+	override async transformStylesheet(css: string, file: string): Promise<StylesheetTransformResult> {
 		if (css.split('{').length !== css.split('}').length) throw new Error(`${file}: Unclosed block`);
-		return css.replace(IMPORT, (_statement, specifier: string, layer: string | undefined) => {
-			const contents = fileSystem.readFileSync(path.resolve(path.dirname(file), specifier));
+		const dependencies: string[] = [];
+		const inlined = css.replace(IMPORT, (_statement, specifier: string, layer: string | undefined) => {
+			const imported = path.resolve(path.dirname(file), specifier);
+			dependencies.push(imported);
+			const contents = fileSystem.readFileSync(imported);
 			return layer ? `@layer ${layer} {\n${contents}}\n` : contents;
 		});
+		return { css: inlined, dependencies };
 	}
 }
 
@@ -28,7 +32,6 @@ describe('stylesheet Processor contract, for a fixture Processor', () => {
 			new InliningProcessor({ name: 'inlining', capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }] }),
 	});
 	for (const contractCase of cases) {
-		const runCase = contractCase.name === 'the stylesheets a transform reads drive rebuilds' ? it.fails : it;
-		runCase(contractCase.name, contractCase.run);
+		it(contractCase.name, contractCase.run);
 	}
 });

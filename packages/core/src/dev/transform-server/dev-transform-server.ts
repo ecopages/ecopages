@@ -271,10 +271,16 @@ export class DevTransformServer {
 		});
 	}
 
-	/** Compiles a stylesheet import into the module of its processed CSS, as server builds and bundles do. */
-	private async compileStylesheet(sourcePath: string): Promise<{ code: string }> {
+	/**
+	 * Compiles a stylesheet import into the module of its processed CSS, as server builds and bundles do.
+	 *
+	 * @remarks
+	 * The stylesheets its CSS inlined are reported as the module's dependencies, so an edit to an `@import` partial
+	 * invalidates the cached module.
+	 */
+	private async compileStylesheet(sourcePath: string): Promise<{ code: string; dependencies: string[] }> {
 		try {
-			return { code: await compileStylesheetModule(this.appConfig, sourcePath) };
+			return await compileStylesheetModule(this.appConfig, sourcePath);
 		} catch (error) {
 			throw new StylesheetCompileError(sourcePath, error);
 		}

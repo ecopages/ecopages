@@ -103,6 +103,31 @@ const processPath: ProcessPath = async (path, options) => {
 		});
 };
 
+/** The CSS PostCSS produced and the files its plugins read, such as the partials `postcss-import` inlined. */
+export type PostCssTransformResult = { css: string; dependencies: string[] };
+
+/**
+ * Runs PostCSS over `contents` and returns the CSS with the files the plugins reported reading.
+ *
+ * @remarks
+ * The dependencies are the `file` of each `dependency` message, which `postcss-import` sends for every stylesheet it
+ * inlines, whatever the form of the `@import` (a `layer()`, a media query, an unquoted `url()` or an alias).
+ */
+export async function transformWithPostcss(
+	contents: string | Buffer,
+	options?: PostCssProcessorOptions,
+): Promise<PostCssTransformResult> {
+	if (!contents) return { css: '', dependencies: [] };
+
+	const result = await postcss(getPlugins(options)).process(contents, { from: options?.filePath });
+	logWarnings(result, contents, options?.filePath);
+	const css = options?.transformOutput ? await options.transformOutput(result.css) : result.css;
+	const dependencies = result.messages.flatMap((message) =>
+		message.type === 'dependency' && typeof message.file === 'string' ? [message.file] : [],
+	);
+	return { css, dependencies: [...new Set(dependencies)] };
+}
+
 /**
  * It processes the given string or buffer using PostCSS
  * @param contents string | Buffer
@@ -118,20 +143,8 @@ const processPath: ProcessPath = async (path, options) => {
  * });
  * ```
  */
-const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) => {
-	if (!contents) return '';
-
-	return postcss(getPlugins(options))
-		.process(contents, { from: options?.filePath })
-		.then(async (result) => {
-			logWarnings(result, contents, options?.filePath);
-			let css = result.css;
-			if (options?.transformOutput) {
-				css = await options.transformOutput(css);
-			}
-			return css;
-		});
-};
+const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) =>
+	(await transformWithPostcss(contents, options)).css;
 
 export type ProcessStringOrBufferSync = (contents: string | Buffer, options?: PostCssProcessorOptions) => string;
 

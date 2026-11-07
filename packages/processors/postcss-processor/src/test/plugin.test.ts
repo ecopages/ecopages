@@ -338,7 +338,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		plugin.setContext(config);
 		await plugin.setup();
 
-		const initialResult = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
+		const { css: initialResult } = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
 		expect(initialResult).toContain('color: green');
 
 		const Bridge = {
@@ -398,8 +398,8 @@ describe('PostCssProcessorPlugin HMR', () => {
 			plugin.transformStylesheet('.foo { color: red; }', cssFile),
 		]);
 
-		expect(first).toContain('color: green');
-		expect(second).toContain('color: green');
+		expect(first.css).toContain('color: green');
+		expect(second.css).toContain('color: green');
 		expect(createPlugin).toHaveBeenCalledTimes(1);
 	});
 
@@ -424,7 +424,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		plugin.setContext(config);
 		await plugin.setup();
 
-		const result = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
+		const { css: result } = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
 
 		expect(result).toContain('/* direct */');
 		expect(result).toContain('.foo { color: red; }');
@@ -611,7 +611,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		plugin.setContext(config);
 		await plugin.setup();
 
-		const result = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
+		const { css: result } = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
 
 		expect(result).toContain('.api-lab__workspace-grid');
 		expect(result).not.toContain('__workspace-grid.api-lab');
@@ -638,7 +638,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 			plugin.setContext(config);
 			await plugin.setup();
 
-			expect(await plugin.transformStylesheet('.hashed { color: orange; }', cssFile)).toContain('.hashed');
+			expect((await plugin.transformStylesheet('.hashed { color: orange; }', cssFile)).css).toContain('.hashed');
 			expect(hashedCssContents()).toEqual([]);
 			expect(fs.existsSync(path.join(distDir, 'assets', 'hashed-production.css'))).toBe(false);
 		} finally {

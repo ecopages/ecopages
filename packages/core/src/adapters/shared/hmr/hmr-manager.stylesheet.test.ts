@@ -10,9 +10,9 @@ import { createTempRoot, startHmrManager, writeSourceFile } from './hmr-manager.
 class StrictProcessor extends Processor {
 	async setup(): Promise<void> {}
 
-	override async transformStylesheet(css: string): Promise<string> {
+	override async transformStylesheet(css: string): Promise<{ css: string }> {
 		if (css.includes('{{')) throw new Error('Unclosed block');
-		return css.replace('@apply text-red;', 'color: red;');
+		return { css: css.replace('@apply text-red;', 'color: red;') };
 	}
 }
 

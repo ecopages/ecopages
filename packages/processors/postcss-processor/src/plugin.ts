@@ -7,7 +7,12 @@ import { path } from '@ecopages/file-system/path';
 import { isEcopagesEnvEnabled, isProductionRuntime, writeSourceRelativeStylesheet } from '@ecopages/core/processor';
 import type { IClientBridge } from '@ecopages/core/integration';
 import { fileSystem } from '@ecopages/file-system';
-import { Processor, type ProcessorConfig, type ProcessorWatchChanges } from '@ecopages/core/processor';
+import {
+	Processor,
+	type ProcessorConfig,
+	type ProcessorWatchChanges,
+	type StylesheetTransformResult,
+} from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
 import {
@@ -15,7 +20,7 @@ import {
 	loadPostcssConfigFromFile,
 	type LoadedPostcssConfig,
 } from './postcss-config-loading.ts';
-import { PostCssProcessor } from './postcss-processor.ts';
+import { transformWithPostcss } from './postcss-processor.ts';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
 	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
@@ -186,7 +191,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			const rawContents = await fileSystem.readFile(filePath);
 
 			try {
-				const processed = await this.transformStylesheet(rawContents, filePath);
+				const { css: processed } = await this.transformStylesheet(rawContents, filePath);
 				this.runtimeCssCache.set(filePath, processed);
 				this.persistProcessedCss(filePath, processed);
 			} catch (error) {
@@ -425,7 +430,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			const content = await fileSystem.readFile(filePath);
 
-			const processed = await this.transformStylesheet(content, filePath);
+			const { css: processed } = await this.transformStylesheet(content, filePath);
 
 			const recovered = this.failedCssFiles.delete(filePath);
 			const cached = this.runtimeCssCache.get(filePath);
@@ -533,16 +538,16 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	 *
 	 * @param fileAsString CSS content as string
 	 * @param filePath File path for resolving relative imports
-	 * @returns Processed CSS
+	 * @returns The processed CSS and the files PostCSS reported reading
 	 */
-	override async transformStylesheet(fileAsString: string, filePath: string): Promise<string> {
+	override async transformStylesheet(fileAsString: string, filePath: string): Promise<StylesheetTransformResult> {
 		await this.ensurePostcssPlugins();
 
 		const input = this.options?.transformInput
 			? await this.options.transformInput(fileAsString, filePath)
 			: fileAsString;
 
-		return await PostCssProcessor.processStringOrBuffer(input, {
+		return transformWithPostcss(input, {
 			filePath,
 			plugins: this.postcssPlugins,
 			transformOutput: this.options?.transformOutput,

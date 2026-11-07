@@ -185,8 +185,15 @@ export interface BuildOptions {
 export interface BuildStylesheets {
 	/** The lowercase, dotted stylesheet extensions. */
 	readonly extensions: readonly string[];
-	/** Compiles the stylesheet at `file` into ES module code whose default export is its processed CSS. */
-	compileModule(file: string): Promise<string>;
+	/**
+	 * Compiles the stylesheet at `file` into ES module code whose default export is its processed CSS, with the other
+	 * files that CSS inlined.
+	 *
+	 * @remarks
+	 * The build joins `dependencies` to the module closure of each entry that imports the stylesheet, so a change to an
+	 * `@import` partial rebuilds the server module that embeds it.
+	 */
+	compileModule(file: string): Promise<{ code: string; dependencies?: readonly string[] }>;
 	/**
 	 * Receives the error for a package module's own side-effect stylesheet import in a browser build, which then loads
 	 * an empty module. Without it, that error fails the build.

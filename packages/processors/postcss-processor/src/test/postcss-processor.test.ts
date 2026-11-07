@@ -3,7 +3,8 @@ import { Logger } from '@ecopages/logger';
 import { path } from '@ecopages/file-system/path';
 import postcss, { CssSyntaxError } from 'postcss';
 import postCssSimpleVars from 'postcss-simple-vars';
-import { PostCssProcessor } from '../postcss-processor';
+import postcssImport from 'postcss-import';
+import { PostCssProcessor, transformWithPostcss } from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
 
 const noop: postcss.AcceptedPlugin = { postcssPlugin: 'noop' };
@@ -136,6 +137,21 @@ describe('PostCssProcessor', () => {
 		});
 		expect(result).toEqual(expected);
 	});
+	test.each(["@import './base.css' layer(base);", '@import url(./base.css);', "@import './base.css' screen;"])(
+		'transformWithPostcss reports the partial %s inlines as a dependency',
+		async (statement) => {
+			const filePath = path.resolve(__dirname, './css/import.css');
+
+			const result = await transformWithPostcss(`${statement}\n.main { background: blue; }`, {
+				filePath,
+				plugins: [postcssImport()],
+			});
+
+			expect(result.css).toContain('.base');
+			expect(result.dependencies).toEqual([path.resolve(__dirname, './css/base.css')]);
+		},
+	);
+
 	describe('warnings', () => {
 		const warnOnWord: postcss.AcceptedPlugin = {
 			postcssPlugin: 'warn-on-word',

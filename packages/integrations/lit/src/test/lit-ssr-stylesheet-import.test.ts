@@ -25,8 +25,8 @@ class TestLitRenderer extends LitRenderer {
 class ApplyProcessor extends Processor {
 	async setup(): Promise<void> {}
 
-	override async transformStylesheet(css: string): Promise<string> {
-		return css.replace('@apply text-red;', 'color: rgb(255, 0, 0);');
+	override async transformStylesheet(css: string): Promise<{ css: string }> {
+		return { css: css.replace('@apply text-red;', 'color: rgb(255, 0, 0);') };
 	}
 }
 

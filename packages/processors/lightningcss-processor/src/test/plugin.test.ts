@@ -34,6 +34,13 @@ describe('LightningCssProcessorPlugin', () => {
 		expect(plugin.canProcessAsset('stylesheet', '/app/src/a.scss')).toBe(false);
 	});
 
+	test('processes only the stylesheets the filter matches', () => {
+		const plugin = new LightningCssProcessorPlugin({ options: { filter: /\.lc\.css$/ } });
+
+		expect(plugin.canProcessAsset('stylesheet', '/app/src/a.lc.css')).toBe(true);
+		expect(plugin.canProcessAsset('stylesheet', '/app/src/a.css')).toBe(false);
+	});
+
 	test('lowers nesting and color-mix() for an old target', async () => {
 		const plugin = await createProcessor({ targets: ['chrome 80'] });
 

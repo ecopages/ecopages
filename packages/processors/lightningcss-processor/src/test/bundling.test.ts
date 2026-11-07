@@ -91,6 +91,22 @@ describe('@import bundling', () => {
 		);
 	});
 
+	test('rebases the url() references of a package stylesheet onto the importing stylesheet', async () => {
+		write(
+			'node_modules/theme-kit/package.json',
+			JSON.stringify({ name: 'theme-kit', exports: { './style.css': './style.css' } }),
+		);
+		write('node_modules/theme-kit/style.css', '@font-face { font-family: Kit; src: url(fonts/kit.woff2); }');
+		write('node_modules/theme-kit/fonts/kit.woff2', 'x');
+		const main = write('src/styles/main.css', '@import "theme-kit/style.css";');
+
+		const { css } = await transform(main);
+
+		const reference = /url\(["']?([^"')]+)["']?\)/.exec(css)?.[1];
+		expect(reference).toBe('../../node_modules/theme-kit/fonts/kit.woff2');
+		expect(fs.existsSync(path.resolve(path.dirname(main), reference!))).toBe(true);
+	});
+
 	test('inlines nested imports, and for a duplicate import the last instance wins', async () => {
 		write('src/styles/deep.css', '.deep { color: red; }');
 		write('src/styles/mid.css', '@import "./deep.css";\n.mid { color: red; }');

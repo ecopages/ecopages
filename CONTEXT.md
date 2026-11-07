@@ -32,7 +32,7 @@ A plugin that owns rendering for a file type (e.g., React, KitaJS, Lit, MDX). Ea
 _Avoid_: Plugin, adapter, template language
 
 **Processor**:
-A build-time plugin that transforms assets like stylesheets (PostCSS, Tailwind) or images. Processors are registered alongside Integrations but have distinct contracts.
+A build-time plugin that transforms assets like stylesheets (PostCSS, Tailwind) or images. Processors are registered alongside Integrations but have distinct contracts. At most one Processor in an app declares a `stylesheet` capability; its declared extensions, plus `.css`, are what core treats as stylesheets.
 _Avoid_: Plugin, asset plugin, transformer
 
 **Static Page**:

@@ -606,12 +606,15 @@ export interface ForeignChildRuntime {
  * The Integration that renders Eco Components in the browser, and what it renders in place of a Foreign Child.
  *
  * @remarks
- * A hydrating Integration registers it on `window.__ECO_PAGES__.foreignChildHost`. The browser `eco` factories then
- * hand every Component another Integration owns to `renderForeignChild` instead of calling its `render`, since that
- * Component was server-rendered as a Foreign Subtree.
+ * A hydrating Integration registers it on `window.__ECO_PAGES__.foreignChildHost`. While `isRendering()` is true, the
+ * browser `eco` factories hand every Component another Integration owns to `renderForeignChild` instead of calling its
+ * `render`, since that Component was server-rendered as a Foreign Subtree. Any other call, such as another
+ * Integration's browser code calling its own Component, renders inline.
  */
 export interface BrowserForeignChildHost {
 	integration: string;
+	/** Whether the host Integration is rendering a tree right now, so a Component call comes from that tree. */
+	isRendering(): boolean;
 	renderForeignChild(component: EcoComponent, props: Record<string, unknown>): unknown;
 }
 

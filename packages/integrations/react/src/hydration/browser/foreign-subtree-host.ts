@@ -21,6 +21,8 @@ import {
 export type ForeignSubtreeReactRuntime = {
 	createElement: (type: unknown, props: Record<string, unknown>) => unknown;
 	useState: <S>(initialState: () => S) => [S, unknown];
+	/** React's `__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE`, whose `H` is the hook dispatcher. */
+	internals: { H: { useState: unknown; useEffect: unknown } | null };
 };
 
 type ForeignSubtreeWindow = Window & {
@@ -71,6 +73,26 @@ function fillBoundary(boundary: Element | null, html: string): void {
 }
 
 /**
+ * Whether React is rendering a component right now.
+ *
+ * @remarks
+ * React has no public API for this, so it reads the hook dispatcher `H` on React's client internals. During a
+ * component render `H` is a dispatcher whose hooks differ from each other. Outside one it is `null` or React's
+ * `ContextOnlyDispatcher`, which React leaves in place after its first render and whose hooks are all one function
+ * that throws, so `useState` and `useEffect` are the same function. A runtime without `H` is a React this bootstrap
+ * does not support, so this throws instead of leaving every Foreign Subtree to fail inside React's render.
+ */
+function isReactRendering(runtime: ForeignSubtreeReactRuntime): boolean {
+	if (!runtime.internals || !('H' in runtime.internals)) {
+		throw new Error(
+			'The React client internals do not expose the hook dispatcher `H`; this React is not supported.',
+		);
+	}
+	const dispatcher = runtime.internals.H;
+	return dispatcher != null && dispatcher.useState !== dispatcher.useEffect;
+}
+
+/**
  * Registers React as the document's Foreign Child host, once.
  *
  * @remarks
@@ -82,8 +104,9 @@ function fillBoundary(boundary: Element | null, html: string): void {
  * {@link fillBoundary} once React has attached it, so its declarative shadow roots survive; see the Islands and
  * hydration developer page.
  *
- * The host is global to the document: once registered, a browser call of any Component another Integration owns
- * returns this boundary, also outside a React render.
+ * The host is global to the document, but it takes a Component over only inside a React render, which
+ * {@link isReactRendering} detects: another Integration's browser code calling its own Component gets that
+ * Component's own result.
  */
 export function installForeignSubtreeHost(runtime: ForeignSubtreeReactRuntime): void {
 	const pageRuntime = ((window as ForeignSubtreeWindow).__ECO_PAGES__ ??= {});
@@ -105,6 +128,7 @@ export function installForeignSubtreeHost(runtime: ForeignSubtreeReactRuntime): 
 
 	pageRuntime.foreignChildHost = {
 		integration: REACT_PLUGIN_NAME,
+		isRendering: () => isReactRendering(runtime),
 		renderForeignChild: (component, props) => {
 			const subtreeKey = getForeignSubtreeKey(component, props);
 			return runtime.createElement(ForeignSubtree, { key: subtreeKey, subtreeKey });

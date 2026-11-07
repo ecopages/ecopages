@@ -1,4 +1,3 @@
-/// <reference path="./postcss-import-resolve-id.d.ts" />
 import { fileSystem } from '@ecopages/file-system';
 import { rebaseStylesheetReferences } from '@ecopages/core/processor';
 import { createRequire } from 'node:module';
@@ -6,7 +5,7 @@ import { path } from '@ecopages/file-system/path';
 import postcss from 'postcss';
 import postcssImportDefault from 'postcss-import';
 import type postcssImport from 'postcss-import';
-import resolveImportIdDefault from 'postcss-import/lib/resolve-id.js';
+import resolveImportIdDefault from './postcss-import-resolve-id.js';
 
 type PostcssImportOptions = NonNullable<Parameters<typeof postcssImport>[0]>;
 type ResolveImportId = (id: string, base: string, options: PostcssImportOptions, node: unknown) => Promise<string>;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Processor, type ProcessorAssetCapability } from '../plugins/processor.ts';
+import { Processor, type ProcessorAssetCapability } from './processor.ts';
 import {
 	createStylesheetKinds,
 	findStylesheetProcessor,

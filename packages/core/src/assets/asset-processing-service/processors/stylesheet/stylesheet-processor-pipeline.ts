@@ -1,18 +1,12 @@
-import { path } from '@ecopages/file-system/path';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
-
-const PROCESSABLE_STYLESHEET_EXTENSIONS = new Set(['.css', '.scss', '.sass', '.less']);
-
-function isProcessableStylesheet(filepath: string): boolean {
-	return PROCESSABLE_STYLESHEET_EXTENSIONS.has(path.extname(filepath));
-}
+import { getStylesheetKinds } from '../../../../plugins/stylesheet-kinds.ts';
 
 export async function applyStylesheetProcessors(
 	appConfig: EcoPagesAppConfig,
 	content: string,
 	filepath: string,
 ): Promise<string> {
-	if (!isProcessableStylesheet(filepath)) {
+	if (!getStylesheetKinds(appConfig).isStylesheet(filepath)) {
 		return content;
 	}
 

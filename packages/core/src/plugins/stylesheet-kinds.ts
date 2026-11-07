@@ -1,5 +1,5 @@
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
-import type { Processor, ProcessorExtensionPattern } from '../plugins/processor.ts';
+import type { Processor, ProcessorExtensionPattern } from './processor.ts';
 
 const CSS_EXTENSION = '.css';
 const CSS_MODULE_INFIX = '.module';
@@ -57,16 +57,15 @@ export function findStylesheetProcessor(processors: Iterable<Processor>): Proces
 }
 
 /**
- * Builds the {@link StylesheetKinds} for the stylesheet Processor among `processors`, or for plain CSS alone.
- *
- * @throws When two Processors declare a `stylesheet` capability.
+ * Builds the {@link StylesheetKinds} for the stylesheet Processors among `processors`, or for plain CSS alone.
  */
 export function createStylesheetKinds(processors: Iterable<Processor> = []): StylesheetKinds {
-	const declared = findStylesheetProcessor(processors)
-		?.getAssetCapabilities()
+	const declared = [...processors]
+		.filter((processor) => processor.canProcessAsset('stylesheet'))
+		.flatMap((processor) => processor.getAssetCapabilities())
 		.filter((capability) => capability.kind === 'stylesheet')
 		.flatMap((capability) => (capability.extensions ?? []).flatMap(extensionsOfPattern));
-	const extensions = [...new Set([CSS_EXTENSION, ...(declared ?? [])])];
+	const extensions = [...new Set([CSS_EXTENSION, ...declared])];
 	const moduleSuffixes = extensions.map((extension) => `${CSS_MODULE_INFIX}${extension}`);
 	const endsWithAny = (file: string, suffixes: readonly string[]) => {
 		const lower = file.toLowerCase();

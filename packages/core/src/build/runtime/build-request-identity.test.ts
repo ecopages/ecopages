@@ -89,6 +89,7 @@ test('createBuildRequestIdentity distinguishes every BuildOptions field', () => 
 		external: [['react'], ['react-dom']],
 		jsx: [{ importSource: 'react' }, { importSource: 'preact' }],
 		workerEntries: [true, false],
+		stylesheetExtensions: [['.css'], ['.css', '.scss']],
 	} satisfies Record<Exclude<keyof BuildOptions, 'plugins'>, [unknown, unknown]>;
 
 	for (const [field, [left, right]] of Object.entries(fields)) {

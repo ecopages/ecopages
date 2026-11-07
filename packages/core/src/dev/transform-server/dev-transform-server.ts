@@ -8,6 +8,7 @@ import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 import { DevTransformInstallStamp } from './dev-transform-install-stamp.ts';
+import { getStylesheetKinds, type StylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { materializeDevTransformStylesheet, resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
 import { resolveWorkspacePackageWatchRoots } from '../../watchers/workspace-package-watch-roots.ts';
@@ -52,10 +53,12 @@ export class DevTransformServer {
 	private cacheGeneration = 0;
 	private readonly sourceGenerations = new Map<string, number>();
 	private readonly extraModuleRoots: readonly string[];
+	private readonly stylesheetKinds: StylesheetKinds;
 	private readonly installStamp: DevTransformInstallStamp;
 
 	constructor(options: DevTransformServerOptions) {
 		this.appConfig = options.appConfig;
+		this.stylesheetKinds = getStylesheetKinds(options.appConfig);
 		this.onModuleDependencies = options.onModuleDependencies;
 		this.onTransformError = options.onTransformError;
 		this.contributors.push(...(options.contributors ?? []));
@@ -233,6 +236,7 @@ export class DevTransformServer {
 			this.appConfig.absolutePaths.srcDir,
 			moduleUrl,
 			this.extraModuleRoots,
+			this.stylesheetKinds,
 		);
 		if (!discoveredSourcePath) {
 			return undefined;
@@ -268,7 +272,7 @@ export class DevTransformServer {
 			return pending;
 		}
 
-		const moduleKind = resolveDevTransformModuleKind(normalized);
+		const moduleKind = resolveDevTransformModuleKind(normalized, this.stylesheetKinds);
 		if (moduleKind === 'stylesheet') {
 			const entry: CacheEntry = {
 				code: materializeDevTransformStylesheet(fileSystem.readFileSync(normalized)),

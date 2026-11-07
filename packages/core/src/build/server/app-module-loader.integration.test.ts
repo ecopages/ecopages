@@ -52,7 +52,7 @@ describe('app server module transpiler runtime state', () => {
 				return hash;
 			},
 		};
-		const tempParentDir = path.join(process.cwd(), 'playground', 'kitchen-sink');
+		const tempParentDir = path.join(path.cwd(), 'playground', 'kitchen-sink');
 		const tempRootBase = path.join(tempParentDir, '.tmp-app-module-loader-');
 		fs.mkdirSync(tempParentDir, { recursive: true });
 		const rootDir = path.fromNative(fs.mkdtempSync(tempRootBase));

@@ -11,7 +11,12 @@
 
 import { isStaticAssetHref } from '@ecopages/core/client';
 import type { EcoNavigationDirection } from '@ecopages/core/client';
-import { commitNavigationPage, ECO_PERSIST_ATTRIBUTE, fetchNavigationPage } from '@ecopages/core/client';
+import {
+	commitNavigationPage,
+	ECO_PERSIST_ATTRIBUTE,
+	fetchNavigationPage,
+	loadNavigationGlobalScripts,
+} from '@ecopages/core/client';
 import { type FetchedPageDocument, type LoadedPageModule, loadPageModuleFromDocument } from './navigation.ts';
 import { isReactRouterPageBootstrapAssetSrc } from './hydration-assets.ts';
 
@@ -53,7 +58,7 @@ export type SpaCommitEffects = {
 	saveScrollPositions: () => void;
 	restoreScrollPositions: (finalPath: string, isPopState: boolean) => void;
 	updateHistory: (finalPath: string, requestedUrl: string, direction: NavigationDirection) => void;
-	commitPageData: (moduleUrl: string, props: Record<string, unknown>) => void;
+	commitPageData: (moduleUrl: string, props: Record<string, unknown>, document: Document) => void;
 	setCurrentPage: (page: { Component: LoadedPageModule['Component']; props: Record<string, unknown> }) => void;
 	waitForRender: (page: {
 		Component: LoadedPageModule['Component'];
@@ -129,6 +134,14 @@ export async function resolveReactNavigation(input: ResolveReactNavigationInput)
 		html: sharedPage.html,
 	};
 
+	if (!(await loadNavigationGlobalScripts(sharedPage.document))) {
+		console.error('[EcoRouter] Failed to load a global script of the next page.');
+		return input.isStale() ? { kind: 'stale' } : { kind: 'hard-navigation', href: input.url, mode: 'location' };
+	}
+	if (input.isStale()) {
+		return { kind: 'stale' };
+	}
+
 	let page: LoadedPageModule | null;
 	try {
 		page = await loadPageModuleFromDocument(sharedPage.document, finalPath, {
@@ -198,7 +211,7 @@ export async function applySpaNavigation(
 		swap: async () => {
 			const renderPromise = effects.waitForRender(nextPage);
 			effects.runInReactTransition(() => {
-				effects.commitPageData(page.moduleUrl, page.props);
+				effects.commitPageData(page.moduleUrl, page.props, page.doc);
 				effects.setCurrentPage(nextPage);
 			});
 			await renderPromise;

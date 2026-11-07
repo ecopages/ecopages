@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ENTRY_COMMAND_FLAGS } from './entry-command-flags.ts';
-import { parseCliArgs } from './parse-cli-args.ts';
+import { isProductionExport, parseCliArgs, resolveEntryCommand } from './parse-cli-args.ts';
 import { isDevelopmentRuntime, isProductionRuntime } from './runtime.ts';
 
 const originalArgv = [...process.argv];
@@ -116,5 +116,44 @@ describe('parseCliArgs', () => {
 			port: 4321,
 			hostname: '127.0.0.1',
 		});
+	});
+});
+
+describe('resolveEntryCommand', () => {
+	const BIN = '/repo/node_modules/ecopages/bin/cli.js';
+
+	it.each([
+		[['node', '/app/app.ts', '--build'], { build: true, preview: false, serveOnly: false }, true],
+		[['node', '/app/app.ts', '--build', '--port', '3000'], { build: true, port: 3000 }, true],
+		[['node', '/app/app.ts', '--preview'], { preview: true, serveOnly: false }, true],
+		[['node', '/app/app.ts', '--preview', '--serve-only'], { preview: true, serveOnly: true }, false],
+		[['node', '/usr/local/bin/ecopages.js', 'build'], { build: true, start: false }, true],
+		[['node', BIN, 'build'], { build: true, start: false }, true],
+		[['node', BIN, 'preview', '--serve-only'], { preview: true, serveOnly: true }, false],
+		[['node', BIN], { start: true, build: false }, false],
+		[['node', '/app/app.ts', '--', '--build'], { build: false, start: true }, false],
+		[['node', '/app/app.ts', '--dev'], { dev: true }, false],
+		[['node', '/app/app.ts'], { start: true }, false],
+		[['node', '/some/tool/cli.js', 'build'], { build: false, start: true }, false],
+		[['node', '/repo/node_modules/vitest/vitest.mjs', 'run', '--project', 'shared-core'], { start: true }, false],
+	] as const)('reads %j', (argv, expected, productionExport) => {
+		const command = resolveEntryCommand([...argv]);
+
+		expect(command).toMatchObject(expected);
+		expect(isProductionExport(command)).toBe(productionExport);
+	});
+
+	it('reads serve-only from the environment', () => {
+		const command = resolveEntryCommand(['node', '/app/app.ts', '--preview'], {
+			environment: { ECOPAGES_PREVIEW_SERVE_ONLY: 'true' },
+		});
+
+		expect(command.serveOnly).toBe(true);
+		expect(isProductionExport(command)).toBe(false);
+	});
+
+	it('throws on an unknown option only in strict mode', () => {
+		expect(() => resolveEntryCommand(['node', '/app/app.ts', '--nope'])).not.toThrow();
+		expect(() => resolveEntryCommand(['node', '/app/app.ts', '--nope'], { strict: true })).toThrow();
 	});
 });

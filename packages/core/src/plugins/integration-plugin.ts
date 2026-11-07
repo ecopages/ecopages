@@ -11,6 +11,7 @@ import type { AssetDefinition, ProcessedAsset } from '../assets/asset-processing
 import { deepMerge } from '../utils/deep-merge.ts';
 import type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';
 import { installConfiguredServerDom, type ServerDomInstaller } from './server-dom.ts';
+import type { SsrScriptPreload } from '../route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader.ts';
 
 export type { ServerDomInstaller, ServerDomSurfaceKind } from './server-dom.ts';
 
@@ -147,6 +148,15 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Omit this when the Integration does not install DOM globals.
 	 */
 	readonly serverDom?: ServerDomInstaller;
+	/**
+	 * Which `ssr: true` Component scripts this Integration's custom-element preloader evaluates.
+	 *
+	 * @remarks
+	 * Core assigns each `ssr: true` script to exactly one preloader: the preloading Integration that owns the
+	 * declaring Component, else the first `'own-and-foreign'` Integration in config order. Omit this when the
+	 * Integration has no custom-element preloader: a preloader whose Integration omits it is assigned no script.
+	 */
+	readonly ssrScriptPreload?: SsrScriptPreload;
 
 	protected integrationDependencies: AssetDefinition[];
 	protected readonly resolvedIntegrationDependencies: ProcessedAsset[] = [];
@@ -217,8 +227,10 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * The list is one array for the plugin's lifetime. {@link refreshResolvedIntegrationDependencies} updates it in
-	 * place, so a renderer that holds it, across a teardown and a later setup too, sees each new resolution. It is
-	 * empty until the Integration's activation, or the build that deferred it, resolves it after `setup()`.
+	 * place, so a renderer that holds it, across a teardown and a later setup too, sees each new resolution. Each
+	 * `setup()` empties it; it stays empty until the Integration's activation, or the browser build of a
+	 * `'browser-build'` runtime, resolves it. A subclass updates it in place or calls
+	 * {@link refreshResolvedIntegrationDependencies}; it never replaces it.
 	 */
 	getResolvedIntegrationDependencies(): ProcessedAsset[] {
 		return this.resolvedIntegrationDependencies;
@@ -233,11 +245,12 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Processes the global assets and replaces the resolved list in place.
 	 *
 	 * @remarks
-	 * `setup()` does not call it. Core's activation calls it right after a successful `setup()`, in dev and in
-	 * `ecopages start` (whose ledger is restored before any activation). A production build and the Lit
-	 * static-render worker defer it to their browser build: the build calls it after the app-wide browser build (or
-	 * when it plans no route), the worker after restoring the asset ledger. A global script then resolves to that
-	 * build's output instead of being bundled on its own. Does nothing before `setup()`.
+	 * `setup()` does not call it. Core's activation calls it right after a successful `setup()` when the runtime's
+	 * `globalScriptResolution` is `'activation'`: in dev and in `ecopages start` (whose ledger is restored before any
+	 * activation). A production build and the Lit static-render worker run a `'browser-build'` runtime: the build
+	 * calls it after the app-wide browser build (or when it plans no route), the worker after restoring the asset
+	 * ledger. A global script then resolves to that build's output instead of being bundled on its own. Does nothing
+	 * before `setup()`.
 	 */
 	async refreshResolvedIntegrationDependencies(): Promise<void> {
 		if (!this.assetProcessingService) return;
@@ -308,9 +321,11 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * Global scripts are not resolved yet: {@link getResolvedIntegrationDependencies} reads them only after
-	 * {@link refreshResolvedIntegrationDependencies} runs.
+	 * {@link refreshResolvedIntegrationDependencies} runs. It empties the resolved list in place, so a setup after a
+	 * teardown does not show the previous lifecycle's assets before the next resolution.
 	 */
 	async setup(context: IntegrationRuntimeContext): Promise<void> {
+		this.resolvedIntegrationDependencies.splice(0);
 		await installConfiguredServerDom(context.appConfig.integrations);
 		this.appConfig = context.appConfig;
 		this.runtime = context.runtime;

@@ -391,16 +391,12 @@ export class RouteRegistry {
 	 * Strips the longest template extension the file ends with, so `about.kita.tsx` keeps no
 	 * `.kita` part when `.tsx` is also registered, and `my.html-tips.html` keeps its name. An
 	 * endpoint strips its whole marker, so `users.api.tsx` is `/users` even when `.tsx` is a
-	 * template extension. `file` uses the platform separator, as the glob returns it; the route
-	 * joins its segments with `/`.
+	 * template extension. `file` is relative to the pages directory and uses `/`, as `fileSystem.glob`
+	 * returns it.
 	 */
 	private getRoutePath(file: string, endpointExtension: string | undefined): string {
 		const extension = endpointExtension ?? findLongestExtension(this.templatesExt, file) ?? '';
-		const cleanedRoute = file
-			.slice(0, file.length - extension.length)
-			.split('/')
-			.join('/')
-			.replace(/\/?index$/, '');
+		const cleanedRoute = file.slice(0, file.length - extension.length).replace(/\/?index$/, '');
 
 		return normalizePathname(`/${cleanedRoute}`);
 	}

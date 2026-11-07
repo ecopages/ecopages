@@ -414,6 +414,39 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
 
+  examples/recipes/auth-gate:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
+      '@ecopages/radiant':
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+      ecopages:
+        specifier: workspace:*
+        version: link:../../../packages/ecopages
+
+  examples/recipes/components-and-layouts:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
+      ecopages:
+        specifier: workspace:*
+        version: link:../../../packages/ecopages
+
   examples/recipes/diagrams:
     devDependencies:
       '@ecopages/core':
@@ -434,6 +467,48 @@ importers:
       pele:
         specifier: 1.13.0
         version: 1.13.0
+
+  examples/recipes/gfm:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
+      '@ecopages/mdx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/mdx
+      ecopages:
+        specifier: workspace:*
+        version: link:../../../packages/ecopages
+      rehype-pretty-code:
+        specifier: ^0.14.3
+        version: 0.14.5(shiki@3.23.0)
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
+      shiki:
+        specifier: ^3.23.0
+        version: 3.23.0
+
+  examples/recipes/wasm-threads:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.6.0
+        version: 0.6.0(@ecopages/signals@0.6.0)
+      ecopages:
+        specifier: workspace:*
+        version: link:../../../packages/ecopages
 
   packages/__internals/testing:
     dependencies:

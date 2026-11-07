@@ -281,7 +281,9 @@ test('RouteRegistry page module adapter loads page modules through integration r
 });
 
 describe('ServerRequestPipeline endpoint files', () => {
-	const helpersPath = JSON.stringify(path.resolve(import.meta.dirname, '../http/define-api-handler.ts'));
+	const helpersPath = JSON.stringify(
+		path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../http/define-api-handler.ts'),
+	);
 	const textBodySchema = `{
 		'~standard': {
 			version: 1,

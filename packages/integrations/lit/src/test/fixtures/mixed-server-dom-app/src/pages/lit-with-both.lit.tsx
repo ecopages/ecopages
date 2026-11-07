@@ -1,0 +1,15 @@
+import { eco } from '@ecopages/core';
+import type { EcoPagesElement } from '@ecopages/core';
+import { html } from 'lit';
+import { ServerDomLitProbe } from '../components/server-dom-lit-probe.lit';
+import { ServerDomRadiantProbe } from '../components/server-dom-radiant-probe';
+
+export default eco.page<{}, EcoPagesElement>({
+	cache: 'dynamic',
+	integration: 'lit',
+	render: () =>
+		html`<main>
+			<h1>Lit with Lit and Radiant</h1>
+			${eco.embed(ServerDomLitProbe)} ${eco.embed(ServerDomRadiantProbe)}
+		</main>` as unknown as EcoPagesElement,
+});

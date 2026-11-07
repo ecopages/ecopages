@@ -12,7 +12,7 @@ const tsxLoader = import.meta.resolve('tsx/esm');
 const viewReferencePreload = import.meta.resolve('./view-reference-preload.js');
 const viewReferencePreloadPath = path.fromFileUrl(viewReferencePreload);
 
-const originalCwd = process.cwd();
+const originalCwd = path.cwd();
 
 afterEach(() => {
 	process.chdir(originalCwd);

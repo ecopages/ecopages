@@ -1,0 +1,63 @@
+---
+title: "Auth-gated layout"
+description: "Show a sign-in screen instead of the page for visitors without a session, or redirect them, using request locals and a dynamic page."
+order: 5
+---
+
+# Auth-gated layout
+
+Use this when the same URL must render differently for signed-in and signed-out visitors, or send signed-out visitors elsewhere. It uses page middleware, request locals and a layout, with no auth library; swap in yours for the session check.
+
+Two patterns, both in the fixture:
+
+- **Gate in the layout.** The page's middleware stores the session in `locals`, and the layout renders the page or a sign-in screen. Use it when the URL stays the same.
+- **Redirect in the middleware.** The middleware returns a redirect before the page renders. Use it when signed-out visitors belong on another URL.
+
+## Read the session
+
+The middleware turns the request into a `locals.session` value. The cookie check below is a stand-in: replace `readSession` with your library's call, such as validating a signed token or looking the session up in your store.
+
+```ts file="examples/recipes/auth-gate/src/lib/session.server.ts"
+```
+
+Declare the shape of `locals.session` once, so pages and layouts are typed:
+
+```ts file="examples/recipes/auth-gate/modules.d.ts" region="locals"
+```
+
+## Gate in the layout
+
+`loadSession` never blocks; it only fills `locals`. The layout decides what the visitor sees.
+
+```tsx file="examples/recipes/auth-gate/src/layouts/auth-gate.tsx"
+```
+
+```tsx file="examples/recipes/auth-gate/src/pages/dashboard.tsx"
+```
+
+`cache: 'dynamic'` is required. Page middleware and request locals exist only for dynamic pages, and a layout that reads `locals` can wrap only dynamic pages: on any other page the access throws `LocalsAccessError`. See [Request Locals](/docs/core/request-locals).
+
+## Redirect in the middleware
+
+`requireSession` returns a redirect when there is no session and otherwise continues.
+
+```tsx file="examples/recipes/auth-gate/src/pages/account.tsx"
+```
+
+The sign-in form posts to an endpoint that sets the cookie:
+
+```ts file="examples/recipes/auth-gate/src/pages/api/sign-in.api.ts"
+```
+
+## What the test checks
+
+The fixture's end-to-end test runs against `ecopages dev` and `ecopages start`. A request without a cookie gets the sign-in screen and not the dashboard heading. A request with a session cookie gets the dashboard. `/account` answers `302` to `/sign-in` without a session, and the endpoint answers `303` with a `Set-Cookie` and a redirect to `/dashboard`. The dev run also asserts the layout's children warning below.
+
+## Caveats
+
+- **A layout that drops `children` is allowed, and reported.** The gate renders without its page on purpose. In `ecopages build` that would fail, as `Layout <name> (<file>) did not render its children`, but a dynamic page is not built. A development request logs the message as a warning, and a production request returns the HTML silently. See [Layouts](/docs/core/layouts#layout-components).
+- **The page still renders.** The layout only chooses whether to include its output. The page's `render` runs for a signed-out visitor too, so load private data in the middleware after the session check, not in `render`. The redirect pattern never reaches `render` without a session.
+- **The gate answers `200`.** If a signed-out visitor should get `401`, or a crawler should not index the sign-in screen, return that response from the middleware instead.
+- **`requires` is a type, not a check.** `requires: ['session']` narrows `locals.session` in `render` and does not verify it. The middleware must enforce it, as `requireSession` does.
+- **Do not cache the response.** Dynamic pages are rendered per request. Keep the page `dynamic`; a cached or static page would show one visitor's version to everyone.
+- **The cookie is a demo.** Use `HttpOnly`, `Secure` and `SameSite` attributes and a value your server can verify.

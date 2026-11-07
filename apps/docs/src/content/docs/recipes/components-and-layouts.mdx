@@ -1,0 +1,69 @@
+---
+title: "Components and layouts"
+description: "Choose between a plain function, eco.component and eco.layout by what the piece needs from the browser and from other Integrations."
+order: 6
+---
+
+# Components and layouts
+
+Use this to decide how to write a component or a layout. The default is a plain function. Reach for `eco.component()` or `eco.layout()` when the piece needs one of a short list of things a function cannot declare.
+
+## The rule
+
+Write a plain function. Wrap it in `eco.component()`, or `eco.layout()` for a layout, only when it needs one of these:
+
+- browser `scripts`, or lazy loading of them
+- `modules`
+- stylesheet attributes, such as `media`
+- an `integration` override
+- to be rendered by another Integration, or to be listed in another declaration's `dependencies.components`
+
+Everything else stays a function: props, children, markup and a side-effect `import './x.css'`. Ecopages follows the imports of plain modules, and the CSS reaches the Page through the nearest declared component, layout or page that imports it. Use `eco.html()` only for the document shell in `src/includes`.
+
+## A plain function
+
+Markup with a stylesheet needs no wrapper:
+
+```tsx file="examples/recipes/components-and-layouts/src/components/badge.tsx"
+```
+
+## `eco.component()`
+
+A component with a browser script is declared, because only a declared component carries `dependencies.scripts`:
+
+```tsx file="examples/recipes/components-and-layouts/src/components/counter.tsx"
+```
+
+## A plain layout
+
+A layout is a function typed with `LayoutProps`, which makes `children` required. `eco.page({ layout })` accepts it as it is:
+
+```tsx file="examples/recipes/components-and-layouts/src/layouts/plain-layout.tsx"
+```
+
+## `eco.layout()`
+
+A layout that ships a browser script is declared:
+
+```tsx file="examples/recipes/components-and-layouts/src/layouts/scripted-layout.tsx"
+```
+
+The two pages assign them with the `layout` option:
+
+```tsx file="examples/recipes/components-and-layouts/src/pages/index.tsx"
+```
+
+```tsx file="examples/recipes/components-and-layouts/src/pages/scripted.tsx"
+```
+
+## What the test checks
+
+The fixture's end-to-end test runs under `ecopages dev` and `ecopages preview`. On the home page, the plain layout renders, the stylesheet imported by the plain `Badge` is applied, and a click on the declared `Counter` runs its script. On the second page, the script of the declared layout runs.
+
+## Caveats
+
+- **Wrapping does not change persistence.** Layouts persist by reference: a layout module has one URL in the browser, so every Page that imports it gets the same function. With `@ecopages/react-router` and `persistLayouts` (on by default), a layout tier stays mounted while consecutive Pages pass the same function. A plain function and an `eco.layout()` result behave the same, as long as pages import the same module. See [Layouts](/docs/core/layouts#shared-outer-layouts-and-spa-navigation).
+- **A layout must render `children`.** TypeScript accepts a function that ignores them, so composition checks it. A layout that renders without its page fails `ecopages build`, logs a warning for a development request, and is silent for a production request. The [auth-gated layout](/docs/recipes/auth-gate) uses that on purpose.
+- **Plain functions are not graph nodes.** `dependencies.components` accepts only declared components, layouts and `html` templates. A plain function in that list fails the renderer's check.
+- **Plain components stay inside their Integration.** A plain component rendered by a Page of another Integration fails the build when the two compile JSX with different runtimes. Wrap it in `eco.component()` to hand it over as a foreign child.
+- **One declared component per file.** Discovery is module-scoped: every declaration in a file shares the file's discovered imports, even when a render branch omits one.

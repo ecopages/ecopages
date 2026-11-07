@@ -69,9 +69,11 @@ When the config loads from source, `config-module-files.ts` lists it and the pro
 | Server modules | `moduleLoader`, `routeModuleBuildCaches`, `serverInvalidation` (a generation counter dev caches compare), `productionServerModules` |
 | Production | `processedAssets` (the asset ledger, see [Ledger and start](/dev/ledger-and-start)), `productionBuildId`, `staticGenerationActive` (true during `ecopages build`, so an asset that cannot be processed fails the build) |
 | Rendering | `pageBrowserGraphSession`, `pageCache` (`null` until the server adapter stores one), `htmlPageModuleScripts`, `htmlPageWarnings`, `customElementSsrPreloadScopes`, `requestPipelineMetrics` |
-| Integrations | `integrationActivations`, `runtimeAssetsPrepared`, `hmrAttachedToIntegrations` |
+| Integrations | `integrationActivations`, `globalScriptResolution` (read-only, see below), `runtimeAssetsPrepared`, `hmrAttachedToIntegrations` |
 | Development | `developmentInvalidation` (created once on first use and shared by the Project Watcher and `HmrManager`), `hmr` (set while a dev session's HMR manager runs) |
 | Host | `origin` (starts as `baseUrl`, updated once the server binds) |
+
+`globalScriptResolution` fixes, for the runtime's lifetime, when an Integration activation resolves its global scripts (`integrationDependencies`). `createAppRuntime()` sets it from the `globalScriptResolution` option of `finalizeEcoPagesConfig()` and `loadEcoPagesConfig()`; without one, it is `'browser-build'` when the process runs `ecopages build` or `ecopages preview` without `--serve-only` (read by `resolveEntryCommand()`, the parser `parseCliArgs()` uses), and `'activation'` otherwise. An `'activation'` runtime resolves them right after each successful `setup()`; a `'browser-build'` runtime leaves them to `resolveIntegrationDependencies()` after its app-wide browser build. Activations are memoized, so the first caller starts the one activation of an Integration; the strategy no longer depends on which caller that is. The Lit static-render worker loads its config with `'browser-build'`, and a test that builds in process passes it too. [Build pipeline](/dev/build-pipeline) covers the build side.
 
 ## Starting and stopping
 

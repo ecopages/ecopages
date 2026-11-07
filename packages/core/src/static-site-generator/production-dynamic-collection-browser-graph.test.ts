@@ -149,7 +149,10 @@ describe('ecopages start from a complete production build', () => {
 			].join('\n'),
 		);
 
-		const appConfig = await loadEcoPagesConfig({ configFile: path.join(appDir, 'eco.config.ts') });
+		const appConfig = await loadEcoPagesConfig({
+			configFile: path.join(appDir, 'eco.config.ts'),
+			globalScriptResolution: 'browser-build',
+		});
 		const buildApp = await createNodeApp({
 			appConfig,
 			serverOptions: SERVER_OPTIONS,

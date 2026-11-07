@@ -21,3 +21,4 @@ export type {
 	LoadEcoPagesConfigOptions,
 	ResponseHeaderRule,
 } from './user-config-types.ts';
+export type { GlobalScriptResolution } from './assembly/app-runtime.ts';

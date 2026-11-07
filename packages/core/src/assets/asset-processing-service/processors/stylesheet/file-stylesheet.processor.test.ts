@@ -15,7 +15,7 @@ import { hashBrowserAssetBytes } from '../../../hashed-browser-asset.ts';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { FileStylesheetProcessor } from './file-stylesheet.processor.ts';
 import { appLogger } from '../../../../global/app-logger.ts';
-import { rebaseStylesheetReferences } from './package-stylesheet.ts';
+import { rebaseStylesheetReferences } from './app-stylesheet-imports.ts';
 import { Processor } from '../../../../plugins/processor.ts';
 
 let rootDir: string;
@@ -512,5 +512,22 @@ test('lists the partials the Processor inlined among the sources bundled into th
 		filepath: stylesheet,
 	});
 
+	expect(processed.bundledSourceFilepaths).toEqual([partial]);
+});
+
+test('inlines a relative @import with no Processor, emits the files its url() names and lists the partial', async () => {
+	writeAppFile('src/img/bg.png', 'png-bytes');
+	const partial = writeAppFile('src/styles/partials/buttons.css', ".button { background: url('../../img/bg.png'); }");
+	const stylesheet = writeAppFile('src/styles/main.css', "@import './partials/buttons.css';\n.main {}");
+
+	const processed = await new FileStylesheetProcessor({ appConfig: createConfig() }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+	});
+
+	const emitted = `${hashBrowserAssetBytes('png-bytes')}.png`;
+	expect(readFileSync(processed.filepath!, 'utf-8')).toBe(`.button { background: url("${emitted}"); }\n.main {}`);
+	expect(readFileSync(path.join(rootDir, '.eco/public/assets', emitted), 'utf-8')).toBe('png-bytes');
 	expect(processed.bundledSourceFilepaths).toEqual([partial]);
 });

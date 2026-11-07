@@ -5,7 +5,12 @@ import { writeSourceRelativeStylesheet } from '../../assets/asset-processing-ser
 import type { EcoPagesAppConfig, IClientBridge } from '../../config/internal-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { AnyProcessor, StylesheetInvalidation } from '../../plugins/processor.ts';
-import { findStylesheetProcessor, getStylesheetKinds, type StylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
+import {
+	findStylesheetProcessor,
+	getStylesheetKinds,
+	PLAIN_CSS_KINDS,
+	type StylesheetKinds,
+} from '../../plugins/stylesheet-kinds.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { contentHash } from '../../utils/content-hash.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
@@ -17,9 +22,9 @@ export interface StylesheetChanges {
 	deleted: readonly string[];
 }
 
-/** The stylesheet Processor and the stylesheet kinds one task of the service works with. */
+/** The stylesheet Processor, if the app has one, and the stylesheet kinds one task of the service works with. */
 interface StylesheetScope {
-	processor: AnyProcessor;
+	processor: AnyProcessor | undefined;
 	kinds: StylesheetKinds;
 }
 
@@ -35,7 +40,7 @@ interface StylesheetOutput {
  * @remarks
  * Core owns this lifecycle for whichever stylesheet Processor the app registers; the Processor only transforms. The
  * service:
- * - prewarms every stylesheet the Processor owns in `srcDir`, so the first edit has an output to compare with;
+ * - prewarms every stylesheet the Processor owns in `srcDir`, or every plain `.css` one when the app has none, so the first edit has an output to compare with;
  * - keeps each stylesheet's last good output, and the reverse map from each file a transform read to the stylesheets
  *   that read it, taken from the transform's own `dependencies`;
  * - runs watcher batches one at a time, in order;
@@ -65,21 +70,21 @@ export class DevelopmentStylesheetService {
 	}
 
 	/**
-	 * The registered Processor that transforms stylesheets, with the app's stylesheet kinds, or `undefined` when none
-	 * does.
+	 * The registered Processor that transforms stylesheets, if any, with the app's stylesheet kinds.
 	 *
 	 * @remarks
 	 * Looked up at the start of each task rather than once, since the service can exist before every Processor is
 	 * registered on the config. A Processor without `transformStylesheet` takes no part in stylesheets, so it is never
-	 * the one, whatever its capabilities.
+	 * the one, whatever its capabilities. An app with none still has plain CSS, whose `@import` partials core inlines,
+	 * so the service keeps those stylesheets built too.
 	 */
-	private resolveScope(): StylesheetScope | undefined {
+	private resolveScope(): StylesheetScope {
 		const processor = findStylesheetProcessor(
 			[...this.appConfig.processors.values()].filter(
 				(candidate) => typeof candidate.transformStylesheet === 'function',
 			),
 		);
-		return processor && { processor, kinds: getStylesheetKinds(this.appConfig) };
+		return { processor, kinds: processor ? getStylesheetKinds(this.appConfig) : PLAIN_CSS_KINDS };
 	}
 
 	/**
@@ -92,7 +97,6 @@ export class DevelopmentStylesheetService {
 	prewarm(): Promise<void> {
 		return this.enqueue(async () => {
 			const scope = this.resolveScope();
-			if (!scope) return;
 			const srcDir = this.appConfig.absolutePaths.srcDir;
 			const patterns = scope.kinds.extensions.map((extension) => `**/*${extension}`);
 			const failures = new Map<string, string>();
@@ -130,7 +134,6 @@ export class DevelopmentStylesheetService {
 	applyChanges(changes: StylesheetChanges, bridge: IClientBridge): Promise<string[]> {
 		return this.enqueue(async () => {
 			const scope = this.resolveScope();
-			if (!scope) return [];
 			const resolve = (files: readonly string[]) => files.map((file) => path.resolve(file));
 			const created = resolve(changes.created);
 			const changed = resolve(changes.changed);
@@ -211,7 +214,7 @@ export class DevelopmentStylesheetService {
 		bridge: IClientBridge,
 	): Promise<string[]> {
 		const content = files.filter((file) => !kinds.isStylesheet(file));
-		if (content.length === 0 || !processor.invalidateStylesheets) return [];
+		if (content.length === 0 || !processor?.invalidateStylesheets) return [];
 		let invalidated: StylesheetInvalidation;
 		try {
 			invalidated = await processor.invalidateStylesheets(content);
@@ -232,7 +235,7 @@ export class DevelopmentStylesheetService {
 
 	private owns({ processor, kinds }: StylesheetScope, file: string): boolean {
 		return (
-			processor.canProcessAsset('stylesheet', file) &&
+			(processor?.canProcessAsset('stylesheet', file) ?? true) &&
 			kinds.isStylesheet(file) &&
 			!isPathInside(file, this.appConfig.absolutePaths.publicDir)
 		);

@@ -5,6 +5,7 @@ import { isEmittableReferenceFile } from '../../../../plugins/stylesheet-kinds.t
 import { appLogger } from '../../../../global/app-logger.ts';
 import { warnStylesheetOnce } from './stylesheet-warnings.ts';
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
+import { realDirectory } from './app-stylesheet-imports.ts';
 import { isExternalReference, scanCss, splitReference, wrapInConditions, type CssImport } from './css-scanner.ts';
 
 type StylesheetReferenceContext = {
@@ -15,14 +16,6 @@ type StylesheetReferenceContext = {
 	hoisted: string[];
 	charset?: string;
 };
-
-function realPath(file: string): string {
-	return fileSystem.exists(file) ? fileSystem.realpath(file) : file;
-}
-
-function realDirectory(file: string): string {
-	return realPath(path.dirname(file));
-}
 
 /**
  * Emits the file a reference names, or returns `undefined` to leave the reference as written, with a warning, when
@@ -89,26 +82,6 @@ function emitAppReference(
 		return undefined;
 	}
 	return emitReferencedFile(stylesheet, source, reference, fileSystem.realpath(file), suffix, output);
-}
-
-/**
- * Rebases the relative `url()` and `image-set()` string references of CSS inlined from `sourceFile` onto
- * `entryFile`, so they name the same files from the importing stylesheet.
- *
- * @remarks
- * Uses the core CSS scanner, so strings, comments and escapes are honoured. Both ends are real directories.
- * A target on another Windows drive has no relative form and is written as its
- * absolute path, which {@link emitStylesheetReferences} reads as a file.
- */
-export function rebaseStylesheetReferences(css: string, sourceFile: string, entryFile: string): string {
-	const entryDir = realDirectory(entryFile);
-	const sourceDir = realDirectory(sourceFile);
-	return scanCss(css, {
-		reference: (reference) => {
-			const { filePart, suffix } = splitReference(reference);
-			return `${path.relative(entryDir, path.resolve(sourceDir, filePart))}${suffix}`;
-		},
-	});
 }
 
 /**

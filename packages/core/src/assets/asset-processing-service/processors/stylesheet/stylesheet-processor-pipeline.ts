@@ -1,6 +1,7 @@
 import { path } from '@ecopages/file-system/path';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { findStylesheetProcessor, getStylesheetKinds } from '../../../../plugins/stylesheet-kinds.ts';
+import { inlineStylesheetImports } from './app-stylesheet-imports.ts';
 import type { ProcessedStylesheet } from './processed-stylesheet-cache.ts';
 
 export type { ProcessedStylesheet } from './processed-stylesheet-cache.ts';
@@ -17,6 +18,9 @@ export type { ProcessedStylesheet } from './processed-stylesheet-cache.ts';
  * every file it scanned; a change to one reaches the stylesheet through the Processor's `invalidateStylesheets` hook
  * instead, so a content edit does not invalidate every Page and module that uses the stylesheet.
  *
+ * After the Processor, the relative `@import`s it left are inlined (see {@link inlineStylesheetImports}), so plain CSS
+ * with no Processor works in a build. The partials count as dependencies, like those the Processor reports.
+ *
  * The result goes through the app's processed stylesheet cache, so one edit runs the Processor once whichever path
  * asks first (see `ProcessedStylesheetCache`). A config with no app runtime, as in a unit test, transforms each time.
  */
@@ -31,21 +35,25 @@ export async function applyStylesheetProcessors(
 	}
 
 	const processor = findStylesheetProcessor(appConfig.processors?.values() ?? []);
-	if (!processor?.transformStylesheet || !processor.canProcessAsset('stylesheet', filepath)) {
+	const transformStylesheet =
+		processor?.transformStylesheet && processor.canProcessAsset('stylesheet', filepath)
+			? processor.transformStylesheet.bind(processor)
+			: undefined;
+	if (!transformStylesheet && !/@import/i.test(content)) {
 		return { css: content, dependencies: [] };
 	}
 
-	const transformStylesheet = processor.transformStylesheet.bind(processor);
-	const transform = async (): Promise<ProcessedStylesheet> => {
-		const result = await transformStylesheet(content, filepath);
-		const self = path.resolve(filepath);
+	const self = path.resolve(filepath);
+	const process = async (): Promise<ProcessedStylesheet> => {
+		const transformed = transformStylesheet ? await transformStylesheet(content, filepath) : { css: content };
+		const inlined = inlineStylesheetImports(transformed.css, filepath);
 		const dependencies = new Set(
-			(result.dependencies ?? [])
+			[...(transformed.dependencies ?? []), ...inlined.dependencies]
 				.map((dependency) => path.resolve(dependency))
 				.filter((dependency) => dependency !== self && kinds.isStylesheet(dependency)),
 		);
-		return { css: result.css, dependencies: [...dependencies] };
+		return { css: inlined.css, dependencies: [...dependencies] };
 	};
 	const cache = appConfig.appRuntime?.processedStylesheets;
-	return cache ? cache.get(filepath, content, transform) : transform();
+	return cache ? cache.get(filepath, content, process) : process();
 }

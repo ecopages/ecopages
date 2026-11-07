@@ -35,7 +35,7 @@ describe('plain CSS with no stylesheet Processor, in a production build', () => 
 		return readFileSync(path.join(clientDir, href!), 'utf8');
 	}
 
-	it.fails('inlines the rules of a relative @import', () => {
+	it('inlines the rules of a relative @import', () => {
 		const css = emittedMainStylesheet();
 
 		expect(css).not.toContain('@import');
@@ -43,7 +43,7 @@ describe('plain CSS with no stylesheet Processor, in a production build', () => 
 		expect(css).toContain('rgb(0, 0, 128)');
 	});
 
-	it.fails('emits the file a url() of the imported partial names', () => {
+	it('emits the file a url() of the imported partial names', () => {
 		const css = emittedMainStylesheet();
 		const reference = /url\(["']?([^"')]+)["']?\)/.exec(css)?.[1];
 
@@ -51,7 +51,7 @@ describe('plain CSS with no stylesheet Processor, in a production build', () => 
 		expect(readdirSync(path.join(clientDir, 'assets'))).toContain(path.basename(reference!));
 	});
 
-	it.fails('leaves no file missing for the reachability check', () => {
+	it('leaves no file missing for the reachability check', () => {
 		expect(checkClientAssetReachability(clientDir).missing).toEqual([]);
 	});
 });

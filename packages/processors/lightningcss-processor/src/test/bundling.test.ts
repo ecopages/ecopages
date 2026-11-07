@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { path } from '@ecopages/file-system/path';
 import { Logger } from '@ecopages/logger';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
-import { inlineStylesheetImports } from '../../../../core/src/assets/asset-processing-service/processors/stylesheet/app-stylesheet-imports';
+import { inlineStylesheetImports } from '@ecopages/core/processor';
 import { LightningCssProcessorPlugin } from '../plugin';
 
 let rootDir: string;

@@ -3,8 +3,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import { path } from '@ecopages/file-system/path';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
-import type { IClientBridge } from '../../../../core/src/config/internal-types';
-import { DevelopmentStylesheetService } from '../../../../core/src/dev/stylesheets/development-stylesheet.service';
+import { createRecordingBridge, DevelopmentStylesheetService } from '@ecopages/core/processor/contract';
 import { LightningCssProcessorPlugin } from '../plugin';
 
 let rootDir: string;
@@ -23,16 +22,7 @@ async function startDevelopment() {
 	const processor = new LightningCssProcessorPlugin({ options: {} });
 	const config = await finalizeEcoPagesConfig({ rootDir, srcDir: 'src', distDir: 'dist', processors: [processor] });
 	processor.setContext(config);
-	const refreshed: string[] = [];
-	const errors: string[] = [];
-	const bridge: IClientBridge = {
-		subscriberCount: 1,
-		broadcast: () => {},
-		reload: () => {},
-		update: () => {},
-		cssUpdate: (file) => refreshed.push(file),
-		error: (message) => errors.push(message),
-	};
+	const { bridge, refreshed, errors } = createRecordingBridge();
 	const stylesheets = new DevelopmentStylesheetService(config);
 	await stylesheets.prewarm();
 	/** The development output of a source stylesheet, which core writes at its source-relative path under `assets`. */

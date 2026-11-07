@@ -1,6 +1,9 @@
 export { writeHashedBrowserAsset } from './assets/hashed-browser-asset.ts';
 export { warnStylesheetOnce } from './assets/asset-processing-service/processors/stylesheet/stylesheet-warnings.ts';
-export { rebaseStylesheetReferences } from './assets/asset-processing-service/processors/stylesheet/app-stylesheet-imports.ts';
+export {
+	inlineStylesheetImports,
+	rebaseStylesheetReferences,
+} from './assets/asset-processing-service/processors/stylesheet/app-stylesheet-imports.ts';
 export {
 	isExternalReference,
 	scanCss,

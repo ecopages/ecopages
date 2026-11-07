@@ -76,8 +76,14 @@ async function buildServerEntry(app: ContractApp, entry: string) {
 	);
 }
 
-/** A bridge that records the stylesheets it refreshed and the errors it showed. */
-function createRecordingBridge(): { bridge: IClientBridge; refreshed: string[]; errors: string[] } {
+export { DevelopmentStylesheetService };
+export type { IClientBridge };
+
+/**
+ * A client bridge that records the stylesheets it refreshed and the errors it showed, to hand to a
+ * {@link DevelopmentStylesheetService} in a Processor's own development tests.
+ */
+export function createRecordingBridge(): { bridge: IClientBridge; refreshed: string[]; errors: string[] } {
 	const refreshed: string[] = [];
 	const errors: string[] = [];
 	const bridge: IClientBridge = {

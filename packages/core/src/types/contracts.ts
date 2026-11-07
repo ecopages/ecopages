@@ -287,7 +287,7 @@ export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void
 
 /**
  * Adapter-agnostic interface for broadcasting development events to connected clients.
- * Implemented by the Node client bridge.
+ * An adapter's bridge extends the shared `ClientBridge`, which implements every event over its `broadcast`.
  */
 export interface IClientBridge {
 	broadcast(event: ClientBridgeEvent): void;

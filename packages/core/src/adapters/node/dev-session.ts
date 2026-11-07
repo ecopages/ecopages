@@ -14,7 +14,6 @@ import { startDevStaticRoutePrewarm } from '../shared/runtime/dev-static-route-p
 import type { ServerRequestPipeline } from '../shared/runtime/server-request-pipeline.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
-import { sourceRelativeStylesheetHref } from '../../assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts';
 import { HmrManager } from '../shared/hmr/hmr-manager.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { entryWatcherOwnsConfig } from '../../dev/development-restart.ts';
@@ -63,10 +62,7 @@ export class DevSession {
 	private disposePromise: Promise<void> | undefined;
 
 	constructor(private readonly options: DevSessionOptions) {
-		this.bridge = new NodeClientBridge({
-			resolveStylesheetHref: (sourceFile) =>
-				sourceRelativeStylesheetHref(options.appConfig.absolutePaths, sourceFile),
-		});
+		this.bridge = new NodeClientBridge(options.appConfig.absolutePaths);
 		this.hmrManager = new HmrManager({ appConfig: options.appConfig, bridge: this.bridge });
 	}
 

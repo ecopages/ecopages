@@ -20,10 +20,7 @@ describe('NodeClientBridge', () => {
 
 	beforeEach(() => {
 		vi.useFakeTimers();
-		bridge = new NodeClientBridge({
-			resolveStylesheetHref: (sourceFile) =>
-				sourceFile.startsWith('/app/src/') ? sourceFile.replace('/app/src/', '/assets/') : undefined,
-		});
+		bridge = new NodeClientBridge({ srcDir: '/app/src', distDir: '/app/dist/client' });
 	});
 
 	afterEach(() => {

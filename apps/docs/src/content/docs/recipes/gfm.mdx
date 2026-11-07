@@ -1,0 +1,49 @@
+---
+title: "GFM and syntax highlighting"
+description: "Render GitHub-flavoured Markdown and highlighted code blocks in MDX at build time, with themes that follow the reader's color scheme."
+order: 3
+---
+
+# GFM and syntax highlighting
+
+Use this when MDX pages need tables, task lists, strikethrough, autolinks or footnotes, and code blocks that are highlighted without a script in the browser.
+
+Plain MDX renders CommonMark only. [`remark-gfm`](https://github.com/remarkjs/remark-gfm) adds the GitHub-flavoured syntax, and [`rehype-pretty-code`](https://rehype-pretty.pages.dev) highlights each fenced block with [Shiki](https://shiki.style) while MDX compiles. The highlighted HTML is part of the built page.
+
+## Install
+
+```sh
+pnpm add -D remark-gfm rehype-pretty-code shiki
+```
+
+## Register the plugins
+
+Pass them in the `mdx` option of your JSX integration. `remarkPlugins` run on the Markdown tree, `rehypePlugins` on the HTML tree after it, so the highlighter sees the code blocks `remark-gfm` leaves untouched.
+
+```ts file="examples/recipes/gfm/eco.config.ts"
+```
+
+`theme` takes a light and a dark Shiki theme. The highlighter writes both colors on every token as `--shiki-light` and `--shiki-dark` custom properties instead of picking one.
+
+## Write the page
+
+The fixture page uses a table, a task list, strikethrough, a bare link, a footnote and a `ts` fence:
+
+````mdx file="examples/recipes/gfm/src/pages/index.mdx"
+````
+
+## Choose the theme with CSS
+
+Because both colors are in the HTML, your stylesheet decides which one shows. This one follows `prefers-color-scheme`; to follow a `data-theme` attribute instead, replace the media query with a selector on it.
+
+```css file="examples/recipes/gfm/src/styles/code.css"
+```
+
+The fixture's test loads the page in a browser, switches the color scheme, and asserts the same keyword token is blue in light and a different blue in dark.
+
+## Trade-offs
+
+- **Build time grows with code.** Shiki highlights every block when the page compiles, in development as well as in `ecopages build`.
+- **One more dependency set.** The three packages are yours to keep up to date. Highlighting output changes with the Shiki version and the themes it ships.
+- **Content collections add one helper.** If you read pages through `@ecopages/content-processor`, wrap the lists with `withContentMdxPlugins({ remarkPlugins, rehypePlugins })` from `@ecopages/content-processor/mdx`. It puts `remark-frontmatter` first and returns both lists, so frontmatter is consumed instead of rendered. This docs site is configured that way.
+- **Styles are yours.** `remark-gfm` emits plain `table`, `del` and `input` elements, and the footnote section is a plain `section[data-footnotes]`. Without CSS they look like browser defaults.

@@ -12,6 +12,7 @@ sources:
   - packages/core/src/build/app-build-manifest-runtime.ts
   - packages/core/src/build/server/app-module-loader.service.ts
   - packages/core/src/eco/eco.ts
+  - packages/core/src/eco/eco.browser.ts
   - packages/core/src/route-renderer/orchestration/ownership-graph/
   - packages/core/src/route-renderer/orchestration/foreign-child/
   - packages/integrations/ecopages-jsx/src/ecopages-jsx-radiant-ssr-policy.ts
@@ -29,11 +30,12 @@ An Integration subclasses `IntegrationPlugin` ([`integration-plugin.ts`](https:/
 | `name`, `extensions` | The file types it owns. `findIntegrationForFile` picks the Integration with the longest matching extension, so `.kita.tsx` beats `.tsx`. |
 | `renderer` | The `IntegrationRenderer` class; `getRenderer()` caches one instance per runtime, shared by route renders, explicit views and Foreign Child handoffs. |
 | `jsxImportSource` | The JSX runtime its files compile with; the identity transform prepends it as a pragma. |
-| `integrationDependencies` | Global assets added to every Page the Integration takes part in. |
+| `integrationDependencies` | Global assets added to every Page the Integration takes part in, before Component assets and in config order whichever Integration owns the Page. |
 | `plugins(app)` | Build plugins, read once during config finalization. See [Plugin pipeline](/dev/plugin-pipeline#contributing-plugins). |
-| `setup()` / `hmr()` / `teardown()` | Runtime activation, development behavior, and release. `setup()` does not resolve `integrationDependencies`. Activation (`ensureIntegrationRuntimeReady()`) calls `refreshResolvedIntegrationDependencies()` right after a successful `setup()`, in dev, `ecopages start` and request-only `app.fetch()`, including a later retry of a failed warmup. A production build and the Lit worker activate with `deferGlobalScripts` and resolve once their browser build is known: after the app-wide browser build, or after the worker's ledger restore. The resolved list is one array updated in place, so a renderer that holds it sees each resolution; a third-party Integration must not read it inside `setup()`. |
+| `setup()` / `hmr()` / `teardown()` | Runtime activation, development behavior, and release. `setup()` does not resolve `integrationDependencies`. When activation resolves them is fixed on the app runtime when it is created (`AppRuntime.globalScriptResolution`), so no caller chooses it. On an `'activation'` runtime (dev, `ecopages start`, request-only `app.fetch()`), activation (`ensureIntegrationRuntimeReady()`) calls `refreshResolvedIntegrationDependencies()` right after a successful `setup()`, including a later retry of a failed warmup. A `'browser-build'` runtime (a production export, or the Lit worker) never resolves at activation; it resolves once its browser build is known: after the app-wide browser build, or after the worker's ledger restore. The resolved list is one array updated in place, so a renderer that holds it sees each resolution; each `setup()` empties it, so a setup after a teardown shows nothing until the next resolution. A subclass updates it in place or calls `refreshResolvedIntegrationDependencies()`, and a third-party Integration must not read it inside `setup()`. |
 | `staticExport()` | Export-wide work before the first page renders, returning a release. |
 | `serverDom`, `acceptsParams`, `bundlesPageDependencies` | Server DOM installer, whether Pages take Params, and whether core may bundle Page assets. |
+| `ssrScriptPreload` | Which `ssr: true` scripts its custom-element preloader evaluates: `'own'` or `'own-and-foreign'`. Left unset, its preloader is assigned no script. See [Route rendering](/dev/route-rendering#custom-element-ssr-scripts). |
 | `compilePageModule()` with `serializeCompiledPageModule()` / `reviveCompiledPageModule()` | For files that are not JavaScript modules: compile in process, and record the result for production. [HTML Pages](/dev/html-pages) use it. |
 
 Core owns the order of these hooks; the public sequence is in [Plugin lifecycle](/docs/core/plugin-lifecycle). Two rules are not visible there:
@@ -70,6 +72,8 @@ A route that still contains an unresolved `<eco-marker>` artifact fails in `exec
 Every possible Foreign Child of a static Component must be declared in `config.dependencies.components`; a Page `dependencies` function can add request-time roots for a Component loaded dynamically. `OwnershipValidationService` checks those declarations during preparation and throws before anything renders. At render time the renderer still discovers the actual Foreign Children through the active render context.
 
 `renderComponentWithForeignChildren()` is the renderer entrypoint for mixed trees. It reuses the render session's owning-renderer cache, renders inline when the Component has no declared Foreign Child descendant, and otherwise installs a foreign-child runtime. Queueing is optional: a renderer that can resolve a Foreign Child inline returns its HTML at once. In the queue model, `resolveQueuedForeignSubtreeTokens` renders a token's children first, so nested tokens resolve before their parent, throws on a cycle, applies the owning renderer's root attributes to the first element of its HTML and splices the result over the token. The queue lives inside one render pass of one renderer; children of the same Integration never pass through it.
+
+The browser has no render context. There, the browser `eco` factories hand a Component whose owner differs from the registered `window.__ECO_PAGES__.foreignChildHost` to that host, which renders a boundary that keeps the server HTML; React registers itself when it hydrates ([Islands and hydration](/dev/islands-hydration#foreign-subtrees-in-a-hydrated-tree)). Without a host, a browser Component renders inline.
 
 Only a declared Component can be a Foreign Child. A plain function has no identity, so it renders inline in whatever Integration calls it. Discovery fails the build when a module renders a plain component of another Integration that compiles JSX with a different runtime, and suggests `eco.component()`. Lit, which leaves the runtime to the tsconfig, is not checked.
 

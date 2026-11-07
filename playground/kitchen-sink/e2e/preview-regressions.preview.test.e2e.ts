@@ -132,7 +132,7 @@ test.describe('Kitchen Sink Preview Regressions @preview', () => {
 
 		expect(html).toContain('<!--lit-part');
 		expect(html).toContain('data-lit-shell="integration-matrix-host-shell-lit"');
-		expect(html).toContain('<lit-counter count="0" data-counter-kind="lit"></lit-counter>');
+		expect(html).toMatch(/<lit-counter\b[^>]*data-counter-kind="lit"[^>]*><template shadowrootmode="open">/);
 		expect(html).not.toContain('<--content-->');
 
 		const runtime = trackRuntimeErrors(page);

@@ -116,5 +116,6 @@ async function loadEcoPagesConfigWithBundleDir(
 	return await finalizeEcoPagesConfig(options.directories ? { ...userConfig, ...options.directories } : userConfig, {
 		configFilePath,
 		cwd,
+		globalScriptResolution: options.globalScriptResolution,
 	});
 }

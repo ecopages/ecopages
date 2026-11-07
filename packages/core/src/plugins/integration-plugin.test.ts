@@ -90,7 +90,7 @@ describe('IntegrationPlugin', () => {
 		expect(rendererDependencies).toEqual([resolved]);
 	});
 
-	it('keeps one resolved list across a teardown and a later setup', async () => {
+	it('keeps one resolved list across a teardown and a later setup, empty until the next resolution', async () => {
 		const script: AssetDefinition = {
 			kind: 'script',
 			source: 'content',
@@ -111,6 +111,10 @@ describe('IntegrationPlugin', () => {
 		const heldBeforeTeardown = globalsPlugin.getResolvedIntegrationDependencies();
 		await globalsPlugin.teardown();
 		await globalsPlugin.setup({ appConfig, runtime });
+
+		expect(globalsPlugin.getResolvedIntegrationDependencies()).toBe(heldBeforeTeardown);
+		expect(heldBeforeTeardown).toEqual([]);
+
 		await globalsPlugin.refreshResolvedIntegrationDependencies();
 
 		expect(heldBeforeTeardown).toEqual([second]);

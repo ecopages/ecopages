@@ -41,6 +41,7 @@ export const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): Ec
 			overrides.appRuntime ??
 			({
 				integrationActivations: new Map(),
+				globalScriptResolution: 'browser-build',
 			} as unknown as EcoPagesAppConfig['appRuntime']),
 	} as unknown as EcoPagesAppConfig;
 };

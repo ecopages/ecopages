@@ -28,6 +28,7 @@ import {
 import type { StaticExportContext, StaticExportRelease } from './static-export-context.ts';
 import {
 	ensureIntegrationRuntimeReady,
+	requireBrowserBuildGlobalScriptResolution,
 	resolveIntegrationDependencies,
 	setupAppRuntimeIntegrations,
 	teardownAppRuntimeIntegrations,
@@ -420,11 +421,7 @@ export class StaticSiteGenerator {
 		try {
 			for (const integration of this.appConfig.integrations) {
 				if (!integration.staticExport) continue;
-				await ensureIntegrationRuntimeReady({
-					appConfig: this.appConfig,
-					integrationName: integration.name,
-					deferGlobalScripts: true,
-				});
+				await ensureIntegrationRuntimeReady({ appConfig: this.appConfig, integrationName: integration.name });
 				const release = await integration.staticExport(context);
 				if (release) {
 					releases.push(release);
@@ -668,6 +665,7 @@ export class StaticSiteGenerator {
 		const pageFailures: Error[] = [];
 		const activeStaticPathnames = new Set<string>();
 		const sitemapEligiblePathnames = this.appConfig.sitemap?.enabled ? new Set<string>() : undefined;
+		requireBrowserBuildGlobalScriptResolution(this.appConfig);
 		this.resetStaticGenerationState(force);
 		requireAppRuntime(this.appConfig).staticGenerationActive = true;
 
@@ -675,7 +673,7 @@ export class StaticSiteGenerator {
 		let generationFailed = false;
 		let generationError: unknown;
 		try {
-			await setupAppRuntimeIntegrations({ appConfig: this.appConfig, deferGlobalScripts: true });
+			await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
 			const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
 			await this.emitProductionServerModulesForStaticGeneration({
 				router,

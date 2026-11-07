@@ -44,6 +44,12 @@ export class LitPlugin extends IntegrationPlugin {
 			ensureLitDomShim();
 		},
 	};
+	/**
+	 * @remarks
+	 * Lit is the custom-element server renderer, so it also evaluates the `ssr: true` scripts of Components whose
+	 * Integration has no preloader, such as a Lit element declared on a Kita Component.
+	 */
+	override readonly ssrScriptPreload = 'own-and-foreign' as const;
 	private renderSession: LitStaticRenderSession | null = null;
 
 	constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {

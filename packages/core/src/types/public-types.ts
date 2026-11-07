@@ -1,6 +1,7 @@
 export type {
 	ApiHandler,
 	ApiHandlerContext,
+	BrowserForeignChildHost,
 	EcoComponent,
 	EcoComponentConfig,
 	EcoComponentDependencies,

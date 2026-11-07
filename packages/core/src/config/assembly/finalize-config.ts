@@ -21,6 +21,7 @@ import { collectConfigModuleFiles } from '../config-module-files.ts';
 import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from '../resolve-eco-config-path.ts';
 import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from '../user-config-types.ts';
 import { listProductionServerModuleKeysFromDist } from '../../build/server/server-modules-manifest.ts';
+import { findStylesheetProcessor } from '../../plugins/stylesheet-kinds.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { CLIENT_OUTPUT_DIR, SERVER_BUNDLE_DIR } from '../../utils/resolve-entry-file.ts';
 
@@ -373,6 +374,7 @@ export async function finalizeEcoPagesConfig(
 			cache: userConfig.cache,
 			devToolbar: userConfig.devToolbar,
 		};
+		findStylesheetProcessor(partialConfig.processors.values());
 		const config: EcoPagesAppConfig = {
 			...partialConfig,
 			absolutePaths: createAbsolutePaths(

@@ -8,6 +8,8 @@ import {
 	attributeMdxComponentIdentity,
 	createEcoComponentMetaPlugin,
 } from './eco-component-meta-plugin.ts';
+import { createStylesheetKinds, type StylesheetKinds } from './stylesheet-kinds.ts';
+import { Processor } from './processor.ts';
 import { getPluginTransform } from '../__fixtures__/build/transform-plugin.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 
@@ -158,6 +160,43 @@ export const Button = eco.component({ render: () => '' });`,
 		expect(() => transform(`import './style.module.css';`)).toThrow(
 			'page.ts: "./style.module.css" is a CSS Module, which Ecopages cannot add to a Page.',
 		);
+	});
+	describe('stylesheet kinds', () => {
+		class SassProcessor extends Processor {
+			async setup(): Promise<void> {}
+		}
+		const sass = new SassProcessor({
+			name: 'sass',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.scss'] }],
+		});
+		const run = (stylesheets?: StylesheetKinds, imports = `import './card.scss';`) => {
+			const { root } = fixture();
+			writeFileSync(path.join(root, 'card.scss'), '.card { color: red }');
+			writeFileSync(path.join(root, 'card.module.scss'), '.card { color: red }');
+			return () =>
+				attributeComponentIdentity(
+					`${imports}\nimport { eco } from '@ecopages/core';\nexport default eco.page({ render: () => '' });`,
+					path.join(root, 'page.ts'),
+					{ integration: 'lit', projectRoot: root, stylesheets },
+				).code;
+		};
+		it('delivers and strips an import of an extension the stylesheet Processor declares', () => {
+			const result = run(createStylesheetKinds([sass]))();
+			expect(result).not.toContain(`import './card.scss'`);
+			expect(result).toContain(`stylesheets: ${JSON.stringify(['card.scss'])}`);
+		});
+		it('leaves the import alone when no Processor declares the extension', () => {
+			for (const kinds of [undefined, createStylesheetKinds([])]) {
+				const result = run(kinds)();
+				expect(result).toContain(`import './card.scss'`);
+				expect(result).not.toContain('stylesheets: ["');
+			}
+		});
+		it('fails on a CSS Module of a declared extension', () => {
+			expect(run(createStylesheetKinds([sass]), `import './card.module.scss';`)).toThrow(
+				'"./card.module.scss" is a CSS Module',
+			);
+		});
 	});
 	describe('package stylesheets', () => {
 		function packageFixture() {

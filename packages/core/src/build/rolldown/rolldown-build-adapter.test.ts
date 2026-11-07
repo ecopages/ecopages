@@ -630,6 +630,27 @@ describe('RolldownBuildAdapter', () => {
 		expect(readFileSync(result.outputs[0]!.path, 'utf-8')).not.toContain('color');
 	});
 
+	test('a server build shims a declared stylesheet extension and parses an undeclared one as JavaScript', async () => {
+		writeFixture('card.scss', '.card { color: red; }');
+		const entrypoint = writeFixture('scss-entry.ts', "import './card.scss';\nexport const ready = true;\n");
+		const build = (stylesheetExtensions?: readonly string[]) =>
+			new RolldownBuildAdapter().build({
+				environment: 'server' as const,
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: 'node',
+				format: 'esm',
+				root: workDir,
+				stylesheetExtensions,
+			});
+
+		const shimmed = await build(['.css', '.scss']);
+		assertBuildSucceeded(shimmed, 'Build failed');
+		expect(readFileSync(shimmed.outputs[0]!.path, 'utf-8')).not.toContain('color');
+
+		assertBuildFailed(await build());
+	});
+
 	test('externalPackages points undeclared core-owned runtime packages at paths relative to the output', async () => {
 		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
 		const adapter = new RolldownBuildAdapter();

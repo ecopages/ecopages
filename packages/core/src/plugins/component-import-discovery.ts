@@ -1,6 +1,7 @@
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
+import { PLAIN_CSS_KINDS, type StylesheetKinds } from './stylesheet-kinds.ts';
 import { contentHash } from '../utils/content-hash.ts';
 import {
 	isBarePackageImportSpecifier,
@@ -80,8 +81,9 @@ function isLocalScript(file: string): boolean {
 	return /\.[cm]?[jt]sx?$/.test(file) && !file.includes(`/node_modules/`);
 }
 
-export function isCssImport(source: string): boolean {
-	return source.endsWith('.css') && !source.endsWith('.module.css');
+/** Whether `source` names a plain stylesheet: one of `kinds`, but not a CSS Module. */
+export function isCssImport(source: string, kinds: StylesheetKinds): boolean {
+	return kinds.isStylesheet(source) && !kinds.isCssModule(source);
 }
 
 /** One static `import` declaration with its value bindings. */
@@ -340,8 +342,13 @@ function relativeToRoot(projectRoot: string, file: string): string {
  * A CSS Module fails however it is imported. An import that carries attributes is the module's own business and
  * is left alone.
  */
-export function assertDeliverableStylesheetImport(entry: StaticImport, importer: string, projectRoot: string): void {
-	if (entry.attributed || !entry.source.endsWith('.module.css')) return;
+export function assertDeliverableStylesheetImport(
+	entry: StaticImport,
+	importer: string,
+	projectRoot: string,
+	kinds: StylesheetKinds,
+): void {
+	if (entry.attributed || !kinds.isCssModule(entry.source)) return;
 	throw createCssModuleError(projectRoot, importer, entry.source);
 }
 
@@ -368,19 +375,20 @@ function classifyStylesheetImport(
 	importer: string,
 	projectRoot: string,
 	pathPrefixes: string[],
+	kinds: StylesheetKinds,
 ): StylesheetImportTarget | undefined {
 	if (entry.attributed || !entry.sideEffectOnly) return undefined;
 	if (isLocalSpecifier(entry.source, pathPrefixes)) {
-		return isCssImport(entry.source) ? { fromPackage: false } : undefined;
+		return isCssImport(entry.source, kinds) ? { fromPackage: false } : undefined;
 	}
 	if (!isBarePackageImportSpecifier(entry.source)) {
-		if (!entry.source.endsWith('.css')) return undefined;
+		if (!kinds.isStylesheet(entry.source)) return undefined;
 		throw new Error(
 			`[ecopages] ${relativeToRoot(projectRoot, importer)}: ${JSON.stringify(entry.source)} is neither a relative, aliased nor package stylesheet import, so Ecopages cannot add it to a Page.`,
 		);
 	}
 	const file = resolvePackageStylesheetPath(importer, entry.source);
-	if (file?.endsWith('.module.css')) throw createCssModuleError(projectRoot, importer, entry.source);
+	if (file && kinds.isCssModule(file)) throw createCssModuleError(projectRoot, importer, entry.source);
 	return file ? { fromPackage: true, file } : undefined;
 }
 
@@ -396,8 +404,9 @@ export function isDeliveredStylesheetImport(
 	importer: string,
 	projectRoot: string,
 	pathPrefixes: string[],
+	kinds: StylesheetKinds,
 ): boolean {
-	return classifyStylesheetImport(entry, importer, projectRoot, pathPrefixes) !== undefined;
+	return classifyStylesheetImport(entry, importer, projectRoot, pathPrefixes, kinds) !== undefined;
 }
 
 /**
@@ -459,6 +468,8 @@ export type DiscoveryOptions = {
 	integrationOf?: (file: string) => DiscoveryIntegration | undefined;
 	/** Source of the declaring module, read for a `@jsxImportSource` pragma; defaults to the file on disk. */
 	ownerSource?: string;
+	/** The stylesheets discovery delivers; defaults to plain `.css`. */
+	stylesheets?: StylesheetKinds;
 	/** Results shared by every discovery of one build; see {@link createDiscoveryCache}. */
 	cache?: DiscoveryCache;
 };
@@ -489,6 +500,7 @@ export function createDiscoveryCache(): DiscoveryCache {
 
 type DiscoveryState = {
 	projectRoot: string;
+	stylesheets: StylesheetKinds;
 	pathPrefixes: string[];
 	integrationOf?: (file: string) => DiscoveryIntegration | undefined;
 	ownerFile: string;
@@ -591,8 +603,8 @@ function resolveSideEffectStylesheet(
 	importer: string,
 	state: DiscoveryState,
 ): { file: string; fromPackage: boolean } | undefined {
-	assertDeliverableStylesheetImport(entry, importer, state.projectRoot);
-	const target = classifyStylesheetImport(entry, importer, state.projectRoot, state.pathPrefixes);
+	assertDeliverableStylesheetImport(entry, importer, state.projectRoot, state.stylesheets);
+	const target = classifyStylesheetImport(entry, importer, state.projectRoot, state.pathPrefixes, state.stylesheets);
 	if (!target || target.fromPackage) return target;
 	const resolved = resolveStylesheetImportPath(entry.source, importer, state);
 	if (!resolved || !fileSystem.exists(resolved)) {
@@ -650,7 +662,7 @@ function collectModuleEdges(
 ): string[] {
 	const plainModules: string[] = [];
 	for (const entry of imports) {
-		if (entry.attributed || entry.source.endsWith('.css')) continue;
+		if (entry.attributed || state.stylesheets.isStylesheet(entry.source)) continue;
 		if (!isLocalSpecifier(entry.source, state.pathPrefixes) || isServerSpecifier(entry.source)) continue;
 		if (!entry.sideEffectOnly && entry.bindings.length === 0) continue;
 		const resolved = resolveProjectModulePath(state.projectRoot, importer, entry.source, { preserveBarrel: true });
@@ -778,6 +790,7 @@ export function discoverComponentImports(
 	};
 	const state: DiscoveryState = {
 		projectRoot,
+		stylesheets: options.stylesheets ?? PLAIN_CSS_KINDS,
 		pathPrefixes: loadTsconfigPathPrefixes(projectRoot),
 		integrationOf: options.integrationOf,
 		ownerFile,

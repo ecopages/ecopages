@@ -11,6 +11,7 @@ import {
 	resolveAppBuildPlugins,
 	resolveBuildPluginOrder,
 } from './build-request-policy.ts';
+import { Processor } from '../../plugins/processor.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
@@ -398,4 +399,22 @@ test('server and browser builds of one file give each declaration the same compo
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
+});
+
+test('createServerBuildRequest carries the stylesheet extensions of the registered stylesheet Processor', () => {
+	class SassProcessor extends Processor {
+		async setup(): Promise<void> {}
+	}
+	const config = createAppConfig();
+	config.processors = new Map([
+		['sass', new SassProcessor({ name: 'sass', capabilities: [{ kind: 'stylesheet', extensions: ['*.scss'] }] })],
+	]);
+
+	assert.deepEqual(createServerBuildRequest(config, { entrypoints: ['/app/a.ts'] }).stylesheetExtensions, [
+		'.css',
+		'.scss',
+	]);
+	assert.deepEqual(createServerBuildRequest(createAppConfig(), { entrypoints: ['/app/a.ts'] }).stylesheetExtensions, [
+		'.css',
+	]);
 });

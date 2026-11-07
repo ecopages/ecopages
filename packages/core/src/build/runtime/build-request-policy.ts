@@ -7,6 +7,7 @@ import { createAliasResolverPlugin } from '../../plugins/alias-resolver-plugin.t
 import { resolveBuildEnvironmentOptions } from './build-environment-options.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
 import { createEcoComponentMetaPlugin } from '../../plugins/eco-component-meta-plugin.ts';
+import { getStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { isProductionRuntime } from '../../env.ts';
 import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transform.ts';
 
@@ -131,6 +132,7 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
 		...overrides,
 		environment: 'server',
 		entrypoints: input.entrypoints,
+		stylesheetExtensions: getStylesheetKinds(appConfig).extensions,
 		...(plugins.length > 0 ? { plugins } : {}),
 	};
 }

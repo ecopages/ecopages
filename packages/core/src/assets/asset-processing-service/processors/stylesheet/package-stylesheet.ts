@@ -1,6 +1,7 @@
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { resolvePackageStylesheetPath } from '../../../../plugins/tsconfig-import-resolver.ts';
+import { isEmittableReferenceFile } from '../../../../plugins/stylesheet-kinds.ts';
 import { appLogger } from '../../../../global/app-logger.ts';
 import { warnStylesheetOnce } from './stylesheet-warnings.ts';
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
@@ -117,7 +118,8 @@ function skipSpace(css: string, start: number): number {
 /**
  * Reads the argument of a `url(` whose opening parenthesis ends just before `start`, quoted or not.
  *
- * @returns The decoded reference and the index after the closing parenthesis, or `undefined` when it is malformed.
+ * @returns The decoded reference and the index after the closing parenthesis, or `undefined` when it is malformed
+ * or is not a literal reference, such as `url(var(--x))`, which the scan then reads as nested functions.
  */
 function readUrl(css: string, start: number): Scanned | undefined {
 	let index = skipSpace(css, start);
@@ -134,6 +136,7 @@ function readUrl(css: string, start: number): Scanned | undefined {
 			index = escape.end;
 			continue;
 		}
+		if (css[index] === '(') return undefined;
 		value += css[index];
 		index += 1;
 	}
@@ -178,46 +181,6 @@ function readParenthesized(css: string, start: number): Scanned {
 /** The end of the at-rule prelude starting at `start`: its `;` outside parentheses, or the end of the file. */
 function findStatementEnd(css: string, start: number): number {
 	return scanUntil(css, start, (char, depth) => char === ';' && depth <= 0);
-}
-
-/**
- * Extensions of the files a stylesheet reference may copy into the build: fonts, images and media, the types CSS
- * loads.
- */
-const EMITTABLE_REFERENCE_EXTENSIONS = new Set([
-	'.woff2',
-	'.woff',
-	'.ttf',
-	'.otf',
-	'.eot',
-	'.png',
-	'.jpg',
-	'.jpeg',
-	'.gif',
-	'.webp',
-	'.avif',
-	'.svg',
-	'.ico',
-	'.bmp',
-	'.cur',
-	'.mp4',
-	'.webm',
-	'.ogg',
-	'.mp3',
-	'.wav',
-]);
-
-/**
- * Whether a stylesheet reference may copy `file` into the build.
- *
- * @remarks
- * Protection goes by what is copied, not where it lives: in a monorepo the app's packages, hoisted or in pnpm's
- * store, sit outside its folder, and a package may name a sibling dependency's files. Only a font, image or media
- * file is copied, never a dotfile, so a reference such as `url(../../.env)` cannot publish a secret or a source file.
- */
-function isEmittableReferenceFile(file: string): boolean {
-	const name = path.basename(file);
-	return !name.startsWith('.') && EMITTABLE_REFERENCE_EXTENSIONS.has(path.extname(name).toLowerCase());
 }
 
 /**

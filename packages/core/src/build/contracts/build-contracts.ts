@@ -158,6 +158,14 @@ export interface BuildOptions {
 	};
 	plugins?: EcoBuildPlugin[];
 	/**
+	 * The dotted stylesheet extensions a server build replaces with an empty module; defaults to `['.css']`.
+	 *
+	 * @remarks
+	 * Server requests set it from the registered stylesheet Processor (see `StylesheetKinds`), so a stylesheet the
+	 * Processor declares is never parsed as JavaScript.
+	 */
+	stylesheetExtensions?: readonly string[];
+	/**
 	 * Builds each `new Worker(new URL('./x.ts', import.meta.url), { type: 'module' })`, and the same with
 	 * `SharedWorker`, as its own entry and points the URL at the emitted file. Browser builds only; defaults to `true`.
 	 *

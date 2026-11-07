@@ -212,21 +212,15 @@ describe('ContentStylesheetProcessor', () => {
 			override async setup(): Promise<void> {}
 		}
 
-		test('chains transformStylesheet in registration order', async () => {
-			const first = new AppendingProcessor({ name: 'first' }, '/*1*/');
-			const second = new AppendingProcessor({ name: 'second' }, '/*2*/');
+		test('runs the one stylesheet Processor', async () => {
+			const only = new AppendingProcessor({ name: 'only' }, '/*1*/');
 			const processor = new ContentStylesheetProcessor({
-				appConfig: createMockConfig(
-					new Map<string, Processor>([
-						[first.name, first],
-						[second.name, second],
-					]),
-				),
+				appConfig: createMockConfig(new Map<string, Processor>([[only.name, only]])),
 			});
 
 			const result = await processor.process(inlineDep);
 
-			expect(result.content).toBe('a { color: red; }/*1*//*2*/');
+			expect(result.content).toBe('a { color: red; }/*1*/');
 		});
 
 		test('skips a Processor that has no transformStylesheet', async () => {

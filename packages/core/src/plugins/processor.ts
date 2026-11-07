@@ -234,12 +234,12 @@ export abstract class Processor<TOptions = unknown> {
 	 * Transforms one stylesheet before core writes or inlines it.
 	 *
 	 * @remarks
-	 * Core calls it for every `.css`, `.scss`, `.sass` and `.less` asset, from file and content dependencies alike,
-	 * when the Processor declares a `stylesheet` capability matching the file. Processors run in registration order,
-	 * each receiving the previous result. A Processor without this method
-	 * takes no part in stylesheet processing.
+	 * Core calls it for each stylesheet the Processor's `stylesheet` capability matches, from file and content
+	 * dependencies alike: a `.css` file, or a file with an extension the capability declares. At most one Processor
+	 * in an app may declare a `stylesheet` capability: config finalization fails when two do. A Processor without
+	 * this method takes no part in stylesheet processing.
 	 *
-	 * @param css - Stylesheet source, or the previous Processor's output.
+	 * @param css - Stylesheet source.
 	 * @param file - Absolute path of the stylesheet, or the `processingOrigin` of a content dependency.
 	 */
 	transformStylesheet?(css: string, file: string): Promise<string>;

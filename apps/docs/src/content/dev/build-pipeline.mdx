@@ -21,6 +21,8 @@ sources:
   - packages/core/src/build/runtime/build-environment-options.ts
   - packages/core/src/build/server-bundle-publication.ts
   - packages/core/src/adapters/shared/http/dist-file-handler.ts
+  - packages/core/src/plugins/eco-component-meta-plugin.ts
+  - packages/core/src/build/server/view-reference.ts
 ---
 
 # Build pipeline
@@ -72,7 +74,13 @@ The server entry and emitted config are bundled into a sibling staging directory
 
 ### Portable paths
 
-The deploy manifest names the server entry and emitted config relative to `dist/server/`. The server-modules map keys each module by its root-relative source path, and the ledger stores root-relative paths. Why: the deployed folder can move to another machine or directory; only `dist/client/`, `dist/server/` and `node_modules/` must keep their relative positions.
+No file a build writes holds a path of the machine that built it. The deploy manifest names the server entry and emitted config relative to `dist/server/`. The server-modules map keys each module by its root-relative source path, and the ledger stores root-relative paths. Inside the emitted modules:
+
+- the component meta transform writes `identity.file`, discovered stylesheets and watch files relative to the app root, and a package stylesheet as its package path (`some-lib/css/style.css`);
+- the server entry names each imported view relative to the root;
+- content collections name their entries relative to the root.
+
+Core resolves them against the app root at load; a package path resolves in the package installed for the app. Why: the deployed folder can move to another machine or directory; only `dist/client/`, `dist/server/` and `node_modules/` must keep their relative positions. A dependency upgrade that moves a package to another store folder, as a pnpm version bump does, resolves the same way.
 
 ## Server modules
 
@@ -82,7 +90,7 @@ Pages of an Integration that implements `compilePageModule`, such as HTML Pages,
 
 Emit then imports the bundled modules to find `ssr: true` scripts the entries did not name. A script already inside the first output maps to it; otherwise a second emit adds it. Why: preserved modules keep their output path across both emits, so a module imported after the first emit is never evaluated from a second copy. Integrations are activated before that import, which is why an Integration that needs process globals installs them in `setup()`.
 
-In production, `PageModuleImportService.importModule()` imports from this map whenever it exists. A missing key or file throws ``No compiled server module for <source>. Run `ecopages build`.`` A path outside the deploy root still matches the longest recorded key it ends with, so an `identity.file` captured on the build machine resolves on the server.
+In production, `PageModuleImportService.importModule()` imports from this map whenever it exists. A missing key or file throws ``No compiled server module for <source>. Run `ecopages build`.`` Every key is the source path relative to the app root, the form `identity.file` already has.
 
 ## The app-wide browser graph
 
@@ -119,6 +127,6 @@ A route that fails to plan is reported, not fatal on its own. A concrete instanc
 
 ## Outputs of the browser build
 
-Each entry is named `client-<hash of its dependency key>` (`html-<hash of path>` for an HTML module script), and every output name carries a content hash. Package imports are bundled into the same chunks, framework runtimes included, so every Page and island shares one copy of React through a content-hashed chunk served `immutable`. Rolldown's CommonJS interop gives entries the named exports of a CommonJS package such as React, and every browser build defines `process.env.NODE_ENV` from the current Node environment, so that package picks its production build whatever `minify` says.
+Each entry is named `client-<hash of its dependency key>` (`html-<hash of path>` for an HTML module script), and every output name carries a content hash. A generated entry, such as a Page hydration script, an island entry or a lazy entry, imports its source files by absolute path, so it lists them as `bundledSourceFilepaths`, and its dependency key hashes its text with those files written relative to the app root, beside its name, which its generator derives from root-relative paths. A moved build keys it the same. Package imports are bundled into the same chunks, framework runtimes included, so every Page and island shares one copy of React through a content-hashed chunk served `immutable`. Rolldown's CommonJS interop gives entries the named exports of a CommonJS package such as React, and every browser build defines `process.env.NODE_ENV` from the current Node environment, so that package picks its production build whatever `minify` says.
 
 The build writes outputs to `dist/client/assets`, gzips each `.js` and `.css` file and records every output in the processed-asset ledger under the dependency key of every declaration that named it; the server answers hashed files with `Cache-Control: public, max-age=31536000, immutable`. `ecopages start` restores and seals that ledger and never compiles; [Ledger and start](/dev/ledger-and-start) covers both.

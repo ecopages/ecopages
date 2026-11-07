@@ -67,5 +67,5 @@ flowchart TD
 - Only the compile is cached. Identity attribution runs on every load, so a change to an imported Component applies without recompiling the MDX.
 - `attributeMdxComponentIdentity` binds Component identity (integration name and project root), discovers top-level Component and stylesheet imports, and attaches them to `config`. Stylesheet imports are stripped from the output. Imports inside code blocks and functions are left alone. See [/dev/plugin-pipeline](/dev/plugin-pipeline) for identity attribution.
 - Source maps: the compiler map is composed with the identity edits and returned unless `includeSourceMap` is false. The Ecopages JSX loader sets it to false.
-- The plugin's `cacheKey` fingerprints `projectRoot`, compiler options, extensions, `includeSourceMap` and `loader`. Functions such as remark plugins enter by name, so two loaders differing only in an anonymous plugin's closure share a key.
+- The plugin's `cacheKey` fingerprints compiler options, extensions, `includeSourceMap` and `loader`, never `projectRoot`, as no plugin key holds an absolute path. Functions such as remark plugins enter by name, so two loaders differing only in an anonymous plugin's closure share a key.
 - `loader` is `jsx` when `compilerOptions.jsx` is set, otherwise `js`.

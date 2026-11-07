@@ -124,7 +124,7 @@ test('createBuildRequestIdentity tells apart import.meta transforms of different
 	const identityFor = (runtimeDir: string) =>
 		createBuildRequestIdentity({
 			...baseOptions,
-			plugins: [createPreserveImportMetaPlugin(runtimeDir)],
+			plugins: [createPreserveImportMetaPlugin(runtimeDir, '/out')],
 		});
 
 	assert.notEqual(identityFor('/out/a'), identityFor('/out/b'));

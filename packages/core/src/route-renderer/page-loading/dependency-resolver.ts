@@ -113,7 +113,7 @@ export class DependencyResolverService {
 	 * Resolves one dependency path relative to the component that declared it.
 	 */
 	resolveDependencyPath(componentDir: string, pathUrl: string): string {
-		return path.join(componentDir, pathUrl);
+		return path.join(path.resolve(this.appConfig.rootDir, componentDir), pathUrl);
 	}
 
 	/**
@@ -402,6 +402,7 @@ export class DependencyResolverService {
 		return collectComponentDependencies({
 			components,
 			integrationName,
+			rootDir: this.appConfig.rootDir,
 			excludeForeignChildren,
 			skipNestedComponents,
 			resolveLazyScripts: (componentDir, scripts) => this.resolveLazyScripts(componentDir, scripts),

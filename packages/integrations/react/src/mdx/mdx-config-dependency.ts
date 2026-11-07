@@ -12,6 +12,8 @@ import type { PageModuleService } from '../page/page-module.ts';
 
 export interface MdxConfigDependencyServiceConfig {
 	integrationName: string;
+	/** The app root that root-relative identity files resolve against. */
+	rootDir: string;
 	pageModuleService: Pick<PageModuleService, 'ensureConfigFileMetadata'>;
 }
 
@@ -81,7 +83,7 @@ export class MdxConfigDependencyService {
 				return [];
 			}
 
-			const componentDir = path.dirname(componentFile);
+			const componentDir = path.dirname(path.resolve(this.config.rootDir, componentFile));
 			for (const script of config.dependencies?.scripts ?? []) {
 				if (typeof script === 'string' || !script.lazy || script.ssr !== true) {
 					continue;

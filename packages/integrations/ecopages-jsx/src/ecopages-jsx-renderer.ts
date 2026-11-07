@@ -122,7 +122,7 @@ export function createEcopagesJsxRendererHookFactory(
 					const content = await withCustomElementRenderHook(() => component(componentProps));
 					const html = await renderJsx(content);
 
-					recordEjsxHmrOwnership([input.component]);
+					recordEjsxHmrOwnership([input.component], appConfig.rootDir);
 
 					return {
 						html,
@@ -143,12 +143,15 @@ export function createEcopagesJsxRendererHookFactory(
 			renderRoute: async (options, render): Promise<RouteRendererBody> =>
 				await withEjsxHmrOwnershipScope(async () => {
 					const body = await render();
-					recordEjsxHmrOwnership([
-						options.Page,
-						options.Layout,
-						options.HtmlTemplate,
-						...(options.pageDependencyComponents ?? []),
-					]);
+					recordEjsxHmrOwnership(
+						[
+							options.Page,
+							options.Layout,
+							options.HtmlTemplate,
+							...(options.pageDependencyComponents ?? []),
+						],
+						appConfig.rootDir,
+					);
 					return body;
 				}),
 		};

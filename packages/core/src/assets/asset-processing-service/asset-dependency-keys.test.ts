@@ -3,6 +3,7 @@ import { describe, expect, it, test } from 'vitest';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { getAssetDependencyKey, getIntegrationDependencyKey } from './asset-dependency-keys.ts';
 import { AssetFactory } from './asset.factory.ts';
+import { createAppBrowserClientEntry } from './app-browser-client-bundle.ts';
 import type { ContentScriptAsset, ContentStylesheetAsset, ScriptAsset } from './assets.types.ts';
 
 type ScriptBundleOptions = NonNullable<ScriptAsset['bundleOptions']>;
@@ -161,6 +162,20 @@ describe('getAssetDependencyKey', () => {
 					content: members.map((filePath) => `import ${JSON.stringify(filePath)};`).join('\n'),
 					bundledSourceFilepaths: members,
 				}),
+				createContentScript({
+					name: 'island-counter',
+					packageRole: 'keep-separate',
+					content: `import * as ComponentModule from ${JSON.stringify(member('counter.tsx'))};`,
+					bundledSourceFilepaths: [member('counter.tsx')],
+				}),
+				createAppBrowserClientEntry({ entryName: 'lazy-counter', importPath: member('counter.script.ts') }),
+				AssetFactory.createFileStylesheet({
+					filepath: path.join(
+						rootDir,
+						'node_modules/.pnpm/some-lib@1.0.0/node_modules/some-lib/css/style.css',
+					),
+					fromPackage: 'some-lib/css/style.css',
+				}),
 			];
 		};
 
@@ -171,6 +186,40 @@ describe('getAssetDependencyKey', () => {
 			const after = declarationsUnder('/srv/two/app').map((dependency) => keyOf(dependency, '/srv/two/app'));
 
 			expect(after).toEqual(before);
+		});
+
+		it('keys a package stylesheet by its package path, wherever the package is installed', () => {
+			const stylesheet = (filepath: string) =>
+				AssetFactory.createFileStylesheet({ filepath, fromPackage: 'some-lib/css/style.css' });
+
+			expect(
+				keyOf(stylesheet('/app/node_modules/.pnpm/some-lib@1.0.0/node_modules/some-lib/css/style.css')),
+			).toBe(keyOf(stylesheet('/app/node_modules/.pnpm/some-lib@2.0.0/node_modules/some-lib/css/style.css')));
+		});
+
+		it('still keys a generated script by its text apart from the member paths', () => {
+			const entry = (content: string) =>
+				createContentScript({
+					name: 'page-entry',
+					content,
+					bundledSourceFilepaths: ['/app/src/page.tsx'],
+				});
+
+			expect(keyOf(entry('import "/app/src/page.tsx"; hydrate();'))).not.toBe(
+				keyOf(entry('import "/app/src/page.tsx"; hydrate({ router: true });')),
+			);
+		});
+
+		it('keeps two generated scripts of one member apart by name', () => {
+			const island = (name: string) =>
+				createContentScript({
+					name,
+					packageRole: 'keep-separate',
+					content: 'import * as ComponentModule from "/app/src/widgets.tsx";',
+					bundledSourceFilepaths: ['/app/src/widgets.tsx'],
+				});
+
+			expect(keyOf(island('island-counter'))).not.toBe(keyOf(island('island-cart')));
 		});
 
 		it('still tells two files of the same project apart', () => {

@@ -6,6 +6,7 @@ import {
 	createAppBrowserClientEntry,
 } from '../../assets/asset-processing-service/index.ts';
 import { contentHash } from '../../utils/content-hash.ts';
+import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { getLazyTriggerKey } from './lazy-trigger-planning.ts';
 
 type LazyScriptRef = {
@@ -32,6 +33,11 @@ export type RegisterLazyScript = (input: {
 
 type CollectLazyEntriesOptions = {
 	scriptEntries: Array<string | EcoComponentScriptEntry>;
+	/**
+	 * The app root. Lazy keys and entry names hash paths relative to it, so they match between the build and a
+	 * moved `ecopages start`.
+	 */
+	rootDir: string;
 	componentFile: string;
 	componentDir: string;
 	integrationName: string;
@@ -72,6 +78,7 @@ function getDependencyEntrySrcOrThrow(entry: EcoComponentScriptEntry, errorMessa
 export function collectLazyScriptEntries(options: CollectLazyEntriesOptions): void {
 	const {
 		scriptEntries,
+		rootDir,
 		componentFile,
 		componentDir,
 		integrationName,
@@ -97,7 +104,7 @@ export function collectLazyScriptEntries(options: CollectLazyEntriesOptions): vo
 		const attributes = scriptEntry.attributes;
 
 		if (content) {
-			const lazyKey = `lazy:${contentHash(`${componentFile}:entry:${index}:${content}`, 16)}`;
+			const lazyKey = `lazy:${contentHash(`${toRootRelativePath(rootDir, componentFile)}:entry:${index}:${content}`, 16)}`;
 			const depKey = `lazy:entry:content:${getLazyTriggerKey(lazy)}:${content}:${JSON.stringify(attributes ?? {})}`;
 			const lazyEntryName = createEcopagesJsxLazyEntryName(integrationName, depKey);
 			pushUniqueDependency(
@@ -130,11 +137,12 @@ export function collectLazyScriptEntries(options: CollectLazyEntriesOptions): vo
 
 		const script = src ?? getDependencyEntrySrcOrThrow(scriptEntry, getLazyScriptMissingSrcMessage());
 		const resolvedPath = resolveDependencyPath(componentDir, script);
+		const sourceKey = toRootRelativePath(rootDir, resolvedPath);
 		const fallbackUrl = resolveLazyScripts(componentDir, [script]).split(',')[0] ?? '';
-		const lazyKey = `lazy:${contentHash(`${resolvedPath}:${getLazyTriggerKey(lazy)}`, 16)}`;
+		const lazyKey = `lazy:${contentHash(`${sourceKey}:${getLazyTriggerKey(lazy)}`, 16)}`;
 		const lazyEntryName = createEcopagesJsxLazyEntryName(
 			integrationName,
-			`${resolvedPath}:${getLazyTriggerKey(lazy)}`,
+			`${sourceKey}:${getLazyTriggerKey(lazy)}`,
 		);
 		const depKey = `lazy:entry:file:${getLazyTriggerKey(lazy)}:${resolvedPath}:${JSON.stringify(attributes ?? {})}`;
 

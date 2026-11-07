@@ -1788,6 +1788,8 @@ importers:
         specifier: ^4.4.3
         version: 4.5.4
 
+  templates/llm-wiki/app/dist/server: {}
+
   templates/radiant:
     devDependencies:
       '@ecopages/browser-router':
@@ -1942,6 +1944,8 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  templates/react-better-auth/dist/server: {}
 
   templates/react-shadcn:
     dependencies:

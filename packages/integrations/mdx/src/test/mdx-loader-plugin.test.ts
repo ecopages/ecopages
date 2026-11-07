@@ -427,6 +427,13 @@ describe('createMdxLoaderPlugin', () => {
 		);
 	});
 
+	it('keys the loader identity the same in two project roots, holding no absolute path', () => {
+		const first = createMdxLoaderPlugin({ projectRoot: '/builds/one/app' }).cacheKey;
+
+		expect(createMdxLoaderPlugin({ projectRoot: '/srv/two/app' }).cacheKey).toBe(first);
+		expect(first).not.toContain('/builds/one/app');
+	});
+
 	it('throws if projectRoot is missing when creating the loader plugin', async () => {
 		const { createMdxLoaderPlugin: createCore } = await import('../core/mdx-loader-plugin.ts');
 		expect(() =>

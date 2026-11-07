@@ -28,7 +28,7 @@ describe('codegen', () => {
 	});
 
 	test('renderCollectionComponentsModule emits lazy MDX loaders, attach helper, and async getComponent', () => {
-		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
+		const output = renderCollectionComponentsModule('docs', '/tmp/cache', '/app', [
 			{
 				entry: {
 					title: 'Intro',
@@ -52,7 +52,7 @@ describe('codegen', () => {
 		expect(output).not.toContain('getComponentIdentity');
 		expect(output).toContain("import { HttpError } from '@ecopages/core/errors'");
 		expect(output).toContain('throw HttpError.NotFound(`Unknown content entry: ${slug}`)');
-		expect(output).toContain("'intro': '/app/src/content/docs/intro.mdx',");
+		expect(output).toContain("'intro': 'src/content/docs/intro.mdx',");
 		expect(output).toContain('export async function getComponent(slug: string)');
 		expect(output).toContain('export async function getEntryDependencies(slug: string)');
 		expect(output).toContain('export const loadComponent = Object.assign((slug: string) => getComponent(slug), {');
@@ -65,7 +65,7 @@ describe('codegen', () => {
 	});
 
 	test('renderCollectionBrowserModule emits one coalesced dynamic loader per entry', () => {
-		const output = renderCollectionBrowserModule('docs', '/tmp/cache', [
+		const output = renderCollectionBrowserModule('docs', '/tmp/cache', '/app', [
 			{
 				entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
 				filePath: '/app/src/content/docs/intro.mdx',
@@ -143,7 +143,7 @@ describe('codegen', () => {
 	});
 
 	test('attachMdxExports assigns loader-attributed config by reference and does not re-bind', () => {
-		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
+		const output = renderCollectionComponentsModule('docs', '/tmp/cache', '/app', [
 			{
 				entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
 				filePath: '/app/src/content/docs/intro.mdx',
@@ -158,7 +158,7 @@ describe('codegen', () => {
 	});
 
 	test('server module hands owned MDX entries to their owning renderer through the foreign-child queue', () => {
-		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
+		const output = renderCollectionComponentsModule('docs', '/tmp/cache', '/app', [
 			{
 				entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
 				filePath: '/app/src/content/docs/intro.mdx',
@@ -224,7 +224,7 @@ describe('attachMdxExports ownership guard', () => {
 			].join('\n'),
 		);
 
-		const serverModule = renderCollectionComponentsModule('docs', cacheDir, [
+		const serverModule = renderCollectionComponentsModule('docs', cacheDir, tempDir, [
 			{
 				entry: { title: 'Intro React', description: 'Welcome', slug: 'intro-react', segments: ['intro-react'] },
 				filePath: reactEntryPath,
@@ -321,7 +321,7 @@ describe('generated browser loader', () => {
 		const browserModulePath = join(cacheDir, 'docs.browser.mts');
 		writeFileSync(
 			browserModulePath,
-			renderCollectionBrowserModule('docs', cacheDir, [
+			renderCollectionBrowserModule('docs', cacheDir, tempDir, [
 				{
 					entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
 					filePath: entryPath,

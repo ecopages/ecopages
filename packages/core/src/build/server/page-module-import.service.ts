@@ -163,8 +163,7 @@ export class PageModuleImportService {
 	 * error that names the source and says to run `ecopages build`. During
 	 * `ecopages build`, before the map exists on disk, listing routes still compiles
 	 * from source. `bypassCache` only skips the in-memory import promise, not the
-	 * manifest. A path outside the deploy root still matches when it ends with a
-	 * recorded source key, so `identity.file` from the build machine can load.
+	 * manifest.
 	 */
 	private async importFromProductionManifest<T>(options: PageModuleBuildImportOptions): Promise<T> {
 		const manifest = loadProductionServerModules(this.appConfig);

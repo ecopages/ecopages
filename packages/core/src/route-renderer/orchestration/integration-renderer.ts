@@ -4,6 +4,7 @@
  * @module
  */
 
+import path from 'node:path';
 import type { EcoPagesAppConfig, IHmrManager, InternalComponentRenderInput } from '../../config/internal-types.ts';
 import type {
 	ComponentRenderInput,
@@ -890,7 +891,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				input.nodes.map((node) => node.component),
 				{ preparedGraph: true },
 			),
-			watchPaths: collectComponentGraphWatchPaths(input.nodes, [input.ownerFile]),
+			watchPaths: collectComponentGraphWatchPaths(input.nodes, this.appConfig.rootDir, [input.ownerFile]),
 		};
 	}
 
@@ -1021,7 +1022,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	): Promise<RouteRenderResult> {
 		const identity = getComponentIdentity(view);
 		return this.execute({
-			file: ctx.file ?? identity?.file ?? getSyntheticExplicitViewKey(this.name, view),
+			file:
+				ctx.file ??
+				(identity?.file ? path.resolve(this.appConfig.rootDir, identity.file) : undefined) ??
+				getSyntheticExplicitViewKey(this.name, view),
 			pageModule: { default: view },
 			params: ctx.params,
 			query: ctx.query,

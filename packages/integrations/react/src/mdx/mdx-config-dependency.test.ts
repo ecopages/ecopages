@@ -7,6 +7,7 @@ describe('MdxConfigDependencyService', () => {
 	it('names the owned config components and their SSR-marked lazy scripts as eager head scripts', () => {
 		const service = new MdxConfigDependencyService({
 			integrationName: 'react',
+			rootDir: __dirname,
 			pageModuleService: {
 				ensureConfigFileMetadata: (config: EcoComponentConfig) => config,
 			},

@@ -11,13 +11,18 @@ function buildPathPrefixFilter(prefix: string): RegExp {
 	return new RegExp(`^${escapeRegExp(prefix)}(?:/|$)`);
 }
 
+/**
+ * @remarks
+ * The `cacheKey` holds the tsconfig path prefixes only: a key that named `projectRoot` would change the
+ * dependency key of every script that declares the plugin when the project moves.
+ */
 export function createAliasResolverPlugin(projectRoot: string): EcoBuildPlugin {
 	const cache = new AliasResolverCache();
 	const pathPrefixes = loadTsconfigPathPrefixes(projectRoot);
 
 	return {
 		name: 'ecopages-alias-resolver',
-		cacheKey: JSON.stringify([projectRoot, pathPrefixes]),
+		cacheKey: JSON.stringify(pathPrefixes),
 		setup(build) {
 			if (pathPrefixes.length === 0) {
 				return;

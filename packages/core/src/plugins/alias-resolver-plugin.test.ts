@@ -136,20 +136,18 @@ test('createAliasResolverPlugin resolves tsconfig path aliases to concrete barre
 	}
 });
 
-test('createAliasResolverPlugin keys its identity on the project root and its path prefixes', () => {
-	const projectA = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-alias-resolver-'));
-	const projectB = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-alias-resolver-'));
+test('createAliasResolverPlugin keys its identity on its path prefixes, not on the project root', () => {
+	const projects = [0, 1, 2].map(() => fs.mkdtempSync(path.join(tmpdir(), 'ecopages-alias-resolver-')));
+	const [projectA, projectB, projectC] = projects as [string, string, string];
 	writeTsconfig(projectA, { '@/*': ['./src/*'] });
 	writeTsconfig(projectB, { '~/*': ['./src/*'] });
+	writeTsconfig(projectC, { '@/*': ['./src/*'] });
 
 	try {
-		assert.equal(createAliasResolverPlugin(projectA).cacheKey, createAliasResolverPlugin(projectA).cacheKey);
 		assert.notEqual(createAliasResolverPlugin(projectA).cacheKey, createAliasResolverPlugin(projectB).cacheKey);
-
-		writeTsconfig(projectB, { '@/*': ['./src/*'] });
-		assert.notEqual(createAliasResolverPlugin(projectA).cacheKey, createAliasResolverPlugin(projectB).cacheKey);
+		assert.equal(createAliasResolverPlugin(projectA).cacheKey, createAliasResolverPlugin(projectC).cacheKey);
+		assert.ok(!createAliasResolverPlugin(projectA).cacheKey?.includes(projectA));
 	} finally {
-		fs.rmSync(projectA, { recursive: true, force: true });
-		fs.rmSync(projectB, { recursive: true, force: true });
+		for (const project of projects) fs.rmSync(project, { recursive: true, force: true });
 	}
 });

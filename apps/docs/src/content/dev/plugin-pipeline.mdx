@@ -61,7 +61,7 @@ export type EcoBuildPlugin = {
 
 Handlers must be registered before `setup` returns or its promise resolves; a later call throws. Rolldown reads hook filters when a plugin is registered, so the bridge closes registration before it hands its plugins to Rolldown. Rolldown tests `filter` and `exclude` itself, against ids with `/` separators, so `exclude: /\/node_modules\//` keeps installed packages out of a handler on every platform.
 
-`cacheKey` exists because a build request is identified by its plugins' names in order. A factory that captures an output-changing option, such as the MDX loader with its compiler options or the foreign JSX override with its import source, sets `cacheKey` so two builds that differ only in that option are not deduplicated into one.
+`cacheKey` exists because a build request is identified by its plugins' names in order. A factory that captures an output-changing option, such as the MDX loader with its compiler options or the foreign JSX override with its import source, sets `cacheKey` so two builds that differ only in that option are not deduplicated into one. A `cacheKey` holds no absolute path: it also joins the dependency key of every script that declares the plugin, and a moved build must find those keys in its ledger, so a factory names a file relative to the app root.
 
 The contract is the boundary between Integrations and bundler backends, so plugin authors stay free of Rolldown types (a transform `map` is `unknown`).
 

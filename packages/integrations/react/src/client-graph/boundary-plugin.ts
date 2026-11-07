@@ -74,6 +74,24 @@ type NormalizedClientGraphBoundaryOptions = {
 	cacheKey: string;
 };
 
+/**
+ * @remarks
+ * Every path is named relative to the project root, as no plugin key may hold an absolute path: the key joins
+ * the dependency key of each React entry, which a moved build must still find in its ledger.
+ */
+function createBoundaryCacheKey(options: Omit<NormalizedClientGraphBoundaryOptions, 'cacheKey'>): string {
+	const keyRoot = options.projectRoot ?? options.absWorkingDir;
+	const toKeyPath = (filePath: string) => path.relative(keyRoot, filePath).split(path.sep).join('/');
+	return JSON.stringify({
+		workingDir: toKeyPath(options.absWorkingDir),
+		entrypointFile: options.entrypointFile ? toKeyPath(options.entrypointFile) : undefined,
+		groupedEntrypointFiles: [...options.groupedEntrypointFiles].map(toKeyPath).sort(),
+		groupedDeclaredModules: [...options.groupedDeclaredModules].sort(),
+		declaredModules: [...options.declaredModules].sort(),
+		alwaysAllowSpecifiers: [...options.alwaysAllowSpecifiers].sort(),
+	});
+}
+
 function normalizeClientGraphBoundaryOptions(
 	options?: ClientGraphBoundaryOptions,
 ): NormalizedClientGraphBoundaryOptions {
@@ -88,17 +106,7 @@ function normalizeClientGraphBoundaryOptions(
 	const declaredModules = [...(options?.declaredModules ?? [])];
 	const groupedDeclaredModules = [...(options?.groupedDeclaredModules ?? declaredModules)];
 	const alwaysAllowSpecifiers = [...(options?.alwaysAllowSpecifiers ?? [])];
-	const cacheKey = JSON.stringify({
-		projectRoot,
-		absWorkingDir,
-		entrypointFile,
-		groupedEntrypointFiles: [...groupedEntrypointFiles].sort(),
-		groupedDeclaredModules: [...groupedDeclaredModules].sort(),
-		declaredModules: [...declaredModules].sort(),
-		alwaysAllowSpecifiers: [...alwaysAllowSpecifiers].sort(),
-	});
-
-	return {
+	const normalized = {
 		absWorkingDir,
 		projectRoot,
 		entrypointFile,
@@ -106,8 +114,8 @@ function normalizeClientGraphBoundaryOptions(
 		groupedDeclaredModules,
 		declaredModules,
 		alwaysAllowSpecifiers,
-		cacheKey,
 	};
+	return { ...normalized, cacheKey: createBoundaryCacheKey(normalized) };
 }
 
 function readBoundaryModule(filePath: string, absWorkingDir: string): PlannedModule | undefined {

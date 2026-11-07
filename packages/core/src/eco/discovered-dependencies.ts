@@ -1,13 +1,21 @@
 import type { EcoComponentDependencies, EcoComponentConfig, EcoComponent } from '../types/contracts.ts';
 import type { ComponentIdentity } from './component-identity.ts';
 
+/**
+ * What the component meta transform discovered for one declaration.
+ *
+ * @remarks
+ * A local file is named relative to the app root with forward slashes, and a package stylesheet by its package
+ * path (`some-lib/css/style.css`), so an emitted module holds no path of the machine that built it.
+ * `resolveDiscoveredStylesheets` and `resolveDiscoveredWatchFiles` turn them into real paths at load.
+ */
 export type DiscoveredDependencies = {
 	components: () => unknown[];
 	/** Side-effect stylesheets the declaring module imports itself. */
 	stylesheets: string[];
 	/** Side-effect stylesheets of the plain local modules the declaring module imports. */
 	plainModuleStylesheets?: string[];
-	/** The entries of `stylesheets` and `plainModuleStylesheets` whose import named a package. */
+	/** The entries of `stylesheets` and `plainModuleStylesheets` whose import named a package: package paths. */
 	packageStylesheets?: string[];
 	watchFiles?: string[];
 };
@@ -47,7 +55,8 @@ export function registerDiscoveredDependencies(identity: ComponentIdentity, disc
 }
 
 /**
- * Inferred stylesheet paths registered for this component identity, split by where the import sits.
+ * Inferred stylesheets registered for this component identity, split by where the import sits, as discovery
+ * wrote them (see {@link DiscoveredDependencies}).
  *
  * @remarks
  * `imported` are the declaring module's own side-effect imports; `plainModules` come from the plain local
@@ -70,18 +79,6 @@ export function getDiscoveredStylesheets(config: EcoComponentConfig | undefined)
 		plainModules: record[PLAIN_MODULE_STYLESHEETS] ?? discovered?.plainModuleStylesheets ?? [],
 		packages: record[PACKAGE_STYLESHEETS] ?? discovered?.packageStylesheets ?? [],
 	};
-}
-
-/**
- * Every inferred stylesheet path registered for this component identity, for watch paths.
- *
- * @remarks
- * A package stylesheet installed under `node_modules` is left out, as the development watcher ignores that
- * directory; one in a linked workspace package stays a watch path.
- */
-export function getInferredStylesheets(config: EcoComponentConfig | undefined): readonly string[] {
-	const { imported, plainModules } = getDiscoveredStylesheets(config);
-	return [...imported, ...plainModules].filter((file) => !file.split(/[\\/]/).includes('node_modules'));
 }
 
 /**

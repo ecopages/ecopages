@@ -37,9 +37,9 @@ describe('withEjsxHmrOwnershipScope', () => {
 
 	it('publishes the merged ownership once the outermost scope completes', async () => {
 		await withEjsxHmrOwnershipScope(async () => {
-			recordEjsxHmrOwnership([makeComponent(PAGE_FILE)]);
+			recordEjsxHmrOwnership([makeComponent(PAGE_FILE)], '/');
 			await withEjsxHmrOwnershipScope(async () => {
-				recordEjsxHmrOwnership([makeComponent(MDX_FILE)]);
+				recordEjsxHmrOwnership([makeComponent(MDX_FILE)], '/');
 			});
 			expect(getEjsxHmrOwnership().fileOwners.size).toBe(0);
 		});
@@ -48,6 +48,6 @@ describe('withEjsxHmrOwnershipScope', () => {
 	});
 
 	it('rejects recording outside a render scope', () => {
-		expect(() => recordEjsxHmrOwnership([makeComponent(PAGE_FILE)])).toThrow(/inside an active render scope/);
+		expect(() => recordEjsxHmrOwnership([makeComponent(PAGE_FILE)], '/')).toThrow(/inside an active render scope/);
 	});
 });

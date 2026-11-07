@@ -82,11 +82,13 @@ export class LitPlugin extends IntegrationPlugin {
 			throw new Error('Lit plugin must be initialized before starting the render worker');
 		}
 		const assetProcessingService = this.assetProcessingService;
+		const rootDir = this.appConfig.rootDir;
 
 		return new LitStaticRenderSession({
 			preloadScopes: this.runtime.customElementSsrPreloadScopes,
 			integration: this,
-			resolveDependencyPath: (componentDir, sourcePath) => path.join(componentDir, sourcePath),
+			resolveDependencyPath: (componentDir, sourcePath) =>
+				path.join(path.resolve(rootDir, componentDir), sourcePath),
 			processDependencies: (dependencies, integration) =>
 				assetProcessingService.processDependencies(dependencies, integration),
 			getInvalidationVersion: () => this.runtime?.moduleLoader.getDevelopmentGeneration() ?? 0,

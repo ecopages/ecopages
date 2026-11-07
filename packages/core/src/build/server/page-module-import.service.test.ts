@@ -468,14 +468,14 @@ describe('PageModuleImportService', () => {
 		assert.deepEqual(fakeDependencies.calls.hashFile, []);
 	});
 
-	it('loads a production module when identity.file still names the build machine', async () => {
+	it('loads a production module by the root-relative identity file it emits', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const serverOutdir = join(appRootDir, 'dist/server');
 		mkdirSync(serverOutdir, { recursive: true });
 		writeFileSync(
 			join(serverOutdir, 'hello.mjs'),
 			`const Page = () => null;
-Page.config = { identity: { id: 'hello', file: '/build-machine/app/src/pages/hello.script.ts', integration: 'lit' } };
+Page.config = { identity: { id: 'hello', file: 'src/pages/hello.script.ts', integration: 'lit' } };
 export default Page;
 `,
 			'utf8',
@@ -489,13 +489,12 @@ export default Page;
 		const loaded = await service.importModule<{
 			default: { config: { identity: { file: string } } };
 		}>({
-			filePath: '/build-machine/app/src/pages/hello.script.ts',
+			filePath: 'src/pages/hello.script.ts',
 			rootDir: appRootDir,
 			outdir: join(appRootDir, '.eco'),
 		});
 
-		assert.equal(loaded.default.config.identity.file, join(appRootDir, 'src/pages/hello.script.ts'));
-		assert.notEqual(loaded.default.config.identity.file, '/build-machine/app/src/pages/hello.script.ts');
+		assert.equal(loaded.default.config.identity.file, 'src/pages/hello.script.ts');
 		assert.deepEqual(fakeDependencies.calls.buildModule, []);
 		assert.deepEqual(fakeDependencies.calls.hashFile, []);
 	});

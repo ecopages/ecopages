@@ -35,6 +35,7 @@ import { resolveQueuedTokens } from '@ecopages/core/integration';
 import { ensurePageConfigLayouts, moveMdxMetadataOntoPage } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
 import { hasSingleRootElement } from './html-boundary.ts';
+import { toRootRelativePath } from '@ecopages/core/build';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
 import { REACT_PLUGIN_NAME, REACT_SSR_RENDER_TIMEOUT_MS } from '../plugin/react.constants.ts';
 import type { ReactRendererConfig } from '../plugin/react.types.ts';
@@ -402,7 +403,10 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			rootAttributes = buildIslandHostAttributes({
 				integrationName: this.name,
 				componentInstanceId: context.componentInstanceId,
-				componentKey: getIslandComponentKey(componentFile, componentConfig),
+				componentKey: getIslandComponentKey(
+					toRootRelativePath(this.appConfig.rootDir, componentFile),
+					componentConfig,
+				),
 				props: buildHydrationProps(input.props),
 			});
 			html = `<eco-island style="display:contents">${html}</eco-island>`;
@@ -646,6 +650,7 @@ function createReactRendererHookFactory(
 			hasRouterAdapter: Boolean(routerAdapter),
 		});
 		const hydrationAssetService = new HydrationAssetService({
+			rootDir: appConfig.rootDir,
 			srcDir: appConfig.srcDir,
 			routerAdapter,
 			assetProcessingService,
@@ -666,6 +671,7 @@ function createReactRendererHookFactory(
 			pagePayloadService: new PagePayloadService(),
 			mdxConfigDependencyService: new MdxConfigDependencyService({
 				integrationName: REACT_PLUGIN_NAME,
+				rootDir: appConfig.rootDir,
 				pageModuleService,
 			}),
 			applyPendingLazyTriggers,

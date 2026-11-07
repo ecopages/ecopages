@@ -28,8 +28,13 @@ function isPageOwnedGroupableContentScript(dep: AssetDefinition): dep is Content
 
 /**
  * Names a script's entry from the script alone, so every batch that prepares it gives it the same name and key.
+ *
+ * @remarks
+ * A generated script, which lists `bundledSourceFilepaths`, keeps its own name: its text imports its members by
+ * absolute path, so a name hashed from it would change when the app folder moves.
  */
 function createPageOwnedGroupedEntryName(dep: ContentScriptAsset): string {
+	if (dep.name && dep.bundledSourceFilepaths?.length) return dep.name;
 	return dep.name ? `${dep.name}-${contentHash(dep.content, 8)}` : `script-${contentHash(dep.content, 16)}`;
 }
 

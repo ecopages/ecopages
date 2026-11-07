@@ -14,10 +14,16 @@ describe('matchProductionModuleKey', () => {
 		);
 	});
 
-	it('matches the longest recorded key that is a suffix of a path outside rootDir', () => {
-		expect(matchProductionModuleKey('/deploy', '/build-machine/app/src/pages/hello.script.ts', modules)).toBe(
+	it('matches a root-relative path, as emitted modules name their sources', () => {
+		expect(matchProductionModuleKey('/deploy', 'src/pages/hello.script.ts', modules)).toBe(
 			'src/pages/hello.script.ts',
 		);
+	});
+
+	it('does not match a path of the build machine by its suffix', () => {
+		expect(
+			matchProductionModuleKey('/deploy', '/build-machine/app/src/pages/hello.script.ts', modules),
+		).toBeUndefined();
 	});
 
 	it('returns undefined when no recorded key matches', () => {

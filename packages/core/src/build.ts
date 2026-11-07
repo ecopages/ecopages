@@ -54,6 +54,7 @@ export {
 	type EntryCommandFlagName,
 } from './utils/entry-command-flags.ts';
 export { contentHash } from './utils/content-hash.ts';
+export { toRootRelativePath } from './utils/root-relative-path.ts';
 export { isPathInside } from './utils/path-containment.ts';
 export { CLIENT_OUTPUT_DIR, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from './utils/resolve-entry-file.ts';
 export {

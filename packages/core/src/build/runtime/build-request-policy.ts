@@ -119,7 +119,10 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
 	const importMetaDir = input.runtimeOutdir ?? input.outdir;
 	const plugins = resolveBuildPluginOrder(appConfig, 'server', {
 		callerPlugins: input.plugins,
-		coreTransforms: importMetaDir && !isProductionRuntime() ? [createPreserveImportMetaPlugin(importMetaDir)] : [],
+		coreTransforms:
+			importMetaDir && !isProductionRuntime()
+				? [createPreserveImportMetaPlugin(importMetaDir, appConfig.rootDir)]
+				: [],
 	});
 	const { plugins: _callerPlugins, ...overrides } = input;
 

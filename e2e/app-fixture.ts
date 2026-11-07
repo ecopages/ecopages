@@ -1,5 +1,5 @@
-import { spawn, type ChildProcess } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { renameSync, rmSync } from 'node:fs';
 import { createServer, type AddressInfo } from 'node:net';
 import path from 'node:path';
 import { test as base } from '@playwright/test';
@@ -13,11 +13,19 @@ const DEFAULT_READY_TIMEOUT_MS = 120_000;
 const STOP_GRACE_MS = 5_000;
 const OUTPUT_TAIL_CHARS = 8_000;
 
-/** The dev server a project starts for each worker, set through `use.appOptions` in `playwright.config.ts`. */
+/** The server a project starts for each worker, set through `use.appOptions` in `playwright.config.ts`. */
 export type AppOptions = {
 	/** Repository-relative folder of the app to copy, such as `playground/kitchen-sink`. */
 	source: string;
-	/** Runtime passed to `ecopages dev`. Defaults to `node`. */
+	/**
+	 * What the worker serves. Defaults to `dev`, which runs `ecopages dev` in the copy.
+	 *
+	 * @remarks
+	 * `moved-start` runs `ecopages build` in the copy, moves the whole folder to another directory, and runs
+	 * `ecopages start` there, so a test sees whether a build still works once it no longer sits where it was built.
+	 */
+	serve?: 'dev' | 'moved-start';
+	/** Runtime passed to the CLI. Defaults to `node`. */
 	runtime?: 'bun' | 'node';
 	/** Extra environment for the dev server. */
 	env?: Record<string, string>;
@@ -27,10 +35,12 @@ export type AppOptions = {
 	readyTimeoutMs?: number;
 };
 
-/** A running dev server and the private copy of the app it serves. */
+/** A running server and the private copy of the app it serves. */
 export type App = {
 	/** Absolute folder of this worker's copy. Specs that edit sources edit files under it. */
 	dir: string;
+	/** Absolute folder `ecopages build` ran in, which no longer exists, when `serve` is `moved-start`. */
+	builtDir?: string;
 	/** Origin the server listens on. */
 	url: string;
 	/** Captured tail of the worker's dev-server output, useful when a browser assertion fails. */
@@ -57,7 +67,7 @@ function waitForReadyLine(child: ChildProcess, readTail: () => string, timeoutMs
 	return new Promise((resolve, reject) => {
 		const timer = setTimeout(() => {
 			cleanup();
-			reject(new Error(`The dev server did not print its ready line within ${timeoutMs} ms.\n${readTail()}`));
+			reject(new Error(`The server did not print its ready line within ${timeoutMs} ms.\n${readTail()}`));
 		}, timeoutMs);
 		const onData = () => {
 			if (SERVER_READY_LINE.test(readTail())) {
@@ -67,7 +77,7 @@ function waitForReadyLine(child: ChildProcess, readTail: () => string, timeoutMs
 		};
 		const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
 			cleanup();
-			reject(new Error(`The dev server exited (${signal ?? code}) before it was ready.\n${readTail()}`));
+			reject(new Error(`The server exited (${signal ?? code}) before it was ready.\n${readTail()}`));
 		};
 		const cleanup = () => {
 			clearTimeout(timer);
@@ -99,12 +109,36 @@ async function stopServer(child: ChildProcess): Promise<void> {
 }
 
 /**
- * `test` for specs that run against a dev server of their own.
+ * Runs `ecopages build` in `builtDir`, then moves that folder to `dir`, replacing any earlier copy.
+ *
+ * @remarks
+ * The rename leaves nothing at `builtDir`, so the started server cannot read a file through a path the build
+ * recorded. Both folders sit side by side, so the relative links a workspace build writes still resolve.
+ */
+function buildAndMove(builtDir: string, dir: string, runtime: string, env: NodeJS.ProcessEnv): void {
+	const build = spawnSync(process.execPath, [ecopagesCli, 'build', '--runtime', runtime], {
+		cwd: builtDir,
+		env,
+		encoding: 'utf8',
+	});
+	if (build.status !== 0) {
+		rmSync(builtDir, { recursive: true, force: true });
+		throw new Error(
+			`ecopages build exited with ${build.status}.\n${`${build.stdout}${build.stderr}`.slice(-OUTPUT_TAIL_CHARS)}`,
+		);
+	}
+	rmSync(dir, { recursive: true, force: true });
+	renameSync(builtDir, dir);
+}
+
+/**
+ * `test` for specs that run against a server of their own.
  *
  * @remarks
  * `app` is a worker-scoped fixture: the first test of a worker that needs it copies the project's
  * `appOptions.source` to `.e2e-tmp/<project>-w<workerIndex>`, starts `ecopages dev` there on a free port,
- * and waits for the ready line. `baseURL` points at that server, so `page` and `request` reach it, and a worker
+ * and waits for the ready line. With `serve: 'moved-start'` it builds the copy in `<that folder>-built`, moves it to
+ * that folder and runs `ecopages start` instead. `baseURL` points at that server, so `page` and `request` reach it, and a worker
  * whose tests never ask for a page or for `app` starts nothing. Every worker has its own copy, so specs edit
  * files under `app.dir` and parallel workers never see each other's edits. The server stops and the copy is
  * removed when the worker ends, unless `ECOPAGES_KEEP_E2E_TMP=true`; a copy that a killed run left behind is
@@ -125,26 +159,33 @@ export const test = base.extend<{}, { appOptions: AppOptions | undefined; app: A
 				throw new Error(`Project "${workerInfo.project.name}" does not set use.appOptions, so it has no app.`);
 			}
 
-			const dir = copyFixtureApp(
-				path.join(repoRoot, appOptions.source),
-				path.join(repoRoot, '.e2e-tmp', `${workerInfo.project.name}-w${workerInfo.workerIndex}`),
-			);
-			const port = await pickFreePort();
+			const dir = path.join(repoRoot, '.e2e-tmp', `${workerInfo.project.name}-w${workerInfo.workerIndex}`);
 			const runtime = appOptions.runtime ?? 'node';
+			const serve = appOptions.serve ?? 'dev';
 			const { NODE_PATH: _inheritedNodePath, ...inheritedEnv } = process.env;
-			const child = spawn(process.execPath, [ecopagesCli, 'dev', '--runtime', runtime, '--port', String(port)], {
-				cwd: dir,
-				detached: true,
-				env: {
-					...inheritedEnv,
-					NODE_ENV: 'development',
-					...(appOptions.configFile
-						? { [ECOPAGES_CONFIG_FILE_ENV]: path.join(dir, appOptions.configFile) }
-						: {}),
-					...appOptions.env,
-				},
-				stdio: ['ignore', 'pipe', 'pipe'],
+			const envFor = (appDir: string): NodeJS.ProcessEnv => ({
+				...inheritedEnv,
+				NODE_ENV: serve === 'dev' ? 'development' : 'production',
+				...(appOptions.configFile
+					? { [ECOPAGES_CONFIG_FILE_ENV]: path.join(appDir, appOptions.configFile) }
+					: {}),
+				...appOptions.env,
 			});
+			const builtDir = serve === 'moved-start' ? `${dir}-built` : undefined;
+			copyFixtureApp(path.join(repoRoot, appOptions.source), builtDir ?? dir);
+			if (builtDir) buildAndMove(builtDir, dir, runtime, envFor(builtDir));
+			const port = await pickFreePort();
+			const command = serve === 'dev' ? 'dev' : 'start';
+			const child = spawn(
+				process.execPath,
+				[ecopagesCli, command, '--runtime', runtime, '--port', String(port)],
+				{
+					cwd: dir,
+					detached: true,
+					env: envFor(dir),
+					stdio: ['ignore', 'pipe', 'pipe'],
+				},
+			);
 
 			let tail = '';
 			const collect = (chunk: Buffer) => {
@@ -155,7 +196,7 @@ export const test = base.extend<{}, { appOptions: AppOptions | undefined; app: A
 
 			try {
 				await waitForReadyLine(child, () => tail, appOptions.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS);
-				await use({ dir, url: `http://localhost:${port}`, getServerOutput: () => tail });
+				await use({ dir, builtDir, url: `http://localhost:${port}`, getServerOutput: () => tail });
 			} finally {
 				await stopServer(child);
 				if (process.env.ECOPAGES_KEEP_E2E_TMP !== 'true') {

@@ -53,7 +53,9 @@ Design choices in the order:
 - `TemplateSourceHmrStrategy` never claims a registered script entrypoint: a soft reload keeps a head module script whose URL did not change, so the edited script would not run again.
 - A strategy that returns `none` for a file that is not a registered dev-transform entrypoint becomes a `reload`, so no edit goes unapplied silently.
 
-CSS does not go through strategies. A stylesheet is a `processor-owned-asset` with `delegateToHmr: false`; the owning Processor rebuilds it in `onChanges()` and calls `bridge.cssUpdate()`, as the PostCSS Processor does when its output changed.
+A linked stylesheet does not go through strategies. It is a `processor-owned-asset` with `delegateToHmr: false`; the owning Processor rebuilds it in `onChanges()` and calls `bridge.cssUpdate(file)`, as the PostCSS Processor does when its output changed, and the Node bridge sends the exact href `sourceRelativeStylesheetHref` names for that file. A stylesheet outside `srcDir` has no stable href and sends nothing.
+
+A stylesheet a served module imports as text also goes to HMR: the invalidation plan sets `delegateToHmr` when a browser entrypoint read it, and `JsHmrStrategy` sends an `update` for each watched entrypoint that imports it, whose new module URL names the new CSS. When the Processor throws, the dev transform server keeps serving the last compiled module and the error shows; the next save that compiles clears it, even one that restores the previous bytes.
 
 ### Coalescing and errors
 

@@ -173,9 +173,7 @@ export default defineConfig({
 
 ## Using CSS Imports
 
-To enable CSS imports in your TypeScript/JavaScript files (e.g., `import styles from './styles.css'`), you **must** add the `postcssProcessorPlugin` to your `eco.config.ts` as shown above.
-
-This plugin registers the build-time CSS handling Ecopages uses when those imports are loaded.
+A stylesheet imported with a binding in your TypeScript/JavaScript files (e.g., `import styles from './styles.css'`) is a string of the CSS the `postcssProcessorPlugin` produced, the same in `ecopages dev`, in server rendering and in browser bundles. Without the plugin, the string is the file as written.
 
 ```typescript
 // Component.ts

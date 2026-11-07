@@ -114,7 +114,6 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 			collectCustomElementSsrPreloadScripts(
 				[group],
 				(componentDir, sourcePath) => path.join(componentDir, sourcePath),
-				false,
 				'ecopages-jsx',
 			),
 		).toEqual(['/app/components/radiant.script.ts']);
@@ -133,9 +132,7 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 				},
 			),
 		);
-		expect(collectCustomElementSsrPreloadScripts([foreignOverride], resolvePath, false, 'ecopages-jsx')).toEqual(
-			[],
-		);
+		expect(collectCustomElementSsrPreloadScripts([foreignOverride], resolvePath, 'ecopages-jsx')).toEqual([]);
 
 		const ownedOverride = eco.component(
 			bindComponentIdentity(
@@ -147,33 +144,9 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 				},
 			),
 		);
-		expect(collectCustomElementSsrPreloadScripts([ownedOverride], resolvePath, false, 'ecopages-jsx')).toEqual([
+		expect(collectCustomElementSsrPreloadScripts([ownedOverride], resolvePath, 'ecopages-jsx')).toEqual([
 			'/app/components/owned.script.ts',
 		]);
-	});
-
-	it('can limit collection to lazy scripts marked ssr: true', () => {
-		const host = eco.component(
-			bindComponentIdentity(
-				{ id: 'host', file: '/app/components/host.tsx', integration: 'lit' },
-				{
-					render: () => '',
-					dependencies: {
-						scripts: [
-							{ src: './eager.script.ts', ssr: true },
-							{ src: './lazy.script.ts', ssr: true, lazy: { 'on:idle': true } },
-						],
-					},
-				},
-			),
-		);
-		expect(
-			collectCustomElementSsrPreloadScripts(
-				[host],
-				(componentDir, sourcePath) => path.join(componentDir, sourcePath),
-				true,
-			),
-		).toEqual(['/app/components/lazy.script.ts']);
 	});
 
 	it('collects eager and lazy scripts marked ssr: true', () => {

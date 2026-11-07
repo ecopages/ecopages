@@ -255,12 +255,27 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		});
 	}
 
+	/**
+	 * Whether the browser hydrates the Page, Layout or document tree `component` belongs to.
+	 *
+	 * @remarks
+	 * A Component without an Island Host is rendered as part of its Page's tree, so it hydrates when its Page does.
+	 * The check reads the Component's own config, which holds the modules of its Layouts and nested Components.
+	 */
+	private hydratesPageTree(component: EcoComponent): boolean {
+		return this.forceBrowserGraph || this.pageModuleService.shouldHydratePage({ default: component });
+	}
+
+	/**
+	 * Resolves the Foreign Subtree tokens in `html`, wrapping them in the hydration boundary only when `hydrates`.
+	 */
 	private resolveReactQueuedForeignSubtreeHtml(
 		html: string,
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
+		hydrates: boolean,
 	): Promise<string> {
 		return this.resolveQueuedForeignSubtrees(
-			wrapForeignSubtreeTokens(html, runtimeContext),
+			hydrates ? wrapForeignSubtreeTokens(html, runtimeContext) : html,
 			runtimeContext,
 			async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => ({
 				html: await this.renderQueuedChildrenToHtml({
@@ -395,12 +410,17 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 				label: getComponentIdentity(input.component)?.file ?? 'component',
 			}),
 		);
-		html = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
-		const canAttachAttributes = hasSingleRootElement(html);
 		const componentFile = getComponentIdentity(componentConfig)?.file;
+		const isIslandRoot = Boolean(componentFile && context.componentInstanceId && !hasResolvedChildHtml);
+		html = await this.resolveReactQueuedForeignSubtreeHtml(
+			html,
+			runtimeContext,
+			isIslandRoot || (!context.componentInstanceId && this.hydratesPageTree(input.component)),
+		);
+		const canAttachAttributes = hasSingleRootElement(html);
 
 		let rootAttributes: Record<string, string> | undefined;
-		if (canAttachAttributes && componentFile && context.componentInstanceId && !hasResolvedChildHtml) {
+		if (canAttachAttributes && isIslandRoot && componentFile && context.componentInstanceId) {
 			rootAttributes = buildIslandHostAttributes({
 				integrationName: this.name,
 				componentInstanceId: context.componentInstanceId,
@@ -534,7 +554,13 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		);
 		const layoutWithoutChildren = renderTracker.findLayoutWithoutChildren(page.component);
 		if (layoutWithoutChildren) this.onLayoutChildrenNotRendered(layoutWithoutChildren);
-		return { children: await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext) };
+		return {
+			children: await this.resolveReactQueuedForeignSubtreeHtml(
+				html,
+				runtimeContext,
+				this.hydratesPageTree(page.component),
+			),
+		};
 	}
 
 	protected resolveComposeChildren(options: {

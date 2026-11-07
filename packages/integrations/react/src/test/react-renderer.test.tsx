@@ -692,6 +692,8 @@ describe('ReactRenderer', () => {
 				),
 			});
 
+			testRenderer.shouldHydratePageOverride = true;
+
 			const result = await testRenderer.renderComponentWithForeignChildren({ component: Page, props: {} });
 
 			expect(result.html).toBe(
@@ -699,6 +701,84 @@ describe('ReactRenderer', () => {
 					getForeignSubtreeKey(LitCounter, { count: 1 }),
 					'<lit-counter count="1"><template shadowrootmode="open">1</template></lit-counter>',
 				)}</main>`,
+			);
+		});
+
+		it('keeps a foreign table row in its table when the Page does not hydrate', async () => {
+			const litPlugin = createDeferredIntegrationPlugin({
+				name: 'lit',
+				extensions: ['.lit.tsx'],
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<tr><td>Row</td></tr>',
+					canAttachAttributes: true,
+					integrationName: 'lit',
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [litPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				resolvedIntegrationDependencies: [],
+			});
+			const LitRow = eco.component<Record<string, never>, string>({
+				identity: { id: 'lit-row', file: '/app/components/lit-row.lit.tsx', integration: 'lit' },
+				render: () => '',
+			});
+			const ForeignRow = LitRow as unknown as React.ComponentType;
+			const Page = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-table-page', file: pageFilePath, integration: 'react' },
+				dependencies: { components: [LitRow] },
+				render: () => (
+					<table>
+						<tbody>
+							<ForeignRow />
+						</tbody>
+					</table>
+				),
+			});
+			testRenderer.shouldHydratePageOverride = false;
+
+			const result = await testRenderer.renderComponentWithForeignChildren({ component: Page, props: {} });
+
+			expect(result.html).toBe('<table><tbody><tr><td>Row</td></tr></tbody></table>');
+		});
+
+		it('wraps a foreign table row in a boundary when the Page hydrates', async () => {
+			const litPlugin = createDeferredIntegrationPlugin({
+				name: 'lit',
+				extensions: ['.lit.tsx'],
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<tr><td>Row</td></tr>',
+					canAttachAttributes: true,
+					integrationName: 'lit',
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [litPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				resolvedIntegrationDependencies: [],
+			});
+			const LitRow = eco.component<Record<string, never>, string>({
+				identity: { id: 'lit-row', file: '/app/components/lit-row.lit.tsx', integration: 'lit' },
+				render: () => '',
+			});
+			const ForeignRow = LitRow as unknown as React.ComponentType;
+			const Page = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-table-page', file: pageFilePath, integration: 'react' },
+				dependencies: { components: [LitRow] },
+				render: () => (
+					<main>
+						<ForeignRow />
+					</main>
+				),
+			});
+			testRenderer.shouldHydratePageOverride = true;
+
+			const result = await testRenderer.renderComponentWithForeignChildren({ component: Page, props: {} });
+
+			expect(result.html).toBe(
+				`<main>${renderForeignSubtreeBoundary(getForeignSubtreeKey(LitRow, {}), '<tr><td>Row</td></tr>')}</main>`,
 			);
 		});
 
@@ -735,6 +815,8 @@ describe('ReactRenderer', () => {
 					</html>
 				),
 			});
+
+			testRenderer.shouldHydratePageOverride = true;
 
 			const result = await testRenderer.renderComponentWithForeignChildren({ component: Shell, props: {} });
 

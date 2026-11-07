@@ -224,7 +224,7 @@ describe('React server rendering waits for Suspense', () => {
 			),
 		});
 
-		const html = await renderPage(await createRenderer(), Page);
+		const html = await renderPage(await createRenderer(undefined, { forceBrowserGraph: true }), Page);
 
 		expect(html).toContain(
 			`<aside>${renderForeignSubtreeBoundary(

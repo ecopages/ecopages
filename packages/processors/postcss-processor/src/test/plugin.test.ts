@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import postcss from 'postcss';
 import postcssNested from 'postcss-nested';
 import { PostCssProcessorPlugin } from '../plugin';
+import { tailwindV4Preset } from '../presets/tailwind-v4';
 import { createAppAwarePostcssImport } from '../postcss-import-app-aware';
 import type { IClientBridge } from '@ecopages/core/integration';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
@@ -787,6 +788,52 @@ describe('PostCssProcessorPlugin HMR', () => {
 		expect(bridge.cssUpdate).not.toHaveBeenCalled();
 		expect(fs.readFileSync(outputFile, 'utf-8')).toBe(goodOutput);
 	});
+	test('restoring a stylesheet after a failure broadcasts even when the output equals the last good one', async () => {
+		fs.symlinkSync(path.resolve(__dirname, '../../node_modules'), path.join(tmpDir, 'node_modules'), 'dir');
+		const stylesDir = path.join(srcDir, 'styles');
+		fs.mkdirSync(stylesDir, { recursive: true });
+		const referencePath = path.join(stylesDir, 'tailwind.css');
+		const cssFile = path.join(stylesDir, 'main.css');
+		const goodContent = '.a { @apply text-red-500; }';
+		fs.writeFileSync(referencePath, `@import 'tailwindcss' source(none);`);
+		fs.writeFileSync(cssFile, goodContent);
+
+		const plugin = new PostCssProcessorPlugin({ options: tailwindV4Preset({ referencePath }) });
+		plugin.setContext(
+			await finalizeEcoPagesConfig({
+				rootDir: tmpDir,
+				srcDir: 'src',
+				distDir: 'dist',
+				baseUrl: 'http://localhost:3000',
+			}),
+		);
+		await plugin.setup();
+
+		const bridge = { cssUpdate: vi.fn(), error: vi.fn(), reload: vi.fn() } as unknown as IClientBridge;
+		const onChanges = plugin.getWatchConfig()?.onChanges;
+		if (!onChanges) {
+			throw new Error('Plugin does not have watch handler');
+		}
+		const save = async (content: string) => {
+			fs.writeFileSync(cssFile, content);
+			await onChanges({ created: [], changed: [cssFile], deleted: [], bridge });
+		};
+
+		await save('.a { @apply not-a-utility; }');
+		expect(bridge.error).toHaveBeenCalledTimes(1);
+		expect(bridge.cssUpdate).not.toHaveBeenCalled();
+
+		await save('.a { @apply not-a-utility-either; }');
+		expect(bridge.error).toHaveBeenCalledTimes(2);
+
+		await save(goodContent);
+		expect(bridge.cssUpdate).toHaveBeenCalledTimes(1);
+		expect(bridge.cssUpdate).toHaveBeenCalledWith(cssFile);
+
+		await save(goodContent);
+		expect(bridge.cssUpdate).toHaveBeenCalledTimes(1);
+	}, 30_000);
+
 	test('setup logs a stylesheet that fails to process and keeps going', async () => {
 		fs.writeFileSync(path.join(srcDir, 'broken.css'), '.foo { color: red; }');
 		fs.writeFileSync(path.join(srcDir, 'good.css'), '.bar { color: blue; }');

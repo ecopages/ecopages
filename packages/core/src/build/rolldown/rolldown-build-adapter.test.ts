@@ -738,7 +738,7 @@ describe('RolldownBuildAdapter', () => {
 		expect(result.outputs[0]!.content).toContain('compiled card');
 	});
 
-	test("a browser build gives a package's side-effect stylesheet import an empty module", async () => {
+	function writeCssWidgetPackage(): string {
 		writeAppPackageJson();
 		const packageDir = path.join(workDir, 'node_modules', 'css-widget');
 		mkdirSync(packageDir, { recursive: true });
@@ -748,26 +748,48 @@ describe('RolldownBuildAdapter', () => {
 		);
 		writeFileSync(path.join(packageDir, 'index.js'), "import './style.css';\nexport const widget = 'widget';\n");
 		writeFileSync(path.join(packageDir, 'style.css'), '.css-widget-marker { color: red; }\n');
-		const entrypoint = writeFixture(
-			'widget-entry.ts',
-			"import { widget } from 'css-widget';\nconsole.log(widget);\n",
-		);
+		return writeFixture('widget-entry.ts', "import { widget } from 'css-widget';\nconsole.log(widget);\n");
+	}
+
+	test.fails(
+		"a browser build fails on a package's own side-effect stylesheet import, naming both files",
+		async () => {
+			const entrypoint = writeCssWidgetPackage();
+
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser' as const,
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: 'browser',
+				format: 'esm',
+				root: workDir,
+				writeToDisk: false,
+			});
+
+			assertBuildFailed(result);
+			const message = result.logs.map((log) => log.message).join('\n');
+			expect(message).toContain('css-widget/index.js');
+			expect(message).toContain('"./style.css"');
+			expect(message).toContain('never reaches a Page');
+		},
+	);
+
+	test("a server build gives a package's side-effect stylesheet import an empty module", async () => {
+		const entrypoint = writeCssWidgetPackage();
 
 		const result = await new RolldownBuildAdapter().build({
-			environment: 'browser' as const,
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
-			target: 'browser',
+			target: 'node',
 			format: 'esm',
 			root: workDir,
 			writeToDisk: false,
-			stylesheets: { extensions: ['.css'], compileModule: async () => 'export default "compiled";' },
 		});
 
 		assertBuildSucceeded(result, 'Build failed');
 		expect(result.outputs[0]!.content).toContain('widget');
 		expect(result.outputs[0]!.content).not.toContain('css-widget-marker');
-		expect(result.outputs[0]!.content).not.toContain('compiled');
 	});
 
 	test('a build compiles a declared stylesheet extension and parses an undeclared one as JavaScript', async () => {

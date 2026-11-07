@@ -825,6 +825,25 @@ importers:
         specifier: ^19.2.3
         version: 19.2.5(@types/react@19.2.18)
 
+  packages/processors/lightningcss-processor:
+    dependencies:
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../file-system
+      '@ecopages/logger':
+        specifier: ^0.2.3
+        version: 0.2.3(typescript@5.9.3)
+      browserslist:
+        specifier: ^4.28.2
+        version: 4.28.8
+      lightningcss:
+        specifier: 1.33.0
+        version: 1.33.0
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../core
+
   packages/processors/postcss-processor:
     dependencies:
       '@ecopages/file-system':

@@ -13,6 +13,7 @@
 			"@ecopages/file-system",
 			"@ecopages/image-processor",
 			"@ecopages/kitajs",
+			"@ecopages/lightningcss-processor",
 			"@ecopages/lit",
 			"@ecopages/mdx",
 			"@ecopages/postcss-processor",

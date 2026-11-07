@@ -39,7 +39,6 @@ import {
 	emitProductionServerModules,
 	shouldBuildPagesUnifiedGraph,
 } from '../../../build/cache/pages-unified-graph-build.ts';
-import { shouldPrebuildProductionPageBrowserGraphs } from '../../../static-site-generator/production-page-browser-graph-prebuild.ts';
 
 type StaticBuildDependencies = {
 	router: RouteRegistry;
@@ -268,8 +267,8 @@ export class ServerStaticBuilder {
 	 * @remarks
 	 * Every server entry is emitted into `dist/server/` before endpoints are checked, so a broken
 	 * module fails the build with the error its first request would log. `ecopages start` loads those
-	 * emitted modules and never compiles. A production build defers each Integration's global scripts from
-	 * `setup()` until the app-wide browser build resolves them, so none is bundled on its own into `dist/`.
+	 * emitted modules and never compiles. Static generation resolves each Integration's global scripts after the
+	 * app-wide browser build, so none is bundled on its own into `dist/`.
 	 */
 	async build(options: StaticBuildOptions | undefined, dependencies: StaticBuildDependencies): Promise<void> {
 		const { baseUrl: explicitBaseUrl, force = false } = options ?? {};
@@ -283,12 +282,7 @@ export class ServerStaticBuilder {
 		}
 		this.exportPrepared = false;
 
-		this.runtime.integrationDependenciesDeferred = shouldPrebuildProductionPageBrowserGraphs();
-		try {
-			await this.buildPreparedExport(baseUrl, force, dependencies, options?.keepGoing);
-		} finally {
-			this.runtime.integrationDependenciesDeferred = false;
-		}
+		await this.buildPreparedExport(baseUrl, force, dependencies, options?.keepGoing);
 	}
 
 	private async buildPreparedExport(

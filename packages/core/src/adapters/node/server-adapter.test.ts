@@ -561,7 +561,7 @@ describe('NodeServerAdapter', () => {
 			expect(fs.existsSync(path.join(rootDir, 'dist', 'client', 'assets'))).toBe(true);
 		});
 
-		it('sets Integrations up before non-watch network requests are released', async () => {
+		it('sets Integrations up and resolves their global scripts once before non-watch network requests are released', async () => {
 			const rootDir = path.fromNative(
 				fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-integration-setup-')),
 			);
@@ -570,6 +570,9 @@ describe('NodeServerAdapter', () => {
 			const integration = new HtmlPagesPlugin();
 			vi.spyOn(integration, 'setup').mockImplementation(async () => {
 				events.push('integration setup');
+			});
+			vi.spyOn(integration, 'refreshResolvedIntegrationDependencies').mockImplementation(async () => {
+				events.push('global scripts resolved');
 			});
 			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [integration] });
 			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false } });
@@ -582,7 +585,7 @@ describe('NodeServerAdapter', () => {
 
 			await adapter.completeInitialization({} as import('node:http').Server);
 
-			expect(events).toEqual(['routes read', 'integration setup']);
+			expect(events).toEqual(['routes read', 'integration setup', 'global scripts resolved']);
 		});
 
 		it('restores no asset ledger when start runs from the source tree', async () => {

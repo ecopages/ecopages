@@ -33,7 +33,7 @@ staticExport
   └─ returns a release that disposes the session once the export ends
 ```
 
-Static export starts the worker before the main thread builds the app browser client, so the worker restores that build from the asset ledger, `<distDir>/server/processed-assets.json`, on its first render (`restoreProductionBrowserBuild`, unsealed). The `init` message carries the output and work directories of the export, which the worker loads the config with, so it reads the ledger of the build it renders for even when the configured `distDir` holds an earlier build. A Lit Page then links the same app-wide outputs and component scripts as every other Page instead of building its own.
+Static export starts the worker before the main thread builds the app browser client, so the worker restores that build from the asset ledger, `<distDir>/server/processed-assets.json`, on its first render (`restoreProductionBrowserBuild`, unsealed), then resolves each Integration's global scripts through it (`resolveIntegrationDependencies`). The `init` message carries the output and work directories of the export, which the worker loads the config with, so it reads the ledger of the build it renders for even when the configured `distDir` holds an earlier build. A Lit Page then links the same app-wide outputs and component scripts as every other Page instead of building its own.
 
 `ECOPAGES_LIT_STATIC_RENDER_WORKER=true` in the worker environment skips processor `.setup()` inside `setupAppRuntimePlugins` (the main thread already prepared artifacts). Integration setup still runs in the worker isolate before `RouteRendererFactory` creates route renderers. That processor skip stays necessary because the worker still bootstraps a second app during export.
 

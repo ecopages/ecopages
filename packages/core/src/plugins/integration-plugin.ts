@@ -149,7 +149,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly serverDom?: ServerDomInstaller;
 
 	protected integrationDependencies: AssetDefinition[];
-	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
+	protected readonly resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	protected appConfig?: EcoPagesAppConfig;
 	protected runtime?: AppRuntime;
 	protected assetProcessingService?: AssetProcessingService;
@@ -213,7 +213,12 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	reviveCompiledPageModule?(contents: string, context: { rootDir: string; filePath: string }): EcoPageFile;
 
 	/**
-	 * Returns processed global assets resolved during `setup()`.
+	 * Returns this Integration's processed global assets.
+	 *
+	 * @remarks
+	 * The list is one array for the plugin's lifetime. {@link refreshResolvedIntegrationDependencies} updates it in
+	 * place, so a renderer that holds it, across a teardown and a later setup too, sees each new resolution. It is
+	 * empty until the lifecycle that activated the Integration resolves it, which happens after `setup()`.
 	 */
 	getResolvedIntegrationDependencies(): ProcessedAsset[] {
 		return this.resolvedIntegrationDependencies;
@@ -225,12 +230,13 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Processes the global assets again and replaces the resolved list in place.
+	 * Processes the global assets and replaces the resolved list in place.
 	 *
 	 * @remarks
-	 * The production prebuild calls it once the app-wide browser build has recorded its script outputs, so a
-	 * global script resolves to that build. The renderer holds the same list, so it sees the new assets. While
-	 * `AppRuntime.integrationDependenciesDeferred` is set, `setup()` leaves the list empty and this call fills it.
+	 * `setup()` does not call it. The lifecycle that activates the Integration calls it once its browser build is
+	 * known: dev after setup, a build after the app-wide browser build (or when it plans no route), and
+	 * `ecopages start` and the Lit static-render worker after restoring the asset ledger. A global script then
+	 * resolves to that build's output instead of being bundled on its own. Does nothing before `setup()`.
 	 */
 	async refreshResolvedIntegrationDependencies(): Promise<void> {
 		if (!this.assetProcessingService) return;
@@ -298,6 +304,10 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	/**
 	 * Performs runtime integration setup, after config finalization has sealed the build manifest.
+	 *
+	 * @remarks
+	 * Global scripts are not resolved yet: {@link getResolvedIntegrationDependencies} reads them only after the
+	 * lifecycle resolves them through {@link refreshResolvedIntegrationDependencies}.
 	 */
 	async setup(context: IntegrationRuntimeContext): Promise<void> {
 		await installConfiguredServerDom(context.appConfig.integrations);
@@ -307,10 +317,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.assetProcessingService = AssetProcessingService.createWithDefaultProcessors(context.appConfig);
 		if (context.runtime.hmr) {
 			this.assetProcessingService.setHmrManager(context.runtime.hmr);
-		}
-		this.resolvedIntegrationDependencies = [];
-		if (!context.runtime.integrationDependenciesDeferred) {
-			await this.refreshResolvedIntegrationDependencies();
 		}
 	}
 

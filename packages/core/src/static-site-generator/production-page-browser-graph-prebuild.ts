@@ -23,6 +23,7 @@ import {
 	setPrebuiltHtmlPageModuleScriptUrls,
 } from '../html-pages/html-page-module-scripts.ts';
 import { isBundleableScript } from '../assets/asset-processing-service/bundleable-script.ts';
+import { resolveIntegrationDependencies } from '../build/app-build-manifest-runtime.ts';
 
 /**
  * Returns whether production should reuse prebuilt Page Browser Graphs.
@@ -85,6 +86,7 @@ function groupRouteInstancesByRenderer(
  * each planned route processes its dependencies through it, so the ledger records everything `ecopages start`
  * serves those routes with. The ledger is then written beside the server bundle, where the Lit static-render
  * worker restores it during the export. A route that fails to plan is left out and reported to `onRouteFailure`.
+ * Each Integration's global scripts are resolved once, after that build, or on their own when no route is planned.
  *
  * Returns the preparation of every planned instance that runs its static props, by {@link getPlannedRouteKey}, so
  * static export renders it without running its data hooks again. The caller owns the map for the build; no
@@ -108,12 +110,15 @@ export async function prebuildProductionPageBrowserGraphs(
 		if (routePlan) routePlans.push(routePlan);
 	}
 	const preparations = new Map<string, PlannedRoutePreparation>();
-	if (routePlans.length === 0) return preparations;
+	if (routePlans.length === 0) {
+		await resolveIntegrationDependencies({ appConfig });
+		return preparations;
+	}
 	await buildAppBrowserClient(appConfig, [
 		...routePlans.map(({ plan }) => plan),
 		...collectIntegrationScriptPlans(appConfig),
 	]);
-	await resolveIntegrationDependencies(appConfig);
+	await resolveIntegrationDependencies({ appConfig });
 	for (const { prepare } of routePlans) {
 		await prepare();
 	}
@@ -141,27 +146,14 @@ function collectIntegrationScriptPlans(appConfig: EcoPagesAppConfig): GroupedGra
 }
 
 /**
- * Resolves each Integration's global scripts again and ends their deferral.
- *
- * @remarks
- * Once the app-wide build recorded them, or a restored ledger holds them, each resolves to that build's output.
- */
-export async function resolveIntegrationDependencies(appConfig: EcoPagesAppConfig): Promise<void> {
-	for (const integration of appConfig.integrations) {
-		await integration.refreshResolvedIntegrationDependencies();
-	}
-	requireAppRuntime(appConfig).integrationDependenciesDeferred = false;
-}
-
-/**
  * Restores the app-wide browser build `ecopages build` recorded in the asset ledger.
  *
  * @remarks
  * Rendering then resolves every script that build bundled through the ledger. With `seal`, as `ecopages start` from
  * a complete `dist/` restores it, a missing ledger is an error. Every dependency then resolves through the ledger,
  * one it does not record is an error, and start compiles and writes nothing. The Lit static-render worker restores without sealing: it renders
- * during the build, which still processes what the ledger does not yet record. Integration global scripts whose
- * setup was deferred are resolved whether or not a ledger was restored.
+ * during the build, which still processes what the ledger does not yet record. It resolves no Integration global
+ * scripts: the caller resolves them after it, whether or not a ledger was restored.
  */
 export async function restoreProductionBrowserBuild(
 	appConfig: EcoPagesAppConfig,
@@ -172,12 +164,9 @@ export async function restoreProductionBrowserBuild(
 		if (options.seal && shouldPrebuildProductionPageBrowserGraphs()) {
 			throw new Error('The production asset ledger is missing. Run `ecopages build` again.');
 		}
-		if (requireAppRuntime(appConfig).integrationDependenciesDeferred)
-			await resolveIntegrationDependencies(appConfig);
 		return false;
 	}
 	setPrebuiltHtmlPageModuleScriptUrls(appConfig, restored.htmlPageModuleScriptUrls);
 	if (options.seal) requireAppRuntime(appConfig).processedAssets.seal();
-	await resolveIntegrationDependencies(appConfig);
 	return true;
 }

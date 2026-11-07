@@ -139,6 +139,20 @@ export async function setupAppRuntimeIntegrations(options: { appConfig: EcoPages
 }
 
 /**
+ * Resolves each Integration's global scripts once the lifecycle's browser build is known.
+ *
+ * @remarks
+ * Integration `setup()` does not resolve them. A production build calls this after the app-wide browser build,
+ * so each global script resolves to that build's output, and `ecopages start` and the Lit static-render worker
+ * call it after restoring the asset ledger. An Integration that was never set up is skipped.
+ */
+export async function resolveIntegrationDependencies(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+	for (const integration of options.appConfig.integrations) {
+		await integration.refreshResolvedIntegrationDependencies();
+	}
+}
+
+/**
  * Releases runtime resources owned by the app's Integrations.
  *
  * @remarks

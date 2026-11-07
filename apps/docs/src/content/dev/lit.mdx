@@ -76,7 +76,7 @@ sequenceDiagram
 ```
 
 - Pages with `locals` or explicit `props` decline the worker path and render in-process: request locals are not sent through the worker protocol, and explicit props are not passed because the worker re-imports the route module.
-- The worker restores the production browser build from the asset ledger, so a Lit Page links the same app-wide outputs as any other Page. Its Integration setup defers the global scripts such as hydration support until that restore, so the worker bundles none of them on its own into `dist/client` ([Build pipeline](/dev/build-pipeline), [Ledger and start](/dev/ledger-and-start)).
+- The worker restores the production browser build from the asset ledger, so a Lit Page links the same app-wide outputs as any other Page. It resolves the global scripts such as hydration support with `resolveIntegrationDependencies()` after that restore, not at init, so the worker bundles none of them on its own into `dist/client` ([Build pipeline](/dev/build-pipeline), [Ledger and start](/dev/ledger-and-start)).
 - `ECOPAGES_LIT_STATIC_RENDER_WORKER=true` makes the worker skip processor `.setup()`; the main thread already prepared artifacts. Integration setup still runs in the worker.
 - Teardown disposes the session; the release returned by `staticExport()` does the same so no worker outlives the export.
 

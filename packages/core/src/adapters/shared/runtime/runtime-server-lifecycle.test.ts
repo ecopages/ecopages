@@ -148,23 +148,39 @@ test('a failed Integration teardown still lets the next startup run setup', asyn
 	assert.equal(setups, 2);
 });
 
-test('startDevWarmup activates every configured integration', async () => {
-	const ensureSpy = vi.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady').mockResolvedValue(undefined);
+/** A configured Integration stub whose global-script resolution is recorded. */
+function warmupIntegration(name: string, events: string[] = []) {
+	return {
+		name,
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {
+			events.push(`resolve ${name}`);
+		}),
+	};
+}
 
-	const appConfig = {
-		integrations: [{ name: 'react' }, { name: 'lit' }],
-	} as any;
+test('startDevWarmup activates every configured integration and resolves its global scripts once, after setup', async () => {
+	const events: string[] = [];
+	const ensureSpy = vi
+		.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady')
+		.mockImplementation(async ({ integrationName }) => {
+			events.push(`setup ${integrationName}`);
+		});
+	const react = warmupIntegration('react', events);
+	const lit = warmupIntegration('lit', events);
+	const appConfig = { integrations: [react, lit] } as any;
 
 	await startDevWarmup({
 		appConfig,
 	});
 
-	assert.equal(ensureSpy.mock.calls.length, 2);
-
 	assert.deepEqual(
 		ensureSpy.mock.calls.map(([options]) => options.integrationName),
 		['react', 'lit'],
 	);
+	assert.equal(react.refreshResolvedIntegrationDependencies.mock.calls.length, 1);
+	assert.equal(lit.refreshResolvedIntegrationDependencies.mock.calls.length, 1);
+	assert.ok(events.indexOf('setup react') < events.indexOf('resolve react'));
+	assert.ok(events.indexOf('setup lit') < events.indexOf('resolve lit'));
 
 	ensureSpy.mockRestore();
 });
@@ -176,8 +192,9 @@ test('startDevWarmup logs failures without throwing', async () => {
 		.mockRejectedValue(prewarmError);
 	const errorSpy = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
 
+	const react = warmupIntegration('react');
 	const appConfig = {
-		integrations: [{ name: 'react' }],
+		integrations: [react],
 	} as any;
 
 	await startDevWarmup({
@@ -188,6 +205,7 @@ test('startDevWarmup logs failures without throwing', async () => {
 
 	assert.match(String(errorSpy.mock.calls[0]?.[0]), /Failed to prewarm Integration "react"/);
 	assert.ok(String(errorSpy.mock.calls[0]?.[0]).includes(prewarmError.stack ?? 'prewarm failed'));
+	assert.equal(react.refreshResolvedIntegrationDependencies.mock.calls.length, 0);
 
 	ensureSpy.mockRestore();
 	errorSpy.mockRestore();
@@ -207,7 +225,7 @@ test('startDevWarmup waits for every Integration setup attempt to settle', async
 		});
 	const errorSpy = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
 	const appConfig = {
-		integrations: [{ name: 'first' }, { name: 'slow' }],
+		integrations: [warmupIntegration('first'), warmupIntegration('slow')],
 	} as any;
 
 	let warmupFinished = false;

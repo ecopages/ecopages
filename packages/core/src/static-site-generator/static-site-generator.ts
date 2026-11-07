@@ -28,6 +28,7 @@ import {
 import type { StaticExportContext, StaticExportRelease } from './static-export-context.ts';
 import {
 	ensureIntegrationRuntimeReady,
+	resolveIntegrationDependencies,
 	setupAppRuntimeIntegrations,
 	teardownAppRuntimeIntegrations,
 } from '../build/app-build-manifest-runtime.ts';
@@ -37,7 +38,6 @@ import {
 	clearProductionPageBrowserGraphSession,
 	getPlannedRouteKey,
 	prebuildProductionPageBrowserGraphs,
-	resolveIntegrationDependencies,
 	shouldPrebuildProductionPageBrowserGraphs,
 } from './production-page-browser-graph-prebuild.ts';
 import { renderSitemap } from './sitemap.ts';
@@ -577,9 +577,8 @@ export class StaticSiteGenerator {
 						}),
 				},
 			);
-		}
-		if (requireAppRuntime(this.appConfig).integrationDependenciesDeferred) {
-			await resolveIntegrationDependencies(this.appConfig);
+		} else {
+			await resolveIntegrationDependencies({ appConfig: this.appConfig });
 		}
 
 		this.generateRobotsTxt();

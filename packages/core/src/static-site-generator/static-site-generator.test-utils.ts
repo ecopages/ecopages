@@ -6,6 +6,7 @@ export const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): Ec
 		...integration,
 		setup: integration.setup ?? (async () => {}),
 		teardown: integration.teardown ?? (async () => {}),
+		refreshResolvedIntegrationDependencies: integration.refreshResolvedIntegrationDependencies ?? (async () => {}),
 	}));
 	return {
 		rootDir: '/test/project',

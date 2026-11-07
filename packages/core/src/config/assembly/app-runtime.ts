@@ -100,15 +100,6 @@ export interface AppRuntime {
 	 * fails the build.
 	 */
 	staticGenerationActive: boolean;
-	/**
-	 * True while an app-wide browser build, or the ledger of one, is about to resolve each Integration's global
-	 * scripts. Integration `setup()` then leaves them unresolved, so it bundles none on its own into `dist/`.
-	 *
-	 * @remarks
-	 * Static generation sets it before Integration setup in production, and the Lit static-render worker before its
-	 * own setup. `resolveIntegrationDependencies` clears it once the build or the restored ledger resolved them.
-	 */
-	integrationDependenciesDeferred: boolean;
 }
 
 /**
@@ -160,7 +151,6 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		hmr: null,
 		processedAssets: new ProcessedAssetLedger(appConfig.rootDir),
 		staticGenerationActive: false,
-		integrationDependenciesDeferred: false,
 	};
 	appConfig.appRuntime = runtime;
 	try {

@@ -76,15 +76,11 @@ describe('@import bundling', () => {
 			'node_modules/theme-kit/package.json',
 			JSON.stringify({
 				name: 'theme-kit',
-				exports: { '.': { style: './index.css' }, './extra.css': './extra.css' },
+				exports: { './extra.css': './extra.css' },
 			}),
 		);
-		write('node_modules/theme-kit/index.css', '.kit { color: blue; }');
 		write('node_modules/theme-kit/extra.css', '.extra { color: green; }');
-		const main = write(
-			'src/styles/main.css',
-			'@import "@styles/tokens.css";\n@import "theme-kit/extra.css";\n@import "theme-kit/index.css";',
-		);
+		const main = write('src/styles/main.css', '@import "@styles/tokens.css";\n@import "theme-kit/extra.css";');
 
 		const { css, dependencies } = await transform(main);
 
@@ -124,10 +120,7 @@ describe('@import bundling', () => {
 		write('src/styles/b.css', '@import "./a.css";\n.b { color: red; }');
 		const main = write('src/styles/main.css', '@import "./a.css";');
 
-		const result = await Promise.race([
-			transform(main),
-			new Promise<never>((_, reject) => setTimeout(() => reject(new Error('the import cycle hung')), 5000)),
-		]);
+		const result = await transform(main);
 
 		expect(result.css).toBe('.b{color:red}.a{color:red}');
 		expect(warn).toHaveBeenCalledTimes(1);

@@ -49,14 +49,15 @@ let engine: Promise<typeof import('lightningcss')> | undefined;
  * stylesheet, or a tool that only reads the config, never pays for it.
  */
 export function loadLightningCss(): Promise<typeof import('lightningcss')> {
-	engine ??= import('lightningcss');
+	engine ??= import('lightningcss').catch((error: unknown) => {
+		engine = undefined;
+		throw error;
+	});
 	return engine;
 }
 
 /** The Lightning CSS `targets` for browserslist `queries`, or `undefined` to lower nothing. */
-export async function resolveTargets(
-	queries: LightningCssOptions['targets'],
-): Promise<TransformOptions<never>['targets']> {
+async function resolveTargets(queries: LightningCssOptions['targets']): Promise<TransformOptions<never>['targets']> {
 	if (!queries || queries.length === 0) return undefined;
 	const { browserslistToTargets } = await loadLightningCss();
 	return browserslistToTargets(browserslist(typeof queries === 'string' ? queries : [...queries]));

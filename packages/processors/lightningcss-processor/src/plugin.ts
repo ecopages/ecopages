@@ -71,7 +71,12 @@ export class LightningCssProcessorPlugin extends Processor<LightningCssProcessor
 		if (!this.context) {
 			throw new Error('Context must be set');
 		}
-		this.resolvedOptions ??= resolveLightningCssOptions(this.options, this.context.rootDir);
+		this.resolvedOptions ??= resolveLightningCssOptions(this.options, this.context.rootDir).catch(
+			(error: unknown) => {
+				this.resolvedOptions = undefined;
+				throw error;
+			},
+		);
 		try {
 			const bundled = await bundleStylesheet(css, file, this.context.rootDir, await this.resolvedOptions);
 			logWarnings(bundled.warnings, file, css);

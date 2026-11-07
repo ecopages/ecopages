@@ -13,7 +13,7 @@ sources:
 
 # Lightning CSS processor
 
-`LightningCssProcessorPlugin` is a stylesheet Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline)) like the [PostCSS processor](/dev/postcss-processor): one `stylesheet` capability for `*.css`, narrowed by a filter, a transform and nothing else. Core owns the cache, the prewarm, the dependency map, the dev writes and `css-update`, and an app registers one stylesheet Processor, so this one replaces PostCSS. It is for plain CSS; CSS Modules and a Tailwind v4 preset are not in it yet.
+`LightningCssProcessorPlugin` is a stylesheet Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline)) like the [PostCSS processor](/dev/postcss-processor): one `stylesheet` capability for `*.css`, narrowed by a filter, a transform and nothing else. Core owns the cache, the prewarm, the dependency map, the dev writes and `css-update`, and an app registers one stylesheet Processor, so this one replaces PostCSS. It handles plain CSS.
 
 ## Transform
 
@@ -33,10 +33,10 @@ sources:
 - A specifier that names no file (root-relative, remote, `data:`), a missing file, a dotfile or a non-stylesheet is removed and kept as a statement to put at the top of the output. Lightning CSS refuses an external `@import` after a bundled one, where core hoists them all, so the Processor takes them out and puts them back in order. A missing `.css` file also counts as a dependency, and a warning names the importer.
 - An `@import` that would close a cycle is removed with a warning. Lightning CSS drops the CSS of every stylesheet in a cycle, where core inlines each once.
 
-Lightning CSS then inlines the rest with the `layer()`, `supports()` and media conditions of each. For a stylesheet imported twice, the last import wins, as the specification says; core's scanner keeps the first, so the two differ there only in order. Its nesting of the conditions can differ from core's too (`supports` outside `layer`), which selects the same rules.
+Lightning CSS then inlines the rest with the `layer()`, `supports()` and media conditions of each. For a stylesheet imported twice, the last import wins, as the specification says; core's scanner keeps the first, so the two differ there only in order. Importing one partial under two different `layer()` names fails in Lightning CSS ("Unsupported layer combination"), where core inlines both. Its nesting of the conditions can differ from core's too (`supports` outside `layer`), which selects the same rules.
 
 `dependencies` are the partials `read` served and the missing `.css` files, so core rebuilds the entry when one is edited or created. After the Processor, core inlines any relative `@import` left and copies the files the output's `url()` references name by file type, never a dotfile.
 
 ## Contract tests
 
-`src/test/stylesheet-processor-contract.test.ts` runs `stylesheetProcessorContract` from `@ecopages/core/processor/contract` against this Processor, `src/test/bundling.test.ts` holds the bundling matrix and compares the output with core's scanner on the cases both handle, and `src/test/development-rebuilds.test.ts` checks the partial rebuild and the break and fix cycle with core's development stylesheet service. `e2e/fixtures/lightningcss` builds an app on it for production and checks that every file the output references is emitted.
+The package runs `stylesheetProcessorContract` from `@ecopages/core/processor/contract` and adds a bundling matrix, development rebuild tests and the `e2e/fixtures/lightningcss` production fixture.

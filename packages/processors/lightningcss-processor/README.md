@@ -4,7 +4,7 @@ A stylesheet Processor for Ecopages that runs [Lightning CSS](https://lightningc
 
 ## When to pick it
 
-- Pick this package for plain CSS: nesting, `color-mix()`, `@import` with `layer()`, `supports()` and media conditions, lowered for your browser targets in one step. CSS Modules and Tailwind v4 through a preset are planned for it.
+- Pick this package for plain CSS: nesting, `color-mix()`, `@import` with `layer()`, `supports()` and media conditions, lowered for your browser targets in one step.
 - Pick [`@ecopages/postcss-processor`](../postcss-processor) when your setup is built on PostCSS plugins, and for Tailwind v3.
 
 An app has one stylesheet Processor, so this one replaces the PostCSS Processor; it does not run after it.
@@ -48,6 +48,7 @@ export default defineConfig({
 - A root-relative or remote `@import` stays external and moves to the top of the output. An `@import` of a missing file, of a dotfile or of a file that is not `.css` is left as written with a warning that names the importing file. Creating the missing file rebuilds the stylesheet in development.
 - The relative `url()` references of an imported partial are rewritten to name the same file from the importing stylesheet. Core then copies what they name by file type, as it does for any stylesheet.
 - An error throws with the file, line and column, so `ecopages build` fails; `ecopages dev` shows the error and keeps the last good output until a save fixes it. Warnings are logged with their location, once per stylesheet.
+- Importing one partial under two different `layer()` names fails in Lightning CSS, where core inlines both.
 - Editing a nested partial rebuilds the stylesheets that import it.
 
 See the [developer page](https://ecopages.app/dev/lightningcss-processor) for the design.

@@ -213,7 +213,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 */
 	getVendorEntries(): DevTransformVendorEntries {
 		return {
-			resolveFrom: path.fromNative(import.meta.dirname),
+			resolveFrom: path.dirname(path.fromFileUrl(import.meta.url)),
 			specifiers: getReactBrowserPackages(this.routerAdapter),
 		};
 	}

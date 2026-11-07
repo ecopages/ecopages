@@ -13,7 +13,10 @@ import { copyFixtureApp } from '../../__fixtures__/app/copy-fixture-app.ts';
 const CLI_ARGS = { preview: false, build: false, start: false, dev: false, serveOnly: false, keepGoing: false };
 const SERVER_OPTIONS = { hostname: '127.0.0.1', port: 0 };
 
-const CACHE_FIXTURE_DIR = path.resolve(import.meta.dirname, '../../../../e2e/fixtures/cache');
+const CACHE_FIXTURE_DIR = path.resolve(
+	path.dirname(path.fromFileUrl(import.meta.url)),
+	'../../../../e2e/fixtures/cache',
+);
 
 /** Every file under `dir` with its modification time, so a test can tell that nothing was written. */
 function snapshotFiles(dir: string): Record<string, number> {

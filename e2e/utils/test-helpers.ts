@@ -64,3 +64,17 @@ export async function gotoAndWait(page: Page, href: string) {
 	await page.goto(href, { waitUntil: 'commit' });
 	await waitForPageReady(page, href);
 }
+
+/**
+ * Waits until `owner` has claimed the page's navigation runtime.
+ *
+ * @remarks
+ * A router claims ownership after it attaches its `popstate` listener, so from then on a back or forward
+ * traversal is rendered by that router. A traversal before it only changes the URL over the server HTML.
+ */
+export async function waitForNavigationOwner(page: Page, owner: string) {
+	await page.waitForFunction((expected) => {
+		const state = window.__ECO_PAGES__?.navigation?.getOwnerState();
+		return state?.owner === expected && state.canHandleSpaNavigation;
+	}, owner);
+}

@@ -743,4 +743,36 @@ describe('PostCssProcessorPlugin HMR', () => {
 			);
 		expect(copied).toEqual([]);
 	});
+	test('setup logs a stylesheet that fails to process and keeps going', async () => {
+		fs.writeFileSync(path.join(srcDir, 'broken.css'), '.foo { color: red; }');
+		fs.writeFileSync(path.join(srcDir, 'good.css'), '.bar { color: blue; }');
+		const plugin = new PostCssProcessorPlugin({
+			options: {
+				filter: /\.css$/,
+				plugins: {
+					'fail-on-broken': {
+						postcssPlugin: 'fail-on-broken',
+						Once(root) {
+							if (root.source?.input.file?.endsWith('broken.css')) {
+								throw root.error('Unclosed block');
+							}
+						},
+					},
+				},
+			},
+		});
+		plugin.setContext(
+			await finalizeEcoPagesConfig({
+				rootDir: tmpDir,
+				srcDir: 'src',
+				distDir: 'dist',
+				baseUrl: 'http://localhost:3000',
+			}),
+		);
+
+		await expect(plugin.setup()).resolves.toBeUndefined();
+
+		expect(fs.existsSync(path.join(distDir, 'assets', 'good.css'))).toBe(true);
+		expect(fs.existsSync(path.join(distDir, 'assets', 'broken.css'))).toBe(false);
+	});
 });

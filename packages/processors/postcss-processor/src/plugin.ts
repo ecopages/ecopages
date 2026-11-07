@@ -165,6 +165,11 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		writeSourceRelativeStylesheet({ srcDir, distDir }, filePath, css);
 	}
 
+	/**
+	 * @remarks
+	 * A stylesheet that fails here is logged and skipped, so one broken file does not stop the dev server from
+	 * starting. The build loader and the dev watcher process it again and report the failure.
+	 */
 	private async prewarmRuntimeCssCache(): Promise<void> {
 		if (!this.context) {
 			return;
@@ -184,9 +189,13 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			const rawContents = await fileSystem.readFile(filePath);
 
-			const processed = await this.transformStylesheet(rawContents, filePath);
-			this.runtimeCssCache.set(filePath, processed);
-			this.persistProcessedCss(filePath, processed);
+			try {
+				const processed = await this.transformStylesheet(rawContents, filePath);
+				this.runtimeCssCache.set(filePath, processed);
+				this.persistProcessedCss(filePath, processed);
+			} catch (error) {
+				logger.error(`Failed to process CSS: ${filePath}`, error instanceof Error ? error.message : error);
+			}
 		}
 
 		this.buildCssDependencyMap();

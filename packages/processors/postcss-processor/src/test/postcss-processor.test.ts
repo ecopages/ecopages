@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { path } from '@ecopages/file-system/path';
+import postcss, { CssSyntaxError } from 'postcss';
 import postCssSimpleVars from 'postcss-simple-vars';
 import { PostCssProcessor } from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
+
+const noop: postcss.AcceptedPlugin = { postcssPlugin: 'noop' };
 
 describe('PostCssProcessor', () => {
 	test('processPath should return the processed CSS', async () => {
@@ -13,12 +16,18 @@ describe('PostCssProcessor', () => {
 		expect(result).toEqual(expected);
 	});
 
-	test('processPath should return an empty string when an error occurs during css conversion', async () => {
+	test('processPath should reject with the file, line and column when css conversion fails', async () => {
 		const filePath = path.resolve(__dirname, './css/error.css');
-		const expected = '';
 		const { plugins } = tailwindV3Preset();
-		const result = await PostCssProcessor.processPath(filePath, { plugins: plugins ? Object.values(plugins) : [] });
-		expect(result).toEqual(expected);
+		const failure = await PostCssProcessor.processPath(filePath, {
+			plugins: plugins ? Object.values(plugins) : [],
+		}).catch((error: unknown) => error);
+
+		expect(failure).toBeInstanceOf(CssSyntaxError);
+		expect((failure as CssSyntaxError).file).toBe(filePath);
+		expect((failure as CssSyntaxError).line).toBe(2);
+		expect((failure as CssSyntaxError).column).toBe(2);
+		expect((failure as CssSyntaxError).message).toContain(`${filePath}:2:2`);
 	});
 
 	test('processPath should throw when the file does not exist', async () => {
@@ -45,14 +54,37 @@ describe('PostCssProcessor', () => {
 		expect(result).toEqual(expected);
 	});
 
-	test('processStringOrBuffer should return an empty string when an error occurs during css conversion', async () => {
+	test('processStringOrBuffer should reject with the file, line and column when css conversion fails', async () => {
 		const string = 'body { @apply bg-whites; }';
-		const expected = '';
+		const filePath = path.resolve(__dirname, './css/inline-error.css');
 		const { plugins } = tailwindV3Preset();
-		const result = await PostCssProcessor.processStringOrBuffer(string, {
+		const failure = await PostCssProcessor.processStringOrBuffer(string, {
+			filePath,
 			plugins: plugins ? Object.values(plugins) : [],
-		});
-		expect(result).toEqual(expected);
+		}).catch((error: unknown) => error);
+
+		expect(failure).toBeInstanceOf(CssSyntaxError);
+		expect((failure as CssSyntaxError).file).toBe(filePath);
+		expect((failure as CssSyntaxError).line).toBe(1);
+		expect((failure as CssSyntaxError).column).toBe(8);
+	});
+
+	test('processStringOrBuffer should reject on a syntax error', async () => {
+		await expect(
+			PostCssProcessor.processStringOrBuffer('.a { color: red;', {
+				filePath: '/app/src/main.css',
+				plugins: [noop],
+			}),
+		).rejects.toThrow('/app/src/main.css:1:1: Unclosed block');
+	});
+
+	test('processStringOrBufferSync should throw on a syntax error', () => {
+		expect(() =>
+			PostCssProcessor.processStringOrBufferSync('.a { color: red;', {
+				filePath: '/app/src/main.css',
+				plugins: [noop],
+			}),
+		).toThrow('/app/src/main.css:1:1: Unclosed block');
 	});
 
 	test('processStringOrBuffer should return an empty string when the input is empty', async () => {

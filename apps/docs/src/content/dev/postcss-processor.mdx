@@ -70,7 +70,7 @@ Where the error goes depends on who called `transformStylesheet`:
 | Core asset pipeline | `applyStylesheetProcessors` lets it propagate, the asset rejects `processDependencies`, and `ecopages build` fails without writing a stylesheet for the file (see [/dev/asset-processing](/dev/asset-processing)). |
 | Core `compileStylesheetModule`, for a stylesheet imported with a binding | A server build or browser bundle fails, so `ecopages build` fails. The dev transform server shows the error and keeps serving the stylesheet's last compiled module until a save compiles again ([/dev/dev-server](/dev/dev-server)). |
 | Development watch | Core's development stylesheet service logs it and calls `bridge.error`, which shows the error overlay. Its cache and the file under `distDir/assets` keep the last good output, and no `css-update` is sent. The file is remembered as failed, so the first save that succeeds sends `css-update` even when its output equals the last good one, which clears the overlay; the byte-change check applies again after that. |
-| Development prewarm | Logged per file and skipped, so one broken stylesheet does not stop the dev server from starting; the watcher reports it again when the file changes. |
+| Development prewarm | Logged per file and skipped, so one broken stylesheet does not stop the dev server from starting; the watcher reports it again when the file changes. A partial that fails on its own while another stylesheet imports it is not logged. |
 
 Recovery needs no restart: core caches no failed asset (the asset service stores only successes and drops its in-flight entry), so a Page requested while the stylesheet is broken fails that request and renders normally once the stylesheet is fixed.
 
@@ -88,7 +88,7 @@ The v4 preset also sets `dependencyEntryPaths: [referencePath]` and a `transform
 
 Core's `DevelopmentStylesheetService` (`dev/stylesheets/development-stylesheet.service.ts`) keeps the stylesheets current for whichever stylesheet Processor the app registers, so this package holds no cache, graph or queue of its own. When the Project Watcher subscribes, the service processes every stylesheet the Processor owns in `srcDir`, except the public directory, and records each output and the `dependencies` its transform reported. For each watcher batch, queued behind the previous one:
 
-- A changed file rebuilds every stylesheet whose transform read it, so an edit to an `@import` partial rebuilds the stylesheets that inline it. A changed stylesheet that no other stylesheet read is rebuilt itself; a partial is not rebuilt alone.
+- A changed file rebuilds every stylesheet whose transform read it, so an edit to an `@import` partial rebuilds the stylesheets that inline it. The changed stylesheet is rebuilt itself too, since a Page may link a partial as well. A partial that fails on its own is not reported: it may only compile inside the stylesheets that import it, and those report their own errors.
 - The changed files that are not stylesheets go to `invalidateStylesheets`.
 - A rebuild writes the output at its source-relative path under `distDir/assets` through core's `writeSourceRelativeStylesheet`, so the files its relative `url()` references name are emitted after an edit as on first load. Only stylesheets inside `srcDir` are written; the service runs only in development, so production writes nothing. It sends `bridge.cssUpdate(file)` only when the bytes changed, or on the first success after a failure.
 

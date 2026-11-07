@@ -143,7 +143,7 @@ describe('DevelopmentStylesheetService', () => {
 		expect(cssUpdate).toHaveBeenCalledTimes(1);
 	});
 
-	it('rebuilds the stylesheet that imports a partial with a layer, and refreshes only its link', async () => {
+	it('rebuilds the stylesheet that imports a partial with a layer, and the partial on its own', async () => {
 		const main = write('src/styles/main.css', "@import './base.css' layer(base);\n");
 		const base = write('src/styles/base.css', '.base { color: red; }\n');
 		const service = await createService();
@@ -153,8 +153,8 @@ describe('DevelopmentStylesheetService', () => {
 		write('src/styles/base.css', '.base { color: blue; }\n');
 		const restyled = await service.applyChanges(changed(base), bridge);
 
-		expect(restyled).toEqual([main]);
-		expect(cssUpdate.mock.calls).toEqual([[main]]);
+		expect(restyled).toEqual([main, base]);
+		expect(cssUpdate.mock.calls).toEqual([[main], [base]]);
 		expect(persisted('styles/main.css')).toContain('@layer base {\n.base { color: blue; }\n}');
 	});
 
@@ -179,9 +179,39 @@ describe('DevelopmentStylesheetService', () => {
 
 		write('src/styles/a.css', "@import './b.css';\n.a { color: green; }\n");
 
-		expect(await service.applyChanges(changed(a), bridge)).toEqual([b]);
-		expect(cssUpdate.mock.calls).toEqual([[b]]);
+		expect(await service.applyChanges(changed(a), bridge)).toEqual([b, a]);
+		expect(cssUpdate.mock.calls).toEqual([[b], [a]]);
 		expect(persisted('styles/b.css')).toContain('color: green');
+	});
+
+	it('refreshes the link of a stylesheet another one imports, and the link of its importer', async () => {
+		const main = write('src/styles/main.css', "@import './base.css';\n.main {}\n");
+		const base = write('src/styles/base.css', '.base { color: red; }\n');
+		const service = await createService();
+		await service.prewarm();
+		const { bridge, cssUpdate } = createBridge();
+
+		write('src/styles/base.css', '.base { color: blue; }\n');
+
+		expect((await service.applyChanges(changed(base), bridge)).sort()).toEqual([base, main].sort());
+		expect(cssUpdate.mock.calls.flat().sort()).toEqual([base, main].sort());
+		expect(persisted('styles/base.css')).toBe('.base { color: blue; }\n');
+	});
+
+	it('shows no error for a partial that only compiles inside the stylesheet that imports it', async () => {
+		const main = write('src/styles/main.css', "@import './open.css';\n  color: red;\n}\n");
+		const open = write('src/styles/open.css', '.open {\n');
+		const logError = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+		const service = await createService();
+		await service.prewarm();
+		const { bridge, cssUpdate, error } = createBridge();
+
+		write('src/styles/open.css', '.opened {\n');
+
+		expect(await service.applyChanges(changed(open), bridge)).toEqual([main]);
+		expect(cssUpdate.mock.calls).toEqual([[main]]);
+		expect(error).not.toHaveBeenCalled();
+		expect(logError).not.toHaveBeenCalled();
 	});
 
 	it('sends nothing when a save leaves the output as it was', async () => {

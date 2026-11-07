@@ -79,16 +79,30 @@ export class DevelopmentStylesheetService {
 		return processor && { processor, kinds: getStylesheetKinds(this.appConfig) };
 	}
 
-	/** Processes every stylesheet the Processor owns in `srcDir`, logging and skipping one that fails. */
+	/**
+	 * Processes every stylesheet the Processor owns in `srcDir`, logging and skipping one that fails.
+	 *
+	 * @remarks
+	 * A partial is processed alone too, since a Page may also link it. One that fails alone but that another
+	 * stylesheet imports is not reported: it may only compile inside that stylesheet, which reports its own errors.
+	 */
 	prewarm(): Promise<void> {
 		return this.enqueue(async () => {
 			const scope = this.resolveScope();
 			if (!scope) return;
 			const srcDir = this.appConfig.absolutePaths.srcDir;
 			const patterns = scope.kinds.extensions.map((extension) => `**/*${extension}`);
+			const failures = new Map<string, string>();
 			for (const relativePath of await fileSystem.glob(patterns, { cwd: srcDir })) {
 				const file = path.join(srcDir, relativePath);
-				if (this.owns(scope, file)) await this.rebuild(file);
+				if (!this.owns(scope, file)) continue;
+				const result = await this.transform(file);
+				if (typeof result === 'string') failures.set(file, result);
+			}
+			for (const [file, message] of failures) {
+				if (this.dependents.has(file)) continue;
+				this.failed.add(file);
+				appLogger.error(`Failed to process stylesheet ${file}: ${message}`);
 			}
 		});
 	}
@@ -119,10 +133,16 @@ export class DevelopmentStylesheetService {
 			for (const file of await this.invalidatedByContent(scope, [...created, ...changed, ...deleted], bridge)) {
 				affected.add(file);
 			}
+			const partials = [...created, ...changed].filter(
+				(file) => this.owns(scope, file) && this.dependents.has(file) && !affected.has(file),
+			);
 
 			const restyled: string[] = [];
 			for (const file of affected) {
 				if (await this.rebuild(file, bridge)) restyled.push(file);
+			}
+			for (const file of partials) {
+				if (await this.rebuildPartial(file, bridge)) restyled.push(file);
 			}
 			return restyled;
 		});
@@ -149,7 +169,9 @@ export class DevelopmentStylesheetService {
 			if (this.owns(scope, file) && !this.dependents.has(file)) affected.add(file);
 		}
 		if (created.some((file) => this.owns(scope, file))) {
-			for (const file of this.failed) affected.add(file);
+			for (const file of this.failed) {
+				if (!this.dependents.has(file)) affected.add(file);
+			}
 		}
 		return affected;
 	}
@@ -204,30 +226,63 @@ export class DevelopmentStylesheetService {
 		);
 	}
 
-	/** Processes `file` and returns whether its output changed or recovered; with no `bridge`, nothing is sent. */
-	private async rebuild(file: string, bridge?: IClientBridge): Promise<boolean> {
-		if (!fileSystem.exists(file)) return false;
-		try {
-			const { css, dependencies } = await applyStylesheetProcessors(
-				this.appConfig,
-				await fileSystem.readFile(file),
-				file,
-			);
-			this.recordDependencies(file, dependencies);
-			const recovered = this.failed.delete(file);
-			if (!recovered && this.outputs.get(file)?.css === css) return false;
-			const { srcDir, distDir } = this.appConfig.absolutePaths;
-			writeSourceRelativeStylesheet({ srcDir, distDir }, file, css);
-			this.outputs.set(file, { css, digest: contentHash(css) });
-			bridge?.cssUpdate(file);
-			return true;
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
+	/** Processes `file`, reports a failure, and returns whether its output changed or recovered. */
+	private async rebuild(file: string, bridge: IClientBridge): Promise<boolean> {
+		const recovered = this.failed.has(file);
+		const result = await this.transform(file, bridge);
+		if (typeof result === 'string') {
 			this.failed.add(file);
-			appLogger.error(`Failed to process stylesheet ${file}: ${message}`);
-			bridge?.error(message);
+			appLogger.error(`Failed to process stylesheet ${file}: ${result}`);
+			bridge.error(result);
 			return false;
 		}
+		if (recovered) {
+			this.failed.delete(file);
+			if (!result) bridge.cssUpdate(file);
+			return true;
+		}
+		return result === true;
+	}
+
+	/**
+	 * Processes a stylesheet another stylesheet imports on its own, for a Page that links it, and returns whether its
+	 * output changed.
+	 *
+	 * @remarks
+	 * A failure is not reported: the partial may only compile inside the stylesheets that import it, which report
+	 * their own errors, so its last good output, if any, stays.
+	 */
+	private async rebuildPartial(file: string, bridge: IClientBridge): Promise<boolean> {
+		const result = await this.transform(file, bridge);
+		if (typeof result === 'string') {
+			appLogger.debug(`Stylesheet ${file} does not compile on its own: ${result}`);
+			return false;
+		}
+		return result;
+	}
+
+	/**
+	 * Transforms `file` and records its output and dependencies.
+	 *
+	 * @returns Whether the output changed, which writes it and, with a `bridge`, sends `css-update`; or the error
+	 * message when the transform failed.
+	 */
+	private async transform(file: string, bridge?: IClientBridge): Promise<boolean | string> {
+		if (!fileSystem.exists(file)) return false;
+		let processed: { css: string; dependencies: string[] };
+		try {
+			processed = await applyStylesheetProcessors(this.appConfig, await fileSystem.readFile(file), file);
+		} catch (error) {
+			return error instanceof Error ? error.message : String(error);
+		}
+		const { css, dependencies } = processed;
+		this.recordDependencies(file, dependencies);
+		if (this.outputs.get(file)?.css === css) return false;
+		const { srcDir, distDir } = this.appConfig.absolutePaths;
+		writeSourceRelativeStylesheet({ srcDir, distDir }, file, css);
+		this.outputs.set(file, { css, digest: contentHash(css) });
+		bridge?.cssUpdate(file);
+		return true;
 	}
 
 	private recordDependencies(file: string, dependencies: readonly string[]): void {

@@ -12,7 +12,8 @@ export const INLINING_PROCESSOR_CONFIG: ProcessorConfig = {
 
 /**
  * The part of a CSS bundler core relies on: it inlines relative `@import`s, nested ones included, wraps one with
- * `layer(name)` in `@layer name`, reports every inlined file as a dependency, and rejects an unclosed block.
+ * `layer(name)` in `@layer name`, reports every inlined file as a dependency, and rejects an unclosed block in the
+ * inlined result, so a partial may open a block its importer closes.
  */
 export class InliningProcessor extends Processor {
 	constructor(config: ProcessorConfig = INLINING_PROCESSOR_CONFIG) {
@@ -22,7 +23,6 @@ export class InliningProcessor extends Processor {
 	async setup(): Promise<void> {}
 
 	override async transformStylesheet(css: string, file: string): Promise<StylesheetTransformResult> {
-		if (css.split('{').length !== css.split('}').length) throw new Error(`${file}: Unclosed block`);
 		const dependencies: string[] = [];
 		const inline = (source: string, from: string): string =>
 			source.replace(IMPORT, (_statement, specifier: string, layer: string | undefined) => {
@@ -31,6 +31,8 @@ export class InliningProcessor extends Processor {
 				const contents = inline(fileSystem.readFileSync(imported), imported);
 				return layer ? `@layer ${layer} {\n${contents}}\n` : contents;
 			});
-		return { css: inline(css, file), dependencies };
+		const inlined = inline(css, file);
+		if (inlined.split('{').length !== inlined.split('}').length) throw new Error(`${file}: Unclosed block`);
+		return { css: inlined, dependencies };
 	}
 }

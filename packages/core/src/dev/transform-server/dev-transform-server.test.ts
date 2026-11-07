@@ -357,6 +357,45 @@ describe('DevTransformServer', () => {
 		expect(response?.status).toBe(200);
 		expect(await response!.text()).toContain('export default ":host { color: tomato; }\\n"');
 	});
+	it.each([
+		{ declared: true, expected: 'export default ".card { color: red; }\\n/* scss */";\n' },
+		{ declared: false, expected: undefined },
+	])(
+		'serves a .scss import only when the stylesheet Processor declares it (declared: $declared)',
+		async ({ declared, expected }) => {
+			class ScssProcessor extends Processor {
+				async setup(): Promise<void> {}
+
+				override async transformStylesheet(css: string): Promise<string> {
+					return `${css}/* scss */`;
+				}
+			}
+			const rootDir = createTempRoot('dev-transform-server-scss');
+			const scssPath = path.join(rootDir, 'src', 'components', 'card.scss');
+			fs.mkdirSync(path.dirname(scssPath), { recursive: true });
+			fs.writeFileSync(scssPath, '.card { color: red; }\n');
+			const config = await finalizeEcoPagesConfig({
+				rootDir,
+				integrations: [],
+				processors: declared
+					? [
+							new ScssProcessor({
+								name: 'scss',
+								capabilities: [{ kind: 'stylesheet', extensions: ['*.scss'] }],
+							}),
+						]
+					: [],
+			});
+			const server = new DevTransformServer({ appConfig: config });
+
+			const response = await server.tryHandleRequest(
+				new Request(`http://localhost${DEV_TRANSFORM_URL_PREFIX}/components/card.scss`),
+			);
+
+			expect(await response?.text()).toBe(expected);
+		},
+	);
+
 	describe('a stylesheet whose Processor throws', () => {
 		class StrictProcessor extends Processor {
 			async setup(): Promise<void> {}

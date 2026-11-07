@@ -18,7 +18,6 @@ sources:
   - packages/core/src/build/rolldown/rolldown-plugin-bridge.ts
   - packages/core/src/build/rolldown/rolldown-adapter-helpers.ts
   - packages/core/src/build/rolldown/stylesheet-module-plugin.ts
-  - packages/core/src/dev/transform-server/dev-transform-module-kind.ts
 ---
 
 # Plugin pipeline
@@ -156,7 +155,7 @@ These sites ask the module, so they cannot disagree:
 
 - Discovery and the component meta plugin: which side-effect imports are delivered as Page stylesheets, and which are CSS Modules that fail the build. A package stylesheet is still a `.css` file that `resolvePackageStylesheetPath` resolves.
 - The stylesheet module plugin: server and browser requests put the extensions in `BuildOptions.stylesheets`, so Rolldown never parses a declared stylesheet as JavaScript and compiles each import of one.
-- The dev transform server (`resolveDevTransformModuleKind`): it serves a stylesheet import as the same compiled module.
+- The dev transform server: it serves a stylesheet import as the same compiled module.
 - The stylesheet pipeline (`applyStylesheetProcessors`) and the copy list of files a stylesheet `url()` may emit (`isEmittableReferenceFile`).
 
 At most one Processor may declare a `stylesheet` capability. Config finalization fails when two do, naming both, so `transformStylesheet` has one owner and there is no chain. When that Processor declares `*.scss`, `import './card.scss'` is discovered and kept out of every build, and `import styles from './card.scss'` compiles to the Processor's output. When none does, both are left alone. The ambient `*.css` module declaration is the one place that stays `.css`; an app adds `declare module '*.scss'` for its own extension.

@@ -10,7 +10,6 @@ import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 import { DevTransformInstallStamp } from './dev-transform-install-stamp.ts';
 import { getStylesheetKinds, type StylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
-import { resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
 import { compileStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 import { resolveWorkspacePackageWatchRoots } from '../../watchers/workspace-package-watch-roots.ts';
 import { resolveDevTransformModuleSourcePath, resolveDevTransformModuleUrl } from './dev-transform-url.ts';
@@ -298,7 +297,7 @@ export class DevTransformServer {
 			return pending;
 		}
 
-		const isStylesheet = resolveDevTransformModuleKind(normalized, this.stylesheetKinds) === 'stylesheet';
+		const isStylesheet = this.stylesheetKinds.isStylesheet(normalized);
 		const generation = this.cacheGeneration;
 		const sourceGeneration = this.sourceGenerations.get(normalized) ?? 0;
 		const isStale = () =>

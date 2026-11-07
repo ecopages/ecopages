@@ -111,6 +111,14 @@ function countSsrScriptEvaluations(script: string): number {
 	return (store.__ecoSsrScriptEvaluations ?? []).filter((evaluated) => evaluated === script).length;
 }
 
+/** Lists the script tags of a document in order, each by its `data-eco-script-id`, else its `src`. */
+function listScripts(html: string): string[] {
+	return Array.from(html.matchAll(/<script\b[^>]*>/g), ([tag]) => {
+		const id = /data-eco-script-id="([^"]+)"/.exec(tag)?.[1];
+		return id ?? /\ssrc="([^"]+)"/.exec(tag)?.[1] ?? 'inline';
+	});
+}
+
 describe('ssr script ownership', () => {
 	it('A Radiant script on a Lit Page is evaluated once', async () => {
 		const page = await requestPage('/lit-with-ssr-once-radiant');
@@ -128,5 +136,25 @@ describe('ssr script ownership', () => {
 		expect(page.status).toBe(200);
 		expect(countSsrScriptEvaluations('ssr-once-lit-probe')).toBe(1);
 		expect(page.html).toMatch(/<ssr-once-lit-probe><template shadowrootmode="open">[^]*?data-ssr-once-lit-probe/);
+	}, 60_000);
+
+	it('Global scripts keep one order whichever Integration owns the Page', async () => {
+		const globalScripts = ['lit-hydrate-support', 'ecopages-jsx-radiant-hydrator'];
+		const componentScripts = ['server-dom-lit-probe.script', 'server-dom-radiant-probe.script'];
+
+		for (const pathname of ['/lit-with-both', '/kita-with-both']) {
+			const page = await requestPage(pathname);
+			expect(page.status).toBe(200);
+
+			const scripts = listScripts(page.html);
+			const componentIndexes = componentScripts.map((name) =>
+				scripts.findIndex((script) => script.includes(name)),
+			);
+			expect(scripts.filter((script) => globalScripts.includes(script))).toEqual(globalScripts);
+			expect(componentIndexes).not.toContain(-1);
+			expect(Math.max(...globalScripts.map((id) => scripts.indexOf(id)))).toBeLessThan(
+				Math.min(...componentIndexes),
+			);
+		}
 	}, 60_000);
 });

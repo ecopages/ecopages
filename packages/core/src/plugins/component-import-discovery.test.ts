@@ -155,11 +155,99 @@ export const Button = eco.component({ render: () => '' });`,
 		expect(result).not.toContain('stylesheets: ["');
 		expect(result).toContain(`import styles from './style.css'`);
 	});
-	it('fails on a CSS Module with the file and the import', () => {
-		const { transform } = fixture();
-		expect(() => transform(`import './style.module.css';`)).toThrow(
-			'page.ts: "./style.module.css" is a CSS Module, which Ecopages cannot add to a Page.',
-		);
+	describe('CSS Modules', () => {
+		class ScopingProcessor extends Processor {
+			async setup(): Promise<void> {}
+		}
+		const scoping = createStylesheetKinds([
+			new ScopingProcessor({
+				name: 'scoping',
+				capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true }],
+			}),
+		]);
+		const moduleFixture = () => {
+			const context = fixture();
+			writeFileSync(path.join(context.root, 'style.module.css'), '.primary { color: red }');
+			const attribute = (source: string, name = 'page.ts', delivered?: string[]) =>
+				attributeComponentIdentity(source, path.join(context.root, name), {
+					integration: 'lit',
+					projectRoot: context.root,
+					stylesheets: scoping,
+					onDeliveredStylesheet: (specifier) => delivered?.push(specifier),
+				}).code;
+			const page = (imports: string) =>
+				attribute(
+					`${imports}\nimport { eco } from '@ecopages/core';\nexport default eco.page({ render: () => '' });`,
+				);
+			return { ...context, attribute, page };
+		};
+
+		it('fails with the file, the import and the package to install when no Processor scopes CSS Modules', () => {
+			const { transform } = fixture();
+			expect(() => transform(`import './style.module.css';`)).toThrow(
+				/page\.ts: "\.\/style\.module\.css" is a CSS Module\..*@ecopages\/lightningcss-processor/u,
+			);
+			expect(() => transform(`import styles from './style.module.css';`)).toThrow('"./style.module.css"');
+		});
+		it('keeps the binding import and delivers the scoped CSS as a stylesheet of the declaration', () => {
+			const { page } = moduleFixture();
+			const result = page(`import styles from './style.module.css';\nimport './style.css';`);
+			expect(result).toContain(`import styles from './style.module.css'`);
+			expect(result).not.toContain(`import './style.css'`);
+			expect(result).toContain(`stylesheets: ${JSON.stringify(['style.module.css', 'style.css'])}`);
+		});
+		it('delivers and strips a side-effect CSS Module import', () => {
+			const { page } = moduleFixture();
+			const result = page(`import './style.module.css';`);
+			expect(result).not.toContain(`import './style.module.css'`);
+			expect(result).toContain(`stylesheets: ${JSON.stringify(['style.module.css'])}`);
+		});
+		it('delivers a CSS Module of an aliased import', () => {
+			const { page } = moduleFixture();
+			expect(page(`import styles from '@/style.module.css';`)).toContain(
+				`stylesheets: ${JSON.stringify(['style.module.css'])}`,
+			);
+		});
+		it('leaves an attributed CSS Module import alone', () => {
+			const { page } = moduleFixture();
+			const result = page(`import styles from './style.module.css' with { type: 'text' };`);
+			expect(result).not.toContain('stylesheets: ["');
+			expect(result).toContain('with { type');
+		});
+		it('keeps the CSS Module import of a plain module and reports it as delivered', () => {
+			const { root, attribute } = moduleFixture();
+			const delivered: string[] = [];
+			const code = attribute(
+				`import styles from './style.module.css';\nimport './style.css';\nexport const Card = () => styles.primary;`,
+				'card.ts',
+				delivered,
+			);
+			expect(code).toContain(`import styles from './style.module.css'`);
+			expect(code).not.toContain(`import './style.css'`);
+			expect(delivered).toEqual(['./style.module.css', './style.css']);
+			expect(root).toBeTruthy();
+		});
+		it('hands the CSS Module of a plain module to the nearest declaration', () => {
+			const { root, page } = moduleFixture();
+			writeFileSync(
+				path.join(root, 'card.ts'),
+				`import styles from './style.module.css';\nexport const Card = () => styles.primary;`,
+			);
+			const result = page(`import { Card } from './card';\nconsole.log(Card);`);
+			expect(result).toContain(`plainModuleStylesheets: ${JSON.stringify(['style.module.css'])}`);
+		});
+		it('fails on a CSS Module from a package', () => {
+			const { page } = moduleFixture();
+			expect(() => page(`import styles from 'some-lib/dist/x.module.css';`)).toThrow(
+				'is a CSS Module from a package',
+			);
+		});
+		it('fails on a CSS Module of a specifier no Page could receive', () => {
+			const { page } = moduleFixture();
+			expect(() => page(`import styles from '#styles/card.module.css';`)).toThrow(
+				'neither a relative, aliased nor package stylesheet',
+			);
+		});
 	});
 	describe('stylesheet kinds', () => {
 		class SassProcessor extends Processor {
@@ -258,7 +346,7 @@ export const Button = eco.component({ render: () => '' });`,
 		it('fails on a package CSS Module and on a package stylesheet the package does not export', () => {
 			const { transform } = packageFixture();
 			expect(() => transform(`import 'some-lib/module.css';`)).toThrow(
-				'page.ts: "some-lib/module.css" is a CSS Module, which Ecopages cannot add to a Page.',
+				'page.ts: "some-lib/module.css" is a CSS Module from a package, which Ecopages cannot scope.',
 			);
 			expect(() => transform(`import 'some-lib/missing.css';`)).toThrow(
 				'Cannot resolve package stylesheet "some-lib/missing.css"',
@@ -428,6 +516,43 @@ export const Button = eco.component({ render: () => '' });`,
 			const reached = build();
 			reached.transform(read('card.ts'), path.join(root, 'card.ts'));
 			reached.transform(read('badge.ts'), path.join(root, 'badge.ts'));
+			await expect(reached.end()).resolves.toBeUndefined();
+		});
+		it('fails at the end of a build when no declaration reaches a plain module CSS Module import', async () => {
+			class ScopingProcessor extends Processor {
+				async setup(): Promise<void> {}
+			}
+			const scoping = new ScopingProcessor({
+				name: 'scoping',
+				capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true }],
+			});
+			const { root, file } = plainFixture();
+			file('button.module.css', '.primary {}');
+			file('button.ts', `import styles from './button.module.css';\nexport const Button = () => styles.primary;`);
+			file(
+				'toolbar.ts',
+				`import { eco } from '@ecopages/core';\nimport { Button } from './button';\nexport const Toolbar = eco.component({ render: () => Button() });`,
+			);
+			const build = () =>
+				getPluginTransform(
+					createEcoComponentMetaPlugin({
+						config: {
+							rootDir: root,
+							integrations: [{ name: 'lit', extensions: ['.ts'] }],
+							processors: new Map([['scoping', scoping]]),
+						} as unknown as EcoPagesAppConfig,
+					}),
+				);
+			const read = (name: string) => fileSystem.readFileSync(path.join(root, name));
+			const unreached = build();
+			const kept = unreached.transform(read('button.ts'), path.join(root, 'button.ts'));
+			expect(typeof kept === 'string' ? kept : kept?.code).toContain(`import styles from './button.module.css'`);
+			await expect(unreached.end()).rejects.toThrow(
+				'[ecopages] button.ts: "./button.module.css" never reaches a Page',
+			);
+			const reached = build();
+			reached.transform(read('button.ts'), path.join(root, 'button.ts'));
+			reached.transform(read('toolbar.ts'), path.join(root, 'toolbar.ts'));
 			await expect(reached.end()).resolves.toBeUndefined();
 		});
 		it('forgets a plain module once the only declaration importing it drops the import', async () => {

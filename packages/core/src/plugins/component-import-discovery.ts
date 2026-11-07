@@ -1,7 +1,7 @@
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
-import { PLAIN_CSS_KINDS, type StylesheetKinds } from './stylesheet-kinds.ts';
+import { CSS_MODULE_PROCESSOR_FIX, PLAIN_CSS_KINDS, type StylesheetKinds } from './stylesheet-kinds.ts';
 import { contentHash } from '../utils/content-hash.ts';
 import {
 	isBarePackageImportSpecifier,
@@ -335,40 +335,32 @@ function relativeToRoot(projectRoot: string, file: string): string {
 	return relative.startsWith('..') || path.isAbsolute(relative) ? file : relative;
 }
 
-/**
- * Throws for a CSS Module import, which no Page can receive.
- *
- * @remarks
- * A CSS Module fails however it is imported. An import that carries attributes is the module's own business and
- * is left alone.
- */
-export function assertDeliverableStylesheetImport(
-	entry: StaticImport,
-	importer: string,
-	projectRoot: string,
-	kinds: StylesheetKinds,
-): void {
-	if (entry.attributed || !kinds.isCssModule(entry.source)) return;
-	throw createCssModuleError(projectRoot, importer, entry.source);
-}
-
-function createCssModuleError(projectRoot: string, importer: string, source: string): Error {
+function createPackageCssModuleError(projectRoot: string, importer: string, source: string): Error {
 	return new Error(
-		`[ecopages] ${relativeToRoot(projectRoot, importer)}: ${JSON.stringify(source)} is a CSS Module, which Ecopages cannot add to a Page. Import a plain stylesheet.`,
+		`[ecopages] ${relativeToRoot(projectRoot, importer)}: ${JSON.stringify(source)} is a CSS Module from a package, which Ecopages cannot scope. Copy it into the app and import it from there.`,
 	);
 }
 
-/** The stylesheet a side-effect import delivers: a local one, still to resolve, or a resolved package one. */
-type StylesheetImportTarget = { fromPackage: false } | { fromPackage: true; file: string };
+function createUnscopedCssModuleError(projectRoot: string, importer: string, source: string): Error {
+	return new Error(
+		`[ecopages] ${relativeToRoot(projectRoot, importer)}: ${JSON.stringify(source)} is a CSS Module. ${CSS_MODULE_PROCESSOR_FIX}`,
+	);
+}
+
+/** The stylesheet an import delivers: a local plain one, still to resolve; a CSS Module, still to resolve; or a package one. */
+type StylesheetImportTarget = { kind: 'local' } | { kind: 'css-module' } | { kind: 'package'; file: string };
 
 /**
- * Classifies a side-effect import as delivering a local or a package stylesheet, or neither.
+ * Classifies an import as delivering a local stylesheet, a CSS Module or a package stylesheet, or none of them.
  *
  * @remarks
- * The one rule behind both stripping and discovery, so the two cannot drift. A package specifier names a
- * stylesheet as {@link resolvePackageStylesheetPath} decides. Throws for a package CSS Module, for a package
- * stylesheet named with `.css` that does not resolve, and for a `.css` specifier that is neither relative, aliased
- * nor a package, such as `#styles/x.css` or an absolute path, which no Page could receive.
+ * The one rule behind both stripping and discovery, so the two cannot drift. A plain stylesheet is delivered by a
+ * side-effect import alone, as the module has no binding to keep. A CSS Module is delivered by any import without
+ * attributes, since the importer keeps its class map. A package specifier names a stylesheet as
+ * {@link resolvePackageStylesheetPath} decides. Throws for a CSS Module when no Processor scopes them (naming the
+ * package to install) and for a package CSS Module, for a package stylesheet named with `.css` that does not resolve,
+ * and for a `.css` specifier that is neither relative, aliased nor a package, such as `#styles/x.css` or an absolute
+ * path, which no Page could receive.
  */
 function classifyStylesheetImport(
 	entry: StaticImport,
@@ -377,27 +369,45 @@ function classifyStylesheetImport(
 	pathPrefixes: string[],
 	kinds: StylesheetKinds,
 ): StylesheetImportTarget | undefined {
-	if (entry.attributed || !entry.sideEffectOnly) return undefined;
+	if (entry.attributed) return undefined;
+	const isModule = kinds.isCssModule(entry.source);
 	if (isLocalSpecifier(entry.source, pathPrefixes)) {
-		return isCssImport(entry.source, kinds) ? { fromPackage: false } : undefined;
+		if (isModule) {
+			if (!kinds.scopesCssModules) throw createUnscopedCssModuleError(projectRoot, importer, entry.source);
+			return { kind: 'css-module' };
+		}
+		return entry.sideEffectOnly && isCssImport(entry.source, kinds) ? { kind: 'local' } : undefined;
 	}
 	if (!isBarePackageImportSpecifier(entry.source)) {
-		if (!kinds.isStylesheet(entry.source)) return undefined;
+		if (!kinds.isStylesheet(entry.source) || !(isModule || entry.sideEffectOnly)) return undefined;
 		throw new Error(
 			`[ecopages] ${relativeToRoot(projectRoot, importer)}: ${JSON.stringify(entry.source)} is neither a relative, aliased nor package stylesheet import, so Ecopages cannot add it to a Page.`,
 		);
 	}
+	return classifyPackageStylesheetImport(entry, importer, projectRoot, kinds);
+}
+
+/** Classifies an import of a bare package specifier; a CSS Module of a package is never delivered. */
+function classifyPackageStylesheetImport(
+	entry: StaticImport,
+	importer: string,
+	projectRoot: string,
+	kinds: StylesheetKinds,
+): StylesheetImportTarget | undefined {
+	if (kinds.isCssModule(entry.source)) throw createPackageCssModuleError(projectRoot, importer, entry.source);
+	if (!entry.sideEffectOnly) return undefined;
 	const file = resolvePackageStylesheetPath(importer, entry.source);
-	if (file && kinds.isCssModule(file)) throw createCssModuleError(projectRoot, importer, entry.source);
-	return file ? { fromPackage: true, file } : undefined;
+	if (file && kinds.isCssModule(file)) throw createPackageCssModuleError(projectRoot, importer, entry.source);
+	return file ? { kind: 'package', file } : undefined;
 }
 
 /**
- * Whether discovery delivers `entry`: a side-effect import, without attributes, of a local plain stylesheet or of a
- * package stylesheet.
+ * Whether discovery delivers `entry`: an import, without attributes, of a local plain stylesheet or of a package
+ * stylesheet when it is a side-effect import, or of a CSS Module in any form.
  *
  * @remarks
- * The meta plugin strips exactly these imports from plain modules. Throws as {@link classifyStylesheetImport} does.
+ * The meta plugin strips the side-effect ones from plain modules and keeps a CSS Module import, whose class map
+ * the module uses. Throws as {@link classifyStylesheetImport} does.
  */
 export function isDeliveredStylesheetImport(
 	entry: StaticImport,
@@ -611,19 +621,20 @@ function resolveStylesheetImportPath(source: string, ownerFile: string, state: D
 }
 
 /**
- * Resolves a side-effect stylesheet import, local or from a package, or returns `undefined` for any other import.
+ * Resolves a stylesheet import that discovery delivers, local, a CSS Module or from a package, or returns `undefined`
+ * for any other import.
  *
  * @remarks
- * Throws for a CSS Module, or for a local or package stylesheet that does not resolve.
+ * Throws as {@link classifyStylesheetImport} does, and for a local stylesheet that does not resolve.
  */
-function resolveSideEffectStylesheet(
+function resolveDeliveredStylesheet(
 	entry: StaticImport,
 	importer: string,
 	state: DiscoveryState,
 ): { file: string; fromPackage: boolean } | undefined {
-	assertDeliverableStylesheetImport(entry, importer, state.projectRoot, state.stylesheets);
 	const target = classifyStylesheetImport(entry, importer, state.projectRoot, state.pathPrefixes, state.stylesheets);
-	if (!target || target.fromPackage) return target;
+	if (!target) return undefined;
+	if (target.kind === 'package') return { file: target.file, fromPackage: true };
 	const resolved = resolveStylesheetImportPath(entry.source, importer, state);
 	if (!resolved || !fileSystem.exists(resolved)) {
 		throw new Error(`[ecopages] Cannot resolve stylesheet import ${JSON.stringify(entry.source)} from ${importer}`);
@@ -740,7 +751,7 @@ function walkPlainModule(
 	walk.modules.add(canonicalFile(file));
 	walk.watchFiles.add(file);
 	for (const entry of index.imports) {
-		const stylesheet = resolveSideEffectStylesheet(entry, file, local);
+		const stylesheet = resolveDeliveredStylesheet(entry, file, local);
 		if (!stylesheet) continue;
 		if (!walk.stylesheets.includes(stylesheet.file)) walk.stylesheets.push(stylesheet.file);
 		if (stylesheet.fromPackage && !walk.packageStylesheets.has(stylesheet.file))
@@ -779,10 +790,35 @@ function mergePlainModuleWalk(into: PlainModuleWalk, from: PlainModuleWalk): voi
 }
 
 /**
- * Discovers local Eco Component imports and the side-effect CSS that reaches an Eco declaration.
+ * Records the stylesheets the declaring module imports itself on `result`, and returns those a package import named.
  *
  * @remarks
- * Side-effect CSS of the declaring module, relative, aliased or from a package, is kept apart from the CSS of the
+ * A side-effect import is removed from the module, and a CSS Module import stays for its class map.
+ */
+function collectOwnStylesheets(
+	imports: StaticImport[],
+	ownerFile: string,
+	state: DiscoveryState,
+	result: DiscoveredImports,
+): Map<string, string> {
+	const packageStylesheets = new Map<string, string>();
+	for (const entry of imports) {
+		const stylesheet = resolveDeliveredStylesheet(entry, ownerFile, state);
+		if (!stylesheet) continue;
+		if (!result.stylesheets.includes(stylesheet.file)) result.stylesheets.push(stylesheet.file);
+		if (stylesheet.fromPackage && !packageStylesheets.has(stylesheet.file))
+			packageStylesheets.set(stylesheet.file, ownerFile);
+		if (entry.sideEffectOnly) result.removals.push({ start: entry.start, end: entry.end, replacement: '' });
+	}
+	return packageStylesheets;
+}
+
+/**
+ * Discovers local Eco Component imports and the CSS that reaches an Eco declaration.
+ *
+ * @remarks
+ * The CSS Modules the declaring module imports count as its side-effect CSS: their scoped CSS reaches the Page the
+ * same way, though the import stays for the class map. Side-effect CSS of the declaring module, relative, aliased or from a package, is kept apart from the CSS of the
  * plain local modules it imports (see {@link walkPlainModule}), which collection places after the CSS of every
  * declaration that imports those modules. Eco Components a plain module imports become Components of the
  * declaration too, so their Dependencies reach the Page. Named `export { X } from`
@@ -818,15 +854,7 @@ export function discoverComponentImports(
 		watchFiles: new Set(),
 	};
 	const imports = collectStaticImports(program);
-	const packageStylesheets = new Map<string, string>();
-	for (const entry of imports) {
-		const stylesheet = resolveSideEffectStylesheet(entry, ownerFile, state);
-		if (!stylesheet) continue;
-		if (!result.stylesheets.includes(stylesheet.file)) result.stylesheets.push(stylesheet.file);
-		if (stylesheet.fromPackage && !packageStylesheets.has(stylesheet.file))
-			packageStylesheets.set(stylesheet.file, ownerFile);
-		result.removals.push({ start: entry.start, end: entry.end, replacement: '' });
-	}
+	const packageStylesheets = collectOwnStylesheets(imports, ownerFile, state, result);
 	let renderedNames: Set<string> | undefined;
 	const ownComponents = new Set<string>();
 	const plainModules = collectModuleEdges(

@@ -227,7 +227,7 @@ Use `@ecopages/core/integration` for Integration contracts, render hooks, and sh
 
 ### Processor Authoring
 
-Use `@ecopages/core/processor` for Processor contracts and generated-asset helpers.
+Use `@ecopages/core/processor` for Processor contracts and generated-asset helpers. A stylesheet Processor runs the cases of `stylesheetProcessorContract` from `@ecopages/core/processor/contract` in its tests.
 
 ### Build Extensions
 

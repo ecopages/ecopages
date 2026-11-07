@@ -9,7 +9,7 @@ export class ContentStylesheetProcessor extends BaseProcessor<ContentStylesheetA
 	async process(dep: ContentStylesheetAsset): Promise<ProcessedAsset> {
 		const virtualFilepath =
 			dep.processingOrigin ?? path.join(this.appConfig.absolutePaths.distDir, 'styles', 'page-bundle.css');
-		const processedContent = await applyStylesheetProcessors(this.appConfig, dep.content, virtualFilepath);
+		const { css: processedContent } = await applyStylesheetProcessors(this.appConfig, dep.content, virtualFilepath);
 		const hash = this.generateHash(processedContent);
 		let filepath: string | undefined;
 

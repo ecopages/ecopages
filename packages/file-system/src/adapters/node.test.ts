@@ -266,3 +266,13 @@ test('NodeFileSystem.watch skips indexing an ignored root directory', async () =
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
 }, 20_000);
+
+test('NodeFileSystem.tempDir names an existing directory in the Ecopages path form', () => {
+	const fileSystem = new NodeFileSystem();
+
+	const dir = fileSystem.tempDir();
+
+	expect(dir).toBe(path.fromNative(tmpdir()));
+	expect(dir).not.toContain('\\');
+	expect(fileSystem.isDirectory(dir)).toBe(true);
+});

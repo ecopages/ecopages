@@ -271,10 +271,17 @@ export class DevTransformServer {
 		});
 	}
 
-	/** Compiles a stylesheet import into the module of its processed CSS, as server builds and bundles do. */
+	/**
+	 * Compiles a stylesheet import into the module of its processed CSS, as server builds and bundles do.
+	 *
+	 * @remarks
+	 * The stylesheets its CSS inlined are not reported as module dependencies: an edit to one reaches this module
+	 * through the development stylesheet service, which plans the importing stylesheet as changed when its output does.
+	 * Reporting them would send the partial itself to HMR, which no served module imports.
+	 */
 	private async compileStylesheet(sourcePath: string): Promise<{ code: string }> {
 		try {
-			return { code: await compileStylesheetModule(this.appConfig, sourcePath) };
+			return { code: (await compileStylesheetModule(this.appConfig, sourcePath)).code };
 		} catch (error) {
 			throw new StylesheetCompileError(sourcePath, error);
 		}

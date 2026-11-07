@@ -87,7 +87,8 @@ A Processor subclasses `Processor` ([`processor.ts`](https://github.com/ecopages
 | `watch` | Paths and extensions that select changes; `onChanges` runs once per debounced batch. |
 | `plugins(app)` | Build plugins, read once at finalization like an Integration's; see [Plugin pipeline](/dev/plugin-pipeline#contributing-plugins). |
 | `setup()` | Generates files, loads configuration, warms caches. |
-| `transformStylesheet(css, file)` | Called for each stylesheet matching a `stylesheet` capability, in registration order, each Processor receiving the previous output. |
+| `transformStylesheet(css, file)` | Called for each stylesheet matching the app's one `stylesheet` capability; returns `{ css, dependencies }`. See [Plugin pipeline](/dev/plugin-pipeline#stylesheet-processors). |
+| `invalidateStylesheets(files)` | Names the stylesheets a change to other files makes stale in development. |
 | `listProductionServerModuleEntries()` / `restoreProductionRuntime()` | Server modules for `server-modules.json`, and the restore that production `ecopages start` calls instead of `setup()`. |
 
 Watch extensions only select which changes `onChanges` receives; ownership comes from `capabilities` alone, and it decides whether development invalidation skips server modules and HMR for an asset.

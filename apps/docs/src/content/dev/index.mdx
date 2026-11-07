@@ -77,7 +77,7 @@ Integrations render files and own a JSX runtime; Processors own asset semantics.
 | Build | `build/`, `assets/`, `cache/`, `diagnostics/` |
 | Rendering | `router/`, `route-renderer/`, `html-pages/`, `page-cache/`, `static-site-generator/` |
 | Development and HMR | `dev/`, `dev-toolbar/`, `hmr/`, `watchers/` |
-| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`, `integration.ts`, `processor.ts`, `build.ts`, `client.ts` |
+| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`, `integration.ts`, `processor.ts`, `processor-contract.ts`, `build.ts`, `client.ts` |
 
 Foundation code knows nothing of the systems that use it: `types/` holds contracts only, error classes do not depend on what reports them, `client/` browser helpers stay independent of rendering and dev services, and per-app state lives on the `AppRuntime`, not in module globals.
 
@@ -95,7 +95,7 @@ A native path is converted once, where it enters Ecopages:
 
 | Where a path enters | Conversion |
 | --- | --- |
-| `fileSystem.realpath`, `glob`, `readdir`, `readlink`, `mkdtemp` and watcher events | Converted inside `@ecopages/file-system` |
+| `fileSystem.realpath`, `glob`, `readdir`, `readlink`, `mkdtemp`, `tempDir` and watcher events | Converted inside `@ecopages/file-system` |
 | Config directories and `additionalWatchPaths` | `path.resolve` while the config is finalized; `path.fromNative` for a glob |
 | `import.meta.url`, `import.meta.resolve` and other `file:` URLs | `path.fromFileUrl` |
 | `process.cwd()`, `require.resolve` and oxc-resolver results | `path.cwd()`, or `path.fromNative` |

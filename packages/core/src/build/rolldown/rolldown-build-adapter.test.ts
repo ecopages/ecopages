@@ -625,7 +625,10 @@ describe('RolldownBuildAdapter', () => {
 				target: environment === 'server' ? 'node' : 'browser',
 				format: 'esm',
 				root: workDir,
-				stylesheets: { extensions: ['.css'], compileModule: async () => 'export default "compiled";' },
+				stylesheets: {
+					extensions: ['.css'],
+					compileModule: async () => ({ code: 'export default "compiled";' }),
+				},
 			});
 
 			assertBuildSucceeded(result, 'Build failed');
@@ -659,7 +662,7 @@ describe('RolldownBuildAdapter', () => {
 					extensions: ['.css'],
 					compileModule: async (file) => {
 						compiled.push(file);
-						return 'export default ".card { color: red; }";';
+						return { code: 'export default ".card { color: red; }";' };
 					},
 				},
 			});
@@ -727,7 +730,10 @@ describe('RolldownBuildAdapter', () => {
 			format: 'esm',
 			root: workDir,
 			writeToDisk: false,
-			stylesheets: { extensions: ['.css'], compileModule: async () => 'export default "compiled card";' },
+			stylesheets: {
+				extensions: ['.css'],
+				compileModule: async () => ({ code: 'export default "compiled card";' }),
+			},
 		});
 
 		if (source.includes('broken')) {
@@ -785,7 +791,7 @@ describe('RolldownBuildAdapter', () => {
 			writeToDisk: false,
 			stylesheets: {
 				extensions: ['.css'],
-				compileModule: async () => 'export default "compiled";',
+				compileModule: async () => ({ code: 'export default "compiled";' }),
 				reportUndeliverable: (error) => reported.push(error.message),
 			},
 		});
@@ -826,7 +832,7 @@ describe('RolldownBuildAdapter', () => {
 				format: 'esm',
 				root: workDir,
 				writeToDisk: false,
-				stylesheets: { extensions, compileModule: async () => 'export default "compiled scss";' },
+				stylesheets: { extensions, compileModule: async () => ({ code: 'export default "compiled scss";' }) },
 			});
 
 		const compiled = await build(['.css', '.scss']);

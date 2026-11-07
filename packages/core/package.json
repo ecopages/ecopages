@@ -80,6 +80,11 @@
 			"types": "./src/processor.ts",
 			"default": "./src/processor.ts"
 		},
+		"./processor/contract": {
+			"import": "./src/processor-contract.ts",
+			"types": "./src/processor-contract.ts",
+			"default": "./src/processor-contract.ts"
+		},
 		"./build": {
 			"import": "./src/build.ts",
 			"types": "./src/build.ts",

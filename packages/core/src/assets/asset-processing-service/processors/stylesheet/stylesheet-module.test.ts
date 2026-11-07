@@ -10,9 +10,9 @@ import { compileStylesheetModule } from './stylesheet-module.ts';
 class FixtureStylesheetProcessor extends Processor {
 	async setup(): Promise<void> {}
 
-	override async transformStylesheet(css: string): Promise<string> {
+	override async transformStylesheet(css: string): Promise<{ css: string }> {
 		if (css.includes('broken')) throw new Error('Unclosed block');
-		return css.replace('@apply text-red;', 'color: red;');
+		return { css: css.replace('@apply text-red;', 'color: red;') };
 	}
 }
 
@@ -43,17 +43,19 @@ describe('compileStylesheetModule', () => {
 	it('default-exports the CSS the stylesheet Processor produced', async () => {
 		const file = writeStylesheet('.card { @apply text-red; }');
 
-		expect(await compileStylesheetModule(await configWith(stylesheetProcessor()), file)).toBe(
-			'export default ".card { color: red; }";\n',
-		);
+		expect(await compileStylesheetModule(await configWith(stylesheetProcessor()), file)).toEqual({
+			code: 'export default ".card { color: red; }";\n',
+			dependencies: [],
+		});
 	});
 
 	it('default-exports the CSS as written when no stylesheet Processor is registered', async () => {
 		const file = writeStylesheet('.card { @apply text-red; }');
 
-		expect(await compileStylesheetModule(await configWith(), file)).toBe(
-			'export default ".card { @apply text-red; }";\n',
-		);
+		expect(await compileStylesheetModule(await configWith(), file)).toEqual({
+			code: 'export default ".card { @apply text-red; }";\n',
+			dependencies: [],
+		});
 	});
 
 	it('rejects with the error the stylesheet Processor throws', async () => {

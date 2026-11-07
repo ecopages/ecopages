@@ -52,7 +52,12 @@ Name and image `capabilities` are fixed inside the factory. Pass options only un
 Extend `Processor` from `@ecopages/core/processor`:
 
 ```typescript
-import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/processor';
+import {
+	Processor,
+	type EcoBuildPlugin,
+	type ProcessorConfig,
+	type StylesheetTransformResult,
+} from '@ecopages/core/processor';
 
 class CustomProcessor extends Processor {
 	constructor(config: Omit<ProcessorConfig, 'name'>) {
@@ -71,15 +76,15 @@ class CustomProcessor extends Processor {
 		// Generation, config loading and cache warming
 	}
 
-	override async transformStylesheet(css: string, file: string): Promise<string> {
-		return css;
+	override async transformStylesheet(css: string, file: string): Promise<StylesheetTransformResult> {
+		return { css, dependencies: [] };
 	}
 }
 
 export const customProcessorPlugin = (config?: Omit<ProcessorConfig, 'name'>) => new CustomProcessor(config ?? {});
 ```
 
-Use `capabilities` to participate in the asset pipeline. Each capability can declare `filter: RegExp` in addition to `extensions`. Stylesheet processing also needs `transformStylesheet(css, file)`; a processor without it is skipped. `transformStylesheet` receives `.css` files and the extensions the stylesheet capability declares. Declare capabilities for file types the processor owns as build assets (for example stylesheets or images). Use `watch.extensions` for dependency notifications that should not block server invalidation or HMR (for example Tailwind class scanning in TSX). Use `IClientBridge` in watch callbacks for dev HMR (`bridge.cssUpdate(sourceFile)`, which refreshes the link delivered from that stylesheet source).
+Use `capabilities` to participate in the asset pipeline. Each capability can declare `filter: RegExp` in addition to `extensions`. Stylesheet processing also needs `transformStylesheet(css, file)`; a processor without it is skipped. `transformStylesheet` receives `.css` files and the extensions the stylesheet capability declares, and returns `{ css, dependencies }`: `dependencies` are the absolute paths of the files the transform read, of which core keeps the stylesheets (from PostCSS `dependency` messages or Lightning CSS `dependencies`, never a regex), and core rebuilds the stylesheet and its importers when one changes. In development core prewarms, caches, writes and refreshes stylesheets; a stylesheet processor implements `invalidateStylesheets(files)` to name the stylesheets a change to other files makes stale (for example Tailwind class scanning in TSX), returning paths or `'all'`. Declare capabilities for file types the processor owns as build assets (for example stylesheets or images). Use `watch.extensions` for notifications that should not block server invalidation or HMR, and `IClientBridge` in watch callbacks for other live updates. First-party stylesheet processors run `stylesheetProcessorContract` from `@ecopages/core/processor/contract`.
 
 ## Custom integrations
 

@@ -13,13 +13,14 @@ import { escapeRegExp } from '../../utils/regex-escaping.ts';
 import { toStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 import type { BuildStylesheets } from '../contracts/build-contracts.ts';
 import { fromRolldownModuleId, toRolldownModuleId } from './rolldown-module-id.ts';
+import type { WatchFilesByModule } from './rolldown-plugin-bridge.ts';
 
 const SIDE_EFFECT_QUERY = '?ecopages-stylesheet-side-effect';
 
 /** Plain CSS, default-exported as written: the stylesheets of a build request that names none. */
 const PLAIN_CSS_STYLESHEETS: BuildStylesheets = {
 	extensions: PLAIN_CSS_KINDS.extensions,
-	compileModule: async (file) => toStylesheetModule(await fileSystem.readFile(file)),
+	compileModule: async (file) => ({ code: toStylesheetModule(await fileSystem.readFile(file)) }),
 };
 
 /**
@@ -69,14 +70,20 @@ function collectSideEffectStylesheetImports(
  * `stylesheets.reportUndeliverable` takes the error. The import of a package discovery reached never gets here: the
  * component meta transform removed it.
  *
+ * The files a compiled stylesheet inlined are declared with `addWatchFile` and recorded in `watchFiles` under its
+ * module, so they join the module closure of every entry that imports it.
+ *
  * @param build - The build's environment and root; a module under `node_modules` or outside the root is a package.
  * @param stylesheets - The stylesheet extensions and the compiler; defaults to plain `.css` exported as written.
+ * @param watchFiles - Receives the files each compiled stylesheet inlined, by module id.
  */
 export function createStylesheetModulePlugin(
 	build: { environment: 'server' | 'browser'; root: string },
-	stylesheets: BuildStylesheets = PLAIN_CSS_STYLESHEETS,
+	stylesheets: BuildStylesheets | undefined,
+	watchFiles: WatchFilesByModule,
 ): RolldownPlugin {
-	const extensionPattern = stylesheets.extensions.map(escapeRegExp).join('|');
+	const compiler = stylesheets ?? PLAIN_CSS_STYLESHEETS;
+	const extensionPattern = compiler.extensions.map(escapeRegExp).join('|');
 	const STYLESHEET_ID = new RegExp(`(?:${extensionPattern})$`, 'iu');
 	const SIDE_EFFECT_ID = new RegExp(`(?:${extensionPattern})${escapeRegExp(SIDE_EFFECT_QUERY)}$`, 'iu');
 	const STYLESHEET_REFERENCE = new RegExp(`(?:${extensionPattern})['"]`, 'iu');
@@ -104,8 +111,8 @@ export function createStylesheetModulePlugin(
 				const fromPackage = importerFile.includes('/node_modules/') || !isPathInside(importerFile, appRoot);
 				if (build.environment === 'browser' && fromPackage) {
 					const error = createUndeliverablePackageStylesheetError(appRoot, importerFile, source);
-					if (!stylesheets.reportUndeliverable) throw error;
-					stylesheets.reportUndeliverable(error);
+					if (!compiler.reportUndeliverable) throw error;
+					compiler.reportUndeliverable(error);
 				}
 				return toRolldownModuleId(`${fromRolldownModuleId(resolved.id)}${SIDE_EFFECT_QUERY}`);
 			},
@@ -116,7 +123,15 @@ export function createStylesheetModulePlugin(
 				if (id.endsWith(SIDE_EFFECT_QUERY)) {
 					return { code: 'export default "";', moduleType: 'js', moduleSideEffects: true };
 				}
-				return { code: await stylesheets.compileModule(fromRolldownModuleId(id)), moduleType: 'js' };
+				const file = fromRolldownModuleId(id);
+				const { code, dependencies = [] } = await compiler.compileModule(file);
+				for (const dependency of dependencies) {
+					this.addWatchFile(dependency);
+				}
+				if (dependencies.length > 0) {
+					watchFiles.set(file, new Set([...(watchFiles.get(file) ?? []), ...dependencies]));
+				}
+				return { code, moduleType: 'js' };
 			},
 		},
 	};

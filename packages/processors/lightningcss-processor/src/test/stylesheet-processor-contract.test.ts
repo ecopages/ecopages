@@ -11,3 +11,14 @@ describe('stylesheet Processor contract, for the Lightning CSS Processor', () =>
 		it(contractCase.name, contractCase.run);
 	}
 });
+
+describe('stylesheet Processor contract, for the Lightning CSS Processor scoping CSS Modules', () => {
+	const cases = stylesheetProcessorContract({
+		createProcessor: () => new LightningCssProcessorPlugin({ options: {} }),
+		invalidCss: '.broken { color: red; }\n}\n',
+		cssModules: true,
+	});
+	for (const contractCase of cases) {
+		it(contractCase.name, contractCase.run);
+	}
+});

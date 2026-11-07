@@ -10,7 +10,7 @@ import {
 import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
 import { Logger } from '@ecopages/logger';
-import type { Warning } from 'lightningcss';
+import type { CSSModuleExports, Warning } from 'lightningcss';
 import { loadLightningCss, type ResolvedLightningCssOptions } from './lightningcss-engine.ts';
 
 const logger = new Logger('[@ecopages/lightningcss-processor]');
@@ -25,10 +25,24 @@ export type BundledStylesheet = {
 	warnings: Warning[];
 	/** The partials read, and the `.css` files an `@import` named that do not exist yet. */
 	dependencies: string[];
+	/** The scoped class names of a CSS Module, by local name; absent for any other stylesheet. */
+	exports?: CSSModuleExports;
 };
 
 /** A stylesheet an `@import` names: the path as core reads it, and its real path, which identifies it. */
 type ImportedStylesheet = { located: string; real: string };
+
+/** A stylesheet Lightning CSS scopes as a CSS Module. */
+const CSS_MODULE_FILE = /\.module\.css$/iu;
+
+const COMPOSES_FROM = /\bcomposes\s*:[^;{}]*?\bfrom\s+(?:'([^']+)'|"([^"]+)")/giu;
+
+/** The specifiers of the stylesheets `css` composes classes from, other than `global`, in order and once each. */
+function composedStylesheets(css: string): string[] {
+	const withoutComments = css.replace(/\/\*[\s\S]*?\*\//gu, '');
+	const specifiers = [...withoutComments.matchAll(COMPOSES_FROM)].map((match) => match[1] ?? match[2]!);
+	return [...new Set(specifiers)];
+}
 
 const resolutionKey = (importer: string, specifier: string): string => `${importer}\0${specifier}`;
 
@@ -55,6 +69,7 @@ class StylesheetBundle {
 		private readonly entry: string,
 		private readonly source: string,
 		private readonly rootDir: string,
+		private readonly cssModules: boolean,
 	) {}
 
 	private warn(message: string): void {
@@ -124,6 +139,7 @@ class StylesheetBundle {
 			this.dependencies.add(file);
 			css = rebaseStylesheetReferences(css, file, this.entry);
 		}
+		const composed = this.cssModules ? composedStylesheets(css) : [];
 		this.scanned.set(
 			real,
 			scanCss(css, {
@@ -145,7 +161,24 @@ class StylesheetBundle {
 				},
 			}),
 		);
+		for (const specifier of composed) this.prepareComposed(specifier, file, real);
 		this.stack.pop();
+	}
+
+	/**
+	 * Prepares the stylesheet a `composes: name from 'specifier'` declaration of `file` names, which Lightning CSS reads
+	 * and scopes with the rest of the bundle.
+	 *
+	 * @remarks
+	 * It resolves as an `@import` does. A stylesheet that cannot be found fails the bundle, since leaving the
+	 * declaration as written would export a class name that is not defined. One that closes a cycle is skipped, since
+	 * the stylesheet being walked already defines its classes.
+	 */
+	private prepareComposed(specifier: string, file: string, real: string): void {
+		const imported = this.resolveImport(specifier, file);
+		if (!imported) throw new Error(`${file}: composes from ${JSON.stringify(specifier)} names no stylesheet.`);
+		this.resolutions.set(resolutionKey(real, specifier), imported.real);
+		if (!this.stack.includes(imported.real)) this.prepare(imported.located);
 	}
 
 	read(file: string): string {
@@ -180,10 +213,13 @@ export async function bundleStylesheet(
 ): Promise<BundledStylesheet> {
 	const { bundleAsync } = await loadLightningCss();
 	const entry = path.resolve(file);
-	const bundle = new StylesheetBundle(entry, css, rootDir);
+	const isCssModule = CSS_MODULE_FILE.test(entry);
+	const bundle = new StylesheetBundle(entry, css, rootDir, isCssModule);
 	bundle.prepare();
+	const { cssModulesPattern, ...lightningOptions } = options;
 	const result = await bundleAsync({
-		...options,
+		...lightningOptions,
+		...(isCssModule ? { cssModules: { pattern: cssModulesPattern } } : {}),
 		filename: fileSystem.exists(entry) ? fileSystem.realpath(entry) : entry,
 		resolver: {
 			read: (source) => bundle.read(source),
@@ -195,5 +231,6 @@ export async function bundleStylesheet(
 		hoisted: bundle.hoisted,
 		warnings: result.warnings,
 		dependencies: [...bundle.dependencies].filter((dependency) => dependency !== entry),
+		...(result.exports ? { exports: result.exports } : {}),
 	};
 }

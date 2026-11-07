@@ -9,6 +9,7 @@ import { isValidElement } from 'react';
 import { asReactComponent, type SerializableProps } from './component-ownership.ts';
 import { ReactRenderError } from './errors.ts';
 import { renderReactHtml, type ReactRuntimeModules } from './react-runtime.ts';
+import { getForeignSubtreeKey, renderForeignSubtreeBoundary } from '../hydration/foreign-subtree.ts';
 
 export type ReactComponentRenderContext = {
 	componentInstanceId?: string;
@@ -133,4 +134,28 @@ export function restoreRuntimeChildHtml(
 	}
 
 	return html.split(runtimeContext.rawChildrenToken).join(runtimeContext.rawChildrenHtml);
+}
+
+/**
+ * Wraps each Foreign Subtree token React rendered in `html` in the boundary element hydration keeps.
+ *
+ * @remarks
+ * Run it before the tokens are resolved. Only tokens of this tree are present: those queued while rendering a
+ * Foreign Subtree's own children end up inside that subtree's HTML, which the browser keeps whole. A token before
+ * `<body` stays unwrapped: React never hydrates the document head, and a custom element there would end it.
+ */
+export function wrapForeignSubtreeTokens(
+	html: string,
+	runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
+): string {
+	let wrappedHtml = html;
+	for (const { token, component, props } of runtimeContext?.queuedResolutions ?? []) {
+		const tokenIndex = wrappedHtml.indexOf(token);
+		const bodyIndex = wrappedHtml.indexOf('<body');
+		if (tokenIndex < 0 || (bodyIndex >= 0 && tokenIndex < bodyIndex)) continue;
+		wrappedHtml = wrappedHtml
+			.split(token)
+			.join(renderForeignSubtreeBoundary(getForeignSubtreeKey(component, props), token));
+	}
+	return wrappedHtml;
 }

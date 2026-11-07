@@ -56,7 +56,7 @@ Every step checks `isStale()` and returns `stale` instead of acting, so a newer 
 
 Module discovery reads the `#__ECO_PAGE_DATA__` JSON envelope (`EcoPropsScript` renders it in the Html shell), then `window.__ECO_PAGES__.page.module` for the current document, then the `src` of `script[data-eco-page-bootstrap="react-router"]`. Hydration JavaScript is never parsed. In development the import URL gets a `t=<timestamp>` query so a revisited page is not served from the module cache; production URLs are content-hashed and used as they are.
 
-The SPA swap renders inside `startTransition()` and awaits a deferred that `EcoRouter`'s effect resolves once the committed page state matches, so `eco:after-swap` and the view transition snapshot happen after React has rendered. History updates before the swap (`pushState` for forward, `replaceState` for replace or a redirect to another path).
+The SPA swap renders inside `startTransition()` and awaits a deferred that `EcoRouter`'s effect resolves once the committed page state matches, so `eco:after-swap` and the view transition snapshot happen after React has rendered. History updates before the swap (`pushState` for forward, `replaceState` for replace or a redirect to another path). Right before it renders, the swap sets `window.__ECO_PAGES__.page` to the next Page's module, props and fetched `document`: a Foreign Subtree in the new Page takes its server HTML from that document ([Islands and hydration](/dev/islands-hydration#foreign-subtrees-in-a-hydrated-tree)).
 
 ## Layout persistence
 

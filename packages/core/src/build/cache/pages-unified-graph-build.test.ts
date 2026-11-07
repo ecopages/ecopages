@@ -65,7 +65,7 @@ describe('production server-module graph', () => {
 
 	it('emits a map that a later app runtime can import', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
+		const appConfig = await createFixtureAppConfig({ rootDir: appDir, globalScriptResolution: 'browser-build' });
 		const entryPath = path.join(appDir, 'src/pages/index.ts');
 		const manifest = await emitProductionServerModules({
 			appConfig,
@@ -81,7 +81,7 @@ describe('production server-module graph', () => {
 
 	it('does not import an emitted entry whose output has been removed', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
+		const appConfig = await createFixtureAppConfig({ rootDir: appDir, globalScriptResolution: 'browser-build' });
 		const entryPath = path.join(appDir, 'src/pages/index.ts');
 		const manifest = await emitProductionServerModules({
 			appConfig,
@@ -98,7 +98,7 @@ describe('production server-module graph', () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const setupFlag = '__ecoEmitIntegrationSetup';
 		Reflect.deleteProperty(globalThis, setupFlag);
-		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
+		const appConfig = await createFixtureAppConfig({ rootDir: appDir, globalScriptResolution: 'browser-build' });
 		for (const integration of appConfig.integrations) {
 			const originalSetup = integration.setup.bind(integration);
 			integration.setup = async (context) => {
@@ -131,7 +131,7 @@ describe('production server-module graph', () => {
 
 	it('emits distinct modules for HTML Pages whose sanitized names would collide', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
+		const appConfig = await createFixtureAppConfig({ rootDir: appDir, globalScriptResolution: 'browser-build' });
 		const hyphenPage = path.join(appDir, 'src/pages/foo-bar.html');
 		const nestedPage = path.join(appDir, 'src/pages/foo/bar.html');
 		mkdirSync(path.dirname(nestedPage), { recursive: true });

@@ -22,6 +22,7 @@ export interface FlowRendererInput {
 	HtmlTemplate?: EcoComponent<HtmlTemplateProps>;
 	pageData?: { props: Record<string, unknown>; metadata: PageMetadataProps };
 	resolveDependencies?: (components: (EcoComponent | Partial<EcoComponent>)[]) => Promise<ProcessedAsset[]>;
+	integrationDependencies?: ProcessedAsset[];
 	collectPageBrowserGraphContribution?: (
 		context: PageBrowserGraphContributionContext,
 	) => Promise<PageBrowserGraphContribution | undefined>;
@@ -74,6 +75,7 @@ export function createFlowRenderer<C = unknown>(input: FlowRendererInput = {}): 
 		},
 		resolveRouteDependencies: async ({ components }) => ({
 			resolvedDependencies: (await input.resolveDependencies?.(components)) ?? [],
+			integrationDependencies: input.integrationDependencies ?? [],
 		}),
 		collectPageBrowserGraphContribution: async (context) =>
 			input.collectPageBrowserGraphContribution

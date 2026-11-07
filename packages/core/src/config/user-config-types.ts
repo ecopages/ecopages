@@ -4,6 +4,7 @@ import type { AnyProcessor } from '../plugins/processor.ts';
 import type { CacheConfig } from '../page-cache/cache.types.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../config/internal-types.ts';
 import type { PageMetadataProps, SitemapConfig } from '../types/contracts.ts';
+import type { GlobalScriptResolution } from './assembly/app-runtime.ts';
 
 /**
  * Extra response headers for the requests a `source` pattern matches.
@@ -206,11 +207,24 @@ export type FinalizeEcoPagesConfigOptions = {
 	 * @default process.cwd()
 	 */
 	cwd?: string;
+	/**
+	 * When the runtime's activations resolve Integration global scripts.
+	 *
+	 * @remarks
+	 * The default follows the process command, `'browser-build'` for a production export. A process that runs a
+	 * production export without that command, such as a test or the Lit static-render worker, passes
+	 * `'browser-build'`.
+	 *
+	 * @defaultValue `'browser-build'` for a production export command, otherwise `'activation'`.
+	 */
+	globalScriptResolution?: GlobalScriptResolution;
 };
 
 export type LoadEcoPagesConfigOptions = {
 	configFile?: string;
 	cwd?: string;
+	/** See {@link FinalizeEcoPagesConfigOptions.globalScriptResolution}. */
+	globalScriptResolution?: GlobalScriptResolution;
 	/**
 	 * Output and work directories that replace the config's `distDir` and `workDir`.
 	 *

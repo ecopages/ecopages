@@ -604,6 +604,19 @@ export interface ForeignChildRuntime {
 }
 
 /**
+ * The Integration that renders Eco Components in the browser, and what it renders in place of a Foreign Child.
+ *
+ * @remarks
+ * A hydrating Integration registers it on `window.__ECO_PAGES__.foreignChildHost`. The browser `eco` factories then
+ * hand every Component another Integration owns to `renderForeignChild` instead of calling its `render`, since that
+ * Component was server-rendered as a Foreign Subtree.
+ */
+export interface BrowserForeignChildHost {
+	integration: string;
+	renderForeignChild(component: EcoComponent, props: Record<string, unknown>): unknown;
+}
+
+/**
  * Represents a page in EcoPages.
  */
 export type PageProps<T = unknown> = T & StaticPageContext & { locals?: RequestLocals };

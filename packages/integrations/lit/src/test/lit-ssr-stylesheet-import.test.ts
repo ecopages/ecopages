@@ -7,6 +7,7 @@ import { Processor } from '@ecopages/core/processor';
 import { createTestAppConfig } from '@ecopages/testing';
 import { ensureLitDomShim } from '../dom-shim.ts';
 import { LitRenderer } from '../lit-renderer.ts';
+import { litPlugin } from '../lit.plugin.ts';
 
 ensureLitDomShim();
 
@@ -48,6 +49,7 @@ async function createRenderer(): Promise<TestLitRenderer> {
 		workDir,
 		configure: (config) => ({
 			...config,
+			integrations: [litPlugin()],
 			processors: [
 				new ApplyProcessor({ name: 'apply', capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }] }),
 			],

@@ -122,7 +122,10 @@ describe('codegen', () => {
 
 	test('fallback content-virtual-modules.d.ts separates server and component wildcards and omits them from catch-all', async () => {
 		const { readFileSync } = await import('node:fs');
-		const dtsContent = readFileSync(path.resolve(import.meta.dirname, '../content-virtual-modules.d.ts'), 'utf-8');
+		const dtsContent = readFileSync(
+			path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../content-virtual-modules.d.ts'),
+			'utf-8',
+		);
 
 		const serverIndex = dtsContent.indexOf("declare module 'ecopages:content/*/server'");
 		const componentIndex = dtsContent.indexOf("declare module 'ecopages:content/*/component'");
@@ -182,7 +185,7 @@ describe('attachMdxExports ownership guard', () => {
 
 		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-codegen-')));
 		mkdirSync(path.join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
-		const packageRoot = path.join(import.meta.dirname, '..', '..');
+		const packageRoot = path.join(path.dirname(path.fromFileUrl(import.meta.url)), '..', '..');
 		symlinkSync(packageRoot, path.join(tempDir, 'node_modules', '@ecopages', 'content-processor'), 'dir');
 		symlinkSync(
 			path.fromNative(realpathSync(path.join(packageRoot, 'node_modules', '@ecopages', 'core'))),
@@ -305,7 +308,7 @@ describe('generated browser loader', () => {
 
 		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-codegen-browser-')));
 		mkdirSync(path.join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
-		const packageRoot = path.join(import.meta.dirname, '..', '..');
+		const packageRoot = path.join(path.dirname(path.fromFileUrl(import.meta.url)), '..', '..');
 		symlinkSync(
 			path.fromNative(realpathSync(path.join(packageRoot, 'node_modules', '@ecopages', 'core'))),
 			path.join(tempDir, 'node_modules', '@ecopages', 'core'),

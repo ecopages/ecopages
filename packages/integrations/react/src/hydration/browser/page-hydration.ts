@@ -18,7 +18,7 @@ export type PageHydrateRootOptions = {
 	onUncaughtError?: (error: unknown, errorInfo: { componentStack?: string | null }) => void;
 };
 
-export type PageReactRuntime = {
+export type PageReactRuntime = ForeignSubtreeReactRuntime & {
 	hydrateRoot: (target: HTMLElement, tree: unknown, options?: PageHydrateRootOptions) => PageRoot;
 	createElement: (...args: unknown[]) => unknown;
 };
@@ -31,6 +31,7 @@ export type PageData = {
 export { resolvePageComponent } from './page-hydration-module.ts';
 export { getPageDataFromDocument, readPageDataDocument } from '../page-data-reader.ts';
 import { handlePageHmr } from './page-hydration-hmr.ts';
+import { installForeignSubtreeHost, type ForeignSubtreeReactRuntime } from './foreign-subtree-host.ts';
 
 /** Configuration passed from a generated Page hydration entry. */
 export type PageHydrationOptions = {
@@ -313,6 +314,7 @@ function mount(options: PageHydrationOptions): void {
  */
 export function startPageHydration(options: PageHydrationOptions): void {
 	if (!document.querySelector(`script[data-eco-script-id="${options.scriptId}"]`)) return;
+	installForeignSubtreeHost(options.runtime);
 	const runtime = getRuntime();
 	runtime.react!.pageRoot ??= null;
 	const initialPageData = readPageData(options);

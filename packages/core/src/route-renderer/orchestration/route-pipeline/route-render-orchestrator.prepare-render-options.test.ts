@@ -364,7 +364,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 	});
 
 	it('inlines the global injector bootstrap when resolved lazy triggers are present', async () => {
-		const fixtureRootDir = path.join(process.cwd(), 'playground/react');
+		const fixtureRootDir = path.join(path.cwd(), 'playground/react');
 		const ownerIntegration = { name: 'string' };
 		const { flow, processDependencies } = createOrchestrator({
 			integrations: [ownerIntegration],
@@ -596,6 +596,67 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 
 		expect(result.pagePackage).toEqual(expect.objectContaining({ assets: [integrationDependency] }));
+	});
+
+	it('places the global scripts of a foreign Integration before the component scripts of the page', async () => {
+		const hydrateSupport = createScriptAsset('/assets/lit-hydrate-support.js');
+		const elementScript = createScriptAsset('/assets/lit-counter.script.js');
+		const clientAsset = createScriptAsset('/assets/island-entry.js');
+		const { flow } = createOrchestrator({
+			integrations: [{ ...createReactIntegration([hydrateSupport]), name: 'lit' }],
+		});
+		const LitCounter = createComponent({
+			integration: 'lit',
+			identity: {
+				id: 'lit-counter',
+				file: path.resolve('/app/components/lit-counter.lit.tsx'),
+				integration: 'lit',
+			},
+		});
+		const Page = createPage({ dependencies: { components: [LitCounter] } });
+
+		const result = await flow.prepareRenderOptions(createRouteOptions(path.resolve('/app/pages/index.kita.tsx')), {
+			...createFlowRenderer({ name: 'kitajs', Page, resolveDependencies: async () => [elementScript] }),
+			buildPageClientBrowserAssets: async () => ({ processedAssets: [clientAsset], lazyTriggers: [] }),
+		});
+
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({ assets: [hydrateSupport, elementScript, clientAsset] }),
+		);
+	});
+
+	it("places the owner's global scripts in config order with the foreign ones", async () => {
+		const hydrateSupport = createScriptAsset('/assets/lit-hydrate-support.js');
+		const radiantHydrator = createScriptAsset('/assets/radiant-hydrator.js');
+		const elementScript = createScriptAsset('/assets/lit-counter.script.js');
+		const { flow } = createOrchestrator({
+			integrations: [
+				{ ...createReactIntegration([hydrateSupport]), name: 'lit' },
+				{ ...createReactIntegration([radiantHydrator]), name: 'ecopages-jsx' },
+			],
+		});
+		const LitCounter = createComponent({
+			integration: 'lit',
+			identity: {
+				id: 'lit-counter',
+				file: path.resolve('/app/components/lit-counter.lit.tsx'),
+				integration: 'lit',
+			},
+		});
+		const Page = createPage({ dependencies: { components: [LitCounter] } });
+
+		const result = await flow.prepareRenderOptions(createRouteOptions(path.resolve('/app/pages/index.tsx')), {
+			...createFlowRenderer({
+				name: 'ecopages-jsx',
+				Page,
+				integrationDependencies: [radiantHydrator],
+				resolveDependencies: async () => [elementScript],
+			}),
+		});
+
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({ assets: [hydrateSupport, radiantHydrator, elementScript] }),
+		);
 	});
 
 	it('materializes page dependency assets from the prepared graph nodes', async () => {

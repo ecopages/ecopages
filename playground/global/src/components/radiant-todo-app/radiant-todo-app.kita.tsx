@@ -1,5 +1,4 @@
 import { eco } from '@ecopages/core';
-import { stringifyTyped } from '@ecopages/radiant';
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './radiant-todo.templates';
 import type { TodoContext } from './radiant-todo-app.script';
 
@@ -75,8 +74,8 @@ export const RadiantTodoApp = eco.component({
 					</TodoPanel>
 				</section>
 				<TodoForm />
-				<script type="application/json" data-hydration>
-					{stringifyTyped<Partial<TodoContext>, string>(data)}
+				<script type="application/json" data-hydration data-hydration-type="context">
+					{JSON.stringify(data)}
 				</script>
 			</radiant-todo-app>
 		);

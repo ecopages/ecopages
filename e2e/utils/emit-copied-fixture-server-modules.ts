@@ -8,9 +8,16 @@ import { ENDPOINT_FILE_EXTENSIONS } from '../../packages/core/src/utils/endpoint
 /**
  * Emits production server modules for a copied fixture so `NODE_ENV=production`
  * `createApp()` can import Pages without a spawned `ecopages build`.
+ *
+ * @remarks
+ * The returned config resolves Integration global scripts after the browser build, like `ecopages build`, so a
+ * caller can also build the static export with it.
  */
 export async function emitCopiedFixtureServerModules(appDir: string): Promise<EcoPagesAppConfig> {
-	const appConfig = await loadEcoPagesConfig({ configFile: path.join(appDir, 'eco.config.ts') });
+	const appConfig = await loadEcoPagesConfig({
+		configFile: path.join(appDir, 'eco.config.ts'),
+		globalScriptResolution: 'browser-build',
+	});
 	const pagesDir = appConfig.absolutePaths.pagesDir;
 	const files: string[] = [];
 	for await (const file of glob(

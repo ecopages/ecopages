@@ -43,7 +43,7 @@ interface ContractApp {
 	dispose(): void;
 }
 
-async function createContractApp(processor: AnyProcessor | undefined): Promise<ContractApp> {
+async function createContractApp(processor: AnyProcessor): Promise<ContractApp> {
 	const rootDir = fileSystem.realpath(fileSystem.mkdtemp(path.join(path.fromNative(tmpdir()), 'eco-css-contract-')));
 	const write = (relativePath: string, contents: string) => {
 		const file = path.join(rootDir, relativePath);
@@ -55,9 +55,9 @@ async function createContractApp(processor: AnyProcessor | undefined): Promise<C
 		const config = await finalizeEcoPagesConfig({
 			rootDir,
 			integrations: [],
-			processors: processor ? [processor] : [],
+			processors: [processor],
 		});
-		processor?.setContext(config);
+		processor.setContext(config);
 		return { config, rootDir, write, dispose: () => fileSystem.remove(rootDir) };
 	} catch (error) {
 		fileSystem.remove(rootDir);
@@ -94,7 +94,7 @@ function createRecordingBridge(): { bridge: IClientBridge; refreshed: string[]; 
 
 const changed = (file: string) => ({ created: [], changed: [file], deleted: [] });
 
-async function withApp(processor: AnyProcessor | undefined, run: (app: ContractApp) => Promise<void>): Promise<void> {
+async function withApp(processor: AnyProcessor, run: (app: ContractApp) => Promise<void>): Promise<void> {
 	const app = await createContractApp(processor);
 	try {
 		await run(app);
@@ -112,8 +112,7 @@ async function withApp(processor: AnyProcessor | undefined, run: (app: ContractA
  *   stylesheet in development;
  * - a transform that throws fails the build;
  * - in development, a transform that throws keeps the last good output, and the save that fixes it recovers without
- *   a restart;
- * - with no Processor, plain CSS reaches the importer as written.
+ *   a restart.
  *
  * @example
  * ```ts
@@ -201,26 +200,6 @@ export function stylesheetProcessorContract(
 						'the save that fixes the stylesheet does not recover it',
 					);
 					assert.deepEqual(refreshed, [card], 'the save that fixes the stylesheet does not refresh it');
-				}),
-		},
-		{
-			name: 'with no Processor, plain CSS passes through unchanged',
-			run: () =>
-				withApp(undefined, async (app) => {
-					const css = ".card { color: red; }\n@import './other.css';\n";
-					app.write('src/card.css', css);
-					const entry = app.write(
-						'src/card.script.ts',
-						"import styles from './card.css';\nexport { styles };\n",
-					);
-
-					const result = await buildServerEntry(app, entry);
-					assert.ok(result.success, 'the server build failed');
-					const output = result.outputs.map((file) => file.content ?? '').join('\n');
-					assert.ok(
-						output.includes(JSON.stringify(css)),
-						'the module of a plain stylesheet is not its source',
-					);
 				}),
 		},
 	];

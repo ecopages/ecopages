@@ -9,6 +9,7 @@ sources:
   - packages/core/src/plugins/processor.ts
   - packages/core/src/plugins/stylesheet-kinds.ts
   - packages/core/src/processor-contract.ts
+  - packages/core/src/assets/asset-processing-service/processors/stylesheet/processed-stylesheet-cache.ts
   - packages/core/src/plugins/find-integration-for-file.ts
   - packages/core/src/plugins/foreign-jsx-override-plugin.ts
   - packages/core/src/plugins/eco-component-meta-plugin.ts
@@ -167,6 +168,7 @@ The stylesheet Processor is a transform with an optional invalidation hook; core
 
 - `transformStylesheet(css, file)` returns `{ css, dependencies }`. `dependencies` are the absolute paths of the other files the transform read, taken from the transform itself (PostCSS `dependency` messages, Lightning CSS `dependencies`), never from a scan of the source. `applyStylesheetProcessors` keeps the ones that are stylesheets, without the file itself: a Processor that scans content, such as Tailwind, reports every file it scanned too, and a content edit must not invalidate every Page and module that uses the stylesheet. The stylesheet module plugin declares them with `addWatchFile`, the file stylesheet processor adds them to the asset's `bundledSourceFilepaths`, and the development stylesheet service keeps the reverse map that rebuilds a stylesheet when one changes.
 - `invalidateStylesheets(files)` is called in development with the changed paths of a batch that are not stylesheets, and returns the stylesheets to rebuild or `'all'` for every entry stylesheet. It is where a Processor whose output depends on content, such as Tailwind, resets its state. Without it, a change to a file that is not a stylesheet rebuilds none.
+- One edit runs the Processor once. `applyStylesheetProcessors` reads through the app's `ProcessedStylesheetCache` (`runtime.processedStylesheets`), keyed by source file and checked against the hash of the source and of every dependency the transform reported, so the dev stylesheet service, the dev transform server, server builds, browser bundles and the asset pipeline share one output. Concurrent misses share one transform, and a failure is not cached. Content the key cannot see is evicted by the invalidation hook: the stylesheets it names, or every entry for `'all'`.
 - Core persists, caches, queues and broadcasts in development (`DevelopmentStylesheetService`, see [PostCSS processor](/dev/postcss-processor#development-lifecycle)); with no stylesheet Processor, plain CSS passes through as written.
 
 `@ecopages/core/processor/contract` exports `stylesheetProcessorContract({ createProcessor })`, cases any test runner can register to check a stylesheet Processor against this contract; the PostCSS Processor runs them.

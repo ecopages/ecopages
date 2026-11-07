@@ -192,6 +192,8 @@ export class DevelopmentStylesheetService {
 	 *
 	 * @remarks
 	 * A hook that throws is logged and shown, and invalidates nothing, so the rest of the batch still updates.
+	 * The named stylesheets leave the processed stylesheet cache, since its key cannot see the content that changed;
+	 * `'all'` empties it.
 	 */
 	private async invalidatedByContent(
 		{ processor, kinds }: StylesheetScope,
@@ -209,8 +211,16 @@ export class DevelopmentStylesheetService {
 			bridge.error(message);
 			return [];
 		}
-		if (invalidated === 'all') return this.entries();
-		return invalidated.map((file) => path.resolve(file)).filter((file) => this.owns({ processor, kinds }, file));
+		const cache = requireAppRuntime(this.appConfig).processedStylesheets;
+		if (invalidated === 'all') {
+			cache.evict();
+			return this.entries();
+		}
+		const named = invalidated
+			.map((file) => path.resolve(file))
+			.filter((file) => this.owns({ processor, kinds }, file));
+		cache.evict(named);
+		return named;
 	}
 
 	/** The stylesheets the service processed, or failed to, that no other stylesheet read. */

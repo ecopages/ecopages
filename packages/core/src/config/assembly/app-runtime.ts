@@ -1,4 +1,5 @@
 import { ProcessedAssetLedger } from '../../assets/asset-processing-service/processed-asset-ledger.ts';
+import { ProcessedStylesheetCache } from '../../assets/asset-processing-service/processors/stylesheet/processed-stylesheet-cache.ts';
 import { createBuildAdapter } from '../../build/build-adapter.ts';
 import { sealAppBuildManifest } from '../../build/app-build-manifest-runtime.ts';
 import { BuildInputDependencyIndex, seedProcessorWatchPaths } from '../../build/cache/build-input-dependency-index.ts';
@@ -98,6 +99,8 @@ export interface AppRuntime {
 	 * seals it, so rendering serves every dependency from `dist/` and never compiles or writes.
 	 */
 	processedAssets: ProcessedAssetLedger;
+	/** The stylesheets the app's Processor produced, shared by every path that processes one. */
+	processedStylesheets: ProcessedStylesheetCache;
 	/**
 	 * True while static generation (`ecopages build`) runs. An asset that cannot be processed then
 	 * fails the build.
@@ -154,6 +157,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		origin: appConfig.baseUrl,
 		hmr: null,
 		processedAssets: new ProcessedAssetLedger(appConfig.rootDir),
+		processedStylesheets: new ProcessedStylesheetCache(),
 		staticGenerationActive: false,
 	};
 	appConfig.appRuntime = runtime;

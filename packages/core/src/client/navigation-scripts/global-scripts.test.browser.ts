@@ -49,11 +49,30 @@ describe('loadNavigationGlobalScripts', () => {
 		expect(document.head.querySelectorAll('script[data-eco-script-id="first"]')).toHaveLength(1);
 	});
 
+	it('makes a second navigation wait for a global script that is still loading', async () => {
+		const incoming = parse(
+			moduleScript(
+				'data-eco-global-script data-eco-script-id="first"',
+				'(globalThis.ranGlobals ??= []).push("waited")',
+			),
+		);
+
+		const first = loadNavigationGlobalScripts(incoming);
+		await expect(loadNavigationGlobalScripts(incoming)).resolves.toBe(true);
+
+		expect(probe.ranGlobals).toEqual(['waited']);
+		await first;
+		expect(document.head.querySelectorAll('script[data-eco-script-id="first"]')).toHaveLength(1);
+	});
+
 	it('reports a global script that fails to load', async () => {
 		const incoming = parse(
 			'<script type="module" data-eco-global-script data-eco-script-id="missing" src="/__missing-global-script.js"></script>',
 		);
 
+		await expect(loadNavigationGlobalScripts(incoming)).resolves.toBe(false);
+
+		expect(document.head.querySelector('script[data-eco-script-id="missing"]')).toBeNull();
 		await expect(loadNavigationGlobalScripts(incoming)).resolves.toBe(false);
 	});
 });

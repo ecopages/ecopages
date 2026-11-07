@@ -60,7 +60,7 @@ sequenceDiagram
 
 1. Calls `assertProductionDistComplete()`: one build id across the manifests, the server entry, emitted config, route list, every listed server module and every ledger output must exist. It reads no source.
 2. Loads the server-modules map with `requireProductionServerModules()`.
-3. Restores the ledger with `restoreProductionBrowserBuild(appConfig, { seal: true })`. Once `completeInitialization()` has set the Integrations up, `resolveIntegrationDependencies()` resolves each Integration's global scripts through it, before requests are released.
+3. Restores the ledger with `restoreProductionBrowserBuild(appConfig, { seal: true })`. Every Integration activates after this, in `completeInitialization()` or on a request, and each activation resolves the Integration's global scripts through the restored ledger right after its `setup()`.
 4. Runs `setupAppRuntimePlugins` with `skipProcessorSetup`, so each Processor calls `restoreProductionRuntime()` instead of `setup()`. Why: the deploy may hold no sources to scan, and the build already produced everything a Processor generates.
 
 It does not copy the public directory or touch `dist/`, because the build already did. The route registry loads its routes from `routes.json` instead of scanning the pages directory.

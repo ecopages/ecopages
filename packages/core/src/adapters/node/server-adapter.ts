@@ -1,11 +1,7 @@
 import { type Server as NodeHttpServer } from 'node:http';
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
-import {
-	resolveIntegrationDependencies,
-	setupAppRuntimeIntegrations,
-	setupAppRuntimePlugins,
-} from '../../build/build-adapter.ts';
+import { setupAppRuntimeIntegrations, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type {
@@ -504,7 +500,6 @@ export class NodeServerAdapter {
 			} else {
 				if (this.runtimeAssetSetup === 'start') {
 					await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
-					await resolveIntegrationDependencies({ appConfig: this.appConfig });
 					if (this.startsFromCompleteDist()) {
 						requireProductionServerModules(this.appConfig);
 					}

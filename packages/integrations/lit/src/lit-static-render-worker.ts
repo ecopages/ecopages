@@ -47,7 +47,7 @@ async function initializeWorker(
 	await setupAppRuntimePlugins({
 		appConfig,
 	});
-	await setupAppRuntimeIntegrations({ appConfig });
+	await setupAppRuntimeIntegrations({ appConfig, deferGlobalScripts: true });
 
 	routeRendererFactory = new RouteRendererFactory({
 		appConfig,

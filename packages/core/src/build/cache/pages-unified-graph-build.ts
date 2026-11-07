@@ -210,7 +210,7 @@ export async function emitProductionServerModules(options: {
 }): Promise<ProductionServerModulesManifest> {
 	const appConfig = options.appConfig;
 	requireAppRuntime(appConfig);
-	await setupAppRuntimeIntegrations({ appConfig });
+	await setupAppRuntimeIntegrations({ appConfig, deferGlobalScripts: true });
 	const outdir = path.resolve(options.outdir ?? getServerBundleOutputPaths(appConfig).serverOutdir);
 	fileSystem.ensureDir(outdir);
 

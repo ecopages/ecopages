@@ -44,26 +44,25 @@ export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig): void {
 }
 
 /**
- * Activates every configured integration after watch-mode HMR is ready, then resolves its global scripts.
+ * Activates every configured integration after watch-mode HMR is ready.
  *
  * @remarks
  * Awaited before network request readiness is released, so requests do not
  * compete with cold Integration `setup()`. The listener may already be bound.
- * Development has no app-wide browser build, so each Integration resolves its
- * global scripts right after its own setup. Failures are logged after all
- * attempts settle and do not crash the server. Concurrent first-page renders
- * still join the same coalesced {@link ensureIntegrationRuntimeReady} promise.
+ * Each activation resolves the Integration's global scripts after its setup.
+ * Failures are logged after all setup attempts settle and do not crash the
+ * server; a later request retries a failed activation. Concurrent first-page
+ * renders still join the same coalesced {@link ensureIntegrationRuntimeReady} promise.
  */
 export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
 	const { appConfig } = options;
 	const results = await Promise.allSettled(
-		appConfig.integrations.map(async (integration) => {
-			await ensureIntegrationRuntimeReady({
+		appConfig.integrations.map((integration) =>
+			ensureIntegrationRuntimeReady({
 				appConfig,
 				integrationName: integration.name,
-			});
-			await integration.refreshResolvedIntegrationDependencies();
-		}),
+			}),
+		),
 	);
 
 	for (const [index, result] of results.entries()) {

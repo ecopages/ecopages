@@ -218,7 +218,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * @remarks
 	 * The list is one array for the plugin's lifetime. {@link refreshResolvedIntegrationDependencies} updates it in
 	 * place, so a renderer that holds it, across a teardown and a later setup too, sees each new resolution. It is
-	 * empty until the lifecycle that activated the Integration resolves it, which happens after `setup()`.
+	 * empty until the Integration's activation, or the build that deferred it, resolves it after `setup()`.
 	 */
 	getResolvedIntegrationDependencies(): ProcessedAsset[] {
 		return this.resolvedIntegrationDependencies;
@@ -233,10 +233,11 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Processes the global assets and replaces the resolved list in place.
 	 *
 	 * @remarks
-	 * `setup()` does not call it. The lifecycle that activates the Integration calls it once its browser build is
-	 * known: dev after setup, a build after the app-wide browser build (or when it plans no route), and
-	 * `ecopages start` and the Lit static-render worker after restoring the asset ledger. A global script then
-	 * resolves to that build's output instead of being bundled on its own. Does nothing before `setup()`.
+	 * `setup()` does not call it. Core's activation calls it right after a successful `setup()`, in dev and in
+	 * `ecopages start` (whose ledger is restored before any activation). A production build and the Lit
+	 * static-render worker defer it to their browser build: the build calls it after the app-wide browser build (or
+	 * when it plans no route), the worker after restoring the asset ledger. A global script then resolves to that
+	 * build's output instead of being bundled on its own. Does nothing before `setup()`.
 	 */
 	async refreshResolvedIntegrationDependencies(): Promise<void> {
 		if (!this.assetProcessingService) return;
@@ -306,8 +307,8 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Performs runtime integration setup, after config finalization has sealed the build manifest.
 	 *
 	 * @remarks
-	 * Global scripts are not resolved yet: {@link getResolvedIntegrationDependencies} reads them only after the
-	 * lifecycle resolves them through {@link refreshResolvedIntegrationDependencies}.
+	 * Global scripts are not resolved yet: {@link getResolvedIntegrationDependencies} reads them only after
+	 * {@link refreshResolvedIntegrationDependencies} runs.
 	 */
 	async setup(context: IntegrationRuntimeContext): Promise<void> {
 		await installConfiguredServerDom(context.appConfig.integrations);

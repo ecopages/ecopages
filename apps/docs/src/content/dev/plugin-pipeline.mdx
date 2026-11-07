@@ -91,13 +91,13 @@ A name identifies a plugin within an environment. Registering the same name twic
 
 Overlapping registrations are rejected instead of silently dropping a contributor's hooks; request identity and caches key on plugin names.
 
-The browser list is not plain registration order. It holds the plugins that also apply to the server first, then the browser runtime plugin that core synthesizes from each Integration's `browserRuntimeManifest`, then the browser-only plugins. The browser runtime plugin resolves manifest specifiers to public URLs and marks them external. Vendor URL rewrites are data on the Integration, not a plugin it writes.
+The browser list is not plain registration order. It holds the plugins that also apply to the server first, then the browser-only plugins. No plugin rewrites framework packages such as React to fixed URLs: they resolve like any other import.
 
 ## Order
 
 Position in the list is priority. The bridge keeps that order for the Rolldown plugins it creates, so Rolldown asks `onResolve` and `onLoad` handlers in list order and the first non-null result wins, and `transform` runs every matching handler in list order, each one on the previous output. `resolveBuildPluginOrder()` in `build/runtime/build-request-policy.ts` is the one place that decides that list for a request:
 
-1. Caller plugins that apply to the environment and whose name no app plugin has. A caller cannot replace an app plugin of the same name; it gets first refusal on resolves and loads instead, which React's vendor and alias rewrites rely on.
+1. Caller plugins that apply to the environment and whose name no app plugin has. A caller cannot replace an app plugin of the same name; it gets first refusal on resolves and loads instead.
 2. App plugins: the alias resolver, then the manifest list for the environment, then the JSX ownership plugins. Within the manifest, registration order is loaders, then Processors, then Integrations, each in config order. A browser request can drop app plugins it replaces by name with `excludeAppBuildPlugins`.
 3. Core transforms: component identity attribution (`eco-component-identity-attribution`), then any the request passes, such as the `import.meta` rewrite on development server requests. A contributed plugin with a core transform's name throws.
 
@@ -107,13 +107,12 @@ Core transforms run last, so no contributed plugin runs after them. Caller plugi
 flowchart TD
   C[Caller plugins] --> A[Alias resolver]
   A --> SB[Plugins for both environments]
-  SB --> BR[Browser runtime plugin]
-  BR --> BO[Browser-only plugins]
+  SB --> BO[Browser-only plugins]
   BO --> J[JSX ownership plugins]
   J --> T[Core transforms]
 ```
 
-The diagram shows a browser request; a server request has no browser runtime plugin and takes the manifest's `server` list in registration order.
+The diagram shows a browser request; a server request takes the manifest's `server` list in registration order.
 
 ## The Rolldown bridge
 

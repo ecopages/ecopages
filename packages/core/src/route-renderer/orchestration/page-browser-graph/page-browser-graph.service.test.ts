@@ -28,7 +28,6 @@ beforeEach(() => {
 				name: 'react',
 				extensions: ['.tsx'],
 				plugins: () => [],
-				browserRuntimeManifest: { runtimeGlobals: [], hmrRequirements: [] },
 			},
 		],
 		absolutePaths: {

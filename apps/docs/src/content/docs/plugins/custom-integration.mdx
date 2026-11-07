@@ -73,7 +73,7 @@ The base contract keeps configuration reads separate from runtime work:
 - `staticExport(ctx)` may start export-wide work and return an async release function.
 - `teardown()` releases runtime resources when the app stops, restarts, or finishes a static export.
 
-Pass `browserRuntimeManifest` as constructor data when the browser runtime needs specifier rewrites; it is read while the build manifest is sealed and is not a lifecycle hook.
+A browser runtime the Integration's generated scripts import, such as a framework package, needs no declaration: it resolves like any other import, bundled into the app-wide build in production and served from the vendor graph in development.
 
 ## Pages That Are Not JavaScript Modules
 

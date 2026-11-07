@@ -12,6 +12,9 @@ import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { formatBuildLog } from '../../build/build-log.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import { parseModuleSource } from '../../cache/module-parse-cache.ts';
+import { escapeRegExp } from '../../utils/regex-escaping.ts';
+import type { VendorImport } from './dev-transform-import-rewriter.ts';
 
 const BROWSER_FIRST_VENDOR_CONDITIONS = ['browser', 'module', 'import', 'default'] as const;
 const MODULE_FIRST_VENDOR_CONDITIONS = ['module', 'import', 'default'] as const;
@@ -36,6 +39,8 @@ type VendorGraphBuild = {
 	entryPaths: ReadonlySet<string>;
 	/** Output contents keyed by served URL: entries and shared chunks. */
 	outputs: ReadonlyMap<string, string>;
+	/** Entry paths whose module is CommonJS, so their output has only a default export. */
+	commonJsEntryPaths: ReadonlySet<string>;
 	/** The error served for each entry that has no output in this build. */
 	errors: ReadonlyMap<string, Error>;
 	/** Entries that failed alone while others built; they stay out of later builds of the generation. */
@@ -64,8 +69,9 @@ type RunningVendorGraphBuild = {
  * @remarks
  * `@ecopages/core` resolves browser-first so its browser entry wins over its Node entry, while other packages
  * resolve module-first, as they always have. Rolldown takes one condition list per build, so each list gets its
- * own graph. Inside one graph a module has exactly one chunk; a package that both graphs reach loads once per
- * graph.
+ * own graph. Inside one graph a module has exactly one chunk. A module-first package's `@ecopages/core` imports
+ * point at core's browser-first entries, so core loads once; any other package that both graphs reach loads once
+ * per graph.
  */
 type VendorGraph = {
 	key: VendorGraphKey;
@@ -87,8 +93,58 @@ type PersistedVendorEntries = {
 
 type VendorOutputLookup = { build: VendorGraphBuild; url: string; content: string } | { error: Error } | null;
 
+/** Whether a package file has an `import` or `export` statement, which makes it an ES module rather than CommonJS. */
+function hasModuleSyntax(filePath: string): boolean {
+	try {
+		return parseModuleSource(filePath, fileSystem.readFileSync(filePath)).module.hasModuleSyntax;
+	} catch {
+		return true;
+	}
+}
+
+const BROWSER_FIRST_PACKAGE = '@ecopages/core';
+const BROWSER_FIRST_SPECIFIER = new RegExp(`^${escapeRegExp(BROWSER_FIRST_PACKAGE)}(?:/|$)`, 'u');
+const PIN_ENTRY_NAME = '__eco_vendor_pin';
+const PIN_SPECIFIER = 'ecopages:vendor-pin';
+const PIN_MODULE_ID = '\0ecopages-vendor-pin';
+
+/**
+ * Adds an entry to each vendor build that keeps the shape of the other entries the same from one build to the next.
+ *
+ * @remarks
+ * A browser that loaded a vendor file keeps its module, so a later build of the graph must not change a file it
+ * already served; when it does, the page reloads. Two things would change one as packages arrive. Rolldown puts the
+ * helpers its CommonJS interop needs in one shared runtime chunk, keeps only the ones the build uses and names the
+ * chunk after its content, so a package that needs one more helper renames it in every entry that imports it. And a
+ * CommonJS entry exports its module's `require` function only once another entry imports it, so a package that
+ * imports `react/jsx-runtime` adds an export to that entry. The pin re-exports every helper and the namespace of every
+ * entry whose file has no `import` or `export` statement, so each runtime helper and each CommonJS `require` export is
+ * there from the first build. It leaves ES module entries alone: importing one would move its code into a shared
+ * chunk behind the entry. Nothing requests the pin's own output.
+ */
+function exactly(value: string): RegExp {
+	return new RegExp(`^${escapeRegExp(value)}$`, 'u');
+}
+
+function createVendorPinPlugin(entries: readonly VendorEntry[]): EcoBuildPlugin {
+	const contents = [
+		'export * from "\\0rolldown/runtime.js";',
+		...entries
+			.filter((entry) => !hasModuleSyntax(entry.entryPath))
+			.map((entry, index) => `export * as __eco_pin_${index} from ${JSON.stringify(entry.entryPath)};`),
+	].join('\n');
+	return {
+		name: 'ecopages-dev-vendor-pin',
+		cacheKey: contents,
+		setup(build) {
+			build.onResolve({ filter: exactly(PIN_SPECIFIER) }, () => ({ path: PIN_MODULE_ID }));
+			build.onLoad({ filter: exactly(PIN_MODULE_ID) }, () => ({ contents, loader: 'js' }));
+		},
+	};
+}
+
 function getVendorGraphKey(specifier: string): VendorGraphKey {
-	return toPackageRootSpecifier(specifier) === '@ecopages/core' ? 'browser-first' : 'module-first';
+	return toPackageRootSpecifier(specifier) === BROWSER_FIRST_PACKAGE ? 'browser-first' : 'module-first';
 }
 
 export type DevTransformVendorRegistryOptions = {
@@ -149,6 +205,17 @@ export class DevTransformVendorRegistry {
 	 * Rejects with the prebundle error when the entry failed to build.
 	 */
 	async resolveVendorUrl(specifier: string): Promise<string> {
+		return (await this.resolveVendorImport(specifier)).url;
+	}
+
+	/**
+	 * Returns the vendor URL of a bare specifier and whether that build found its module to be CommonJS.
+	 *
+	 * @remarks
+	 * A CommonJS entry is served with `module.exports` as its default export and no named exports, so the import
+	 * rewriter reads named imports of it from the default export.
+	 */
+	async resolveVendorImport(specifier: string): Promise<VendorImport> {
 		const entryPath = this.resolvePackageEntry(specifier);
 		const { graph, entry } = this.addEntry(specifier, entryPath);
 		const build = await this.waitForBuildContaining(graph, entry.entryPath);
@@ -156,7 +223,7 @@ export class DevTransformVendorRegistry {
 		if (error) {
 			throw error;
 		}
-		return entry.url;
+		return { url: entry.url, commonJs: build.commonJsEntryPaths.has(entry.entryPath) };
 	}
 
 	/**
@@ -186,6 +253,22 @@ export class DevTransformVendorRegistry {
 
 		found.build.servedUrls.add(found.url);
 		return createVendorResponse(found.url, found.content, ifNoneMatch);
+	}
+
+	/**
+	 * Adds the entries of bare specifiers that modules are known to import, without building.
+	 *
+	 * @remarks
+	 * Generated modules such as hydration bootstraps import their packages one request after another. Knowing
+	 * them up front puts them all in the first build of their graph, so a later build does not move a module a
+	 * browser already loaded into a new shared chunk and reload the page. A specifier that does not resolve is
+	 * skipped.
+	 */
+	addKnownEntries(specifiers: readonly string[]): void {
+		for (const specifier of specifiers) {
+			const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier, this.appConfig.rootDir);
+			if (resolved) this.addEntry(specifier, resolved.path);
+		}
 	}
 
 	/**
@@ -312,13 +395,27 @@ export class DevTransformVendorRegistry {
 		}
 	}
 
+	/**
+	 * @remarks
+	 * A file the previous build served and this build left unchanged counts as served by this one too, so a later
+	 * build that changes it still reports the change.
+	 */
 	private commitBuild(graph: VendorGraph, build: VendorGraphBuild): void {
 		const previous = graph.current;
 		graph.current = build;
 		for (const [entryPath, error] of build.failed) {
 			graph.failed.set(entryPath, error);
 		}
-		if (previous && [...previous.servedUrls].some((url) => previous.outputs.get(url) !== build.outputs.get(url))) {
+		if (!previous) {
+			this.persistEntries();
+			return;
+		}
+		let changed = false;
+		for (const url of previous.servedUrls) {
+			if (previous.outputs.get(url) === build.outputs.get(url)) build.servedUrls.add(url);
+			else changed = true;
+		}
+		if (changed) {
 			this.onVendorGraphChange?.();
 		}
 		this.persistEntries();
@@ -341,10 +438,13 @@ export class DevTransformVendorRegistry {
 	): Promise<VendorGraphBuild> {
 		const failed = new Map(knownFailed);
 		const entryPaths = new Set(entries.map((entry) => entry.entryPath));
-		const finish = (outputs: ReadonlyMap<string, string>): VendorGraphBuild => ({
+		const finish = (result?: Extract<BuildResult, { success: true }>): VendorGraphBuild => ({
 			generation,
 			entryPaths,
-			outputs,
+			outputs: result ? this.collectOutputs(result) : new Map(),
+			commonJsEntryPaths: new Set(
+				(result?.dependencyGraph.commonJsEntrypoints ?? []).map((entryPath) => path.resolve(entryPath)),
+			),
 			errors: failed,
 			failed,
 			servedUrls: new Set(),
@@ -355,12 +455,12 @@ export class DevTransformVendorRegistry {
 		try {
 			const toBuild = entries.filter((entry) => !failed.has(entry.entryPath));
 			if (toBuild.length === 0) {
-				return finish(new Map());
+				return finish();
 			}
 
 			const result = await this.bundleGraph(graph, toBuild);
 			if (result.success) {
-				return finish(this.collectOutputs(result));
+				return finish(result);
 			}
 			const graphError = createPrebundleError(describeEntries(toBuild), result);
 			if (toBuild.length === 1) {
@@ -386,7 +486,7 @@ export class DevTransformVendorRegistry {
 			if (!retried.success) {
 				return failGraph(createPrebundleError(describeEntries(remaining), retried));
 			}
-			return finish(this.collectOutputs(retried));
+			return finish(retried);
 		} catch (error) {
 			return failGraph(error instanceof Error ? error : new Error(String(error)));
 		}
@@ -431,6 +531,7 @@ export class DevTransformVendorRegistry {
 			generation: failure.generation,
 			entryPaths: failure.entryPaths,
 			outputs,
+			commonJsEntryPaths: lastGood?.commonJsEntryPaths ?? new Set(),
 			errors,
 			failed: failure.failed,
 			servedUrls: lastGood?.servedUrls ?? new Set(),
@@ -438,13 +539,42 @@ export class DevTransformVendorRegistry {
 		};
 	}
 
+	/**
+	 * Keeps the `@ecopages/core` imports of module-first packages out of their graph, pointing each at its
+	 * browser-first entry URL.
+	 *
+	 * @remarks
+	 * A package such as a router imports core's browser modules. Bundled into the module-first graph, they would
+	 * be a second copy next to the browser-first one that Pages import, and would move between that graph's chunks
+	 * as other packages that import them arrive. The import becomes the entry's stable URL instead, which a browser
+	 * request then builds like any other entry.
+	 */
+	private createBrowserFirstImportsPlugin(): EcoBuildPlugin {
+		return {
+			name: 'ecopages-dev-vendor-browser-first-imports',
+			setup: (build) => {
+				build.onResolve({ filter: BROWSER_FIRST_SPECIFIER }, (args) => {
+					const resolved = resolveBarePackageBrowserEntry(
+						this.appConfig.rootDir,
+						args.path,
+						args.importer ? path.dirname(args.importer) : this.appConfig.rootDir,
+					);
+					if (!resolved) return undefined;
+					return { path: this.addEntry(args.path, resolved.path).entry.url, external: true };
+				});
+			},
+		};
+	}
+
 	private async bundleGraph(graph: VendorGraph, entries: readonly VendorEntry[]): Promise<BuildResult> {
 		const vendorPlugins = this.resolveVendorBundlePlugins ? await this.resolveVendorBundlePlugins() : [];
+		const graphPlugins = graph.key === 'module-first' ? [this.createBrowserFirstImportsPlugin()] : [];
 		return this.browserBundleService.bundle({
 			lane: 'build',
-			entrypoints: Object.fromEntries(
-				entries.map((entry) => [path.posix.basename(entry.url, '.js'), entry.entryPath]),
-			),
+			entrypoints: {
+				...Object.fromEntries(entries.map((entry) => [path.posix.basename(entry.url, '.js'), entry.entryPath])),
+				[PIN_ENTRY_NAME]: PIN_SPECIFIER,
+			},
 			outdir: this.resolveOutdir(),
 			naming: '[name]',
 			writeToDisk: false,
@@ -454,7 +584,7 @@ export class DevTransformVendorRegistry {
 			splitting: true,
 			conditions: [...graph.conditions],
 			excludeAppBuildPlugins: resolveAppBuildPlugins(this.appConfig, 'browser').map((plugin) => plugin.name),
-			plugins: [...vendorPlugins],
+			plugins: [createVendorPinPlugin(entries), ...graphPlugins, ...vendorPlugins],
 		});
 	}
 
@@ -637,7 +767,7 @@ function formatVendorPrebundleError(specifier: string, details: string): string 
 	if (details.includes(BROWSER_NODE_BUILTIN_GUARD_MARKER)) {
 		return (
 			`[dev-transform] Bare import "${specifier}" resolved to a server-only entry. ` +
-			`Import a browser subpath or register the package in the browser runtime manifest.` +
+			`Import a browser subpath of the package.` +
 			(details ? `\n${details}` : '')
 		);
 	}

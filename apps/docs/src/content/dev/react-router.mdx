@@ -20,7 +20,7 @@ sources:
 
 ## Wiring
 
-The React plugin takes `router: ecoRouter()`, an adapter that names the browser bundle (`@ecopages/react-router/browser`), the `EcoRouter` and `PageContent` components, and a `getRouterProps()` string that carries serialized options into the generated entry. See [React](/dev/react) for the plugin side. The Page hydration entry (`createPageEntrySource()`) then builds its tree as `EcoRouter` wrapping `PageContent`, and passes `hasRouter: true` to `startPageHydration()`.
+The React plugin takes `router: ecoRouter()`, an adapter that names the package of the browser entry (`importPath: '@ecopages/react-router/browser'`), the `EcoRouter` and `PageContent` components, and a `getRouterProps()` string that carries serialized options into the generated entry. See [React](/dev/react) for the plugin side. The Page hydration entry (`createPageEntrySource()`) then builds its tree as `EcoRouter` wrapping `PageContent`, and passes `hasRouter: true` to `startPageHydration()`. The entry imports the router by package name, like React: production bundles both into the app-wide build's shared chunks and development serves each from its one vendor URL, so the router, the Layouts and every Page use one copy of React.
 
 `EcoRouter` is a component, not an object like browser-router's. It owns the current `PageState` (`Component` plus `props`), `isNavigating` (exposed through `useRouter()` with `navigate`), and the capture-phase `pointerdown`, `click` and `popstate` listeners. Link interception uses the same core policy as browser-router (`getLinkNavigationDecision()`), the same pointer-intent recovery and the same queued-click replay; only the effects differ.
 

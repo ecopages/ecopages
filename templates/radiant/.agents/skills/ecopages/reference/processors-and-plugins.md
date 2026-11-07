@@ -101,7 +101,7 @@ export const customPlugin = defineIntegration({
 
 Class-based integrations extend `IntegrationPlugin`, provide a renderer, and split build declarations (`plugins(app)`, no I/O) from runtime work (`setup`). Overrides of `setup(ctx)` must `await super.setup(ctx)` first; it creates the asset service the renderer needs. For Page files that are not JavaScript modules, implement `compilePageModule(filePath, appConfig)`.
 
-Override `createRenderer(base)` to add framework-specific renderer options, `hmr(ctx)` to register development strategies, and `staticExport(ctx)` when build-time work needs a release function. Set browser runtime rewrites with the constructor's `browserRuntimeManifest` data.
+Override `createRenderer(base)` to add framework-specific renderer options, `hmr(ctx)` to register development strategies, and `staticExport(ctx)` when build-time work needs a release function. A browser package that generated scripts import needs no declaration; it resolves like any other import.
 
 ## Source transforms
 

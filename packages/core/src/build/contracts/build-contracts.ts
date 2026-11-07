@@ -21,6 +21,14 @@ export interface BuildDependencyGraph {
 	 * changes.
 	 */
 	entrypoints: Record<string, string[]>;
+	/**
+	 * Resolved paths of the entries whose own module the bundler detected as CommonJS.
+	 *
+	 * @remarks
+	 * Such an entry's output has a default export, `module.exports`, and no named exports. The development vendor
+	 * graph reads it so importers can take named bindings from the default export.
+	 */
+	commonJsEntrypoints?: string[];
 }
 
 /**

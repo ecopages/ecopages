@@ -14,7 +14,6 @@ import { assertBuildSucceeded } from '../../build/build-log.ts';
 export type DevTransformBundlerOptions = {
 	appConfig: EcoPagesAppConfig;
 	contributors?: readonly DevTransformBundleContributor[];
-	getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	vendorRegistry: DevTransformVendorRegistry;
 	extraModuleRoots?: readonly string[];
 };
@@ -25,7 +24,6 @@ export type DevTransformBundlerOptions = {
 export class DevTransformBundler {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly browserBundleService: BrowserBundleService;
-	private readonly getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	private readonly vendorRegistry: DevTransformVendorRegistry;
 	private readonly contributors: DevTransformBundleContributor[] = [];
 	private readonly extraModuleRoots: readonly string[];
@@ -33,7 +31,6 @@ export class DevTransformBundler {
 	constructor(options: DevTransformBundlerOptions) {
 		this.appConfig = options.appConfig;
 		this.browserBundleService = new BrowserBundleService(options.appConfig);
-		this.getRuntimeSpecifierMap = options.getRuntimeSpecifierMap;
 		this.vendorRegistry = options.vendorRegistry;
 		this.extraModuleRoots = options.extraModuleRoots ?? [];
 		this.contributors.push(...(options.contributors ?? []));
@@ -50,6 +47,18 @@ export class DevTransformBundler {
 	private resolveTempOutdir(): string {
 		const distDir = this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, '.eco', 'assets');
 		return path.join(distDir, '.dev-transform');
+	}
+
+	/** Rewrites the imports of browser ESM `code` whose source is `sourcePath`; see {@link rewriteModuleImports}. */
+	rewriteImports(code: string, sourcePath: string): Promise<{ code: string; dependencies: string[] }> {
+		return rewriteModuleImports({
+			code,
+			sourcePath,
+			srcDir: this.appConfig.absolutePaths.srcDir,
+			projectRoot: this.appConfig.rootDir,
+			extraModuleRoots: this.extraModuleRoots,
+			resolveVendorImport: (specifier) => this.vendorRegistry.resolveVendorImport(specifier),
+		});
 	}
 
 	async transpileModule(sourcePath: string): Promise<DevTransformBundleResult> {
@@ -82,16 +91,7 @@ export class DevTransformBundler {
 			throw new Error(`[dev-transform] No transpile output for ${normalized}`);
 		}
 
-		const transpiledCode = fileSystem.readFileSync(outputPath);
-		const rewritten = await rewriteModuleImports({
-			code: transpiledCode,
-			sourcePath: normalized,
-			srcDir: this.appConfig.absolutePaths.srcDir,
-			projectRoot: this.appConfig.rootDir,
-			extraModuleRoots: this.extraModuleRoots,
-			runtimeSpecifierMap: this.getRuntimeSpecifierMap(),
-			resolveVendorUrl: (specifier) => this.vendorRegistry.resolveVendorUrl(specifier),
-		});
+		const rewritten = await this.rewriteImports(fileSystem.readFileSync(outputPath), normalized);
 
 		const inlinedInputs = collectBuildEntryInputPaths(result, normalized, this.appConfig.rootDir).filter(
 			(filePath) => filePath !== normalized,

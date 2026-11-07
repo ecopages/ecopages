@@ -10,7 +10,6 @@ import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 import { DevTransformInstallStamp } from './dev-transform-install-stamp.ts';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { materializeDevTransformStylesheet, resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
-import { mergeContributorRuntimeSpecifierMaps } from './dev-transform-runtime-specifiers.ts';
 import { resolveWorkspacePackageWatchRoots } from '../../watchers/workspace-package-watch-roots.ts';
 import { resolveDevTransformModuleSourcePath, resolveDevTransformModuleUrl } from './dev-transform-url.ts';
 import type { DevTransformBundleContributor } from './types.ts';
@@ -43,7 +42,6 @@ export class DevTransformServer {
 	private readonly bundler: DevTransformBundler;
 	private readonly vendorRegistry: DevTransformVendorRegistry;
 	private readonly contributors: DevTransformBundleContributor[] = [];
-	private readonly runtimeSpecifierMap = new Map<string, string>();
 	private readonly onModuleDependencies?: (modulePath: string, dependencies: string[]) => void;
 	private readonly onTransformError?: (message: string) => void;
 	private readonly failedSources = new Map<string, string>();
@@ -63,16 +61,17 @@ export class DevTransformServer {
 		this.contributors.push(...(options.contributors ?? []));
 		this.extraModuleRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
 		this.installStamp = new DevTransformInstallStamp(this.appConfig.rootDir);
-		this.rebuildRuntimeSpecifierMap();
 		this.vendorRegistry = new DevTransformVendorRegistry({
 			appConfig: options.appConfig,
 			resolveVendorBundlePlugins: () => this.resolveVendorBundlePlugins(),
 			onVendorGraphChange: options.onVendorGraphChange,
 		});
+		for (const contributor of this.contributors) {
+			this.vendorRegistry.addKnownEntries(contributor.getVendorEntries?.() ?? []);
+		}
 		this.bundler = new DevTransformBundler({
 			appConfig: options.appConfig,
 			contributors: this.contributors,
-			getRuntimeSpecifierMap: () => this.runtimeSpecifierMap,
 			vendorRegistry: this.vendorRegistry,
 			extraModuleRoots: this.extraModuleRoots,
 		});
@@ -101,15 +100,21 @@ export class DevTransformServer {
 
 	addContributor(contributor: DevTransformBundleContributor): void {
 		this.contributors.push(contributor);
-		this.rebuildRuntimeSpecifierMap();
 		this.bundler.addContributor(contributor);
+		this.vendorRegistry.addKnownEntries(contributor.getVendorEntries?.() ?? []);
 	}
 
-	private rebuildRuntimeSpecifierMap(): void {
-		this.runtimeSpecifierMap.clear();
-		for (const [specifier, url] of mergeContributorRuntimeSpecifierMaps(this.contributors)) {
-			this.runtimeSpecifierMap.set(specifier, url);
-		}
+	/**
+	 * Rewrites the imports of a module the browser loads as written, such as an unbundled content script.
+	 *
+	 * @remarks
+	 * The rules are those of a transpiled module: a bare import becomes its vendor URL, with named imports of a
+	 * CommonJS vendor read from its default export, and a project import becomes its dev-transform URL.
+	 * `importerPath` resolves relative imports.
+	 */
+	async rewriteImports(code: string, importerPath: string): Promise<string> {
+		const rewritten = await this.bundler.rewriteImports(code, importerPath);
+		return rewritten.code;
 	}
 
 	private async resolveVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {

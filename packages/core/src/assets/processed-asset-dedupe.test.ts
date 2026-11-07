@@ -34,7 +34,7 @@ test('keeps assets that differ only in package role', () => {
 		position: 'head',
 		packageRole: 'page-script',
 	} as ProcessedAsset;
-	const runtimeScript = { ...pageScript, packageRole: 'runtime' } as ProcessedAsset;
+	const separateScript = { ...pageScript, packageRole: 'keep-separate' } as ProcessedAsset;
 
-	expect(dedupeProcessedAssets([pageScript, runtimeScript])).toEqual([pageScript, runtimeScript]);
+	expect(dedupeProcessedAssets([pageScript, separateScript])).toEqual([pageScript, separateScript]);
 });

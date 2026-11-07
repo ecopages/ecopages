@@ -14,12 +14,12 @@ describe('createPagePackage', () => {
 			srcUrl: '/assets/page.css',
 			position: 'head',
 		} as ProcessedAsset;
-		const runtimeScript = {
+		const separateScript = {
 			kind: 'script',
-			srcUrl: '/assets/vendors/react.js',
+			srcUrl: '/assets/island.js',
 			position: 'head',
 			excludeFromHtml: true,
-			packageRole: 'runtime',
+			packageRole: 'keep-separate',
 		} as ProcessedAsset;
 		const inlineScript = {
 			kind: 'script',
@@ -34,13 +34,13 @@ describe('createPagePackage', () => {
 			packageRole: 'dynamic-chunk',
 		} as ProcessedAsset;
 
-		const result = createPagePackage([pageStylesheet, pageScript, runtimeScript, inlineScript, dynamicChunk]);
+		const result = createPagePackage([pageStylesheet, pageScript, separateScript, inlineScript, dynamicChunk]);
 
 		expect(result.pageScript).toBe(pageScript);
 		expect(result.pageStylesheet).toBe(pageStylesheet);
 		expect(result.htmlAssets).toEqual([pageStylesheet, pageScript, inlineScript, dynamicChunk]);
 		expect(result.inlineAssets).toEqual([inlineScript]);
-		expect(result.separateAssets).toEqual([runtimeScript]);
+		expect(result.separateAssets).toEqual([separateScript]);
 		expect(result.dynamicChunks).toEqual([dynamicChunk]);
 	});
 

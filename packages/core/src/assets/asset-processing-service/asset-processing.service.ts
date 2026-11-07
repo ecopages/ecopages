@@ -24,8 +24,7 @@ import {
 } from './grouped-content-bundles.ts';
 import type { AssetProcessor } from './processor.interface.ts';
 import { materializeContentScriptAsset } from './materialize-content-script-asset.ts';
-import { clearPageCacheForBrowserRuntimeAssetChange } from '../browser-runtime-asset-page-cache.ts';
-import { isBrowserRuntimeAssetRole } from './asset-package-role.ts';
+import { clearPageCacheForPageScriptChange } from '../page-script-page-cache.ts';
 import type { AssetProcessingIntegration } from './asset-processing-integration.ts';
 import { finalizeProcessedAsset } from './finalize-processed-asset.ts';
 import { isBundleableScript } from './bundleable-script.ts';
@@ -708,13 +707,13 @@ export class AssetProcessingService {
 	 * Stores one processed asset in the dependency cache.
 	 *
 	 * @remarks
-	 * Clears the development HTML cache when a runtime or page-script asset is stored over an
+	 * Clears the development HTML cache when a page-script asset is stored over an
 	 * existing entry under a new file path, because cached pages embed the previous URL. This
 	 * happens when a grouped bundle is rebuilt for a new member and re-emits its cached siblings.
 	 */
 	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
 		const previous = this.cache.get(depKey)?.asset;
-		const isBrowserRuntimeAsset = isBrowserRuntimeAssetRole(dep.packageRole);
+		const isPageScript = dep.packageRole === 'page-script';
 
 		this.cache.set(depKey, {
 			asset,
@@ -727,22 +726,22 @@ export class AssetProcessingService {
 			this.gzippedFiles.delete(asset.filepath);
 		}
 
-		if (isBrowserRuntimeAsset && previous !== undefined && previous.filepath !== asset.filepath) {
-			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
+		if (isPageScript && previous !== undefined && previous.filepath !== asset.filepath) {
+			void clearPageCacheForPageScriptChange(this.config);
 		}
 	}
 
 	/**
 	 * Removes a cached asset and clears the development HTML cache when the
-	 * removed asset can determine browser runtime URLs.
+	 * removed asset is a page script, whose URL cached pages embed.
 	 */
 	private invalidateCachedAsset(depKey: string): void {
 		const cached = this.cache.get(depKey);
 		this.cache.delete(depKey);
 		this.invalidateGroupedBundlesContaining(depKey);
 
-		if (isBrowserRuntimeAssetRole(cached?.asset.packageRole)) {
-			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
+		if (cached?.asset.packageRole === 'page-script') {
+			void clearPageCacheForPageScriptChange(this.config);
 		}
 	}
 
@@ -764,7 +763,7 @@ export class AssetProcessingService {
 	private invalidateCacheForFile(filepath: string): void {
 		this.inFlight.clear();
 		const resolvedPath = path.resolve(filepath);
-		let invalidatesBrowserRuntime = false;
+		let invalidatesPageScript = false;
 		const invalidatedKeys = new Set<string>();
 		for (const [key, value] of this.cache.entries()) {
 			if (
@@ -772,7 +771,7 @@ export class AssetProcessingService {
 				(value.asset.sourceFilepath && path.resolve(value.asset.sourceFilepath) === resolvedPath) ||
 				value.asset.bundledSourceFilepaths?.some((sourcePath) => path.resolve(sourcePath) === resolvedPath)
 			) {
-				invalidatesBrowserRuntime ||= isBrowserRuntimeAssetRole(value.asset.packageRole);
+				invalidatesPageScript ||= value.asset.packageRole === 'page-script';
 				this.cache.delete(key);
 				invalidatedKeys.add(key);
 			}
@@ -780,8 +779,8 @@ export class AssetProcessingService {
 		for (const key of invalidatedKeys) {
 			this.invalidateGroupedBundlesContaining(key);
 		}
-		if (invalidatesBrowserRuntime) {
-			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
+		if (invalidatesPageScript) {
+			void clearPageCacheForPageScriptChange(this.config);
 		}
 	}
 
@@ -799,7 +798,11 @@ export class AssetProcessingService {
 	static createWithDefaultProcessors(appConfig: EcoPagesAppConfig): AssetProcessingService {
 		const service = new AssetProcessingService(appConfig);
 
-		service.registerProcessor('script', 'content', new ContentScriptProcessor({ appConfig }));
+		service.registerProcessor(
+			'script',
+			'content',
+			new ContentScriptProcessor({ appConfig, getHmrManager: () => service.getHmrManager() }),
+		);
 		service.registerProcessor(
 			'script',
 			'file',

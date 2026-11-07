@@ -400,7 +400,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @remarks
 	 * The scripts the route's render would bundle, from the shell, the page Dependencies, the Page Browser Graph
 	 * dependencies and the components and scripts its contribution names, go to `bundledScripts`, prepared as asset
-	 * processing prepares them. Browser runtime assets keep their fixed URLs and stay out of the app-wide build.
+	 * processing prepares them.
 	 */
 	private async planRouteInstance(routeInstance: PlannedRouteInstance): Promise<PlannedRoute> {
 		const routeOptions: RouteRendererOptions = {
@@ -447,7 +447,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				[...(contribution?.dependencies ?? []), ...(contribution?.bundledScripts ?? [])],
 				integration,
 				this.appConfig.rootDir,
-			).filter((dependency) => isBundleableScript(dependency) && dependency.packageRole !== 'runtime'),
+			).filter(isBundleableScript),
 		];
 		return {
 			instance: routeInstance,

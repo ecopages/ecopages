@@ -4,8 +4,8 @@
  * @remarks
  * The entry module supplies the page tree and module resolution details. This
  * module owns document state, navigation ownership, cleanup, and HMR. It ships
- * as `@ecopages/react/page-hydration`: a production Page entry that inlines React
- * bundles it, and every other entry imports its `/assets/vendors/` build.
+ * as `@ecopages/react/page-hydration`, which the generated Page entry imports by
+ * package name like React itself.
  */
 
 export type PageRoot = {

@@ -1,11 +1,36 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import type { EcoPagesAppConfig, IHmrManager } from '../../../../config/internal-types.ts';
 import type { ContentScriptAsset, ProcessedAsset } from '../../assets.types.ts';
 import { resolveInlineContentScriptBody } from '../../inline-content-script-body.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 
 export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAsset> {
+	private readonly getHmrManager: () => IHmrManager | undefined;
+
+	constructor(options: { appConfig: EcoPagesAppConfig; getHmrManager?: () => IHmrManager | undefined }) {
+		super(options);
+		this.getHmrManager = options.getHmrManager ?? (() => undefined);
+	}
+
+	/**
+	 * Returns the source of an unbundled script file as the browser should load it.
+	 *
+	 * @remarks
+	 * With HMR active, a module script's imports are rewritten like a dev-transform module's, so a generated
+	 * bootstrap can import a package by name and get the one vendor URL every other importer gets. This holds for an
+	 * inline script too, whose body is the rewritten source. A script that is not a module, or HMR being off, keeps
+	 * its source.
+	 */
+	private async resolveUnbundledScriptSource(dep: ContentScriptAsset, filepath: string): Promise<string> {
+		const hmrManager = this.getHmrManager();
+		if (!dep.content || dep.attributes?.type !== 'module' || !hmrManager?.isEnabled()) {
+			return dep.content;
+		}
+		return hmrManager.rewriteModuleImports(dep.content, filepath);
+	}
+
 	private getContentScriptEntryDir(): string {
 		const dir = path.join(this.appConfig.absolutePaths.workDir, 'content-script-entries');
 		fileSystem.ensureDir(dir);
@@ -79,11 +104,12 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		const filepath = path.join(this.getAssetsDir(), 'scripts', filename);
 
 		if (!shouldBundle) {
-			if (!dep.inline) {
-				fileSystem.write(filepath, dep.content);
+			const unbundled = { ...dep, content: await this.resolveUnbundledScriptSource(dep, filepath) };
+			if (!unbundled.inline) {
+				fileSystem.write(filepath, unbundled.content);
 			}
 
-			return this.toProcessedAsset(dep, filepath);
+			return this.toProcessedAsset(unbundled, filepath);
 		}
 
 		if (!dep.content) {

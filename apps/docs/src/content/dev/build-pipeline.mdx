@@ -18,8 +18,7 @@ sources:
   - packages/core/src/assets/browser-bundle.service.ts
   - packages/core/src/assets/hashed-browser-asset.ts
   - packages/core/src/assets/asset-processing-service/app-browser-client-bundle.ts
-  - packages/core/src/build/browser/browser-runtime-manifest.ts
-  - packages/core/src/build/browser/browser-runtime-plugin.ts
+  - packages/core/src/build/runtime/build-environment-options.ts
   - packages/core/src/build/server-bundle-publication.ts
   - packages/core/src/adapters/shared/http/dist-file-handler.ts
 ---
@@ -112,7 +111,7 @@ flowchart LR
     B --> L[(ProcessedAssetLedger)]
 ```
 
-`buildAppBrowserClient()` turns every plan, each Integration's global scripts and the HTML Page module scripts into entries of one Rolldown browser build with code splitting. Why: a module that several Pages reach, across Integrations, becomes one chunk and is evaluated once. Browser runtime assets keep their fixed URLs and stay out of this build; [Dev server](/dev/dev-server) covers the vendor graph.
+`buildAppBrowserClient()` turns every plan, each Integration's global scripts and the HTML Page module scripts into entries of one Rolldown browser build with code splitting. Why: a module that several Pages reach, across Integrations, becomes one chunk and is evaluated once. Framework packages such as React and its router are bundled like any other import; [Dev server](/dev/dev-server) covers the development vendor graph.
 
 Only `define`, `minify`, `treeshaking` and plugin exclusions split entries into separate builds. Why: those options apply to a whole build. Plugins and external modules do not split it, because a module has one URL and therefore one compiled form; the build runs every plugin any entry declares, once each. [Plugin pipeline](/dev/plugin-pipeline) covers how those plugins reach Rolldown.
 
@@ -120,6 +119,6 @@ A route that fails to plan is reported, not fatal on its own. A concrete instanc
 
 ## Outputs of the browser build
 
-Each entry is named `client-<hash of its dependency key>` (`html-<hash of path>` for an HTML module script), and every output name carries a content hash. Package imports are bundled into the same chunks, except a specifier in an Integration's browser runtime manifest: the browser runtime plugin marks it external and points it at the runtime's fixed public URL, so every Page shares one copy of the framework runtime.
+Each entry is named `client-<hash of its dependency key>` (`html-<hash of path>` for an HTML module script), and every output name carries a content hash. Package imports are bundled into the same chunks, framework runtimes included, so every Page and island shares one copy of React through a content-hashed chunk served `immutable`. Rolldown's CommonJS interop gives entries the named exports of a CommonJS package such as React, and every browser build defines `process.env.NODE_ENV` from the current Node environment, so that package picks its production build whatever `minify` says.
 
 The build writes outputs to `dist/client/assets`, gzips each `.js` and `.css` file and records every output in the processed-asset ledger under the dependency key of every declaration that named it; the server answers hashed files with `Cache-Control: public, max-age=31536000, immutable`. `ecopages start` restores and seals that ledger and never compiles; [Ledger and start](/dev/ledger-and-start) covers both.

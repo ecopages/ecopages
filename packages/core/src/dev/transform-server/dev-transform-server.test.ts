@@ -407,6 +407,44 @@ describe('DevTransformServer', () => {
 		expect(vendorBuildsUnder(bundle, rootDir)).toBe(1);
 	});
 
+	it.each(['constructor', 'addContributor'] as const)(
+		'builds the vendor entries a contributor declares through %s in the first vendor build',
+		async (registration) => {
+			const rootDir = createTempRoot('dev-transform-known-vendors');
+			fs.writeFileSync(
+				path.join(rootDir, 'package.json'),
+				JSON.stringify({ name: 'known-vendors', type: 'module' }),
+			);
+			for (const name of ['lib-a', 'lib-b'])
+				writeFixturePackage(rootDir, name, `export const marker = '${name}';\n`);
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+			const contributor = {
+				ownsModule: () => false,
+				getModulePlugins: async () => [],
+				getVendorEntries: () => ['lib-a', 'lib-b'],
+			};
+			const server = new DevTransformServer({
+				appConfig: config,
+				contributors: registration === 'constructor' ? [contributor] : [],
+			});
+			if (registration === 'addContributor') server.addContributor(contributor);
+			const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+
+			await requestConsumer(
+				server,
+				path.join(config.absolutePaths.srcDir, 'a.ts'),
+				"export { marker } from 'lib-a';\n",
+			);
+			await requestConsumer(
+				server,
+				path.join(config.absolutePaths.srcDir, 'b.ts'),
+				"export { marker } from 'lib-b';\n",
+			);
+
+			expect(vendorBuildsUnder(bundle, rootDir)).toBe(1);
+		},
+	);
+
 	it('rebuilds the vendor graph when the lockfile changes', async () => {
 		const rootDir = createTempRoot('dev-transform-vendor-lockfile');
 		fs.writeFileSync(

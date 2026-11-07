@@ -20,8 +20,6 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
 import { resolveRolldownOptions } from './rolldown-adapter-helpers.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
-import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
-import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
 import { assertBuildFailed } from '../../__fixtures__/build/build-result.ts';
@@ -913,17 +911,12 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('does not rewrite hashed browser outputs after the bundler writes them', async () => {
-		const runtimePlugin = createBrowserRuntimePlugin({
-			manifest: createBrowserRuntimeManifest([
-				{
-					specifier: 'react',
-					owner: '@ecopages/react',
-					importPath: 'react',
-					publicPath: '/assets/vendors/react.js',
-				},
-			]),
-		});
-		assert.ok(runtimePlugin);
+		const runtimePlugin: EcoBuildPlugin = {
+			name: 'external-react-url',
+			setup(build) {
+				build.onResolve({ filter: /^react$/ }, () => ({ path: '/assets/vendors/react.js', external: true }));
+			},
+		};
 		const entrypoint = writeFixture('entry.ts', "import React from 'react';\nexport { React };\n");
 		const adapter = new RolldownBuildAdapter();
 		const outdir = path.join(workDir, 'dist');
@@ -946,6 +939,22 @@ describe('RolldownBuildAdapter', () => {
 		expect(hashedOutputs.every((output) => output.contentHashed)).toBe(true);
 		const hashedCode = readFileSync(hashedOutputs[0]!.path, 'utf-8');
 		expect(hashedCode).toMatch(/from ['"]\/assets\/vendors\/react\.js['"]/);
+	});
+
+	test('lists the entries whose module is CommonJS', async () => {
+		const commonJsEntry = writeFixture('cjs-entry.cjs', 'module.exports = { answer: 42 };\n');
+		const esmEntry = writeFixture('esm-entry.ts', 'export const answer = 42;\n');
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser',
+			entrypoints: [commonJsEntry, esmEntry],
+			outdir: path.join(workDir, 'formats'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(result.dependencyGraph.commonJsEntrypoints).toEqual([realpathSync(commonJsEntry)]);
 	});
 
 	test.each([

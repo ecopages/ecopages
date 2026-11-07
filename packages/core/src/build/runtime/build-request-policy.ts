@@ -16,9 +16,9 @@ import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transfor
  * @remarks
  * Rolldown asks plugins in this order and the first one that returns a result for a resolve or load wins, so
  * position is priority: the alias resolver, then the sealed manifest's plugins for the environment (for the browser,
- * the plugins that also apply to the server, the browser runtime plugin, then the browser-only ones), then the JSX
- * ownership plugins. {@link resolveBuildPluginOrder} puts caller plugins before them and core's own transforms
- * after. The unified pages graph keys its cache by their names.
+ * the plugins that also apply to the server, then the browser-only ones), then the JSX ownership plugins.
+ * {@link resolveBuildPluginOrder} puts caller plugins before them and core's own transforms after. The unified pages
+ * graph keys its cache by their names.
  */
 export function resolveAppBuildPlugins(appConfig: EcoPagesAppConfig, environment: BuildEnvironment): EcoBuildPlugin[] {
 	const projectDir = appConfig.absolutePaths?.projectDir;
@@ -34,9 +34,9 @@ export function resolveAppBuildPlugins(appConfig: EcoPagesAppConfig, environment
  *
  * @remarks
  * App-manifest plugins cannot be silently replaced by same-name caller plugins.
- * Unique caller plugins are prepended so first-wins Rolldown hooks (for example
- * React vendor/alias rewrites) still run before general app loaders. Use
- * `excludeAppBuildPlugins` on browser requests to omit app-owned plugins.
+ * Unique caller plugins are prepended so first-wins Rolldown hooks still run
+ * before general app loaders. Use `excludeAppBuildPlugins` on browser requests
+ * to omit app-owned plugins.
  */
 export function mergeCallerBuildPlugins(
 	appPlugins: EcoBuildPlugin[],
@@ -62,7 +62,7 @@ export function mergeCallerBuildPlugins(
  * that decides priority:
  *
  * 1. Caller plugins that apply to the environment and do not share a name with an app plugin, so a caller's
- *    vendor or alias rewrite runs before the general app loaders. A caller plugin cannot replace an app plugin of
+ *    alias rewrite runs before the general app loaders. A caller plugin cannot replace an app plugin of
  *    the same name.
  * 2. {@link resolveAppBuildPlugins}, less the names in `excludeAppBuildPlugins`. Use it to omit app plugins that a
  *    request replaces; an environment cannot express that.
@@ -140,11 +140,6 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
  * chosen by {@link BrowserBundleService}.
  *
  * Plugins follow {@link resolveBuildPluginOrder}; `excludeAppBuildPlugins` omits app-owned names.
- *
- * @remarks
- * Specifiers of the browser runtime manifest are dropped from `external`. Rolldown checks `external` before any
- * plugin, so one listed there would stay a bare import instead of becoming the manifest's public URL, which the
- * browser runtime plugin maps while resolving.
  */
 export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: BrowserBuildRequestInput): BuildOptions {
 	const { excludeAppBuildPlugins, plugins: callerPlugins, define: callerDefines, ...overrides } = input;
@@ -153,16 +148,12 @@ export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: B
 		excludeAppBuildPlugins,
 	});
 
-	const { bySpecifier } = requireAppRuntime(appConfig).buildManifest.browserRuntimeManifest;
 	const environmentOptions = resolveBuildEnvironmentOptions('browser', appConfig);
 
 	return {
 		...environmentOptions,
 		...overrides,
 		define: { ...environmentOptions.define, ...callerDefines },
-		...(overrides.external
-			? { external: overrides.external.filter((specifier) => !bySpecifier.has(specifier)) }
-			: {}),
 		environment: 'browser',
 		entrypoints: input.entrypoints,
 		plugins,

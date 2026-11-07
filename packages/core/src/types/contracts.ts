@@ -334,6 +334,15 @@ export interface IHmrManager {
 	tryHandleDevClientRequest(request: Request): Promise<Response | null>;
 
 	/**
+	 * Rewrites the imports of a module the browser loads as written, as the dev transform server rewrites a
+	 * transpiled module: bare imports become vendor URLs, and named imports of a CommonJS vendor read its default
+	 * export.
+	 *
+	 * @param importerPath - Path relative imports resolve from.
+	 */
+	rewriteModuleImports(code: string, importerPath: string): Promise<string>;
+
+	/**
 	 * Registers a custom HMR strategy.
 	 */
 	registerStrategy(strategy: HmrStrategyContract): void;

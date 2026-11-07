@@ -126,9 +126,6 @@ export async function prebuildProductionPageBrowserGraphs(
 
 /**
  * Lists each Integration's global scripts as a plan without routes, so the app-wide build bundles them.
- *
- * @remarks
- * Browser runtime assets keep their fixed URLs and are left out; runtime-specifier rewrites point at them.
  */
 function collectIntegrationScriptPlans(appConfig: EcoPagesAppConfig): GroupedGraphBuildPlan[] {
 	return appConfig.integrations.flatMap((integration) => {
@@ -136,7 +133,7 @@ function collectIntegrationScriptPlans(appConfig: EcoPagesAppConfig): GroupedGra
 			[...integration.getIntegrationDependencies()],
 			integration,
 			appConfig.rootDir,
-		).filter((dependency) => isBundleableScript(dependency) && dependency.packageRole !== 'runtime');
+		).filter(isBundleableScript);
 		return bundledScripts.length > 0
 			? [{ integrationName: integration.name, bundledScripts, pageClientEntries: [] }]
 			: [];

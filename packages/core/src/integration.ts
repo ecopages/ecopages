@@ -4,11 +4,8 @@ export {
 	AssetFactory,
 	type AssetProcessingIntegration,
 	AssetProcessingService,
-	buildBrowserRuntimeAssetUrl,
 	type ContentScriptAsset,
 	createAppBrowserClientEntry,
-	createBrowserRuntimeModuleAsset,
-	createBrowserRuntimeScriptAsset,
 	type ProcessedAsset,
 } from './assets/asset-processing-service/index.ts';
 export type { AppRuntime } from './config/assembly/app-runtime.ts';

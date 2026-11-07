@@ -1,6 +1,7 @@
 import { readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
+import { registerReactAppTests } from './react-production-start.e2e-shared';
 
 const distDir = path.join(import.meta.dirname, 'dist-react-production-start-e2e');
 
@@ -15,24 +16,13 @@ function listFilesWrittenAfter(dir: string, timeMs: number): string[] {
 test.describe.configure({ mode: 'serial' });
 
 test.describe('A built React app under `ecopages start`', () => {
-	for (const { pathname, island } of [
-		{ pathname: '/', island: true },
-		{ pathname: '/dynamic', island: true },
-		{ pathname: '/kita-view', island: true },
-		{ pathname: '/react-page', island: false },
-		{ pathname: '/react-view', island: false },
-	]) {
-		test(`serves ${pathname} and hydrates its counter`, async ({ page }) => {
-			const response = await page.goto(pathname);
-
-			expect(response?.status()).toBe(200);
-			const counter = page.locator('[data-counter]');
-			await expect(counter).toHaveText('count 0');
-			if (island) await expect(page.locator('eco-island[data-eco-hydrated]')).toHaveCount(1);
-			await counter.click();
-			await expect(counter).toHaveText('count 1');
-		});
-	}
+	registerReactAppTests(test, {
+		rendersRequests: true,
+		checkReactModule: (reactModule) => {
+			expect(reactModule.url).toMatch(/-[A-Za-z0-9_-]{8}\.js$/);
+			expect(reactModule.cacheControl).toBe('public, max-age=31536000, immutable');
+		},
+	});
 
 	for (const { pathname, status, heading } of [
 		{ pathname: '/missing', status: 404, heading: 'not-found-page' },

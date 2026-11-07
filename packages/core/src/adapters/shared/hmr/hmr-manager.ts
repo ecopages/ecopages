@@ -467,6 +467,10 @@ export class HmrManager implements IHmrManager {
 		return this.registerDevTransformEntrypoint(entrypointPath, 'page').outputUrl;
 	}
 
+	public rewriteModuleImports(code: string, importerPath: string): Promise<string> {
+		return this.devTransformServer.rewriteImports(code, importerPath);
+	}
+
 	public async registerScriptEntrypoint(entrypointPath: string): Promise<ResolvedHmrEntrypoint> {
 		const { normalized, outputUrl, role } = this.registerDevTransformEntrypoint(entrypointPath, 'script');
 		return {

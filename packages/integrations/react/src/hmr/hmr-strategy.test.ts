@@ -2,40 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReactHmrStrategy } from './hmr-strategy.ts';
 import { HmrPageMetadataCache } from './page-metadata-cache.ts';
 import type { DefaultHmrContext } from '@ecopages/core/integration';
-import { createBrowserRuntimeManifest } from '@ecopages/core/build';
-
-const defaultRuntimeManifest = createBrowserRuntimeManifest([
-	{
-		specifier: 'react',
-		owner: '@ecopages/react',
-		importPath: 'react',
-		publicPath: '/assets/vendors/react.development.js',
-	},
-	{
-		specifier: 'react/jsx-runtime',
-		owner: '@ecopages/react',
-		importPath: 'react/jsx-runtime',
-		publicPath: '/assets/vendors/react.development.js',
-	},
-	{
-		specifier: 'react/jsx-dev-runtime',
-		owner: '@ecopages/react',
-		importPath: 'react/jsx-dev-runtime',
-		publicPath: '/assets/vendors/react.development.js',
-	},
-	{
-		specifier: 'react-dom',
-		owner: '@ecopages/react',
-		importPath: 'react-dom',
-		publicPath: '/assets/vendors/react-dom.development.js',
-	},
-	{
-		specifier: 'react-dom/client',
-		owner: '@ecopages/react',
-		importPath: 'react-dom/client',
-		publicPath: '/assets/vendors/react-dom.development.js',
-	},
-]);
 
 function devTransformPageUrl(relativeJsPath: string): string {
 	return `/assets/__eco_dev__/pages/${relativeJsPath}`;
@@ -123,7 +89,6 @@ function createRegisteredScriptStrategy(options: {
 		pageMetadataCache: createPageMetadataCache({
 			ownsEntrypoint,
 		}),
-		runtimeManifest: defaultRuntimeManifest,
 		ownedTemplateExtensions,
 		allTemplateExtensions,
 	});
@@ -141,7 +106,6 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		expect(strategy.ownsDevTransformEntrypoint(pagePath)).toBe(true);
@@ -152,7 +116,6 @@ describe('ReactHmrStrategy', () => {
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache(),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		expect(strategy.ownsDevTransformEntrypoint(pagePath)).toBe(true);
@@ -187,7 +150,6 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		await expect(strategy.process(pagePath)).resolves.toEqual({ type: 'none' });
@@ -204,7 +166,6 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/react-lab.tsx',
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 			ownedTemplateExtensions: ['.tsx', '.react.tsx'],
 			allTemplateExtensions: ['.tsx', '.react.tsx', '.kita.tsx', '.lit.tsx'],
 		});
@@ -223,7 +184,6 @@ describe('ReactHmrStrategy', () => {
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext(),
 				pageMetadataCache: new HmrPageMetadataCache(),
-				runtimeManifest: defaultRuntimeManifest,
 				ownedTemplateExtensions: ['.react.tsx'],
 				allTemplateExtensions: ['.tsx', '.react.tsx'],
 			});
@@ -237,7 +197,6 @@ describe('ReactHmrStrategy', () => {
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({ importServerModule }),
 				pageMetadataCache: new HmrPageMetadataCache(),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			await strategy.createDevTransformPlugins('/tmp/src/pages-old/a.tsx');
@@ -255,7 +214,6 @@ describe('ReactHmrStrategy', () => {
 						getWatchedFiles: () => new Map([[pageEntrypoint, devTransformPageUrl('index.js')]]),
 					}),
 					pageMetadataCache,
-					runtimeManifest: defaultRuntimeManifest,
 				});
 			};
 			const layoutUpdate = { type: 'broadcast', events: [{ type: 'layout-update' }] };
@@ -301,7 +259,6 @@ describe('ReactHmrStrategy', () => {
 				importServerModule,
 			}),
 			pageMetadataCache: createPageMetadataCache(),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		await strategy.createDevTransformPlugins('/tmp/src/pages/index.tsx');
@@ -326,7 +283,6 @@ describe('ReactHmrStrategy', () => {
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
 				initialOwnedEntrypoints: [changedEntrypoint],
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 			ownedTemplateExtensions: ['.react.tsx'],
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
 		});
@@ -362,7 +318,6 @@ describe('ReactHmrStrategy', () => {
 				getDeclaredModules: () => [],
 				initialOwnedEntrypoints: [entrypointA, entrypointB],
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 			getMdxLoaderPlugin: () => ({ name: 'mdx-loader', setup: () => {} }),
 			ownedTemplateExtensions: ['.react.tsx', '.mdx'],
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
@@ -401,7 +356,6 @@ describe('ReactHmrStrategy', () => {
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
 				initialOwnedEntrypoints: [changedEntrypoint, '/tmp/src/pages/dashboard.tsx'],
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		const action = await strategy.process(changedEntrypoint);
@@ -432,7 +386,6 @@ describe('ReactHmrStrategy', () => {
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
 				initialOwnedEntrypoints: [changedEntrypoint],
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		const action = await strategy.process(changedEntrypoint);
@@ -465,7 +418,6 @@ describe('ReactHmrStrategy', () => {
 				getDeclaredModules: () => [],
 				initialOwnedEntrypoints: [pageEntrypoint, '/tmp/src/pages/dashboard.tsx'],
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		const action = await strategy.process('/tmp/src/components/theme-toggle.tsx');
@@ -508,7 +460,6 @@ describe('ReactHmrStrategy', () => {
 				pageMetadataCache: createPageMetadataCache({
 					ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/index.tsx',
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			expect(strategy.matches(changedComponent)).toBe(true);
@@ -534,7 +485,6 @@ describe('ReactHmrStrategy', () => {
 				pageMetadataCache: createPageMetadataCache({
 					ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/index.tsx',
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			expect(strategy.matches(changedComponent)).toBe(false);
@@ -566,7 +516,6 @@ describe('ReactHmrStrategy', () => {
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(changedComponent);
@@ -605,7 +554,6 @@ describe('ReactHmrStrategy', () => {
 					getDeclaredModules: () => [],
 					ownsEntrypoint: (entrypointPath) => entrypointPath === entrypointA,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(changedComponent);
@@ -643,7 +591,6 @@ describe('ReactHmrStrategy', () => {
 						entrypointPath === entrypointB ||
 						entrypointPath === layoutEntrypoint,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(changedComponent);
@@ -684,7 +631,6 @@ describe('ReactHmrStrategy', () => {
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(changedComponent);
@@ -736,7 +682,6 @@ describe('ReactHmrStrategy', () => {
 						entrypointPath === entrypointB ||
 						entrypointPath === changedComponent,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(changedComponent);
@@ -772,7 +717,6 @@ describe('ReactHmrStrategy', () => {
 				pageMetadataCache: createPageMetadataCache({
 					ownsEntrypoint: (entrypointPath) => entrypointPath === entrypointA,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			expect(strategy.matches(entrypointA)).toBe(true);
@@ -803,7 +747,6 @@ describe('ReactHmrStrategy', () => {
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(entrypointA);

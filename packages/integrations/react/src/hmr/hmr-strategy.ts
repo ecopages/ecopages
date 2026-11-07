@@ -14,12 +14,12 @@ import { isRegisteredScriptEntrypoint } from '@ecopages/core/integration';
 import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/integration';
 import { isPathInside } from '@ecopages/core/build';
 import type { EcoBuildPlugin } from '@ecopages/core/integration';
-import { createBrowserRuntimePlugin } from '@ecopages/core/build';
-import type { BrowserRuntimeManifest } from '@ecopages/core/build';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core/integration';
 import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
-import { getReactClientGraphAllowSpecifiers } from '../bundling/runtime-alias-map.ts';
+import { getReactClientGraphAllowSpecifiers } from '../bundling/bundle.ts';
+import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
+import { getReactBrowserPackages } from '../bundling/bootstrap-package-paths.ts';
 import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
 import type { EcoComponentConfig } from '@ecopages/core';
 import {
@@ -42,7 +42,7 @@ export interface ReactHmrStrategyOptions {
 	context: DefaultHmrContext;
 	projectRoot?: string;
 	pageMetadataCache: HmrPageMetadataCache;
-	runtimeManifest: BrowserRuntimeManifest;
+	routerAdapter?: ReactRouterAdapter;
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	ownedTemplateExtensions?: string[];
 	allTemplateExtensions?: string[];
@@ -64,7 +64,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private readonly allTemplateExtensions: string[];
 	private readonly context: DefaultHmrContext;
 	private readonly pageMetadataCache: HmrPageMetadataCache;
-	private readonly runtimeManifest: BrowserRuntimeManifest;
+	private readonly routerAdapter?: ReactRouterAdapter;
 
 	private async importNodePageModule(entrypointPath: string): Promise<ImportedReactPageModule> {
 		return await this.context.importServerModule(entrypointPath);
@@ -84,7 +84,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 		this.context = options.context;
 		this.projectRoot = options.projectRoot ?? path.dirname(this.context.getSrcDir());
 		this.pageMetadataCache = options.pageMetadataCache;
-		this.runtimeManifest = options.runtimeManifest;
+		this.routerAdapter = options.routerAdapter;
 		this.getMdxLoaderPlugin = options.getMdxLoaderPlugin;
 		this.ownedTemplateExtensions = new Set(options.ownedTemplateExtensions ?? ['.tsx']);
 		this.allTemplateExtensions = [...(options.allTemplateExtensions ?? ['.tsx'])].sort(
@@ -93,23 +93,13 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	private getBuildPlugins(declaredModules?: readonly string[]): EcoBuildPlugin[] {
-		const allowSpecifiers = [
-			...getReactClientGraphAllowSpecifiers(),
-			...this.runtimeManifest.assets.map((asset) => asset.specifier),
-		];
-		const runtimeRewritePlugin = createBrowserRuntimePlugin({
-			name: 'react-hmr-runtime-import-rewrite',
-			manifest: this.runtimeManifest,
-		});
-
 		return [
 			createClientGraphBoundaryPlugin({
 				projectRoot: this.projectRoot,
 				absWorkingDir: this.projectRoot,
-				alwaysAllowSpecifiers: allowSpecifiers,
+				alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(this.routerAdapter),
 				declaredModules,
 			}),
-			...(runtimeRewritePlugin ? [runtimeRewritePlugin] : []),
 		];
 	}
 
@@ -217,8 +207,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return isPathInside(sourcePath, this.context.getSrcDir());
 	}
 
-	getRuntimeManifest(): BrowserRuntimeManifest {
-		return this.runtimeManifest;
+	/**
+	 * Packages the generated Page and island entries import, plus the JSX runtimes of compiled React modules.
+	 */
+	getVendorEntries(): readonly string[] {
+		return getReactBrowserPackages(this.routerAdapter);
 	}
 
 	async getVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {

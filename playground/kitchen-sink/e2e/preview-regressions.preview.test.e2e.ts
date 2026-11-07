@@ -8,6 +8,7 @@ import {
 	gotoPath,
 	trackRuntimeErrors,
 } from './helpers';
+import { trackReactModules } from '../../../e2e/utils/react-modules';
 
 async function requestUntilContains(request: APIRequestContext, href: string, text: string) {
 	await expect
@@ -170,22 +171,19 @@ test.describe('Kitchen Sink Preview Regressions @preview', () => {
 		});
 	}
 
-	test('keeps React preview vendors available and hydration interactive', async ({ request, page }) => {
-		const reactVendorResponse = await requestGetAndWait(request, '/assets/vendors/react.js', 10000);
-		expect(reactVendorResponse.ok()).toBe(true);
-		expect(reactVendorResponse.headers()['content-type']).toContain('javascript');
-
-		const reactDomVendorResponse = await requestGetAndWait(request, '/assets/vendors/react-dom.js', 10000);
-		expect(reactDomVendorResponse.ok()).toBe(true);
-		expect(reactDomVendorResponse.headers()['content-type']).toContain('javascript');
+	test('loads React from one immutable chunk and keeps hydration interactive', async ({ request, page }) => {
 		await requestUntilContains(request, '/react-lab', 'React Page Route');
 
 		const runtime = trackRuntimeErrors(page);
+		const readReactModules = trackReactModules(page);
 		await gotoAndWaitForHeading(page, '/react-lab', 'React Page Route');
 		await expect(page.getByRole('heading', { name: 'React Page Route' })).toBeVisible();
 		await expect(page.locator('[data-react-value]')).toHaveText('0');
 		await waitForReactPageHydration(page);
 		await incrementCounter(page.locator('[data-react-inc]'), page.locator('[data-react-value]'), '1');
+		const reactModules = await readReactModules();
+		expect(reactModules).toHaveLength(1);
+		expect(reactModules[0]?.cacheControl).toContain('immutable');
 		runtime.assertClean();
 	});
 });

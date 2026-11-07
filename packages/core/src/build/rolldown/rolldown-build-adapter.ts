@@ -55,7 +55,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 			watchFiles,
 		);
 
-		const dependencyGraph: BuildDependencyGraph = { entrypoints: {} };
+		const dependencyGraph: BuildDependencyGraph = { entrypoints: {}, commonJsEntrypoints: [] };
 		inputOptions.plugins = [
 			inputOptions.plugins,
 			createEntryModuleClosuresPlugin(dependencyGraph, contextRoot, watchFiles),

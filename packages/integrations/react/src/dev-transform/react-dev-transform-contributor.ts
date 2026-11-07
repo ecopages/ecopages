@@ -1,5 +1,4 @@
 import type { EcoBuildPlugin } from '@ecopages/core/integration';
-import { getBrowserRuntimeSpecifierMap } from '@ecopages/core/build';
 import type { DevTransformBundleContributor } from '@ecopages/core/integration';
 import type { ReactHmrStrategy } from '../hmr/hmr-strategy.ts';
 
@@ -25,8 +24,8 @@ export class ReactDevTransformContributor implements DevTransformBundleContribut
 		return this.strategy.createDevTransformPlugins(sourcePath);
 	}
 
-	getRuntimeSpecifierMap(): ReadonlyMap<string, string> {
-		return getBrowserRuntimeSpecifierMap(this.strategy.getRuntimeManifest());
+	getVendorEntries(): readonly string[] {
+		return this.strategy.getVendorEntries();
 	}
 
 	async getVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {

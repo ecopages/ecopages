@@ -13,6 +13,7 @@ import {
 	integrationMatrixShellCounterCases,
 	integrationMatrixTestIds,
 } from '../src/data/integration-matrix';
+import { trackReactModules } from '../../../e2e/utils/react-modules';
 
 test.describe('Kitchen Sink Integration Matrix @preview', () => {
 	test('index route links to all dedicated matrix entry pages', async ({ page }) => {
@@ -32,6 +33,7 @@ test.describe('Kitchen Sink Integration Matrix @preview', () => {
 			page,
 		}) => {
 			const runtime = trackRuntimeErrors(page);
+			const readReactModules = trackReactModules(page);
 
 			await gotoPath(page, hostPage.href);
 
@@ -50,6 +52,9 @@ test.describe('Kitchen Sink Integration Matrix @preview', () => {
 			for (const shellCase of integrationMatrixShellCounterCases) {
 				await assertAllCountersInteractivity(page.getByTestId(shellCase.testId));
 			}
+			const reactModules = await readReactModules();
+			expect(reactModules).toHaveLength(1);
+			expect(reactModules[0]?.cacheControl).toContain('immutable');
 
 			runtime.assertClean();
 		});

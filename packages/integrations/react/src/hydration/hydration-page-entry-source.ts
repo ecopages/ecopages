@@ -1,14 +1,17 @@
+import {
+	LAYOUT_COMPOSE_PACKAGE,
+	PAGE_HYDRATION_PACKAGE,
+	PAGE_LAYOUT_NORMALIZATION_PACKAGE,
+	REACT_DOM_CLIENT_PACKAGE,
+	REACT_PACKAGE,
+} from '../bundling/bootstrap-package-paths.ts';
+
 /** Complete inputs that affect a Page hydration entry's generated source. */
 export type PageEntrySourceOptions = {
 	importPath: string;
 	pageModuleUrlExpression: string;
 	scriptId: string;
-	reactImportPath: string;
-	reactDomClientImportPath: string;
-	pageHydrationImportPath: string;
 	routerImportPath?: string;
-	layoutComposeImportPath: string;
-	pageLayoutNormalizationImportPath: string;
 	routerComponents?: { router: string; pageContent: string };
 	routerPropsExpression?: string;
 	hmrEnabled: boolean;
@@ -55,7 +58,7 @@ function buildRouterTree(options: PageEntrySourceOptions): string {
 
 function buildNormalizationImport(options: PageEntrySourceOptions): string {
 	if (!options.isMdx) return '';
-	return `import { ensurePageConfigLayouts } from ${JSON.stringify(options.pageLayoutNormalizationImportPath)};`;
+	return `import { ensurePageConfigLayouts } from ${JSON.stringify(PAGE_LAYOUT_NORMALIZATION_PACKAGE)};`;
 }
 
 function buildHmrOptions(options: PageEntrySourceOptions): string {
@@ -71,23 +74,23 @@ function buildHmrOptions(options: PageEntrySourceOptions): string {
  * Creates the Page entry contract consumed by the browser lifecycle.
  *
  * @remarks
- * The entry only wires the Page module to `@ecopages/react/page-hydration`.
- * A production Page entry that inlines React bundles the bootstrap; every other
- * entry imports its `/assets/vendors/` URL. No server process compiles it.
+ * The entry only wires the Page module to `@ecopages/react/page-hydration`. It imports React, the bootstrap and the
+ * router by package name, like any other module: production bundles them into the app-wide build, and development
+ * rewrites them to their vendor URLs.
  */
 export function createPageEntrySource(options: PageEntrySourceOptions): string {
 	assertRouterConfiguration(options);
 
 	return `
-import { hydrateRoot } from ${JSON.stringify(options.reactDomClientImportPath)};
-import { createElement } from ${JSON.stringify(options.reactImportPath)};
+import { hydrateRoot } from ${JSON.stringify(REACT_DOM_CLIENT_PACKAGE)};
+import { createElement } from ${JSON.stringify(REACT_PACKAGE)};
 import {
   getPageDataFromDocument,
   readPageDataDocument,
   resolvePageComponent,
   startPageHydration,
-} from ${JSON.stringify(options.pageHydrationImportPath)};
-${options.routerComponents ? '' : `import { composeLayoutPageTree } from ${JSON.stringify(options.layoutComposeImportPath)};`}
+} from ${JSON.stringify(PAGE_HYDRATION_PACKAGE)};
+${options.routerComponents ? '' : `import { composeLayoutPageTree } from ${JSON.stringify(LAYOUT_COMPOSE_PACKAGE)};`}
 ${buildRouterImports(options)}
 ${buildNormalizationImport(options)}
 ${buildPageImport(options)}

@@ -2,9 +2,8 @@
  * Browser-side React Island Host lifecycle.
  *
  * @remarks
- * This module receives React's browser runtime as a value, so the
- * `/assets/vendors/` build of `@ecopages/react/island-hydration` never bundles
- * React and every Island Host entry on a page shares one copy of it.
+ * The generated Island Host entry imports React and passes its runtime in as a value, so this module itself has no
+ * React import.
  */
 
 export type IslandComponent = (props: Record<string, unknown>) => unknown;
@@ -191,7 +190,7 @@ function IslandLifecycle({ target, runtime, Component, props }: IslandLifecycleP
  *
  * @remarks
  * Decodes the format core's `encodeIslandProps` writes in `islands/island-host.ts` (base64 of UTF-8 JSON). It is
- * inlined so the `/assets/vendors/` build of this module stays self-contained and does not pull core into the browser.
+ * inlined so this module does not pull core's server-side island code into the browser.
  */
 function readProps(target: HTMLElement): Record<string, unknown> {
 	try {

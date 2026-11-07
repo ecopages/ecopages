@@ -11,8 +11,15 @@ export type DevTransformBundleContributor = {
 	ownsModule(sourcePath: string): boolean;
 	/** Integration-owned plugins for one dev-transform module (boundary, MDX, etc.). */
 	getModulePlugins(sourcePath: string): Promise<readonly EcoBuildPlugin[]>;
-	/** Runtime manifest specifiers already served from `/assets/vendors/*`. */
-	getRuntimeSpecifierMap?(): ReadonlyMap<string, string>;
-	/** Plugins applied to lazy vendor prebundles (client-graph boundary, runtime rewrites). */
+	/**
+	 * Bare specifiers the contributor's generated browser modules import, such as a hydration bootstrap's
+	 * framework packages.
+	 *
+	 * @remarks
+	 * They join the vendor graph before its first build, so the build that serves the first page already holds
+	 * them and later builds do not move a module the page loaded into a new chunk.
+	 */
+	getVendorEntries?(): readonly string[];
+	/** Plugins applied to lazy vendor prebundles, such as the client-graph boundary. */
 	getVendorBundlePlugins?(): Promise<readonly EcoBuildPlugin[]>;
 };

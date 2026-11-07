@@ -34,7 +34,7 @@ export function registerReactForeignLitTests() {
 			runtime.assertClean();
 		});
 
-		test.fail('hydrates the foreign Lit Component after a React router navigation', async ({ page }) => {
+		test('hydrates the foreign Lit Component after a React router navigation', async ({ page }) => {
 			const runtime = trackRuntimeErrors(page);
 			await gotoPath(page, '/react-lab');
 			await waitForReactPageHydration(page);

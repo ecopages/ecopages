@@ -201,7 +201,7 @@ afterEach(() => {
 	rmSync(rootDir, { recursive: true, force: true });
 });
 
-test('buildAppBrowserClient records each entry output in the ledger under every declaring dependency key', async () => {
+test('buildAppBrowserClient builds a script two Integrations declare once and records it under each declaring key', async () => {
 	const routeScript = {
 		kind: 'script' as const,
 		source: 'content' as const,
@@ -223,12 +223,12 @@ test('buildAppBrowserClient records each entry output in the ledger under every 
 	await buildAppBrowserClient(appConfig, plans);
 
 	assert.equal(bundleGroupedEntries.mock.calls.length, 1);
-	assert.equal(required(bundleGroupedEntries.mock.calls[0])[0].length, 6);
+	assert.equal(required(bundleGroupedEntries.mock.calls[0])[0].length, 5);
 	const ledger = ledgerOf(appConfig);
 	const jsxRouteAsset = required(ledger.lookup(preparedRouteScript(appConfig, routeScript, 'ecopages-jsx')));
 	const litRouteAsset = required(ledger.lookup(preparedRouteScript(appConfig, routeScript, 'lit')));
 	assert.match(jsxRouteAsset.srcUrl ?? '', /^\/assets\/client-[a-f0-9]+-hash\.js$/);
-	assert.notEqual(jsxRouteAsset.srcUrl, litRouteAsset.srcUrl);
+	assert.equal(jsxRouteAsset.srcUrl, litRouteAsset.srcUrl);
 	assert.match(required(ledger.lookup(islandA.dependency)).srcUrl ?? '', /^\/assets\/client-[a-f0-9]+-hash\.js$/);
 	assert.equal(required(ledger.lookup(lazyEntry.dependency)).attributes?.['data-eco-lazy-key'], 'lazy-route-a');
 	assert.equal(ledger.hasBrowserBuild, true);

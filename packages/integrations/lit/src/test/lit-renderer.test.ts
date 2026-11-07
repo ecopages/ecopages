@@ -645,27 +645,35 @@ describe('LitRenderer', () => {
 	});
 
 	describe('lazy worker session', () => {
-		it('preloads SSR scripts through the static-export session when one exists', async () => {
-			const sessionPreload = vi.fn(async () => {});
-			const component = (async () => '<div>preload</div>') as EcoComponent<object>;
-			const Renderer = createLitRenderer(
-				() =>
-					({
-						preloadSsrScripts: sessionPreload,
-					}) as Pick<LitStaticRenderSession, 'preloadSsrScripts'> as LitStaticRenderSession,
-			);
+		it('preloads SSR scripts through the server module loader, not the asset pipeline, when a static-export session exists', async () => {
+			const appConfig = await createTestAppConfig();
+			const importModule = vi.fn(async (_options: { filePath: string }) => ({}));
+			appConfig.appRuntime!.moduleLoader = {
+				...appConfig.appRuntime!.moduleLoader,
+				importModule: async <T = unknown>(options: { filePath: string }) => (await importModule(options)) as T,
+			};
+			const processDependencies = vi.fn(async () => []);
+			const component = eco.component<object, string>({
+				integration: 'lit',
+				identity: { id: 'session-preload', file: '/app/components/counter.lit.tsx', integration: 'lit' },
+				dependencies: {
+					scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'click' } }],
+				},
+				render: () => '<div>preload</div>',
+			});
+			const Renderer = createLitRenderer(() => ({}) as LitStaticRenderSession);
 			const renderer = new Renderer({
-				appConfig: Config,
-				assetProcessingService: createTestAssetProcessingService(Config),
+				appConfig,
+				assetProcessingService: { processDependencies } as never,
 				resolvedIntegrationDependencies: [],
 			});
 
-			const result = await renderer.renderComponent({
-				component,
-				props: {},
-			});
+			const result = await renderer.renderComponent({ component, props: {} });
 
-			expect(sessionPreload).toHaveBeenCalledWith([component]);
+			expect(importModule).toHaveBeenCalledWith(
+				expect.objectContaining({ filePath: expect.stringContaining('counter.script.ts') }),
+			);
+			expect(processDependencies).not.toHaveBeenCalled();
 			expect(result.html).toContain('<div>preload</div>');
 		});
 

@@ -39,6 +39,15 @@ import {
 	emitProductionServerModules,
 	shouldBuildPagesUnifiedGraph,
 } from '../../../build/cache/pages-unified-graph-build.ts';
+import { shouldPrebuildProductionPageBrowserGraphs } from '../../../static-site-generator/production-page-browser-graph-prebuild.ts';
+
+type StaticBuildDependencies = {
+	router: RouteRegistry;
+	routeRendererFactory: StaticGenerationRendererResolver;
+	staticRoutes?: StaticRoute[];
+	errorPageLoaders?: ErrorPageLoaders;
+	importServerModule: EndpointRouteHandlerOptions['importServerModule'];
+};
 
 export interface StaticBuildOptions {
 	baseUrl?: string;
@@ -259,18 +268,10 @@ export class ServerStaticBuilder {
 	 * @remarks
 	 * Every server entry is emitted into `dist/server/` before endpoints are checked, so a broken
 	 * module fails the build with the error its first request would log. `ecopages start` loads those
-	 * emitted modules and never compiles.
+	 * emitted modules and never compiles. A production build defers each Integration's global scripts from
+	 * `setup()` until the app-wide browser build resolves them, so none is bundled on its own into `dist/`.
 	 */
-	async build(
-		options: StaticBuildOptions | undefined,
-		dependencies: {
-			router: RouteRegistry;
-			routeRendererFactory: StaticGenerationRendererResolver;
-			staticRoutes?: StaticRoute[];
-			errorPageLoaders?: ErrorPageLoaders;
-			importServerModule: EndpointRouteHandlerOptions['importServerModule'];
-		},
-	): Promise<void> {
+	async build(options: StaticBuildOptions | undefined, dependencies: StaticBuildDependencies): Promise<void> {
 		const { baseUrl: explicitBaseUrl, force = false } = options ?? {};
 
 		const baseUrl =
@@ -282,6 +283,20 @@ export class ServerStaticBuilder {
 		}
 		this.exportPrepared = false;
 
+		this.runtime.integrationDependenciesDeferred = shouldPrebuildProductionPageBrowserGraphs();
+		try {
+			await this.buildPreparedExport(baseUrl, force, dependencies, options?.keepGoing);
+		} finally {
+			this.runtime.integrationDependenciesDeferred = false;
+		}
+	}
+
+	private async buildPreparedExport(
+		baseUrl: string,
+		force: boolean,
+		dependencies: StaticBuildDependencies,
+		keepGoing: boolean | undefined,
+	): Promise<void> {
 		const endpointRoutes = dependencies.router.templateRoutes.filter((route) => route.role === 'endpoint');
 		const buildsServerBundle = this.needsServerBundle || endpointRoutes.length > 0;
 		if (buildsServerBundle) {
@@ -311,7 +326,7 @@ export class ServerStaticBuilder {
 			staticRoutes: dependencies.staticRoutes,
 			errorPageLoaders: dependencies.errorPageLoaders,
 			force,
-			keepGoing: options?.keepGoing,
+			keepGoing,
 		});
 
 		await this.writeAssetLedger(buildsServerBundle);

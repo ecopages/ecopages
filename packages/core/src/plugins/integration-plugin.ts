@@ -229,7 +229,8 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * The production prebuild calls it once the app-wide browser build has recorded its script outputs, so a
-	 * global script resolves to that build. The renderer holds the same list, so it sees the new assets.
+	 * global script resolves to that build. The renderer holds the same list, so it sees the new assets. While
+	 * `AppRuntime.integrationDependenciesDeferred` is set, `setup()` leaves the list empty and this call fills it.
 	 */
 	async refreshResolvedIntegrationDependencies(): Promise<void> {
 		if (!this.assetProcessingService) return;
@@ -307,10 +308,10 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		if (context.runtime.hmr) {
 			this.assetProcessingService.setHmrManager(context.runtime.hmr);
 		}
-		this.resolvedIntegrationDependencies = await this.assetProcessingService.processDependencies(
-			this.integrationDependencies,
-			this,
-		);
+		this.resolvedIntegrationDependencies = [];
+		if (!context.runtime.integrationDependenciesDeferred) {
+			await this.refreshResolvedIntegrationDependencies();
+		}
 	}
 
 	/** Registers Integration-owned development behavior against the app runtime. */

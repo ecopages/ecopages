@@ -664,7 +664,16 @@ export class AssetProcessingService {
 		}
 	}
 
+	/**
+	 * @remarks
+	 * A bundled inline script keeps its code and no output file, so it is reused as cached.
+	 */
 	private getCachedContentScriptAsset(dep: ContentScriptAsset, depKey: string): ProcessedAsset | null {
+		const cachedInline = this.cache.get(depKey)?.asset;
+		if (cachedInline?.inline && !cachedInline.filepath && cachedInline.content !== undefined) {
+			return cachedInline;
+		}
+
 		const filepath = this.resolveCachedContentScriptFilepath(depKey);
 
 		if (!filepath) {

@@ -6,7 +6,6 @@
 import path from 'node:path';
 import { isEcopagesEnvEnabled, isProductionRuntime } from '@ecopages/core/processor';
 import type { IClientBridge } from '@ecopages/core/integration';
-import { writeHashedBrowserAsset } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 import {
 	Processor,
@@ -147,17 +146,16 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
 	}
 
+	/**
+	 * Writes processed CSS at its source-relative path under `dist/assets` in development, where CSS HMR refreshes
+	 * that href.
+	 *
+	 * @remarks
+	 * Production writes nothing: the stylesheet pipeline emits each stylesheet a Page links under its content hash,
+	 * and a bundle that imports CSS carries it. A copy written here would be a file no Page references.
+	 */
 	private async persistProcessedCss(filePath: string, css: string): Promise<void> {
-		if (!this.context || !this.isCssInsideSrc(filePath)) {
-			return;
-		}
-
-		if (isProductionRuntime()) {
-			writeHashedBrowserAsset({
-				bytes: css,
-				directory: path.join(this.context.distDir, 'assets'),
-				extension: '.css',
-			});
+		if (!this.context || isProductionRuntime() || !this.isCssInsideSrc(filePath)) {
 			return;
 		}
 

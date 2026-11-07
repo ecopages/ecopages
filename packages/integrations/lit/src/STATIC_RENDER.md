@@ -21,16 +21,15 @@ staticExport
             └─ postMessage(init) ──► setupAppRuntimePlugins()
                                      setupAppRuntimeIntegrations()
                                      RouteRendererFactory
-  └─ preloadStaticRoutes()
-       └─ preload SSR lazy scripts for Lit pages
   └─ IntegrationRenderer.execute() (main)
        └─ getRenderSession()
             ├─ locals or explicit props ─► remote hook declines; core renders in-process
+            │                                Lit's preload hook uses the in-process preloader
             └─ session.renderPageInWorker()
                  └─ postMessage(render) ─────► RouteRendererFactory.execute()
                                                (no active session in worker)
-                                               Lit's preload hook uses
-                                               importServerModule (no entrypoint resolver)
+                                               Lit's preload hook uses the
+                                               in-process preloader
   └─ returns a release that disposes the session once the export ends
 ```
 
@@ -43,6 +42,7 @@ Static export starts the worker before the main thread builds the app browser cl
 | Concern                    | Owner                                                                                                                                                                               |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Session + worker lifecycle | `LitPlugin` (`renderSession`), started only from `staticExport()`                                                                                                                   |
+| `ssr: true` preload        | The renderer's in-process preloader on both threads; the session preloads nothing, so no preload goes through the browser asset pipeline                                            |
 | Lazy session lookup        | `createLitRenderer()` hook factory via `getRenderSession`                                                                                                                           |
 | Worker identity            | First `{ configModulePath, runtimeOrigin, directories }` passed to `ensureWorker`; same identity is sticky; a later `ensureWorker` with a different identity disposes and recreates |
 
@@ -56,7 +56,7 @@ When `RouteRendererOptions.locals` or `RouteRendererOptions.props` is present, t
 
 | File                                 | Role                                                            |
 | ------------------------------------ | --------------------------------------------------------------- |
-| `lit-static-render-session.ts`       | Plugin-runtime-scoped session: worker lifecycle + SSR preload   |
+| `lit-static-render-session.ts`       | Plugin-runtime-scoped session: worker lifecycle                 |
 | `lit-static-render-worker-client.ts` | Message protocol client                                         |
 | `lit-static-render-worker.ts`        | Worker entry (exported as `@ecopages/lit/static-render-worker`) |
 | `lit-static-render-protocol.ts`      | Request/response message types                                  |

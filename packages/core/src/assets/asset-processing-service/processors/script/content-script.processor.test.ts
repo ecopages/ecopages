@@ -171,6 +171,38 @@ describe('ContentScriptProcessor', () => {
 		expect(result.map((asset) => asset.filepath)).toEqual([outputs[1], outputs[0]]);
 	});
 
+	test('bundles an inline script outside dist and returns its code without an output file', async () => {
+		const config = createMockConfig();
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle').mockImplementation(async (options) => {
+			const output = path.join(options.outdir as string, 'bootstrap-hash.js');
+			const [entrypoint] = options.entrypoints as string[];
+			return createBuildSuccess({
+				outputs: [{ path: output }],
+				entryOutputs: { [entrypoint as string]: output },
+			});
+		});
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
+		vi.spyOn(fileSystem, 'readFileSync').mockReturnValue('console.log("bundled");');
+		const processor = new ContentScriptProcessor({ appConfig: config });
+
+		const processed = await processor.process({
+			kind: 'script',
+			source: 'content',
+			name: 'bootstrap',
+			content: 'import "./bootstrap-impl.js";',
+			inline: true,
+			attributes: { type: 'module' },
+		});
+
+		const options = bundle.mock.calls[0]?.[0];
+		expect(options?.splitting).toBe(false);
+		expect(path.relative(config.absolutePaths.workDir, options?.outdir as string).startsWith('..')).toBe(false);
+		expect(path.relative(config.absolutePaths.distDir, options?.outdir as string).startsWith('..')).toBe(true);
+		expect(processed.filepath).toBeUndefined();
+		expect(processed.content).toBe('console.log("bundled");');
+		expect(fileSystem.remove).toHaveBeenCalledWith(path.dirname(options?.outdir as string));
+	});
+
 	test('rejects a grouped build without an entry output record instead of guessing from its filename', async () => {
 		vi.spyOn(BrowserBundleService.prototype, 'bundleGroupedEntries').mockResolvedValue(
 			createBuildSuccess({ outputs: [{ path: '/test/project/assets/pages__blog-hash.js' }] }),

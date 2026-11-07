@@ -1,5 +1,3 @@
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bindComponentIdentity, eco } from '@ecopages/core';
@@ -10,8 +8,6 @@ import {
 	isExpectedCustomElementSsrPreloadError,
 } from './custom-element-script-preloader.ts';
 import type { CustomElementScriptPreloadScopeState } from './custom-element-script-preload-invalidation.ts';
-import { createCustomElementSsrPipelineImporter } from './custom-element-ssr-preload-entrypoint.ts';
-import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 
 let cacheScope = '';
 let scopeCounter = 0;
@@ -359,122 +355,6 @@ describe('CustomElementScriptPreloader', () => {
 			restoreRegistry();
 		}
 	});
-
-	/**
-	 * @remarks
-	 * Bun ignores a query-only URL change, so a second registry only gets the
-	 * definition when it imports a different file path. Node re-evaluates on a
-	 * query, so the path assertion keeps this failing there too. The sibling
-	 * import pins that the copy still resolves relative imports from the
-	 * pipeline file's directory.
-	 */
-	it('registers a pipeline entrypoint again from a different path when another integration replaces the registry', async () => {
-		const restoreRegistry = installTestCustomElementsRegistry();
-		const createRegistry = () => {
-			const definitions = new Map<string, CustomElementConstructor>();
-			return {
-				define(name: string, ctor: CustomElementConstructor) {
-					definitions.set(name, ctor);
-				},
-				get(name: string) {
-					return definitions.get(name);
-				},
-				definitions,
-			};
-		};
-		const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'core-pipeline-registry-')));
-		const source = path.join(directory, 'counter.ts');
-		const pipelineDir = path.join(directory, 'assets');
-		const pipelineEntrypoint = path.join(pipelineDir, 'counter.mjs');
-		mkdirSync(pipelineDir);
-		writeFileSync(source, '');
-		writeFileSync(path.join(pipelineDir, 'tag.mjs'), "export const tag = 'pipeline-counter';");
-		writeFileSync(
-			pipelineEntrypoint,
-			[
-				"import { tag } from './tag.mjs';",
-				'(globalThis.__ecoPipelineImports ??= []).push(new URL(import.meta.url).pathname);',
-				'customElements.define(tag, class extends HTMLElement {});',
-			].join('\n'),
-		);
-		const preloader = createPreloader({
-			resolveDependencyPath: (_dir, src) => src,
-			importServerModule: createCustomElementSsrPipelineImporter({
-				processDependencies: async () => [{ filepath: pipelineEntrypoint } as ProcessedAsset],
-			}),
-		});
-		const child = eco.component(
-			bindComponentIdentity(
-				{ id: 'pipeline-registry', file: path.join(directory, 'component.ts'), integration: 'lit' },
-				{
-					render: () => '',
-					dependencies: { scripts: [{ src: source, ssr: true, lazy: { 'on:visible': true } }] },
-				},
-			),
-		);
-		const imports = ((globalThis as { __ecoPipelineImports?: string[] }).__ecoPipelineImports = []);
-		try {
-			Object.assign(globalThis, { customElements: createRegistry() });
-			await preloader.preloadSsrScripts([child]);
-			expect(customElements.get('pipeline-counter')).toBeDefined();
-			Object.assign(globalThis, { customElements: createRegistry() });
-			await preloader.preloadSsrScripts([child]);
-			expect(customElements.get('pipeline-counter')).toBeDefined();
-			expect(imports).toHaveLength(2);
-			expect(imports[1]).not.toBe(imports[0]);
-			expect(imports.map((importPath) => path.dirname(decodeURIComponent(importPath)))).toEqual([
-				pipelineDir,
-				pipelineDir,
-			]);
-			expect(readdirSync(pipelineDir).sort()).toEqual(['counter.mjs', 'tag.mjs']);
-		} finally {
-			delete (globalThis as { __ecoPipelineImports?: string[] }).__ecoPipelineImports;
-			restoreRegistry();
-			rmSync(directory, { recursive: true, force: true });
-		}
-	});
-
-	it.each([
-		['no output', []],
-		['the source path', 'source'],
-	] as const)(
-		'reports an SSR script whose pipeline gives %s instead of importing its source',
-		async (_case, output) => {
-			const restoreRegistry = installTestCustomElementsRegistry();
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-			const directory = mkdtempSync(path.join(tmpdir(), 'core-pipeline-source-'));
-			const source = path.join(directory, 'register.mjs');
-			writeFileSync(source, "customElements.define('pipeline-source-counter', class extends HTMLElement {});");
-			const preloader = createPreloader({
-				resolveDependencyPath: (_dir, src) => src,
-				importServerModule: createCustomElementSsrPipelineImporter({
-					processDependencies: async () =>
-						output === 'source' ? [{ filepath: source } as ProcessedAsset] : [...output],
-				}),
-			});
-			const child = eco.component(
-				bindComponentIdentity(
-					{ id: 'pipeline-source', file: path.join(directory, 'component.ts'), integration: 'lit' },
-					{
-						render: () => '',
-						dependencies: { scripts: [{ src: source, ssr: true, lazy: { 'on:visible': true } }] },
-					},
-				),
-			);
-			try {
-				await preloader.preloadSsrScripts([child]);
-				expect(customElements.get('pipeline-source-counter')).toBeUndefined();
-				expect(warnSpy).toHaveBeenCalledWith(
-					`[ecopages][test] Failed to preload SSR script: ${source}`,
-					expect.objectContaining({ message: expect.stringContaining('no server module') }),
-				);
-			} finally {
-				warnSpy.mockRestore();
-				restoreRegistry();
-				rmSync(directory, { recursive: true, force: true });
-			}
-		},
-	);
 
 	it('does not treat ERR_UNKNOWN_FILE_EXTENSION as an expected browser-only failure', () => {
 		expect(

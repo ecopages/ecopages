@@ -1,21 +1,8 @@
-import path from 'node:path';
-import type { EcoComponent, PageParams, PageQuery } from '@ecopages/core';
-import type { AnyIntegrationPlugin, StaticExportContext } from '@ecopages/core/integration';
-import {
-	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
-	CustomElementScriptPreloader,
-	type CustomElementSsrPreloadComponent,
-} from '@ecopages/core/integration';
-import type { CustomElementScriptPreloadScopeState } from '@ecopages/core/integration';
-import { LIT_PLUGIN_NAME } from './lit.constants.ts';
-import { createCustomElementSsrPipelineImporter } from '@ecopages/core/integration';
+import type { PageParams, PageQuery } from '@ecopages/core';
 import { LitStaticRenderWorkerClient } from './lit-static-render-worker-client.ts';
 import type { LitStaticRenderResult } from './lit-static-render-protocol.ts';
-import type { AssetDefinition, AssetProcessingIntegration, ProcessedAsset } from '@ecopages/core/integration';
 
 type LitStaticRenderWorkerClientContract = Pick<LitStaticRenderWorkerClient, 'start' | 'renderPage' | 'dispose'>;
-
-type LitAppConfig = { integrations: Pick<AnyIntegrationPlugin, 'name' | 'extensions'>[] };
 
 type LitStaticRenderWorkerIdentity = {
 	configModulePath: string;
@@ -24,13 +11,6 @@ type LitStaticRenderWorkerIdentity = {
 };
 
 type LitStaticRenderSessionOptions = {
-	preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
-	integration?: AssetProcessingIntegration;
-	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
-	processDependencies: (
-		dependencies: AssetDefinition[],
-		integration?: AssetProcessingIntegration,
-	) => Promise<ProcessedAsset[]>;
 	getInvalidationVersion?: () => number;
 	createWorkerClient?: (input: LitStaticRenderWorkerIdentity) => LitStaticRenderWorkerClientContract;
 };
@@ -39,7 +19,9 @@ type LitStaticRenderSessionOptions = {
  * Plugin-runtime-scoped Lit server render session.
  *
  * @remarks
- * Owns worker lifecycle and SSR preload for Lit page routes during static export.
+ * Owns the worker lifecycle for Lit page routes during static export. `ssr: true`
+ * preloads for in-process renders stay with the renderer's preloader, which
+ * compiles through the server module loader instead of the browser asset pipeline.
  * Injected into `LitRenderer` via a lazy accessor from `LitPlugin`; there is no
  * process-global coordinator. Serving leaves the session unset.
  *
@@ -48,7 +30,6 @@ type LitStaticRenderSessionOptions = {
  * recreates the worker so stale config/origin is never silently reused.
  */
 export class LitStaticRenderSession {
-	private readonly preloader: CustomElementScriptPreloader;
 	private readonly createWorkerClient: NonNullable<LitStaticRenderSessionOptions['createWorkerClient']>;
 	private workerClient: LitStaticRenderWorkerClientContract | null = null;
 	private workerIdentity: LitStaticRenderWorkerIdentity | null = null;
@@ -56,19 +37,8 @@ export class LitStaticRenderSession {
 	private workerInvalidationVersion = 0;
 	private renderChain: Promise<void> = Promise.resolve();
 
-	constructor(options: LitStaticRenderSessionOptions) {
+	constructor(options: LitStaticRenderSessionOptions = {}) {
 		this.getInvalidationVersion = options.getInvalidationVersion ?? (() => 0);
-		this.preloader = new CustomElementScriptPreloader({
-			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
-			preloadScopes: options.preloadScopes,
-			logLabel: 'lit',
-			requireLazyScriptEntry: true,
-			resolveDependencyPath: options.resolveDependencyPath,
-			importServerModule: createCustomElementSsrPipelineImporter({
-				integration: options.integration,
-				processDependencies: options.processDependencies,
-			}),
-		});
 		this.createWorkerClient = options.createWorkerClient ?? ((input) => new LitStaticRenderWorkerClient(input));
 	}
 
@@ -101,14 +71,6 @@ export class LitStaticRenderSession {
 		this.workerInvalidationVersion = this.getInvalidationVersion();
 	}
 
-	async preloadStaticRoutes(context: StaticExportContext): Promise<void> {
-		await this.preloadLitRoutes(context);
-	}
-
-	async preloadSsrScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): Promise<void> {
-		await this.preloader.preloadSsrScripts(components);
-	}
-
 	async renderPageInWorker(input: {
 		filePath: string;
 		params: PageParams;
@@ -139,46 +101,5 @@ export class LitStaticRenderSession {
 		await this.workerClient?.dispose();
 		this.workerClient = null;
 		this.workerIdentity = null;
-	}
-
-	private async preloadLitRoutes(context: StaticExportContext): Promise<void> {
-		if (!context.routeRendererFactory) {
-			return;
-		}
-
-		const routes = await context.router.listStaticGenerationRoutes({ runtimeOrigin: context.baseUrl });
-		const components: Array<EcoComponent | undefined> = [];
-
-		for (const route of routes) {
-			const filePath = route.templateRoute.filePath;
-			if (!this.isLitRoute(filePath, context.appConfig)) {
-				continue;
-			}
-
-			const pageRenderer = context.routeRendererFactory.getPageRenderer(filePath);
-			const pageModule = await pageRenderer.loadPageModule(filePath);
-			const page = pageModule.default;
-			if (page) {
-				components.push(page);
-				for (const layout of page.config?.layouts ?? []) {
-					components.push(layout);
-				}
-				for (const nestedComponent of page.config?.dependencies?.components ?? []) {
-					components.push(nestedComponent);
-				}
-			}
-		}
-
-		await this.preloadSsrScripts(components);
-	}
-
-	private isLitRoute(filePath: string, appConfig: LitAppConfig): boolean {
-		const litIntegration = appConfig.integrations.find((plugin) => plugin.name === LIT_PLUGIN_NAME);
-		if (!litIntegration) {
-			return false;
-		}
-
-		const normalizedPath = path.normalize(filePath);
-		return litIntegration.extensions.some((extension) => normalizedPath.endsWith(extension));
 	}
 }

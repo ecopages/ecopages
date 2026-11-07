@@ -113,7 +113,7 @@ export async function prebuildProductionPageBrowserGraphs(
 		...routePlans.map(({ plan }) => plan),
 		...collectIntegrationScriptPlans(appConfig),
 	]);
-	await refreshIntegrationDependencies(appConfig);
+	await resolveIntegrationDependencies(appConfig);
 	for (const { prepare } of routePlans) {
 		await prepare();
 	}
@@ -140,10 +140,17 @@ function collectIntegrationScriptPlans(appConfig: EcoPagesAppConfig): GroupedGra
 	});
 }
 
-async function refreshIntegrationDependencies(appConfig: EcoPagesAppConfig): Promise<void> {
+/**
+ * Resolves each Integration's global scripts again and ends their deferral.
+ *
+ * @remarks
+ * Once the app-wide build recorded them, or a restored ledger holds them, each resolves to that build's output.
+ */
+export async function resolveIntegrationDependencies(appConfig: EcoPagesAppConfig): Promise<void> {
 	for (const integration of appConfig.integrations) {
 		await integration.refreshResolvedIntegrationDependencies();
 	}
+	requireAppRuntime(appConfig).integrationDependenciesDeferred = false;
 }
 
 /**
@@ -153,22 +160,24 @@ async function refreshIntegrationDependencies(appConfig: EcoPagesAppConfig): Pro
  * Rendering then resolves every script that build bundled through the ledger. With `seal`, as `ecopages start` from
  * a complete `dist/` restores it, a missing ledger is an error. Every dependency then resolves through the ledger,
  * one it does not record is an error, and start compiles and writes nothing. The Lit static-render worker restores without sealing: it renders
- * during the build, which still processes what the ledger does not yet record.
+ * during the build, which still processes what the ledger does not yet record. Integration global scripts whose
+ * setup was deferred are resolved whether or not a ledger was restored.
  */
 export async function restoreProductionBrowserBuild(
 	appConfig: EcoPagesAppConfig,
 	options: { seal: boolean },
 ): Promise<boolean> {
-	if (!shouldPrebuildProductionPageBrowserGraphs()) return false;
-	const restored = restoreProductionAssetLedger(appConfig);
+	const restored = shouldPrebuildProductionPageBrowserGraphs() ? restoreProductionAssetLedger(appConfig) : undefined;
 	if (!restored) {
-		if (options.seal) {
+		if (options.seal && shouldPrebuildProductionPageBrowserGraphs()) {
 			throw new Error('The production asset ledger is missing. Run `ecopages build` again.');
 		}
+		if (requireAppRuntime(appConfig).integrationDependenciesDeferred)
+			await resolveIntegrationDependencies(appConfig);
 		return false;
 	}
 	setPrebuiltHtmlPageModuleScriptUrls(appConfig, restored.htmlPageModuleScriptUrls);
 	if (options.seal) requireAppRuntime(appConfig).processedAssets.seal();
-	await refreshIntegrationDependencies(appConfig);
+	await resolveIntegrationDependencies(appConfig);
 	return true;
 }

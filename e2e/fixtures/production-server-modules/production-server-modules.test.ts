@@ -26,6 +26,7 @@ import { createRecordingFileSystem, installFileSystem, nodeFs } from '../../../p
 import { SERVER_MODULES_MANIFEST_FILENAME } from '../../../packages/core/src/build/server/server-modules-manifest.ts';
 import { requireAppRuntime } from '../../../packages/core/src/utils/app-runtime.ts';
 import { copyFixtureApp } from '../../../packages/core/__fixtures__/app/copy-fixture-app.ts';
+import { listUnreachableClientAssets } from '../../utils/client-asset-reachability.ts';
 
 const ORIGIN = 'http://localhost:3000';
 const MAX_PRODUCTION_SERVER_START_ATTEMPTS = 3;
@@ -364,6 +365,7 @@ describe('production server modules', () => {
 		expect(existsSync(path.join(appDir, 'dist/client/index.html'))).toBe(true);
 		expect(existsSync(path.join(appDir, 'dist/server/app.mjs'))).toBe(true);
 		expect(existsSync(path.join(appDir, 'dist/client/server'))).toBe(false);
+		expect(listUnreachableClientAssets(path.join(appDir, 'dist', 'client'))).toEqual([]);
 
 		const manifest = JSON.parse(
 			readFileSync(path.join(appDir, 'dist/server', SERVER_MODULES_MANIFEST_FILENAME), 'utf8'),

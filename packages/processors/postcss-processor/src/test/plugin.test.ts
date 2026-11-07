@@ -616,7 +616,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		expect(result).toContain('display: grid');
 	});
 
-	test('persists production CSS under a hash of the processed bytes', async () => {
+	test('writes no processed CSS into dist in production', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		try {
 			const cssFile = path.join(srcDir, 'hashed-production.css');
@@ -636,7 +636,8 @@ describe('PostCssProcessorPlugin HMR', () => {
 			plugin.setContext(config);
 			await plugin.setup();
 
-			expect(hashedCssContents().some((css) => css.includes('.hashed { color: orange; }'))).toBe(true);
+			expect(await plugin.transformStylesheet('.hashed { color: orange; }', cssFile)).toContain('.hashed');
+			expect(hashedCssContents()).toEqual([]);
 			expect(fs.existsSync(path.join(distDir, 'assets', 'hashed-production.css'))).toBe(false);
 		} finally {
 			vi.unstubAllEnvs();
@@ -644,28 +645,22 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('does not emit processed copies of stylesheets under the public directory', async () => {
-		vi.stubEnv('NODE_ENV', 'production');
-		try {
-			const publicCss = path.join(srcDir, 'public', 'vendor', 'public.css');
-			fs.mkdirSync(path.dirname(publicCss), { recursive: true });
-			fs.writeFileSync(publicCss, '.public-marker { color: red; }');
-			fs.writeFileSync(path.join(srcDir, 'page.css'), '.page-marker { color: blue; }');
+		const publicCss = path.join(srcDir, 'public', 'vendor', 'public.css');
+		fs.mkdirSync(path.dirname(publicCss), { recursive: true });
+		fs.writeFileSync(publicCss, '.public-marker { color: red; }');
+		fs.writeFileSync(path.join(srcDir, 'page.css'), '.page-marker { color: blue; }');
 
-			const plugin = new PostCssProcessorPlugin({ options: { filter: /\.css$/ } });
-			const config = await finalizeEcoPagesConfig({
-				rootDir: tmpDir,
-				srcDir: 'src',
-				distDir: 'dist',
-				baseUrl: 'http://localhost:3000',
-			});
-			plugin.setContext(config);
-			await plugin.setup();
+		const plugin = new PostCssProcessorPlugin({ options: { filter: /\.css$/ } });
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
+		plugin.setContext(config);
+		await plugin.setup();
 
-			const emitted = hashedCssContents();
-			expect(emitted.some((css) => css.includes('.page-marker'))).toBe(true);
-			expect(emitted.some((css) => css.includes('.public-marker'))).toBe(false);
-		} finally {
-			vi.unstubAllEnvs();
-		}
+		expect(fs.readFileSync(path.join(distDir, 'assets', 'page.css'), 'utf-8')).toContain('.page-marker');
+		expect(fs.existsSync(path.join(distDir, 'assets', 'public', 'vendor', 'public.css'))).toBe(false);
 	});
 });

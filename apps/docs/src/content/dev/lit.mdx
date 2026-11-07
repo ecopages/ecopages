@@ -55,11 +55,11 @@ A bundler can evaluate `lit-element` in a chunk before this module's body, and t
 | `renderQueuedChildren` | resolves queued foreign tokens in string children                                                                           |
 | `renderRemote`         | hands a Page to the static-export worker when a session exists                                                              |
 
-Registered elements stay registered for the rest of that render, so every one renders with its shadow DOM. Preload state lives on the `AppRuntime` (`customElementSsrPreloadScopes`), so separate apps keep separate histories. `ssr: true` scripts execute on the server before render and are excluded from the HTML; `lazy` still controls browser loading.
+Registered elements stay registered for the rest of that render, so every one renders with its shadow DOM. Preload state lives on the `AppRuntime` (`customElementSsrPreloadScopes`), so separate apps keep separate histories. Every in-process render, serving and static export alike, preloads through `createCustomElementServerModuleImporter`, which compiles the script with the app's server module loader into the work directory. Preload never runs the script through the browser asset pipeline, so a build emits no browser bundle for it beside the app-wide output. `ssr: true` scripts execute on the server before render and are excluded from the HTML; `lazy` still controls browser loading.
 
 ## Static export worker
 
-Serving renders every Lit Page in-process and starts no worker. `LitPlugin.staticExport()` starts a worker thread that bootstraps its own app runtime. Static export warms Lit-owned Page routes on the main thread, then renders them in the worker so `@lit-labs/ssr` sees the registered custom element.
+Serving renders every Lit Page in-process and starts no worker. `LitPlugin.staticExport()` starts a worker thread that bootstraps its own app runtime. Static export renders Lit-owned Page routes in the worker, which preloads their `ssr: true` scripts before each render so `@lit-labs/ssr` sees the registered custom element. The session only owns the worker; a Page that renders on the main thread preloads through the renderer's hooks.
 
 ```mermaid
 sequenceDiagram
@@ -70,14 +70,13 @@ sequenceDiagram
     Core->>Plugin: "staticExport(context)"
     Plugin->>Worker: "init (config path, directories)"
     Worker-->>Plugin: "ready"
-    Plugin->>Plugin: "preloadStaticRoutes"
     Main->>Worker: "render (file, params, query)"
     Worker-->>Main: "result or error"
     Core->>Plugin: "release (dispose session)"
 ```
 
 - Pages with `locals` or explicit `props` decline the worker path and render in-process: request locals are not sent through the worker protocol, and explicit props are not passed because the worker re-imports the route module.
-- The worker restores the production browser build from the asset ledger, so a Lit Page links the same app-wide outputs as any other Page ([Build pipeline](/dev/build-pipeline), [Ledger and start](/dev/ledger-and-start)).
+- The worker restores the production browser build from the asset ledger, so a Lit Page links the same app-wide outputs as any other Page. Its Integration setup defers the global scripts such as hydration support until that restore, so the worker bundles none of them on its own into `dist/client` ([Build pipeline](/dev/build-pipeline), [Ledger and start](/dev/ledger-and-start)).
 - `ECOPAGES_LIT_STATIC_RENDER_WORKER=true` makes the worker skip processor `.setup()`; the main thread already prepared artifacts. Integration setup still runs in the worker.
 - Teardown disposes the session; the release returned by `staticExport()` does the same so no worker outlives the export.
 

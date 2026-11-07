@@ -30,7 +30,7 @@ sources:
 - `buildAppBrowserClient()` records each entry's output under the key of every dependency that declared it, then records every emitted file, chunks included, as `browserOutputs`.
 - `AssetProcessingService` records every dependency it processes in production, stylesheets and content scripts included, as each one lands in its cache.
 
-After the app-wide build, each planned route runs its preparation, so asset processing records every remaining dependency those routes are served with. A bundleable script the build already produced resolves to the recorded output instead of being bundled again. Inline assets keep their content and drop `filepath`, since no file reaches `dist/`.
+After the app-wide build, each planned route runs its preparation, so asset processing records every remaining dependency those routes are served with. A bundleable script the build already produced resolves to the recorded output instead of being bundled again. Inline assets keep their content and drop `filepath`, since no file reaches `dist/`. A bundled inline content script is built without chunks in a work-directory folder that is removed once read, so its bundle never reaches `dist/` either.
 
 `writeProductionAssetLedger()` writes the ledger, plus the HTML module-script URLs by root-relative source, to `dist/server/processed-assets.json`. It runs right after prebuild, because the Lit static-render worker restores the ledger, unsealed, during the export. When the build has a server bundle, it runs again after rendering to add what rendering processed. A failed generation clears the file, so a retry records only its own outputs.
 

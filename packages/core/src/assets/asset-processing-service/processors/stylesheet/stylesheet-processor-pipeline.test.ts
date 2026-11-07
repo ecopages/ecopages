@@ -76,7 +76,7 @@ describe('applyStylesheetProcessors', () => {
 		const config = { processors } as unknown as EcoPagesAppConfig;
 		expect(await applyStylesheetProcessors(config, '.a {}', '/app/card.scss')).toEqual({
 			css: '.a {}',
-			dependencies: ['/app/base.scss'],
+			dependencies: [path.resolve('/app/base.scss')],
 		});
 	});
 

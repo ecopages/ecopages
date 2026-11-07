@@ -1,5 +1,7 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { path } from '@ecopages/file-system/path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { Processor } from '../../../../plugins/processor.ts';
 import { applyStylesheetProcessors } from './stylesheet-processor-pipeline.ts';
@@ -82,6 +84,49 @@ describe('applyStylesheetProcessors', () => {
 		const config = configWith(['*.scss']);
 		expect(await applyStylesheetProcessors(config, '.a {}', '/app/card.less')).toEqual({
 			css: '.a {}',
+			dependencies: [],
+		});
+	});
+});
+
+describe('applyStylesheetProcessors inlining app @imports', () => {
+	let rootDir: string;
+	afterEach(() => rmSync(rootDir, { recursive: true, force: true }));
+
+	function write(name: string, contents: string): string {
+		rootDir ??= path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'stylesheet-pipeline-'))));
+		const file = path.join(rootDir, name);
+		mkdirSync(path.dirname(file), { recursive: true });
+		writeFileSync(file, contents);
+		return file;
+	}
+
+	it('inlines a relative @import with no Processor and reports the partial as a dependency', async () => {
+		const partial = write('a.css', '.a {}');
+		const entry = write('main.css', "@import './a.css';\n.main {}");
+
+		expect(await applyStylesheetProcessors(configWith(undefined), "@import './a.css';\n.main {}", entry)).toEqual({
+			css: '.a {}\n.main {}',
+			dependencies: [partial],
+		});
+	});
+
+	it('inlines what the Processor left, and keeps the dependencies it reported', async () => {
+		const partial = write('a.css', '.a {}');
+		const entry = write('main.scss', '');
+		const config = configWith(['*.scss']);
+
+		const result = await applyStylesheetProcessors(config, "@import './a.css';", entry);
+
+		expect(result.css).toBe('.a {}\n/* processed */');
+		expect(result.dependencies).toEqual([partial]);
+	});
+
+	it('leaves a stylesheet without an @import as the cache and the Processor made it', async () => {
+		const entry = write('main.css', '.main {}');
+
+		expect(await applyStylesheetProcessors(configWith(undefined), '.main {}', entry)).toEqual({
+			css: '.main {}',
 			dependencies: [],
 		});
 	});

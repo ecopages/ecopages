@@ -284,6 +284,12 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0(@ecopages/signals@0.6.0)
 
+  e2e/fixtures/plain-css:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+
   e2e/fixtures/production-server-modules:
     devDependencies:
       '@ecopages/core':

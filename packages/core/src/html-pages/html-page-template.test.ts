@@ -3,7 +3,6 @@ import { path } from '@ecopages/file-system/path';
 import {
 	compileHtmlPage,
 	compileHtmlShell,
-	findRelativeCssUrls,
 	getHtmlTemplateWatchFiles,
 	type HtmlPageTemplate,
 	type HtmlTemplatePart,
@@ -294,14 +293,6 @@ describe('compileHtmlPage', () => {
 			'content="tw.png" on <meta name="twitter:image:src">',
 		]);
 		expect(warn.mock.calls[0]![0]).toContain('Use an absolute URL');
-	});
-
-	it('finds relative CSS URLs in url() and image-set() strings, skipping comments', () => {
-		expect(
-			findRelativeCssUrls(
-				'/* url(old.png) */ a { background: image-set(\'a.png\' 1x, url(b.png) 2x, "/c.png" 3x); mask: url("data:x") url(d.svg#m); }',
-			),
-		).toEqual(['b.png', 'd.svg#m', 'a.png']);
 	});
 
 	it('records a relative preload link as a preload hint, not a processed file', () => {

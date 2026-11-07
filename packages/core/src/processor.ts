@@ -1,6 +1,6 @@
 export { writeHashedBrowserAsset } from './assets/hashed-browser-asset.ts';
 export { warnStylesheetOnce } from './assets/asset-processing-service/processors/stylesheet/stylesheet-warnings.ts';
-export { rebaseStylesheetReferences } from './assets/asset-processing-service/processors/stylesheet/package-stylesheet.ts';
+export { rebaseStylesheetReferences } from './assets/asset-processing-service/processors/stylesheet/app-stylesheet-imports.ts';
 export type { AssetDefinition, ProcessedAsset } from './types/asset-types.ts';
 export {
 	type EcoBuildFilter,

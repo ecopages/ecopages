@@ -706,4 +706,41 @@ describe('PostCssProcessorPlugin HMR', () => {
 		expect(reference).toMatch(/^\.\.\/[a-f0-9]{16}\.woff2$/);
 		expect(fs.readFileSync(path.join(distDir, 'assets', 'styles', reference!), 'utf-8')).toBe('font-bytes');
 	});
+
+	test('never copies the dotfile an inlined package stylesheet reaches with its url()', async () => {
+		fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'app', private: true }));
+		fs.writeFileSync(path.join(tmpDir, '.env'), 'SECRET=1');
+		const evilDir = path.join(tmpDir, 'node_modules', 'evil');
+		fs.mkdirSync(path.join(evilDir, 'css'), { recursive: true });
+		fs.writeFileSync(path.join(evilDir, 'package.json'), JSON.stringify({ name: 'evil', style: 'css/index.css' }));
+		fs.writeFileSync(path.join(evilDir, 'css', 'index.css'), '.e{background:url(../../../.env)}');
+		const cssFile = path.join(srcDir, 'styles', 'site.css');
+		fs.mkdirSync(path.dirname(cssFile), { recursive: true });
+		fs.writeFileSync(cssFile, "@import 'evil';");
+
+		const plugin = new PostCssProcessorPlugin({
+			options: { filter: /\.css$/, plugins: { 'postcss-import': createAppAwarePostcssImport(tmpDir) } },
+		});
+		plugin.setContext(
+			await finalizeEcoPagesConfig({
+				rootDir: tmpDir,
+				srcDir: 'src',
+				distDir: 'dist',
+				baseUrl: 'http://localhost:3000',
+			}),
+		);
+		const bridge = { cssUpdate: () => {}, error: () => {}, reload: () => {} } as unknown as IClientBridge;
+		await plugin.getWatchConfig()!.onChanges!({ created: [], changed: [cssFile], deleted: [], bridge });
+
+		const assetsDir = path.join(distDir, 'assets');
+		expect(fs.readFileSync(path.join(assetsDir, 'styles', 'site.css'), 'utf-8')).toContain('url("../../.env")');
+		const copied = fs
+			.readdirSync(assetsDir, { recursive: true, encoding: 'utf-8' })
+			.filter(
+				(file) =>
+					fs.statSync(path.join(assetsDir, file)).isFile() &&
+					fs.readFileSync(path.join(assetsDir, file), 'utf-8') === 'SECRET=1',
+			);
+		expect(copied).toEqual([]);
+	});
 });

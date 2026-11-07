@@ -1,12 +1,14 @@
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { RESOLVED_ASSETS_DIR } from '../../../../constants.ts';
 import { assertBrowserOutputInsideDist, sourceRelativeBrowserAssetPath } from '../../../browser-asset-output.ts';
 import { emitStylesheetReferences } from './package-stylesheet.ts';
 
+/** The app folders {@link writeSourceRelativeStylesheet} reads from and writes to; `distDir` is the public output. */
+export type SourceRelativeStylesheetDirs = { srcDir: string; distDir: string };
+
 /**
- * Writes a processed app stylesheet at its source-relative path under `dist/client/assets`, with the files its
+ * Writes a processed app stylesheet at its source-relative path under `<distDir>/assets`, with the files its
  * relative `url()` references name emitted beside it, and returns that path; `undefined` for a file outside `srcDir`.
  *
  * @remarks
@@ -15,17 +17,16 @@ import { emitStylesheetReferences } from './package-stylesheet.ts';
  * same emitted files. An unchanged file is not rewritten.
  */
 export function writeSourceRelativeStylesheet(
-	appConfig: EcoPagesAppConfig,
+	dirs: SourceRelativeStylesheetDirs,
 	sourceFile: string,
 	processedCss: string,
 ): string | undefined {
-	const { distDir, srcDir } = appConfig.absolutePaths;
-	const relativePath = sourceRelativeBrowserAssetPath(srcDir, sourceFile);
+	const relativePath = sourceRelativeBrowserAssetPath(dirs.srcDir, sourceFile);
 	if (!relativePath) return undefined;
 
-	const assetsDir = path.join(distDir, RESOLVED_ASSETS_DIR);
+	const assetsDir = path.join(dirs.distDir, RESOLVED_ASSETS_DIR);
 	const filepath = path.join(assetsDir, relativePath);
-	assertBrowserOutputInsideDist(distDir, filepath);
+	assertBrowserOutputInsideDist(dirs.distDir, filepath);
 	const css = emitStylesheetReferences(processedCss, sourceFile, {
 		assetsDir,
 		toReference: (emitted) => path.relative(path.dirname(filepath), emitted),

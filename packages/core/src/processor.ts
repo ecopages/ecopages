@@ -1,5 +1,9 @@
 export { writeHashedBrowserAsset } from './assets/hashed-browser-asset.ts';
-export { writeSourceRelativeStylesheet } from './assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts';
+export {
+	type SourceRelativeStylesheetDirs,
+	writeSourceRelativeStylesheet,
+} from './assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts';
+export { rebaseStylesheetReferences } from './assets/asset-processing-service/processors/stylesheet/package-stylesheet.ts';
 export type { AssetDefinition, ProcessedAsset } from './types/asset-types.ts';
 export {
 	type EcoBuildFilter,

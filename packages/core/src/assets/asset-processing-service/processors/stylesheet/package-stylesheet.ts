@@ -1,13 +1,12 @@
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { resolvePackageStylesheetPath } from '../../../../plugins/tsconfig-import-resolver.ts';
-import { isPathInside } from '../../../../utils/path-containment.ts';
+import { appLogger } from '../../../../global/app-logger.ts';
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 
 type StylesheetReferenceContext = {
-	assetsDir: string;
-	/** The reference the output stylesheet uses for a file emitted to `assetsDir`. */
-	toReference: (emitted: string) => string;
+	/** Where a package stylesheet's files are emitted, for the files its `@import`s inline. */
+	output?: StylesheetReferenceOutput;
 	/**
 	 * Whether this is a package stylesheet: its relative references must stay inside its package, and its `@import`s
 	 * and `@charset` are inlined and hoisted. An app stylesheet's at-rules are left as written.
@@ -24,14 +23,42 @@ type Scanned = { value: string; end: number };
 const IDENT_CHAR = /[\w-]/;
 const IDENT = /[\w-]+/y;
 
-/** A reference that does not name a file beside the stylesheet: a fragment, a root-relative path, or any URL with a scheme (`data:`, `https:`). */
+/** A Windows path with a drive letter, as a rebased reference to a file on another drive is written. */
+const DRIVE_PATH = /^[a-z]:[\\/]/i;
+
+/**
+ * A reference that does not name a file: a fragment, a root-relative path, or any URL with a scheme (`data:`,
+ * `https:`). A Windows drive path names a file.
+ */
 function isExternalReference(reference: string): boolean {
 	return (
 		reference === '' ||
 		reference.startsWith('#') ||
 		reference.startsWith('/') ||
-		/^[a-z][a-z\d+.-]*:/i.test(reference)
+		(/^[a-z][a-z\d+.-]*:/i.test(reference) && !DRIVE_PATH.test(reference))
 	);
+}
+
+/** Splits a reference into its file part, decoded where it can be, and its `?` or `#` suffix. */
+function splitReference(reference: string): { filePart: string; decoded: string; suffix: string } {
+	const suffixStart = reference.search(/[?#]/);
+	const filePart = suffixStart === -1 ? reference : reference.slice(0, suffixStart);
+	const suffix = suffixStart === -1 ? '' : reference.slice(suffixStart);
+	let decoded = filePart;
+	try {
+		decoded = decodeURI(filePart);
+	} catch {
+		decoded = filePart;
+	}
+	return { filePart, decoded, suffix };
+}
+
+function realPath(file: string): string {
+	return fileSystem.exists(file) ? fileSystem.realpath(file) : file;
+}
+
+function realDirectory(file: string): string {
+	return realPath(path.dirname(file));
 }
 
 /**
@@ -152,85 +179,145 @@ function findStatementEnd(css: string, start: number): number {
 	return scanUntil(css, start, (char, depth) => char === ';' && depth <= 0);
 }
 
-function hasPackageName(manifest: string): boolean {
-	try {
-		const parsed: unknown = JSON.parse(fileSystem.readFileSync(manifest));
-		return typeof parsed === 'object' && parsed !== null && 'name' in parsed;
-	} catch {
-		return false;
-	}
+/**
+ * Extensions of the files a stylesheet reference may copy into the build: fonts, images and media, the types CSS
+ * loads.
+ */
+const EMITTABLE_REFERENCE_EXTENSIONS = new Set([
+	'.woff2',
+	'.woff',
+	'.ttf',
+	'.otf',
+	'.eot',
+	'.png',
+	'.jpg',
+	'.jpeg',
+	'.gif',
+	'.webp',
+	'.avif',
+	'.svg',
+	'.ico',
+	'.bmp',
+	'.cur',
+	'.mp4',
+	'.webm',
+	'.ogg',
+	'.mp3',
+	'.wav',
+]);
+
+/**
+ * Whether a stylesheet reference may copy `file` into the build.
+ *
+ * @remarks
+ * Protection goes by what is copied, not where it lives: in a monorepo the app's packages, hoisted or in pnpm's
+ * store, sit outside its folder, and a package may name a sibling dependency's files. Only a font, image or media
+ * file is copied, never a dotfile, so a reference such as `url(../../.env)` cannot publish a secret or a source file.
+ */
+function isEmittableReferenceFile(file: string): boolean {
+	const name = path.basename(file);
+	return !name.startsWith('.') && EMITTABLE_REFERENCE_EXTENSIONS.has(path.extname(name).toLowerCase());
 }
 
 /**
- * The root of the package a stylesheet belongs to: the nearest folder with a named `package.json`, or the nearest
- * with any `package.json`.
- *
- * @remarks
- * A nested `package.json` without a name, such as `dist/package.json` setting only `type`, does not end the package.
+ * Emits the file a reference names, or returns `undefined` to leave the reference as written, with a warning, when
+ * the file is not a type a stylesheet may copy.
  */
-function findPackageRoot(file: string): string {
-	let nearest: string | undefined;
-	for (let directory = path.dirname(file); ; directory = path.dirname(directory)) {
-		const manifest = path.join(directory, 'package.json');
-		if (fileSystem.exists(manifest)) {
-			nearest ??= directory;
-			if (hasPackageName(manifest)) return directory;
-		}
-		if (path.dirname(directory) === directory) return nearest ?? path.dirname(file);
-	}
-}
-
-/** Resolves a relative reference of `stylesheet` and fails unless it stays inside the stylesheet's package. */
-function resolveInsidePackage(stylesheet: string, reference: string, filePart: string): string {
-	const file = path.resolve(path.dirname(stylesheet), filePart);
-	const root = findPackageRoot(stylesheet);
-	if (!isPathInside(file, root) || (fileSystem.exists(file) && !isPathInside(fileSystem.realpath(file), root))) {
-		throw new Error(
-			`[ecopages] ${stylesheet}: ${JSON.stringify(reference)} resolves to ${file}, outside the package at ${root}.`,
+function emitReferencedFile(
+	stylesheet: string,
+	reference: string,
+	file: string,
+	suffix: string,
+	output: StylesheetReferenceOutput,
+): string | undefined {
+	if (!isEmittableReferenceFile(file)) {
+		appLogger.warn(
+			`${stylesheet}: url(${reference}) names ${file}, which is not a font, image or media file, so it is not copied and the reference is left as written.`,
 		);
-	}
-	return file;
-}
-
-function emitReferencedFile(stylesheet: string, reference: string, context: StylesheetReferenceContext): string {
-	const suffixStart = reference.search(/[?#]/);
-	const filePart = suffixStart === -1 ? reference : reference.slice(0, suffixStart);
-	const suffix = suffixStart === -1 ? '' : reference.slice(suffixStart);
-	let decoded = filePart;
-	try {
-		decoded = decodeURI(filePart);
-	} catch {
-		decoded = filePart;
-	}
-	const file = context.fromPackage
-		? resolveInsidePackage(stylesheet, reference, decoded)
-		: path.resolve(fileSystem.realpath(path.dirname(stylesheet)), decoded);
-	if (!fileSystem.exists(file)) {
-		throw new Error(`[ecopages] ${stylesheet}: url(${reference}) names ${file}, which does not exist.`);
+		return undefined;
 	}
 	const emitted = writeHashedBrowserAsset({
 		bytes: fileSystem.readFileAsBuffer(file),
-		directory: context.assetsDir,
-		extension: path.extname(file) || '.bin',
+		directory: output.assetsDir,
+		extension: path.extname(file),
 	});
-	return `${context.toReference(emitted)}${suffix}`;
+	return `${output.toReference(emitted)}${suffix}`;
+}
+
+/** Emits the file a package stylesheet's reference names; a missing file fails the build. */
+function emitPackageReference(
+	stylesheet: string,
+	reference: string,
+	output: StylesheetReferenceOutput,
+): string | undefined {
+	const { decoded, suffix } = splitReference(reference);
+	const file = path.resolve(path.dirname(stylesheet), decoded);
+	if (!fileSystem.exists(file)) {
+		throw new Error(`[ecopages] ${stylesheet}: url(${reference}) names ${file}, which does not exist.`);
+	}
+	return emitReferencedFile(stylesheet, reference, fileSystem.realpath(file), suffix, output);
+}
+
+/**
+ * Emits the file an app stylesheet's reference names, or returns `undefined` to leave the reference as written,
+ * with a warning, when the file is missing.
+ */
+function emitAppReference(
+	stylesheet: string,
+	reference: string,
+	output: StylesheetReferenceOutput,
+): string | undefined {
+	const { decoded, suffix } = splitReference(reference);
+	const file = path.resolve(realDirectory(stylesheet), decoded);
+	if (!fileSystem.exists(file)) {
+		appLogger.warn(
+			`${stylesheet}: url(${reference}) names ${file}, which does not exist, so it is left as written. Reference a file in the public directory with a root-relative URL such as /images/hero.png, and @import a package stylesheet through the @ecopages/postcss-processor presets, which rebase its url() references.`,
+		);
+		return undefined;
+	}
+	return emitReferencedFile(stylesheet, reference, fileSystem.realpath(file), suffix, output);
+}
+
+/**
+ * Rebases the relative `url()` and `image-set()` string references of CSS inlined from `sourceFile` onto
+ * `entryFile`, so they name the same files from the importing stylesheet.
+ *
+ * @remarks
+ * Uses the stylesheet tokenizer, so strings, comments and escapes are honoured. Both ends are real directories.
+ * A target on another Windows drive has no relative form and is written as its
+ * absolute path, which {@link emitStylesheetReferences} reads as a file.
+ */
+export function rebaseStylesheetReferences(css: string, sourceFile: string, entryFile: string): string {
+	const entryDir = realDirectory(entryFile);
+	const sourceDir = realDirectory(sourceFile);
+	return scanStylesheet(css, sourceFile, appAtRuleContext(), (reference) => {
+		const { filePart, suffix } = splitReference(reference);
+		return `${path.relative(entryDir, path.resolve(sourceDir, filePart))}${suffix}`;
+	});
 }
 
 /**
  * @remarks
  * An `@import` specifier is a URL, so `base.css` names a sibling like `./base.css`; a package resolves only when
- * no such file exists. A sibling must stay inside the stylesheet's package.
+ * no such file exists. Only a `.css` file is inlined, never a dotfile, so an `@import` cannot publish another file;
+ * like a `url()`, it may name a sibling dependency's stylesheet.
  */
 function resolveImportedStylesheet(stylesheet: string, specifier: string): string {
 	const sibling = path.resolve(path.dirname(stylesheet), specifier);
 	const resolved =
 		specifier.startsWith('.') || fileSystem.exists(sibling)
-			? resolveInsidePackage(stylesheet, specifier, specifier)
+			? sibling
 			: resolvePackageStylesheetPath(stylesheet, specifier);
 	if (!resolved || !fileSystem.exists(resolved)) {
 		throw new Error(`[ecopages] ${stylesheet}: cannot resolve @import ${JSON.stringify(specifier)}.`);
 	}
-	return fileSystem.realpath(resolved);
+	const real = fileSystem.realpath(resolved);
+	if (path.extname(real).toLowerCase() !== '.css' || path.basename(real).startsWith('.')) {
+		throw new Error(
+			`[ecopages] ${stylesheet}: @import ${JSON.stringify(specifier)} names ${real}, which is not a stylesheet.`,
+		);
+	}
+	return real;
 }
 
 /**
@@ -295,7 +382,8 @@ function handleImport(
 	}
 	const imported = resolveImportedStylesheet(stylesheet, target.value);
 	if (context.inlined.has(imported)) return { replacement: '', end };
-	const inlined = preparePackageStylesheetFile(imported, context);
+	if (!context.output) throw new Error(`[ecopages] ${stylesheet}: only a package stylesheet inlines its @imports.`);
+	const inlined = preparePackageStylesheetFile(imported, context, context.output);
 	if (!conditions) return { replacement: inlined, end };
 	const wrapped = wrapInConditions(inlined, conditions);
 	if (wrapped === undefined) {
@@ -309,6 +397,8 @@ type FileScan = {
 	css: string;
 	stylesheet: string;
 	context: StylesheetReferenceContext;
+	/** What a relative reference becomes, or `undefined` to leave it as written. */
+	rewrite: (reference: string) => string | undefined;
 	/** Names of the functions whose parentheses are open, innermost last; `''` for a plain group. */
 	functions: string[];
 	braces: number;
@@ -318,7 +408,7 @@ type FileScan = {
 type Token = { text: string; end: number };
 
 function rewriteReference(scan: FileScan, reference: string): string | undefined {
-	return isExternalReference(reference) ? undefined : emitReferencedFile(scan.stylesheet, reference, scan.context);
+	return isExternalReference(reference) ? undefined : scan.rewrite(reference);
 }
 
 /** A string is copied as written, unless it is an `image-set()` reference. */
@@ -400,8 +490,13 @@ function scanToken(scan: FileScan, index: number): Token {
 	return scanPunctuation(scan, index);
 }
 
-function scanStylesheet(css: string, stylesheet: string, context: StylesheetReferenceContext): string {
-	const scan: FileScan = { css, stylesheet, context, functions: [], braces: 0 };
+function scanStylesheet(
+	css: string,
+	stylesheet: string,
+	context: StylesheetReferenceContext,
+	rewrite: (reference: string) => string | undefined,
+): string {
+	const scan: FileScan = { css, stylesheet, context, rewrite, functions: [], braces: 0 };
 	let output = '';
 	let index = 0;
 	while (index < scan.css.length) {
@@ -416,9 +511,15 @@ function scanStylesheet(css: string, stylesheet: string, context: StylesheetRefe
  * Rewrites one package stylesheet: its relative `url()` and `image-set()` string references, its `@import`s and
  * its `@charset`, leaving strings and comments as written.
  */
-function preparePackageStylesheetFile(stylesheet: string, context: StylesheetReferenceContext): string {
+function preparePackageStylesheetFile(
+	stylesheet: string,
+	context: StylesheetReferenceContext,
+	output: StylesheetReferenceOutput,
+): string {
 	context.inlined.add(stylesheet);
-	return scanStylesheet(fileSystem.readFileSync(stylesheet), stylesheet, context);
+	return scanStylesheet(fileSystem.readFileSync(stylesheet), stylesheet, context, (reference) =>
+		emitPackageReference(stylesheet, reference, output),
+	);
 }
 
 /** Where emitted files go and how the output stylesheet names them. */
@@ -440,12 +541,12 @@ export type StylesheetReferenceOutput = {
  * references rewritten from its location, wrapped in `@layer`, `@supports` and `@media` blocks for its conditions,
  * and each file is inlined once. Root-relative, `data:` and remote `@import`s and the first `@charset` are hoisted
  * to the top, where browsers apply them; a hoisted import keeps its own conditions but not those of an `@import`
- * that inlined its file. A relative reference that resolves outside the stylesheet's package, or names a missing
- * file, fails the build.
+ * that inlined its file. A reference to a missing file fails the build. Only a font, image or media file is copied;
+ * a reference to any other file is left as written with a warning (see {@link isEmittableReferenceFile}).
  */
 export function preparePackageStylesheet(stylesheet: string, output: StylesheetReferenceOutput): string {
-	const context: StylesheetReferenceContext = { ...output, fromPackage: true, inlined: new Set(), hoisted: [] };
-	const body = preparePackageStylesheetFile(fileSystem.realpath(stylesheet), context);
+	const context: StylesheetReferenceContext = { output, fromPackage: true, inlined: new Set(), hoisted: [] };
+	const body = preparePackageStylesheetFile(fileSystem.realpath(stylesheet), context, output);
 	const head = [...(context.charset ? [context.charset] : []), ...context.hoisted];
 	return head.length > 0 ? `${head.join('\n')}\n${body}` : body;
 }
@@ -457,8 +558,18 @@ export function preparePackageStylesheet(stylesheet: string, output: StylesheetR
  * @remarks
  * A reference resolves from the real directory of the source stylesheet, as a Processor leaves it: `postcss-import` in the
  * `@ecopages/postcss-processor` presets rebases the references of the files it inlines onto the importing file.
- * `@import` and `@charset` are left as written. A reference that names a missing file fails the build.
+ * `@import` and `@charset` are left as written. A reference to a missing file is left as written with a warning:
+ * Tailwind can generate a `url()` from a class it found in content, and a plain `postcss-import` leaves a package's
+ * references as the package wrote them. Only a font, image or media file is copied (see
+ * {@link isEmittableReferenceFile}).
  */
 export function emitStylesheetReferences(css: string, stylesheet: string, output: StylesheetReferenceOutput): string {
-	return scanStylesheet(css, stylesheet, { ...output, fromPackage: false, inlined: new Set(), hoisted: [] });
+	return scanStylesheet(css, stylesheet, appAtRuleContext(), (reference) =>
+		emitAppReference(stylesheet, reference, output),
+	);
+}
+
+/** The scan state of a stylesheet whose `@import`s and `@charset` are left as written. */
+function appAtRuleContext(): StylesheetReferenceContext {
+	return { fromPackage: false, inlined: new Set(), hoisted: [] };
 }

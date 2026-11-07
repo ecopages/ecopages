@@ -161,21 +161,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			return;
 		}
 
-		writeSourceRelativeStylesheet(this.context.config, filePath, css);
-	}
-
-	/**
-	 * @remarks
-	 * For the prewarm and the browser build loader, which process stylesheets no Page may link: a reference to a
-	 * missing file is logged rather than stopping the server or the build that imports the stylesheet. Core fails
-	 * the build when a Page links it.
-	 */
-	private tryPersistProcessedCss(filePath: string, css: string): void {
-		try {
-			this.persistProcessedCss(filePath, css);
-		} catch (error) {
-			logger.error(`Failed to write CSS: ${filePath}`, error instanceof Error ? error.message : String(error));
-		}
+		const { srcDir, distDir } = this.context;
+		writeSourceRelativeStylesheet({ srcDir, distDir }, filePath, css);
 	}
 
 	private async prewarmRuntimeCssCache(): Promise<void> {
@@ -199,7 +186,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			const processed = await this.transformStylesheet(rawContents, filePath);
 			this.runtimeCssCache.set(filePath, processed);
-			this.tryPersistProcessedCss(filePath, processed);
+			this.persistProcessedCss(filePath, processed);
 		}
 
 		this.buildCssDependencyMap();
@@ -288,7 +275,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 		const processed = await this.transformStylesheet(transformed, filePath);
 		this.runtimeCssCache.set(filePath, processed);
-		this.tryPersistProcessedCss(filePath, processed);
+		this.persistProcessedCss(filePath, processed);
 		return processed;
 	}
 
@@ -461,8 +448,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 				return;
 			}
 
-			this.runtimeCssCache.set(filePath, processed);
 			this.persistProcessedCss(filePath, processed);
+			this.runtimeCssCache.set(filePath, processed);
 
 			bridge.cssUpdate(filePath);
 

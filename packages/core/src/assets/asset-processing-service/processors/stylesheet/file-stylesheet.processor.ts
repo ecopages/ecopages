@@ -9,7 +9,7 @@ import {
 	preparePackageStylesheet,
 	type StylesheetReferenceOutput,
 } from './package-stylesheet.ts';
-import { writeSourceRelativeStylesheet } from './source-relative-stylesheet.ts';
+import { type SourceRelativeStylesheetDirs, writeSourceRelativeStylesheet } from './source-relative-stylesheet.ts';
 
 /**
  * Processes a stylesheet file through the app's Processors and writes it under `dist/client/assets`.
@@ -45,10 +45,15 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 		const sourceRelativePath =
 			dep.inline || this.isProduction
 				? undefined
-				: writeSourceRelativeStylesheet(this.appConfig, dep.filepath, css);
+				: writeSourceRelativeStylesheet(this.appDirs(), dep.filepath, css);
 		if (sourceRelativePath) return this.toProcessedAsset(dep, undefined, sourceRelativePath);
 
 		return this.toProcessedAsset(dep, emitStylesheetReferences(css, dep.filepath, output));
+	}
+
+	private appDirs(): SourceRelativeStylesheetDirs {
+		const { distDir, srcDir } = this.appConfig.absolutePaths;
+		return { srcDir, distDir };
 	}
 
 	/** Writes `content` under its content hash unless the stylesheet is inline or already written at `filepath`. */

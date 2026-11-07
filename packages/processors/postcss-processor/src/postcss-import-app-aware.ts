@@ -1,5 +1,6 @@
 /// <reference path="./postcss-import-resolve-id.d.ts" />
 import { fileSystem } from '@ecopages/file-system';
+import { rebaseStylesheetReferences } from '@ecopages/core/processor';
 import { createRequire } from 'node:module';
 import { path } from '@ecopages/file-system/path';
 import postcss from 'postcss';
@@ -169,49 +170,26 @@ function resolveBarePackageImport(id: string, appRoot: string): string {
 	throw new Error(`Unable to resolve CSS entry for package "${id}"`);
 }
 
-const URL_REFERENCE = /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)'"\s]*))\s*\)/gi;
-
-/** A reference that does not name a file beside the stylesheet: a fragment, a root-relative path, or any URL with a scheme. */
-function isExternalReference(reference: string): boolean {
-	return (
-		reference === '' ||
-		reference.startsWith('#') ||
-		reference.startsWith('/') ||
-		/^[a-z][a-z\d+.-]*:/i.test(reference)
-	);
-}
-
 /**
- * Rewrites the relative `url()` references of the declarations postcss-import inlined from other files, so they
+ * Rebases the relative `url()` references of the declarations postcss-import inlined from other files, so they
  * resolve from the importing stylesheet as they did from their own file.
  *
  * @remarks
  * Core resolves a processed stylesheet's relative references from its source file's real directory and emits the
  * files they name; without this, `url(files/font.woff2)` from `@import '@fontsource/inter'` would resolve beside
- * the app's file. Both ends are real paths, since postcss-import reads an imported file through its symlinks.
+ * the app's file. Core's {@link rebaseStylesheetReferences} does the rewrite with its stylesheet tokenizer; core
+ * decides which referenced files it copies.
  */
-function canonicalDirectory(file: string): string {
-	const directory = path.dirname(file);
-	return fileSystem.exists(directory) ? fileSystem.realpath(directory) : directory;
-}
-
 function rebaseInlinedUrls(): postcss.Plugin {
 	return {
 		postcssPlugin: 'ecopages-rebase-inlined-urls',
 		Once(root) {
 			const entry = root.source?.input.file;
 			if (!entry) return;
-			const entryDir = canonicalDirectory(entry);
 			root.walkDecls((decl) => {
 				const file = decl.source?.input.file;
-				if (!file || file === entry || !decl.value.toLowerCase().includes('url(')) return;
-				decl.value = decl.value.replace(URL_REFERENCE, (match, double, single, bare) => {
-					const reference: string = double ?? single ?? bare ?? '';
-					if (isExternalReference(reference)) return match;
-					const target = path.resolve(canonicalDirectory(file), reference);
-					const rebased = path.relative(entryDir, target);
-					return `url(${JSON.stringify(rebased)})`;
-				});
+				if (!file || file === entry || !/url\(|image-set\(/i.test(decl.value)) return;
+				decl.value = rebaseStylesheetReferences(decl.value, file, entry);
 			});
 		},
 	};

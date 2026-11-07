@@ -188,8 +188,8 @@ describe('IntegrationRenderer', () => {
 
 		expect(firstResult.html).toBe(`<main>${path.resolve('/app/first')}</main>`);
 		expect(firstRenderAgain.html).toBe(`<main>${path.resolve('/app/first')}</main>`);
-		expect(secondResult.html).toBe('<main>/app/second</main>');
-		expect(secondRenderAgain.html).toBe('<main>/app/second</main>');
+		expect(secondResult.html).toBe(`<main>${path.resolve('/app/second')}</main>`);
+		expect(secondRenderAgain.html).toBe(`<main>${path.resolve('/app/second')}</main>`);
 		expect(hookFactory).toHaveBeenCalledTimes(2);
 	});
 

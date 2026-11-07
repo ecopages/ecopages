@@ -27,12 +27,30 @@ const ENTRY_FLAG_OPTIONS = Object.fromEntries(
 	Object.keys(ENTRY_COMMAND_FLAGS).map((name) => [name, { type: 'boolean' }]),
 ) as Record<EntryCommandFlagName, { type: 'boolean' }>;
 
-const ECOPAGES_BIN_FILES = ['ecopages.ts', 'ecopages.js', 'cli.js'];
+const ENTRY_PARSE_OPTIONS = {
+	dev: { type: 'boolean' },
+	preview: { type: 'boolean' },
+	build: { type: 'boolean' },
+	...ENTRY_FLAG_OPTIONS,
+	port: { type: 'string' },
+	hostname: { type: 'string' },
+} as const;
+
+const ECOPAGES_BIN_FILES = ['ecopages.ts', 'ecopages.js'];
+
+const ECOPAGES_PACKAGE_BIN = /(^|\/)ecopages\/bin\/cli\.js$/;
 
 const ECOPAGES_AVAILABLE_COMMANDS = ['dev', 'build', 'start', 'preview'];
 
+function isEcopagesBin(arg: string): boolean {
+	const normalized = arg.replaceAll('\\', '/');
+	return (
+		ECOPAGES_BIN_FILES.some((filename) => normalized.endsWith(filename)) || ECOPAGES_PACKAGE_BIN.test(normalized)
+	);
+}
+
 function resolveEcopagesSubcommand(runtimeArgv: string[]): string {
-	const ecopagesIndex = runtimeArgv.findIndex((arg) => ECOPAGES_BIN_FILES.some((filename) => arg.endsWith(filename)));
+	const ecopagesIndex = runtimeArgv.findIndex(isEcopagesBin);
 	if (ecopagesIndex === -1) {
 		return '';
 	}
@@ -45,90 +63,52 @@ function resolveEcopagesSubcommand(runtimeArgv: string[]): string {
 	return 'start';
 }
 
-function deriveCliCommandFlags(
-	command: string,
-	values: {
-		dev?: boolean;
-		build?: boolean;
-		preview?: boolean;
-	},
-): {
-	isStartCommand: boolean;
-	isDevCommand: boolean;
-	isBuildCommand: boolean;
-	isPreviewCommand: boolean;
-} {
-	const isStartCommand = command === 'start' || (command === '' && !values.dev && !values.build && !values.preview);
-	const isDevCommand = command === 'dev' || !!values.dev;
-	const isBuildCommand = command === 'build' || !!values.build;
-	const isPreviewCommand = command === 'preview' || !!values.preview;
-	return { isStartCommand, isDevCommand, isBuildCommand, isPreviewCommand };
-}
-
 /**
- * Whether the process runs a production export: `ecopages build`, or `ecopages preview` without `--serve-only`.
+ * What the process was asked to do: the CLI mode flags and options, before any runtime mode is set.
  *
  * @remarks
- * Reads the same arguments as {@link parseCliArgs} without setting the runtime mode, and ignores options it does not
- * know, so config finalization can call it in any process, a test runner included.
+ * Pure, so {@link parseCliArgs} and the app runtime's default global-script resolution read the same flags and
+ * cannot disagree on build or serve mode. It ignores arguments it does not declare unless `strict` is set, so the
+ * runtime default is safe in any process, a test runner included. The ecopages bin is the `ecopages.ts`/`ecopages.js` entry or the
+ * `ecopages` package's `bin/cli.js`; another tool's `cli.js` is not treated as it.
  */
-export function isProductionExportCommand(): boolean {
-	const runtimeArgv = getRuntimeArgv();
-	const { values } = parseArgs({
-		args: runtimeArgv,
-		options: {
-			dev: { type: 'boolean' },
-			preview: { type: 'boolean' },
-			build: { type: 'boolean' },
-			'serve-only': { type: 'boolean' },
-		},
-		allowPositionals: true,
-		strict: false,
-	});
-	const { isBuildCommand, isPreviewCommand } = deriveCliCommandFlags(resolveEcopagesSubcommand(runtimeArgv), {
-		dev: values.dev === true,
-		build: values.build === true,
-		preview: values.preview === true,
-	});
-	const serveOnly = values['serve-only'] === true || isEcopagesEnvEnabled('ECOPAGES_PREVIEW_SERVE_ONLY');
-	return isBuildCommand || (isPreviewCommand && !serveOnly);
+export function resolveEntryCommand(
+	argv: string[],
+	{ environment, strict = false }: { environment?: NodeJS.ProcessEnv; strict?: boolean } = {},
+): ReturnParseCliArgs {
+	const { values } = parseArgs({ args: argv, options: ENTRY_PARSE_OPTIONS, allowPositionals: true, strict });
+	const command = resolveEcopagesSubcommand(argv);
+	const dev = command === 'dev' || values.dev === true;
+	const build = command === 'build' || values.build === true;
+	const preview = command === 'preview' || values.preview === true;
+	const start = command === 'start' || (command === '' && !dev && !build && !preview);
+	const port = typeof values.port === 'string' && values.port !== '' ? Number(values.port) : undefined;
+
+	return {
+		preview,
+		build,
+		start,
+		dev,
+		serveOnly: values['serve-only'] === true || isEcopagesEnvEnabled('ECOPAGES_PREVIEW_SERVE_ONLY', environment),
+		keepGoing: values['keep-going'] === true,
+		port,
+		hostname: typeof values.hostname === 'string' ? values.hostname : undefined,
+	};
 }
 
 /**
- * Parses command line arguments for the server.
+ * Whether a resolved entry command is a production export: a build, or a preview that is not serve-only.
+ */
+export function isProductionExport(command: Pick<ReturnParseCliArgs, 'build' | 'preview' | 'serveOnly'>): boolean {
+	return command.build || (command.preview && !command.serveOnly);
+}
+
+/**
+ * Parses command line arguments for the server and sets the runtime mode.
  * It returns {@link ReturnParseCliArgs}
  */
 export function parseCliArgs(): ReturnParseCliArgs {
-	const runtimeArgv = getRuntimeArgv();
-
-	const { values } = parseArgs({
-		args: runtimeArgv,
-		options: {
-			dev: { type: 'boolean' },
-			preview: { type: 'boolean' },
-			build: { type: 'boolean' },
-			...ENTRY_FLAG_OPTIONS,
-			port: { type: 'string' },
-			hostname: { type: 'string' },
-		},
-		allowPositionals: true,
-	});
-
-	const command = resolveEcopagesSubcommand(runtimeArgv);
-	const { isStartCommand, isDevCommand, isBuildCommand, isPreviewCommand } = deriveCliCommandFlags(command, values);
-
-	const parsedCommandOptions = {
-		preview: isPreviewCommand,
-		build: isBuildCommand,
-		start: isStartCommand,
-		dev: isDevCommand,
-		serveOnly: !!values['serve-only'] || isEcopagesEnvEnabled('ECOPAGES_PREVIEW_SERVE_ONLY'),
-		keepGoing: !!values['keep-going'],
-		port: values.port ? Number(values.port) : undefined,
-		hostname: values.hostname,
-	};
-
-	setRuntimeModeForCliCommand(isDevCommand);
-
-	return parsedCommandOptions;
+	const parsed = resolveEntryCommand(getRuntimeArgv(), { strict: true });
+	setRuntimeModeForCliCommand(parsed.dev);
+	return parsed;
 }

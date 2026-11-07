@@ -109,6 +109,10 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 
 /**
  * Finalizes the kitchen-sink config for tests and benchmarks that build the app in process, like `ecopages build`.
+ *
+ * @remarks
+ * The runtime resolves global scripts at the browser build (`'browser-build'`), not at activation, so a caller that
+ * only serves requests should use `createKitchenSinkUserConfig()` through `eco.config.ts` instead.
  */
 export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions) {
 	return finalizeEcoPagesConfig(createKitchenSinkUserConfig(options), { globalScriptResolution: 'browser-build' });

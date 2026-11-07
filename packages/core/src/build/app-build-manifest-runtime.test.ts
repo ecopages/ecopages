@@ -6,6 +6,7 @@ import {
 	ensureIntegrationRuntimeReady,
 	resolveIntegrationDependencies,
 	setupAppRuntimeIntegrations,
+	teardownAppRuntimeIntegrations,
 } from './app-build-manifest-runtime.ts';
 
 async function createApp(globalScriptResolution?: GlobalScriptResolution) {
@@ -64,4 +65,47 @@ test('resolveIntegrationDependencies rejects a runtime that resolves at activati
 
 	await expect(resolveIntegrationDependencies({ appConfig })).rejects.toThrow(/'browser-build'/);
 	expect(events).toEqual([]);
+});
+
+test('an activation after the browser build resolves global scripts again, as an app.fetch() after a build needs', async () => {
+	const { appConfig, integration, events } = await createApp('browser-build');
+
+	await ensureIntegrationRuntimeReady({ appConfig, integrationName: integration.name });
+	await resolveIntegrationDependencies({ appConfig });
+	await teardownAppRuntimeIntegrations({ appConfig });
+	events.length = 0;
+
+	await ensureIntegrationRuntimeReady({ appConfig, integrationName: integration.name });
+
+	expect(events).toEqual(['setup', 'resolve']);
+});
+
+test('the global script of an Integration is back in its resolved list when it activates after the build', async () => {
+	const { IntegrationPlugin } = await import('../plugins/integration-plugin.ts');
+	const { IntegrationRenderer } = await import('../route-renderer/orchestration/integration-renderer.ts');
+	const { AssetProcessingService } = await import('../assets/asset-processing-service/asset-processing.service.ts');
+	class Renderer extends IntegrationRenderer {
+		declare name: string;
+		override async render() {
+			return '';
+		}
+	}
+	class GlobalScriptPlugin extends IntegrationPlugin {
+		renderer = Renderer;
+	}
+	const script = { kind: 'script' as const, content: 'globalThis.x = 1;', inline: true };
+	vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([script]);
+	const plugin = new GlobalScriptPlugin({ name: 'global-script', extensions: ['.gs'] });
+	const appConfig = await finalizeEcoPagesConfig(
+		{ rootDir: '/project', integrations: [plugin] },
+		{ globalScriptResolution: 'browser-build' },
+	);
+
+	await setupAppRuntimeIntegrations({ appConfig });
+	await resolveIntegrationDependencies({ appConfig });
+	await teardownAppRuntimeIntegrations({ appConfig });
+	expect(plugin.getResolvedIntegrationDependencies()).toEqual([script]);
+
+	await setupAppRuntimeIntegrations({ appConfig });
+	expect(plugin.getResolvedIntegrationDependencies()).toEqual([script]);
 });

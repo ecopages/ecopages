@@ -22,8 +22,9 @@ import type { CustomElementScriptPreloadScopeState } from '../../route-renderer/
 import type { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
 import type { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import type { IHmrManager } from '../../types/contracts.ts';
+import { getRuntimeArgv } from '../../utils/runtime.ts';
 import { MISSING_APP_RUNTIME } from '../../utils/app-runtime.ts';
-import { isProductionExportCommand } from '../../utils/parse-cli-args.ts';
+import { isProductionExport, resolveEntryCommand } from '../../utils/parse-cli-args.ts';
 
 export { requireAppRuntime } from '../../utils/app-runtime.ts';
 
@@ -167,7 +168,8 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig, options: AppRunti
 		pageCache: null,
 		integrationActivations: new Map(),
 		globalScriptResolution:
-			options.globalScriptResolution ?? (isProductionExportCommand() ? 'browser-build' : 'activation'),
+			options.globalScriptResolution ??
+			(isProductionExport(resolveEntryCommand(getRuntimeArgv())) ? 'browser-build' : 'activation'),
 		runtimeAssetsPrepared: false,
 		hmrAttachedToIntegrations: false,
 		productionBuildId: null,

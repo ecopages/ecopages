@@ -225,5 +225,21 @@ describe('@import bundling', () => {
 			expect(await normalize(ours.css)).toBe(await normalize(core.css));
 			expect([...(ours.dependencies ?? [])].sort()).toEqual([...core.dependencies].sort());
 		});
+
+		test('resolves the @import and url() of a symlinked entry as core does', async () => {
+			const css = '@import "./only-beside-the-link.css";\n.e { background: url(i.png); }';
+			write('src/real/e.css', css);
+			write('src/real/i.png', 'x');
+			write('src/link/only-beside-the-link.css', '.q { color: red; }');
+			fs.symlinkSync(path.join(rootDir, 'src/real/e.css'), path.join(rootDir, 'src/link/e.css'));
+			const entry = path.join(rootDir, 'src/link/e.css');
+
+			const ours = await transform(entry);
+			const core = inlineStylesheetImports(css, entry);
+
+			expect(ours.css).toContain('.q{color:red}');
+			expect(await normalize(ours.css)).toBe(await normalize(core.css));
+			expect([...(ours.dependencies ?? [])]).toEqual(core.dependencies);
+		});
 	});
 });

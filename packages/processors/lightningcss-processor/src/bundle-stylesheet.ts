@@ -35,7 +35,8 @@ const resolutionKey = (importer: string, specifier: string): string => `${import
 /** The state of bundling one stylesheet. */
 class StylesheetBundle {
 	readonly dependencies = new Set<string>();
-	readonly hoisted: string[] = [];
+	/** What each file imported, in the order written: a statement that stays external, or a partial bundled. */
+	private readonly written = new Map<string, ({ external: string } | { partial: string })[]>();
 	private readonly resolutions = new Map<string, string>();
 	/** The partials each file has imported so far, to find an `@import` that closes a cycle. */
 	private readonly imports = new Map<string, Set<string>>();
@@ -123,6 +124,29 @@ class StylesheetBundle {
 		return true;
 	}
 
+	private record(importer: string, item: { external: string } | { partial: string }): void {
+		this.written.set(importer, [...(this.written.get(importer) ?? []), item]);
+	}
+
+	/**
+	 * The external `@import`s in the order core hoists them: depth first, so a partial's come where its `@import` was
+	 * written.
+	 *
+	 * @remarks
+	 * Lightning CSS reads the files in an order of its own, so the order is rebuilt from what each file held.
+	 */
+	hoisted(): string[] {
+		const seen = new Set<string>();
+		const visit = (file: string): string[] => {
+			if (seen.has(file)) return [];
+			seen.add(file);
+			return (this.written.get(file) ?? []).flatMap((item) =>
+				'external' in item ? [item.external] : visit(item.partial),
+			);
+		};
+		return visit(this.entry);
+	}
+
 	/**
 	 * Reads one file for Lightning CSS: the entry from memory, a partial from disk with its `url()` references
 	 * rebased onto the entry, and its external `@import`s taken out to be hoisted.
@@ -143,10 +167,11 @@ class StylesheetBundle {
 			import: (statement) => {
 				const { file: resolved } = this.resolveImport(statement.specifier, importer);
 				if (!resolved) {
-					this.hoisted.push(statement.statement);
+					this.record(importer, { external: statement.statement });
 					return '';
 				}
 				if (this.closesCycle(statement.specifier, importer, resolved)) return '';
+				this.record(importer, { partial: resolved });
 				this.resolutions.set(resolutionKey(importer, statement.specifier), resolved);
 				return undefined;
 			},
@@ -190,7 +215,7 @@ export async function bundleStylesheet(
 	});
 	return {
 		code: result.code,
-		hoisted: bundle.hoisted,
+		hoisted: bundle.hoisted(),
 		warnings: result.warnings,
 		dependencies: [...bundle.dependencies].filter((dependency) => dependency !== entry),
 	};

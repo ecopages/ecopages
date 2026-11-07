@@ -172,6 +172,19 @@ describe('@import bundling', () => {
 		expect(css).toContain('.base{color:red}');
 	});
 
+	test('hoists the external imports of a partial where its @import was written', async () => {
+		write('src/styles/theme.css', '@import url("https://example.com/base.css");\n.theme { color: red; }');
+		const main = write(
+			'src/styles/main.css',
+			'@import "./theme.css";\n@import url("https://example.com/overrides.css");',
+		);
+
+		const { css } = await transform(main);
+
+		expect(css.indexOf('base.css')).toBeLessThan(css.indexOf('overrides.css'));
+		expect(css.indexOf('overrides.css')).toBeLessThan(css.indexOf('.theme'));
+	});
+
 	test('stops at a failing partial with its own file and position', async () => {
 		write('src/styles/broken.css', '.a { color: red; }\n}\n');
 		const main = write('src/styles/main.css', '@import "./broken.css";');

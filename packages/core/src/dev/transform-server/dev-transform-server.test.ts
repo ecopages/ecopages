@@ -445,6 +445,103 @@ describe('DevTransformServer', () => {
 		},
 	);
 
+	describe('a bare import resolves from the module that imports it', () => {
+		/** Writes an ES module package at `packageDir` whose `index.js` exports `marker`. */
+		function writePackageAt(packageDir: string, name: string, version: string, marker: string): void {
+			fs.mkdirSync(packageDir, { recursive: true });
+			fs.writeFileSync(
+				path.join(packageDir, 'package.json'),
+				JSON.stringify({ name, version, type: 'module', module: 'index.js' }),
+			);
+			fs.writeFileSync(path.join(packageDir, 'index.js'), `export const marker = '${marker}';\n`);
+		}
+
+		/** An app with a workspace package `host` at `packages/host`, laid out as pnpm links it. */
+		async function createWorkspaceApp(prefix: string) {
+			const rootDir = fs.realpathSync(createTempRoot(prefix));
+			fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ name: 'app', type: 'module' }));
+			const hostDir = path.join(rootDir, 'packages', 'host');
+			fs.mkdirSync(path.join(hostDir, 'src'), { recursive: true });
+			fs.writeFileSync(path.join(hostDir, 'package.json'), JSON.stringify({ name: 'host', type: 'module' }));
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+			return { rootDir, hostDir, config, server: new DevTransformServer({ appConfig: config }) };
+		}
+
+		async function vendorUrlOf(server: DevTransformServer, importerPath: string, specifier: string) {
+			const code = await server.rewriteImports(`export { marker } from '${specifier}';\n`, importerPath);
+			const url = code.match(/['"](\/assets\/vendors\/[^'"]+)['"]/u)?.[1];
+			if (!url) throw new Error(`no vendor URL in ${code}`);
+			return url;
+		}
+
+		async function readVendor(server: DevTransformServer, url: string) {
+			const response = await server.tryHandleRequest(new Request(`http://localhost${url}`));
+			expect(response?.status).toBe(200);
+			return (await response?.text()) ?? '';
+		}
+
+		it('serves a dependency that only the importing workspace package declares', async () => {
+			const { rootDir, hostDir, server } = await createWorkspaceApp('dev-transform-vendor-transitive');
+			writePackageAt(path.join(hostDir, 'node_modules', 'host-only-lib'), 'host-only-lib', '1.0.0', 'host-only');
+			expect(fs.existsSync(path.join(rootDir, 'node_modules', 'host-only-lib'))).toBe(false);
+
+			const url = await vendorUrlOf(server, path.join(hostDir, 'src', 'hydrate.js'), 'host-only-lib');
+
+			expect(await readVendor(server, url)).toContain('"host-only"');
+		});
+
+		it("serves a linked package's dependency from beside it in the pnpm store", async () => {
+			const { rootDir, server } = await createWorkspaceApp('dev-transform-vendor-linked-importer');
+			const store = path.join(rootDir, 'node_modules', '.pnpm', 'linked-host@1.0.0', 'node_modules');
+			writePackageAt(path.join(store, 'linked-host'), 'linked-host', '1.0.0', 'linked-host');
+			writePackageAt(path.join(store, 'store-only-lib'), 'store-only-lib', '1.0.0', 'store-only');
+			fs.symlinkSync(path.join(store, 'linked-host'), path.join(rootDir, 'node_modules', 'linked-host'), 'dir');
+
+			const url = await vendorUrlOf(
+				server,
+				path.join(rootDir, 'node_modules', 'linked-host', 'hydrate.js'),
+				'store-only-lib',
+			);
+
+			expect(await readVendor(server, url)).toContain('"store-only"');
+		});
+
+		it('gives two installed versions of one package two vendor URLs', async () => {
+			const { rootDir, hostDir, config, server } = await createWorkspaceApp('dev-transform-vendor-versions');
+			writePackageAt(path.join(rootDir, 'node_modules', 'dup-lib'), 'dup-lib', '1.0.0', 'dup-one');
+			writePackageAt(path.join(hostDir, 'node_modules', 'dup-lib'), 'dup-lib', '2.0.0', 'dup-two');
+
+			const appUrl = await vendorUrlOf(server, path.join(config.absolutePaths.srcDir, 'page.js'), 'dup-lib');
+			const hostUrl = await vendorUrlOf(server, path.join(hostDir, 'src', 'hydrate.js'), 'dup-lib');
+
+			expect(appUrl).not.toBe(hostUrl);
+			expect(await readVendor(server, appUrl)).toContain('"dup-one"');
+			expect(await readVendor(server, hostUrl)).toContain('"dup-two"');
+		});
+
+		it('gives a package that two importers resolve to the same file one vendor URL', async () => {
+			const { rootDir, hostDir, config, server } = await createWorkspaceApp('dev-transform-vendor-linked');
+			const storeDir = path.join(
+				rootDir,
+				'node_modules',
+				'.pnpm',
+				'shared-lib@1.0.0',
+				'node_modules',
+				'shared-lib',
+			);
+			writePackageAt(storeDir, 'shared-lib', '1.0.0', 'shared');
+			for (const modules of [path.join(rootDir, 'node_modules'), path.join(hostDir, 'node_modules')]) {
+				fs.mkdirSync(modules, { recursive: true });
+				fs.symlinkSync(storeDir, path.join(modules, 'shared-lib'), 'dir');
+			}
+
+			const appUrl = await vendorUrlOf(server, path.join(config.absolutePaths.srcDir, 'page.js'), 'shared-lib');
+			const hostUrl = await vendorUrlOf(server, path.join(hostDir, 'src', 'hydrate.js'), 'shared-lib');
+
+			expect(hostUrl).toBe(appUrl);
+		});
+	});
+
 	it('rebuilds the vendor graph when the lockfile changes', async () => {
 		const rootDir = createTempRoot('dev-transform-vendor-lockfile');
 		fs.writeFileSync(

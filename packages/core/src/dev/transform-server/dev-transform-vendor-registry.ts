@@ -25,9 +25,10 @@ const VENDOR_ENTRIES_FILE = 'dev-vendor-entries.json';
 
 type VendorGraphKey = 'browser-first' | 'module-first';
 
-/** One known dependency entry: a bare specifier and the package file it resolves to. */
+/** One known dependency entry: a bare specifier, the directory it resolves from, and the package file it resolves to. */
 type VendorEntry = {
 	specifier: string;
+	resolveDir: string;
 	entryPath: string;
 	url: string;
 };
@@ -88,7 +89,7 @@ type VendorGraph = {
 };
 
 type PersistedVendorEntries = {
-	entries: { specifier: string; conditions: VendorGraphKey }[];
+	entries: { specifier: string; resolveDir: string; conditions: VendorGraphKey }[];
 };
 
 type VendorOutputLookup = { build: VendorGraphBuild; url: string; content: string } | { error: Error } | null;
@@ -201,23 +202,36 @@ export class DevTransformVendorRegistry {
 	/**
 	 * Returns the stable vendor URL of a bare specifier once a build of its graph that contains it finished.
 	 *
+	 * @param importer - The importing module's path; defaults to a module at the app root.
+	 *
 	 * @remarks
 	 * Rejects with the prebundle error when the entry failed to build.
 	 */
-	async resolveVendorUrl(specifier: string): Promise<string> {
-		return (await this.resolveVendorImport(specifier)).url;
+	async resolveVendorUrl(specifier: string, importer?: string): Promise<string> {
+		const resolveDir = importer ? resolveImporterDir(importer) : this.rootResolveDir;
+		return (await this.resolveVendorEntry(specifier, resolveDir)).url;
 	}
 
 	/**
-	 * Returns the vendor URL of a bare specifier and whether that build found its module to be CommonJS.
+	 * Returns the vendor URL of a bare specifier imported by `importer`, and whether that build found its module to
+	 * be CommonJS.
 	 *
 	 * @remarks
+	 * The specifier resolves from the importer's directory, as Node and the production bundle resolve it, so a
+	 * dependency that only the importing package declares resolves under a strict install, and two importers that
+	 * reach two installed versions of one package get two entries. Importers that resolve it to the same file share
+	 * one entry and one URL.
+	 *
 	 * A CommonJS entry is served with `module.exports` as its default export and no named exports, so the import
 	 * rewriter reads named imports of it from the default export.
 	 */
-	async resolveVendorImport(specifier: string): Promise<VendorImport> {
-		const entryPath = this.resolvePackageEntry(specifier);
-		const { graph, entry } = this.addEntry(specifier, entryPath);
+	resolveVendorImport(specifier: string, importer: string): Promise<VendorImport> {
+		return this.resolveVendorEntry(specifier, resolveImporterDir(importer));
+	}
+
+	private async resolveVendorEntry(specifier: string, resolveDir: string): Promise<VendorImport> {
+		const entryPath = this.resolvePackageEntry(specifier, resolveDir);
+		const { graph, entry } = this.addEntry(specifier, resolveDir, entryPath);
 		const build = await this.waitForBuildContaining(graph, entry.entryPath);
 		const error = build.errors.get(entry.entryPath);
 		if (error) {
@@ -261,13 +275,14 @@ export class DevTransformVendorRegistry {
 	 * @remarks
 	 * Generated modules such as hydration bootstraps import their packages one request after another. Knowing
 	 * them up front puts them all in the first build of their graph, so a later build does not move a module a
-	 * browser already loaded into a new shared chunk and reload the page. A specifier that does not resolve is
-	 * skipped.
+	 * browser already loaded into a new shared chunk and reload the page. They resolve from the app root; a
+	 * specifier that does not resolve there is skipped.
 	 */
 	addKnownEntries(specifiers: readonly string[]): void {
+		const resolveDir = this.rootResolveDir;
 		for (const specifier of specifiers) {
-			const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier, this.appConfig.rootDir);
-			if (resolved) this.addEntry(specifier, resolved.path);
+			const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier, resolveDir);
+			if (resolved) this.addEntry(specifier, resolveDir, resolved.path);
 		}
 	}
 
@@ -277,8 +292,8 @@ export class DevTransformVendorRegistry {
 	 *
 	 * @remarks
 	 * A build that started before this call still settles for its waiters but is not kept. The last build is kept
-	 * only as the fallback of a rebuild that fails as a whole. A specifier that now resolves to another entry file,
-	 * as after a package upgrade, moves to that file's URL.
+	 * only as the fallback of a rebuild that fails as a whole. A specifier that now resolves to another entry file
+	 * from the directory it first resolved from, as after a package upgrade, moves to that file's URL.
 	 */
 	invalidateAll(): void {
 		this.generation += 1;
@@ -288,17 +303,25 @@ export class DevTransformVendorRegistry {
 				const resolved = resolveBarePackageBrowserEntry(
 					this.appConfig.rootDir,
 					entry.specifier,
-					this.appConfig.rootDir,
+					entry.resolveDir,
 				);
 				if (!resolved || resolved.path === entry.entryPath) continue;
 				graph.entries.delete(entry.entryPath);
 				this.entriesByUrl.delete(entry.url);
-				this.addEntry(entry.specifier, resolved.path);
+				this.addEntry(entry.specifier, entry.resolveDir, resolved.path);
 			}
 		}
 	}
 
-	private addEntry(specifier: string, entryPath: string): { graph: VendorGraph; entry: VendorEntry } {
+	/**
+	 * @remarks
+	 * Entries are keyed by the resolved file, so the first specifier and directory that reach a file name its entry.
+	 */
+	private addEntry(
+		specifier: string,
+		resolveDir: string,
+		entryPath: string,
+	): { graph: VendorGraph; entry: VendorEntry } {
 		const graph = this.requireGraph(getVendorGraphKey(specifier));
 		const existing = graph.entries.get(entryPath);
 		if (existing) {
@@ -307,6 +330,7 @@ export class DevTransformVendorRegistry {
 
 		const entry: VendorEntry = {
 			specifier,
+			resolveDir,
 			entryPath,
 			url: `/${RESOLVED_ASSETS_VENDORS_DIR}/${sanitizeSpecifierForFileName(specifier)}.${contentHash(entryPath, 8)}.js`,
 		};
@@ -554,13 +578,13 @@ export class DevTransformVendorRegistry {
 			name: 'ecopages-dev-vendor-browser-first-imports',
 			setup: (build) => {
 				build.onResolve({ filter: BROWSER_FIRST_SPECIFIER }, (args) => {
-					const resolved = resolveBarePackageBrowserEntry(
-						this.appConfig.rootDir,
-						args.path,
-						args.importer ? path.dirname(args.importer) : this.appConfig.rootDir,
-					);
+					const resolveDir =
+						args.importer && path.isAbsolute(args.importer)
+							? resolveImporterDir(args.importer)
+							: this.rootResolveDir;
+					const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, args.path, resolveDir);
 					if (!resolved) return undefined;
-					return { path: this.addEntry(args.path, resolved.path).entry.url, external: true };
+					return { path: this.addEntry(args.path, resolveDir, resolved.path).entry.url, external: true };
 				});
 			},
 		};
@@ -665,7 +689,8 @@ export class DevTransformVendorRegistry {
 	 * Seeds the known entries from the previous dev process.
 	 *
 	 * @remarks
-	 * A specifier that no longer resolves, or now belongs to another graph, is skipped without an error.
+	 * A specifier that no longer resolves from its directory, or now belongs to another graph, is skipped without
+	 * an error.
 	 */
 	private seedPersistedEntries(): void {
 		const file = this.resolveEntriesFile();
@@ -683,10 +708,10 @@ export class DevTransformVendorRegistry {
 			return;
 		}
 
-		for (const { specifier, conditions } of persisted.entries) {
+		for (const { specifier, resolveDir, conditions } of persisted.entries) {
 			if (getVendorGraphKey(specifier) !== conditions) continue;
-			const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier, this.appConfig.rootDir);
-			if (resolved) this.addEntry(specifier, resolved.path);
+			const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier, resolveDir);
+			if (resolved) this.addEntry(specifier, resolveDir, resolved.path);
 		}
 	}
 
@@ -699,7 +724,11 @@ export class DevTransformVendorRegistry {
 	private persistEntries(): void {
 		const persisted: PersistedVendorEntries = {
 			entries: [...this.graphs.values()].flatMap((graph) =>
-				[...graph.entries.values()].map((entry) => ({ specifier: entry.specifier, conditions: graph.key })),
+				[...graph.entries.values()].map((entry) => ({
+					specifier: entry.specifier,
+					resolveDir: entry.resolveDir,
+					conditions: graph.key,
+				})),
 			),
 		};
 		const contents = `${JSON.stringify(persisted, null, '\t')}\n`;
@@ -716,13 +745,36 @@ export class DevTransformVendorRegistry {
 		}
 	}
 
-	private resolvePackageEntry(specifier: string): string {
-		const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier, this.appConfig.rootDir);
+	private resolvePackageEntry(specifier: string, resolveDir: string): string {
+		const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier, resolveDir);
 		if (!resolved) {
-			throw new Error(`[dev-transform] Unable to resolve bare import "${specifier}" for vendor prebundle`);
+			throw new Error(
+				`[dev-transform] Unable to resolve bare import "${specifier}" from ${resolveDir} for vendor prebundle`,
+			);
 		}
 
 		return resolved.path;
+	}
+
+	/** Where a bare import that no module imports resolves from. */
+	private get rootResolveDir(): string {
+		return path.resolve(this.appConfig.rootDir);
+	}
+}
+
+/**
+ * The directory a module's bare imports resolve from.
+ *
+ * @remarks
+ * Symlinks are resolved first, as Node and Rolldown do, so a package linked into the pnpm store finds its own
+ * dependencies beside it in the store rather than in the linking `node_modules`.
+ */
+function resolveImporterDir(importer: string): string {
+	const directory = path.dirname(path.resolve(importer));
+	try {
+		return fileSystem.realpath(directory);
+	} catch {
+		return directory;
 	}
 }
 
@@ -740,6 +792,8 @@ function isPersistedVendorEntries(value: unknown): value is PersistedVendorEntri
 			entry !== null &&
 			'specifier' in entry &&
 			typeof entry.specifier === 'string' &&
+			'resolveDir' in entry &&
+			typeof entry.resolveDir === 'string' &&
 			'conditions' in entry &&
 			(entry.conditions === 'browser-first' || entry.conditions === 'module-first'),
 	);

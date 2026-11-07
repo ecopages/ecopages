@@ -57,7 +57,7 @@ export class DevTransformBundler {
 			srcDir: this.appConfig.absolutePaths.srcDir,
 			projectRoot: this.appConfig.rootDir,
 			extraModuleRoots: this.extraModuleRoots,
-			resolveVendorImport: (specifier) => this.vendorRegistry.resolveVendorImport(specifier),
+			resolveVendorImport: (specifier) => this.vendorRegistry.resolveVendorImport(specifier, sourcePath),
 		});
 	}
 

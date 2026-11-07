@@ -111,6 +111,10 @@ async function stopServer(child: ChildProcess): Promise<void> {
  * replaced when the same worker index starts again. The folder is keyed by the worker index, which is unique per worker process, not by the parallel index:
  * a worker restarted after a failure reuses the parallel index while the old one may still be removing its copy. The server runs in its own process group so the stop reaches the
  * runtime processes the CLI starts.
+ *
+ * The server does not inherit `NODE_PATH`. pnpm's bin shims, which start Playwright, set it to the store's hoisted
+ * `node_modules`, where every installed package resolves; without it, a package resolves only where the app's
+ * install puts it, as for `node <cli> dev`.
  */
 export const test = base.extend<{}, { appOptions: AppOptions | undefined; app: App }>({
 	appOptions: [undefined, { option: true, scope: 'worker' }],
@@ -127,11 +131,12 @@ export const test = base.extend<{}, { appOptions: AppOptions | undefined; app: A
 			);
 			const port = await pickFreePort();
 			const runtime = appOptions.runtime ?? 'node';
+			const { NODE_PATH: _inheritedNodePath, ...inheritedEnv } = process.env;
 			const child = spawn(process.execPath, [ecopagesCli, 'dev', '--runtime', runtime, '--port', String(port)], {
 				cwd: dir,
 				detached: true,
 				env: {
-					...process.env,
+					...inheritedEnv,
 					NODE_ENV: 'development',
 					...(appOptions.configFile
 						? { [ECOPAGES_CONFIG_FILE_ENV]: path.join(dir, appOptions.configFile) }

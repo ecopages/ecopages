@@ -59,16 +59,23 @@ const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[]
 };
 
 /**
- * Plugins whose `dependency` messages name the content they scanned for class names, not files the CSS inlined.
+ * Plugins whose `dependency` and `dir-dependency` messages name the content they scanned for class names, not files
+ * the CSS inlined.
  *
  * @remarks
- * Tailwind reports every file it scanned, stylesheets included. Counting them would make each scanned stylesheet look
- * like a partial of the Tailwind entry; a change to scanned content reaches the entry through `invalidateStylesheets`.
+ * Tailwind reports every file it scanned, stylesheets included. Counting them as dependencies would make each scanned
+ * stylesheet look like a partial of the Tailwind entry, so they are kept apart as {@link ContentSources}.
  */
 const CONTENT_SCANNING_PLUGINS = new Set(['tailwindcss', '@tailwindcss/postcss']);
 
-/** The CSS PostCSS produced and the files its plugins read, such as the partials `postcss-import` inlined. */
-export type PostCssTransformResult = { css: string; dependencies: string[] };
+/** What a content scanning plugin read to generate a stylesheet: the files it scanned and the directories it watches. */
+export type ContentSources = {
+	files: string[];
+	directories: { dir: string; glob: string }[];
+};
+
+/** The CSS PostCSS produced, the files its plugins inlined, and the content a scanning plugin read. */
+export type PostCssTransformResult = { css: string; dependencies: string[]; contentSources: ContentSources };
 
 /**
  * Runs PostCSS over `contents` and returns the CSS with the files the plugins reported reading.
@@ -76,18 +83,22 @@ export type PostCssTransformResult = { css: string; dependencies: string[] };
  * @remarks
  * The dependencies are the `file` of each `dependency` message, which `postcss-import` sends for every stylesheet it
  * inlines, whatever the form of the `@import` (a `layer()`, a media query, an unquoted `url()` or an alias). The
- * messages of {@link CONTENT_SCANNING_PLUGINS} are left out.
+ * messages of {@link CONTENT_SCANNING_PLUGINS} are in `contentSources`.
  */
 export async function transformWithPostcss(
 	contents: string | Buffer,
 	options?: PostCssProcessorOptions,
 ): Promise<PostCssTransformResult> {
-	if (!contents) return { css: '', dependencies: [] };
+	if (!contents) return { css: '', dependencies: [], contentSources: { files: [], directories: [] } };
 
 	const result = await postcss(getPlugins(options)).process(contents, { from: options?.filePath });
 	logWarnings(result, contents, options?.filePath);
 	const css = options?.transformOutput ? await options.transformOutput(result.css) : result.css;
-	return { css, dependencies: collectDependencies(result.messages) };
+	return {
+		css,
+		dependencies: collectDependencies(result.messages),
+		contentSources: collectContentSources(result.messages),
+	};
 }
 
 /**
@@ -106,6 +117,39 @@ export function collectDependencies(messages: postcss.Message[], pathApi: PathAp
 			: [],
 	);
 	return [...new Set(dependencies)];
+}
+
+/**
+ * The files and directories a content scanning plugin reported, with forward slashes.
+ *
+ * @remarks
+ * A `dir-dependency` message names a directory and the glob of the files in it that count. A `dependency` message
+ * names one file the plugin scanned.
+ */
+export function collectContentSources(messages: postcss.Message[], pathApi: PathApi = path): ContentSources {
+	const files = new Set<string>();
+	const directories = new Map<string, { dir: string; glob: string }>();
+	for (const message of messages) {
+		if (!CONTENT_SCANNING_PLUGINS.has(String(message.plugin))) continue;
+		if (message.type === 'dependency' && typeof message.file === 'string') {
+			files.add(pathApi.fromNative(message.file));
+		} else if (message.type === 'dir-dependency' && typeof message.dir === 'string') {
+			const dir = pathApi.fromNative(message.dir);
+			const glob = typeof message.glob === 'string' ? message.glob : '**/*';
+			directories.set(`${dir}\0${glob}`, { dir, glob });
+		}
+	}
+	return { files: [...files], directories: [...directories.values()] };
+}
+
+/** Whether `file` is one of the `sources`: a scanned file, or a file under a watched directory that its glob matches. */
+export function matchesContentSources(sources: ContentSources, file: string, pathApi: PathApi = path): boolean {
+	return (
+		sources.files.includes(file) ||
+		sources.directories.some(
+			({ dir, glob }) => pathApi.isWithin(dir, file) && pathApi.matchesGlob(pathApi.relative(dir, file), glob),
+		)
+	);
 }
 
 /**

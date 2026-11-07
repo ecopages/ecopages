@@ -4,7 +4,13 @@ import { createPath, path } from '@ecopages/file-system/path';
 import postcss, { CssSyntaxError } from 'postcss';
 import postCssSimpleVars from 'postcss-simple-vars';
 import postcssImport from 'postcss-import';
-import { PostCssProcessor, collectDependencies, transformWithPostcss } from '../postcss-processor';
+import {
+	PostCssProcessor,
+	collectContentSources,
+	collectDependencies,
+	matchesContentSources,
+	transformWithPostcss,
+} from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
 
 const noop: postcss.AcceptedPlugin = { postcssPlugin: 'noop' };
@@ -129,6 +135,25 @@ describe('PostCssProcessor', () => {
 				createPath('win32'),
 			),
 		).toEqual(['D:/app/css/base.css', 'D:/app/css/b.css']);
+	});
+
+	test('Tailwind messages are content sources, not dependencies', () => {
+		const win = createPath('win32');
+		const messages: postcss.Message[] = [
+			{ type: 'dependency', plugin: '@tailwindcss/postcss', file: 'D:\\app\\src\\a.tsx' },
+			{ type: 'dir-dependency', plugin: '@tailwindcss/postcss', dir: 'D:\\app\\src', glob: '**/*.tsx' },
+			{ type: 'dependency', plugin: 'postcss-import', file: 'D:\\app\\src\\base.css', parent: '' },
+		];
+
+		expect(collectDependencies(messages, win)).toEqual(['D:/app/src/base.css']);
+		const sources = collectContentSources(messages, win);
+		expect(sources).toEqual({
+			files: ['D:/app/src/a.tsx'],
+			directories: [{ dir: 'D:/app/src', glob: '**/*.tsx' }],
+		});
+		expect(matchesContentSources(sources, 'D:/app/src/x/b.tsx', win)).toBe(true);
+		expect(matchesContentSources(sources, 'D:/app/src/x/b.json', win)).toBe(false);
+		expect(matchesContentSources(sources, 'D:/app/pnpm-lock.yaml', win)).toBe(false);
 	});
 
 	describe('warnings', () => {

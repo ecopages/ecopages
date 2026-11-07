@@ -77,7 +77,7 @@ Integrations render files and own a JSX runtime; Processors own asset semantics.
 | Build | `build/`, `assets/`, `cache/`, `diagnostics/` |
 | Rendering | `router/`, `route-renderer/`, `html-pages/`, `page-cache/`, `static-site-generator/` |
 | Development and HMR | `dev/`, `dev-toolbar/`, `hmr/`, `watchers/` |
-| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`, `integration.ts`, `processor.ts`, `build.ts`, `client.ts` |
+| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`, `integration.ts`, `processor.ts`, `processor-contract.ts`, `build.ts`, `client.ts` |
 
 Foundation code knows nothing of the systems that use it: `types/` holds contracts only, error classes do not depend on what reports them, `client/` browser helpers stay independent of rendering and dev services, and per-app state lives on the `AppRuntime`, not in module globals.
 

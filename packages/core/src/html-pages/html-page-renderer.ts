@@ -17,6 +17,7 @@ import type { IntegrationRendererOptions } from '../route-renderer/orchestration
 import { findElements, parseHtml } from '../html/html-source-parser.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { invariant } from '../utils/invariant.ts';
+import { listCssReferences } from '../assets/asset-processing-service/processors/stylesheet/css-scanner.ts';
 import { resolveClassicScriptOptions } from './html-page-classic-script.ts';
 import { findHtmlFilesLoading, getHtmlPageModuleScriptUrls, scanModuleScript } from './html-page-module-scripts.ts';
 import { reconcileHtmlPageDocument, type RenderedHtmlPageHead } from './html-page-document.ts';
@@ -27,7 +28,6 @@ import {
 	warnHtmlTemplateRender,
 } from './html-page-module.ts';
 import {
-	findRelativeCssUrls,
 	getHtmlAssetKey,
 	type HtmlAssetDeclaration,
 	type HtmlFileAssetKind,
@@ -276,7 +276,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 				processed?.content !== undefined,
 				`${file}: could not process an inline <style>; the asset pipeline logged the cause.`,
 			);
-			for (const url of findRelativeCssUrls(processed.content)) {
+			for (const url of listCssReferences(processed.content).references) {
 				warnHtmlTemplateRender(
 					this.appConfig,
 					file,

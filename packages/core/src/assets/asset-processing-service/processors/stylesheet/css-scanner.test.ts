@@ -89,6 +89,19 @@ describe('listCssReferences', () => {
 	});
 });
 
+describe('listCssReferences for a page', () => {
+	it('lists url() and image-set() strings in document order, skipping comments and other URLs', () => {
+		const css =
+			'/* url(old.png) */ a { background: image-set(\'a.png\' 1x, url(b.png) 2x, "/c.png" 3x); mask: url("data:x") url(d.svg#m); }';
+
+		expect(listCssReferences(css).references).toEqual(['a.png', 'b.png', 'd.svg#m']);
+	});
+
+	it('reads the declarations of a style attribute', () => {
+		expect(listCssReferences("background: url('bg.png'); color: red").references).toEqual(['bg.png']);
+	});
+});
+
 describe('wrapInConditions', () => {
 	it('wraps the contents in the layer, supports and media blocks the conditions stand for', () => {
 		expect(wrapInConditions('.part {}', 'layer(lib) supports(display: grid) screen and (min-width: 1px)')).toBe(

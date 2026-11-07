@@ -26,7 +26,7 @@ import { assertBuildFailed } from '../../__fixtures__/build/build-result.ts';
 let workDir: string;
 
 beforeEach(() => {
-	workDir = mkdtempSync(path.join(tmpdir(), 'rolldown-adapter-test-'));
+	workDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'rolldown-adapter-test-')));
 });
 
 afterEach(() => {
@@ -43,7 +43,7 @@ function writeFixture(filename: string, source: string): string {
 
 function relativeImportPath(outputPath: string, targetPath: string): string {
 	return path
-		.relative(path.dirname(realpathSync(outputPath)), targetPath)
+		.relative(path.dirname(path.fromNative(realpathSync(outputPath))), targetPath)
 		.split('/')
 		.join('/');
 }
@@ -268,10 +268,12 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('adds a file a plugin declares to the closure of each entry that holds the module, and no other', async () => {
-		const first = realpathSync(writeFixture('first.ts', "import './inlined.ts';\nexport const first = 1;\n"));
-		const second = realpathSync(writeFixture('second.ts', 'export const second = 2;\n'));
+		const first = path.fromNative(
+			realpathSync(writeFixture('first.ts', "import './inlined.ts';\nexport const first = 1;\n")),
+		);
+		const second = path.fromNative(realpathSync(writeFixture('second.ts', 'export const second = 2;\n')));
 		writeFixture('inlined.ts', 'export const greeting = INLINED;\n');
-		const data = realpathSync(writeFixture('greeting.txt', 'hello'));
+		const data = path.fromNative(realpathSync(writeFixture('greeting.txt', 'hello')));
 
 		const result = await new RolldownBuildAdapter().build({
 			environment: 'browser',
@@ -418,7 +420,7 @@ describe('RolldownBuildAdapter', () => {
 		assertBuildSucceeded(result, 'Build failed');
 		const outputPath = result.outputs[0]!.path;
 		const code = readFileSync(outputPath, 'utf-8');
-		const nativeEntry = path.join(realpathSync(workDir), 'node_modules/native-like/index.js');
+		const nativeEntry = path.join(path.fromNative(realpathSync(workDir)), 'node_modules/native-like/index.js');
 		expect(code).toContain(`from "${relativeImportPath(outputPath, nativeEntry)}"`);
 		expect(code).toContain('bundled-workspace-package');
 		const loaded = execFileSync(
@@ -460,9 +462,9 @@ describe('RolldownBuildAdapter', () => {
 		const outputs = Object.keys(result.outputGraph).map((outputPath) => path.relative(outdir, outputPath));
 		expect(outputs.length).toBeGreaterThan(1);
 		expect(outputs.filter((output) => output.includes('/'))).toEqual([]);
-		const layoutSource = realpathSync(path.join(workDir, 'src/layouts/base.ts'));
+		const layoutSource = path.fromNative(realpathSync(path.join(workDir, 'src/layouts/base.ts')));
 		const layoutChunk = Object.values(result.outputGraph).find((chunk) =>
-			chunk.modules.some((moduleId) => realpathSync(moduleId) === layoutSource),
+			chunk.modules.some((moduleId) => path.fromNative(realpathSync(moduleId)) === layoutSource),
 		);
 		expect(path.basename(layoutChunk!.fileName)).toMatch(/layouts-base-/);
 		const entryOutput = result.entryOutputs[entrypoint];
@@ -475,7 +477,7 @@ describe('RolldownBuildAdapter', () => {
 			],
 			{ encoding: 'utf8' },
 		);
-		expect(JSON.parse(loaded)).toEqual({ dir: realpathSync(outdir), parse: 'function' });
+		expect(JSON.parse(loaded)).toEqual({ dir: path.fromNative(realpathSync(outdir)), parse: 'function' });
 	});
 
 	test('shortens flattened preserved module names from deep pnpm store paths', async () => {
@@ -953,7 +955,7 @@ describe('RolldownBuildAdapter', () => {
 		});
 
 		assertBuildSucceeded(result, 'Build failed');
-		expect(result.dependencyGraph.commonJsEntrypoints).toEqual([realpathSync(commonJsEntry)]);
+		expect(result.dependencyGraph.commonJsEntrypoints).toEqual([path.fromNative(realpathSync(commonJsEntry))]);
 	});
 
 	test.each([
@@ -1097,8 +1099,8 @@ describe('RolldownBuildAdapter', () => {
 			format: 'esm',
 		});
 		assertBuildSucceeded(result, 'Build failed');
-		expect(result.dependencyGraph?.entrypoints[realpathSync(entry)]).toEqual(
-			expect.arrayContaining([realpathSync(dependency), realpathSync(unused)]),
+		expect(result.dependencyGraph?.entrypoints[path.fromNative(realpathSync(entry))]).toEqual(
+			expect.arrayContaining([path.fromNative(realpathSync(dependency)), path.fromNative(realpathSync(unused))]),
 		);
 	});
 
@@ -1158,7 +1160,7 @@ describe('RolldownBuildAdapter', () => {
 
 		assertBuildSucceeded(result, 'Build failed');
 		const modulesOf = (entry: string) =>
-			(result.dependencyGraph?.entrypoints[realpathSync(entry)] ?? []).map((modulePath) =>
+			(result.dependencyGraph?.entrypoints[path.fromNative(realpathSync(entry))] ?? []).map((modulePath) =>
 				path.basename(modulePath),
 			);
 		expect(modulesOf(first)).toEqual(expect.arrayContaining(['first.ts', 'shared.ts', 'lazy.ts', 'lazy-dep.ts']));
@@ -1189,8 +1191,8 @@ describe('RolldownBuildAdapter', () => {
 
 		assertBuildSucceeded(result, 'Build failed');
 		for (const entry of [first, second]) {
-			const modules = (result.dependencyGraph?.entrypoints[realpathSync(entry)] ?? []).map((modulePath) =>
-				path.basename(modulePath),
+			const modules = (result.dependencyGraph?.entrypoints[path.fromNative(realpathSync(entry))] ?? []).map(
+				(modulePath) => path.basename(modulePath),
 			);
 			expect(modules).toEqual(expect.arrayContaining(['first.ts', 'second.ts']));
 		}
@@ -1214,7 +1216,7 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('keeps the code, file and location of a syntax error', async () => {
-		const entrypoint = realpathSync(writeFixture('broken.ts', 'export const value = ;\n'));
+		const entrypoint = path.fromNative(realpathSync(writeFixture('broken.ts', 'export const value = ;\n')));
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
@@ -1238,7 +1240,7 @@ describe('RolldownBuildAdapter', () => {
 
 	test('attributes an error thrown by a bridged plugin to that plugin, with its file, frame and stack', async () => {
 		const entrypoint = writeFixture('index.ts', "import './styles.eco';\n");
-		const stylesheet = realpathSync(writeFixture('styles.eco', 'body {}\n'));
+		const stylesheet = path.fromNative(realpathSync(writeFixture('styles.eco', 'body {}\n')));
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
@@ -1279,7 +1281,7 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('attributes an error thrown by a plugin transform to that plugin and file', async () => {
-		const entrypoint = realpathSync(writeFixture('index.ts', 'export const answer = 42;\n'));
+		const entrypoint = path.fromNative(realpathSync(writeFixture('index.ts', 'export const answer = 42;\n')));
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
@@ -1331,7 +1333,9 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('captures build warnings on the result', async () => {
-		const entrypoint = realpathSync(writeFixture('index.ts', 'eval("1");\nexport const answer = 42;\n'));
+		const entrypoint = path.fromNative(
+			realpathSync(writeFixture('index.ts', 'eval("1");\nexport const answer = 42;\n')),
+		);
 		const adapter = new RolldownBuildAdapter();
 		const printWarning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
@@ -1355,7 +1359,7 @@ describe('RolldownBuildAdapter', () => {
 
 	test('attributes the same thrown error to each file it fails, without changing it', async () => {
 		const entrypoint = writeFixture('index.ts', "import './a.eco';\nimport './b.eco';\n");
-		const files = ['a.eco', 'b.eco'].map((name) => realpathSync(writeFixture(name, 'body {}\n')));
+		const files = ['a.eco', 'b.eco'].map((name) => path.fromNative(realpathSync(writeFixture(name, 'body {}\n'))));
 		const shared = new Error('shared boom');
 		const adapter = new RolldownBuildAdapter();
 
@@ -1386,7 +1390,7 @@ describe('RolldownBuildAdapter', () => {
 
 	test('attributes a frozen thrown error to its plugin', async () => {
 		const entrypoint = writeFixture('index.ts', "import './styles.eco';\n");
-		const stylesheet = realpathSync(writeFixture('styles.eco', 'body {}\n'));
+		const stylesheet = path.fromNative(realpathSync(writeFixture('styles.eco', 'body {}\n')));
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
@@ -1442,8 +1446,8 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('attributes errors from onResolve and module() callbacks', async () => {
-		const entrypoint = realpathSync(
-			writeFixture('index.ts', "import 'virtual:broken';\nimport 'resolve:broken';\n"),
+		const entrypoint = path.fromNative(
+			realpathSync(writeFixture('index.ts', "import 'virtual:broken';\nimport 'resolve:broken';\n")),
 		);
 		const adapter = new RolldownBuildAdapter();
 		const build = (plugins: EcoBuildPlugin[]) =>

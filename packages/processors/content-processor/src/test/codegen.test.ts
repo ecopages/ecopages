@@ -180,12 +180,12 @@ describe('attachMdxExports ownership guard', () => {
 		const { tmpdir } = await import('node:os');
 		const { runWithComponentRenderContext } = await import('@ecopages/core/integration');
 
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-codegen-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-codegen-')));
 		mkdirSync(path.join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
 		const packageRoot = path.join(import.meta.dirname, '..', '..');
 		symlinkSync(packageRoot, path.join(tempDir, 'node_modules', '@ecopages', 'content-processor'), 'dir');
 		symlinkSync(
-			realpathSync(path.join(packageRoot, 'node_modules', '@ecopages', 'core')),
+			path.fromNative(realpathSync(path.join(packageRoot, 'node_modules', '@ecopages', 'core'))),
 			path.join(tempDir, 'node_modules', '@ecopages', 'core'),
 			'dir',
 		);
@@ -303,11 +303,11 @@ describe('generated browser loader', () => {
 		const { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync, rmSync } = await import('node:fs');
 		const { tmpdir } = await import('node:os');
 
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-codegen-browser-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-codegen-browser-')));
 		mkdirSync(path.join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
 		const packageRoot = path.join(import.meta.dirname, '..', '..');
 		symlinkSync(
-			realpathSync(path.join(packageRoot, 'node_modules', '@ecopages', 'core')),
+			path.fromNative(realpathSync(path.join(packageRoot, 'node_modules', '@ecopages', 'core'))),
 			path.join(tempDir, 'node_modules', '@ecopages', 'core'),
 			'dir',
 		);

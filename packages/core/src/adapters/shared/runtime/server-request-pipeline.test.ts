@@ -19,7 +19,7 @@ import { appLogger } from '../../../global/app-logger.ts';
 const tempRoots: string[] = [];
 
 function createTempRoot(prefix: string): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`)));
 	tempRoots.push(root);
 	return root;
 }

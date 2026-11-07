@@ -43,7 +43,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 		}).then(({ emit }) => ({ emit, bridge, hmrManager }));
 
 	beforeEach(() => {
-		testRoot = mkdtempSync(path.join(os.tmpdir(), 'ecopages-integration-test-'));
+		testRoot = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-integration-test-')));
 	});
 
 	afterEach(() => {

@@ -47,7 +47,7 @@ afterEach(() => {
 });
 
 async function createAppConfig(rootDir?: string): Promise<EcoPagesAppConfig> {
-	const appRoot = rootDir ?? mkdtempSync(path.join(os.tmpdir(), 'eco-production-prebuild-'));
+	const appRoot = rootDir ?? path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'eco-production-prebuild-')));
 	if (!rootDir) temporaryRoots.push(appRoot);
 	return await finalizeEcoPagesConfig({ rootDir: appRoot });
 }
@@ -267,7 +267,7 @@ test('restoreProductionBrowserBuild leaves the ledger open for the Lit static-re
 });
 
 test('restoreProductionBrowserBuild restores a non-React build moved to another folder', async () => {
-	const parentDir = mkdtempSync(path.join(os.tmpdir(), 'eco-moved-build-'));
+	const parentDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'eco-moved-build-')));
 	temporaryRoots.push(parentDir);
 	const buildRoot = path.join(parentDir, 'built-here');
 	const startRoot = path.join(parentDir, 'started-there');

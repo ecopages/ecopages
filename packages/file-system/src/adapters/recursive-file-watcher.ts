@@ -700,10 +700,8 @@ export class RecursiveFileWatcher implements FileWatcher {
 			const existing = this.pendingChanges.get(canonicalPath);
 			if (existing) clearTimeout(existing.timer);
 			const timer = setTimeout(() => {
-				const pending = this.pendingChanges.get(canonicalPath);
-				this.pendingChanges.delete(canonicalPath);
 				try {
-					this.flushChange(canonicalPath, pending?.forceChange === true);
+					this.flushPendingChange(canonicalPath);
 				} catch (error) {
 					this.handleError(error);
 				}
@@ -715,6 +713,31 @@ export class RecursiveFileWatcher implements FileWatcher {
 		} catch (error) {
 			this.handleError(error);
 		}
+	}
+
+	/**
+	 * @remarks
+	 * Native events for a new directory and a file inside it arrive in either order (Windows reports the file
+	 * first), so the new parent directories of a path, those not indexed yet, are flushed before the path itself,
+	 * and `addDir` always precedes the entries the directory holds.
+	 */
+	private flushPendingChange(canonicalPath: string): void {
+		const forceChange = this.pendingChanges.get(canonicalPath)?.forceChange === true;
+		this.cancelPendingChange(canonicalPath);
+		const newParents: string[] = [];
+		for (
+			let parent = path.dirname(canonicalPath);
+			parent !== path.dirname(parent) && !this.knownEntries.has(parent) && this.getMappedPaths(parent).length > 0;
+			parent = path.dirname(parent)
+		) {
+			newParents.unshift(parent);
+		}
+		for (const parent of newParents) {
+			const parentForceChange = this.pendingChanges.get(parent)?.forceChange === true;
+			this.cancelPendingChange(parent);
+			this.flushChange(parent, parentForceChange);
+		}
+		this.flushChange(canonicalPath, forceChange);
 	}
 
 	private flushChange(canonicalPath: string, forceChange: boolean): void {

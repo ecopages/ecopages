@@ -20,7 +20,7 @@ vi.mock('@ecopages/core/build', async (importOriginal) => {
 });
 
 it('parses each module once in a build with one boundary instance per React entry', async () => {
-	const tempDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-parse-')));
+	const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-parse-'))));
 	const islands = ['a', 'b', 'c'].map((name) => path.join(tempDir, `island-${name}.tsx`));
 	const helper = path.join(tempDir, 'helper.ts');
 	writeFileSync(helper, 'export const label = (name) => `island-${name}`;');

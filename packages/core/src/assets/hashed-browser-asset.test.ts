@@ -13,7 +13,7 @@ import {
 let directory: string;
 
 beforeEach(() => {
-	directory = mkdtempSync(path.join(tmpdir(), 'hashed-browser-asset-'));
+	directory = path.fromNative(mkdtempSync(path.join(tmpdir(), 'hashed-browser-asset-')));
 });
 
 afterEach(() => {

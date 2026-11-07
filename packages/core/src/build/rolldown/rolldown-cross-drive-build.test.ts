@@ -36,7 +36,7 @@ describe('RolldownBuildAdapter across drives', () => {
 	test.skipIf(process.platform !== 'win32')(
 		'preserveModules names a module on another drive than the preserveModulesRoot',
 		async (context) => {
-			const workDir = mkdtempSync(path.join(tmpdir(), 'rolldown-cross-drive-'));
+			const workDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'rolldown-cross-drive-')));
 			cleanups.push(() => rmSync(workDir, { recursive: true, force: true }));
 			const sharedDir = path.join(workDir, 'shared');
 			const appDir = path.join(workDir, 'app');

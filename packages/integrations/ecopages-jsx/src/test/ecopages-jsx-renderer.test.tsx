@@ -31,7 +31,7 @@ declare module '@ecopages/jsx' {
 	}
 }
 
-const outputRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-jsx-renderer-test-'));
+const outputRoot = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-jsx-renderer-test-')));
 const outputDirs = { distDir: path.join(outputRoot, 'dist'), workDir: path.join(outputRoot, '.eco') };
 
 afterAll(() => {

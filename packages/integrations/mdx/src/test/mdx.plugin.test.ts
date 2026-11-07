@@ -95,7 +95,7 @@ describe('MDXPlugin', () => {
 	});
 
 	it('forwards configured compiler options to its loader', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-plugin-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-plugin-')));
 		tempDirs.push(tempDir);
 		const filePath = path.join(tempDir, 'page.mdx');
 		writeFileSync(filePath, '# Hello\n');

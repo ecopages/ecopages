@@ -24,7 +24,7 @@ describe('resolveAppRootFromPath', () => {
 
 describe('createAppAwarePostcssImport', () => {
 	test('should resolve hoisted bare package imports through package exports', async () => {
-		const tempRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-import-'));
+		const tempRoot = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-import-')));
 		tempDirs.push(tempRoot);
 
 		const appRoot = path.join(tempRoot, 'apps', 'synapse');

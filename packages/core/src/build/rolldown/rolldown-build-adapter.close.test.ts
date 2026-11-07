@@ -24,7 +24,7 @@ describe('RolldownBuildAdapter bundle lifetime', () => {
 
 	beforeEach(() => {
 		bundles.length = 0;
-		workDir = mkdtempSync(path.join(tmpdir(), 'rolldown-close-test-'));
+		workDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'rolldown-close-test-')));
 	});
 
 	afterEach(() => {

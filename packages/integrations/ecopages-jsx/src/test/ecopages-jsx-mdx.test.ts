@@ -44,7 +44,7 @@ describe('ecopages-jsx-mdx', () => {
 	});
 
 	it('creates MDX loader plugin with ecopages-jsx integration and projectRoot', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-jsx-mdx-test-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-jsx-mdx-test-')));
 		tempDirs.push(tempDir);
 
 		writeFileSync(

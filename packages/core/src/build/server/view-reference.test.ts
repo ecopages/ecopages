@@ -14,13 +14,13 @@ import {
 
 describe('view references', () => {
 	it('returns the same object for two imports of one file', () => {
-		const filePath = path.join('/tmp', 'shared-view.kita.tsx');
+		const filePath = path.resolve('/tmp/shared-view.kita.tsx');
 		const first = createViewReference(filePath, 'kitajs');
 		const second = createViewReference(filePath, 'kitajs');
 
 		assert.equal(first, second);
 		assert.equal(isViewReference(first), true);
-		assert.equal(first.filePath, path.resolve(filePath));
+		assert.equal(first.filePath, filePath);
 		assert.equal(first.config.identity.integration, 'kitajs');
 	});
 

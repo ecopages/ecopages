@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import assert from 'node:assert/strict';
 import { compile } from '@mdx-js/mdx';
 import { test, vi } from 'vitest';
@@ -316,7 +317,7 @@ test('EcopagesJsxPlugin passes resolved JSX options to custom EcopagesJsxRendere
 			renderer.normalizePageModule('/tmp/page.guide.mdx', { default: page } as EcoPageFile).default,
 			page,
 		);
-		assert.equal(appConfig.rootDir, '/tmp/ecopages-jsx-custom-renderer');
+		assert.equal(appConfig.rootDir, path.resolve('/tmp/ecopages-jsx-custom-renderer'));
 	});
 });
 

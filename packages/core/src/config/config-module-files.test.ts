@@ -17,7 +17,7 @@ describe('collectConfigModuleFiles', () => {
 	}
 
 	beforeEach(() => {
-		workDir = mkdtempSync(path.join(tmpdir(), 'eco-config-module-files-'));
+		workDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-config-module-files-')));
 		rootDir = path.join(workDir, 'app');
 		write('app/node_modules/pkg/package.json', '{"name":"pkg","type":"module","main":"index.js"}');
 		write('app/node_modules/pkg/index.js', 'export const pkg = ;\n');

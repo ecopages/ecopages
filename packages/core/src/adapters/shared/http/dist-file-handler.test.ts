@@ -10,7 +10,7 @@ import { serveDistFile } from './dist-file-handler.ts';
 const tempRoots: string[] = [];
 
 function createDist(): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dist-handler-'));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dist-handler-')));
 	tempRoots.push(root);
 	const distDir = path.join(root, 'dist');
 	fs.mkdirSync(distDir, { recursive: true });

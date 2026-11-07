@@ -76,7 +76,7 @@ describe('CLI Commands', () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		tempCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-cli-test-'));
+		tempCwd = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-cli-test-')));
 		process.chdir(tempCwd);
 		signalListenersBefore = new Map(forwardedSignals.map((signal) => [signal, new Set(process.listeners(signal))]));
 

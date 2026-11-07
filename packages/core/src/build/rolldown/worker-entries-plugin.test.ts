@@ -9,7 +9,7 @@ import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 let workDir: string;
 
 beforeEach(() => {
-	workDir = mkdtempSync(path.join(tmpdir(), 'worker-entries-plugin-test-'));
+	workDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'worker-entries-plugin-test-')));
 });
 
 afterEach(() => {

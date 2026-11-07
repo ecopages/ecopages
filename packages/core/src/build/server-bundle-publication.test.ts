@@ -13,7 +13,7 @@ describe('server bundle publication', () => {
 	});
 
 	function createFixture(): { rootDir: string; serverOutdir: string } {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-publication-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-server-publication-')));
 		tempDirs.push(rootDir);
 		const serverOutdir = path.join(rootDir, 'dist', 'server');
 		fileSystem.ensureDir(serverOutdir);

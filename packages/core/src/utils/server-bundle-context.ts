@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { path } from '@ecopages/file-system/path';
 
 export const SERVER_BUNDLE_CONTEXT_KEY = '@ecopages/server-bundle-context';
 
@@ -24,9 +25,14 @@ function getServerBundleStorage(): AsyncLocalStorage<string> {
  * Bun does not carry `AsyncLocalStorage` into a module loaded through `import()`, so the loader also records the
  * folder of the last bundle it started on `globalThis`, and that value is the fallback.
  */
+/**
+ * @remarks
+ * The emitted loader records its directory with `fileURLToPath`, so on Windows it arrives with backslashes and is
+ * converted here.
+ */
 export function getProductionServerBundleDir(): string | undefined {
 	const bundleDir = getServerBundleStorage().getStore() ?? Reflect.get(globalThis, Symbol.for(SERVER_BUNDLE_DIR_KEY));
-	return typeof bundleDir === 'string' ? bundleDir : undefined;
+	return typeof bundleDir === 'string' ? path.fromNative(bundleDir) : undefined;
 }
 
 export function runWithProductionServerBundleDir<T>(serverBundleDir: string, callback: () => T): T {

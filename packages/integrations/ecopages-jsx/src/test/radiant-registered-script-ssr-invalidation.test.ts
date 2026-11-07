@@ -11,7 +11,7 @@ import {
 
 describe('resolveRadiantCustomElementTag', () => {
 	it('reads the tag from @customElement decorators', () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'radiant-script-tag-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'radiant-script-tag-')));
 		const scriptPath = path.join(tempDir, 'theme-toggle.tsx');
 
 		writeFileSync(scriptPath, `@customElement('theme-toggle')\nexport class ThemeToggle {}\n`, 'utf-8');
@@ -66,7 +66,7 @@ describe('clearRadiantCustomElementDefinition', () => {
 
 describe('invalidateRadiantRegisteredScriptSsrRegistration', () => {
 	it('clears the registry entry for registered Radiant script modules', () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'radiant-script-invalidate-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'radiant-script-invalidate-')));
 		const scriptPath = path.join(tempDir, 'widget.tsx');
 		const definitions = new Map<string, unknown>([['widget', class {}]]);
 		const previousRegistry = (globalThis as { customElements?: unknown }).customElements;

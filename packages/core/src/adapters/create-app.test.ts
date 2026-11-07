@@ -23,7 +23,7 @@ describe('createApp', () => {
 
 	it('reaches every renderer with http://localhost:3001 when port 3000 is busy and dev falls back to port 3001', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-fallback-origin-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-fallback-origin-')));
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
 		fs.writeFileSync(

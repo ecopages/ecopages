@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 function tempRoot(): string {
-	const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-discovered-paths-')));
+	const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-discovered-paths-'))));
 	roots.push(root);
 	return root;
 }

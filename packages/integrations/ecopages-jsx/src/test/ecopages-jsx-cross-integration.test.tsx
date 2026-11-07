@@ -25,7 +25,7 @@ import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer';
  */
 const fixtureSourceDir = path.fromFileUrl(new URL('./fixtures/cross-integration-app', import.meta.url));
 const packageNodeModulesDir = path.fromFileUrl(new URL('../../node_modules', import.meta.url));
-const fixtureAppDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-cross-integration-')));
+const fixtureAppDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-cross-integration-'))));
 cpSync(path.join(fixtureSourceDir, 'eco.config.ts'), path.join(fixtureAppDir, 'eco.config.ts'));
 symlinkSync(packageNodeModulesDir, path.join(fixtureAppDir, 'node_modules'), 'dir');
 

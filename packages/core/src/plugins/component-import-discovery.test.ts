@@ -14,7 +14,7 @@ import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 const roots: string[] = [];
 const DISCOVERED_COMPONENT = /components: \(\) => \[\w/;
 function fixture() {
-	const root = mkdtempSync(path.join(tmpdir(), 'eco-discovery-'));
+	const root = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-discovery-')));
 	roots.push(root);
 	writeFileSync(
 		path.join(root, 'tsconfig.json'),
@@ -187,7 +187,7 @@ export const Button = eco.component({ render: () => '' });`,
 			write('node_modules/some-lib/dist/style.css', '.some-lib {}');
 			write('node_modules/some-lib/dist/theme.css', '.some-lib-theme {}');
 			write('node_modules/some-lib/dist/x.module.css', '.x {}');
-			const real = (name: string) => realpathSync(path.join(context.root, name));
+			const real = (name: string) => path.fromNative(realpathSync(path.join(context.root, name)));
 			return { ...context, write, real };
 		}
 
@@ -299,7 +299,7 @@ export const Button = eco.component({ render: () => '' });`,
 			expect(first).toContain(`stylesheets: ${JSON.stringify(['style.css', '|some-lib@1.0.0/css/style.css'])}`);
 			expect(first).toContain(`packageStylesheets: ${JSON.stringify(['|some-lib@1.0.0/css/style.css'])}`);
 			expect(first).toContain(`watchFiles: ${JSON.stringify(['child.ts'])}`);
-			for (const root of roots) expect(first).not.toContain(realpathSync(root));
+			for (const root of roots) expect(first).not.toContain(path.fromNative(realpathSync(root)));
 			expect(first).not.toContain('\\\\');
 		});
 	});
@@ -328,7 +328,7 @@ export const Button = eco.component({ render: () => '' });`,
 			const { root } = context;
 			const file = (name: string, source: string) => {
 				writeFileSync(path.join(root, name), source);
-				return realpathSync(path.join(root, name));
+				return path.fromNative(realpathSync(path.join(root, name)));
 			};
 			file('badge.css', '.badge {}');
 			file('card.css', '.card {}');
@@ -348,7 +348,12 @@ export const Button = eco.component({ render: () => '' });`,
 					projectRoot: root,
 					...options,
 				}).code;
-			return { ...context, file, attribute, real: (name: string) => realpathSync(path.join(root, name)) };
+			return {
+				...context,
+				file,
+				attribute,
+				real: (name: string) => path.fromNative(realpathSync(path.join(root, name))),
+			};
 		}
 
 		it('hands a plain component CSS to the nearest declaration, after its own CSS', () => {

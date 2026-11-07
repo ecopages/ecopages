@@ -8,7 +8,7 @@ import { resolveBarePackageBrowserEntry } from './tsconfig-import-resolver.ts';
 const tempRoots: string[] = [];
 
 function createLegacyDualEntryFixture(): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'browser-entry-fixture-'));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'browser-entry-fixture-')));
 	tempRoots.push(root);
 
 	const packageDir = path.join(root, 'node_modules', 'dual-entry-pkg');
@@ -35,7 +35,7 @@ function createLegacyDualEntryFixture(): string {
 }
 
 function createExportsDualEntryFixture(): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'browser-exports-fixture-'));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'browser-exports-fixture-')));
 	tempRoots.push(root);
 
 	const packageDir = path.join(root, 'node_modules', 'exports-dual-pkg');

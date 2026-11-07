@@ -12,7 +12,7 @@ import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 const tempRoots: string[] = [];
 
 function createTempRoot(prefix: string): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`)));
 	tempRoots.push(root);
 	return root;
 }
@@ -54,7 +54,7 @@ describe('DevTransformBundler', () => {
 		});
 
 		await expect(bundler.transpileModule(entrypointPath)).rejects.toThrow(
-			`[widget-loader] ${fs.realpathSync(entrypointPath)}: loader boom`,
+			`[widget-loader] ${path.fromNative(fs.realpathSync(entrypointPath))}: loader boom`,
 		);
 	});
 

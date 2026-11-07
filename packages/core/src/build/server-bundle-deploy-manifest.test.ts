@@ -27,7 +27,7 @@ describe('server-bundle-deploy-manifest', () => {
 	});
 
 	it('writes deploy manifest and resolves production entry from manifest', () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-entry-cache-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-server-entry-cache-')));
 		tempDirs.push(rootDir);
 		const distDir = path.join(rootDir, 'dist');
 		const workDir = path.join(rootDir, '.eco');
@@ -80,7 +80,7 @@ describe('server-bundle-deploy-manifest', () => {
 		{ build: 'bun', check: 'bun' },
 		{ build: 'node', check: 'node' },
 	] as const)('accepts the config a $build build recorded when start checks it under $check', ({ build, check }) => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-config-identity-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-config-identity-')));
 		tempDirs.push(rootDir);
 		const distDir = path.join(rootDir, 'dist');
 		const serverOutdir = path.join(distDir, SERVER_BUNDLE_DIR);
@@ -116,7 +116,7 @@ describe('server-bundle-deploy-manifest', () => {
 	});
 
 	function createBuiltApp(prefix: string, distDirName = 'dist') {
-		const rootDir = mkdtempSync(path.join(tmpdir(), prefix));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), prefix)));
 		tempDirs.push(rootDir);
 		const distDir = path.join(rootDir, distDirName);
 		const serverOutdir = path.join(distDir, SERVER_BUNDLE_DIR);
@@ -161,7 +161,7 @@ describe('server-bundle-deploy-manifest', () => {
 
 	it('resolves the server entry and accepts the emitted config after the bundle moves to another directory', () => {
 		const built = createBuiltApp('eco-deploy-manifest-moved-');
-		const deployDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-target-'));
+		const deployDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-target-')));
 		tempDirs.push(deployDir);
 		cpSync(path.join(built.rootDir, 'dist'), path.join(deployDir, 'dist'), { recursive: true });
 		rmSync(built.rootDir, { recursive: true, force: true });
@@ -187,7 +187,7 @@ describe('server-bundle-deploy-manifest', () => {
 	});
 
 	it('treats a server entry without a manifest as no bundle and refuses to check its config', () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-missing-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-missing-')));
 		tempDirs.push(rootDir);
 		const serverDir = path.join(rootDir, 'dist', SERVER_BUNDLE_DIR);
 		fileSystem.ensureDir(serverDir);
@@ -203,7 +203,7 @@ describe('server-bundle-deploy-manifest', () => {
 	});
 
 	it('resolves nothing when no server bundle was built', () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-none-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-none-')));
 		tempDirs.push(rootDir);
 
 		assert.equal(resolveProductionServerEntry(rootDir, 'dist'), undefined);
@@ -270,7 +270,7 @@ describe('server-bundle-deploy-manifest', () => {
 		});
 
 		it('explains a static-only build instead of asking for another build', async () => {
-			const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-static-'));
+			const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-static-')));
 			tempDirs.push(rootDir);
 			fileSystem.ensureDir(path.join(rootDir, 'dist', 'client'));
 			writeFileSync(path.join(rootDir, 'dist', 'client', 'index.html'), '<html></html>');
@@ -283,7 +283,7 @@ describe('server-bundle-deploy-manifest', () => {
 		});
 
 		it('asks for a build when there is no output, and ignores a directory without a manifest', async () => {
-			const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-empty-'));
+			const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-empty-')));
 			tempDirs.push(rootDir);
 			fileSystem.ensureDir(path.join(rootDir, 'dist', SERVER_BUNDLE_DIR));
 			writeFileSync(path.join(rootDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME), 'export {};\n');

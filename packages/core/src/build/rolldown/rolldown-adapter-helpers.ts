@@ -37,6 +37,7 @@ import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
+import { fromRolldownModuleId } from './rolldown-module-id.ts';
 import { createRolldownPluginBridge, type WatchFilesByModule } from './rolldown-plugin-bridge.ts';
 import { isDeclaredAppPackageImport, isWorkspacePackageImport } from './app-package-declarations.ts';
 import type {
@@ -203,7 +204,7 @@ function isUndeclaredPackageImport(id: string, contextRoot: string): boolean {
  * loader, so PnP installs are not supported for relocated server output.
  */
 function isInstalledCompiledModule(filePath: string): boolean {
-	return /\.[cm]?js$/u.test(filePath) && /[\\/]node_modules[\\/]/u.test(filePath) && !/\.zip[\\/]/u.test(filePath);
+	return /\.[cm]?js$/u.test(filePath) && filePath.includes('/node_modules/') && !filePath.includes('.zip/');
 }
 
 /**
@@ -283,15 +284,16 @@ export function createInstalledPackageExternalPlugin(
 				const resolved =
 					(importer ? await this.resolve(id, importer, resolveOptions) : null) ??
 					(coreNames.has(packageName) ? await this.resolve(id, coreSourceFile, resolveOptions) : null);
-				if (!resolved || resolved.external || !isInstalledCompiledModule(resolved.id)) {
+				const resolvedPath = resolved && !resolved.external ? fromRolldownModuleId(resolved.id) : undefined;
+				if (!resolvedPath || !isInstalledCompiledModule(resolvedPath)) {
 					return null;
 				}
 				realOutdir ??= realpathOfDirectory(outdir);
 				realContextRoot ??= realpathOfDirectory(contextRoot);
-				if (reportDir && !isPathInside(resolved.id, realContextRoot)) {
+				if (reportDir && !isPathInside(resolvedPath, realContextRoot)) {
 					outsideRootPackages.add(packageName);
 				}
-				const externalId = toInstalledPackageExternalId(resolved.id, realOutdir);
+				const externalId = toInstalledPackageExternalId(resolvedPath, realOutdir);
 				if (externalId.startsWith('file:')) {
 					return { id: externalId, external: true };
 				}
@@ -344,9 +346,9 @@ const nodeBuiltinFilter = new RegExp(
  */
 export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 	const rejectServerOnly = (id: string, importer: string | undefined): never => {
-		const from = importer ? ` (imported from ${importer})` : '';
+		const from = importer ? ` (imported from ${fromRolldownModuleId(importer)})` : '';
 		throw new Error(
-			`[browser-build] server-only module "${id}" cannot be bundled for the browser${from}. Check the browser graph boundary for the importer.`,
+			`[browser-build] server-only module "${fromRolldownModuleId(id)}" cannot be bundled for the browser${from}. Check the browser graph boundary for the importer.`,
 		);
 	};
 	return {
@@ -357,7 +359,7 @@ export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 				if (!isNodeBuiltinSpecifier(id)) {
 					return null;
 				}
-				const from = importer ? ` (imported from ${importer})` : '';
+				const from = importer ? ` (imported from ${fromRolldownModuleId(importer)})` : '';
 				throw new Error(
 					`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. Check package "browser" exports and the client-graph boundary for the importer.`,
 				);
@@ -464,6 +466,12 @@ export function toBuildLog(entry: unknown): BuildLog {
 		if (source[key] !== undefined) {
 			Object.assign(log, { [key]: source[key] });
 		}
+	}
+	if (typeof log.id === 'string') {
+		log.id = fromRolldownModuleId(log.id);
+	}
+	if (typeof log.loc?.file === 'string') {
+		log.loc = { ...log.loc, file: fromRolldownModuleId(log.loc.file) };
 	}
 	if (typeof source.frame === 'string') {
 		log.frame = stripVTControlCharacters(source.frame);

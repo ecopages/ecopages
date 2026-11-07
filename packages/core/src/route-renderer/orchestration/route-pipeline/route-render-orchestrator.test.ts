@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import type { AssetProcessingService } from '../../../assets/asset-processing-service/index.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
@@ -51,7 +52,7 @@ describe('RouteRenderOrchestrator', () => {
 
 	it('executes prepared route renders and preserves cache strategy', async () => {
 		const result = await createFlow().execute(
-			createRouteOptions('/app/pages/index.tsx'),
+			createRouteOptions(path.resolve('/app/pages/index.tsx')),
 			createFlowRenderer({
 				Page: cachedPage,
 				renderRouteBody: async () => createHtmlStream('<html><body><main>Streamed</main></body></html>'),
@@ -67,31 +68,33 @@ describe('RouteRenderOrchestrator', () => {
 	it('adds the HTML template module closure to the cached document inputs', async () => {
 		const shellConfig = {
 			...appConfig,
-			absolutePaths: { htmlTemplatePath: '/app/includes/html.tsx' },
+			absolutePaths: { htmlTemplatePath: path.resolve('/app/includes/html.tsx') },
 			appRuntime: {
 				buildInputIndex: new BuildInputDependencyIndex(),
 			} as AppRuntime,
 		} as unknown as EcoPagesAppConfig;
 		requireAppRuntime(shellConfig).buildInputIndex.register(
-			{ consumer: 'server-route-module', key: '/app/includes/html.tsx' },
-			['/app/includes/html.tsx', '/app/includes/seo.tsx'],
+			{ consumer: 'server-route-module', key: path.resolve('/app/includes/html.tsx') },
+			[path.resolve('/app/includes/html.tsx'), path.resolve('/app/includes/seo.tsx')],
 		);
 
 		const result = await new RouteRenderOrchestrator(shellConfig, assetProcessingService).executePrepared(
-			{ sourceDependencyPaths: ['/app/pages/index.tsx'] } as unknown as IntegrationRendererRenderOptions<unknown>,
+			{
+				sourceDependencyPaths: [path.resolve('/app/pages/index.tsx')],
+			} as unknown as IntegrationRendererRenderOptions<unknown>,
 			createFlowRenderer({ renderRouteBody: async () => '<html><body><main>Page</main></body></html>' }),
 		);
 
 		expect(result.sourceDependencyPaths).toEqual([
-			'/app/pages/index.tsx',
-			'/app/includes/html.tsx',
-			'/app/includes/seo.tsx',
+			path.resolve('/app/pages/index.tsx'),
+			path.resolve('/app/includes/html.tsx'),
+			path.resolve('/app/includes/seo.tsx'),
 		]);
 	});
 
 	it('applies document attributes to fully resolved route HTML', async () => {
 		const result = await createFlow().execute(
-			createRouteOptions('/app/pages/index.tsx'),
+			createRouteOptions(path.resolve('/app/pages/index.tsx')),
 			createFlowRenderer({
 				Page: cachedPage,
 				renderRouteBody: async () => '<html><body><main>Resolved</main></body></html>',
@@ -131,7 +134,7 @@ describe('RouteRenderOrchestrator', () => {
 	])('throws when the route HTML contains %s', async (_name, html) => {
 		await expect(
 			createFlow().execute(
-				createRouteOptions('/app/pages/index.tsx'),
+				createRouteOptions(path.resolve('/app/pages/index.tsx')),
 				createFlowRenderer({ renderRouteBody: async () => html }),
 			),
 		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');

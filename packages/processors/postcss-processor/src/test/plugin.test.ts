@@ -26,7 +26,7 @@ function hashedCssContents(): string[] {
 
 describe('PostCssProcessorPlugin HMR', () => {
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'postcss-plugin-test-'));
+		tmpDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'postcss-plugin-test-')));
 		srcDir = path.join(tmpDir, 'src');
 		distDir = path.join(tmpDir, 'dist', 'client');
 		fs.mkdirSync(srcDir, { recursive: true });

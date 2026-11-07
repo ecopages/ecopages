@@ -76,7 +76,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('treats opted-in .md files as MDX so ESM config is preserved', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-')));
 		tempDirs.push(tempDir);
 
 		const layoutsDir = path.join(tempDir, 'layouts', 'base-layout');
@@ -177,7 +177,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('reuses compiled output for unchanged MDX source', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-cache-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-cache-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -196,7 +196,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('reuses compiled output across builds that share one loader', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-shared-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-shared-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -213,7 +213,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('recompiles when the MDX source changes', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-edit-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-edit-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -232,7 +232,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('recompiles when compiler plugin functions change and the source does not', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugins-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugins-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -263,7 +263,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('applies one shared top-level remark plugin once in both React and JSX pipelines', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugin-options-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugin-options-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -301,7 +301,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('discovers component and CSS imports and strips bare CSS in compiled MDX', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-deps-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-deps-')));
 		tempDirs.push(tempDir);
 
 		writeFileSync(
@@ -362,7 +362,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('omits maps when includeSourceMap is disabled', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-no-map-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-no-map-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -376,7 +376,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('re-runs discovery and reflects imported child changes even when MDX compile is cache-hit', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-dyn-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-dyn-')));
 		tempDirs.push(tempDir);
 
 		const childPath = path.join(tempDir, 'child.ts');
@@ -410,7 +410,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('keys the loader identity on the options that change its output', () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-')));
 		tempDirs.push(tempDir);
 		function remarkNamed() {}
 		const withPlugin = { projectRoot: tempDir, compilerOptions: { remarkPlugins: [remarkNamed] } };

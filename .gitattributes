@@ -1,0 +1,2 @@
+# Check text files out with LF on every platform, so fixtures and formatting compare the same on Windows.
+* text=auto eol=lf

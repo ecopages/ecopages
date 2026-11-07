@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { path } from '@ecopages/file-system/path';
 import { eco } from './eco.ts';
 import { bindComponentIdentity } from './component-identity.ts';
 import { collectComponentDependencies } from '../route-renderer/page-loading/component-dependency-collection.ts';
@@ -14,7 +15,7 @@ function collect(components: EcoComponent[]) {
 	return collectComponentDependencies({
 		components,
 		integrationName: 'lit',
-		rootDir: '/app',
+		rootDir: path.resolve('/app'),
 		resolveLazyScripts: (_dir, scripts) => scripts.join(','),
 		createEcopagesJsxLazyEntryName: (_, key) => key,
 		errors: { invalidStylesheetEntry: 'style', invalidScriptEntry: 'script', lazyScriptMissingSrc: 'lazy' },
@@ -40,10 +41,10 @@ describe('discovered dependency graph', () => {
 		);
 		expect(first.config?.dependencies?.components).toEqual([second]);
 		expect(collect([first, second]).dependencies.filter((asset) => asset.kind === 'stylesheet')).toHaveLength(2);
-		expect(collectDependencyWatchPaths('/app/shared.ts', [first], '/app')).toEqual([
-			'/app/shared.ts',
-			'/app/first.css',
-			'/app/second.css',
+		expect(collectDependencyWatchPaths(path.resolve('/app/shared.ts'), [first], path.resolve('/app'))).toEqual([
+			path.resolve('/app/shared.ts'),
+			path.resolve('/app/first.css'),
+			path.resolve('/app/second.css'),
 		]);
 	});
 	it('preserves explicit stylesheet overrides across roots and appends inferred styles once', () => {
@@ -62,9 +63,9 @@ describe('discovered dependency graph', () => {
 		);
 		const styles = collect([inferred, explicit]).dependencies;
 		expect(styles).toHaveLength(3);
-		expect(styles[0]).toMatchObject({ filepath: '/app/same.css', attributes: { media: 'print' } });
-		expect(styles[1]).toMatchObject({ filepath: '/app/last.css' });
-		expect(styles[2]).toMatchObject({ filepath: '/app/extra.css' });
+		expect(styles[0]).toMatchObject({ filepath: path.resolve('/app/same.css'), attributes: { media: 'print' } });
+		expect(styles[1]).toMatchObject({ filepath: path.resolve('/app/last.css') });
+		expect(styles[2]).toMatchObject({ filepath: path.resolve('/app/extra.css') });
 	});
 	it('links a plain component stylesheet once, after the CSS of every declaration importing it', () => {
 		const badge = eco.component(
@@ -82,12 +83,18 @@ describe('discovered dependency graph', () => {
 			),
 		);
 		const styles = collect([page]).dependencies.map((asset) => (asset as { filepath?: string }).filepath);
-		expect(styles).toEqual(['/app/page.css', '/app/badge.css', '/app/card.css']);
-		expect(collectDependencyWatchPaths('/app/page.ts', [page], '/app')).toContain('/app/card.css');
+		expect(styles).toEqual([
+			path.resolve('/app/page.css'),
+			path.resolve('/app/badge.css'),
+			path.resolve('/app/card.css'),
+		]);
+		expect(collectDependencyWatchPaths(path.resolve('/app/page.ts'), [page], path.resolve('/app'))).toContain(
+			path.resolve('/app/card.css'),
+		);
 	});
 	it('links a package stylesheet once, marked as from a package, where a declaration imports it itself', () => {
 		const packagePath = 'some-lib/dist/style.css';
-		const pkg = '/app/node_modules/some-lib/dist/style.css';
+		const pkg = path.resolve('/app/node_modules/some-lib/dist/style.css');
 		const badge = eco.component(
 			bindComponentIdentity(
 				identity('badge.ts'),
@@ -113,15 +120,17 @@ describe('discovered dependency graph', () => {
 		);
 		const styles = collect([page]).dependencies;
 		expect(styles.map((asset) => (asset as { filepath?: string }).filepath)).toEqual([
-			'/app/page.css',
+			path.resolve('/app/page.css'),
 			pkg,
-			'/app/badge.css',
-			'/app/card.css',
+			path.resolve('/app/badge.css'),
+			path.resolve('/app/card.css'),
 		]);
 		expect(styles.filter((asset) => 'fromPackage' in asset && asset.fromPackage)).toEqual([
 			expect.objectContaining({ filepath: pkg, fromPackage: packagePath }),
 		]);
-		expect(collectDependencyWatchPaths('/app/page.ts', [page], '/app')).not.toContain(pkg);
+		expect(collectDependencyWatchPaths(path.resolve('/app/page.ts'), [page], path.resolve('/app'))).not.toContain(
+			pkg,
+		);
 	});
 	it('keeps a plain component stylesheet next to the only declaration importing it', () => {
 		const child = eco.component(
@@ -139,19 +148,23 @@ describe('discovered dependency graph', () => {
 			),
 		);
 		const styles = collect([html]).dependencies.map((asset) => (asset as { filepath?: string }).filepath);
-		expect(styles).toEqual(['/app/html.css', '/app/head.css', '/app/child.css']);
+		expect(styles).toEqual([
+			path.resolve('/app/html.css'),
+			path.resolve('/app/head.css'),
+			path.resolve('/app/child.css'),
+		]);
 	});
 	it('supports absolute paths in discovered stylesheets', () => {
 		const inferred = eco.component(
 			bindComponentIdentity(
 				identity('inferred.ts'),
 				{ render: () => '' },
-				{ components: () => [], stylesheets: ['/global/styles/theme.css'] },
+				{ components: () => [], stylesheets: [path.resolve('/global/styles/theme.css')] },
 			),
 		);
 		const styles = collect([inferred]).dependencies;
 		expect(styles).toHaveLength(1);
-		expect(styles[0]).toMatchObject({ filepath: '/global/styles/theme.css' });
+		expect(styles[0]).toMatchObject({ filepath: path.resolve('/global/styles/theme.css') });
 	});
 	it('deduplicates explicit children and inferred children, ignoring utility values', () => {
 		const child = eco.component(bindComponentIdentity(identity('child.ts'), { render: () => '' }));
@@ -198,11 +211,13 @@ describe('discovered dependency graph', () => {
 				{ components: () => [button], stylesheets: [] },
 			),
 		);
-		expect(collect([page]).dependencies).toEqual([expect.objectContaining({ filepath: '/app/a.css' })]);
-		expect(collectDependencyWatchPaths('/app/page.ts', [page], '/app')).toEqual([
-			'/app/page.ts',
-			'/app/button-a.ts',
-			'/app/a.css',
+		expect(collect([page]).dependencies).toEqual([
+			expect.objectContaining({ filepath: path.resolve('/app/a.css') }),
+		]);
+		expect(collectDependencyWatchPaths(path.resolve('/app/page.ts'), [page], path.resolve('/app'))).toEqual([
+			path.resolve('/app/page.ts'),
+			path.resolve('/app/button-a.ts'),
+			path.resolve('/app/a.css'),
 		]);
 
 		button = eco.component(
@@ -212,11 +227,13 @@ describe('discovered dependency graph', () => {
 				{ components: () => [], stylesheets: ['./b.css'] },
 			),
 		);
-		expect(collect([page]).dependencies).toEqual([expect.objectContaining({ filepath: '/app/b.css' })]);
-		expect(collectDependencyWatchPaths('/app/page.ts', [page], '/app')).toEqual([
-			'/app/page.ts',
-			'/app/button-b.ts',
-			'/app/b.css',
+		expect(collect([page]).dependencies).toEqual([
+			expect.objectContaining({ filepath: path.resolve('/app/b.css') }),
+		]);
+		expect(collectDependencyWatchPaths(path.resolve('/app/page.ts'), [page], path.resolve('/app'))).toEqual([
+			path.resolve('/app/page.ts'),
+			path.resolve('/app/button-b.ts'),
+			path.resolve('/app/b.css'),
 		]);
 	});
 	it('allows dependency replacement while preserving live discovered references', () => {
@@ -235,8 +252,8 @@ describe('discovered dependency graph', () => {
 		expect(owner.config?.dependencies?.stylesheets).toBeUndefined();
 		expect(collect([owner]).dependencies).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ filepath: '/app/owner.css' }),
-				expect.objectContaining({ filepath: '/app/explicit.ts' }),
+				expect.objectContaining({ filepath: path.resolve('/app/owner.css') }),
+				expect.objectContaining({ filepath: path.resolve('/app/explicit.ts') }),
 			]),
 		);
 	});
@@ -255,16 +272,16 @@ describe('discovered dependency graph', () => {
 			{ src: './same.css', attributes: { media: 'print' } },
 		]);
 		const copied = collectFileScopedDependencyComponents({
-			ownerFile: '/app/owner.ts',
+			ownerFile: path.resolve('/app/owner.ts'),
 			integrationName: 'lit',
 			dependencies: { ...owner.config!.dependencies },
 		});
 		const fromCopy = collect(copied).dependencies;
 		const fromOwner = collect([owner]).dependencies;
 		expect(fromCopy).toHaveLength(1);
-		expect(fromCopy[0]).toMatchObject({ filepath: '/app/same.css', attributes: { media: 'print' } });
+		expect(fromCopy[0]).toMatchObject({ filepath: path.resolve('/app/same.css'), attributes: { media: 'print' } });
 		expect(fromOwner).toHaveLength(1);
-		expect(fromOwner[0]).toMatchObject({ filepath: '/app/same.css', attributes: { media: 'print' } });
+		expect(fromOwner[0]).toMatchObject({ filepath: path.resolve('/app/same.css'), attributes: { media: 'print' } });
 	});
 	it('treats stylesheets appended after discovery as explicit', () => {
 		const owner = eco.component(
@@ -282,24 +299,24 @@ describe('discovered dependency graph', () => {
 		};
 		const styles = collect([owner]).dependencies;
 		expect(styles).toHaveLength(2);
-		expect(styles[0]).toMatchObject({ filepath: '/app/same.css', attributes: { media: 'print' } });
-		expect(styles[1]).toMatchObject({ filepath: '/app/appended.css' });
+		expect(styles[0]).toMatchObject({ filepath: path.resolve('/app/same.css'), attributes: { media: 'print' } });
+		expect(styles[1]).toMatchObject({ filepath: path.resolve('/app/appended.css') });
 	});
 	it('resolves merged page and content stylesheets against each owner file', () => {
 		const merged = mergePageDependencies(
 			{ stylesheets: ['./page.css'] },
-			{ stylesheets: ['./post.css'], ownerFile: '/app/content/post.mdx' },
+			{ stylesheets: ['./post.css'], ownerFile: path.resolve('/app/content/post.mdx') },
 		);
 		const components = collectPageDependencyComponents({
 			result: merged!,
-			fallbackOwnerFile: '/app/pages/posts/[slug].tsx',
+			fallbackOwnerFile: path.resolve('/app/pages/posts/[slug].tsx'),
 			integrationName: 'lit',
 		});
 		const styles = collect(components).dependencies;
 		expect(styles).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ filepath: '/app/pages/posts/page.css' }),
-				expect.objectContaining({ filepath: '/app/content/post.css' }),
+				expect.objectContaining({ filepath: path.resolve('/app/pages/posts/page.css') }),
+				expect.objectContaining({ filepath: path.resolve('/app/content/post.css') }),
 			]),
 		);
 		expect(styles).toHaveLength(2);
@@ -323,12 +340,12 @@ describe('discovered dependency graph', () => {
 		const getEntryDependencies = (component: EcoComponent) => ({ components: [component] });
 		const components = collectPageDependencyComponents({
 			result: getEntryDependencies(entry),
-			fallbackOwnerFile: '/app/pages/posts/[slug].tsx',
+			fallbackOwnerFile: path.resolve('/app/pages/posts/[slug].tsx'),
 			integrationName: 'lit',
 		});
 		const styles = collect(components).dependencies;
 		expect(styles).toHaveLength(2);
-		expect(styles[0]).toMatchObject({ filepath: '/app/same.css', attributes: { media: 'print' } });
-		expect(styles[1]).toMatchObject({ filepath: '/app/extra.css' });
+		expect(styles[0]).toMatchObject({ filepath: path.resolve('/app/same.css'), attributes: { media: 'print' } });
+		expect(styles[1]).toMatchObject({ filepath: path.resolve('/app/extra.css') });
 	});
 });

@@ -40,7 +40,9 @@ describe('imported-view-plugin', () => {
 	});
 
 	function createApp(files: Record<string, string>): string {
-		const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-plugin-')));
+		const rootDir = path.fromNative(
+			fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-plugin-'))),
+		);
 		roots.push(rootDir);
 		for (const [relativePath, source] of Object.entries(files)) {
 			const filePath = path.join(rootDir, relativePath);

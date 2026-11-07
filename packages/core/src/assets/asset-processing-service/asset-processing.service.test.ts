@@ -171,7 +171,7 @@ test('AssetProcessingService - processDependencies - returns the app-wide build 
 	const prebuiltScript: AssetDefinition = { kind: 'script', source: 'file', filepath: '/app/src/counter.script.ts' };
 	const prebuiltAsset: ProcessedAsset = {
 		kind: 'script',
-		filepath: '/test/dist/client/assets/client-shared.js',
+		filepath: path.resolve('/test/dist/client/assets/client-shared.js'),
 		srcUrl: '/assets/client-shared.js',
 		inline: false,
 	};
@@ -1186,6 +1186,6 @@ test('AssetProcessingService - a production build records every dependency it pr
 	await service.processDependencies([contentScript], undefined);
 
 	expect(requireAppRuntime(appConfig).processedAssets.lookup(contentScript)?.filepath).toBe(
-		'/test/dist/client/assets/test.js',
+		path.resolve('/test/dist/client/assets/test.js'),
 	);
 });

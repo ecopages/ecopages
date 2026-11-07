@@ -30,7 +30,7 @@ describe('collectServerModuleEntries', () => {
 	});
 
 	it('includes Processor production server module entries that exist on disk', async () => {
-		const rootDir = mkdtempSync(path.join(os.tmpdir(), 'server-module-entries-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'server-module-entries-')));
 		roots.push(rootDir);
 		const existing = path.join(rootDir, 'posts.ts');
 		const missing = path.join(rootDir, 'missing.ts');
@@ -51,7 +51,7 @@ describe('collectServerModuleEntries', () => {
 	});
 
 	it('includes views the server-entry plugin recorded', async () => {
-		const rootDir = mkdtempSync(path.join(os.tmpdir(), 'server-module-imported-views-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'server-module-imported-views-')));
 		roots.push(rootDir);
 		const viewPath = path.join(rootDir, 'latest-view.kita.tsx');
 		writeFileSync(viewPath, 'export default {};\n');

@@ -301,7 +301,7 @@ test('resolveBuildPluginOrder throws instead of running a core transform next to
 
 test('browser builds inline the runtime mode used by browser environment helpers', async () => {
 	const appConfig = createOrderedAppConfig();
-	const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-browser-runtime-mode-'));
+	const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-browser-runtime-mode-')));
 	vi.stubEnv('NODE_ENV', 'production');
 	try {
 		const request = createBrowserBuildRequest(appConfig, {
@@ -332,7 +332,7 @@ test.each([
 	'a browser build with NODE_ENV $nodeEnv and minify $minify takes the $build branch of process.env.NODE_ENV',
 	async ({ nodeEnv, minify, build }) => {
 		const appConfig = createOrderedAppConfig();
-		const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-browser-node-env-'));
+		const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-browser-node-env-')));
 		vi.stubEnv('NODE_ENV', nodeEnv);
 		try {
 			writeFileSync(
@@ -363,7 +363,7 @@ test.each([
 
 test('server and browser builds of one file give each declaration the same component id', async () => {
 	const appConfig = createOrderedAppConfig();
-	const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-identity-parity-'));
+	const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-identity-parity-')));
 	try {
 		const entry = path.join(dir, 'widgets.tsx');
 		writeFileSync(

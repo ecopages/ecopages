@@ -27,7 +27,7 @@ describe('PageModuleService', () => {
 
 	describe('ensureConfigFileMetadata', () => {
 		const createWorkspace = () => {
-			const root = mkdtempSync(path.join(os.tmpdir(), 'react-page-module-'));
+			const root = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'react-page-module-')));
 			tempDirs.push(root);
 			const layoutsDir = path.join(root, 'layouts');
 			const componentsDir = path.join(root, 'components');

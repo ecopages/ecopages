@@ -43,7 +43,7 @@ describe('content processor collection server module builds', () => {
 	let artifacts: Map<string, CollectionServerBuildArtifact>;
 
 	beforeEach(() => {
-		rootDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-collection-build-'));
+		rootDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'ecopages-collection-build-')));
 		artifacts = new Map();
 		generation = 0;
 	});

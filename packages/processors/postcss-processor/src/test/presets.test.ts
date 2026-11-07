@@ -27,10 +27,10 @@ let outputDir: string;
  * the app root.
  */
 beforeAll(() => {
-	tailwindAppDir = mkdtempSync(path.join(tmpdir(), 'eco-tailwind-app-'));
+	tailwindAppDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-tailwind-app-')));
 	tailwindReferencePath = path.join(tailwindAppDir, 'src/styles/tailwind.css');
 	bemApplyPath = path.join(tailwindAppDir, 'src/styles/bem-apply.css');
-	outputDir = mkdtempSync(path.join(tmpdir(), 'eco-tailwind-out-'));
+	outputDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-tailwind-out-')));
 	mkdirSync(path.join(tailwindAppDir, 'node_modules'), { recursive: true });
 	mkdirSync(path.dirname(tailwindReferencePath), { recursive: true });
 	symlinkSync(tailwindV4PackageDir, path.join(tailwindAppDir, 'node_modules/tailwindcss'), 'dir');
@@ -258,7 +258,7 @@ test('Tailwind v4 preset should preserve nested BEM selectors with @apply in pro
 }, 30_000);
 
 describe('Tailwind v4 transformInput', () => {
-	const referencePath = '/abs/path/src/styles/tailwind.css';
+	const referencePath = path.resolve('/abs/path/src/styles/tailwind.css');
 
 	test('should inject an absolute @reference for files using @apply', async () => {
 		const preset = tailwindV4Preset({ referencePath });

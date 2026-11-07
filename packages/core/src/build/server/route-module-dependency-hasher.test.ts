@@ -61,20 +61,24 @@ describe('RouteModuleDependencyHasher', () => {
 			{
 				dependencyGraph: {
 					entrypoints: {
-						'/app/pages/about.tsx': [
-							'/app/pages/about.tsx',
-							'/app/layouts/shared.tsx',
+						[path.resolve('/app/pages/about.tsx')]: [
+							path.resolve('/app/pages/about.tsx'),
+							path.resolve('/app/layouts/shared.tsx'),
 							'node:fs',
-							'/app/node_modules/react/index.js',
-							'/app/data/posts.json',
+							path.resolve('/app/node_modules/react/index.js'),
+							path.resolve('/app/data/posts.json'),
 						],
 					},
 				},
 			},
-			'/app/pages/about.tsx',
+			path.resolve('/app/pages/about.tsx'),
 			'/app',
 		);
 
-		assert.deepEqual(dependencyPaths, ['/app/pages/about.tsx', '/app/layouts/shared.tsx', '/app/data/posts.json']);
+		assert.deepEqual(dependencyPaths, [
+			path.resolve('/app/pages/about.tsx'),
+			path.resolve('/app/layouts/shared.tsx'),
+			path.resolve('/app/data/posts.json'),
+		]);
 	});
 });

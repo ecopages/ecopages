@@ -13,7 +13,7 @@ describe('HtmlPagesPlugin', () => {
 	const at = (relativePath: string) => path.join(rootDir, relativePath);
 
 	beforeEach(async () => {
-		rootDir = mkdtempSync(path.join(tmpdir(), 'eco-html-plugin-'));
+		rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-html-plugin-')));
 		mkdirSync(at('src/pages/blog'), { recursive: true });
 		mkdirSync(at('src/includes'), { recursive: true });
 		appConfig = await finalizeEcoPagesConfig({

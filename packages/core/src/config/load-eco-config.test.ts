@@ -20,7 +20,7 @@ describe('resolveEcoConfigPath', () => {
 	let tempDir: string;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-resolve-'));
+		tempDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-resolve-')));
 		vi.stubEnv(ECOPAGES_CONFIG_FILE_ENV, undefined);
 	});
 
@@ -106,11 +106,11 @@ describe('resolveEcoConfigPath', () => {
 
 describe('resolveUserConfigRootDir', () => {
 	it('defaults omitted rootDir to cwd', () => {
-		expect(resolveUserConfigRootDir(undefined, '/project')).toBe('/project');
+		expect(resolveUserConfigRootDir(undefined, '/project')).toBe(path.resolve('/project'));
 	});
 
 	it('resolves a relative rootDir against cwd', () => {
-		expect(resolveUserConfigRootDir('apps/docs', '/repo')).toBe(path.join('/repo', 'apps/docs'));
+		expect(resolveUserConfigRootDir('apps/docs', '/repo')).toBe(path.resolve('/repo', 'apps/docs'));
 	});
 });
 
@@ -118,7 +118,7 @@ describe('loadEcoPagesConfig', () => {
 	let tempDir: string;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-load-'));
+		tempDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-load-')));
 		vi.stubEnv(ECOPAGES_CONFIG_FILE_ENV, undefined);
 	});
 

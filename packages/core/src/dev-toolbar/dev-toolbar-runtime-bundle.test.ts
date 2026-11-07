@@ -25,7 +25,7 @@ describe('dev toolbar runtime bundle', () => {
 			devToolbar: { package: '@ecopages/dev-toolbar' },
 		});
 
-		const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-toolbar-runtime-'));
+		const workDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'dev-toolbar-runtime-')));
 		workDirs.push(workDir);
 
 		const runtime = {

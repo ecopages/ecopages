@@ -1,5 +1,7 @@
 import { path } from '@ecopages/file-system/path';
 
+const WINDOWS_DRIVE_PATH = /^[A-Za-z]:\//u;
+
 /**
  * Converts a module id Rolldown hands to a hook into an Ecopages path.
  *
@@ -17,10 +19,11 @@ export function fromRolldownModuleId(id: string): string {
  * @remarks
  * Rolldown keys modules by id string. On Windows its resolver returns backslash paths, so a plugin that resolved
  * the same file to a forward-slash id would make it a second module. A query or hash after the path is kept as
- * written. Ids that are not absolute paths pass through unchanged.
+ * written. Only a drive-letter path is converted: a root-relative id such as `/assets/vendors/react.js` is a URL
+ * an external import keeps, not a file.
  */
 export function toRolldownModuleId(id: string): string {
-	if (!path.isAbsolute(id)) return id;
+	if (!WINDOWS_DRIVE_PATH.test(id)) return id;
 	const suffixIndex = id.search(/[?#]/u);
 	return suffixIndex === -1
 		? path.toNative(id)

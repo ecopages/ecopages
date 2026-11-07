@@ -24,7 +24,7 @@ describe('assertProductionDistComplete', () => {
 	}
 
 	function createCompleteDist(buildId = 'build-1') {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-dist-complete-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-dist-complete-')));
 		tempDirs.push(rootDir);
 		const serverDir = path.join(rootDir, 'dist', SERVER_BUNDLE_DIR);
 		fileSystem.ensureDir(serverDir);

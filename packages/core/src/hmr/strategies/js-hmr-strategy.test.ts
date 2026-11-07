@@ -38,7 +38,7 @@ function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext 
 
 describe('JsHmrStrategy', () => {
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'js-hmr-strategy-test-'));
+		tmpDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'js-hmr-strategy-test-')));
 		srcDir = path.join(tmpDir, 'src');
 		fs.mkdirSync(srcDir, { recursive: true });
 	});

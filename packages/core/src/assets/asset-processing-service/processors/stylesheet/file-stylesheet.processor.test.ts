@@ -32,7 +32,7 @@ function createConfig(): EcoPagesAppConfig {
 }
 
 beforeEach(() => {
-	rootDir = mkdtempSync(path.join(tmpdir(), 'file-stylesheet-'));
+	rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'file-stylesheet-')));
 	mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 	vi.stubEnv('NODE_ENV', 'production');
 });
@@ -230,7 +230,7 @@ test('fails on a url() or @import that leaves the package', async () => {
 	const imported = writePackageFile('dist/import.css', "@import '../../../outside/secret.txt';");
 
 	await expect(processPackageStylesheet(url)).rejects.toThrow(
-		`${realpathSync(url)}: "../../../outside/secret.txt" resolves to`,
+		`${path.fromNative(realpathSync(url))}: "../../../outside/secret.txt" resolves to`,
 	);
 	await expect(processPackageStylesheet(imported)).rejects.toThrow('outside the package at');
 	const assetsDir = path.join(rootDir, '.eco/public/assets');

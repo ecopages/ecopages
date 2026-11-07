@@ -16,7 +16,7 @@ let testDirCopy: string;
 const adapters: [string, FileSystem][] = [['NodeFileSystem', new NodeFileSystem()]];
 
 beforeEach(() => {
-	testRoot = mkdtempSync(path.join(os.tmpdir(), 'ecopages-file-system-test-'));
+	testRoot = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-file-system-test-')));
 	testDir = path.join(testRoot, 'fixtures');
 	testDirCopy = path.join(testRoot, 'fixtures-copy');
 	mkdirSync(testDir, { recursive: true });
@@ -132,7 +132,7 @@ for (const [name, fs] of adapters) {
 				const link = path.join(testDir, 'realpath-link');
 				symlinkSync(path.join(testDir, 'test.txt'), link);
 
-				expect(fs.realpath(link)).toBe(realpathSync(path.join(testDir, 'test.txt')));
+				expect(fs.realpath(link)).toBe(path.fromNative(realpathSync(path.join(testDir, 'test.txt'))));
 			});
 
 			test('throws for a missing path', () => {

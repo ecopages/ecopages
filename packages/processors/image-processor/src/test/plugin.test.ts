@@ -51,7 +51,9 @@ afterEach(() => {
 
 describe('ImageProcessorPlugin', () => {
 	test('routes a watch batch through one processing call and each deleted source', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-watch-batch-'));
+		const rootDir = path.fromNative(
+			fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-watch-batch-')),
+		);
 		tempRoots.push(rootDir);
 		const plugin = createImageProcessorPlugin({
 			sourceDir: path.join(rootDir, 'src', 'images'),
@@ -78,7 +80,7 @@ describe('ImageProcessorPlugin', () => {
 	});
 
 	test('finalization leaves images and generated types alone until setup', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-prepare-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-prepare-')));
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
@@ -113,7 +115,7 @@ describe('ImageProcessorPlugin', () => {
 	});
 
 	test('finalization followed by setup processes images exactly once', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-once-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-once-')));
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
@@ -140,7 +142,7 @@ describe('ImageProcessorPlugin', () => {
 	});
 
 	test('setup rehydrates generated files after dist cleanup removes them', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-plugin-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-plugin-')));
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
@@ -189,7 +191,7 @@ describe('ImageProcessorPlugin', () => {
 	});
 
 	test('setup syncs processed images from disk without invoking sharp', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-sync-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-sync-')));
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
@@ -218,7 +220,7 @@ describe('ImageProcessorPlugin', () => {
 	});
 
 	test('the server module exports images prepared by another process without setup', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-worker-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-worker-')));
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
@@ -252,7 +254,9 @@ describe('ImageProcessorPlugin', () => {
 	});
 
 	test('setup processes images when virtual module exists but outputs were removed', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-stale-module-'));
+		const rootDir = path.fromNative(
+			fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-stale-module-')),
+		);
 		tempRoots.push(rootDir);
 
 		const sourceDir = path.join(rootDir, 'src', 'images');
@@ -325,7 +329,7 @@ describe('ImageProcessorPlugin', () => {
 		}
 
 		test('deleting a source image removes its optimized files', async () => {
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-delete-'));
+			const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-delete-')));
 			tempRoots.push(rootDir);
 			const { plugin, sourceDir, outputDir, notify } = await setupPlugin(rootDir, {
 				'hero.png': '#ff0000',
@@ -350,7 +354,7 @@ describe('ImageProcessorPlugin', () => {
 		});
 
 		test('editing a source image removes the files of its previous version', async () => {
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-edit-'));
+			const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-edit-')));
 			tempRoots.push(rootDir);
 			const { plugin, sourceDir, outputDir, notify } = await setupPlugin(rootDir, { 'hero.png': '#ff0000' });
 			const before = plugin.processedImages['hero.png'].variants.map((variant) => path.basename(variant.src));
@@ -369,7 +373,7 @@ describe('ImageProcessorPlugin', () => {
 		});
 
 		test('keeps a shared optimized file until its last source image is gone', async () => {
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-shared-'));
+			const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-shared-')));
 			tempRoots.push(rootDir);
 			const { plugin, sourceDir, outputDir, notify } = await setupPlugin(rootDir, {
 				'a.png': '#ff00ff',

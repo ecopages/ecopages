@@ -2,6 +2,7 @@ import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { rolldown } from 'rolldown';
 import { appLogger } from '../global/app-logger.ts';
+import { fromRolldownModuleId } from '../build/rolldown/rolldown-module-id.ts';
 import { isPathStrictlyInside } from '../utils/path-containment.ts';
 
 const SCRIPT_MODULE_PATTERN = /\.(?:[cm]?[jt]sx?|json)$/;
@@ -39,10 +40,14 @@ export async function collectConfigModuleFiles(configFilePath: string, rootDir: 
 			cwd: root,
 			platform: 'node',
 			logLevel: 'silent',
-			external: (id, _importer, isResolved) =>
-				isResolved &&
-				id !== realConfigFile &&
-				(!SCRIPT_MODULE_PATTERN.test(id) || !toProjectPath(id, realRoot, root)),
+			external: (rolldownId, _importer, isResolved) => {
+				const id = fromRolldownModuleId(rolldownId);
+				return (
+					isResolved &&
+					id !== realConfigFile &&
+					(!SCRIPT_MODULE_PATTERN.test(id) || !toProjectPath(id, realRoot, root))
+				);
+			},
 			plugins: [
 				{
 					name: 'ecopages-config-module-files',
@@ -51,7 +56,7 @@ export async function collectConfigModuleFiles(configFilePath: string, rootDir: 
 						return resolved ?? { id: source, external: true };
 					},
 					moduleParsed(moduleInfo) {
-						const projectPath = toProjectPath(moduleInfo.id, realRoot, root);
+						const projectPath = toProjectPath(fromRolldownModuleId(moduleInfo.id), realRoot, root);
 						if (projectPath) moduleFiles.add(projectPath);
 					},
 				},

@@ -17,7 +17,7 @@ describe('copyDeclaredServerFiles', () => {
 	});
 
 	function createApp(serverFiles?: string[]) {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-files-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-server-files-')));
 		tempDirs.push(rootDir);
 		const distDir = path.join(rootDir, 'dist');
 		fileSystem.ensureDir(path.join(distDir, SERVER_BUNDLE_DIR));

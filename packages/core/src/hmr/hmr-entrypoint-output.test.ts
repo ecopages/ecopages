@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { path } from '@ecopages/file-system/path';
 import {
 	encodeHmrDynamicSegments,
 	isRegisteredDevTransformEntrypoint,
@@ -25,7 +26,7 @@ describe('encodeHmrDynamicSegments', () => {
 
 describe('isRegisteredDevTransformEntrypoint', () => {
 	it('matches paths registered in the HMR entrypoint map', () => {
-		const entrypoint = '/app/src/components/theme-toggle.tsx';
+		const entrypoint = path.resolve('/app/src/components/theme-toggle.tsx');
 		const registered = new Map([
 			[
 				entrypoint,
@@ -37,14 +38,16 @@ describe('isRegisteredDevTransformEntrypoint', () => {
 		]);
 
 		expect(isRegisteredDevTransformEntrypoint(registered, entrypoint)).toBe(true);
-		expect(isRegisteredDevTransformEntrypoint(registered, '/app/src/components/other.tsx')).toBe(false);
+		expect(isRegisteredDevTransformEntrypoint(registered, path.resolve('/app/src/components/other.tsx'))).toBe(
+			false,
+		);
 	});
 });
 
 describe('isRegisteredScriptEntrypoint', () => {
 	it('matches only script-role registrations', () => {
-		const scriptPath = '/app/src/layouts/base-layout/base-layout.ts';
-		const pagePath = '/app/src/pages/index.tsx';
+		const scriptPath = path.resolve('/app/src/layouts/base-layout/base-layout.ts');
+		const pagePath = path.resolve('/app/src/pages/index.tsx');
 		const registered = new Map([
 			[
 				scriptPath,
@@ -69,9 +72,9 @@ describe('isRegisteredScriptEntrypoint', () => {
 	it('normalizes registered entrypoint paths before matching', () => {
 		const registered = new Map([
 			[
-				'/app/src/components/counter.ts',
+				path.resolve('/app/src/components/counter.ts'),
 				createRegisteredEntrypoint({
-					sourcePath: '/app/src/components/counter.ts',
+					sourcePath: path.resolve('/app/src/components/counter.ts'),
 					role: 'script',
 				}),
 			],

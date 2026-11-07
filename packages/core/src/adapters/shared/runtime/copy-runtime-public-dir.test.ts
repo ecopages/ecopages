@@ -19,8 +19,8 @@ describe('copyRuntimePublicDirIfChanged', () => {
 	});
 
 	it('copies new files and skips byte-identical destinations', () => {
-		const sourceDir = mkdtempSync(path.join(tmpdir(), 'eco-public-src-'));
-		const destinationDir = mkdtempSync(path.join(tmpdir(), 'eco-public-dest-'));
+		const sourceDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-public-src-')));
+		const destinationDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-public-dest-')));
 		tempDirs.push(sourceDir, destinationDir);
 
 		writeFileSync(path.join(sourceDir, 'logo.txt'), 'same', 'utf8');
@@ -36,8 +36,8 @@ describe('copyRuntimePublicDirIfChanged', () => {
 	});
 
 	it('preserves symlinked public assets', () => {
-		const sourceDir = mkdtempSync(path.join(tmpdir(), 'eco-public-link-src-'));
-		const destinationDir = mkdtempSync(path.join(tmpdir(), 'eco-public-link-dest-'));
+		const sourceDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-public-link-src-')));
+		const destinationDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-public-link-dest-')));
 		tempDirs.push(sourceDir, destinationDir);
 
 		const targetPath = path.join(sourceDir, 'asset.txt');
@@ -49,7 +49,7 @@ describe('copyRuntimePublicDirIfChanged', () => {
 
 		const destinationLinkPath = path.join(destinationDir, 'linked.txt');
 		expect(lstatSync(destinationLinkPath).isSymbolicLink()).toBe(true);
-		expect(readlinkSync(destinationLinkPath)).toBe(targetPath);
+		expect(path.fromNative(readlinkSync(destinationLinkPath))).toBe(targetPath);
 	});
 });
 
@@ -63,8 +63,8 @@ describe('copyRuntimePublicFileIfChanged', () => {
 	});
 
 	it('copies a changed file and creates its destination directory', () => {
-		const sourceDir = mkdtempSync(path.join(tmpdir(), 'eco-public-file-src-'));
-		const destinationDir = mkdtempSync(path.join(tmpdir(), 'eco-public-file-dest-'));
+		const sourceDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-public-file-src-')));
+		const destinationDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-public-file-dest-')));
 		tempDirs.push(sourceDir, destinationDir);
 
 		const sourcePath = path.join(sourceDir, 'logo.txt');
@@ -77,8 +77,8 @@ describe('copyRuntimePublicFileIfChanged', () => {
 	});
 
 	it('replaces a destination symlink even when its target has matching bytes', () => {
-		const sourceDir = mkdtempSync(path.join(tmpdir(), 'eco-public-file-link-src-'));
-		const destinationDir = mkdtempSync(path.join(tmpdir(), 'eco-public-file-link-dest-'));
+		const sourceDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-public-file-link-src-')));
+		const destinationDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-public-file-link-dest-')));
 		tempDirs.push(sourceDir, destinationDir);
 
 		const sourcePath = path.join(sourceDir, 'logo.txt');
@@ -97,7 +97,7 @@ describe('copyRuntimePublicFileIfChanged', () => {
 	});
 
 	it('does nothing when the source file is missing', () => {
-		const destinationDir = mkdtempSync(path.join(tmpdir(), 'eco-public-file-missing-'));
+		const destinationDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-public-file-missing-')));
 		tempDirs.push(destinationDir);
 
 		copyRuntimePublicFileIfChanged(path.join(destinationDir, 'missing.txt'), path.join(destinationDir, 'copy.txt'));
@@ -106,8 +106,8 @@ describe('copyRuntimePublicFileIfChanged', () => {
 	});
 
 	it('copies files asynchronously for watcher events', async () => {
-		const sourceDir = mkdtempSync(path.join(tmpdir(), 'eco-public-async-src-'));
-		const destinationDir = mkdtempSync(path.join(tmpdir(), 'eco-public-async-dest-'));
+		const sourceDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-public-async-src-')));
+		const destinationDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-public-async-dest-')));
 		tempDirs.push(sourceDir, destinationDir);
 
 		const sourcePath = path.join(sourceDir, 'logo.txt');

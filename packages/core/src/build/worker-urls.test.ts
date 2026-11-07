@@ -106,7 +106,7 @@ describe('findWorkerEntrySource', () => {
 	let dir: string;
 
 	beforeEach(() => {
-		dir = mkdtempSync(path.join(tmpdir(), 'worker-entry-source-'));
+		dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'worker-entry-source-')));
 	});
 
 	afterEach(() => {

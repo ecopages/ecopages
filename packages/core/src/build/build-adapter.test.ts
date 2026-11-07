@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { path } from '@ecopages/file-system/path';
 import { test, vi } from 'vitest';
 import {
 	createBuildAdapter,
@@ -172,7 +173,7 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 	});
 
 	assert.deepEqual(contributionOrder, ['processor-setup']);
-	assert.deepEqual(buildInputIndex.recordedWatchPaths(), ['/app/src/content']);
+	assert.deepEqual(buildInputIndex.recordedWatchPaths(), [path.resolve('/app/src/content')]);
 });
 
 test('setupAppRuntimePlugins restores Processors instead of calling setup when skipProcessorSetup is set', async () => {

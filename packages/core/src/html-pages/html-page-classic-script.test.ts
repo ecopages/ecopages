@@ -18,7 +18,7 @@ describe('resolveClassicScriptOptions', () => {
 	};
 
 	beforeEach(() => {
-		dir = mkdtempSync(path.join(tmpdir(), 'eco-classic-script-'));
+		dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-classic-script-')));
 	});
 
 	afterEach(() => {

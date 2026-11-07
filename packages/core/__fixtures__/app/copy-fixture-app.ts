@@ -20,7 +20,9 @@ export function copyFixtureApp(sourceDir: string = coreFixtureAppDir, destinatio
 		rmSync(destinationDir, { recursive: true, force: true });
 		mkdirSync(destinationDir, { recursive: true });
 	}
-	const appDir = realpathSync(destinationDir ?? mkdtempSync(path.join(tmpdir(), 'eco-fixture-app-')));
+	const appDir = path.fromNative(
+		realpathSync(destinationDir ?? mkdtempSync(path.join(tmpdir(), 'eco-fixture-app-'))),
+	);
 	try {
 		cpSync(sourceDir, appDir, {
 			recursive: true,

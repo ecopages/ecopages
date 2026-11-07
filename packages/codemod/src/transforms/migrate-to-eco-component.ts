@@ -15,6 +15,7 @@
  */
 
 import type { API, FileInfo, Options, ASTPath, JSCodeshift, Collection } from 'jscodeshift';
+import { printOptions } from './print-options.ts';
 
 export const parser = 'tsx';
 
@@ -305,5 +306,5 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 	ensureEcoImport(j, root);
 	pruneUnusedLegacyComponentTypeImports(j, root);
 
-	return root.toSource({ quote: 'single', tabWidth: 2, useTabs: true });
+	return root.toSource(printOptions(file.source));
 }

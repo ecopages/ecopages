@@ -12,7 +12,7 @@ const WORKSPACE_NODE_MODULES = path.fromFileUrl(
 	new URL('../../../../../playground/kitchen-sink/node_modules', import.meta.url),
 );
 
-const appDir = mkdtempSync(path.join(tmpdir(), 'eco-mixed-server-dom-'));
+const appDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-mixed-server-dom-')));
 cpSync(FIXTURE_SOURCE, appDir, { recursive: true });
 symlinkSync(WORKSPACE_NODE_MODULES, path.join(appDir, 'node_modules'), 'dir');
 

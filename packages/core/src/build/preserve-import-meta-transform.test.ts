@@ -91,7 +91,7 @@ describe('createPreserveImportMetaPlugin', () => {
 	});
 
 	it('computes paths from the real path of a symlinked runtime directory', () => {
-		const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-import-meta-')));
+		const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-import-meta-'))));
 		try {
 			mkdirSync(path.join(root, 'real/dist'), { recursive: true });
 			symlinkSync(path.join(root, 'real'), path.join(root, 'link'), 'dir');

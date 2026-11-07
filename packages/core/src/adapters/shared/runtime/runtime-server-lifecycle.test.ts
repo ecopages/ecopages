@@ -273,7 +273,7 @@ test('A regeneration in progress when the app stops', async () => {
 		}
 	}
 
-	const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-isr-shutdown-'));
+	const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-isr-shutdown-')));
 	const pagesDir = path.join(rootDir, 'src', 'pages');
 	fs.mkdirSync(pagesDir, { recursive: true });
 	fs.writeFileSync(

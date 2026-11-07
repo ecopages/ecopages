@@ -12,7 +12,7 @@ describe('PostCssProcessorPlugin build loaders', () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'postcss-loaders-'));
+		tmpDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'postcss-loaders-')));
 		fs.mkdirSync(path.join(tmpDir, 'src'), { recursive: true });
 		fs.mkdirSync(path.join(tmpDir, 'vendor'), { recursive: true });
 	});

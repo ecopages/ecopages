@@ -14,11 +14,11 @@ async function publishOwnership(components: Parameters<typeof recordEjsxHmrOwner
 	await withEjsxHmrOwnershipScope(() => recordEjsxHmrOwnership(components, '/'));
 }
 
-const SRC_DIR = '/test/project/src';
-const PAGES_DIR = '/test/project/src/pages';
-const LAYOUTS_DIR = '/test/project/src/layouts';
-const INCLUDES_DIR = '/test/project/src/includes';
-const COMPONENTS_DIR = '/test/project/src/components';
+const SRC_DIR = path.resolve('/test/project/src');
+const PAGES_DIR = path.resolve('/test/project/src/pages');
+const LAYOUTS_DIR = path.resolve('/test/project/src/layouts');
+const INCLUDES_DIR = path.resolve('/test/project/src/includes');
+const COMPONENTS_DIR = path.resolve('/test/project/src/components');
 const TEMPLATE_EXTENSIONS = ['.tsx', '.mdx'];
 
 function makeConfig(file: string, extras: Partial<EcoComponentConfig> = {}): EcoComponentConfig {

@@ -53,7 +53,7 @@ describe('RouteModuleBuildCache', () => {
 	let tempDir: string;
 
 	beforeEach(() => {
-		tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-route-module-build-cache-'));
+		tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-route-module-build-cache-')));
 		vi.stubEnv('NODE_ENV', undefined);
 	});
 
@@ -217,8 +217,10 @@ describe('RouteModuleBuildCache', () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const outputPath = path.join(tempDir, 'about-abc123.mjs');
 		const cache = createCache();
+		const aboutPath = path.resolve('/app/pages/about.tsx');
+		const sharedPath = path.resolve('/app/layouts/shared.tsx');
 		const options = withBuildOptions({
-			filePath: '/app/pages/about.tsx',
+			filePath: aboutPath,
 			rootDir: '/app',
 			outdir: tempDir,
 			fileHash: 'abc123',
@@ -227,13 +229,13 @@ describe('RouteModuleBuildCache', () => {
 		cache.recordBuild({
 			...options,
 			outputPath,
-			dependencyModulePaths: ['/app/pages/about.tsx', '/app/layouts/shared.tsx'],
+			dependencyModulePaths: [aboutPath, sharedPath],
 		});
 
 		const lookup = cache.lookup(options);
 		assert.deepEqual(lookup?.entry.dependencyHashes, {
-			'/app/layouts/shared.tsx': 'hash:shared.tsx',
-			'/app/pages/about.tsx': 'abc123',
+			[sharedPath]: 'hash:shared.tsx',
+			[aboutPath]: 'abc123',
 		});
 		assert.equal(lookup?.outputPath, outputPath);
 	});

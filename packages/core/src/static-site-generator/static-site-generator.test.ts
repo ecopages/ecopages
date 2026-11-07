@@ -185,7 +185,7 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			test('static serving resolves both layouts', () => {
-				const dir = mkdtempSync(path.join(tmpdir(), 'eco-ssg-layout-'));
+				const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-ssg-layout-')));
 				try {
 					mkdirSync(path.join(dir, 'blog'), { recursive: true });
 					writeFileSync(path.join(dir, 'blog', 'index.html'), 'index');

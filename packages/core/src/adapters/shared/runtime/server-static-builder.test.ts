@@ -219,7 +219,7 @@ describe('resolveEntryFile', () => {
 
 describe('ServerStaticBuilder', () => {
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'server-static-builder-test-'));
+		tmpDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'server-static-builder-test-')));
 	});
 
 	afterEach(() => {

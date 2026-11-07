@@ -52,7 +52,7 @@ function createProcessor(
 
 describe('ImageProcessor', () => {
 	beforeEach(async () => {
-		testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'image-processor-test-'));
+		testDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'image-processor-test-')));
 		testImage = path.join(testDir, 'images/test.jpg');
 		const imagesDir = path.join(testDir, 'images');
 		const optimizedDir = path.join(testDir, 'optimized');

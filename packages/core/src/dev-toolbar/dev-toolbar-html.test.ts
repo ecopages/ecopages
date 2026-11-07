@@ -23,7 +23,7 @@ afterEach(() => {
 
 /** Creates a manager for an app whose `node_modules` holds the workspace Dev Toolbar package, or none. */
 async function createManager(options: { toolbarPackage: string; installToolbar: boolean }): Promise<HmrManager> {
-	const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dev-client-runtimes-'));
+	const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dev-client-runtimes-')));
 	tempRoots.push(rootDir);
 	if (options.installToolbar) {
 		const scopeDir = path.join(rootDir, 'node_modules', '@ecopages');

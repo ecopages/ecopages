@@ -29,7 +29,7 @@ class TestReactRenderer extends ReactRenderer {
 	}
 }
 
-const testDir = mkdtempSync(path.join(os.tmpdir(), 'react-ssr-suspense-'));
+const testDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'react-ssr-suspense-')));
 const SUSPENSE_FALLBACK = <i>loading</i>;
 const FALLBACK = renderToStaticMarkup(SUSPENSE_FALLBACK);
 

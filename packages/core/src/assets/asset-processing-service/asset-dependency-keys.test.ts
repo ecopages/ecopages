@@ -220,7 +220,7 @@ describe('getAssetDependencyKey', () => {
 
 		it('keys a node-module script by package path, whatever the store layout of the install', () => {
 			const installed = (layout: string[]) => {
-				const root = mkdtempSync(path.join(tmpdir(), 'eco-node-module-key-'));
+				const root = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-node-module-key-')));
 				temporaryRoots.push(root);
 				const packageDir = path.join(root, ...layout);
 				mkdirSync(packageDir, { recursive: true });

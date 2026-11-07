@@ -16,7 +16,7 @@ describe('recording file system', () => {
 	});
 
 	it('records path arguments forwarded to the inner file system', () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-fs-record-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-fs-record-')));
 		tempDirs.push(rootDir);
 		const filePath = path.join(rootDir, 'note.txt');
 		writeFileSync(filePath, 'hello', 'utf8');
@@ -35,7 +35,7 @@ describe('recording file system', () => {
 		const restore = installFileSystem(recording);
 		restore();
 
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-fs-restore-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-fs-restore-')));
 		tempDirs.push(rootDir);
 		const filePath = path.join(rootDir, 'note.txt');
 		writeFileSync(filePath, 'hello', 'utf8');

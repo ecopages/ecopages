@@ -16,6 +16,7 @@
  */
 
 import type { API, FileInfo, Options, ASTPath, ExportDefaultDeclaration, JSCodeshift, Collection } from 'jscodeshift';
+import { printOptions } from './print-options.ts';
 
 export const parser = 'tsx';
 
@@ -579,7 +580,7 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 		}
 		mergeIntoExistingEcoPage(j, existingEcoPage, info);
 		pruneUnusedLegacyTypeImports(j, root);
-		return root.toSource({ quote: 'single', tabWidth: 2, useTabs: true });
+		return root.toSource(printOptions(file.source));
 	}
 
 	let defaultExportPath: ASTPath<ExportDefaultDeclaration> | null = null;
@@ -612,5 +613,5 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 	ensureEcoImport(j, root);
 	pruneLegacyPageTypeImports(j, root);
 
-	return root.toSource({ quote: 'single', tabWidth: 2, useTabs: true });
+	return root.toSource(printOptions(file.source));
 }

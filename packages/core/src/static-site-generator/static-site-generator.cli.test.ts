@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 test('ecopages build finishes healthy exports after a Page data hook failure', { timeout: 120_000 }, () => {
-	appDir = mkdtempSync(path.join(repoRoot, '.static-build-render-failure-'));
+	appDir = path.fromNative(mkdtempSync(path.join(repoRoot, '.static-build-render-failure-')));
 	symlinkSync(path.join(repoRoot, 'node_modules/.pnpm/node_modules'), path.join(appDir, 'node_modules'), 'dir');
 	mkdirSync(path.join(appDir, 'src/pages'), { recursive: true });
 	mkdirSync(path.join(appDir, 'src/includes'), { recursive: true });

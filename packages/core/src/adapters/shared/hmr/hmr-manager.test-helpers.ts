@@ -11,7 +11,7 @@ import { HmrManager } from './hmr-manager.ts';
  * Creates a directory under `os.tmpdir()` that is removed when the test finishes.
  */
 export function createTempRoot(prefix: string): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`)));
 	onTestFinished(() => {
 		fs.rmSync(root, { recursive: true, force: true });
 	});

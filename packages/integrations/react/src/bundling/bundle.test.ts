@@ -152,7 +152,7 @@ describe('BundleService', () => {
 	};
 
 	it('strips server imports from foreign-JSX files in the React client graph', async () => {
-		const tempDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-foreign-jsx-')));
+		const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-foreign-jsx-'))));
 
 		try {
 			const entrypoint = writeForeignJsxIsland(tempDir, [
@@ -174,7 +174,7 @@ describe('BundleService', () => {
 	});
 
 	it('fails the build when an island uses an export that needs a stripped server binding', async () => {
-		const tempDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-foreign-jsx-')));
+		const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-foreign-jsx-'))));
 
 		try {
 			const entrypoint = writeForeignJsxIsland(
@@ -237,7 +237,7 @@ describe('BundleService', () => {
 		};
 
 		it('compiles a foreign file only another Integration imports with its owner runtime', async () => {
-			const tempDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-')));
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
 			try {
 				const entrypoints = writeSharedApp(tempDir, "import { Card } from './card.tsx'; console.log(Card);");
 				const radiant = readEntry(await buildSharedEntries(tempDir, entrypoints), 'radiant', tempDir);
@@ -249,7 +249,7 @@ describe('BundleService', () => {
 		});
 
 		it('compiles a foreign file a React island imports with the React runtime', async () => {
-			const tempDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-')));
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
 			try {
 				const entrypoints = writeSharedApp(tempDir, "import { Card } from './card.tsx'; console.log(Card);");
 				const island = readEntry(await buildSharedEntries(tempDir, entrypoints), 'island', tempDir);
@@ -262,7 +262,7 @@ describe('BundleService', () => {
 		});
 
 		it('fails the build when a React island and another Integration import one foreign file', async () => {
-			const tempDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-')));
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
 			try {
 				const entrypoints = writeSharedApp(
 					tempDir,

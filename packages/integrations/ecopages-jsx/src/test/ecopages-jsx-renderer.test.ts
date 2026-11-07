@@ -256,6 +256,6 @@ test('EcopagesJsxRenderer records declared content dependencies for HMR ownershi
 	});
 
 	const { fileOwners } = getEjsxHmrOwnership();
-	assert.equal(fileOwners.has('/app/content/docs/intro.mdx'), true);
-	assert.equal(fileOwners.has('/app/components/demo.tsx'), true);
+	assert.equal(fileOwners.has(path.resolve('/app/content/docs/intro.mdx')), true);
+	assert.equal(fileOwners.has(path.resolve('/app/components/demo.tsx')), true);
 });

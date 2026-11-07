@@ -31,12 +31,17 @@ describe('dev transform urls', () => {
 		const packageRoot = path.resolve('/repo/packages/testing');
 		const islandPath = path.join(packageRoot, 'src/kitchen-sink/react-shell.react.tsx');
 		expect(resolveDevTransformModuleUrl(srcDir, islandPath, [packageRoot])).toBe(
-			`${DEV_TRANSFORM_URL_PREFIX}/@fs${islandPath.replace(/\.tsx$/, '.js')}`,
+			`${DEV_TRANSFORM_URL_PREFIX}/@fs/${islandPath
+				.replace(/^\//, '')
+				.replace(/\.tsx$/, '.js')
+				.split('/')
+				.map(encodeURIComponent)
+				.join('/')}`,
 		);
 	});
 
 	it('resolves browser URLs back to source entrypoints', () => {
-		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-url-roundtrip-'));
+		const tempRoot = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-url-roundtrip-')));
 		const pagesDir = path.join(tempRoot, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
 		const pagePath = path.join(pagesDir, 'index.tsx');
@@ -49,7 +54,7 @@ describe('dev transform urls', () => {
 	});
 
 	it('resolves stylesheet URLs back to css source files', () => {
-		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-url-css-'));
+		const tempRoot = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-url-css-')));
 		const componentsDir = path.join(tempRoot, 'src', 'components');
 		fs.mkdirSync(componentsDir, { recursive: true });
 		const cssPath = path.join(componentsDir, 'widget.css');
@@ -61,7 +66,7 @@ describe('dev transform urls', () => {
 	});
 
 	it('resolves @fs URLs back to workspace-package source files', () => {
-		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-url-ws-'));
+		const tempRoot = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-url-ws-')));
 		const packageRoot = path.join(tempRoot, 'packages', 'testing');
 		const islandDir = path.join(packageRoot, 'src', 'kitchen-sink');
 		fs.mkdirSync(islandDir, { recursive: true });
@@ -74,14 +79,20 @@ describe('dev transform urls', () => {
 
 		fs.rmSync(tempRoot, { recursive: true, force: true });
 	});
+	/**
+	 * @remarks
+	 * Windows does not allow `?` in a file name, so the name there keeps only the other reserved characters.
+	 */
+	const reservedFileName = process.platform === 'win32' ? 'island #1 100%.tsx' : 'island #1?100%.tsx';
+
 	it.each(['app', 'workspace'])('round-trips URL-reserved characters in %s module paths', (location) => {
-		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-url-encoded-'));
+		const tempRoot = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'dev-url-encoded-')));
 		try {
 			const srcDir = path.join(tempRoot, 'app', 'src');
 			const packageRoot = path.join(tempRoot, 'packages', 'my kit');
 			const moduleDir = location === 'app' ? path.join(srcDir, 'components') : packageRoot;
 			fs.mkdirSync(moduleDir, { recursive: true });
-			const sourcePath = path.join(moduleDir, 'island #1?100%.tsx');
+			const sourcePath = path.join(moduleDir, reservedFileName);
 			fs.writeFileSync(sourcePath, 'export const island = 1;\n');
 			const moduleUrl = resolveDevTransformModuleUrl(srcDir, sourcePath, [packageRoot]);
 			const requestPath = new URL(moduleUrl, 'http://localhost').pathname;

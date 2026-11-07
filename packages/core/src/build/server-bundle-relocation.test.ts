@@ -38,7 +38,7 @@ afterEach(async () => {
 function findPackageDir(fromDir: string, name: string): string | undefined {
 	for (let dir = fromDir; ; dir = path.dirname(dir)) {
 		const candidate = path.join(dir, 'node_modules', name);
-		if (existsSync(path.join(candidate, 'package.json'))) return realpathSync(candidate);
+		if (existsSync(path.join(candidate, 'package.json'))) return path.fromNative(realpathSync(candidate));
 		if (path.dirname(dir) === dir) return undefined;
 	}
 }
@@ -261,7 +261,7 @@ test(
 	'a server build keeps serving after dist and node_modules move to another root',
 	{ timeout: 120_000 },
 	async () => {
-		workDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-')));
+		workDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-'))));
 		const buildDir = path.join(workDir, 'build/app');
 		const deployDir = path.join(workDir, 'srv/deploy/app');
 		writeApp(buildDir);
@@ -380,7 +380,7 @@ test(
 	'a moved build still links the Page stylesheet and script without the source tree',
 	{ timeout: 120_000 },
 	async () => {
-		workDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-assets-')));
+		workDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-assets-'))));
 		const buildDir = path.join(workDir, 'build/app');
 		const deployDir = path.join(workDir, 'srv/deploy/app');
 		writeStyledApp(buildDir);

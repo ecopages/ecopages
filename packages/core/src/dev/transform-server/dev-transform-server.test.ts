@@ -12,7 +12,7 @@ import { BuildInputDependencyIndex } from '../../build/cache/build-input-depende
 const tempRoots: string[] = [];
 
 function createTempRoot(prefix: string): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`)));
 	tempRoots.push(root);
 	return root;
 }
@@ -377,7 +377,7 @@ describe('DevTransformServer', () => {
 	}
 
 	function vendorBuildsUnder(bundle: { mock: { calls: unknown[][] } }, rootDir: string): number {
-		const modules = path.join(fs.realpathSync(rootDir), 'node_modules');
+		const modules = path.join(path.fromNative(fs.realpathSync(rootDir)), 'node_modules');
 		return bundle.mock.calls.filter(([options]) =>
 			Object.values((options as { entrypoints: Record<string, string> }).entrypoints).some((entry) =>
 				entry.startsWith(modules),
@@ -458,7 +458,7 @@ describe('DevTransformServer', () => {
 
 		/** An app with a workspace package `host` at `packages/host`, laid out as pnpm links it. */
 		async function createWorkspaceApp(prefix: string) {
-			const rootDir = fs.realpathSync(createTempRoot(prefix));
+			const rootDir = path.fromNative(fs.realpathSync(createTempRoot(prefix)));
 			fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ name: 'app', type: 'module' }));
 			const hostDir = path.join(rootDir, 'packages', 'host');
 			fs.mkdirSync(path.join(hostDir, 'src'), { recursive: true });

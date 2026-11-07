@@ -8,7 +8,7 @@ import { hashAppConfigFile } from './app-config-hash.ts';
 
 describe('hashAppConfigFile', () => {
 	it('changes the config hash when a file eco.config.ts imports changes', () => {
-		const configRoot = mkdtempSync(path.join(tmpdir(), 'eco-config-hash-'));
+		const configRoot = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-config-hash-')));
 		try {
 			const configPath = path.join(configRoot, 'eco.config.ts');
 			const optionsPath = path.join(configRoot, 'options.ts');

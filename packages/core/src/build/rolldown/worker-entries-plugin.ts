@@ -9,6 +9,7 @@ import {
 	formatWorkerUrlQueryError,
 	isUnbundledWorkerUrl,
 } from '../worker-urls.ts';
+import { fromRolldownModuleId } from './rolldown-module-id.ts';
 
 const NODE_MODULES_PATTERN = /\/node_modules\//;
 
@@ -40,18 +41,19 @@ export function createWorkerEntriesPlugin(): RolldownPlugin {
 					lang: parserLanguage(meta.moduleType),
 				}).program;
 				const urls = findWorkerUrls(program, code);
+				const file = fromRolldownModuleId(id);
 				let source: MagicString | undefined;
 				for (const url of urls) {
-					if (url.kind === 'classic') throw new Error(formatClassicWorkerError(url, id));
-					if (url.kind === 'query') throw new Error(formatWorkerUrlQueryError(url, id));
+					if (url.kind === 'classic') throw new Error(formatClassicWorkerError(url, file));
+					if (url.kind === 'query') throw new Error(formatWorkerUrlQueryError(url, file));
 					if (isUnbundledWorkerUrl(url)) {
-						this.warn(formatUnbundledWorkerWarning(url, id));
+						this.warn(formatUnbundledWorkerWarning(url, file));
 						continue;
 					}
 					const resolved = await this.resolve(url.specifier, id);
 					if (!resolved || resolved.external) {
 						throw new Error(
-							`Could not resolve the ${url.constructorName} URL ${JSON.stringify(url.specifier)} in ${id}.`,
+							`Could not resolve the ${url.constructorName} URL ${JSON.stringify(url.specifier)} in ${file}.`,
 						);
 					}
 					const referenceId = this.emitFile({ type: 'chunk', id: resolved.id });

@@ -12,7 +12,7 @@ import { assertBuildSucceeded } from './build-log.ts';
 
 let root: string;
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-')));
+	root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-'))));
 	vi.stubEnv('NODE_ENV', 'production');
 });
 afterEach(() => {
@@ -138,7 +138,7 @@ test('walks static and dynamic chunk edges through cycles and retains missing le
 });
 
 test('finds the entry output through a symlink root and by the name the caller passed', async () => {
-	const parent = mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-link-'));
+	const parent = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-link-')));
 	try {
 		const realRoot = path.join(parent, 'real');
 		const linkRoot = path.join(parent, 'link');
@@ -166,7 +166,7 @@ test('finds the entry output through a symlink root and by the name the caller p
 });
 
 test('collects the layouts of an entry reached through a symlink root', async () => {
-	const parent = mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-closure-'));
+	const parent = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-closure-')));
 	try {
 		const realRoot = path.join(parent, 'real');
 		const linkRoot = path.join(parent, 'link');
@@ -190,8 +190,8 @@ test('collects the layouts of an entry reached through a symlink root', async ()
 		const inputs = collectBuildEntryInputPaths(result, entry, linkRoot);
 
 		expect(inputs).toEqual([
-			realpathSync(path.join(realRoot, 'page.js')),
-			realpathSync(path.join(realRoot, 'layout.js')),
+			path.fromNative(realpathSync(path.join(realRoot, 'page.js'))),
+			path.fromNative(realpathSync(path.join(realRoot, 'layout.js'))),
 		]);
 		expect(Object.values(result.dependencyGraph?.entrypoints ?? {}).flat()).toContain('node:fs');
 	} finally {

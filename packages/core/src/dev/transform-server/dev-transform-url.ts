@@ -26,7 +26,8 @@ function isInsideAllowedRoot(filePath: string, allowedRoots: readonly string[]):
  * @remarks
  * Files under `srcDir` keep path-relative URLs. Files in `extraRoots` (workspace
  * packages) use `/assets/__eco_dev__/@fs/...` so an island outside the app folder
- * can still hydrate.
+ * can still hydrate. The absolute path follows `@fs/` without its leading `/`, so a Windows path keeps its drive
+ * letter as the first segment (`@fs/D%3A/repo/...`).
  */
 export function resolveDevTransformModuleUrl(
 	srcDir: string,
@@ -100,11 +101,11 @@ export function resolveDevTransformModuleSourcePath(
 	const fsPrefix = `${FS_URL_SEGMENT}/`;
 
 	if (relativeUrlPath.startsWith(fsPrefix)) {
-		const absoluteJsPath = path.resolve(`/${decodeHmrDynamicSegments(relativeUrlPath.slice(fsPrefix.length))}`);
+		const fsPath = decodeHmrDynamicSegments(relativeUrlPath.slice(fsPrefix.length));
+		const absoluteJsPath = path.resolve(path.isAbsolute(fsPath) ? fsPath : `/${fsPath}`);
 		return resolveExistingModuleFile(absoluteJsPath, allowedRoots);
 	}
 
-	const relativePathJs = relativeUrlPath.split('/').join('/');
-	const decodedRelativePathJs = decodeHmrDynamicSegments(relativePathJs);
+	const decodedRelativePathJs = decodeHmrDynamicSegments(relativeUrlPath);
 	return resolveExistingModuleFile(path.resolve(resolvedSrcDir, decodedRelativePathJs), allowedRoots);
 }

@@ -23,6 +23,22 @@ describe('migrate-core-entrypoints', () => {
 		);
 	});
 
+	it('keeps the line ending of the source on every line it rewrites', () => {
+		const source = [
+			"import { createIntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';",
+			'export const renderer = createIntegrationRenderer;',
+			'',
+		].join('\r\n');
+
+		expect(runTransform(source)).toBe(
+			[
+				"import { createIntegrationRenderer } from '@ecopages/core/integration';",
+				'export const renderer = createIntegrationRenderer;',
+				'',
+			].join('\r\n'),
+		);
+	});
+
 	it('maps the browser layout normalizer to the Client entry', () => {
 		expect(
 			runTransform("import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';"),

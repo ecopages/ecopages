@@ -13,7 +13,7 @@ describe('ecopages-virtual-imports', () => {
 	});
 
 	it('extractEcopagesVirtualImports skips content server modules', () => {
-		const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-virtual-imports-'));
+		const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-virtual-imports-')));
 		const file = path.join(dir, 'page.tsx');
 
 		try {
@@ -43,7 +43,7 @@ import type { Entry } from 'ecopages:content/docs';
 	});
 
 	it('reads a component file once in production and on every call otherwise', () => {
-		const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-virtual-imports-memo-'));
+		const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-virtual-imports-memo-')));
 		const file = path.join(dir, 'component.ts');
 		try {
 			writeFileSync(file, "import { a } from 'ecopages:content/first';\n");

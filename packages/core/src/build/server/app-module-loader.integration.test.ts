@@ -55,7 +55,7 @@ describe('app server module transpiler runtime state', () => {
 		const tempParentDir = path.join(process.cwd(), 'playground', 'kitchen-sink');
 		const tempRootBase = path.join(tempParentDir, '.tmp-app-module-loader-');
 		fs.mkdirSync(tempParentDir, { recursive: true });
-		const rootDir = fs.mkdtempSync(tempRootBase);
+		const rootDir = path.fromNative(fs.mkdtempSync(tempRootBase));
 		const componentsDir = path.join(rootDir, 'src', 'components');
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(componentsDir, { recursive: true });
@@ -126,7 +126,7 @@ describe('app server module transpiler runtime state', () => {
 	});
 
 	it('preserves top-level await through the Node app-module loader path', async () => {
-		const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-node-app-module-tla-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'ecopages-node-app-module-tla-')));
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
 		fs.writeFileSync(
@@ -172,7 +172,7 @@ describe('app server module transpiler runtime state', () => {
 	});
 
 	it('includes manifest runtime plugins in app module imports', async () => {
-		const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-app-module-runtime-plugins-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'ecopages-app-module-runtime-plugins-')));
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
 		const pageFilePath = path.join(pagesDir, 'index.tsx');
@@ -245,7 +245,7 @@ describe('app server module transpiler runtime state', () => {
 	});
 
 	it('defaults app module imports to the route-module build executor', async () => {
-		const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-app-module-route-executor-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'ecopages-app-module-route-executor-')));
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
 		const pageFilePath = path.join(pagesDir, 'index.tsx');

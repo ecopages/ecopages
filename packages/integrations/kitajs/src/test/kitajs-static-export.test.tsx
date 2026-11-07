@@ -37,7 +37,7 @@ afterEach(() => {
 describe('Kita static export', () => {
 	it('renders pages of one Integration concurrently and exports both', async () => {
 		availableParallelismMock.mockReturnValue(3);
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-kita-static-export-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-kita-static-export-')));
 		temporaryRoots.push(rootDir);
 
 		let releaseBarrier!: () => void;

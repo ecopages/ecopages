@@ -21,7 +21,7 @@ describe('view-reference preload', () => {
 	it.each(['node', 'bun'] as const)(
 		'keeps the server entry as a real module when an Integration owns .ts (%s)',
 		async (runtime) => {
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-entry-preload-'));
+			const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-entry-preload-')));
 			roots.push(rootDir);
 			const repoRoot = path.fromFileUrl(new URL('../../..', import.meta.url));
 			fs.mkdirSync(path.join(rootDir, 'node_modules/@ecopages'), { recursive: true });
@@ -73,7 +73,7 @@ describe('view-reference preload', () => {
 	it.each(['node', 'bun'] as const)(
 		'turns an Integration-owned import into a view reference without evaluating the file (%s)',
 		async (runtime) => {
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-preload-'));
+			const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-preload-')));
 			roots.push(rootDir);
 			const repoRoot = path.fromFileUrl(new URL('../../..', import.meta.url));
 			fs.mkdirSync(path.join(rootDir, 'node_modules/@ecopages'), { recursive: true });
@@ -119,7 +119,7 @@ describe('view-reference preload', () => {
 				expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
 				const payload = JSON.parse(result.stdout.trim()) as { isRef: boolean; filePath: string };
 				expect(payload.isRef).toBe(true);
-				expect(payload.filePath).toBe(fs.realpathSync(viewPath));
+				expect(payload.filePath).toBe(path.fromNative(fs.realpathSync(viewPath)));
 				if (runtime === 'node') {
 					expect(plan.commandArgs).toContain(viewReferencePreload);
 					expect(plan.commandArgs).toContain(tsxLoader);
@@ -134,7 +134,7 @@ describe('view-reference preload', () => {
 
 	/** Runs `entry.ts` through the preload in an app whose one Integration owns `.tsx`, and returns its parsed output. */
 	async function runTsxEntry(runtime: 'node' | 'bun', files: Record<string, string>): Promise<unknown> {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-exports-preload-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'imported-view-exports-preload-')));
 		roots.push(rootDir);
 		const repoRoot = path.fromFileUrl(new URL('../../..', import.meta.url));
 		fs.mkdirSync(path.join(rootDir, 'node_modules/@ecopages'), { recursive: true });

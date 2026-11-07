@@ -14,7 +14,7 @@ describe('html-page-module', () => {
 	let appConfig: EcoPagesAppConfig;
 
 	beforeEach(async () => {
-		rootDir = mkdtempSync(path.join(tmpdir(), 'eco-html-module-'));
+		rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-html-module-')));
 		mkdirSync(path.join(rootDir, 'src/pages'), { recursive: true });
 		mkdirSync(path.join(rootDir, 'src/includes'), { recursive: true });
 		appConfig = await finalizeEcoPagesConfig({

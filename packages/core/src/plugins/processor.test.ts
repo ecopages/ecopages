@@ -29,7 +29,7 @@ describe('Processor', () => {
 			},
 		};
 
-		const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'processor-test-'));
+		const testRoot = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'processor-test-')));
 		testRoots.push(testRoot);
 
 		appConfig = {

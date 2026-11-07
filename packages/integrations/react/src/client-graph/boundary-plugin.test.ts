@@ -70,7 +70,7 @@ async function renderTransformed(tempDir: string, name: string, transformed: str
 }
 
 async function withTempDir(run: (tempDir: string) => Promise<void>): Promise<void> {
-	const tempDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
+	const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'))));
 	try {
 		await run(tempDir);
 	} finally {
@@ -80,7 +80,7 @@ async function withTempDir(run: (tempDir: string) => Promise<void>): Promise<voi
 
 describe('createClientGraphBoundaryPlugin', () => {
 	it('keeps the standalone boundary for builds with an entrypoint map', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const entrypoint = path.join(tempDir, 'entry.tsx');
 		writeFileSync(entrypoint, "import fs from 'node:fs';\nexport default () => 'ok';", 'utf-8');
 
@@ -96,7 +96,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('preserves side-effect imports in helpers shared with non-React entries', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const htmlEntrypoint = path.join(tempDir, 'html-entry.ts');
 		const reactEntrypoint = path.join(tempDir, 'react-entry.tsx');
 		const sharedHelper = path.join(tempDir, 'helper.ts');
@@ -125,7 +125,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('scopes declared modules to their grouped entry', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const islandA = path.join(tempDir, 'island-a.tsx');
 		const islandB = path.join(tempDir, 'island-b.tsx');
 		const sharedHelper = path.join(tempDir, 'shared-helper.ts');
@@ -205,7 +205,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('shares reachability rules across grouped entry boundary plugins', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const islandA = path.join(tempDir, 'island-a.tsx');
 		const islandB = path.join(tempDir, 'island-b.tsx');
 		const sharedHelper = path.join(tempDir, 'shared-helper.ts');
@@ -268,7 +268,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('keeps per-entry declarations in an app-wide browser build', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const islandA = path.join(tempDir, 'island-a.tsx');
 		const islandB = path.join(tempDir, 'island-b.tsx');
 		const htmlEntry = path.join(tempDir, 'shell.ts');
@@ -345,7 +345,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('evaluates a shared island module once across app-wide hydration entries', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const store = path.join(tempDir, 'cart-store.js');
 		const hydrationA = path.join(tempDir, 'hydration-a.js');
 		const hydrationB = path.join(tempDir, 'hydration-b.js');
@@ -386,7 +386,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('compiles a module that a React island and another Integration share the same way in either entry order', async () => {
-		const tempDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
+		const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'))));
 		const island = path.join(tempDir, 'island.tsx');
 		const litEntry = path.join(tempDir, 'lit-entry.ts');
 		writeFileSync(path.join(tempDir, 'secret.server.ts'), 'export const secret = "server-secret";');
@@ -440,7 +440,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('builds a browser Page after pruning server-only middleware before resolution', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const pagesDir = path.join(tempDir, 'pages');
 		mkdirSync(pagesDir);
 		const entrypoint = path.join(pagesDir, 'entry.ts');
@@ -483,7 +483,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('strips undeclared node and bare imports while keeping declared modules', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const filePath = path.join(tempDir, 'component.tsx');
 		writeFileSync(
 			filePath,
@@ -535,7 +535,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('keeps imports declared via plugin options', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const pagesDir = path.join(tempDir, 'pages');
 		mkdirSync(pagesDir);
 		const filePath = path.join(pagesDir, 'entry.tsx');
@@ -564,7 +564,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('keeps relative imports untouched', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const pagesDir = path.join(tempDir, 'pages');
 		mkdirSync(pagesDir);
 		const filePath = path.join(pagesDir, 'entry.tsx');
@@ -581,7 +581,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('keeps project alias imports untouched', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const pagesDir = path.join(tempDir, 'pages');
 		mkdirSync(pagesDir);
 		const filePath = path.join(pagesDir, 'entry.tsx');
@@ -602,7 +602,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('surgically removes undeclared named imports when using pkg{named} grammar for forbidden modules', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const filePath = path.join(tempDir, 'entry.tsx');
 		writeFileSync(
 			filePath,
@@ -641,7 +641,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('preserves local aliases and default import syntax when pruning forbidden named specifiers', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const filePath = path.join(tempDir, 'entry.tsx');
 		writeFileSync(
 			filePath,
@@ -666,7 +666,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('rewrites default and namespace import combinations into valid syntax after pruning', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const filePath = path.join(tempDir, 'entry.tsx');
 		writeFileSync(
 			filePath,
@@ -692,7 +692,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('fails when a named barrel re-export makes a server module client-reachable', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const entryPath = path.join(tempDir, 'entry.tsx');
 		const barrelPath = path.join(tempDir, 'barrel.ts');
 
@@ -725,7 +725,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('prunes unreachable server-only named re-exports from shared barrels', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const entryPath = path.join(tempDir, 'entry.tsx');
 		const barrelPath = path.join(tempDir, 'barrel.ts');
 
@@ -762,7 +762,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('strips server-only eco.page options so unreachable middleware imports do not leak into the browser bundle', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const pagesDir = path.join(tempDir, 'pages');
 		mkdirSync(pagesDir);
 		const filePath = path.join(pagesDir, 'entry.tsx');
@@ -799,7 +799,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('strips staticProps imports from .server helpers before shipping a page entry to the browser', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const pagesDir = path.join(tempDir, 'pages');
 		mkdirSync(pagesDir);
 		const filePath = path.join(pagesDir, 'entry.tsx');
@@ -831,7 +831,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('keeps the browser collection loader while stripping server-only Page options', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const pagesDir = path.join(tempDir, 'pages');
 		mkdirSync(pagesDir);
 		const filePath = path.join(pagesDir, 'entry.tsx');
@@ -864,7 +864,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('rejects a collection server import reachable from render', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const pagesDir = path.join(tempDir, 'pages');
 		mkdirSync(pagesDir);
 		const filePath = path.join(pagesDir, 'entry.tsx');
@@ -887,7 +887,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 	});
 
 	it('removes an import only server-only metadata used', async () => {
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'eco-client-graph-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const pagesDir = path.join(tempDir, 'pages');
 		mkdirSync(pagesDir);
 		const filePath = path.join(pagesDir, 'entry.tsx');

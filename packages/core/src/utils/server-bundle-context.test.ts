@@ -38,7 +38,7 @@ describe('server-bundle-context', () => {
 	});
 
 	it('keeps concurrent loader imports in their own bundle contexts', async () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-context-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-context-')));
 		tempDirs.push(rootDir);
 		const serverDirs = ['first', 'second'].map((name) => {
 			const serverDir = path.join(rootDir, name, 'server');
@@ -73,7 +73,7 @@ describe('server-bundle-context', () => {
 	});
 
 	it('falls back to the last loaded bundle when the async context is not carried into the import', async () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-context-fallback-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-context-fallback-')));
 		tempDirs.push(rootDir);
 		const serverDir = path.join(rootDir, 'server');
 		mkdirSync(serverDir, { recursive: true });

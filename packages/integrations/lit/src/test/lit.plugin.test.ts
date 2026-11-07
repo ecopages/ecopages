@@ -180,7 +180,7 @@ describe('LitPlugin staticExport', () => {
 
 describe('LitPlugin watch restart script-change invalidation', () => {
 	it('runs the Lit SSR preload invalidation once after an app in watch mode is stopped and started again', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-lit-watch-restart-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-lit-watch-restart-')));
 		const srcDir = path.join(rootDir, 'src');
 		const pagesDir = path.join(srcDir, 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });

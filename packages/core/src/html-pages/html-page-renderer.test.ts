@@ -60,7 +60,7 @@ describe('HtmlPageRenderer', () => {
 		});
 
 	beforeEach(async () => {
-		rootDir = mkdtempSync(path.join(tmpdir(), 'eco-html-renderer-'));
+		rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-html-renderer-')));
 		mkdirSync(at('src/pages'), { recursive: true });
 		appConfig = await finalizeEcoPagesConfig({ rootDir });
 		processed = [];
@@ -397,9 +397,9 @@ describe('HtmlPageRenderer', () => {
 		const readOutput = (url: string) => readFileSync(path.join(appConfig.absolutePaths.distDir, url), 'utf8');
 		const outputsMatching = (pattern: RegExp) => {
 			const distDir = appConfig.absolutePaths.distDir;
-			return readdirSync(distDir, { recursive: true, encoding: 'utf8' }).filter(
-				(name) => name.endsWith('.js') && pattern.test(readFileSync(path.join(distDir, name), 'utf8')),
-			);
+			return readdirSync(distDir, { recursive: true, encoding: 'utf8' })
+				.map((name) => path.fromNative(name))
+				.filter((name) => name.endsWith('.js') && pattern.test(readFileSync(path.join(distDir, name), 'utf8')));
 		};
 		/** The URLs of `entryUrls` and every file they import statically, transitively. */
 		const loadedUrls = (entryUrls: string[]) => {

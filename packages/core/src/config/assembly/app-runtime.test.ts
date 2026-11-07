@@ -31,7 +31,7 @@ describe('AppRuntime', () => {
 	});
 
 	function tempRoot(): string {
-		const dir = mkdtempSync(path.join(tmpdir(), 'eco-app-runtime-'));
+		const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-app-runtime-')));
 		tempDirs.push(dir);
 		return dir;
 	}

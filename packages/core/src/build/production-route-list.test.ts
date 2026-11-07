@@ -16,7 +16,7 @@ describe('production route list', () => {
 	});
 
 	it('round-trips filesystem routes relative to the app root', () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-route-list-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-route-list-')));
 		tempDirs.push(rootDir);
 		const appConfig = {
 			rootDir,

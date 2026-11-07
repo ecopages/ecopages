@@ -67,7 +67,7 @@ Core owns the ordering. Processors participate in these phases:
 
 1. **`plugins(app)`** — read once during config finalization to seal the app build manifest. It is the only hook that runs then, so it must not do I/O.
 2. **`setup()`** — runs after the manifest is sealed when preparing a development, build, preview, or type-generation runtime. Generate files, load configuration and warm caches here. Production `ecopages start` restores emitted Processor state instead of calling `setup()`.
-3. **`transformStylesheet(css, file)`** — optional; transforms every `.css`, `.scss`, `.sass` and `.less` asset the processor's `stylesheet` capability matches, in processor registration order. A processor without it takes no part in stylesheet processing.
+3. **`transformStylesheet(css, file)`** — optional; transforms each stylesheet the processor's `stylesheet` capability matches: a `.css` file, or a file with an extension the capability declares. An app can register only one processor with a `stylesheet` capability. A processor without it takes no part in stylesheet processing.
 4. **Watch batches** — in development, `watch.onChanges({ created, changed, deleted, bridge })` receives matching absolute paths grouped once per debounce window. `extensions` select notifications; `capabilities` define asset ownership.
 5. **Prewarm** — a processor that owns pages to warm appends their pathnames to `this.context.config.devPrewarmPaths` from `setup()`. Core renders that list in the background once the development server handles requests.
 
@@ -132,7 +132,7 @@ Keep source generation in `setup()` or in a build-plugin callback. `restoreProdu
 
 ## Asset Capabilities
 
-Declare which asset kinds a processor owns through `capabilities`. Without capabilities, `canProcessAsset()` returns false and the processor will not participate in the asset pipeline. Stylesheet processing needs both a matching `stylesheet` capability and a `transformStylesheet()` method.
+Declare which asset kinds a processor owns through `capabilities`. Without capabilities, `canProcessAsset()` returns false and the processor will not participate in the asset pipeline. Stylesheet processing needs both a matching `stylesheet` capability and a `transformStylesheet()` method. Core treats `.css` and the extensions the `stylesheet` capability declares as stylesheets: `import './card.scss'` is discovered, kept out of server builds and served in development only when the capability declares `*.scss`. Config finalization fails when two processors declare a `stylesheet` capability.
 
 ```typescript
 super({

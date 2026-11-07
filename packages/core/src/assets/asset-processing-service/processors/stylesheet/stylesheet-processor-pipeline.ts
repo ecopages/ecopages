@@ -1,31 +1,27 @@
-import { path } from '@ecopages/file-system/path';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
+import { findStylesheetProcessor, getStylesheetKinds } from '../../../../plugins/stylesheet-kinds.ts';
 
-const PROCESSABLE_STYLESHEET_EXTENSIONS = new Set(['.css', '.scss', '.sass', '.less']);
-
-function isProcessableStylesheet(filepath: string): boolean {
-	return PROCESSABLE_STYLESHEET_EXTENSIONS.has(path.extname(filepath));
-}
-
+/**
+ * Runs the registered stylesheet Processor over `content`, or returns it as written when none applies.
+ *
+ * @remarks
+ * An app has at most one stylesheet Processor (config finalization rejects a second), so there is no chain: a
+ * stylesheet reaches that Processor only when it is a `.css` file or has an extension the Processor declares,
+ * the Processor's capability filter matches it, and it implements `transformStylesheet`.
+ */
 export async function applyStylesheetProcessors(
 	appConfig: EcoPagesAppConfig,
 	content: string,
 	filepath: string,
 ): Promise<string> {
-	if (!isProcessableStylesheet(filepath)) {
+	if (!getStylesheetKinds(appConfig).isStylesheet(filepath)) {
 		return content;
 	}
 
-	let transformedContent = content;
-	const processors = appConfig.processors ? Array.from(appConfig.processors.values()) : [];
-
-	for (const processor of processors) {
-		if (!processor.transformStylesheet || !processor.canProcessAsset('stylesheet', filepath)) {
-			continue;
-		}
-
-		transformedContent = await processor.transformStylesheet(transformedContent, filepath);
+	const processor = findStylesheetProcessor(appConfig.processors?.values() ?? []);
+	if (!processor?.transformStylesheet || !processor.canProcessAsset('stylesheet', filepath)) {
+		return content;
 	}
 
-	return transformedContent;
+	return processor.transformStylesheet(content, filepath);
 }

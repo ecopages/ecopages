@@ -120,13 +120,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	 */
 	private readonly cssDependencyMap = new Map<string, Set<string>>();
 
-	private getCssFilter(): RegExp {
-		return (
-			this.getAssetCapabilities().find((capability) => capability.kind === 'stylesheet')?.filter ??
-			this.options?.filter ??
-			PostCssProcessorPlugin.DEFAULT_OPTIONS.filter
-		);
-	}
+	private readonly cssFilter: RegExp;
 
 	/**
 	 * @remarks
@@ -185,7 +179,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			return;
 		}
 
-		const sourceFiles = await fileSystem.glob(['**/*.{css,scss,sass,less}'], {
+		const sourceFiles = await fileSystem.glob(['**/*.css'], {
 			cwd: this.context.srcDir,
 		});
 
@@ -361,6 +355,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			options: PostCssProcessorPlugin.DEFAULT_OPTIONS,
 		},
 	) {
+		const filter = config.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
 		super({
 			name: 'ecopages-postcss-processor',
 			...config,
@@ -368,29 +363,17 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 				...(config.capabilities ?? []).filter((capability) => capability.kind !== 'stylesheet'),
 				{
 					kind: 'stylesheet',
-					extensions: ['*.{css,scss,sass,less}'],
-					filter: config.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter,
+					extensions: ['*.css'],
+					filter,
 				},
 			],
 			watch: config.watch ?? {
 				paths: [],
-				extensions: [
-					'.css',
-					'.scss',
-					'.sass',
-					'.less',
-					'.tsx',
-					'.ts',
-					'.jsx',
-					'.js',
-					'.mdx',
-					'.html',
-					'.svelte',
-					'.vue',
-				],
+				extensions: ['.css', '.tsx', '.ts', '.jsx', '.js', '.mdx', '.html', '.svelte', '.vue'],
 				onChanges: async (changes) => this.handleWatchChanges(changes),
 			},
 		});
+		this.cssFilter = filter;
 	}
 
 	private async handleWatchChanges({ created, changed, deleted, bridge }: ProcessorWatchChanges): Promise<void> {
@@ -496,7 +479,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			{
 				...createCssLoaderPlugin({
 					name: 'postcss-processor-build-loader',
-					filter: this.getCssFilter(),
+					filter: this.cssFilter,
 					transform: this.transformCssAsync.bind(this),
 				}),
 				environments: ['browser'],

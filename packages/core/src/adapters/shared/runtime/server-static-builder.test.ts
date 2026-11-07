@@ -49,6 +49,7 @@ function createMockDependencies() {
 
 	const mockProcessor = {
 		plugins: [],
+		canProcessAsset: () => false,
 		setContext: () => {},
 		setup: async () => {
 			calls.processorSetup += 1;

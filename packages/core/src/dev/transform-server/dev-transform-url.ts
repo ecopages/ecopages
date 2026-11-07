@@ -4,6 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { DEV_TRANSFORM_URL_PREFIX, stripModuleUrlQuery } from '../../hmr/hmr-asset-paths.ts';
 import { decodeHmrDynamicSegments, encodeHmrDynamicSegments } from '../../hmr/hmr-entrypoint-output.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
+import { PLAIN_CSS_KINDS, type StylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
 
 export { DEV_TRANSFORM_URL_PREFIX } from '../../hmr/hmr-asset-paths.ts';
@@ -50,8 +51,12 @@ export function resolveDevTransformModuleUrl(
 	return `${DEV_TRANSFORM_URL_PREFIX}/${FS_URL_SEGMENT}/${fsPath}`;
 }
 
-function resolveExistingModuleFile(jsPath: string, allowedRoots: readonly string[]): string | undefined {
-	if (resolveDevTransformModuleKind(jsPath) === 'stylesheet') {
+function resolveExistingModuleFile(
+	jsPath: string,
+	allowedRoots: readonly string[],
+	kinds: StylesheetKinds,
+): string | undefined {
+	if (resolveDevTransformModuleKind(jsPath, kinds) === 'stylesheet') {
 		if (isInsideAllowedRoot(jsPath, allowedRoots) && fileSystem.exists(jsPath)) {
 			return jsPath;
 		}
@@ -83,6 +88,7 @@ export function resolveDevTransformModuleSourcePath(
 	srcDir: string,
 	moduleUrl: string,
 	extraRoots: readonly string[] = [],
+	kinds: StylesheetKinds = PLAIN_CSS_KINDS,
 ): string | undefined {
 	const pathname = stripModuleUrlQuery(moduleUrl);
 	const prefix = `${DEV_TRANSFORM_URL_PREFIX}/`;
@@ -103,9 +109,9 @@ export function resolveDevTransformModuleSourcePath(
 	if (relativeUrlPath.startsWith(fsPrefix)) {
 		const fsPath = decodeHmrDynamicSegments(relativeUrlPath.slice(fsPrefix.length));
 		const absoluteJsPath = path.resolve(path.isAbsolute(fsPath) ? fsPath : `/${fsPath}`);
-		return resolveExistingModuleFile(absoluteJsPath, allowedRoots);
+		return resolveExistingModuleFile(absoluteJsPath, allowedRoots, kinds);
 	}
 
 	const decodedRelativePathJs = decodeHmrDynamicSegments(relativeUrlPath);
-	return resolveExistingModuleFile(path.resolve(resolvedSrcDir, decodedRelativePathJs), allowedRoots);
+	return resolveExistingModuleFile(path.resolve(resolvedSrcDir, decodedRelativePathJs), allowedRoots, kinds);
 }

@@ -109,6 +109,7 @@ test('emits the files a package stylesheet references and rewrites its relative 
 	appConfig.processors.set('postcss', {
 		transformStylesheet,
 		canProcessAsset: () => true,
+		getAssetCapabilities: () => [],
 	} as never);
 
 	const processed = await new FileStylesheetProcessor({ appConfig }).process({
@@ -309,6 +310,7 @@ test('emits the files the processed output of an app stylesheet references, reso
 		transformStylesheet: async () =>
 			"@import url(/remote.css);\n@font-face { src: url('../../node_modules/some-lib/files/x.woff2?v=1'); }\n.a { background: url(../images/bg.png), url(/root.png); }",
 		canProcessAsset: () => true,
+		getAssetCapabilities: () => [],
 	} as never);
 
 	const processed = await new FileStylesheetProcessor({ appConfig }).process({
@@ -375,6 +377,21 @@ test('warns once about a missing reference when the stylesheet is processed in t
 	expect(warn).toHaveBeenCalledTimes(1);
 });
 
+test('skips a url() holding a custom property without a warning', async () => {
+	const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+	const css = '.a { background: url(var(--hero)) , url( var(--other, "x.png") ); }';
+	const stylesheet = writeAppFile('src/site.css', css);
+
+	const processed = await new FileStylesheetProcessor({ appConfig: createConfig() }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+	});
+
+	expect(readFileSync(processed.filepath!, 'utf-8')).toBe(css);
+	expect(warn).not.toHaveBeenCalled();
+});
+
 test('never copies a dotfile an app stylesheet names, such as one an inlined package reaches', async () => {
 	const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
 	writeAppFile('package.json', '{ "name": "app" }');
@@ -437,4 +454,29 @@ test('rejects and writes no stylesheet when a Processor throws', async () => {
 
 	const assetsDir = path.join(rootDir, '.eco/public/assets');
 	expect(existsSync(assetsDir) ? readdirSync(assetsDir) : []).toEqual([]);
+});
+
+test('writes a development stylesheet of a declared extension under a .css name', async () => {
+	vi.stubEnv('NODE_ENV', 'development');
+	class SassProcessor extends Processor {
+		async setup(): Promise<void> {}
+		override async transformStylesheet(css: string): Promise<string> {
+			return css.replace('$c', 'red');
+		}
+	}
+	const appConfig = createConfig();
+	appConfig.processors.set(
+		'sass',
+		new SassProcessor({ name: 'sass', capabilities: [{ kind: 'stylesheet', extensions: ['*.scss'] }] }),
+	);
+	const stylesheet = writeAppFile('src/styles/card.scss', '.card { color: $c; }');
+
+	const processed = await new FileStylesheetProcessor({ appConfig }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+	});
+
+	expect(processed.filepath).toBe(path.join(rootDir, '.eco/public/assets/styles/card.scss.css'));
+	expect(readFileSync(processed.filepath!, 'utf-8')).toBe('.card { color: red; }');
 });

@@ -541,7 +541,7 @@ async function buildRolldownInputPlugins(
 				]
 			: []),
 		...(rolldownPlatform === 'browser' ? [createBrowserServerOnlyGuardPlugin()] : []),
-		...(options.environment === 'server' ? [createServerSideCssShimPlugin()] : []),
+		...(options.environment === 'server' ? [createServerSideCssShimPlugin(options.stylesheetExtensions)] : []),
 		...appPlugins,
 		...(options.environment === 'browser' && options.workerEntries !== false ? [createWorkerEntriesPlugin()] : []),
 	];

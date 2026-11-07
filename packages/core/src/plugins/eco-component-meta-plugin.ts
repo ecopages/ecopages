@@ -7,6 +7,7 @@ import type { EcoBuildOnTransformResult, EcoBuildPlugin } from '../build/contrac
 import { composeSourceMaps, isUsableSourceMap } from '../build/source-maps.ts';
 import { createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
+import { getStylesheetKinds, PLAIN_CSS_KINDS, type StylesheetKinds } from './stylesheet-kinds.ts';
 import { contentHash } from '../utils/content-hash.ts';
 import { escapeRegExp } from '../utils/regex-escaping.ts';
 import { toPackagePath } from '../utils/package-path.ts';
@@ -345,6 +346,8 @@ export type ComponentIdentityAttributionOptions = {
 	stripPlainModuleStylesheets?: boolean;
 	/** Discovery results shared by the transforms of one build. */
 	discoveryCache?: DiscoveryCache;
+	/** The stylesheets the build delivers; defaults to plain `.css`. */
+	stylesheets?: StylesheetKinds;
 };
 
 /**
@@ -362,13 +365,21 @@ function stripPlainModuleStylesheetImports(
 ): SourceEdit[] {
 	const edits: SourceEdit[] = [];
 	const pathPrefixes = loadTsconfigPathPrefixes(options.projectRoot);
+	const kinds = options.stylesheets ?? PLAIN_CSS_KINDS;
 	for (const entry of collectStaticImports(program)) {
-		if (options.integration) assertDeliverableStylesheetImport(entry, filePath, options.projectRoot);
-		if (!isDeliveredStylesheetImport(entry, filePath, options.projectRoot, pathPrefixes)) continue;
+		if (options.integration) assertDeliverableStylesheetImport(entry, filePath, options.projectRoot, kinds);
+		if (!isDeliveredStylesheetImport(entry, filePath, options.projectRoot, pathPrefixes, kinds)) continue;
 		edits.push({ start: entry.start, end: entry.end, replacement: '' });
 		options.onStrippedStylesheet?.(entry.source);
 	}
 	return edits;
+}
+
+/** A cheap pre-parse check: whether `contents` names a stylesheet extension or has a side-effect import. */
+function mayImportStylesheet(contents: string, stylesheets: StylesheetKinds): boolean {
+	return (
+		stylesheets.extensions.some((extension) => contents.includes(extension)) || SIDE_EFFECT_IMPORT.test(contents)
+	);
 }
 
 /**
@@ -393,7 +404,7 @@ export function attributeComponentIdentity(
 			? createJsxImportSourcePragma(jsxImportSource)
 			: undefined;
 	const mayDeclare = integration !== undefined && contents.includes('eco.');
-	if (!mayDeclare && !contents.includes('.css') && !SIDE_EFFECT_IMPORT.test(contents)) {
+	if (!mayDeclare && !mayImportStylesheet(contents, options.stylesheets ?? PLAIN_CSS_KINDS)) {
 		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
@@ -441,6 +452,7 @@ export function attributeComponentIdentity(
 		integrationOf: options.integrationOf,
 		ownerSource: contents,
 		cache: options.discoveryCache,
+		stylesheets: options.stylesheets,
 	});
 	const plainModuleImports = createPlainModuleComponentImports(discovered);
 	const discoveryArgument = serializeDiscoveryArgument(discovered, toSourceKey, plainModuleImports.locals);
@@ -615,6 +627,7 @@ function createComponentMetaFilter(config: EcoPagesAppConfig): RegExp {
 export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): EcoBuildPlugin {
 	const { integrations, rootDir } = options.config;
 	const integrationOf = (file: string) => findIntegrationForFile(integrations, file);
+	const stylesheets = getStylesheetKinds(options.config);
 	return {
 		name: 'eco-component-identity-attribution',
 		setup(build) {
@@ -639,6 +652,7 @@ export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptio
 					integrationOf,
 					stripPlainModuleStylesheets,
 					discoveryCache,
+					stylesheets,
 					onStrippedStylesheet: (source) => {
 						if (insideApp && !strippedStylesheets.has(id)) strippedStylesheets.set(id, source);
 					},

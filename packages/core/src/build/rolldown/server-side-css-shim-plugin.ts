@@ -9,7 +9,7 @@
  * is delivered to the browser via the page's `dependencies.stylesheets`
  * declarations. This plugin:
  *
- * - Resolves `.css` imports to the absolute on-disk path.
+ * - Resolves stylesheet imports to the absolute on-disk path.
  * - Loads them and returns an empty ESM module with
  *   `moduleSideEffects: true` so the bundler keeps the import in
  *   the dependency graph without trying to bundle the bytes.
@@ -25,9 +25,10 @@ import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { RolldownPlugin } from 'rolldown';
 import { id as idFilter, include } from 'rolldown/filter';
+import { PLAIN_CSS_KINDS } from '../../plugins/stylesheet-kinds.ts';
+import { escapeRegExp } from '../../utils/regex-escaping.ts';
 import { fromRolldownModuleId, toRolldownModuleId } from './rolldown-module-id.ts';
 
-const CSS_PATH = /\.css$/u;
 const CSS_QUERY = '?ecopages-css-shim';
 const CSS_SHIM_ID = /\?ecopages-css-shim$/u;
 
@@ -37,10 +38,15 @@ function stripShimQuery(id: string): string {
 }
 
 /**
- * Builds a Rolldown plugin that turns `.css` imports into no-op ESM
+ * Builds a Rolldown plugin that turns stylesheet imports into no-op ESM
  * modules while preserving the dependency graph.
+ *
+ * @param extensions - The dotted stylesheet extensions to shim; defaults to `.css`.
  */
-export function createServerSideCssShimPlugin(): RolldownPlugin {
+export function createServerSideCssShimPlugin(
+	extensions: readonly string[] = PLAIN_CSS_KINDS.extensions,
+): RolldownPlugin {
+	const CSS_PATH = new RegExp(`(?:${extensions.map(escapeRegExp).join('|')})$`, 'iu');
 	return {
 		name: 'ecopages:server-side-css-shim',
 		resolveId: {

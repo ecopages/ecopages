@@ -7,6 +7,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { RESOLVED_ASSETS_DIR } from '../constants.ts';
+import { getStylesheetKinds, type StylesheetKinds } from '../plugins/stylesheet-kinds.ts';
 import { isCssImport, isDeliveredStylesheetImport } from '../plugins/component-import-discovery.ts';
 import { stripsSideEffectStylesheetImports } from '../plugins/eco-component-meta-plugin.ts';
 import {
@@ -172,6 +173,7 @@ function resolvePackageFile(importer: string, specifier: string): string | undef
 /** The stylesheet an import names, by its resolved path or, when it does not resolve, its specifier. */
 function stylesheetPath(
 	appConfig: EcoPagesAppConfig,
+	kinds: StylesheetKinds,
 	importer: string,
 	specifier: string,
 	resolved: string | undefined,
@@ -182,7 +184,7 @@ function stylesheetPath(
 			? resolvePackageFile(importer, specifier)
 			: undefined) ??
 		specifier;
-	return target.endsWith('.css') ? target : undefined;
+	return kinds.isStylesheet(target) ? target : undefined;
 }
 
 /**
@@ -192,7 +194,12 @@ function stylesheetPath(
  * @remarks
  * An import the transform would refuse is reported here instead.
  */
-function deliversPackageStylesheet(appConfig: EcoPagesAppConfig, importer: string, specifier: string): boolean {
+function deliversPackageStylesheet(
+	appConfig: EcoPagesAppConfig,
+	kinds: StylesheetKinds,
+	importer: string,
+	specifier: string,
+): boolean {
 	const entry = { source: specifier, start: 0, end: 0, bindings: [], sideEffectOnly: true, attributed: false };
 	try {
 		return isDeliveredStylesheetImport(
@@ -200,6 +207,7 @@ function deliversPackageStylesheet(appConfig: EcoPagesAppConfig, importer: strin
 			importer,
 			appConfig.rootDir,
 			loadTsconfigPathPrefixes(appConfig.rootDir),
+			kinds,
 		);
 	} catch {
 		return false;
@@ -216,6 +224,7 @@ function readModuleImports(
 	const source = fileSystem.readFileSync(file);
 	const { program, module } = parseModuleSource(file, source);
 	const stripped = stripsSideEffectStylesheetImports(appConfig, file, source);
+	const kinds = getStylesheetKinds(appConfig);
 	const resolve = (specifier: string) =>
 		resolveProjectModulePath(appConfig.rootDir, file, specifier, { preserveBarrel: true });
 	const dependencies: string[] = [];
@@ -225,13 +234,13 @@ function readModuleImports(
 		if (!specifier || isTypeOnly(statement)) continue;
 		const resolved = resolve(specifier);
 		if (bindsNothing(statement)) {
-			const stylesheet = stylesheetPath(appConfig, file, specifier, resolved);
+			const stylesheet = stylesheetPath(appConfig, kinds, file, specifier, resolved);
 			const strippedByTransform =
 				stripped &&
 				statement.type === 'ImportDeclaration' &&
 				(resolved === undefined
-					? deliversPackageStylesheet(appConfig, file, specifier)
-					: isCssImport(specifier));
+					? deliversPackageStylesheet(appConfig, kinds, file, specifier)
+					: isCssImport(specifier, kinds));
 			if (stylesheet && !strippedByTransform) return { stylesheet, dependencies };
 		}
 		if (resolved) dependencies.push(resolved);

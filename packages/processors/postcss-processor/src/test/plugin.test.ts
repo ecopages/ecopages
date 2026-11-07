@@ -743,6 +743,50 @@ describe('PostCssProcessorPlugin HMR', () => {
 			);
 		expect(copied).toEqual([]);
 	});
+	test('a stylesheet that fails to process reports through bridge.error and keeps the last good output', async () => {
+		const cssFile = path.join(srcDir, 'broken.css');
+		fs.writeFileSync(cssFile, '.foo { color: red; }');
+
+		const plugin = new PostCssProcessorPlugin({
+			options: {
+				filter: /\.css$/,
+				plugins: {
+					'fail-on-marker': {
+						postcssPlugin: 'fail-on-marker',
+						Once(root) {
+							if (root.toString().includes('broken')) {
+								throw root.error('Unclosed block');
+							}
+						},
+					},
+				},
+			},
+		});
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
+		plugin.setContext(config);
+		await plugin.setup();
+
+		const bridge = { cssUpdate: vi.fn(), error: vi.fn(), reload: vi.fn() } as unknown as IClientBridge;
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChanges) {
+			throw new Error('Plugin does not have watch handler');
+		}
+		const outputFile = path.join(distDir, 'assets', 'broken.css');
+		const goodOutput = fs.readFileSync(outputFile, 'utf-8');
+
+		fs.writeFileSync(cssFile, '.foo { color: red; } /* broken */');
+		await watchConfig.onChanges({ created: [], changed: [cssFile], deleted: [], bridge });
+
+		expect(bridge.error).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(bridge.error).mock.calls[0][0]).toContain(`${cssFile}:1:1: Unclosed block`);
+		expect(bridge.cssUpdate).not.toHaveBeenCalled();
+		expect(fs.readFileSync(outputFile, 'utf-8')).toBe(goodOutput);
+	});
 	test('setup logs a stylesheet that fails to process and keeps going', async () => {
 		fs.writeFileSync(path.join(srcDir, 'broken.css'), '.foo { color: red; }');
 		fs.writeFileSync(path.join(srcDir, 'good.css'), '.bar { color: blue; }');

@@ -20,7 +20,10 @@ describe('NodeClientBridge', () => {
 
 	beforeEach(() => {
 		vi.useFakeTimers();
-		bridge = new NodeClientBridge();
+		bridge = new NodeClientBridge({
+			resolveStylesheetHref: (sourceFile) =>
+				sourceFile.startsWith('/app/src/') ? sourceFile.replace('/app/src/', '/assets/') : undefined,
+		});
 	});
 
 	afterEach(() => {
@@ -87,16 +90,25 @@ describe('NodeClientBridge', () => {
 			expect(ws.send).toHaveBeenCalledWith(JSON.stringify({ type: 'reload' }));
 		});
 
-		it('cssUpdate() broadcasts a css-update event with path and timestamp', () => {
+		it('cssUpdate() broadcasts a css-update event with the href of the changed stylesheet', () => {
 			const ws = createMockWs();
 			bridge.subscribe(ws as never);
 
-			bridge.cssUpdate('/styles/main.css');
+			bridge.cssUpdate('/app/src/a/style.css');
 
 			const payload = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0]);
 			expect(payload.type).toBe('css-update');
-			expect(payload.path).toBe('/styles/main.css');
+			expect(payload.path).toBe('/assets/a/style.css');
 			expect(typeof payload.timestamp).toBe('number');
+		});
+
+		it('cssUpdate() broadcasts nothing for a stylesheet without an href to refresh', () => {
+			const ws = createMockWs();
+			bridge.subscribe(ws as never);
+
+			bridge.cssUpdate('/vendor/theme.css');
+
+			expect(ws.send).not.toHaveBeenCalled();
 		});
 
 		it('update() broadcasts an update event with path and timestamp', () => {

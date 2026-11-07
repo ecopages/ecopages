@@ -32,6 +32,7 @@ function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext 
 		getPagesDir: () => path.join(srcDir, 'pages'),
 		getLayoutsDir: () => path.join(srcDir, 'layouts'),
 		getTemplateExtensions: () => ['.kita.tsx', '.react.tsx'],
+		isStylesheet: (filePath) => filePath.endsWith('.css'),
 		...overrides,
 	};
 }

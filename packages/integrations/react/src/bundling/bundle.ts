@@ -11,6 +11,7 @@ import { createClientGraphBoundaryPlugin, createForeignJsxScope } from '../clien
 import { findJsxExtensionOwner, getHostScopedJsxOwnershipPlugins, isProductionRuntime } from '@ecopages/core/build';
 import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/integration';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
+import { getReactBrowserPackages } from './bootstrap-package-paths.ts';
 
 /**
  * Configuration for the BundleService.
@@ -27,10 +28,10 @@ export interface BundleServiceConfig {
  * Packages whose imports the client-graph boundary keeps whatever a module's declared `modules` say.
  *
  * @remarks
- * Hydration needs React, React DOM, core's browser entry and the configured router in every client graph.
+ * Hydration needs core and every package React's browser entries import, the configured router included.
  */
 export function getReactClientGraphAllowSpecifiers(routerAdapter?: ReactRouterAdapter): string[] {
-	return ['@ecopages/core', 'react', 'react-dom', ...(routerAdapter ? [routerAdapter.importPath] : [])];
+	return ['@ecopages/core', ...getReactBrowserPackages(routerAdapter)];
 }
 
 /**

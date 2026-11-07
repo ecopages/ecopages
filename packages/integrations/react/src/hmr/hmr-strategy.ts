@@ -19,12 +19,7 @@ import type { DefaultHmrContext } from '@ecopages/core/integration';
 import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
 import { getReactClientGraphAllowSpecifiers } from '../bundling/bundle.ts';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
-import {
-	ISLAND_HYDRATION_PACKAGE,
-	LAYOUT_COMPOSE_PACKAGE,
-	PAGE_HYDRATION_PACKAGE,
-	PAGE_LAYOUT_NORMALIZATION_PACKAGE,
-} from '../bundling/bootstrap-package-paths.ts';
+import { getReactBrowserPackages } from '../bundling/bootstrap-package-paths.ts';
 import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
 import type { EcoComponentConfig } from '@ecopages/core';
 import {
@@ -216,18 +211,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * Packages the generated Page and island entries import, plus the JSX runtimes of compiled React modules.
 	 */
 	getVendorEntries(): readonly string[] {
-		return [
-			'react',
-			'react/jsx-runtime',
-			'react/jsx-dev-runtime',
-			'react-dom',
-			'react-dom/client',
-			PAGE_HYDRATION_PACKAGE,
-			ISLAND_HYDRATION_PACKAGE,
-			LAYOUT_COMPOSE_PACKAGE,
-			PAGE_LAYOUT_NORMALIZATION_PACKAGE,
-			...(this.routerAdapter ? [this.routerAdapter.importPath] : []),
-		];
+		return getReactBrowserPackages(this.routerAdapter);
 	}
 
 	async getVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {

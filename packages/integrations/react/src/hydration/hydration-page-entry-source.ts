@@ -2,6 +2,8 @@ import {
 	LAYOUT_COMPOSE_PACKAGE,
 	PAGE_HYDRATION_PACKAGE,
 	PAGE_LAYOUT_NORMALIZATION_PACKAGE,
+	REACT_DOM_CLIENT_PACKAGE,
+	REACT_PACKAGE,
 } from '../bundling/bootstrap-package-paths.ts';
 
 /** Complete inputs that affect a Page hydration entry's generated source. */
@@ -80,8 +82,8 @@ export function createPageEntrySource(options: PageEntrySourceOptions): string {
 	assertRouterConfiguration(options);
 
 	return `
-import { hydrateRoot } from "react-dom/client";
-import { createElement } from "react";
+import { hydrateRoot } from ${JSON.stringify(REACT_DOM_CLIENT_PACKAGE)};
+import { createElement } from ${JSON.stringify(REACT_PACKAGE)};
 import {
   getPageDataFromDocument,
   readPageDataDocument,

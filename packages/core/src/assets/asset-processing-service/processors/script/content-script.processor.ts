@@ -19,8 +19,9 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 	 *
 	 * @remarks
 	 * With HMR active, a module script's imports are rewritten like a dev-transform module's, so a generated
-	 * bootstrap can import a package by name and get the one vendor URL every other importer gets. A script that is
-	 * not a module, or HMR being off, keeps its source.
+	 * bootstrap can import a package by name and get the one vendor URL every other importer gets. This holds for an
+	 * inline script too, whose body is the rewritten source. A script that is not a module, or HMR being off, keeps
+	 * its source.
 	 */
 	private async resolveUnbundledScriptSource(dep: ContentScriptAsset, filepath: string): Promise<string> {
 		const hmrManager = this.getHmrManager();
@@ -103,11 +104,12 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		const filepath = path.join(this.getAssetsDir(), 'scripts', filename);
 
 		if (!shouldBundle) {
-			if (!dep.inline) {
-				fileSystem.write(filepath, await this.resolveUnbundledScriptSource(dep, filepath));
+			const unbundled = { ...dep, content: await this.resolveUnbundledScriptSource(dep, filepath) };
+			if (!unbundled.inline) {
+				fileSystem.write(filepath, unbundled.content);
 			}
 
-			return this.toProcessedAsset(dep, filepath);
+			return this.toProcessedAsset(unbundled, filepath);
 		}
 
 		if (!dep.content) {

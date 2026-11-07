@@ -116,6 +116,19 @@ describe('ContentScriptProcessor', () => {
 			expect(writtenSource()).toBe('import React from "/assets/vendors/react.js";');
 		});
 
+		test('an inline module script embeds the rewritten source', async () => {
+			const rewriteModuleImports = vi.fn(async () => 'import React from "/assets/vendors/react.js";');
+			const processor = new ContentScriptProcessor({
+				appConfig: createMockConfig(),
+				getHmrManager: () => ({ isEnabled: () => true, rewriteModuleImports }) as unknown as IHmrManager,
+			});
+
+			const processed = await processor.process({ ...script({ type: 'module' }), inline: true });
+
+			expect(processed.content).toBe('import React from "/assets/vendors/react.js";');
+			expect(fileSystem.write).not.toHaveBeenCalled();
+		});
+
 		test.each([
 			{ label: 'a classic script', attributes: undefined, hmrEnabled: true },
 			{ label: 'a module script with HMR off', attributes: { type: 'module' }, hmrEnabled: false },

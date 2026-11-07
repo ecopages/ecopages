@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { appLogger } from '../../global/app-logger.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
 import { rewriteModuleImports } from './dev-transform-import-rewriter.ts';
 
@@ -112,17 +113,50 @@ describe('rewriteModuleImports', () => {
 			expect(module['react-version']).toBe('19');
 		});
 
-		it.each([
-			['a side-effect import', 'import "react";', 'import "/assets/vendors/react.js";'],
-			['a default-only import', 'import React from "react";', 'import React from "/assets/vendors/react.js";'],
-			['export * from', 'export * from "react";', 'export * from "/assets/vendors/react.js";'],
-			[
-				'import()',
-				'export const load = () => import("react");',
-				'export const load = () => import("/assets/vendors/react.js");',
-			],
-		])('only points %s of a CommonJS vendor at its URL', async (_label, source, expected) => {
-			expect(await rewriteVendorImports(source)).toBe(expected);
+		it('keeps a side-effect import of a CommonJS vendor as an import of its URL', async () => {
+			expect(await rewriteVendorImports('import "react";')).toBe('import "/assets/vendors/react.js";');
+		});
+
+		it('resolves import() of a CommonJS vendor to its properties plus default', async () => {
+			const code = await rewriteVendorImports('export const load = () => import("react");');
+
+			const module = await evaluate(code, { '/assets/vendors/react.js': { version: '19' } });
+			const namespace = await (module.load as () => Promise<Record<string, unknown>>)();
+
+			expect(namespace).toEqual({ version: '19', default: { version: '19' } });
+		});
+
+		it('reads default as module.exports.default for a CommonJS module that sets __esModule, like the production build', async () => {
+			const code = await rewriteVendorImports(
+				[
+					'import Lib, { helper, default as LibDefault } from "react-lib";',
+					'import * as LibNamespace from "react-lib";',
+					'export const picked = { Lib, helper, LibDefault, namespaceDefault: LibNamespace.default };',
+					'export const load = () => import("react-lib");',
+				].join('\n'),
+			);
+			const moduleExports = { __esModule: true, default: 'the-default', helper: 'the-helper' };
+
+			const module = await evaluate(code, { '/assets/vendors/react-lib.js': moduleExports });
+			const namespace = await (module.load as () => Promise<Record<string, unknown>>)();
+
+			expect(module.picked).toEqual({
+				Lib: 'the-default',
+				helper: 'the-helper',
+				LibDefault: 'the-default',
+				namespaceDefault: 'the-default',
+			});
+			expect(namespace.default).toBe('the-default');
+		});
+
+		it('warns and keeps export * from a CommonJS vendor, which has no names to re-export', async () => {
+			const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+
+			expect(await rewriteVendorImports('export * from "react";')).toBe(
+				'export * from "/assets/vendors/react.js";',
+			);
+			expect(warn).toHaveBeenCalledWith(expect.stringContaining('"/assets/vendors/react.js"'));
+			warn.mockRestore();
 		});
 
 		it('leaves the named imports of an ES module vendor as they are', async () => {

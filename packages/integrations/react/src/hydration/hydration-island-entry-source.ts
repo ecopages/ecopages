@@ -1,4 +1,8 @@
-import { ISLAND_HYDRATION_PACKAGE } from '../bundling/bootstrap-package-paths.ts';
+import {
+	ISLAND_HYDRATION_PACKAGE,
+	REACT_DOM_CLIENT_PACKAGE,
+	REACT_PACKAGE,
+} from '../bundling/bootstrap-package-paths.ts';
 
 /** Complete inputs that affect an Island Host entry's generated source. */
 export type IslandEntrySourceOptions = {
@@ -22,8 +26,8 @@ export function createIslandEntrySource(options: IslandEntrySourceOptions): stri
 		? `registerIslandHmr(configuration, (url) => import(url), ${JSON.stringify(options.importPath)});`
 		: '';
 	return `
-import { hydrateRoot } from "react-dom/client";
-import { createElement, useEffect } from "react";
+import { hydrateRoot } from ${JSON.stringify(REACT_DOM_CLIENT_PACKAGE)};
+import { createElement, useEffect } from ${JSON.stringify(REACT_PACKAGE)};
 import * as ComponentModule from ${JSON.stringify(options.importPath)};
 import { getIslandHydrationRuntime, mountIslands, registerIslandHmr } from ${JSON.stringify(ISLAND_HYDRATION_PACKAGE)};
 

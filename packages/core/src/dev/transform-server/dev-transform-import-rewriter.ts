@@ -57,6 +57,8 @@ export type VendorImport = {
 type SpecifierSite = {
 	literal: StringLiteralNode;
 	declaration?: Record<string, unknown>;
+	/** The `import(...)` call of a dynamic import. */
+	expression?: { start: number; end: number };
 };
 
 type ResolvedSpecifier = {
@@ -167,8 +169,8 @@ export async function rewriteModuleImports(options: RewriteModuleImportsOptions)
 
 		if (node.type === 'ImportExpression') {
 			const literal = readStringLiteral(node.source);
-			if (literal) {
-				sites.push({ literal });
+			if (literal && typeof node.start === 'number' && typeof node.end === 'number') {
+				sites.push({ literal, expression: { start: node.start, end: node.end } });
 			}
 		}
 
@@ -207,10 +209,9 @@ export async function rewriteModuleImports(options: RewriteModuleImportsOptions)
 
 		const quote = options.code[site.literal.start] === "'" ? "'" : '"';
 		const quotedSpecifier = `${quote}${resolved.specifier}${quote}`;
-		const interop =
-			resolved.commonJs && site.declaration
-				? rewriteCommonJsDeclaration(site.declaration, quotedSpecifier, index)
-				: undefined;
+		const interop = resolved.commonJs
+			? rewriteCommonJsSite(site, quotedSpecifier, index, normalizedSource)
+			: undefined;
 		if (interop) {
 			edits.push(interop);
 			continue;
@@ -292,32 +293,58 @@ function readName(node: unknown): string | undefined {
 }
 
 /**
- * Rewrites an import or re-export of a CommonJS vendor so its named bindings read the vendor's default export.
+ * Rewrites an import, re-export or `import()` of a CommonJS vendor so it reads the vendor's default export.
  *
  * @remarks
  * Rolldown emits a CommonJS entry as `export default module.exports` and no named exports, so a named import of it
- * would fail to link. The declaration becomes a default import plus a destructuring, which is how Node reads
- * CommonJS from ESM: `default` names `module.exports` itself, and a namespace holds its properties plus `default`.
- * The names are read once, when the module evaluates; CommonJS has no live bindings. A side-effect import, a
- * default-only import, `export * from` and `import()` keep their form with the vendor URL, so `export *` re-exports
- * nothing and `import()` resolves to a namespace with only `default`.
+ * would fail to link. The declaration becomes a default import plus property reads, with the interop the app-wide
+ * production build applies to the same import (Rolldown's `__toESM` outside Node mode): named bindings read
+ * `module.exports`, and `default` is `module.exports.default` when the module sets `__esModule`, otherwise
+ * `module.exports` itself; a namespace holds the properties plus that `default`. The names are read once, when the
+ * module evaluates; CommonJS has no live bindings. `import()` resolves to the same namespace. `export * from` cannot
+ * list the names, so it keeps its form, re-exports nothing and logs a warning naming the module. A side-effect import
+ * keeps its form.
  */
-function rewriteCommonJsDeclaration(
-	declaration: Record<string, unknown>,
+function rewriteCommonJsSite(
+	site: SpecifierSite,
 	quotedSpecifier: string,
 	index: number,
+	sourcePath: string,
 ): ImportEdit | undefined {
-	if (typeof declaration.start !== 'number' || typeof declaration.end !== 'number') return undefined;
 	const local = `__eco_cjs_${index}`;
+	if (site.expression) {
+		const namespace = `(${local}) => ${commonJsNamespace(`${local}.default`)}`;
+		return {
+			start: site.expression.start,
+			end: site.expression.end,
+			replacement: `import(${quotedSpecifier}).then(${namespace})`,
+		};
+	}
+	const declaration = site.declaration;
+	if (!declaration || typeof declaration.start !== 'number' || typeof declaration.end !== 'number') return undefined;
+	if (declaration.type === 'ExportAllDeclaration' && !declaration.exported) {
+		appLogger.warn(
+			`[dev-transform] ${sourcePath} re-exports ${quotedSpecifier} with \`export *\`, but that vendor is CommonJS and has no named exports, so nothing is re-exported. Re-export the names you need.`,
+		);
+		return undefined;
+	}
 	const statements =
 		declaration.type === 'ImportDeclaration'
 			? rewriteCommonJsImport(declaration, quotedSpecifier, local)
-			: declaration.type === 'ExportNamedDeclaration' || declaration.type === 'ExportAllDeclaration'
-				? rewriteCommonJsReExport(declaration, quotedSpecifier, local)
-				: undefined;
+			: rewriteCommonJsReExport(declaration, quotedSpecifier, local);
 	return statements
 		? { start: declaration.start, end: declaration.end, replacement: statements.join(' ') }
 		: undefined;
+}
+
+/** The `default` an ES module importer sees for CommonJS `moduleExports`, as Rolldown's `__toESM` gives it. */
+function commonJsDefault(moduleExports: string): string {
+	return `(${moduleExports} && ${moduleExports}.__esModule ? ${moduleExports}.default : ${moduleExports})`;
+}
+
+/** The namespace an ES module importer sees for CommonJS `moduleExports`: its properties plus that `default`. */
+function commonJsNamespace(moduleExports: string): string {
+	return `({ ...${moduleExports}, default: ${commonJsDefault(moduleExports)} })`;
 }
 
 function readSpecifiers(declaration: Record<string, unknown>): Record<string, unknown>[] {
@@ -331,26 +358,27 @@ function rewriteCommonJsImport(
 	local: string,
 ): string[] | undefined {
 	const specifiers = readSpecifiers(declaration);
-	const defaultSpecifier = specifiers.find((specifier) => specifier.type === 'ImportDefaultSpecifier');
-	const others = specifiers.filter((specifier) => specifier !== defaultSpecifier);
-	if (others.length === 0) return undefined;
-	const moduleExports = readName(defaultSpecifier?.local) ?? local;
-	const statements = [`import ${moduleExports} from ${quotedSpecifier};`];
+	if (specifiers.length === 0) return undefined;
+	const statements = [`import ${local} from ${quotedSpecifier};`];
 	const properties: string[] = [];
-	for (const specifier of others) {
+	for (const specifier of specifiers) {
 		const localName = readName(specifier.local);
 		if (!localName) return undefined;
 		const imported =
-			specifier.type === 'ImportNamespaceSpecifier' ? undefined : (readName(specifier.imported) ?? localName);
+			specifier.type === 'ImportDefaultSpecifier'
+				? 'default'
+				: specifier.type === 'ImportNamespaceSpecifier'
+					? undefined
+					: (readName(specifier.imported) ?? localName);
 		if (imported === undefined) {
-			statements.push(`const ${localName} = { ...${moduleExports}, default: ${moduleExports} };`);
+			statements.push(`const ${localName} = ${commonJsNamespace(local)};`);
 		} else if (imported === 'default') {
-			statements.push(`const ${localName} = ${moduleExports};`);
+			statements.push(`const ${localName} = ${commonJsDefault(local)};`);
 		} else {
 			properties.push(imported === localName ? localName : `${toExportName(imported)}: ${localName}`);
 		}
 	}
-	if (properties.length > 0) statements.push(`const { ${properties.join(', ')} } = ${moduleExports};`);
+	if (properties.length > 0) statements.push(`const { ${properties.join(', ')} } = ${local};`);
 	return statements;
 }
 
@@ -365,7 +393,7 @@ function rewriteCommonJsReExport(
 		const exported = readName(declaration.exported);
 		if (!exported) return undefined;
 		statements.push(
-			`const ${local}_ns = { ...${local}, default: ${local} };`,
+			`const ${local}_ns = ${commonJsNamespace(local)};`,
 			`export { ${local}_ns as ${toExportName(exported)} };`,
 		);
 		return statements;
@@ -375,7 +403,7 @@ function rewriteCommonJsReExport(
 		const exportedName = readName(specifier.exported) ?? localName;
 		if (!localName || !exportedName) return undefined;
 		const binding = `${local}_${position}`;
-		const value = localName === 'default' ? local : `${local}[${JSON.stringify(localName)}]`;
+		const value = localName === 'default' ? commonJsDefault(local) : `${local}[${JSON.stringify(localName)}]`;
 		statements.push(`const ${binding} = ${value};`, `export { ${binding} as ${toExportName(exportedName)} };`);
 	}
 	return statements;

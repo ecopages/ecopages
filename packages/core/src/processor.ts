@@ -3,6 +3,7 @@ export {
 	type SourceRelativeStylesheetDirs,
 	writeSourceRelativeStylesheet,
 } from './assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts';
+export { warnStylesheetOnce } from './assets/asset-processing-service/processors/stylesheet/stylesheet-warnings.ts';
 export { rebaseStylesheetReferences } from './assets/asset-processing-service/processors/stylesheet/package-stylesheet.ts';
 export type { AssetDefinition, ProcessedAsset } from './types/asset-types.ts';
 export {

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import postcss from 'postcss';
 import postcssNested from 'postcss-nested';
 import { PostCssProcessorPlugin } from '../plugin';
+import { tailwindV4Preset } from '../presets/tailwind-v4';
 import { createAppAwarePostcssImport } from '../postcss-import-app-aware';
 import type { IClientBridge } from '@ecopages/core/integration';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
@@ -742,5 +743,127 @@ describe('PostCssProcessorPlugin HMR', () => {
 					fs.readFileSync(path.join(assetsDir, file), 'utf-8') === 'SECRET=1',
 			);
 		expect(copied).toEqual([]);
+	});
+	test('a stylesheet that fails to process reports through bridge.error and keeps the last good output', async () => {
+		const cssFile = path.join(srcDir, 'broken.css');
+		fs.writeFileSync(cssFile, '.foo { color: red; }');
+
+		const plugin = new PostCssProcessorPlugin({
+			options: {
+				filter: /\.css$/,
+				plugins: {
+					'fail-on-marker': {
+						postcssPlugin: 'fail-on-marker',
+						Once(root) {
+							if (root.toString().includes('broken')) {
+								throw root.error('Unclosed block');
+							}
+						},
+					},
+				},
+			},
+		});
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
+		plugin.setContext(config);
+		await plugin.setup();
+
+		const bridge = { cssUpdate: vi.fn(), error: vi.fn(), reload: vi.fn() } as unknown as IClientBridge;
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChanges) {
+			throw new Error('Plugin does not have watch handler');
+		}
+		const outputFile = path.join(distDir, 'assets', 'broken.css');
+		const goodOutput = fs.readFileSync(outputFile, 'utf-8');
+
+		fs.writeFileSync(cssFile, '.foo { color: red; } /* broken */');
+		await watchConfig.onChanges({ created: [], changed: [cssFile], deleted: [], bridge });
+
+		expect(bridge.error).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(bridge.error).mock.calls[0][0]).toContain(`${cssFile}:1:1: Unclosed block`);
+		expect(bridge.cssUpdate).not.toHaveBeenCalled();
+		expect(fs.readFileSync(outputFile, 'utf-8')).toBe(goodOutput);
+	});
+	test('restoring a stylesheet after a failure broadcasts even when the output equals the last good one', async () => {
+		fs.symlinkSync(path.resolve(__dirname, '../../node_modules'), path.join(tmpDir, 'node_modules'), 'dir');
+		const stylesDir = path.join(srcDir, 'styles');
+		fs.mkdirSync(stylesDir, { recursive: true });
+		const referencePath = path.join(stylesDir, 'tailwind.css');
+		const cssFile = path.join(stylesDir, 'main.css');
+		const goodContent = '.a { @apply text-red-500; }';
+		fs.writeFileSync(referencePath, `@import 'tailwindcss' source(none);`);
+		fs.writeFileSync(cssFile, goodContent);
+
+		const plugin = new PostCssProcessorPlugin({ options: tailwindV4Preset({ referencePath }) });
+		plugin.setContext(
+			await finalizeEcoPagesConfig({
+				rootDir: tmpDir,
+				srcDir: 'src',
+				distDir: 'dist',
+				baseUrl: 'http://localhost:3000',
+			}),
+		);
+		await plugin.setup();
+
+		const bridge = { cssUpdate: vi.fn(), error: vi.fn(), reload: vi.fn() } as unknown as IClientBridge;
+		const onChanges = plugin.getWatchConfig()?.onChanges;
+		if (!onChanges) {
+			throw new Error('Plugin does not have watch handler');
+		}
+		const save = async (content: string) => {
+			fs.writeFileSync(cssFile, content);
+			await onChanges({ created: [], changed: [cssFile], deleted: [], bridge });
+		};
+
+		await save('.a { @apply not-a-utility; }');
+		expect(bridge.error).toHaveBeenCalledTimes(1);
+		expect(bridge.cssUpdate).not.toHaveBeenCalled();
+
+		await save('.a { @apply not-a-utility-either; }');
+		expect(bridge.error).toHaveBeenCalledTimes(2);
+
+		await save(goodContent);
+		expect(bridge.cssUpdate).toHaveBeenCalledTimes(1);
+		expect(bridge.cssUpdate).toHaveBeenCalledWith(cssFile);
+
+		await save(goodContent);
+		expect(bridge.cssUpdate).toHaveBeenCalledTimes(1);
+	}, 30_000);
+
+	test('setup logs a stylesheet that fails to process and keeps going', async () => {
+		fs.writeFileSync(path.join(srcDir, 'broken.css'), '.foo { color: red; }');
+		fs.writeFileSync(path.join(srcDir, 'good.css'), '.bar { color: blue; }');
+		const plugin = new PostCssProcessorPlugin({
+			options: {
+				filter: /\.css$/,
+				plugins: {
+					'fail-on-broken': {
+						postcssPlugin: 'fail-on-broken',
+						Once(root) {
+							if (root.source?.input.file?.endsWith('broken.css')) {
+								throw root.error('Unclosed block');
+							}
+						},
+					},
+				},
+			},
+		});
+		plugin.setContext(
+			await finalizeEcoPagesConfig({
+				rootDir: tmpDir,
+				srcDir: 'src',
+				distDir: 'dist',
+				baseUrl: 'http://localhost:3000',
+			}),
+		);
+
+		await expect(plugin.setup()).resolves.toBeUndefined();
+
+		expect(fs.existsSync(path.join(distDir, 'assets', 'good.css'))).toBe(true);
+		expect(fs.existsSync(path.join(distDir, 'assets', 'broken.css'))).toBe(false);
 	});
 });

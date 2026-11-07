@@ -101,6 +101,16 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	private postcssPlugins: postcss.AcceptedPlugin[] = [];
 	private pluginFactories?: PluginFactoryRecord;
 	private readonly runtimeCssCache = new Map<string, string>();
+
+	/**
+	 * Stylesheets whose last development pass failed.
+	 *
+	 * @remarks
+	 * A failure keeps the last good output in {@link runtimeCssCache}, so the first success after it can produce
+	 * the same bytes. That save must still broadcast, since the browser clears the error overlay only on a
+	 * non-error message.
+	 */
+	private readonly failedCssFiles = new Set<string>();
 	private readonly trackedCssFiles = new Set<string>();
 	private watchQueue: Promise<void> = Promise.resolve();
 
@@ -165,6 +175,11 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		writeSourceRelativeStylesheet({ srcDir, distDir }, filePath, css);
 	}
 
+	/**
+	 * @remarks
+	 * A stylesheet that fails here is logged and skipped, so one broken file does not stop the dev server from
+	 * starting. The build loader and the dev watcher process it again and report the failure.
+	 */
 	private async prewarmRuntimeCssCache(): Promise<void> {
 		if (!this.context) {
 			return;
@@ -184,9 +199,13 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			const rawContents = await fileSystem.readFile(filePath);
 
-			const processed = await this.transformStylesheet(rawContents, filePath);
-			this.runtimeCssCache.set(filePath, processed);
-			this.persistProcessedCss(filePath, processed);
+			try {
+				const processed = await this.transformStylesheet(rawContents, filePath);
+				this.runtimeCssCache.set(filePath, processed);
+				this.persistProcessedCss(filePath, processed);
+			} catch (error) {
+				logger.error(`Failed to process CSS: ${filePath}`, error instanceof Error ? error.message : error);
+			}
 		}
 
 		this.buildCssDependencyMap();
@@ -386,6 +405,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			for (const filePath of deletedCss) {
 				this.runtimeCssCache.delete(filePath);
+				this.failedCssFiles.delete(filePath);
 				this.trackedCssFiles.delete(filePath);
 				this.cssDependencyMap.delete(filePath);
 			}
@@ -443,8 +463,9 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			const processed = await this.transformStylesheet(content, filePath);
 
+			const recovered = this.failedCssFiles.delete(filePath);
 			const cached = this.runtimeCssCache.get(filePath);
-			if (cached === processed) {
+			if (cached === processed && !recovered) {
 				return;
 			}
 
@@ -456,6 +477,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			logger.debug(`Processed CSS: ${filePath}`);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
+			this.failedCssFiles.add(filePath);
 			logger.error(`Failed to process CSS: ${filePath}`, errorMessage);
 			bridge.error(errorMessage);
 		}

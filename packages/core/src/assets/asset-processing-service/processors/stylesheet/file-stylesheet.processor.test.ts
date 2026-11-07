@@ -7,6 +7,7 @@ import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { FileStylesheetProcessor } from './file-stylesheet.processor.ts';
 import { appLogger } from '../../../../global/app-logger.ts';
 import { rebaseStylesheetReferences } from './package-stylesheet.ts';
+import { Processor } from '../../../../plugins/processor.ts';
 
 let rootDir: string;
 
@@ -363,6 +364,17 @@ test('leaves an app stylesheet url to a missing file as written, with a warning'
 	expect(warn).toHaveBeenCalledWith(expect.stringContaining(`${stylesheet}: url(hero.png) names`));
 });
 
+test('warns once about a missing reference when the stylesheet is processed in two passes', async () => {
+	const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+	const stylesheet = writeAppFile('src/site.css', '.a { background: url(hero.png); }');
+	const dep = { kind: 'stylesheet', source: 'file', filepath: stylesheet } as const;
+
+	await new FileStylesheetProcessor({ appConfig: createConfig() }).process(dep);
+	await new FileStylesheetProcessor({ appConfig: createConfig() }).process({ ...dep, inline: true });
+
+	expect(warn).toHaveBeenCalledTimes(1);
+});
+
 test('never copies a dotfile an app stylesheet names, such as one an inlined package reaches', async () => {
 	const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
 	writeAppFile('package.json', '{ "name": "app" }');
@@ -394,4 +406,35 @@ test('rebases inlined references with the tokenizer', () => {
 			entry,
 		),
 	).toBe('url("../../node_modules/some-lib/files/a(1).woff2") format("woff2"), url(data:x), local("url(x.png)")');
+});
+
+class FailingStylesheetProcessor extends Processor {
+	constructor() {
+		super({ name: 'failing-css', capabilities: [{ kind: 'stylesheet' }] });
+	}
+
+	override async setup(): Promise<void> {}
+
+	override async transformStylesheet(_css: string, file: string): Promise<string> {
+		throw new Error(`${file}:3:5 Unknown word`);
+	}
+}
+
+test('rejects and writes no stylesheet when a Processor throws', async () => {
+	const source = path.join(rootDir, 'src', 'main.css');
+	writeFileSync(source, 'body { color: red; }');
+	const config = createConfig();
+	config.processors = new Map([['failing-css', new FailingStylesheetProcessor()]]);
+
+	await expect(
+		new FileStylesheetProcessor({ appConfig: config }).process({
+			kind: 'stylesheet',
+			source: 'file',
+			filepath: source,
+			inline: false,
+		}),
+	).rejects.toThrow(`${source}:3:5 Unknown word`);
+
+	const assetsDir = path.join(rootDir, '.eco/public/assets');
+	expect(existsSync(assetsDir) ? readdirSync(assetsDir) : []).toEqual([]);
 });

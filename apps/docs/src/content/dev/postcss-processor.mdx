@@ -14,6 +14,7 @@ sources:
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/file-stylesheet.processor.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts
+  - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-warnings.ts
 ---
 
 # PostCSS processor
@@ -61,7 +62,22 @@ Resolution order in `resolvePostcssPluginsFromSources`:
 
 Note that a config file wins over options.
 
-`PostCssProcessor.processStringOrBuffer` runs the plugins and the `transformOutput` hook. On a PostCSS error it logs and returns `''`, so a broken stylesheet becomes empty CSS rather than a thrown error.
+`PostCssProcessor.processStringOrBuffer` runs the plugins and the `transformOutput` hook. A PostCSS error rejects (`processPath` too, and `processStringOrBufferSync` throws), and a `CssSyntaxError` names the file, line and column in its message. Nothing returns empty CSS for a failed stylesheet.
+
+## Errors and warnings
+
+Where the error goes depends on who called `transformStylesheet`:
+
+| Caller | On a PostCSS error |
+| --- | --- |
+| Core asset pipeline | `applyStylesheetProcessors` lets it propagate, the asset rejects `processDependencies`, and `ecopages build` fails without writing a stylesheet for the file (see [/dev/asset-processing](/dev/asset-processing)). |
+| Browser build loader | The bundler's `onLoad` rejects and the build fails. |
+| Development watch | `processAndBroadcast` logs it and calls `bridge.error`, which shows the error overlay. The runtime cache and the file under `distDir/assets` keep the last good output, and no `css-update` is sent. The file is remembered as failed, so the first save that succeeds sends `css-update` even when its output equals the last good one, which clears the overlay; the byte-change check applies again after that. |
+| `setup()` prewarm | Logged per file and skipped, so one broken stylesheet does not stop the dev server from starting; the watcher reports it again when the file changes. |
+
+Recovery needs no restart: core caches no failed asset (the asset service stores only successes and drops its in-flight entry), so a Page requested while the stylesheet is broken fails that request and renders normally once the stylesheet is fixed.
+
+PostCSS `result.warnings()` are logged with the file, line and column. A stylesheet goes through several processing passes (once per Page that links it, linked and inlined, the build loader), so `warnStylesheetOnce` logs a warning once per stylesheet and message until the stylesheet's contents change. Core's warnings about a `url()` that names a missing or non-copyable file use the same function.
 
 ## Presets
 
@@ -79,6 +95,6 @@ In `onChanges` (queued, so batches run in order):
 
 - A changed CSS file that is an import of an entry rebuilds that entry, not the file.
 - A changed non-CSS file (watch extensions include `.ts`, `.tsx`, `.mdx`, `.html` and others) rebuilds the entries from `dependencyEntryPaths`, or every tracked entry when none is set.
-- `processAndBroadcast` re-runs the transform and calls `bridge.cssUpdate(file)` only when the output differs from the cached one. A failure calls `bridge.error`.
+- `processAndBroadcast` re-runs the transform and calls `bridge.cssUpdate(file)` only when the output differs from the cached one. A failure calls `bridge.error`; the first success after it always broadcasts.
 
 The bridge sends a `css-update` message and the client refreshes matching stylesheet `link` hrefs; see [/dev/hmr-watcher-invalidation](/dev/hmr-watcher-invalidation) and [/dev/hmr-client](/dev/hmr-client). CSS does not go through HMR strategies.

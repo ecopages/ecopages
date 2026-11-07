@@ -210,8 +210,8 @@ const cssString = await PostCssProcessor.processStringOrBuffer('.foo { @apply bg
 The processor includes built-in error handling:
 
 - File not found errors are thrown with clear messages.
-- Processing errors are caught and logged.
-- On error (e.g., syntax error in CSS), processing methods return an empty string to prevent build crashes, while logging the error details.
+- A processing error (for example a syntax error or an unknown utility in `@apply`) is thrown. A `CssSyntaxError` names the file, line and column. `ecopages build` fails, and `ecopages dev` shows the error overlay and keeps the last good stylesheet. Fixing the file clears the overlay without a restart, even when the fix restores the previous content.
+- PostCSS warnings are logged with the file and line, once per stylesheet.
 
 ## See also
 

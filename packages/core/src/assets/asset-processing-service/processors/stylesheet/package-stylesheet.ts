@@ -2,6 +2,7 @@ import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { resolvePackageStylesheetPath } from '../../../../plugins/tsconfig-import-resolver.ts';
 import { appLogger } from '../../../../global/app-logger.ts';
+import { warnStylesheetOnce } from './stylesheet-warnings.ts';
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 
 type StylesheetReferenceContext = {
@@ -225,14 +226,18 @@ function isEmittableReferenceFile(file: string): boolean {
  */
 function emitReferencedFile(
 	stylesheet: string,
+	source: string,
 	reference: string,
 	file: string,
 	suffix: string,
 	output: StylesheetReferenceOutput,
 ): string | undefined {
 	if (!isEmittableReferenceFile(file)) {
-		appLogger.warn(
+		warnStylesheetOnce(
+			stylesheet,
+			source,
 			`${stylesheet}: url(${reference}) names ${file}, which is not a font, image or media file, so it is not copied and the reference is left as written.`,
+			(message) => appLogger.warn(message),
 		);
 		return undefined;
 	}
@@ -255,7 +260,7 @@ function emitPackageReference(
 	if (!fileSystem.exists(file)) {
 		throw new Error(`[ecopages] ${stylesheet}: url(${reference}) names ${file}, which does not exist.`);
 	}
-	return emitReferencedFile(stylesheet, reference, fileSystem.realpath(file), suffix, output);
+	return emitReferencedFile(stylesheet, '', reference, fileSystem.realpath(file), suffix, output);
 }
 
 /**
@@ -264,18 +269,22 @@ function emitPackageReference(
  */
 function emitAppReference(
 	stylesheet: string,
+	source: string,
 	reference: string,
 	output: StylesheetReferenceOutput,
 ): string | undefined {
 	const { decoded, suffix } = splitReference(reference);
 	const file = path.resolve(realDirectory(stylesheet), decoded);
 	if (!fileSystem.exists(file)) {
-		appLogger.warn(
+		warnStylesheetOnce(
+			stylesheet,
+			source,
 			`${stylesheet}: url(${reference}) names ${file}, which does not exist, so it is left as written. Reference a file in the public directory with a root-relative URL such as /images/hero.png, and @import a package stylesheet through the @ecopages/postcss-processor presets, which rebase its url() references.`,
+			(message) => appLogger.warn(message),
 		);
 		return undefined;
 	}
-	return emitReferencedFile(stylesheet, reference, fileSystem.realpath(file), suffix, output);
+	return emitReferencedFile(stylesheet, source, reference, fileSystem.realpath(file), suffix, output);
 }
 
 /**
@@ -565,7 +574,7 @@ export function preparePackageStylesheet(stylesheet: string, output: StylesheetR
  */
 export function emitStylesheetReferences(css: string, stylesheet: string, output: StylesheetReferenceOutput): string {
 	return scanStylesheet(css, stylesheet, appAtRuleContext(), (reference) =>
-		emitAppReference(stylesheet, reference, output),
+		emitAppReference(stylesheet, css, reference, output),
 	);
 }
 

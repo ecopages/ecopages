@@ -50,6 +50,11 @@ describe('createStylesheetKinds', () => {
 		expect(createStylesheetKinds([processor]).extensions).toEqual(expected);
 	});
 
+	it('throws naming both when two Processors declare a stylesheet capability', () => {
+		const other = new FixtureProcessor('less', [{ kind: 'stylesheet', extensions: ['*.less'] }]);
+		expect(() => createStylesheetKinds([sass(), other])).toThrow(/"sass" and "less"/);
+	});
+
 	it('reads the registered Processors of an app config', () => {
 		const processors = new Map([['sass', sass()]]);
 		expect(getStylesheetKinds({ processors }).isStylesheet('a.scss')).toBe(true);

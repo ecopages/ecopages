@@ -492,6 +492,20 @@ describe('finalizeEcoPagesConfig', () => {
 		);
 	});
 
+	test('should reject a second Processor that declares a stylesheet capability, naming both', async () => {
+		class StylesheetProcessor extends Processor {
+			override async setup(): Promise<void> {}
+		}
+		const create = (name: string) =>
+			new StylesheetProcessor({ name, capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }] });
+		const images = new StylesheetProcessor({ name: 'images', capabilities: [{ kind: 'image' }] });
+
+		await expect(finalize({ processors: [create('postcss'), images, create('sass')] })).rejects.toThrow(
+			'Only one Processor may declare a stylesheet capability, but "postcss" and "sass" both do.',
+		);
+		await expect(finalize({ processors: [create('postcss'), images] })).resolves.toBeDefined();
+	});
+
 	test('should only log mixed JSX engine guidance at debug level when both kitajs and react are enabled', async () => {
 		const integrations: IntegrationPlugin[] = [
 			createMockIntegration('kitajs', ['.kita.tsx']),

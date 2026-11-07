@@ -33,6 +33,17 @@ describe('applyStylesheetProcessors', () => {
 		expect(await applyStylesheetProcessors(config, '.a {}', '/app/card.scss')).toBe('.a {}');
 	});
 
+	it('skips a Processor that has no transformStylesheet', async () => {
+		class Hookless extends Processor {
+			async setup(): Promise<void> {}
+		}
+		const processors = new Map([
+			['h', new Hookless({ name: 'h', capabilities: [{ kind: 'stylesheet', extensions: ['*.scss'] }] })],
+		]);
+		const config = { processors } as unknown as EcoPagesAppConfig;
+		expect(await applyStylesheetProcessors(config, '.a {}', '/app/card.scss')).toBe('.a {}');
+	});
+
 	it('leaves a file the Processor does not declare alone', async () => {
 		const config = configWith(['*.scss']);
 		expect(await applyStylesheetProcessors(config, '.a {}', '/app/card.less')).toBe('.a {}');

@@ -57,12 +57,12 @@ export function findStylesheetProcessor(processors: Iterable<Processor>): Proces
 }
 
 /**
- * Builds the {@link StylesheetKinds} for the stylesheet Processors among `processors`, or for plain CSS alone.
+ * Builds the {@link StylesheetKinds} for the stylesheet Processor among `processors`, or for plain CSS alone.
+ *
+ * @throws When two Processors declare a `stylesheet` capability.
  */
 export function createStylesheetKinds(processors: Iterable<Processor> = []): StylesheetKinds {
-	const declared = [...processors]
-		.filter((processor) => processor.canProcessAsset('stylesheet'))
-		.flatMap((processor) => processor.getAssetCapabilities())
+	const declared = (findStylesheetProcessor(processors)?.getAssetCapabilities() ?? [])
 		.filter((capability) => capability.kind === 'stylesheet')
 		.flatMap((capability) => (capability.extensions ?? []).flatMap(extensionsOfPattern));
 	const extensions = [...new Set([CSS_EXTENSION, ...declared])];

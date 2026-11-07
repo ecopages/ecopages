@@ -76,6 +76,7 @@ When neither a pages error file nor an app loader is configured, Ecopages serves
 | `eco-error-page` | Root `<body>` class on built-in pages |
 | `eco-error-page--not-found` / `eco-error-page--server-error` | Status modifier |
 | `eco-error-page__title`, `eco-error-page__message`, `eco-error-page__stack` | Text regions |
+| `eco-error-page__diagnostic-message` | Development-only message on the default 500 page, shown when there is no stack or the stack does not open with it; also carries `eco-error-page__message` |
 | `eco-error-page__copy` | Development-only copy button on the default 500 page (icon + label; adds `eco-error-page__copy--copied` after a successful copy) |
 | `eco-error-page__copy-icon`, `eco-error-page__copy-label` | Clipboard / check icons and label text inside the copy button |
 

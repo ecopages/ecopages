@@ -1,9 +1,7 @@
 import fs from 'node:fs';
 import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { collectBuildEntryInputPaths } from '../build/build-graph.ts';
-import { createServerBuildRequest } from '../build/runtime/build-request-policy.ts';
-import { assertBuildSucceeded } from '../build/build-log.ts';
+import { importViewModule } from '../build/server/import-view-module.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { StylesheetInvalidation } from '../plugins/processor.ts';
@@ -16,25 +14,18 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-async function buildServerModule(config: EcoPagesAppConfig, entry: string): Promise<string> {
-	const result = await requireAppRuntime(config).buildAdapter.build(
-		createServerBuildRequest(config, {
-			entrypoints: [entry],
-			outdir: path.join(config.rootDir, 'out'),
-			root: config.rootDir,
-			writeToDisk: false,
-		}),
-	);
-	assertBuildSucceeded(result, 'Server build failed');
-	requireAppRuntime(config).buildInputIndex.register(
-		{ consumer: 'server-route-module', key: entry },
-		collectBuildEntryInputPaths(result, entry, config.rootDir),
-	);
-	return result.outputs.map((output) => output.content ?? '').join('\n');
+/**
+ * Imports `entry` the way a Page render does, through the app module loader, which caches the server module and
+ * records its inputs, and returns its default export.
+ */
+async function renderServerModule(config: EcoPagesAppConfig, entry: string): Promise<string> {
+	const module = await importViewModule<{ default: string }>(config, entry);
+	return module.default;
 }
 
 describe('a stylesheet a component imports as text, when one of its partials changes', () => {
 	test('hot-updates the importer with the new CSS and marks the server modules that embed it stale', async () => {
+		vi.stubEnv('NODE_ENV', 'development');
 		const rootDir = fs.realpathSync(createTempRoot('ecopages-watcher-stylesheet-partial'));
 		const tokens = writeSourceFile(rootDir, 'src/components/tokens.css', ':root { --accent: red; }\n');
 		writeSourceFile(
@@ -67,7 +58,7 @@ describe('a stylesheet a component imports as text, when one of its partials cha
 			/from ['"]([^'"]+card\.css\?v=[^'"]+)['"]/u.exec((await request(outputUrl)) ?? '')?.[1];
 		const before = await stylesheetImport();
 		expect(await request(before!)).toContain('--accent: red');
-		expect(await buildServerModule(config, script)).toContain('--accent: red');
+		expect(await renderServerModule(config, script)).toContain('--accent: red');
 		const serverGeneration = requireAppRuntime(config).serverInvalidation.currentGeneration();
 
 		fs.writeFileSync(tokens, ':root { --accent: blue; }\n');
@@ -81,7 +72,7 @@ describe('a stylesheet a component imports as text, when one of its partials cha
 		expect(after).not.toBe(before);
 		expect(await request(after!)).toContain('--accent: blue');
 		expect(requireAppRuntime(config).serverInvalidation.currentGeneration()).toBeGreaterThan(serverGeneration);
-		expect(await buildServerModule(config, script)).toContain('--accent: blue');
+		expect(await renderServerModule(config, script)).toContain('--accent: blue');
 	});
 });
 

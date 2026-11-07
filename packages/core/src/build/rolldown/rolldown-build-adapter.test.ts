@@ -612,28 +612,168 @@ describe('RolldownBuildAdapter', () => {
 		expect(result.logs.map((log) => log.message).join('\n')).toContain(`Node builtin "${specifier}"`);
 	});
 
-	test('a server build turns a css import into an empty module and emits no stylesheet', async () => {
-		writeFixture('styles.css', 'body { color: red; }');
-		const entrypoint = writeFixture('css-entry.ts', "import './styles.css';\nexport const ready = true;\n");
+	test.each(['server', 'browser'] as const)(
+		'a %s build turns a side-effect stylesheet import into an empty module and emits no stylesheet',
+		async (environment) => {
+			writeFixture('styles.css', 'body { color: red; }');
+			const entrypoint = writeFixture('css-entry.ts', "import './styles.css';\nexport const ready = true;\n");
+
+			const result = await new RolldownBuildAdapter().build({
+				environment,
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: environment === 'server' ? 'node' : 'browser',
+				format: 'esm',
+				root: workDir,
+				stylesheets: { extensions: ['.css'], compileModule: async () => 'export default "compiled";' },
+			});
+
+			assertBuildSucceeded(result, 'Build failed');
+			expect(result.outputs.some((output) => output.path.endsWith('.css'))).toBe(false);
+			const code = readFileSync(result.outputs[0]!.path, 'utf-8');
+			expect(code).not.toContain('color');
+			expect(code).not.toContain('compiled');
+		},
+	);
+
+	test.each(['server', 'browser'] as const)(
+		'a %s build gives a binding stylesheet import the module the stylesheets compiler returns',
+		async (environment) => {
+			const stylesheet = writeFixture('card.css', '.card { @apply text-red; }');
+			writeFixture('side-effect.ts', "import './card.css';\nexport const sideEffect = true;\n");
+			const entrypoint = writeFixture(
+				'card-entry.ts',
+				"import styles from './card.css';\nimport { sideEffect } from './side-effect.ts';\nexport default [styles, sideEffect];\n",
+			);
+			const compiled: string[] = [];
+
+			const result = await new RolldownBuildAdapter().build({
+				environment,
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: environment === 'server' ? 'node' : 'browser',
+				format: 'esm',
+				root: workDir,
+				writeToDisk: false,
+				stylesheets: {
+					extensions: ['.css'],
+					compileModule: async (file) => {
+						compiled.push(file);
+						return 'export default ".card { color: red; }";';
+					},
+				},
+			});
+
+			assertBuildSucceeded(result, 'Build failed');
+			expect(result.outputs[0]!.content).toContain('.card { color: red; }');
+			expect(result.outputs[0]!.content).not.toContain('@apply');
+			expect(compiled.map((file) => path.fromNative(realpathSync(file)))).toEqual([
+				path.fromNative(realpathSync(stylesheet)),
+			]);
+		},
+	);
+
+	test('a stylesheet import another plugin externalizes stays external', async () => {
+		writeFixture('card.css', '.card { color: red; }');
+		writeFixture('theme.css', '.theme { color: blue; }');
+		const entrypoint = writeFixture(
+			'external-entry.ts',
+			"import styles from './card.css';\nimport './theme.css';\nexport default styles;\n",
+		);
+		const externalize: EcoBuildPlugin = {
+			name: 'externalize-imports',
+			setup(build) {
+				build.onResolve({ filter: /.*/u }, (args) =>
+					args.importer ? { path: args.path, external: true } : undefined,
+				);
+			},
+		};
 
 		const result = await new RolldownBuildAdapter().build({
-			environment: 'server' as const,
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
-			target: 'node',
+			target: 'browser',
 			format: 'esm',
 			root: workDir,
+			writeToDisk: false,
+			plugins: [externalize],
 		});
 
 		assertBuildSucceeded(result, 'Build failed');
-		expect(result.outputs.some((output) => output.path.endsWith('.css'))).toBe(false);
-		expect(readFileSync(result.outputs[0]!.path, 'utf-8')).not.toContain('color');
+		expect(result.outputs[0]!.content).toContain('"./card.css"');
+		expect(result.outputs[0]!.content).toContain('"./theme.css"');
+		expect(result.outputs[0]!.content).not.toContain('color');
 	});
 
-	test('a server build shims a declared stylesheet extension and parses an undeclared one as JavaScript', async () => {
+	test.each([
+		{
+			scenario: 'a module imports the stylesheet both for its side effects and with a binding',
+			source: "import './card.css';\nimport styles from './card.css';\nexport default styles;\n",
+		},
+		{
+			scenario: 'the side-effect scan cannot parse the module',
+			source: "import styles from './card.css';\nexport default styles;\nconst broken = <div>{</div>;\n",
+		},
+	])('a build compiles the stylesheet when $scenario', async ({ source }) => {
+		writeFixture('card.css', '.card {}');
+		const entrypoint = writeFixture('both-entry.tsx', source);
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+			stylesheets: { extensions: ['.css'], compileModule: async () => 'export default "compiled card";' },
+		});
+
+		if (source.includes('broken')) {
+			assertBuildFailed(result);
+			return;
+		}
+		assertBuildSucceeded(result, 'Build failed');
+		expect(result.outputs[0]!.content).toContain('compiled card');
+	});
+
+	test("a browser build gives a package's side-effect stylesheet import an empty module", async () => {
+		writeAppPackageJson();
+		const packageDir = path.join(workDir, 'node_modules', 'css-widget');
+		mkdirSync(packageDir, { recursive: true });
+		writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: 'css-widget', version: '1.0.0', type: 'module', main: './index.js' }),
+		);
+		writeFileSync(path.join(packageDir, 'index.js'), "import './style.css';\nexport const widget = 'widget';\n");
+		writeFileSync(path.join(packageDir, 'style.css'), '.css-widget-marker { color: red; }\n');
+		const entrypoint = writeFixture(
+			'widget-entry.ts',
+			"import { widget } from 'css-widget';\nconsole.log(widget);\n",
+		);
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+			stylesheets: { extensions: ['.css'], compileModule: async () => 'export default "compiled";' },
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(result.outputs[0]!.content).toContain('widget');
+		expect(result.outputs[0]!.content).not.toContain('css-widget-marker');
+		expect(result.outputs[0]!.content).not.toContain('compiled');
+	});
+
+	test('a build compiles a declared stylesheet extension and parses an undeclared one as JavaScript', async () => {
 		writeFixture('card.scss', '.card { color: red; }');
-		const entrypoint = writeFixture('scss-entry.ts', "import './card.scss';\nexport const ready = true;\n");
-		const build = (stylesheetExtensions?: readonly string[]) =>
+		const entrypoint = writeFixture('scss-entry.ts', "import styles from './card.scss';\nexport default styles;\n");
+		const build = (extensions: readonly string[]) =>
 			new RolldownBuildAdapter().build({
 				environment: 'server' as const,
 				entrypoints: [entrypoint],
@@ -641,14 +781,15 @@ describe('RolldownBuildAdapter', () => {
 				target: 'node',
 				format: 'esm',
 				root: workDir,
-				stylesheetExtensions,
+				writeToDisk: false,
+				stylesheets: { extensions, compileModule: async () => 'export default "compiled scss";' },
 			});
 
-		const shimmed = await build(['.css', '.scss']);
-		assertBuildSucceeded(shimmed, 'Build failed');
-		expect(readFileSync(shimmed.outputs[0]!.path, 'utf-8')).not.toContain('color');
+		const compiled = await build(['.css', '.scss']);
+		assertBuildSucceeded(compiled, 'Build failed');
+		expect(compiled.outputs[0]!.content).toContain('compiled scss');
 
-		assertBuildFailed(await build());
+		assertBuildFailed(await build(['.css']));
 	});
 
 	test('externalPackages points undeclared core-owned runtime packages at paths relative to the output', async () => {

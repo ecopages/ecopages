@@ -1,7 +1,7 @@
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import type { BuildEnvironment, BuildOptions } from '../contracts/build-contracts.ts';
+import type { BuildEnvironment, BuildOptions, BuildStylesheets } from '../contracts/build-contracts.ts';
 import { appliesToBuildEnvironment } from '../contracts/build-manifest.ts';
 import { createAliasResolverPlugin } from '../../plugins/alias-resolver-plugin.ts';
 import { resolveBuildEnvironmentOptions } from './build-environment-options.ts';
@@ -10,6 +10,7 @@ import { createEcoComponentMetaPlugin } from '../../plugins/eco-component-meta-p
 import { getStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { isProductionRuntime } from '../../env.ts';
 import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transform.ts';
+import { compileStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 
 /**
  * App-owned plugins of one environment, in the order their hooks run.
@@ -94,6 +95,14 @@ export function resolveBuildPluginOrder(
 	return [...plugins, ...coreTransforms];
 }
 
+/** The app's stylesheets, which every build request compiles with {@link compileStylesheetModule}. */
+function resolveBuildStylesheets(appConfig: EcoPagesAppConfig): BuildStylesheets {
+	return {
+		extensions: getStylesheetKinds(appConfig).extensions,
+		compileModule: (file) => compileStylesheetModule(appConfig, file),
+	};
+}
+
 export type ServerBuildRequestInput = Partial<BuildOptions> & {
 	entrypoints: BuildOptions['entrypoints'];
 };
@@ -132,7 +141,7 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
 		...overrides,
 		environment: 'server',
 		entrypoints: input.entrypoints,
-		stylesheetExtensions: getStylesheetKinds(appConfig).extensions,
+		stylesheets: resolveBuildStylesheets(appConfig),
 		...(plugins.length > 0 ? { plugins } : {}),
 	};
 }
@@ -161,6 +170,7 @@ export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: B
 		define: { ...environmentOptions.define, ...callerDefines },
 		environment: 'browser',
 		entrypoints: input.entrypoints,
+		stylesheets: resolveBuildStylesheets(appConfig),
 		plugins,
 	};
 }

@@ -158,13 +158,13 @@ export interface BuildOptions {
 	};
 	plugins?: EcoBuildPlugin[];
 	/**
-	 * The dotted stylesheet extensions a server build replaces with an empty module; defaults to `['.css']`.
+	 * How the build compiles the stylesheets its modules import; defaults to `.css` files exported as written.
 	 *
 	 * @remarks
-	 * Server requests set it from the registered stylesheet Processor (see `StylesheetKinds`), so a stylesheet the
-	 * Processor declares is never parsed as JavaScript.
+	 * Server and browser requests set it from the app: the extensions of the registered stylesheet Processor (see
+	 * `StylesheetKinds`) and core's `compileStylesheetModule`, so both environments give an import the same CSS.
 	 */
-	stylesheetExtensions?: readonly string[];
+	stylesheets?: BuildStylesheets;
 	/**
 	 * Builds each `new Worker(new URL('./x.ts', import.meta.url), { type: 'module' })`, and the same with
 	 * `SharedWorker`, as its own entry and points the URL at the emitted file. Browser builds only; defaults to `true`.
@@ -173,6 +173,20 @@ export interface BuildOptions {
 	 * The dev transform server sets `false`: it compiles one module at a time and points the URL at its own module URL.
 	 */
 	workerEntries?: boolean;
+}
+
+/**
+ * The stylesheets of one build request and the compiler of the module a binding import of one receives.
+ *
+ * @remarks
+ * Only `extensions` is part of the request identity: `compileModule` is the app's one stylesheet compiler, the same
+ * for every request of the app.
+ */
+export interface BuildStylesheets {
+	/** The lowercase, dotted stylesheet extensions. */
+	readonly extensions: readonly string[];
+	/** Compiles the stylesheet at `file` into ES module code whose default export is its processed CSS. */
+	compileModule(file: string): Promise<string>;
 }
 
 /** Compilation environment, independent of the build queue's scheduling lane. */

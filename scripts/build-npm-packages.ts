@@ -90,12 +90,11 @@ function isTestLike(relativePath: string): boolean {
 }
 
 /**
- * Reports whether a file is architecture documentation that lives beside the source.
+ * Reports whether a file is Markdown under `src`, which a published package never ships.
  *
  * @remarks
- * The package README is copied separately and stays. Folder READMEs and diagrams under `src`
- * describe the repository for contributors; the package README links to them through
- * `repository.directory`, so npm resolves those links to the repository instead.
+ * The package README is copied separately and stays. Architecture documentation lives in the
+ * developer pages under `apps/docs/src/content/dev`, not beside the source.
  */
 function isSourceDoc(relativePath: string): boolean {
 	return relativePath.startsWith('src/') && relativePath.endsWith('.md');

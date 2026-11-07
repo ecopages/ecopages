@@ -2,7 +2,7 @@
 title: "Lit"
 description: "How the Lit Integration renders custom elements with declarative shadow DOM, loads hydration support first, and moves static-export SSR into a worker."
 section: packages
-order: 21
+order: 23
 sources:
   - packages/integrations/lit/src/lit.plugin.ts
   - packages/integrations/lit/src/lit-renderer.ts
@@ -13,7 +13,7 @@ sources:
   - packages/integrations/lit/src/lit-static-render-worker-client.ts
   - packages/integrations/lit/src/lit-static-render-worker.ts
   - packages/integrations/lit/src/lit-static-render-protocol.ts
-  - packages/integrations/lit/src/STATIC_RENDER.md
+  - packages/integrations/lit/src/lit-static-render-error.ts
   - packages/integrations/lit/README.md
 ---
 
@@ -79,6 +79,19 @@ sequenceDiagram
 - The worker restores the production browser build from the asset ledger, so a Lit Page links the same app-wide outputs as any other Page. It resolves the global scripts such as hydration support with `resolveIntegrationDependencies()` after that restore, not at init, so the worker bundles none of them on its own into `dist/client` ([Build pipeline](/dev/build-pipeline), [Ledger and start](/dev/ledger-and-start)).
 - `ECOPAGES_LIT_STATIC_RENDER_WORKER=true` makes the worker skip processor `.setup()`; the main thread already prepared artifacts. Integration setup still runs in the worker.
 - Teardown disposes the session; the release returned by `staticExport()` does the same so no worker outlives the export.
+
+`staticExport()` throws without `appConfig.absolutePaths.config`, and passes the export's output and work directories with `context.baseUrl`. That triple is the worker's identity: a later start with the same identity reuses the worker, a different one disposes it and starts another. The `init` message carries the directories, so the worker reads the ledger of the build it exports even when the configured `distDir` holds an earlier build. Renders run one at a time, and a render that finds the module loader's development generation changed restarts the worker first.
+
+| Message | Direction | Purpose |
+| --- | --- | --- |
+| `init` | main to worker | Load the config module with the export's directories and bootstrap the runtime |
+| `ready` | worker to main | Worker initialized |
+| `render` | main to worker | Render one Lit Page route (`filePath`, `params`, optional `query`) |
+| `result` / `error` | worker to main | HTML with optional `cacheStrategy`, `sourceDependencyPaths` and `metadata`, or the error |
+| `shutdown` | main to worker | Wait for active renders, tear down Integrations, close the port |
+| `shutdown-complete` | worker to main | Teardown done; the client then waits for the worker to exit and terminates it after a timeout |
+
+`postMessage` cannot carry an error's class, so `error` carries the status of a thrown `HttpError`, and the main thread rebuilds an `HttpError` with it; without the status, a Page throwing `HttpError.NotFound()` in the worker would render as a 500. The worker's name, message and stack stay on the rebuilt error's `cause`.
 
 ## Custom-element registration
 

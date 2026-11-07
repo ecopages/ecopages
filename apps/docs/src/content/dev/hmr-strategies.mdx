@@ -2,10 +2,12 @@
 title: "Strategies"
 description: "How HmrManager picks one HMR strategy per changed file, which strategies core and the Integrations register, and how events are coalesced."
 section: hmr
-order: 12
+order: 20
 sources:
   - packages/core/src/hmr/
   - packages/core/src/adapters/shared/hmr/hmr-manager.ts
+  - packages/core/src/adapters/node/dev-session.ts
+  - packages/core/src/dev/transform-server/dev-transform-server.ts
   - packages/integrations/react/src/hmr/hmr-strategy.ts
   - packages/integrations/ecopages-jsx/src/ecopages-jsx-hmr-strategy.ts
 ---
@@ -16,6 +18,8 @@ sources:
 
 
 `HmrManager.handleFileChanges()` clears recorded dev-transform failures, then for each file invalidates the dev-transform modules of that file and of every entrypoint that imports it, selects a strategy, and collects its events. A missing file is skipped and its entrypoint registration cleared. A registered entrypoint first runs the Integrations' `onScriptEntrypointChanged` handlers, which Lit and Ecopages JSX (with Radiant) use to invalidate their custom-element SSR preload state.
+
+Strategies only choose the browser update. The watcher batch already marked server modules and Page Browser Graph records dirty before the manager runs, and a registered entrypoint's server module is imported again on the next request, not on the file event. Generic invalidation policy stays in core services, framework-specific update behavior in strategies, and the WebSocket transport in the adapter.
 
 Strategies extend `HmrStrategy` and are tried in descending `priority` (`type` plus `priorityOffset`); the first whose `matches()` returns true wins. Core registers three, Integrations add their own in their `hmr()` hook through `registerStrategy()`, and `DefaultHmrStrategy` sits outside the list as the last resort.
 
@@ -53,4 +57,10 @@ CSS does not go through strategies. A stylesheet is a `processor-owned-asset` wi
 
 ### Coalescing and errors
 
-The manager merges the batch before broadcasting: any `reload` replaces every other update, several `layout-update` events collapse into one, and other distinct events are all kept, so an edit shared by two islands hot-updates both. A file whose strategy throws becomes an `error` event without dropping the others. Errors go last because the client clears a shown error on every non-error event. With no browser connected the events are dropped rather than queued: a tab opened later already loads current HTML and versioned module URLs. Failed files and failed dev-transform modules are recorded and replayed to a socket that connects later through `sendPendingBuildErrors()`.
+The manager merges the batch before broadcasting: any `reload` replaces every other update, several `layout-update` events collapse into one, and other distinct events are all kept, so an edit shared by two islands hot-updates both. A file whose strategy throws becomes an `error` event without dropping the others. Errors go last because the client clears a shown error on every non-error event. With no browser connected the events are dropped rather than queued: a tab opened later already loads current HTML and versioned module URLs. A tab whose socket was reconnecting keeps its old page until the next change, because replaying a `reload` for it would also reload every freshly opened tab, and the server cannot tell the two apart.
+
+Errors are the exception, and are replayed:
+
+- A dev-transform compile failure is broadcast when the module is requested, which on a fresh page load can be before its HMR socket connects. `DevTransformServer` records the message under the module until the next `handleFileChanges()` clears every failure (the cause can be another file) or a request for that module succeeds.
+- A file whose strategy or script-change handler throws is recorded under that file until it processes without error, so its error survives a `reload` that another file of the same save triggers.
+- The Node host calls `sendPendingBuildErrors()` right after subscribing a socket, which sends one `error` event per recorded failure.

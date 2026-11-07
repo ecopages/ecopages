@@ -1,0 +1,37 @@
+---
+title: "Dev toolbar"
+description: "What core owns of the development toolbar: enablement, the per-page dev manifest, and bundling and injecting the configured client package."
+section: development
+order: 18
+sources:
+  - packages/core/src/dev-toolbar/
+  - packages/core/src/hmr/dev-client-runtime.ts
+  - packages/core/src/adapters/shared/hmr/hmr-manager.ts
+  - packages/core/src/route-renderer/orchestration/route-pipeline/route-html-finalization.service.ts
+---
+
+# Dev toolbar
+
+The toolbar is a client package that core bundles and loads during `ecopages dev`. Core knows nothing about its UI: it decides whether the toolbar runs, describes each page in a manifest, and delivers the package's bootstrap. Configuration, the built-in apps, the manifest fields and the build error events custom clients use are in the public [Dev toolbar](/docs/core/dev-toolbar) docs.
+
+| Layer | Owns |
+| --- | --- |
+| Core (`packages/core/src/dev-toolbar/`) | Enablement, the per-page `#__ECO_DEV_MANIFEST__`, bundling and injecting `/_dev_toolbar.js`, the build error event names |
+| Client package (`devToolbar.package`) | The dock, its panels and any extra apps |
+| Integrations | Page rendering and browser assets; they register no dock apps |
+
+`@ecopages/dev-toolbar` is an optional peer, never imported by core. The manifest contract (`dev-toolbar-manifest-contract.ts`) and the build error contract (`build-error-contract.ts`) live in core and are exported from `@ecopages/core/client`, so a custom client can type them without installing the reference package.
+
+## Enablement
+
+`isDevToolbarEnabled()` is true only in watch mode, with `devToolbar.package` set, `devToolbar.enabled` not `false`, and `ECOPAGES_DEV_TOOLBAR` not disabled. Every caller passes the HMR manager's enabled state as watch mode, so the toolbar is off whenever HMR is.
+
+The package resolves from the application root, so it must be installed in the app. Core walks up from the package's resolved entry to its root and bundles `src/bootstrap.js` if it exists, then `src/bootstrap.ts`, then the package's own entry.
+
+## Injection
+
+1. Route HTML finalization appends the manifest `<script type="application/json" id="__ECO_DEV_MANIFEST__">` to `<body>` (`route-html-finalization.service.ts`, built by `dev-toolbar-manifest.ts`).
+2. `HmrManager` bundles the package as a `DevClientRuntime` next to the HMR client, into the work directory, and serves it at `/_dev_toolbar.js`.
+3. Each HTML response gets `import '/_dev_toolbar.js'` as a module script at the start of `<head>` (before `</html>` when there is no head), only after the bundle was built.
+
+A package that is missing or fails to bundle logs `Could not bundle the Dev Toolbar runtime` and leaves HMR on. A failed HMR client bundle disables HMR, and with it the toolbar script and the manifest; see [HMR client](/dev/hmr-client).

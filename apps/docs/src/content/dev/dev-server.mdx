@@ -2,7 +2,7 @@
 title: "Dev server"
 description: "How ecopages dev serves browser modules: the transform server that compiles each module on request, and the vendor graph that prebundles package imports."
 section: development
-order: 9
+order: 16
 sources:
   - packages/core/src/dev/transform-server/
   - packages/core/src/hmr/hmr-asset-paths.ts
@@ -56,7 +56,7 @@ sequenceDiagram
 
 `DevTransformBundler` runs a Rolldown build with a single entry on the `hmr` lane. The `ecopages-dev-transform-externalize-imports` plugin marks every import external, so only the requested file is compiled; a specifier with a scheme, such as `ecopages:images`, stays internal so its virtual-module plugin can inline it. The files the build inlined, including those a plugin declared with `addWatchFile`, join the module's dependencies, so an edit to one recompiles the module. The Integration that claims the module through its `DevTransformBundleContributor` adds its own plugins, for example a client-graph boundary or the MDX loader.
 
-The server keeps one cache entry per source file, keyed by the file's content hash, and one in-flight compile per source. A result is committed only if the source did not change or get invalidated while it compiled; otherwise the request compiles again. A stylesheet needs no build: it becomes `export default "<css>"`, since real stylesheet delivery goes through Dependencies.
+The server keeps one cache entry per source file, keyed by the file's content hash, and one in-flight compile per source. A result is committed only if the source did not change or get invalidated while it compiled; otherwise the request compiles again. A failed compile of a source that changed meanwhile is retried the same way, so its error is neither returned nor reported. A stylesheet needs no build: it becomes `export default "<css>"`, since real stylesheet delivery goes through Dependencies.
 
 A failed compile answers `500` with the error text and reports it to the HMR manager, which shows it in the page. See [HMR client](/dev/hmr-client) for how errors and updates reach the browser.
 
@@ -80,7 +80,7 @@ The interop matches the one the production build applies (Rolldown's `__toESM` o
 
 The same rewrite runs on unbundled module content scripts while HMR is on: the content-script processor passes their source through the HMR manager's `rewriteModuleImports` before it writes the file, so a generated bootstrap such as React's Page entry can import `react` and the router by package name. An inline module script embeds the rewritten source.
 
-The `?v=` query makes the browser treat an edited dependency as a new module, so a soft HMR update picks up changed layouts and components without a full reload. The pathname itself never changes, so a module keeps one identity per content version. Relative module `Worker` and `SharedWorker` URLs are rewritten the same way. Every resolved local import is reported back to the HMR manager as a dependency of the module, which drives invalidation.
+The `?v=` query makes the browser treat an edited dependency as a new module, so a soft HMR update picks up changed layouts and components without a full reload. The pathname itself never changes, so a module keeps one identity per content version. Relative module `Worker` and `SharedWorker` URLs (`new Worker(new URL('./x.ts', import.meta.url), { type: 'module' })`) are rewritten the same way, and the worker is served like any other module; the one-module build sets `workerEntries: false` so it does not emit its own worker chunk. A classic worker, or a relative URL that does not resolve or carries a query, fails the module with the same error as a production build. Any other Worker URL, such as a `new URL()` held in a variable, is left as written with a warning naming the file. Every resolved local import is reported back to the HMR manager as a dependency of the module, which drives invalidation.
 
 ## The vendor graph
 
@@ -116,7 +116,7 @@ A rebuild must not change a file the browser already loaded, or the page reloads
 | Storage | outputs stay in process memory; nothing is written under `dist` |
 | Seeding | every known specifier and directory pair that reached an entry, failing ones included, is written to `dev-vendor-entries.json` in the work directory; the next process seeds from it and builds the full graph on its first request instead of rebuilding and reloading |
 | Failures | a failed graph build retries entry by entry; entries that fail alone answer `500` with the prebundle error and the rest build without them. A graph that fails as a whole, with no single failing entry or a thrown error, logs the error and keeps serving each entry's last good output; an entry without one answers `500` and is retried by a request made 2 s or more later |
-| Installs | a change to a lockfile or install manifest (such as `node_modules/.modules.yaml`), checked on asset requests at most once per 300 ms, invalidates compiled modules and vendor graphs and resolves each specifier again from every directory that reached its entry, dropping directories that no longer exist, so an install during the session takes effect without a restart; until the rebuild commits, chunk URLs are served from the previous build |
+| Installs | a change to a lockfile or install manifest (such as `node_modules/.modules.yaml`) of the app or of the nearest ancestor with a lockfile, checked on asset requests at most once per 300 ms, invalidates compiled modules and vendor graphs and resolves each specifier again from every directory that reached its entry, dropping directories that no longer exist, so an install during the session takes effect without a restart; until the rebuild commits, chunk URLs are served from the previous build |
 | Changes | when a rebuild changes or drops a file a browser already received, from that build or an earlier one the rebuild kept it from, the HMR manager broadcasts `reload`, since mixing old and new chunks could load a module twice |
 | Caching | responses carry `Cache-Control: no-cache` and a content `ETag`, so the browser revalidates and gets `304` while the content holds |
 

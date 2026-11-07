@@ -10,6 +10,8 @@ sources:
   - packages/core/src/adapters/
   - packages/file-system/src/path.ts
   - packages/core/src/build/rolldown/rolldown-module-id.ts
+  - scripts/check-portability.ts
+  - scripts/core-layering-allowlist.json
 ---
 
 # Architecture
@@ -39,7 +41,7 @@ flowchart TD
 - **Build** does all compiling once and records what it processed. See [Build pipeline](/dev/build-pipeline).
 - **Start** restores those records and compiles nothing. See [Ledger and start](/dev/ledger-and-start).
 
-Every path renders a Page the same way: route preparation collects its assets into a Page Package before the first Component renders; see [From graph to HTML](/dev/graph-to-html).
+Every path renders a Page the same way: route preparation collects its assets into a Page Package before the first Component renders; see [From graph to HTML](/dev/graph-to-html). How a config becomes the per-app state all three share is in [App runtime](/dev/app-runtime).
 
 ## Packages
 
@@ -63,6 +65,23 @@ Every path renders a Page the same way: route preparation collects its assets in
 | `packages/__internals/testing` | Private test helpers shared by the packages. |
 
 Integrations render files and own a JSX runtime; Processors own asset semantics. Both contribute build plugins through the contracts in [Plugin pipeline](/dev/plugin-pipeline) and [Integrations and foreign children](/dev/integrations-foreign-children).
+
+## Core source layers
+
+`packages/core/src` is ordered in layers. A module may import from its own layer or an earlier one, never from a later one.
+
+| Layer | Folders and root files |
+| --- | --- |
+| Foundation | `types/`, `errors/`, `global/`, `utils/`, `html/`, `client/`, `islands/`, `validation/`, `constants.ts`, `env.ts`, `browser-env.ts`, the `.d.ts` declarations |
+| Contracts | `plugins/`, `eco/` |
+| Build | `build/`, `assets/`, `cache/`, `diagnostics/` |
+| Rendering | `router/`, `route-renderer/`, `html-pages/`, `page-cache/`, `static-site-generator/` |
+| Development and HMR | `dev/`, `dev-toolbar/`, `hmr/`, `watchers/` |
+| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`, `integration.ts`, `processor.ts`, `build.ts`, `client.ts` |
+
+Foundation code knows nothing of the systems that use it: `types/` holds contracts only, error classes do not depend on what reports them, `client/` browser helpers stay independent of rendering and dev services, and per-app state lives on the `AppRuntime`, not in module globals.
+
+`pnpm check:portability` (`scripts/check-portability.ts`, also run by `pnpm typecheck`) enforces the order on runtime module references, including `import()`, `require()` and resolver calls. An inline `type` modifier counts, since `verbatimModuleSyntax` keeps the import; `import type` and `export type` are erased and skipped, and so are tests and fixtures. A new source folder or root file fails the check until it is added to the layer map in the script. Existing upward references are listed in `scripts/core-layering-allowlist.json` with the issue that removes each one. The list only shrinks: the check fails for an unlisted upward reference and for an entry whose reference is gone.
 
 ## Paths
 

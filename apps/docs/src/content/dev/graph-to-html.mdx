@@ -2,13 +2,13 @@
 title: "From graph to HTML"
 description: "How route preparation resolves the Page Browser Graph, processes Dependencies and builds the Page Package that the HTML transform writes."
 section: rendering
-order: 8
+order: 15
 sources:
   - packages/core/src/assets/asset-processing-service/page-package.ts
   - packages/core/src/assets/asset-processing-service/processors/script/file-script.processor.ts
   - packages/core/src/route-renderer/orchestration/page-browser-graph/
   - packages/core/src/static-site-generator/production-page-browser-graph-prebuild.ts
-  - packages/core/src/html/html-transformer.service.ts
+  - packages/core/src/html/
   - packages/core/src/route-renderer/orchestration/ownership-graph/
   - packages/core/src/route-renderer/orchestration/route-pipeline/route-render-orchestrator.ts
   - packages/core/src/route-renderer/page-loading/component-dependency-collection.ts
@@ -46,7 +46,9 @@ flowchart TD
 
 Only nodes with an identity file, under parents that also have one, take part in dependency collection. The Page Package is fixed before render: renders return HTML and root attributes only, and the HTML transform injects the prepared package.
 
-The graph has a guard. In development, `assertComponentInPreparedGraph` fails a render of a Component with `dependencies` and an identity file that preparation never reached, naming the file. Production does not check, so such a Component renders without its assets.
+The graph has a guard. In development, `assertComponentInPreparedGraph` fails a render of a Component with `dependencies` and an identity file that preparation never reached, naming the file and the fix: import it statically from its declaring module (a named re-export is followed, `export *` is not), list it in the parent's `dependencies.components`, or return it from the Page's `dependencies`. A Component declared only under a parent without an identity file gets its own message, since preparation collects nothing below such a parent.
+
+The guard sees only renders that pass through the renderer's component entrypoint. The Html shell, Layouts and Page are graph roots, so it catches Foreign Children, but only under a parent whose render installed a foreign-child runtime, which takes at least one declared Foreign Child descendant. Same-Integration children rendered inline, and the Page and Layouts of an Integration that composes one tree (React), never pass through it. Production renders and partial explicit views prepare no graph and are not checked, so a Component missing from the graph renders in production without its assets.
 
 Production builds run the same preparation in two steps: planning collects bundleable scripts without processing them, and processing runs after the app-wide browser build. See [Ledger and start](/dev/ledger-and-start). Development invalidation of prepared graphs and cached HTML is covered in [Watcher and invalidation](/dev/hmr-watcher-invalidation).
 
@@ -60,4 +62,10 @@ Route preparation builds one Page Package per render, before any Component rende
 - a `runtime` asset, which modules import by URL;
 - a source file already bundled into the page script or page stylesheet.
 
-The HTML transform appends the remaining assets to `<head>` or `<body>` by position; stylesheets always go to `<head>`. It never writes a tag for a Page Browser Graph dynamic chunk: the entry that needs it imports it. Rendering cannot add assets to the package; an HTML Page writes the tags of its own declared assets into its markup instead.
+The HTML transform appends the remaining assets to `<head>` or `<body>` by position; stylesheets always go to `<head>`. It never writes a tag for a Page Browser Graph dynamic chunk: the entry that needs it imports it. Rendering cannot add assets to the package; an HTML Page writes the tags of its own declared assets into its markup instead ([HTML Pages](/dev/html-pages)).
+
+## HTML rewriting
+
+`HtmlTransformerService.transform()` receives the Page Package and the document contributions of one render as arguments and keeps no per-render state, so overlapping renders cannot consume each other's head or body contributions. It escapes generated URLs and attribute values before writing tags.
+
+It rewrites through core's `HtmlRewriter`, a streaming implementation of the subset of the `HTMLRewriter` element API that core uses; `html-rewriter.test.ts` pins its output against lol-html. The lexical rules live in `html-tokenizer.ts`, shared with `html-source-parser.ts`, the positional parser that HTML Pages use to splice their source markup.

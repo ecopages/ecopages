@@ -2,7 +2,7 @@
 title: "Build pipeline"
 description: "What ecopages build emits: server modules, the app-wide browser graph and the static export, step by step from an empty dist."
 section: build
-order: 2
+order: 3
 sources:
   - packages/core/src/adapters/shared/runtime/server-static-builder.ts
   - packages/core/src/assets/app-browser-client-build.ts
@@ -13,8 +13,6 @@ sources:
   - packages/core/src/build/server-bundle-deploy-manifest.ts
   - packages/core/src/build/server/page-module-import.service.ts
   - packages/core/src/build/server/server-modules-manifest.ts
-  - packages/core/src/static-site-generator/production-page-browser-graph-prebuild.ts
-  - packages/core/src/static-site-generator/static-site-generator.ts
   - packages/core/src/assets/browser-bundle.service.ts
   - packages/core/src/assets/hashed-browser-asset.ts
   - packages/core/src/assets/asset-processing-service/app-browser-client-bundle.ts
@@ -23,6 +21,9 @@ sources:
   - packages/core/src/adapters/shared/http/dist-file-handler.ts
   - packages/core/src/plugins/eco-component-meta-plugin.ts
   - packages/core/src/build/server/view-reference.ts
+  - packages/core/src/build/rolldown/rolldown-adapter-helpers.ts
+  - packages/core/src/build/rolldown/app-package-declarations.ts
+  - packages/core/src/static-site-generator/
 ---
 
 # Build pipeline
@@ -54,7 +55,7 @@ flowchart TD
 | Browser assets and chunks | `dist/client/assets/` | app-wide browser build, asset processing |
 | Server entry loader and bundle | `dist/server/app.mjs`, `app.bundle.mjs` | `bundleServerEntry` |
 | Emitted config | `dist/server/eco.config.mjs` | `bundleEcoConfigModule` |
-| Deploy manifest | `dist/server/manifest.json` | `writeServerBundleDeployManifest` |
+| Deploy manifest, and `package.json` with `"type": "module"` so `.js` chunks load as ESM | `dist/server/manifest.json`, `package.json` | `writeServerBundleDeployManifest` |
 | Emitted server modules | `dist/server/` | `emitProductionServerModules` |
 | Server-modules map | `dist/server/server-modules.json` | `writeProductionServerModulesManifest` |
 | Filesystem route list | `dist/server/routes.json` | `writeProductionRouteList` |
@@ -81,6 +82,14 @@ No file a build writes holds a path of the machine that built it. The deploy man
 - content collections name their entries relative to the root.
 
 Core resolves them against the app root at load; a package path resolves from its importing module's folder, as Node resolves it. Why: the deployed folder can move to another machine or directory; only `dist/client/`, `dist/server/` and `node_modules/` must keep their relative positions. A dependency upgrade that moves a package to another store folder, as a pnpm version bump does, resolves the same way.
+
+Server builds pass `externalPackages`. Source code is bundled: the app, workspace packages, TypeScript or JSX packages, and Core when it resolves to its source. A compiled package the app declares stays a bare import, so Integration renderers and the server bundle share one instance (one React). Every other compiled package under a `node_modules` folder stays external as a `./` or `../` path from the output directory to the installed file, written by a `resolveId` hook that resolves it with the `node` and `import` conditions. Why: isolated installs do not expose undeclared packages as bare specifiers, and a compiled package may load files relative to itself (a native binding, a sibling file through `createRequire`), which breaks once bundled into another folder. A chunk written below the output directory that imports such a path fails the build. Exceptions:
+
+- `ws`, which needs CommonJS named-export interop, is bundled.
+- A package store whose real path has no `node_modules` segment, and a Yarn Plug'n'Play install (`.zip` archives Node cannot import), are bundled.
+- On Windows, a package on another drive than the output directory has no relative path and stays external as a `file:` URL.
+
+When externalized packages resolve outside the app root, as in a workspace, the server entry and emitted config builds each log one line naming the output file, the count and the first five packages; [Deployment](/docs/reference/deployment) tells users what to do about it.
 
 ## Server modules
 
@@ -130,3 +139,19 @@ A route that fails to plan is reported, not fatal on its own. A concrete instanc
 Each entry is named `client-<hash of its dependency key>` (`html-<hash of path>` for an HTML module script). The key (`getDeclaredDependencyKey`) leaves out `bundle`, `groupedBundle` and the declaring Integration, so a script several Integrations declare is one entry, recorded under each declaration's key, rather than one facade file per Integration of which the ledger keeps one, and every output name carries a content hash. A generated entry, such as a Page hydration script, an island entry or a lazy entry, imports its source files by absolute path, so it lists them as `bundledSourceFilepaths`, and its dependency key hashes its text with those files written relative to the app root, beside its name, which its generator derives from root-relative paths. A moved build keys it the same. Package imports are bundled into the same chunks, framework runtimes included, so every Page and island shares one copy of React through a content-hashed chunk served `immutable`. Rolldown's CommonJS interop gives entries the named exports of a CommonJS package such as React, and every browser build defines `process.env.NODE_ENV` from the current Node environment, so that package picks its production build whatever `minify` says.
 
 The build writes outputs to `dist/client/assets`, gzips each `.js` and `.css` file and records every output in the processed-asset ledger under the dependency key of every declaration that named it; the server answers hashed files with `Cache-Control: public, max-age=31536000, immutable`. `ecopages start` restores and seals that ledger and never compiles; [Ledger and start](/dev/ledger-and-start) covers both.
+
+## Static HTML
+
+The static-site generator renders through the same route matching, render orchestration and asset processing as a request; build mode adds a loop, not a second rendering stack. The Node adapter calls `prepareExport()` during initialization, before the router reads any Page, and `build()` prepares the export itself only when nothing did. Static export uses the build queue's concurrency limit.
+
+A Page's output file depends only on its route and its own source file, never on sibling Pages:
+
+| Route | Output |
+| --- | --- |
+| `/` | `index.html` |
+| A Page whose source file is named `index` (`pages/blog/index.tsx`, `pages/docs/[slug]/index.tsx`) | `<route>/index.html` |
+| Any other Page (`pages/blog.tsx`, `[slug].tsx`), explicit static routes, semantic error pages | `<route>.html` |
+
+Static serving and `ecopages start` look up `/blog` as `blog.html`, then `blog/index.html`. Semantic error pages are left out of the Page loop and written once by `route-renderer/error-pages/semantic-error-page-exporter.ts`, so runtime and static output share their source precedence.
+
+A Page that fails to render is logged with its route and stack and collected; the generator finishes the remaining routes and the sitemap, releases every Integration's `staticExport` resources in reverse order, then fails the build with all collected failures. `--keep-going` logs and continues instead. Sitemap eligibility comes from the metadata of each successful render (its active pathnames and `robots.index`), so a written Page is never loaded or rendered again for the sitemap; [Sitemap](/docs/core/sitemap) covers the rules users see.

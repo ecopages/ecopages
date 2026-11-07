@@ -2,14 +2,19 @@
 title: "Pages, layouts and components"
 description: "How build-time identity and dependency discovery attach assets to Components, how plain components and Layouts take part, and what the children check guards."
 section: rendering
-order: 5
+order: 11
 sources:
   - packages/core/src/plugins/component-import-discovery.ts
   - packages/core/src/plugins/eco-component-meta-plugin.ts
   - packages/core/src/eco/eco.ts
   - packages/core/src/eco/component-identity.ts
   - packages/core/src/eco/discovered-dependencies.ts
+  - packages/core/src/eco/discovered-dependency-paths.ts
   - packages/core/src/eco/page-layout-normalization.ts
+  - packages/core/src/eco/component-render-context.ts
+  - packages/core/src/eco/mdx-page-metadata.ts
+  - packages/core/src/route-renderer/page-loading/page-module-loader.ts
+  - packages/core/src/route-renderer/page-loading/component-dependency-collection.ts
   - packages/core/src/route-renderer/orchestration/document-shell/document-shell-render.service.ts
   - packages/core/src/route-renderer/orchestration/document-shell/layout-children-not-rendered-error.ts
   - packages/react-router/src/router.ts
@@ -45,6 +50,22 @@ flowchart LR
 
 A plain component attaches to the nearest declared owner: a plain function has no config to carry Dependencies. Discovery is module-scoped, so every declaration in one file shares its discovered imports even when a render branch omits one.
 
+`export *` and namespace imports are left out on purpose: following them would pull a whole component kit into the Page's asset graph. A route that needs such a Component lists it in `dependencies.components`; a development render of a Component the route never declared fails ([From graph to HTML](/dev/graph-to-html)).
+
+### The identity
+
+`identity.file` is the module's path relative to the app root, with forward slashes (`../` for a linked workspace package). Discovered stylesheets and watch files are written the same way, and core resolves them against the app root at load (`resolveDiscoveredStylesheets`, `resolveDiscoveredWatchFiles`), so an emitted module holds no path of the machine that built it.
+
+`identity.id` hashes the root-relative file, the name of the declaration the call belongs to (the nearest variable or function binding, or `default` inside `export default`) and how many earlier calls in the file share that name. Two declarations in one file never share an id, and a named declaration keeps its id while unrelated code changes; calls bound to no name are numbered in source order, so adding an earlier one renumbers them. Key per-component state on `id` and per-module work (bundles, watch paths) on `file`. An MDX module has one identity for the file ([MDX](/dev/mdx)).
+
+### Plain modules and the reach check
+
+Because a build may transform a plain module before the declaration that imports it, the meta plugin strips side-effect stylesheet imports from every plain module, local or from a package, and checks in `onEnd` that some declaration reached each one. Reach is recorded per declaration: each discovery replaces what that declaration reached before, the development watcher forgets a deleted file (`forgetDiscoveryOwner`), and a module counts as reached while some declaration's latest discovery walked it. A module outside the app root, such as a linked workspace package, is treated as a package and never reach-checked.
+
+The transforms of one build share module indexes and plain-module walks through a per-build `DiscoveryCache`; across builds, the only cache is the process-wide module index keyed by a hash of each file's contents.
+
+Collection places a plain module's stylesheet after the CSS of every declaration that imports it: a declaration's own CSS comes first, and a stylesheet several declarations on the Page reach takes the position of its last occurrence. CSS under a persisted Layout therefore stays with that Layout.
+
 ## Package stylesheets
 
 A side-effect import whose specifier is a package, in a declaration or in a plain module it reaches, is a package stylesheet when `resolvePackageStylesheetPath` resolves it to a `.css` file:
@@ -60,11 +81,17 @@ Discovery lists it by the folder of the module that imports it and its package p
 
 A stylesheet in a linked workspace package is a watch path, and any edit in that package restarts the development server, which covers the files it `@import`s or references; one under `node_modules` is not, since the watcher ignores that directory. A package CSS Module (`.module.css`) fails like a local one. An HTML Page module script that imports a package stylesheet still fails: only declarations deliver CSS.
 
-At runtime, `attachDiscoveredDependencies` turns `config.dependencies.components` into a getter that merges explicit Components with discovered ones, keeping only declared Components. Inferred stylesheets stay on the identity, not in the public bag, so copying or merging `dependencies` cannot turn one into an explicit stylesheet; collection prefers explicit declarations by resolved path.
+## Runtime
+
+At runtime, `attachDiscoveredDependencies` turns `config.dependencies.components` into a getter that merges explicit Components, first, with discovered ones in import order, removing duplicates and keeping only declared Components. The getter reads the import bindings when the graph is traversed, after every module has initialized. Inferred stylesheets stay on the identity, not in the public bag, so copying or merging `dependencies` cannot turn one into an explicit stylesheet; collection prefers explicit declarations by resolved path.
+
+Component factories render through a context in `eco/component-render-context.ts`. The route renderer opens one per render with `runWithComponentRenderContext`, supplying the foreign-child runtime that hands off Components another Integration owns ([Integrations and foreign children](/dev/integrations-foreign-children)). The context lives in `AsyncLocalStorage`, so nested and concurrent renders keep their own across async work, and the storage is attached to `process` rather than module state, so duplicate module instances in development share it.
+
+A Page declares its data only through the `staticPaths`, `staticProps` and `metadata` options of `eco.page()`, one options object that keeps the Page's concerns together and lets its props type flow to every hook. `PageModuleLoaderService.assertNoLegacyPageExports` fails a module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata`, naming the `migrate-to-eco-page` codemod. MDX cannot call `eco.page()`, so the MDX-capable Integrations move its `getMetadata` export onto the Page with `moveMdxMetadataOntoPage` before core sees the module. The authoring API is in the [eco namespace reference](/docs/reference/eco-namespace).
 
 ## Layouts
 
-`eco.page({ layout })` normalizes one Layout or an outer-to-inner array into `config.layouts`. `mergeLayoutDependencies` adds only `eco.layout()` results to `dependencies.components`; a plain Layout function carries no config, so it is composed but not a graph node, and its imports reach the Page through plain-module discovery. Use `eco.layout()` only when a Layout needs browser scripts, `modules`, stylesheet attributes, an `integration` override or rendering by another Integration.
+`eco.page({ layout })` normalizes one Layout or an outer-to-inner array, where an entry may be `{ component, props }`, into `config.layouts` and `config.layoutEntries` at factory time (`normalizePageLayouts`). Layouts are never inferred from `src/layouts/` or route folders. `mergeLayoutDependencies` adds only `eco.layout()` results to `dependencies.components`; a plain Layout function carries no config, so it is composed but not a graph node, and its imports reach the Page through plain-module discovery. Use `eco.layout()` only when a Layout needs browser scripts, `modules`, stylesheet attributes, an `integration` override or rendering by another Integration.
 
 Layouts persist by reference. A Layout module has one URL in the browser, so every Page that imports it gets the same function. With react-router's `persistLayouts` (on by default), a layout tier stays mounted while consecutive Pages pass the same function, and React keeps its state; with it off, each Page's tree is keyed so its layouts remount.
 

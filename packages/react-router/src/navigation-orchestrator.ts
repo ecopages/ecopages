@@ -53,7 +53,7 @@ export type SpaCommitEffects = {
 	saveScrollPositions: () => void;
 	restoreScrollPositions: (finalPath: string, isPopState: boolean) => void;
 	updateHistory: (finalPath: string, requestedUrl: string, direction: NavigationDirection) => void;
-	commitPageData: (moduleUrl: string, props: Record<string, unknown>) => void;
+	commitPageData: (moduleUrl: string, props: Record<string, unknown>, document: Document) => void;
 	setCurrentPage: (page: { Component: LoadedPageModule['Component']; props: Record<string, unknown> }) => void;
 	waitForRender: (page: {
 		Component: LoadedPageModule['Component'];
@@ -198,7 +198,7 @@ export async function applySpaNavigation(
 		swap: async () => {
 			const renderPromise = effects.waitForRender(nextPage);
 			effects.runInReactTransition(() => {
-				effects.commitPageData(page.moduleUrl, page.props);
+				effects.commitPageData(page.moduleUrl, page.props, page.doc);
 				effects.setCurrentPage(nextPage);
 			});
 			await renderPromise;

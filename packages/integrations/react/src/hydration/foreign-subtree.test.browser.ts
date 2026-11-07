@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement, useEffect, useState, type ElementType, type ReactNode } from 'react';
-import { hydrateRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
+import { createRoot, hydrateRoot } from 'react-dom/client';
 import { eco } from '@ecopages/core';
 import { startPageHydration, type PageHydrationOptions } from './browser/page-hydration.ts';
 import { getIslandHydrationRuntime, mountIslands } from './browser/island-hydration.ts';
+import { installForeignSubtreeHost } from './browser/foreign-subtree-host.ts';
+import { getForeignSubtreeKey, renderForeignSubtreeBoundary } from './foreign-subtree.ts';
 
-type TestWindow = Window & typeof globalThis & { __ECO_PAGES__?: Record<string, unknown> };
+type TestWindow = Window &
+	typeof globalThis & { __ECO_PAGES__?: { page?: { module: string; props: object; document?: Document } } };
 
 /** A Lit Component as the browser sees it: its render returns a Lit `TemplateResult`, which React cannot render. */
 const LitCounter = eco.component<{ count: number }, unknown>({
@@ -13,8 +17,12 @@ const LitCounter = eco.component<{ count: number }, unknown>({
 	render: ({ count }) => ({ _$litType$: 1, strings: ['<lit-counter count="', '"></lit-counter>'], values: [count] }),
 });
 
-const SERVER_LIT_COUNTER =
-	'<eco-foreign-subtree data-eco-foreign-key="server" style="display:contents"><!--lit-part--><lit-counter count="1"><template shadowrootmode="open"><span data-lit-value>1</span></template></lit-counter><!--/lit-part--></eco-foreign-subtree>';
+const SERVER_LIT_COUNTER = renderForeignSubtreeBoundary(
+	getForeignSubtreeKey(LitCounter, { count: 1 }),
+	'<!--lit-part--><lit-counter count="1"><template shadowrootmode="open"><span data-lit-value>1</span></template></lit-counter><!--/lit-part-->',
+);
+
+let islandRuntimeState: ReturnType<typeof getIslandHydrationRuntime> | undefined;
 
 /**
  * The React runtime a generated entry passes to the bootstraps.
@@ -77,6 +85,8 @@ function trackErrors() {
 }
 
 afterEach(() => {
+	islandRuntimeState?.observer?.disconnect();
+	islandRuntimeState = undefined;
 	document.body.innerHTML = '';
 	delete document.body.dataset.hydrated;
 	document.querySelectorAll('script[data-eco-script-id]').forEach((node) => node.remove());
@@ -84,7 +94,7 @@ afterEach(() => {
 });
 
 describe('Foreign Subtree in a hydrated React tree', () => {
-	it.fails('A hydrated React Page renders a foreign Lit Component', async () => {
+	it('A hydrated React Page renders a foreign Lit Component', async () => {
 		const errors = trackErrors();
 		const script = document.createElement('script');
 		script.setAttribute('data-eco-script-id', 'ecopages-react-page');
@@ -104,28 +114,63 @@ describe('Foreign Subtree in a hydrated React tree', () => {
 		expect(errors).toEqual([]);
 	});
 
-	it.fails('A hydrated React Island renders a foreign Lit Component', async () => {
+	it('A hydrated React Island renders a foreign Lit Component', async () => {
 		const errors = trackErrors();
 		document.body.setHTMLUnsafe(
-			`<eco-island style="display:contents" data-eco-island="" data-eco-component-key="island" data-eco-props="e30="><section>${SERVER_LIT_COUNTER}</section></eco-island>`,
+			`<eco-island style="display:contents" data-eco-island="" data-eco-component-key="island" data-eco-props="e30="><section><button type="button">0</button>${SERVER_LIT_COUNTER}</section></eco-island>`,
 		);
 		const litCounter = document.querySelector('lit-counter')!;
 		const host = document.querySelector('eco-island')!;
-		const Island = () => createElement('section', null, createElement(LitCounter as ElementType, { count: 1 }));
-		const runtimeState = getIslandHydrationRuntime();
+		const button = document.querySelector('button')!;
+		const Island = () => {
+			const [clicks, setClicks] = useState(0);
+			return createElement(
+				'section',
+				null,
+				createElement('button', { type: 'button', onClick: () => setClicks(clicks + 1) }, String(clicks)),
+				createElement(LitCounter as ElementType, { count: 1 }),
+			);
+		};
+		islandRuntimeState = getIslandHydrationRuntime();
 
 		mountIslands({
 			targetSelector: '[data-eco-component-key="island"]',
 			componentModule: { default: Island },
 			scriptId: 'island',
 			runtime: createReactRuntime(errors),
-			runtimeState,
+			runtimeState: islandRuntimeState,
 		});
-
 		await vi.waitFor(() => expect(host.getAttribute('data-eco-hydrated')).toBe('true'));
+		button.click();
+
+		await vi.waitFor(() => expect(button.textContent).toBe('1'));
 		expect(document.querySelector('lit-counter')).toBe(litCounter);
 		expect(litCounter.shadowRoot?.textContent).toBe('1');
 		expect(errors).toEqual([]);
-		runtimeState.observer?.disconnect();
+	});
+
+	it('A client navigation renders a foreign Lit Component from the fetched document', () => {
+		const errors = trackErrors();
+		const key = getForeignSubtreeKey(LitCounter, { count: 1 });
+		const fetched = new DOMParser().parseFromString(
+			`<main>${renderForeignSubtreeBoundary(key, '<lit-counter count="1"></lit-counter>')}</main>`,
+			'text/html',
+		);
+		installForeignSubtreeHost(createReactRuntime(errors));
+		(window as TestWindow).__ECO_PAGES__!.page = { module: '/assets/next.js', props: {}, document: fetched };
+		document.body.innerHTML = renderForeignSubtreeBoundary(key, '<lit-counter count="stale"></lit-counter>');
+		const container = document.createElement('div');
+		document.body.append(container);
+		const root = createRoot(container);
+
+		flushSync(() => root.render(createElement(ReactPage)));
+		const litCounter = container.querySelector(`[data-eco-foreign-key="${key}"] > lit-counter`);
+		flushSync(() => container.querySelector('button')!.click());
+
+		expect(container.querySelector('button')?.textContent).toBe('1');
+		expect(litCounter?.getAttribute('count')).toBe('1');
+		expect(container.querySelector('lit-counter')).toBe(litCounter);
+		expect(errors).toEqual([]);
+		root.unmount();
 	});
 });

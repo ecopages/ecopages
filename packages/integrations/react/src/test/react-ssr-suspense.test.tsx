@@ -13,6 +13,7 @@ import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/
 import { renderToStaticMarkup } from 'react-dom/server';
 import { lazy, Suspense, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
+import { getForeignSubtreeKey, renderForeignSubtreeBoundary } from '../hydration/foreign-subtree.ts';
 import { renderReactHtml, resolveReactRuntimeModules, runWithRenderBudget } from '../render/react-runtime.ts';
 
 class TestReactRenderer extends ReactRenderer {
@@ -225,7 +226,12 @@ describe('React server rendering waits for Suspense', () => {
 
 		const html = await renderPage(await createRenderer(), Page);
 
-		expect(html).toContain('<aside><button data-testid="deferred-widget">Deferred widget</button></aside>');
+		expect(html).toContain(
+			`<aside>${renderForeignSubtreeBoundary(
+				getForeignSubtreeKey(DeferredWidget, {}),
+				'<button data-testid="deferred-widget">Deferred widget</button>',
+			)}</aside>`,
+		);
 		expect(html).not.toContain('eco-marker');
 		expect(html).not.toContain('__ECO_');
 		expect(html).not.toContain(FALLBACK);

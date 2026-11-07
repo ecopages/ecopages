@@ -19,9 +19,6 @@ import {
 } from './postcss-config-loading.ts';
 import { transformWithPostcss } from './postcss-processor.ts';
 
-/** Files whose class names Tailwind and similar plugins scan, so a change to one can change a stylesheet. */
-const CONTENT_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js', '.mdx', '.html', '.svelte', '.vue'];
-
 const logger = new Logger('[@ecopages/postcss-processor]', {
 	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
 });
@@ -130,17 +127,15 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	/**
-	 * Recreates the plugins from their factories and names the stylesheets to rebuild when a scanned file changes.
+	 * Recreates the plugins from their factories and names the stylesheets to rebuild when another file changes.
 	 *
 	 * @remarks
-	 * Tailwind keeps the class names it found in long-lived plugin instances, so fresh ones are needed to find new
-	 * ones. A change to no template or script invalidates nothing.
+	 * Core calls it only with changed files that are not stylesheets. Any of them can change the output: Tailwind v4
+	 * scans every file of the project that git does not ignore, and Tailwind v3 the files its `content` globs name,
+	 * which may be any extension. Tailwind keeps the class names it found in long-lived plugin instances, so fresh ones
+	 * are needed to find new ones.
 	 */
-	override invalidateStylesheets(files: readonly string[]): StylesheetInvalidation {
-		if (!files.some((file) => CONTENT_EXTENSIONS.some((extension) => file.endsWith(extension)))) {
-			return [];
-		}
-
+	override invalidateStylesheets(_files: readonly string[]): StylesheetInvalidation {
 		this.refreshConfiguredPlugins();
 		return this.options?.dependencyEntryPaths ?? 'all';
 	}

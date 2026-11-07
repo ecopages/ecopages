@@ -69,13 +69,15 @@ describe('PostCssProcessorPlugin', () => {
 		expect((await plugin.transformStylesheet('.foo { color: red; }', cssFile)).css).toContain('color: purple');
 	});
 
-	test('invalidates its dependency entry paths for a template change, and nothing for other files', () => {
-		const entry = path.join(srcDir, 'tailwind.css');
-		const plugin = new PostCssProcessorPlugin({ options: { dependencyEntryPaths: [entry] } });
+	test.each(['pages/index.mdx', 'content/post.md', 'pages/home.astro', 'data/nav.json'])(
+		'invalidates its dependency entry paths when %s changes, since Tailwind may scan any file',
+		(file) => {
+			const entry = path.join(srcDir, 'tailwind.css');
+			const plugin = new PostCssProcessorPlugin({ options: { dependencyEntryPaths: [entry] } });
 
-		expect(plugin.invalidateStylesheets([path.join(srcDir, 'pages', 'index.mdx')])).toEqual([entry]);
-		expect(plugin.invalidateStylesheets([path.join(srcDir, 'data.json')])).toEqual([]);
-	});
+			expect(plugin.invalidateStylesheets([path.join(srcDir, file)])).toEqual([entry]);
+		},
+	);
 
 	test('loads the configured plugins on the first transform instead of at finalization', async () => {
 		const cssFile = path.join(srcDir, 'lazy-plugins.css');

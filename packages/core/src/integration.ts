@@ -75,7 +75,6 @@ export {
 	createCustomElementServerModuleImporter,
 	createSharedServerModuleImporter,
 } from './route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer.ts';
-export { createCustomElementSsrPipelineImporter } from './route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint.ts';
 export {
 	type DocumentShellComposeChildrenContext,
 	type DocumentShellComposeChildrenResult,

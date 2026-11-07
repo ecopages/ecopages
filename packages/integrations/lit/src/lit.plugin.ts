@@ -78,19 +78,7 @@ export class LitPlugin extends IntegrationPlugin {
 	}
 
 	private createRenderSession(): LitStaticRenderSession {
-		if (!this.appConfig || !this.runtime || !this.assetProcessingService) {
-			throw new Error('Lit plugin must be initialized before starting the render worker');
-		}
-		const assetProcessingService = this.assetProcessingService;
-		const rootDir = this.appConfig.rootDir;
-
 		return new LitStaticRenderSession({
-			preloadScopes: this.runtime.customElementSsrPreloadScopes,
-			integration: this,
-			resolveDependencyPath: (componentDir, sourcePath) =>
-				path.join(path.resolve(rootDir, componentDir), sourcePath),
-			processDependencies: (dependencies, integration) =>
-				assetProcessingService.processDependencies(dependencies, integration),
 			getInvalidationVersion: () => this.runtime?.moduleLoader.getDevelopmentGeneration() ?? 0,
 		});
 	}
@@ -124,7 +112,7 @@ export class LitPlugin extends IntegrationPlugin {
 	}
 
 	/**
-	 * Starts the render worker for this export, preloads Lit routes, and returns a release that stops it.
+	 * Starts the render worker for this export and returns a release that stops it.
 	 *
 	 * @remarks
 	 * Serving never starts this session. Static export owns the worker for the duration of the export and
@@ -147,7 +135,6 @@ export class LitPlugin extends IntegrationPlugin {
 		});
 
 		const session = this.renderSession;
-		await session.preloadStaticRoutes(context);
 
 		return async () => {
 			await session.dispose();

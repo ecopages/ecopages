@@ -137,7 +137,6 @@ describe('LitPlugin staticExport', () => {
 		const plugin = new LitPlugin();
 		const context = { appConfig, baseUrl: 'http://127.0.0.1:3000' } as unknown as StaticExportContext;
 		const ensureWorker = vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
-		vi.spyOn(LitStaticRenderSession.prototype, 'preloadStaticRoutes').mockResolvedValue();
 		const dispose = vi.spyOn(LitStaticRenderSession.prototype, 'dispose').mockResolvedValue();
 		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
 		requireAppRuntime(appConfig).origin = 'http://127.0.0.1:4000';

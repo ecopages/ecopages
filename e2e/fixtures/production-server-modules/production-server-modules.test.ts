@@ -86,6 +86,34 @@ const ENDPOINT_ROUTES = [
 	{ path: '/api/html', integration: 'html' },
 ] as const;
 
+function listFilesRecursively(dir: string): string[] {
+	return readdirSync(dir, { recursive: true, withFileTypes: true })
+		.filter((entry) => entry.isFile())
+		.map((entry) => path.join(entry.parentPath, entry.name));
+}
+
+/**
+ * Maps each browser file emitted for one script source to whether a Page or another browser file names it.
+ *
+ * @remarks
+ * A file is named when its basename appears in a Page's HTML or in another emitted script, which covers
+ * `<script src>`, static and dynamic chunk imports, and lazy-trigger maps.
+ */
+function describeBrowserOutputs(clientDir: string, scriptName: string): Record<string, 'referenced' | 'unreferenced'> {
+	const files = listFilesRecursively(clientDir);
+	const referrers = files.filter((file) => file.endsWith('.html') || file.endsWith('.js'));
+	const outputs = files.filter((file) => path.basename(file).startsWith(`${scriptName}-`) && file.endsWith('.js'));
+	return Object.fromEntries(
+		outputs.map((output) => {
+			const name = path.basename(output);
+			const referenced = referrers.some(
+				(referrer) => referrer !== output && readFileSync(referrer, 'utf8').includes(name),
+			);
+			return [path.relative(clientDir, output), referenced ? 'referenced' : 'unreferenced'];
+		}),
+	);
+}
+
 function throwingServerBuildAdapter(original: BuildAdapter): BuildAdapter {
 	return {
 		build: async (options) => {
@@ -364,6 +392,9 @@ describe('production server modules', () => {
 		expect(existsSync(path.join(appDir, 'dist/client/index.html'))).toBe(true);
 		expect(existsSync(path.join(appDir, 'dist/server/app.mjs'))).toBe(true);
 		expect(existsSync(path.join(appDir, 'dist/client/server'))).toBe(false);
+		const helloOutputs = describeBrowserOutputs(path.join(appDir, 'dist/client'), 'hello.script');
+		expect(Object.keys(helloOutputs)).toHaveLength(1);
+		expect(Object.values(helloOutputs)).toEqual(['referenced']);
 
 		const manifest = JSON.parse(
 			readFileSync(path.join(appDir, 'dist/server', SERVER_MODULES_MANIFEST_FILENAME), 'utf8'),

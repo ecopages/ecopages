@@ -4,8 +4,8 @@
  */
 
 import { Processor, type ProcessorConfig, type StylesheetTransformResult } from '@ecopages/core/processor';
+import { bundleStylesheet } from './bundle-stylesheet.ts';
 import {
-	loadLightningCss,
 	logWarnings,
 	resolveLightningCssOptions,
 	toStylesheetError,
@@ -71,16 +71,15 @@ export class LightningCssProcessorPlugin extends Processor<LightningCssProcessor
 		if (!this.context) {
 			throw new Error('Context must be set');
 		}
-		const { transform } = await loadLightningCss();
 		this.resolvedOptions ??= resolveLightningCssOptions(this.options, this.context.rootDir);
 		try {
-			const result = transform({
-				...(await this.resolvedOptions),
-				filename: file,
-				code: Buffer.from(css),
-			});
-			logWarnings(result.warnings, file, css);
-			return { css: result.code.toString(), dependencies: [] };
+			const bundled = await bundleStylesheet(css, file, this.context.rootDir, await this.resolvedOptions);
+			logWarnings(bundled.warnings, file, css);
+			const bundledCss = Buffer.from(bundled.code).toString();
+			return {
+				css: bundled.hoisted.length > 0 ? `${bundled.hoisted.join('\n')}\n${bundledCss}` : bundledCss,
+				dependencies: bundled.dependencies,
+			};
 		} catch (error) {
 			throw toStylesheetError(error, file);
 		}

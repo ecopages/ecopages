@@ -1,6 +1,13 @@
 export { writeHashedBrowserAsset } from './assets/hashed-browser-asset.ts';
 export { warnStylesheetOnce } from './assets/asset-processing-service/processors/stylesheet/stylesheet-warnings.ts';
 export { rebaseStylesheetReferences } from './assets/asset-processing-service/processors/stylesheet/app-stylesheet-imports.ts';
+export {
+	isExternalReference,
+	scanCss,
+	splitReference,
+	type CssImport,
+} from './assets/asset-processing-service/processors/stylesheet/css-scanner.ts';
+export { resolveProjectImportPath, resolvePackageStylesheetPath } from './plugins/tsconfig-import-resolver.ts';
 export type { AssetDefinition, ProcessedAsset } from './types/asset-types.ts';
 export {
 	type EcoBuildFilter,

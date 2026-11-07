@@ -1,7 +1,7 @@
 import { isProductionRuntime, warnStylesheetOnce } from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
 import browserslist from 'browserslist';
-import type { Features, TransformOptions, Visitor } from 'lightningcss';
+import type { Features, TransformOptions, Visitor, Warning } from 'lightningcss';
 
 const logger = new Logger('[@ecopages/lightningcss-processor]');
 
@@ -113,16 +113,11 @@ export async function resolveLightningCssOptions(
 	};
 }
 
-/** Logs the warnings of one stylesheet, once per message until its contents change, each with its location. */
-export function logWarnings(
-	warnings: readonly { message: string; loc: { line: number; column: number; source?: string } }[],
-	file: string,
-	source: string,
-): void {
-	for (const warning of warnings) {
-		const { line, column } = warning.loc;
-		warnStylesheetOnce(file, source, `${file}:${line}:${column} ${warning.message}`, (message) =>
-			logger.warn(message),
+/** Logs the warnings of the stylesheet `entry`, once per message until its `source` changes, each with its location. */
+export function logWarnings(warnings: readonly Warning[], entry: string, source: string): void {
+	for (const { message, loc } of warnings) {
+		warnStylesheetOnce(entry, source, `${loc.filename || entry}:${loc.line}:${loc.column} ${message}`, (text) =>
+			logger.warn(text),
 		);
 	}
 }

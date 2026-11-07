@@ -401,7 +401,7 @@ test('server and browser builds of one file give each declaration the same compo
 	}
 });
 
-test('createServerBuildRequest carries the stylesheet extensions of the registered stylesheet Processor', () => {
+test('server and browser requests carry the stylesheet extensions of the registered stylesheet Processor', () => {
 	class SassProcessor extends Processor {
 		async setup(): Promise<void> {}
 	}
@@ -410,11 +410,16 @@ test('createServerBuildRequest carries the stylesheet extensions of the register
 		['sass', new SassProcessor({ name: 'sass', capabilities: [{ kind: 'stylesheet', extensions: ['*.scss'] }] })],
 	]);
 
-	assert.deepEqual(createServerBuildRequest(config, { entrypoints: ['/app/a.ts'] }).stylesheetExtensions, [
+	assert.deepEqual(createServerBuildRequest(config, { entrypoints: ['/app/a.ts'] }).stylesheets?.extensions, [
 		'.css',
 		'.scss',
 	]);
-	assert.deepEqual(createServerBuildRequest(createAppConfig(), { entrypoints: ['/app/a.ts'] }).stylesheetExtensions, [
+	assert.deepEqual(createBrowserBuildRequest(config, { entrypoints: ['/app/a.ts'] }).stylesheets?.extensions, [
 		'.css',
+		'.scss',
 	]);
+	assert.deepEqual(
+		createServerBuildRequest(createAppConfig(), { entrypoints: ['/app/a.ts'] }).stylesheets?.extensions,
+		['.css'],
+	);
 });

@@ -17,8 +17,7 @@ sources:
   - packages/core/src/build/browser/jsx-ownership-plugins.ts
   - packages/core/src/build/rolldown/rolldown-plugin-bridge.ts
   - packages/core/src/build/rolldown/rolldown-adapter-helpers.ts
-  - packages/core/src/build/rolldown/server-side-css-shim-plugin.ts
-  - packages/core/src/dev/transform-server/dev-transform-module-kind.ts
+  - packages/core/src/build/rolldown/stylesheet-module-plugin.ts
 ---
 
 # Plugin pipeline
@@ -84,7 +83,6 @@ Real contributors:
 | React and Ecopages JSX Integrations | MDX loader, when MDX is enabled | both |
 | Content Processor | content plugin, plus browser collection plugins | `server`, `browser` |
 | Image Processor | image plugin (`module('ecopages:images')`) | both |
-| PostCSS Processor | build CSS loader | `browser` |
 
 ## Environments
 
@@ -147,7 +145,7 @@ What the bridge adds on top of the hook mapping:
 
 One Rolldown plugin per handler leaves first-wins `resolveId` and `load`, ordered `transform` with chained source maps, native filters and plugin names in errors to Rolldown, so the bridge only translates between the two contracts.
 
-Around the bridge, the adapter places a few native Rolldown plugins that are not part of the contract: the installed-package externalizer when packages are external, a server-only import guard on browser platform builds, a CSS shim on server builds (see [Stylesheet kinds](#stylesheet-kinds)), and, after the bridge, the Worker entries plugin on browser builds.
+Around the bridge, the adapter places a few native Rolldown plugins that are not part of the contract: the installed-package externalizer when packages are external, a server-only import guard on browser platform builds, the stylesheet module plugin on every build (see [Stylesheet kinds](#stylesheet-kinds)), and, after the bridge, the Worker entries plugin on browser builds.
 
 ## Stylesheet kinds
 
@@ -156,11 +154,11 @@ One core module, `stylesheet-kinds.ts`, decides which files are stylesheets. A f
 These sites ask the module, so they cannot disagree:
 
 - Discovery and the component meta plugin: which side-effect imports are delivered as Page stylesheets, and which are CSS Modules that fail the build. A package stylesheet is still a `.css` file that `resolvePackageStylesheetPath` resolves.
-- The server CSS shim: `createServerBuildRequest` puts the extensions in `BuildOptions.stylesheetExtensions`, so Rolldown never parses a declared stylesheet as JavaScript.
-- The dev transform server (`resolveDevTransformModuleKind`): it serves a stylesheet import as a string module.
+- The stylesheet module plugin: server and browser requests put the extensions in `BuildOptions.stylesheets`, so Rolldown never parses a declared stylesheet as JavaScript and compiles each import of one.
+- The dev transform server: it serves a stylesheet import as the same compiled module.
 - The stylesheet pipeline (`applyStylesheetProcessors`) and the copy list of files a stylesheet `url()` may emit (`isEmittableReferenceFile`).
 
-At most one Processor may declare a `stylesheet` capability. Config finalization fails when two do, naming both, so `transformStylesheet` has one owner and there is no chain. `import './card.scss'` is discovered, shimmed on the server and served in dev when that Processor declares `*.scss`, and is left alone when none does. The ambient `*.css` module declaration is the one place that stays `.css`; an app adds `declare module '*.scss'` for its own extension.
+At most one Processor may declare a `stylesheet` capability. Config finalization fails when two do, naming both, so `transformStylesheet` has one owner and there is no chain. When that Processor declares `*.scss`, `import './card.scss'` is discovered and kept out of every build, and `import styles from './card.scss'` compiles to the Processor's output. When none does, both are left alone. The ambient `*.css` module declaration is the one place that stays `.css`; an app adds `declare module '*.scss'` for its own extension.
 
 ## Scoping by module ownership
 

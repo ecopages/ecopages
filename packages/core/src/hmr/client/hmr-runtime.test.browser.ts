@@ -62,3 +62,26 @@ it('keeps an HMR error visible when it follows an update in the same batch', asy
 	await vi.waitFor(() => expect(document.getElementById(BUILD_ERROR_OVERLAY_ID)).toBeNull());
 	delete (window as Window & { __ECO_PAGES__?: unknown }).__ECO_PAGES__;
 });
+
+it('refreshes only the stylesheet link at the href a css-update names', async () => {
+	vi.spyOn(console, 'log').mockImplementation(() => undefined);
+	vi.stubGlobal('WebSocket', FakeSocket);
+	await import('./hmr-runtime.ts');
+	const socket = FakeSocket.instances[0]!;
+	const links = ['/assets/a/my style.css', '/assets/b/my style.css'].map((href) => {
+		const link = document.createElement('link');
+		link.rel = 'stylesheet';
+		link.href = href;
+		document.head.append(link);
+		return link;
+	});
+
+	try {
+		socket.receive({ type: 'css-update', path: '/assets/a/my style.css' });
+
+		await vi.waitFor(() => expect(new URL(links[0]!.href).searchParams.has('t')).toBe(true));
+		expect(links[1]!.getAttribute('href')).toBe('/assets/b/my style.css');
+	} finally {
+		for (const link of links) link.remove();
+	}
+});

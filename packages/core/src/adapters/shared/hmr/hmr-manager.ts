@@ -38,6 +38,7 @@ import { BrowserBundleService } from '../../../assets/browser-bundle.service.ts'
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';
+import { getStylesheetKinds, type StylesheetKinds } from '../../../plugins/stylesheet-kinds.ts';
 import type { DevTransformBundleContributor } from '../../../dev/transform-server/types.ts';
 import type { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
 
@@ -82,6 +83,7 @@ export class HmrManager implements IHmrManager {
 	private readonly runtimeBuilds = new Map<DevClientRuntime, Promise<boolean>>();
 	private readonly readyRuntimes = new Set<DevClientRuntime>();
 	protected readonly devTransformServer: DevTransformServer;
+	private stylesheetKinds?: StylesheetKinds;
 
 	constructor({ appConfig, bridge }: HmrManagerParams) {
 		this.appConfig = appConfig;
@@ -170,6 +172,8 @@ export class HmrManager implements IHmrManager {
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 			getTemplateExtensions: () => this.appConfig.templatesExt,
+			isStylesheet: (filePath: string) =>
+				(this.stylesheetKinds ??= getStylesheetKinds(this.appConfig)).isStylesheet(filePath),
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
 			consumeRegisteredScriptReloadRequired: (sourcePath: string) =>

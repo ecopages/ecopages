@@ -451,6 +451,28 @@ describe('DevelopmentInvalidationService', () => {
 		expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
 	});
 
+	it('hands a processor-owned stylesheet a browser module imports to HMR as well as to its Processor', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
+		appConfig.processors.set('css', new StylesheetProcessor());
+		const service = new DevelopmentInvalidationService(appConfig);
+		const imported = path.join(appConfig.absolutePaths.srcDir, 'components/card.css');
+		const linked = path.join(appConfig.absolutePaths.srcDir, 'styles/main.css');
+		requireAppRuntime(appConfig).buildInputIndex.register(
+			{ consumer: 'entrypoint', key: path.join(appConfig.absolutePaths.srcDir, 'components/card.script.ts') },
+			[imported],
+		);
+
+		expect(service.planFileChange(imported)).toMatchObject({
+			category: 'processor-owned-asset',
+			processorHandledAsset: true,
+			delegateToHmr: true,
+		});
+		expect(service.planFileChange(linked)).toMatchObject({
+			category: 'processor-owned-asset',
+			delegateToHmr: false,
+		});
+	});
+
 	it('invalidates server modules for a public file or processor-owned asset a route module read', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.resolve('/test/project') });
 		appConfig.processors.set('css', new StylesheetProcessor());

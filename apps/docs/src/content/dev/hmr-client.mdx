@@ -7,6 +7,7 @@ sources:
   - packages/core/src/hmr/
   - packages/core/src/adapters/shared/hmr/hmr-manager.ts
   - packages/core/src/adapters/node/node-client-bridge.ts
+  - packages/core/src/adapters/shared/hmr/client-bridge.ts
   - packages/core/src/router/client/navigation-coordinator.ts
   - packages/integrations/react/src/hmr/hmr-strategy.ts
 ---
@@ -19,7 +20,7 @@ sources:
 | Event | Client behavior |
 | --- | --- |
 | `update` | Calls the module's registered `hmrHandlers` entry with a cache-busted URL. Without a handler, a dev-transform module that is the active page module asks the navigation runtime for a soft reload (`clearCache: false`); any other dev-transform module is re-imported. A non-dev-transform URL without a handler, an unhandled soft reload, or any throw falls back to `layout-update` handling. |
-| `css-update` | Sets a `t` query on matching stylesheet `link` hrefs so the browser refetches them. |
+| `css-update` | Sets a `t` query on the stylesheet `link` whose pathname is exactly `path`, the href the server resolved from the changed source, so the browser refetches only that file. |
 | `layout-update` | Soft reload through the navigation runtime with `clearCache: true`; `location.reload()` if no runtime handles it. |
 | `reload` | `location.reload()`. |
 | `error` | Logs and offers the message to the Dev Toolbar, with an in-page fallback overlay. |

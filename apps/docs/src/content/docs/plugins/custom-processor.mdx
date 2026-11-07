@@ -284,7 +284,7 @@ Processors can broadcast events to connected browser clients for live updates us
 
 ```typescript
 import type { IClientBridge } from '@ecopages/core/integration';
-import path from 'node:path';
+import { Processor, writeSourceRelativeStylesheet } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 
 class StyleProcessor extends Processor {
@@ -311,8 +311,8 @@ class StyleProcessor extends Processor {
 
 		const source = await fileSystem.readFile(filePath);
 		const processed = await this.transformStylesheet(source, filePath);
-		const outputPath = path.join(this.context.distDir, path.basename(filePath));
-		await fileSystem.write(outputPath, processed);
+		const { srcDir, distDir } = this.context;
+		writeSourceRelativeStylesheet({ srcDir, distDir }, filePath, processed);
 
 		bridge.cssUpdate(filePath);
 	}
@@ -322,7 +322,7 @@ class StyleProcessor extends Processor {
 The `IClientBridge` contract provides:
 
 - `reload()`: Triggers a full page reload.
-- `cssUpdate(path)`: Triggers a CSS hot update for the given path.
+- `cssUpdate(sourceFile)`: Refreshes the stylesheet link delivered from `sourceFile`, the source whose processed output changed.
 - `update(path)`: Triggers a JS module update.
 - `error(message)`: Sends an error notification to the client.
 - `broadcast(event)`: Sends a raw `ClientBridgeEvent`.

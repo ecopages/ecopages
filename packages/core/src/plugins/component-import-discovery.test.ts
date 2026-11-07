@@ -193,7 +193,7 @@ export const Button = eco.component({ render: () => '' });`,
 
 		it('resolves a package stylesheet through its exports with the style condition and strips the import', () => {
 			const { transform } = packageFixture();
-			const style = 'some-lib/dist/style.css';
+			const style = '|some-lib/dist/style.css';
 			const result = transform(`import 'some-lib/style.css';\nimport 'some-lib/dist/style.css';`);
 			expect(result).not.toContain(`import 'some-lib`);
 			expect(result).toContain(`stylesheets: ${JSON.stringify([style])}`);
@@ -202,7 +202,7 @@ export const Button = eco.component({ render: () => '' });`,
 		it('reads a package import without .css as a stylesheet only when it resolves to one', () => {
 			const { transform } = packageFixture();
 			const result = transform(`import 'some-lib/theme';\nimport 'some-lib';`);
-			expect(result).toContain(`stylesheets: ${JSON.stringify(['some-lib/dist/theme.css'])}`);
+			expect(result).toContain(`stylesheets: ${JSON.stringify(['|some-lib/dist/theme.css'])}`);
 			expect(result).not.toContain(`import 'some-lib/theme'`);
 			expect(result).toContain(`import 'some-lib';`);
 		});
@@ -239,13 +239,35 @@ export const Button = eco.component({ render: () => '' });`,
 					integration: 'lit',
 					projectRoot: root,
 				}).code;
-			const style = 'some-lib/dist/style.css';
+			const style = '|some-lib/dist/style.css';
 			const badge = attribute('badge.ts');
 			expect(badge).toContain(`stylesheets: ${JSON.stringify(['badge.css'])}`);
 			expect(badge).toContain(`plainModuleStylesheets: ${JSON.stringify([style, 'card.css'])}`);
 			expect(badge).toContain(`packageStylesheets: ${JSON.stringify([style])}`);
 			expect(attribute('card.ts')).not.toContain('some-lib');
 		});
+	});
+	it('names a package stylesheet from the folder of the module that imports it, with its version', () => {
+		const { root, transform } = fixture();
+		const install = (dir: string, version: string) => {
+			const packageDir = path.join(root, dir, 'node_modules', 'dep');
+			mkdirSync(packageDir, { recursive: true });
+			writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: 'dep', version }));
+			writeFileSync(path.join(packageDir, 'x.css'), `.v${version.replace(/\./g, '')} {}`);
+		};
+		install('.', '2.0.0');
+		install('packages/ui', '1.0.0');
+		writeFileSync(path.join(root, 'packages', 'ui', 'package.json'), JSON.stringify({ name: '@acme/ui' }));
+		writeFileSync(
+			path.join(root, 'packages', 'ui', 'badge.ts'),
+			`import 'dep/x.css';\nexport const Badge = () => '';`,
+		);
+
+		const result = transform(`import 'dep/x.css';\nimport { Badge } from './packages/ui/badge';`);
+
+		expect(result).toContain(
+			`packageStylesheets: ${JSON.stringify(['|dep@2.0.0/x.css', 'packages/ui|dep@1.0.0/x.css'])}`,
+		);
 	});
 	describe('a moved app', () => {
 		/** Writes one app into a new folder, with `some-lib` in a pnpm-style store folder of `version`. */
@@ -268,14 +290,14 @@ export const Button = eco.component({ render: () => '' });`,
 			);
 		}
 
-		it('emits the same module from any folder and any store version, naming no path of the machine', () => {
+		it('emits the same module from any folder, naming no path of the machine', () => {
 			const first = appIn('1.0.0');
-			const second = appIn('2.0.0');
+			const second = appIn('1.0.0');
 
 			expect(second).toBe(first);
 			expect(first).toContain('file: "page.ts"');
-			expect(first).toContain(`stylesheets: ${JSON.stringify(['style.css', 'some-lib/css/style.css'])}`);
-			expect(first).toContain(`packageStylesheets: ${JSON.stringify(['some-lib/css/style.css'])}`);
+			expect(first).toContain(`stylesheets: ${JSON.stringify(['style.css', '|some-lib@1.0.0/css/style.css'])}`);
+			expect(first).toContain(`packageStylesheets: ${JSON.stringify(['|some-lib@1.0.0/css/style.css'])}`);
 			expect(first).toContain(`watchFiles: ${JSON.stringify(['child.ts'])}`);
 			for (const root of roots) expect(first).not.toContain(realpathSync(root));
 			expect(first).not.toContain('\\\\');

@@ -40,11 +40,11 @@ function pnpmApp() {
 }
 
 describe('toPackagePath', () => {
-	it('names a file in a pnpm store folder by package name and subpath, without the store version', () => {
+	it('names a file in a pnpm store folder by package name, version and subpath, not by the store folder', () => {
 		const { storeDir, install } = pnpmApp();
 		install('1.0.0');
 
-		expect(toPackagePath(path.join(storeDir('1.0.0'), 'css', 'style.css'))).toBe('some-lib/css/style.css');
+		expect(toPackagePath(path.join(storeDir('1.0.0'), 'css', 'style.css'))).toBe('some-lib@1.0.0/css/style.css');
 	});
 
 	it('skips a nested package.json without a name and keeps the scope of a scoped package', () => {

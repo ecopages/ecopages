@@ -1,10 +1,18 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { describe, expect, it, test } from 'vitest';
+import { afterEach, describe, expect, it, test } from 'vitest';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { getAssetDependencyKey, getIntegrationDependencyKey } from './asset-dependency-keys.ts';
 import { AssetFactory } from './asset.factory.ts';
 import { createAppBrowserClientEntry } from './app-browser-client-bundle.ts';
 import type { ContentScriptAsset, ContentStylesheetAsset, ScriptAsset } from './assets.types.ts';
+
+const temporaryRoots: string[] = [];
+
+afterEach(() => {
+	for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
 
 type ScriptBundleOptions = NonNullable<ScriptAsset['bundleOptions']>;
 
@@ -207,6 +215,28 @@ describe('getAssetDependencyKey', () => {
 
 			expect(keyOf(entry('import "/app/src/page.tsx"; hydrate();'))).not.toBe(
 				keyOf(entry('import "/app/src/page.tsx"; hydrate({ router: true });')),
+			);
+		});
+
+		it('keys a node-module script by package path, whatever the store layout of the install', () => {
+			const installed = (layout: string[]) => {
+				const root = mkdtempSync(path.join(tmpdir(), 'eco-node-module-key-'));
+				temporaryRoots.push(root);
+				const packageDir = path.join(root, ...layout);
+				mkdirSync(packageDir, { recursive: true });
+				writeFileSync(
+					path.join(packageDir, 'package.json'),
+					JSON.stringify({ name: 'radiant', version: '0.6.0' }),
+				);
+				writeFileSync(path.join(packageDir, 'hydrator.js'), 'export {};');
+				const script = AssetFactory.createNodeModuleScript({
+					importPath: path.join(packageDir, 'hydrator.js'),
+				});
+				return keyOf(script, root);
+			};
+
+			expect(installed(['node_modules', '.pnpm', 'radiant@0.6.0_x', 'node_modules', 'radiant'])).toBe(
+				installed(['node_modules', 'radiant']),
 			);
 		});
 

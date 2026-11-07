@@ -29,7 +29,7 @@ const routerAdapter: ReactRouterAdapter = {
 };
 
 /** A path of the `/app` root of these tests, relative to it as entry names and keys hash it. */
-const sourceKey = (file: string) => path.posix.relative('/app', file);
+const sourceKey = (file: string) => path.relative(path.resolve('/app'), path.resolve(file)).split(path.sep).join('/');
 const islandBundleName = (file: string) =>
 	`ecopages-react-island-${BigInt(`0x${contentHash(sourceKey(file), 16)}`).toString()}`;
 
@@ -128,8 +128,8 @@ describe('HydrationAssetService', () => {
 			}),
 			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({ createBundleOptions }),
 		});
-		const islandA = '/app/src/components/island-a.tsx';
-		const islandB = '/app/src/components/island-b.tsx';
+		const islandA = path.resolve('/app/src/components/island-a.tsx');
+		const islandB = path.resolve('/app/src/components/island-b.tsx');
 
 		const entries = await service.collectAppBrowserClientBuildEntries([
 			{ file: islandA, config: { dependencies: { modules: ['node:path'] } } },
@@ -341,15 +341,19 @@ describe('HydrationAssetService', () => {
 		await service.buildPageClientAssets({
 			islands: [
 				{
-					file: '/app/src/components/counter.tsx',
+					file: path.resolve('/app/src/components/counter.tsx'),
 					config: {
-						identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+						identity: {
+							id: 'Counter',
+							file: path.resolve('/app/src/components/counter.tsx'),
+							integration: 'react',
+						},
 					},
 				},
 			],
 		});
 
-		expect(registerEntrypoint).toHaveBeenCalledWith('/app/src/components/counter.tsx');
+		expect(registerEntrypoint).toHaveBeenCalledWith(path.resolve('/app/src/components/counter.tsx'));
 		expect(registerScriptEntrypoint).not.toHaveBeenCalled();
 		expect(processDependencies).toHaveBeenCalledWith(
 			[
@@ -364,8 +368,8 @@ describe('HydrationAssetService', () => {
 	});
 
 	it('builds the hydration entries of two islands in one grouped client build', async () => {
-		const islandA = '/app/src/components/counter.tsx';
-		const islandB = '/app/src/components/cart.tsx';
+		const islandA = path.resolve('/app/src/components/counter.tsx');
+		const islandB = path.resolve('/app/src/components/cart.tsx');
 		const assetProcessingIntegration = { name: 'react' };
 		const processDependencies = vi.fn(
 			async (deps: Array<{ groupedBundle?: { entryName: string } }>, _integration?: { name: string }) =>
@@ -415,7 +419,7 @@ describe('HydrationAssetService', () => {
 	});
 
 	it('hydrates two islands declared in one file as themselves', async () => {
-		const file = '/app/src/components/widgets.tsx';
+		const file = path.resolve('/app/src/components/widgets.tsx');
 		const processDependencies = vi.fn(async (deps: Array<{ content?: string }>) =>
 			deps.map((dep) => ({ kind: 'script' as const, content: dep.content })),
 		);
@@ -449,7 +453,7 @@ describe('HydrationAssetService', () => {
 	});
 
 	it('reuses the same grouped entry name for different component instances', async () => {
-		const file = '/app/src/components/counter.tsx';
+		const file = path.resolve('/app/src/components/counter.tsx');
 		const config = { identity: { id: 'Counter', file, integration: 'react' } };
 		const processDependencies = vi.fn(async (deps: unknown[]) => deps.map(() => ({ kind: 'script' as const })));
 		const service = new HydrationAssetService({

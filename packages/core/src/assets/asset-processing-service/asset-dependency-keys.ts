@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { contentHash } from '../../utils/content-hash.ts';
+import { toPackagePath } from '../../utils/package-path.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import type { AssetDefinition } from './assets.types.ts';
 
@@ -77,7 +78,9 @@ function getSourceSignature(dep: AssetDefinition, rootDir: string): string[] {
 		return [toRootRelativePath(rootDir, dep.filepath)];
 	}
 	if ('importPath' in dep) {
-		return [path.isAbsolute(dep.importPath) ? toRootRelativePath(rootDir, dep.importPath) : dep.importPath];
+		if (!path.isAbsolute(dep.importPath)) return [dep.importPath];
+		const packagePath = toPackagePath(dep.importPath);
+		return [packagePath ? `package:${packagePath}` : toRootRelativePath(rootDir, dep.importPath)];
 	}
 	const members = dep.kind === 'script' ? dep.bundledSourceFilepaths : undefined;
 	const parts = members?.length
@@ -107,7 +110,8 @@ function getSourceSignature(dep: AssetDefinition, rootDir: string): string[] {
  * script, which it helps identify.
  *
  * File paths, bundled sources and a generated script's members are relative to `rootDir`, and a package
- * stylesheet keys by its package path, so the key survives moving the project or reinstalling its packages.
+ * stylesheet, like a node-module script, keys by its package path, so the key survives moving the project or
+ * reinstalling its packages in another store layout.
  * Other content is hashed as written. A plugin `cacheKey` must not capture an absolute path for the same reason.
  *
  * Runtime minify in {@link ContentScriptProcessor} still follows `NODE_ENV` via

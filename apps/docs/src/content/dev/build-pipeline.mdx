@@ -76,11 +76,11 @@ The server entry and emitted config are bundled into a sibling staging directory
 
 No file a build writes holds a path of the machine that built it. The deploy manifest names the server entry and emitted config relative to `dist/server/`. The server-modules map keys each module by its root-relative source path, and the ledger stores root-relative paths. Inside the emitted modules:
 
-- the component meta transform writes `identity.file`, discovered stylesheets and watch files relative to the app root, and a package stylesheet as its package path (`some-lib/css/style.css`);
+- the component meta transform writes `identity.file`, discovered stylesheets and watch files relative to the app root, and a package stylesheet as the folder of its importing module and its package path (`src/components|some-lib@1.2.0/css/style.css`);
 - the server entry names each imported view relative to the root;
 - content collections name their entries relative to the root.
 
-Core resolves them against the app root at load; a package path resolves in the package installed for the app. Why: the deployed folder can move to another machine or directory; only `dist/client/`, `dist/server/` and `node_modules/` must keep their relative positions. A dependency upgrade that moves a package to another store folder, as a pnpm version bump does, resolves the same way.
+Core resolves them against the app root at load; a package path resolves from its importing module's folder, as Node resolves it. Why: the deployed folder can move to another machine or directory; only `dist/client/`, `dist/server/` and `node_modules/` must keep their relative positions. A dependency upgrade that moves a package to another store folder, as a pnpm version bump does, resolves the same way.
 
 ## Server modules
 

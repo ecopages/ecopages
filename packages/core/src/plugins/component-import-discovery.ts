@@ -423,8 +423,15 @@ export type DiscoveredImports = {
 	stylesheets: string[];
 	/** Side-effect stylesheets of the plain local modules the declaring module imports. */
 	plainModuleStylesheets: string[];
-	/** The entries of `stylesheets` and `plainModuleStylesheets` whose import named a package. */
-	packageStylesheets: string[];
+	/**
+	 * The entries of `stylesheets` and `plainModuleStylesheets` whose import named a package, each with the module
+	 * whose import named it.
+	 *
+	 * @remarks
+	 * The importer is kept because a package resolves from the module that imports it: a linked workspace package
+	 * reaches its own dependencies, which the app root may not hold, or may hold at another version.
+	 */
+	packageStylesheets: Array<{ file: string; importer: string }>;
 	/**
 	 * Eco Components that plain local modules import, which the declaring module has no binding for.
 	 *
@@ -459,8 +466,8 @@ export type DiscoveryOptions = {
 /** What one plain module and the plain modules it imports contribute to a declaration. */
 type PlainModuleWalk = {
 	stylesheets: string[];
-	/** The entries of `stylesheets` whose import named a package. */
-	packageStylesheets: Set<string>;
+	/** The entries of `stylesheets` whose import named a package, each with the module whose import named it. */
+	packageStylesheets: Map<string, string>;
 	components: Map<string, { file: string; imported: string }>;
 	/** Canonical paths of the walked plain modules. */
 	modules: Set<string>;
@@ -691,7 +698,7 @@ function walkPlainModule(
 	const index = indexModule(file, state.cache);
 	const walk: PlainModuleWalk = {
 		stylesheets: [],
-		packageStylesheets: new Set(),
+		packageStylesheets: new Map(),
 		components: new Map(),
 		modules: new Set(),
 		watchFiles: new Set(),
@@ -706,7 +713,8 @@ function walkPlainModule(
 		const stylesheet = resolveSideEffectStylesheet(entry, file, local);
 		if (!stylesheet) continue;
 		if (!walk.stylesheets.includes(stylesheet.file)) walk.stylesheets.push(stylesheet.file);
-		if (stylesheet.fromPackage) walk.packageStylesheets.add(stylesheet.file);
+		if (stylesheet.fromPackage && !walk.packageStylesheets.has(stylesheet.file))
+			walk.packageStylesheets.set(stylesheet.file, file);
 	}
 	const children = collectModuleEdges(
 		file,
@@ -733,7 +741,8 @@ function walkPlainModule(
 function mergePlainModuleWalk(into: PlainModuleWalk, from: PlainModuleWalk): void {
 	for (const stylesheet of from.stylesheets)
 		if (!into.stylesheets.includes(stylesheet)) into.stylesheets.push(stylesheet);
-	for (const stylesheet of from.packageStylesheets) into.packageStylesheets.add(stylesheet);
+	for (const [stylesheet, importer] of from.packageStylesheets)
+		if (!into.packageStylesheets.has(stylesheet)) into.packageStylesheets.set(stylesheet, importer);
 	for (const [key, component] of from.components) if (!into.components.has(key)) into.components.set(key, component);
 	for (const module of from.modules) into.modules.add(module);
 	for (const watchFile of from.watchFiles) into.watchFiles.add(watchFile);
@@ -778,12 +787,13 @@ export function discoverComponentImports(
 		watchFiles: new Set(),
 	};
 	const imports = collectStaticImports(program);
-	const packageStylesheets = new Set<string>();
+	const packageStylesheets = new Map<string, string>();
 	for (const entry of imports) {
 		const stylesheet = resolveSideEffectStylesheet(entry, ownerFile, state);
 		if (!stylesheet) continue;
 		if (!result.stylesheets.includes(stylesheet.file)) result.stylesheets.push(stylesheet.file);
-		if (stylesheet.fromPackage) packageStylesheets.add(stylesheet.file);
+		if (stylesheet.fromPackage && !packageStylesheets.has(stylesheet.file))
+			packageStylesheets.set(stylesheet.file, ownerFile);
 		result.removals.push({ start: entry.start, end: entry.end, replacement: '' });
 	}
 	let renderedNames: Set<string> | undefined;
@@ -801,7 +811,7 @@ export function discoverComponentImports(
 	);
 	const plain: PlainModuleWalk = {
 		stylesheets: [],
-		packageStylesheets: new Set(),
+		packageStylesheets: new Map(),
 		components: new Map(),
 		modules: new Set(),
 		watchFiles: new Set(),
@@ -817,8 +827,9 @@ export function discoverComponentImports(
 		if (!ownComponents.has(key)) result.plainModuleComponents.push(component);
 	}
 	result.plainModuleStylesheets.push(...plain.stylesheets.filter((file) => !result.stylesheets.includes(file)));
-	for (const file of plain.packageStylesheets) packageStylesheets.add(file);
-	result.packageStylesheets.push(...packageStylesheets);
+	for (const [file, importer] of plain.packageStylesheets)
+		if (!packageStylesheets.has(file)) packageStylesheets.set(file, importer);
+	result.packageStylesheets.push(...[...packageStylesheets].map(([file, importer]) => ({ file, importer })));
 	result.watchFiles.push(...state.watchFiles);
 	return result;
 }

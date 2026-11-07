@@ -6,14 +6,21 @@ import { integrationMatrixHostPages } from '../src/data/integration-matrix';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
 
+/** Routes `app.ts` registers, which render imported views, so `routes.json` does not list them. */
+const explicitRoutes = ['/explicit/team', '/explicit/react-island', '/latest'];
+
 test.describe.configure({ mode: 'serial' });
 
 test.describe('A kitchen-sink build moved to another folder under `ecopages start`', () => {
-	test('serves every page route', async ({ app, request }) => {
+	test('serves every page route and explicit view without a path of the build machine', async ({ app, request }) => {
 		const failures: string[] = [];
-		for (const pathname of listServedPagePathnames(app.dir)) {
+		for (const pathname of [...listServedPagePathnames(app.dir), ...explicitRoutes]) {
 			const response = await request.get(pathname);
+			const html = await response.text();
 			if (response.status() !== 200) failures.push(`${pathname} ${response.status()}`);
+			for (const folder of [app.builtDir!, repoRoot]) {
+				if (html.includes(folder)) failures.push(`${pathname} names ${folder}`);
+			}
 		}
 
 		expect(failures, app.getServerOutput()).toEqual([]);

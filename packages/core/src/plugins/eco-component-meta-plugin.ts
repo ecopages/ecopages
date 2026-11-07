@@ -10,6 +10,7 @@ import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { contentHash } from '../utils/content-hash.ts';
 import { escapeRegExp } from '../utils/regex-escaping.ts';
 import { toPackagePath } from '../utils/package-path.ts';
+import { formatPackageStylesheetEntry } from '../eco/discovered-dependency-paths.ts';
 import { toRootRelativePath } from '../utils/root-relative-path.ts';
 import {
 	assertDeliverableStylesheetImport,
@@ -257,8 +258,9 @@ function createPlainModuleComponentImports(discovered: DiscoveredImports): { loc
  * Serializes discovery as the third argument of `bindComponentIdentity`.
  *
  * @remarks
- * Local stylesheets and watch files are written relative to the app root, and a package stylesheet as its
- * package path (`some-lib/css/style.css`, see {@link toPackagePath}), which `packageStylesheets` lists. Core
+ * Local stylesheets and watch files are written relative to the app root, and a package stylesheet as the folder of
+ * the module that imported it and its package path (`src/components|some-lib@1.2.0/css/style.css`, see
+ * {@link formatPackageStylesheetEntry}), which `packageStylesheets` lists. Core
  * resolves both at load, so no emitted module holds a path of the machine that built it. A package stylesheet
  * outside any named package is written as a local one.
  */
@@ -278,9 +280,11 @@ function serializeDiscoveryArgument(
 		return '';
 	}
 	const packagePaths = new Map<string, string>();
-	for (const file of discovered.packageStylesheets) {
+	for (const { file, importer } of discovered.packageStylesheets) {
 		const packagePath = toPackagePath(file);
-		if (packagePath) packagePaths.set(file, packagePath);
+		if (packagePath) {
+			packagePaths.set(file, formatPackageStylesheetEntry(toSourceKey(path.dirname(importer)), packagePath));
+		}
 	}
 	const toStylesheetKey = (file: string) => packagePaths.get(file) ?? toSourceKey(file);
 	const components = [...discovered.components, ...plainModuleComponents].join(', ');

@@ -3,6 +3,26 @@ import type { EcoComponentConfig } from '../types/contracts.ts';
 import { resolvePackagePath } from '../utils/package-path.ts';
 import { getDiscoveredStylesheets, getDiscoveredWatchFiles } from './discovered-dependencies.ts';
 
+const PACKAGE_ENTRY_SEPARATOR = '|';
+
+/**
+ * Writes a package stylesheet as discovery stores it: the folder of the importing module, relative to the app
+ * root, then the package path (`src/components|some-lib@1.2.0/css/style.css`).
+ *
+ * @remarks
+ * The folder is where the package resolves from, as Node resolves it, and `|` never appears in either part.
+ */
+export function formatPackageStylesheetEntry(importerDir: string, packagePath: string): string {
+	return `${importerDir}${PACKAGE_ENTRY_SEPARATOR}${packagePath}`;
+}
+
+function parsePackageStylesheetEntry(entry: string): { importerDir: string; packagePath: string } {
+	const separator = entry.lastIndexOf(PACKAGE_ENTRY_SEPARATOR);
+	return separator === -1
+		? { importerDir: '', packagePath: entry }
+		: { importerDir: entry.slice(0, separator), packagePath: entry.slice(separator + 1) };
+}
+
 /** The inferred stylesheets of one declaration as real paths of this app. */
 export type ResolvedDiscoveredStylesheets = {
 	imported: string[];
@@ -15,9 +35,10 @@ export type ResolvedDiscoveredStylesheets = {
  * Resolves the stylesheets discovery recorded for a declaration against `rootDir`.
  *
  * @remarks
- * A local stylesheet is stored relative to the app root and a package one by its package path, which
- * {@link resolvePackagePath} finds in the package installed now, so a moved build or a bumped dependency
- * resolves the file where it is, not where the build saw it.
+ * A local stylesheet is stored relative to the app root and a package one by the folder of its importing module
+ * and its package path ({@link formatPackageStylesheetEntry}). {@link resolvePackagePath} finds it from that folder
+ * in the package installed now, so a moved build, another store layout or a linked workspace package's own
+ * dependency resolves the file where it is, not where the build saw it.
  */
 export function resolveDiscoveredStylesheets(
 	config: EcoComponentConfig | undefined,
@@ -28,8 +49,9 @@ export function resolveDiscoveredStylesheets(
 	const packagePaths = new Map<string, string>();
 	const resolve = (entry: string): string => {
 		if (!packageEntries.has(entry)) return path.resolve(rootDir, entry);
-		const file = resolvePackagePath(rootDir, entry);
-		packagePaths.set(file, entry);
+		const { importerDir, packagePath } = parsePackageStylesheetEntry(entry);
+		const file = resolvePackagePath(path.resolve(rootDir, importerDir), packagePath);
+		packagePaths.set(file, packagePath);
 		return file;
 	};
 	return { imported: imported.map(resolve), plainModules: plainModules.map(resolve), packagePaths };

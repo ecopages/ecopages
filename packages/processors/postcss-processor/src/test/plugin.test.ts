@@ -64,20 +64,41 @@ describe('PostCssProcessorPlugin', () => {
 		expect((await plugin.transformStylesheet('.foo { color: red; }', cssFile)).css).toContain('color: green');
 
 		refreshedColor = 'purple';
-		expect(plugin.invalidateStylesheets([path.join(srcDir, 'component.tsx')])).toBe('all');
+		expect(plugin.invalidateStylesheets([path.join(srcDir, 'component.tsx')])).toEqual([]);
 
 		expect((await plugin.transformStylesheet('.foo { color: red; }', cssFile)).css).toContain('color: purple');
 	});
 
-	test.each(['pages/index.mdx', 'content/post.md', 'pages/home.astro', 'data/nav.json'])(
-		'invalidates its dependency entry paths when %s changes, since Tailwind may scan any file',
-		(file) => {
-			const entry = path.join(srcDir, 'tailwind.css');
-			const plugin = new PostCssProcessorPlugin({ options: { dependencyEntryPaths: [entry] } });
+	test('invalidates only the stylesheets whose reported content sources match a changed file', async () => {
+		const scanner = (name: string, dir: string, glob: string): postcss.AcceptedPlugin =>
+			({
+				postcssPlugin: name,
+				Once(_root, { result }) {
+					result.messages.push({ type: 'dir-dependency', plugin: '@tailwindcss/postcss', dir, glob });
+				},
+			}) as postcss.AcceptedPlugin;
+		const pagesDir = path.join(srcDir, 'pages');
+		const docsDir = path.join(srcDir, 'docs');
+		const plugin = new PostCssProcessorPlugin({
+			options: { plugins: { scan: scanner('scan', pagesDir, '**/*.tsx') } },
+		});
+		await setUp(plugin);
+		const pagesCss = path.join(srcDir, 'pages.css');
+		await plugin.transformStylesheet('.a { color: red; }', pagesCss);
+		const other = new PostCssProcessorPlugin({
+			options: { plugins: { scan: scanner('scan', docsDir, '*.md') } },
+		});
+		await setUp(other);
+		const docsCss = path.join(srcDir, 'docs.css');
+		await other.transformStylesheet('.a { color: red; }', docsCss);
 
-			expect(plugin.invalidateStylesheets([path.join(srcDir, file)])).toEqual([entry]);
-		},
-	);
+		expect(plugin.invalidateStylesheets([path.join(pagesDir, 'deep/home.tsx')])).toEqual([pagesCss]);
+		expect(
+			plugin.invalidateStylesheets([path.join(pagesDir, 'data.json'), path.join(tmpDir, 'pnpm-lock.yaml')]),
+		).toEqual([]);
+		expect(other.invalidateStylesheets([path.join(docsDir, 'post.md')])).toEqual([docsCss]);
+		expect(other.invalidateStylesheets([path.join(docsDir, 'nested/post.md')])).toEqual([]);
+	});
 
 	test('loads the configured plugins on the first transform instead of at finalization', async () => {
 		const cssFile = path.join(srcDir, 'lazy-plugins.css');

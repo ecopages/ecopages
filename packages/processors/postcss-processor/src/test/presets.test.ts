@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { path } from '@ecopages/file-system/path';
-import { PostCssProcessor } from '../postcss-processor';
+import postcss from 'postcss';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { PostCssProcessorPlugin } from '../plugin';
+import { collectDependencies, PostCssProcessor } from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
 import { tailwindV4Preset } from '../presets/tailwind-v4';
 
@@ -271,6 +274,26 @@ describe('Tailwind v4 transformInput', () => {
 		expect(result).toContain('@apply');
 	});
 
+	test('should place @reference after the leading @charset, @layer and @import statements', async () => {
+		const preset = tailwindV4Preset({ referencePath });
+		const css = `@charset "UTF-8";\n@layer base, theme;\n@import './a.css';\n@import './b.css';\n.x { @apply flex; }`;
+
+		const result = await preset.transformInput!(css, '/abs/path/src/pages/index.css');
+
+		expect(result).toBe(
+			`@charset "UTF-8";\n@layer base, theme;\n@import './a.css';\n@import './b.css';\n@reference "${referencePath}";\n.x { @apply flex; }`,
+		);
+	});
+
+	test('should place @reference after the imports of a stylesheet that starts with a byte order mark', async () => {
+		const preset = tailwindV4Preset({ referencePath });
+		const css = `\uFEFF@import './a.css';\n.x { @apply flex; }`;
+
+		const result = await preset.transformInput!(css, '/abs/path/src/pages/index.css');
+
+		expect(result).toBe(`\uFEFF@import './a.css';\n@reference "${referencePath}";\n.x { @apply flex; }`);
+	});
+
 	test('should inject the same absolute @reference regardless of importing file location', async () => {
 		const preset = tailwindV4Preset({ referencePath });
 		const css = `.main-title { @apply text-2xl font-bold; }`;
@@ -345,4 +368,65 @@ describe('Tailwind v4 preset @apply resolution (regression)', () => {
 		expect(result).toContain('font-size');
 		expect(result).toContain('.main-title');
 	});
+});
+
+describe('Tailwind v4 preset with @import and @apply together', () => {
+	test('keeps the partials of a stylesheet that uses @apply and reports them as dependencies', async () => {
+		const pagesDir = path.join(tailwindAppDir, 'src/pages');
+		const partialPath = path.join(pagesDir, 'part.css');
+		const pagePath = path.join(pagesDir, 'a.css');
+		mkdirSync(pagesDir, { recursive: true });
+		writeFileSync(partialPath, '.from-partial { color: red; }\n');
+		const preset = tailwindV4Preset({ referencePath: tailwindReferencePath });
+
+		const input = await preset.transformInput!(
+			`@charset "UTF-8";\n@import './part.css';\n.x { @apply flex; }\n`,
+			pagePath,
+		);
+		const result = await postcss(Object.values(preset.plugins!)).process(input, { from: pagePath });
+
+		expect(result.css).toContain('.from-partial');
+		expect(result.css).toContain('display:flex');
+		expect(collectDependencies(result.messages)).toContain(path.fromNative(realpathSync(partialPath)));
+		expect(result.warnings().map((warning) => warning.text)).toEqual([]);
+	}, 30_000);
+});
+
+describe('Tailwind v4 preset invalidation by content sources', () => {
+	let entryPath: string;
+	let pagesDir: string;
+	let plugin: PostCssProcessorPlugin;
+
+	let appDir: string;
+
+	/** Tailwind reports real paths, so the app is addressed by its real path as well. */
+	beforeAll(async () => {
+		appDir = path.fromNative(realpathSync(tailwindAppDir));
+		entryPath = path.join(appDir, 'src/styles/scan.css');
+		pagesDir = path.join(appDir, 'src/pages');
+		mkdirSync(path.join(appDir, 'src/data'), { recursive: true });
+		mkdirSync(pagesDir, { recursive: true });
+		writeFileSync(entryPath, `@import 'tailwindcss' source('../pages');\n`);
+		writeFileSync(path.join(pagesDir, 'home.tsx'), `export const x = 'flex';\n`);
+		plugin = new PostCssProcessorPlugin({ options: tailwindV4Preset({ referencePath: entryPath }) });
+		plugin.setContext(await finalizeEcoPagesConfig({ rootDir: appDir, srcDir: 'src', distDir: 'dist' }));
+	});
+
+	test('a json or lockfile save outside the scanned directory rebuilds nothing, and a template save adds its classes', async () => {
+		const entry = await readFile(entryPath, 'utf-8');
+		const first = await plugin.transformStylesheet(entry, entryPath);
+		expect(first.css).toContain('display:flex');
+		expect(first.css).not.toContain('text-decoration-line:underline');
+
+		expect(
+			plugin.invalidateStylesheets([path.join(appDir, 'src/data/nav.json'), path.join(appDir, 'pnpm-lock.yaml')]),
+		).toEqual([]);
+
+		writeFileSync(path.join(pagesDir, 'home.tsx'), `export const x = 'flex underline';\n`);
+		const stale = plugin.invalidateStylesheets([path.join(pagesDir, 'home.tsx')]);
+		expect(stale).toEqual([entryPath]);
+
+		const second = await plugin.transformStylesheet(entry, entryPath);
+		expect(second.css).toContain('text-decoration-line:underline');
+	}, 30_000);
 });

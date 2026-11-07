@@ -17,7 +17,8 @@ import {
 	loadPostcssConfigFromFile,
 	type LoadedPostcssConfig,
 } from './postcss-config-loading.ts';
-import { transformWithPostcss } from './postcss-processor.ts';
+import { matchesContentSources, transformWithPostcss, type ContentSources } from './postcss-processor.ts';
+import { path } from '@ecopages/file-system/path';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
 	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
@@ -46,7 +47,8 @@ export interface PostCssProcessorPluginConfig {
 	 */
 	filter?: RegExp;
 	/**
-	 * The stylesheets to rebuild when a template or script changes; every entry stylesheet when unset.
+	 * Limits the stylesheets that rebuild when a template or script changes to these; any stylesheet whose content
+	 * sources match when unset.
 	 *
 	 * Use this when only known stylesheets read those files, such as a Tailwind reference file.
 	 */
@@ -93,6 +95,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	private postcssPluginsLoading?: Promise<void>;
 	private postcssPlugins: postcss.AcceptedPlugin[] = [];
 	private pluginFactories?: PluginFactoryRecord;
+	private contentSources = new Map<string, ContentSources>();
 
 	private materializePluginFactories(pluginFactories: PluginFactoryRecord): postcss.AcceptedPlugin[] {
 		return Object.values(pluginFactories).map((factory) => factory());
@@ -127,17 +130,25 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	/**
-	 * Recreates the plugins from their factories and names the stylesheets to rebuild when another file changes.
+	 * Recreates the plugins from their factories and names the stylesheets whose content sources include a changed file.
 	 *
 	 * @remarks
-	 * Core calls it only with changed files that are not stylesheets. Any of them can change the output: Tailwind v4
-	 * scans every file of the project that git does not ignore, and Tailwind v3 the files its `content` globs name,
-	 * which may be any extension. Tailwind keeps the class names it found in long-lived plugin instances, so fresh ones
-	 * are needed to find new ones.
+	 * Core calls it only with changed files that are not stylesheets. Tailwind reports what it scans (v4 the project
+	 * files git does not ignore, v3 the files its `content` globs name) and `transformStylesheet` keeps that per
+	 * stylesheet, so a file Tailwind does not scan, such as a lockfile, rebuilds nothing. A stylesheet that has not
+	 * been transformed has no sources yet. Tailwind keeps the class names it found in long-lived plugin instances, so
+	 * fresh ones are needed to find new ones.
 	 */
-	override invalidateStylesheets(_files: readonly string[]): StylesheetInvalidation {
+	override invalidateStylesheets(files: readonly string[]): StylesheetInvalidation {
 		this.refreshConfiguredPlugins();
-		return this.options?.dependencyEntryPaths ?? 'all';
+		const entryPaths = this.options?.dependencyEntryPaths?.map((entry) => path.resolve(entry));
+		return [...this.contentSources]
+			.filter(
+				([stylesheet, sources]) =>
+					(!entryPaths || entryPaths.includes(stylesheet)) &&
+					files.some((file) => matchesContentSources(sources, path.resolve(file))),
+			)
+			.map(([stylesheet]) => stylesheet);
 	}
 
 	/**
@@ -234,11 +245,13 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			? await this.options.transformInput(fileAsString, filePath)
 			: fileAsString;
 
-		return transformWithPostcss(input, {
+		const { css, dependencies, contentSources } = await transformWithPostcss(input, {
 			filePath,
 			plugins: this.postcssPlugins,
 			transformOutput: this.options?.transformOutput,
 		});
+		this.contentSources.set(path.resolve(filePath), contentSources);
+		return { css, dependencies };
 	}
 }
 

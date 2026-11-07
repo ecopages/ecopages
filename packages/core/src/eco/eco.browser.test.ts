@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import type { FileRouteMiddleware } from '../types/contracts.ts';
 import { eco } from './eco.browser.ts';
 
@@ -30,5 +30,35 @@ describe('browser eco facade', () => {
 		expect(Page.staticPaths).toBe(staticPaths);
 		expect(Page.metadata).toBe(metadata);
 		expect(Page.middleware).toBe(middleware);
+	});
+
+	test('hands only a Component another Integration owns to the registered Foreign Child host', () => {
+		const LitCounter = eco.component<{ count: number }, string>({
+			identity: { id: 'lit-counter', file: 'src/lit-counter.lit.tsx', integration: 'lit' },
+			render: ({ count }) => `lit ${count}`,
+		});
+		const ReactCounter = eco.component<{ count: number }, string>({
+			integration: 'react',
+			render: ({ count }) => `react ${count}`,
+		});
+
+		const UnownedCounter = eco.component<{ count: number }, string>({
+			render: ({ count }) => `unowned ${count}`,
+		});
+
+		expect(LitCounter({ count: 1 })).toBe('lit 1');
+
+		vi.stubGlobal('window', {
+			__ECO_PAGES__: {
+				foreignChildHost: {
+					integration: 'react',
+					renderForeignChild: (component: unknown, props: Record<string, unknown>) => ({ component, props }),
+				},
+			},
+		});
+
+		expect(LitCounter({ count: 1 })).toEqual({ component: LitCounter, props: { count: 1 } });
+		expect(ReactCounter({ count: 2 })).toBe('react 2');
+		expect(UnownedCounter({ count: 3 })).toBe('unowned 3');
 	});
 });

@@ -105,3 +105,28 @@ describe('server DOM across Lit and Radiant', () => {
 		expect(concurrent[4].html).toContain('<template shadowrootmode="open">');
 	}, 60_000);
 });
+
+function countSsrScriptEvaluations(script: string): number {
+	const store = globalThis as typeof globalThis & { __ecoSsrScriptEvaluations?: string[] };
+	return (store.__ecoSsrScriptEvaluations ?? []).filter((evaluated) => evaluated === script).length;
+}
+
+describe('ssr script ownership', () => {
+	it('A Radiant script on a Lit Page is evaluated once', async () => {
+		const page = await requestPage('/lit-with-ssr-once-radiant');
+
+		expect(page.status).toBe(200);
+		expect(countSsrScriptEvaluations('ssr-once-radiant-probe')).toBe(1);
+		expect(page.html).toMatch(
+			/<ssr-once-radiant-probe\b[^>]*\sdata-radiant-ssr\b[^>]*>[^]*?data-ssr-once-radiant-probe/,
+		);
+	}, 60_000);
+
+	it('A Lit element declared on a Kita Component is still server-rendered', async () => {
+		const page = await requestPage('/lit-with-kita-lit-element');
+
+		expect(page.status).toBe(200);
+		expect(countSsrScriptEvaluations('ssr-once-lit-probe')).toBe(1);
+		expect(page.html).toMatch(/<ssr-once-lit-probe><template shadowrootmode="open">[^]*?data-ssr-once-lit-probe/);
+	}, 60_000);
+});

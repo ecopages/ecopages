@@ -5,6 +5,7 @@ import {
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
 	type ServerDomInstaller,
+	type SsrScriptPreload,
 } from '@ecopages/core/integration';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/integration';
 import { requireAppRuntime } from '@ecopages/core/integration';
@@ -78,6 +79,8 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	renderer = EcopagesJsxRenderer;
 	override readonly bundlesPageDependencies = true;
 	override readonly serverDom: ServerDomInstaller | undefined;
+	/** Radiant SSR preloads the `ssr: true` scripts of Ecopages JSX Components; without Radiant there is no preloader. */
+	override readonly ssrScriptPreload: SsrScriptPreload | undefined;
 
 	private includeRadiant: boolean;
 	private mdxCompilerOptions?: ResolvedMdxCompileOptions;
@@ -136,6 +139,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		});
 
 		this.includeRadiant = includeRadiant;
+		this.ssrScriptPreload = includeRadiant ? 'own' : undefined;
 		this.mdxExtensions = mdxExtensions;
 		this.mdxCompilerOptions = mdxCompilerOptions;
 		this.serverDom = includeRadiant

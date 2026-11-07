@@ -47,7 +47,8 @@ export function createEcopagesJsxRendererHookFactory(
 		const ssrScriptPreloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
 			preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
-			collectForIntegration: ECOPAGES_JSX_PLUGIN_NAME,
+			integrationName: ECOPAGES_JSX_PLUGIN_NAME,
+			integrations: appConfig.integrations,
 			enabled: jsxConfig.radiantSsrEnabled ?? false,
 			logLabel: 'ecopages-jsx',
 			resolveDependencyPath,

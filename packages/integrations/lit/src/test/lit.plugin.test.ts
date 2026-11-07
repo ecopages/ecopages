@@ -208,6 +208,8 @@ describe('LitPlugin watch restart script-change invalidation', () => {
 		const preloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
 			preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
+			integrationName: plugin.name,
+			integrations: appConfig.integrations,
 			logLabel: 'lit',
 			resolveDependencyPath: (componentDir, sourcePath) => path.join(componentDir, sourcePath),
 			importServerModule,

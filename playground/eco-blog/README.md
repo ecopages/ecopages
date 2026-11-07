@@ -59,6 +59,8 @@ pnpm db:migrate    # apply pending migrations
 pnpm db:seed       # add the admin user and 10 posts
 ```
 
+`pnpm build` applies pending migrations first, so it creates an empty database when none exists. The home page is prerendered from the database, so seed it before building to ship posts.
+
 ## Environment
 
 Copy `.env.example` to `.env`. Set `BETTER_AUTH_SECRET` (at least 32 characters) outside development, and `ECOPAGES_BASE_URL` to the public URL.

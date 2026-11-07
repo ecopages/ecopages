@@ -36,7 +36,7 @@ import {
 } from '../ownership-graph/ownership-validation.service.ts';
 import {
 	collectComponentGraphWatchPaths,
-	collectUsedIntegrationDependenciesFromNames,
+	collectPageIntegrationDependencies,
 } from '../ownership-graph/component-graph-collectors.ts';
 import { collectPageClientPlanFromGraph } from '../ownership-graph/page-client-plan.ts';
 import { collectPreparedGraphComponents } from '../ownership-graph/prepared-graph-membership.ts';
@@ -325,6 +325,11 @@ export class RouteRenderOrchestrator {
 	 * collects processed assets, and produces the page package consumed by downstream
 	 * HTML transformation. With a `planned` preparation it reuses the inputs and graphs the production build
 	 * planned and only processes the route's dependencies.
+	 *
+	 * @remarks
+	 * The global scripts of every Integration the page uses come first, in config order, the owner's included, before
+	 * any component script. A global script such as Lit's hydration support must run before any component script
+	 * defines a custom element, and the order must not depend on which Integration owns the page.
 	 */
 	async prepareRenderOptions<C = unknown>(
 		routeOptions: RouteRendererOptions,
@@ -359,7 +364,7 @@ export class RouteRenderOrchestrator {
 			shellDependencyComponents,
 			graph: preparedGraph,
 		} = graphContext;
-		const { resolvedDependencies } = await measureRouteRenderPhase(
+		const { resolvedDependencies, integrationDependencies } = await measureRouteRenderPhase(
 			this.requestPipelineMetrics,
 			'resolve-dependencies',
 			() =>
@@ -393,9 +398,12 @@ export class RouteRenderOrchestrator {
 		}
 
 		const allDependencies = [
+			...collectPageIntegrationDependencies(this.appConfig, clientPlan.integrationNames, {
+				name: renderer.name,
+				dependencies: integrationDependencies,
+			}),
 			...resolvedDependencies,
 			...clientBrowserAssets.processedAssets,
-			...collectUsedIntegrationDependenciesFromNames(this.appConfig, clientPlan.integrationNames, renderer.name),
 		];
 
 		const triggers = clientPlan.lazyTriggers;

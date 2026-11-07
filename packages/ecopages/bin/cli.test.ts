@@ -69,7 +69,7 @@ describe('CLI Commands', () => {
 		}) as never);
 	}
 
-	const originalCwd = process.cwd();
+	const originalCwd = path.cwd();
 	const forwardedSignals = ['SIGTERM', 'SIGINT'] as const;
 	let signalListenersBefore: Map<string, Set<unknown>>;
 	let tempCwd: string;

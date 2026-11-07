@@ -11,7 +11,7 @@ import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 import { appLogger } from '../../global/app-logger.ts';
 
 const tempRoots: string[] = [];
-const repoRoot = path.resolve(import.meta.dirname, '../../../../..');
+const repoRoot = path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../../../../..');
 const docsRoot = path.join(repoRoot, 'apps', 'docs');
 
 function createTempRoot(prefix: string): string {

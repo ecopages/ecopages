@@ -248,7 +248,7 @@ describe('NodeModuleScriptProcessor', () => {
 
 		test('should resolve @ecopages/logger from node_modules', async () => {
 			const config = createMockConfig();
-			config.rootDir = process.cwd();
+			config.rootDir = path.cwd();
 			const processor = new NodeModuleScriptProcessor({ appConfig: config });
 			fileSystem.readFileAsBuffer = vi.fn().mockResolvedValue(Buffer.from('dummy content'));
 
@@ -269,7 +269,10 @@ describe('NodeModuleScriptProcessor', () => {
 
 		test('should resolve exported package subpaths when adapter resolution falls back', async () => {
 			const config = createMockConfig();
-			config.rootDir = path.resolve(import.meta.dirname, '../../../../../../../apps/docs');
+			config.rootDir = path.resolve(
+				path.dirname(path.fromFileUrl(import.meta.url)),
+				'../../../../../../../apps/docs',
+			);
 			const processor = new NodeModuleScriptProcessor({ appConfig: config });
 			fileSystem.readFileAsBuffer = vi.fn().mockReturnValue(Buffer.from('hydrator bootstrap'));
 

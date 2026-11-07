@@ -1,4 +1,5 @@
 export { ECO_PERSIST_ATTRIBUTE } from '../../client/navigation-attributes.ts';
+export { loadNavigationGlobalScripts } from '../../client/navigation-scripts/global-scripts.ts';
 export {
 	commitNavigationPage,
 	type NavigationCommitPipelineInput,

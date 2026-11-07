@@ -10,6 +10,7 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';
 import { ensureLitDomShim } from '../dom-shim.ts';
 import { createLitRenderer, LitRenderer } from '../lit-renderer.ts';
+import { LitPlugin } from '../lit.plugin.ts';
 import type { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
 ensureLitDomShim();
@@ -34,7 +35,7 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
  * @remarks
  * The real preload installs a fresh global custom element registry on every
  * call, so elements defined by a test before rendering would be dropped.
- * Preload is therefore skipped here; `lit-ssr-lazy-preload.test.ts` covers it
+ * Preload is therefore skipped here; `lit-ssr-preload.test.ts` covers it
  * with real scripts.
  */
 class TestLitRenderer extends LitRenderer {
@@ -646,7 +647,7 @@ describe('LitRenderer', () => {
 
 	describe('lazy worker session', () => {
 		it('preloads SSR scripts through the server module loader, not the asset pipeline, when a static-export session exists', async () => {
-			const appConfig = await createTestAppConfig();
+			const appConfig = await createTestAppConfig({ integrations: [new LitPlugin()] });
 			const importModule = vi.fn(async (_options: { filePath: string }) => ({}));
 			appConfig.appRuntime!.moduleLoader = {
 				...appConfig.appRuntime!.moduleLoader,

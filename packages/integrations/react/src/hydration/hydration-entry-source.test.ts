@@ -58,7 +58,9 @@ describe('createIslandEntrySource', () => {
 		await import(
 			dataUrl(
 				linkImports(source, {
-					react: dataUrl('export const createElement = () => ({}); export const useEffect = () => {};'),
+					react: dataUrl(
+						'export const createElement = () => ({}); export const useEffect = () => {}; export const useState = () => [];',
+					),
 					'react-dom/client': reactDomUrl,
 					'@ecopages/react/island-hydration': islandHydrationUrl,
 				}),
@@ -98,7 +100,7 @@ describe('createPageEntrySource', () => {
 		await import(
 			dataUrl(
 				linkImports(source, {
-					react: dataUrl('export const createElement = () => ({});'),
+					react: dataUrl('export const createElement = () => ({}); export const useState = () => [];'),
 					'react-dom/client': reactDomUrl,
 					'@ecopages/react/page-hydration': pageHydrationUrl,
 					'@ecopages/react/layout-compose': dataUrl('export const composeLayoutPageTree = () => ({});'),

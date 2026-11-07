@@ -3,14 +3,9 @@ import {
 	consumeContext,
 	contextSelector,
 	createContext,
-	customElement,
-	onEvent,
 	provideContext,
-	query,
-	RadiantElement,
-	state,
-	WithKita,
-} from '@ecopages/radiant';
+} from '@ecopages/radiant/context';
+import { customElement, onEvent, query, RadiantElement, state } from '@ecopages/radiant';
 
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './radiant-todo.templates';
 
@@ -38,7 +33,7 @@ class Logger {
 }
 
 @customElement('radiant-todo-item')
-export class RadiantTodoItem extends WithKita(RadiantElement) {
+export class RadiantTodoItem extends RadiantElement {
 	@query({ selector: 'input[type="checkbox"]' }) checkbox!: HTMLInputElement;
 	@query({ selector: 'button' }) removeButton!: HTMLButtonElement;
 	@state({ type: Boolean, reflect: true, defaultValue: false }) declare complete: boolean;
@@ -79,7 +74,7 @@ export class RadiantTodoItem extends WithKita(RadiantElement) {
 }
 
 @customElement('radiant-todo-app')
-export class RadiantTodoApp extends WithKita(RadiantElement) {
+export class RadiantTodoApp extends RadiantElement {
 	@query({ ref: 'list-complete' }) listComplete!: HTMLElement;
 	@query({ ref: 'list-incomplete' }) listIncomplete!: HTMLElement;
 	@query({ ref: 'count-complete' }) countComplete!: HTMLElement;
@@ -107,6 +102,11 @@ export class RadiantTodoApp extends WithKita(RadiantElement) {
 		}
 	}
 
+	/** Renders a Kita view, which may be async, into `target`. */
+	private async renderView(target: HTMLElement, view: JSX.Element) {
+		this.renderTemplate({ target, template: await view });
+	}
+
 	@contextSelector({
 		context: todoContext,
 		select: ({ todos }) => ({
@@ -125,17 +125,7 @@ export class RadiantTodoApp extends WithKita(RadiantElement) {
 		];
 
 		for (const { todos, list, noTodosMessage } of todosMapping) {
-			if (todos.length === 0) {
-				this.renderTemplate({
-					target: list,
-					template: noTodosMessage,
-				});
-			} else {
-				this.renderTemplate({
-					target: list,
-					template: <TodoList todos={todos} />,
-				});
-			}
+			void this.renderView(list, todos.length === 0 ? noTodosMessage : <TodoList todos={todos} />);
 		}
 
 		this.countComplete.textContent = todosCompleted.length.toString();

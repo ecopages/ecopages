@@ -8,6 +8,8 @@ const getData = async () => {
 };
 
 export default eco.page({
+	cache: 'dynamic',
+
 	render: async () => {
 		const data = await getData();
 

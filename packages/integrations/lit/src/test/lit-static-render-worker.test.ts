@@ -51,6 +51,7 @@ async function send(message: Record<string, unknown>): Promise<{ type: string }>
 }
 
 it('resolves global scripts once, after the first render restores the ledger, not at init', async () => {
+	const { loadEcoPagesConfig } = await import('@ecopages/core/config');
 	await import('../lit-static-render-worker.ts');
 
 	await send({
@@ -60,6 +61,9 @@ it('resolves global scripts once, after the first render restores the ledger, no
 		directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 	});
 	expect(events).toEqual(['plugins setup', 'integrations setup']);
+	expect(loadEcoPagesConfig).toHaveBeenCalledWith(
+		expect.objectContaining({ globalScriptResolution: 'browser-build' }),
+	);
 
 	const render = { type: 'render', filePath: '/app/src/pages/index.lit.ts', params: {} };
 	expect((await send({ ...render, id: 1 })).type).toBe('result');

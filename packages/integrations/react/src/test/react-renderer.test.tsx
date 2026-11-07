@@ -27,6 +27,7 @@ import { ReactRenderer, type ReactRendererConfig } from '../render/react-rendere
 import type { ReactRuntimeModules } from '../render/react-runtime.ts';
 import { toRootRelativePath } from '@ecopages/core/build';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
+import { getForeignSubtreeKey, renderForeignSubtreeBoundary } from '../hydration/foreign-subtree.ts';
 import { Page } from './fixture/test-page';
 
 const mockRouterAdapter = {
@@ -651,8 +652,93 @@ describe('ReactRenderer', () => {
 				integrationContext: { componentInstanceId: 'island-foreign-root' },
 			});
 
-			expect(result.html).toBe('<eco-island style="display:contents"><button>Foreign root</button></eco-island>');
+			expect(result.html).toBe(
+				`<eco-island style="display:contents">${renderForeignSubtreeBoundary(
+					getForeignSubtreeKey(DeferredWidget, {}),
+					'<button>Foreign root</button>',
+				)}</eco-island>`,
+			);
 			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-foreign-root');
+		});
+
+		it('wraps a foreign Component in a Foreign Subtree boundary that hydration keeps', async () => {
+			const litPlugin = createDeferredIntegrationPlugin({
+				name: 'lit',
+				extensions: ['.lit.tsx'],
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<lit-counter count="1"><template shadowrootmode="open">1</template></lit-counter>',
+					canAttachAttributes: true,
+					integrationName: 'lit',
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [litPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				resolvedIntegrationDependencies: [],
+			});
+			const LitCounter = eco.component<{ count: number }, string>({
+				identity: { id: 'lit-counter', file: '/app/components/lit-counter.lit.tsx', integration: 'lit' },
+				render: () => '',
+			});
+			const ForeignCounter = LitCounter as unknown as React.ComponentType<{ count: number }>;
+			const Page = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-page', file: pageFilePath, integration: 'react' },
+				dependencies: { components: [LitCounter] },
+				render: () => (
+					<main>
+						<ForeignCounter count={1} />
+					</main>
+				),
+			});
+
+			const result = await testRenderer.renderComponentWithForeignChildren({ component: Page, props: {} });
+
+			expect(result.html).toBe(
+				`<main>${renderForeignSubtreeBoundary(
+					getForeignSubtreeKey(LitCounter, { count: 1 }),
+					'<lit-counter count="1"><template shadowrootmode="open">1</template></lit-counter>',
+				)}</main>`,
+			);
+		});
+
+		it('leaves a Foreign Subtree in the document head unwrapped', async () => {
+			const litPlugin = createDeferredIntegrationPlugin({
+				name: 'lit',
+				extensions: ['.lit.tsx'],
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<meta name="lit" content="1">',
+					canAttachAttributes: true,
+					integrationName: 'lit',
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [litPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				resolvedIntegrationDependencies: [],
+			});
+			const LitMeta = eco.component<Record<string, never>, string>({
+				identity: { id: 'lit-meta', file: '/app/components/lit-meta.lit.tsx', integration: 'lit' },
+				render: () => '',
+			});
+			const ForeignMeta = LitMeta as unknown as React.ComponentType;
+			const Shell = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-shell', file: pageFilePath, integration: 'react' },
+				dependencies: { components: [LitMeta] },
+				render: () => (
+					<html>
+						<head>
+							<ForeignMeta />
+						</head>
+						<body />
+					</html>
+				),
+			});
+
+			const result = await testRenderer.renderComponentWithForeignChildren({ component: Shell, props: {} });
+
+			expect(result.html).toContain('<head><meta name="lit" content="1"></head>');
 		});
 
 		it('returns island host metadata with the component render result', async () => {

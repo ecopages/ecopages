@@ -53,7 +53,7 @@ const createMockConfig = (): EcoPagesAppConfig => {
 		integrations: [],
 		processors: new Map(),
 	} as unknown as EcoPagesAppConfig;
-	createAppRuntime(config);
+	createAppRuntime(config, { globalScriptResolution: 'browser-build' });
 	return config;
 };
 

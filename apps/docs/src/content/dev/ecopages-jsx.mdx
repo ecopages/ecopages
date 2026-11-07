@@ -46,7 +46,7 @@ JSX is rendered with `renderToString` from `@ecopages/jsx/server`. Radiant lives
 
 ### `ssr: true` scripts
 
-Components declare element registration once in `dependencies.scripts`. A `CustomElementScriptPreloader` imports entries marked `ssr: true` before render (`beforeRender` and `renderComponent`) so the host can SSR without a redundant import in the component file. It is enabled only when Radiant is, and its state lives on the `AppRuntime`, so apps do not share preload history. In development a changed script entrypoint invalidates its registration (`invalidateRadiantRegisteredScriptSsrRegistration`).
+Components declare element registration once in `dependencies.scripts`. A `CustomElementScriptPreloader` imports entries marked `ssr: true` before render (`beforeRender` and `renderComponent`) so the host can SSR without a redundant import in the component file. It is enabled only when Radiant is, and its state lives on the `AppRuntime`, so apps do not share preload history. With Radiant, `EcopagesJsxPlugin` declares `ssrScriptPreload: 'own'`, so core gives it the `ssr: true` scripts of Ecopages JSX Components wherever they sit in the tree, and no other preloader, Lit included, evaluates them ([Route rendering](/dev/route-rendering#custom-element-ssr-scripts)). In development a changed script entrypoint invalidates its registration (`invalidateRadiantRegisteredScriptSsrRegistration`).
 
 ## Hydration story
 

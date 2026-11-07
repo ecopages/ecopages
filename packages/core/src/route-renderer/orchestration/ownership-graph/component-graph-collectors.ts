@@ -3,35 +3,42 @@ import type { ProcessedAsset } from '../../../assets/asset-processing-service/in
 import { path } from '@ecopages/file-system/path';
 import { resolveDiscoveredWatchFiles, resolveInferredStylesheets } from '../../../eco/discovered-dependency-paths.ts';
 import type { PreparedComponentGraphNode } from './component-graph.ts';
+import { ECO_GLOBAL_SCRIPT_ATTRIBUTE } from '../../../client/navigation-attributes.ts';
+
+function markGlobalScript(asset: ProcessedAsset): ProcessedAsset {
+	return asset.kind === 'script'
+		? { ...asset, attributes: { ...asset.attributes, [ECO_GLOBAL_SCRIPT_ATTRIBUTE]: '' } }
+		: asset;
+}
 
 /**
- * Resolved runtime dependencies for integrations named on a page client plan.
+ * Lists the global scripts of every Integration a Page uses, in config order.
  *
  * @remarks
- * The plan already lists those names. Callers pass the names instead of walking
- * the component graph a second time.
+ * The owner always takes part, and its scripts come from `owner.dependencies`, the owning renderer's render
+ * session.
+ * The other names come from the Page client plan, so the component graph is not walked a second time. The order is
+ * the same whichever Integration owns the Page.
+ *
+ * Each script carries `data-eco-global-script`, which is how a client navigation tells them from Component scripts.
  */
-export function collectUsedIntegrationDependenciesFromNames(
+export function collectPageIntegrationDependencies(
 	appConfig: EcoPagesAppConfig,
 	integrationNames: Iterable<string>,
-	currentIntegrationName: string,
+	owner: { name: string; dependencies: ProcessedAsset[] },
 ): ProcessedAsset[] {
-	const dependencies: ProcessedAsset[] = [];
-
-	for (const integrationName of integrationNames) {
-		if (integrationName === currentIntegrationName) {
-			continue;
+	const usedNames = new Set(integrationNames);
+	return appConfig.integrations.flatMap((integration) => {
+		if (integration.name === owner.name) {
+			return owner.dependencies.map(markGlobalScript);
 		}
 
-		const integrationPlugin = appConfig.integrations.find((integration) => integration.name === integrationName);
-		if (!integrationPlugin || typeof integrationPlugin.getResolvedIntegrationDependencies !== 'function') {
-			continue;
+		if (!usedNames.has(integration.name) || typeof integration.getResolvedIntegrationDependencies !== 'function') {
+			return [];
 		}
 
-		dependencies.push(...integrationPlugin.getResolvedIntegrationDependencies());
-	}
-
-	return dependencies;
+		return integration.getResolvedIntegrationDependencies().map(markGlobalScript);
+	});
 }
 
 /**

@@ -44,41 +44,76 @@ export function isExpectedCustomElementSsrPreloadError(error: unknown): boolean 
 	);
 }
 
-function collectSsrScriptsFromConfig(
+/**
+ * Which `ssr: true` Component scripts an Integration's custom-element preloader evaluates.
+ *
+ * - `'own'`: the scripts of its own Components.
+ * - `'own-and-foreign'`: also the scripts of Components whose Integration does not preload, such as Kita, React or
+ *   a plain module.
+ */
+export type SsrScriptPreload = 'own' | 'own-and-foreign';
+
+/** An Integration as the ssr script assignment reads it. */
+export type SsrScriptPreloadDeclaration = {
+	readonly name: string;
+	readonly ssrScriptPreload?: SsrScriptPreload;
+};
+
+/**
+ * Picks the one preloader that evaluates a script, from the Integrations of the Components that declare it.
+ *
+ * @remarks
+ * A preloading Integration that owns a declaring Component wins, the first in config order when several do. Otherwise
+ * the first `'own-and-foreign'` Integration claims it. With none, the script is not evaluated on the server.
+ */
+function assignSsrScript(
+	declaringOwners: ReadonlySet<string | undefined>,
+	integrations: readonly SsrScriptPreloadDeclaration[],
+): string | undefined {
+	const owner = integrations.find(
+		(integration) => integration.ssrScriptPreload && declaringOwners.has(integration.name),
+	);
+	return (owner ?? integrations.find((integration) => integration.ssrScriptPreload === 'own-and-foreign'))?.name;
+}
+
+function recordSsrScriptOwner(
 	config: EcoComponentConfig,
-	scriptPaths: Set<string>,
+	ownersByScript: Map<string, Set<string | undefined>>,
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string,
-	componentFile?: string,
-	requireLazyScriptEntry = false,
 ): void {
+	const componentFile = getComponentIdentity(config)?.file;
 	if (!componentFile) {
 		return;
 	}
 
-	const componentDir = path.dirname(componentFile);
+	const owner = getComponentOwner(config);
 	for (const script of config.dependencies?.scripts ?? []) {
 		if (typeof script === 'string' || script.ssr !== true || !script.src) {
 			continue;
 		}
 
-		if (requireLazyScriptEntry && !script.lazy) {
-			continue;
-		}
-
-		scriptPaths.add(resolveDependencyPath(componentDir, script.src));
+		const scriptPath = resolveDependencyPath(path.dirname(componentFile), script.src);
+		const owners = ownersByScript.get(scriptPath) ?? new Set();
+		owners.add(owner);
+		ownersByScript.set(scriptPath, owners);
 	}
 }
 
 /**
- * Collects `dependencies.scripts` paths marked `ssr: true` from a component tree.
+ * Collects the `dependencies.scripts` paths marked `ssr: true` in a Component tree that core assigns to one
+ * Integration's preloader.
+ *
+ * @remarks
+ * Every `ssr: true` script is evaluated by exactly one preloader, so a second copy of an element's module graph,
+ * such as Radiant's, never loads beside the owner's. The whole tree is walked, since an owned Component can sit under
+ * a foreign one.
  */
 export function collectCustomElementSsrPreloadScripts(
 	components: Array<CustomElementSsrPreloadComponent | undefined>,
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string,
-	requireLazyScriptEntry = false,
-	collectForIntegration?: string,
+	assignment: { integrationName: string; integrations: readonly SsrScriptPreloadDeclaration[] },
 ): string[] {
-	const scriptPaths = new Set<string>();
+	const ownersByScript = new Map<string, Set<string | undefined>>();
 	const visitedConfigs = new Set<EcoComponentConfig>();
 
 	const collect = (component?: CustomElementSsrPreloadComponent) => {
@@ -89,19 +124,7 @@ export function collectCustomElementSsrPreloadScripts(
 
 		visitedConfigs.add(config);
 
-		const identity = getComponentIdentity(config);
-		const integration = getComponentOwner(config);
-		const ownsScripts = !collectForIntegration || integration === collectForIntegration;
-		const componentFile = ownsScripts ? identity?.file : undefined;
-		if (ownsScripts) {
-			collectSsrScriptsFromConfig(
-				config,
-				scriptPaths,
-				resolveDependencyPath,
-				componentFile,
-				requireLazyScriptEntry,
-			);
-		}
+		recordSsrScriptOwner(config, ownersByScript, resolveDependencyPath);
 
 		for (const layout of config.layouts ?? []) {
 			collect(layout);
@@ -116,21 +139,15 @@ export function collectCustomElementSsrPreloadScripts(
 		collect(component);
 	}
 
-	return Array.from(scriptPaths);
+	return Array.from(ownersByScript)
+		.filter(([, owners]) => assignSsrScript(owners, assignment.integrations) === assignment.integrationName)
+		.map(([scriptPath]) => scriptPath);
 }
 
 export interface CustomElementScriptPreloaderOptions {
 	cacheScope: string;
 	preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
 	enabled?: boolean;
-	/**
-	 * When true, only lazy script entries with `ssr: true` are preloaded.
-	 *
-	 * @remarks
-	 * Lit keeps this enabled so eager `ssr: true` scripts are not evaluated in an
-	 * isolated module graph that would register incompatible custom elements.
-	 */
-	requireLazyScriptEntry?: boolean;
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	/**
 	 * Evaluates one script for the custom-element registry named by `registryKey`.
@@ -140,22 +157,21 @@ export interface CustomElementScriptPreloaderOptions {
 	 * asset imports are loaded by the same server loaders as page modules.
 	 */
 	importServerModule: (scriptPath: string, registryKey: string) => Promise<unknown>;
+	/** The Integration this preloader evaluates scripts for. */
+	integrationName: string;
 	/**
-	 * Limits script collection to components owned by one integration.
+	 * The app's Integrations, in config order.
 	 *
 	 * @remarks
-	 * Dependency trees may include foreign integrations whose `ssr: true` scripts
-	 * are preloaded by their own renderer. Ownership uses
-	 * `getComponentOwner`, matching render routing.
-	 * Ecopages JSX still walks nested components so it can find owned Radiant
-	 * hosts deeper in the graph.
+	 * Each one's `ssrScriptPreload` decides which preloader a script is assigned to, so the preloader evaluates only
+	 * the scripts assigned to `integrationName`.
 	 */
-	collectForIntegration?: string;
+	integrations: readonly SsrScriptPreloadDeclaration[];
 	logLabel?: string;
 }
 
 /**
- * Preloads `dependencies.scripts` entries marked `ssr: true` before SSR.
+ * Preloads the `dependencies.scripts` entries marked `ssr: true` that core assigns to one Integration, before SSR.
  *
  * @remarks
  * `lazy` controls browser delivery only; `ssr: true` opts into server evaluation
@@ -166,29 +182,29 @@ export class CustomElementScriptPreloader {
 	private readonly cacheScope: string;
 	private readonly preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
 	private readonly enabled: boolean;
-	private readonly requireLazyScriptEntry: boolean;
 	private readonly resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	private readonly importServerModule: CustomElementScriptPreloaderOptions['importServerModule'];
-	private readonly collectForIntegration?: string;
+	private readonly integrationName: string;
+	private readonly integrations: readonly SsrScriptPreloadDeclaration[];
 	private readonly logLabel: string;
 
 	constructor({
 		cacheScope,
 		preloadScopes,
 		enabled = true,
-		requireLazyScriptEntry = false,
 		resolveDependencyPath,
 		importServerModule,
-		collectForIntegration,
+		integrationName,
+		integrations,
 		logLabel = 'ecopages',
 	}: CustomElementScriptPreloaderOptions) {
 		this.cacheScope = cacheScope;
 		this.preloadScopes = preloadScopes;
 		this.enabled = enabled;
-		this.requireLazyScriptEntry = requireLazyScriptEntry;
 		this.resolveDependencyPath = resolveDependencyPath;
 		this.importServerModule = importServerModule;
-		this.collectForIntegration = collectForIntegration;
+		this.integrationName = integrationName;
+		this.integrations = integrations;
 		this.logLabel = logLabel;
 	}
 
@@ -201,12 +217,10 @@ export class CustomElementScriptPreloader {
 	}
 
 	collectSsrPreloadScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): string[] {
-		return collectCustomElementSsrPreloadScripts(
-			components,
-			this.resolveDependencyPath,
-			this.requireLazyScriptEntry,
-			this.collectForIntegration,
-		);
+		return collectCustomElementSsrPreloadScripts(components, this.resolveDependencyPath, {
+			integrationName: this.integrationName,
+			integrations: this.integrations,
+		});
 	}
 
 	/**

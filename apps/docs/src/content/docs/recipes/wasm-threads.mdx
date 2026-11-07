@@ -1,0 +1,53 @@
+---
+title: "WebAssembly threads"
+description: "Serve the cross-origin isolation headers with the headers option and start a module Worker that shares memory with the page."
+order: 4
+---
+
+# WebAssembly threads
+
+Use this when the page needs `SharedArrayBuffer`: threaded WebAssembly, or a Worker that works on memory the page also reads.
+
+Browsers expose `SharedArrayBuffer` only to a cross-origin isolated page. The page earns that from two response headers on the HTML document, `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`. Ecopages sets headers from the `headers` option, and builds a Worker whose URL is written the way the [Web Workers guide](/docs/core/components#web-workers) describes.
+
+## Serve the headers
+
+A rule is a `source` pattern and the headers to add. `/**` matches every path, so the page, its scripts and the Worker script all carry them.
+
+```ts file="examples/recipes/wasm-threads/eco.config.ts" region="headers"
+```
+
+The `headers` option reference lists the pattern syntax and how rules combine: [Response headers](/docs/getting-started/configuration#response-headers).
+
+## Start the Worker
+
+The page script allocates shared memory, checks that the page is isolated, and hands the memory to a Worker. The memory is a `WebAssembly.Memory` created with `shared: true`, the same object a threaded WebAssembly module imports; its `buffer` is a `SharedArrayBuffer`.
+
+```ts file="examples/recipes/wasm-threads/src/lib/start-counter.ts"
+```
+
+Declare the script on the Page so the build bundles it:
+
+```tsx file="examples/recipes/wasm-threads/src/pages/index.tsx"
+```
+
+The Worker adds to the counter with `Atomics.add`, which is safe while other threads touch the same cell:
+
+```ts file="examples/recipes/wasm-threads/src/lib/counter.worker.ts"
+```
+
+`ecopages build` writes the Worker as its own hashed file under `dist/client/assets` and rewrites the URL to it, and `ecopages dev` serves it through the dev transform server.
+
+For a real threaded module, instantiate it in each Worker with this memory as its imported `env.memory`. The fixture stops short of shipping a `.wasm` binary so it stays free of a toolchain.
+
+## What the test checks
+
+The fixture's end-to-end test opens the page under `ecopages dev` and under `ecopages preview`, in a browser. It asserts that the page response carries both headers, that `self.crossOriginIsolated` is `true`, that the Worker script response carries `Cross-Origin-Embedder-Policy` as well, and that the page shows a counter of 1000 written by the Worker.
+
+## Caveats
+
+- **Without isolation the code does not fall back.** `self.crossOriginIsolated` is `false` when a header is missing, and `new SharedArrayBuffer` throws. The fixture shows `not isolated` in that case.
+- **Cross-origin resources break.** With `require-corp`, every cross-origin image, script, font or iframe the page loads must send `Cross-Origin-Resource-Policy: cross-origin` or a matching CORS response, or the browser blocks it. Same-origin files are unaffected.
+- **Scope the rule wider than the page.** The Worker script is loaded under the page's policy, so it needs the embedder header too. A rule on `/**` covers it; a rule limited to HTML paths would not.
+- **A static export carries no headers.** `ecopages build` output served by another host has none of this. Set the same two headers on the host, for example in a `_headers` file or the platform settings. See [Deployment](/docs/reference/deployment).
+- **The Worker URL has rules.** It must be a string literal starting with `./` or `../` inside the `new Worker(...)` call, with `{ type: 'module' }`, as the [Web Workers guide](/docs/core/components#web-workers) lists.

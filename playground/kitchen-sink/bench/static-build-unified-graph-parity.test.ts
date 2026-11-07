@@ -107,6 +107,28 @@ function collectHtmlArtifacts(distDir: string): Map<string, string> {
 	return artifacts;
 }
 
+/**
+ * Lists the emitted JavaScript files that evaluate lit-html.
+ *
+ * @remarks
+ * lit-html registers its version on `litHtmlVersions`. A global script bundled on its own, beside the app-wide
+ * browser build, carries a second copy, which a Page then loads twice.
+ */
+function collectLitHtmlCopies(distDir: string): string[] {
+	const copies: string[] = [];
+	const walk = (currentDir: string): void => {
+		for (const entry of readdirSync(currentDir, { withFileTypes: true })) {
+			const absolutePath = path.join(currentDir, entry.name);
+			if (entry.isDirectory()) walk(absolutePath);
+			else if (entry.name.endsWith('.js') && readFileSync(absolutePath, 'utf8').includes('litHtmlVersions')) {
+				copies.push(path.relative(distDir, absolutePath));
+			}
+		}
+	};
+	walk(distDir);
+	return copies;
+}
+
 describe('static-build unified graph parity', () => {
 	afterAll(() => {
 		process.chdir(original.cwd);
@@ -142,6 +164,7 @@ describe('static-build unified graph parity', () => {
 
 		const graphConfig = await loadStaticBuildBenchConfigWithScope(PARITY_SCOPE_GRAPH);
 		resetBenchBuildState(graphConfig);
+		rmSync(path.resolve(graphConfig.rootDir, graphConfig.distDir), { recursive: true, force: true });
 		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', undefined);
 		resetRolldownBuildInvocationCounts();
 		await runStaticSiteGeneration(graphConfig, { force: true });
@@ -164,5 +187,8 @@ describe('static-build unified graph parity', () => {
 		for (const [relativePath, baselineHtml] of baselineArtifacts) {
 			assert.equal(graphArtifacts.get(relativePath), baselineHtml, `HTML mismatch for ${relativePath}`);
 		}
+
+		const litHtmlCopies = collectLitHtmlCopies(graphConfig.absolutePaths.distDir);
+		assert.equal(litHtmlCopies.length, 1, `lit-html should be emitted once: ${litHtmlCopies.join(', ')}`);
 	}, 120_000);
 });

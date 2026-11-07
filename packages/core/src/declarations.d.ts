@@ -2,6 +2,7 @@ import './css-imports.d.ts';
 
 import type { EcoPagesAppConfig } from './config/internal-types';
 import type { EcoNavigationRuntime } from './router/client/navigation-coordinator';
+import type { BrowserForeignChildHost } from './types/contracts';
 
 type HMRHandler = (url: string) => Promise<void>;
 type CleanupPageRootFunction = () => void;
@@ -15,6 +16,8 @@ type EcoIslandRuntime = {
 type EcoPageData = {
 	module: string;
 	props: Record<string, unknown>;
+	/** Set by a react-router navigation to the document it fetched; absent otherwise. */
+	document?: Document;
 };
 type EcoPagesWindowRuntime = {
 	hmrHandlers?: Record<string, HMRHandler>;
@@ -28,6 +31,7 @@ type EcoPagesWindowRuntime = {
 	islandComponents?: Record<string, EcoIslandComponent>;
 	__ecoIslandRuntime?: EcoIslandRuntime;
 	page?: EcoPageData;
+	foreignChildHost?: BrowserForeignChildHost;
 };
 
 declare global {

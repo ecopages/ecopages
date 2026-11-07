@@ -51,6 +51,11 @@ function createScriptAsset(srcUrl: string, overrides: Partial<ProcessedAsset> = 
 	return { kind: 'script', srcUrl, position: 'head', ...overrides } as ProcessedAsset;
 }
 
+/** The asset as the page package lists an Integration's global script. */
+function asGlobalScript(asset: ProcessedAsset): ProcessedAsset {
+	return { ...asset, attributes: { ...asset.attributes, 'data-eco-global-script': '' } };
+}
+
 /**
  * Builds a {@link RouteRenderOrchestrator} over a recording `processDependencies` double.
  *
@@ -234,7 +239,11 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect((result as typeof result & { layoutMode?: string }).layoutMode).toBe('full');
 		expect(result.pagePackage).toEqual(
 			expect.objectContaining({
-				assets: expect.arrayContaining([resolvedDependency, integrationDependency, pageDependency]),
+				assets: expect.arrayContaining([
+					resolvedDependency,
+					asGlobalScript(integrationDependency),
+					pageDependency,
+				]),
 				pageBrowserGraph: {
 					entryAssets: [pageDependency],
 					chunkAssets: [],
@@ -359,12 +368,14 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		expect(result.pageDependencyComponents).toEqual([resolvedContent]);
 		expect(result.pagePackage).toEqual(
-			expect.objectContaining({ assets: expect.arrayContaining([integrationDependency, pageDependency]) }),
+			expect.objectContaining({
+				assets: expect.arrayContaining([asGlobalScript(integrationDependency), pageDependency]),
+			}),
 		);
 	});
 
 	it('inlines the global injector bootstrap when resolved lazy triggers are present', async () => {
-		const fixtureRootDir = path.join(process.cwd(), 'playground/react');
+		const fixtureRootDir = path.join(path.cwd(), 'playground/react');
 		const ownerIntegration = { name: 'string' };
 		const { flow, processDependencies } = createOrchestrator({
 			integrations: [ownerIntegration],
@@ -595,7 +606,72 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			createFlowRenderer({ Page }),
 		);
 
-		expect(result.pagePackage).toEqual(expect.objectContaining({ assets: [integrationDependency] }));
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({ assets: [asGlobalScript(integrationDependency)] }),
+		);
+	});
+
+	it('places the global scripts of a foreign Integration before the component scripts of the page', async () => {
+		const hydrateSupport = createScriptAsset('/assets/lit-hydrate-support.js');
+		const elementScript = createScriptAsset('/assets/lit-counter.script.js');
+		const clientAsset = createScriptAsset('/assets/island-entry.js');
+		const { flow } = createOrchestrator({
+			integrations: [{ ...createReactIntegration([hydrateSupport]), name: 'lit' }],
+		});
+		const LitCounter = createComponent({
+			integration: 'lit',
+			identity: {
+				id: 'lit-counter',
+				file: path.resolve('/app/components/lit-counter.lit.tsx'),
+				integration: 'lit',
+			},
+		});
+		const Page = createPage({ dependencies: { components: [LitCounter] } });
+
+		const result = await flow.prepareRenderOptions(createRouteOptions(path.resolve('/app/pages/index.kita.tsx')), {
+			...createFlowRenderer({ name: 'kitajs', Page, resolveDependencies: async () => [elementScript] }),
+			buildPageClientBrowserAssets: async () => ({ processedAssets: [clientAsset], lazyTriggers: [] }),
+		});
+
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({ assets: [asGlobalScript(hydrateSupport), elementScript, clientAsset] }),
+		);
+	});
+
+	it("places the owner's global scripts in config order with the foreign ones", async () => {
+		const hydrateSupport = createScriptAsset('/assets/lit-hydrate-support.js');
+		const radiantHydrator = createScriptAsset('/assets/radiant-hydrator.js');
+		const elementScript = createScriptAsset('/assets/lit-counter.script.js');
+		const { flow } = createOrchestrator({
+			integrations: [
+				{ ...createReactIntegration([hydrateSupport]), name: 'lit' },
+				{ ...createReactIntegration([radiantHydrator]), name: 'ecopages-jsx' },
+			],
+		});
+		const LitCounter = createComponent({
+			integration: 'lit',
+			identity: {
+				id: 'lit-counter',
+				file: path.resolve('/app/components/lit-counter.lit.tsx'),
+				integration: 'lit',
+			},
+		});
+		const Page = createPage({ dependencies: { components: [LitCounter] } });
+
+		const result = await flow.prepareRenderOptions(createRouteOptions(path.resolve('/app/pages/index.tsx')), {
+			...createFlowRenderer({
+				name: 'ecopages-jsx',
+				Page,
+				integrationDependencies: [radiantHydrator],
+				resolveDependencies: async () => [elementScript],
+			}),
+		});
+
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({
+				assets: [asGlobalScript(hydrateSupport), asGlobalScript(radiantHydrator), elementScript],
+			}),
+		);
 	});
 
 	it('materializes page dependency assets from the prepared graph nodes', async () => {

@@ -59,6 +59,7 @@ import {
 	renderNonReactShellComponent,
 	restoreRuntimeChildHtml,
 	toReactNode,
+	wrapForeignSubtreeTokens,
 	type ReactComponentRenderContext,
 	type ReactForeignSubtreeResolutionContext,
 } from './component-ssr.ts';
@@ -259,7 +260,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
 	): Promise<string> {
 		return this.resolveQueuedForeignSubtrees(
-			html,
+			wrapForeignSubtreeTokens(html, runtimeContext),
 			runtimeContext,
 			async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => ({
 				html: await this.renderQueuedChildrenToHtml({

@@ -1,4 +1,6 @@
 import { registerDependencyDiscoveryTests } from './dependency-discovery-tests';
+import { registerLitSsrTests } from './lit-ssr-tests';
+import { registerRadiantSsrTests } from './radiant-ssr-tests';
 import { expect, test } from '@playwright/test';
 import { parityRoutes } from '../src/data/parity-routes';
 import { getPageTestId } from '../src/data/primary-links';
@@ -23,3 +25,5 @@ test.describe('Cross-integration parity @parity', () => {
 });
 
 registerDependencyDiscoveryTests();
+registerLitSsrTests();
+registerRadiantSsrTests();

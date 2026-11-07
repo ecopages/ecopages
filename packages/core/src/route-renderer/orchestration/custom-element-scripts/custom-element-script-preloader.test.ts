@@ -1,11 +1,12 @@
 import { path } from '@ecopages/file-system/path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { bindComponentIdentity, eco } from '@ecopages/core';
+import { bindComponentIdentity, eco, type EcoComponent } from '@ecopages/core';
 import {
 	CustomElementScriptPreloader,
 	collectCustomElementSsrPreloadScripts,
 	invalidateCustomElementScriptPreload,
 	isExpectedCustomElementSsrPreloadError,
+	type SsrScriptPreloadDeclaration,
 } from './custom-element-script-preloader.ts';
 import type { CustomElementScriptPreloadScopeState } from './custom-element-script-preload-invalidation.ts';
 
@@ -60,7 +61,45 @@ function createPreloader(options?: {
 		resolveDependencyPath:
 			options?.resolveDependencyPath ?? ((componentDir, sourcePath) => path.join(componentDir, sourcePath)),
 		importServerModule: options?.importServerModule ?? (async () => undefined),
+		integrationName: 'lit',
+		integrations: [{ name: 'lit', ssrScriptPreload: 'own-and-foreign' }],
 		logLabel: 'test',
+	});
+}
+
+const integrations = [
+	{ name: 'kitajs' },
+	{ name: 'lit', ssrScriptPreload: 'own-and-foreign' },
+	{ name: 'ecopages-jsx', ssrScriptPreload: 'own' },
+] satisfies SsrScriptPreloadDeclaration[];
+
+const resolvePath = (componentDir: string, sourcePath: string) => path.join(componentDir, sourcePath);
+
+function createScriptHost(
+	identity: { id: string; file: string; integration: string },
+	scripts: string[],
+	options: { integration?: string; components?: EcoComponent[] } = {},
+): EcoComponent {
+	return eco.component(
+		bindComponentIdentity(identity, {
+			integration: options.integration,
+			render: () => '',
+			dependencies: {
+				components: options.components,
+				scripts: scripts.map((src) => ({ src, ssr: true })),
+			},
+		}),
+	);
+}
+
+function collectFor(
+	integrationName: string,
+	components: EcoComponent[],
+	declarations: readonly SsrScriptPreloadDeclaration[] = integrations,
+): string[] {
+	return collectCustomElementSsrPreloadScripts(components, resolvePath, {
+		integrationName,
+		integrations: declarations,
 	});
 }
 
@@ -82,98 +121,89 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 				{ components: () => [child], stylesheets: [] },
 			),
 		);
-		expect(collectCustomElementSsrPreloadScripts([page], (dir, source) => `${dir}/${source}`)).toEqual([
-			'/app/./counter.ts',
+		expect(collectFor('lit', [page])).toEqual(['/app/counter.ts']);
+	});
+
+	it("assigns the script of a preloading Integration's Component to that Integration only", () => {
+		const radiant = createScriptHost(
+			{ id: 'radiant', file: '/app/components/radiant.eco.tsx', integration: 'ecopages-jsx' },
+			['./radiant.script.ts'],
+		);
+		const page = createScriptHost({ id: 'page', file: '/app/pages/index.lit.tsx', integration: 'lit' }, [], {
+			components: [radiant],
+		});
+
+		expect(collectFor('lit', [page])).toEqual([]);
+		expect(collectFor('ecopages-jsx', [page])).toEqual(['/app/components/radiant.script.ts']);
+	});
+
+	it('assigns the script of a Component whose Integration does not preload to the own-and-foreign Integration', () => {
+		const radiant = createScriptHost(
+			{ id: 'radiant', file: '/app/components/radiant.eco.tsx', integration: 'ecopages-jsx' },
+			['./radiant.script.ts'],
+		);
+		const group = createScriptHost(
+			{ id: 'group', file: '/app/components/group.kita.tsx', integration: 'kitajs' },
+			['./lit-element.script.ts'],
+			{ components: [radiant] },
+		);
+
+		expect(collectFor('lit', [group])).toEqual(['/app/components/lit-element.script.ts']);
+		expect(collectFor('ecopages-jsx', [group])).toEqual(['/app/components/radiant.script.ts']);
+	});
+
+	it('leaves the scripts of non-preloading Components unevaluated when no Integration claims foreign scripts', () => {
+		const group = createScriptHost({ id: 'group', file: '/app/components/group.kita.tsx', integration: 'kitajs' }, [
+			'./lit-element.script.ts',
 		]);
+		const withoutLit = integrations.filter((integration) => integration.name !== 'lit');
+
+		expect(collectFor('ecopages-jsx', [group], withoutLit)).toEqual([]);
 	});
 
-	it('can limit collection to one integration while still walking nested components', () => {
-		const radiantChild = eco.component(
-			bindComponentIdentity(
-				{ id: 'radiant', file: '/app/components/radiant.eco.tsx', integration: 'ecopages-jsx' },
-				{
-					render: () => '',
-					dependencies: { scripts: [{ src: './radiant.script.ts', ssr: true }] },
-				},
-			),
+	it('gives a script declared by a preloading and a non-preloading Component to the preloading owner', () => {
+		const kitaCounter = createScriptHost(
+			{ id: 'kita-counter', file: '/app/components/counter.kita.tsx', integration: 'kitajs' },
+			['./counter.script.ts'],
 		);
-		const group = eco.component(
-			bindComponentIdentity(
-				{ id: 'group', file: '/app/components/group.kita.tsx', integration: 'kitajs' },
-				{
-					render: () => '',
-					dependencies: {
-						components: [radiantChild],
-						scripts: [{ src: './kita.script.ts', ssr: true }],
-					},
-				},
-			),
+		const ejsxCounter = createScriptHost(
+			{ id: 'ejsx-counter', file: '/app/components/counter.eco.tsx', integration: 'ecopages-jsx' },
+			['./counter.script.ts'],
 		);
 
-		expect(
-			collectCustomElementSsrPreloadScripts(
-				[group],
-				(componentDir, sourcePath) => path.join(componentDir, sourcePath),
-				false,
-				'ecopages-jsx',
-			),
-		).toEqual(['/app/components/radiant.script.ts']);
+		expect(collectFor('lit', [kitaCounter, ejsxCounter])).toEqual([]);
+		expect(collectFor('ecopages-jsx', [kitaCounter, ejsxCounter])).toEqual(['/app/components/counter.script.ts']);
 	});
 
-	it('prefers config.integration over identity when filtering owned scripts', () => {
-		const resolvePath = (componentDir: string, sourcePath: string) => path.join(componentDir, sourcePath);
-
-		const foreignOverride = eco.component(
-			bindComponentIdentity(
-				{ id: 'foreign', file: '/app/components/foreign.eco.tsx', integration: 'ecopages-jsx' },
-				{
-					integration: 'kitajs',
-					render: () => '',
-					dependencies: { scripts: [{ src: './foreign.script.ts', ssr: true }] },
-				},
-			),
+	it('gives a script declared by Components of two preloading Integrations to the first in config order', () => {
+		const litCounter = createScriptHost(
+			{ id: 'lit-counter', file: '/app/components/counter.lit.tsx', integration: 'lit' },
+			['./counter.script.ts'],
 		);
-		expect(collectCustomElementSsrPreloadScripts([foreignOverride], resolvePath, false, 'ecopages-jsx')).toEqual(
-			[],
+		const ejsxCounter = createScriptHost(
+			{ id: 'ejsx-counter', file: '/app/components/counter.eco.tsx', integration: 'ecopages-jsx' },
+			['./counter.script.ts'],
 		);
 
-		const ownedOverride = eco.component(
-			bindComponentIdentity(
-				{ id: 'owned', file: '/app/components/owned.kita.tsx', integration: 'kitajs' },
-				{
-					integration: 'ecopages-jsx',
-					render: () => '',
-					dependencies: { scripts: [{ src: './owned.script.ts', ssr: true }] },
-				},
-			),
-		);
-		expect(collectCustomElementSsrPreloadScripts([ownedOverride], resolvePath, false, 'ecopages-jsx')).toEqual([
-			'/app/components/owned.script.ts',
-		]);
+		expect(collectFor('lit', [ejsxCounter, litCounter])).toEqual(['/app/components/counter.script.ts']);
+		expect(collectFor('ecopages-jsx', [ejsxCounter, litCounter])).toEqual([]);
 	});
 
-	it('can limit collection to lazy scripts marked ssr: true', () => {
-		const host = eco.component(
-			bindComponentIdentity(
-				{ id: 'host', file: '/app/components/host.tsx', integration: 'lit' },
-				{
-					render: () => '',
-					dependencies: {
-						scripts: [
-							{ src: './eager.script.ts', ssr: true },
-							{ src: './lazy.script.ts', ssr: true, lazy: { 'on:idle': true } },
-						],
-					},
-				},
-			),
+	it('prefers config.integration over identity when assigning a script', () => {
+		const foreignOverride = createScriptHost(
+			{ id: 'foreign', file: '/app/components/foreign.eco.tsx', integration: 'ecopages-jsx' },
+			['./foreign.script.ts'],
+			{ integration: 'kitajs' },
 		);
-		expect(
-			collectCustomElementSsrPreloadScripts(
-				[host],
-				(componentDir, sourcePath) => path.join(componentDir, sourcePath),
-				true,
-			),
-		).toEqual(['/app/components/lazy.script.ts']);
+		expect(collectFor('ecopages-jsx', [foreignOverride])).toEqual([]);
+		expect(collectFor('lit', [foreignOverride])).toEqual(['/app/components/foreign.script.ts']);
+
+		const ownedOverride = createScriptHost(
+			{ id: 'owned', file: '/app/components/owned.kita.tsx', integration: 'kitajs' },
+			['./owned.script.ts'],
+			{ integration: 'ecopages-jsx' },
+		);
+		expect(collectFor('ecopages-jsx', [ownedOverride])).toEqual(['/app/components/owned.script.ts']);
 	});
 
 	it('collects eager and lazy scripts marked ssr: true', () => {
@@ -193,11 +223,10 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 				},
 			),
 		);
-		expect(
-			collectCustomElementSsrPreloadScripts([host], (componentDir, sourcePath) =>
-				path.join(componentDir, sourcePath),
-			),
-		).toEqual(['/app/components/eager.script.ts', '/app/components/lazy.script.ts']);
+		expect(collectFor('ecopages-jsx', [host])).toEqual([
+			'/app/components/eager.script.ts',
+			'/app/components/lazy.script.ts',
+		]);
 	});
 });
 

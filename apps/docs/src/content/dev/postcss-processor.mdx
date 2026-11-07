@@ -1,6 +1,6 @@
 ---
 title: "PostCSS processor"
-description: "How @ecopages/postcss-processor loads PostCSS plugins, transforms stylesheets, and keeps a runtime CSS cache that drives css-update in development."
+description: "How @ecopages/postcss-processor loads PostCSS plugins, transforms stylesheets, reports their dependencies, and how core keeps them current in development."
 section: packages
 order: 30
 sources:
@@ -15,22 +15,24 @@ sources:
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/file-stylesheet.processor.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-warnings.ts
+  - packages/core/src/dev/stylesheets/development-stylesheet.service.ts
+  - packages/core/src/processor-contract.ts
 ---
 
 # PostCSS processor
 
-`PostCssProcessorPlugin` is a Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline)) that owns stylesheets. Its single `stylesheet` capability matches `*.css` and is narrowed by a filename filter, default `/\.css$/`. It declares no Sass or Less extension, so those files are not stylesheets in an app that registers it, and an app can register only one stylesheet Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline#stylesheet-kinds)). Files inside the app's public directory are excluded: the build copies them as written, so a processed copy would be linked by no Page.
+`PostCssProcessorPlugin` is a Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline)) that transforms stylesheets. Its single `stylesheet` capability matches `*.css` and is narrowed by a filename filter, default `/\.css$/`. It declares no Sass or Less extension, so those files are not stylesheets in an app that registers it, and an app can register only one stylesheet Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline#stylesheet-kinds)). It is a transform and an invalidation hook only: core owns the cache, the prewarm, the watch queue, the dependency map, the dev writes and `css-update` ([Development lifecycle](#development-lifecycle)).
 
 ## Two routes to the page
 
-CSS reaches the page by two routes that share one function, `transformStylesheet(css, file)`, and core calls it for both.
+CSS reaches the page by two routes that share one function, `transformStylesheet(css, file)`, and core calls it for both. It returns `{ css, dependencies }`: the `dependencies` are the `file` of each PostCSS message of type `dependency`, which `postcss-import` sends for every stylesheet it inlines, whatever the form of the `@import` (a `layer()`, a media query, an unquoted `url()`, an alias). Tailwind's own `dependency` messages are left out: they name every file it scanned for class names, stylesheets included, which would make each scanned stylesheet look like a partial of the Tailwind entry; a change to scanned content reaches it through `invalidateStylesheets` instead.
 
 ```mermaid
 flowchart TD
   T["transformStylesheet: input hook, PostCSS plugins, output hook"]
   A["Core asset pipeline: applyStylesheetProcessors"] --> T
   B["Core compileStylesheetModule: server build, browser bundle, dev transform server"] --> T
-  C["setup prewarm and dev watch"] --> T
+  C["Core development stylesheet service: prewarm and watch"] --> T
   T --> D["Page stylesheet asset, or default export of an imported stylesheet"]
 ```
 
@@ -42,10 +44,8 @@ flowchart TD
 | Environment | Behavior |
 | --- | --- |
 | `server` and `browser` builds | No plugin from this Processor; core calls `transformStylesheet` for each imported stylesheet. |
-| Development | `setup()` prewarms the runtime cache; `onChanges` keeps it current and broadcasts. |
-| Production runtime | `setup()` prewarms the runtime cache and writes nothing to `distDir`. |
-
-In development `persistProcessedCss` writes each processed stylesheet at its source-relative path under `distDir/assets`, rewritten only when the bytes change, so CSS HMR refreshes that href. Only stylesheets inside `srcDir` are persisted. It calls core's `writeSourceRelativeStylesheet` (from `@ecopages/core/processor`), the function core's stylesheet pipeline uses for the same file, so the files its relative `url()` references name are emitted and the references rewritten after an edit as on first load. The runtime cache records a stylesheet only after that write succeeds. Production persists nothing: the stylesheet pipeline writes each stylesheet a Page links under a hash of its bytes, and a bundle that imports CSS carries it, so a copy from this plugin would be a file no Page references.
+| Development | Core's development stylesheet service calls `transformStylesheet` to prewarm and to rebuild after an edit, and `invalidateStylesheets` for a template or script edit. `setup()` does nothing. |
+| Production runtime | Nothing runs until a stylesheet is processed; nothing is written to `distDir` from here. |
 
 ## Config loading
 
@@ -59,7 +59,7 @@ Resolution order in `resolvePostcssPluginsFromSources`:
 
 Note that a config file wins over options.
 
-`PostCssProcessor.processStringOrBuffer` runs the plugins and the `transformOutput` hook. A PostCSS error rejects (`processPath` too, and `processStringOrBufferSync` throws), and a `CssSyntaxError` names the file, line and column in its message. Nothing returns empty CSS for a failed stylesheet.
+`transformWithPostcss` runs the plugins and the `transformOutput` hook and returns the CSS with its dependencies; `PostCssProcessor.processStringOrBuffer` returns only the CSS. A PostCSS error rejects, and a `CssSyntaxError` names the file, line and column in its message. Nothing returns empty CSS for a failed stylesheet.
 
 ## Errors and warnings
 
@@ -69,8 +69,8 @@ Where the error goes depends on who called `transformStylesheet`:
 | --- | --- |
 | Core asset pipeline | `applyStylesheetProcessors` lets it propagate, the asset rejects `processDependencies`, and `ecopages build` fails without writing a stylesheet for the file (see [/dev/asset-processing](/dev/asset-processing)). |
 | Core `compileStylesheetModule`, for a stylesheet imported with a binding | A server build or browser bundle fails, so `ecopages build` fails. The dev transform server shows the error and keeps serving the stylesheet's last compiled module until a save compiles again ([/dev/dev-server](/dev/dev-server)). |
-| Development watch | `processAndBroadcast` logs it and calls `bridge.error`, which shows the error overlay. The runtime cache and the file under `distDir/assets` keep the last good output, and no `css-update` is sent. The file is remembered as failed, so the first save that succeeds sends `css-update` even when its output equals the last good one, which clears the overlay; the byte-change check applies again after that. |
-| `setup()` prewarm | Logged per file and skipped, so one broken stylesheet does not stop the dev server from starting; the watcher reports it again when the file changes. |
+| Development watch | Core's development stylesheet service logs it and calls `bridge.error`, which shows the error overlay. Its cache and the file under `distDir/assets` keep the last good output, and no `css-update` is sent. The file is remembered as failed, so the first save that succeeds sends `css-update` even when its output equals the last good one, which clears the overlay; the byte-change check applies again after that. |
+| Development prewarm | Logged per file and skipped, so one broken stylesheet does not stop the dev server from starting; the watcher reports it again when the file changes. A partial that fails on its own while another stylesheet imports it is not logged. |
 
 Recovery needs no restart: core caches no failed asset (the asset service stores only successes and drops its in-flight entry), so a Page requested while the stylesheet is broken fails that request and renders normally once the stylesheet is fixed.
 
@@ -80,18 +80,20 @@ PostCSS `result.warnings()` are logged with the file, line and column. A stylesh
 
 `src/presets/` holds `tailwindV3Preset()` and `tailwindV4Preset({ referencePath })`. Both return `plugins` for immediate use and `pluginFactories`, with `postcss-import` (app-aware, resolving from the app root), nesting, Tailwind, autoprefixer and cssnano. `createAppAwarePostcssImport` runs `postcss-import` and then, through core's `rebaseStylesheetReferences` and its stylesheet tokenizer, rebases the relative `url()` references of every declaration it inlined from another file onto the importing stylesheet, so `url(files/font.woff2)` from `@import '@fontsource/inter'` still names the package's file when core resolves it from the app's stylesheet. Both ends are real paths, since `postcss-import` reads an imported file through its symlinks.
 
-Factories exist because Tailwind keeps internal caches in long-lived plugin instances: when a non-CSS file changes, `refreshConfiguredPlugins` rebuilds the list from them so newly used classes are found.
+Factories exist because Tailwind keeps internal caches in long-lived plugin instances. `invalidateStylesheets(files)` is the Processor's invalidation hook. Core calls it for a batch that changed any file that is not a stylesheet, and every such file counts: Tailwind v4 scans every file git does not ignore, and Tailwind v3 the files its `content` globs name, of any extension. It rebuilds the plugin list from the factories, so newly used classes are found, and names the stylesheets to rebuild: `dependencyEntryPaths`, or `'all'` (every entry stylesheet) when that option is unset.
 
 The v4 preset also sets `dependencyEntryPaths: [referencePath]` and a `transformInput` that rewrites `@import 'tailwindcss'` to the reference file, or prepends `@reference` to files that use `@apply`, so component stylesheets see the theme. It skips the reference file itself and files that already reference it.
 
-## Runtime cache and `css-update`
+## Development lifecycle
 
-`runtimeCssCache` maps a stylesheet path to its last output. `setup()` fills it for every matching file in `srcDir` and builds a map from imported files to the entry stylesheets that `@import` them (relative imports only, followed transitively).
+Core's `DevelopmentStylesheetService` (`dev/stylesheets/development-stylesheet.service.ts`) keeps the stylesheets current for whichever stylesheet Processor the app registers, so this package holds no cache, graph or queue of its own. When the Project Watcher subscribes, the service processes every stylesheet the Processor owns in `srcDir`, except the public directory, and records each output and the `dependencies` its transform reported. For each watcher batch, queued behind the previous one:
 
-In `onChanges` (queued, so batches run in order):
+- A changed file rebuilds every stylesheet whose transform read it, so an edit to an `@import` partial rebuilds the stylesheets that inline it. The changed stylesheet is rebuilt itself too, since a Page may link a partial as well. A partial that fails on its own is not reported: it may only compile inside the stylesheets that import it, and those report their own errors.
+- The changed files that are not stylesheets go to `invalidateStylesheets`.
+- A rebuild writes the output at its source-relative path under `distDir/assets` through core's `writeSourceRelativeStylesheet`, so the files its relative `url()` references name are emitted after an edit as on first load. Only stylesheets inside `srcDir` are written; the service runs only in development, so production writes nothing. It sends `bridge.cssUpdate(file)` only when the bytes changed, or on the first success after a failure.
 
-- A changed CSS file that is an import of an entry rebuilds that entry, not the file.
-- A changed non-CSS file (watch extensions include `.ts`, `.tsx`, `.mdx`, `.html` and others) rebuilds the entries from `dependencyEntryPaths`, or every tracked entry when none is set.
-- `processAndBroadcast` re-runs the transform and calls `bridge.cssUpdate(file)` only when the output differs from the cached one. A failure calls `bridge.error`; the first success after it always broadcasts.
+The bridge sends a `css-update` message with the exact href the stylesheet was delivered at, and the client refreshes that one `link`; see [/dev/hmr-watcher-invalidation](/dev/hmr-watcher-invalidation) and [/dev/hmr-client](/dev/hmr-client). A stylesheet whose output changed while its own bytes did not, such as one whose partial changed, is then planned as changed, so a module that imports it as text is hot-updated by core's HMR and the server modules that embed it are rebuilt ([/dev/hmr-strategies](/dev/hmr-strategies)).
 
-The bridge sends a `css-update` message with the exact href the stylesheet was delivered at, and the client refreshes that one `link`; see [/dev/hmr-watcher-invalidation](/dev/hmr-watcher-invalidation) and [/dev/hmr-client](/dev/hmr-client). A module that imports the stylesheet as text is hot-updated by core's HMR, not by this Processor ([/dev/hmr-strategies](/dev/hmr-strategies)).
+## Contract tests
+
+`@ecopages/core/processor/contract` exports `stylesheetProcessorContract({ createProcessor })`, the cases every first-party stylesheet Processor runs: the dependencies a transform reports drive rebuilds of the server modules that embed the stylesheet and of the stylesheet in development, a transform that throws fails the build, and a failure in development keeps the last good output until a save fixes it. That plain CSS passes through with no Processor is core's own test, since it checks no Processor. Each case is `{ name, run }`, so any runner can register them; this package runs them with `postcss-import` in `src/test/stylesheet-processor-contract.test.ts`.

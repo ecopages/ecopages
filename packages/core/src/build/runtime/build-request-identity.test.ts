@@ -105,12 +105,12 @@ test('createBuildRequestIdentity distinguishes every BuildOptions field', () => 
 });
 
 test('createBuildRequestIdentity keys stylesheets by their extensions, not by their compiler', () => {
-	const request = (compileModule: () => Promise<string>) =>
+	const request = (compileModule: () => Promise<{ code: string }>) =>
 		createBuildRequestIdentity({ ...baseOptions, stylesheets: { extensions: ['.css'], compileModule } });
 
 	assert.equal(
-		request(async () => 'export default "a";'),
-		request(async () => 'export default "b";'),
+		request(async () => ({ code: 'export default "a";' })),
+		request(async () => ({ code: 'export default "b";' })),
 	);
 });
 

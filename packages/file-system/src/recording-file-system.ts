@@ -105,6 +105,7 @@ export function createRecordingFileSystem(inner: FileSystem): RecordingFileSyste
 			recordString(recorded, path);
 			return inner.readlink(path);
 		},
+		tempDir: () => inner.tempDir(),
 		mkdtemp: (prefix) => {
 			recordString(recorded, prefix);
 			return inner.mkdtemp(prefix);

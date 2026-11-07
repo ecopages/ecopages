@@ -3,8 +3,8 @@
  * @module
  */
 
-import { fileSystem } from '@ecopages/file-system';
 import { warnStylesheetOnce } from '@ecopages/core/processor';
+import { path, type PathApi } from '@ecopages/file-system/path';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
 
@@ -26,32 +26,12 @@ export type PostCssProcessorOptions = {
 };
 
 /**
- * ProcessPath
- * @param path string
- * @param options {@link PostCssProcessorOptions}
- * @returns string
- */
-export type ProcessPath = (path: string, options?: PostCssProcessorOptions) => Promise<string>;
-
-/**
  * ProcessStringOrBuffer
  * @param contents string | Buffer
  * @param options {@link PostCssProcessorOptions}
  * @returns string
  */
 export type ProcessStringOrBuffer = (contents: string | Buffer, options?: PostCssProcessorOptions) => Promise<string>;
-
-export function getFileAsBuffer(path: string): Buffer {
-	try {
-		if (!fileSystem.exists(path)) {
-			throw new Error(`File: ${path} not found`);
-		}
-		return fileSystem.readFileAsBuffer(path);
-	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);
-	}
-}
 
 const appLogger = new Logger('[@ecopages/postcss-processor]');
 
@@ -79,90 +59,82 @@ const getPlugins = (options?: PostCssProcessorOptions): postcss.AcceptedPlugin[]
 };
 
 /**
- * It processes the given path using PostCSS
- * @param path string
+ * Plugins whose `dependency` messages name the content they scanned for class names, not files the CSS inlined.
+ *
+ * @remarks
+ * Tailwind reports every file it scanned, stylesheets included. Counting them would make each scanned stylesheet look
+ * like a partial of the Tailwind entry; a change to scanned content reaches the entry through `invalidateStylesheets`.
+ */
+const CONTENT_SCANNING_PLUGINS = new Set(['tailwindcss', '@tailwindcss/postcss']);
+
+/** The CSS PostCSS produced and the files its plugins read, such as the partials `postcss-import` inlined. */
+export type PostCssTransformResult = { css: string; dependencies: string[] };
+
+/**
+ * Runs PostCSS over `contents` and returns the CSS with the files the plugins reported reading.
+ *
+ * @remarks
+ * The dependencies are the `file` of each `dependency` message, which `postcss-import` sends for every stylesheet it
+ * inlines, whatever the form of the `@import` (a `layer()`, a media query, an unquoted `url()` or an alias). The
+ * messages of {@link CONTENT_SCANNING_PLUGINS} are left out.
+ */
+export async function transformWithPostcss(
+	contents: string | Buffer,
+	options?: PostCssProcessorOptions,
+): Promise<PostCssTransformResult> {
+	if (!contents) return { css: '', dependencies: [] };
+
+	const result = await postcss(getPlugins(options)).process(contents, { from: options?.filePath });
+	logWarnings(result, contents, options?.filePath);
+	const css = options?.transformOutput ? await options.transformOutput(result.css) : result.css;
+	return { css, dependencies: collectDependencies(result.messages) };
+}
+
+/**
+ * The files the plugins reported reading, with forward slashes.
+ *
+ * @remarks
+ * PostCSS plugins report paths in the host's native form, backslashes on Windows, while every path in core uses
+ * forward slashes. `pathApi` is a parameter so a test can run the Windows form on any host.
+ */
+export function collectDependencies(messages: postcss.Message[], pathApi: PathApi = path): string[] {
+	const dependencies = messages.flatMap((message) =>
+		message.type === 'dependency' &&
+		typeof message.file === 'string' &&
+		!CONTENT_SCANNING_PLUGINS.has(String(message.plugin))
+			? [pathApi.fromNative(message.file)]
+			: [],
+	);
+	return [...new Set(dependencies)];
+}
+
+/**
+ * It processes the given string or buffer using PostCSS
+ * @param contents string | Buffer
  * @param options {@link PostCssProcessorOptions}
- * @returns string
+ * @returns the processed CSS
  *
  * @remarks
  * A PostCSS failure rejects. A `CssSyntaxError` names the file, line and column in its message.
  *
  * @example
  * ```ts
- * PostCssProcessor.processPath('path/to/file.css').then((processedCss) => {
- *  console.log(processedCss);
- * });\n */
-const processPath: ProcessPath = async (path, options) => {
-	const contents = getFileAsBuffer(path);
-
-	return postcss(getPlugins(options))
-		.process(contents, { from: path })
-		.then((result) => {
-			logWarnings(result, contents, path);
-			return result.css;
-		});
-};
-
-/**
- * It processes the given string or buffer using PostCSS
- * @param contents string | Buffer
- * @param options {@link PostCssProcessorOptions}
- * @returns string
- *
- * @example
- * ```ts
  * const css = `body { @apply bg-blue-500; }`;
  *
- * PostCssProcessor.processString(css).then((processedCss) => {
+ * PostCssProcessor.processStringOrBuffer(css).then((processedCss) => {
  * console.log(processedCss);
  * });
  * ```
  */
-const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) => {
-	if (!contents) return '';
-
-	return postcss(getPlugins(options))
-		.process(contents, { from: options?.filePath })
-		.then(async (result) => {
-			logWarnings(result, contents, options?.filePath);
-			let css = result.css;
-			if (options?.transformOutput) {
-				css = await options.transformOutput(css);
-			}
-			return css;
-		});
-};
-
-export type ProcessStringOrBufferSync = (contents: string | Buffer, options?: PostCssProcessorOptions) => string;
-
-const processStringOrBufferSync: ProcessStringOrBufferSync = (contents, options) => {
-	if (!contents) return '';
-
-	const result = postcss(getPlugins(options)).process(contents, { from: options?.filePath });
-	logWarnings(result, contents, options?.filePath);
-	let css = result.css;
-	if (options?.transformOutput) {
-		const output = options.transformOutput(css);
-		if (output instanceof Promise) {
-			throw new Error('transformOutput must be synchronous when used with processStringOrBufferSync');
-		}
-		css = output;
-	}
-	return css;
-};
+const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) =>
+	(await transformWithPostcss(contents, options)).css;
 
 /**
  * PostCSS Processor
- * - {@link processPath} : It processes the given path using PostCSS
  * - {@link processStringOrBuffer}: It processes the given string or buffer using PostCSS
- * - {@link processStringOrBufferSync}: It processes the given string or buffer synchronously using PostCSS (requires all plugins to be sync)
  */
 export const PostCssProcessor: {
-	processPath: ProcessPath;
 	processStringOrBuffer: ProcessStringOrBuffer;
-	processStringOrBufferSync: ProcessStringOrBufferSync;
 } = {
-	processPath,
 	processStringOrBuffer,
-	processStringOrBufferSync,
 };

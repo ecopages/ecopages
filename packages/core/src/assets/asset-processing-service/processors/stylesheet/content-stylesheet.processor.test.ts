@@ -51,8 +51,8 @@ class TestStylesheetProcessor extends Processor {
 
 	override async setup(): Promise<void> {}
 
-	override async transformStylesheet(css: string, _file?: string): Promise<string> {
-		return css.replace('red', 'green');
+	override async transformStylesheet(css: string, _file?: string): Promise<{ css: string }> {
+		return { css: css.replace('red', 'green') };
 	}
 }
 
@@ -161,9 +161,9 @@ describe('ContentStylesheetProcessor', () => {
 		test('passes processingOrigin to stylesheet transforms as the file path', async () => {
 			const filePaths: Array<string | undefined> = [];
 			const recorder = new (class extends TestStylesheetProcessor {
-				override async transformStylesheet(css: string, file: string): Promise<string> {
+				override async transformStylesheet(css: string, file: string): Promise<{ css: string }> {
 					filePaths.push(file);
-					return css;
+					return { css };
 				}
 			})();
 			const processor = new ContentStylesheetProcessor({
@@ -200,8 +200,8 @@ describe('ContentStylesheetProcessor', () => {
 				super(config);
 			}
 
-			override async transformStylesheet(css: string): Promise<string> {
-				return `${css}${this.suffix}`;
+			override async transformStylesheet(css: string): Promise<{ css: string }> {
+				return { css: `${css}${this.suffix}` };
 			}
 		}
 

@@ -30,6 +30,7 @@ export const fileSystem: FileSystem = {
 	readdir: (path, options) => target().readdir(path, options),
 	readlink: (path) => target().readlink(path),
 	mkdtemp: (prefix) => target().mkdtemp(prefix),
+	tempDir: () => target().tempDir(),
 	rename: (source, destination) => target().rename(source, destination),
 	isDirectoryAsync: (path) => target().isDirectoryAsync(path),
 	exists: (path) => target().exists(path),

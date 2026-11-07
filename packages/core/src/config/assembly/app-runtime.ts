@@ -1,4 +1,5 @@
 import { ProcessedAssetLedger } from '../../assets/asset-processing-service/processed-asset-ledger.ts';
+import { ProcessedStylesheetCache } from '../../assets/asset-processing-service/processors/stylesheet/processed-stylesheet-cache.ts';
 import { createBuildAdapter } from '../../build/build-adapter.ts';
 import { sealAppBuildManifest } from '../../build/app-build-manifest-runtime.ts';
 import { BuildInputDependencyIndex, seedProcessorWatchPaths } from '../../build/cache/build-input-dependency-index.ts';
@@ -20,6 +21,7 @@ import type { HtmlPageWarningState } from '../../html-pages/html-page-warning-st
 import type { HtmlPageModuleScriptState } from '../../html-pages/html-page-module-scripts.ts';
 import type { CustomElementScriptPreloadScopeState } from '../../route-renderer/orchestration/custom-element-scripts/custom-element-script-preload-invalidation.ts';
 import type { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
+import type { DevelopmentStylesheetService } from '../../dev/stylesheets/development-stylesheet.service.ts';
 import type { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import type { IHmrManager } from '../../types/contracts.ts';
 import { MISSING_APP_RUNTIME } from '../../utils/app-runtime.ts';
@@ -54,7 +56,8 @@ export class ServerInvalidationState {
  * `origin` starts as `baseUrl` and updates when the runtime binds its listening origin. `hmr` stays
  * `null` until a watch-mode dev session creates an HMR manager, and resets to `null` when dev resources
  * are disposed. `developmentInvalidation` stays `null` until development services need it, then the
- * watcher and HMR manager share that instance. `pageCache` stays `null` until the server adapter stores one.
+ * watcher and HMR manager share that instance. `developmentStylesheets` stays `null` until the watcher or the dev
+ * transform server needs it. `pageCache` stays `null` until the server adapter stores one.
  */
 export interface AppRuntime {
 	buildAdapter: BuildAdapter;
@@ -65,6 +68,7 @@ export interface AppRuntime {
 	pageBrowserGraphSession: SessionPageBrowserGraphCache;
 	serverInvalidation: ServerInvalidationState;
 	developmentInvalidation: DevelopmentInvalidationService | null;
+	developmentStylesheets: DevelopmentStylesheetService | null;
 	moduleLoader: AppModuleLoaderContract;
 	routeModuleBuildCaches: Map<string, RouteModuleBuildCache>;
 	pageCache: PageCacheService | null;
@@ -95,6 +99,8 @@ export interface AppRuntime {
 	 * seals it, so rendering serves every dependency from `dist/` and never compiles or writes.
 	 */
 	processedAssets: ProcessedAssetLedger;
+	/** The stylesheets the app's Processor produced, shared by every path that processes one. */
+	processedStylesheets: ProcessedStylesheetCache;
 	/**
 	 * True while static generation (`ecopages build`) runs. An asset that cannot be processed then
 	 * fails the build.
@@ -136,6 +142,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		pageBrowserGraphSession: new SessionPageBrowserGraphCache(buildInputIndex),
 		serverInvalidation: new ServerInvalidationState(),
 		developmentInvalidation: null,
+		developmentStylesheets: null,
 		moduleLoader: new AppModuleLoader(appConfig),
 		routeModuleBuildCaches: new Map(),
 		pageCache: null,
@@ -150,6 +157,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		origin: appConfig.baseUrl,
 		hmr: null,
 		processedAssets: new ProcessedAssetLedger(appConfig.rootDir),
+		processedStylesheets: new ProcessedStylesheetCache(),
 		staticGenerationActive: false,
 	};
 	appConfig.appRuntime = runtime;

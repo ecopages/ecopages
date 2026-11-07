@@ -67,10 +67,10 @@ When the config loads from source, `config-module-files.ts` lists it and the pro
 | --- | --- |
 | Build | `buildAdapter` (Rolldown, the only build path), `buildManifest`, `buildQueue` (one for the runtime's lifetime, so identical builds share one in-flight result), `buildInputIndex` |
 | Server modules | `moduleLoader`, `routeModuleBuildCaches`, `serverInvalidation` (a generation counter dev caches compare), `productionServerModules` |
-| Production | `processedAssets` (the asset ledger, see [Ledger and start](/dev/ledger-and-start)), `productionBuildId`, `staticGenerationActive` (true during `ecopages build`, so an asset that cannot be processed fails the build) |
+| Production | `processedAssets` (the asset ledger, see [Ledger and start](/dev/ledger-and-start)), `processedStylesheets` (the stylesheets the Processor produced, shared by every path that processes one, see [Plugin pipeline](/dev/plugin-pipeline#stylesheet-processors)), `productionBuildId`, `staticGenerationActive` (true during `ecopages build`, so an asset that cannot be processed fails the build) |
 | Rendering | `pageBrowserGraphSession`, `pageCache` (`null` until the server adapter stores one), `htmlPageModuleScripts`, `htmlPageWarnings`, `customElementSsrPreloadScopes`, `requestPipelineMetrics` |
 | Integrations | `integrationActivations`, `runtimeAssetsPrepared`, `hmrAttachedToIntegrations` |
-| Development | `developmentInvalidation` (created once on first use and shared by the Project Watcher and `HmrManager`), `hmr` (set while a dev session's HMR manager runs) |
+| Development | `developmentInvalidation` (created once on first use and shared by the Project Watcher and `HmrManager`), `developmentStylesheets` (created once on first use, shared by the Project Watcher and the dev transform server), `hmr` (set while a dev session's HMR manager runs) |
 | Host | `origin` (starts as `baseUrl`, updated once the server binds) |
 
 ## Starting and stopping

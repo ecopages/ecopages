@@ -42,8 +42,8 @@ export function sourceRelativeStylesheetHref(
  *
  * @remarks
  * Development keeps a stylesheet inside `srcDir` at a stable href so CSS HMR can refresh the `<link>`. Core writes it
- * when a Page links it, and a CSS Processor rewrites it after an edit; both go through here so the output names the
- * same emitted files. An unchanged file is not rewritten.
+ * when a Page links it, and its development stylesheet service rewrites it after an edit; both go through here so the
+ * output names the same emitted files. An unchanged file is not rewritten.
  */
 export function writeSourceRelativeStylesheet(
 	dirs: SourceRelativeStylesheetDirs,

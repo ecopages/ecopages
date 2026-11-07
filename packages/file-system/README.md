@@ -52,7 +52,7 @@ await watcher.close();
 
 ## Paths
 
-`@ecopages/file-system/path` holds the path convention of Ecopages: every path uses forward slashes, and an absolute Windows path keeps its drive letter as given (`D:/app/src/page.tsx`); use `path.isWithin` rather than a string prefix to test containment. Its operations mirror `node:path` (`join`, `resolve`, `relative`, `dirname`, `basename`, `extname`, `isAbsolute`, `normalize`, `parse`, `format`, `matchesGlob`) and always return that form. Paths that `fileSystem` returns, from `realpath`, `glob`, `readdir`, `readlink`, `mkdtemp` and `watch`, are in it too.
+`@ecopages/file-system/path` holds the path convention of Ecopages: every path uses forward slashes, and an absolute Windows path keeps its drive letter as given (`D:/app/src/page.tsx`); use `path.isWithin` rather than a string prefix to test containment. Its operations mirror `node:path` (`join`, `resolve`, `relative`, `dirname`, `basename`, `extname`, `isAbsolute`, `normalize`, `parse`, `format`, `matchesGlob`) and always return that form. Paths that `fileSystem` returns, from `realpath`, `glob`, `readdir`, `readlink`, `mkdtemp`, `tempDir` and `watch`, are in it too.
 
 ```typescript
 import { path } from '@ecopages/file-system/path';
@@ -98,6 +98,7 @@ const module = await import(path.toFileUrl(page).href);
 | `readdir(path, options)`           | List entries with their kind                  |
 | `readlink(path)`                   | Read a symlink's stored target                |
 | `mkdtemp(prefix)`                  | Create a uniquely named directory             |
+| `tempDir()`                        | The OS directory for temporary files          |
 | `rename(src, dest)`                | Move a file or directory                      |
 | `verifyFileExists(path)`           | Throw if file doesn't exist                   |
 | `watch(paths, options)`            | Watch paths; the returned handle can add more |

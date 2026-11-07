@@ -65,7 +65,7 @@ A failed compile answers `500` with the error text and reports it to the HMR man
 `rewriteModuleImports` parses the compiled module and rewrites each static import, re-export and literal `import()` specifier, checking in this order:
 
 1. A `node:` builtin fails the module with an error that points at the importer's browser exports or client-graph boundary.
-2. A relative or absolute path, or a tsconfig path alias, becomes the target's transform URL plus `?v=<content hash>`.
+2. A relative or absolute path, or a tsconfig path alias, becomes the target's transform URL plus `?v=<content hash>`. A stylesheet's version is a hash of the output the development stylesheet service last produced for it, so it changes when an `@import` partial does.
 3. Any other bare specifier, React included, goes to the vendor registry, which resolves it from the importing module's directory.
 
 A vendor entry whose own module is CommonJS, such as `react` or `react-dom/client`, is served with `module.exports` as its default export and no named exports, because that is what Rolldown emits for it. The registry reports which entries are CommonJS (Rolldown's `inputFormat`, recorded by the build), and the rewriter turns a named import of one into a default import plus a destructuring, the way Node reads CommonJS from ESM:

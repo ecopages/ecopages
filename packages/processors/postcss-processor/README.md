@@ -86,11 +86,11 @@ export default defineConfig({
 You can bypass Ecopages entirely and use the processor utilities directly:
 
 ```typescript
-import { PostCssProcessor } from '@ecopages/postcss-processor';
-
-// Process a file
-const css = await PostCssProcessor.processPath('path/to/file.css');
+import { PostCssProcessor, transformWithPostcss } from '@ecopages/postcss-processor';
 
 // Process a string
 const result = await PostCssProcessor.processStringOrBuffer('.class { @apply bg-red-500; }', { filePath: 'style.css' });
+
+// Process a string and list the files its plugins read
+const { css, dependencies } = await transformWithPostcss("@import './base.css';", { filePath: 'src/main.css' });
 ```

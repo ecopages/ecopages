@@ -194,13 +194,13 @@ Ecopages copies the files that the relative `url()` references of your processed
 The processor also exports standalone methods if you need to process CSS programmatically:
 
 ```typescript
-import { PostCssProcessor } from '@ecopages/postcss-processor';
-
-// Process a file
-const cssFromFile = await PostCssProcessor.processPath('path/to/file.css');
+import { PostCssProcessor, transformWithPostcss } from '@ecopages/postcss-processor';
 
 // Process a string
 const cssString = await PostCssProcessor.processStringOrBuffer('.foo { @apply bg-red-500; }', { filePath: 'mock.css' });
+
+// Process a string and list the files its plugins read, such as the partials postcss-import inlined
+const { css, dependencies } = await transformWithPostcss("@import './base.css';", { filePath: 'src/main.css' });
 ```
 
 ## Error Handling

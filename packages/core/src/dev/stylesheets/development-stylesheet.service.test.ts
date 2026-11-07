@@ -214,6 +214,24 @@ describe('DevelopmentStylesheetService', () => {
 		expect(logError).not.toHaveBeenCalled();
 	});
 
+	it('retries a partial that failed on its own when the stylesheet it was missing is created', async () => {
+		write('src/styles/main.css', "@import './base.css';\n");
+		const base = write('src/styles/base.css', "@import './missing.css';\n.base {}\n");
+		vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+		const service = await createService();
+		await service.prewarm();
+		expect(persisted('styles/base.css')).toBeUndefined();
+
+		const missing = write('src/styles/missing.css', '.missing {}\n');
+		const restyled = await service.applyChanges(
+			{ created: [missing], changed: [], deleted: [] },
+			createBridge().bridge,
+		);
+
+		expect(restyled).toContain(base);
+		expect(persisted('styles/base.css')).toContain('.missing');
+	});
+
 	it('sends nothing when a save leaves the output as it was', async () => {
 		const main = write('src/styles/main.css', '.main { color: red; }\n');
 		const service = await createService();

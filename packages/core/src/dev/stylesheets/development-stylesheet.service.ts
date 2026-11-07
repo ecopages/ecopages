@@ -45,7 +45,8 @@ interface StylesheetOutput {
  * Only the Project Watcher and the dev transform server create it, so it never runs in production, which writes no
  * stylesheet outside the build.
  *
- * A stylesheet that fails keeps its last good output and sends `bridge.error`. The first success after a failure
+ * A stylesheet that fails keeps its last good output and sends `bridge.error`, except a partial processed on its own,
+ * which may only compile inside the stylesheets that import it and so fails silently. The first success after a failure
  * always sends `css-update`, even with the same bytes, since the browser clears the error overlay only on a message
  * that is not an error. A stylesheet in the public directory is copied as written, so the service leaves it alone.
  */
@@ -53,6 +54,8 @@ export class DevelopmentStylesheetService {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly outputs = new Map<string, StylesheetOutput>();
 	private readonly failed = new Set<string>();
+	/** Partials whose transform on their own failed, retried when a stylesheet is created. */
+	private readonly failedPartials = new Set<string>();
 	private readonly dependencies = new Map<string, ReadonlySet<string>>();
 	private readonly dependents = new Map<string, Set<string>>();
 	private queue: Promise<unknown> = Promise.resolve();
@@ -100,7 +103,10 @@ export class DevelopmentStylesheetService {
 				if (typeof result === 'string') failures.set(file, result);
 			}
 			for (const [file, message] of failures) {
-				if (this.dependents.has(file)) continue;
+				if (this.dependents.has(file)) {
+					this.failedPartials.add(file);
+					continue;
+				}
 				this.failed.add(file);
 				appLogger.error(`Failed to process stylesheet ${file}: ${message}`);
 			}
@@ -113,11 +119,13 @@ export class DevelopmentStylesheetService {
 	 * @remarks
 	 * A changed file rebuilds every stylesheet whose transform read it, except one that another of those stylesheets
 	 * reads in turn: a transform reports nested imports too, so that outer stylesheet is rebuilt already. Two
-	 * stylesheets that import each other are both rebuilt. A changed stylesheet that none read is rebuilt itself; a
-	 * partial is not rebuilt alone, since it may only compile inside the stylesheets that read it. A created stylesheet
-	 * also retries every stylesheet that failed, since one may have failed on the missing import the new file
-	 * satisfies, and a failed transform reports no dependencies. The changed files that are not stylesheets go to the
-	 * Processor's `invalidateStylesheets` hook, which names the stylesheets they make stale.
+	 * stylesheets that import each other are both rebuilt. A changed stylesheet is rebuilt itself too; a partial, one
+	 * another stylesheet reads, is rebuilt on its own for a Page that links it, and a failure there is silent. A created
+	 * stylesheet also retries every stylesheet that failed, partials on their own included, since one may have failed
+	 * on the missing import the new file satisfies, and a failed transform reports no dependencies. The changed files
+	 * that are not stylesheets go to the Processor's `invalidateStylesheets` hook, which names the stylesheets they make
+	 * stale. The processed stylesheet cache is emptied first, and again after the hook, so every path of this edit
+	 * transforms with the current inputs.
 	 */
 	applyChanges(changes: StylesheetChanges, bridge: IClientBridge): Promise<string[]> {
 		return this.enqueue(async () => {
@@ -129,11 +137,15 @@ export class DevelopmentStylesheetService {
 			const deleted = resolve(changes.deleted);
 			for (const file of deleted) this.forget(file);
 
+			const cache = requireAppRuntime(this.appConfig).processedStylesheets;
+			cache.evict();
 			const affected = this.collectAffected(scope, created, changed, deleted);
 			for (const file of await this.invalidatedByContent(scope, [...created, ...changed, ...deleted], bridge)) {
 				affected.add(file);
 			}
-			const partials = [...created, ...changed].filter(
+			cache.evict();
+			const retried = created.some((file) => this.owns(scope, file)) ? [...this.failedPartials] : [];
+			const partials = [...new Set([...created, ...changed, ...retried])].filter(
 				(file) => this.owns(scope, file) && this.dependents.has(file) && !affected.has(file),
 			);
 
@@ -192,8 +204,6 @@ export class DevelopmentStylesheetService {
 	 *
 	 * @remarks
 	 * A hook that throws is logged and shown, and invalidates nothing, so the rest of the batch still updates.
-	 * The named stylesheets leave the processed stylesheet cache, since its key cannot see the content that changed;
-	 * `'all'` empties it.
 	 */
 	private async invalidatedByContent(
 		{ processor, kinds }: StylesheetScope,
@@ -211,16 +221,8 @@ export class DevelopmentStylesheetService {
 			bridge.error(message);
 			return [];
 		}
-		const cache = requireAppRuntime(this.appConfig).processedStylesheets;
-		if (invalidated === 'all') {
-			cache.evict();
-			return this.entries();
-		}
-		const named = invalidated
-			.map((file) => path.resolve(file))
-			.filter((file) => this.owns({ processor, kinds }, file));
-		cache.evict(named);
-		return named;
+		if (invalidated === 'all') return this.entries();
+		return invalidated.map((file) => path.resolve(file)).filter((file) => this.owns({ processor, kinds }, file));
 	}
 
 	/** The stylesheets the service processed, or failed to, that no other stylesheet read. */
@@ -265,9 +267,12 @@ export class DevelopmentStylesheetService {
 	private async rebuildPartial(file: string, bridge: IClientBridge): Promise<boolean> {
 		const result = await this.transform(file, bridge);
 		if (typeof result === 'string') {
+			this.failedPartials.add(file);
 			appLogger.debug(`Stylesheet ${file} does not compile on its own: ${result}`);
 			return false;
 		}
+		this.failedPartials.delete(file);
+		this.failed.delete(file);
 		return result;
 	}
 
@@ -313,6 +318,7 @@ export class DevelopmentStylesheetService {
 	private forget(file: string): void {
 		this.outputs.delete(file);
 		this.failed.delete(file);
+		this.failedPartials.delete(file);
 		this.recordDependencies(file, []);
 		this.dependencies.delete(file);
 	}

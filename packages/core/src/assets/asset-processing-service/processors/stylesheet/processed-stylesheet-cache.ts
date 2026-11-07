@@ -22,14 +22,19 @@ const hashFile = (file: string) => (fileSystem.exists(file) ? fileSystem.hash(fi
  *
  * @remarks
  * The dev stylesheet service, the dev transform server, server builds, browser bundles and the asset pipeline each
- * process the stylesheets they meet. An entry is reused while the source and every dependency its transform reported
- * hash the same, so an edit to an `@import` partial misses it. Input the key cannot see, such as the content Tailwind
- * scans, is evicted by the Processor's invalidation hook through {@link evict}. Concurrent misses for one source share
- * one transform. A transform that throws is not cached.
+ * process the stylesheets they meet; within one edit they share one transform per stylesheet. The development
+ * stylesheet service empties the cache at the start of every watcher batch, so any changed input, including content
+ * Tailwind scans or a file only the Processor knows it read, is seen on the next transform. Outside development no
+ * source changes while the process runs. Between batches an entry is reused only while the source and the
+ * dependencies its transform reported hash the same, which covers an edit whose batch has not arrived yet.
+ *
+ * A transform that started before {@link evict} belongs to a superseded generation: its result is not stored, and its
+ * caller transforms again. Concurrent misses within a generation share one transform. A failure is not cached.
  */
 export class ProcessedStylesheetCache {
 	private readonly entries = new Map<string, CacheEntry>();
 	private readonly inFlight = new Map<string, Promise<ProcessedStylesheet>>();
+	private generation = 0;
 
 	async get(
 		file: string,
@@ -41,32 +46,28 @@ export class ProcessedStylesheetCache {
 		const entry = this.entries.get(key);
 		if (entry?.sourceHash === sourceHash && this.dependenciesUnchanged(entry)) return entry.result;
 
-		const flightKey = `${key}\0${sourceHash}`;
-		const pending = this.inFlight.get(flightKey);
-		if (pending) return pending;
-		const run = transform()
-			.then((result) => {
-				this.entries.set(key, {
-					sourceHash,
-					dependencyHashes: new Map(
-						result.dependencies.map((dependency) => [dependency, hashFile(dependency)]),
-					),
-					result,
-				});
-				return result;
-			})
-			.finally(() => this.inFlight.delete(flightKey));
-		this.inFlight.set(flightKey, run);
-		return run;
+		const generation = this.generation;
+		const flightKey = `${generation}\0${key}\0${sourceHash}`;
+		let pending = this.inFlight.get(flightKey);
+		if (!pending) {
+			pending = transform().finally(() => this.inFlight.delete(flightKey));
+			this.inFlight.set(flightKey, pending);
+		}
+		const result = await pending;
+		if (generation !== this.generation) return this.get(file, source, transform);
+		this.entries.set(key, {
+			sourceHash,
+			dependencyHashes: new Map(result.dependencies.map((dependency) => [dependency, hashFile(dependency)])),
+			result,
+		});
+		return result;
 	}
 
-	/** Drops the entries of `files`, or every entry when none is given. */
-	evict(files?: readonly string[]): void {
-		if (!files) {
-			this.entries.clear();
-			return;
-		}
-		for (const file of files) this.entries.delete(path.resolve(file));
+	/** Drops every entry and starts a new generation, so no transform already running fills the cache. */
+	evict(): void {
+		this.generation += 1;
+		this.entries.clear();
+		this.inFlight.clear();
 	}
 
 	private dependenciesUnchanged(entry: CacheEntry): boolean {

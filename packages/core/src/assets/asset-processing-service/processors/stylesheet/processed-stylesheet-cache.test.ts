@@ -1,5 +1,4 @@
-import fs from 'node:fs';
-import os from 'node:os';
+import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InliningProcessor } from '../../../../__fixtures__/stylesheets/inlining-processor.ts';
@@ -11,6 +10,7 @@ import { DevelopmentStylesheetService } from '../../../../dev/stylesheets/develo
 import type { StylesheetInvalidation } from '../../../../plugins/processor.ts';
 import { requireAppRuntime } from '../../../../utils/app-runtime.ts';
 import { compileStylesheetModule } from './stylesheet-module.ts';
+import { ProcessedStylesheetCache } from './processed-stylesheet-cache.ts';
 
 /** An {@link InliningProcessor} that counts its transforms and invalidates every stylesheet for a content change. */
 class CountingProcessor extends InliningProcessor {
@@ -35,8 +35,7 @@ const bridge = { cssUpdate: () => {}, error: () => {} } as unknown as IClientBri
 
 function write(relativePath: string, contents: string): string {
 	const file = path.join(rootDir, relativePath);
-	fs.mkdirSync(path.dirname(file), { recursive: true });
-	fs.writeFileSync(file, contents);
+	fileSystem.write(file, contents);
 	return file;
 }
 
@@ -54,14 +53,14 @@ async function buildServer(entry: string): Promise<string> {
 }
 
 beforeEach(async () => {
-	rootDir = fs.realpathSync(path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'processed-stylesheets-'))));
+	rootDir = fileSystem.realpath(fileSystem.mkdtemp(path.join(fileSystem.tempDir(), 'processed-stylesheets-')));
 	vi.stubEnv('NODE_ENV', 'development');
 	processor = new CountingProcessor();
 	config = await finalizeEcoPagesConfig({ rootDir, integrations: [], processors: [processor] });
 });
 
 afterEach(() => {
-	fs.rmSync(rootDir, { recursive: true, force: true });
+	fileSystem.remove(rootDir);
 });
 
 describe('the processed stylesheet a dev edit produces', () => {
@@ -94,5 +93,66 @@ describe('the processed stylesheet a dev edit produces', () => {
 		await service.applyChanges({ created: [], changed: [page], deleted: [] }, bridge);
 
 		expect((await compileStylesheetModule(config, card)).code).toContain('scanned');
+	});
+
+	it('runs the Processor again for a stylesheet that imports the one a content change affects', async () => {
+		const reference = write('src/styles/reference.css', '.reference {}\n');
+		const component = write('src/components/card.css', "@import '../styles/reference.css';\n.card {}\n");
+		const page = write('src/page.tsx', 'export default null;\n');
+		processor.invalidateStylesheets = () => [reference];
+		const service = new DevelopmentStylesheetService(config);
+		await service.prewarm();
+		expect((await compileStylesheetModule(config, component)).code).not.toContain('scanned');
+
+		processor.suffix = '.scanned {}\n';
+		await service.applyChanges({ created: [], changed: [page], deleted: [] }, bridge);
+
+		expect((await compileStylesheetModule(config, component)).code).toContain('scanned');
+	});
+
+	it('runs the Processor again after a batch changes an input it read that is not a stylesheet', async () => {
+		const card = write('src/card.css', '.card {}\n');
+		const tokens = write('src/tokens.json', '{"c":"red"}');
+		const reading = new (class extends InliningProcessor {
+			override async transformStylesheet(css: string, file: string) {
+				const result = await super.transformStylesheet(css, file);
+				return {
+					...result,
+					css: `${result.css}/* ${fileSystem.readFileSync(tokens)} */`,
+					dependencies: [tokens],
+				};
+			}
+		})();
+		config = await finalizeEcoPagesConfig({ rootDir, integrations: [], processors: [reading] });
+		const service = new DevelopmentStylesheetService(config);
+		await service.prewarm();
+		expect((await compileStylesheetModule(config, card)).code).toContain('red');
+
+		write('src/tokens.json', '{"c":"blue"}');
+		await service.applyChanges({ created: [], changed: [tokens], deleted: [] }, bridge);
+
+		expect((await compileStylesheetModule(config, card)).code).toContain('blue');
+	});
+});
+
+describe('ProcessedStylesheetCache', () => {
+	it('keeps no result of a transform that started before an eviction, and transforms again', async () => {
+		const cache = new ProcessedStylesheetCache();
+		const outputs = ['stale', 'fresh'];
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => (release = resolve));
+		const transform = vi.fn(async () => {
+			const css = outputs.shift()!;
+			if (css === 'stale') await gate;
+			return { css, dependencies: [] };
+		});
+
+		const pending = cache.get('/app/a.css', '.a {}', transform);
+		cache.evict();
+		release();
+
+		expect((await pending).css).toBe('fresh');
+		expect((await cache.get('/app/a.css', '.a {}', transform)).css).toBe('fresh');
+		expect(transform).toHaveBeenCalledTimes(2);
 	});
 });

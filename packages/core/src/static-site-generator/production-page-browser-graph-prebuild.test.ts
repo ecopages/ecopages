@@ -22,6 +22,7 @@ import {
 	setPrebuiltHtmlPageModuleScriptUrls,
 } from '../html-pages/html-page-module-scripts.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import { resolveIntegrationDependencies } from '../build/app-build-manifest-runtime.ts';
 import {
 	clearProductionPageBrowserGraphSession,
 	prebuildProductionPageBrowserGraphs,
@@ -90,6 +91,19 @@ function createPlan(integrationName: string): GroupedGraphBuildPlan {
 	return { integrationName, bundledScripts: [], pageClientEntries: [] };
 }
 
+/** Adds an Integration without global scripts whose resolution appends `resolve` to `events`. */
+function addResolvingIntegration(appConfig: EcoPagesAppConfig, events: string[]) {
+	const integration = {
+		name: 'globals',
+		getIntegrationDependencies: () => [],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {
+			events.push('resolve');
+		}),
+	};
+	appConfig.integrations.push(integration as never);
+	return integration;
+}
+
 test('shouldPrebuildProductionPageBrowserGraphs is production-only', () => {
 	vi.stubEnv('NODE_ENV', 'production');
 	assert.equal(shouldPrebuildProductionPageBrowserGraphs(), true);
@@ -115,6 +129,7 @@ test('prebuildProductionPageBrowserGraphs deduplicates, sorts, and groups route 
 	const routeRendererFactory = {
 		getPageRenderer: (routeFile: string) => (routeFile === reactRouteFile ? reactRenderer : litRenderer) as never,
 	};
+	addResolvingIntegration(appConfig, events);
 
 	await prebuildProductionPageBrowserGraphs(
 		appConfig,
@@ -133,7 +148,7 @@ test('prebuildProductionPageBrowserGraphs deduplicates, sorts, and groups route 
 	assert.deepEqual(litRenderer.planProductionRoutes.mock.calls[0]?.[0], [
 		{ routeFile: litRouteFile, params: litRouteParams },
 	]);
-	assert.deepEqual(events, ['build', 'prepare a', 'prepare b']);
+	assert.deepEqual(events, ['build', 'resolve', 'prepare a', 'prepare b']);
 	assert.equal(existsSync(path.join(path.dirname(ledgerPath(appConfig)), 'browser-client-manifest.json')), false);
 });
 
@@ -170,10 +185,12 @@ test('prebuildProductionPageBrowserGraphs writes the ledger once every planned r
 	assert.ok(ledger.entries.some((entry) => entry.asset.filepath === 'dist/client/assets/page.css'));
 });
 
-test('prebuildProductionPageBrowserGraphs builds nothing when no route could be planned', async () => {
+test('prebuildProductionPageBrowserGraphs builds nothing when no route could be planned, and still resolves global scripts', async () => {
 	const appConfig = await createAppConfig();
 	const routeFile = path.join(appConfig.rootDir, 'pages/[slug].tsx');
 	const renderer = { planProductionRoutes: vi.fn(async () => undefined) };
+	const events: string[] = [];
+	addResolvingIntegration(appConfig, events);
 
 	await prebuildProductionPageBrowserGraphs(appConfig, [{ routeFile, params: { slug: 'broken' } }], {
 		getPageRenderer: () => renderer as never,
@@ -182,6 +199,7 @@ test('prebuildProductionPageBrowserGraphs builds nothing when no route could be 
 	assert.equal(renderer.planProductionRoutes.mock.calls.length, 1);
 	assert.equal(buildAppBrowserClientMock.mock.calls.length, 0);
 	assert.equal(existsSync(ledgerPath(appConfig)), false);
+	assert.deepEqual(events, ['resolve']);
 });
 
 test('clearProductionPageBrowserGraphSession clears production session records and the ledger file', async () => {
@@ -330,7 +348,7 @@ test('restoreProductionBrowserBuild restores a non-React build moved to another 
 	);
 });
 
-test('restoreProductionBrowserBuild restores Integration scripts before refreshing their assets', async () => {
+test('restoreProductionBrowserBuild leaves global scripts to its caller, which resolves them through the ledger', async () => {
 	const appConfig = await createAppConfig();
 	const globalScript: AssetDefinition = {
 		kind: 'script',
@@ -356,6 +374,9 @@ test('restoreProductionBrowserBuild restores Integration scripts before refreshi
 	runtimeAppConfig.integrations.push(integration as never);
 
 	assert.equal(await restoreProductionBrowserBuild(runtimeAppConfig, { seal: true }), true);
+	assert.equal(integration.refreshResolvedIntegrationDependencies.mock.calls.length, 0);
+
+	await resolveIntegrationDependencies({ appConfig: runtimeAppConfig });
 
 	assert.equal(integration.refreshResolvedIntegrationDependencies.mock.calls.length, 1);
 	assert.equal(recordedWhenRefreshed[0]?.srcUrl, '/assets/client-hydrate.js');

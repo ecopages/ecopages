@@ -86,6 +86,7 @@ test('sealAppBuildManifest gathers loaders, then processor and integration plugi
 			calls.push('processor-plugins');
 			return [processorRuntimePlugin, processorBrowserPlugin];
 		}),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {
 			throw new Error('finalization must not set a processor up');
 		}),
@@ -96,6 +97,7 @@ test('sealAppBuildManifest gathers loaders, then processor and integration plugi
 			calls.push('integration-plugins');
 			return [integrationRuntimePlugin];
 		}),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {
 			throw new Error('finalization must not set an integration up');
 		}),
@@ -151,6 +153,7 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 		plugins: [processorRuntimePlugin],
 		setContext: vi.fn(),
 		getWatchConfig: () => ({ paths: watchPaths }),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {
 			contributionOrder.push('processor-setup');
 			watchPaths.push('/app/src/content');
@@ -158,6 +161,7 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 	};
 	const integration = {
 		plugins: [integrationRuntimePlugin],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {
 			contributionOrder.push('integration-setup');
 		}),
@@ -181,6 +185,7 @@ test('setupAppRuntimePlugins restores Processors instead of calling setup when s
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
 		setContext: vi.fn(),
 		getWatchConfig: () => undefined,
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 		restoreProductionRuntime: vi.fn(async () => {}),
 	};
@@ -204,10 +209,12 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 	const processor = {
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
 		setContext: vi.fn(),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 	};
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 	};
 
@@ -232,6 +239,7 @@ test('ensureIntegrationRuntimeReady activates one integration exactly once', asy
 	const integration = {
 		name: 'react',
 		plugins: [integrationRuntimePlugin],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 	};
 
@@ -264,6 +272,7 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 	const integration = {
 		name: 'react',
 		plugins: [],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {
 			await setupGate;
 		}),
@@ -297,6 +306,7 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 	const integration = {
 		name: 'react',
 		plugins: [],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn().mockRejectedValueOnce(new Error('setup failed')).mockResolvedValueOnce(undefined),
 	};
 
@@ -333,10 +343,12 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 	const processor = {
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
 		setContext: vi.fn(),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 	};
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 	};
 

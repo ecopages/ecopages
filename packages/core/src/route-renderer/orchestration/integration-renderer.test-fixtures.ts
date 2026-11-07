@@ -25,6 +25,7 @@ export function createMockIntegrationPlugin(
 	return {
 		getRenderer: vi.fn(),
 		setup: vi.fn(async () => {}),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		hmr: vi.fn(),
 		...plugin,
 		plugins:

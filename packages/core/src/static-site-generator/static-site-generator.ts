@@ -28,6 +28,7 @@ import {
 import type { StaticExportContext, StaticExportRelease } from './static-export-context.ts';
 import {
 	ensureIntegrationRuntimeReady,
+	resolveIntegrationDependencies,
 	setupAppRuntimeIntegrations,
 	teardownAppRuntimeIntegrations,
 } from '../build/app-build-manifest-runtime.ts';
@@ -37,7 +38,6 @@ import {
 	clearProductionPageBrowserGraphSession,
 	getPlannedRouteKey,
 	prebuildProductionPageBrowserGraphs,
-	resolveIntegrationDependencies,
 	shouldPrebuildProductionPageBrowserGraphs,
 } from './production-page-browser-graph-prebuild.ts';
 import { renderSitemap } from './sitemap.ts';
@@ -423,6 +423,7 @@ export class StaticSiteGenerator {
 				await ensureIntegrationRuntimeReady({
 					appConfig: this.appConfig,
 					integrationName: integration.name,
+					deferGlobalScripts: true,
 				});
 				const release = await integration.staticExport(context);
 				if (release) {
@@ -577,9 +578,8 @@ export class StaticSiteGenerator {
 						}),
 				},
 			);
-		}
-		if (requireAppRuntime(this.appConfig).integrationDependenciesDeferred) {
-			await resolveIntegrationDependencies(this.appConfig);
+		} else {
+			await resolveIntegrationDependencies({ appConfig: this.appConfig });
 		}
 
 		this.generateRobotsTxt();
@@ -675,7 +675,7 @@ export class StaticSiteGenerator {
 		let generationFailed = false;
 		let generationError: unknown;
 		try {
-			await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
+			await setupAppRuntimeIntegrations({ appConfig: this.appConfig, deferGlobalScripts: true });
 			const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
 			await this.emitProductionServerModulesForStaticGeneration({
 				router,

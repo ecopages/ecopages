@@ -1,6 +1,7 @@
 import { parentPort } from 'node:worker_threads';
 import { loadEcoPagesConfig } from '@ecopages/core/config';
 import {
+	resolveIntegrationDependencies,
 	restoreProductionBrowserBuild,
 	setupAppRuntimeIntegrations,
 	setupAppRuntimePlugins,
@@ -21,7 +22,7 @@ type LoadedAppConfig = Awaited<ReturnType<typeof loadEcoPagesConfig>>;
 
 let appConfig: LoadedAppConfig | null = null;
 let routeRendererFactory: RouteRendererFactory | null = null;
-let appBrowserBuildRestore: Promise<boolean> | undefined;
+let appBrowserBuildRestore: Promise<void> | undefined;
 let activeRenders = 0;
 let shutdownRequested = false;
 let resolveRendersIdle: (() => void) | undefined;
@@ -46,8 +47,7 @@ async function initializeWorker(
 	await setupAppRuntimePlugins({
 		appConfig,
 	});
-	runtime.integrationDependenciesDeferred = true;
-	await setupAppRuntimeIntegrations({ appConfig });
+	await setupAppRuntimeIntegrations({ appConfig, deferGlobalScripts: true });
 
 	routeRendererFactory = new RouteRendererFactory({
 		appConfig,
@@ -62,11 +62,14 @@ async function initializeWorker(
  * so the worker restores the ledger on its first render instead of at init. It reads the ledger of the build it
  * renders for, whose directories the main thread passed at init, so an older build in the configured output cannot
  * leak in. A Lit Page then links the same outputs as every other Page. The ledger stays unsealed: the export
- * still processes the dependencies only rendering reveals. Integration setup at init defers each Integration's
- * global scripts, and this restore resolves them, so the worker never bundles them on its own into `dist/`.
+ * still processes the dependencies only rendering reveals. Each Integration's global scripts are resolved after the
+ * restore, not at init, so the worker never bundles them on its own into `dist/`.
  */
-function restoreAppBrowserBuild(config: LoadedAppConfig): Promise<boolean> {
-	appBrowserBuildRestore ??= restoreProductionBrowserBuild(config, { seal: false });
+function restoreAppBrowserBuild(config: LoadedAppConfig): Promise<void> {
+	appBrowserBuildRestore ??= (async () => {
+		await restoreProductionBrowserBuild(config, { seal: false });
+		await resolveIntegrationDependencies({ appConfig: config });
+	})();
 	return appBrowserBuildRestore;
 }
 

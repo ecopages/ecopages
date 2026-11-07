@@ -86,19 +86,35 @@ export async function setupAppRuntimePlugins(options: {
 	}
 }
 
+/** Options shared by the Integration activation entry points. */
+export interface IntegrationActivationOptions {
+	appConfig: EcoPagesAppConfig;
+	/**
+	 * Leaves the Integration's global scripts unresolved after `setup()`.
+	 *
+	 * @remarks
+	 * A production build and the Lit static-render worker pass it, because their browser build is not known yet: the
+	 * build resolves the scripts after the app-wide browser build, the worker after restoring its ledger, each
+	 * through {@link resolveIntegrationDependencies}. They activate every Integration this way before anything
+	 * renders, so a later activation from rendering joins that one.
+	 */
+	deferGlobalScripts?: boolean;
+}
+
 /**
- * Activates one integration's runtime setup on first use.
+ * Activates one integration's runtime setup on first use, then resolves its global scripts.
  *
  * @remarks
  * Concurrent callers share a single in-flight promise per integration name.
  * Server DOM install runs inside that promise, before `setup()`, so a second
- * caller cannot skip the in-flight activation. Failed activations are evicted
- * so a later caller can retry.
+ * caller cannot skip the in-flight activation. Resolution runs inside it too,
+ * after a successful `setup()`, so an Integration a request activates in dev or
+ * start, or after a failed warmup, has its global scripts once it is ready.
+ * Failed activations are evicted so a later caller can retry.
  */
-export async function ensureIntegrationRuntimeReady(options: {
-	appConfig: EcoPagesAppConfig;
-	integrationName: string;
-}): Promise<void> {
+export async function ensureIntegrationRuntimeReady(
+	options: IntegrationActivationOptions & { integrationName: string },
+): Promise<void> {
 	const runtime = requireAppRuntime(options.appConfig);
 
 	const existing = runtime.integrationActivations.get(options.integrationName);
@@ -115,6 +131,7 @@ export async function ensureIntegrationRuntimeReady(options: {
 	const activation = (async () => {
 		await installConfiguredServerDom(options.appConfig.integrations);
 		await integration.setup({ appConfig: options.appConfig, runtime });
+		if (!options.deferGlobalScripts) await integration.refreshResolvedIntegrationDependencies();
 	})();
 
 	runtime.integrationActivations.set(options.integrationName, activation);
@@ -127,15 +144,26 @@ export async function ensureIntegrationRuntimeReady(options: {
 	}
 }
 
-export async function setupAppRuntimeIntegrations(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+export async function setupAppRuntimeIntegrations(options: IntegrationActivationOptions): Promise<void> {
 	await Promise.all(
 		options.appConfig.integrations.map((integration) =>
-			ensureIntegrationRuntimeReady({
-				appConfig: options.appConfig,
-				integrationName: integration.name,
-			}),
+			ensureIntegrationRuntimeReady({ ...options, integrationName: integration.name }),
 		),
 	);
+}
+
+/**
+ * Resolves each Integration's global scripts once a deferred activation's browser build is known.
+ *
+ * @remarks
+ * Integration `setup()` does not resolve them. Static generation calls this after the app-wide browser build, so
+ * each global script resolves to that build's output, and the Lit static-render worker calls it after restoring
+ * the asset ledger. An Integration that was never set up is skipped.
+ */
+export async function resolveIntegrationDependencies(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+	for (const integration of options.appConfig.integrations) {
+		await integration.refreshResolvedIntegrationDependencies();
+	}
 }
 
 /**

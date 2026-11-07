@@ -6,6 +6,7 @@ export {
 	type BuildExecutor,
 	type BuildOptions,
 	type BuildResult,
+	resolveIntegrationDependencies,
 	setupAppRuntimeIntegrations,
 	setupAppRuntimePlugins,
 	teardownAppRuntimeIntegrations,

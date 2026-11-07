@@ -15,6 +15,10 @@ import { requireAppRuntime } from '../utils/app-runtime.ts';
 class NamelessRenderer extends IntegrationRenderer {
 	declare name: string;
 
+	get heldIntegrationDependencies() {
+		return this.resolvedIntegrationDependencies;
+	}
+
 	override async render(_options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		return '<div>ok</div>';
 	}
@@ -60,7 +64,7 @@ describe('IntegrationPlugin', () => {
 		await expect(plugin.teardown()).resolves.toBeUndefined();
 	});
 
-	it('leaves global scripts unresolved in setup while deferred and resolves them on refresh', async () => {
+	it('resolves no global script in setup, and fills the list the renderer holds on refresh', async () => {
 		const script: AssetDefinition = {
 			kind: 'script',
 			source: 'content',
@@ -68,23 +72,49 @@ describe('IntegrationPlugin', () => {
 			position: 'head',
 		};
 		const resolved = { kind: 'script' as const, content: 'globalThis.x = 1;', inline: true };
-		const deferredPlugin = new TestIntegrationPlugin({ ...config, integrationDependencies: [script] });
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [deferredPlugin] });
+		const globalsPlugin = new TestIntegrationPlugin({ ...config, integrationDependencies: [script] });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [globalsPlugin] });
 		const processDependencies = vi
 			.spyOn(AssetProcessingService.prototype, 'processDependencies')
 			.mockResolvedValue([resolved]);
 		const runtime = requireAppRuntime(appConfig);
-		runtime.integrationDependenciesDeferred = true;
 
-		await deferredPlugin.setup({ appConfig, runtime });
-		const rendererDependencies = deferredPlugin.getResolvedIntegrationDependencies();
+		await globalsPlugin.setup({ appConfig, runtime });
+		const rendererDependencies = (globalsPlugin.getRenderer() as NamelessRenderer).heldIntegrationDependencies;
 
 		expect(processDependencies).not.toHaveBeenCalled();
 		expect(rendererDependencies).toEqual([]);
 
-		await deferredPlugin.refreshResolvedIntegrationDependencies();
+		await globalsPlugin.refreshResolvedIntegrationDependencies();
 
 		expect(rendererDependencies).toEqual([resolved]);
+	});
+
+	it('keeps one resolved list across a teardown and a later setup', async () => {
+		const script: AssetDefinition = {
+			kind: 'script',
+			source: 'content',
+			content: 'globalThis.x = 1;',
+			position: 'head',
+		};
+		const first = { kind: 'script' as const, content: 'first', inline: true };
+		const second = { kind: 'script' as const, content: 'second', inline: true };
+		const globalsPlugin = new TestIntegrationPlugin({ ...config, integrationDependencies: [script] });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [globalsPlugin] });
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies')
+			.mockResolvedValueOnce([first])
+			.mockResolvedValueOnce([second]);
+		const runtime = requireAppRuntime(appConfig);
+
+		await globalsPlugin.setup({ appConfig, runtime });
+		await globalsPlugin.refreshResolvedIntegrationDependencies();
+		const heldBeforeTeardown = globalsPlugin.getResolvedIntegrationDependencies();
+		await globalsPlugin.teardown();
+		await globalsPlugin.setup({ appConfig, runtime });
+		await globalsPlugin.refreshResolvedIntegrationDependencies();
+
+		expect(heldBeforeTeardown).toEqual([second]);
+		expect(globalsPlugin.getResolvedIntegrationDependencies()).toBe(heldBeforeTeardown);
 	});
 
 	it('allows integrations to register their HMR strategy from the runtime context', async () => {

@@ -655,6 +655,44 @@ describe('ReactRenderer', () => {
 			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-foreign-root');
 		});
 
+		it.fails('wraps a foreign Component in a Foreign Subtree boundary that hydration keeps', async () => {
+			const litPlugin = createDeferredIntegrationPlugin({
+				name: 'lit',
+				extensions: ['.lit.tsx'],
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<lit-counter count="1"><template shadowrootmode="open">1</template></lit-counter>',
+					canAttachAttributes: true,
+					integrationName: 'lit',
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [litPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				resolvedIntegrationDependencies: [],
+			});
+			const LitCounter = eco.component<{ count: number }, string>({
+				identity: { id: 'lit-counter', file: '/app/components/lit-counter.lit.tsx', integration: 'lit' },
+				render: () => '',
+			});
+			const ForeignCounter = LitCounter as unknown as React.ComponentType<{ count: number }>;
+			const Page = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-page', file: pageFilePath, integration: 'react' },
+				dependencies: { components: [LitCounter] },
+				render: () => (
+					<main>
+						<ForeignCounter count={1} />
+					</main>
+				),
+			});
+
+			const result = await testRenderer.renderComponentWithForeignChildren({ component: Page, props: {} });
+
+			expect(result.html).toMatch(
+				/^<main><eco-foreign-subtree data-eco-foreign-key="[0-9a-z]+" style="display:contents"><lit-counter count="1"><template shadowrootmode="open">1<\/template><\/lit-counter><\/eco-foreign-subtree><\/main>$/,
+			);
+		});
+
 		it('returns island host metadata with the component render result', async () => {
 			const { testRenderer } = createRendererWithAssets();
 			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{

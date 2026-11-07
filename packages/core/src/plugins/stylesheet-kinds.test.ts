@@ -4,6 +4,7 @@ import {
 	createStylesheetKinds,
 	findStylesheetProcessor,
 	getStylesheetKinds,
+	isEmittableReferenceFile,
 	PLAIN_CSS_KINDS,
 } from './stylesheet-kinds.ts';
 
@@ -73,4 +74,26 @@ describe('findStylesheetProcessor', () => {
 		const other = new FixtureProcessor('less', [{ kind: 'stylesheet', extensions: ['*.less'] }]);
 		expect(() => findStylesheetProcessor([sass(), other])).toThrow(/"sass" and "less"/);
 	});
+});
+
+describe('isEmittableReferenceFile', () => {
+	it.each([
+		'/a/font.woff2',
+		'/a/Hero.PNG',
+		'/a/anim.apng',
+		'/a/photo.jxl',
+		'/a/scan.tif',
+		'/a/clip.mov',
+		'/a/sound.m4a',
+		'/a/icons.svg',
+	])('copies %s', (file) => {
+		expect(isEmittableReferenceFile(file)).toBe(true);
+	});
+
+	it.each(['/a/.env', '/a/.hidden.png', '/a/source.ts', '/a/data.json', '/a/noextension', '/a/style.css'])(
+		'does not copy %s',
+		(file) => {
+			expect(isEmittableReferenceFile(file)).toBe(false);
+		},
+	);
 });

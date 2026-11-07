@@ -386,6 +386,21 @@ test('warns once about a missing reference when the stylesheet is processed in t
 	expect(warn).toHaveBeenCalledTimes(1);
 });
 
+test('skips a url() holding a custom property without a warning', async () => {
+	const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+	const css = '.a { background: url(var(--hero)) , url( var(--other, "x.png") ); }';
+	const stylesheet = writeAppFile('src/site.css', css);
+
+	const processed = await new FileStylesheetProcessor({ appConfig: createConfig() }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+	});
+
+	expect(readFileSync(processed.filepath!, 'utf-8')).toBe(css);
+	expect(warn).not.toHaveBeenCalled();
+});
+
 test('never copies a dotfile an app stylesheet names, such as one an inlined package reaches', async () => {
 	const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
 	writeAppFile('package.json', '{ "name": "app" }');

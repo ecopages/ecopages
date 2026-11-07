@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { Processor, ProcessorExtensionPattern } from './processor.ts';
 
@@ -84,4 +85,49 @@ export const PLAIN_CSS_KINDS: StylesheetKinds = createStylesheetKinds();
 /** The {@link StylesheetKinds} of the Processors registered on `appConfig`. */
 export function getStylesheetKinds(appConfig: Pick<EcoPagesAppConfig, 'processors'>): StylesheetKinds {
 	return createStylesheetKinds(appConfig.processors?.values() ?? []);
+}
+
+/**
+ * Extensions of the files a stylesheet reference may copy into the build: fonts, images and media, the types CSS
+ * loads.
+ */
+const EMITTABLE_REFERENCE_EXTENSIONS = new Set([
+	'.woff2',
+	'.woff',
+	'.ttf',
+	'.otf',
+	'.eot',
+	'.png',
+	'.jpg',
+	'.jpeg',
+	'.gif',
+	'.webp',
+	'.avif',
+	'.svg',
+	'.ico',
+	'.bmp',
+	'.apng',
+	'.jxl',
+	'.tif',
+	'.cur',
+	'.mp4',
+	'.webm',
+	'.mov',
+	'.ogg',
+	'.mp3',
+	'.m4a',
+	'.wav',
+]);
+
+/**
+ * Whether a stylesheet reference may copy `file` into the build.
+ *
+ * @remarks
+ * Protection goes by what is copied, not where it lives: in a monorepo the app's packages, hoisted or in pnpm's
+ * store, sit outside its folder, and a package may name a sibling dependency's files. Only a font, image or media
+ * file is copied, never a dotfile, so a reference such as `url(../../.env)` cannot publish a secret or a source file.
+ */
+export function isEmittableReferenceFile(file: string): boolean {
+	const name = path.basename(file);
+	return !name.startsWith('.') && EMITTABLE_REFERENCE_EXTENSIONS.has(path.extname(name).toLowerCase());
 }

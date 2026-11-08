@@ -8,6 +8,9 @@ export {
 	isExternalReference,
 	scanCss,
 	splitReference,
+	tokenizeCss,
+	type CssToken,
+	type CssTokenType,
 } from './assets/asset-processing-service/processors/stylesheet/css-scanner.ts';
 export { toPackageScopeFile } from './utils/package-path.ts';
 export { resolveProjectImportPath, resolvePackageStylesheetPath } from './plugins/tsconfig-import-resolver.ts';

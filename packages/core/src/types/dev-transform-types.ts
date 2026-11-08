@@ -20,10 +20,17 @@ export type DevTransformVendorEntries = {
 };
 
 export type DevTransformBundleContributor = {
-	/** Returns whether this contributor owns the source module path. */
-	ownsModule(sourcePath: string): boolean;
+	/**
+	 * Returns whether this contributor owns the source module path.
+	 *
+	 * @remarks
+	 * `variant` is the `eco-variant` query of the requested URL: one file can be served in more than one compiled
+	 * form, each requested under its own variant, when a contributor needs a form of a shared module that the
+	 * others do not get.
+	 */
+	ownsModule(sourcePath: string, variant?: string): boolean;
 	/** Integration-owned plugins for one dev-transform module (boundary, MDX, etc.). */
-	getModulePlugins(sourcePath: string): Promise<readonly EcoBuildPlugin[]>;
+	getModulePlugins(sourcePath: string, variant?: string): Promise<readonly EcoBuildPlugin[]>;
 	/**
 	 * Bare specifiers the contributor's generated browser modules import, such as a hydration bootstrap's
 	 * framework packages.

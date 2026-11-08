@@ -13,6 +13,8 @@ function buildPathPrefixFilter(prefix: string): RegExp {
 
 /**
  * @remarks
+ * A query on the specifier, such as a module variant, follows the resolved path.
+ *
  * The `cacheKey` holds the tsconfig path prefixes only: a key that named `projectRoot` would change the
  * dependency key of every script that declares the plugin when the project moves.
  */
@@ -34,14 +36,17 @@ export function createAliasResolverPlugin(projectRoot: string): EcoBuildPlugin {
 						return undefined;
 					}
 
-					const cached = cache.get(projectRoot, args.path);
+					const queryStart = args.path.indexOf('?');
+					const specifier = queryStart === -1 ? args.path : args.path.slice(0, queryStart);
+					const query = queryStart === -1 ? '' : args.path.slice(queryStart);
+					const cached = cache.get(projectRoot, specifier);
 					if (cached.hit) {
-						return cached.resolved ? { path: cached.resolved } : undefined;
+						return cached.resolved ? { path: `${cached.resolved}${query}` } : undefined;
 					}
 
-					const resolved = resolveProjectImportPath(projectRoot, args.importer, args.path);
-					cache.set(projectRoot, args.path, resolved);
-					return resolved ? { path: resolved } : undefined;
+					const resolved = resolveProjectImportPath(projectRoot, args.importer, specifier);
+					cache.set(projectRoot, specifier, resolved);
+					return resolved ? { path: `${resolved}${query}` } : undefined;
 				});
 			}
 		},

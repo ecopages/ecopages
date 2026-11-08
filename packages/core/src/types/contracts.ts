@@ -33,7 +33,7 @@ export type HmrStrategyContract = {
 	readonly priorityOffset: number;
 	readonly priority: number;
 	matches(filePath: string): boolean;
-	ownsDevTransformEntrypoint(sourcePath: string): boolean;
+	ownsDevTransformEntrypoint(sourcePath: string, variant?: string): boolean;
 	process(filePath: string): Promise<HmrAction>;
 };
 

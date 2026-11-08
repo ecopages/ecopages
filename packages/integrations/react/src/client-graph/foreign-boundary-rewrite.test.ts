@@ -4,7 +4,6 @@ import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
-import { assertBuildFailed } from '../../../../core/src/__fixtures__/build/build-result.ts';
 import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
 import { createClientGraphBoundaryPlugin, createForeignBoundaryPlugin } from './boundary-plugin.ts';
 import { rewriteForeignImports } from './foreign-boundary-rewrite.ts';
@@ -144,6 +143,62 @@ describe('rewriteForeignImports', () => {
 	});
 });
 
+describe('rewriteForeignImports module variants', () => {
+	const shared = (root: string) => (file: string) => file.startsWith(path.join(root, 'lib'));
+
+	it('imports a shared module that reaches a foreign Component, directly or through another module, as its variant', () => {
+		const root = createProject();
+		try {
+			mkdirSync(path.join(root, 'lib'));
+			writeFileSync(
+				path.join(root, 'lib/direct.ts'),
+				"import Counter from '../components/counter.lit.tsx';\nexport const direct = Counter;",
+			);
+			writeFileSync(path.join(root, 'lib/outer.ts'), "export { direct } from './direct.ts';");
+			writeFileSync(path.join(root, 'lib/plain.ts'), 'export const plain = 1;');
+			const output = rewriteForeignImports(
+				[
+					"import { direct } from './lib/direct.ts';",
+					"import { direct as viaOuter } from './lib/outer.ts';",
+					"import { plain } from './lib/plain.ts';",
+					'export default [direct, viaOuter, plain];',
+				].join('\n'),
+				path.join(root, 'island.tsx'),
+				{ projectRoot: root, isForeignFile, isSharedFile: shared(root) },
+			)!;
+			expect(output).toContain("'./lib/direct.ts?eco-variant=react-boundary'".replace(/'/g, '"'));
+			expect(output).toContain('"./lib/outer.ts?eco-variant=react-boundary"');
+			expect(output).toContain("'./lib/plain.ts'");
+			expect(output).not.toContain('foreign-boundary');
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('keeps the plain id of a module no other graph shares', () => {
+		const root = createProject();
+		try {
+			mkdirSync(path.join(root, 'lib'));
+			writeFileSync(
+				path.join(root, 'lib/direct.ts'),
+				"import Counter from '../components/counter.lit.tsx';\nexport const direct = Counter;",
+			);
+			expect(
+				rewriteForeignImports(
+					"import { direct } from './lib/direct.ts';\nexport default direct;",
+					path.join(root, 'island.tsx'),
+					{
+						projectRoot: root,
+						isForeignFile,
+					},
+				),
+			).toBeUndefined();
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('createForeignBoundaryPlugin in a build', () => {
 	const boundaryModule = path.resolve(
 		path.dirname(path.fromFileUrl(import.meta.url)),
@@ -196,49 +251,49 @@ describe('createForeignBoundaryPlugin in a build', () => {
 		}
 	});
 
-	it('leaves a module only another entry reaches alone and fails one that both reach', async () => {
+	it('gives a module that a React entry and another entry share one compiled form for each', async () => {
 		const root = createProject();
 		try {
 			const island = path.join(root, 'island.tsx');
 			const other = path.join(root, 'other-entry.ts');
-			writeFileSync(island, "import Button from './components/button.tsx';\nexport default Button;");
-			writeFileSync(other, "import { Counter } from './components/index.ts';\nconsole.log(Counter);");
-			const build = (entrypoints: Record<string, string>) =>
-				new RolldownBuildAdapter().build({
-					environment: 'browser',
-					entrypoints,
-					outdir: path.join(root, 'dist'),
-					root,
-					target: 'browser',
-					format: 'esm',
-					external: ['react'],
-					plugins: [
-						resolveBoundaryPlugin,
-						createClientGraphBoundaryPlugin({
-							absWorkingDir: root,
-							projectRoot: root,
-							entrypointFile: island,
-							groupedEntrypointFiles: [island],
-						}),
-						createForeignBoundaryPlugin({ projectRoot: root, isForeignFile }),
-					],
-				});
-
-			const alone = await build({ island, other });
-			assertBuildSucceeded(alone, 'Build failed');
-			expect(alone.outputs.map((output) => readFileSync(output.path, 'utf8')).join('\n')).not.toContain(
-				'eco-foreign-subtree',
-			);
-
 			writeFileSync(
 				path.join(root, 'shared.ts'),
-				"import Counter from './components/counter.lit.tsx';\nexport default Counter;",
+				"import Counter from './components/counter.lit.tsx';\nexport const shared = () => Counter;",
 			);
-			writeFileSync(island, "import Counter from './shared.ts';\nexport default Counter;");
-			writeFileSync(other, "import Counter from './shared.ts';\nconsole.log(Counter);");
-			const shared = await build({ island, other });
-			assertBuildFailed(shared);
-			expect(JSON.stringify(shared.logs)).toContain('one module has one compiled form');
+			writeFileSync(
+				path.join(root, 'outer.ts'),
+				"import { shared } from './shared.ts';\nexport const outer = () => shared();",
+			);
+			writeFileSync(island, "import { outer } from './outer.ts';\nexport default outer;");
+			writeFileSync(other, "import { outer } from './outer.ts';\nconsole.log(outer());");
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser',
+				entrypoints: { island, other },
+				outdir: path.join(root, 'dist'),
+				root,
+				target: 'browser',
+				format: 'esm',
+				external: ['react'],
+				plugins: [
+					resolveBoundaryPlugin,
+					createClientGraphBoundaryPlugin({
+						absWorkingDir: root,
+						projectRoot: root,
+						entrypointFile: island,
+						groupedEntrypointFiles: [island],
+					}),
+					createForeignBoundaryPlugin({ projectRoot: root, isForeignFile }),
+				],
+			});
+			assertBuildSucceeded(result, 'Build failed');
+			const read = (name: string) => {
+				const output = result.outputs.find((item) => path.basename(item.path).startsWith(name));
+				return readFileSync(output!.path, 'utf8');
+			};
+			const all = result.outputs.map((item) => readFileSync(item.path, 'utf8')).join('\n');
+			expect(all).toContain('eco-foreign-subtree');
+			expect(read('other')).not.toContain('eco-foreign-subtree');
+			expect(read('other')).not.toContain('foreignBoundary');
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}

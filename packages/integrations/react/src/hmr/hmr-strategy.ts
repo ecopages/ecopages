@@ -17,6 +17,7 @@ import type { DevTransformVendorEntries, EcoBuildPlugin } from '@ecopages/core/i
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core/integration';
 import { createClientGraphBoundaryPlugin, createForeignBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
+import { REACT_BOUNDARY_VARIANT } from '../client-graph/foreign-boundary-rewrite.ts';
 import { getReactClientGraphAllowSpecifiers } from '../bundling/bundle.ts';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { getReactBrowserPackages } from '../bundling/bootstrap-package-paths.ts';
@@ -106,6 +107,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 					const templateExtension = this.resolveTemplateExtension(filePath);
 					return templateExtension !== undefined && !this.ownedTemplateExtensions.has(templateExtension);
 				},
+				isSharedFile: (filePath) => !this.isReactEntrypoint(filePath),
 			}),
 		];
 	}
@@ -206,7 +208,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return this.isReactEntrypoint(filePath);
 	}
 
-	override ownsDevTransformEntrypoint(sourcePath: string): boolean {
+	override ownsDevTransformEntrypoint(sourcePath: string, variant?: string): boolean {
+		if (variant === REACT_BOUNDARY_VARIANT) {
+			return isPathInside(sourcePath, this.context.getSrcDir());
+		}
 		if (!this.isReactEntrypoint(sourcePath)) {
 			return false;
 		}
@@ -229,7 +234,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return this.getBuildPlugins();
 	}
 
-	async createDevTransformPlugins(sourcePath: string): Promise<EcoBuildPlugin[]> {
+	async createDevTransformPlugins(sourcePath: string, _variant?: string): Promise<EcoBuildPlugin[]> {
 		const shouldResolveDeclaredModules = this.isPageEntrypoint(sourcePath) || sourcePath.endsWith('.mdx');
 		const declaredModules = shouldResolveDeclaredModules
 			? await resolveReactDeclaredModulesForEntrypoint(this.getDevTransformPluginOptions(), sourcePath)

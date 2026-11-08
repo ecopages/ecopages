@@ -68,7 +68,7 @@ A Page hydrates when it declares `dependencies.modules`, when `explicitGraph` is
 
 Legacy `getMetadata`, `getStaticProps` and `getStaticPaths` exports are never browser roots. Declarations that only removed code used are removed, and an exported name keeps its binding set to `undefined`.
 
-Build plugins for a client build are assembled in `bundling/bundle.ts`: the foreign-JSX override (only for files another JSX Integration owns that React's static scan reaches), the graph boundary, the foreign boundary (`createForeignBoundaryPlugin`, which rewrites imports of foreign Components and leaves React-only modules untouched) and the MDX loader. They key off the module, not the entry that reached it, because a shared module has one URL and one compiled form ([Plugin pipeline](/dev/plugin-pipeline), [Build pipeline](/dev/build-pipeline)).
+Build plugins for a client build are assembled in `bundling/bundle.ts`: the foreign-JSX override (only for files another JSX Integration owns that React's static scan reaches), the graph boundary, the foreign boundary (`createForeignBoundaryPlugin`, which rewrites imports of foreign Components, gives a shared module its own React form, and leaves React-only modules untouched) and the MDX loader. They key off the module, not the entry that reached it, because a shared module has one URL and one compiled form ([Plugin pipeline](/dev/plugin-pipeline), [Build pipeline](/dev/build-pipeline)).
 
 ## React in the browser graph
 

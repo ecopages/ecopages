@@ -41,8 +41,8 @@ export class DevTransformBundler {
 		this.contributors.push(contributor);
 	}
 
-	private selectContributor(sourcePath: string): DevTransformBundleContributor | undefined {
-		return this.contributors.find((contributor) => contributor.ownsModule(sourcePath));
+	private selectContributor(sourcePath: string, variant?: string): DevTransformBundleContributor | undefined {
+		return this.contributors.find((contributor) => contributor.ownsModule(sourcePath, variant));
 	}
 
 	private resolveTempOutdir(): string {
@@ -70,10 +70,10 @@ export class DevTransformBundler {
 		});
 	}
 
-	async transpileModule(sourcePath: string): Promise<DevTransformBundleResult> {
+	async transpileModule(sourcePath: string, variant?: string): Promise<DevTransformBundleResult> {
 		const normalized = path.resolve(sourcePath);
-		const contributor = this.selectContributor(normalized);
-		const pagePlugins = contributor ? await contributor.getModulePlugins(normalized) : [];
+		const contributor = this.selectContributor(normalized, variant);
+		const pagePlugins = contributor ? await contributor.getModulePlugins(normalized, variant) : [];
 		const tempDir = this.resolveTempOutdir();
 		fileSystem.ensureDir(tempDir);
 
@@ -82,7 +82,7 @@ export class DevTransformBundler {
 		 * Entry key is a path hash so concurrent transpiles of different modules that
 		 * share a basename (e.g. multiple `index.tsx`) never collide on disk output.
 		 */
-		const entryKey = contentHash(normalized, 16);
+		const entryKey = contentHash(variant ? `${normalized}?${variant}` : normalized, 16);
 		const result = await this.browserBundleService.bundle({
 			lane: 'hmr',
 			entrypoints: { [entryKey]: normalized },

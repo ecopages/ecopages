@@ -305,13 +305,17 @@ export function resolveRelativeModulePath(fromFile: string, specifier: string): 
 
 /**
  * Resolves a relative or tsconfig path alias import (via oxc-resolver).
+ *
+ * @remarks
+ * A query or hash on the specifier, such as a module variant, is not part of the file and is dropped.
  */
 export function resolveProjectModulePath(
 	projectRoot: string,
 	fromFile: string,
-	specifier: string,
+	moduleSpecifier: string,
 	options?: { preserveBarrel?: boolean },
 ): string | undefined {
+	const specifier = moduleSpecifier.replace(/[?#].*$/u, '');
 	const prefixes = loadTsconfigPathPrefixes(projectRoot);
 	const isRelative = specifier.startsWith('.');
 	const isPathAlias = matchesTsconfigPathPrefix(specifier, prefixes);

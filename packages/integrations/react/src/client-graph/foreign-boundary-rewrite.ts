@@ -10,10 +10,27 @@ import { toRealPath } from './foreign-jsx-reach.ts';
 const HELPER_BINDING = '__ecoForeignBoundary';
 const NAMESPACE_HELPER_BINDING = '__ecoForeignBoundaryNamespace';
 
+/** The module variant a React graph imports of a module that another graph also uses and that imports a foreign Component. */
+export const REACT_BOUNDARY_VARIANT = 'react-boundary';
+const VARIANT_QUERY = `eco-variant=${REACT_BOUNDARY_VARIANT}`;
+
+/** Whether the module id or specifier names the React boundary variant of its module. */
+export function isReactBoundaryVariant(idOrSpecifier: string): boolean {
+	return idOrSpecifier.includes(VARIANT_QUERY);
+}
+
 export type ForeignBoundaryRewriteOptions = {
 	projectRoot: string;
 	/** Whether `filePath` belongs to an Integration other than React. */
 	isForeignFile: (filePath: string) => boolean;
+	/**
+	 * Whether another module graph also uses `filePath`, so React needs its own compiled form of it.
+	 *
+	 * @remarks
+	 * A module has one compiled form per id. A shared module that imports a foreign Component would otherwise give
+	 * the other graph a React boundary, so React imports it under a variant id and the other graph keeps the plain one.
+	 */
+	isSharedFile?: (filePath: string) => boolean;
 };
 
 type SourceEdit = { start: number; end: number; replacement: string };
@@ -69,6 +86,76 @@ class ForeignExports {
 			}
 		}
 		return nodes;
+	}
+
+	private readonly importing = new Map<string, boolean>();
+	private readonly imports = new Map<string, any[]>();
+
+	private getImports(filePath: string): any[] {
+		let nodes = this.imports.get(filePath);
+		if (!nodes) {
+			nodes = [];
+			this.imports.set(filePath, nodes);
+			if (SOURCE_FILE.test(filePath) && fileSystem.exists(filePath)) {
+				const source = fileSystem.readFileSync(filePath);
+				if (/\b(?:import|export)\b/.test(source)) {
+					const { program } = parseModuleSource(filePath, source);
+					nodes.push(
+						...(program.body as any[]).filter(
+							(node) =>
+								(node.type === 'ImportDeclaration' ||
+									node.type === 'ExportNamedDeclaration' ||
+									node.type === 'ExportAllDeclaration') &&
+								node.source &&
+								(node.importKind ?? node.exportKind) !== 'type',
+						),
+					);
+				}
+			}
+		}
+		return nodes;
+	}
+
+	/** Whether `filePath` imports a foreign Component, directly or through a module that does. */
+	importsForeign(filePath: string, seen = new Set<string>()): boolean {
+		const known = this.importing.get(filePath);
+		if (known !== undefined) return known;
+		if (seen.has(filePath)) return false;
+		seen.add(filePath);
+		let result = false;
+		for (const node of this.getImports(filePath)) {
+			const target = this.resolve(filePath, node.source.value as string);
+			if (!target) continue;
+			if (node.type === 'ImportDeclaration' && this.valueImportOf(node, target)) {
+				result = true;
+				break;
+			}
+			if (!this.options.isForeignFile(target) && this.importsForeign(target, seen)) {
+				result = true;
+				break;
+			}
+		}
+		this.importing.set(filePath, result);
+		return result;
+	}
+
+	/** Whether an import declaration binds at least one value that `target` declares as foreign. */
+	valueImportOf(node: any, target: string): boolean {
+		return (node.specifiers ?? []).some((specifier: any) => {
+			if (specifier.importKind === 'type') return false;
+			if (specifier.type === 'ImportNamespaceSpecifier') return this.isForeign(target, undefined);
+			const imported = specifier.type === 'ImportDefaultSpecifier' ? 'default' : moduleName(specifier.imported);
+			return this.isForeign(target, imported);
+		});
+	}
+
+	/** Whether React imports `target` under the variant id: another graph shares it and it imports a foreign Component. */
+	needsVariant(target: string): boolean {
+		return (
+			!this.options.isForeignFile(target) &&
+			this.options.isSharedFile?.(target) === true &&
+			this.importsForeign(target)
+		);
 	}
 
 	/** Whether the export `name` of `filePath` is declared by a foreign file; `undefined` asks about any export. */
@@ -152,6 +239,29 @@ function rewriteImport(
 	return [named, ...extra, ...bindings].filter(Boolean).join(' ');
 }
 
+/** The edit one top-level node needs: wrapped bindings, or the variant id for a shared module that reaches a foreign Component. */
+function planEdit(
+	node: any,
+	code: string,
+	filePath: string,
+	foreignExports: ForeignExports,
+	uid: () => string,
+): SourceEdit | undefined {
+	if (!node.source || (node.importKind ?? node.exportKind) === 'type') return undefined;
+	const replacement =
+		node.type === 'ImportDeclaration' ? rewriteImport(node, code, filePath, foreignExports, uid) : undefined;
+	if (replacement !== undefined) return { start: node.start, end: node.end, replacement };
+	const specifier = node.source.value as string;
+	if (specifier.includes('?')) return undefined;
+	const target = foreignExports.resolve(filePath, specifier);
+	if (!target || !foreignExports.needsVariant(target)) return undefined;
+	return {
+		start: node.source.start,
+		end: node.source.end,
+		replacement: JSON.stringify(`${specifier}?${VARIANT_QUERY}`),
+	};
+}
+
 /**
  * Rewrites the static imports of foreign-owned Components in `code`, barrels that re-export them included, or
  * returns `undefined`.
@@ -167,7 +277,7 @@ export function rewriteForeignImports(
 	filePath: string,
 	options: ForeignBoundaryRewriteOptions,
 ): string | undefined {
-	if (!/\bimport\b/.test(code) || code.includes(FOREIGN_BOUNDARY_PACKAGE)) return undefined;
+	if (!/\bimport\b|\bexport\b/.test(code) || code.includes(FOREIGN_BOUNDARY_PACKAGE)) return undefined;
 	const lang = /\.(?:mdx?)$/.test(filePath) ? 'jsx' : undefined;
 	const { program } = parseModuleSource(filePath, code, lang ? { lang } : {});
 	let counter = 0;
@@ -175,9 +285,8 @@ export function rewriteForeignImports(
 	const foreignExports = new ForeignExports(options);
 	const edits: SourceEdit[] = [];
 	for (const node of program.body as any[]) {
-		if (node.type !== 'ImportDeclaration') continue;
-		const replacement = rewriteImport(node, code, filePath, foreignExports, uid);
-		if (replacement !== undefined) edits.push({ start: node.start, end: node.end, replacement });
+		const edit = planEdit(node, code, filePath, foreignExports, uid);
+		if (edit) edits.push(edit);
 	}
 	if (edits.length === 0) return undefined;
 
@@ -185,6 +294,7 @@ export function rewriteForeignImports(
 	for (const edit of edits.reverse()) {
 		rewritten = `${rewritten.slice(0, edit.start)}${edit.replacement}${rewritten.slice(edit.end)}`;
 	}
+	if (!rewritten.includes(HELPER_BINDING)) return rewritten;
 	const helpers =
 		`import { foreignBoundary as ${HELPER_BINDING}, foreignBoundaryNamespace as ${NAMESPACE_HELPER_BINDING} } ` +
 		`from ${JSON.stringify(FOREIGN_BOUNDARY_PACKAGE)};`;

@@ -661,6 +661,52 @@ describe('ReactRenderer', () => {
 			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-foreign-root');
 		});
 
+		it('does not wrap a foreign Component in a multi-root island that emits no island host', async () => {
+			const deferredPlugin = createDeferredIntegrationPlugin({
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<button>Foreign</button>',
+					canAttachAttributes: true,
+					integrationName: 'deferred',
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [deferredPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				resolvedIntegrationDependencies: [],
+			});
+			const DeferredWidget = eco.component<{}, string>({
+				identity: {
+					id: 'deferred-multi-root',
+					file: '/app/components/deferred-multi-root.deferred.tsx',
+					integration: 'deferred',
+				},
+				integration: 'deferred',
+				render: () => '',
+			});
+			const ForeignWidget = DeferredWidget as unknown as React.ComponentType;
+			const Island = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-multi-root-island', file: pageFilePath, integration: 'react' },
+				integration: 'react',
+				dependencies: { components: [DeferredWidget] },
+				render: () => (
+					<>
+						<h2>Title</h2>
+						<ForeignWidget />
+					</>
+				),
+			});
+
+			const result = await testRenderer.renderComponentWithForeignChildren({
+				component: Island,
+				props: {},
+				integrationContext: { componentInstanceId: 'island-multi-root' },
+			});
+
+			expect(result.html).toBe('<h2>Title</h2><button>Foreign</button>');
+			expect(result.rootAttributes).toBeUndefined();
+		});
+
 		it('wraps a foreign Component in a Foreign Subtree boundary that hydration keeps', async () => {
 			const litPlugin = createDeferredIntegrationPlugin({
 				name: 'lit',

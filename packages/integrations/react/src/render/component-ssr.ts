@@ -159,3 +159,23 @@ export function wrapForeignSubtreeTokens(
 	}
 	return wrappedHtml;
 }
+
+/**
+ * Replaces each Foreign Subtree token in `html` with `replacement`, to inspect the shape of the tree before the
+ * tokens resolve.
+ *
+ * @remarks
+ * A token is text until it resolves, so a root-level Foreign Subtree would hide a single root. The boundary or the
+ * owner's element takes its place, hence the caller passes an element.
+ */
+export function replaceForeignSubtreeTokens(
+	html: string,
+	runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
+	replacement: string,
+): string {
+	let replaced = html;
+	for (const { token } of runtimeContext?.queuedResolutions ?? []) {
+		replaced = replaced.split(token).join(replacement);
+	}
+	return replaced;
+}

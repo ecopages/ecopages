@@ -58,6 +58,7 @@ import {
 	renderComponentHtml,
 	renderNonReactShellComponent,
 	restoreRuntimeChildHtml,
+	replaceForeignSubtreeTokens,
 	toReactNode,
 	wrapForeignSubtreeTokens,
 	type ReactComponentRenderContext,
@@ -411,7 +412,9 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			}),
 		);
 		const componentFile = getComponentIdentity(componentConfig)?.file;
-		const isIslandRoot = Boolean(componentFile && context.componentInstanceId && !hasResolvedChildHtml);
+		const isIslandRoot =
+			Boolean(componentFile && context.componentInstanceId && !hasResolvedChildHtml) &&
+			hasSingleRootElement(replaceForeignSubtreeTokens(html, runtimeContext, '<x></x>'));
 		html = await this.resolveReactQueuedForeignSubtreeHtml(
 			html,
 			runtimeContext,

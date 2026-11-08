@@ -64,9 +64,29 @@ export default defineConfig({
 | `include`       | Names of Lightning CSS `Features` to compile even when `targets` support them, such as `['Nesting']`. |
 | `exclude`       | Names of `Features` to leave as written even when `targets` do not support them.                      |
 | `visitor`       | A Lightning CSS visitor, run over every stylesheet.                                                   |
+| `plugins`       | [Plugins](#plugins) that rewrite the source or visit the rules of every stylesheet, in order.         |
 | `errorRecovery` | Drop a rule Lightning CSS cannot parse with a warning, instead of failing the stylesheet.             |
 | `filter`        | Regex that picks the stylesheets to process. Default `/\.css$/`.                                      |
 | `cssModules`    | `{ pattern }`: how scoped class names are built. Default `'[hash]_[local]'`.                          |
+
+## Plugins
+
+A plugin is `{ name, transformSource?(css, file), visitor? }`. `transformSource` rewrites a stylesheet before Lightning CSS parses it, and before the Tailwind preset runs, so what it writes can use `@apply`. `visitor` is a Lightning CSS `Visitor`, composed with the `visitor` option. Plugins run in the order of the array, on every stylesheet: the entry, each imported partial (including the ones the Tailwind preset inlines) and every CSS Module.
+
+Lightning CSS stays standard by default: Sass-style suffix nesting (`&--primary`, `&__element`) fails the build. If you like that style, opt in with `suffixNesting()`:
+
+```typescript
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { suffixNesting } from '@ecopages/lightningcss-processor/plugins/suffix-nesting';
+
+lightningCssProcessorPlugin({
+	...tailwindV4Preset({ referencePath }),
+	targets: ['chrome >= 111', 'safari >= 16.4'],
+	plugins: [suffixNesting()],
+});
+```
+
+`suffixNesting()` rewrites `&--x`, `&__x` and `&-x` into native nesting before parsing. `.button, a.button { &--primary { ... } }` becomes `.button--primary, a.button--primary { ... }`, written after the rule it came from, so rules nested in it, such as `&:hover svg`, and the order of the cascade keep working. It also expands inside `:is()`, `:where()` and `:not()`, and in an `@media` that sits in the parent. Every parent selector must be one compound selector ending in a class, id or type; a parent such as `.card .title` fails the build with the file, line, column and selector, instead of a guess. Anything a plugin leaves invalid still fails, so a typo is not dropped silently.
 
 ## Behaviour
 

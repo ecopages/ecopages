@@ -987,6 +987,12 @@ importers:
       '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
+      postcss:
+        specifier: ^8.5.14
+        version: 8.5.26
+      postcss-nested:
+        specifier: ^8.0.1
+        version: 8.0.1(postcss@8.5.26)
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.3

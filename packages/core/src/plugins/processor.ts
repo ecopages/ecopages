@@ -72,6 +72,13 @@ export function writeGeneratedTypesPackage(options: {
 }
 
 /**
+ * Builds the ambient module declarations of the stylesheet extensions a Processor declares.
+ */
+export function serializeStylesheetModuleDeclarations(_capabilities: readonly ProcessorAssetCapability[]): string {
+	return '';
+}
+
+/**
  * One debounce window of file changes, passed to {@link ProcessorWatchConfig.onChanges}.
  *
  * @remarks

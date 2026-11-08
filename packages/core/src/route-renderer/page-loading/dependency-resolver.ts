@@ -16,6 +16,7 @@ import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigger-planning.ts';
 import { collectComponentDependencies } from './component-dependency-collection.ts';
 import { packagePageDependencies } from './page-dependency-bundling.ts';
+import { getStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import type { LazyGroup } from './lazy-entry-collection.ts';
 import {
 	getResolvedLazyTriggers,
@@ -186,6 +187,7 @@ export class DependencyResolverService {
 			integrationName,
 			this.bundlesPageDependencies(integrationName),
 			this.appConfig.rootDir,
+			getStylesheetKinds(this.appConfig),
 		);
 	}
 

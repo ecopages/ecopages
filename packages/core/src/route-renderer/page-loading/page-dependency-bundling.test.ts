@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
+import { Processor } from '../../plugins/processor.ts';
+import { createStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { packagePageDependencies } from './page-dependency-bundling.ts';
 
 let tempDir: string;
@@ -45,5 +47,37 @@ describe('packagePageDependencies stylesheets', () => {
 		['an image-set() string', '.a { background: image-set("a.png" 1x); }'],
 	])('keeps stylesheets apart when one has %s', (_name, css) => {
 		expect(packagedSources(css)).toEqual(['file', 'file']);
+	});
+});
+
+describe('packagePageDependencies, for a CSS Module', () => {
+	const scoping = createStylesheetKinds([
+		new (class extends Processor {
+			async setup(): Promise<void> {}
+		})({ name: 'scoping', capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true }] }),
+	]);
+
+	it('links a CSS Module on its own, since a bundle of the sources would not scope it', () => {
+		const files = ['first.css', 'card.module.css', 'last.css'].map((name) => path.join(tempDir, name));
+		for (const file of files) writeFileSync(file, '.a {}');
+		const dependencies = files.map((filepath) =>
+			AssetFactory.createFileStylesheet({ filepath, attributes: { rel: 'stylesheet' } }),
+		);
+
+		const packaged = packagePageDependencies(dependencies, 'react', true, tempDir, scoping);
+
+		expect(packaged.map((dependency) => dependency.source)).toEqual(['file', 'file', 'file']);
+	});
+
+	it('still bundles the plain stylesheets that sit together', () => {
+		const files = ['first.css', 'second.css', 'card.module.css'].map((name) => path.join(tempDir, name));
+		for (const file of files) writeFileSync(file, '.a {}');
+		const dependencies = files.map((filepath) =>
+			AssetFactory.createFileStylesheet({ filepath, attributes: { rel: 'stylesheet' } }),
+		);
+
+		const packaged = packagePageDependencies(dependencies, 'react', true, tempDir, scoping);
+
+		expect(packaged.map((dependency) => dependency.source)).toEqual(['content', 'file']);
 	});
 });

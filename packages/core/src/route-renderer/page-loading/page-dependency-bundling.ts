@@ -1,4 +1,5 @@
 import { fileSystem } from '@ecopages/file-system';
+import { PLAIN_CSS_KINDS, type StylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import type {
 	AssetDefinition,
 	FileScriptAsset,
@@ -66,6 +67,7 @@ function createPageDependencyPackagingPlan(
 	dependencies: AssetDefinition[],
 	integrationName: string,
 	rootDir: string,
+	stylesheets: StylesheetKinds,
 ): PageDependencyPackagingPlan | undefined {
 	const shouldBundleDependencies = isProductionRuntime();
 
@@ -87,7 +89,7 @@ function createPageDependencyPackagingPlan(
 				return isSafeBundledStylesheetContent(dependency.content);
 			}
 
-			if (dependency.fromPackage) {
+			if (dependency.fromPackage || stylesheets.isCssModule(dependency.filepath)) {
 				return false;
 			}
 
@@ -227,19 +229,22 @@ function applyPageDependencyPackagingPlan(
  * Rewrites eligible flat dependency declarations into page-owned stylesheet and script bundles.
  *
  * Only consecutive assets with the default attribute shape and without explicit packaging roles are
- * collapsed so integration-specific, lazy, or custom-attribute assets keep their declared order.
+ * collapsed so integration-specific, lazy, or custom-attribute assets keep their declared order. A CSS Module is
+ * never collapsed: the bundle concatenates the stylesheet sources and processes the result as one plain stylesheet,
+ * which would leave its classes unscoped, so it stays a link of its own, scoped by the Processor.
  */
 export function packagePageDependencies(
 	dependencies: AssetDefinition[],
 	integrationName: string,
 	bundlesPageDependencies: boolean,
 	rootDir: string,
+	stylesheets: StylesheetKinds = PLAIN_CSS_KINDS,
 ): AssetDefinition[] {
 	if (!shouldBundlePageDependencies(bundlesPageDependencies)) {
 		return dependencies;
 	}
 
-	const plan = createPageDependencyPackagingPlan(dependencies, integrationName, rootDir);
+	const plan = createPageDependencyPackagingPlan(dependencies, integrationName, rootDir, stylesheets);
 	if (!plan) {
 		return dependencies;
 	}

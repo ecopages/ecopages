@@ -75,6 +75,8 @@ Every possible Foreign Child of a static Component must be declared in `config.d
 
 The browser has no render context. There, the browser `eco` factories hand a Component whose owner differs from the registered `window.__ECO_PAGES__.foreignChildHost` to that host, which renders a boundary that keeps the server HTML; React registers itself when it hydrates ([Islands and hydration](/dev/islands-hydration#foreign-subtrees-in-a-hydrated-tree)). Without a host, a browser Component renders inline. On the server, React wraps Foreign Subtrees in that boundary only in a tree that hydrates.
 
+Markup a non-Lit Integration produces is not a dead end for Lit: after the route renders, core passes the document through the `renderCustomElements` hook of each Integration that was assigned `ssr: true` scripts, so a Lit element in a Kita Component or a spliced Foreign Subtree gets its declarative shadow root ([Route rendering](/dev/route-rendering#custom-element-ssr-scripts)).
+
 Only a declared Component can be a Foreign Child. A plain function has no identity, so it renders inline in whatever Integration calls it. Discovery fails the build when a module renders a plain component of another Integration that compiles JSX with a different runtime, and suggests `eco.component()`. Lit, which leaves the runtime to the tsconfig, is not checked.
 
 ## Processors

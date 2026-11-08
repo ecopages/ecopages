@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compile } from '@mdx-js/mdx';
 import sourceMap from 'source-map';
 import { createRequestPipelineMetricsState } from '@ecopages/core/build';
+import { getStylesheetKinds, type StylesheetKinds } from '@ecopages/core/integration';
+import { Processor } from '@ecopages/core/processor';
 import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult, EcoBuildPluginBuilder } from '@ecopages/core/integration';
 import {
 	createMdxLoaderPlugin as createMdxLoaderPluginWithMetrics,
@@ -359,6 +361,32 @@ describe('createMdxLoaderPlugin', () => {
 		);
 		expect(original).toMatchObject({ line: 4, source: expect.stringContaining('post.mdx') });
 		expect(result?.map).toMatchObject({ sourcesContent: [expect.stringContaining('Post Title')] });
+	});
+
+	it('discovers the stylesheet extensions its creator passes, and only those', async () => {
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-kinds-')));
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, 'post.mdx');
+		writeFileSync(path.join(tempDir, 'card.scss'), '.card {}');
+		writeFileSync(filePath, ["import './card.scss';", '', '# Post'].join('\n'));
+
+		class SassProcessor extends Processor {
+			async setup(): Promise<void> {}
+		}
+		const sass = new SassProcessor({
+			name: 'sass',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.scss'] }],
+		});
+		const load = async (stylesheets?: StylesheetKinds) => {
+			const { builder, getOnLoadCallback } = createBuilderHarness();
+			createMdxLoaderPlugin({ projectRoot: tempDir, stylesheets }).setup(builder);
+			return (await getOnLoadCallback()({ path: filePath }))?.contents as string;
+		};
+
+		const delivered = await load(getStylesheetKinds({ processors: new Map([['sass', sass]]) }));
+		expect(delivered).not.toContain("import './card.scss';");
+		expect(delivered).toContain('card.scss');
+		expect(await load()).toContain("import './card.scss';");
 	});
 
 	it('omits maps when includeSourceMap is disabled', async () => {

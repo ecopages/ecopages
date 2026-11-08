@@ -2,7 +2,7 @@
  * This module contains the react plugin for Ecopages
  * @module
  */
-import { requireAppRuntime } from '@ecopages/core/integration';
+import { getStylesheetKinds, requireAppRuntime } from '@ecopages/core/integration';
 import type { AssetDefinition } from '@ecopages/core/integration';
 import {
 	IntegrationPlugin,
@@ -203,6 +203,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			compilerOptions,
 			projectRoot: appConfig.rootDir,
 			requestPipelineMetrics,
+			stylesheets: getStylesheetKinds(appConfig),
 		});
 	}
 

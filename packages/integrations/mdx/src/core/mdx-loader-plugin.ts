@@ -1,5 +1,5 @@
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoBuildPlugin } from '@ecopages/core/integration';
+import type { EcoBuildPlugin, StylesheetKinds } from '@ecopages/core/integration';
 import { attributeMdxComponentIdentity } from '@ecopages/core';
 import { type CompileOptions, compile } from '@mdx-js/mdx';
 import { recordMdxTransform, type RequestPipelineMetricsState } from '@ecopages/core/build';
@@ -17,6 +17,13 @@ export interface CreateMdxLoaderPluginOptions {
 	defaultMdExtensions?: string[];
 	includeSourceMap?: boolean;
 	loader?: 'js' | 'jsx';
+	/**
+	 * The stylesheet kinds of the app, from `getStylesheetKinds(app)` in the Integration's `plugins(app)`.
+	 *
+	 * @remarks
+	 * Without them only `.css` imports of a document are discovered.
+	 */
+	stylesheets?: StylesheetKinds;
 }
 
 type MdxCompileCacheEntry = {
@@ -110,6 +117,7 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 					integrationName,
 					projectRoot,
 					includeSourceMap ? cached.map : undefined,
+					options.stylesheets,
 				);
 
 				return {

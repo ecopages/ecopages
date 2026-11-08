@@ -146,14 +146,15 @@ A layout's local CSS and component imports are discovered. Declare browser scrip
 
 ```tsx
 import { SiteHeader } from '@/components/site-header';
-import { eco } from '@ecopages/core';
+import { eco, type LayoutProps } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 import './base-layout.css';
 
 export const BaseLayout = eco.layout({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},
-	render: ({ children }) => (
+	render: ({ children }: LayoutProps<JsxRenderable>) => (
 		<>
 			<SiteHeader />
 			<main>{children}</main>

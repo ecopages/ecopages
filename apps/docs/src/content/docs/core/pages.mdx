@@ -90,11 +90,13 @@ Lazy loading is configured on `dependencies.scripts` entries. Add `ssr: true` wh
 ```tsx
 import { eco } from '@ecopages/core';
 
+type MyComponentProps = { label: string };
+
 export const MyComponent = eco.component({
 	dependencies: {
 		scripts: [{ src: './my-component.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
-	render: (props) => <my-component {...props} />,
+	render: (props: MyComponentProps) => <my-component {...props} />,
 });
 ```
 

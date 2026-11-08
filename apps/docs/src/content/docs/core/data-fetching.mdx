@@ -17,10 +17,11 @@ Injects custom props into your page component at build time.
 
 ```tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
 export type PageProps = { title: string; content: string };
 
-export default eco.page<PageProps>({
+export default eco.page<PageProps, JsxRenderable>({
     staticProps: async () => {
         // Fetch data from a database, file, or external API
         const data = await fetch('https://api.example.com/page-data').then(res => res.json());

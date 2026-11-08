@@ -32,9 +32,7 @@ The root `@ecopages/core` entry point exports the main app contracts. This table
 ```tsx
 import { eco } from '@ecopages/core';
 
-type ArticleProps = { title: string };
-
-export default eco.page<ArticleProps>({
+export default eco.page({
 	staticPaths: async () => ({
 		paths: [{ params: { slug: 'hello' } }],
 	}),

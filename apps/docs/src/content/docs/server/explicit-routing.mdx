@@ -416,7 +416,7 @@ Import the view and pass it to `app.static()`. Development reloads it through th
 // src/views/post-view.tsx
 import { eco } from '@ecopages/core';
 
-const PostView = eco.page<PostViewProps>({
+const PostView = eco.page({
 	staticPaths: async () => {
 		const posts = await getPosts();
 		return {
@@ -424,12 +424,17 @@ const PostView = eco.page<PostViewProps>({
 		};
 	},
 
-	staticProps: async ({ params }) => {
-		const post = await getPost(params.slug);
+	staticProps: async ({ pathname }) => {
+		const post = await getPost(String(pathname.params.slug));
 		return { props: { title: post.title, content: post.content } };
 	},
 
-	render: (props) => <article>...</article>
+	render: ({ title, content }) => (
+		<article>
+			<h1>{title}</h1>
+			<div>{content}</div>
+		</article>
+	)
 });
 
 export default PostView;
@@ -444,7 +449,9 @@ Define `eco.page` views anywhere in your codebase. Views used with `app.static()
 import { eco } from '@ecopages/core';
 import { MainLayout } from '@/layouts/main-layout';
 
-const PostView = eco.page<PostViewProps>({
+type PostViewProps = { title: string; content: string; authorName: string };
+
+const PostView = eco.page({
 	layout: MainLayout,
 
 	metadata: ({ props }) => ({
@@ -456,7 +463,7 @@ const PostView = eco.page<PostViewProps>({
 		stylesheets: ['/styles/post.css']
 	},
 
-	render: ({ title, content }) => (
+	render: ({ title, content }: PostViewProps) => (
 		<article>
 			<h1>{title}</h1>
 			<div>{content}</div>

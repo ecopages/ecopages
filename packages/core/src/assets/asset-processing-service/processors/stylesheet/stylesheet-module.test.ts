@@ -92,7 +92,7 @@ describe('compileStylesheetModule, for a CSS Module', () => {
 		const file = writeModule('.card { color: red; }');
 
 		expect(await compileStylesheetModule(await configWith(scopingProcessor()), file)).toEqual({
-			code: 'export default {"card":"x_card"};\n',
+			code: 'export const card = "x_card";\nexport default {"card":"x_card"};\n',
 			dependencies: [],
 		});
 	});
@@ -126,21 +126,18 @@ describe('toClassMapModule', () => {
 			`data:text/javascript;base64,${Buffer.from(toClassMapModule(exports)).toString('base64')}`
 		)) as Record<string, unknown>;
 
-	it.fails(
-		'exports each class whose name is a JavaScript identifier by name too, and the map by default',
-		async () => {
-			const module = await load({ primary: 'x_primary', 'is-active': 'x_is-active', $accent: 'x_$accent' });
+	it('exports each class whose name is a JavaScript identifier by name too, and the map by default', async () => {
+		const module = await load({ primary: 'x_primary', 'is-active': 'x_is-active', $accent: 'x_$accent' });
 
-			expect(Object.keys(module).sort()).toEqual(['$accent', 'default', 'primary']);
-			expect({ primary: module.primary, $accent: module.$accent }).toEqual({
-				primary: 'x_primary',
-				$accent: 'x_$accent',
-			});
-			expect(module.default).toEqual({ primary: 'x_primary', 'is-active': 'x_is-active', $accent: 'x_$accent' });
-		},
-	);
+		expect(Object.keys(module).sort()).toEqual(['$accent', 'default', 'primary']);
+		expect({ primary: module.primary, $accent: module.$accent }).toEqual({
+			primary: 'x_primary',
+			$accent: 'x_$accent',
+		});
+		expect(module.default).toEqual({ primary: 'x_primary', 'is-active': 'x_is-active', $accent: 'x_$accent' });
+	});
 
-	it.fails('leaves the names that cannot be bindings on the default export only', async () => {
+	it('leaves the names that cannot be bindings on the default export only', async () => {
 		const map = { 'is-active': 'x_1', '2col': 'x_2', class: 'x_3', default: 'x_4', await: 'x_5', valid: 'x_6' };
 		const module = await load(map);
 

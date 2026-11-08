@@ -7,7 +7,10 @@ import assert from 'node:assert/strict';
 import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
 import { applyStylesheetProcessors } from './assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts';
-import { compileStylesheetModule } from './assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
+import {
+	compileStylesheetModule,
+	toClassMapModule,
+} from './assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 import { collectBuildEntryInputPaths } from './build/build-graph.ts';
 import { createServerBuildRequest } from './build/runtime/build-request-policy.ts';
 import { finalizeEcoPagesConfig } from './config/assembly/finalize-config.ts';
@@ -300,7 +303,7 @@ function cssModuleCases(subject: StylesheetProcessorContractSubject): Stylesheet
 					const { exports } = await applyStylesheetProcessors(app.config, MODULE_CSS, file);
 
 					const { code } = await compileStylesheetModule(app.config, file);
-					assert.equal(code, `export default ${JSON.stringify(exports)};\n`);
+					assert.equal(code, toClassMapModule(exports ?? {}));
 					assert.ok(!code.includes('color'), 'the module embeds the CSS of the CSS Module');
 				}),
 		},

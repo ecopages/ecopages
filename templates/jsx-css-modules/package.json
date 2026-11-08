@@ -1,0 +1,24 @@
+{
+	"name": "@ecopages/template-jsx-css-modules",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "ecopages preview",
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"preview": "ecopages preview",
+		"dev:watch": "ecopages dev:watch",
+		"typecheck": "ecopages types && tsc --noEmit"
+	},
+	"devDependencies": {
+		"@ecopages/browser-router": "workspace:*",
+		"@ecopages/core": "workspace:*",
+		"@ecopages/ecopages-jsx": "workspace:*",
+		"@ecopages/image-processor": "workspace:*",
+		"@ecopages/jsx": "^0.8.2",
+		"@ecopages/lightningcss-processor": "workspace:*",
+		"@ecopages/mdx": "workspace:*",
+		"@ecopages/radiant": "^0.8.2",
+		"ecopages": "workspace:*"
+	}
+}

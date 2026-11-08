@@ -12,7 +12,13 @@ import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
 import { Logger } from '@ecopages/logger';
 import type { CSSModuleExports, Warning } from 'lightningcss';
-import { loadLightningCss, type ResolvedLightningCssOptions } from './lightningcss-engine.ts';
+import {
+	loadLightningCss,
+	suffixNestingError,
+	suffixNestingVisitor,
+	type ResolvedLightningCssOptions,
+	type SuffixNestingRule,
+} from './lightningcss-engine.ts';
 
 const logger = new Logger('[@ecopages/lightningcss-processor]');
 
@@ -242,14 +248,17 @@ export async function bundleStylesheet(
 	rootDir: string,
 	options: ResolvedLightningCssOptions,
 ): Promise<BundledStylesheet> {
-	const { bundleAsync } = await loadLightningCss();
+	const { bundleAsync, composeVisitors } = await loadLightningCss();
 	const entry = path.resolve(file);
 	const isCssModule = CSS_MODULE_FILE.test(entry);
 	const bundle = new StylesheetBundle(entry, css, rootDir, isCssModule);
 	bundle.prepare();
 	const { cssModulesPattern, ...lightningOptions } = options;
+	const suffixNesting: SuffixNestingRule[] = [];
+	const checks = suffixNestingVisitor(suffixNesting);
 	const result = await bundleAsync({
 		...lightningOptions,
+		visitor: lightningOptions.visitor ? composeVisitors([checks, lightningOptions.visitor]) : checks,
 		...(isCssModule ? { cssModules: { pattern: cssModulesPattern } } : {}),
 		filename: bundle.scopeOf(fileSystem.exists(entry) ? fileSystem.realpath(entry) : entry),
 		resolver: {
@@ -257,6 +266,9 @@ export async function bundleStylesheet(
 			resolve: (specifier, originatingFile) => bundle.resolve(specifier, originatingFile),
 		},
 	});
+	if (suffixNesting.length > 0) {
+		throw suffixNestingError(suffixNesting.map((rule) => ({ ...rule, file: bundle.realOf(rule.file) })));
+	}
 	return {
 		code: result.code,
 		hoisted: bundle.hoisted,

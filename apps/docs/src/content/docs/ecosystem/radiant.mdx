@@ -99,14 +99,13 @@ if (!customElements.get('radiant-counter')) {
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
 import type { CounterProps } from './counter.script';
 
-export const Counter = eco.component<CounterProps, JsxRenderable>({
+export const Counter = eco.component({
 	dependencies: {
 		scripts: [{ src: './counter.script.ts', ssr: true }],
 	},
-	render: ({ count = 0 }) => <radiant-counter count={count} />,
+	render: ({ count = 0 }: CounterProps) => <radiant-counter count={count} />,
 });
 ```
 

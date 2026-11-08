@@ -12,6 +12,26 @@
 			"integrations": ["ecopages-jsx", "mdx"]
 		},
 		{
+			"id": "jsx-lightningcss",
+			"displayName": "JSX Lightning CSS",
+			"description": "The JSX application with Tailwind v4 run by Lightning CSS instead of PostCSS.",
+			"category": "integration",
+			"order": 11,
+			"source": "jsx-lightningcss",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "mdx", "lightningcss"]
+		},
+		{
+			"id": "jsx-css-modules",
+			"displayName": "JSX CSS Modules",
+			"description": "The JSX application styled with plain CSS Modules on Lightning CSS, without Tailwind.",
+			"category": "integration",
+			"order": 12,
+			"source": "jsx-css-modules",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "mdx", "lightningcss"]
+		},
+		{
 			"id": "html",
 			"displayName": "HTML",
 			"description": "An Ecopages application built from plain HTML Pages.",

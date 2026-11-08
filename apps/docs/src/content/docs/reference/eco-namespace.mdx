@@ -79,20 +79,22 @@ EcoPages provides a unified API for creating components and pages. A component i
 This is the primary way to create components in EcoPages. It handles:
 - **Dependency Management:** Automatically injects stylesheets and scripts.
 - **Lazy Loading:** Supports interaction, visibility, and idle triggers.
-- **Type Safety:** Infers props for both internal usage and custom elements.
+- **Type Safety:** Infers props and the element type from an annotated `render` parameter. Pass no type arguments: without the annotation props are `{}`, and a single explicit type argument stops TypeScript inferring the element type.
 
 
 For components that need dependencies, scripts, or lazy loading:
 
 ```tsx
 import { eco } from '@ecopages/core';
+import './counter.css';
+
+type CounterProps = { count: number };
 
 export const Counter = eco.component({
 	dependencies: {
-		stylesheets: ['./counter.css'],
 		scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
-	render: ({ count }) => <my-counter count={count}></my-counter>,
+	render: ({ count }: CounterProps) => <my-counter count={count}></my-counter>,
 });
 ```
 
@@ -183,23 +185,19 @@ All patterns can coexist in the same project. Use the right tool for the job.
 
 EcoPages fully supports React components. You can use `eco.component()` with React to managing dependencies and hydration while maintaining type safety.
 
-Since React components return `ReactNode` or `JSX.Element` (not `EcoPagesElement`), you need to specify the return type generic:
+React components return `ReactNode` or `JSX.Element`, not `EcoPagesElement`. Annotate the `render` parameter and let the element type be inferred; do not pass only the props type as a type argument, which leaves the element type at `EcoPagesElement`:
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { ReactNode } from 'react';
+import './button.css';
 
 type ButtonProps = {
 	label: string;
 	onClick?: () => void;
 };
 
-// Specify ReactNode as the second generic argument
-export const Button = eco.component<ButtonProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./button.css'],
-	},
-	render: ({ label, onClick }) => (
+export const Button = eco.component({
+	render: ({ label, onClick }: ButtonProps) => (
 		<button className="eco-button" onClick={onClick}>
 			{label}
 		</button>

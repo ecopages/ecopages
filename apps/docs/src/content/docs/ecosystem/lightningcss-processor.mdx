@@ -82,39 +82,14 @@ The two setups side by side, with the same `referencePath`, a stylesheet that co
 		{
 			id: 'lightningcss',
 			label: 'Lightning CSS',
-			code: `import path from 'node:path';
-import { defineConfig } from '@ecopages/core/config';
-import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
-import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
-
-export default defineConfig({
-	processors: [
-		lightningCssProcessorPlugin({
-			...tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
-			}),
-			targets: ['chrome >= 111', 'safari >= 16.4'],
-		}),
-	],
-});`,
+			file: 'src/snippets/lightningcss-tailwind-v4.txt',
+			lang: 'typescript',
 		},
 		{
 			id: 'postcss',
 			label: 'PostCSS',
-			code: `import path from 'node:path';
-import { defineConfig } from '@ecopages/core/config';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
-
-export default defineConfig({
-	processors: [
-		postcssProcessorPlugin(
-			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
-			}),
-		),
-	],
-});`,
+			file: 'src/snippets/postcss-tailwind-v4.txt',
+			lang: 'typescript',
 		},
 	]}
 	defaultSelectedKey="lightningcss"
@@ -173,6 +148,7 @@ In development, an edit to the CSS refreshes the stylesheet in place. An edit th
 
 - A stylesheet Lightning CSS rejects throws an error with the file, line and column. `ecopages build` fails, and `ecopages dev` shows the error overlay and keeps the last good stylesheet until a save fixes it.
 - Warnings are logged with their location, once per stylesheet.
+- Only native CSS nesting is supported. Sass-style suffix nesting, such as `.button { &--primary { ... } }` or `&__element`, cannot work: native nesting cannot concatenate selectors, so a browser drops the rule and lowering turns it into a selector that matches nothing. The Processor fails the stylesheet instead, with the file, line, column and the offending selector. Write the full selector, such as `.button--primary { ... }`. The check also covers CSS Modules and the stylesheets the Tailwind v4 preset generates.
 
 ## See also
 

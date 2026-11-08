@@ -48,6 +48,19 @@ describe('tailwindV4Preset', () => {
 		expect(css).toMatch(/\.p-4\{/u);
 	});
 
+	test('fails on Sass-style suffix nesting, whether Tailwind compiles the stylesheet or not', async () => {
+		const { processor, write, referencePath } = await createTailwindApp({ targets: ['chrome 90'] });
+		write('src/pages/index.tsx', '<div className="p-4" />');
+
+		await expect(
+			processor.transformStylesheet('@import "tailwindcss";\n.card { &--wide { margin: 0; } }', referencePath),
+		).rejects.toThrow(/--wide/u);
+		const plain = write('src/pages/plain.css', '.card { &--wide { margin: 0; } }');
+		await expect(processor.transformStylesheet('.card { &--wide { margin: 0; } }', plain)).rejects.toThrow(
+			/&--wide.*Sass-style suffix nesting/su,
+		);
+	});
+
 	test('applies the utilities of @apply through an @reference to the entry, emitting nothing of the entry', async () => {
 		const { processor, write } = await createTailwindApp();
 		write('src/pages/index.tsx', '<div className="bg-rose-600" />');

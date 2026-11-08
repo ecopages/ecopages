@@ -4,6 +4,10 @@ import {
 	applyStylesheetProcessors,
 	type ProcessedStylesheet,
 } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts';
+import {
+	removeCssModuleDeclaration,
+	writeCssModuleDeclaration,
+} from '../../assets/asset-processing-service/processors/stylesheet/css-module-types.ts';
 import { writeSourceRelativeStylesheet } from '../../assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../../config/internal-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -319,6 +323,7 @@ export class DevelopmentStylesheetService {
 		const { css, dependencies, exports } = processed;
 		const classMap = exports ? JSON.stringify(exports) : undefined;
 		this.recordDependencies(file, dependencies);
+		if (exports) writeCssModuleDeclaration(this.appConfig, file, exports);
 		const previous = this.outputs.get(file);
 		if (classMap !== undefined)
 			this.classMapKept.set(file, previous !== undefined && previous.classMap === classMap);
@@ -344,8 +349,9 @@ export class DevelopmentStylesheetService {
 		}
 	}
 
-	/** Drops a deleted stylesheet's output and the files it read; the stylesheets that read it stay mapped to it. */
+	/** Drops a deleted stylesheet's output, its CSS Module declaration and the files it read; the stylesheets that read it stay mapped to it. */
 	private forget(file: string): void {
+		if (getStylesheetKinds(this.appConfig).isCssModule(file)) removeCssModuleDeclaration(this.appConfig, file);
 		this.outputs.delete(file);
 		this.failed.delete(file);
 		this.failedPartials.delete(file);

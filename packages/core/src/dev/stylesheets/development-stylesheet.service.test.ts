@@ -464,7 +464,7 @@ describe('DevelopmentStylesheetService, for a CSS Module', () => {
 			path.join(rootDir, 'node_modules/@types/ecopages-css-modules/components/button.module.css.d.ts');
 		const declared = () => (fs.existsSync(declaration()) ? fs.readFileSync(declaration(), 'utf8') : undefined);
 
-		it.fails('declares a CSS Module when it is prewarmed, and again when an edit adds a class', async () => {
+		it('declares a CSS Module when it is prewarmed, and again when an edit adds a class', async () => {
 			const file = write(MODULE, '.primary { color: red; }\n');
 			const service = await createModuleService();
 			await service.prewarm();
@@ -477,7 +477,7 @@ describe('DevelopmentStylesheetService, for a CSS Module', () => {
 			expect(declared()).toContain('export declare const secondary: string;');
 		});
 
-		it.fails('drops the declaration of a deleted CSS Module', async () => {
+		it('drops the declaration of a deleted CSS Module', async () => {
 			const file = write(MODULE, '.primary { color: red; }\n');
 			const service = await createModuleService();
 			await service.prewarm();

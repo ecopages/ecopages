@@ -141,4 +141,21 @@ describe('createAppAwarePostcssImport', () => {
 		expect(direct).toBe('.x{color:blue}\n.x{color:red}');
 		expect(nested).toBe('.x{color:blue}\n.x{color:red}\n.c{color:green}');
 	});
+
+	test('keeps the only reachable import of a stylesheet that an import cycle closes on', async () => {
+		const tempRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-cycle-'));
+		tempDirs.push(tempRoot);
+		const stylesDir = path.join(tempRoot, 'src', 'styles');
+		mkdirSync(stylesDir, { recursive: true });
+		writeFileSync(path.join(tempRoot, 'package.json'), JSON.stringify({ name: 'app', private: true }));
+		writeFileSync(path.join(stylesDir, 'a.css'), "@import './b.css';\n.a{color:red}");
+		writeFileSync(path.join(stylesDir, 'b.css'), "@import './a.css';\n.b{color:blue}");
+
+		const css = await PostCssProcessor.processStringOrBuffer("@import './a.css';", {
+			filePath: path.join(stylesDir, 'main.css'),
+			plugins: [createAppAwarePostcssImport(tempRoot)],
+		});
+
+		expect(css.trim()).toBe('.b{color:blue}\n.a{color:red}');
+	});
 });

@@ -214,7 +214,7 @@ type DroppedImports = Map<string, Set<number>>;
  * @remarks
  * `postcss-import` inlines a stylesheet where it is first imported, but the cascade orders it at its last
  * import, as core and Lightning CSS do. Walking the imports in the order they inline, the last occurrence of each
- * resolved file is the one kept. An `@import` that does not resolve is left to `postcss-import`, which reports it.
+ * resolved file is the one kept. An `@import` that closes a cycle is not an occurrence, since `postcss-import` skips it. An `@import` that does not resolve is left to `postcss-import`, which reports it.
  */
 async function findEarlierDuplicateImports(
 	entry: postcss.Root,
@@ -237,8 +237,9 @@ async function findEarlierDuplicateImports(
 			} catch {
 				continue;
 			}
+			if (ancestors.includes(target)) continue;
 			occurrences.push({ file, offset, target });
-			if (ancestors.includes(target) || !fileSystem.exists(target)) continue;
+			if (!fileSystem.exists(target)) continue;
 			try {
 				const partial = postcss.parse(await fileSystem.readFile(target), { from: target });
 				await visit(partial, target, [...ancestors, target]);

@@ -2172,7 +2172,7 @@ describe('IntegrationRenderer', () => {
 				expect(html).toBe('<doc>[ecopages-jsx]');
 				expect(reportBuildError).toHaveBeenCalledWith(
 					path.resolve('/app/components/counter.script.ts'),
-					'Failed to process script /app/components/counter.script.ts: Unexpected token',
+					`Failed to process script ${path.resolve('/app/components/counter.script.ts')}: Unexpected token`,
 				);
 			});
 

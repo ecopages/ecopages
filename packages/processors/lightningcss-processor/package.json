@@ -8,6 +8,9 @@
 		"css"
 	],
 	"license": "MIT",
+	"engines": {
+		"node": "^24.22.0 || >=26.0.0"
+	},
 	"main": "./src/index.ts",
 	"type": "module",
 	"types": "./src/index.ts",

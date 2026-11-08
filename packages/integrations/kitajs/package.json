@@ -8,6 +8,9 @@
 		"plugin"
 	],
 	"license": "MIT",
+	"engines": {
+		"node": "^24.22.0 || >=26.0.0"
+	},
 	"main": "./src/kitajs.plugin.ts",
 	"types": "./src/kitajs.plugin.ts",
 	"type": "module",

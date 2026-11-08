@@ -48,6 +48,7 @@ import { eco, mergePageDependencies } from '@ecopages/core';
 import { getEntryDependencies } from 'ecopages:content/posts/server';
 
 export default eco.page({
+	staticProps: async ({ pathname }) => ({ props: { slug: String(pathname.params.slug) } }),
 	dependencies: async ({ props }) =>
 		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.slug)),
 	render: () => <article />,
@@ -223,8 +224,9 @@ Define everything in one place:
 
 ```tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export default eco.page<BlogPostProps>({
+export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
 	staticPaths: async () => ({ paths: getAllSlugs() }),
 	staticProps: async ({ pathname }) => ({
@@ -248,8 +250,9 @@ Creates the document shell component — the outermost HTML wrapper rendered onc
 
 ```tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export const Document = eco.html({
+export const Document = eco.html<JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./document.css'],
 	},
@@ -279,14 +282,15 @@ export function BaseLayout({ children }: LayoutProps<ReactNode>) {
 ```
 
 ```tsx
-import { eco } from '@ecopages/core';
+import { eco, type LayoutProps } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 import './base-layout.css';
 
 export const BaseLayout = eco.layout({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},
-	render: ({ children }) => (
+	render: ({ children }: LayoutProps<JsxRenderable>) => (
 		<main>{children}</main>
 	),
 });
@@ -350,13 +354,14 @@ Define a reusable component with dependencies. Entries in `dependencies.componen
 
 ```tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
 export const BaseLayout = eco.component({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
-	render: ({ children, class: className }) => (
+	render: ({ children, class: className }: { children?: JsxRenderable; class?: string }) => (
 		<html>
 			<body class={className}>{children}</body>
 		</html>
@@ -374,7 +379,7 @@ export const Counter = eco.component({
 			{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } },
 		],
 	},
-	render: ({ count }) => <my-counter count={count}></my-counter>,
+	render: ({ count }: { count: number }) => <my-counter count={count}></my-counter>,
 });
 ```
 
@@ -449,7 +454,7 @@ Define a page component with optional inline static functions.
 ```tsx
 type BlogPostProps = { slug: string; title: string; text: string };
 
-export default eco.page<BlogPostProps>({
+export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
 
 	// Generate paths for dynamic routes
@@ -522,6 +527,7 @@ export default eco.page({
 ```tsx
 // pages/blog/[slug].tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 import { BaseLayout } from '@/layouts/base-layout';
 import { getBlogPost, getAllBlogPostSlugs, getAuthor } from '@/mocks/data';
 
@@ -533,7 +539,7 @@ type BlogPostProps = {
 	authorName: string;
 };
 
-export default eco.page<BlogPostProps>({
+export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
 
 	staticPaths: async () => {
@@ -584,7 +590,7 @@ export const Counter = eco.component({
 		stylesheets: ['./counter.css'],
 		scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
-	render: ({ count }) => <my-counter count={count}></my-counter>,
+	render: ({ count }: { count: number }) => <my-counter count={count}></my-counter>,
 });
 ```
 
@@ -642,7 +648,7 @@ eco. // IDE shows: component, embed, html, layout, page
 Props flow through the system automatically:
 
 ```tsx
-export default eco.page<{ title: string }>({
+export default eco.page({
 	staticProps: async () => ({ props: { title: 'Hello' } }),
 	render: ({ title }) => <h1>{title}</h1>, // ✓ TypeScript knows `title` is a string
 });

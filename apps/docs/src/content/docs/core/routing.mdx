@@ -170,8 +170,8 @@ Important:
 ```tsx
 import { eco, type ErrorPageTemplateProps } from '@ecopages/core';
 
-export default eco.page<ErrorPageTemplateProps>({
-	render: ({ message, stack }) => (
+export default eco.page({
+	render: ({ message, stack }: ErrorPageTemplateProps) => (
 		<div>
 			<h1>Something went wrong</h1>
 			{message ? <p>{message}</p> : null}

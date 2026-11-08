@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
+import { path } from '@ecopages/file-system/path';
 import { insertReference, withReference } from '../presets/tailwind-reference.ts';
 
-const reference = '/app/src/styles/tailwind.css';
+const reference = path.resolve('/app/src/styles/tailwind.css');
 const statement = `@reference "${reference}";`;
 
 describe('insertReference', () => {
@@ -45,7 +46,7 @@ describe('insertReference', () => {
 });
 
 describe('withReference', () => {
-	const file = '/app/src/pages/index.css';
+	const file = path.resolve('/app/src/pages/index.css');
 
 	test('leaves the Tailwind entry, a stylesheet that references it and one that imports it as written', () => {
 		expect(withReference('.a { @apply p-4; }', reference, reference)).toBe('.a { @apply p-4; }');

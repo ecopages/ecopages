@@ -5,14 +5,17 @@
 	"scripts": {
 		"start": "pnpm run build && ecopages start",
 		"generate:llms": "tsx scripts/generate-llm-docs.ts",
-		"dev": "pnpm run generate:llms && ecopages dev",
-		"build": "pnpm run generate:llms && ecopages build",
-		"preview": "ecopages preview",
+		"sync:font-assets": "node ./scripts/copy-font-assets.mjs",
+		"dev": "pnpm run sync:font-assets && pnpm run generate:llms && ecopages dev",
+		"build": "pnpm run sync:font-assets && pnpm run generate:llms && ecopages build",
+		"preview": "pnpm run sync:font-assets && ecopages preview",
 		"test": "vitest run",
 		"typecheck": "ecopages types && tsc --noEmit",
-		"watch:dev": "pnpm run generate:llms && ecopages dev"
+		"watch:dev": "pnpm run sync:font-assets && pnpm run generate:llms && ecopages dev"
 	},
 	"devDependencies": {
+		"@fontsource/ibm-plex-mono": "^5.3.0",
+		"@fontsource/ibm-plex-sans": "^5.3.0",
 		"@ecopages/browser-router": "workspace:*",
 		"@ecopages/content-processor": "workspace:*",
 		"@ecopages/core": "workspace:*",

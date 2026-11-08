@@ -110,10 +110,11 @@ export function createStylesheetModulePlugin(
 		extraOptions: Parameters<PluginContext['resolve']>[2],
 	) => {
 		const importerFile = fromRolldownModuleId(importer).replace(/[?#].*$/u, '');
-		if (hasDiscoveryRecord(build.root, importerFile)) return;
 		const fromPackage = importerFile.includes('/node_modules/') || !isPathInside(importerFile, appRoot);
 		if (fromPackage) {
-			report(createUndeliverablePackageCssModuleError(appRoot, importerFile, source));
+			if (!hasDiscoveryRecord(build.root, importerFile)) {
+				report(createUndeliverablePackageCssModuleError(appRoot, importerFile, source));
+			}
 			return;
 		}
 		const resolved = await context.resolve(source, importer, { ...extraOptions, skipSelf: true });

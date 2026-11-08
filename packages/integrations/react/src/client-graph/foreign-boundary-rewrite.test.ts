@@ -124,6 +124,93 @@ describe('rewriteForeignImports', () => {
 		}
 	});
 
+	it('wraps only the bindings the module reads as values', () => {
+		const root = createProject();
+		try {
+			const output = rewrite(
+				root,
+				"import Counter, { Named, Props } from './components/counter.lit.tsx';\nexport const x: Props = Counter;",
+			)!;
+			expect(output).toContain('const Counter = __ecoForeignBoundary(');
+			expect(output).not.toContain('const Named');
+			expect(output).not.toContain('const Props');
+			expect(output).toContain('"Named" as Named');
+			expect(output).toContain('"Props" as Props');
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('leaves a module whose foreign imports are never read untouched', () => {
+		const root = createProject();
+		try {
+			expect(
+				rewrite(root, "import Counter, * as Lit from './components/counter.lit.tsx';\nexport const x = 1;"),
+			).toBeUndefined();
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('leaves React-only names of a barrel that star-exports a foreign module untouched', () => {
+		const root = createProject();
+		try {
+			writeFileSync(
+				path.join(root, 'components/star.ts'),
+				"export * from './counter.lit.tsx';\nexport * from './button.tsx';",
+			);
+			expect(
+				rewrite(root, "import { Other } from './components/star.ts';\nexport default Other;"),
+			).toBeUndefined();
+			writeFileSync(
+				path.join(root, 'components/star-default.ts'),
+				"export * from './counter.lit.tsx';\nexport { default } from './button.tsx';",
+			);
+			expect(
+				rewrite(root, "import Button from './components/star-default.ts';\nexport default Button;"),
+			).toBeUndefined();
+			const output = rewrite(root, "import { Named } from './components/star.ts';\nexport default Named;")!;
+			expect(output).toContain('const Named = __ecoForeignBoundary(');
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('lets an explicit export of a barrel win over a star-exported name', () => {
+		const root = createProject();
+		try {
+			writeFileSync(
+				path.join(root, 'components/override.ts'),
+				"export * from './counter.lit.tsx';\nexport { Named } from './button.tsx';\nexport const Local = 1;",
+			);
+			expect(
+				rewrite(root, "import { Named } from './components/override.ts';\nexport default Named;"),
+			).toBeUndefined();
+			expect(
+				rewrite(root, "import { Local } from './components/override.ts';\nexport default Local;"),
+			).toBeUndefined();
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('wraps the namespace a barrel exports with export * as', () => {
+		const root = createProject();
+		try {
+			writeFileSync(
+				path.join(root, 'components/ns.ts'),
+				"export * as lit from './counter.lit.tsx';\nexport * as react from './button.tsx';",
+			);
+			const output = rewrite(root, "import { lit } from './components/ns.ts';\nexport default lit.Named;")!;
+			expect(output).toContain('const lit = __ecoForeignBoundaryNamespace(');
+			expect(
+				rewrite(root, "import { react } from './components/ns.ts';\nexport default react.Other;"),
+			).toBeUndefined();
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it('wraps the imports of compiled MDX', () => {
 		const root = createProject();
 		try {
@@ -170,6 +257,26 @@ describe('rewriteForeignImports module variants', () => {
 			expect(output).toContain('"./lib/outer.ts?eco-variant=react-boundary"');
 			expect(output).toContain("'./lib/plain.ts'");
 			expect(output).not.toContain('foreign-boundary');
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('imports the variant of a shared module whose import also wraps a foreign re-export', () => {
+		const root = createProject();
+		try {
+			mkdirSync(path.join(root, 'lib'));
+			writeFileSync(
+				path.join(root, 'lib/both.ts'),
+				"import Counter from '../components/counter.lit.tsx';\nexport { default as Re } from '../components/counter.lit.tsx';\nexport const own = Counter;",
+			);
+			const output = rewriteForeignImports(
+				"import { Re, own } from './lib/both.ts';\nexport default [Re, own];",
+				path.join(root, 'island.tsx'),
+				{ projectRoot: root, isForeignFile, isSharedFile: shared(root) },
+			)!;
+			expect(output).toContain('const Re = __ecoForeignBoundary(');
+			expect(output).toContain('"./lib/both.ts?eco-variant=react-boundary"');
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}
@@ -246,6 +353,30 @@ describe('createForeignBoundaryPlugin in a build', () => {
 			const withoutPlugin = await buildIsland(root, reactOnlySource, false);
 			expect(withPlugin).toBe(withoutPlugin);
 			expect(withPlugin).not.toContain('eco-foreign-subtree');
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('builds an island that imports a type without the type keyword and tree-shakes an unused foreign import', async () => {
+		const root = createProject();
+		try {
+			writeFileSync(
+				path.join(root, 'components/typed.lit.tsx'),
+				'export interface LitProps { a: number }\nexport default 1;',
+			);
+			const typed = await buildIsland(
+				root,
+				"import Typed, { LitProps } from './components/typed.lit.tsx';\nexport const props: LitProps = { a: 1 };\nexport default () => Typed;",
+				true,
+			);
+			expect(typed).toContain('eco-foreign-subtree');
+			const unused = await buildIsland(
+				root,
+				"import Counter from './components/counter.lit.tsx';\nexport default () => 1;",
+				true,
+			);
+			expect(unused).not.toContain('eco-foreign-subtree');
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}

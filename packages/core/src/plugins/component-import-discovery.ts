@@ -341,6 +341,12 @@ function createPackageCssModuleError(projectRoot: string, importer: string, sour
 	);
 }
 
+function createPackageProcessedStylesheetError(projectRoot: string, importer: string, source: string): Error {
+	return new Error(
+		`[ecopages] ${relativeToRoot(projectRoot, importer)}: ${JSON.stringify(source)} is a package stylesheet that is not CSS. Packages must ship built CSS, because Ecopages does not run a stylesheet Processor on a package file. Import the package's built .css file instead, or copy the source into the app.`,
+	);
+}
+
 function createUnscopedCssModuleError(projectRoot: string, importer: string, source: string): Error {
 	return new Error(
 		`[ecopages] ${relativeToRoot(projectRoot, importer)}: ${JSON.stringify(source)} is a CSS Module. ${CSS_MODULE_PROCESSOR_FIX}`,
@@ -396,6 +402,9 @@ function classifyPackageStylesheetImport(
 ): StylesheetImportTarget | undefined {
 	if (kinds.isCssModule(entry.source)) throw createPackageCssModuleError(projectRoot, importer, entry.source);
 	if (!entry.sideEffectOnly) return undefined;
+	if (kinds.isStylesheet(entry.source) && !entry.source.toLowerCase().endsWith('.css')) {
+		throw createPackageProcessedStylesheetError(projectRoot, importer, entry.source);
+	}
 	const file = resolvePackageStylesheetPath(importer, entry.source);
 	if (file && kinds.isCssModule(file)) throw createPackageCssModuleError(projectRoot, importer, entry.source);
 	return file ? { kind: 'package', file } : undefined;

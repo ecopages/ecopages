@@ -537,6 +537,9 @@ function buildMdxIdentityAppend(options: {
  * @remarks
  * Pass the MDX compiler's map as `previousMap` so the returned map traces back to the `.mdx` file; without
  * it the map is relative to the compiled module.
+ *
+ * `stylesheets` are the kinds of the app's stylesheet Processor, passed by the Integration that creates the MDX
+ * loader; without them only `.css` imports are discovered.
  */
 export function attributeMdxComponentIdentity(
 	contents: string,
@@ -544,6 +547,7 @@ export function attributeMdxComponentIdentity(
 	integration: string,
 	projectRoot: string,
 	previousMap?: unknown,
+	stylesheets?: StylesheetKinds,
 ): EcoBuildOnTransformResult {
 	if (!projectRoot) {
 		throw new Error(`[ecopages] Cannot process MDX dependencies for "${filePath}": projectRoot is required.`);
@@ -563,7 +567,7 @@ export function attributeMdxComponentIdentity(
 		return { code: contents, map: previousMap };
 	}
 
-	const discovered = discoverComponentImports(program, filePath, projectRoot);
+	const discovered = discoverComponentImports(program, filePath, projectRoot, { stylesheets });
 	const toSourceKey = createSourceKeyResolver(projectRoot);
 	const sourceKey = toSourceKey(filePath);
 	const identityLiteral = createIdentityLiteral(sourceKey, sourceKey, integration);

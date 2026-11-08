@@ -285,6 +285,42 @@ export const Button = eco.component({ render: () => '' });`,
 				'"./card.module.scss" is a CSS Module',
 			);
 		});
+		it('delivers a declared extension imported from an MDX document, and ignores it when none is declared', () => {
+			const { root } = fixture();
+			writeFileSync(path.join(root, 'card.scss'), '.card { color: red }');
+			const mdxJs = [
+				`import './card.scss';`,
+				"import { jsx as _jsx } from 'react/jsx-runtime';",
+				'export default function MDXContent() { return _jsx("p", {}); }',
+			].join('\n');
+			const attribute = (stylesheets?: StylesheetKinds) =>
+				attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root, undefined, stylesheets)
+					.code;
+			const delivered = attribute(createStylesheetKinds([sass]));
+			expect(delivered).not.toContain(`import './card.scss'`);
+			expect(delivered).toContain(`stylesheets: ${JSON.stringify(['card.scss'])}`);
+			for (const kinds of [undefined, createStylesheetKinds([])]) {
+				const ignored = attribute(kinds);
+				expect(ignored).toContain(`import './card.scss'`);
+				expect(ignored).not.toContain('stylesheets: ["');
+			}
+		});
+		it('fails on a side-effect import of a package file with a declared non-css extension', () => {
+			const { root } = fixture();
+			mkdirSync(path.join(root, 'node_modules', 'some-lib'), { recursive: true });
+			writeFileSync(path.join(root, 'node_modules', 'some-lib', 'package.json'), '{"name":"some-lib"}');
+			writeFileSync(path.join(root, 'node_modules', 'some-lib', 'theme.scss'), '.theme {}');
+			const attribute = (stylesheets?: StylesheetKinds) => () =>
+				attributeComponentIdentity(
+					`import 'some-lib/theme.scss';\nimport { eco } from '@ecopages/core';\nexport default eco.page({ render: () => '' });`,
+					path.join(root, 'page.ts'),
+					{ integration: 'lit', projectRoot: root, stylesheets },
+				).code;
+			expect(attribute(createStylesheetKinds([sass]))).toThrow(
+				'page.ts: "some-lib/theme.scss" is a package stylesheet that is not CSS. Packages must ship built CSS',
+			);
+			expect(attribute(createStylesheetKinds([]))).not.toThrow();
+		});
 	});
 	describe('package stylesheets', () => {
 		function packageFixture() {

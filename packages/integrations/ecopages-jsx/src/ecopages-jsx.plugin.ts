@@ -8,7 +8,7 @@ import {
 	type SsrScriptPreload,
 } from '@ecopages/core/integration';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/integration';
-import { requireAppRuntime } from '@ecopages/core/integration';
+import { getStylesheetKinds, requireAppRuntime } from '@ecopages/core/integration';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from './resolve-radiant-install-hydrator.ts';
@@ -104,6 +104,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 				extensions: this.mdxExtensions,
 				projectRoot: app.rootDir,
 				requestPipelineMetrics: requireAppRuntime(app).requestPipelineMetrics,
+				stylesheets: getStylesheetKinds(app),
 			}),
 		];
 	}

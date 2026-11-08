@@ -42,6 +42,7 @@ export { LayoutChildrenNotRenderedError } from './route-renderer/orchestration/d
 export { isRegisteredDevTransformEntrypoint, isRegisteredScriptEntrypoint } from './hmr/hmr-entrypoint-output.ts';
 export { type HmrRegisteredEntrypointsContext } from './hmr/hmr-registered-entrypoints-context.ts';
 export { HmrStrategy, HmrStrategyType } from './hmr/hmr-strategy.ts';
+export { getStylesheetKinds, type StylesheetKinds } from './plugins/stylesheet-kinds.ts';
 export { type DefinedIntegration, defineIntegration } from './plugins/define-integration.ts';
 export {
 	type AnyIntegrationPlugin,

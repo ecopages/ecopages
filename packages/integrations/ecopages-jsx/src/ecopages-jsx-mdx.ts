@@ -1,7 +1,7 @@
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { EcoComponent, EcoComponentConfig, EcoFunctionComponent, EcoPageFile, GetMetadata } from '@ecopages/core';
 import { ensurePageConfigLayouts, moveMdxMetadataOntoPage } from '@ecopages/core/integration';
-import type { EcoBuildPlugin } from '@ecopages/core/integration';
+import type { EcoBuildPlugin, StylesheetKinds } from '@ecopages/core/integration';
 import {
 	appendMdxExtensions,
 	createMdxExtensionFilter,
@@ -44,6 +44,7 @@ export interface CreateEcopagesJsxMdxLoaderPluginOptions {
 	extensions: string[];
 	projectRoot: string;
 	requestPipelineMetrics: RequestPipelineMetricsState;
+	stylesheets?: StylesheetKinds;
 }
 
 export const createMdxLoaderPlugin = (options: CreateEcopagesJsxMdxLoaderPluginOptions): EcoBuildPlugin =>
@@ -56,6 +57,7 @@ export const createMdxLoaderPlugin = (options: CreateEcopagesJsxMdxLoaderPluginO
 		loader: 'js',
 		projectRoot: options.projectRoot,
 		requestPipelineMetrics: options.requestPipelineMetrics,
+		stylesheets: options.stylesheets,
 	});
 
 export const isMdxFile = (filePath: string, extensions: string[]): boolean => {

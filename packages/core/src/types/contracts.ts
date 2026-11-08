@@ -376,6 +376,16 @@ export interface IHmrManager {
 	broadcast(event: ClientBridgeEvent): void;
 
 	/**
+	 * Shows `message` in the browser overlay for a build error found while answering a request, and replays it to
+	 * a browser that connects later.
+	 *
+	 * @remarks
+	 * `source` is the file that failed. The error stays until the next file change, as a dev-transform failure
+	 * does; a request that still fails reports it again.
+	 */
+	reportBuildError(source: string, message: string): void;
+
+	/**
 	 * Returns an existing emitted HMR script artifact without registering it.
 	 */
 	getResolvedScriptOutput?(entrypointPath: string): ResolvedHmrEntrypoint | undefined;

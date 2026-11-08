@@ -143,6 +143,7 @@ describe('IntegrationPlugin', () => {
 			injectDevClientRuntimes: vi.fn(async (response: Response) => response),
 			getDefaultContext: vi.fn(),
 			handleFileChanges: vi.fn(),
+			reportBuildError: vi.fn(),
 		} satisfies IHmrManager;
 		const strategy = { matches: vi.fn(() => false), process: vi.fn(), priority: 10, type: 'integration' } as any;
 		const pluginWithStrategy = new (class extends TestIntegrationPlugin {

@@ -3,6 +3,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { resolvePackageStylesheetPath } from '../../../../plugins/tsconfig-import-resolver.ts';
 import { isEmittableReferenceFile } from '../../../../plugins/stylesheet-kinds.ts';
 import { appLogger } from '../../../../global/app-logger.ts';
+import { ImportOrder } from './import-order.ts';
 import { warnStylesheetOnce } from './stylesheet-warnings.ts';
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 import { realDirectory } from './app-stylesheet-imports.ts';
@@ -11,7 +12,10 @@ import { isExternalReference, scanCss, splitReference, wrapInConditions, type Cs
 type StylesheetReferenceContext = {
 	/** Where a package stylesheet's files are emitted, for the files its `@import`s inline. */
 	output: StylesheetReferenceOutput;
-	inlined: Set<string>;
+	/** The package stylesheets being inlined, so an `@import` cycle is cut. */
+	ancestors: string[];
+	/** The inlined stylesheets, ordered so one imported twice keeps its last instance. */
+	order: ImportOrder;
 	/** Root-relative, `data:` and remote `@import` statements, hoisted to the top of the output in order. */
 	hoisted: string[];
 	charset?: string;
@@ -110,7 +114,7 @@ function resolveImportedStylesheet(stylesheet: string, specifier: string): strin
 
 /**
  * Replaces a package stylesheet's `@import`: a root-relative, `data:` or remote one is hoisted, a relative or package
- * one is inlined once, wrapped in its conditions.
+ * one is inlined, wrapped in its conditions.
  */
 function inlinePackageImport(statement: CssImport, stylesheet: string, context: StylesheetReferenceContext): string {
 	if (isExternalReference(statement.specifier)) {
@@ -118,14 +122,12 @@ function inlinePackageImport(statement: CssImport, stylesheet: string, context: 
 		return '';
 	}
 	const imported = resolveImportedStylesheet(stylesheet, statement.specifier);
-	if (context.inlined.has(imported)) return '';
-	const inlined = preparePackageStylesheetFile(imported, context, context.output);
-	if (!statement.conditions) return inlined;
-	const wrapped = wrapInConditions(inlined, statement.conditions);
-	if (wrapped === undefined) {
+	if (context.ancestors.includes(imported)) return '';
+	if (statement.conditions && wrapInConditions('', statement.conditions) === undefined) {
 		throw new Error(`[ecopages] ${stylesheet}: cannot read the conditions of ${statement.statement}`);
 	}
-	return wrapped;
+	const inlined = preparePackageStylesheetFile(imported, context, context.output);
+	return context.order.add(imported, inlined, statement.conditions);
 }
 
 /**
@@ -137,8 +139,8 @@ function preparePackageStylesheetFile(
 	context: StylesheetReferenceContext,
 	output: StylesheetReferenceOutput,
 ): string {
-	context.inlined.add(stylesheet);
-	return scanCss(fileSystem.readFileSync(stylesheet), {
+	context.ancestors.push(stylesheet);
+	const prepared = scanCss(fileSystem.readFileSync(stylesheet), {
 		reference: (reference) => emitPackageReference(stylesheet, reference, output),
 		import: (statement) => inlinePackageImport(statement, stylesheet, context),
 		charset: (statement) => {
@@ -146,6 +148,8 @@ function preparePackageStylesheetFile(
 			return '';
 		},
 	});
+	context.ancestors.pop();
+	return prepared;
 }
 
 /** Where emitted files go and how the output stylesheet names them. */
@@ -165,14 +169,14 @@ export type StylesheetReferenceOutput = {
  * reference to what `toReference` returns for it. A `?` or `#` suffix is kept; root-relative, `data:` and remote
  * URLs are left as written. An `@import` of a relative or package stylesheet is inlined in its place, its
  * references rewritten from its location, wrapped in `@layer`, `@supports` and `@media` blocks for its conditions,
- * and each file is inlined once. Root-relative, `data:` and remote `@import`s and the first `@charset` are hoisted
+ * and a file imported more than once keeps only its last instance, as the cascade orders it. Root-relative, `data:` and remote `@import`s and the first `@charset` are hoisted
  * to the top, where browsers apply them; a hoisted import keeps its own conditions but not those of an `@import`
  * that inlined its file. A reference to a missing file fails the build. Only a font, image or media file is copied;
  * a reference to any other file is left as written with a warning (see {@link isEmittableReferenceFile}).
  */
 export function preparePackageStylesheet(stylesheet: string, output: StylesheetReferenceOutput): string {
-	const context: StylesheetReferenceContext = { output, inlined: new Set(), hoisted: [] };
-	const body = preparePackageStylesheetFile(fileSystem.realpath(stylesheet), context, output);
+	const context: StylesheetReferenceContext = { output, ancestors: [], order: new ImportOrder(), hoisted: [] };
+	const body = context.order.resolve(preparePackageStylesheetFile(fileSystem.realpath(stylesheet), context, output));
 	const head = [...(context.charset ? [context.charset] : []), ...context.hoisted];
 	return head.length > 0 ? `${head.join('\n')}\n${body}` : body;
 }

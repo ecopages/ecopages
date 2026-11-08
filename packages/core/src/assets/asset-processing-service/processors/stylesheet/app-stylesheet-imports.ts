@@ -2,6 +2,7 @@ import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../../../global/app-logger.ts';
 import { isExternalReference, scanCss, splitReference, wrapInConditions, type CssImport } from './css-scanner.ts';
+import { ImportOrder } from './import-order.ts';
 import { warnStylesheetOnce } from './stylesheet-warnings.ts';
 
 /** The real path of `file`, or `file` itself when it does not exist (yet). */
@@ -41,8 +42,10 @@ type InlineContext = {
 	/** The stylesheet's CSS before inlining, which a warning is shown once for. */
 	source: string;
 	entryDir: string;
-	/** The real paths of the stylesheet and of every partial inlined so far, so a partial is inlined once. */
-	inlined: Set<string>;
+	/** The real paths of the stylesheet and of the partials being inlined, so an `@import` cycle is cut. */
+	ancestors: string[];
+	/** The inlined partials, ordered so a partial imported twice keeps its last instance. */
+	order: ImportOrder;
 	/** Root-relative, `data:` and remote `@import` statements, hoisted to the top of the output in order. */
 	hoisted: string[];
 	charset?: string;
@@ -81,15 +84,16 @@ function inlineImport(statement: CssImport, importer: string, context: InlineCon
 		);
 		return undefined;
 	}
-	if (context.inlined.has(real)) return '';
+	if (context.ancestors.includes(real)) return '';
 	if (statement.conditions && wrapInConditions('', statement.conditions) === undefined) {
 		warn(context, `cannot read the conditions of ${statement.statement} in ${importer}, so it is left as written.`);
 		return undefined;
 	}
-	context.inlined.add(real);
 	context.dependencies.add(partial);
+	context.ancestors.push(real);
 	const inlined = inlineFile(fileSystem.readFileSync(real), partial, context, false);
-	return statement.conditions ? wrapInConditions(inlined, statement.conditions) : inlined;
+	context.ancestors.pop();
+	return context.order.add(real, inlined, statement.conditions);
 }
 
 /** Scans one file: inlines its `@import`s, hoists its `@charset`, and rebases a partial's references onto the entry. */
@@ -120,7 +124,7 @@ export type InlinedStylesheet = {
  * Runs on the output of the Processor, which has usually inlined them already (`postcss-import`, Lightning CSS), and
  * then finds nothing to do. A partial's references are rebased onto the stylesheet, so
  * `emitStylesheetReferences` finds the files they name. Its `layer`, `supports()` and media conditions wrap its
- * CSS, and remote and root-relative `@import`s and the first `@charset` move to the top. Only a `.css` file is
+ * CSS, a partial imported more than once keeps only its last instance, as the cascade and Lightning CSS order it, and remote and root-relative `@import`s and the first `@charset` move to the top. Only a `.css` file is
  * inlined, never a dotfile. An `@import` that names no file is left as written with a warning; a bare specifier that
  * names no sibling, such as a package, is left for the Processor. The returned dependencies include a missing `.css`
  * partial, so creating it rebuilds the stylesheet.
@@ -132,12 +136,14 @@ export function inlineStylesheetImports(css: string, stylesheet: string): Inline
 		stylesheet: entry,
 		source: css,
 		entryDir: realDirectory(entry),
-		inlined: new Set([realPath(entry)]),
+		ancestors: [realPath(entry)],
+		order: new ImportOrder(),
 		hoisted: [],
 		dependencies: new Set(),
 	};
-	const body = inlineFile(css, entry, context, true);
-	if (context.inlined.size === 1) return { css, dependencies: [...context.dependencies] };
+	const inlinedBody = inlineFile(css, entry, context, true);
+	if (context.order.isEmpty) return { css, dependencies: [...context.dependencies] };
+	const body = context.order.resolve(inlinedBody);
 	const head = [...(context.charset ? [context.charset] : []), ...context.hoisted];
 	return {
 		css: head.length > 0 ? `${head.join('\n')}\n${body}` : body,

@@ -86,7 +86,7 @@ describe('inlineStylesheetImports', () => {
 		);
 	});
 
-	it('inlines a partial once, even when two stylesheets import it or they import each other', () => {
+	it('inlines a partial once, even when two stylesheets import it or they import each other, in the order of the last import', () => {
 		write('src/a.css', "@import './b.css';\n.a {}");
 		write('src/b.css', "@import './a.css';\n.b {}");
 		const entry = write('src/main.css', '');
@@ -96,11 +96,11 @@ describe('inlineStylesheetImports', () => {
 			entry,
 		);
 
-		expect(css).toBe('\n.b {}\n.a {}\n\n.main {}');
+		expect(css).toBe('\n\n.a {}\n.b {}\n.main {}');
 		expect(dependencies).toHaveLength(2);
 	});
 
-	it.fails('keeps the last instance of a stylesheet imported twice, as the cascade does', () => {
+	it('keeps the last instance of a stylesheet imported twice, as the cascade does', () => {
 		write('src/shared.css', '.shared {}');
 		write('src/other.css', '.other {}');
 		const entry = write('src/main.css', '');

@@ -191,7 +191,7 @@ test('inlines a package @import once', async () => {
 	expect(await preparedCss(stylesheet)).toBe('.other {}\n\n.top {}');
 });
 
-test.fails('keeps the last instance of a package stylesheet imported twice', async () => {
+test('keeps the last instance of a package stylesheet imported twice', async () => {
 	const stylesheet = writePackageFile(
 		'dist/style.css',
 		"@import './shared.css';\n@import './other.css';\n@import './shared.css';\n.top {}",

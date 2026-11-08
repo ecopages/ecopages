@@ -2177,10 +2177,19 @@ describe('IntegrationRenderer', () => {
 			});
 
 			it.each([
-				['production', false],
+				['production', true],
 				['development', true],
-			])('shows no overlay in %s with static generation %s', async (nodeEnv, staticGenerationActive) => {
-				const { reportBuildError } = await renderWithFailingScript(nodeEnv, staticGenerationActive);
+			])(
+				'fails the render, naming the script and the cause, in %s with static generation %s',
+				async (nodeEnv, staticGenerationActive) => {
+					await expect(renderWithFailingScript(nodeEnv, staticGenerationActive)).rejects.toThrow(
+						`Failed to preload the ssr script ${path.resolve('/app/components/counter.script.ts')}: Unexpected token`,
+					);
+				},
+			);
+
+			it('only warns in production outside static generation, as `ecopages start` does', async () => {
+				const { reportBuildError } = await renderWithFailingScript('production', false);
 
 				expect(reportBuildError).not.toHaveBeenCalled();
 			});

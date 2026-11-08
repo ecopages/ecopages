@@ -771,11 +771,30 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			integrations: this.appConfig.integrations,
 			preloadScopes: requireAppRuntime(this.appConfig).customElementSsrPreloadScopes,
 			resolveDependencyPath: (componentDir, pathUrl) => this.resolveDependencyPath(componentDir, pathUrl),
-			onPreloadFailure: (scriptPath, error) => {
-				if (keepsLastGoodOutput(this.appConfig)) showAssetFailure(this.appConfig, 'script', scriptPath, error);
-			},
+			onPreloadFailure: (scriptPath, error) => this.handleSsrPreloadFailure(scriptPath, error),
 		});
 		return this.ssrScriptPreloader;
+	}
+
+	/**
+	 * Decides what a script that fails to preload costs: the overlay in development, the build in static generation.
+	 *
+	 * @remarks
+	 * Development keeps rendering the element without server rendering (see {@link keepsLastGoodOutput}). Static
+	 * generation throws, so a build cannot exit 0 with elements that lack their server output. `ecopages start` only
+	 * warns: it renders at request time, where throwing would turn one broken script into a failing page.
+	 *
+	 * @throws In static generation, naming the script and the cause.
+	 */
+	private handleSsrPreloadFailure(scriptPath: string, error: unknown): void {
+		if (keepsLastGoodOutput(this.appConfig)) {
+			showAssetFailure(this.appConfig, 'script', scriptPath, error);
+			return;
+		}
+		if (requireAppRuntime(this.appConfig).staticGenerationActive) {
+			const cause = error instanceof Error ? error.message : String(error);
+			throw new Error(`Failed to preload the ssr script ${scriptPath}: ${cause}`, { cause: error });
+		}
 	}
 
 	/**

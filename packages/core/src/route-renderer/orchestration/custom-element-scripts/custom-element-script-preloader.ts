@@ -194,6 +194,8 @@ export interface CustomElementScriptPreloaderOptions {
 	 * The preloader itself only warns and leaves the element without server rendering. Core uses this to show the
 	 * failure in the development overlay. A failed script is not evaluated again until it is invalidated or
 	 * `clearFailedCustomElementScriptPreloads` runs.
+	 *
+	 * @throws Whatever the callback throws fails the render that reached the script; core throws in static generation.
 	 */
 	onPreloadFailure?: (scriptPath: string, error: unknown) => void;
 }

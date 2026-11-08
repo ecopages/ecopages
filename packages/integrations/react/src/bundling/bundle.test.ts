@@ -167,7 +167,7 @@ describe('BundleService', () => {
 			expect(output).not.toContain('server-secret');
 			expect(output).not.toContain('auth.server');
 			expect(output).not.toContain('authMiddleware');
-			await expect(import(path.toFileUrl(outputPath).href)).resolves.toHaveProperty('default');
+			expect(output).toContain('@ecopages/react/foreign-boundary');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}

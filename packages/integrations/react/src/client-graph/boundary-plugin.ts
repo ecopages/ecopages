@@ -19,6 +19,7 @@ import { classifyClientGraphModule } from './module-classification.ts';
 import { transformClientGraphModule } from './boundary-plugin-transform.ts';
 import { inlineReadFileSyncCalls } from './boundary-plugin-read-file-inline.ts';
 import { scanForeignJsxReach, toRealPath, type ForeignJsxReach } from './foreign-jsx-reach.ts';
+import { rewriteForeignImports } from './foreign-boundary-rewrite.ts';
 import {
 	createRequestedExportsPlan,
 	type PlannedModule,
@@ -46,6 +47,14 @@ type ClientGraphBoundaryBuildContext = PlanState & {
 	configs: NormalizedClientGraphBoundaryOptions[];
 	entrypointFiles: Set<string>;
 	foreignJsxReach?: ForeignJsxReach;
+	entryReach?: AnyFileReach;
+};
+
+type AnyFileReach = {
+	reactEntryFiles: ReadonlySet<string>;
+	otherEntryFiles: ReadonlySet<string>;
+	react: ReadonlySet<string>;
+	others: ReadonlySet<string>;
 };
 
 const buildContexts = new WeakMap<Readonly<Record<string, string>>, ClientGraphBoundaryBuildContext>();
@@ -440,6 +449,77 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 			context.configs.push(normalizedOptions);
 			if (context.configs.length > 1) return;
 			build.onLoad(SOURCE_FILES, (args) => loadBuildClientGraphBoundaryModule(build, args, context));
+		},
+	};
+}
+
+/** The files React entries reach and the files other entries reach, by a static scan of the build's entries. */
+function getEntryReach(context: ClientGraphBoundaryBuildContext, projectRoot: string): AnyFileReach {
+	if (!context.entryReach) {
+		const reactEntryFiles = new Set([...getReactEntrypointFiles(context)].map(toRealPath));
+		const otherEntryFiles = [...context.entrypointFiles]
+			.map(toRealPath)
+			.filter((file) => !reactEntryFiles.has(file));
+		const reach = scanForeignJsxReach({
+			projectRoot,
+			reactEntryFiles,
+			otherEntryFiles,
+			isForeignFile: () => true,
+		});
+		context.entryReach = {
+			reactEntryFiles,
+			otherEntryFiles: new Set(otherEntryFiles),
+			react: reach.react,
+			others: new Set(reach.others.keys()),
+		};
+	}
+	return context.entryReach;
+}
+
+/**
+ * Instantiates the build plugin that gives React modules the boundary of every Eco Component another Integration
+ * owns, in the production bundle and the development transform alike.
+ *
+ * @remarks
+ * It rewrites the imports of foreign-owned modules in a module's source after it loads, so MDX, which compiles
+ * to such imports, is covered too. A module that imports no foreign-owned module is left untouched. A module
+ * has one compiled form: in a build shared with other Integrations, a module only another entry reaches is left
+ * alone, and one that both a React entry and another entry reach and that imports a foreign-owned module fails
+ * the build.
+ */
+export function createForeignBoundaryPlugin(options: {
+	projectRoot: string;
+	/** Whether `filePath` belongs to an Integration other than React. */
+	isForeignFile: (filePath: string) => boolean;
+}): EcoBuildPlugin {
+	return {
+		name: 'ecopages-react-foreign-boundary',
+		environments: ['browser'],
+		setup(build) {
+			build.transform({ filter: /\.(?:[cm]?[jt]sx?|mdx?)$/, exclude: /^\0|\/node_modules\// }, (code, id) => {
+				const filePath = toRealPath(id.replace(/[?#].*$/, ''));
+				if (options.isForeignFile(filePath)) return undefined;
+				const rewritten = rewriteForeignImports(code, filePath, options);
+				if (rewritten === undefined) return undefined;
+				const context = build.entrypoints ? buildContexts.get(build.entrypoints) : undefined;
+				const reach =
+					context && context.configs.length > 0 ? getEntryReach(context, options.projectRoot) : undefined;
+				if (
+					reach?.otherEntryFiles.has(filePath) ||
+					(reach?.others.has(filePath) && !reach.react.has(filePath))
+				) {
+					return undefined;
+				}
+				if (reach?.others.has(filePath) && reach.react.has(filePath)) {
+					throw new Error(
+						`[ecopages] ${filePath} imports a component another Integration owns, and both React browser ` +
+							`entries and another browser entry import it. React compiles it with the component's boundary and ` +
+							`the other entry needs the component itself, but one module has one compiled form. Import it ` +
+							`from one of them only.`,
+					);
+				}
+				return rewritten;
+			});
 		},
 	};
 }

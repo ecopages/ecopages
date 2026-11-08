@@ -35,6 +35,7 @@
 		"./layout-compose": "./src/render/layout-compose.ts",
 		"./island-hydration": "./src/hydration/browser/island-hydration.ts",
 		"./page-hydration": "./src/hydration/browser/page-hydration.ts",
+		"./foreign-boundary": "./src/hydration/browser/foreign-boundary.ts",
 		"./lazy-collection-components": "./src/content/lazy-collection-components.ts",
 		"./serialize-page-data-script": "./src/hydration/serialize-page-data-script.ts",
 		"./page-data-reader": "./src/hydration/page-data-reader.ts"

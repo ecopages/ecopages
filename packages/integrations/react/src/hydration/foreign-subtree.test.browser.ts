@@ -5,7 +5,7 @@ import { createRoot, hydrateRoot } from 'react-dom/client';
 import { eco } from '@ecopages/core';
 import { startPageHydration, type PageHydrationOptions } from './browser/page-hydration.ts';
 import { getIslandHydrationRuntime, mountIslands } from './browser/island-hydration.ts';
-import { installForeignSubtreeHost } from './browser/foreign-subtree-host.ts';
+import { foreignBoundary } from './browser/foreign-boundary.ts';
 import { getForeignSubtreeKey, renderForeignSubtreeBoundary } from './foreign-subtree.ts';
 
 type TestWindow = Window &
@@ -16,6 +16,9 @@ const LitCounter = eco.component<{ count: number }, unknown>({
 	identity: { id: 'lit-counter', file: 'src/components/lit-counter.lit.tsx', integration: 'lit' },
 	render: ({ count }) => ({ _$litType$: 1, strings: ['<lit-counter count="', '"></lit-counter>'], values: [count] }),
 });
+
+/** What the build gives a React module that imports the Lit Component. */
+const LitCounterBoundary = foreignBoundary(LitCounter);
 
 const SERVER_LIT_COUNTER = renderForeignSubtreeBoundary(
 	getForeignSubtreeKey(LitCounter, { count: 1 }),
@@ -40,7 +43,6 @@ function createReactRuntime(errors: unknown[]) {
 			return { render: (nextTree: unknown) => root.render(nextTree as ReactNode), unmount: () => root.unmount() };
 		},
 		createElement: createElement as (...args: unknown[]) => unknown,
-		useState,
 		useEffect,
 	};
 }
@@ -54,7 +56,7 @@ function ReactPage() {
 		'main',
 		null,
 		createElement('button', { type: 'button', onClick: () => setClicks(clicks + 1) }, String(clicks)),
-		createElement(LitCounter as ElementType, { count: 1 }),
+		createElement(LitCounterBoundary as ElementType, { count: 1 }),
 	);
 }
 
@@ -128,7 +130,7 @@ describe('Foreign Subtree in a hydrated React tree', () => {
 				'section',
 				null,
 				createElement('button', { type: 'button', onClick: () => setClicks(clicks + 1) }, String(clicks)),
-				createElement(LitCounter as ElementType, { count: 1 }),
+				createElement(LitCounterBoundary as ElementType, { count: 1 }),
 			);
 		};
 		islandRuntimeState = getIslandHydrationRuntime();
@@ -156,8 +158,11 @@ describe('Foreign Subtree in a hydrated React tree', () => {
 			`<main>${renderForeignSubtreeBoundary(key, '<lit-counter count="1"><template shadowrootmode="open"><span>1</span></template></lit-counter>')}</main>`,
 			'text/html',
 		);
-		installForeignSubtreeHost(createReactRuntime(errors));
-		(window as TestWindow).__ECO_PAGES__!.page = { module: '/assets/next.js', props: {}, document: fetched };
+		((window as TestWindow).__ECO_PAGES__ ??= {}).page = {
+			module: '/assets/next.js',
+			props: {},
+			document: fetched,
+		};
 		document.body.innerHTML = renderForeignSubtreeBoundary(key, '<lit-counter count="stale"></lit-counter>');
 		const container = document.createElement('div');
 		document.body.append(container);

@@ -16,7 +16,7 @@ import { isPathInside } from '@ecopages/core/build';
 import type { DevTransformVendorEntries, EcoBuildPlugin } from '@ecopages/core/integration';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core/integration';
-import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
+import { createClientGraphBoundaryPlugin, createForeignBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
 import { getReactClientGraphAllowSpecifiers } from '../bundling/bundle.ts';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { getReactBrowserPackages } from '../bundling/bootstrap-package-paths.ts';
@@ -99,6 +99,13 @@ export class ReactHmrStrategy extends HmrStrategy {
 				absWorkingDir: this.projectRoot,
 				alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(this.routerAdapter),
 				declaredModules,
+			}),
+			createForeignBoundaryPlugin({
+				projectRoot: this.projectRoot,
+				isForeignFile: (filePath) => {
+					const templateExtension = this.resolveTemplateExtension(filePath);
+					return templateExtension !== undefined && !this.ownedTemplateExtensions.has(templateExtension);
+				},
 			}),
 		];
 	}

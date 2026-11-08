@@ -40,9 +40,11 @@ export default defineConfig({
 | `visitor`       | A Lightning CSS visitor, run over every stylesheet.                                                   |
 | `errorRecovery` | Drop a rule Lightning CSS cannot parse with a warning, instead of failing the stylesheet.             |
 | `filter`        | Regex that picks the stylesheets to process. Default `/\.css$/`.                                      |
+| `cssModules`    | `{ pattern }`: how scoped class names are built. Default `'[hash]_[local]'`.                          |
 
 ## Behaviour
 
+- A `*.module.css` file is a CSS Module: `import styles from './button.module.css'` gives the component a map of local class names to scoped ones, the same on the server and in the browser, and the scoped CSS reaches the Page like any component stylesheet. Names hash the path relative to the app, so they match across folders. `composes ... from` bundles the other file. Only the default export is provided.
 - The native binding loads on the first stylesheet, never while the config is read.
 - `@import` is bundled by Lightning CSS. A relative path, a tsconfig alias or a package resolves as core resolves it, and the `layer()`, `supports()` and media conditions stay. For a stylesheet imported twice, the last import wins. An import that closes a cycle is skipped with a warning.
 - A root-relative or remote `@import` stays external and moves to the top of the output. An `@import` of a missing file, of a dotfile or of a file that is not `.css` is left as written with a warning that names the importing file. Creating the missing file rebuilds the stylesheet in development.

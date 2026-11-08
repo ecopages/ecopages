@@ -7,6 +7,7 @@ import type { EcoPagesAppConfig, IClientBridge } from '../../config/internal-typ
 import { appLogger } from '../../global/app-logger.ts';
 import type { StylesheetInvalidation } from '../../plugins/processor.ts';
 import { InliningProcessor } from '../../__fixtures__/stylesheets/inlining-processor.ts';
+import { ScopingProcessor } from '../../__fixtures__/stylesheets/scoping-processor.ts';
 import { DevelopmentStylesheetService } from './development-stylesheet.service.ts';
 
 /** An {@link InliningProcessor} whose invalidation hook answers `invalidation` and records the files it got. */
@@ -367,5 +368,105 @@ describe('DevelopmentStylesheetService with no Processor', () => {
 		expect(restyled).toContain(main);
 		expect(persisted('styles/main.css')).toContain('.later { color: red; }');
 		expect(persisted('styles/main.css')).not.toContain('@import');
+	});
+});
+
+describe('DevelopmentStylesheetService, for a CSS Module', () => {
+	const MODULE = 'src/components/button.module.css';
+
+	async function createModuleService() {
+		const processor = new ScopingProcessor();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [], processors: [processor] });
+		processor.setContext(config);
+		return new DevelopmentStylesheetService(config);
+	}
+
+	it('keeps the class map and the version of the module when only the CSS changes', async () => {
+		const file = write(MODULE, '.primary { color: red; }\n');
+		const service = await createModuleService();
+		await service.prewarm();
+		const version = service.version(file);
+		const { bridge, cssUpdate } = createBridge();
+
+		write(MODULE, '.primary { color: blue; }\n');
+		expect(await service.applyChanges(changed(file), bridge)).toEqual([file]);
+
+		expect(cssUpdate).toHaveBeenCalledWith(file);
+		expect(service.keepsClassMap(file)).toBe(true);
+		expect(service.version(file)).toBe(version);
+	});
+
+	it('changes the version of the module when a class is added, and says the class map changed', async () => {
+		const file = write(MODULE, '.primary { color: red; }\n');
+		const service = await createModuleService();
+		await service.prewarm();
+		const version = service.version(file);
+		const { bridge, cssUpdate } = createBridge();
+
+		write(MODULE, '.primary { color: red; }\n.secondary { color: blue; }\n');
+		await service.applyChanges(changed(file), bridge);
+
+		expect(cssUpdate).toHaveBeenCalledWith(file);
+		expect(service.keepsClassMap(file)).toBe(false);
+		expect(service.version(file)).not.toBe(version);
+	});
+
+	it('forgets the answer at the next batch and for a stylesheet that is not a CSS Module', async () => {
+		const file = write(MODULE, '.primary { color: red; }\n');
+		const plain = write('src/components/plain.css', '.plain { color: red; }\n');
+		const service = await createModuleService();
+		await service.prewarm();
+		const { bridge } = createBridge();
+
+		write(MODULE, '.primary { color: blue; }\n');
+		write('src/components/plain.css', '.plain { color: blue; }\n');
+		await service.applyChanges(changed(file, plain), bridge);
+		expect(service.keepsClassMap(file)).toBe(true);
+		expect(service.keepsClassMap(plain)).toBe(false);
+
+		await service.applyChanges(changed(plain), bridge);
+		expect(service.keepsClassMap(file)).toBe(false);
+	});
+
+	it('keeps the last good output while the module is broken and recovers when a save fixes it', async () => {
+		const file = write(MODULE, '.primary { color: red; }\n');
+		const service = await createModuleService();
+		await service.prewarm();
+		const version = service.version(file);
+		const { bridge, error } = createBridge();
+
+		write(MODULE, '.primary { color: red;\n');
+		await service.applyChanges(changed(file), bridge);
+		expect(error).toHaveBeenCalledTimes(1);
+		expect(service.version(file)).toBe(version);
+
+		write(MODULE, '.primary { color: green; }\n');
+		expect(await service.applyChanges(changed(file), bridge)).toEqual([file]);
+		expect(service.keepsClassMap(file)).toBe(true);
+	});
+
+	it('does not claim the browser holds a class map after the module was deleted and restored', async () => {
+		const file = write(MODULE, '.primary { color: red; }\n');
+		const service = await createModuleService();
+		await service.prewarm();
+		const { bridge } = createBridge();
+
+		fs.rmSync(file);
+		await service.applyChanges({ created: [], changed: [], deleted: [file] }, bridge);
+		write(MODULE, '.primary { color: red; }\n');
+		await service.applyChanges({ created: [file], changed: [], deleted: [] }, bridge);
+
+		expect(service.keepsClassMap(file)).toBe(false);
+	});
+
+	it('leaves an unused CSS Module alone when the Processor does not scope them', async () => {
+		write('src/components/unused.module.css', '.unused { color: red; }\n');
+		const service = await createService(new InliningProcessor());
+		const error = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+
+		await service.prewarm();
+
+		expect(error).not.toHaveBeenCalled();
+		expect(persisted('components/unused.module.css')).toBeUndefined();
 	});
 });

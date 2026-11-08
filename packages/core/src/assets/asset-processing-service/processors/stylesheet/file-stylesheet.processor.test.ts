@@ -546,3 +546,30 @@ test('inlines a relative @import with no Processor, emits the files its url() na
 	expect(readFileSync(path.join(rootDir, '.eco/public/assets', emitted), 'utf-8')).toBe('png-bytes');
 	expect(processed.bundledSourceFilepaths).toEqual([partial]);
 });
+
+test('writes the scoped CSS of a CSS Module as the stylesheet the Page links', async () => {
+	class ScopingProcessor extends Processor {
+		async setup(): Promise<void> {}
+		override async transformStylesheet(css: string) {
+			return { css: css.replace('.card', '.x_card'), exports: { card: 'x_card' } };
+		}
+	}
+	const appConfig = createConfig();
+	appConfig.processors.set(
+		'scoping',
+		new ScopingProcessor({
+			name: 'scoping',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true }],
+		}),
+	);
+	const stylesheet = writeAppFile('src/components/card.module.css', '.card { color: red; }');
+
+	const processed = await new FileStylesheetProcessor({ appConfig }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+		inline: false,
+	});
+
+	expect(readFileSync(processed.filepath!, 'utf-8')).toBe('.x_card { color: red; }');
+});

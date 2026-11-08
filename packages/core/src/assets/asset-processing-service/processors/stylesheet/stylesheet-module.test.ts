@@ -6,6 +6,7 @@ import { finalizeEcoPagesConfig } from '../../../../config/assembly/finalize-con
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { Processor } from '../../../../plugins/processor.ts';
 import { compileStylesheetModule } from './stylesheet-module.ts';
+import { applyStylesheetProcessors } from './stylesheet-processor-pipeline.ts';
 
 class FixtureStylesheetProcessor extends Processor {
 	async setup(): Promise<void> {}
@@ -64,5 +65,56 @@ describe('compileStylesheetModule', () => {
 		await expect(compileStylesheetModule(await configWith(stylesheetProcessor()), file)).rejects.toThrow(
 			'Unclosed block',
 		);
+	});
+});
+
+describe('compileStylesheetModule, for a CSS Module', () => {
+	class ScopingFixture extends Processor {
+		transforms = 0;
+		async setup(): Promise<void> {}
+		override async transformStylesheet(css: string) {
+			this.transforms += 1;
+			return { css: css.replace('.card', '.x_card'), exports: { card: 'x_card' } };
+		}
+	}
+	const scopingProcessor = () =>
+		new ScopingFixture({
+			name: 'scoping',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true }],
+		});
+	const writeModule = (css: string): string => {
+		const file = path.join(dir, 'card.module.css');
+		fs.writeFileSync(file, css);
+		return file;
+	};
+
+	it('default-exports the class map and not the CSS', async () => {
+		const file = writeModule('.card { color: red; }');
+
+		expect(await compileStylesheetModule(await configWith(scopingProcessor()), file)).toEqual({
+			code: 'export default {"card":"x_card"};\n',
+			dependencies: [],
+		});
+	});
+
+	it('runs the Processor once for the class map and the CSS the Page links', async () => {
+		const processor = scopingProcessor();
+		const config = await configWith(processor);
+		const file = writeModule('.card { color: red; }');
+
+		await compileStylesheetModule(config, file);
+		const delivered = await applyStylesheetProcessors(config, fs.readFileSync(file, 'utf8'), file);
+
+		expect(delivered.css).toBe('.x_card { color: red; }');
+		expect(processor.transforms).toBe(1);
+	});
+
+	it('rejects, naming the package to install, when no Processor scopes CSS Modules', async () => {
+		const file = writeModule('.card { color: red; }');
+
+		await expect(compileStylesheetModule(await configWith(stylesheetProcessor()), file)).rejects.toThrow(
+			'@ecopages/lightningcss-processor',
+		);
+		await expect(compileStylesheetModule(await configWith(), file)).rejects.toThrow('is a CSS Module');
 	});
 });

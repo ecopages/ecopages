@@ -13,7 +13,7 @@ sources:
 
 # Lightning CSS processor
 
-`LightningCssProcessorPlugin` is a stylesheet Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline)) like the [PostCSS processor](/dev/postcss-processor): one `stylesheet` capability for `*.css`, narrowed by a filter, a transform and nothing else. Core owns the cache, the prewarm, the dependency map, the dev writes and `css-update`, and an app registers one stylesheet Processor, so this one replaces PostCSS. It handles plain CSS.
+`LightningCssProcessorPlugin` is a stylesheet Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline)) like the [PostCSS processor](/dev/postcss-processor): one `stylesheet` capability for `*.css`, narrowed by a filter, a transform and nothing else. Core owns the cache, the prewarm, the dependency map, the dev writes and `css-update`, and an app registers one stylesheet Processor, so this one replaces PostCSS. It handles plain CSS and scopes CSS Modules.
 
 ## Transform
 
@@ -37,6 +37,14 @@ Lightning CSS then inlines the rest with the `layer()`, `supports()` and media c
 
 `dependencies` are the partials `read` served and the missing `.css` files, so core rebuilds the entry when one is edited or created. After the Processor, core inlines any relative `@import` left and copies the files the output's `url()` references name by file type, never a dotfile.
 
+## CSS Modules
+
+The `stylesheet` capability sets `cssModules: true`, so core delivers CSS Modules to this Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline#css-modules)). For a file ending in `.module.css`, `bundleStylesheet` passes `cssModules: { pattern }` to `bundleAsync` and the plugin returns `exports` beside the CSS.
+
+- `pattern` is the `cssModules.pattern` option and defaults to `[hash]_[local]`. The hash is Lightning CSS's, of the path relative to `projectRoot`, which is the real path of `rootDir`, so two folders give the same names.
+- `serializeExports` turns each export into one string: the scoped name, then the scoped names it composes, separated by spaces, with the keys sorted so a reordered file gives the same map.
+- `composes: x from './other.module.css'` is resolved like an `@import`, with the same walk, so the other file is read, scoped with the rest and listed in `dependencies`. A file that cannot be found fails the stylesheet, since the exported name would have no rule.
+
 ## Contract tests
 
-The package runs `stylesheetProcessorContract` from `@ecopages/core/processor/contract` and adds a bundling matrix, development rebuild tests and the `e2e/fixtures/lightningcss` production fixture.
+The package runs `stylesheetProcessorContract` from `@ecopages/core/processor/contract`, once with `cssModules: true`, and adds a bundling matrix, development rebuild tests and the `e2e/fixtures/lightningcss` production fixture.

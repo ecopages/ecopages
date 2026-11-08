@@ -1,0 +1,10 @@
+.badge {
+	display: inline-block;
+	padding: 4px 8px;
+	color: rgb(0, 128, 0);
+}
+
+.label {
+	composes: badge;
+	font-weight: 700;
+}

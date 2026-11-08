@@ -17,6 +17,27 @@ class FixtureProcessor extends Processor {
 
 const sass = () => new FixtureProcessor('sass', [{ kind: 'stylesheet', extensions: ['*.scss'] }]);
 
+describe('createStylesheetKinds, for CSS Modules', () => {
+	it('reports a Processor that declares cssModules as scoping them', () => {
+		const scoping = new FixtureProcessor('scoping', [
+			{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true },
+		]);
+		expect(createStylesheetKinds([scoping]).scopesCssModules).toBe(true);
+	});
+
+	it('reports no scoping without the declaration, or without a stylesheet Processor', () => {
+		const plain = new FixtureProcessor('plain', [{ kind: 'stylesheet', extensions: ['*.css'] }]);
+		expect(createStylesheetKinds([plain]).scopesCssModules).toBe(false);
+		expect(createStylesheetKinds([]).scopesCssModules).toBe(false);
+		expect(PLAIN_CSS_KINDS.scopesCssModules).toBe(false);
+	});
+
+	it('ignores cssModules on a capability that is not a stylesheet one', () => {
+		const images = new FixtureProcessor('images', [{ kind: 'image', extensions: ['*.png'], cssModules: true }]);
+		expect(createStylesheetKinds([images]).scopesCssModules).toBe(false);
+	});
+});
+
 describe('createStylesheetKinds', () => {
 	it('knows only .css without a stylesheet Processor', () => {
 		const kinds = createStylesheetKinds([

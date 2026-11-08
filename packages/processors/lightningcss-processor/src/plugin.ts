@@ -8,12 +8,13 @@ import { bundleStylesheet } from './bundle-stylesheet.ts';
 import {
 	logWarnings,
 	resolveLightningCssOptions,
+	serializeExports,
 	toStylesheetError,
 	type ResolvedLightningCssOptions,
 	type LightningCssOptions,
 } from './lightningcss-engine.ts';
 
-export type { LightningCssFeature, LightningCssOptions } from './lightningcss-engine.ts';
+export type { LightningCssFeature, LightningCssModulesOptions, LightningCssOptions } from './lightningcss-engine.ts';
 
 /** Configuration for the Lightning CSS Processor. */
 export interface LightningCssProcessorPluginConfig extends LightningCssOptions {
@@ -55,6 +56,7 @@ export class LightningCssProcessorPlugin extends Processor<LightningCssProcessor
 					kind: 'stylesheet',
 					extensions: ['*.css'],
 					filter,
+					cssModules: true,
 				},
 			],
 		});
@@ -84,6 +86,7 @@ export class LightningCssProcessorPlugin extends Processor<LightningCssProcessor
 			return {
 				css: bundled.hoisted.length > 0 ? `${bundled.hoisted.join('\n')}\n${bundledCss}` : bundledCss,
 				dependencies: bundled.dependencies,
+				...(bundled.exports ? { exports: serializeExports(bundled.exports) } : {}),
 			};
 		} catch (error) {
 			throw toStylesheetError(error, file);

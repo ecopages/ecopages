@@ -14,7 +14,6 @@ import { toPackagePath } from '../utils/package-path.ts';
 import { formatPackageStylesheetEntry } from '../eco/discovered-dependency-paths.ts';
 import { toRootRelativePath } from '../utils/root-relative-path.ts';
 import {
-	assertDeliverableStylesheetImport,
 	collectStaticImports,
 	createDiscoveryCache,
 	createUndeliverableStylesheetError,
@@ -356,7 +355,10 @@ export type ComponentIdentityAttributionOptions = {
  * @remarks
  * Discovery hands those stylesheets to the nearest Eco declaration that imports the module, so no server or
  * browser build sees the import; the build plugin fails at the end of a build for a module no declaration
- * reached. A CSS Module in a module an Integration owns throws here, because no declaration could deliver it.
+ * reached. A CSS Module import stays, since the module uses its class map. Its scoped CSS reaches the Page as a
+ * Dependency of the declaration that imports the module, or that lists the stylesheet itself, so a CSS Module that
+ * no declaration reaches is not an error: a browser script may import the class map of a stylesheet its component
+ * lists. It throws for a CSS Module no Processor scopes.
  */
 function stripPlainModuleStylesheetImports(
 	program: AstNode,
@@ -367,8 +369,8 @@ function stripPlainModuleStylesheetImports(
 	const pathPrefixes = loadTsconfigPathPrefixes(options.projectRoot);
 	const kinds = options.stylesheets ?? PLAIN_CSS_KINDS;
 	for (const entry of collectStaticImports(program)) {
-		if (options.integration) assertDeliverableStylesheetImport(entry, filePath, options.projectRoot, kinds);
 		if (!isDeliveredStylesheetImport(entry, filePath, options.projectRoot, pathPrefixes, kinds)) continue;
+		if (!entry.sideEffectOnly) continue;
 		edits.push({ start: entry.start, end: entry.end, replacement: '' });
 		options.onStrippedStylesheet?.(entry.source);
 	}

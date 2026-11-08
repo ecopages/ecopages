@@ -1,7 +1,8 @@
 import { isProductionRuntime, warnStylesheetOnce } from '@ecopages/core/processor';
+import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import browserslist from 'browserslist';
-import type { Features, TransformOptions, Visitor, Warning } from 'lightningcss';
+import type { CSSModuleExports, Features, TransformOptions, Visitor, Warning } from 'lightningcss';
 
 const logger = new Logger('[@ecopages/lightningcss-processor]');
 
@@ -34,7 +35,22 @@ export interface LightningCssOptions {
 	 * @default false
 	 */
 	errorRecovery?: boolean;
+	/** How `*.module.css` stylesheets are scoped. */
+	cssModules?: LightningCssModulesOptions;
 }
+
+/** The options of the CSS Modules Lightning CSS scopes. */
+export interface LightningCssModulesOptions {
+	/**
+	 * How a scoped class name is built, from `[hash]`, `[local]` and `[name]`, which are the hash of the path
+	 * relative to the app root, the class name as written and the file name without `.css`, such as `button-module`.
+	 * @default '[hash]_[local]'
+	 */
+	pattern?: string;
+}
+
+/** The scoped class name pattern CSS Modules use unless the options set another. */
+export const DEFAULT_CSS_MODULES_PATTERN = '[hash]_[local]';
 
 /** A failure Lightning CSS raised, which names the file and the position. */
 type LightningCssError = Error & { fileName?: string; loc?: { line: number; column: number } };
@@ -87,20 +103,24 @@ export type ResolvedLightningCssOptions = Pick<
 	| 'exclude'
 	| 'visitor'
 	| 'errorRecovery'
->;
+> & {
+	/** The `pattern` of the CSS Modules this Processor scopes. */
+	cssModulesPattern: string;
+};
 
 /**
  * Resolves the options of a Processor for an app rooted at `rootDir`.
  *
  * @remarks
- * Unset options are left out, not passed as `undefined`: the native binding rejects an explicit `undefined`. `projectRoot` makes the hashes Lightning CSS derives from a path relative to the app, so they match across machines.
+ * Unset options are left out, not passed as `undefined`: the native binding rejects an explicit `undefined`. `projectRoot` makes the hashes Lightning CSS derives from a path relative to the app, so they match across machines and folders; it is the real path of `rootDir`, since Lightning CSS reads the real path of each stylesheet.
  */
 export async function resolveLightningCssOptions(
 	options: LightningCssOptions | undefined,
 	rootDir: string,
 ): Promise<ResolvedLightningCssOptions> {
 	return {
-		projectRoot: rootDir,
+		projectRoot: fileSystem.exists(rootDir) ? fileSystem.realpath(rootDir) : rootDir,
+		cssModulesPattern: options?.cssModules?.pattern ?? DEFAULT_CSS_MODULES_PATTERN,
 		minify: options?.minify ?? isProductionRuntime(),
 		...withoutUndefined({
 			drafts: options?.drafts,
@@ -128,4 +148,23 @@ export function toStylesheetError(error: unknown, file: string): Error {
 	if (!(error instanceof Error)) return new Error(`${file}: ${String(error)}`);
 	const { fileName = file, loc, message } = error as LightningCssError;
 	return new Error(`${fileName}${loc ? `:${loc.line}:${loc.column}` : ''} ${message}`, { cause: error });
+}
+
+/**
+ * The class map core serves for a CSS Module: each local name, sorted, mapped to its scoped name followed by the
+ * scoped names it composes, separated by spaces.
+ *
+ * @remarks
+ * A name composed from the global scope stays as written. Sorting keeps the output the same whichever order the
+ * rules were written in.
+ */
+export function serializeExports(exports: CSSModuleExports): Record<string, string> {
+	return Object.fromEntries(
+		Object.keys(exports)
+			.sort()
+			.map((local) => {
+				const { name, composes } = exports[local]!;
+				return [local, [name, ...composes.map((composed) => composed.name)].join(' ')];
+			}),
+	);
 }

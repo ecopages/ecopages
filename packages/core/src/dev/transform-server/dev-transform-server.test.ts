@@ -9,6 +9,7 @@ import { DevTransformServer } from './dev-transform-server.ts';
 import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
 import { Processor } from '../../plugins/processor.ts';
+import { ScopingProcessor } from '../../__fixtures__/stylesheets/scoping-processor.ts';
 
 const tempRoots: string[] = [];
 
@@ -395,6 +396,57 @@ describe('DevTransformServer', () => {
 			expect(await response?.text()).toBe(expected);
 		},
 	);
+
+	describe('a CSS Module', () => {
+		async function createModuleServer(css: string) {
+			const rootDir = createTempRoot('dev-transform-server-css-module');
+			const cssPath = path.join(rootDir, 'src', 'components', 'card.module.css');
+			fs.mkdirSync(path.dirname(cssPath), { recursive: true });
+			fs.writeFileSync(cssPath, css);
+			const processor = new ScopingProcessor();
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [], processors: [processor] });
+			processor.setContext(config);
+			const errors: string[] = [];
+			const server = new DevTransformServer({
+				appConfig: config,
+				onTransformError: (message) => errors.push(message),
+			});
+			const url = server.registerModule(cssPath);
+			const request = async () => {
+				const response = await server.tryHandleRequest(new Request(`http://localhost${url}`));
+				return { status: response?.status, code: await response?.text() };
+			};
+			const save = (contents: string) => {
+				fs.writeFileSync(cssPath, contents);
+				server.invalidateSource(cssPath);
+			};
+			return { errors, request, save };
+		}
+
+		it('is served as its class map, not as CSS', async () => {
+			const { request } = await createModuleServer('.card { color: red; }\n');
+			const { status, code } = await request();
+
+			expect(status).toBe(200);
+			expect(code).toMatch(/^export default \{"card":"c[0-9a-f]+_card"\};\n$/u);
+		});
+
+		it('keeps serving the last class map and reports the error until a save compiles again', async () => {
+			const { errors, request, save } = await createModuleServer('.card { color: red; }\n');
+			const good = await request();
+
+			save('.card { color: red;\n');
+			expect(await request()).toEqual(good);
+			expect(errors).toHaveLength(1);
+			expect(errors[0]).toContain('card.module.css');
+
+			save('.card { color: red; }\n.title { color: blue; }\n');
+			const recovered = await request();
+			expect(recovered.status).toBe(200);
+			expect(recovered.code).toContain('"title":');
+			expect(errors).toHaveLength(1);
+		});
+	});
 
 	describe('a stylesheet whose Processor throws', () => {
 		class StrictProcessor extends Processor {

@@ -131,3 +131,61 @@ describe('applyStylesheetProcessors inlining app @imports', () => {
 		});
 	});
 });
+
+describe('applyStylesheetProcessors, for a CSS Module', () => {
+	class ScopingFixture extends Processor {
+		async setup(): Promise<void> {}
+		override async transformStylesheet(css: string) {
+			return { css: css.replace('.a', '.x_a'), exports: { a: 'x_a' } };
+		}
+	}
+	const withProcessor = (processor: Processor): EcoPagesAppConfig =>
+		({ processors: new Map([[processor.name, processor]]) }) as unknown as EcoPagesAppConfig;
+	const capable = () =>
+		new ScopingFixture({
+			name: 'scoping',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true }],
+		});
+
+	it('returns the scoped CSS with the class map of the same transform', async () => {
+		expect(await applyStylesheetProcessors(withProcessor(capable()), '.a {}', '/app/card.module.css')).toEqual({
+			css: '.x_a {}',
+			dependencies: [],
+			exports: { a: 'x_a' },
+		});
+	});
+
+	it('gives a stylesheet that is not a CSS Module no exports', async () => {
+		const result = await applyStylesheetProcessors(withProcessor(capable()), '.a {}', '/app/card.css');
+		expect(result).not.toHaveProperty('exports');
+	});
+
+	it('rejects with the package to install when no Processor scopes CSS Modules', async () => {
+		const unaware = new FixtureStylesheetProcessor({
+			name: 'plain',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }],
+		});
+		await expect(
+			applyStylesheetProcessors(withProcessor(unaware), '.a {}', '/app/card.module.css'),
+		).rejects.toThrow('@ecopages/lightningcss-processor');
+		await expect(applyStylesheetProcessors(configWith(undefined), '.a {}', '/app/card.module.css')).rejects.toThrow(
+			'/app/card.module.css is a CSS Module',
+		);
+	});
+
+	it('rejects a Processor that declares cssModules but returns no exports', async () => {
+		class Forgetful extends Processor {
+			async setup(): Promise<void> {}
+			override async transformStylesheet(css: string) {
+				return { css };
+			}
+		}
+		const forgetful = new Forgetful({
+			name: 'forgetful',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true }],
+		});
+		await expect(
+			applyStylesheetProcessors(withProcessor(forgetful), '.a {}', '/app/card.module.css'),
+		).rejects.toThrow('Processor "forgetful" returned no exports');
+	});
+});

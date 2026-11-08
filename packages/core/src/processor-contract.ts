@@ -6,6 +6,8 @@
 import assert from 'node:assert/strict';
 import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
+import { applyStylesheetProcessors } from './assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts';
+import { compileStylesheetModule } from './assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 import { collectBuildEntryInputPaths } from './build/build-graph.ts';
 import { createServerBuildRequest } from './build/runtime/build-request-policy.ts';
 import { finalizeEcoPagesConfig } from './config/assembly/finalize-config.ts';
@@ -26,6 +28,14 @@ export interface StylesheetProcessorContractSubject {
 	createProcessor(): AnyProcessor;
 	/** A stylesheet the Processor rejects; defaults to an unclosed block. */
 	invalidCss?: string;
+	/**
+	 * Whether the Processor declares `cssModules`, which adds the cases that check its scoping.
+	 *
+	 * @remarks
+	 * `createProcessor` must then return a Processor whose `stylesheet` capability scopes `*.module.css` files: each
+	 * class of `.name` gets a scoped name, and `exports` maps `name` to it.
+	 */
+	cssModules?: boolean;
 }
 
 /** One check of the contract: `run` rejects when the Processor breaks it. */
@@ -132,6 +142,7 @@ export function stylesheetProcessorContract(
 ): StylesheetProcessorContractCase[] {
 	const invalidCss = subject.invalidCss ?? '.broken {\n';
 	return [
+		...(subject.cssModules ? cssModuleCases(subject) : []),
 		{
 			name: 'the stylesheets a transform reads drive rebuilds',
 			run: () =>
@@ -208,29 +219,102 @@ export function stylesheetProcessorContract(
 		},
 		{
 			name: 'in development, a transform that throws keeps the last good output until a save fixes it',
+			run: () => breakAndFix(subject, 'src/card.css'),
+		},
+	];
+}
+
+/**
+ * Breaks the stylesheet at `file` in development, checks that its last good output stays and the error shows, then fixes it
+ * and checks that it recovers.
+ */
+function breakAndFix(subject: StylesheetProcessorContractSubject, file: string): Promise<void> {
+	const invalidCss = subject.invalidCss ?? '.broken {\n';
+	return withApp(subject.createProcessor(), async (app) => {
+		const goodCss = '.card { color: red; }\n';
+		const card = app.write(file, goodCss);
+		const stylesheets = new DevelopmentStylesheetService(app.config);
+		await stylesheets.prewarm();
+		const lastGood = stylesheets.version(card);
+		const { bridge, refreshed, errors } = createRecordingBridge();
+
+		app.write(file, invalidCss);
+		await stylesheets.applyChanges(changed(card), bridge);
+		assert.equal(errors.length, 1, 'a failed rebuild does not show its error');
+		assert.deepEqual(refreshed, [], 'a failed rebuild refreshes the stylesheet');
+		assert.equal(stylesheets.version(card), lastGood, 'a failed rebuild drops the last good output');
+
+		app.write(file, goodCss);
+		assert.deepEqual(
+			await stylesheets.applyChanges(changed(card), bridge),
+			[card],
+			'the save that fixes the stylesheet does not recover it',
+		);
+		assert.deepEqual(refreshed, [card], 'the save that fixes the stylesheet does not refresh it');
+	});
+}
+
+const MODULE_CSS = '.primary { color: red; }\n.secondary { color: blue; }\n';
+
+/** Processes the CSS Module `src/button.module.css` of a fresh app, written with `css`. */
+async function scopeButton(subject: StylesheetProcessorContractSubject, css: string) {
+	const processor = subject.createProcessor();
+	const app = await createContractApp(processor);
+	try {
+		const file = app.write('src/button.module.css', css);
+		return await applyStylesheetProcessors(app.config, css, file);
+	} finally {
+		app.dispose();
+	}
+}
+
+function cssModuleCases(subject: StylesheetProcessorContractSubject): StylesheetProcessorContractCase[] {
+	return [
+		{
+			name: 'a CSS Module returns the scoped CSS and the class map that names it',
+			run: async () => {
+				const { css, exports } = await scopeButton(subject, MODULE_CSS);
+				assert.ok(exports, 'a CSS Module returned no exports');
+				assert.deepEqual(Object.keys(exports).sort(), ['primary', 'secondary']);
+				for (const [local, scoped] of Object.entries(exports)) {
+					assert.ok(scoped.split(' ')[0]!.includes(local), `the scoped name of ${local} does not keep it`);
+					assert.ok(css.includes(`.${scoped.split(' ')[0]}`), `the CSS does not define the scoped ${local}`);
+					assert.ok(!new RegExp(`\\.${local}\\b`).test(css), `the CSS still defines the unscoped ${local}`);
+				}
+			},
+		},
+		{
+			name: 'the scoped names are the same in two folders',
+			run: async () => {
+				const first = await scopeButton(subject, MODULE_CSS);
+				const second = await scopeButton(subject, MODULE_CSS);
+				assert.deepEqual(second.exports, first.exports, 'the class map depends on the app folder');
+				assert.equal(second.css, first.css, 'the scoped CSS depends on the app folder');
+			},
+		},
+		{
+			name: 'the module a CSS Module compiles to holds the class map, not the CSS',
 			run: () =>
 				withApp(subject.createProcessor(), async (app) => {
-					const goodCss = '.card { color: red; }\n';
-					const card = app.write('src/card.css', goodCss);
-					const stylesheets = new DevelopmentStylesheetService(app.config);
-					await stylesheets.prewarm();
-					const lastGood = stylesheets.version(card);
-					const { bridge, refreshed, errors } = createRecordingBridge();
+					const file = app.write('src/button.module.css', MODULE_CSS);
+					const { exports } = await applyStylesheetProcessors(app.config, MODULE_CSS, file);
 
-					app.write('src/card.css', invalidCss);
-					await stylesheets.applyChanges(changed(card), bridge);
-					assert.equal(errors.length, 1, 'a failed rebuild does not show its error');
-					assert.deepEqual(refreshed, [], 'a failed rebuild refreshes the stylesheet');
-					assert.equal(stylesheets.version(card), lastGood, 'a failed rebuild drops the last good output');
-
-					app.write('src/card.css', goodCss);
-					assert.deepEqual(
-						await stylesheets.applyChanges(changed(card), bridge),
-						[card],
-						'the save that fixes the stylesheet does not recover it',
-					);
-					assert.deepEqual(refreshed, [card], 'the save that fixes the stylesheet does not refresh it');
+					const { code } = await compileStylesheetModule(app.config, file);
+					assert.equal(code, `export default ${JSON.stringify(exports)};\n`);
+					assert.ok(!code.includes('color'), 'the module embeds the CSS of the CSS Module');
 				}),
+		},
+		{
+			name: 'a CSS Module that the Processor rejects does not compile',
+			run: () =>
+				withApp(subject.createProcessor(), async (app) => {
+					const file = app.write('src/button.module.css', subject.invalidCss ?? '.broken {\n');
+					await assert.rejects(compileStylesheetModule(app.config, file));
+				}),
+		},
+		{
+			name: 'in development, a CSS Module that throws keeps the last good output until a save fixes it',
+			run: () => breakAndFix(subject, 'src/card.module.css'),
 		},
 	];
 }

@@ -18,7 +18,7 @@ The `@ecopages/lightningcss-processor` package is a stylesheet Processor that ru
 | A setup built on PostCSS plugins                                               | [PostCSS Processor](/docs/ecosystem/postcss-processor)                    |
 | Tailwind v3                                                                    | [PostCSS Processor](/docs/ecosystem/postcss-processor)                    |
 
-CSS Modules and a Tailwind v4 preset are not in this package yet. An app has one stylesheet Processor, so choosing this one replaces the PostCSS Processor. Do not register both.
+A Tailwind v4 preset is not in this package yet; CSS Modules are, see [CSS Modules](#css-modules). An app has one stylesheet Processor, so choosing this one replaces the PostCSS Processor. Do not register both.
 
 ## Installation
 
@@ -56,12 +56,36 @@ export default defineConfig({
 | `visitor`       | A Lightning CSS visitor, run over every stylesheet.                                                  |
 | `errorRecovery` | Drop a rule Lightning CSS cannot parse with a warning, instead of failing the stylesheet.            |
 | `filter`        | Regex that picks the stylesheets to process. Default `/\.css$/`.                                     |
+| `cssModules`    | `{ pattern }`: how scoped class names are built. Default `'[hash]_[local]'`.                         |
 
 ## Imports
 
 `@import` is bundled with its `layer()`, `supports()` and media conditions. A relative path, a tsconfig alias or a package name resolves. A stylesheet imported twice appears once, at its last import, and an import that closes a cycle is skipped with a warning.
 
 A root-relative or remote `@import` stays external and moves to the top of the output. An `@import` of a missing file, a dotfile or a file that is not `.css` is left as written with a warning that names the importing file. Relative `url()` references of an imported partial are rewritten to name the same file from the importing stylesheet, and the files they name are copied to the build output.
+
+## CSS Modules
+
+A stylesheet named `*.module.css` is a CSS Module. Import it and use the class names it exports:
+
+```tsx
+import styles from './button.module.css';
+
+export const Button = eco.component({
+	render: () => <button class={styles.primary}>Save</button>,
+});
+```
+
+- The server HTML, the browser bundle and the hydrated island use the same scoped names. Ecopages links the scoped CSS on the Page that renders the component, like any other stylesheet of the component.
+- The default export is the only one: a read-only map of the local class name to the scoped one. `composes` adds the composed names to the entry, so `class={styles.primary}` carries them.
+- Names are `[hash]_[local]`, hashed from the path relative to the app, so a build gives the same names in any folder. Set `cssModules: { pattern }` to change the pattern.
+- `composes: base from './base.module.css'` bundles the other file.
+- Type the import with the declaration core ships: `import '@ecopages/core/declarations'` in your `modules.d.ts`.
+- A browser script that imports a CSS Module gets the same class names; the CSS reaches the Page when the component that uses the script imports the module too or lists it in `dependencies.stylesheets`.
+- A CSS Module from a package is not supported.
+- Without this Processor, importing a CSS Module fails the build and names the importing file.
+
+In development, an edit to the CSS refreshes the stylesheet in place. An edit that adds, removes or renames a class also updates the components that import the module.
 
 ## Error Handling
 

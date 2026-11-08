@@ -1,0 +1,16 @@
+{
+	"name": "@ecopages/e2e-css-modules-app",
+	"private": true,
+	"type": "module",
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/ecopages-jsx": "workspace:*",
+		"@ecopages/jsx": "^0.8.2",
+		"@ecopages/lightningcss-processor": "workspace:*",
+		"@ecopages/lit": "workspace:*",
+		"@ecopages/react": "workspace:*",
+		"lit": "^3.3.3",
+		"react": "^19.2.6",
+		"react-dom": "^19.2.6"
+	}
+}

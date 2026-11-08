@@ -1,6 +1,9 @@
 import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
-import { applyStylesheetProcessors } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts';
+import {
+	applyStylesheetProcessors,
+	type ProcessedStylesheet,
+} from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts';
 import { writeSourceRelativeStylesheet } from '../../assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../../config/internal-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -31,6 +34,8 @@ interface StylesheetScope {
 /** The last good output of a stylesheet and its digest. */
 interface StylesheetOutput {
 	css: string;
+	/** The serialized class map of a CSS Module, which is the module a binding import receives. */
+	classMap?: string;
 	digest: string;
 }
 
@@ -45,7 +50,9 @@ interface StylesheetOutput {
  *   that read it, taken from the transform's own `dependencies`;
  * - runs watcher batches one at a time, in order;
  * - writes each output at its source-relative href (only for a stylesheet in `srcDir`) and sends `css-update` only
- *   when the bytes changed.
+ *   when the bytes changed;
+ * - tells apart an edit to a CSS Module that keeps its class map, which only the delivered CSS follows, from one that
+ *   changes the map, which the modules that import it must re-import (see {@link keepsClassMap}).
  *
  * Only the Project Watcher and the dev transform server create it, so it never runs in production, which writes no
  * stylesheet outside the build.
@@ -61,6 +68,8 @@ export class DevelopmentStylesheetService {
 	private readonly failed = new Set<string>();
 	/** Partials whose transform on their own failed, retried when a stylesheet is created. */
 	private readonly failedPartials = new Set<string>();
+	/** The CSS Modules the latest batch rebuilt, by whether their class map is the one the browser holds. */
+	private readonly classMapKept = new Map<string, boolean>();
 	private readonly dependencies = new Map<string, ReadonlySet<string>>();
 	private readonly dependents = new Map<string, Set<string>>();
 	private queue: Promise<unknown> = Promise.resolve();
@@ -140,6 +149,7 @@ export class DevelopmentStylesheetService {
 			const deleted = resolve(changes.deleted);
 			for (const file of deleted) this.forget(file);
 
+			this.classMapKept.clear();
 			const cache = requireAppRuntime(this.appConfig).processedStylesheets;
 			cache.evict();
 			const affected = this.collectAffected(scope, created, changed, deleted);
@@ -203,6 +213,18 @@ export class DevelopmentStylesheetService {
 	}
 
 	/**
+	 * Whether the latest batch rebuilt the CSS Module `file` and left its class map as it was.
+	 *
+	 * @remarks
+	 * The browser then needs only the new CSS, which `css-update` carries; the modules that import the class map keep
+	 * working, so the watcher does not hot-update them. A CSS Module this batch did not rebuild, or deleted, or one
+	 * whose class map changed, answers `false`, as does any other stylesheet.
+	 */
+	keepsClassMap(file: string): boolean {
+		return this.classMapKept.get(path.resolve(file)) ?? false;
+	}
+
+	/**
 	 * The stylesheets the Processor's invalidation hook names for the files of a batch that are not stylesheets.
 	 *
 	 * @remarks
@@ -237,6 +259,7 @@ export class DevelopmentStylesheetService {
 		return (
 			(processor?.canProcessAsset('stylesheet', file) ?? true) &&
 			kinds.isStylesheet(file) &&
+			(kinds.scopesCssModules || !kinds.isCssModule(file)) &&
 			!isPathInside(file, this.appConfig.absolutePaths.publicDir)
 		);
 	}
@@ -287,18 +310,22 @@ export class DevelopmentStylesheetService {
 	 */
 	private async transform(file: string, bridge?: IClientBridge): Promise<boolean | string> {
 		if (!fileSystem.exists(file)) return false;
-		let processed: { css: string; dependencies: string[] };
+		let processed: ProcessedStylesheet;
 		try {
 			processed = await applyStylesheetProcessors(this.appConfig, await fileSystem.readFile(file), file);
 		} catch (error) {
 			return error instanceof Error ? error.message : String(error);
 		}
-		const { css, dependencies } = processed;
+		const { css, dependencies, exports } = processed;
+		const classMap = exports ? JSON.stringify(exports) : undefined;
 		this.recordDependencies(file, dependencies);
-		if (this.outputs.get(file)?.css === css) return false;
+		const previous = this.outputs.get(file);
+		if (classMap !== undefined)
+			this.classMapKept.set(file, previous !== undefined && previous.classMap === classMap);
+		if (previous?.css === css && previous.classMap === classMap) return false;
 		const { srcDir, distDir } = this.appConfig.absolutePaths;
 		writeSourceRelativeStylesheet({ srcDir, distDir }, file, css);
-		this.outputs.set(file, { css, digest: contentHash(css) });
+		this.outputs.set(file, { css, classMap, digest: contentHash(classMap ?? css) });
 		bridge?.cssUpdate(file);
 		return true;
 	}

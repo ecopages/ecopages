@@ -32,7 +32,7 @@ A plugin that owns rendering for a file type (e.g., React, KitaJS, Lit, MDX). Ea
 _Avoid_: Plugin, adapter, template language
 
 **Processor**:
-A build-time plugin that transforms assets like stylesheets (PostCSS, Tailwind) or images. Processors are registered alongside Integrations but have distinct contracts. At most one Processor in an app declares a `stylesheet` capability; its declared extensions, plus `.css`, are what core treats as stylesheets.
+A build-time plugin that transforms assets like stylesheets (PostCSS, Tailwind) or images. Processors are registered alongside Integrations but have distinct contracts. At most one Processor in an app declares a `stylesheet` capability; its declared extensions, plus `.css`, are what core treats as stylesheets. A `stylesheet` capability with `cssModules: true` scopes **CSS Modules**: its transform returns the scoped CSS and `exports`, the class map.
 _Avoid_: Plugin, asset plugin, transformer
 
 **Static Page**:
@@ -160,7 +160,7 @@ _Avoid_: URL list, crawl map
 - Each **Page** receives context: **Params** (from dynamic routes), **Query** (from URL), and optionally **Locals** (from middleware)
 - An **Integration** owns rendering for a specific file extension; multiple Integrations coexist as peers
 - A **Processor** owns transformation of non-page assets (e.g., stylesheets); Integrations and Processors are distinct
-- **Dependencies** combine explicit declarations with discovery of direct local Eco Component imports (including named `export { X } from` barrels) and relative, aliased or package side-effect CSS imports, walking through plain local modules to the side-effect CSS and Eco Components they import. Inside the app root, a plain module's side-effect CSS import that no declaration reaches fails the build; so does a CSS Module in a module an Integration owns or discovery reaches. Explicit asset settings take precedence; inferred stylesheet provenance stays on Component identity until collection. Scripts retain explicit server and browser loading policy. Merging Page and content Dependencies keeps each file's contribution so relative assets resolve against the file that declared them.
+- **Dependencies** combine explicit declarations with discovery of direct local Eco Component imports (including named `export { X } from` barrels) and relative, aliased or package side-effect CSS imports, walking through plain local modules to the side-effect CSS and Eco Components they import. A CSS Module import (`import styles from './card.module.css'`) keeps its binding for the class map and delivers the scoped CSS as a stylesheet Dependency of the declaration discovery attributes it to; with no Processor that scopes CSS Modules the build fails. Inside the app root, a plain module's side-effect CSS import that no declaration reaches fails the build. Explicit asset settings take precedence; inferred stylesheet provenance stays on Component identity until collection. Scripts retain explicit server and browser loading policy. Merging Page and content Dependencies keeps each file's contribution so relative assets resolve against the file that declared them.
 - When an **Integration** encounters a **Foreign Child**, it must hand off the corresponding **Foreign Subtree** to the owning **Integration** before final HTML is returned
 - Each **Page** may produce one **Page Browser Graph**, including any lazy browser entries that belong to that Page
 - An **Integration** may apply an **SSR Policy** per Page or Component without forcing one global browser runtime bundle for every Page

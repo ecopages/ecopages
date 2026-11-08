@@ -3,6 +3,7 @@ import os from 'node:os';
 import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import { InliningProcessor } from './__fixtures__/stylesheets/inlining-processor.ts';
+import { ScopingProcessor } from './__fixtures__/stylesheets/scoping-processor.ts';
 import { assertBuildSucceeded } from './build/build-log.ts';
 import { createServerBuildRequest } from './build/runtime/build-request-policy.ts';
 import { finalizeEcoPagesConfig } from './config/assembly/finalize-config.ts';
@@ -12,6 +13,16 @@ import { requireAppRuntime } from './utils/app-runtime.ts';
 describe('stylesheet Processor contract, for a fixture Processor', () => {
 	const cases = stylesheetProcessorContract({
 		createProcessor: () => new InliningProcessor(),
+	});
+	for (const contractCase of cases) {
+		it(contractCase.name, contractCase.run);
+	}
+});
+
+describe('stylesheet Processor contract, for a fixture scoping Processor', () => {
+	const cases = stylesheetProcessorContract({
+		createProcessor: () => new ScopingProcessor(),
+		cssModules: true,
 	});
 	for (const contractCase of cases) {
 		it(contractCase.name, contractCase.run);

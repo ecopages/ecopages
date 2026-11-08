@@ -1,7 +1,7 @@
 export const configExampleCode = `import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
 
 export default defineConfig({
   defaultMetadata: {
@@ -10,11 +10,7 @@ export default defineConfig({
   },
   integrations: [ecopagesJsxPlugin()],
   processors: [
-    postcssProcessorPlugin(
-      tailwindV4Preset({
-        referencePath: 'src/styles/app.css',
-      })
-    ),
+    lightningCssProcessorPlugin(tailwindV4Preset({ referencePath: 'src/styles/app.css' })),
   ],
 });`;
 

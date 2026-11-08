@@ -1,9 +1,9 @@
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 @theme {
-	--font-sans: 'Geist Sans', ui-sans-serif, system-ui, sans-serif;
-	--font-heading: 'Karla', ui-sans-serif, system-ui, sans-serif;
-	--font-mono: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	--font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-heading: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
 	--color-night-sky-50: hsl(225 100% 98%);
 	--color-night-sky-100: hsl(225 100% 95%);

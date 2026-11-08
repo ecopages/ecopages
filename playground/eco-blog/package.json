@@ -21,7 +21,7 @@
 		"@ecopages/jsx": "^0.8.2",
 		"@ecopages/lightningcss-processor": "workspace:*",
 		"@ecopages/radiant": "^0.8.2",
-		"@ecopages/radiant-ui": "^0.3.3",
+		"@ecopages/radiant-ui": "^0.3.4",
 		"@ecopages/signals": "^0.8.2",
 		"@faker-js/faker": "^10.4.0",
 		"@tailwindcss/node": "^4.3.3",

@@ -90,8 +90,8 @@ importers:
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.3
-        version: 0.3.3(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@ecopages/signals':
         specifier: ^0.8.2
         version: 0.8.2
@@ -1165,8 +1165,8 @@ importers:
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.3
-        version: 0.3.3(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@ecopages/signals':
         specifier: ^0.8.2
         version: 0.8.2
@@ -1707,8 +1707,8 @@ importers:
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.3
-        version: 0.3.3(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -1813,8 +1813,8 @@ importers:
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.3
-        version: 0.3.3(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -2068,8 +2068,8 @@ importers:
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.3
-        version: 0.3.3(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -2149,8 +2149,8 @@ importers:
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.3
-        version: 0.3.3(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@ecopages/signals':
         specifier: ^0.8.2
         version: 0.8.2
@@ -2850,12 +2850,12 @@ packages:
     peerDependencies:
       typescript: ^5.0.0
 
-  '@ecopages/radiant-ui@0.3.3':
-    resolution: {integrity: sha512-PgeUjPaUICJwQzogqjnmEEcRrQE13QGU26ZuHOVZivk35nTJe/x4JHhzLg4Aov52+iVA8h/v2zln176iW7AVVQ==}
+  '@ecopages/radiant-ui@0.3.4':
+    resolution: {integrity: sha512-dOPAA4SMHqrDwvs6R8F3fctkpD+ik79LCrSl7zseqMgtMy+0duOXt9zv2goFAQ8hAopsFh9RTDt2WivWq+rHSQ==}
     peerDependencies:
-      '@ecopages/jsx': '>=0.8.1'
-      '@ecopages/radiant': '>=0.8.1'
-      '@ecopages/signals': '>=0.8.1'
+      '@ecopages/jsx': '>=0.8.2'
+      '@ecopages/radiant': '>=0.8.2'
+      '@ecopages/signals': '>=0.8.2'
 
   '@ecopages/radiant@0.8.2':
     resolution: {integrity: sha512-5nGsgmmmDR1pc9lkIToGEZpwWfsQfk9HDl/4HWX4mx+NuB34dmszOkAkPeJSUHx6kVtBpqqjMd9QaG+rO4zSwA==}
@@ -8410,7 +8410,7 @@ snapshots:
     dependencies:
       typescript: 5.9.3
 
-  '@ecopages/radiant-ui@0.3.3(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)':
+  '@ecopages/radiant-ui@0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)':
     dependencies:
       '@ecopages/jsx': 0.8.2(@ecopages/signals@0.8.2)
       '@ecopages/radiant': 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))

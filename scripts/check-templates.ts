@@ -31,7 +31,7 @@ const manifestPath = path.join(repoRoot, 'packages/ecopages/templates.json');
 const latestCompatibleExternalRanges: Record<string, string> = {
 	'@ecopages/jsx': '^0.8.2',
 	'@ecopages/radiant': '^0.8.2',
-	'@ecopages/radiant-ui': '^0.3.3',
+	'@ecopages/radiant-ui': '^0.3.4',
 	'@ecopages/signals': '^0.8.2',
 };
 

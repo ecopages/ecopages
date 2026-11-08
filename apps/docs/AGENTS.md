@@ -37,7 +37,6 @@
 ## Styling
 
 - `eco.config.ts` registers `lightningCssProcessorPlugin` with the Tailwind v4 preset and the opt-in `suffixNesting()` plugin, which expands the Sass-style `&--x` / `&__x` nesting the stylesheets use. Browser `targets` repeat the PostCSS preset's former autoprefixer default. Keep the stylesheets in plain CSS nesting plus Tailwind `@apply`; there is no PostCSS in this app.
-- `@ecopages/radiant-ui` 0.3.3 ships duplicated rules that PostCSS's cssnano used to drop and Lightning CSS keeps, so the CSS bundle is larger than it would otherwise be until radiant-ui is rebuilt.
 
 ## Navigation
 

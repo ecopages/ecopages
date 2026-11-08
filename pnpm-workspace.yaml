@@ -23,4 +23,4 @@ minimumReleaseAgeExclude:
     - '@ecopages/radiant@0.8.2'
     - '@ecopages/signals@0.8.2'
     - postcss-nested@8.0.1
-    - '@ecopages/radiant-ui@0.3.3'
+    - '@ecopages/radiant-ui@0.3.4'

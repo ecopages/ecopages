@@ -19,7 +19,7 @@
 		"@ecopages/lightningcss-processor": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/radiant": "^0.8.2",
-		"@ecopages/radiant-ui": "^0.3.3",
+		"@ecopages/radiant-ui": "^0.3.4",
 		"@ecopages/signals": "^0.8.2",
 		"@tailwindcss/node": "^4.0.0",
 		"@tailwindcss/oxide": "^4.0.0",

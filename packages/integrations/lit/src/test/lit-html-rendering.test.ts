@@ -107,6 +107,26 @@ describe('renderLitCustomElementsInMarkup', () => {
 		expect(countShadowRoots(html)).toBe(countShadowRoots(outer) + 1);
 	});
 
+	it('leaves an element that renders into the light DOM alone once Lit rendered it', async () => {
+		class LightProbe extends LitElement {
+			override createRenderRoot() {
+				return this;
+			}
+			renderLight() {
+				return litHtml`<p data-light>light</p>`;
+			}
+			override render() {
+				return litHtml`<b>shadow</b>`;
+			}
+		}
+		if (!customElements.get('light-probe')) {
+			customElements.define('light-probe', LightProbe);
+		}
+		const rendered = await renderLitValueToString('<light-probe></light-probe>');
+
+		expect(await renderLitCustomElementsInMarkup(rendered)).toBe(rendered);
+	});
+
 	it('returns markup without a custom element as it is', async () => {
 		const markup = '<p>plain &amp; simple</p>';
 

@@ -129,8 +129,9 @@ function hideRenderedCustomElements(markup: string, names: string[]): string {
  * this on a Page document whose `ssr: true` scripts are assigned to Lit.
  *
  * An element that already has a declarative shadow root was rendered by Lit and is left alone, so a document that
- * mixes both is safe to pass through. Elements that render into the light DOM are not recognised that way. Markup
- * with no custom element tag is returned as it is.
+ * mixes both is safe to pass through. `@lit-labs/ssr` gives every Lit element a shadow root template, also one that
+ * sets `createRenderRoot` to render into the light DOM or adds `renderLight()` output, so that is the one signal.
+ * Markup with no custom element tag is returned as it is.
  */
 export async function renderLitCustomElementsInMarkup(markup: string): Promise<string> {
 	const names: string[] = [];

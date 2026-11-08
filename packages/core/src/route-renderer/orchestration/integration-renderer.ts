@@ -224,8 +224,8 @@ export type IntegrationRendererHooks = {
 	 * @remarks
 	 * Core calls it on the finished document of a Page that has `ssr: true` scripts assigned to this Integration's
 	 * preloader, whichever Integration owns the Page, so an element it registered gets its server output wherever the
-	 * markup came from. It must leave markup it already rendered unchanged. Only a string document is passed; a
-	 * streamed body is not.
+	 * markup came from. It must leave markup it already rendered unchanged. Only a string document is passed; any
+	 * other body is returned as it is.
 	 */
 	renderCustomElements?: (html: string) => Promise<string> | string;
 	/**
@@ -1218,7 +1218,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * elements they registered are server-rendered in markup another Integration produced.
 	 *
 	 * @remarks
-	 * A Page with no assigned script has no renderer here and pays nothing. A streamed body is returned as it is.
+	 * A Page with no assigned script has no renderer here and pays nothing. Any other body is returned as it is.
 	 */
 	private async renderAssignedCustomElements(
 		body: RouteRendererBody,

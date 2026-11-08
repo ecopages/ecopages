@@ -26,6 +26,7 @@ sources:
 - `targets` are browserslist queries, turned into Lightning CSS targets with `browserslistToTargets`; unset, nothing is lowered. `minify` defaults to production. `include` and `exclude` take feature names, so the config never imports the native module. `projectRoot` is the app root, so hashes do not depend on the machine.
 - Lightning CSS rejects an explicit `undefined` option, so unset options are left out.
 - An error becomes an `Error` with `file:line:column` and the original as its cause. A warning is logged with its location through `warnStylesheetOnce`, once per stylesheet until it changes.
+- Only native CSS nesting is supported. Lightning CSS parses Sass-style suffix nesting (`&--primary`, `&__element`) as the nesting selector followed by an element name, without an error or a warning, then keeps it as written for a browser to drop or lowers it to `--primary.button`, which matches nothing. `bundleStylesheet` composes `suffixNestingVisitor` with the app's `visitor` to collect every such rule with its file (from the stylesheet's `sources`), line and column, and throws one `StylesheetDiagnosticsError` that lists them all with a hint to write the full selector. `toStylesheetError` returns it unchanged, so a build fails and development shows the overlay and keeps the last good output. The check sits in `bundleStylesheet`, so it covers CSS Modules and the CSS the Tailwind preset hands over; Tailwind itself already rejects the pattern in a stylesheet it compiles.
 
 ```mermaid
 flowchart TD

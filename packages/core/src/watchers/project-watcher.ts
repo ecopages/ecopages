@@ -454,7 +454,9 @@ export class ProjectWatcher {
 	}
 
 	private async notifyBatchClientUpdate(applied: AppliedDevFileChanges): Promise<void> {
-		const hmrCandidates = applied.files.filter((file) => file.plan.delegateToHmr);
+		const hmrCandidates = applied.files.filter(
+			(file) => file.plan.delegateToHmr && !this.stylesheets.keepsClassMap(file.filePath),
+		);
 		const shouldReloadBrowser = applied.reloadBrowser || hmrCandidates.some((file) => file.kind === 'deleted');
 		try {
 			if (hmrCandidates.length > 0) {

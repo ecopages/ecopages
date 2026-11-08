@@ -69,7 +69,7 @@ function typeErrors(): string[] {
 }
 
 describe('CSS Module declarations', () => {
-	it.fails('types the named exports and the default map of a CSS Module, and rejects an unknown name', async () => {
+	it('types the named exports and the default map of a CSS Module, and rejects an unknown name', async () => {
 		write(
 			'src/ambient.d.ts',
 			fs.readFileSync(
@@ -109,7 +109,7 @@ describe('CSS Module declarations', () => {
 		expect(fs.existsSync(path.join(rootDir, 'node_modules/@types', CSS_MODULE_TYPES_MODULE))).toBe(false);
 	});
 
-	it.fails('drops the declaration of a CSS Module that no longer exists', async () => {
+	it('drops the declaration of a CSS Module that no longer exists', async () => {
 		const config = await createConfig();
 		const file = write('src/components/card.module.css', '.card { color: red; }\n');
 		writeCssModuleDeclaration(config, file, { card: 'x_card' });
@@ -120,19 +120,16 @@ describe('CSS Module declarations', () => {
 		expect(fs.existsSync(declarationOf('components/card.module.css'))).toBe(false);
 	});
 
-	it.fails(
-		'replaces the declarations of an earlier run with the ones for the CSS Modules now in the app',
-		async () => {
-			write('src/old.module.css', '.old { color: red; }\n');
-			const config = await createConfig();
-			await writeCssModuleDeclarations(config);
-			fs.rmSync(path.join(rootDir, 'src/old.module.css'));
-			write('src/new.module.css', '.fresh { color: red; }\n');
+	it('replaces the declarations of an earlier run with the ones for the CSS Modules now in the app', async () => {
+		write('src/old.module.css', '.old { color: red; }\n');
+		const config = await createConfig();
+		await writeCssModuleDeclarations(config);
+		fs.rmSync(path.join(rootDir, 'src/old.module.css'));
+		write('src/new.module.css', '.fresh { color: red; }\n');
 
-			await writeCssModuleDeclarations(config);
+		await writeCssModuleDeclarations(config);
 
-			expect(fs.existsSync(declarationOf('old.module.css'))).toBe(false);
-			expect(fs.readFileSync(declarationOf('new.module.css'), 'utf8')).toContain('"fresh"');
-		},
-	);
+		expect(fs.existsSync(declarationOf('old.module.css'))).toBe(false);
+		expect(fs.readFileSync(declarationOf('new.module.css'), 'utf8')).toContain('"fresh"');
+	});
 });

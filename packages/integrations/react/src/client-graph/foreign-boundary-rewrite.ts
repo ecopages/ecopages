@@ -146,7 +146,7 @@ class ForeignExports {
 			if (specifier.importKind === 'type') return false;
 			if (specifier.type === 'ImportNamespaceSpecifier') return this.isForeign(target, undefined);
 			const imported = specifier.type === 'ImportDefaultSpecifier' ? 'default' : moduleName(specifier.imported);
-			return this.isForeign(target, imported);
+			return this.isForeign(target, imported) || this.isForeignNamespace(target, imported);
 		});
 	}
 
@@ -210,35 +210,88 @@ class ForeignExports {
 		return this.isForeign(target, name, seen);
 	}
 
+	private reexportIsForeignNamespace(
+		node: any,
+		target: string,
+		name: string,
+		explicit: boolean,
+		seen: Set<string>,
+	): boolean {
+		if (node.type === 'ExportAllDeclaration') {
+			if (node.exported) return moduleName(node.exported) === name && this.isForeign(target, undefined);
+			return !explicit && name !== 'default' && this.isForeignNamespace(target, name, seen);
+		}
+		return node.specifiers.some(
+			(specifier: any) =>
+				specifier.exportKind !== 'type' &&
+				moduleName(specifier.exported) === name &&
+				this.isForeignNamespace(target, moduleName(specifier.local), seen),
+		);
+	}
+
+	/**
+	 * Whether the export `name` of `filePath` is a namespace of a foreign file, through `export * as name from`.
+	 *
+	 * @remarks
+	 * The binding is a module namespace object, so React wraps it in the namespace proxy: a member that is a foreign
+	 * Eco Component gets its boundary, and any other member comes back unchanged.
+	 */
+	isForeignNamespace(filePath: string, name: string, seen = new Set<string>()): boolean {
+		if (this.options.isForeignFile(filePath) || seen.has(filePath)) return false;
+		seen.add(filePath);
+		const explicit = this.getDeclaredExports(filePath)?.names.has(name) === true;
+		for (const node of this.getReexports(filePath)) {
+			const target = this.resolve(filePath, node.source.value as string);
+			if (target && this.reexportIsForeignNamespace(node, target, name, explicit, seen)) return true;
+		}
+		return false;
+	}
+
+	private reexportIsForeign(
+		node: any,
+		target: string,
+		name: string | undefined,
+		explicit: boolean,
+		seen: Set<string>,
+	): boolean {
+		if (node.type === 'ExportAllDeclaration') {
+			const isStar = node.exported === null || node.exported === undefined;
+			return isStar && !explicit && this.starExportIsForeign(target, name, seen);
+		}
+		return node.specifiers.some(
+			(specifier: any) =>
+				specifier.exportKind !== 'type' &&
+				(name === undefined || moduleName(specifier.exported) === name) &&
+				this.isForeign(target, moduleName(specifier.local), seen),
+		);
+	}
+
 	/** Whether the export `name` of `filePath` is declared by a foreign file; `undefined` asks about any export. */
 	isForeign(filePath: string, name: string | undefined, seen = new Set<string>()): boolean {
 		if (this.options.isForeignFile(filePath)) return true;
 		if (seen.has(filePath)) return false;
 		seen.add(filePath);
+		const explicit = name !== undefined && this.getDeclaredExports(filePath)?.names.has(name) === true;
 		for (const node of this.getReexports(filePath)) {
 			const target = this.resolve(filePath, node.source.value as string);
-			if (!target) continue;
-			if (node.type === 'ExportAllDeclaration') {
-				if (
-					(node.exported === null || node.exported === undefined) &&
-					this.starExportIsForeign(target, name, seen)
-				) {
-					return true;
-				}
-				continue;
-			}
-			for (const specifier of node.specifiers) {
-				if (specifier.exportKind === 'type') continue;
-				if (
-					(name === undefined || moduleName(specifier.exported) === name) &&
-					this.isForeign(target, moduleName(specifier.local), seen)
-				) {
-					return true;
-				}
-			}
+			if (target && this.reexportIsForeign(node, target, name, explicit, seen)) return true;
 		}
 		return false;
 	}
+}
+
+/** The specifier an import is written with: the variant id when `target` needs one. */
+function importSourceOf(node: any, target: string, foreignExports: ForeignExports): string {
+	const specifier = node.source.value as string;
+	return foreignExports.needsVariant(target) && !specifier.includes('?')
+		? `${specifier}?${VARIANT_QUERY}`
+		: specifier;
+}
+
+/** The helper that wraps the export `imported` of `target`, or `undefined` when it is not foreign. */
+function boundaryHelperOf(foreignExports: ForeignExports, target: string, imported: string): string | undefined {
+	if (foreignExports.isForeign(target, imported)) return HELPER_BINDING;
+	return foreignExports.isForeignNamespace(target, imported) ? NAMESPACE_HELPER_BINDING : undefined;
 }
 
 /**
@@ -260,7 +313,7 @@ function rewriteImport(
 	if (node.importKind === 'type' || !node.specifiers?.length) return undefined;
 	const target = foreignExports.resolve(filePath, node.source.value as string);
 	if (!target) return undefined;
-	const from = JSON.stringify(node.source.value);
+	const from = JSON.stringify(importSourceOf(node, target, foreignExports));
 	const imports: string[] = [];
 	const extra: string[] = [];
 	const bindings: string[] = [];
@@ -283,14 +336,15 @@ function rewriteImport(
 			continue;
 		}
 		const imported = specifier.type === 'ImportDefaultSpecifier' ? 'default' : moduleName(specifier.imported);
-		if (!valueReads.has(local) || !foreignExports.isForeign(target, imported)) {
+		const wrapper = valueReads.has(local) ? boundaryHelperOf(foreignExports, target, imported) : undefined;
+		if (!wrapper) {
 			imports.push(`${JSON.stringify(imported)} as ${local}`);
 			continue;
 		}
 		foreign = true;
 		const temporary = `__eco_foreign_${uid()}`;
 		imports.push(`${JSON.stringify(imported)} as ${temporary}`);
-		bindings.push(`const ${local} = ${HELPER_BINDING}(${temporary});`);
+		bindings.push(`const ${local} = ${wrapper}(${temporary});`);
 	}
 	if (!foreign) return undefined;
 	const named = imports.length > 0 ? `import { ${imports.join(', ')} } from ${from};` : '';

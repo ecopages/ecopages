@@ -17,7 +17,7 @@ sources:
 `HmrManager` receives the files the [watcher](/dev/hmr-watcher-invalidation) delegated to it and turns each into zero or more browser events. This page covers strategy selection and the coalescing of the result; [HMR client](/dev/hmr-client) covers how the browser applies each event.
 
 
-`HmrManager.handleFileChanges()` clears recorded dev-transform failures, then for each file invalidates the dev-transform modules of that file and of every entrypoint that imports it, selects a strategy, and collects its events. A missing file is skipped and its entrypoint registration cleared. A registered entrypoint first runs the Integrations' `onScriptEntrypointChanged` handlers, which Lit and Ecopages JSX (with Radiant) use to invalidate their custom-element SSR preload state.
+`HmrManager.handleFileChanges()` clears recorded dev-transform failures and the build errors that requests reported (`reportBuildError`), then for each file invalidates the dev-transform modules of that file and of every entrypoint that imports it, selects a strategy, and collects its events. A missing file is skipped and its entrypoint registration cleared. A registered entrypoint first runs the Integrations' `onScriptEntrypointChanged` handlers, which Lit and Ecopages JSX (with Radiant) use to invalidate their custom-element SSR preload state.
 
 Strategies only choose the browser update. The watcher batch already marked server modules and Page Browser Graph records dirty before the manager runs, and a registered entrypoint's server module is imported again on the next request, not on the file event. Generic invalidation policy stays in core services, framework-specific update behavior in strategies, and the WebSocket transport in the adapter.
 
@@ -66,3 +66,7 @@ Errors are the exception, and are replayed:
 - A dev-transform compile failure is broadcast when the module is requested, which on a fresh page load can be before its HMR socket connects. `DevTransformServer` records the message under the module until the next `handleFileChanges()` clears every failure (the cause can be another file) or a request for that module succeeds.
 - A file whose strategy or script-change handler throws is recorded under that file until it processes without error, so its error survives a `reload` that another file of the same save triggers.
 - The Node host calls `sendPendingBuildErrors()` right after subscribing a socket, which sends one `error` event per recorded failure.
+
+## Errors reported by a request
+
+`reportBuildError(source, message)` shows an error found while answering a request, such as a stylesheet a Page request could not process in development, and keeps it for `sendPendingBuildErrors`, so a page that loads after the request still shows it. The next file change clears it, and a request that still fails reports it again. The errors of stylesheets the development stylesheet service holds as failed are appended to every batch as `error` events, after the updates, because the client clears a shown error on any other event.

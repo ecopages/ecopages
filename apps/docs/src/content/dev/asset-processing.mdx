@@ -57,4 +57,10 @@ Scripts that carry a `groupedBundle`, such as Page Browser Graph scripts and laz
 
 ## Failures
 
-A processor error, grouped or not, rejects `processDependencies`, so the build or the request fails with the bundler's message and a Page is never written without a script it declared. A missing processor or a missing source file is logged and skipped. One exception keeps a production server serving: outside static generation (`staticGenerationActive`), a processor error there is logged and the Page renders without the asset, because a request-time rebuild can fail for reasons the build did not, such as a deploy without sources.
+A processor error, grouped or not, rejects `processDependencies`, so the build or the request fails with the bundler's message and a Page is never written without a script it declared. A stylesheet in `ecopages dev` is the exception, covered next. A missing processor or a missing source file is logged and skipped. One exception keeps a production server serving: outside static generation (`staticGenerationActive`), a processor error there is logged and the Page renders without the asset, because a request-time rebuild can fail for reasons the build did not, such as a deploy without sources.
+
+### A broken stylesheet in development
+
+`ecopages dev` stays usable while a stylesheet is broken. `keepsLastGoodStylesheet` (`processors/stylesheet/stylesheet-failure.ts`) is the one place that decides it: a development `NODE_ENV` outside static generation. There a stylesheet that fails does not reject `processDependencies`. The service logs the error, shows it in the browser overlay through `IHmrManager.reportBuildError`, and answers with the last good asset of that dependency, so the Page renders with the stylesheet it had. The file of a source-relative asset is still on disk, since a failed transform writes nothing. A stylesheet that never compiled since the dev server started has no last good output, so the Page renders without its link; core does not emit an empty placeholder file. The next request after a good save processes the stylesheet again and serves the new output.
+
+`ecopages build`, `ecopages start` and any static generation keep the rules above: a build fails loudly, and a production server drops only the asset. Scripts are not covered: a script that fails to build still fails the request in development.

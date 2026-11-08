@@ -1,0 +1,91 @@
+@import 'ecopages/css/view-transitions.css';
+
+:root {
+	--color-surface-50: oklch(0.98 0 0);
+	--color-surface-100: oklch(0.95 0 0);
+	--color-surface-400: oklch(0.6 0 0);
+	--color-surface-500: oklch(0.5 0 0);
+	--color-surface-700: oklch(0.3 0 0);
+	--color-surface-900: oklch(0.12 0 0);
+	--color-surface-950: oklch(0.08 0 0);
+
+	--color-accent: oklch(0.7 0.15 220);
+	--color-border: var(--color-surface-700);
+
+	--font-display: 'Inter', system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+	color-scheme: light;
+	--color-background: oklch(1 0 0);
+	--color-on-background: var(--color-surface-900);
+	--color-muted: var(--color-surface-500);
+	--color-background-accent: var(--color-surface-50);
+	--border-strength: 25%;
+	--border-strength-hover: 35%;
+	--color-prose: oklch(0.21 0.006 285.885);
+	--color-link: oklch(0.546 0.245 262.881);
+	--color-heading-3: oklch(0.552 0.016 285.938);
+}
+
+[data-theme='dark'] {
+	color-scheme: dark;
+	--color-background: var(--color-surface-950);
+	--color-on-background: var(--color-surface-100);
+	--color-muted: var(--color-surface-400);
+	--color-background-accent: var(--color-surface-900);
+	--border-strength: 75%;
+	--border-strength-hover: 85%;
+	--color-prose: oklch(0.967 0.001 286.375);
+	--color-link: oklch(0.707 0.165 254.624);
+	--color-heading-3: oklch(0.705 0.015 286.067);
+}
+
+*,
+::before,
+::after {
+	box-sizing: border-box;
+}
+
+html {
+	font-family: ui-sans-serif, system-ui, sans-serif;
+	line-height: 1.5;
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	display: flex;
+	flex-direction: column;
+	min-height: 100dvh;
+	margin: 0;
+	background: var(--color-background);
+	color: var(--color-on-background);
+	-webkit-font-smoothing: antialiased;
+	transition:
+		background-color 0.2s,
+		color 0.2s;
+}
+
+h1,
+h2,
+h3,
+p,
+pre,
+ul,
+ol {
+	margin: 0;
+}
+
+a {
+	color: inherit;
+}
+
+img,
+svg {
+	display: block;
+	max-width: 100%;
+}
+
+button {
+	font: inherit;
+	color: inherit;
+}

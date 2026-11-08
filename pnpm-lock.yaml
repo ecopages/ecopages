@@ -1879,6 +1879,75 @@ importers:
         specifier: ^4.0.0
         version: 4.3.3
 
+  templates/jsx-css-modules:
+    devDependencies:
+      '@ecopages/browser-router':
+        specifier: workspace:*
+        version: link:../../packages/browser-router
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../packages/integrations/ecopages-jsx
+      '@ecopages/image-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/image-processor
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
+      '@ecopages/mdx':
+        specifier: workspace:*
+        version: link:../../packages/integrations/mdx
+      '@ecopages/radiant':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
+      ecopages:
+        specifier: workspace:*
+        version: link:../../packages/ecopages
+
+  templates/jsx-lightningcss:
+    devDependencies:
+      '@ecopages/browser-router':
+        specifier: workspace:*
+        version: link:../../packages/browser-router
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../packages/integrations/ecopages-jsx
+      '@ecopages/image-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/image-processor
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
+      '@ecopages/mdx':
+        specifier: workspace:*
+        version: link:../../packages/integrations/mdx
+      '@ecopages/radiant':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
+        specifier: ^4.0.0
+        version: 4.3.3
+      ecopages:
+        specifier: workspace:*
+        version: link:../../packages/ecopages
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.3.3
+
   templates/lit-jsx:
     devDependencies:
       '@ecopages/browser-router':

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../../../config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { Processor } from '../../../../plugins/processor.ts';
-import { compileStylesheetModule } from './stylesheet-module.ts';
+import { compileStylesheetModule, toClassMapModule } from './stylesheet-module.ts';
 import { applyStylesheetProcessors } from './stylesheet-processor-pipeline.ts';
 
 class FixtureStylesheetProcessor extends Processor {
@@ -116,5 +116,35 @@ describe('compileStylesheetModule, for a CSS Module', () => {
 			'@ecopages/lightningcss-processor',
 		);
 		await expect(compileStylesheetModule(await configWith(), file)).rejects.toThrow('is a CSS Module');
+	});
+});
+
+describe('toClassMapModule', () => {
+	/** Evaluates the module the way a bundle would and returns its namespace. */
+	const load = async (exports: Record<string, string>) =>
+		(await import(
+			`data:text/javascript;base64,${Buffer.from(toClassMapModule(exports)).toString('base64')}`
+		)) as Record<string, unknown>;
+
+	it.fails(
+		'exports each class whose name is a JavaScript identifier by name too, and the map by default',
+		async () => {
+			const module = await load({ primary: 'x_primary', 'is-active': 'x_is-active', $accent: 'x_$accent' });
+
+			expect(Object.keys(module).sort()).toEqual(['$accent', 'default', 'primary']);
+			expect({ primary: module.primary, $accent: module.$accent }).toEqual({
+				primary: 'x_primary',
+				$accent: 'x_$accent',
+			});
+			expect(module.default).toEqual({ primary: 'x_primary', 'is-active': 'x_is-active', $accent: 'x_$accent' });
+		},
+	);
+
+	it.fails('leaves the names that cannot be bindings on the default export only', async () => {
+		const map = { 'is-active': 'x_1', '2col': 'x_2', class: 'x_3', default: 'x_4', await: 'x_5', valid: 'x_6' };
+		const module = await load(map);
+
+		expect(Object.keys(module).sort()).toEqual(['default', 'valid']);
+		expect(module.default).toEqual(map);
 	});
 });

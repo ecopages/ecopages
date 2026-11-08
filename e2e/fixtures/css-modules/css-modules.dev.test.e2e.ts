@@ -20,7 +20,12 @@ test.describe('CSS Modules under ecopages dev', () => {
 		const html = await (await request.get('/')).text();
 		await page.goto('/');
 		await waitForHydration(page);
+		await page.getByTestId('kit-button').click();
+		await expect(page.getByTestId('kit-button')).toContainText('Kit 1');
 
+		const kit = classInServerHtml(html, 'kit-button');
+		expect(kit, 'the package CSS Module has no scoped class in the server HTML').toMatch(/\w+_kit/);
+		await expect(page.getByTestId('kit-button')).toHaveAttribute('class', kit!);
 		const badge = classInServerHtml(html, 'eco-jsx-badge');
 		expect(badge, 'Eco JSX has no scoped class in the server HTML').toMatch(/\w+_label \w+_badge/);
 		await expect(page.getByTestId('eco-jsx-badge')).toHaveAttribute('class', badge!);
@@ -50,6 +55,7 @@ test.describe('CSS Modules under ecopages dev', () => {
 
 		await expect(page.getByTestId('eco-jsx-badge')).toHaveCSS('color', 'rgb(0, 128, 0)');
 		await expect(page.getByTestId('react-button')).toHaveCSS('color', 'rgb(0, 0, 255)');
+		await expect(page.getByTestId('kit-button')).toHaveCSS('color', 'rgb(128, 0, 128)');
 	});
 
 	test('a CSS-only edit refreshes the stylesheet in place and keeps the page and its class names', async ({

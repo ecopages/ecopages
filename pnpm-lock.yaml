@@ -248,6 +248,9 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../../packages/core
+      '@ecopages/e2e-package-css-lib':
+        specifier: workspace:*
+        version: link:../package-css-lib
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
         version: link:../../../packages/integrations/ecopages-jsx

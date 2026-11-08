@@ -5,6 +5,10 @@
 	"exports": {
 		"./style.css": {
 			"style": "./css/style.css"
+		},
+		"./button.module.css": {
+			"style": "./css/button.module.css",
+			"default": "./css/button.module.css"
 		}
 	}
 }

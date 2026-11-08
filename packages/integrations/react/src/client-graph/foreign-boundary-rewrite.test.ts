@@ -72,18 +72,54 @@ describe('rewriteForeignImports', () => {
 		}
 	});
 
-	it('wraps the names a barrel re-exports from a foreign-owned module', () => {
+	it('wraps the names a barrel re-exports from a foreign-owned module and leaves the barrel alone', () => {
 		const root = createProject();
 		try {
+			writeFileSync(
+				path.join(root, 'components/mixed.ts'),
+				"export { default as Counter } from './counter.lit.tsx';\nexport { default as Button } from './button.tsx';\nexport * from './index.ts';",
+			);
 			const output = rewrite(
 				root,
-				"export { default as Counter, Named } from './counter.lit.tsx';\nexport { Other } from './button.tsx';",
-				'components/index.ts',
+				"import { Counter, Button } from './components/mixed.ts';\nexport default [Counter, Button];",
 			)!;
-			expect(output).toMatch(
-				/export \{ __eco_foreign_boundary_0 as "Counter", __eco_foreign_boundary_1 as "Named" \}/,
+			expect(output).toContain('"Button" as Button');
+			expect(output).toMatch(/"Counter" as __eco_foreign_0/);
+			expect(output).toContain('const Counter = __ecoForeignBoundary(__eco_foreign_0);');
+			expect(output).not.toContain('const Button');
+			expect(
+				rewriteForeignImports(
+					readFileSync(path.join(root, 'components/mixed.ts'), 'utf8'),
+					path.join(root, 'components/mixed.ts'),
+					{ projectRoot: root, isForeignFile },
+				),
+			).toBeUndefined();
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('leaves an import of a barrel that re-exports only React-owned modules untouched', () => {
+		const root = createProject();
+		try {
+			writeFileSync(
+				path.join(root, 'components/react-barrel.ts'),
+				"export { default as Button } from './button.tsx';",
 			);
-			expect(output).toContain("export { Other } from './button.tsx';");
+			expect(
+				rewrite(root, "import { Button } from './components/react-barrel.ts';\nexport default Button;"),
+			).toBeUndefined();
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('leaves a module whose foreign imports are all inline types untouched', () => {
+		const root = createProject();
+		try {
+			expect(
+				rewrite(root, "import { type Props } from './components/counter.lit.tsx';\nexport type X = Props;"),
+			).toBeUndefined();
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}
@@ -194,7 +230,12 @@ describe('createForeignBoundaryPlugin in a build', () => {
 				'eco-foreign-subtree',
 			);
 
-			writeFileSync(island, "import { Counter } from './components/index.ts';\nexport default Counter;");
+			writeFileSync(
+				path.join(root, 'shared.ts'),
+				"import Counter from './components/counter.lit.tsx';\nexport default Counter;",
+			);
+			writeFileSync(island, "import Counter from './shared.ts';\nexport default Counter;");
+			writeFileSync(other, "import Counter from './shared.ts';\nconsole.log(Counter);");
 			const shared = await build({ island, other });
 			assertBuildFailed(shared);
 			expect(JSON.stringify(shared.logs)).toContain('one module has one compiled form');

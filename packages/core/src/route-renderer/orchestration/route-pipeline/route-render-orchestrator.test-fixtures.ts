@@ -57,6 +57,7 @@ export function createFlowRenderer<C = unknown>(input: FlowRendererInput = {}): 
 
 	return {
 		name: input.name ?? 'string',
+		getPageSsrScriptIntegrationNames: () => [],
 		resolveRouteRenderInputs: async () => {
 			const Layouts = resolvePageLayoutComponents(Page.config?.layouts);
 

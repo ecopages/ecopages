@@ -63,6 +63,22 @@ export default eco.page({
 
 **Note:** You do not need to repeat the page `layout` in `dependencies.components` — `eco.page()` merges declared layouts into the dependency graph for you. Use explicit `dependencies.components` only when discovery cannot follow the import (`export *` barrels, packages).
 
+## Typing a page from its render
+
+Write no type arguments on `eco.page()`. The props come from `staticProps` when the page has it, and from the annotated `render` parameter when it does not. `metadata`, `render` and `dependencies` all see the same type, and an annotated `render` that disagrees with `staticProps` is an error.
+
+```tsx
+export default eco.page({
+	staticProps: async () => ({ props: { title: 'Home' } }),
+	metadata: ({ props }) => ({ title: props.title, description: 'Welcome' }),
+	render: ({ title }) => <h1>{title}</h1>,
+});
+```
+
+The element type is inferred from what `render` returns, and `layout` must use the same element type. `params` and `query` are always typed, `requires: 'session'` narrows `locals` while the props still come from `staticProps`, and `cache` and `middleware` do not change inference.
+
+The catch is the same as for components: `eco.page<Props>` with one type argument loses the element type, so a JSX or Lit render fails to compile until you write `eco.page<Props, JsxRenderable>`. KitaJS is the exception, since its elements are strings. The table of Integrations is in [Typing a component from its render](/docs/core/components#typing-a-component-from-its-render).
+
 ## Working with Data
 
 For build-time and request-time data, see [Data Fetching](/docs/core/data-fetching).

@@ -1,9 +1,10 @@
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
-import type { RolldownPlugin } from 'rolldown';
+import type { PluginContext, RolldownPlugin } from 'rolldown';
 import { code as codeFilter, id as idFilter, include } from 'rolldown/filter';
 import {
 	collectStaticImports,
+	createUndeliverableCssModuleError,
 	createUndeliverablePackageCssModuleError,
 	createUndeliverablePackageStylesheetError,
 	hasDiscoveryRecord,
@@ -96,13 +97,32 @@ export function createStylesheetModulePlugin(
 	const sideEffectImportsByImporter = new Map<string, Set<string>>();
 	const appRoot = fileSystem.exists(build.root) ? path.fromNative(fileSystem.realpath(build.root)) : build.root;
 
-	const checkPackageCssModule = (importer: string, source: string) => {
-		const importerFile = fromRolldownModuleId(importer).replace(/[?#].*$/u, '');
-		const fromPackage = importerFile.includes('/node_modules/') || !isPathInside(importerFile, appRoot);
-		if (!fromPackage || hasDiscoveryRecord(build.root, importerFile)) return;
-		const error = createUndeliverablePackageCssModuleError(appRoot, importerFile, source);
+	const report = (error: Error) => {
 		if (!compiler.reportUndeliverable) throw error;
 		compiler.reportUndeliverable(error);
+	};
+	const unreachedAppCssModules: Array<{ importerFile: string; cssFile: string; source: string }> = [];
+
+	const checkCssModule = async (
+		context: { resolve: PluginContext['resolve'] },
+		importer: string,
+		source: string,
+		extraOptions: Parameters<PluginContext['resolve']>[2],
+	) => {
+		const importerFile = fromRolldownModuleId(importer).replace(/[?#].*$/u, '');
+		if (hasDiscoveryRecord(build.root, importerFile)) return;
+		const fromPackage = importerFile.includes('/node_modules/') || !isPathInside(importerFile, appRoot);
+		if (fromPackage) {
+			report(createUndeliverablePackageCssModuleError(appRoot, importerFile, source));
+			return;
+		}
+		const resolved = await context.resolve(source, importer, { ...extraOptions, skipSelf: true });
+		if (!resolved || resolved.external) return;
+		unreachedAppCssModules.push({
+			importerFile,
+			cssFile: fromRolldownModuleId(resolved.id).replace(/[?#].*$/u, ''),
+			source,
+		});
 	};
 
 	return {
@@ -115,12 +135,18 @@ export function createStylesheetModulePlugin(
 				return null;
 			},
 		},
+		buildEnd() {
+			for (const { importerFile, cssFile, source } of unreachedAppCssModules) {
+				if (hasDiscoveryRecord(build.root, importerFile) || hasDiscoveryRecord(build.root, cssFile)) continue;
+				report(createUndeliverableCssModuleError(appRoot, importerFile, source));
+			}
+		},
 		resolveId: {
 			filter: [include(idFilter(STYLESHEET_ID))],
 			async handler(source, importer, extraOptions) {
 				if (!importer) return null;
 				if (!sideEffectImportsByImporter.get(importer)?.has(source)) {
-					if (isCssModule(source)) checkPackageCssModule(importer, source);
+					if (isCssModule(source)) await checkCssModule(this, importer, source, extraOptions);
 					return null;
 				}
 				const resolved = await this.resolve(source, importer, { ...extraOptions, skipSelf: true });

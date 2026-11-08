@@ -906,20 +906,17 @@ describe('RolldownBuildAdapter', () => {
 		}),
 	]);
 
-	test.fails(
-		"a build fails on an app module's CSS Module that no declaration reaches, naming both files",
-		async () => {
-			const result = await buildAppToast(writeAppToast());
+	test("a build fails on an app module's CSS Module that no declaration reaches, naming both files", async () => {
+		const result = await buildAppToast(writeAppToast());
 
-			assertBuildFailed(result);
-			const message = result.logs.map((log) => log.message).join('\n');
-			expect(message).toContain('toast.ts');
-			expect(message).toContain('"./toast.module.css"');
-			expect(message).toContain('never reaches a Page');
-		},
-	);
+		assertBuildFailed(result);
+		const message = result.logs.map((log) => log.message).join('\n');
+		expect(message).toContain('toast.ts');
+		expect(message).toContain('"./toast.module.css"');
+		expect(message).toContain('never reaches a Page');
+	});
 
-	test.fails("a build hands an app module's unreached CSS Module to the reporter once and builds", async () => {
+	test("a build hands an app module's unreached CSS Module to the reporter once and builds", async () => {
 		const reported: string[] = [];
 
 		const result = await buildAppToast(writeAppToast(), (error) => reported.push(error.message));

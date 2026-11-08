@@ -100,6 +100,20 @@ describe('inlineStylesheetImports', () => {
 		expect(dependencies).toHaveLength(2);
 	});
 
+	it.fails('keeps the last instance of a stylesheet imported twice, as the cascade does', () => {
+		write('src/shared.css', '.shared {}');
+		write('src/other.css', '.other {}');
+		const entry = write('src/main.css', '');
+
+		const { css } = inlineStylesheetImports(
+			"@import './shared.css';\n@import './other.css';\n@import './shared.css';\n.main {}",
+			entry,
+		);
+
+		expect(css.indexOf('.other')).toBeLessThan(css.indexOf('.shared'));
+		expect(css.match(/\.shared/g)).toHaveLength(1);
+	});
+
 	it('inlines through a symlinked partial, reporting the path as written', () => {
 		const real = write('shared/real.css', '.real {}');
 		mkdirSync(path.join(rootDir, 'src'), { recursive: true });

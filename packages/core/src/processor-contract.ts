@@ -115,6 +115,7 @@ async function withApp(processor: AnyProcessor, run: (app: ContractApp) => Promi
  * Each case builds a temporary app with the Processor from `subject` and checks what core does with its output:
  * - the files a transform reports reading drive rebuilds, of the server modules that embed the stylesheet and of the
  *   stylesheet in development;
+ * - a stylesheet imported twice keeps its last instance, the one the cascade orders by;
  * - a transform that throws fails the build;
  * - in development, a transform that throws keeps the last good output, and the save that fixes it recovers without
  *   a restart.
@@ -161,6 +162,30 @@ export function stylesheetProcessorContract(
 					);
 					assert.ok(refreshed.includes(main), 'an edit to a nested partial does not refresh main.css');
 					assert.ok(!refreshed.includes(partial), 'an edit to a nested partial rebuilds the partial between');
+				}),
+		},
+		{
+			name: 'a stylesheet imported twice keeps its last instance',
+			run: () =>
+				withApp(subject.createProcessor(), async (app) => {
+					app.write('src/styles/shared.css', '.shared-rule { color: red; }\n');
+					app.write('src/styles/other.css', '.other-rule { color: blue; }\n');
+					app.write(
+						'src/styles/main.css',
+						"@import './shared.css';\n@import './other.css';\n@import './shared.css';\n",
+					);
+					const entry = app.write(
+						'src/styles/main.script.ts',
+						"import styles from './main.css';\nexport default styles;\n",
+					);
+
+					const result = await buildServerEntry(app, entry);
+					assert.ok(result.success, 'the server build failed');
+					const css = result.outputs.map((output) => output.content ?? '').join('\n');
+					assert.ok(
+						css.indexOf('.other-rule') !== -1 && css.indexOf('.other-rule') < css.indexOf('.shared-rule'),
+						'a stylesheet imported twice is not ordered by its last import, as the cascade orders it',
+					);
 				}),
 		},
 		{

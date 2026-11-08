@@ -11,11 +11,8 @@ import { getStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { isProductionRuntime } from '../../env.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transform.ts';
-import {
-	emptyStylesheetModule,
-	keepsLastGoodStylesheet,
-	reportStylesheetFailure,
-} from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-failure.ts';
+import { keepsLastGoodOutput, reportAssetFailure } from '../../assets/asset-processing-service/last-good-output.ts';
+import { emptyStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-failure.ts';
 import { compileStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 
 /**
@@ -108,7 +105,7 @@ const warnedUndeliverableStylesheets = new WeakMap<EcoPagesAppConfig, Set<string
  * The app's stylesheets, which every build request compiles with {@link compileStylesheetModule}.
  *
  * @remarks
- * In `ecopages dev` (see {@link keepsLastGoodStylesheet}), a stylesheet that fails compiles to its last good module,
+ * In `ecopages dev` (see {@link keepsLastGoodOutput}), a stylesheet that fails compiles to its last good module,
  * so a Page that imports it still renders while the error shows.
  *
  * Outside production, a package module's own side-effect stylesheet import warns once per import instead of failing
@@ -123,8 +120,8 @@ function resolveBuildStylesheets(appConfig: EcoPagesAppConfig): BuildStylesheets
 			try {
 				return await compileStylesheetModule(appConfig, file);
 			} catch (error) {
-				if (!keepsLastGoodStylesheet(appConfig)) throw error;
-				reportStylesheetFailure(appConfig, file, error);
+				if (!keepsLastGoodOutput(appConfig)) throw error;
+				reportAssetFailure(appConfig, 'stylesheet', file, error);
 				return (
 					requireAppRuntime(appConfig).developmentStylesheets?.lastGoodModule(file) ?? {
 						code: emptyStylesheetModule(kinds.isCssModule(file)),

@@ -5,6 +5,7 @@ section: build
 order: 8
 sources:
   - packages/core/src/assets/asset-processing-service/asset-processing.service.ts
+  - packages/core/src/assets/asset-processing-service/last-good-output.ts
   - packages/core/src/assets/asset-processing-service/asset-dependency-keys.ts
   - packages/core/src/assets/asset-processing-service/grouped-content-bundles.ts
   - packages/core/src/assets/asset-processing-service/processors/
@@ -57,10 +58,12 @@ Scripts that carry a `groupedBundle`, such as Page Browser Graph scripts and laz
 
 ## Failures
 
-A processor error, grouped or not, rejects `processDependencies`, so the build or the request fails with the bundler's message and a Page is never written without a script it declared. A stylesheet in `ecopages dev` is the exception, covered next. A missing processor or a missing source file is logged and skipped. One exception keeps a production server serving: outside static generation (`staticGenerationActive`), a processor error there is logged and the Page renders without the asset, because a request-time rebuild can fail for reasons the build did not, such as a deploy without sources.
+A processor error, grouped or not, rejects `processDependencies`, so the build or the request fails with the bundler's message and a Page is never written without a script it declared. Any asset in `ecopages dev` is the exception, covered next. A missing processor or a missing source file is logged and skipped. One exception keeps a production server serving: outside static generation (`staticGenerationActive`), a processor error there is logged and the Page renders without the asset, because a request-time rebuild can fail for reasons the build did not, such as a deploy without sources.
 
-### A broken stylesheet in development
+### A broken asset in development
 
-`ecopages dev` stays usable while a stylesheet is broken. `keepsLastGoodStylesheet` (`processors/stylesheet/stylesheet-failure.ts`) is the one place that decides it: a development `NODE_ENV` outside static generation. There a stylesheet that fails does not reject `processDependencies`. The service logs the error, shows it in the browser overlay through `IHmrManager.reportBuildError`, and answers with the last good asset of that dependency, so the Page renders with the stylesheet it had. The file of a source-relative asset is still on disk, since a failed transform writes nothing. A stylesheet that never compiled since the dev server started has no last good output, so the Page renders without its link; core does not emit an empty placeholder file. The next request after a good save processes the stylesheet again and serves the new output.
+`ecopages dev` stays usable while a stylesheet or a script is broken. `keepsLastGoodOutput` (`last-good-output.ts`) is the one place that decides it: a development `NODE_ENV` outside static generation. Stylesheets, scripts and the build requests of stylesheet imports all ask it. There an asset that fails does not reject `processDependencies`. The service logs the error, shows it in the browser overlay through `IHmrManager.reportBuildError` with a message that names the kind and the source, and answers with the last good output of that dependency, so the Page renders with the asset it had. The file of a source-relative asset is still on disk, since a failed transform or bundle writes nothing. An asset that never processed since the dev server started has no last good output, so the Page renders without its link or script tag; core does not emit an empty placeholder file. The next request after a good save processes the asset again and serves the new output.
 
-`ecopages build`, `ecopages start` and any static generation keep the rules above: a build fails loudly, and a production server drops only the asset. Scripts are not covered: a script that fails to build still fails the request in development.
+The rule covers every script the service builds while it answers a Page request: content scripts, inline file scripts, classic scripts, node-module scripts, and grouped bundles, which fall back to the last good bundle of the same group (`groupedBundle.id`) as a whole. A bundled file script in development is not built here at all: the file-script processor registers it with the HMR manager and the [dev transform server](/dev/dev-server) compiles it when the browser asks, with the same rule. A Page module, or a Component module a Page imports, that fails to build on the server is outside it: the Page cannot render without its module, so that request still fails with the bundler's message.
+
+`ecopages build`, `ecopages start` and any static generation keep the rules above: a build fails loudly, and a production server drops only the asset.

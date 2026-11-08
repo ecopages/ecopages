@@ -450,6 +450,69 @@ describe('DevTransformServer', () => {
 		});
 	});
 
+	describe('a script module that fails to compile', () => {
+		async function createScriptServer(source: string) {
+			const rootDir = createTempRoot('dev-transform-server-script-recovery');
+			const scriptPath = path.join(rootDir, 'src', 'components', 'counter.ts');
+			fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+			fs.writeFileSync(scriptPath, source);
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+			const errors: string[] = [];
+			const server = new DevTransformServer({
+				appConfig: config,
+				onTransformError: (message) => errors.push(message),
+			});
+			const url = server.registerModule(scriptPath);
+			const request = async () => {
+				const response = await server.tryHandleRequest(new Request(`http://localhost${url}`));
+				return { status: response?.status, code: await response?.text() };
+			};
+			const save = (contents: string) => {
+				fs.writeFileSync(scriptPath, contents);
+				server.invalidateSource(scriptPath);
+			};
+			return { server, errors, request, save, scriptPath };
+		}
+
+		it('keeps serving the last compiled module and reports the error until a save compiles again', async () => {
+			const { server, errors, request, save } = await createScriptServer('export const value = "good";');
+			const good = await request();
+			expect(good.status).toBe(200);
+
+			save('export const value = ;');
+			expect(await request()).toEqual(good);
+			expect(errors).toHaveLength(1);
+			expect(errors[0]).toContain('counter.ts');
+			expect(server.getFailureMessages()).toEqual(errors);
+
+			save('export const value = "fixed";');
+			const fixed = await request();
+			expect(fixed.status).toBe(200);
+			expect(fixed.code).toContain('"fixed"');
+			expect(server.getFailureMessages()).toEqual([]);
+		});
+
+		it('answers 500 with the error when the script never compiled', async () => {
+			const { errors, request } = await createScriptServer('export const value = ;');
+
+			const response = await request();
+
+			expect(response.status).toBe(500);
+			expect(response.code).toContain('counter.ts');
+			expect(errors).toHaveLength(1);
+		});
+
+		it('answers 500 once a script that compiled before is deleted', async () => {
+			const { server, request, scriptPath } = await createScriptServer('export const value = "good";');
+			expect((await request()).status).toBe(200);
+
+			fs.rmSync(scriptPath);
+			server.invalidateSource(scriptPath);
+
+			expect((await request()).status).toBe(500);
+		});
+	});
+
 	describe('a stylesheet whose Processor throws', () => {
 		class StrictProcessor extends Processor {
 			async setup(): Promise<void> {}

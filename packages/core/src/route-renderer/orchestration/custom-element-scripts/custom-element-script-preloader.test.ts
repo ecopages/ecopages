@@ -8,7 +8,10 @@ import {
 	isExpectedCustomElementSsrPreloadError,
 	type SsrScriptPreloadDeclaration,
 } from './custom-element-script-preloader.ts';
-import type { CustomElementScriptPreloadScopeState } from './custom-element-script-preload-invalidation.ts';
+import {
+	clearFailedCustomElementScriptPreloads,
+	type CustomElementScriptPreloadScopeState,
+} from './custom-element-script-preload-invalidation.ts';
 
 let cacheScope = '';
 let scopeCounter = 0;
@@ -52,6 +55,7 @@ function createPreloader(options?: {
 	preloadScopes?: Map<string, CustomElementScriptPreloadScopeState>;
 	resolveDependencyPath?: (componentDir: string, sourcePath: string) => string;
 	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;
+	onPreloadFailure?: (scriptPath: string, error: unknown) => void;
 }) {
 	return new CustomElementScriptPreloader({
 		cacheScope,
@@ -62,6 +66,7 @@ function createPreloader(options?: {
 		integrationName: 'lit',
 		integrations: [{ name: 'lit', ssrScriptPreload: 'own-and-foreign' }],
 		logLabel: 'test',
+		onPreloadFailure: options?.onPreloadFailure,
 	});
 }
 
@@ -427,6 +432,64 @@ describe('CustomElementScriptPreloader', () => {
 
 		await Promise.all([preloader.preloadSsrScripts([host]), preloader.preloadSsrScripts([host])]);
 		expect(importServerModule).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('a script that fails to preload', () => {
+	const scriptPath = '/app/broken.script.ts';
+
+	it('reports the failure once and evaluates the script again after it is invalidated', async () => {
+		const failure = new Error('Unexpected token');
+		const importServerModule = vi.fn(async (): Promise<unknown> => {
+			throw failure;
+		});
+		const onPreloadFailure = vi.fn();
+		const preloader = createPreloader({ importServerModule, onPreloadFailure });
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		await preloader.preloadScripts([scriptPath]);
+		await preloader.preloadScripts([scriptPath]);
+
+		expect(importServerModule).toHaveBeenCalledTimes(1);
+		expect(onPreloadFailure).toHaveBeenCalledTimes(1);
+		expect(onPreloadFailure).toHaveBeenCalledWith(scriptPath, failure);
+
+		preloader.invalidateScript(scriptPath);
+		importServerModule.mockResolvedValueOnce(undefined);
+		await preloader.preloadScripts([scriptPath]);
+		expect(importServerModule).toHaveBeenCalledTimes(2);
+		expect(onPreloadFailure).toHaveBeenCalledTimes(1);
+	});
+
+	it('evaluates a failed script again once the failed preloads are cleared, and reports it if it still fails', async () => {
+		const importServerModule = vi.fn(async (): Promise<unknown> => {
+			throw new Error('Unexpected token');
+		});
+		const onPreloadFailure = vi.fn();
+		const preloader = createPreloader({ importServerModule, onPreloadFailure });
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		await preloader.preloadScripts([scriptPath]);
+
+		clearFailedCustomElementScriptPreloads(preloadScopes);
+		await preloader.preloadScripts([scriptPath]);
+
+		expect(importServerModule).toHaveBeenCalledTimes(2);
+		expect(onPreloadFailure).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not report a script that only needs the browser', async () => {
+		const onPreloadFailure = vi.fn();
+		const preloader = createPreloader({
+			importServerModule: async () => {
+				throw new Error('window is not defined');
+			},
+			onPreloadFailure,
+		});
+
+		await preloader.preloadScripts([scriptPath]);
+		await preloader.preloadScripts([scriptPath]);
+
+		expect(onPreloadFailure).not.toHaveBeenCalled();
 	});
 });
 

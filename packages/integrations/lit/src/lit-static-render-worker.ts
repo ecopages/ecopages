@@ -48,6 +48,7 @@ async function initializeWorker(
 	});
 	const runtime = requireAppRuntime(appConfig);
 	runtime.origin = runtimeOrigin;
+	runtime.staticGenerationActive = true;
 
 	await setupAppRuntimePlugins({
 		appConfig,

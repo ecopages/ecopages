@@ -2,7 +2,7 @@ import { path } from '@ecopages/file-system/path';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
-import { keepsLastGoodStylesheet, reportStylesheetFailure } from './processors/stylesheet/stylesheet-failure.ts';
+import { keepsLastGoodOutput, reportAssetFailure } from './last-good-output.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../config/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -81,6 +81,13 @@ function isFileScriptBundle(dependencies: AssetDefinition[]): dependencies is Fi
 	);
 }
 
+/** Names `dep` in an error message: its file or package path, else its name, else that it is inline content. */
+function describeAsset(dep: AssetDefinition): string {
+	if ('filepath' in dep) return dep.filepath;
+	if ('importPath' in dep) return dep.importPath;
+	return `${dep.source} ${'name' in dep && dep.name ? dep.name : 'content'}`;
+}
+
 /**
  * Processes declared component and page asset dependencies for one app instance.
  *
@@ -114,8 +121,10 @@ export class AssetProcessingService {
 	private cache = new Map<string, CachedAsset>();
 	private readonly groupedBundleCache = new Map<string, CachedGroupedBundle>();
 	private readonly inFlight = new Map<string, Promise<unknown>>();
-	/** The latest successfully processed stylesheet of each dependency in development, which a failed edit falls back to. */
-	private readonly lastGoodStylesheets = new Map<string, ProcessedAsset>();
+	/** The latest successfully processed output of each dependency in development, which a failed edit falls back to. */
+	private readonly lastGoodAssets = new Map<string, ProcessedAsset>();
+	/** The latest successfully processed bundle of each grouped script bundle in development. */
+	private readonly lastGoodGroupedBundles = new Map<string, ProcessedAsset[]>();
 	private readonly gzippedFiles = new Set<string>();
 	private readonly config: EcoPagesAppConfig;
 
@@ -323,32 +332,28 @@ export class AssetProcessingService {
 
 			const finalized = finalizeProcessedAsset(processed, (asset) => this.resolveProcessedAssetSrcUrl(asset));
 			this.setCachedAsset(dep, dependencyKey, finalized);
-			if (this.keepsLastGoodOutput(dep)) this.lastGoodStylesheets.set(dependencyKey, finalized);
+			if (keepsLastGoodOutput(this.config)) this.lastGoodAssets.set(dependencyKey, finalized);
 			return finalized;
 		} catch (error) {
-			if (this.keepsLastGoodOutput(dep)) return this.recoverStylesheet(dep, dependencyKey, error);
+			if (keepsLastGoodOutput(this.config)) return this.recoverAsset(dep, dependencyKey, error);
 			return this.handleProcessingFailure(`${dep.kind}/${dep.source} dependency`, error, null);
 		}
 	}
 
 	/**
-	 * Whether a failed `dep` is replaced by its last good output instead of failing the request: a stylesheet, in
-	 * `ecopages dev` (see {@link keepsLastGoodStylesheet}).
-	 */
-	private keepsLastGoodOutput(dep: AssetDefinition): boolean {
-		return dep.kind === 'stylesheet' && keepsLastGoodStylesheet(this.config);
-	}
-
-	/**
-	 * Reports a stylesheet failure and answers with the last good output of `dep`, or with no asset when it never
-	 * compiled, so the Page renders without the link.
+	 * Reports a failed `dep` and answers with its last good output, or with no asset when it never processed, so the
+	 * Page renders without the link or script.
 	 *
 	 * @remarks
-	 * The last good file is still on disk, since a failed transform writes nothing.
+	 * Only called where {@link keepsLastGoodOutput} holds. The last good file is still on disk, since a failed
+	 * transform or bundle writes nothing; one that is gone counts as never processed.
 	 */
-	private recoverStylesheet(dep: AssetDefinition, dependencyKey: string, error: unknown): ProcessedAsset | null {
-		reportStylesheetFailure(this.config, 'filepath' in dep ? dep.filepath : dep.source, error);
-		const lastGood = this.lastGoodStylesheets.get(dependencyKey);
+	private recoverAsset(dep: AssetDefinition, dependencyKey: string, error: unknown): ProcessedAsset | null {
+		reportAssetFailure(this.config, dep.kind, describeAsset(dep), error);
+		return this.usableLastGood(this.lastGoodAssets.get(dependencyKey));
+	}
+
+	private usableLastGood(lastGood: ProcessedAsset | undefined): ProcessedAsset | null {
 		return lastGood && (lastGood.inline || !lastGood.filepath || fileSystem.exists(lastGood.filepath))
 			? lastGood
 			: null;
@@ -361,7 +366,8 @@ export class AssetProcessingService {
 	 * A production server answering requests outside a build keeps serving the Page without the
 	 * asset and logs the error: its request-time rebuilds can fail where the build did not, for example
 	 * when the source tree was not deployed, and that is a separate defect from a build that exits 0.
-	 * During static generation and in development a failed asset is never dropped silently.
+	 * During static generation a failed asset is never dropped silently. Development does not reach this rule:
+	 * it keeps the last good output (see {@link keepsLastGoodOutput}).
 	 */
 	private handleProcessingFailure<T>(label: string, error: unknown, fallback: T): T {
 		if (!isProductionRuntime() || requireAppRuntime(this.config).staticGenerationActive) {
@@ -413,6 +419,7 @@ export class AssetProcessingService {
 				try {
 					processedAssets = await this.runGroupedProcessor(bundleDeps);
 				} catch (error) {
+					if (keepsLastGoodOutput(this.config)) return this.recoverGroupedBundle(bundleDeps, error);
 					return this.handleProcessingFailure('grouped dependency bundle', error, []);
 				}
 				if (!processedAssets) {
@@ -441,12 +448,27 @@ export class AssetProcessingService {
 
 				if (processedBundle.length === bundleDeps.length) {
 					this.setCachedGroupedBundle(bundleDeps, dependencyKeys, processedBundle);
+					const groupKey = this.getGroupedBundleCacheKey(bundleDeps);
+					if (groupKey && keepsLastGoodOutput(this.config)) {
+						this.lastGoodGroupedBundles.set(groupKey, processedBundle);
+					}
 				}
 				return processedBundle;
 			}),
 		);
 
 		return processedBundles.flat();
+	}
+
+	/**
+	 * Reports a failed grouped script bundle and answers with the last good bundle of the same group, or with no
+	 * assets when it never built.
+	 */
+	private recoverGroupedBundle(bundleDeps: AssetDefinition[], error: unknown): ProcessedAsset[] {
+		reportAssetFailure(this.config, 'script', bundleDeps.map(describeAsset).join(', '), error);
+		const groupKey = this.getGroupedBundleCacheKey(bundleDeps);
+		const lastGood = groupKey ? this.lastGoodGroupedBundles.get(groupKey) : undefined;
+		return lastGood?.every((asset) => this.usableLastGood(asset)) ? lastGood : [];
 	}
 
 	private runGroupedProcessor(deps: AssetDefinition[]): Promise<ProcessedAsset[]> | undefined {

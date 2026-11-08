@@ -2076,7 +2076,7 @@ describe('IntegrationRenderer', () => {
 				},
 			}) as unknown as EcoComponent;
 
-			return { imports, renderer: renderers.get(pageOwner)!, Page };
+			return { imports, renderer: renderers.get(pageOwner)!, Page, appConfig };
 		}
 
 		const render = (renderer: IntegrationRenderer<EcoPagesElement>, Page: EcoComponent) =>
@@ -2145,6 +2145,54 @@ describe('IntegrationRenderer', () => {
 			const { renderer, Page } = createPreloadingApp('lit');
 
 			expect(renderer.getPageSsrScriptIntegrationNames({ Page })).toEqual(['ecopages-jsx']);
+		});
+
+		describe('a script that fails to preload', () => {
+			afterEach(() => {
+				vi.unstubAllEnvs();
+			});
+
+			async function renderWithFailingScript(nodeEnv: string, staticGenerationActive = false) {
+				vi.stubEnv('NODE_ENV', nodeEnv);
+				vi.spyOn(console, 'warn').mockImplementation(() => {});
+				const { imports, renderer, Page, appConfig } = createPreloadingApp('lit');
+				const reportBuildError = vi.fn();
+				const hmr: Partial<IHmrManager> = { reportBuildError };
+				const runtime = requireAppRuntime(appConfig);
+				runtime.hmr = hmr as IHmrManager;
+				runtime.staticGenerationActive = staticGenerationActive;
+				imports['ecopages-jsx'].mockRejectedValue(new Error('Unexpected token'));
+				const html = await render(renderer, Page);
+				return { html, reportBuildError };
+			}
+
+			it('still renders the Page and shows the failure in the overlay in development', async () => {
+				const { html, reportBuildError } = await renderWithFailingScript('development');
+
+				expect(html).toBe('<doc>[ecopages-jsx]');
+				expect(reportBuildError).toHaveBeenCalledWith(
+					path.resolve('/app/components/counter.script.ts'),
+					`Failed to process script ${path.resolve('/app/components/counter.script.ts')}: Unexpected token`,
+				);
+			});
+
+			it.each([
+				['production', true],
+				['development', true],
+			])(
+				'fails the render, naming the script and the cause, in %s with static generation %s',
+				async (nodeEnv, staticGenerationActive) => {
+					await expect(renderWithFailingScript(nodeEnv, staticGenerationActive)).rejects.toThrow(
+						`Failed to preload the ssr script ${path.resolve('/app/components/counter.script.ts')}: Unexpected token`,
+					);
+				},
+			);
+
+			it('only warns in production outside static generation, as `ecopages start` does', async () => {
+				const { reportBuildError } = await renderWithFailingScript('production', false);
+
+				expect(reportBuildError).not.toHaveBeenCalled();
+			});
 		});
 
 		it('builds a preloader only for an Integration that declares ssrScriptPreload', () => {

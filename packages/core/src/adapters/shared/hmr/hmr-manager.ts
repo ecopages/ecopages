@@ -16,6 +16,7 @@ import type {
 	IHmrManager,
 	IClientBridge,
 } from '../../../config/internal-types.ts';
+import { getDevelopmentStylesheetService } from '../../../dev/stylesheets/development-stylesheet.service.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategyType, type HmrAction, type HmrStrategy } from '../../../hmr/hmr-strategy.ts';
 import { DefaultHmrStrategy } from '../../../hmr/strategies/default-hmr-strategy.ts';
@@ -285,7 +286,14 @@ export class HmrManager implements IHmrManager {
 			}
 		}
 
+		for (const message of this.stylesheetFailures()) events.push({ type: 'error', message });
+
 		this.broadcastBatchEvents(events, options, uniqueFilePaths);
+	}
+
+	/** The errors of the stylesheets that fail to process, which the development stylesheet service keeps. */
+	private stylesheetFailures(): string[] {
+		return getDevelopmentStylesheetService(this.appConfig).failureMessages();
 	}
 
 	private async processFileChange(filePath: string): Promise<ClientBridgeEvent[]> {
@@ -427,6 +435,7 @@ export class HmrManager implements IHmrManager {
 			...this.devTransformServer.getFailureMessages(),
 			...this.fileChangeErrors.values(),
 			...this.requestBuildErrors.values(),
+			...this.stylesheetFailures(),
 		]) {
 			client.send(JSON.stringify({ type: 'error', message } satisfies ClientBridgeEvent));
 		}

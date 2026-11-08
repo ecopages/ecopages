@@ -9,6 +9,11 @@ import {
 	warnMissingCssModuleRootDirs,
 	writeCssModuleDeclaration,
 } from '../../assets/asset-processing-service/processors/stylesheet/css-module-types.ts';
+import {
+	toClassMapModule,
+	toStylesheetModule,
+} from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
+import { emptyStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-failure.ts';
 import { writeSourceRelativeStylesheet } from '../../assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../../config/internal-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -70,7 +75,8 @@ interface StylesheetOutput {
 export class DevelopmentStylesheetService {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly outputs = new Map<string, StylesheetOutput>();
-	private readonly failed = new Set<string>();
+	/** The error message of each stylesheet whose latest transform failed. */
+	private readonly failed = new Map<string, string>();
 	/** Partials whose transform on their own failed, retried when a stylesheet is created. */
 	private readonly failedPartials = new Set<string>();
 	/** The CSS Modules the latest batch rebuilt, by whether their class map is the one the browser holds. */
@@ -125,7 +131,7 @@ export class DevelopmentStylesheetService {
 					this.failedPartials.add(file);
 					continue;
 				}
-				this.failed.add(file);
+				this.failed.set(file, message);
 				appLogger.error(`Failed to process stylesheet ${file}: ${message}`);
 			}
 			warnMissingCssModuleRootDirs(this.appConfig);
@@ -200,7 +206,7 @@ export class DevelopmentStylesheetService {
 			if (this.owns(scope, file) && !this.dependents.has(file)) affected.add(file);
 		}
 		if (created.some((file) => this.owns(scope, file))) {
-			for (const file of this.failed) {
+			for (const file of this.failed.keys()) {
 				if (!this.dependents.has(file)) affected.add(file);
 			}
 		}
@@ -216,6 +222,35 @@ export class DevelopmentStylesheetService {
 	 */
 	version(file: string): string | undefined {
 		return this.outputs.get(path.resolve(file))?.digest;
+	}
+
+	/**
+	 * The error messages of the stylesheets whose latest transform failed and that no save has fixed yet.
+	 *
+	 * @remarks
+	 * The HMR manager sends them after the updates of a batch, which the client would otherwise clear the overlay
+	 * with, and to a browser that connects while they stand.
+	 */
+	failureMessages(): string[] {
+		return [...this.failed.values()];
+	}
+
+	/**
+	 * The module a binding import of `file` receives from its last good output, with the files that output read.
+	 *
+	 * @remarks
+	 * A stylesheet that never compiled has no output: its module is empty, an empty string or an empty class map,
+	 * so the importer still loads and the failure shows in the overlay.
+	 */
+	lastGoodModule(file: string): { code: string; dependencies: string[] } {
+		const resolved = path.resolve(file);
+		const output = this.outputs.get(resolved);
+		const code = output
+			? output.classMap === undefined
+				? toStylesheetModule(output.css)
+				: toClassMapModule(JSON.parse(output.classMap))
+			: emptyStylesheetModule(getStylesheetKinds(this.appConfig).isCssModule(resolved));
+		return { code, dependencies: [...(this.dependencies.get(resolved) ?? [])] };
 	}
 
 	/**
@@ -258,7 +293,9 @@ export class DevelopmentStylesheetService {
 
 	/** The stylesheets the service processed, or failed to, that no other stylesheet read. */
 	private entries(): string[] {
-		return [...new Set([...this.outputs.keys(), ...this.failed])].filter((file) => !this.dependents.has(file));
+		return [...new Set([...this.outputs.keys(), ...this.failed.keys()])].filter(
+			(file) => !this.dependents.has(file),
+		);
 	}
 
 	private owns({ processor, kinds }: StylesheetScope, file: string): boolean {
@@ -275,7 +312,7 @@ export class DevelopmentStylesheetService {
 		const recovered = this.failed.has(file);
 		const result = await this.transform(file, bridge);
 		if (typeof result === 'string') {
-			this.failed.add(file);
+			this.failed.set(file, result);
 			appLogger.error(`Failed to process stylesheet ${file}: ${result}`);
 			bridge.error(result);
 			return false;

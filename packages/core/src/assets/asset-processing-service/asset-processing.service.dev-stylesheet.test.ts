@@ -6,6 +6,8 @@ import {
 	writeSourceFile,
 } from '../../adapters/shared/hmr/hmr-manager.test-helpers.ts';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
+import { getDevelopmentStylesheetService } from '../../dev/stylesheets/development-stylesheet.service.ts';
+import { createRecordingBridge } from '../../processor-contract.ts';
 import { Processor } from '../../plugins/processor.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import type { ClientBridgeEvent } from '../../types/contracts.ts';
@@ -108,6 +110,31 @@ describe.each([
 		const [fixed] = await app.request(css);
 
 		expect(fs.readFileSync(fixed.filepath!, 'utf8')).toBe('.card { color: red; margin: 0; }\n');
+		expect(app.pendingErrors()).toEqual([]);
+	});
+});
+
+describe('the watcher batch of a save that breaks a stylesheet in development', () => {
+	test('ends with the error after the update, so the overlay stays, and drops it when a save fixes it', async () => {
+		vi.stubEnv('NODE_ENV', 'development');
+		const app = await startApp();
+		const css = app.file('src/components/card.css', GOOD_CSS);
+		const stylesheets = getDevelopmentStylesheetService(app.config);
+		await stylesheets.prewarm();
+		const { bridge } = createRecordingBridge();
+		const saveAsWatcher = async (source: string) => {
+			fs.writeFileSync(css, source);
+			await stylesheets.applyChanges({ created: [], changed: [css], deleted: [] }, bridge);
+			app.broadcasts.length = 0;
+			await app.manager.handleFileChanges([css]);
+		};
+
+		await saveAsWatcher(BROKEN_CSS);
+		expect(app.broadcasts.at(-1)).toEqual({ type: 'error', message: expect.stringContaining('Unclosed block') });
+		expect(app.pendingErrors()).toHaveLength(1);
+
+		await saveAsWatcher(GOOD_CSS);
+		expect(app.broadcasts.some((event) => event.type === 'error')).toBe(false);
 		expect(app.pendingErrors()).toEqual([]);
 	});
 });

@@ -114,6 +114,19 @@ describe('inlineStylesheetImports', () => {
 		expect(css.match(/\.shared/g)).toHaveLength(1);
 	});
 
+	it('hoists the remote @import of a stylesheet imported twice once', () => {
+		write('src/shared.css', '@import url("https://fonts.example/x.css");\n.shared {}');
+		write('src/other.css', '.other {}');
+		const entry = write('src/main.css', '');
+
+		const { css } = inlineStylesheetImports(
+			"@import './shared.css';\n@import './other.css';\n@import './shared.css';",
+			entry,
+		);
+
+		expect(css.match(/fonts\.example/g)).toHaveLength(1);
+	});
+
 	it('inlines through a symlinked partial, reporting the path as written', () => {
 		const real = write('shared/real.css', '.real {}');
 		mkdirSync(path.join(rootDir, 'src'), { recursive: true });

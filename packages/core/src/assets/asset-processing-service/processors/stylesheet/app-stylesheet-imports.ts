@@ -46,8 +46,6 @@ type InlineContext = {
 	ancestors: string[];
 	/** The inlined partials, ordered so a partial imported twice keeps its last instance. */
 	order: ImportOrder;
-	/** Root-relative, `data:` and remote `@import` statements, hoisted to the top of the output in order. */
-	hoisted: string[];
 	charset?: string;
 	/** The partials inlined, and the `.css` files an `@import` named that do not exist yet. */
 	dependencies: Set<string>;
@@ -62,8 +60,7 @@ function warn(context: InlineContext, message: string): void {
 /** Inlines the partial an `@import` of `importer` names. Returns `undefined` to leave the `@import` as written. */
 function inlineImport(statement: CssImport, importer: string, context: InlineContext): string | undefined {
 	if (isExternalReference(statement.specifier)) {
-		context.hoisted.push(statement.statement);
-		return '';
+		return context.order.hoist(statement.statement);
 	}
 	const { decoded } = splitReference(statement.specifier);
 	const partial = path.resolve(path.dirname(importer), decoded);
@@ -138,13 +135,12 @@ export function inlineStylesheetImports(css: string, stylesheet: string): Inline
 		entryDir: realDirectory(entry),
 		ancestors: [realPath(entry)],
 		order: new ImportOrder(),
-		hoisted: [],
 		dependencies: new Set(),
 	};
 	const inlinedBody = inlineFile(css, entry, context, true);
 	if (context.order.isEmpty) return { css, dependencies: [...context.dependencies] };
-	const body = context.order.resolve(inlinedBody);
-	const head = [...(context.charset ? [context.charset] : []), ...context.hoisted];
+	const { css: body, hoisted } = context.order.resolve(inlinedBody);
+	const head = [...(context.charset ? [context.charset] : []), ...hoisted];
 	return {
 		css: head.length > 0 ? `${head.join('\n')}\n${body}` : body,
 		dependencies: [...context.dependencies].filter((dependency) => dependency !== entry),

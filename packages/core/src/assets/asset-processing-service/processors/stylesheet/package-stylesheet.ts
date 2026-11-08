@@ -16,8 +16,6 @@ type StylesheetReferenceContext = {
 	ancestors: string[];
 	/** The inlined stylesheets, ordered so one imported twice keeps its last instance. */
 	order: ImportOrder;
-	/** Root-relative, `data:` and remote `@import` statements, hoisted to the top of the output in order. */
-	hoisted: string[];
 	charset?: string;
 };
 
@@ -118,8 +116,7 @@ function resolveImportedStylesheet(stylesheet: string, specifier: string): strin
  */
 function inlinePackageImport(statement: CssImport, stylesheet: string, context: StylesheetReferenceContext): string {
 	if (isExternalReference(statement.specifier)) {
-		context.hoisted.push(statement.statement);
-		return '';
+		return context.order.hoist(statement.statement);
 	}
 	const imported = resolveImportedStylesheet(stylesheet, statement.specifier);
 	if (context.ancestors.includes(imported)) return '';
@@ -175,9 +172,11 @@ export type StylesheetReferenceOutput = {
  * a reference to any other file is left as written with a warning (see {@link isEmittableReferenceFile}).
  */
 export function preparePackageStylesheet(stylesheet: string, output: StylesheetReferenceOutput): string {
-	const context: StylesheetReferenceContext = { output, ancestors: [], order: new ImportOrder(), hoisted: [] };
-	const body = context.order.resolve(preparePackageStylesheetFile(fileSystem.realpath(stylesheet), context, output));
-	const head = [...(context.charset ? [context.charset] : []), ...context.hoisted];
+	const context: StylesheetReferenceContext = { output, ancestors: [], order: new ImportOrder() };
+	const { css: body, hoisted } = context.order.resolve(
+		preparePackageStylesheetFile(fileSystem.realpath(stylesheet), context, output),
+	);
+	const head = [...(context.charset ? [context.charset] : []), ...hoisted];
 	return head.length > 0 ? `${head.join('\n')}\n${body}` : body;
 }
 

@@ -92,7 +92,7 @@ Starts the production server using the existing build. It needs a server bundle,
 Writes the types for virtual modules such as `ecopages:images` and `ecopages:content/*`, and a declaration for each CSS Module so its classes can be imported by name, then exits.
 
 - Processors generate these types in `setup()`. The `types` command runs that setup to write virtual-module declarations; production `start` restores Processor state from emitted server modules and does not call `setup()`.
-- It loads `eco.config.ts` (or the file given with `--config`), as `astro sync` does, and sets the processors up, so image optimization and the first PostCSS pass run too. Your entry file (`app.ts`) does not run.
+- It loads `eco.config.ts` (or the file given with `--config`), as `astro sync` does, and sets the processors up, so image optimization and the first stylesheet pass run too. Your entry file (`app.ts`) does not run.
 - Run it before the type checker: `"typecheck": "ecopages types && tsc --noEmit"`. The official templates ship that script.
 
 > **Note:** The entry file defaults to `app.ts`; override it with `--entry-file <file>`. A positional entry argument is refused.

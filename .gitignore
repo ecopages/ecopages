@@ -45,3 +45,6 @@ playground/kitchen-sink/bench/results/hmr-e2e-bench.json
 # local improvement tracking (details in ~/.gemini artifacts)
 **/.improvements/
 .audit/
+
+# Generated docs fonts, copied from the Fontsource packages by apps/docs/scripts/copy-font-assets.mjs
+apps/docs/src/public/assets/fonts/

@@ -1,0 +1,57 @@
+# Ecopages React template with PostCSS
+
+The [React template](../react) with its styling run by [`@ecopages/postcss-processor`](../../packages/processors/postcss-processor) instead of Lightning CSS. Pages, components and look are the same; only the stylesheet pipeline differs.
+
+## When to pick it
+
+Pick this starter when you rely on PostCSS plugins, or on Tailwind v3, which needs the PostCSS pipeline. Otherwise pick the [React template](../react), whose Lightning CSS Processor is the default. `eco.config.ts` registers `postcssProcessorPlugin` with the `tailwindV4Preset` from `@ecopages/postcss-processor/presets/tailwind-v4`; add more PostCSS plugins there.
+
+## Overview
+
+A React Integration template for [Ecopages](https://ecopages.app), with MDX Pages, islands, and Tailwind v4.
+
+## Getting started
+
+```bash
+pnpm install
+# or npm install / bun install
+```
+
+```bash
+pnpm dev
+# or npm run dev / bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Structure
+
+- `src/pages` — Filesystem Routes, the shared showcase, and MDX content
+- `src/components` — React islands
+- `src/lib` — shared utilities such as `cx` and the theme hotkey
+- `src/layouts` — Layout shell and navigation
+- `.agents/skills` — agent skill packs for this app
+
+No external services are required. Start customization in `src/pages/index.tsx` and `eco.config.ts`.
+
+The image showcase keeps the shared-element transition between `/image` and `/image-detail`; returning from `/image` to `/` uses a full-page navigation.
+
+`d` toggles light and dark (`src/lib/theme.ts`). Until then the preference is `system`, stored in `localStorage` under `theme`. The shortcut is ignored while typing in a field.
+
+## Agent skills
+
+[AGENTS.md](./AGENTS.md). Pack in this template: [Building with Ecopages](.agents/skills/ecopages/SKILL.md) ([hosted](https://ecopages.app/skill/SKILL.md)).
+
+Index: [`.agents/README.md`](.agents/README.md). Docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).
+
+## Documentation
+
+- [Ecopages documentation](https://ecopages.app)
+- [Ecopages GitHub repository](https://github.com/ecopages/ecopages)
+
+## Build
+
+```bash
+pnpm build
+# or npm run build / bun run build
+```

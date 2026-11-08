@@ -52,7 +52,6 @@ describe('browser eco facade', () => {
 			__ECO_PAGES__: {
 				foreignChildHost: {
 					integration: 'react',
-					isRendering: () => true,
 					renderForeignChild: (component: unknown, props: Record<string, unknown>) => ({ component, props }),
 				},
 			},
@@ -61,28 +60,5 @@ describe('browser eco facade', () => {
 		expect(LitCounter({ count: 1 })).toEqual({ component: LitCounter, props: { count: 1 } });
 		expect(ReactCounter({ count: 2 })).toBe('react 2');
 		expect(UnownedCounter({ count: 3 })).toBe('unowned 3');
-	});
-
-	test('renders a Component inline when the host is not rendering', () => {
-		const LitCounter = eco.component<{ count: number }, string>({
-			identity: { id: 'lit-counter', file: 'src/lit-counter.lit.tsx', integration: 'lit' },
-			render: ({ count }) => `lit ${count}`,
-		});
-		let rendering = false;
-		vi.stubGlobal('window', {
-			__ECO_PAGES__: {
-				foreignChildHost: {
-					integration: 'react',
-					isRendering: () => rendering,
-					renderForeignChild: () => 'react element',
-				},
-			},
-		});
-
-		expect(LitCounter({ count: 1 })).toBe('lit 1');
-		rendering = true;
-		expect(LitCounter({ count: 1 })).toBe('react element');
-		rendering = false;
-		expect(LitCounter({ count: 2 })).toBe('lit 2');
 	});
 });

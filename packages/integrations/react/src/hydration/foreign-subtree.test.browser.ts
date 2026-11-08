@@ -1,12 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import * as React from 'react';
 import { createElement, useEffect, useState, type ElementType, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 import { eco } from '@ecopages/core';
 import { startPageHydration, type PageHydrationOptions } from './browser/page-hydration.ts';
 import { getIslandHydrationRuntime, mountIslands } from './browser/island-hydration.ts';
-import { installForeignSubtreeHost, type ForeignSubtreeReactRuntime } from './browser/foreign-subtree-host.ts';
+import { installForeignSubtreeHost } from './browser/foreign-subtree-host.ts';
 import { getForeignSubtreeKey, renderForeignSubtreeBoundary } from './foreign-subtree.ts';
 
 type TestWindow = Window &
@@ -43,11 +42,6 @@ function createReactRuntime(errors: unknown[]) {
 		createElement: createElement as (...args: unknown[]) => unknown,
 		useState,
 		useEffect,
-		internals: (
-			React as unknown as {
-				__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE: ForeignSubtreeReactRuntime['internals'];
-			}
-		).__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE,
 	};
 }
 
@@ -118,32 +112,6 @@ describe('Foreign Subtree in a hydrated React tree', () => {
 		expect(document.querySelector('lit-counter')).toBe(litCounter);
 		expect(litCounter.shadowRoot?.textContent).toBe('1');
 		expect(errors).toEqual([]);
-	});
-
-	it('leaves a Lit Component call outside a React render to the Component, on a page with a React Island', () => {
-		installForeignSubtreeHost(createReactRuntime([]));
-
-		expect(LitCounter({ count: 1 })).toEqual({
-			_$litType$: 1,
-			strings: ['<lit-counter count="', '"></lit-counter>'],
-			values: [1],
-		});
-	});
-
-	it('hands a Lit Component to React only while React renders it', () => {
-		installForeignSubtreeHost(createReactRuntime([]));
-		let insideRender: unknown;
-		const Probe = () => {
-			insideRender = LitCounter({ count: 1 });
-			return null;
-		};
-		const container = document.createElement('div');
-		const root = createRoot(container);
-		flushSync(() => root.render(createElement(Probe)));
-
-		expect(insideRender).toMatchObject({ type: expect.any(Function), props: { subtreeKey: expect.any(String) } });
-		expect(LitCounter({ count: 1 })).toMatchObject({ _$litType$: 1 });
-		root.unmount();
 	});
 
 	it('A hydrated React Island renders a foreign Lit Component', async () => {

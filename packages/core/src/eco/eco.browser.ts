@@ -21,20 +21,19 @@ import { getComponentOwner } from './component-identity.ts';
 
 /**
  * Creates a browser component that renders inline, or through the registered Foreign Child host when another
- * Integration owns it and the host is rendering.
+ * Integration owns it.
  *
  * @remarks
  * The host is read from `window.__ECO_PAGES__` on every call, not imported, because the bootstrap that registers it
  * and the modules that declare components are separate bundles in development. A Foreign Child was server-rendered
- * by its own Integration, so its `render` never runs inside the host's render: under React it would return output
- * React cannot render, such as a Lit `TemplateResult`. A call outside that render, such as a Lit template calling
- * its own Component on a page with a React Island, is not the host's to take over.
+ * by its own Integration, so its `render` never runs under a host: under React it would return output React cannot
+ * render, such as a Lit `TemplateResult`.
  */
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	const owner = getComponentOwner(options);
 	const component = ((props: P) => {
 		const host = typeof window === 'undefined' ? undefined : window.__ECO_PAGES__?.foreignChildHost;
-		if (host && owner && owner !== host.integration && host.isRendering()) {
+		if (host && owner && owner !== host.integration) {
 			return host.renderForeignChild(component, (props ?? {}) as Record<string, unknown>);
 		}
 		return options.render(props);

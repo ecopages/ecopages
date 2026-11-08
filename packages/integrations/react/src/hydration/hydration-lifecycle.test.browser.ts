@@ -103,7 +103,6 @@ function createPageOptions(
 		},
 		createElement: (...args: unknown[]) => ({ args }),
 		useState,
-		internals: { H: null },
 	};
 
 	return {
@@ -369,7 +368,6 @@ function createRealPageHydrationOptions(Page: unknown): PageHydrationOptions {
 			},
 			createElement: (...args: unknown[]) => args,
 			useState,
-			internals: { H: null },
 		},
 		createTree: (Component, props) => createElement(Component as ElementType, props),
 		hasRouter: false,
@@ -607,7 +605,6 @@ describe('React Island Host lifecycle', () => {
 			createElement: (type: unknown, props: Record<string, unknown>) => ({ type, props }),
 			useEffect: (effect: () => void) => queueMicrotask(effect),
 			useState,
-			internals: { H: null },
 		};
 		const Component = () => null;
 		const options = {
@@ -671,7 +668,6 @@ describe('React Island Host lifecycle', () => {
 				},
 				useEffect: () => {},
 				useState,
-				internals: { H: null },
 			},
 		});
 
@@ -711,7 +707,6 @@ describe('React Island Host lifecycle', () => {
 				useEffect(effect);
 			},
 			useState,
-			internals: { H: null },
 		};
 		const runtime: IslandHydrationRuntime = { islandRoots: {}, islandComponents: {} };
 
@@ -753,7 +748,6 @@ describe('React Island Host lifecycle', () => {
 			createElement: (type: unknown, props: Record<string, unknown>) => ({ type, props }),
 			useEffect: () => {},
 			useState,
-			internals: { H: null },
 		};
 		const runtime: IslandHydrationRuntime = { islandRoots: {}, islandComponents: {} };
 
@@ -871,7 +865,6 @@ function createRecordingIslandRuntime() {
 		createElement: (type: unknown, props: Record<string, unknown>) => ({ type, props }),
 		useEffect: (effect: () => void) => queueMicrotask(effect),
 		useState,
-		internals: { H: null },
 	};
 	return { reactRuntime, renderedComponents };
 }

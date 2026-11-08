@@ -8,7 +8,7 @@ import {
 	attributeMdxComponentIdentity,
 	createEcoComponentMetaPlugin,
 } from './eco-component-meta-plugin.ts';
-import { isReachedByDiscovery } from './component-import-discovery.ts';
+import { hasDiscoveryRecord, isReachedByDiscovery } from './component-import-discovery.ts';
 import { createStylesheetKinds, type StylesheetKinds } from './stylesheet-kinds.ts';
 import { Processor } from './processor.ts';
 import { getPluginTransform } from '../__fixtures__/build/transform-plugin.ts';
@@ -310,6 +310,22 @@ export const Button = eco.component({ render: () => '' });`,
 				expect(result).toContain(`plainModuleStylesheets: ${JSON.stringify([entry])}`);
 				expect(result).toContain(`packageStylesheets: ${JSON.stringify([entry])}`);
 				expect(isReachedByDiscovery(root, path.join(root, 'node_modules/ui-kit/dist/button.js'))).toBe(true);
+			});
+			it('counts a declaration of a linked package as seen by discovery, with its own CSS Module delivered', () => {
+				const { root } = moduleFixture();
+				const outside = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-linked-'))));
+				roots.push(outside);
+				writeFileSync(path.join(outside, 'package.json'), '{"name":"linked-kit"}');
+				writeFileSync(path.join(outside, 'button.module.css'), '.kit {}');
+				const file = path.join(outside, 'button.tsx');
+				const code = attributeComponentIdentity(
+					`import { eco } from '@ecopages/core';\nimport styles from './button.module.css';\nexport const Button = eco.component({ render: () => styles.kit });`,
+					file,
+					{ integration: 'lit', projectRoot: root, stylesheets: scoping },
+				).code;
+
+				expect(code).toContain('linked-kit/button.module.css');
+				expect(hasDiscoveryRecord(root, file)).toBe(true);
 			});
 			it('follows the package module through the modules of its own package', () => {
 				const { root, page } = moduleFixture();

@@ -6,7 +6,7 @@ import {
 	collectStaticImports,
 	createUndeliverablePackageCssModuleError,
 	createUndeliverablePackageStylesheetError,
-	isReachedByDiscovery,
+	hasDiscoveryRecord,
 } from '../../plugins/component-import-discovery.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { PLAIN_CSS_KINDS } from '../../plugins/stylesheet-kinds.ts';
@@ -98,7 +98,7 @@ export function createStylesheetModulePlugin(
 	const checkPackageCssModule = (importer: string, source: string) => {
 		const importerFile = fromRolldownModuleId(importer).replace(/[?#].*$/u, '');
 		const fromPackage = importerFile.includes('/node_modules/') || !isPathInside(importerFile, appRoot);
-		if (!fromPackage || isReachedByDiscovery(build.root, importerFile)) return;
+		if (!fromPackage || hasDiscoveryRecord(build.root, importerFile)) return;
 		const error = createUndeliverablePackageCssModuleError(appRoot, importerFile, source);
 		if (!compiler.reportUndeliverable) throw error;
 		compiler.reportUndeliverable(error);

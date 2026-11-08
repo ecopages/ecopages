@@ -387,6 +387,19 @@ export function isReachedByDiscovery(projectRoot: string, file: string): boolean
 	return reachIn(projectRoot).byModule.has(canonicalFile(file));
 }
 
+/**
+ * Whether discovery has seen `file`, as a module a declaration walked into or as a declaration itself.
+ *
+ * @remarks
+ * A declaration in a linked package delivers its own CSS Module when discovery runs from it, so its CSS Module
+ * import is not left undelivered even when no walk reached the file.
+ */
+export function hasDiscoveryRecord(projectRoot: string, file: string): boolean {
+	const reach = reachIn(projectRoot);
+	const canonical = canonicalFile(file);
+	return reach.byModule.has(canonical) || reach.byOwner.has(canonical);
+}
+
 function relativeToRoot(projectRoot: string, file: string): string {
 	const relative = path.relative(canonicalFile(projectRoot), canonicalFile(file));
 	return relative.startsWith('..') || path.isAbsolute(relative) ? file : relative;
@@ -877,7 +890,8 @@ function collectWalkStylesheets(
  * @remarks
  * A module's own stylesheets come before those of the modules it imports, the order collection gives a
  * declaration and the Components it renders. A package stylesheet a module imports is collected in the same
- * place, though the walk never enters a package's modules. The walk stops at Eco modules, packages and `.server`
+ * place. The walk enters a package's modules only in a package that ships a CSS Module (see
+ * {@link packageShipsCssModules}). It stops at Eco modules, other packages and `.server`
  * modules, and follows only static named, default and side-effect imports. An Eco Component it imports is
  * recorded on the walk. A walk is kept in the build cache unless it skipped a module still being walked
  * higher up a cycle, since that walk lacks what the skipped module contributes.
@@ -973,7 +987,8 @@ function collectOwnStylesheets(
  * barrels are followed for the imported binding only. Imported Eco modules, successful re-export hops and
  * every walked plain module are recorded in `watchFiles` so their edits invalidate caches. Each stylesheet is
  * listed once by real path, and `packageStylesheets` marks those a package import named.
- * `export *`, dynamic imports, namespace imports, packages, and `.server` modules are not followed.
+ * `export *`, dynamic imports, namespace imports, packages that ship no CSS Module, and `.server` modules are not
+ * followed.
  */
 export function discoverComponentImports(
 	program: unknown,

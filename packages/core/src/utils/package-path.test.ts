@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolvePackagePath, toPackagePath } from './package-path.ts';
+import { resolvePackagePath, toPackageScopeFile, toPackagePath } from './package-path.ts';
 
 const roots: string[] = [];
 
@@ -94,5 +94,50 @@ describe('resolvePackagePath', () => {
 		expect(resolvePackagePath(root, '@scope/kit/theme.css')).toBe(
 			path.join(root, 'node_modules', '@scope', 'kit', 'theme.css'),
 		);
+	});
+});
+
+describe('toPackageScopeFile', () => {
+	const install = (packageDir: string) => {
+		write(path.join(packageDir, 'package.json'), JSON.stringify({ name: '@scope/kit', version: '1.2.3' }));
+		return write(path.join(packageDir, 'dist', 'button.module.css'), '.primary {}');
+	};
+	const newRoot = () => {
+		const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-scope-file-'))));
+		roots.push(root);
+		return root;
+	};
+
+	it('puts a package file under the app node_modules by package name and path, whatever the layout or folder', () => {
+		const hoistedRoot = newRoot();
+		const hoisted = install(path.join(hoistedRoot, 'node_modules', '@scope', 'kit'));
+		const pnpmRoot = newRoot();
+		const pnpm = install(
+			path.join(pnpmRoot, 'node_modules', '.pnpm', '@scope+kit@1.2.3', 'node_modules', '@scope', 'kit'),
+		);
+		const linkedRoot = newRoot();
+		const linked = install(path.join(linkedRoot, 'libs', 'kit'));
+		const app = path.join(linkedRoot, 'apps', 'site');
+		mkdirSync(app, { recursive: true });
+
+		expect(toPackageScopeFile(hoisted, hoistedRoot)).toBe(
+			path.join(hoistedRoot, 'node_modules', '@scope', 'kit', 'dist', 'button.module.css'),
+		);
+		expect(path.relative(pnpmRoot, toPackageScopeFile(pnpm, pnpmRoot)!)).toBe(
+			'node_modules/@scope/kit/dist/button.module.css',
+		);
+		expect(path.relative(app, toPackageScopeFile(linked, app)!)).toBe(
+			'node_modules/@scope/kit/dist/button.module.css',
+		);
+	});
+
+	it('leaves a file of the app, and a file outside any named package, as it is', () => {
+		const root = newRoot();
+		const own = write(path.join(root, 'src', 'card.module.css'), '.card {}');
+		const outside = newRoot();
+		const loose = write(path.join(outside, 'loose.module.css'), '.loose {}');
+
+		expect(toPackageScopeFile(own, root)).toBeUndefined();
+		expect(toPackageScopeFile(loose, root)).toBeUndefined();
 	});
 });

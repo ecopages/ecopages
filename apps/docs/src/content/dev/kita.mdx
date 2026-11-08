@@ -36,6 +36,18 @@ sources:
 
 A Lit element a Kita Component declares with an `ssr: true` script gets its declarative shadow root on a Kita Page: core passes the document through Lit's server renderer ([Lit](/dev/lit)). Kita is meant to be the outer shell. When a Kita-owned Page reaches a Foreign Child, core resolves that Foreign Subtree with the owning renderer and splices the HTML back in ([Integrations and Foreign Children](/dev/integrations-foreign-children)).
 
+```mermaid
+flowchart TD
+  P["Kita Page renders its Components to a string"] --> FC{"Reaches a Foreign Child?"}
+  FC -- yes --> OR["Owning renderer renders the Foreign Subtree, HTML spliced back in"]
+  FC -- no --> H
+  OR --> H["Document string"]
+  H --> LE{"Lit assigned an ssr: true script?"}
+  LE -- yes --> LR["Lit renderCustomElements adds declarative shadow roots"]
+  LE -- no --> Z["Page Package injected, document returned"]
+  LR --> Z
+```
+
 - The Component must list the child in `config.dependencies.components`. Ownership is validated from declared Dependencies during route preparation, not discovered from rendered HTML.
 - Route-level dependency resolvers can add Components at request time; they count for handoff.
 - Kita children of Kita do not go through a separate child serialization contract.

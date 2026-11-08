@@ -107,6 +107,19 @@ In production, `PageModuleImportService.importModule()` imports from this map wh
 
 A module imports a stylesheet in one of two ways, and every environment gives each one the same module:
 
+```mermaid
+flowchart TD
+  I["Module imports a stylesheet"] --> K{"Has a binding?"}
+  K -- "no: import './card.css'" --> S["Stripped from app modules, or an empty module for a package import"]
+  S --> DEP["Page Dependency: delivered as a linked or inline stylesheet"]
+  K -- "yes: import styles from './card.css'" --> CM["compileStylesheetModule"]
+  CM --> AP["applyStylesheetProcessors: one cached Processor result"]
+  AP --> Q{"CSS Module?"}
+  Q -- no --> M1["export default of the processed css string"]
+  Q -- yes --> M2["export default class map plus named exports"]
+  ENV["Server build, browser bundle and dev transform server all start here"] -.-> I
+```
+
 | Import | Module | Where its CSS goes |
 | --- | --- | --- |
 | `import './card.css'` | removed from app modules by the component meta transform; an empty module when a package keeps it in a server build | the Page, as a Dependency |

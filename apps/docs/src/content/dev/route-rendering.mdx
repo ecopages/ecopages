@@ -106,6 +106,20 @@ Every `ssr: true` entry is preloaded, eager or lazy, and assigned to one preload
 
 Ecopages JSX declares `'own'` when Radiant is enabled, and Lit declares `'own-and-foreign'`. The declaration is the only statement of whether an Integration preloads, so the two cannot drift. A renderer that builds a preloader for an Integration with no `ssrScriptPreload` throws, and so does an Integration that declares one whose renderer builds none; `getRenderer()` reports both when it creates the renderer.
 
+```mermaid
+flowchart TD
+  T["Page, Layouts, Html shell and dependency Components"] --> AS["assignSsrPreloadScripts: each ssr: true script assigned once"]
+  AS --> D{"Declaring Component's Integration preloads?"}
+  D -- "yes ('own' or 'own-and-foreign')" --> OW["That Integration; first in config order if several"]
+  D -- "no" --> F{"An 'own-and-foreign' Integration exists?"}
+  F -- yes --> FL["First one in config order (Lit)"]
+  F -- no --> NO["Not evaluated on the server"]
+  OW --> PL["Activate Integration if not the owner, preload its share"]
+  FL --> PL
+  PL --> RD["Render route to a string"]
+  RD --> RC["renderCustomElements hook of each assigned Integration"]
+```
+
 After the route renders, `render()` passes a string document through the `renderCustomElements` hook of each Integration it assigned scripts to, whichever Integration owns the Page. A Page with no assigned script runs no hook and pays nothing; a body that is not a string is returned as it is (every in-tree renderer, React included, produces a complete string). The Integration also counts as taking part in the Page for its global scripts, so Lit's hydration support precedes the element scripts on a Kita Page that only declares a Lit element on a Kita Component.
 
 `renderComponent` also preloads the scripts of the Component it receives, for a partial render that has no Page. That assignment sees only the Component's tree, so a preloader skips any script another Integration's preloader has already loaded, failed on or is loading for the same registry: a script declared on a Kita and an Ecopages JSX Component is evaluated once, by Ecopages JSX. Neither path builds a browser bundle for a preloaded script; `lazy` still controls browser loading. Per-Integration details: [Lit](/dev/lit), [Ecopages JSX](/dev/ecopages-jsx).

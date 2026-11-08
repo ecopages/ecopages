@@ -25,6 +25,21 @@ The service dispatches each asset to one of five processors by kind and source: 
 
 In development, each applied change batch is announced on the build-input index, and every service evicts the cached assets whose source or bundled inputs the batch touched. Shared layout styles are therefore not rebuilt per navigated page, and a bundle is never served after one of its imports changed.
 
+## How a stylesheet is processed
+
+```mermaid
+flowchart TD
+  D["Stylesheet Dependency: file, content or package"] --> PK{"fromPackage?"}
+  PK -- yes --> PR["Rewrite url() and inline @import only; no Processor"]
+  PK -- no --> AP["applyStylesheetProcessors: the one stylesheet Processor, if its capability matches"]
+  AP --> SC["Core CSS scanner: inline leftover relative @import, partials join dependencies"]
+  PR --> UR
+  SC --> UR["url() and image-set(): copy fonts, images and media by file type, never dotfiles"]
+  UR --> OUT{"Environment"}
+  OUT -- "production, inline, or outside srcDir" --> H["dist/client/assets, content-hashed"]
+  OUT -- "development, inside srcDir" --> SR["Source-relative path under distDir/assets"]
+```
+
 ## Where outputs land
 
 | Asset | Output |

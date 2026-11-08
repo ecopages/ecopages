@@ -242,6 +242,19 @@ describe('@import bundling', () => {
 			expect([...(ours.dependencies ?? [])].sort()).toEqual([...core.dependencies].sort());
 		});
 
+		test('orders a stylesheet imported twice by its last import, as core does', async () => {
+			const mainCss = '@import "./a.css";\n@import "./b.css";\n@import "./a.css";\n.main { color: red; }';
+			write('src/styles/a.css', '.a { color: red; }');
+			write('src/styles/b.css', '.b { color: red; }');
+			const main = write('src/styles/main.css', mainCss);
+
+			const ours = await transform(main);
+			const core = inlineStylesheetImports(mainCss, main);
+
+			expect(ours.css.indexOf('.b')).toBeLessThan(ours.css.indexOf('.a'));
+			expect(await normalize(ours.css)).toBe(await normalize(core.css));
+		});
+
 		test('resolves the @import and url() of a symlinked entry as core does', async () => {
 			const css = '@import "./only-beside-the-link.css";\n.e { background: url(i.png); }';
 			write('src/real/e.css', css);

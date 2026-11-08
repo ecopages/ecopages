@@ -191,6 +191,30 @@ test('inlines a package @import once', async () => {
 	expect(await preparedCss(stylesheet)).toBe('.other {}\n\n.top {}');
 });
 
+test('keeps the last instance of a package stylesheet imported twice', async () => {
+	const stylesheet = writePackageFile(
+		'dist/style.css',
+		"@import './shared.css';\n@import './other.css';\n@import './shared.css';\n.top {}",
+	);
+	writePackageFile('dist/shared.css', '.shared {}');
+	writePackageFile('dist/other.css', '.other {}');
+	const css = await preparedCss(stylesheet);
+
+	expect(css.indexOf('.other')).toBeLessThan(css.indexOf('.shared'));
+	expect(css.match(/\.shared/g)).toHaveLength(1);
+});
+
+test('hoists the remote @import of a package stylesheet imported twice once', async () => {
+	const stylesheet = writePackageFile(
+		'dist/style.css',
+		"@import './shared.css';\n@import './other.css';\n@import './shared.css';",
+	);
+	writePackageFile('dist/shared.css', '@import url("https://fonts.example/x.css");\n.shared {}');
+	writePackageFile('dist/other.css', '.other {}');
+
+	expect((await preparedCss(stylesheet)).match(/fonts\.example/g)).toHaveLength(1);
+});
+
 test('leaves url() inside strings and comments alone and reads escaped urls', async () => {
 	writePackageFile('dist/i).svg', '<svg id="paren"/>');
 	const stylesheet = writePackageFile(

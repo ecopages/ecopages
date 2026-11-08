@@ -86,7 +86,7 @@ describe('inlineStylesheetImports', () => {
 		);
 	});
 
-	it('inlines a partial once, even when two stylesheets import it or they import each other', () => {
+	it('inlines a partial once, even when two stylesheets import it or they import each other, in the order of the last import', () => {
 		write('src/a.css', "@import './b.css';\n.a {}");
 		write('src/b.css', "@import './a.css';\n.b {}");
 		const entry = write('src/main.css', '');
@@ -96,8 +96,35 @@ describe('inlineStylesheetImports', () => {
 			entry,
 		);
 
-		expect(css).toBe('\n.b {}\n.a {}\n\n.main {}');
+		expect(css).toBe('\n\n.a {}\n.b {}\n.main {}');
 		expect(dependencies).toHaveLength(2);
+	});
+
+	it('keeps the last instance of a stylesheet imported twice, as the cascade does', () => {
+		write('src/shared.css', '.shared {}');
+		write('src/other.css', '.other {}');
+		const entry = write('src/main.css', '');
+
+		const { css } = inlineStylesheetImports(
+			"@import './shared.css';\n@import './other.css';\n@import './shared.css';\n.main {}",
+			entry,
+		);
+
+		expect(css.indexOf('.other')).toBeLessThan(css.indexOf('.shared'));
+		expect(css.match(/\.shared/g)).toHaveLength(1);
+	});
+
+	it('hoists the remote @import of a stylesheet imported twice once', () => {
+		write('src/shared.css', '@import url("https://fonts.example/x.css");\n.shared {}');
+		write('src/other.css', '.other {}');
+		const entry = write('src/main.css', '');
+
+		const { css } = inlineStylesheetImports(
+			"@import './shared.css';\n@import './other.css';\n@import './shared.css';",
+			entry,
+		);
+
+		expect(css.match(/fonts\.example/g)).toHaveLength(1);
 	});
 
 	it('inlines through a symlinked partial, reporting the path as written', () => {

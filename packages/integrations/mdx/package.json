@@ -8,6 +8,9 @@
 		"plugin"
 	],
 	"license": "MIT",
+	"engines": {
+		"node": "^24.15.0 || >=26.0.0"
+	},
 	"main": "./src/mdx.plugin.ts",
 	"types": "./src/mdx.plugin.ts",
 	"type": "module",

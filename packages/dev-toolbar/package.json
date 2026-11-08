@@ -8,6 +8,9 @@
 		"dev-toolbar"
 	],
 	"license": "MIT",
+	"engines": {
+		"node": "^24.15.0 || >=26.0.0"
+	},
 	"type": "module",
 	"exports": {
 		".": "./src/bootstrap.ts",

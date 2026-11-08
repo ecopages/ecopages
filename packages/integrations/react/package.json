@@ -8,6 +8,9 @@
 		"plugin"
 	],
 	"license": "MIT",
+	"engines": {
+		"node": "^24.15.0 || >=26.0.0"
+	},
 	"main": "./src/plugin/react.plugin.ts",
 	"types": "./src/plugin/react.plugin.ts",
 	"type": "module",

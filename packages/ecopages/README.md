@@ -22,7 +22,7 @@ pnpm install
 pnpm dev
 ```
 
-The commands above run on Node. Bun is optional: launch them through Bun (`bunx ecopages init`, `bun dev`) or pass `--runtime bun` to run the app on Bun.
+The commands above run on Node.js `^24.15.0 || >=26.0.0`; the CLI exits with an error on any other version. Bun is optional: launch them through Bun (`bunx ecopages init`, `bun dev`) or pass `--runtime bun` to run the app on Bun.
 
 ## Commands
 

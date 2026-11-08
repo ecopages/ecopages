@@ -16,6 +16,7 @@ import {
 } from '@ecopages/core/build';
 import { fileSystem } from '@ecopages/file-system';
 import { withBrandBanner } from './brand.js';
+import { getUnsupportedNodeMessage } from './node-version.js';
 
 const logger = new Logger('[ecopages:cli]', { debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG') });
 
@@ -400,6 +401,12 @@ const SERVER_COMMANDS = {
 
 export async function runCli(rawArgs = process.argv.slice(2)) {
 	const [commandName, ...commandArgs] = rawArgs;
+
+	const unsupportedNodeMessage = getUnsupportedNodeMessage();
+	if (unsupportedNodeMessage) {
+		logger.error(unsupportedNodeMessage);
+		process.exit(1);
+	}
 
 	if (!commandName || commandName === '--help' || commandName === '-h') {
 		console.log(withBrandBanner(pkg.version, getMainHelpText()));

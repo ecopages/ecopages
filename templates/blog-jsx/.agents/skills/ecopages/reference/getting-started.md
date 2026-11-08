@@ -32,7 +32,7 @@ npx ecopages init react-better-auth --template react-better-auth && cd react-bet
 
 Other `--template` IDs: `jsx` (the default), `html`, `react`, `react-shadcn`, `lit-jsx`, `radiant`, `docs-starter`, `llm-wiki`.
 
-Ecopages needs Node `^24.15.0 || >=26.0.0`. The app runs on Node by default. Launch the same commands through Bun (`bunx ecopages init`, `bun dev`) or pass `--runtime bun` to run it on Bun.
+Ecopages needs Node `^24.22.0 || >=26.0.0`. The app runs on Node by default. Launch the same commands through Bun (`bunx ecopages init`, `bun dev`) or pass `--runtime bun` to run it on Bun.
 
 ## Installation
 

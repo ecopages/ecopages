@@ -4,7 +4,7 @@
 	"description": "CLI utilities for Ecopages",
 	"type": "module",
 	"engines": {
-		"node": "^24.15.0 || >=26.0.0"
+		"node": "^24.22.0 || >=26.0.0"
 	},
 	"license": "MIT",
 	"author": "Ecopages Team",

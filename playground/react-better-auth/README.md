@@ -15,7 +15,7 @@ A modern web application built with Ecopages, Better Auth, and Drizzle ORM.
 
 ### Prerequisites
 
-- Node.js 24.15 or later in the 24 line, or Node.js 26 or later (Bun is optional)
+- Node.js 24.22 or later in the 24 line, or Node.js 26 or later (Bun is optional)
 
 ### Installation
 

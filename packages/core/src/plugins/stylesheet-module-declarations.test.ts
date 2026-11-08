@@ -39,6 +39,8 @@ function typeErrors(): string[] {
 		},
 		ts.sys,
 		rootDir,
+		undefined,
+		path.join(rootDir, 'tsconfig.json'),
 	);
 	const program = ts.createProgram({ rootNames: options.fileNames, options: options.options });
 	return ts.getPreEmitDiagnostics(program).map((diagnostic) => {
@@ -48,28 +50,24 @@ function typeErrors(): string[] {
 }
 
 describe('a stylesheet Processor that declares extensions beyond .css', () => {
-	it.fails(
-		'types the import of each declared extension once it has set up, with no declaration in the app',
-		async () => {
-			write('src/card.scss', '.card { color: red; }\n');
-			write('src/card.module.scss', '.card { color: red; }\n');
-			write(
-				'src/page.ts',
-				[
-					`import styles from './card.scss';`,
-					`import classes from './card.module.scss';`,
-					`export const css: string = styles;`,
-					`export const name: string = classes.card;`,
-				].join('\n'),
-			);
-			write('src/wrong.ts', `import styles from './card.scss';\nexport const css: number = styles;\n`);
-			await setUp(new DeclaringProcessor());
-
-			expect(typeErrors()).toEqual([
-				expect.stringMatching(/^wrong\.ts: Type 'string' is not assignable to type 'number'/u),
-			]);
-		},
-	);
+	it('types the import of each declared extension once it has set up, with no declaration in the app', async () => {
+		write('src/card.scss', '.card { color: red; }\n');
+		write('src/card.module.scss', '.card { color: red; }\n');
+		write(
+			'src/page.ts',
+			[
+				`import styles from './card.scss';`,
+				`import classes from './card.module.scss';`,
+				`export const css: string = styles;`,
+				`export const name: string = classes.card;`,
+			].join('\n'),
+		);
+		write('src/wrong.ts', `import styles from './card.scss';\nexport const css: number = styles;\n`);
+		await setUp(new DeclaringProcessor());
+		expect(typeErrors()).toEqual([
+			expect.stringMatching(/^wrong\.ts: Type 'string' is not assignable to type 'number'/u),
+		]);
+	});
 
 	it('writes nothing for a Processor that declares only .css', async () => {
 		await setUp(
@@ -84,7 +82,7 @@ describe('a stylesheet Processor that declares extensions beyond .css', () => {
 });
 
 describe('serializeStylesheetModuleDeclarations', () => {
-	it.fails('declares the plain and the module pattern of each extension, the module pattern first', () => {
+	it('declares the plain and the module pattern of each extension, the module pattern first', () => {
 		const text = serializeStylesheetModuleDeclarations([
 			{ kind: 'stylesheet', extensions: ['*.{scss, SASS}', '.css'], cssModules: true },
 			{ kind: 'image', extensions: ['*.png'] },

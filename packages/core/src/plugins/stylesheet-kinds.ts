@@ -30,7 +30,7 @@ export interface StylesheetKinds {
  * Handles `.css`, `css`, `*.css` and `*.{css,scss}`. The bare `*` wildcard and patterns that are not an
  * extension name none, so a Processor cannot turn every file into a stylesheet.
  */
-function extensionsOfPattern(pattern: ProcessorExtensionPattern): string[] {
+export function extensionsOfPattern(pattern: ProcessorExtensionPattern): string[] {
 	const normalized = pattern.trim().toLowerCase();
 	const grouped = /^\*\.\{(.+)\}$/.exec(normalized);
 	const items = grouped ? grouped[1]!.split(',') : [normalized.replace(/^\*/, '')];

@@ -10,10 +10,7 @@ export default defineConfig({
   },
   integrations: [ecopagesJsxPlugin()],
   processors: [
-    lightningCssProcessorPlugin({
-      ...tailwindV4Preset({ referencePath: 'src/styles/app.css' }),
-      targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
-    }),
+    lightningCssProcessorPlugin(tailwindV4Preset({ referencePath: 'src/styles/app.css' })),
   ],
 });`;
 

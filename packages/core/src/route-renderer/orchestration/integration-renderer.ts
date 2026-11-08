@@ -219,6 +219,16 @@ export type IntegrationRendererHooks = {
 	beforeImportPageModule?: (file: string) => Promise<void>;
 	transformDocumentHtml?: (html: string) => string;
 	/**
+	 * Server-renders the custom elements in a Page document that another Integration produced.
+	 *
+	 * @remarks
+	 * Core calls it on the finished document of a Page that has `ssr: true` scripts assigned to this Integration's
+	 * preloader, whichever Integration owns the Page, so an element it registered gets its server output wherever the
+	 * markup came from. It must leave markup it already rendered unchanged. Only a string document is passed; a
+	 * streamed body is not.
+	 */
+	renderCustomElements?: (html: string) => Promise<string> | string;
+	/**
 	 * Optional wrapper around the route render, for scoping such as HMR ownership.
 	 * @remarks Core already wraps whatever this throws with `createRenderError('Error rendering page')`,
 	 * keeping the original error as `cause` and passing an `HttpError` through. Do not catch and re-wrap.
@@ -245,6 +255,15 @@ export type IntegrationRendererOptions = {
 };
 
 /** Options available while creating one renderer's Integration hooks. */
+/** The Components of a Page tree whose `ssr: true` scripts core assigns to an Integration's preloader. */
+export type PageSsrScriptComponents = {
+	Page?: EcoComponent | Partial<EcoComponent>;
+	Layout?: EcoComponent | Partial<EcoComponent>;
+	HtmlTemplate?: EcoComponent | Partial<EcoComponent>;
+	Layouts?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
+	pageDependencyComponents?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
+};
+
 export type IntegrationRendererHookFactoryOptions = Omit<IntegrationRendererOptions, 'hooks'> & {
 	hooks?: IntegrationRendererHooks;
 	/** Resolves component assets with this renderer's dependency rules and active render session. */
@@ -765,8 +784,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * owns can reach it through a Component whose Integration does not preload. An assigned Integration other than
 	 * this one is activated first.
 	 */
-	private async preloadPageSsrScripts(options: IntegrationRendererRenderOptions<C>): Promise<void> {
-		const assignment = assignSsrPreloadScripts(
+	private assignPageSsrScripts(options: PageSsrScriptComponents): SsrScriptAssignment {
+		return assignSsrPreloadScripts(
 			[
 				options.Page,
 				options.Layout,
@@ -777,19 +796,56 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			(componentDir, pathUrl) => this.resolveDependencyPath(componentDir, pathUrl),
 			this.appConfig.integrations,
 		);
+	}
 
-		await Promise.all(
+	/**
+	 * Names the Integrations whose preloader evaluates an `ssr: true` script of this Page.
+	 *
+	 * @remarks
+	 * Such an Integration takes part in the Page even when it owns none of its Components, as Lit does for an element
+	 * declared on a Kita Component, so its global scripts, such as Lit's hydration support, reach the document.
+	 */
+	getPageSsrScriptIntegrationNames(options: PageSsrScriptComponents): string[] {
+		return [...this.assignPageSsrScripts(options).keys()];
+	}
+
+	/**
+	 * Evaluates the `ssr: true` scripts of the whole Page tree, each by the one preloader core assigns it to.
+	 *
+	 * @remarks
+	 * The assignment is made once, over the Page, its Layouts, the Html template and the Page's dependency
+	 * Components, so no Integration decides from the part of the tree its own hook sees. Every assigned Integration
+	 * preloads its share, including one that owns no Component the Page renders itself: a Page another Integration
+	 * owns can reach it through a Component whose Integration does not preload. An assigned Integration other than
+	 * this one is activated first.
+	 *
+	 * @returns The renderers of the assigned Integrations, which also render custom elements in the finished document.
+	 */
+	private async preloadPageSsrScripts(
+		options: IntegrationRendererRenderOptions<C>,
+	): Promise<ReadonlyArray<IntegrationRenderer<any>>> {
+		const assignment = this.assignPageSsrScripts(options);
+
+		return await Promise.all(
 			Array.from(assignment.keys(), async (integrationName) => {
 				if (integrationName === this.name) {
 					await this.preloadAssignedSsrScripts(assignment);
-					return;
+					return this;
 				}
 
 				await ensureIntegrationRuntimeReady({ appConfig: this.appConfig, integrationName });
-				const integration = this.appConfig.integrations.find((entry) => entry.name === integrationName);
-				await integration?.getRenderer().preloadAssignedSsrScripts(assignment);
+				const renderer = this.appConfig.integrations
+					.find((entry) => entry.name === integrationName)
+					?.getRenderer();
+				await renderer?.preloadAssignedSsrScripts(assignment);
+				return renderer ?? this;
 			}),
 		);
+	}
+
+	/** Server-renders the custom elements this renderer's Integration registered in a finished document. */
+	async renderCustomElements(html: string): Promise<string> {
+		return (await this.integrationHooks.renderCustomElements?.(html)) ?? html;
 	}
 
 	/** Whether the hooks built a custom-element preloader for this renderer. */
@@ -1149,11 +1205,35 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	async render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
 		const renderRoute = () => this.renderRouteDocument(options);
 		try {
-			await this.preloadPageSsrScripts(options);
-			return await (this.integrationHooks.renderRoute?.(options, renderRoute) ?? renderRoute());
+			const assignedRenderers = await this.preloadPageSsrScripts(options);
+			const body = await (this.integrationHooks.renderRoute?.(options, renderRoute) ?? renderRoute());
+			return await this.renderAssignedCustomElements(body, assignedRenderers);
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
 		}
+	}
+
+	/**
+	 * Passes a finished string document through the renderers that were assigned `ssr: true` scripts, so the custom
+	 * elements they registered are server-rendered in markup another Integration produced.
+	 *
+	 * @remarks
+	 * A Page with no assigned script has no renderer here and pays nothing. A streamed body is returned as it is.
+	 */
+	private async renderAssignedCustomElements(
+		body: RouteRendererBody,
+		renderers: ReadonlyArray<IntegrationRenderer<any>>,
+	): Promise<RouteRendererBody> {
+		if (typeof body !== 'string') {
+			return body;
+		}
+
+		let html = body;
+		for (const renderer of renderers) {
+			html = await renderer.renderCustomElements(html);
+		}
+
+		return html;
 	}
 
 	/**

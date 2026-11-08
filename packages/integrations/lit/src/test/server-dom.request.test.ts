@@ -130,47 +130,35 @@ describe('ssr script ownership', () => {
 		);
 	}, 60_000);
 
-	it.fails(
-		'A Lit element declared on a Kita Component is still server-rendered',
-		async () => {
-			const page = await requestPage('/lit-with-kita-lit-element');
+	it('A Lit element declared on a Kita Component is still server-rendered', async () => {
+		const page = await requestPage('/lit-with-kita-lit-element');
 
-			expect(page.status).toBe(200);
-			expect(countSsrScriptEvaluations('ssr-once-lit-probe')).toBe(1);
-			expect(page.html).toMatch(
-				/<ssr-once-lit-probe\b[^>]*><template shadowrootmode="open">[^]*?data-ssr-once-lit-probe/,
-			);
-		},
-		60_000,
-	);
+		expect(page.status).toBe(200);
+		expect(countSsrScriptEvaluations('ssr-once-lit-probe')).toBe(1);
+		expect(page.html).toMatch(
+			/<ssr-once-lit-probe\b[^>]*><template shadowrootmode="open">[^]*?data-ssr-once-lit-probe/,
+		);
+	}, 60_000);
 
-	it.fails(
-		'A Lit element declared on a Kita Component on a Kita Page is server-rendered',
-		async () => {
-			const page = await requestPage('/kita-with-kita-lit-element');
+	it('A Lit element declared on a Kita Component on a Kita Page is server-rendered', async () => {
+		const page = await requestPage('/kita-with-kita-lit-element');
 
-			expect(page.status).toBe(200);
-			expect(page.html).toMatch(
-				/<ssr-once-lit-probe\b[^>]*><template shadowrootmode="open">[^]*?data-ssr-once-lit-probe/,
-			);
-			expect(page.html.match(/<template shadowrootmode="open">/g)).toHaveLength(1);
-		},
-		60_000,
-	);
+		expect(page.status).toBe(200);
+		expect(page.html).toMatch(
+			/<ssr-once-lit-probe\b[^>]*><template shadowrootmode="open">[^]*?data-ssr-once-lit-probe/,
+		);
+		expect(page.html.match(/<template shadowrootmode="open">/g)).toHaveLength(1);
+	}, 60_000);
 
-	it.fails(
-		'Lit hydration support precedes the Lit element script on a Kita Page',
-		async () => {
-			const page = await requestPage('/kita-with-kita-lit-element');
-			const scripts = listScripts(page.html);
-			const elementIndex = scripts.findIndex((script) => script.includes('ssr-once-lit-probe'));
+	it('Lit hydration support precedes the Lit element script on a Kita Page', async () => {
+		const page = await requestPage('/kita-with-kita-lit-element');
+		const scripts = listScripts(page.html);
+		const elementIndex = scripts.findIndex((script) => script.includes('ssr-once-lit-probe'));
 
-			expect(elementIndex).toBeGreaterThan(-1);
-			expect(scripts.indexOf('lit-hydrate-support')).toBeGreaterThan(-1);
-			expect(scripts.indexOf('lit-hydrate-support')).toBeLessThan(elementIndex);
-		},
-		60_000,
-	);
+		expect(elementIndex).toBeGreaterThan(-1);
+		expect(scripts.indexOf('lit-hydrate-support')).toBeGreaterThan(-1);
+		expect(scripts.indexOf('lit-hydrate-support')).toBeLessThan(elementIndex);
+	}, 60_000);
 
 	it('Global scripts keep one order whichever Integration owns the Page', async () => {
 		const globalScripts = ['lit-hydrate-support', 'ecopages-jsx-radiant-hydrator'];

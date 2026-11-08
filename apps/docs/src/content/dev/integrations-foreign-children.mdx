@@ -117,8 +117,6 @@ A Processor subclasses `Processor` ([`processor.ts`](https://github.com/ecopages
 
 Watch extensions only select which changes `onChanges` receives; ownership comes from `capabilities` alone, and it decides whether development invalidation skips server modules and HMR for an asset.
 
-
-
-There is no invalidation hook. A Processor that keeps compiled server artifacts outside the route-module graph compares `moduleLoader.getDevelopmentGeneration()` on the app runtime, which development invalidation advances when it invalidates server modules, with the generation it built at, and rebuilds on a mismatch. The content Processor's collection bundles do this.
+Server artifacts have no invalidation hook (`invalidateStylesheets` covers stylesheets only). A Processor that keeps compiled server artifacts outside the route-module graph compares `moduleLoader.getDevelopmentGeneration()` on the app runtime, which development invalidation advances when it invalidates server modules, with the generation it built at, and rebuilds on a mismatch. The content Processor's collection bundles do this.
 
 For the content Processor and its `ecopages:content` virtual modules, see [Content processor](/dev/content-processor).

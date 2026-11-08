@@ -104,7 +104,7 @@ sequenceDiagram
   N->>D: "publish fetched document"
   N->>B: "import Page module and render"
   H->>H: "import new module, fetch current URL"
-  H->>D: "publish document, read props and module URL from its __ECO_PAGE_DATA__"
+  H->>D: "publish document, read props (and the module URL when present) from its __ECO_PAGE_DATA__"
   H->>B: "re-render with the new props"
   B->>D: "read server HTML by key, then the live document"
   alt "server HTML found"

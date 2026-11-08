@@ -76,7 +76,7 @@ A CSS Module is classified at discovery, scoped once by the stylesheet Processor
 
 ```mermaid
 flowchart TD
-  I["import styles from ./card.module.css"] --> K{"classifyStylesheetImport: Processor declares cssModules?"}
+  I["import styles from ./card.module.css"] --> K{"classifyStylesheetImport: CSS Module. Does the Processor declare cssModules for this extension?"}
   K -- "no" --> X["Build fails, naming importer, specifier and lightningcss-processor"]
   K -- "yes" --> D["Discovery records a stylesheet of the declaration, binding import kept"]
   D --> A["applyStylesheetProcessors: one Processor call, cached result with css and exports"]

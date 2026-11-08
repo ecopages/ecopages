@@ -6,7 +6,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource, resolveProjectModulePath } from '@ecopages/core/build';
 import { FOREIGN_BOUNDARY_PACKAGE } from '../bundling/bootstrap-package-paths.ts';
 import { toRealPath } from './foreign-jsx-reach.ts';
-import { walkScopedReferences } from './scope-walk.ts';
+import { collectLexicalDeclarations, walkScopedReferences } from './scope-walk.ts';
 
 const HELPER_BINDING = '__ecoForeignBoundary';
 const NAMESPACE_HELPER_BINDING = '__ecoForeignBoundaryNamespace';
@@ -159,6 +159,56 @@ class ForeignExports {
 		);
 	}
 
+	private readonly declared = new Map<string, { names: Set<string>; stars: string[] } | undefined>();
+
+	private getDeclaredExports(filePath: string): { names: Set<string>; stars: string[] } | undefined {
+		if (this.declared.has(filePath)) return this.declared.get(filePath);
+		this.declared.set(filePath, undefined);
+		if (!SOURCE_FILE.test(filePath) || !fileSystem.exists(filePath)) return undefined;
+		const { program } = parseModuleSource(filePath, fileSystem.readFileSync(filePath));
+		const names = new Set<string>();
+		const stars: string[] = [];
+		for (const node of program.body as any[]) {
+			if (node.type === 'ExportDefaultDeclaration') {
+				names.add('default');
+			} else if (node.type === 'ExportNamedDeclaration' && node.exportKind !== 'type') {
+				collectLexicalDeclarations(node, names);
+				for (const specifier of node.specifiers ?? []) names.add(moduleName(specifier.exported));
+			} else if (node.type === 'ExportAllDeclaration' && node.exportKind !== 'type') {
+				if (node.exported) names.add(moduleName(node.exported));
+				else stars.push(node.source.value as string);
+			}
+		}
+		const result = { names, stars };
+		this.declared.set(filePath, result);
+		return result;
+	}
+
+	/**
+	 * Whether the module `filePath` exports `name` itself or through an `export *`.
+	 *
+	 * @remarks
+	 * A file that cannot be read as source answers `true`, so an unknown export keeps counting as foreign.
+	 */
+	private declaresExport(filePath: string, name: string, seen = new Set<string>()): boolean {
+		if (seen.has(filePath)) return false;
+		seen.add(filePath);
+		const declared = this.getDeclaredExports(filePath);
+		if (!declared) return true;
+		if (declared.names.has(name)) return true;
+		if (name === 'default') return false;
+		return declared.stars.some((star) => {
+			const target = this.resolve(filePath, star);
+			return target === undefined || this.declaresExport(target, name, seen);
+		});
+	}
+
+	/** Whether `export * from target` brings in the foreign export `name`: a foreign target must declare it. */
+	private starExportIsForeign(target: string, name: string | undefined, seen: Set<string>): boolean {
+		if (name !== undefined && this.options.isForeignFile(target)) return this.declaresExport(target, name);
+		return this.isForeign(target, name, seen);
+	}
+
 	/** Whether the export `name` of `filePath` is declared by a foreign file; `undefined` asks about any export. */
 	isForeign(filePath: string, name: string | undefined, seen = new Set<string>()): boolean {
 		if (this.options.isForeignFile(filePath)) return true;
@@ -168,8 +218,11 @@ class ForeignExports {
 			const target = this.resolve(filePath, node.source.value as string);
 			if (!target) continue;
 			if (node.type === 'ExportAllDeclaration') {
-				if (node.exported === null || node.exported === undefined) {
-					if (this.isForeign(target, name, seen)) return true;
+				if (
+					(node.exported === null || node.exported === undefined) &&
+					this.starExportIsForeign(target, name, seen)
+				) {
+					return true;
 				}
 				continue;
 			}

@@ -152,6 +152,23 @@ describe('rewriteForeignImports', () => {
 		}
 	});
 
+	it('leaves React-only names of a barrel that star-exports a foreign module untouched', () => {
+		const root = createProject();
+		try {
+			writeFileSync(
+				path.join(root, 'components/star.ts'),
+				"export * from './counter.lit.tsx';\nexport * from './button.tsx';",
+			);
+			expect(
+				rewrite(root, "import { Other } from './components/star.ts';\nexport default Other;"),
+			).toBeUndefined();
+			const output = rewrite(root, "import { Named } from './components/star.ts';\nexport default Named;")!;
+			expect(output).toContain('const Named = __ecoForeignBoundary(');
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it('wraps the imports of compiled MDX', () => {
 		const root = createProject();
 		try {

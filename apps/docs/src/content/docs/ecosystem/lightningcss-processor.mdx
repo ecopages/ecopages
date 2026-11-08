@@ -146,13 +146,26 @@ export const Button = eco.component({
 ```
 
 - The server HTML, the browser bundle and the hydrated island use the same scoped names. Ecopages links the scoped CSS on the Page that renders the component, like any other stylesheet of the component.
-- The default export is the only one: a read-only map of the local class name to the scoped one. `composes` adds the composed names to the entry, so `class={styles.primary}` carries them.
+- The default export is a read-only map of the local class name to the scoped one. `composes` adds the composed names to the entry, so `class={styles.primary}` carries them.
+- Each class whose name is a valid JavaScript identifier is also a named export: `import { primary } from './button.module.css'`. Names are not renamed, so `is-active` is available as `styles['is-active']` only.
 - Names are `[hash]_[local]`, hashed from the path relative to the app, so a build gives the same names in any folder. Set `cssModules: { pattern }` to change the pattern.
 - `composes: base from './base.module.css'` bundles the other file.
-- Type the import with the declaration core ships: `import '@ecopages/core/declarations'` in your `modules.d.ts`.
+- Type the default import with the declaration core ships: `import '@ecopages/core/declarations'` in your `modules.d.ts`.
+- Type the named exports with `ecopages types`, which writes one declaration per CSS Module into `node_modules/@types/ecopages-css-modules`, and point TypeScript at it in `tsconfig.json`. `import { secondary }` and `styles.secondary` then fail type checking when the file has no `.secondary`. In development the declarations are rewritten when a CSS Module changes.
 - A browser script that imports a CSS Module gets the same class names; the CSS reaches the Page when the component that uses the script imports the module too or lists it in `dependencies.stylesheets`.
 - A CSS Module from a package is not supported.
 - Without this Processor, importing a CSS Module fails the build and names the importing file.
+
+```json
+{
+	"compilerOptions": {
+		"rootDirs": ["./src", "./node_modules/@types/ecopages-css-modules"],
+		"paths": { "@/*": ["./src/*", "./node_modules/@types/ecopages-css-modules/*"] }
+	}
+}
+```
+
+`rootDirs` types relative imports, and the second `paths` entry types imports through an alias such as `@/components/button.module.css`. Change `./src` if your sources live elsewhere. A CSS Module without a declaration, such as one added before `ecopages types` ran, keeps the default export typed by core.
 
 In development, an edit to the CSS refreshes the stylesheet in place. An edit that adds, removes or renames a class also updates the components that import the module.
 

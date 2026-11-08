@@ -77,14 +77,17 @@ describe('CSS Module declarations', () => {
 				'utf8',
 			),
 		);
-		write('src/button.module.css', '.primary { color: red; }\n.is-active { color: blue; }\n');
+		write(
+			'src/button.module.css',
+			'.primary { color: red; }\n.is-active { color: blue; }\n.styles { color: green; }\n',
+		);
 		write(
 			'src/page.ts',
 			[
-				`import { primary } from './button.module.css';`,
+				`import { primary, styles as stylesClass } from './button.module.css';`,
 				`import styles from './button.module.css';`,
 				`import { primary as aliased } from '@/button.module.css';`,
-				`export const names: string[] = [primary, aliased, styles.primary, styles['is-active']];`,
+				`export const names: string[] = [primary, aliased, styles.primary, styles['is-active'], stylesClass];`,
 			].join('\n'),
 		);
 		write('src/unknown-named.ts', `import { secondary } from './button.module.css';\nexport { secondary };\n`);

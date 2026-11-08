@@ -14,6 +14,9 @@ export const CSS_MODULE_TYPES_MODULE = 'ecopages-css-modules';
 /**
  * The declaration of a CSS Module whose class map is `exports`: the default export, typed with each class name as a
  * literal key, and a named export for each name that is a valid identifier (see {@link isCssModuleExportName}).
+ *
+ * @remarks
+ * The default export is bound to a local name that no class takes, so a class named `styles` stays a named export.
  */
 export function toCssModuleDeclaration(exports: Readonly<Record<string, string>>): string {
 	const names = Object.keys(exports);
@@ -22,7 +25,9 @@ export function toCssModuleDeclaration(exports: Readonly<Record<string, string>>
 		.filter(isCssModuleExportName)
 		.map((name) => `export declare const ${name}: string;\n`)
 		.join('');
-	return `declare const styles: {\n${members}};\nexport default styles;\n${named}`;
+	let binding = 'styles';
+	while (names.includes(binding)) binding = `_${binding}`;
+	return `declare const ${binding}: {\n${members}};\nexport default ${binding};\n${named}`;
 }
 
 function writeGeneratedFile(filePath: string, content: string): void {

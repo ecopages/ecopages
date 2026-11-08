@@ -55,7 +55,7 @@ Core wraps whatever the route render throws as `Error rendering page`, with the 
 
 ### Render sessions and context
 
-Each `execute()` opens a session that holds the render's Integration dependencies and its cache of owning renderers. The component render context, which names the current Integration and holds the foreign-child runtime, lives in `node:async_hooks` `AsyncLocalStorage`. Nested and concurrent renders therefore never see each other's state, and static export can render several Pages of one Integration at once. Every component render runs under a context that names its Integration, even with no foreign-child runtime, so an ownership guard such as the content Processor's `getComponent()` can tell which Integration is rendering.
+Each `execute()` opens a session that holds the render's cache of owning renderers. The component render context, which names the current Integration and holds the foreign-child runtime, lives in `node:async_hooks` `AsyncLocalStorage`. Nested and concurrent renders therefore never see each other's state, and static export can render several Pages of one Integration at once. Every component render runs under a context that names its Integration, even with no foreign-child runtime, so an ownership guard such as the content Processor's `getComponent()` can tell which Integration is rendering.
 
 ### Document shell
 
@@ -90,7 +90,7 @@ A failing custom page propagates its error; the request adapter then calls `rend
 
 ## Custom-element SSR scripts
 
-Lit and Ecopages JSX register custom elements on the server by importing the `dependencies.scripts` entries marked `ssr: true` before they render, through a shared `CustomElementScriptPreloader`. Each preloader has a `cacheScope` on the app's `AppRuntime`, which deduplicates imports across concurrent renders and lets development invalidation clear only that app's state.
+Lit and Ecopages JSX register custom elements on the server by importing the `dependencies.scripts` entries marked `ssr: true` before they render, through a shared `CustomElementScriptPreloader`. A renderer does not construct its preloader: it asks the `createSsrScriptPreloader()` option of its hook factory for one, passing its Integration name, `cacheScope`, `importServerModule` and `logLabel`, and core builds it from the Integration's `ssrScriptPreload` declaration. Each preloader has a `cacheScope` on the app's `AppRuntime`, which deduplicates imports across concurrent renders and lets development invalidation clear only that app's state.
 
 A script is always evaluated through the preloader's `importServerModule`, never by a native import, because a native import skips the server loaders for its CSS, MDX and asset imports. Two importers exist:
 
@@ -99,9 +99,11 @@ A script is always evaluated through the preloader's `importServerModule`, never
 | `createCustomElementServerModuleImporter` | Lit | Compiles through the app module loader into a separate outdir per registry under the work directory. |
 | `createSharedServerModuleImporter` | Ecopages JSX | Compiles into the shared page server-module outdir, since a separate copy would load a second Radiant graph and break host SSR. |
 
-Every `ssr: true` entry is preloaded, eager or lazy, and assigned to one preloader, so an element's module graph does not load twice. Each Integration states which scripts its preloader takes with `ssrScriptPreload` on `IntegrationPlugin`, and `collectCustomElementSsrPreloadScripts` assigns every script found in the Dependency tree:
+Every `ssr: true` entry is preloaded, eager or lazy, and assigned to one preloader, so an element's module graph does not load twice. Each Integration states which scripts its preloader takes with `ssrScriptPreload` on `IntegrationPlugin`, and `assignSsrPreloadScripts` assigns every script found in the Dependency tree once per Page render. `IntegrationRenderer.render()` makes that assignment over the Page, its Layouts, the Html template and the Page's dependency Components, then has each assigned Integration preload its share, activating one other than the owner first. No hook decides from the part of the tree it sees, and a Page owned by Kita or React still has its Lit scripts evaluated. The assignment follows these rules:
 
 - A script declared by a Component whose Integration preloads (`'own'` or `'own-and-foreign'`) goes to that Integration. When Components of several preloading Integrations declare it, the first in config order takes it.
 - Any other script, such as one on a Kita, React or plain Component, goes to the first `'own-and-foreign'` Integration in config order: Lit. Without one, it is not evaluated on the server.
 
-Ecopages JSX declares `'own'` when Radiant is enabled, and Lit declares `'own-and-foreign'`. An Integration with a preloader that leaves `ssrScriptPreload` unset is assigned no script. Each preloader assigns from the Components its own hook receives: when a script is declared on a Kita Component that Lit's hook sees and on an Ecopages JSX Component it does not, both Lit and Ecopages JSX evaluate it. Neither path builds a browser bundle for a preloaded script; `lazy` still controls browser loading. Per-Integration details: [Lit](/dev/lit), [Ecopages JSX](/dev/ecopages-jsx).
+Ecopages JSX declares `'own'` when Radiant is enabled, and Lit declares `'own-and-foreign'`. The declaration is the only statement of whether an Integration preloads, so the two cannot drift. A renderer that builds a preloader for an Integration with no `ssrScriptPreload` throws, and so does an Integration that declares one whose renderer builds none; `getRenderer()` reports both when it creates the renderer.
+
+`renderComponent` also preloads the scripts of the Component it receives, for a partial render that has no Page. That assignment sees only the Component's tree, so a preloader skips any script another Integration's preloader has already loaded, failed on or is loading for the same registry: a script declared on a Kita and an Ecopages JSX Component is evaluated once, by Ecopages JSX. Neither path builds a browser bundle for a preloaded script; `lazy` still controls browser loading. Per-Integration details: [Lit](/dev/lit), [Ecopages JSX](/dev/ecopages-jsx).

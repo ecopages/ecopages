@@ -146,14 +146,13 @@ export default eco.page<{}, JsxRenderable>({
 				<div class="home-hero">
 					<div class="home-hero__text">
 						<RuiHeading size="xl" class="home-header__heading">
-							<RuiHeadingEyebrow>A modern, composable web framework</RuiHeadingEyebrow>
 							<RuiHeadingTitle as="h1" class="text-pretty">
-								Pick an Integration. Create Pages. Add a server if you need it.
+								A modern, composable web framework.
 							</RuiHeadingTitle>
 							<RuiHeadingDescription>
-								Start with Ecopages JSX or another Integration. Author Pages that render HTML. Add a
-								Cache Strategy, typed handlers, and Explicit Routes only when a Page needs more than
-								static HTML.
+								Pick an Integration. Create Pages. Add a server if you need it. Start with Ecopages JSX
+								or another Integration, author Pages that render HTML, and add a Cache Strategy, typed
+								handlers and Explicit Routes only when a Page needs more than static HTML.
 							</RuiHeadingDescription>
 						</RuiHeading>
 

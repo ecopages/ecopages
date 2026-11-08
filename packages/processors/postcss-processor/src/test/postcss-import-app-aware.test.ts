@@ -117,4 +117,28 @@ describe('createAppAwarePostcssImport', () => {
 		expect(evil).toBe('.e{background:url("../../.env")}');
 		expect(quoted).toBe('.q{content:"url(x.png)";background:url("styles/a(1).png")}');
 	});
+
+	test('orders a stylesheet imported twice at its last import, nested imports and dependencies included', async () => {
+		const tempRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-duplicate-'));
+		tempDirs.push(tempRoot);
+		const stylesDir = path.join(tempRoot, 'src', 'styles');
+		mkdirSync(stylesDir, { recursive: true });
+		writeFileSync(path.join(tempRoot, 'package.json'), JSON.stringify({ name: 'app', private: true }));
+		writeFileSync(path.join(stylesDir, 'a.css'), '.x{color:red}');
+		writeFileSync(path.join(stylesDir, 'b.css'), '.x{color:blue}');
+		writeFileSync(path.join(stylesDir, 'c.css'), "@import './a.css';\n.c{color:green}");
+		const main = path.join(stylesDir, 'main.css');
+
+		const direct = await PostCssProcessor.processStringOrBuffer(
+			"@import './a.css';\n@import './b.css';\n@import './a.css';",
+			{ filePath: main, plugins: [createAppAwarePostcssImport(tempRoot)] },
+		);
+		const nested = await PostCssProcessor.processStringOrBuffer(
+			"@import './a.css';\n@import './b.css';\n@import './c.css';",
+			{ filePath: main, plugins: [createAppAwarePostcssImport(tempRoot)] },
+		);
+
+		expect(direct).toBe('.x{color:blue}\n.x{color:red}');
+		expect(nested).toBe('.x{color:blue}\n.x{color:red}\n.c{color:green}');
+	});
 });

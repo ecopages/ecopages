@@ -11,8 +11,9 @@
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"noImplicitOverride": true,
+		"rootDirs": ["./src", "./node_modules/@types/ecopages-css-modules"],
 		"paths": {
-			"@/*": ["./src/*"]
+			"@/*": ["./src/*", "./node_modules/@types/ecopages-css-modules/*"]
 		},
 		"plugins": [
 			{

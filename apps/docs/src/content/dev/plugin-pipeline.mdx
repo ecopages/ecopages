@@ -172,7 +172,7 @@ These sites ask the module, so they cannot disagree:
 - The dev transform server: it serves a stylesheet import as the same compiled module.
 - The stylesheet pipeline (`applyStylesheetProcessors`) and the copy list of files a stylesheet `url()` may emit (`isEmittableReferenceFile`).
 
-At most one Processor may declare a `stylesheet` capability. Config finalization fails when two do, naming both, so `transformStylesheet` has one owner and there is no chain. When that Processor declares `*.scss`, `import './card.scss'` is discovered and kept out of every build, and `import styles from './card.scss'` compiles to the Processor's output. When none does, both are left alone. The ambient `*.css` module declaration is the one place that stays `.css`; an app adds `declare module '*.scss'` for its own extension.
+At most one Processor may declare a `stylesheet` capability. Config finalization fails when two do, naming both, so `transformStylesheet` has one owner and there is no chain. When that Processor declares `*.scss`, `import './card.scss'` is discovered and kept out of every build, and `import styles from './card.scss'` compiles to the Processor's output. When none does, both are left alone. The ambient `*.css` and `*.module.css` declarations are the ones core ships. A Processor that declares another extension writes its own from `setup()`: `serializeStylesheetModuleDeclarations(capabilities)` in `plugins/processor.ts` builds the `declare module '*.<ext>'` text, with `*.module.<ext>` first when the capability sets `cssModules`, and the Processor writes it with `writeGeneratedTypesPackage` and `resolveGeneratedPath`, as the content and image Processors do. Core writes nothing for an extension itself.
 
 ## Stylesheet Processors
 

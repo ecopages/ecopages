@@ -65,6 +65,56 @@ A React Page or Island hydrates the whole tree it rendered on the server, so the
 - The rewrite touches only a module that imports such a module. A React module that imports React components or React-owned Eco Components compiles to the same output as before, and a React-only Page or Island ships no boundary code; the tests compare both builds. A module that another graph also uses and that imports a foreign Component has two compiled forms, since a module has one compiled form per id: React's graph imports it under `<path>?eco-variant=react-boundary`, which gets the rewrite (and so do that variant's own imports of such modules), and the other entries keep the plain id, which is never rewritten. In production the build's entries tell which modules are shared; in development, where each module is served on its own URL, any module that React does not own by extension counts as shared, and the dev transform server compiles the variant URL through the React contributor (`ownsModule(path, variant)`). The two forms are two module instances, so state a shared module holds is held twice.
 - The browser `eco` factories always call the Component's `render`, whoever calls it, so on a Lit, Kita or Ecopages JSX Page with one React Island their own `eco.component` calls return their own output. Nothing registers on `window.__ECO_PAGES__`; the boundary is a property of how React modules are built.
 
+The server side decides per tree whether a Foreign Subtree gets the boundary element:
+
+```mermaid
+flowchart TD
+  T["Foreign Subtree token in the React HTML"] --> H{"Tree the browser hydrates?"}
+  H -- "Island root: instance id, no resolved children, single root element" --> B{"Token before the body?"}
+  H -- "Page, Layout or document of a Page that hydrates" --> B
+  H -- "no" --> U["Owner HTML replaces the token in place, no wrapper"]
+  B -- "yes" --> U
+  B -- "no" --> W["Token wrapped in eco-foreign-subtree with data-eco-foreign-key"]
+  W --> R["Owner HTML replaces the token inside the wrapper"]
+```
+
+The build side rewrites only what a React module reads as a foreign value:
+
+```mermaid
+flowchart TD
+  M["React module in a browser build, production or dev transform"] --> F{"Reads a Component another Integration owns as a value?"}
+  BR["Barrel with export-from or export-star chains"] -. "followed to the declaring file, barrel itself never rewritten" .-> F
+  F -- "no: React-only module, type-only or unused import" --> S["Compiled exactly as before, no boundary code"]
+  F -- "yes" --> W["Binding wrapped in foreignBoundary, namespace import in a proxy"]
+  W --> V{"Imported module shared with another graph and importing a foreign Component?"}
+  V -- "no" --> P["Plain module id"]
+  V -- "yes" --> Q["React imports it as path?eco-variant=react-boundary, a second compiled form that gets the rewrite"]
+```
+
+The browser keeps the server HTML, on a first hydration, a client navigation and a direct HMR update:
+
+```mermaid
+sequenceDiagram
+  participant N as Router navigation
+  participant H as Direct HMR update
+  participant D as page.document
+  participant B as foreignBoundary
+  participant E as eco-foreign-subtree
+  N->>N: "fetch next document, load its global scripts first"
+  N->>D: "publish fetched document"
+  N->>B: "import Page module and render"
+  H->>H: "import new module, fetch current URL"
+  H->>D: "publish document, read props and module URL from its __ECO_PAGE_DATA__"
+  H->>B: "re-render with the new props"
+  B->>D: "read server HTML by key, then the live document"
+  alt "server HTML found"
+    B->>E: "created empty, ref fills it with setHTMLUnsafe"
+    Note over B,E: "a hydrating boundary keeps its existing DOM"
+  else "none found"
+    B->>E: "stays empty, one dev warning per key naming the Component file"
+  end
+```
+
 The key hashes the Component's identity id and its JSON-safe props, so the server and the browser compute the same one. Functions and React elements are left out, so two Foreign Subtrees that differ only in, say, React `children` share a key. Every mount reads the server HTML by key, first in the document a client navigation fetched (react-router publishes it as `page.document`), then in the live document; a direct HMR update, which has no router to refetch, fetches the current URL itself and publishes it as `page.document` before it re-renders, so a boundary whose props the edit changed, and a hydrated custom element whose live shadow root is no longer a declarative one, both find their server HTML; hydration keeps the existing DOM whatever it read. The boundary is keyed by that key, so new props re-mount it. React creates a boundary empty, because the boundary passes the same empty `dangerouslySetInnerHTML` object and the same `ref` on every render (React compares a custom element's props by reference, and a new object would rewrite the live DOM). The `ref` fills a boundary that has no children with `setHTMLUnsafe()`, not `innerHTML`, so a declarative shadow root is parsed and its custom element upgrades with the shadow root the server rendered. A Lit element then hydrates it, on a client navigation too, because the router has already loaded the next document's global scripts, Lit's hydration support among them, before it imports the Page module ([React router](/dev/react-router)). A browser without `setHTMLUnsafe()` falls back to `innerHTML`, and the element renders itself.
 
 A boundary that finds no server HTML stays empty: the boundary cannot render the Component itself, since its `render` returns output React cannot render. Outside production it logs one warning per key that names the Component file. The supported path is a Foreign Subtree the server rendered inside the hydrating tree, rendered again with the same props. A foreign Component that first appears on the client, or whose props change on the client only, has no server HTML to keep.

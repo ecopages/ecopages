@@ -146,6 +146,18 @@ export const Button = eco.component({
 });
 ```
 
+To combine several classes, an Ecopages JSX element takes `classes`, which accepts strings, arrays and objects whose truthy keys are kept. `class` stays for a single string. React takes a string in `className`:
+
+```tsx
+import styles, { primary } from './button.module.css';
+
+// Ecopages JSX
+<button classes={[primary, { [styles['is-active']]: isActive }]}>Save</button>;
+
+// React
+<button className={`${primary} ${isActive ? styles['is-active'] : ''}`}>Save</button>;
+```
+
 - The server HTML, the browser bundle and the hydrated island use the same scoped names. Ecopages links the scoped CSS on the Page that renders the component, like any other stylesheet of the component.
 - The default export is a read-only map of the local class name to the scoped one. `composes` adds the composed names to the entry, so `class={styles.primary}` carries them.
 - Each class whose name is a valid JavaScript identifier is also a named export: `import { primary } from './button.module.css'`. Names are not renamed, so `is-active` is available as `styles['is-active']` only.

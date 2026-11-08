@@ -70,6 +70,28 @@ The transforms of one build share module indexes and plain-module walks through 
 
 Collection places a plain module's stylesheet after the CSS of every declaration that imports it: a declaration's own CSS comes first, and a stylesheet several declarations on the Page reach takes the position of its last occurrence. CSS under a persisted Layout therefore stays with that Layout.
 
+### CSS Module flow
+
+A CSS Module is classified at discovery, scoped once by the stylesheet Processor and then reaches the build as a class map and the Page as CSS:
+
+```mermaid
+flowchart TD
+  I["import styles from ./card.module.css"] --> K{"classifyStylesheetImport: Processor declares cssModules?"}
+  K -- "no" --> X["Build fails, naming importer, specifier and lightningcss-processor"]
+  K -- "yes" --> D["Discovery records a stylesheet of the declaration, binding import kept"]
+  D --> A["applyStylesheetProcessors: one Processor call, cached result with css and exports"]
+  A --> N["App file hashes rootDir-relative, package file hashes package-relative"]
+  A --> M["compileStylesheetModule: class map module, default and named exports"]
+  M --> M1["Server build"]
+  M --> M2["Browser bundle"]
+  M --> M3["Dev transform server"]
+  A --> P["File stylesheet processor: scoped CSS as a Page Dependency"]
+  A --> T["Declaration in @types/ecopages-css-modules"]
+  P --> R{"Some declaration reached the module that binds the class map?"}
+  R -- "yes" --> OK["CSS delivered with the Page"]
+  R -- "no" --> U["Production build fails, dev warns once"]
+```
+
 ## Package stylesheets
 
 A side-effect import whose specifier is a package, in a declaration or in a plain module it reaches, is a package stylesheet when `resolvePackageStylesheetPath` resolves it to a `.css` file:

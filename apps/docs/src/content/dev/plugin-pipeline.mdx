@@ -188,6 +188,20 @@ The stylesheet Processor is a transform with an optional invalidation hook; core
 - One edit runs the Processor once. `applyStylesheetProcessors` reads through the app's `ProcessedStylesheetCache` (`runtime.processedStylesheets`), so the dev stylesheet service, the dev transform server, server builds, browser bundles and the asset pipeline share one output per stylesheet. The dev stylesheet service empties it at the start of each watcher batch and again after the invalidation hook, so any changed input, including content Tailwind scans and files only the Processor knows it read, is transformed again; a transform that started before an eviction stores nothing. Between batches an entry is reused only while the source and its reported dependencies hash the same. Outside development no source changes while the process runs. Concurrent misses share one transform, and a failure is not cached.
 - Core persists, caches, queues and broadcasts in development (`DevelopmentStylesheetService`, see [PostCSS processor](/dev/postcss-processor#development-lifecycle)); with no stylesheet Processor, plain CSS passes through as written.
 
+```mermaid
+flowchart LR
+  C["Stylesheet capability: one Processor per app, optional cssModules"] --> A["applyStylesheetProcessors"]
+  A --> T["transformStylesheet(css, file)"]
+  T --> RES["css, dependencies, exports for a CSS Module"]
+  RES --> CACHE[("ProcessedStylesheetCache")]
+  CACHE --> U1["Server build, browser bundle, dev transform server"]
+  CACHE --> U2["Asset pipeline, dev stylesheet service"]
+  W["Development: changed files that are not stylesheets"] --> IV["invalidateStylesheets(files)"]
+  IV --> RB["Stylesheets to rebuild, or all"]
+  RB --> A
+  LC["Lightning CSS Processor option: plugins with transformSource and visitor"] -. "run inside its transformStylesheet" .-> T
+```
+
 `@ecopages/core/processor/contract` exports `stylesheetProcessorContract({ createProcessor })`, cases any test runner can register to check a stylesheet Processor against this contract; the PostCSS Processor runs them.
 
 ## Scoping by module ownership

@@ -75,6 +75,28 @@ Every possible Foreign Child of a static Component must be declared in `config.d
 
 The browser has no render context, so the browser `eco` factories render a Component inline for every caller. React keeps a Foreign Subtree's server HTML by changing how it builds its own modules: it rewrites their imports of a Component another Integration owns to a boundary that renders the server HTML, and leaves every other module as it was ([Islands and hydration](/dev/islands-hydration#foreign-subtrees-in-a-hydrated-tree)). On the server, React wraps Foreign Subtrees in that boundary only in a tree that hydrates. A boundary with no server HTML stays empty and, outside production, warns once per key with the Component file ([Islands and hydration](/dev/islands-hydration#foreign-subtrees-in-a-hydrated-tree)).
 
+When the parent is a React tree, the same handoff continues into the browser:
+
+```mermaid
+flowchart LR
+  subgraph Server
+    A["React renders the tree, foreign Components queue tokens"] --> B{"Tree hydrates?"}
+    B -- "yes" --> C["Token wrapped in eco-foreign-subtree"]
+    B -- "no" --> D["Token left bare"]
+    C --> E["Owning renderer HTML spliced in"]
+    D --> E
+  end
+  subgraph Build
+    F["React module imports a foreign Eco Component"] --> G["Import rewritten to foreignBoundary"]
+  end
+  subgraph Browser
+    H["Hydration renders the boundary"] --> I["Boundary keeps the server HTML by key"]
+    I -. "no HTML found" .-> J["Empty boundary, dev warning"]
+  end
+  E --> H
+  G --> H
+```
+
 Markup a non-Lit Integration produces is not a dead end for Lit: after the route renders, core passes the document through the `renderCustomElements` hook of each Integration that was assigned `ssr: true` scripts, so a Lit element in a Kita Component or a spliced Foreign Subtree gets its declarative shadow root ([Route rendering](/dev/route-rendering#custom-element-ssr-scripts)).
 
 Only a declared Component can be a Foreign Child. A plain function has no identity, so it renders inline in whatever Integration calls it. Discovery fails the build when a module renders a plain component of another Integration that compiles JSX with a different runtime, and suggests `eco.component()`. Lit, which leaves the runtime to the tsconfig, is not checked.

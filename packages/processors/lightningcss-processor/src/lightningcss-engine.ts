@@ -143,11 +143,19 @@ export function logWarnings(warnings: readonly Warning[], entry: string, source:
 	}
 }
 
-/** Replaces a Lightning CSS failure with an error that names the file and the position, keeping the original as its cause. */
+/**
+ * Replaces a failure with an error that names the file and, when it has one, the position, keeping the original as its cause.
+ *
+ * @remarks
+ * Only a Lightning CSS failure has a numeric `loc.line` and `loc.column`; Tailwind's `loc` is a tuple and its message already locates the error.
+ */
 export function toStylesheetError(error: unknown, file: string): Error {
 	if (!(error instanceof Error)) return new Error(`${file}: ${String(error)}`);
 	const { fileName = file, loc, message } = error as LightningCssError;
-	return new Error(`${fileName}${loc ? `:${loc.line}:${loc.column}` : ''} ${message}`, { cause: error });
+	return new Error(
+		`${fileName}${typeof loc?.line === 'number' && typeof loc.column === 'number' ? `:${loc.line}:${loc.column}` : ''} ${message}`,
+		{ cause: error },
+	);
 }
 
 /**

@@ -978,6 +978,15 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../core
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
+        specifier: ^4.3.0
+        version: 4.3.3
+      tailwindcss:
+        specifier: ^4.3.0
+        version: 4.3.3
 
   packages/processors/postcss-processor:
     dependencies:

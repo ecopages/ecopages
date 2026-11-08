@@ -6,8 +6,7 @@ import type { EcoComponent, EcoFunctionComponent, EcoPagesElement, PageParams } 
 import type { RouteRenderResult, RouteRendererOptions } from '@ecopages/core/integration';
 import { createIntegrationRenderer, type IntegrationRendererHookFactoryOptions } from '@ecopages/core/integration';
 import { resolveQueuedTokens } from '@ecopages/core/integration';
-import { CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES, CustomElementScriptPreloader } from '@ecopages/core/integration';
-import { requireAppRuntime } from '@ecopages/core/integration';
+import { CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES } from '@ecopages/core/integration';
 import { createCustomElementServerModuleImporter } from '@ecopages/core/integration';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
@@ -34,24 +33,15 @@ export function createLitRenderer(
 ): ReturnType<typeof createIntegrationRenderer<EcoPagesElement>> {
 	return createIntegrationRenderer<EcoPagesElement>(
 		LIT_PLUGIN_NAME,
-		({ appConfig, resolveDependencyPath }: IntegrationRendererHookFactoryOptions) => {
-			const ssrScriptPreloader = new CustomElementScriptPreloader({
+		({ appConfig, createSsrScriptPreloader }: IntegrationRendererHookFactoryOptions) => {
+			const ssrScriptPreloader = createSsrScriptPreloader({
 				cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
-				preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
 				integrationName: LIT_PLUGIN_NAME,
-				integrations: appConfig.integrations,
 				logLabel: 'lit',
-				resolveDependencyPath,
 				importServerModule: createCustomElementServerModuleImporter(appConfig, '.lit-ssr'),
 			});
 
 			return {
-				beforeRender: async (renderOptions) =>
-					ssrScriptPreloader.preloadSsrScripts([
-						renderOptions.Page,
-						renderOptions.Layout,
-						...(renderOptions.pageDependencyComponents ?? []),
-					]),
 				transformDocumentHtml: normalizeLitHtml,
 				renderRemote: (routeOptions) => renderLitPageInWorker(routeOptions, getRenderSession),
 				renderComponent: async (input) => {

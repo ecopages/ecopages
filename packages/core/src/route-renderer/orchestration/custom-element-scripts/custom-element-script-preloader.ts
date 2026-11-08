@@ -100,19 +100,28 @@ function recordSsrScriptOwner(
 }
 
 /**
- * Collects the `dependencies.scripts` paths marked `ssr: true` in a Component tree that core assigns to one
- * Integration's preloader.
+ * The `ssr: true` Component scripts of one render, by the Integration whose preloader evaluates each.
+ *
+ * @remarks
+ * An Integration with no entry evaluates none. A script appears under one Integration only.
+ */
+export type SsrScriptAssignment = ReadonlyMap<string, readonly string[]>;
+
+/**
+ * Assigns the `dependencies.scripts` paths marked `ssr: true` in a Component tree, each to one Integration's
+ * preloader.
  *
  * @remarks
  * Every `ssr: true` script is evaluated by exactly one preloader, so a second copy of an element's module graph,
  * such as Radiant's, never loads beside the owner's. The whole tree is walked, since an owned Component can sit under
- * a foreign one.
+ * a foreign one, and the assignment is made once over all of it: a script declared by Components of two Integrations
+ * is not decided separately by each hook, which would see only part of the tree.
  */
-export function collectCustomElementSsrPreloadScripts(
-	components: Array<CustomElementSsrPreloadComponent | undefined>,
+export function assignSsrPreloadScripts(
+	components: ReadonlyArray<CustomElementSsrPreloadComponent | undefined>,
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string,
-	assignment: { integrationName: string; integrations: readonly SsrScriptPreloadDeclaration[] },
-): string[] {
+	integrations: readonly SsrScriptPreloadDeclaration[],
+): SsrScriptAssignment {
 	const ownersByScript = new Map<string, Set<string | undefined>>();
 	const visitedConfigs = new Set<EcoComponentConfig>();
 
@@ -139,15 +148,24 @@ export function collectCustomElementSsrPreloadScripts(
 		collect(component);
 	}
 
-	return Array.from(ownersByScript)
-		.filter(([, owners]) => assignSsrScript(owners, assignment.integrations) === assignment.integrationName)
-		.map(([scriptPath]) => scriptPath);
+	const scriptsByIntegration = new Map<string, string[]>();
+	for (const [scriptPath, owners] of ownersByScript) {
+		const integrationName = assignSsrScript(owners, integrations);
+		if (integrationName === undefined) {
+			continue;
+		}
+
+		const scripts = scriptsByIntegration.get(integrationName) ?? [];
+		scripts.push(scriptPath);
+		scriptsByIntegration.set(integrationName, scripts);
+	}
+
+	return scriptsByIntegration;
 }
 
 export interface CustomElementScriptPreloaderOptions {
 	cacheScope: string;
 	preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
-	enabled?: boolean;
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	/**
 	 * Evaluates one script for the custom-element registry named by `registryKey`.
@@ -164,11 +182,18 @@ export interface CustomElementScriptPreloaderOptions {
 	 *
 	 * @remarks
 	 * Each one's `ssrScriptPreload` decides which preloader a script is assigned to, so the preloader evaluates only
-	 * the scripts assigned to `integrationName`.
+	 * the scripts assigned to `integrationName`. Core builds a preloader from its Integration's declaration, see
+	 * `createSsrScriptPreloader` in the renderer hook options.
 	 */
 	integrations: readonly SsrScriptPreloadDeclaration[];
 	logLabel?: string;
 }
+
+/** What a renderer supplies to build its preloader; core adds the rest from the Integration's declaration. */
+export type SsrScriptPreloaderInit = Pick<
+	CustomElementScriptPreloaderOptions,
+	'cacheScope' | 'importServerModule' | 'integrationName' | 'logLabel'
+>;
 
 /**
  * Preloads the `dependencies.scripts` entries marked `ssr: true` that core assigns to one Integration, before SSR.
@@ -177,11 +202,15 @@ export interface CustomElementScriptPreloaderOptions {
  * `lazy` controls browser delivery only; `ssr: true` opts into server evaluation
  * for both eager and lazy script entries. State is keyed by `cacheScope` so
  * concurrent renders and dev invalidation share one deduplicated import cache.
+ *
+ * A Page render hands each preloader the scripts of one assignment over the whole Page tree
+ * ({@link CustomElementScriptPreloader.preloadScripts}). A render with no Page, such as a partial view, assigns over
+ * the Component it receives ({@link CustomElementScriptPreloader.preloadSsrScripts}). Both skip a script that another
+ * Integration's preloader already evaluated for the same registry, so the two paths never load a second copy.
  */
 export class CustomElementScriptPreloader {
 	private readonly cacheScope: string;
 	private readonly preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
-	private readonly enabled: boolean;
 	private readonly resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	private readonly importServerModule: CustomElementScriptPreloaderOptions['importServerModule'];
 	private readonly integrationName: string;
@@ -191,7 +220,6 @@ export class CustomElementScriptPreloader {
 	constructor({
 		cacheScope,
 		preloadScopes,
-		enabled = true,
 		resolveDependencyPath,
 		importServerModule,
 		integrationName,
@@ -200,7 +228,6 @@ export class CustomElementScriptPreloader {
 	}: CustomElementScriptPreloaderOptions) {
 		this.cacheScope = cacheScope;
 		this.preloadScopes = preloadScopes;
-		this.enabled = enabled;
 		this.resolveDependencyPath = resolveDependencyPath;
 		this.importServerModule = importServerModule;
 		this.integrationName = integrationName;
@@ -216,21 +243,33 @@ export class CustomElementScriptPreloader {
 		return isExpectedCustomElementSsrPreloadError(error);
 	}
 
+	/** The scripts assigned to this preloader's Integration over the given Component trees. */
 	collectSsrPreloadScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): string[] {
-		return collectCustomElementSsrPreloadScripts(components, this.resolveDependencyPath, {
-			integrationName: this.integrationName,
-			integrations: this.integrations,
-		});
+		return [
+			...(assignSsrPreloadScripts(components, this.resolveDependencyPath, this.integrations).get(
+				this.integrationName,
+			) ?? []),
+		];
+	}
+
+	/**
+	 * Preloads the scripts a render-wide assignment gives this preloader's Integration.
+	 */
+	async preloadAssigned(assignment: SsrScriptAssignment | undefined): Promise<void> {
+		await this.preloadScripts(assignment?.get(this.integrationName) ?? []);
+	}
+
+	/**
+	 * Assigns over the given Component trees and preloads this Integration's share, for a render with no Page.
+	 */
+	async preloadSsrScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): Promise<void> {
+		await this.preloadScripts(this.collectSsrPreloadScripts(components));
 	}
 
 	/**
 	 * Preloads SSR-eligible scripts to register custom elements before render.
 	 */
-	async preloadSsrScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): Promise<void> {
-		if (!this.enabled) {
-			return;
-		}
-
+	async preloadScripts(scripts: readonly string[]): Promise<void> {
 		const scopeState = getCustomElementScriptPreloadScopeState(this.preloadScopes, this.cacheScope);
 		const registry = globalThis.customElements;
 		if (scopeState.activeRegistry !== registry) {
@@ -240,12 +279,33 @@ export class CustomElementScriptPreloader {
 			scopeState.activeRegistry = registry;
 		}
 
-		const scripts = this.collectSsrPreloadScripts(components);
 		if (scripts.length === 0) {
 			return;
 		}
 
 		await Promise.all(scripts.map((scriptPath) => this.preloadOneScript(scriptPath, scopeState, registry)));
+	}
+
+	/**
+	 * Whether another preloader's scope has the script for this registry, loaded, failed or in flight.
+	 *
+	 * @remarks
+	 * A second evaluation would define the same elements twice, so the first preloader to reach a script keeps it.
+	 */
+	private isClaimedByOtherScope(scriptPath: string, registry: CustomElementRegistry | undefined): boolean {
+		for (const [scope, state] of this.preloadScopes) {
+			if (
+				scope !== this.cacheScope &&
+				state.activeRegistry === registry &&
+				(state.preloadedScripts.has(scriptPath) ||
+					state.preloadFailedScripts.has(scriptPath) ||
+					state.inFlightImports.has(scriptPath))
+			) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private async preloadOneScript(
@@ -254,6 +314,10 @@ export class CustomElementScriptPreloader {
 		registry: CustomElementRegistry | undefined,
 	): Promise<void> {
 		if (scopeState.preloadedScripts.has(scriptPath) || scopeState.preloadFailedScripts.has(scriptPath)) {
+			return;
+		}
+
+		if (!scopeState.inFlightImports.has(scriptPath) && this.isClaimedByOtherScope(scriptPath, registry)) {
 			return;
 		}
 

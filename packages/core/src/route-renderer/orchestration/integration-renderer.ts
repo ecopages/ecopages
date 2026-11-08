@@ -89,6 +89,12 @@ import {
 } from './foreign-child/owning-renderer-resolution.ts';
 import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
 import {
+	assignSsrPreloadScripts,
+	CustomElementScriptPreloader,
+	type SsrScriptAssignment,
+	type SsrScriptPreloaderInit,
+} from './custom-element-scripts/custom-element-script-preloader.ts';
+import {
 	createQueuedRuntime,
 	executeComponentRender,
 	getQueuedRuntimeContext,
@@ -253,6 +259,15 @@ export type IntegrationRendererHookFactoryOptions = Omit<IntegrationRendererOpti
 		assets: ProcessedAsset[],
 		configs: PageClientPlan['lazyConfigs'],
 	) => PageClientBrowserAssets['lazyTriggers'];
+	/**
+	 * Builds the custom-element preloader that evaluates the `ssr: true` scripts core assigns to this Integration.
+	 *
+	 * @remarks
+	 * The preloader follows the Integration's `ssrScriptPreload` declaration, which is the only statement of whether
+	 * and what it preloads. Core runs it once per render, over the scripts it assigned from the whole Page tree.
+	 * @throws When the Integration declares no `ssrScriptPreload`, since core would assign it no script.
+	 */
+	createSsrScriptPreloader: (init: SsrScriptPreloaderInit) => CustomElementScriptPreloader;
 };
 
 /** Creates the optional hooks for one app-owned renderer instance. */
@@ -320,6 +335,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected routeRenderOrchestrator: RouteRenderOrchestrator;
 	protected integrationHooks: IntegrationRendererHooks;
+	private ssrScriptPreloader?: CustomElementScriptPreloader;
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -460,7 +476,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	private async runInRenderSession<T>(run: () => Promise<T>): Promise<T> {
-		const session = createRenderSession(this.resolvedIntegrationDependencies);
+		const session = createRenderSession();
 		const { value } = await runWithComponentRenderContext(
 			{
 				currentIntegration: this.name,
@@ -717,8 +733,73 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 							this.resolveDependencyPath(componentDir, pathUrl),
 						applyPendingLazyTriggers: (assets, configs) =>
 							this.dependencyResolverService.applyPendingLazyTriggers(assets, configs),
+						createSsrScriptPreloader: (init) => this.createSsrScriptPreloader(init),
 					})
 				: (hooks ?? {});
+	}
+
+	private createSsrScriptPreloader(init: SsrScriptPreloaderInit): CustomElementScriptPreloader {
+		const declared = this.appConfig.integrations.find((integration) => integration.name === init.integrationName);
+		if (!declared?.ssrScriptPreload) {
+			throw new Error(
+				`[ecopages] Integration "${init.integrationName}" builds a custom-element preloader but declares no ssrScriptPreload. Declare 'own' or 'own-and-foreign' on its plugin, or do not build the preloader.`,
+			);
+		}
+
+		this.ssrScriptPreloader = new CustomElementScriptPreloader({
+			...init,
+			integrations: this.appConfig.integrations,
+			preloadScopes: requireAppRuntime(this.appConfig).customElementSsrPreloadScopes,
+			resolveDependencyPath: (componentDir, pathUrl) => this.resolveDependencyPath(componentDir, pathUrl),
+		});
+		return this.ssrScriptPreloader;
+	}
+
+	/**
+	 * Evaluates the `ssr: true` scripts of the whole Page tree, each by the one preloader core assigns it to.
+	 *
+	 * @remarks
+	 * The assignment is made once, over the Page, its Layouts, the Html template and the Page's dependency
+	 * Components, so no Integration decides from the part of the tree its own hook sees. Every assigned Integration
+	 * preloads its share, including one that owns no Component the Page renders itself: a Page another Integration
+	 * owns can reach it through a Component whose Integration does not preload. An assigned Integration other than
+	 * this one is activated first.
+	 */
+	private async preloadPageSsrScripts(options: IntegrationRendererRenderOptions<C>): Promise<void> {
+		const assignment = assignSsrPreloadScripts(
+			[
+				options.Page,
+				options.Layout,
+				options.HtmlTemplate,
+				...(options.Layouts ?? []),
+				...(options.pageDependencyComponents ?? []),
+			],
+			(componentDir, pathUrl) => this.resolveDependencyPath(componentDir, pathUrl),
+			this.appConfig.integrations,
+		);
+
+		await Promise.all(
+			Array.from(assignment.keys(), async (integrationName) => {
+				if (integrationName === this.name) {
+					await this.preloadAssignedSsrScripts(assignment);
+					return;
+				}
+
+				await ensureIntegrationRuntimeReady({ appConfig: this.appConfig, integrationName });
+				const integration = this.appConfig.integrations.find((entry) => entry.name === integrationName);
+				await integration?.getRenderer().preloadAssignedSsrScripts(assignment);
+			}),
+		);
+	}
+
+	/** Whether the hooks built a custom-element preloader for this renderer. */
+	get buildsSsrScriptPreloader(): boolean {
+		return this.ssrScriptPreloader !== undefined;
+	}
+
+	/** Evaluates the scripts of a render-wide assignment that belong to this renderer's preloader, if it has one. */
+	async preloadAssignedSsrScripts(assignment: SsrScriptAssignment | undefined): Promise<void> {
+		await this.ssrScriptPreloader?.preloadAssigned(assignment);
 	}
 
 	/**
@@ -895,21 +976,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return resolvePageDependenciesFromContext(context, this.name);
 	}
 
-	/**
-	 * Resolves a route's component assets and this Integration's global scripts.
-	 *
-	 * @remarks
-	 * The global scripts come from the active render session, else from the renderer outside a render. The route
-	 * orchestrator places them with the other Integrations' global scripts, in config order.
-	 */
+	/** Resolves a route's component assets. */
 	async resolveRouteDependencies(input: {
 		components: (EcoComponent | Partial<EcoComponent>)[];
-	}): Promise<{ resolvedDependencies: ProcessedAsset[]; integrationDependencies: ProcessedAsset[] }> {
+	}): Promise<{ resolvedDependencies: ProcessedAsset[] }> {
 		return {
 			resolvedDependencies: await this.resolveDependencies(input.components, { preparedGraph: true }),
-			integrationDependencies:
-				getComponentRenderContext<RouteRenderContextState>()?.renderState?.session
-					?.resolvedIntegrationDependencies ?? this.resolvedIntegrationDependencies,
 		};
 	}
 
@@ -987,7 +1059,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	async renderExplicitView<P>(view: EcoComponent<P>, props: P, ctx: ExplicitViewRenderContext): Promise<Response> {
 		if (ctx.partial) {
 			await this.ensureIntegrationRuntimeActivated();
-			const session = createRenderSession(this.resolvedIntegrationDependencies);
+			const session = createRenderSession();
 			const plan = collectPageClientPlan([{ component: view }], this.name);
 			const rendererCache = session.rendererCache as BaseIntegrationContext['rendererCache'];
 			const { value } = await runWithComponentRenderContext(
@@ -1077,6 +1149,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	async render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
 		const renderRoute = () => this.renderRouteDocument(options);
 		try {
+			await this.preloadPageSsrScripts(options);
 			return await (this.integrationHooks.renderRoute?.(options, renderRoute) ?? renderRoute());
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);

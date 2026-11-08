@@ -70,8 +70,10 @@ export {
 	type CustomElementScriptPreloadScopeState,
 	type CustomElementSsrPreloadComponent,
 	invalidateCustomElementScriptPreload,
+	type SsrScriptAssignment,
 	type SsrScriptPreload,
 	type SsrScriptPreloadDeclaration,
+	type SsrScriptPreloaderInit,
 } from './route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader.ts';
 export {
 	createCustomElementServerModuleImporter,

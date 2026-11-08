@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildIslandHostAttributes, eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
-import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import { createDeferredIntegrationPlugin, createStringMarkupIntegration, createTestAppConfig } from '@ecopages/testing';
 import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
 import { AssetProcessingService } from '@ecopages/core/integration';
 import { IntegrationRenderer } from '@ecopages/core/integration';
@@ -17,7 +17,7 @@ ensureLitDomShim();
 
 let customElementIndex = 0;
 
-const Config = await createTestAppConfig();
+const Config = await createTestAppConfig({ integrations: [createStringMarkupIntegration(), new LitPlugin()] });
 
 function createTestAssetProcessingService(appConfig: typeof Config): AssetProcessingService {
 	const service = new AssetProcessingService(appConfig);
@@ -67,7 +67,7 @@ describeRendererContract({
 	...createStringMarkupContractFactories('lit'),
 	async createRenderer({ integrations, processDependencies }) {
 		const testRenderer = new TestLitRenderer({
-			appConfig: await createTestAppConfig({ integrations }),
+			appConfig: await createTestAppConfig({ integrations: [new LitPlugin(), ...integrations] }),
 			assetProcessingService: { processDependencies } as never,
 			resolvedIntegrationDependencies: [],
 		});
@@ -273,7 +273,7 @@ describe('LitRenderer', () => {
 					}),
 				}),
 			});
-			const config = await createTestAppConfig({ integrations: [deferredPlugin] });
+			const config = await createTestAppConfig({ integrations: [new LitPlugin(), deferredPlugin] });
 
 			const testRenderer = new TestLitRenderer({
 				appConfig: config,
@@ -647,7 +647,9 @@ describe('LitRenderer', () => {
 
 	describe('lazy worker session', () => {
 		it('preloads SSR scripts through the server module loader, not the asset pipeline, when a static-export session exists', async () => {
-			const appConfig = await createTestAppConfig({ integrations: [new LitPlugin()] });
+			const appConfig = await createTestAppConfig({
+				integrations: [createStringMarkupIntegration(), new LitPlugin()],
+			});
 			const importModule = vi.fn(async (_options: { filePath: string }) => ({}));
 			appConfig.appRuntime!.moduleLoader = {
 				...appConfig.appRuntime!.moduleLoader,

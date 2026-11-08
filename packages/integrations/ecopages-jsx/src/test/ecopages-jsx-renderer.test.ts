@@ -12,6 +12,7 @@ import type { JsxRenderable } from '@ecopages/jsx';
 import { jsx } from '@ecopages/jsx/jsx-runtime';
 import { test, vi } from 'vitest';
 import { getEjsxHmrOwnership } from '../ecopages-jsx-hmr-ownership.ts';
+import { EcopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
 
 const radiantEntryUrl = import.meta.resolve('@ecopages/radiant');
 const radiantCustomElementEntryUrl = import.meta.resolve('@ecopages/radiant/decorators/custom-element');
@@ -60,6 +61,7 @@ async function createAppConfig(rootDir: string): Promise<FinalizedAppConfig> {
 	const config = await finalizeEcoPagesConfig({
 		rootDir,
 		defaultMetadata: { title: '', description: '' },
+		integrations: [new EcopagesJsxPlugin()],
 	});
 	config.appRuntime!.moduleLoader = appModuleLoader;
 	return config;

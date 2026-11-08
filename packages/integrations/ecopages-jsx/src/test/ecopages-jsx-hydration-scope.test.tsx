@@ -5,6 +5,7 @@ import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
 import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
+import { EcopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
 
 type IntrinsicContractElement = HTMLElement & { count?: number };
 
@@ -20,7 +21,7 @@ const TestConfig = await finalizeEcoPagesConfig({
 			'*': [],
 		},
 	},
-	integrations: [],
+	integrations: [new EcopagesJsxPlugin()],
 	defaultMetadata: {
 		title: 'Ecopages',
 		description: 'Ecopages',

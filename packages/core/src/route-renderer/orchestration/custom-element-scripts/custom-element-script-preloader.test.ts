@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bindComponentIdentity, eco, type EcoComponent } from '@ecopages/core';
 import {
 	CustomElementScriptPreloader,
-	collectCustomElementSsrPreloadScripts,
+	assignSsrPreloadScripts,
 	invalidateCustomElementScriptPreload,
 	isExpectedCustomElementSsrPreloadError,
 	type SsrScriptPreloadDeclaration,
@@ -49,7 +49,6 @@ beforeEach(() => {
 });
 
 function createPreloader(options?: {
-	enabled?: boolean;
 	preloadScopes?: Map<string, CustomElementScriptPreloadScopeState>;
 	resolveDependencyPath?: (componentDir: string, sourcePath: string) => string;
 	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;
@@ -57,7 +56,6 @@ function createPreloader(options?: {
 	return new CustomElementScriptPreloader({
 		cacheScope,
 		preloadScopes: options?.preloadScopes ?? preloadScopes,
-		enabled: options?.enabled ?? true,
 		resolveDependencyPath:
 			options?.resolveDependencyPath ?? ((componentDir, sourcePath) => path.join(componentDir, sourcePath)),
 		importServerModule: options?.importServerModule ?? (async () => undefined),
@@ -97,13 +95,10 @@ function collectFor(
 	components: EcoComponent[],
 	declarations: readonly SsrScriptPreloadDeclaration[] = integrations,
 ): string[] {
-	return collectCustomElementSsrPreloadScripts(components, resolvePath, {
-		integrationName,
-		integrations: declarations,
-	});
+	return [...(assignSsrPreloadScripts(components, resolvePath, declarations).get(integrationName) ?? [])];
 }
 
-describe('collectCustomElementSsrPreloadScripts', () => {
+describe('assignSsrPreloadScripts', () => {
 	it('finds SSR registration through inferred page component dependencies', () => {
 		const child = eco.component(
 			bindComponentIdentity(
@@ -206,6 +201,28 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 		expect(collectFor('ecopages-jsx', [ownedOverride])).toEqual(['/app/components/owned.script.ts']);
 	});
 
+	it('assigns every script of a tree in one pass, each to one Integration', () => {
+		const kitaCounter = createScriptHost(
+			{ id: 'kita-counter', file: '/app/components/counter.kita.tsx', integration: 'kitajs' },
+			['./counter.script.ts'],
+		);
+		const ejsxCounter = createScriptHost(
+			{ id: 'ejsx-counter', file: '/app/components/counter.eco.tsx', integration: 'ecopages-jsx' },
+			['./counter.script.ts'],
+		);
+		const kitaOnly = createScriptHost(
+			{ id: 'kita-only', file: '/app/components/only.kita.tsx', integration: 'kitajs' },
+			['./only.script.ts'],
+		);
+
+		expect(assignSsrPreloadScripts([kitaCounter, kitaOnly, ejsxCounter], resolvePath, integrations)).toEqual(
+			new Map([
+				['lit', ['/app/components/only.script.ts']],
+				['ecopages-jsx', ['/app/components/counter.script.ts']],
+			]),
+		);
+	});
+
 	it('collects eager and lazy scripts marked ssr: true', () => {
 		const host = eco.component(
 			bindComponentIdentity(
@@ -261,7 +278,7 @@ describe('CustomElementScriptPreloader', () => {
 		);
 	});
 
-	it('imports collected scripts and skips work when disabled', async () => {
+	it('imports collected scripts once', async () => {
 		const importServerModule = vi.fn(async () => undefined);
 		const enabledPreloader = createPreloader({ importServerModule });
 		const host = eco.component(
@@ -278,10 +295,6 @@ describe('CustomElementScriptPreloader', () => {
 		expect(importServerModule).toHaveBeenCalledTimes(1);
 
 		await enabledPreloader.preloadSsrScripts([host]);
-		expect(importServerModule).toHaveBeenCalledTimes(1);
-
-		const disabledPreloader = createPreloader({ enabled: false, importServerModule });
-		await disabledPreloader.preloadSsrScripts([host]);
 		expect(importServerModule).toHaveBeenCalledTimes(1);
 	});
 
@@ -414,5 +427,80 @@ describe('CustomElementScriptPreloader', () => {
 
 		await Promise.all([preloader.preloadSsrScripts([host]), preloader.preloadSsrScripts([host])]);
 		expect(importServerModule).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('CustomElementScriptPreloader across Integrations', () => {
+	function createFor(integrationName: string, importServerModule: () => Promise<unknown>) {
+		return new CustomElementScriptPreloader({
+			cacheScope: `${cacheScope}-${integrationName}`,
+			preloadScopes,
+			resolveDependencyPath: resolvePath,
+			importServerModule,
+			integrationName,
+			integrations,
+			logLabel: 'test',
+		});
+	}
+
+	it('does not evaluate a script another Integration preloader already evaluated', async () => {
+		const restore = installTestCustomElementsRegistry();
+		try {
+			const jsxImport = vi.fn(async () => undefined);
+			const litImport = vi.fn(async () => undefined);
+			const jsx = createFor('ecopages-jsx', jsxImport);
+			const lit = createFor('lit', litImport);
+
+			await jsx.preloadScripts(['/app/marker.script.ts']);
+			await lit.preloadScripts(['/app/marker.script.ts']);
+
+			expect(jsxImport).toHaveBeenCalledTimes(1);
+			expect(litImport).not.toHaveBeenCalled();
+		} finally {
+			restore();
+		}
+	});
+
+	it('does not evaluate a script another Integration preloader is evaluating', async () => {
+		const restore = installTestCustomElementsRegistry();
+		try {
+			let finish: (() => void) | undefined;
+			const jsxImport = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+			const litImport = vi.fn(async () => undefined);
+			const jsx = createFor('ecopages-jsx', jsxImport);
+			const lit = createFor('lit', litImport);
+
+			const first = jsx.preloadScripts(['/app/marker.script.ts']);
+			await lit.preloadScripts(['/app/marker.script.ts']);
+			finish?.();
+			await first;
+
+			expect(litImport).not.toHaveBeenCalled();
+		} finally {
+			restore();
+		}
+	});
+
+	it('preloads the share of a render-wide assignment that belongs to its Integration', async () => {
+		const jsxImport = vi.fn(async () => undefined);
+		const litImport = vi.fn(async () => undefined);
+		const assignment = new Map([
+			['ecopages-jsx', ['/app/a.script.ts']],
+			['lit', ['/app/b.script.ts']],
+		]);
+
+		await createFor('ecopages-jsx', jsxImport).preloadAssigned(assignment);
+		await createFor('lit', litImport).preloadAssigned(assignment);
+
+		expect(jsxImport).toHaveBeenCalledWith('/app/a.script.ts', expect.any(String));
+		expect(litImport).toHaveBeenCalledWith('/app/b.script.ts', expect.any(String));
+		expect(jsxImport).toHaveBeenCalledTimes(1);
+		expect(litImport).toHaveBeenCalledTimes(1);
+	});
+
+	it('preloads nothing when no assignment is given', async () => {
+		const importServerModule = vi.fn(async () => undefined);
+		await createFor('lit', importServerModule).preloadAssigned(undefined);
+		expect(importServerModule).not.toHaveBeenCalled();
 	});
 });

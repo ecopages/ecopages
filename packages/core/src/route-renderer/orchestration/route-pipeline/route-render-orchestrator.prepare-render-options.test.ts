@@ -638,7 +638,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 	});
 
-	it("places the owner's global scripts in config order with the foreign ones", async () => {
+	it("reads the owner's global scripts from its plugin, in config order with the foreign ones", async () => {
 		const hydrateSupport = createScriptAsset('/assets/lit-hydrate-support.js');
 		const radiantHydrator = createScriptAsset('/assets/radiant-hydrator.js');
 		const elementScript = createScriptAsset('/assets/lit-counter.script.js');
@@ -662,7 +662,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			...createFlowRenderer({
 				name: 'ecopages-jsx',
 				Page,
-				integrationDependencies: [radiantHydrator],
 				resolveDependencies: async () => [elementScript],
 			}),
 		});

@@ -364,7 +364,7 @@ export class RouteRenderOrchestrator {
 			shellDependencyComponents,
 			graph: preparedGraph,
 		} = graphContext;
-		const { resolvedDependencies, integrationDependencies } = await measureRouteRenderPhase(
+		const { resolvedDependencies } = await measureRouteRenderPhase(
 			this.requestPipelineMetrics,
 			'resolve-dependencies',
 			() =>
@@ -398,10 +398,7 @@ export class RouteRenderOrchestrator {
 		}
 
 		const allDependencies = [
-			...collectPageIntegrationDependencies(this.appConfig, clientPlan.integrationNames, {
-				name: renderer.name,
-				dependencies: integrationDependencies,
-			}),
+			...collectPageIntegrationDependencies(this.appConfig, clientPlan.integrationNames, renderer.name),
 			...resolvedDependencies,
 			...clientBrowserAssets.processedAssets,
 		];

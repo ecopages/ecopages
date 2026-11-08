@@ -204,8 +204,11 @@ test('setup leaves light-DOM unset when Radiant SSR is disabled', async () => {
 });
 
 test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabled', async () => {
-	const appConfig = await createTestAppConfig({ rootDir: '/tmp/ecopages-jsx-radiant-enabled', integrations: [] });
 	const plugin = new EcopagesJsxPlugin();
+	const appConfig = await createTestAppConfig({
+		rootDir: '/tmp/ecopages-jsx-radiant-enabled',
+		integrations: [plugin],
+	});
 	await setupTestIntegration(plugin, appConfig);
 	const hmrManager = createHmrManagerStub();
 	const preloadScopes = requireAppRuntime(appConfig).customElementSsrPreloadScopes;

@@ -2027,4 +2027,120 @@ describe('IntegrationRenderer', () => {
 		expect(error?.message).toContain('src/includes/html.<ext>');
 		expect(error?.message).not.toContain('ecopages build');
 	});
+
+	describe('ssr script preloading', () => {
+		const scriptHost = (id: string, integration: string) =>
+			eco.component({
+				integration,
+				identity: { id, file: path.resolve(`/app/components/${id}.tsx`), integration },
+				dependencies: { scripts: [{ src: './counter.script.ts', ssr: true }] },
+				render: () => '',
+			}) as EcoComponent;
+
+		function createPreloadingApp(pageOwner: string) {
+			const imports = { lit: vi.fn(async () => undefined), 'ecopages-jsx': vi.fn(async () => undefined) };
+			const declarations = {
+				kitajs: undefined,
+				lit: 'own-and-foreign',
+				'ecopages-jsx': 'own',
+			} as const;
+			const renderers = new Map<string, IntegrationRenderer<EcoPagesElement>>();
+			const integrations = Object.entries(declarations).map(([name, ssrScriptPreload]) =>
+				createMockIntegrationPlugin({
+					name,
+					ssrScriptPreload,
+					getRenderer: () => renderers.get(name),
+				}),
+			);
+			const appConfig = createMockAppConfig({ integrations });
+			const createPreloadingRenderer = (name: 'lit' | 'ecopages-jsx') =>
+				new (class extends createIntegrationRenderer(name, ({ createSsrScriptPreloader }) => {
+					createSsrScriptPreloader({
+						cacheScope: name,
+						integrationName: name,
+						importServerModule: imports[name],
+					});
+					return {};
+				}) {
+					protected override async renderRouteDocument() {
+						return '';
+					}
+				})({ appConfig, assetProcessingService: testAssetService });
+			renderers.set('lit', createPreloadingRenderer('lit'));
+			renderers.set('ecopages-jsx', createPreloadingRenderer('ecopages-jsx'));
+			const Page = Object.assign(() => '', {
+				config: {
+					dependencies: {
+						components: [scriptHost('kita-counter', 'kitajs'), scriptHost('ejsx-counter', 'ecopages-jsx')],
+					},
+				},
+			}) as unknown as EcoComponent;
+
+			return { imports, renderer: renderers.get(pageOwner)!, Page };
+		}
+
+		const render = (renderer: IntegrationRenderer<EcoPagesElement>, Page: EcoComponent) =>
+			renderer.render({
+				file: path.resolve('/app/pages/index.tsx'),
+				params: {},
+				query: {},
+				props: {},
+				metadata: { title: 'Page', description: 'Page' },
+				HtmlTemplate: (() => '') as unknown as EcoComponent<HtmlTemplateProps>,
+				Page,
+				resolvedDependencies: [],
+			} as IntegrationRendererRenderOptions);
+
+		it('evaluates a script declared on a Kita and an Ecopages JSX Component once, by the Ecopages JSX preloader', async () => {
+			const { imports, renderer, Page } = createPreloadingApp('lit');
+
+			await render(renderer, Page);
+
+			expect(imports['ecopages-jsx']).toHaveBeenCalledTimes(1);
+			expect(imports['ecopages-jsx']).toHaveBeenCalledWith(
+				path.resolve('/app/components/counter.script.ts'),
+				expect.any(String),
+			);
+			expect(imports.lit).not.toHaveBeenCalled();
+		});
+
+		it('evaluates it once when the Ecopages JSX renderer owns the Page', async () => {
+			const { imports, renderer, Page } = createPreloadingApp('ecopages-jsx');
+
+			await render(renderer, Page);
+
+			expect(imports['ecopages-jsx']).toHaveBeenCalledTimes(1);
+			expect(imports.lit).not.toHaveBeenCalled();
+		});
+
+		it("hands a Kita Component's script to the own-and-foreign preloader when no Component of a preloading Integration declares it", async () => {
+			const { imports, renderer } = createPreloadingApp('lit');
+			const Page = Object.assign(() => '', {
+				config: { dependencies: { components: [scriptHost('kita-counter', 'kitajs')] } },
+			}) as unknown as EcoComponent;
+
+			await render(renderer, Page);
+
+			expect(imports.lit).toHaveBeenCalledTimes(1);
+			expect(imports['ecopages-jsx']).not.toHaveBeenCalled();
+		});
+
+		it('builds a preloader only for an Integration that declares ssrScriptPreload', () => {
+			const appConfig = createMockAppConfig({
+				integrations: [createMockIntegrationPlugin({ name: 'lit', ssrScriptPreload: 'own' })],
+			});
+			const Undeclared = createIntegrationRenderer('other', ({ createSsrScriptPreloader }) => {
+				createSsrScriptPreloader({
+					cacheScope: 'other',
+					integrationName: 'other',
+					importServerModule: async () => undefined,
+				});
+				return {};
+			});
+
+			expect(() => new Undeclared({ appConfig, assetProcessingService: testAssetService })).toThrow(
+				'Integration "other" builds a custom-element preloader but declares no ssrScriptPreload',
+			);
+		});
+	});
 });

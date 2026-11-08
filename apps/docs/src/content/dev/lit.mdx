@@ -49,9 +49,8 @@ A bundler can evaluate `lit-element` in a chunk before this module's body, and t
 
 | Hook                   | Behavior                                                                                                                    |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `beforeRender`         | preloads the `ssr: true` scripts core assigns to Lit in the Page, Layout and `pageDependencyComponents`                     |
 | `transformDocumentHtml`| `normalizeLitHtml`                                                                                                          |
-| `renderComponent`      | preloads the `ssr: true` scripts core assigns to Lit in the Component's tree, renders children to a string, calls the function component, serializes with `renderLitValueToString`, injects children at a slot marker |
+| `renderComponent`      | preloads the `ssr: true` scripts core assigns to Lit in the Component's tree (a Page's are preloaded by core before it renders), renders children to a string, calls the function component, serializes with `renderLitValueToString`, injects children at a slot marker |
 | `renderQueuedChildren` | resolves queued foreign tokens in string children                                                                           |
 | `renderRemote`         | hands a Page to the static-export worker when a session exists                                                              |
 
@@ -59,7 +58,7 @@ Registered elements stay registered for the rest of that render, so every one re
 
 ## Static export worker
 
-Serving renders every Lit Page in-process and starts no worker. `LitPlugin.staticExport()` starts a worker thread that bootstraps its own app runtime. Static export renders Lit-owned Page routes in the worker, which preloads their `ssr: true` scripts before each render so `@lit-labs/ssr` sees the registered custom element. The session only owns the worker; a Page that renders on the main thread preloads through the renderer's hooks.
+Serving renders every Lit Page in-process and starts no worker. `LitPlugin.staticExport()` starts a worker thread that bootstraps its own app runtime. Static export renders Lit-owned Page routes in the worker, which preloads their `ssr: true` scripts before each render so `@lit-labs/ssr` sees the registered custom element. The session only owns the worker; a Page that renders on the main thread preloads through `IntegrationRenderer.render()`, as in the worker.
 
 ```mermaid
 sequenceDiagram

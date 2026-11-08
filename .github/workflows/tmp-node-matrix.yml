@@ -1,0 +1,19 @@
+name: tmp-node-matrix
+on:
+    pull_request:
+jobs:
+    watch:
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                node: ['24.15.0', '24.16.0', '24.17.0', '24.18.1', '24.20.0', '24.22.2']
+        steps:
+            - uses: actions/checkout@v6
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ matrix.node }}
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - run: node -v && npx vitest run packages/file-system/src/adapters/node.test.ts

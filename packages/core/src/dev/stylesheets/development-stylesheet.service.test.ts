@@ -459,6 +459,37 @@ describe('DevelopmentStylesheetService, for a CSS Module', () => {
 		expect(service.keepsClassMap(file)).toBe(false);
 	});
 
+	describe('declarations', () => {
+		const declaration = () =>
+			path.join(rootDir, 'node_modules/@types/ecopages-css-modules/components/button.module.css.d.ts');
+		const declared = () => (fs.existsSync(declaration()) ? fs.readFileSync(declaration(), 'utf8') : undefined);
+
+		it.fails('declares a CSS Module when it is prewarmed, and again when an edit adds a class', async () => {
+			const file = write(MODULE, '.primary { color: red; }\n');
+			const service = await createModuleService();
+			await service.prewarm();
+			expect(declared()).toContain('export declare const primary: string;');
+			const { bridge } = createBridge();
+
+			write(MODULE, '.primary { color: red; }\n.secondary { color: blue; }\n');
+			await service.applyChanges(changed(file), bridge);
+
+			expect(declared()).toContain('export declare const secondary: string;');
+		});
+
+		it.fails('drops the declaration of a deleted CSS Module', async () => {
+			const file = write(MODULE, '.primary { color: red; }\n');
+			const service = await createModuleService();
+			await service.prewarm();
+			expect(declared()).toBeDefined();
+
+			fs.rmSync(file);
+			await service.applyChanges({ created: [], changed: [], deleted: [file] }, createBridge().bridge);
+
+			expect(declared()).toBeUndefined();
+		});
+	});
+
 	it('leaves an unused CSS Module alone when the Processor does not scope them', async () => {
 		write('src/components/unused.module.css', '.unused { color: red; }\n');
 		const service = await createService(new InliningProcessor());

@@ -36,7 +36,7 @@ Load the global stylesheet once, with `import '../styles/app.css'` in `src/inclu
 
 Side-effect CSS imports (`import './component.css'`, `import '@/styles/shared.css'`) in `eco.*` modules are discovered and served as `<link rel="stylesheet">`; see [core.md](core.md#components-and-dependency-discovery). Use explicit `dependencies.stylesheets` for custom attributes (such as `media="print"`) or a fixed order.
 
-With `postcssProcessorPlugin` (not the Lightning CSS Processor), a value import binds the processed CSS as a string, for example to style a shadow root:
+With a stylesheet Processor registered, a value import binds the processed CSS as a string, for example to style a shadow root:
 
 ```typescript
 import styles from './styles.css';

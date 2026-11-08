@@ -41,7 +41,7 @@ Avoid updating the same watched property inside its own `@onUpdated(...)` unless
 ## DOM queries
 
 - `@query(...)` — rendered descendants by `data-ref` or selector
-- `@querySlot(...)` — projected slot-assigned elements from an HTML-first `RadiantElement`
+- `this.slottedElements` — the top-level elements the host rendered from its children (replaces the removed `@querySlot`)
 
 `@query` options: `ref` or `selector`; `all` for `Element[]`; `cache` (default `false`); `scope` `'light'` (default) | `'shadow'` | `'both'`. Prefer `ref` over broad selectors.
 

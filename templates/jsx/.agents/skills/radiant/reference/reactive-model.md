@@ -17,7 +17,7 @@ Use them for:
 
 - conditional branches and comparisons
 - derived strings that decide structure
-- list shape and slot fallback
+- list shape and `this.slotted` fallback
 - `class` / `style` composition
 - imperative code and event handlers outside JSX binding positions
 

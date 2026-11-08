@@ -4,7 +4,7 @@ description: >-
     Author, refactor, review, or explain Radiant reactive hosts built with
     @ecopages/radiant. Use when the user asks for a RadiantElement or
     RadiantController, custom elements with @prop/@state/@signal, controller-attached
-    authored DOM, JSX-host rendering, slot projection, SSR hydration, internal
+    authored DOM, JSX-host rendering, slotted children, SSR hydration, internal
     bindings, @bindTo paint onto existing DOM, or when to use plain reactive
     reads versus this.$ / this.bindings / this.bind(...). Also use when updating
     docs, examples, or playground code so the output follows Radiant's shared
@@ -26,7 +26,7 @@ Use `llms.txt` for a compact map, then the full docs for API details.
 - Creating or editing a `RadiantElement` or `RadiantController`
 - Choosing `@prop` / `@state` / `@signal`, or `@customElement` / `@controller`
 - Choosing plain reads (`this.count`) vs JSX bindings (`this.$.count`) vs `@bindTo`
-- Wiring SSR, hydration, host rendering, or slot projection
+- Wiring SSR, hydration, host rendering, or slotted children
 - Reviewing docs or examples so they teach the Radiant model, not React habits
 
 ## Import paths

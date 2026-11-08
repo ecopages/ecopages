@@ -101,8 +101,8 @@ Use `eco.component` to create reusable components with isolated dependencies.
 // src/components/Greeting.tsx
 import { eco } from '@ecopages/core';
 
-export const Greeting = eco.component<{ name: string }>({
-  render: ({ name }) => {
+export const Greeting = eco.component({
+  render: ({ name }: { name: string }) => {
     return <div class="greeting">Hello, {name}!</div>;
   },
 });

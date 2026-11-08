@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { highlightCodeTab, inferTabLang } from './code-highlighter';
 
@@ -28,12 +29,10 @@ describe('highlightCodeTab', () => {
 
 describe('highlightCodeTab with a file', () => {
 	it('reads the source from the repository file with its indentation intact', () => {
-		const tab = highlightCodeTab({
-			id: 'a',
-			label: 'A',
-			file: 'apps/docs/src/snippets/postcss-tailwind-v4.txt',
-			lang: 'typescript',
-		});
+		const tab = highlightCodeTab(
+			{ id: 'a', label: 'A', file: 'src/snippets/postcss-tailwind-v4.txt', lang: 'typescript' },
+			path.resolve(import.meta.dirname, '../../..'),
+		);
 
 		expect(tab.content).toContain('\n\tprocessors: [\n\t\tpostcssProcessorPlugin(');
 	});

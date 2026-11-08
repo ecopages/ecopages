@@ -44,12 +44,14 @@ export function inferTabLang(tab: { label: string; code: string; lang?: string }
 }
 
 /**
- * A tab whose source lives in a repository file, as `file` plus an optional `#region`, like a fenced
+ * A tab whose source lives in a file of the docs app, relative to its root, as `file` plus an optional `#region`, like a fenced
  * block's `file="..."`.
  *
  * @remarks
  * MDX removes up to two columns of indentation from every continuation line of a template literal, so
- * indented code cannot be written reliably in a `code` prop. A `file` tab keeps it exact.
+ * indented code cannot be written reliably in a `code` prop. A `file` tab keeps it exact. Paths resolve from the
+ * working directory, which is the docs app root for `ecopages dev` and `ecopages build`; the server bundle cannot
+ * locate the repository from its own path.
  */
 export type CodeTabFileSource = { id: string; label: string; file: string; region?: string; lang?: string };
 
@@ -65,10 +67,11 @@ export type CodeTabSource = RadiantCodeTabItem | CodeTabFileSource;
  */
 export function highlightCodeTab(
 	source: Extract<RadiantCodeTabItem, { code: string }> | CodeTabFileSource,
+	root = process.cwd(),
 ): Extract<RadiantCodeTabItem, { html: string }> {
 	const tab =
 		'file' in source
-			? { ...source, code: readSnippet({ file: source.file, region: source.region }) }
+			? { ...source, code: readSnippet({ file: source.file, region: source.region }, root) }
 			: source;
 	const lang = inferTabLang(tab);
 	const html = highlighter.codeToHtml(tab.code, {

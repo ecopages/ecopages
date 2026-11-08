@@ -117,14 +117,13 @@ Declare custom-element registration once in `dependencies.scripts`. Ecopages JSX
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
 import type { ThemeToggleProps } from './theme-toggle.script';
 
-export const ThemeToggle = eco.component<ThemeToggleProps, JsxRenderable>({
+export const ThemeToggle = eco.component({
 	dependencies: {
 		scripts: [{ src: './theme-toggle.script.ts', ssr: true }],
 	},
-	render: (props) => <theme-toggle {...props} />,
+	render: (props: ThemeToggleProps) => <theme-toggle {...props} />,
 });
 ```
 

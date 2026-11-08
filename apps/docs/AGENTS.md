@@ -32,6 +32,7 @@
 - Register `contentProcessorPlugin()` from `@ecopages/content-processor/plugin` in `eco.config.ts`.
 - Docs layout chrome lives under `src/layouts/docs-layout/`; navigation helpers in `src/lib/content-nav.ts`; MDX config in `src/lib/docs/`.
 - Fenced MDX code blocks use `rehype-pretty-code` with `transformerCopyButton`. A follow-up rehype pass stores source on `data-rehype-pretty-copy` because the MDX JSX renderer does not preserve the transformer's `data` / `class` / `onclick` attributes. Clipboard handling lives in `src/layouts/base-layout/base-layout.script.ts`.
+- `CodeTabs` highlights every tab on the server in `src/lib/docs/code-highlighter.ts`, with the same Shiki themes as fences (`shiki-themes.ts`); the browser only renders the HTML. A tab takes `code` plus an optional `lang` (inferred from the label, then shell for install commands, else `tsx`). MDX strips up to two columns of indentation from each continuation line of a template literal, so indented code goes in a file under `src/snippets/` and a tab names it with `file` (relative to the docs app root). Fences without a language fall back to `text` so they share the figure styling.
 
 ## Navigation
 

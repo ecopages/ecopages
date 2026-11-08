@@ -14,16 +14,15 @@ Declare the styles, browser scripts, and child Components a Component needs. Eco
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
 import './radiant-counter.css';
 
 type RadiantCounterProps = { count: number };
 
-export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>({
+export const RadiantCounter = eco.component({
 	dependencies: {
 		scripts: [{ src: './radiant-counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
-	render: ({ count }) => (
+	render: ({ count }: RadiantCounterProps) => (
 		<radiant-counter count={count}>
 			<button type="button" data-ref="decrement" aria-label="Decrement">-</button>
 			<span data-ref="count">{count}</span>
@@ -32,6 +31,10 @@ export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>(
 	),
 });
 ```
+
+Import a local stylesheet at the top of the file as a side-effect import; Ecopages discovers it, so `dependencies.stylesheets` is not needed. Do not pass type arguments to `eco.component`: annotate the parameter of `render` and both the props type and the element type are inferred from it.
+
+Two cases lose that inference. Without an annotation on the `render` parameter, props are `{}` and nothing is checked. With a single explicit type argument, such as `eco.component<RadiantCounterProps>({ ... })`, TypeScript does not infer the second one, so the element type falls back to `EcoPagesElement`, which a React or Ecopages JSX `render` may not match.
 
 Radiant support is enabled by default when you configure `ecopagesJsxPlugin()`. Its SSR output becomes an island only when the Component brings browser behavior.
 

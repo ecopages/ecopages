@@ -429,4 +429,27 @@ describe('Tailwind v4 preset invalidation by content sources', () => {
 		const second = await plugin.transformStylesheet(entry, entryPath);
 		expect(second.css).toContain('text-decoration-line:underline');
 	}, 30_000);
+
+	test.each([
+		['Tailwind v3', () => tailwindV3Preset()],
+		['Tailwind v4', () => tailwindV4Preset({ referencePath: path.resolve(__dirname, '../fixtures/tailwind.css') })],
+	])('%s preset should leave relative color channel math alone without warnings', async (_name, createPreset) => {
+		const preset = createPreset();
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		try {
+			const result = await PostCssProcessor.processStringOrBuffer(
+				'.tint { color: oklch(from var(--accent) l calc(c * 0.29) h); }',
+				{
+					plugins: preset.plugins ? Object.values(preset.plugins) : [],
+					filePath: path.resolve(__dirname, 'style.css'),
+				},
+			);
+
+			expect(result).toMatch(/oklch\(from var\(--accent\) l calc\((c \* \.29|\.29 \* c)\) h\)/);
+			expect(warn).not.toHaveBeenCalled();
+		} finally {
+			warn.mockRestore();
+		}
+	});
 });

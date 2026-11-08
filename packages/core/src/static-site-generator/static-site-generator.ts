@@ -531,13 +531,20 @@ export class StaticSiteGenerator {
 
 		const routePlans: StaticExportRoutePlans = { preparations: new Map(), failed: new Map() };
 		if (shouldPrebuildProductionPageBrowserGraphs() && input.routeRendererFactory) {
-			const dynamicRouteTemplates = (input.router.templateRoutes ?? [])
-				.filter((route) => route.kind !== 'exact' && route.role === 'page')
-				.map((route) => ({ routeFile: route.filePath, skipStaticProps: true, isRouteTemplate: true }));
 			const dynamicPageEntries =
 				(await input.router.listDynamicPagePathExpansions?.({
 					runtimeOrigin: input.baseUrl,
 				})) ?? [];
+			const expandedRouteFiles = new Set([
+				...input.routes.map((route) => route.templateRoute.filePath),
+				...dynamicPageEntries.map((route) => route.templateRoute.filePath),
+			]);
+			const dynamicRouteTemplates = (input.router.templateRoutes ?? [])
+				.filter(
+					(route) =>
+						route.kind !== 'exact' && route.role === 'page' && !expandedRouteFiles.has(route.filePath),
+				)
+				.map((route) => ({ routeFile: route.filePath, skipStaticProps: true, isRouteTemplate: true }));
 			const importedViews = getImportedViewPaths(this.appConfig).map((routeFile) => ({
 				routeFile,
 				skipStaticProps: true,

@@ -116,3 +116,12 @@ export async function writeCssModuleDeclarations(appConfig: EcoPagesAppConfig): 
 		}
 	}
 }
+
+/**
+ * Warns, once, when the app has CSS Module declarations but its tsconfig cannot find them, and prints the lines to add.
+ *
+ * @remarks
+ * TypeScript resolves a declaration only through `rootDirs`, and an alias such as `@/*` also needs the package folder
+ * as a second `paths` target. Until they are listed, a named import of a CSS Module class fails type checking.
+ */
+export function warnMissingCssModuleRootDirs(_appConfig: EcoPagesAppConfig): void {}

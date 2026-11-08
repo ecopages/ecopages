@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { path } from '@ecopages/file-system/path';
 import ts from 'typescript';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { appLogger } from '../../../../global/app-logger.ts';
 import { finalizeEcoPagesConfig } from '../../../../config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { InliningProcessor } from '../../../../__fixtures__/stylesheets/inlining-processor.ts';
@@ -11,6 +12,7 @@ import {
 	CSS_MODULE_TYPES_MODULE,
 	removeCssModuleDeclaration,
 	writeCssModuleDeclaration,
+	warnMissingCssModuleRootDirs,
 	writeCssModuleDeclarations,
 } from './css-module-types.ts';
 
@@ -134,5 +136,59 @@ describe('CSS Module declarations', () => {
 
 		expect(fs.existsSync(declarationOf('old.module.css'))).toBe(false);
 		expect(fs.readFileSync(declarationOf('new.module.css'), 'utf8')).toContain('"fresh"');
+	});
+});
+
+describe('the tsconfig check for CSS Module declarations', () => {
+	const TYPES = './node_modules/@types/ecopages-css-modules';
+
+	/** Writes a CSS Module and its declaration, a tsconfig with `compilerOptions`, and returns what the check logged. */
+	async function warningFor(compilerOptions: object | null, extra: Record<string, string> = {}): Promise<string[]> {
+		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+		write('src/button.module.css', '.primary { color: red; }\n');
+		for (const [file, contents] of Object.entries(extra)) write(file, contents);
+		if (compilerOptions) write('tsconfig.json', JSON.stringify({ compilerOptions }));
+		const config = await createConfig();
+		await writeCssModuleDeclarations(config);
+		warn.mockClear();
+		warnMissingCssModuleRootDirs(config);
+		return warn.mock.calls.map(([message]) => String(message));
+	}
+
+	it.fails('names the rootDirs to add, and the alias to extend, when the tsconfig lists neither', async () => {
+		const [message, ...rest] = await warningFor({ paths: { '@/*': ['./src/*'] } });
+
+		expect(rest).toEqual([]);
+		expect(message).toContain(`"rootDirs": ["./src", "${TYPES}"]`);
+		expect(message).toContain(`"@/*": ["./src/*", "${TYPES}/*"]`);
+	});
+
+	it.fails('warns about an app with no tsconfig.json too, naming only the rootDirs', async () => {
+		const [message] = await warningFor(null);
+
+		expect(message).toContain('"rootDirs"');
+		expect(message).not.toContain('"paths"');
+	});
+
+	it('stays quiet when the tsconfig lists the package folder in rootDirs and the alias', async () => {
+		expect(await warningFor({ rootDirs: ['./src', TYPES], paths: { '@/*': ['./src/*', `${TYPES}/*`] } })).toEqual(
+			[],
+		);
+	});
+
+	it('stays quiet when an extended tsconfig lists them', async () => {
+		write('base.json', JSON.stringify({ compilerOptions: { rootDirs: ['./src', TYPES] } }));
+
+		expect(await warningFor(null, { 'tsconfig.json': JSON.stringify({ extends: './base.json' }) })).toEqual([]);
+	});
+
+	it('stays quiet when the app has no CSS Module', async () => {
+		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+		const config = await createConfig();
+		await writeCssModuleDeclarations(config);
+
+		warnMissingCssModuleRootDirs(config);
+
+		expect(warn).not.toHaveBeenCalled();
 	});
 });

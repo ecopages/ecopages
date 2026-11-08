@@ -85,6 +85,57 @@ export function loadTsconfigPathPrefixes(projectRoot: string): string[] {
 	return resolvedPrefixes;
 }
 
+/** The `compilerOptions` the TypeScript checker reads for module resolution, with every path made absolute. */
+export interface TsconfigResolutionOptions {
+	rootDirs?: string[];
+	paths?: Record<string, string[]>;
+}
+
+/**
+ * Loads `compilerOptions.rootDirs` and `compilerOptions.paths` from the tsconfig of `projectRoot`, following `extends`.
+ *
+ * @remarks
+ * As in TypeScript, an option set in a config replaces the one it extends, and a relative path is relative to the
+ * config that sets it. `baseUrl` is not applied. Returns `undefined` when the project has no readable tsconfig.
+ */
+export function loadTsconfigResolutionOptions(projectRoot: string): TsconfigResolutionOptions | undefined {
+	const tsconfigPath = findTsconfigPath(projectRoot);
+	if (!tsconfigPath) return undefined;
+	const options: TsconfigResolutionOptions = {};
+	const visited = new Set<string>();
+	const collect = (configPath: string): void => {
+		const normalized = path.resolve(configPath);
+		if (visited.has(normalized)) return;
+		visited.add(normalized);
+		let config: {
+			extends?: string;
+			compilerOptions?: { rootDirs?: string[]; paths?: Record<string, string[]> };
+		};
+		try {
+			config = readJsonFile(normalized) as typeof config;
+		} catch {
+			return;
+		}
+		const base = path.dirname(normalized);
+		const { rootDirs, paths } = config.compilerOptions ?? {};
+		if (rootDirs && !options.rootDirs) options.rootDirs = rootDirs.map((dir) => path.resolve(base, dir));
+		if (paths && !options.paths) {
+			options.paths = Object.fromEntries(
+				Object.entries(paths).map(([key, targets]) => [
+					key,
+					targets.map((target) => path.resolve(base, target)),
+				]),
+			);
+		}
+		if (typeof config.extends === 'string') {
+			const parent = path.resolve(base, config.extends);
+			collect(fileSystem.exists(parent) ? parent : `${parent}.json`);
+		}
+	};
+	collect(tsconfigPath);
+	return options;
+}
+
 export function matchesTsconfigPathPrefix(specifier: string, prefixes: readonly string[]): boolean {
 	return prefixes.some((prefix) => {
 		if (prefix.endsWith('/')) {

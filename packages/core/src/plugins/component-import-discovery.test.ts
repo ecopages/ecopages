@@ -403,9 +403,14 @@ export const Button = eco.component({ render: () => '' });`,
 				expect(result).not.toContain('stylesheets: ["');
 			}
 		});
-		it('fails on a CSS Module of a declared extension', () => {
-			expect(run(createStylesheetKinds([sass]), `import './card.module.scss';`)).toThrow(
-				'"./card.module.scss" is a CSS Module',
+		it('delivers *.module.<ext> as a plain stylesheet when the capability declaring <ext> sets no cssModules', () => {
+			const result = run(createStylesheetKinds([sass]), `import './card.module.scss';`)();
+			expect(result).not.toContain(`import './card.module.scss'`);
+			expect(result).toContain(`stylesheets: ${JSON.stringify(['card.module.scss'])}`);
+		});
+		it('fails on a CSS Module of a plain .css extension that no Processor scopes', () => {
+			expect(run(createStylesheetKinds([sass]), `import './card.module.css';`)).toThrow(
+				'"./card.module.css" is a CSS Module',
 			);
 		});
 		it('delivers a declared extension imported from an MDX document, and ignores it when none is declared', () => {

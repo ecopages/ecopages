@@ -107,8 +107,10 @@ const warnedUndeliverableStylesheets = new WeakMap<EcoPagesAppConfig, Set<string
  * the build, so `ecopages dev` keeps running; `ecopages build` fails on it.
  */
 function resolveBuildStylesheets(appConfig: EcoPagesAppConfig): BuildStylesheets {
+	const kinds = getStylesheetKinds(appConfig);
 	return {
-		extensions: getStylesheetKinds(appConfig).extensions,
+		extensions: kinds.extensions,
+		isCssModule: kinds.isCssModule,
 		compileModule: (file) => compileStylesheetModule(appConfig, file),
 		...(isProductionRuntime()
 			? {}

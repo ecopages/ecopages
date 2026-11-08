@@ -22,6 +22,7 @@ const SIDE_EFFECT_QUERY = '?ecopages-stylesheet-side-effect';
 /** Plain CSS, default-exported as written: the stylesheets of a build request that names none. */
 const PLAIN_CSS_STYLESHEETS: BuildStylesheets = {
 	extensions: PLAIN_CSS_KINDS.extensions,
+	isCssModule: PLAIN_CSS_KINDS.isCssModule,
 	compileModule: async (file) => ({ code: toStylesheetModule(await fileSystem.readFile(file)) }),
 };
 
@@ -89,7 +90,7 @@ export function createStylesheetModulePlugin(
 	const extensionPattern = compiler.extensions.map(escapeRegExp).join('|');
 	const STYLESHEET_ID = new RegExp(`(?:${extensionPattern})$`, 'iu');
 	const SIDE_EFFECT_ID = new RegExp(`(?:${extensionPattern})${escapeRegExp(SIDE_EFFECT_QUERY)}$`, 'iu');
-	const CSS_MODULE_ID = new RegExp(`\\.module(?:${extensionPattern})$`, 'iu');
+	const isCssModule = compiler.isCssModule ?? PLAIN_CSS_KINDS.isCssModule;
 	const STYLESHEET_REFERENCE = new RegExp(`(?:${extensionPattern})['"]`, 'iu');
 	const isStylesheet = (specifier: string) => STYLESHEET_ID.test(specifier);
 	const sideEffectImportsByImporter = new Map<string, Set<string>>();
@@ -119,7 +120,7 @@ export function createStylesheetModulePlugin(
 			async handler(source, importer, extraOptions) {
 				if (!importer) return null;
 				if (!sideEffectImportsByImporter.get(importer)?.has(source)) {
-					if (CSS_MODULE_ID.test(source)) checkPackageCssModule(importer, source);
+					if (isCssModule(source)) checkPackageCssModule(importer, source);
 					return null;
 				}
 				const resolved = await this.resolve(source, importer, { ...extraOptions, skipSelf: true });

@@ -58,7 +58,16 @@ describe('createStylesheetKinds', () => {
 		expect(kinds.isStylesheet('./card.scss')).toBe(true);
 		expect(kinds.isStylesheet('./card.SCSS')).toBe(true);
 		expect(kinds.isStylesheet('./card.less')).toBe(false);
+		expect(kinds.isCssModule('./card.module.scss')).toBe(false);
+		expect(kinds.isCssModule('./card.scss')).toBe(false);
+	});
+
+	it('takes *.module.<ext> as a CSS Module when the capability declaring <ext> sets cssModules', () => {
+		const kinds = createStylesheetKinds([
+			new FixtureProcessor('sass', [{ kind: 'stylesheet', extensions: ['*.scss'], cssModules: true }]),
+		]);
 		expect(kinds.isCssModule('./card.module.scss')).toBe(true);
+		expect(kinds.isCssModule('./card.module.SCSS')).toBe(true);
 		expect(kinds.isCssModule('./card.scss')).toBe(false);
 	});
 
@@ -133,17 +142,14 @@ describe('CSS Module detection and generated declarations', () => {
 		['cssModules on neither', [{ kind: 'stylesheet', extensions: ['*.css', '*.scss'] }]],
 	];
 
-	it.fails(
-		'treats *.module.<ext> as a CSS Module only when the capability that declares <ext> sets cssModules',
-		() => {
-			const kinds = createStylesheetKinds([new FixtureProcessor('p', capabilitySets[0]![1])]);
-			expect(kinds.isCssModule('./card.module.css')).toBe(true);
-			expect(kinds.isCssModule('./card.module.scss')).toBe(false);
-			expect(kinds.isStylesheet('./card.module.scss')).toBe(true);
-		},
-	);
+	it('treats *.module.<ext> as a CSS Module only when the capability that declares <ext> sets cssModules', () => {
+		const kinds = createStylesheetKinds([new FixtureProcessor('p', capabilitySets[0]![1])]);
+		expect(kinds.isCssModule('./card.module.css')).toBe(true);
+		expect(kinds.isCssModule('./card.module.scss')).toBe(false);
+		expect(kinds.isStylesheet('./card.module.scss')).toBe(true);
+	});
 
-	it.fails('agrees with the generated declarations for every capability set', () => {
+	it('agrees with the generated declarations for every capability set', () => {
 		for (const [, capabilities] of capabilitySets) {
 			const kinds = createStylesheetKinds([new FixtureProcessor('p', capabilities)]);
 			const declaresClassMap =

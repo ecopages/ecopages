@@ -445,6 +445,13 @@ class SuffixExpander {
 	): string[] | undefined {
 		const location = child.preludeStart;
 		for (const parent of parents) {
+			if (parent === '&') {
+				this.fail(
+					location,
+					`\`${rule.prelude.trim()}\` cannot be expanded: its parent is a bare \`&\`, which has no name to append to. Write the rule in the parent that has the selector.`,
+				);
+				return undefined;
+			}
 			if (!isCompound(parent)) {
 				this.fail(
 					location,

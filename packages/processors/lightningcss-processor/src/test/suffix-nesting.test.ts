@@ -354,6 +354,12 @@ describe('errors', () => {
 		await expect(transform(file)).rejects.toThrow(/itself nested/u);
 	});
 
+	test('fails when the parent is a bare &', async () => {
+		const file = write('src/a.css', '.a { & { &--b { top: 0; } } }');
+
+		await expect(transform(file)).rejects.toThrow(/bare `&`/u);
+	});
+
 	test('fails a rule that also uses a plain &', async () => {
 		const file = write('src/a.css', '.a { &--b + & { top: 0; } }');
 

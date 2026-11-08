@@ -145,7 +145,8 @@ function rescan(
  * Tailwind inlines an `@import` by reading the file itself, so the `transformSource` of a plugin cannot reach it. For
  * each app partial that `transformSource` changes, the rewritten copy is written to a temporary folder of its own,
  * with its `url()` references rebased onto that folder, and the resolver hands Tailwind the copy. A partial no plugin
- * changes is left to Tailwind. Imports of a copy resolve from the folder of the partial it stands for.
+ * changes is left to Tailwind. The folder is made once per Processor and each partial keeps its own subfolder, so
+ * rebuilds overwrite the copies instead of adding files. Imports of a copy resolve from the folder of the partial it stands for.
  */
 class RewrittenPartials {
 	private folder?: string;
@@ -236,6 +237,7 @@ async function resolveExisting(
 function createTailwindPreprocessor(options: TailwindV4PresetOptions): LightningCssPreprocessor {
 	const referencePath = path.resolve(options.referencePath);
 	const stylesheets = new Map<string, StylesheetState>();
+	let partials: RewrittenPartials | undefined;
 
 	return {
 		async transform(css, file, context): Promise<PreprocessedStylesheet> {
@@ -249,7 +251,9 @@ function createTailwindPreprocessor(options: TailwindV4PresetOptions): Lightning
 			const state = stylesheets.get(entry) ?? { candidates: new Set<string>(), dependencies: new Set<string>() };
 			stylesheets.set(entry, state);
 			const dependencies = new Set<string>();
-			const rewritten = context.transformSource && new RewrittenPartials(context.transformSource);
+			const rewritten = context.transformSource
+				? (partials ??= new RewrittenPartials(context.transformSource))
+				: undefined;
 			try {
 				const compiler = await node.compile(source, {
 					base: path.dirname(entry),

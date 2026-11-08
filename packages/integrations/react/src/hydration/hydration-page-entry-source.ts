@@ -85,7 +85,6 @@ export function createPageEntrySource(options: PageEntrySourceOptions): string {
 import { hydrateRoot } from ${JSON.stringify(REACT_DOM_CLIENT_PACKAGE)};
 import { createElement } from ${JSON.stringify(REACT_PACKAGE)};
 import {
-  getPageDataFromDocument,
   readPageDataDocument,
   resolvePageComponent,
   startPageHydration,
@@ -103,7 +102,7 @@ startPageHydration({
   scriptId: ${JSON.stringify(options.scriptId)},
   pageModuleUrl,
   Page: initialPage,
-  pageDataReader: { readPageDataDocument, getPageDataFromDocument },
+  pageDataReader: { readPageDataDocument },
   runtime: { hydrateRoot, createElement },
   createTree,
   hasRouter: ${Boolean(options.routerComponents)},

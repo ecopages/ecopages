@@ -29,7 +29,7 @@ test.describe('A React Page without a router and a foreign Lit Component, in dev
 
 		fs.writeFileSync(pageFile, original.replace('count={1}', 'count={2}'), 'utf-8');
 
-		const litCounter = page.locator('lit-counter');
+		const litCounter = page.locator('[data-testid="inline"] lit-counter');
 		await expect(litCounter).toHaveAttribute('count', '2', { timeout: HMR_TIMEOUT_MS });
 		expect(await litCounter.evaluate((element) => element.shadowRoot?.textContent?.trim())).toBe('2');
 	});
@@ -45,8 +45,24 @@ test.describe('A React Page without a router and a foreign Lit Component, in dev
 			timeout: HMR_TIMEOUT_MS,
 		});
 		const hasServerShadowRoot = await page
-			.locator('lit-counter')
+			.locator('[data-testid="inline"] lit-counter')
 			.evaluate((element) => element.shadowRoot?.innerHTML.includes('<!--lit-part') ?? false);
 		expect(hasServerShadowRoot).toBe(true);
+	});
+
+	test('shows the new staticProps of the Page, in React and in the foreign Lit Component, after an edit', async ({
+		page,
+	}) => {
+		await openHydratedPage(page);
+
+		fs.writeFileSync(pageFile, original.replace('props: { count: 1 }', 'props: { count: 5 }'), 'utf-8');
+
+		await expect(page.getByTestId('static-count')).toHaveText('5', { timeout: HMR_TIMEOUT_MS });
+		const litCounter = page.locator('[data-testid="static"] lit-counter');
+		await expect(litCounter).toHaveAttribute('count', '5', { timeout: HMR_TIMEOUT_MS });
+		expect(await litCounter.evaluate((element) => element.shadowRoot?.textContent?.trim())).toBe('5');
+		expect(
+			await page.evaluate(() => (window.__ECO_PAGES__?.page?.props as { count?: number } | undefined)?.count),
+		).toBe(5);
 	});
 });

@@ -67,7 +67,6 @@ function createPageOptions(errors: unknown[]): PageHydrationOptions {
 		Page: ReactPage,
 		pageDataReader: {
 			readPageDataDocument: () => ({ props: {} }),
-			getPageDataFromDocument: () => ({}),
 		},
 		runtime: createReactRuntime(errors),
 		createTree: (Component: unknown, props: Record<string, unknown>) =>

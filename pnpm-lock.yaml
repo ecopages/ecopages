@@ -365,6 +365,27 @@ importers:
         specifier: ^19.2.6
         version: 19.2.8(react@19.2.8)
 
+  e2e/fixtures/react-direct-hmr:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/lit':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/lit
+      '@ecopages/react':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/react
+      lit:
+        specifier: ^3.3.3
+        version: 3.3.3
+      react:
+        specifier: ^19.2.6
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.8(react@19.2.8)
+
   e2e/fixtures/react-lazy-first-load:
     devDependencies:
       '@ecopages/core':

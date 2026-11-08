@@ -36,8 +36,8 @@ type ForeignSubtreeWindow = Window & {
  * @remarks
  * Every mount reads it, hydration included, where React keeps the existing DOM whatever was read. A client
  * navigation publishes the fetched document as `page.document` before it renders the next Page, and that document
- * comes first; otherwise the live document holds it, also during an HMR re-mount, whose old boundary is still
- * attached while React renders. Without either, the boundary stays empty.
+ * comes first, and a direct HMR update publishes the document it fetched the same way; otherwise the live document
+ * holds it. Without either, the boundary stays empty.
  */
 function readServerHtml(key: string): string {
 	const selector = `${FOREIGN_SUBTREE_TAG}[${FOREIGN_SUBTREE_KEY_ATTRIBUTE}="${key}"]`;

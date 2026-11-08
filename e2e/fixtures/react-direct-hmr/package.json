@@ -1,0 +1,13 @@
+{
+	"name": "@ecopages/e2e-react-direct-hmr-app",
+	"private": true,
+	"type": "module",
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/lit": "workspace:*",
+		"@ecopages/react": "workspace:*",
+		"lit": "^3.3.3",
+		"react": "^19.2.6",
+		"react-dom": "^19.2.6"
+	}
+}

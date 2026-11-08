@@ -268,6 +268,13 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		},
 	},
 	{
+		name: 'react-direct-hmr-dev-e2e',
+		testMatch: 'e2e/fixtures/react-direct-hmr/**/*.test.e2e.ts',
+		timeout: 60_000,
+		workers: 1,
+		use: { ...chrome, appOptions: { source: 'e2e/fixtures/react-direct-hmr' } },
+	},
+	{
 		name: 'imported-views-dev-e2e',
 		testMatch: 'e2e/fixtures/imported-views/**/*.test.e2e.ts',
 		timeout: 90_000,

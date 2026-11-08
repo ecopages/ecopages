@@ -6,6 +6,7 @@ import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 import { GENERATED_BASE_PATHS } from '../constants.ts';
 import { contentHash } from '../utils/content-hash.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
+import { extensionsOfPattern } from './stylesheet-kinds.ts';
 
 export type {
 	EcoBuildFilter,
@@ -69,6 +70,35 @@ export function writeGeneratedTypesPackage(options: {
 		subPath: 'package.json',
 	});
 	options.writeFile(packageManifestPath, serializeGeneratedTypesPackage(options.packageName));
+}
+
+/**
+ * Builds the ambient module declarations of the stylesheet extensions a Processor declares, for the Processor to write
+ * into its generated `@types` package from `setup()`.
+ *
+ * @remarks
+ * Core ships the declarations of `.css` and `.module.css` itself (`css-imports.d.ts`), so they are left out; the
+ * result is empty when no stylesheet capability declares another extension. For each extension `*.<ext>` declares
+ * the CSS string, and, when the capability sets `cssModules`, `*.module.<ext>` declares the class map. The module
+ * pattern comes first because TypeScript takes the first of two patterns that match a specifier alike.
+ */
+export function serializeStylesheetModuleDeclarations(capabilities: readonly ProcessorAssetCapability[]): string {
+	const declarations = new Map<string, boolean>();
+	for (const capability of capabilities) {
+		if (capability.kind !== 'stylesheet') continue;
+		for (const extension of (capability.extensions ?? []).flatMap(extensionsOfPattern)) {
+			if (extension === '.css') continue;
+			declarations.set(extension, declarations.get(extension) === true || capability.cssModules === true);
+		}
+	}
+	return [...declarations]
+		.map(([extension, cssModules]) => {
+			const classes = cssModules
+				? `declare module '*.module${extension}' {\n\tconst classes: { readonly [key: string]: string };\n\texport default classes;\n}\n\n`
+				: '';
+			return `${classes}declare module '*${extension}' {\n\tconst styles: string;\n\texport default styles;\n}\n`;
+		})
+		.join('\n');
 }
 
 /**

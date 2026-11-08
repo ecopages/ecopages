@@ -27,7 +27,7 @@ export function createIslandEntrySource(options: IslandEntrySourceOptions): stri
 		: '';
 	return `
 import { hydrateRoot } from ${JSON.stringify(REACT_DOM_CLIENT_PACKAGE)};
-import { createElement, useEffect, useState } from ${JSON.stringify(REACT_PACKAGE)};
+import { createElement, useEffect } from ${JSON.stringify(REACT_PACKAGE)};
 import * as ComponentModule from ${JSON.stringify(options.importPath)};
 import { getIslandHydrationRuntime, mountIslands, registerIslandHmr } from ${JSON.stringify(ISLAND_HYDRATION_PACKAGE)};
 
@@ -36,7 +36,7 @@ const configuration = {
   componentModule: ComponentModule,
   componentRef: ${JSON.stringify(options.componentRef ?? '')},
   scriptId: ${JSON.stringify(options.scriptId)},
-  runtime: { hydrateRoot, createElement, useEffect, useState },
+  runtime: { hydrateRoot, createElement, useEffect },
   runtimeState: getIslandHydrationRuntime()
 };
 const mount = () => mountIslands(configuration);

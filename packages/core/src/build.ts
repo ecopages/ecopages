@@ -43,6 +43,7 @@ export {
 	recordMdxTransform,
 	type RequestPipelineMetricsState,
 } from './diagnostics/request-pipeline-metrics.ts';
+export { findIntegrationForFile } from './plugins/find-integration-for-file.ts';
 export { toPackageRootSpecifier } from './plugins/package-specifier.ts';
 export {
 	loadTsconfigPathPrefixes,

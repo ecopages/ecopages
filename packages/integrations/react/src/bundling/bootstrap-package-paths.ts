@@ -13,6 +13,7 @@ export const PAGE_LAYOUT_NORMALIZATION_PACKAGE = '@ecopages/core/client';
 export const LAYOUT_COMPOSE_PACKAGE = '@ecopages/react/layout-compose';
 export const ISLAND_HYDRATION_PACKAGE = '@ecopages/react/island-hydration';
 export const PAGE_HYDRATION_PACKAGE = '@ecopages/react/page-hydration';
+export const FOREIGN_BOUNDARY_PACKAGE = '@ecopages/react/foreign-boundary';
 
 /** React, React DOM and the JSX runtimes compiled React modules import. */
 const REACT_RUNTIME_PACKAGES = [
@@ -29,6 +30,7 @@ export function getReactBrowserPackages(routerAdapter?: ReactRouterAdapter): str
 		...REACT_RUNTIME_PACKAGES,
 		PAGE_HYDRATION_PACKAGE,
 		ISLAND_HYDRATION_PACKAGE,
+		FOREIGN_BOUNDARY_PACKAGE,
 		LAYOUT_COMPOSE_PACKAGE,
 		PAGE_LAYOUT_NORMALIZATION_PACKAGE,
 		...(routerAdapter ? [routerAdapter.importPath] : []),

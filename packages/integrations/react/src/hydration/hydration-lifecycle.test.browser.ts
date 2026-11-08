@@ -367,7 +367,6 @@ function createRealPageHydrationOptions(Page: unknown): PageHydrationOptions {
 				};
 			},
 			createElement: (...args: unknown[]) => args,
-			useState,
 		},
 		createTree: (Component, props) => createElement(Component as ElementType, props),
 		hasRouter: false,
@@ -667,7 +666,6 @@ describe('React Island Host lifecycle', () => {
 					return { type, props: elementProps };
 				},
 				useEffect: () => {},
-				useState,
 			},
 		});
 

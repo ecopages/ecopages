@@ -136,7 +136,7 @@ export abstract class HmrStrategy implements HmrStrategyContract {
 	 * module in the per-file ESM graph (pages and imported children). File-change
 	 * dispatch continues to use {@link matches}.
 	 */
-	ownsDevTransformEntrypoint(_sourcePath: string): boolean {
+	ownsDevTransformEntrypoint(_sourcePath: string, _variant?: string): boolean {
 		return false;
 	}
 

@@ -7,8 +7,17 @@
  * @module
  */
 
-import { createClientGraphBoundaryPlugin, createForeignJsxScope } from '../client-graph/boundary-plugin.ts';
-import { findJsxExtensionOwner, getHostScopedJsxOwnershipPlugins, isProductionRuntime } from '@ecopages/core/build';
+import {
+	createClientGraphBoundaryPlugin,
+	createForeignBoundaryPlugin,
+	createForeignJsxScope,
+} from '../client-graph/boundary-plugin.ts';
+import {
+	findIntegrationForFile,
+	findJsxExtensionOwner,
+	getHostScopedJsxOwnershipPlugins,
+	isProductionRuntime,
+} from '@ecopages/core/build';
 import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/integration';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { getReactBrowserPackages } from './bootstrap-package-paths.ts';
@@ -115,6 +124,13 @@ export class BundleService {
 		return [
 			...(this.foreignJsxOverridePlugin ? [this.foreignJsxOverridePlugin] : []),
 			graphBoundaryPlugin,
+			createForeignBoundaryPlugin({
+				projectRoot: this.config.appConfig?.absolutePaths?.projectDir ?? this.config.rootDir,
+				isForeignFile: (filePath) => {
+					const owner = findIntegrationForFile(this.config.appConfig?.integrations ?? [], filePath);
+					return owner !== undefined && owner.name !== this.config.hostIntegrationName;
+				},
+			}),
 			...(mdxPlugin ? [mdxPlugin] : []),
 		];
 	}

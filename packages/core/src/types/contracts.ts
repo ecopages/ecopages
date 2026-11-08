@@ -33,7 +33,7 @@ export type HmrStrategyContract = {
 	readonly priorityOffset: number;
 	readonly priority: number;
 	matches(filePath: string): boolean;
-	ownsDevTransformEntrypoint(sourcePath: string): boolean;
+	ownsDevTransformEntrypoint(sourcePath: string, variant?: string): boolean;
 	process(filePath: string): Promise<HmrAction>;
 };
 
@@ -607,9 +607,9 @@ export interface ForeignChildRuntime {
  * The Integration that renders Eco Components in the browser, and what it renders in place of a Foreign Child.
  *
  * @remarks
- * A hydrating Integration registers it on `window.__ECO_PAGES__.foreignChildHost`. The browser `eco` factories then
- * hand every Component another Integration owns to `renderForeignChild` instead of calling its `render`, since that
- * Component was server-rendered as a Foreign Subtree.
+ * Kept for compatibility: the browser `eco` factories no longer read a host from `window.__ECO_PAGES__`. They
+ * render inline for every caller, and the React integration swaps a foreign-owned Component for its boundary
+ * when it builds React modules.
  */
 export interface BrowserForeignChildHost {
 	integration: string;

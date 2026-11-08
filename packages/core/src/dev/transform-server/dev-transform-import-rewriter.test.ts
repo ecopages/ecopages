@@ -38,6 +38,30 @@ describe('rewriteModuleImports', () => {
 		expect(dependencies).toEqual([linkPath]);
 	});
 
+	it('keeps the module variant of a specifier on its dev-transform URL', async () => {
+		const rootDir = path.fromNative(
+			fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-variant-import-'))),
+		);
+		tempRoots.push(rootDir);
+		const srcDir = path.join(rootDir, 'src');
+		const sharedPath = path.join(srcDir, 'shared.ts');
+		fs.mkdirSync(srcDir, { recursive: true });
+		fs.writeFileSync(sharedPath, 'export const shared = 1;\n');
+
+		const { code, dependencies } = await rewriteModuleImports({
+			code: "import { shared } from '../shared.ts?eco-variant=react-boundary';\n",
+			sourcePath: path.join(srcDir, 'pages', 'index.tsx'),
+			srcDir,
+			projectRoot: rootDir,
+			resolveVendorImport: async (specifier) => ({ url: specifier, commonJs: false }),
+		});
+
+		expect(code).toMatch(
+			new RegExp(`['"]${DEV_TRANSFORM_URL_PREFIX}/shared\\.js\\?v=[^"&]+&eco-variant=react-boundary['"]`),
+		);
+		expect(dependencies).toEqual([sharedPath]);
+	});
+
 	describe('a named import from a CommonJS vendor', () => {
 		const rewriteVendorImports = async (code: string) => {
 			const rootDir = path.fromNative(

@@ -48,6 +48,7 @@ export class DevTransformServer {
 	private readonly failedSources = new Map<string, string>();
 	private readonly urlToSource = new Map<string, string>();
 	private readonly sourceToUrl = new Map<string, string>();
+	/** Compiled modules, keyed by source path, plus the variant of a module compiled in another form. */
 	private readonly cache = new Map<string, CacheEntry>();
 	/**
 	 * The module each stylesheet last compiled to, by source path.
@@ -169,7 +170,9 @@ export class DevTransformServer {
 	 */
 	invalidateSource(sourcePath: string): void {
 		const normalized = path.resolve(sourcePath);
-		this.cache.delete(normalized);
+		for (const key of this.cache.keys()) {
+			if (key === normalized || key.startsWith(`${normalized}?`)) this.cache.delete(key);
+		}
 		this.sourceGenerations.set(normalized, (this.sourceGenerations.get(normalized) ?? 0) + 1);
 	}
 
@@ -216,7 +219,7 @@ export class DevTransformServer {
 		startupTrace.beginDevClientTransform();
 		const startedAt = performance.now();
 		try {
-			const entry = await this.materialize(sourcePath);
+			const entry = await this.materialize(sourcePath, url.searchParams.get('eco-variant') ?? undefined);
 			this.failedSources.delete(path.resolve(sourcePath));
 			if (isEcopagesEnvEnabled('ECOPAGES_STARTUP_TRACE')) {
 				appLogger.debug(
@@ -287,19 +290,20 @@ export class DevTransformServer {
 		}
 	}
 
-	private async materialize(sourcePath: string): Promise<CacheEntry> {
+	private async materialize(sourcePath: string, variant?: string): Promise<CacheEntry> {
 		const normalized = path.resolve(sourcePath);
+		const cacheKey = variant ? `${normalized}?${variant}` : normalized;
 		if (!fileSystem.exists(normalized)) {
 			throw new Error(`[dev-transform] Missing source module: ${normalized}`);
 		}
 
 		const sourceHash = fileSystem.hash(normalized);
-		const cached = this.cache.get(normalized);
+		const cached = this.cache.get(cacheKey);
 		if (cached && cached.sourceHash === sourceHash) {
 			return cached;
 		}
 
-		const pending = this.inFlight.get(normalized);
+		const pending = this.inFlight.get(cacheKey);
 		if (pending) {
 			return pending;
 		}
@@ -314,7 +318,7 @@ export class DevTransformServer {
 			fileSystem.hash(normalized) !== sourceHash;
 		const compile: Promise<{ code: string; dependencies?: string[] }> = isStylesheet
 			? this.compileStylesheet(normalized)
-			: this.bundler.transpileModule(normalized);
+			: this.bundler.transpileModule(normalized, variant);
 		const promise = compile
 			.then((result) => {
 				if (isStale()) {
@@ -326,7 +330,7 @@ export class DevTransformServer {
 				}
 
 				const entry: CacheEntry = { code: result.code, sourceHash };
-				this.cache.set(normalized, entry);
+				this.cache.set(cacheKey, entry);
 				if (isStylesheet) this.lastCompiledStylesheets.set(normalized, result.code);
 				return entry;
 			})
@@ -337,11 +341,11 @@ export class DevTransformServer {
 				throw error;
 			})
 			.finally(() => {
-				this.inFlight.delete(normalized);
+				this.inFlight.delete(cacheKey);
 			})
-			.then((entry) => entry ?? this.materialize(normalized));
+			.then((entry) => entry ?? this.materialize(normalized, variant));
 
-		this.inFlight.set(normalized, promise);
+		this.inFlight.set(cacheKey, promise);
 		return promise;
 	}
 }

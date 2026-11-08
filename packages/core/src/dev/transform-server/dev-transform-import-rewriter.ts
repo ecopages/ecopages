@@ -146,6 +146,8 @@ function rewriteWorkerUrls(
  * Rewrites static and dynamic import specifiers to dev-transform or vendor URLs.
  *
  * @remarks
+ * A project specifier with an `eco-variant` query keeps it on its URL, so the server compiles that module variant.
+ *
  * Every specifier resolves at once, so the new bare imports of one module join the same vendor build instead of
  * waiting for one build each.
  */
@@ -274,21 +276,23 @@ async function resolveImportSpecifier(options: {
 	}
 
 	if (options.specifier.startsWith('.') || !isBarePackageImportSpecifier(options.specifier, options.projectRoot)) {
+		const variant = /[?&]eco-variant=([\w-]+)/u.exec(options.specifier)?.[1];
+		const specifier = variant ? options.specifier.replace(/\?.*$/u, '') : options.specifier;
 		const resolvedPath =
-			resolveAbsoluteModulePath(options.specifier) ??
-			resolveProjectModulePath(options.projectRoot, options.sourcePath, options.specifier);
+			resolveAbsoluteModulePath(specifier) ??
+			resolveProjectModulePath(options.projectRoot, options.sourcePath, specifier);
 		if (!resolvedPath) {
 			return undefined;
 		}
 
 		options.dependencies.add(resolvedPath);
 		return {
-			specifier: resolveVersionedDevTransformModuleUrl(
+			specifier: `${resolveVersionedDevTransformModuleUrl(
 				options.srcDir,
 				resolvedPath,
 				options.extraModuleRoots,
 				options.moduleVersion,
-			),
+			)}${variant ? `&eco-variant=${variant}` : ''}`,
 			commonJs: false,
 		};
 	}

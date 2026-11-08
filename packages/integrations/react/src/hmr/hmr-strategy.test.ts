@@ -144,6 +144,17 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.ownsDevTransformEntrypoint(scriptPath)).toBe(false);
 	});
 
+	it('claims a module requested in the React boundary variant, whatever its extension', () => {
+		const sharedPath = path.resolve('/tmp/src/lib/shared.ts');
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext(),
+			pageMetadataCache: createPageMetadataCache(),
+		});
+
+		expect(strategy.ownsDevTransformEntrypoint(sharedPath)).toBe(false);
+		expect(strategy.ownsDevTransformEntrypoint(sharedPath, 'react-boundary')).toBe(true);
+	});
+
 	it('process returns none when no entrypoints are registered yet', async () => {
 		const pagePath = path.resolve('/tmp/src/pages/index.tsx');
 		const strategy = new ReactHmrStrategy({

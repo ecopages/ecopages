@@ -6,11 +6,9 @@
  * React import.
  */
 
-import { installForeignSubtreeHost, type ForeignSubtreeReactRuntime } from './foreign-subtree-host.ts';
-
 export type IslandComponent = (props: Record<string, unknown>) => unknown;
 
-export type IslandReactRuntime = ForeignSubtreeReactRuntime & {
+export type IslandReactRuntime = {
 	hydrateRoot: (
 		target: HTMLElement,
 		tree: unknown,
@@ -284,7 +282,6 @@ function hydrateTarget(
  * @param options - Component, selector, React runtime, and shared state for the entry.
  */
 export function mountIslands(options: IslandHydrationOptions): void {
-	installForeignSubtreeHost(options.runtime);
 	const resolvedComponent = resolveComponent(options.componentModule, options.componentRef ?? '');
 	ensureObserver(options.runtimeState);
 	const pageRuntime = ((window as IslandWindow).__ECO_PAGES__ ??= {});

@@ -32,7 +32,7 @@ describe('browser eco facade', () => {
 		expect(Page.middleware).toBe(middleware);
 	});
 
-	test('hands only a Component another Integration owns to the registered Foreign Child host', () => {
+	test('renders every Component inline for its caller, whatever Integration owns it or is rendering', () => {
 		const LitCounter = eco.component<{ count: number }, string>({
 			identity: { id: 'lit-counter', file: 'src/lit-counter.lit.tsx', integration: 'lit' },
 			render: ({ count }) => `lit ${count}`,
@@ -41,12 +41,9 @@ describe('browser eco facade', () => {
 			integration: 'react',
 			render: ({ count }) => `react ${count}`,
 		});
-
 		const UnownedCounter = eco.component<{ count: number }, string>({
 			render: ({ count }) => `unowned ${count}`,
 		});
-
-		expect(LitCounter({ count: 1 })).toBe('lit 1');
 
 		vi.stubGlobal('window', {
 			__ECO_PAGES__: {
@@ -57,8 +54,9 @@ describe('browser eco facade', () => {
 			},
 		});
 
-		expect(LitCounter({ count: 1 })).toEqual({ component: LitCounter, props: { count: 1 } });
+		expect(LitCounter({ count: 1 })).toBe('lit 1');
 		expect(ReactCounter({ count: 2 })).toBe('react 2');
 		expect(UnownedCounter({ count: 3 })).toBe('unowned 3');
+		vi.unstubAllGlobals();
 	});
 });

@@ -16,12 +16,12 @@ export class ReactDevTransformContributor implements DevTransformBundleContribut
 		this.strategy = options.strategy;
 	}
 
-	ownsModule(sourcePath: string): boolean {
-		return this.strategy.ownsDevTransformEntrypoint(sourcePath);
+	ownsModule(sourcePath: string, variant?: string): boolean {
+		return this.strategy.ownsDevTransformEntrypoint(sourcePath, variant);
 	}
 
-	async getModulePlugins(sourcePath: string): Promise<readonly EcoBuildPlugin[]> {
-		return this.strategy.createDevTransformPlugins(sourcePath);
+	async getModulePlugins(sourcePath: string, variant?: string): Promise<readonly EcoBuildPlugin[]> {
+		return this.strategy.createDevTransformPlugins(sourcePath, variant);
 	}
 
 	getVendorEntries(): DevTransformVendorEntries {

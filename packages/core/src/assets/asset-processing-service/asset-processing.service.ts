@@ -1,7 +1,7 @@
 import { path } from '@ecopages/file-system/path';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
-import { isProductionRuntime } from '../../utils/runtime.ts';
+import { isDevelopmentRuntime, isProductionRuntime } from '../../utils/runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../config/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -113,6 +113,8 @@ export class AssetProcessingService {
 	private cache = new Map<string, CachedAsset>();
 	private readonly groupedBundleCache = new Map<string, CachedGroupedBundle>();
 	private readonly inFlight = new Map<string, Promise<unknown>>();
+	/** The latest successfully processed stylesheet of each dependency in development, which a failed edit falls back to. */
+	private readonly lastGoodStylesheets = new Map<string, ProcessedAsset>();
 	private readonly gzippedFiles = new Set<string>();
 	private readonly config: EcoPagesAppConfig;
 
@@ -320,10 +322,47 @@ export class AssetProcessingService {
 
 			const finalized = finalizeProcessedAsset(processed, (asset) => this.resolveProcessedAssetSrcUrl(asset));
 			this.setCachedAsset(dep, dependencyKey, finalized);
+			if (this.keepsLastGoodStylesheet(dep)) this.lastGoodStylesheets.set(dependencyKey, finalized);
 			return finalized;
 		} catch (error) {
+			if (this.keepsLastGoodStylesheet(dep)) return this.recoverStylesheet(dep, dependencyKey, error);
 			return this.handleProcessingFailure(`${dep.kind}/${dep.source} dependency`, error, null);
 		}
+	}
+
+	/**
+	 * Whether a failed `dep` is replaced by its last good output instead of failing the request.
+	 *
+	 * @remarks
+	 * The one place that decides it: only a stylesheet, and only in `ecopages dev`. A build, including the static
+	 * generation of a build that runs with a development `NODE_ENV`, and `ecopages start` keep their own rules (see
+	 * {@link handleProcessingFailure}).
+	 */
+	private keepsLastGoodStylesheet(dep: AssetDefinition): boolean {
+		return (
+			dep.kind === 'stylesheet' &&
+			isDevelopmentRuntime() &&
+			!requireAppRuntime(this.config).staticGenerationActive
+		);
+	}
+
+	/**
+	 * Logs and shows a stylesheet failure, and answers with the last good output of `dep`, or with no asset when it
+	 * never compiled, so the Page renders without the link.
+	 *
+	 * @remarks
+	 * The last good file is still on disk, since a failed transform writes nothing. The error reaches the browser
+	 * through the HMR manager, which replays it to a page that connects after this request.
+	 */
+	private recoverStylesheet(dep: AssetDefinition, dependencyKey: string, error: unknown): ProcessedAsset | null {
+		const message = error instanceof Error ? error.message : String(error);
+		const source = 'filepath' in dep ? dep.filepath : dep.source;
+		appLogger.error(`Failed to process stylesheet ${source}: ${message}`);
+		this.getHmrManager()?.reportBuildError(source, message);
+		const lastGood = this.lastGoodStylesheets.get(dependencyKey);
+		return lastGood && (lastGood.inline || !lastGood.filepath || fileSystem.exists(lastGood.filepath))
+			? lastGood
+			: null;
 	}
 
 	/**

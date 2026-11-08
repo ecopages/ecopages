@@ -71,6 +71,8 @@ export class HmrManager implements IHmrManager {
 	 * request the way a dev-transform failure is.
 	 */
 	private readonly fileChangeErrors = new Map<string, string>();
+	/** Build errors found while answering a request, by the file that failed, until the next file change. */
+	private readonly requestBuildErrors = new Map<string, string>();
 	protected readonly entrypointRegistry: DevTransformEntrypointRegistry;
 	protected readonly browserBundleService: BrowserBundleService;
 	protected readonly invalidationService: DevelopmentInvalidationService;
@@ -256,12 +258,18 @@ export class HmrManager implements IHmrManager {
 		this.bridge.broadcast(event);
 	}
 
+	public reportBuildError(source: string, message: string): void {
+		this.requestBuildErrors.set(path.resolve(source), message);
+		this.broadcast({ type: 'error', message });
+	}
+
 	public async handleFileChanges(filePaths: string[], options: HmrFileChangeOptions = {}): Promise<void> {
 		if (filePaths.length === 0) {
 			return;
 		}
 
 		this.devTransformServer.clearFailures();
+		this.requestBuildErrors.clear();
 		const events: ClientBridgeEvent[] = [];
 		const uniqueFilePaths = [...new Set(filePaths.map((candidate) => path.resolve(candidate)))];
 
@@ -406,8 +414,8 @@ export class HmrManager implements IHmrManager {
 	}
 
 	/**
-	 * Sends a browser that just connected the build errors of modules that still fail to transpile, and of
-	 * changed files whose last processing failed.
+	 * Sends a browser that just connected the build errors of modules that still fail to transpile, of
+	 * changed files whose last processing failed, and of assets a request failed to build.
 	 *
 	 * @remarks
 	 * A build error is broadcast while the failing module is served, which can happen before the page's HMR
@@ -415,7 +423,11 @@ export class HmrManager implements IHmrManager {
 	 * it. Without this replay that browser would never show the error.
 	 */
 	public sendPendingBuildErrors(client: { send(payload: string): void }): void {
-		for (const message of [...this.devTransformServer.getFailureMessages(), ...this.fileChangeErrors.values()]) {
+		for (const message of [
+			...this.devTransformServer.getFailureMessages(),
+			...this.fileChangeErrors.values(),
+			...this.requestBuildErrors.values(),
+		]) {
 			client.send(JSON.stringify({ type: 'error', message } satisfies ClientBridgeEvent));
 		}
 	}
@@ -453,6 +465,7 @@ export class HmrManager implements IHmrManager {
 		this.scriptEntrypointChangeHandlers.length = 0;
 		this.registeredScriptReloadRequired.clear();
 		this.fileChangeErrors.clear();
+		this.requestBuildErrors.clear();
 		this.entrypointRegistry.clearAll();
 		this.devTransformServer.reset();
 		this.buildInputIndex.clearConsumer('entrypoint');

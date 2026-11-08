@@ -70,7 +70,7 @@ describe.each([
 	['a stylesheet', 'src/components/card.css', false],
 	['a CSS Module', 'src/components/card.module.css', true],
 ])('a Page request in development for %s that is broken', (_label, relativePath, cssModules) => {
-	test.fails('links the last good output and shows the error', async () => {
+	test('links the last good output and shows the error', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
 		const app = await startApp({ cssModules });
 		const css = app.file(relativePath, GOOD_CSS);
@@ -86,7 +86,7 @@ describe.each([
 		expect(app.pendingErrors()).toHaveLength(1);
 	});
 
-	test.fails('renders without the link and shows the error when it never compiled', async () => {
+	test('renders without the link and shows the error when it never compiled', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
 		const app = await startApp({ cssModules });
 		const css = app.file(relativePath, BROKEN_CSS);
@@ -96,7 +96,7 @@ describe.each([
 		expect(app.pendingErrors()).toHaveLength(1);
 	});
 
-	test.fails('serves the fixed output and clears the error once a save fixes it', async () => {
+	test('serves the fixed output and clears the error once a save fixes it', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
 		const app = await startApp({ cssModules });
 		const css = app.file(relativePath, GOOD_CSS);

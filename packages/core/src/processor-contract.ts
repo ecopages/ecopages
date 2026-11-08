@@ -13,10 +13,14 @@ import {
 } from './assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 import { collectBuildEntryInputPaths } from './build/build-graph.ts';
 import { createServerBuildRequest } from './build/runtime/build-request-policy.ts';
+import { AssetProcessingService } from './assets/asset-processing-service/asset-processing.service.ts';
+import { HmrManager } from './adapters/shared/hmr/hmr-manager.ts';
+import { setNodeEnvironment } from './env.ts';
 import { finalizeEcoPagesConfig } from './config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig, IClientBridge } from './config/internal-types.ts';
 import { DevelopmentStylesheetService } from './dev/stylesheets/development-stylesheet.service.ts';
 import type { AnyProcessor } from './plugins/processor.ts';
+import type { ClientBridgeEvent } from './types/contracts.ts';
 import { requireAppRuntime } from './utils/app-runtime.ts';
 
 /** The stylesheet Processor a contract run checks. */
@@ -131,7 +135,9 @@ async function withApp(processor: AnyProcessor, run: (app: ContractApp) => Promi
  * - a stylesheet imported twice keeps its last instance, the one the cascade orders by;
  * - a transform that throws fails the build;
  * - in development, a transform that throws keeps the last good output, and the save that fixes it recovers without
- *   a restart.
+ *   a restart;
+ * - in development, a Page request for a stylesheet that throws still renders: it links the last good output, or no
+ *   stylesheet when none compiled, and the error shows in the browser; a build fails instead.
  *
  * @example
  * ```ts
@@ -223,6 +229,121 @@ export function stylesheetProcessorContract(
 		{
 			name: 'in development, a transform that throws keeps the last good output until a save fixes it',
 			run: () => breakAndFix(subject, 'src/card.css'),
+		},
+		...pageRequestCases(subject, 'src/card.css'),
+	];
+}
+
+/**
+ * Requests the stylesheet at `file` as a Page render does, through the asset service of an app whose NODE_ENV is
+ * `environment`, and returns what the request answered, the errors the browser was sent, and a `save` that
+ * rewrites the stylesheet as the watcher sees it.
+ */
+async function pageRequest(subject: StylesheetProcessorContractSubject, file: string, environment: string) {
+	const restoreEnvironment = setNodeEnvironment(environment);
+	const app = await createContractApp(subject.createProcessor());
+	const broadcasts: ClientBridgeEvent[] = [];
+	const manager = new HmrManager({
+		appConfig: app.config,
+		bridge: {
+			subscriberCount: 1,
+			broadcast: (event) => broadcasts.push(event),
+			reload: () => {},
+			update: () => {},
+			cssUpdate: () => {},
+			error: () => {},
+		},
+	});
+	const service = AssetProcessingService.createWithDefaultProcessors(app.config);
+	const stylesheet = path.join(app.rootDir, file);
+	return {
+		app,
+		broadcasts,
+		stylesheet,
+		request: () =>
+			service.processDependencies(
+				[{ kind: 'stylesheet', source: 'file', filepath: stylesheet, inline: false }],
+				undefined,
+			),
+		save: async (css: string) => {
+			app.write(file, css);
+			requireAppRuntime(app.config).buildInputIndex.recordChanges([stylesheet]);
+			await manager.handleFileChanges([stylesheet]);
+		},
+		finish: () => {
+			manager.stop();
+			app.dispose();
+			restoreEnvironment();
+		},
+	};
+}
+
+function pageRequestCases(
+	subject: StylesheetProcessorContractSubject,
+	file: string,
+): StylesheetProcessorContractCase[] {
+	const invalidCss = subject.invalidCss ?? '.broken {\n';
+	const goodCss = '.card { color: red; }\n';
+	const shownErrors = (broadcasts: ClientBridgeEvent[]) => broadcasts.filter((event) => event.type === 'error');
+	return [
+		{
+			name: 'in development, a Page request links the last good output while the stylesheet is broken, and a save recovers it',
+			run: async () => {
+				const page = await pageRequest(subject, file, 'development');
+				try {
+					page.app.write(file, goodCss);
+					const [good] = await page.request();
+					assert.ok(good?.filepath, 'the first Page request does not link the stylesheet');
+					const goodBytes = fileSystem.readFileSync(good.filepath).toString();
+
+					await page.save(invalidCss);
+					const [kept] = await page.request();
+					assert.equal(
+						kept?.filepath,
+						good.filepath,
+						'a broken stylesheet is not served as its last good output',
+					);
+					assert.equal(fileSystem.readFileSync(kept.filepath!).toString(), goodBytes);
+					assert.equal(shownErrors(page.broadcasts).length, 1, 'the Page request does not show the error');
+
+					await page.save('.card { color: blue; }\n');
+					const [fixed] = await page.request();
+					assert.notEqual(
+						fileSystem.readFileSync(fixed.filepath!).toString(),
+						goodBytes,
+						'the fixed stylesheet is not served',
+					);
+				} finally {
+					page.finish();
+				}
+			},
+		},
+		{
+			name: 'in development, a Page request renders without a stylesheet that never compiled, and shows the error',
+			run: async () => {
+				const page = await pageRequest(subject, file, 'development');
+				try {
+					page.app.write(file, invalidCss);
+					assert.deepEqual(await page.request(), [], 'a stylesheet that never compiled is linked');
+					assert.equal(shownErrors(page.broadcasts).length, 1, 'the Page request does not show the error');
+				} finally {
+					page.finish();
+				}
+			},
+		},
+		{
+			name: 'during a production build, a Page request fails on a stylesheet that throws',
+			run: async () => {
+				const page = await pageRequest(subject, file, 'production');
+				try {
+					requireAppRuntime(page.app.config).staticGenerationActive = true;
+					page.app.write(file, invalidCss);
+					await assert.rejects(page.request());
+					assert.deepEqual(shownErrors(page.broadcasts), []);
+				} finally {
+					page.finish();
+				}
+			},
 		},
 	];
 }
@@ -340,5 +461,6 @@ function cssModuleCases(subject: StylesheetProcessorContractSubject): Stylesheet
 			name: 'in development, a CSS Module that throws keeps the last good output until a save fixes it',
 			run: () => breakAndFix(subject, 'src/card.module.css'),
 		},
+		...pageRequestCases(subject, 'src/card.module.css'),
 	];
 }

@@ -8,6 +8,7 @@ import {
 	attributeMdxComponentIdentity,
 	createEcoComponentMetaPlugin,
 } from './eco-component-meta-plugin.ts';
+import { isReachedByDiscovery } from './component-import-discovery.ts';
 import { createStylesheetKinds, type StylesheetKinds } from './stylesheet-kinds.ts';
 import { Processor } from './processor.ts';
 import { getPluginTransform } from '../__fixtures__/build/transform-plugin.ts';
@@ -278,6 +279,69 @@ export const Button = eco.component({ render: () => '' });`,
 			expect(bound).toContain(`packageStylesheets: ${JSON.stringify(['|some-lib/dist/x.module.css'])}`);
 			const plain = attribute(`import css from 'some-lib/plain.css';\nexport const x = css;`, 'x.ts');
 			expect(plain).toContain(`import css from 'some-lib/plain.css'`);
+		});
+		describe('a CSS Module a package module imports itself', () => {
+			const installKit = (root: string, extra: Record<string, string> = {}) => {
+				const packageDir = path.join(root, 'node_modules', 'ui-kit');
+				mkdirSync(path.join(packageDir, 'dist'), { recursive: true });
+				writeFileSync(
+					path.join(packageDir, 'package.json'),
+					JSON.stringify({ name: 'ui-kit', exports: { './button': './dist/button.js' } }),
+				);
+				const files: Record<string, string> = {
+					'dist/button.js': `import styles from './button.module.css';\nexport const Button = () => styles.kit;`,
+					'dist/button.module.css': '.kit {}',
+					'dist/other.js': 'export const other = 1;',
+					...extra,
+				};
+				for (const [name, contents] of Object.entries(files)) {
+					writeFileSync(path.join(packageDir, name), contents);
+				}
+			};
+
+			it('delivers it as a package stylesheet of the declaration that imports the package module', () => {
+				const { root, page } = moduleFixture();
+				installKit(root);
+
+				const result = page(`import { Button } from 'ui-kit/button';\nconsole.log(Button);`);
+
+				const entry = 'node_modules/ui-kit/dist|ui-kit/dist/button.module.css';
+				expect(result).toContain(`import { Button } from 'ui-kit/button'`);
+				expect(result).toContain(`plainModuleStylesheets: ${JSON.stringify([entry])}`);
+				expect(result).toContain(`packageStylesheets: ${JSON.stringify([entry])}`);
+				expect(isReachedByDiscovery(root, path.join(root, 'node_modules/ui-kit/dist/button.js'))).toBe(true);
+			});
+			it('follows the package module through the modules of its own package', () => {
+				const { root, page } = moduleFixture();
+				installKit(root, {
+					'dist/button.js': `import { other } from './other.js';\nexport const Button = () => other;`,
+					'dist/other.js': `import styles from './button.module.css';\nexport const other = styles.kit;`,
+				});
+
+				expect(page(`import { Button } from 'ui-kit/button';\nconsole.log(Button);`)).toContain(
+					'ui-kit/dist/button.module.css',
+				);
+			});
+			it('leaves the other imports of a package alone, and the side-effect CSS of a package module as it was', () => {
+				const { root, page } = moduleFixture();
+				installKit(root, { 'dist/button.js': `import './plain.css';\nexport const Button = () => 1;` });
+				writeFileSync(path.join(root, 'node_modules/ui-kit/dist/plain.css'), '.plain {}');
+
+				const result = page(
+					`import { Button } from 'ui-kit/button';\nimport { eco as e } from '@ecopages/core';`,
+				);
+
+				expect(result).not.toContain('plain.css');
+				expect(result).not.toContain('button.module.css');
+			});
+			it('fails with the file, the import and the package to install when no Processor scopes CSS Modules', () => {
+				const { root, transform } = fixture();
+				installKit(root);
+
+				expect(() => transform(`import { Button } from 'ui-kit/button';`)).toThrow(
+					/button\.js: "\.\/button\.module\.css" is a CSS Module\..*@ecopages\/lightningcss-processor/u,
+				);
+			});
 		});
 		it('fails with the file, the import and the package to install on a package CSS Module no Processor scopes', () => {
 			const { transform } = fixture();

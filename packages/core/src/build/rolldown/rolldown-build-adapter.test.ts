@@ -802,6 +802,74 @@ describe('RolldownBuildAdapter', () => {
 		expect(reported[0]).toContain('css-widget/index.js');
 	});
 
+	function writeKitPackage(): string {
+		writeAppPackageJson();
+		const packageDir = path.join(workDir, 'node_modules', 'ui-kit');
+		mkdirSync(packageDir, { recursive: true });
+		writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: 'ui-kit', version: '1.0.0', type: 'module', main: './index.js' }),
+		);
+		writeFileSync(
+			path.join(packageDir, 'index.js'),
+			"import styles from './button.module.css';\nexport const kit = styles.kit;\n",
+		);
+		writeFileSync(path.join(packageDir, 'button.module.css'), '.kit { color: red; }\n');
+		return writeFixture('kit-entry.ts', "import { kit } from 'ui-kit';\nconsole.log(kit);\n");
+	}
+
+	test.each(['server', 'browser'] as const)(
+		"a %s build fails on a package module's own CSS Module that no declaration reaches, naming both files",
+		async (environment) => {
+			const entrypoint = writeKitPackage();
+
+			const result = await new RolldownBuildAdapter().build({
+				environment,
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: environment === 'server' ? 'node' : 'browser',
+				format: 'esm',
+				root: workDir,
+				writeToDisk: false,
+				stylesheets: {
+					extensions: ['.css'],
+					compileModule: async () => ({ code: 'export default {};' }),
+				},
+			});
+
+			assertBuildFailed(result);
+			const message = result.logs.map((log) => log.message).join('\n');
+			expect(message).toContain('ui-kit/index.js');
+			expect(message).toContain('"./button.module.css"');
+			expect(message).toContain('CSS Module');
+			expect(message).toContain('never reaches a Page');
+		},
+	);
+
+	test("a build hands a package module's unreached CSS Module to the reporter and builds", async () => {
+		const entrypoint = writeKitPackage();
+		const reported: string[] = [];
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+			stylesheets: {
+				extensions: ['.css'],
+				compileModule: async () => ({ code: 'export default { kit: "x_kit" };' }),
+				reportUndeliverable: (error) => reported.push(error.message),
+			},
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(reported).toHaveLength(1);
+		expect(reported[0]).toContain('ui-kit/index.js');
+	});
+
 	test("a server build gives a package's side-effect stylesheet import an empty module", async () => {
 		const entrypoint = writeCssWidgetPackage();
 

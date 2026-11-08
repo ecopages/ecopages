@@ -3,10 +3,12 @@ import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { CSS_MODULE_PROCESSOR_FIX, PLAIN_CSS_KINDS, type StylesheetKinds } from './stylesheet-kinds.ts';
 import { contentHash } from '../utils/content-hash.ts';
+import { findPackageRoot } from '../utils/package-path.ts';
 import {
 	isBarePackageImportSpecifier,
 	loadTsconfigPathPrefixes,
 	matchesTsconfigPathPrefix,
+	resolvePackageModulePath,
 	resolvePackageStylesheetPath,
 	resolveProjectModulePath,
 } from './tsconfig-import-resolver.ts';
@@ -79,6 +81,61 @@ function isLocalSpecifier(source: string, pathPrefixes: string[]): boolean {
 
 function isLocalScript(file: string): boolean {
 	return /\.[cm]?[jt]sx?$/.test(file) && !file.includes(`/node_modules/`);
+}
+
+const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
+
+function isInNodeModules(file: string): boolean {
+	return file.split('/').includes('node_modules');
+}
+
+/** Whether `file` belongs to an installed or linked package: under `node_modules`, or outside the app root. */
+function isPackageModule(file: string, projectRoot: string): boolean {
+	return isInNodeModules(file) || !path.isWithin(canonicalFile(projectRoot), canonicalFile(file));
+}
+
+const packageCssModules = new Map<string, boolean>();
+
+/**
+ * Whether the package that holds `file` ships a CSS Module.
+ *
+ * @remarks
+ * Discovery follows a bare import into a package only when it does, since only a CSS Module of a package module
+ * has to be delivered by a declaration, and most packages ship none. The answer is kept per package root for the
+ * life of the process; a package is not edited while an app runs.
+ */
+function packageShipsCssModules(file: string, kinds: StylesheetKinds): boolean {
+	const root = findPackageRoot(file);
+	if (!root) return false;
+	let ships = packageCssModules.get(root);
+	if (ships === undefined) {
+		ships = containsCssModule(root, kinds);
+		packageCssModules.set(root, ships);
+	}
+	return ships;
+}
+
+function containsCssModule(directory: string, kinds: StylesheetKinds): boolean {
+	return fileSystem
+		.readdir(directory)
+		.some((entry) =>
+			entry.isFile
+				? kinds.isCssModule(entry.name)
+				: entry.isDirectory &&
+					entry.name !== 'node_modules' &&
+					containsCssModule(path.join(directory, entry.name), kinds),
+		);
+}
+
+/** The module a bare import names in a package that ships CSS Modules, or `undefined`. */
+function resolvePackageModule(importer: string, source: string, kinds: StylesheetKinds): string | undefined {
+	let resolved: string | undefined;
+	try {
+		resolved = resolvePackageModulePath(importer, source);
+	} catch {
+		return undefined;
+	}
+	return resolved && SCRIPT_FILE.test(resolved) && packageShipsCssModules(resolved, kinds) ? resolved : undefined;
 }
 
 /** Whether `source` names a plain stylesheet: one of `kinds`, but not a CSS Module. */
@@ -459,6 +516,16 @@ export function isDeliveredStylesheetImport(
 }
 
 /**
+ * Builds the error for a CSS Module a package module imports when no Eco declaration reaches that module.
+ */
+export function createUndeliverablePackageCssModuleError(projectRoot: string, file: string, source: string): Error {
+	const module = relativeToRoot(projectRoot, file);
+	return new Error(
+		`[ecopages] ${module}: ${JSON.stringify(source)} is a CSS Module of a package module that never reaches a Page, because no eco.page(), eco.layout(), eco.html() or eco.component() module imports ${module} with a static import. Import it from one of them, or list the stylesheet in eco.component({ dependencies: { stylesheets } }).`,
+	);
+}
+
+/**
  * Builds the error for a side-effect stylesheet import in a module no Eco declaration reaches.
  */
 export function createUndeliverableStylesheetError(projectRoot: string, file: string, source: string): Error {
@@ -678,7 +745,10 @@ function resolveDeliveredStylesheet(
 	if (!resolved || !fileSystem.exists(resolved)) {
 		throw new Error(`[ecopages] Cannot resolve stylesheet import ${JSON.stringify(entry.source)} from ${importer}`);
 	}
-	return { file: resolved, fromPackage: false };
+	return {
+		file: resolved,
+		fromPackage: target.kind === 'css-module' && isPackageModule(importer, state.projectRoot),
+	};
 }
 
 function jsxRuntimeOf(file: string, state: DiscoveryState): { integration: string; runtime?: string } | undefined {
@@ -719,6 +789,25 @@ function assertSameIntegration(
 }
 
 /**
+ * The module of a package that `entry` imports and discovery walks, or `undefined` when it follows none.
+ *
+ * @remarks
+ * A bare import is followed from any module, and every import from a module installed under `node_modules`, but
+ * only into a package that ships a CSS Module (see {@link packageShipsCssModules}).
+ */
+function followPackageImport(entry: StaticImport, importer: string, state: DiscoveryState): string | undefined {
+	if (!isInNodeModules(importer) && !isBarePackageImportSpecifier(entry.source, state.projectRoot)) return undefined;
+	return resolvePackageModule(importer, entry.source, state.stylesheets);
+}
+
+/** Whether `entry` imports a script module for its bindings or its side effects, not a stylesheet or a `.server` module. */
+function isScriptEdge(entry: StaticImport, state: DiscoveryState): boolean {
+	if (entry.attributed || state.stylesheets.isStylesheet(entry.source) || isServerSpecifier(entry.source))
+		return false;
+	return entry.sideEffectOnly || entry.bindings.length > 0;
+}
+
+/**
  * Sorts the script imports of `importer` into Eco Component bindings and the plain local modules to walk.
  */
 function collectModuleEdges(
@@ -730,9 +819,12 @@ function collectModuleEdges(
 ): string[] {
 	const plainModules: string[] = [];
 	for (const entry of imports) {
-		if (entry.attributed || state.stylesheets.isStylesheet(entry.source)) continue;
-		if (!isLocalSpecifier(entry.source, state.pathPrefixes) || isServerSpecifier(entry.source)) continue;
-		if (!entry.sideEffectOnly && entry.bindings.length === 0) continue;
+		if (!isScriptEdge(entry, state)) continue;
+		if (isInNodeModules(importer) || !isLocalSpecifier(entry.source, state.pathPrefixes)) {
+			const module = followPackageImport(entry, importer, state);
+			if (module) plainModules.push(module);
+			continue;
+		}
 		const resolved = resolveProjectModulePath(state.projectRoot, importer, entry.source, { preserveBarrel: true });
 		if (!resolved) {
 			if (entry.sideEffectOnly) continue;
@@ -754,6 +846,29 @@ function collectModuleEdges(
 		}
 	}
 	return plainModules;
+}
+
+/**
+ * Records the stylesheets `file` imports that discovery delivers on `walk`.
+ *
+ * @remarks
+ * A module installed under `node_modules` delivers only its CSS Modules: a package ships built CSS, and the
+ * side-effect CSS of its modules is not delivered by discovery.
+ */
+function collectWalkStylesheets(
+	file: string,
+	imports: StaticImport[],
+	state: DiscoveryState,
+	walk: PlainModuleWalk,
+): void {
+	for (const entry of imports) {
+		if (isInNodeModules(file) && !state.stylesheets.isCssModule(entry.source)) continue;
+		const stylesheet = resolveDeliveredStylesheet(entry, file, state);
+		if (!stylesheet) continue;
+		if (!walk.stylesheets.includes(stylesheet.file)) walk.stylesheets.push(stylesheet.file);
+		if (stylesheet.fromPackage && !walk.packageStylesheets.has(stylesheet.file))
+			walk.packageStylesheets.set(stylesheet.file, file);
+	}
 }
 
 /**
@@ -789,13 +904,7 @@ function walkPlainModule(
 	const local: DiscoveryState = { ...state, resolved: new Map(), watchFiles: walk.watchFiles };
 	walk.modules.add(canonicalFile(file));
 	walk.watchFiles.add(file);
-	for (const entry of index.imports) {
-		const stylesheet = resolveDeliveredStylesheet(entry, file, local);
-		if (!stylesheet) continue;
-		if (!walk.stylesheets.includes(stylesheet.file)) walk.stylesheets.push(stylesheet.file);
-		if (stylesheet.fromPackage && !walk.packageStylesheets.has(stylesheet.file))
-			walk.packageStylesheets.set(stylesheet.file, file);
-	}
+	collectWalkStylesheets(file, index.imports, local, walk);
 	const children = collectModuleEdges(
 		file,
 		index.imports,

@@ -39,18 +39,22 @@ export function toPackagePath(filePath: string): string | undefined {
  */
 const packagePathCache = new Map<string, string | undefined>();
 
-function findPackagePath(filePath: string): string | undefined {
+/** The folder of the nearest `package.json` with a `name` above `filePath`, or `undefined` outside any package. */
+export function findPackageRoot(filePath: string): string | undefined {
 	let dir = path.dirname(filePath);
 	while (true) {
-		const identity = readPackageIdentity(path.join(dir, 'package.json'));
-		if (identity) {
-			const subpath = path.relative(dir, filePath);
-			return `${identity.name}${identity.version ? `@${identity.version}` : ''}/${subpath}`;
-		}
+		if (readPackageIdentity(path.join(dir, 'package.json'))) return dir;
 		const parent = path.dirname(dir);
 		if (parent === dir) return undefined;
 		dir = parent;
 	}
+}
+
+function findPackagePath(filePath: string): string | undefined {
+	const dir = findPackageRoot(filePath);
+	if (!dir) return undefined;
+	const identity = readPackageIdentity(path.join(dir, 'package.json'))!;
+	return `${identity.name}${identity.version ? `@${identity.version}` : ''}/${path.relative(dir, filePath)}`;
 }
 
 /** Splits a {@link toPackagePath} result into the package name and the path inside the package. */

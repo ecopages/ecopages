@@ -64,6 +64,12 @@ describe('Sass-style suffix nesting', () => {
 		expect(failure.message).toContain('&-item');
 	});
 
+	test('finds the nesting inside :is()', async () => {
+		const file = write('src/a.css', '.a { :is(&--x, .b) { color: red; } }');
+
+		await expect(transform(file)).rejects.toThrow(/&--x/u);
+	});
+
 	test('fails a CSS Module', async () => {
 		const file = write('src/button.module.css', '.button { &--primary { color: red; } }');
 

@@ -188,9 +188,17 @@ export function serializeExports(exports: CSSModuleExports): Record<string, stri
 
 /** The `&` and the name a selector writes straight after it, such as `&--primary`, or `undefined` for valid nesting. */
 function suffixNestingOf(selector: Selector): string | undefined {
-	for (let index = 0; index < selector.length - 1; index++) {
-		const next = selector[index + 1]!;
-		if (selector[index]!.type === 'nesting' && next.type === 'type') return `&${next.name}`;
+	for (let index = 0; index < selector.length; index++) {
+		const component = selector[index]!;
+		const next = selector[index + 1];
+		if (component.type === 'nesting' && next?.type === 'type') return `&${next.name}`;
+		if (component.type === 'pseudo-class' && 'selectors' in component && component.selectors) {
+			for (const inner of component.selectors) {
+				if (!Array.isArray(inner)) continue;
+				const found = suffixNestingOf(inner);
+				if (found) return found;
+			}
+		}
 	}
 	return undefined;
 }
@@ -215,7 +223,7 @@ export function suffixNestingVisitor(rules: SuffixNestingRule[]): Visitor<never>
 				const { loc, selectors } = rule.value;
 				for (const selector of selectors) {
 					const found = suffixNestingOf(selector);
-					if (found && loc) {
+					if (found) {
 						rules.push({
 							file: sources[loc.source_index] ?? '',
 							line: loc.line + 1,

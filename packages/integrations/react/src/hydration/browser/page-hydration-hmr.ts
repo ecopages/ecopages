@@ -71,7 +71,7 @@ async function applyRouterHmrUpdate(
  * document, and the live boundary of a hydrated custom element no longer holds its declarative shadow root. The
  * parsed document keeps the `<template shadowrootmode>` of each, as a client navigation's does. A response that is
  * not a page, such as a server render error, throws, so the update is not applied and the next edit retries it.
- * The same document is the source of the Page's module URL and props, since an edit can change what `staticProps`
+ * The same document is the source of the Page's props, and of its module URL when the page data carries one, since an edit can change what `staticProps`
  * returns and the live `__ECO_PAGE_DATA__` still holds the old values.
  */
 async function fetchCurrentDocument(): Promise<Document> {

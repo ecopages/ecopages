@@ -296,6 +296,27 @@ function cssModuleCases(subject: StylesheetProcessorContractSubject): Stylesheet
 			},
 		},
 		{
+			name: 'a CSS Module of a package scopes by package name and path, in any folder and store layout',
+			run: async () => {
+				const scopePackage = async (packageDir: string) => {
+					const processor = subject.createProcessor();
+					const app = await createContractApp(processor);
+					try {
+						app.write(path.join(packageDir, 'package.json'), '{"name":"ui-kit","version":"1.0.0"}');
+						const file = app.write(path.join(packageDir, 'dist/button.module.css'), MODULE_CSS);
+						return await applyStylesheetProcessors(app.config, MODULE_CSS, fileSystem.realpath(file));
+					} finally {
+						app.dispose();
+					}
+				};
+				const hoisted = await scopePackage('node_modules/ui-kit');
+				const store = await scopePackage('node_modules/.pnpm/ui-kit@1.0.0/node_modules/ui-kit');
+				assert.ok(hoisted.exports, 'a package CSS Module returned no exports');
+				assert.deepEqual(store.exports, hoisted.exports, 'the class map depends on the store layout');
+				assert.equal(store.css, hoisted.css, 'the scoped CSS depends on the store layout');
+			},
+		},
+		{
 			name: 'the module a CSS Module compiles to holds the class map, not the CSS',
 			run: () =>
 				withApp(subject.createProcessor(), async (app) => {

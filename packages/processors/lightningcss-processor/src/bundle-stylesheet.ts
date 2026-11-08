@@ -5,6 +5,7 @@ import {
 	resolveProjectImportPath,
 	scanCss,
 	splitReference,
+	toPackageScopeFile,
 	warnStylesheetOnce,
 } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
@@ -44,6 +45,18 @@ function composedStylesheets(css: string): string[] {
 	return [...new Set(specifiers)];
 }
 
+/**
+ * The file a stylesheet is scoped as, or `undefined` for a file of the app.
+ *
+ * @remarks
+ * A file of an installed package is scoped by its package name and the path inside the package (see
+ * `toPackageScopeFile`), whichever folder or package-manager layout it is installed in. The stylesheet itself is
+ * always read from its real path.
+ */
+export function packageScopeFile(file: string, rootDir: string): string | undefined {
+	return toPackageScopeFile(fileSystem.exists(file) ? fileSystem.realpath(file) : file, rootDir);
+}
+
 const resolutionKey = (importer: string, specifier: string): string => `${importer}\0${specifier}`;
 
 /**
@@ -62,6 +75,8 @@ class StylesheetBundle {
 	/** The prepared CSS of each file, by real path. */
 	private readonly scanned = new Map<string, string>();
 	private readonly resolutions = new Map<string, string>();
+	/** The real path of each file Lightning CSS was given a package scope file for. */
+	private readonly realByScope = new Map<string, string>();
 	/** The real paths of the files being walked, innermost last. */
 	private readonly stack: string[] = [];
 
@@ -181,20 +196,34 @@ class StylesheetBundle {
 		if (!this.stack.includes(imported.real)) this.prepare(imported.located);
 	}
 
+	/** The name Lightning CSS knows `real` by: its scope file for a file of a package, `real` itself otherwise. */
+	scopeOf(real: string): string {
+		const scope = this.cssModules ? packageScopeFile(real, this.rootDir) : undefined;
+		if (!scope) return real;
+		this.realByScope.set(scope, real);
+		return scope;
+	}
+
+	/** The real path of a file Lightning CSS names by {@link scopeOf}. */
+	realOf(file: string): string {
+		const resolved = path.resolve(file);
+		return this.realByScope.get(resolved) ?? resolved;
+	}
+
 	read(file: string): string {
-		const css = this.scanned.get(path.resolve(file));
+		const css = this.scanned.get(this.realOf(file));
 		if (css === undefined) throw new Error(`${file} was not prepared before bundling.`);
 		return css;
 	}
 
 	resolve(specifier: string, originatingFile: string): string {
-		const resolved = this.resolutions.get(resolutionKey(path.resolve(originatingFile), specifier));
+		const resolved = this.resolutions.get(resolutionKey(this.realOf(originatingFile), specifier));
 		if (!resolved) {
 			throw new Error(
 				`${originatingFile}: @import ${JSON.stringify(specifier)} was not resolved before bundling.`,
 			);
 		}
-		return resolved;
+		return this.scopeOf(resolved);
 	}
 }
 
@@ -204,6 +233,8 @@ class StylesheetBundle {
  * @remarks
  * `css` is the in-memory source of `file`, which may differ from the file on disk. A cycle of `@import`s and a
  * stylesheet imported twice are handled by Lightning CSS: the last import of a stylesheet wins, as the specification says.
+ * Lightning CSS names the files of a package CSS Module by their scope file (see {@link packageScopeFile}), which
+ * is what its class names hash.
  */
 export async function bundleStylesheet(
 	css: string,
@@ -220,7 +251,7 @@ export async function bundleStylesheet(
 	const result = await bundleAsync({
 		...lightningOptions,
 		...(isCssModule ? { cssModules: { pattern: cssModulesPattern } } : {}),
-		filename: fileSystem.exists(entry) ? fileSystem.realpath(entry) : entry,
+		filename: bundle.scopeOf(fileSystem.exists(entry) ? fileSystem.realpath(entry) : entry),
 		resolver: {
 			read: (source) => bundle.read(source),
 			resolve: (specifier, originatingFile) => bundle.resolve(specifier, originatingFile),
@@ -229,7 +260,10 @@ export async function bundleStylesheet(
 	return {
 		code: result.code,
 		hoisted: bundle.hoisted,
-		warnings: result.warnings,
+		warnings: result.warnings.map((warning) => ({
+			...warning,
+			loc: { ...warning.loc, filename: bundle.realOf(warning.loc.filename) },
+		})),
 		dependencies: [...bundle.dependencies].filter((dependency) => dependency !== entry),
 		...(result.exports ? { exports: result.exports } : {}),
 	};

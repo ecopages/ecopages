@@ -14,6 +14,7 @@ import {
 	injectLitRenderedChildren,
 	LIT_COMPONENT_CHILDREN_SLOT_MARKER,
 	normalizeLitHtml,
+	renderLitCustomElementsInMarkup,
 	renderLitValueToString,
 } from './utils/lit-html-rendering.ts';
 
@@ -43,6 +44,7 @@ export function createLitRenderer(
 
 			return {
 				transformDocumentHtml: normalizeLitHtml,
+				renderCustomElements: renderLitCustomElementsInMarkup,
 				renderRemote: (routeOptions) => renderLitPageInWorker(routeOptions, getRenderSession),
 				renderComponent: async (input) => {
 					await ssrScriptPreloader.preloadSsrScripts([input.component]);

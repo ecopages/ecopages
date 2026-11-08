@@ -25,6 +25,7 @@ export {
 	type ProcessorWatchChanges,
 	type ProcessorWatchConfig,
 	resolveGeneratedPath,
+	serializeStylesheetModuleDeclarations,
 	type StylesheetInvalidation,
 	type StylesheetTransformResult,
 	writeGeneratedTypesPackage,

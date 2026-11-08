@@ -86,6 +86,7 @@ export type RouteRenderHost<C> = Pick<
 	| 'resolvePageDependenciesForRoute'
 	| 'resolvePageDependencyContribution'
 	| 'buildPageClientBrowserAssets'
+	| 'getPageSsrScriptIntegrationNames'
 	| 'renderRouteBody'
 	| 'getRouteHtmlFinalization'
 	| 'transformRouteResponse'
@@ -398,7 +399,20 @@ export class RouteRenderOrchestrator {
 		}
 
 		const allDependencies = [
-			...collectPageIntegrationDependencies(this.appConfig, clientPlan.integrationNames, renderer.name),
+			...collectPageIntegrationDependencies(
+				this.appConfig,
+				[
+					...clientPlan.integrationNames,
+					...renderer.getPageSsrScriptIntegrationNames({
+						Page: finalResolvedInputs.Page,
+						Layout: finalResolvedInputs.Layout,
+						HtmlTemplate: finalResolvedInputs.HtmlTemplate,
+						Layouts: finalResolvedInputs.Layouts,
+						pageDependencyComponents,
+					}),
+				],
+				renderer.name,
+			),
 			...resolvedDependencies,
 			...clientBrowserAssets.processedAssets,
 		];

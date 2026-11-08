@@ -2060,10 +2060,10 @@ describe('IntegrationRenderer', () => {
 						integrationName: name,
 						importServerModule: imports[name],
 					});
-					return {};
+					return { renderCustomElements: (html: string) => `${html}[${name}]` };
 				}) {
 					protected override async renderRouteDocument() {
-						return '';
+						return '<doc>';
 					}
 				})({ appConfig, assetProcessingService: testAssetService });
 			renderers.set('lit', createPreloadingRenderer('lit'));
@@ -2123,6 +2123,28 @@ describe('IntegrationRenderer', () => {
 
 			expect(imports.lit).toHaveBeenCalledTimes(1);
 			expect(imports['ecopages-jsx']).not.toHaveBeenCalled();
+		});
+
+		it('passes the finished document through the renderer a script was assigned to, whoever owns the Page', async () => {
+			const { renderer } = createPreloadingApp('ecopages-jsx');
+			const Page = Object.assign(() => '', {
+				config: { dependencies: { components: [scriptHost('kita-counter', 'kitajs')] } },
+			}) as unknown as EcoComponent;
+
+			expect(await render(renderer, Page)).toBe('<doc>[lit]');
+		});
+
+		it('leaves the document of a Page with no assigned script unchanged', async () => {
+			const { renderer } = createPreloadingApp('lit');
+			const Page = Object.assign(() => '', { config: {} }) as unknown as EcoComponent;
+
+			expect(await render(renderer, Page)).toBe('<doc>');
+		});
+
+		it('names the Integrations a Page has scripts assigned to', () => {
+			const { renderer, Page } = createPreloadingApp('lit');
+
+			expect(renderer.getPageSsrScriptIntegrationNames({ Page })).toEqual(['ecopages-jsx']);
 		});
 
 		it('builds a preloader only for an Integration that declares ssrScriptPreload', () => {

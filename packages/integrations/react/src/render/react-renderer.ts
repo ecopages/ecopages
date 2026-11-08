@@ -8,6 +8,7 @@
  *
  * @module
  */
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EcoComponent, EcoComponentConfig, EcoPageFile } from '@ecopages/core';
 import type {
 	ComponentRenderInput,
@@ -58,6 +59,7 @@ import {
 	renderComponentHtml,
 	renderNonReactShellComponent,
 	restoreRuntimeChildHtml,
+	replaceForeignSubtreeTokens,
 	toReactNode,
 	wrapForeignSubtreeTokens,
 	type ReactComponentRenderContext,
@@ -117,6 +119,9 @@ type ReactRendererHookTargets = Pick<
 >;
 
 const ReactIntegrationRenderer = createIntegrationRenderer<ReactNode>(REACT_PLUGIN_NAME);
+
+/** Whether the Page being rendered hydrates, for the Components rendered as part of its tree. */
+const pageTreeHydration = new AsyncLocalStorage<boolean>();
 
 /** Renderer adapter that contributes React-specific behavior through core hooks. */
 export class ReactRenderer extends ReactIntegrationRenderer {
@@ -248,6 +253,17 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		return this.reactRuntimeModules;
 	}
 
+	/**
+	 * Renders the route with the Page's hydration decision available to every Layout and document it composes.
+	 *
+	 * @remarks
+	 * A Layout or document is rendered on its own when the Page has Foreign Children, and its config does not say
+	 * whether the Page hydrates; only the Page's does.
+	 */
+	override render(options: IntegrationRendererRenderOptions<ReactNode>) {
+		return pageTreeHydration.run(this.hydratesPageTree(options.Page), () => super.render(options));
+	}
+
 	private renderReactTree(element: ReactNode, label: string): Promise<string> {
 		return renderReactHtml(this.getReactRuntimeModules(), element, {
 			timeoutMs: this.getRuntimeState().renderTimeoutMs,
@@ -255,12 +271,26 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		});
 	}
 
+	/**
+	 * Whether the browser hydrates the tree of the Page `component`.
+	 *
+	 * @remarks
+	 * It reads the Page's own config, which holds the modules of its Layouts and nested Components.
+	 */
+	private hydratesPageTree(component: EcoComponent): boolean {
+		return this.forceBrowserGraph || this.pageModuleService.shouldHydratePage({ default: component });
+	}
+
+	/**
+	 * Resolves the Foreign Subtree tokens in `html`, wrapping them in the hydration boundary only when `hydrates`.
+	 */
 	private resolveReactQueuedForeignSubtreeHtml(
 		html: string,
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
+		hydrates: boolean,
 	): Promise<string> {
 		return this.resolveQueuedForeignSubtrees(
-			wrapForeignSubtreeTokens(html, runtimeContext),
+			hydrates ? wrapForeignSubtreeTokens(html, runtimeContext) : html,
 			runtimeContext,
 			async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => ({
 				html: await this.renderQueuedChildrenToHtml({
@@ -395,12 +425,21 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 				label: getComponentIdentity(input.component)?.file ?? 'component',
 			}),
 		);
-		html = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
-		const canAttachAttributes = hasSingleRootElement(html);
 		const componentFile = getComponentIdentity(componentConfig)?.file;
+		const isIslandRoot =
+			Boolean(componentFile && context.componentInstanceId && !hasResolvedChildHtml) &&
+			hasSingleRootElement(replaceForeignSubtreeTokens(html, runtimeContext, '<x></x>'));
+		html = await this.resolveReactQueuedForeignSubtreeHtml(
+			html,
+			runtimeContext,
+			isIslandRoot ||
+				(!context.componentInstanceId &&
+					(pageTreeHydration.getStore() ?? this.hydratesPageTree(input.component))),
+		);
+		const canAttachAttributes = hasSingleRootElement(html);
 
 		let rootAttributes: Record<string, string> | undefined;
-		if (canAttachAttributes && componentFile && context.componentInstanceId && !hasResolvedChildHtml) {
+		if (canAttachAttributes && isIslandRoot && componentFile && context.componentInstanceId) {
 			rootAttributes = buildIslandHostAttributes({
 				integrationName: this.name,
 				componentInstanceId: context.componentInstanceId,
@@ -534,7 +573,13 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		);
 		const layoutWithoutChildren = renderTracker.findLayoutWithoutChildren(page.component);
 		if (layoutWithoutChildren) this.onLayoutChildrenNotRendered(layoutWithoutChildren);
-		return { children: await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext) };
+		return {
+			children: await this.resolveReactQueuedForeignSubtreeHtml(
+				html,
+				runtimeContext,
+				this.hydratesPageTree(page.component),
+			),
+		};
 	}
 
 	protected resolveComposeChildren(options: {

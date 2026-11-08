@@ -74,10 +74,13 @@ type Step = 'advance' | 'continue' | 'close' | 'fail';
 class BlockParser {
 	private position = 0;
 
-	constructor(
-		private readonly css: string,
-		private readonly tokens: readonly CssToken[],
-	) {}
+	private readonly css: string;
+	private readonly tokens: readonly CssToken[];
+
+	constructor(css: string, tokens: readonly CssToken[]) {
+		this.css = css;
+		this.tokens = tokens;
+	}
 
 	/** The top-level nodes, or `undefined` when the braces do not balance, which Lightning CSS reports. */
 	parse(): Node[] | undefined {
@@ -285,10 +288,12 @@ class SuffixExpander {
 	private readonly lineStarts: number[] = [0];
 	readonly errors: string[] = [];
 
-	constructor(
-		private readonly css: string,
-		private readonly file: string,
-	) {
+	private readonly css: string;
+	private readonly file: string;
+
+	constructor(css: string, file: string) {
+		this.css = css;
+		this.file = file;
 		this.tokens = tokenizeCss(css);
 		for (let index = 0; index < css.length; index++) if (css[index] === '\n') this.lineStarts.push(index + 1);
 	}

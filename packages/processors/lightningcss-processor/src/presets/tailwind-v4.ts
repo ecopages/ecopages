@@ -154,8 +154,11 @@ class RewrittenPartials {
 	private readonly directories = new Map<string, string>();
 	private readonly originByDirectory = new Map<string, string>();
 	private readonly originByCopy = new Map<string, string>();
+	private readonly transformSource: NonNullable<LightningCssPreprocessorContext['transformSource']>;
 
-	constructor(private readonly transformSource: NonNullable<LightningCssPreprocessorContext['transformSource']>) {}
+	constructor(transformSource: NonNullable<LightningCssPreprocessorContext['transformSource']>) {
+		this.transformSource = transformSource;
+	}
 
 	/** Whether `base` is the folder of a copy. */
 	holdsCopy(base: string): boolean {

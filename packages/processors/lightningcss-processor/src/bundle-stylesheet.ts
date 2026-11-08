@@ -88,13 +88,25 @@ class StylesheetBundle {
 	/** The real paths of the files being walked, innermost last. */
 	private readonly stack: string[] = [];
 
+	private readonly entry: string;
+	private readonly source: string;
+	private readonly rootDir: string;
+	private readonly cssModules: boolean;
+	private readonly plugins: readonly LightningCssPlugin[];
+
 	constructor(
-		private readonly entry: string,
-		private readonly source: string,
-		private readonly rootDir: string,
-		private readonly cssModules: boolean,
-		private readonly plugins: readonly LightningCssPlugin[],
-	) {}
+		entry: string,
+		source: string,
+		rootDir: string,
+		cssModules: boolean,
+		plugins: readonly LightningCssPlugin[],
+	) {
+		this.entry = entry;
+		this.source = source;
+		this.rootDir = rootDir;
+		this.cssModules = cssModules;
+		this.plugins = plugins;
+	}
 
 	private warn(message: string): void {
 		warnStylesheetOnce(this.entry, this.source, `${this.entry}: ${message}`, (text) => logger.warn(text));

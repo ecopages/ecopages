@@ -94,6 +94,54 @@ Use these when you want a full bootstrap in one command chain.
 	defaultSelectedKey="npm"
 />
 
+**JSX with Lightning CSS template** - Creates the JSX app with Tailwind v4 run by the [Lightning CSS processor](/docs/ecosystem/lightningcss-processor) instead of PostCSS. <a href="https://github.com/ecopages/ecopages/tree/main/templates/jsx-lightningcss" target="_blank">jsx-lightningcss</a>.
+
+<CodeTabs
+	name="ecopages-jsx-lightningcss"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init jsx-lightningcss-app --template jsx-lightningcss && cd jsx-lightningcss-app && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init jsx-lightningcss-app --template jsx-lightningcss && cd jsx-lightningcss-app && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init jsx-lightningcss-app --template jsx-lightningcss && cd jsx-lightningcss-app && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+**JSX with CSS Modules template** - Creates the JSX app styled with plain CSS Modules on the Lightning CSS processor, without Tailwind. <a href="https://github.com/ecopages/ecopages/tree/main/templates/jsx-css-modules" target="_blank">jsx-css-modules</a>.
+
+<CodeTabs
+	name="ecopages-jsx-css-modules"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init jsx-css-modules-app --template jsx-css-modules && cd jsx-css-modules-app && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init jsx-css-modules-app --template jsx-css-modules && cd jsx-css-modules-app && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init jsx-css-modules-app --template jsx-css-modules && cd jsx-css-modules-app && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
 **HTML Pages template** - Creates an app built from plain [HTML Pages](/docs/core/pages#html-pages), with a `src/includes/html.html` shell, Tailwind, client navigation, and custom-element islands. <a href="https://github.com/ecopages/ecopages/tree/main/templates/html" target="_blank">html</a>.
 
 <CodeTabs

@@ -334,11 +334,8 @@ export type ComponentIdentityAttributionOptions = {
 	jsxImportSource?: string;
 	/** Resolves the Integration that owns any file, for the cross-Integration check of discovery. */
 	integrationOf?: DiscoveryOptions['integrationOf'];
-	/**
-	 * Receives each stylesheet import of a module without `eco.*()` calls that discovery delivers: a side-effect
-	 * import, which the module loses, or a CSS Module import, which it keeps.
-	 */
-	onDeliveredStylesheet?: (source: string) => void;
+	/** Receives each side-effect stylesheet import removed from a module without `eco.*()` calls. */
+	onStrippedStylesheet?: (source: string) => void;
 	/**
 	 * Whether a module without `eco.*()` calls loses its delivered stylesheet imports; defaults to `true`.
 	 *
@@ -358,9 +355,10 @@ export type ComponentIdentityAttributionOptions = {
  * @remarks
  * Discovery hands those stylesheets to the nearest Eco declaration that imports the module, so no server or
  * browser build sees the import; the build plugin fails at the end of a build for a module no declaration
- * reached. A CSS Module import stays, since the module uses its class map, and its scoped CSS reaches the Page the
- * same way, so a CSS Module in a module no declaration reaches fails that check too. It throws for a CSS Module no
- * Processor scopes.
+ * reached. A CSS Module import stays, since the module uses its class map. Its scoped CSS reaches the Page as a
+ * Dependency of the declaration that imports the module, or that lists the stylesheet itself, so a CSS Module that
+ * no declaration reaches is not an error: a browser script may import the class map of a stylesheet its component
+ * lists. It throws for a CSS Module no Processor scopes.
  */
 function stripPlainModuleStylesheetImports(
 	program: AstNode,
@@ -372,8 +370,9 @@ function stripPlainModuleStylesheetImports(
 	const kinds = options.stylesheets ?? PLAIN_CSS_KINDS;
 	for (const entry of collectStaticImports(program)) {
 		if (!isDeliveredStylesheetImport(entry, filePath, options.projectRoot, pathPrefixes, kinds)) continue;
-		if (entry.sideEffectOnly) edits.push({ start: entry.start, end: entry.end, replacement: '' });
-		options.onDeliveredStylesheet?.(entry.source);
+		if (!entry.sideEffectOnly) continue;
+		edits.push({ start: entry.start, end: entry.end, replacement: '' });
+		options.onStrippedStylesheet?.(entry.source);
 	}
 	return edits;
 }
@@ -656,7 +655,7 @@ export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptio
 					stripPlainModuleStylesheets,
 					discoveryCache,
 					stylesheets,
-					onDeliveredStylesheet: (source) => {
+					onStrippedStylesheet: (source) => {
 						if (insideApp && !strippedStylesheets.has(id)) strippedStylesheets.set(id, source);
 					},
 				});

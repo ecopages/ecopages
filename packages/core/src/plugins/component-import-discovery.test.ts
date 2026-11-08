@@ -173,7 +173,7 @@ export const Button = eco.component({ render: () => '' });`,
 					integration: 'lit',
 					projectRoot: context.root,
 					stylesheets: scoping,
-					onDeliveredStylesheet: (specifier) => delivered?.push(specifier),
+					onStrippedStylesheet: (specifier) => delivered?.push(specifier),
 				}).code;
 			const page = (imports: string) =>
 				attribute(
@@ -214,7 +214,7 @@ export const Button = eco.component({ render: () => '' });`,
 			expect(result).not.toContain('stylesheets: ["');
 			expect(result).toContain('with { type');
 		});
-		it('keeps the CSS Module import of a plain module and reports it as delivered', () => {
+		it('keeps the CSS Module import of a plain module and reports only the side-effect import as stripped', () => {
 			const { root, attribute } = moduleFixture();
 			const delivered: string[] = [];
 			const code = attribute(
@@ -224,7 +224,7 @@ export const Button = eco.component({ render: () => '' });`,
 			);
 			expect(code).toContain(`import styles from './style.module.css'`);
 			expect(code).not.toContain(`import './style.css'`);
-			expect(delivered).toEqual(['./style.module.css', './style.css']);
+			expect(delivered).toEqual(['./style.css']);
 			expect(root).toBeTruthy();
 		});
 		it('hands the CSS Module of a plain module to the nearest declaration', () => {
@@ -518,7 +518,7 @@ export const Button = eco.component({ render: () => '' });`,
 			reached.transform(read('badge.ts'), path.join(root, 'badge.ts'));
 			await expect(reached.end()).resolves.toBeUndefined();
 		});
-		it('fails at the end of a build when no declaration reaches a plain module CSS Module import', async () => {
+		it('keeps a CSS Module import of a module no declaration reaches without failing the build', async () => {
 			class ScopingProcessor extends Processor {
 				async setup(): Promise<void> {}
 			}
@@ -529,31 +529,21 @@ export const Button = eco.component({ render: () => '' });`,
 			const { root, file } = plainFixture();
 			file('button.module.css', '.primary {}');
 			file('button.ts', `import styles from './button.module.css';\nexport const Button = () => styles.primary;`);
-			file(
-				'toolbar.ts',
-				`import { eco } from '@ecopages/core';\nimport { Button } from './button';\nexport const Toolbar = eco.component({ render: () => Button() });`,
+			const run = getPluginTransform(
+				createEcoComponentMetaPlugin({
+					config: {
+						rootDir: root,
+						integrations: [{ name: 'lit', extensions: ['.ts'] }],
+						processors: new Map([['scoping', scoping]]),
+					} as unknown as EcoPagesAppConfig,
+				}),
 			);
-			const build = () =>
-				getPluginTransform(
-					createEcoComponentMetaPlugin({
-						config: {
-							rootDir: root,
-							integrations: [{ name: 'lit', extensions: ['.ts'] }],
-							processors: new Map([['scoping', scoping]]),
-						} as unknown as EcoPagesAppConfig,
-					}),
-				);
-			const read = (name: string) => fileSystem.readFileSync(path.join(root, name));
-			const unreached = build();
-			const kept = unreached.transform(read('button.ts'), path.join(root, 'button.ts'));
+			const kept = run.transform(
+				fileSystem.readFileSync(path.join(root, 'button.ts')),
+				path.join(root, 'button.ts'),
+			);
 			expect(typeof kept === 'string' ? kept : kept?.code).toContain(`import styles from './button.module.css'`);
-			await expect(unreached.end()).rejects.toThrow(
-				'[ecopages] button.ts: "./button.module.css" never reaches a Page',
-			);
-			const reached = build();
-			reached.transform(read('button.ts'), path.join(root, 'button.ts'));
-			reached.transform(read('toolbar.ts'), path.join(root, 'toolbar.ts'));
-			await expect(reached.end()).resolves.toBeUndefined();
+			await expect(run.end()).resolves.toBeUndefined();
 		});
 		it('forgets a plain module once the only declaration importing it drops the import', async () => {
 			const { root, file } = plainFixture();

@@ -9,6 +9,8 @@ sources:
   - packages/core/src/plugins/processor.ts
   - packages/core/src/plugins/stylesheet-kinds.ts
   - packages/core/src/processor-contract.ts
+  - packages/core/src/css-imports.d.ts
+  - packages/core/src/dev/stylesheets/development-stylesheet.service.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/processed-stylesheet-cache.ts
   - packages/core/src/plugins/find-integration-for-file.ts
   - packages/core/src/plugins/foreign-jsx-override-plugin.ts
@@ -149,13 +151,23 @@ One Rolldown plugin per handler leaves first-wins `resolveId` and `load`, ordere
 
 Around the bridge, the adapter places a few native Rolldown plugins that are not part of the contract: the installed-package externalizer when packages are external, a server-only import guard on browser platform builds, the stylesheet module plugin on every build (see [Stylesheet kinds](#stylesheet-kinds)), and, after the bridge, the Worker entries plugin on browser builds.
 
+## CSS Modules
+
+A stylesheet Processor opts in with `cssModules: true` on its `stylesheet` capability and returns `exports` from `transformStylesheet` for every CSS Module: each local class name mapped to its scoped name followed by the names it composes, separated by spaces. It scopes from the path relative to `rootDir`, so names do not depend on the folder.
+
+`applyStylesheetProcessors` is the one place that calls the Processor, and its cached result carries both the scoped `css` and the `exports`. It rejects a CSS Module when no Processor scopes them, or when a Processor that declares the capability returns no `exports`. The class map reaches every environment through `compileStylesheetModule`, which compiles a CSS Module to `export default { ... }` in server builds, browser bundles and the dev transform server, and the scoped CSS reaches the Page through the file stylesheet processor from the same cached result, so one edit runs the Processor once.
+
+In development, `DevelopmentStylesheetService.keepsClassMap(file)` says whether the batch rebuilt a CSS Module and left its class map as it was. The Project Watcher then sends `css-update` for the delivered href and does not hot-update the modules that import the class map; a changed class map is a module `update` of those importers. The version of a CSS Module in the dev transform server is the digest of its class map, so a CSS-only edit keeps the importer's URL.
+
+Core types the default export in `css-imports.d.ts` as `{ readonly [key: string]: string }`. Named exports are not provided.
+
 ## Stylesheet kinds
 
 One core module, `stylesheet-kinds.ts`, decides which files are stylesheets. A file is a stylesheet when it is `.css` or has an extension the registered stylesheet Processor declares in its `stylesheet` capability (`*.scss`, `.sass`, `*.{less,styl}`; the bare `*` names none). It is a CSS Module when it ends in `.module.css` or `.module.<ext>` for a declared extension. Core names no other extension, so an app with no stylesheet Processor handles plain `.css` only.
 
 These sites ask the module, so they cannot disagree:
 
-- Discovery and the component meta plugin: which side-effect imports are delivered as Page stylesheets, and which are CSS Modules that fail the build. A package stylesheet is still a `.css` file that `resolvePackageStylesheetPath` resolves.
+- Discovery and the component meta plugin: which side-effect imports are delivered as Page stylesheets, and which are CSS Modules, which are delivered when the Processor declares `cssModules` (`StylesheetKinds.scopesCssModules`) and fail the build otherwise. A package stylesheet is still a `.css` file that `resolvePackageStylesheetPath` resolves.
 - The stylesheet module plugin: server and browser requests put the extensions in `BuildOptions.stylesheets`, so Rolldown never parses a declared stylesheet as JavaScript and compiles each import of one.
 - The dev transform server: it serves a stylesheet import as the same compiled module.
 - The stylesheet pipeline (`applyStylesheetProcessors`) and the copy list of files a stylesheet `url()` may emit (`isEmittableReferenceFile`).

@@ -36,7 +36,7 @@ The `eco-component-identity-attribution` plugin runs on every build request. For
 - Plain local modules (no `eco.*()` call) are walked through their static imports, stopping at Eco modules, packages and `.server` modules. Their side-effect CSS and the Eco Components they import are attributed to the declaration that imports them.
 - Every imported Eco module, barrel hop and walked plain module is a watch file.
 
-`export *`, namespace imports, dynamic imports and the modules of packages are not followed. A plain module's side-effect CSS import that no declaration reaches fails the build in `onEnd`, as does a CSS Module in a module discovery reaches.
+`export *`, namespace imports, dynamic imports and the modules of packages are not followed. A plain module's side-effect CSS import that no declaration reaches fails the build in `onEnd`. A CSS Module import is a third result of `classifyStylesheetImport`, for any import form: the meta plugin keeps a binding import, since the module uses the class map, and discovery records the module as a stylesheet of the declaration it attributes the import to, exactly like side-effect CSS. A side-effect import of a CSS Module is stripped like plain CSS. Without a Processor that declares `cssModules`, the classification throws with the importer, the specifier and `@ecopages/lightningcss-processor`, and a CSS Module from a package throws as unsupported. A CSS Module that no declaration reaches is not an error: a browser script may import the class map of a stylesheet its component lists.
 
 ```mermaid
 flowchart LR

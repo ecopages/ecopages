@@ -5,6 +5,7 @@ A stylesheet Processor for Ecopages that runs [Lightning CSS](https://lightningc
 ## When to pick it
 
 - Pick this package for plain CSS: nesting, `color-mix()`, `@import` with `layer()`, `supports()` and media conditions, lowered for your browser targets in one step.
+- Pick this package with the [Tailwind v4 preset](#tailwind-v4) to run Tailwind v4 with Lightning CSS targets, bundling and CSS Modules, and no PostCSS.
 - Pick [`@ecopages/postcss-processor`](../postcss-processor) when your setup is built on PostCSS plugins, and for Tailwind v3.
 
 An app has one stylesheet Processor, so this one replaces the PostCSS Processor; it does not run after it.
@@ -26,6 +27,31 @@ export default defineConfig({
 	processors: [lightningCssProcessorPlugin({ targets: ['chrome >= 90', 'safari >= 15'] })],
 });
 ```
+
+## Tailwind v4
+
+```bash
+bun add -d @tailwindcss/node @tailwindcss/oxide tailwindcss
+```
+
+```typescript
+// eco.config.ts
+import path from 'node:path';
+import { defineConfig } from '@ecopages/core/config';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
+
+export default defineConfig({
+	processors: [
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({ referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css') }),
+			targets: ['chrome >= 111', 'safari >= 16.4'],
+		}),
+	],
+});
+```
+
+`referencePath` is the stylesheet that contains `@import "tailwindcss";`. Tailwind runs inside the Processor, so the app needs no PostCSS, and its output goes through the options below. The peers are optional: an app that does not use the preset never installs them. A stylesheet that uses `@apply`, and every CSS Module, gets an `@reference` to `referencePath`. In development, a saved template that uses a new class rebuilds the stylesheets that scan it.
 
 ## Options
 

@@ -205,6 +205,15 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		},
 	},
 	{
+		name: 'css-modules-dev-e2e',
+		testMatch: 'e2e/fixtures/css-modules/**/*.test.e2e.ts',
+		timeout: 90_000,
+		use: {
+			...chrome,
+			appOptions: { source: 'e2e/fixtures/css-modules', env: { ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS: '0' } },
+		},
+	},
+	{
 		name: 'react-lazy-first-load-e2e',
 		testMatch: 'e2e/fixtures/react-lazy-first-load/**/*.test.e2e.ts',
 		timeout: 60_000,

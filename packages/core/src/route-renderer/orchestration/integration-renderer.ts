@@ -460,7 +460,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	private async runInRenderSession<T>(run: () => Promise<T>): Promise<T> {
-		const session = createRenderSession(this.resolvedIntegrationDependencies);
+		const session = createRenderSession();
 		const { value } = await runWithComponentRenderContext(
 			{
 				currentIntegration: this.name,
@@ -895,21 +895,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return resolvePageDependenciesFromContext(context, this.name);
 	}
 
-	/**
-	 * Resolves a route's component assets and this Integration's global scripts.
-	 *
-	 * @remarks
-	 * The global scripts come from the active render session, else from the renderer outside a render. The route
-	 * orchestrator places them with the other Integrations' global scripts, in config order.
-	 */
+	/** Resolves a route's component assets. */
 	async resolveRouteDependencies(input: {
 		components: (EcoComponent | Partial<EcoComponent>)[];
-	}): Promise<{ resolvedDependencies: ProcessedAsset[]; integrationDependencies: ProcessedAsset[] }> {
+	}): Promise<{ resolvedDependencies: ProcessedAsset[] }> {
 		return {
 			resolvedDependencies: await this.resolveDependencies(input.components, { preparedGraph: true }),
-			integrationDependencies:
-				getComponentRenderContext<RouteRenderContextState>()?.renderState?.session
-					?.resolvedIntegrationDependencies ?? this.resolvedIntegrationDependencies,
 		};
 	}
 
@@ -987,7 +978,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	async renderExplicitView<P>(view: EcoComponent<P>, props: P, ctx: ExplicitViewRenderContext): Promise<Response> {
 		if (ctx.partial) {
 			await this.ensureIntegrationRuntimeActivated();
-			const session = createRenderSession(this.resolvedIntegrationDependencies);
+			const session = createRenderSession();
 			const plan = collectPageClientPlan([{ component: view }], this.name);
 			const rendererCache = session.rendererCache as BaseIntegrationContext['rendererCache'];
 			const { value } = await runWithComponentRenderContext(

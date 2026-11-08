@@ -15,30 +15,24 @@ function markGlobalScript(asset: ProcessedAsset): ProcessedAsset {
  * Lists the global scripts of every Integration a Page uses, in config order.
  *
  * @remarks
- * The owner always takes part, and its scripts come from `owner.dependencies`, the owning renderer's render
- * session.
- * The other names come from the Page client plan, so the component graph is not walked a second time. The order is
- * the same whichever Integration owns the Page.
+ * Every Integration's scripts come from the same place, `getResolvedIntegrationDependencies()`, so the order and the
+ * content are the same whichever Integration owns the Page. The owner always takes part; the other names come from
+ * the Page client plan, so the component graph is not walked a second time.
  *
  * Each script carries `data-eco-global-script`, which is how a client navigation tells them from Component scripts.
  */
 export function collectPageIntegrationDependencies(
 	appConfig: EcoPagesAppConfig,
 	integrationNames: Iterable<string>,
-	owner: { name: string; dependencies: ProcessedAsset[] },
+	ownerName: string,
 ): ProcessedAsset[] {
 	const usedNames = new Set(integrationNames);
-	return appConfig.integrations.flatMap((integration) => {
-		if (integration.name === owner.name) {
-			return owner.dependencies.map(markGlobalScript);
-		}
-
-		if (!usedNames.has(integration.name) || typeof integration.getResolvedIntegrationDependencies !== 'function') {
-			return [];
-		}
-
-		return integration.getResolvedIntegrationDependencies().map(markGlobalScript);
-	});
+	usedNames.add(ownerName);
+	return appConfig.integrations.flatMap((integration) =>
+		usedNames.has(integration.name) && typeof integration.getResolvedIntegrationDependencies === 'function'
+			? integration.getResolvedIntegrationDependencies().map(markGlobalScript)
+			: [],
+	);
 }
 
 /**

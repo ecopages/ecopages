@@ -40,7 +40,30 @@ export function toStylesheetModule(css: string): string {
 	return `export default ${JSON.stringify(css)};\n`;
 }
 
-/** The ES module a binding import of a CSS Module receives: its class map as the default export. */
+const RESERVED_WORDS = new Set(
+	`arguments await break case catch class const continue debugger default delete do else enum eval export extends
+	false finally for function if implements import in instanceof interface let new null package private protected
+	public return static super switch this throw true try typeof var void while with yield`.split(/\s+/u),
+);
+
+/**
+ * Whether a class name can be a named export of its CSS Module: a JavaScript identifier that is not a reserved word.
+ *
+ * @remarks
+ * A name that fails stays on the default export, so `styles['is-active']` keeps working. Names are never renamed,
+ * so `is-active` does not become `isActive`.
+ */
+export function isCssModuleExportName(name: string): boolean {
+	return /^[\p{ID_Start}$_][\p{ID_Continue}$\u200c\u200d]*$/u.test(name) && !RESERVED_WORDS.has(name);
+}
+
+/**
+ * The ES module a binding import of a CSS Module receives: its class map as the default export, and each class
+ * whose name is a valid identifier (see {@link isCssModuleExportName}) as a named export.
+ */
 export function toClassMapModule(exports: Readonly<Record<string, string>>): string {
-	return `export default ${JSON.stringify(exports)};\n`;
+	const named = Object.entries(exports)
+		.filter(([name]) => isCssModuleExportName(name))
+		.map(([name, scoped]) => `export const ${name} = ${JSON.stringify(scoped)};\n`);
+	return `${named.join('')}export default ${JSON.stringify(exports)};\n`;
 }

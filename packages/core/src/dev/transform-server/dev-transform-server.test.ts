@@ -428,7 +428,9 @@ describe('DevTransformServer', () => {
 			const { status, code } = await request();
 
 			expect(status).toBe(200);
-			expect(code).toMatch(/^export default \{"card":"c[0-9a-f]+_card"\};\n$/u);
+			expect(code).toMatch(
+				/^export const card = "c[0-9a-f]+_card";\nexport default \{"card":"c[0-9a-f]+_card"\};\n$/u,
+			);
 		});
 
 		it('keeps serving the last class map and reports the error until a save compiles again', async () => {

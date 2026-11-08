@@ -459,6 +459,51 @@ describe('DevelopmentStylesheetService, for a CSS Module', () => {
 		expect(service.keepsClassMap(file)).toBe(false);
 	});
 
+	describe('declarations', () => {
+		const declaration = () =>
+			path.join(rootDir, 'node_modules/@types/ecopages-css-modules/components/button.module.css.d.ts');
+		const declared = () => (fs.existsSync(declaration()) ? fs.readFileSync(declaration(), 'utf8') : undefined);
+
+		it('declares a CSS Module when it is prewarmed, and again when an edit adds a class', async () => {
+			const file = write(MODULE, '.primary { color: red; }\n');
+			const service = await createModuleService();
+			await service.prewarm();
+			expect(declared()).toContain('export declare const primary: string;');
+			const { bridge } = createBridge();
+
+			write(MODULE, '.primary { color: red; }\n.secondary { color: blue; }\n');
+			await service.applyChanges(changed(file), bridge);
+
+			expect(declared()).toContain('export declare const secondary: string;');
+		});
+
+		it('warns once, when it prewarms, that the tsconfig does not list the declarations', async () => {
+			write(MODULE, '.primary { color: red; }\n');
+			const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+			const service = await createModuleService();
+
+			await service.prewarm();
+			await service.applyChanges(changed(path.join(rootDir, MODULE)), createBridge().bridge);
+
+			expect(warn).toHaveBeenCalledTimes(1);
+			expect(String(warn.mock.calls[0]![0])).toContain(
+				'"rootDirs": ["./src", "./node_modules/@types/ecopages-css-modules"]',
+			);
+		});
+
+		it('drops the declaration of a deleted CSS Module', async () => {
+			const file = write(MODULE, '.primary { color: red; }\n');
+			const service = await createModuleService();
+			await service.prewarm();
+			expect(declared()).toBeDefined();
+
+			fs.rmSync(file);
+			await service.applyChanges({ created: [], changed: [], deleted: [file] }, createBridge().bridge);
+
+			expect(declared()).toBeUndefined();
+		});
+	});
+
 	it('leaves an unused CSS Module alone when the Processor does not scope them', async () => {
 		write('src/components/unused.module.css', '.unused { color: red; }\n');
 		const service = await createService(new InliningProcessor());

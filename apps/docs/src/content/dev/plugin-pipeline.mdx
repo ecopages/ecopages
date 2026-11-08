@@ -10,6 +10,9 @@ sources:
   - packages/core/src/plugins/stylesheet-kinds.ts
   - packages/core/src/processor-contract.ts
   - packages/core/src/css-imports.d.ts
+  - packages/core/src/plugins/tsconfig-import-resolver.ts
+  - packages/core/src/config/write-types.ts
+  - packages/core/src/assets/asset-processing-service/processors/stylesheet/css-module-types.ts
   - packages/core/src/dev/stylesheets/development-stylesheet.service.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/processed-stylesheet-cache.ts
   - packages/core/src/plugins/find-integration-for-file.ts
@@ -155,11 +158,13 @@ Around the bridge, the adapter places a few native Rolldown plugins that are not
 
 A stylesheet Processor opts in with `cssModules: true` on its `stylesheet` capability and returns `exports` from `transformStylesheet` for every CSS Module: each local class name mapped to its scoped name followed by the names it composes, separated by spaces. It scopes from the path relative to `rootDir`, so names do not depend on the folder.
 
-`applyStylesheetProcessors` is the one place that calls the Processor, and its cached result carries both the scoped `css` and the `exports`. It rejects a CSS Module when no Processor scopes them, or when a Processor that declares the capability returns no `exports`. The class map reaches every environment through `compileStylesheetModule`, which compiles a CSS Module to `export default { ... }` in server builds, browser bundles and the dev transform server, and the scoped CSS reaches the Page through the file stylesheet processor from the same cached result, so one edit runs the Processor once.
+`applyStylesheetProcessors` is the one place that calls the Processor, and its cached result carries both the scoped `css` and the `exports`. It rejects a CSS Module when no Processor scopes them, or when a Processor that declares the capability returns no `exports`. The class map reaches every environment through `compileStylesheetModule`, which compiles a CSS Module to its class map in server builds, browser bundles and the dev transform server, and the scoped CSS reaches the Page through the file stylesheet processor from the same cached result, so one edit runs the Processor once.
 
 In development, `DevelopmentStylesheetService.keepsClassMap(file)` says whether the batch rebuilt a CSS Module and left its class map as it was. The Project Watcher then sends `css-update` for the delivered href and does not hot-update the modules that import the class map; a changed class map is a module `update` of those importers. The version of a CSS Module in the dev transform server is the digest of its class map, so a CSS-only edit keeps the importer's URL.
 
-Core types the default export in `css-imports.d.ts` as `{ readonly [key: string]: string }`. Named exports are not provided.
+The class map module also has a named export for each class name that `isCssModuleExportName` accepts: a JavaScript identifier that is not a reserved word. Names are not renamed, so `is-active` stays on the default export only. One function, `toClassMapModule`, builds the module, so the exports are the same in every environment.
+
+Core types the default export of every CSS Module in `css-imports.d.ts` as `{ readonly [key: string]: string }`, which cannot name the classes of one file. `css-module-types.ts` declares each module instead, from the same `exports`: `writeCssModuleDeclaration` writes `<name>.module.css.d.ts` into the generated `@types/ecopages-css-modules` package, at the module's path under `srcDir`, with the default map keyed by literal class names and `export declare const` for each named export. `ecopages types` (`config/write-types.ts`) calls `writeCssModuleDeclarations`, which clears the package and declares every CSS Module in `srcDir` that the Processor accepts, logging and skipping one it rejects. `DevelopmentStylesheetService` rewrites the declaration whenever it processes a CSS Module, which includes the prewarm at startup, and removes it when the module is deleted. TypeScript finds a declaration only through `rootDirs` (and, for an alias such as `@/*`, a second `paths` candidate) that list the package folder; a module without one keeps the ambient default export. The official templates list them, and `warnMissingCssModuleRootDirs` (run after `ecopages types` and after the dev prewarm) logs the lines to add when `loadTsconfigResolutionOptions` finds the folder missing.
 
 ## Stylesheet kinds
 

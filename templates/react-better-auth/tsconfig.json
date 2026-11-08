@@ -8,8 +8,9 @@
 		"skipLibCheck": true,
 		"noEmit": true,
 		"jsx": "react-jsx",
+		"rootDirs": ["./src", "./node_modules/@types/ecopages-css-modules"],
 		"paths": {
-			"@/*": ["./src/*"]
+			"@/*": ["./src/*", "./node_modules/@types/ecopages-css-modules/*"]
 		}
 	},
 	"exclude": [".eco"]

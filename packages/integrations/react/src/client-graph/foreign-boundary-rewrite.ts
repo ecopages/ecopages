@@ -203,8 +203,9 @@ class ForeignExports {
 		});
 	}
 
-	/** Whether `export * from target` brings in the foreign export `name`: a foreign target must declare it. */
+	/** Whether `export * from target` brings in the foreign export `name`: a foreign target must declare it, and `export *` never carries `default`. */
 	private starExportIsForeign(target: string, name: string | undefined, seen: Set<string>): boolean {
+		if (name === 'default') return false;
 		if (name !== undefined && this.options.isForeignFile(target)) return this.declaresExport(target, name);
 		return this.isForeign(target, name, seen);
 	}

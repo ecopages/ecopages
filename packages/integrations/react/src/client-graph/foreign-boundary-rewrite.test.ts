@@ -162,6 +162,13 @@ describe('rewriteForeignImports', () => {
 			expect(
 				rewrite(root, "import { Other } from './components/star.ts';\nexport default Other;"),
 			).toBeUndefined();
+			writeFileSync(
+				path.join(root, 'components/star-default.ts'),
+				"export * from './counter.lit.tsx';\nexport { default } from './button.tsx';",
+			);
+			expect(
+				rewrite(root, "import Button from './components/star-default.ts';\nexport default Button;"),
+			).toBeUndefined();
 			const output = rewrite(root, "import { Named } from './components/star.ts';\nexport default Named;")!;
 			expect(output).toContain('const Named = __ecoForeignBoundary(');
 		} finally {

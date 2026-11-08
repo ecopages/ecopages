@@ -2,7 +2,7 @@ import { isProductionRuntime, warnStylesheetOnce } from '@ecopages/core/processo
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import browserslist from 'browserslist';
-import type { CSSModuleExports, Features, TransformOptions, Visitor, Warning } from 'lightningcss';
+import type { CSSModuleExports, Features, Selector, TransformOptions, Visitor, Warning } from 'lightningcss';
 
 const logger = new Logger('[@ecopages/lightningcss-processor]');
 
@@ -51,6 +51,14 @@ export interface LightningCssModulesOptions {
 
 /** The scoped class name pattern CSS Modules use unless the options set another. */
 export const DEFAULT_CSS_MODULES_PATTERN = '[hash]_[local]';
+
+/** A failure that already names every file and position it concerns, which {@link toStylesheetError} leaves as it is. */
+export class StylesheetDiagnosticsError extends Error {
+	override name = 'StylesheetDiagnosticsError';
+}
+
+/** A rule whose selector is Sass-style suffix nesting, such as `&--primary`. */
+export type SuffixNestingRule = { file: string; line: number; column: number; selector: string };
 
 /** A failure Lightning CSS raised, which names the file and the position. */
 type LightningCssError = Error & { fileName?: string; loc?: { line: number; column: number } };
@@ -150,6 +158,7 @@ export function logWarnings(warnings: readonly Warning[], entry: string, source:
  * Only a Lightning CSS failure has a numeric `loc.line` and `loc.column`; Tailwind's `loc` is a tuple and its message already locates the error.
  */
 export function toStylesheetError(error: unknown, file: string): Error {
+	if (error instanceof StylesheetDiagnosticsError) return error;
 	if (!(error instanceof Error)) return new Error(`${file}: ${String(error)}`);
 	const { fileName = file, loc, message } = error as LightningCssError;
 	return new Error(
@@ -175,4 +184,64 @@ export function serializeExports(exports: CSSModuleExports): Record<string, stri
 				return [local, [name, ...composes.map((composed) => composed.name)].join(' ')];
 			}),
 	);
+}
+
+/** The `&` and the name a selector writes straight after it, such as `&--primary`, or `undefined` for valid nesting. */
+function suffixNestingOf(selector: Selector): string | undefined {
+	for (let index = 0; index < selector.length; index++) {
+		const component = selector[index]!;
+		const next = selector[index + 1];
+		if (component.type === 'nesting' && next?.type === 'type') return `&${next.name}`;
+		if (component.type === 'pseudo-class' && 'selectors' in component && component.selectors) {
+			for (const inner of component.selectors) {
+				if (!Array.isArray(inner)) continue;
+				const found = suffixNestingOf(inner);
+				if (found) return found;
+			}
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Collects the rules that write Sass-style suffix nesting, such as `.button { &--primary {} }`.
+ *
+ * @remarks
+ * Native CSS nesting cannot concatenate selectors, so `&--primary` is the nesting selector followed by the element
+ * `--primary`. Lightning CSS parses it without a warning: it keeps it as written, which a browser drops, or lowers it
+ * to `--primary.button`, which matches nothing. Neither reaches the build output as a failure, so the visitor finds
+ * the rule at parse time.
+ */
+export function suffixNestingVisitor(rules: SuffixNestingRule[]): Visitor<never> {
+	let sources: readonly string[] = [];
+	return {
+		StyleSheet(stylesheet) {
+			sources = stylesheet.sources;
+		},
+		Rule: {
+			style(rule) {
+				const { loc, selectors } = rule.value;
+				for (const selector of selectors) {
+					const found = suffixNestingOf(selector);
+					if (found) {
+						rules.push({
+							file: sources[loc.source_index] ?? '',
+							line: loc.line + 1,
+							column: loc.column,
+							selector: found,
+						});
+					}
+				}
+			},
+		},
+	};
+}
+
+/** The error for the rules {@link suffixNestingVisitor} collected, one line per rule with its file, line and column. */
+export function suffixNestingError(rules: readonly SuffixNestingRule[]): StylesheetDiagnosticsError {
+	const lines = rules.map(
+		({ file, line, column, selector }) =>
+			`${file}:${line}:${column} \`${selector}\` is Sass-style suffix nesting; native CSS nesting cannot concatenate selectors, so write the full selector explicitly, such as \`.button${selector.slice(1)}\` for \`.button { ${selector} {} }\`.`,
+	);
+	return new StylesheetDiagnosticsError(lines.join('\n'));
 }

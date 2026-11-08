@@ -7,7 +7,7 @@ import { copyFixtureApp } from '../../../packages/core/__fixtures__/app/copy-fix
 import { checkClientAssetReachability } from '../../utils/client-asset-reachability.ts';
 
 const cliPath = fileURLToPath(new URL('../../../packages/ecopages/bin/cli.js', import.meta.url));
-const TEST_IDS = ['eco-jsx-badge', 'react-button'] as const;
+const TEST_IDS = ['eco-jsx-badge', 'react-button', 'kit-button', 'kit-lib-eco', 'kit-lib-react'] as const;
 
 function build(appDir: string, env: Record<string, string> = {}) {
 	return spawnSync(process.execPath, [cliPath, 'build', '--runtime', 'node'], {
@@ -74,6 +74,8 @@ describe('CSS Modules in a production build', () => {
 
 		for (const [page, testId] of [
 			[html, 'react-button'],
+			[html, 'kit-button'],
+			[html, 'kit-lib-react'],
 			[litHtml, 'lit-card-host'],
 		] as const) {
 			const [own] = classOf(page, testId).split(' ');

@@ -44,7 +44,7 @@ Lightning CSS then inlines the rest with the `layer()`, `supports()` and media c
 
 The `stylesheet` capability sets `cssModules: true`, so core delivers CSS Modules to this Processor (see [/dev/plugin-pipeline](/dev/plugin-pipeline#css-modules)). For a file ending in `.module.css`, `bundleStylesheet` passes `cssModules: { pattern }` to `bundleAsync` and the plugin returns `exports` beside the CSS.
 
-- `pattern` is the `cssModules.pattern` option and defaults to `[hash]_[local]`. The hash is Lightning CSS's, of the path relative to `projectRoot`, which is the real path of `rootDir`, so two folders give the same names.
+- `pattern` is the `cssModules.pattern` option and defaults to `[hash]_[local]`. The hash is Lightning CSS's, of the path relative to `projectRoot`, which is the real path of `rootDir`, so two folders give the same names. For a CSS Module of a package, `packageScopeFile` gives Lightning CSS core's `toPackageScopeFile` as the file name (`<rootDir>/node_modules/<package name>/<path inside the package>`), for the entry and for every `composes ... from` partial, so the hash does not depend on the store layout; `StylesheetBundle` maps those names back to the real files for `read`, `resolve` and warnings. The `preprocessor` does not run on a package file, as a package ships built CSS.
 - `serializeExports` turns each export into one string: the scoped name, then the scoped names it composes, separated by spaces, with the keys sorted so a reordered file gives the same map.
 - `composes: x from './other.module.css'` is resolved like an `@import`, with the same walk, so the other file is read, scoped with the rest and listed in `dependencies`. A file that cannot be found fails the stylesheet, since the exported name would have no rule.
 

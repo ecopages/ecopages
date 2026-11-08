@@ -135,4 +135,89 @@ describe('LightningCssProcessorPlugin, for CSS Modules', () => {
 		expect(result).not.toHaveProperty('exports');
 		expect(result.css).toContain('.primary');
 	});
+
+	describe('for a CSS Module of a package', () => {
+		const CSS = '.primary { color: red; }\n.title { composes: primary; }\n';
+		const pnpmStore = 'node_modules/.pnpm/ui-kit@1.0.0/node_modules/ui-kit';
+		const install = (app: Awaited<ReturnType<typeof createApp>>, packageDir: string, css = CSS) => {
+			app.write(`${packageDir}/package.json`, '{"name":"ui-kit","version":"1.0.0"}');
+			return app.write(`${packageDir}/dist/button.module.css`, css);
+		};
+
+		test('gives the same class names in two folders and in a hoisted and a pnpm layout', async () => {
+			const hoisted = await createApp();
+			const store = await createApp();
+			const hoistedFile = install(hoisted, 'node_modules/ui-kit');
+			const storeFile = install(store, pnpmStore);
+
+			const a = await hoisted.processor.transformStylesheet(CSS, hoistedFile);
+			const b = await store.processor.transformStylesheet(CSS, storeFile);
+
+			expect(hoisted.rootDir).not.toBe(store.rootDir);
+			expect(Object.keys(a.exports ?? {})).toEqual(['primary', 'title']);
+			expect(b).toEqual(a);
+		});
+
+		test('hashes the package name and the path inside it, not the version', async () => {
+			const first = await createApp();
+			const second = await createApp();
+			const a = install(first, 'node_modules/ui-kit');
+			second.write('node_modules/ui-kit/package.json', '{"name":"ui-kit","version":"2.0.0"}');
+			const b = second.write('node_modules/ui-kit/dist/button.module.css', CSS);
+
+			const ofA = await first.processor.transformStylesheet(CSS, a);
+			const ofB = await second.processor.transformStylesheet(CSS, b);
+
+			expect(ofB.exports).toEqual(ofA.exports);
+		});
+
+		test('scopes a different class name than an app file of the same name', async () => {
+			const app = await createApp();
+			const packaged = install(app, 'node_modules/ui-kit');
+			const own = app.write('src/dist/button.module.css', CSS);
+
+			const a = await app.processor.transformStylesheet(CSS, packaged);
+			const b = await app.processor.transformStylesheet(CSS, own);
+
+			expect(a.exports?.primary).not.toBe(b.exports?.primary);
+		});
+
+		test('bundles the classes the module composes from a sibling file of the package', async () => {
+			const first = await createApp();
+			const second = await createApp();
+			const run = async (app: typeof first, packageDir: string) => {
+				app.write(`${packageDir}/dist/base.module.css`, '.base { margin: 0; }\n');
+				const file = install(
+					app,
+					packageDir,
+					".primary { composes: base from './base.module.css'; color: red; }\n",
+				);
+				return app.processor.transformStylesheet(fs.readFileSync(file, 'utf8'), file);
+			};
+
+			const a = await run(first, 'node_modules/ui-kit');
+			const b = await run(second, pnpmStore);
+
+			expect(a.exports?.primary?.split(' ')).toHaveLength(2);
+			expect(b).toEqual({ ...a, dependencies: b.dependencies });
+			expect(a.css).toContain(`.${a.exports!.primary!.split(' ')[1]}`);
+		});
+
+		test('runs no preprocessor over it, as a package ships built CSS', async () => {
+			const app = await createApp({
+				preprocessor: {
+					transform: async (css) => ({ css: css.replace('red', 'blue') }),
+					invalidate: () => [],
+				},
+			});
+			const packaged = install(app, 'node_modules/ui-kit');
+			const own = app.write('src/button.module.css', CSS);
+
+			const fromPackage = await app.processor.transformStylesheet(CSS, packaged);
+			const fromApp = await app.processor.transformStylesheet(CSS, own);
+
+			expect(fromPackage.css).toContain('red');
+			expect(fromApp.css).not.toContain('red');
+		});
+	});
 });

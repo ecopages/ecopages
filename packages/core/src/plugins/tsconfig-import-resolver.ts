@@ -441,3 +441,21 @@ export function resolvePackageStylesheetPath(fromFile: string, specifier: string
 	}
 	return result.path.endsWith('.css') ? fileSystem.realpath(result.path) : undefined;
 }
+
+const packageModuleResolver = new ResolverFactory({
+	conditionNames: ['browser', 'import', 'default'],
+	extensions: ['.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx', '.mts', '.cts'],
+});
+
+/**
+ * Resolves a bare package specifier, or a relative one inside a package, to the real path of the script it names.
+ *
+ * @returns The real path, or `undefined` when nothing resolves.
+ *
+ * @remarks
+ * Resolves as a browser script import would, so discovery reads the same module a browser bundle holds.
+ */
+export function resolvePackageModulePath(fromFile: string, specifier: string): string | undefined {
+	const result = packageModuleResolver.sync(path.dirname(fromFile), specifier);
+	return result.path ? fileSystem.realpath(result.path) : undefined;
+}

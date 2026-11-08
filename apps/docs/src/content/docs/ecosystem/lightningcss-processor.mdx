@@ -153,7 +153,7 @@ export const Button = eco.component({
 - Type the default import with the declaration core ships: `import '@ecopages/core/declarations'` in your `modules.d.ts`.
 - Type the named exports with `ecopages types`, which writes one declaration per CSS Module into `node_modules/@types/ecopages-css-modules`. The official templates already list that folder in `tsconfig.json`; an existing app adds the lines below. `import { secondary }` and `styles.secondary` then fail type checking when the file has no `.secondary`. In development the declarations are rewritten when a CSS Module changes.
 - A browser script that imports a CSS Module gets the same class names; the CSS reaches the Page when the component that uses the script imports the module too or lists it in `dependencies.stylesheets`.
-- A CSS Module from a package is not supported.
+- A package can ship a CSS Module: `import styles from 'ui-kit/button.module.css'` is scoped by this Processor, with no preprocessor (Tailwind) or other app processing, and its names hash the package name and the path inside it, so they are identical in every folder and package-manager layout. The package must export the `.module.css` file, and its `url()` references are copied like any package stylesheet's. A module of the package that imports its own CSS Module works when your page, layout or component imports that module with a static import; otherwise the build fails and names both files, instead of dropping the CSS.
 - Without this Processor, importing a CSS Module fails the build and names the importing file.
 
 ```json

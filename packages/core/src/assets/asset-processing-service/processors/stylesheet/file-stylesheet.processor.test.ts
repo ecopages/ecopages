@@ -573,3 +573,75 @@ test('writes the scoped CSS of a CSS Module as the stylesheet the Page links', a
 
 	expect(readFileSync(processed.filepath!, 'utf-8')).toBe('.x_card { color: red; }');
 });
+
+class PackageScopingProcessor extends Processor {
+	readonly seen: string[] = [];
+	async setup(): Promise<void> {}
+	override async transformStylesheet(css: string, file: string) {
+		this.seen.push(file);
+		return { css: css.replace('.card', '.x_card'), exports: { card: 'x_card' } };
+	}
+}
+
+function packageScopingConfig() {
+	const processor = new PackageScopingProcessor({
+		name: 'scoping',
+		capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true }],
+	});
+	const appConfig = createConfig();
+	appConfig.processors.set('scoping', processor);
+	return { appConfig, processor };
+}
+
+test('scopes a package CSS Module with the Processor and copies the files it references by the package policy', async () => {
+	const font = Buffer.from([0x77, 0x4f, 0x46, 0x32, 4, 5, 6]);
+	writePackageFile('dist/fonts/x.woff2', font);
+	const stylesheet = writePackageFile(
+		'dist/card.module.css',
+		".card { color: red; }\n@font-face { font-family: X; src: url('./fonts/x.woff2'); }",
+	);
+	const { appConfig, processor } = packageScopingConfig();
+
+	const processed = await new FileStylesheetProcessor({ appConfig }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+		inline: false,
+		fromPackage: 'some-lib/dist/card.module.css',
+	});
+
+	const css = readFileSync(processed.filepath!, 'utf-8');
+	expect(processor.seen).toEqual([stylesheet]);
+	expect(css).toContain('.x_card { color: red; }');
+	expect(css).toContain(`url("${hashBrowserAssetBytes(font)}.woff2")`);
+});
+
+test('fails on a url() of a package CSS Module that names a missing file', async () => {
+	const stylesheet = writePackageFile('dist/card.module.css', ".card { background: url('./missing.png'); }");
+
+	await expect(
+		new FileStylesheetProcessor({ appConfig: packageScopingConfig().appConfig }).process({
+			kind: 'stylesheet',
+			source: 'file',
+			filepath: stylesheet,
+			inline: false,
+			fromPackage: 'some-lib/dist/card.module.css',
+		}),
+	).rejects.toThrow('missing.png, which does not exist');
+});
+
+test('still skips the Processor for a plain package stylesheet next to a package CSS Module', async () => {
+	const stylesheet = writePackageFile('dist/plain.css', '.card { color: red; }');
+	const { appConfig, processor } = packageScopingConfig();
+
+	const processed = await new FileStylesheetProcessor({ appConfig }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+		inline: false,
+		fromPackage: 'some-lib/dist/plain.css',
+	});
+
+	expect(processor.seen).toEqual([]);
+	expect(readFileSync(processed.filepath!, 'utf-8')).toBe('.card { color: red; }');
+});

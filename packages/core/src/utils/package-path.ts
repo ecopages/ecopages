@@ -1,5 +1,6 @@
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
+import { isPathInside } from './path-containment.ts';
 
 function readPackageIdentity(packageJsonPath: string): { name: string; version?: string } | undefined {
 	try {
@@ -38,18 +39,22 @@ export function toPackagePath(filePath: string): string | undefined {
  */
 const packagePathCache = new Map<string, string | undefined>();
 
-function findPackagePath(filePath: string): string | undefined {
+/** The folder of the nearest `package.json` with a `name` above `filePath`, or `undefined` outside any package. */
+export function findPackageRoot(filePath: string): string | undefined {
 	let dir = path.dirname(filePath);
 	while (true) {
-		const identity = readPackageIdentity(path.join(dir, 'package.json'));
-		if (identity) {
-			const subpath = path.relative(dir, filePath);
-			return `${identity.name}${identity.version ? `@${identity.version}` : ''}/${subpath}`;
-		}
+		if (readPackageIdentity(path.join(dir, 'package.json'))) return dir;
 		const parent = path.dirname(dir);
 		if (parent === dir) return undefined;
 		dir = parent;
 	}
+}
+
+function findPackagePath(filePath: string): string | undefined {
+	const dir = findPackageRoot(filePath);
+	if (!dir) return undefined;
+	const identity = readPackageIdentity(path.join(dir, 'package.json'))!;
+	return `${identity.name}${identity.version ? `@${identity.version}` : ''}/${path.relative(dir, filePath)}`;
 }
 
 /** Splits a {@link toPackagePath} result into the package name and the path inside the package. */
@@ -87,4 +92,25 @@ export function resolvePackagePath(fromDir: string, packagePath: string): string
 		dir = parent;
 	}
 	return path.join(path.resolve(fromDir), 'node_modules', ...name.split('/'), ...subpath.split('/'));
+}
+
+/**
+ * The file a stylesheet of an installed package stands for when its CSS Module class names are scoped, or
+ * `undefined` for a file of the app.
+ *
+ * @remarks
+ * A scoping Processor derives a class name from the path of the stylesheet relative to the app root, which for a
+ * package file includes the store folder, the version folder or the sibling folder of a linked workspace package. This returns
+ * `<rootDir>/node_modules/<package name>/<path inside the package>` for a file under `node_modules` or outside
+ * `rootDir`, so the names depend on the package name and the path inside it alone, across machines, folders and
+ * package-manager layouts, and not on the version. A file outside any named package has no such identity and is
+ * scoped by its own path. The file does not have to exist: read the stylesheet from the real path.
+ */
+export function toPackageScopeFile(file: string, rootDir: string): string | undefined {
+	const app = fileSystem.exists(rootDir) ? fileSystem.realpath(rootDir) : rootDir;
+	if (!file.split('/').includes('node_modules') && isPathInside(file, app)) return undefined;
+	const packagePath = toPackagePath(file);
+	if (!packagePath) return undefined;
+	const { name, subpath } = splitPackagePath(packagePath);
+	return path.join(app, 'node_modules', ...name.split('/'), ...subpath.split('/'));
 }

@@ -9,6 +9,7 @@ export {
 	scanCss,
 	splitReference,
 } from './assets/asset-processing-service/processors/stylesheet/css-scanner.ts';
+export { toPackageScopeFile } from './utils/package-path.ts';
 export { resolveProjectImportPath, resolvePackageStylesheetPath } from './plugins/tsconfig-import-resolver.ts';
 export type { AssetDefinition, ProcessedAsset } from './types/asset-types.ts';
 export {

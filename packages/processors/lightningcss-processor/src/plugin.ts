@@ -9,7 +9,7 @@ import {
 	type StylesheetInvalidation,
 	type StylesheetTransformResult,
 } from '@ecopages/core/processor';
-import { bundleStylesheet } from './bundle-stylesheet.ts';
+import { bundleStylesheet, packageScopeFile } from './bundle-stylesheet.ts';
 import {
 	logWarnings,
 	resolveLightningCssOptions,
@@ -105,9 +105,9 @@ export class LightningCssProcessorPlugin extends Processor<LightningCssProcessor
 			},
 		);
 		try {
-			const preprocessed = await this.options?.preprocessor?.transform(css, file, {
-				rootDir: this.context.rootDir,
-			});
+			const preprocessed = packageScopeFile(file, this.context.rootDir)
+				? undefined
+				: await this.options?.preprocessor?.transform(css, file, { rootDir: this.context.rootDir });
 			const bundled = await bundleStylesheet(
 				preprocessed?.css ?? css,
 				file,

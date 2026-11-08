@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
-import { createTestAppConfig } from '@ecopages/testing';
+import { createStringMarkupIntegration, createTestAppConfig } from '@ecopages/testing';
 import { requireAppRuntime } from '@ecopages/core/integration';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
@@ -26,7 +26,9 @@ const RADIANT_HOST_SCRIPT = path.fromFileUrl(
 	new URL('./fixtures/ssr-preload-radiant-host.script.tsx', import.meta.url),
 );
 
-const Config = await createTestAppConfig();
+const Config = await createTestAppConfig({
+	integrations: [createStringMarkupIntegration(), new EcopagesJsxPlugin()],
+});
 
 const HtmlTemplate = ({ children }: { children: JsxRenderable }) => (
 	<html>

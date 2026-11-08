@@ -66,8 +66,8 @@ describe('LitPlugin', () => {
 	it('initializes its configured renderer class', async () => {
 		class CustomLitRenderer extends LitRenderer {}
 
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
 		const plugin = new LitPlugin();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src', integrations: [plugin] });
 		plugin.renderer = CustomLitRenderer;
 		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
 		const ensureWorker = vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();

@@ -9,7 +9,10 @@ import { AssetProcessingService } from '../assets/asset-processing-service/asset
 import type { IHmrManager } from '../types/contracts.ts';
 import type { AssetDefinition } from '../assets/asset-processing-service';
 import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../types/contracts.ts';
-import { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
+import {
+	createIntegrationRenderer,
+	IntegrationRenderer,
+} from '../route-renderer/orchestration/integration-renderer.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 
 class NamelessRenderer extends IntegrationRenderer {
@@ -208,5 +211,66 @@ describe('IntegrationPlugin', () => {
 		await pluginWithOverride.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 
 		expect(pluginWithOverride.getRenderer().name).toBe('test-plugin');
+	});
+
+	describe('ssrScriptPreload', () => {
+		const preloaderInit = {
+			cacheScope: 'test-preload',
+			integrationName: 'preloading',
+			importServerModule: async () => undefined,
+		};
+
+		class BuildsPreloaderPlugin extends IntegrationPlugin {
+			renderer = createIntegrationRenderer('preloading', ({ createSsrScriptPreloader }) => {
+				createSsrScriptPreloader(preloaderInit);
+				return {};
+			});
+		}
+
+		class BuildsNoPreloaderPlugin extends IntegrationPlugin {
+			renderer = createIntegrationRenderer('preloading', {});
+		}
+
+		async function start(plugin: IntegrationPlugin) {
+			const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [plugin] });
+			vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+			await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
+		}
+
+		it('reports a renderer that builds a preloader without the declaration when its renderer is built', async () => {
+			const plugin = new BuildsPreloaderPlugin({ name: 'preloading', extensions: ['.test'] });
+			await start(plugin);
+
+			expect(() => plugin.getRenderer()).toThrow(
+				'Integration "preloading" builds a custom-element preloader but declares no ssrScriptPreload',
+			);
+		});
+
+		it('reports a declaration whose renderer builds no preloader when its renderer is built', async () => {
+			const plugin = new (class extends BuildsNoPreloaderPlugin {
+				override readonly ssrScriptPreload = 'own' as const;
+			})({ name: 'preloading', extensions: ['.test'] });
+			await start(plugin);
+
+			expect(() => plugin.getRenderer()).toThrow(
+				'Integration "preloading" declares ssrScriptPreload but its renderer builds no custom-element preloader',
+			);
+		});
+
+		it('builds the preloader of an Integration that declares ssrScriptPreload', async () => {
+			const plugin = new (class extends BuildsPreloaderPlugin {
+				override readonly ssrScriptPreload = 'own' as const;
+			})({ name: 'preloading', extensions: ['.test'] });
+			await start(plugin);
+
+			expect(plugin.getRenderer().buildsSsrScriptPreloader).toBe(true);
+		});
+
+		it('builds no preloader for an Integration that neither declares nor requests one', async () => {
+			const plugin = new BuildsNoPreloaderPlugin({ name: 'preloading', extensions: ['.test'] });
+			await start(plugin);
+
+			expect(plugin.getRenderer().buildsSsrScriptPreloader).toBe(false);
+		});
 	});
 });

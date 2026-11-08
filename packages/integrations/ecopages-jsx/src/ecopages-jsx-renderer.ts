@@ -16,8 +16,7 @@ import {
 } from './ecopages-jsx-mdx.ts';
 import { recordEjsxHmrOwnership, withEjsxHmrOwnershipScope } from './ecopages-jsx-hmr-ownership.ts';
 import { EcopagesJsxRadiantSsrPolicy } from './ecopages-jsx-radiant-ssr-policy.ts';
-import { CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES, CustomElementScriptPreloader } from '@ecopages/core/integration';
-import { requireAppRuntime } from '@ecopages/core/integration';
+import { CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES } from '@ecopages/core/integration';
 import { createSharedServerModuleImporter } from '@ecopages/core/integration';
 import type { EcopagesJsxRendererConfig } from './ecopages-jsx.types.ts';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
@@ -42,18 +41,16 @@ export function createEcopagesJsxRendererHookFactory(
 ): IntegrationRendererHookFactory {
 	const mdxExtensions = jsxConfig.mdxExtensions ?? ['.mdx'];
 
-	return ({ appConfig, resolveDependencyPath }: IntegrationRendererHookFactoryOptions) => {
+	return ({ appConfig, createSsrScriptPreloader }: IntegrationRendererHookFactoryOptions) => {
 		const radiantSsrPolicy = new EcopagesJsxRadiantSsrPolicy(jsxConfig.radiantSsrEnabled ?? false);
-		const ssrScriptPreloader = new CustomElementScriptPreloader({
-			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
-			preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
-			integrationName: ECOPAGES_JSX_PLUGIN_NAME,
-			integrations: appConfig.integrations,
-			enabled: jsxConfig.radiantSsrEnabled ?? false,
-			logLabel: 'ecopages-jsx',
-			resolveDependencyPath,
-			importServerModule: createSharedServerModuleImporter(appConfig),
-		});
+		const ssrScriptPreloader = jsxConfig.radiantSsrEnabled
+			? createSsrScriptPreloader({
+					cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
+					integrationName: ECOPAGES_JSX_PLUGIN_NAME,
+					logLabel: 'ecopages-jsx',
+					importServerModule: createSharedServerModuleImporter(appConfig),
+				})
+			: undefined;
 
 		const withCustomElementRenderHook = async <T>(render: () => T): Promise<T> =>
 			await radiantSsrPolicy.withRuntime(() =>
@@ -92,18 +89,10 @@ export function createEcopagesJsxRendererHookFactory(
 				isMdxFile(file, mdxExtensions)
 					? (normalizeMdxPageModule(file, module as EcopagesJsxMdxPageModule) as TPageModule)
 					: module,
-			beforeRender: async (options) => {
-				await radiantSsrPolicy.prepareRuntime();
-				await ssrScriptPreloader.preloadSsrScripts([
-					options.Page,
-					options.Layout,
-					options.HtmlTemplate,
-					...(options.pageDependencyComponents ?? []),
-				]);
-			},
+			beforeRender: async () => await radiantSsrPolicy.prepareRuntime(),
 			renderComponent: async (input: ComponentRenderInput) => {
 				await radiantSsrPolicy.prepareRuntime();
-				await ssrScriptPreloader.preloadSsrScripts([input.component]);
+				await ssrScriptPreloader?.preloadSsrScripts([input.component]);
 
 				return await withEjsxHmrOwnershipScope(async () => {
 					if (typeof input.component !== 'function') {

@@ -295,9 +295,22 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	/**
 	 * Returns the renderer shared by this Integration's application runtime.
+	 *
+	 * @remarks
+	 * Creating the renderer checks that {@link ssrScriptPreload} and the renderer's custom-element preloader agree.
+	 * A renderer that builds a preloader without the declaration throws as it builds it. A declaration whose renderer
+	 * builds none throws here, since core would assign the renderer scripts it never evaluates.
 	 */
 	getRenderer(): IntegrationRenderer<C> {
-		this.rendererInstance ??= this.createRenderer(this.createRendererBase());
+		if (!this.rendererInstance) {
+			const renderer = this.createRenderer(this.createRendererBase());
+			if (this.ssrScriptPreload && !renderer.buildsSsrScriptPreloader) {
+				throw new Error(
+					`[ecopages] Integration "${this.name}" declares ssrScriptPreload but its renderer builds no custom-element preloader, so the scripts assigned to it would never be evaluated. Build one with createSsrScriptPreloader() or drop the declaration.`,
+				);
+			}
+			this.rendererInstance = renderer;
+		}
 		this.rendererInstance.name ||= this.name;
 		return this.rendererInstance;
 	}

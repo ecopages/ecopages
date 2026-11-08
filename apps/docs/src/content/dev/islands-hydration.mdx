@@ -69,7 +69,7 @@ The key hashes the Component's identity id and its JSON-safe props, so the serve
 
 A boundary that finds no server HTML stays empty: the boundary cannot render the Component itself, since its `render` returns output React cannot render. Outside production it logs one warning per key that names the Component file. The supported path is a Foreign Subtree the server rendered inside the hydrating tree, rendered again with the same props. A foreign Component that first appears on the client, or whose props change on the client only, has no server HTML to keep.
 
-A direct HMR update reads the module URL and props of the Page from the `__ECO_PAGE_DATA__` of the document it fetched, and uses them for `page.props` and for the render, so a changed `staticProps` result reaches both the React tree and the boundary keys.
+A direct HMR update reads the props of the Page, and its module URL when the envelope carries one, from the `__ECO_PAGE_DATA__` of the document it fetched, and uses them for `page.props` and for the render, so a changed `staticProps` result reaches both the React tree and the boundary keys.
 
 A Foreign Child is only rendered by the server, so React children of a Foreign Child are part of its server HTML and are not hydrated.
 

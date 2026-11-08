@@ -188,12 +188,12 @@ export interface CustomElementScriptPreloaderOptions {
 	integrations: readonly SsrScriptPreloadDeclaration[];
 	logLabel?: string;
 	/**
-	 * Called with the error of a script that failed to preload, except one that only needs the browser, every time a
-	 * render reaches it until the script is invalidated.
+	 * Called with the error of a script that failed to preload, except one that only needs the browser.
 	 *
 	 * @remarks
 	 * The preloader itself only warns and leaves the element without server rendering. Core uses this to show the
-	 * failure in the development overlay, which a later render must be able to repeat after the error was cleared.
+	 * failure in the development overlay. A failed script is not evaluated again until it is invalidated or
+	 * `clearFailedCustomElementScriptPreloads` runs.
 	 */
 	onPreloadFailure?: (scriptPath: string, error: unknown) => void;
 }
@@ -329,12 +329,7 @@ export class CustomElementScriptPreloader {
 		scopeState: CustomElementScriptPreloadScopeState,
 		registry: CustomElementRegistry | undefined,
 	): Promise<void> {
-		if (scopeState.preloadedScripts.has(scriptPath)) {
-			return;
-		}
-
-		if (scopeState.preloadFailedScripts.has(scriptPath)) {
-			this.reportFailure(scriptPath, scopeState.preloadFailedScripts.get(scriptPath));
+		if (scopeState.preloadedScripts.has(scriptPath) || scopeState.preloadFailedScripts.has(scriptPath)) {
 			return;
 		}
 
@@ -353,7 +348,7 @@ export class CustomElementScriptPreloader {
 				await this.importServerModule(scriptPath, registry ? getRegistryKey(registry) : 'default');
 				scopeState.preloadedScripts.add(scriptPath);
 			} catch (error) {
-				scopeState.preloadFailedScripts.set(scriptPath, error);
+				scopeState.preloadFailedScripts.add(scriptPath);
 
 				this.reportFailure(scriptPath, error);
 				if (this.isExpectedSsrPreloadError(error)) {

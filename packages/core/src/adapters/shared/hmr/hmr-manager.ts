@@ -17,6 +17,7 @@ import type {
 	IClientBridge,
 } from '../../../config/internal-types.ts';
 import { getDevelopmentStylesheetService } from '../../../dev/stylesheets/development-stylesheet.service.ts';
+import { clearFailedCustomElementScriptPreloads } from '../../../route-renderer/orchestration/custom-element-scripts/custom-element-script-preload-invalidation.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategyType, type HmrAction, type HmrStrategy } from '../../../hmr/hmr-strategy.ts';
 import { DefaultHmrStrategy } from '../../../hmr/strategies/default-hmr-strategy.ts';
@@ -271,6 +272,7 @@ export class HmrManager implements IHmrManager {
 
 		this.devTransformServer.clearFailures();
 		this.requestBuildErrors.clear();
+		clearFailedCustomElementScriptPreloads(requireAppRuntime(this.appConfig).customElementSsrPreloadScopes);
 		const events: ClientBridgeEvent[] = [];
 		const uniqueFilePaths = [...new Set(filePaths.map((candidate) => path.resolve(candidate)))];
 

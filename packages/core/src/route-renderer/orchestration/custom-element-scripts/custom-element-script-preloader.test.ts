@@ -8,7 +8,10 @@ import {
 	isExpectedCustomElementSsrPreloadError,
 	type SsrScriptPreloadDeclaration,
 } from './custom-element-script-preloader.ts';
-import type { CustomElementScriptPreloadScopeState } from './custom-element-script-preload-invalidation.ts';
+import {
+	clearFailedCustomElementScriptPreloads,
+	type CustomElementScriptPreloadScopeState,
+} from './custom-element-script-preload-invalidation.ts';
 
 let cacheScope = '';
 let scopeCounter = 0;
@@ -435,7 +438,7 @@ describe('CustomElementScriptPreloader', () => {
 describe('a script that fails to preload', () => {
 	const scriptPath = '/app/broken.script.ts';
 
-	it('reports the failure each time a render reaches it, until the script is invalidated', async () => {
+	it('reports the failure once and evaluates the script again after it is invalidated', async () => {
 		const failure = new Error('Unexpected token');
 		const importServerModule = vi.fn(async (): Promise<unknown> => {
 			throw failure;
@@ -448,12 +451,28 @@ describe('a script that fails to preload', () => {
 		await preloader.preloadScripts([scriptPath]);
 
 		expect(importServerModule).toHaveBeenCalledTimes(1);
-		expect(onPreloadFailure).toHaveBeenCalledTimes(2);
+		expect(onPreloadFailure).toHaveBeenCalledTimes(1);
 		expect(onPreloadFailure).toHaveBeenCalledWith(scriptPath, failure);
 
 		preloader.invalidateScript(scriptPath);
 		importServerModule.mockResolvedValueOnce(undefined);
 		await preloader.preloadScripts([scriptPath]);
+		expect(importServerModule).toHaveBeenCalledTimes(2);
+		expect(onPreloadFailure).toHaveBeenCalledTimes(1);
+	});
+
+	it('evaluates a failed script again once the failed preloads are cleared, and reports it if it still fails', async () => {
+		const importServerModule = vi.fn(async (): Promise<unknown> => {
+			throw new Error('Unexpected token');
+		});
+		const onPreloadFailure = vi.fn();
+		const preloader = createPreloader({ importServerModule, onPreloadFailure });
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		await preloader.preloadScripts([scriptPath]);
+
+		clearFailedCustomElementScriptPreloads(preloadScopes);
+		await preloader.preloadScripts([scriptPath]);
+
 		expect(importServerModule).toHaveBeenCalledTimes(2);
 		expect(onPreloadFailure).toHaveBeenCalledTimes(2);
 	});

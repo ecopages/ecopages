@@ -4,6 +4,7 @@ import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config
 import { Processor } from '../../../plugins/processor.ts';
 import type { ClientBridgeEvent } from '../../../types/contracts.ts';
 import type { HmrManager } from './hmr-manager.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { createTempRoot, startHmrManager, writeSourceFile } from './hmr-manager.test-helpers.ts';
 
 /** Compiles `@apply text-red;` and throws on an unclosed block, as a CSS Processor does. */
@@ -77,5 +78,26 @@ describe('a stylesheet a script imports as text', () => {
 			status: 200,
 			code: 'export default ".card { color: red; margin: 0; }\\n";\n',
 		});
+	});
+});
+
+describe('a server script that failed to preload', () => {
+	test('is evaluated again after a file change, so a fixed dependency recovers it', async () => {
+		const config = await finalizeEcoPagesConfig({
+			rootDir: createTempRoot('hmr-failed-preload'),
+			integrations: [],
+		});
+		const { manager } = startHmrManager(config);
+		const scopes = requireAppRuntime(config).customElementSsrPreloadScopes;
+		scopes.set('lit', {
+			preloadedScripts: new Set(['/app/ok.script.ts']),
+			preloadFailedScripts: new Set(['/app/broken.script.ts']),
+			inFlightImports: new Map(),
+		});
+
+		await manager.handleFileChanges([writeSourceFile(config.rootDir, 'src/helper.ts', 'export {};\n')]);
+
+		expect(scopes.get('lit')?.preloadFailedScripts.size).toBe(0);
+		expect([...(scopes.get('lit')?.preloadedScripts ?? [])]).toEqual(['/app/ok.script.ts']);
 	});
 });

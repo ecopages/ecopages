@@ -1,8 +1,7 @@
 export type CustomElementScriptPreloadScopeState = {
 	activeRegistry?: CustomElementRegistry;
 	preloadedScripts: Set<string>;
-	/** The error each script that failed to preload threw, until the script is invalidated. */
-	preloadFailedScripts: Map<string, unknown>;
+	preloadFailedScripts: Set<string>;
 	inFlightImports: Map<string, Promise<void>>;
 };
 
@@ -14,7 +13,7 @@ export function getCustomElementScriptPreloadScopeState(
 	if (!state) {
 		state = {
 			preloadedScripts: new Set(),
-			preloadFailedScripts: new Map(),
+			preloadFailedScripts: new Set(),
 			inFlightImports: new Map(),
 		};
 		scopeStates.set(cacheScope, state);
@@ -36,5 +35,20 @@ export function invalidateCustomElementScriptPreload(
 		state.preloadedScripts.delete(scriptPath);
 		state.preloadFailedScripts.delete(scriptPath);
 		state.inFlightImports.delete(scriptPath);
+	}
+}
+
+/**
+ * Forgets every script that failed to preload, so the next render evaluates each of them again.
+ *
+ * @remarks
+ * A script fails because of its own source or any module it imports, so no single file change names the scripts to
+ * retry. Development calls it on every change batch; a script that still fails is reported again by that retry.
+ */
+export function clearFailedCustomElementScriptPreloads(
+	scopeStates: Map<string, CustomElementScriptPreloadScopeState>,
+): void {
+	for (const state of scopeStates.values()) {
+		state.preloadFailedScripts.clear();
 	}
 }

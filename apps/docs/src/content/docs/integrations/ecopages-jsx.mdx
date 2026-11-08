@@ -45,8 +45,7 @@ import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	baseUrl: 'https://example.com',
 	integrations: [ecopagesJsxPlugin()],
 });
 ```
@@ -118,14 +117,13 @@ Declare custom-element registration once in `dependencies.scripts`. Ecopages JSX
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
 import type { ThemeToggleProps } from './theme-toggle.script';
 
-export const ThemeToggle = eco.component<ThemeToggleProps, JsxRenderable>({
+export const ThemeToggle = eco.component({
 	dependencies: {
 		scripts: [{ src: './theme-toggle.script.ts', ssr: true }],
 	},
-	render: (props) => <theme-toggle {...props} />,
+	render: (props: ThemeToggleProps) => <theme-toggle {...props} />,
 });
 ```
 
@@ -142,8 +140,7 @@ import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	baseUrl: 'https://example.com',
 	integrations: [
 		ecopagesJsxPlugin({
 			mdx: {

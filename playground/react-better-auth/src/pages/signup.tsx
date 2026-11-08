@@ -11,9 +11,6 @@ type SignupPageProps = {
 export default eco.page<SignupPageProps>({
 	layout: BaseLayout,
 	cache: 'dynamic',
-	dependencies: {
-		components: [SignupForm],
-	},
 	staticProps: async () => ({
 		props: { githubEnabled: isGithubAuthEnabled },
 	}),

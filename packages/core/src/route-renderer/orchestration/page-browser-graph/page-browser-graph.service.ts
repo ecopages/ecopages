@@ -1,4 +1,3 @@
-import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type { PageBrowserGraphContribution, PageBrowserGraphResult } from '../../../types/contracts.ts';
 import {
@@ -11,20 +10,12 @@ import { resolveAssetProcessingIntegration } from '../../../assets/asset-process
 import { appLogger } from '../../../global/app-logger.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
-import { createAppBrowserClientEntryKey } from '../../../assets/app-browser-client-build.ts';
 import {
 	collectPageBrowserGraphDependencyPaths,
 	createPageBrowserGraphEntryFingerprint,
 	type GraphBuildResult,
 	type GraphPolicy,
 } from './page-browser-graph-session.ts';
-import { createRouteGraphLookupKey, pageDependencyInstanceParams } from './route-instance-key.ts';
-import type { GroupedGraphBuildPlan } from './grouped-graph-build-plan.ts';
-import {
-	describeProductionBrowserGraphEntry,
-	missingProductionBrowserGraphError,
-	shouldRejectUnplannedProductionBrowserGraph,
-} from './missing-production-browser-graph.ts';
 
 type GroupedContentScriptAsset = Extract<AssetDefinition, { kind: 'script'; source: 'content' }> & {
 	groupedBundle: {
@@ -37,177 +28,9 @@ function isGroupedContentScriptAsset(asset: AssetDefinition): asset is GroupedCo
 	return asset.kind === 'script' && asset.source === 'content' && Boolean(asset.groupedBundle?.id);
 }
 
-function groupedDependencyKeys(
-	integrationName: string,
-	contribution: PageBrowserGraphContribution | undefined,
-): string[] {
-	return [
-		...new Set(
-			(contribution?.dependencies ?? [])
-				.filter(isGroupedContentScriptAsset)
-				.map((dependency) => createAppBrowserClientEntryKey(integrationName, dependency)),
-		),
-	].sort();
-}
-
-function applyPrebuiltGroupedDependencyMetadata(
-	currentContribution: PageBrowserGraphContribution,
-	plannedContribution: PageBrowserGraphContribution | undefined,
-	integrationName: string,
-): PageBrowserGraphContribution {
-	const plannedDependenciesByKey = new Map(
-		(plannedContribution?.dependencies ?? [])
-			.filter(isGroupedContentScriptAsset)
-			.map((dependency) => [createAppBrowserClientEntryKey(integrationName, dependency), dependency]),
-	);
-	return {
-		...currentContribution,
-		dependencies: currentContribution.dependencies?.map((dependency) => {
-			if (!isGroupedContentScriptAsset(dependency)) return dependency;
-			return (
-				plannedDependenciesByKey.get(createAppBrowserClientEntryKey(integrationName, dependency)) ?? dependency
-			);
-		}),
-	};
-}
-
-function groupedKeysMatch(
-	integrationName: string,
-	left: PageBrowserGraphContribution | undefined,
-	right: PageBrowserGraphContribution | undefined,
-): boolean {
-	return (
-		JSON.stringify(groupedDependencyKeys(integrationName, left)) ===
-		JSON.stringify(groupedDependencyKeys(integrationName, right))
-	);
-}
-
-function findPlannedGroupedInstance(
-	input: PageBrowserGraphResolveInput,
-	contribution: PageBrowserGraphContribution,
-	dependencyInstanceKey: string,
-): GroupedGraphBuildPlan['instances'][number] | undefined {
-	const instances = input.groupedBuildPlan?.instances;
-	if (!instances) return undefined;
-	const routeLookupKey = createRouteGraphLookupKey(input.routeFile, dependencyInstanceKey);
-	const exact = instances.find(
-		(instance) =>
-			!instance.isRouteTemplate &&
-			createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey) === routeLookupKey,
-	);
-	if (exact) return exact;
-	const requestParams = pageDependencyInstanceParams(dependencyInstanceKey);
-	const paramsMatch = instances.find((instance) => {
-		if (instance.isRouteTemplate || instance.routeFile !== input.routeFile) return false;
-		if (!groupedKeysMatch(input.integrationName, instance.contribution, contribution)) return false;
-		return (
-			JSON.stringify(pageDependencyInstanceParams(instance.dependencyInstanceKey)) ===
-			JSON.stringify(requestParams)
-		);
-	});
-	if (paramsMatch) return paramsMatch;
-	return instances.find(
-		(instance) =>
-			instance.routeFile === input.routeFile &&
-			instance.isRouteTemplate === true &&
-			instance.prebuiltGroupedAssets !== undefined &&
-			groupedKeysMatch(input.integrationName, instance.contribution, contribution),
-	);
-}
-
-function remapPlannedInstanceKey(
-	plan: GroupedGraphBuildPlan,
-	plannedInstance: GroupedGraphBuildPlan['instances'][number],
-	dependencyInstanceKey: string,
-): GroupedGraphBuildPlan {
-	if (plannedInstance.dependencyInstanceKey === dependencyInstanceKey) return plan;
-	return {
-		...plan,
-		instances: plan.instances.map((instance) =>
-			instance === plannedInstance
-				? {
-						...instance,
-						dependencyInstanceKey,
-						skipStaticProps: false,
-						isRouteTemplate: false,
-					}
-				: instance,
-		),
-	};
-}
-
-function resolveGroupedBuildPlan(
-	input: PageBrowserGraphResolveInput,
-	contribution: PageBrowserGraphContribution,
-	dependencyInstanceKey: string,
-): {
-	groupedBuildPlan: GroupedGraphBuildPlan | undefined;
-	graphContribution: PageBrowserGraphContribution;
-	usesPrebuiltGroupedAssets: boolean;
-} {
-	if (input.cacheable === false) {
-		return {
-			groupedBuildPlan: undefined,
-			graphContribution: contribution,
-			usesPrebuiltGroupedAssets: false,
-		};
-	}
-
-	const plannedInstance = findPlannedGroupedInstance(input, contribution, dependencyInstanceKey);
-	const groupedBuildPlan =
-		plannedInstance && input.groupedBuildPlan
-			? remapPlannedInstanceKey(input.groupedBuildPlan, plannedInstance, dependencyInstanceKey)
-			: undefined;
-	const usesPrebuiltGroupedAssets = plannedInstance?.prebuiltGroupedAssets !== undefined;
-	const graphContribution = plannedInstance?.isRouteTemplate
-		? applyPrebuiltGroupedDependencyMetadata(contribution, plannedInstance.contribution, input.integrationName)
-		: usesPrebuiltGroupedAssets
-			? (plannedInstance.contribution ?? contribution)
-			: contribution;
-
-	return { groupedBuildPlan, graphContribution, usesPrebuiltGroupedAssets };
-}
-
 function getGroupedBundleAssetKey(groupedBundle: { id: string; entryName: string }): string {
 	return `${groupedBundle.id}:${groupedBundle.entryName}`;
 }
-
-type IndexedGroupedAsset = {
-	asset: ProcessedAsset;
-	index: number;
-};
-
-function indexGroupedAssetsByBundleKey(processedAssets: ProcessedAsset[]): Map<string, IndexedGroupedAsset[]> {
-	const assetsByBundleKey = new Map<string, IndexedGroupedAsset[]>();
-
-	for (const [index, asset] of processedAssets.entries()) {
-		if (!asset.groupedBundle) {
-			continue;
-		}
-
-		const bundleKey = getGroupedBundleAssetKey(asset.groupedBundle);
-		const assets = assetsByBundleKey.get(bundleKey);
-		if (assets) {
-			assets.push({ asset, index });
-		} else {
-			assetsByBundleKey.set(bundleKey, [{ asset, index }]);
-		}
-	}
-
-	return assetsByBundleKey;
-}
-
-type GroupedPageBrowserAssetsResult = {
-	assetsByRoute: Map<string, ProcessedAsset[]>;
-	dependencyPaths: ReadonlySet<string>;
-	cacheable: boolean;
-};
-
-export type GroupedPageBrowserGraphContribution = {
-	routeFile: string;
-	dependencyInstanceKey: string;
-	contribution: PageBrowserGraphContribution | undefined;
-};
 
 export type PageBrowserGraphResolveInput = {
 	routeFile: string;
@@ -215,7 +38,6 @@ export type PageBrowserGraphResolveInput = {
 	integrationName: string;
 	collectContribution: () => Promise<PageBrowserGraphContribution | undefined>;
 	cacheable?: boolean;
-	groupedBuildPlan?: GroupedGraphBuildPlan;
 	policy?: GraphPolicy;
 };
 
@@ -288,27 +110,16 @@ export class PageBrowserGraphService {
 			return undefined;
 		}
 
-		const groupedPlan = resolveGroupedBuildPlan(input, contribution, dependencyInstanceKey);
-		const graphInput = { ...input, groupedBuildPlan: groupedPlan.groupedBuildPlan };
-		const entryFingerprint = [
-			createPageBrowserGraphEntryFingerprint(groupedPlan.graphContribution),
-			...(groupedPlan.usesPrebuiltGroupedAssets ? [groupedPlan.groupedBuildPlan?.planKey ?? ''] : []),
-		].join(':');
-
 		return await session.resolveGraph(
 			{
 				integrationName: input.integrationName,
 				routeFile: input.routeFile,
 				dependencyInstanceKey,
-				entryFingerprint,
+				entryFingerprint: createPageBrowserGraphEntryFingerprint(contribution),
 				policy,
 			},
-			collectPageBrowserGraphDependencyPaths(
-				input.routeFile,
-				groupedPlan.graphContribution,
-				groupedPlan.graphContribution.assets ?? [],
-			),
-			async () => this.buildPageBrowserGraphRecord(graphInput, groupedPlan.graphContribution),
+			collectPageBrowserGraphDependencyPaths(input.routeFile, contribution, contribution.assets ?? []),
+			async () => this.buildPageBrowserGraphRecord(input, contribution),
 			{ reuseCachedResult: input.cacheable !== false },
 		);
 	}
@@ -343,294 +154,50 @@ export class PageBrowserGraphService {
 		input: PageBrowserGraphResolveInput,
 		contribution: PageBrowserGraphContribution,
 	): Promise<GraphBuildResult | undefined> {
-		const routeLookupKey = createRouteGraphLookupKey(input.routeFile, input.dependencyInstanceKey ?? '');
-		const plannedInstance = input.groupedBuildPlan?.instances.find(
-			(instance) =>
-				createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey) === routeLookupKey,
-		);
-		const groupedDependencies = (contribution.dependencies ?? []).filter((dep) => isGroupedContentScriptAsset(dep));
-		const ungroupedDependencies = (contribution.dependencies ?? []).filter(
-			(dep) => !isGroupedContentScriptAsset(dep),
-		);
-		const groupedResolution = await this.resolvePlannedGroupedAssets(
-			input,
-			contribution,
-			plannedInstance,
-			groupedDependencies.length > 0,
-			routeLookupKey,
-		);
-
-		const groupedAssets =
-			groupedResolution?.assetsByRoute.get(
-				createRouteGraphLookupKey(input.routeFile, input.dependencyInstanceKey ?? ''),
-			) ?? [];
-
+		const integration = this.getAssetProcessingIntegration(input.integrationName);
+		const dependencies = contribution.dependencies ?? [];
+		const groupedDependencies = dependencies.filter(isGroupedContentScriptAsset);
+		const ungroupedDependencies = dependencies.filter((dep) => !isGroupedContentScriptAsset(dep));
+		const groupedAssets = groupedDependencies.length
+			? await this.processGroupedDependencies(input, groupedDependencies, integration)
+			: [];
 		const processedDependencies = ungroupedDependencies.length
-			? await this.assetProcessingService.processDependencies(
-					ungroupedDependencies,
-					this.getAssetProcessingIntegration(input.integrationName),
-				)
+			? await this.assetProcessingService.processDependencies(ungroupedDependencies, integration)
 			: [];
 		const resolvedAssets = [...processedDependencies, ...groupedAssets, ...(contribution.assets ?? [])];
 		const result = this.partitionPageBrowserGraphAssets(resolvedAssets);
 		const dependencyPaths = collectPageBrowserGraphDependencyPaths(input.routeFile, contribution, resolvedAssets);
+		const ledger = requireAppRuntime(this.appConfig).processedAssets;
 
 		return {
 			result,
 			dependencyPaths,
-			cacheable: input.cacheable !== false && (groupedResolution?.cacheable ?? true),
+			cacheable: input.cacheable !== false && (groupedDependencies.length === 0 || ledger.hasBrowserBuild),
 		};
 	}
 
-	private async resolvePlannedGroupedAssets(
+	/**
+	 * Processes the route's grouped scripts and keeps the outputs of its own bundles.
+	 *
+	 * @remarks
+	 * In production each one resolves to the output the app-wide browser build recorded for it. Elsewhere they
+	 * build as one grouped bundle for this route, which is not cached across routes.
+	 */
+	private async processGroupedDependencies(
 		input: PageBrowserGraphResolveInput,
-		contribution: PageBrowserGraphContribution,
-		plannedInstance: GroupedGraphBuildPlan['instances'][number] | undefined,
-		hasGroupedDependencies: boolean,
-		routeLookupKey: string,
-	): Promise<GroupedPageBrowserAssetsResult | undefined> {
-		if (plannedInstance?.prebuiltGroupedAssets !== undefined) {
-			return {
-				assetsByRoute: new Map([[routeLookupKey, [...plannedInstance.prebuiltGroupedAssets]]]),
-				dependencyPaths: new Set<string>(),
-				cacheable: true,
-			};
-		}
-		const ungroupedDependencies = (contribution.dependencies ?? []).filter(
-			(dep) => !isGroupedContentScriptAsset(dep),
-		);
-		if (!hasGroupedDependencies && ungroupedDependencies.length === 0) return undefined;
-		if (shouldRejectUnplannedProductionBrowserGraph(this.appConfig)) {
-			throw missingProductionBrowserGraphError(
-				input.routeFile,
-				describeProductionBrowserGraphEntry(undefined, input.dependencyInstanceKey),
+		groupedDependencies: GroupedContentScriptAsset[],
+		integration: AssetProcessingIntegration | undefined,
+	): Promise<ProcessedAsset[]> {
+		const bundleKeys = new Set(groupedDependencies.map((dep) => getGroupedBundleAssetKey(dep.groupedBundle)));
+		const groupedAssets = (
+			await this.assetProcessingService.processDependencies(groupedDependencies, integration)
+		).filter((asset) => asset.groupedBundle && bundleKeys.has(getGroupedBundleAssetKey(asset.groupedBundle)));
+		if (groupedAssets.length === 0) {
+			appLogger.warn(
+				`Grouped page-browser assets for ${input.routeFile} are missing groupedBundle metadata after processing. Hydration scripts may be omitted from HTML.`,
 			);
 		}
-		if (!hasGroupedDependencies) return undefined;
-		return this.resolveGroupedPageBrowserAssets(input, contribution);
-	}
-
-	private async resolveGroupedPageBrowserAssets(
-		input: PageBrowserGraphResolveInput,
-		currentContribution: PageBrowserGraphContribution,
-	): Promise<GroupedPageBrowserAssetsResult> {
-		if (input.cacheable === false) {
-			return {
-				...(await this.buildGroupedPageBrowserAssets(input, currentContribution)),
-				cacheable: false,
-			};
-		}
-
-		if (this.isHmrEnabled()) {
-			return await this.buildGroupedPageBrowserAssets(input, currentContribution);
-		}
-
-		if (!input.groupedBuildPlan) {
-			const built = await this.buildGroupedPageBrowserAssets(input, currentContribution);
-			return {
-				...built,
-				cacheable: false,
-			};
-		}
-
-		const session = requireAppRuntime(this.appConfig).pageBrowserGraphSession;
-		const groupedScope = {
-			integrationName: input.integrationName,
-			planKey: input.groupedBuildPlan.planKey,
-		};
-		const assetsByRoute = await session.resolveGroupedGraph(groupedScope, async () => {
-			const built = await this.buildGroupedPageBrowserAssets(input, currentContribution);
-			return {
-				assetsByRoute: built.assetsByRoute,
-				dependencyPaths: built.dependencyPaths,
-				generation: 0,
-			};
-		});
-
-		return {
-			assetsByRoute,
-			dependencyPaths: new Set(),
-			cacheable: true,
-		};
-	}
-
-	private collectGroupedBuildPlanContributions(
-		input: PageBrowserGraphResolveInput,
-	): GroupedPageBrowserGraphContribution[] {
-		return (input.groupedBuildPlan?.instances ?? []).map((instance) => ({
-			routeFile: instance.routeFile,
-			dependencyInstanceKey: instance.dependencyInstanceKey,
-			contribution: instance.contribution,
-		}));
-	}
-
-	private registerRouteGroupedDependencies(
-		routeLookupKey: string,
-		routeFile: string,
-		routeGroupedDependencies: GroupedContentScriptAsset[],
-		groupedDependencies: AssetDefinition[],
-		groupedAssetKeysByRoute: Map<string, Set<string>>,
-		routeDisplayPaths: Map<string, string>,
-		dependencyPaths: Set<string>,
-	): void {
-		if (routeGroupedDependencies.length === 0) {
-			return;
-		}
-		groupedDependencies.push(...routeGroupedDependencies);
-		groupedAssetKeysByRoute.set(
-			routeLookupKey,
-			new Set(routeGroupedDependencies.map((dep) => getGroupedBundleAssetKey(dep.groupedBundle))),
-		);
-		routeDisplayPaths.set(routeLookupKey, routeFile);
-		dependencyPaths.add(path.resolve(routeFile));
-	}
-
-	private mergePeerGroupedContributions(
-		input: PageBrowserGraphResolveInput,
-		currentContribution: PageBrowserGraphContribution,
-		groupedContributions: GroupedPageBrowserGraphContribution[],
-	): {
-		groupedDependencies: AssetDefinition[];
-		groupedAssetKeysByRoute: Map<string, Set<string>>;
-		routeDisplayPaths: Map<string, string>;
-		dependencyPaths: Set<string>;
-	} {
-		const dependencyInstanceKey = input.dependencyInstanceKey ?? '';
-		const currentRouteLookupKey = createRouteGraphLookupKey(input.routeFile, dependencyInstanceKey);
-		const currentRouteGroupedDependencies = (currentContribution.dependencies ?? []).filter((dep) =>
-			isGroupedContentScriptAsset(dep),
-		);
-		const groupedDependencies: AssetDefinition[] = [...currentRouteGroupedDependencies];
-		const groupedAssetKeysByRoute = new Map<string, Set<string>>();
-		const routeDisplayPaths = new Map<string, string>();
-		const dependencyPaths = new Set<string>([path.resolve(input.routeFile)]);
-
-		if (currentRouteGroupedDependencies.length > 0) {
-			groupedAssetKeysByRoute.set(
-				currentRouteLookupKey,
-				new Set(currentRouteGroupedDependencies.map((dep) => getGroupedBundleAssetKey(dep.groupedBundle))),
-			);
-			routeDisplayPaths.set(currentRouteLookupKey, input.routeFile);
-		}
-
-		for (const groupedContribution of groupedContributions) {
-			if (
-				groupedContribution.routeFile === input.routeFile &&
-				groupedContribution.dependencyInstanceKey === dependencyInstanceKey
-			) {
-				continue;
-			}
-			const { contribution, routeFile } = groupedContribution;
-			if (!contribution?.dependencies?.length) {
-				continue;
-			}
-			const routeGroupedDependencies = contribution.dependencies.filter((dep) =>
-				isGroupedContentScriptAsset(dep),
-			);
-			this.registerRouteGroupedDependencies(
-				createRouteGraphLookupKey(routeFile, groupedContribution.dependencyInstanceKey),
-				routeFile,
-				routeGroupedDependencies,
-				groupedDependencies,
-				groupedAssetKeysByRoute,
-				routeDisplayPaths,
-				dependencyPaths,
-			);
-		}
-
-		return {
-			groupedDependencies,
-			groupedAssetKeysByRoute,
-			routeDisplayPaths,
-			dependencyPaths,
-		};
-	}
-
-	private addGroupedDependencyFilePaths(groupedDependencies: AssetDefinition[], dependencyPaths: Set<string>): void {
-		for (const dependency of groupedDependencies) {
-			if (dependency.source === 'file') {
-				dependencyPaths.add(path.resolve(dependency.filepath));
-			}
-		}
-	}
-
-	private matchGroupedAssetsByRoute(
-		groupedAssetKeysByRoute: Map<string, Set<string>>,
-		routeDisplayPaths: Map<string, string>,
-		groupedAssetsByBundleKey: Map<string, IndexedGroupedAsset[]>,
-	): Map<string, ProcessedAsset[]> {
-		const groupedAssetsByRoute = new Map<string, ProcessedAsset[]>();
-
-		for (const [routeLookupKey, groupedAssetKeys] of groupedAssetKeysByRoute) {
-			const matchedAssets = [...groupedAssetKeys]
-				.flatMap((assetKey) => groupedAssetsByBundleKey.get(assetKey) ?? [])
-				.sort((left, right) => left.index - right.index)
-				.map(({ asset }) => asset);
-
-			if (groupedAssetKeys.size > 0 && matchedAssets.length === 0) {
-				appLogger.warn(
-					`Grouped page-browser assets for ${routeDisplayPaths.get(routeLookupKey) ?? routeLookupKey} are missing groupedBundle metadata after processing. Hydration scripts may be omitted from HTML.`,
-				);
-			}
-
-			groupedAssetsByRoute.set(routeLookupKey, matchedAssets);
-		}
-
-		return groupedAssetsByRoute;
-	}
-
-	private addProcessedGroupedAssetDependencyPaths(
-		processedGroupedDependencies: ProcessedAsset[],
-		dependencyPaths: Set<string>,
-	): void {
-		for (const asset of processedGroupedDependencies) {
-			if (asset.sourceFilepath) {
-				dependencyPaths.add(path.resolve(asset.sourceFilepath));
-			}
-			for (const bundledSourceFilepath of asset.bundledSourceFilepaths ?? []) {
-				dependencyPaths.add(path.resolve(bundledSourceFilepath));
-			}
-		}
-	}
-
-	private async buildGroupedPageBrowserAssets(
-		input: PageBrowserGraphResolveInput,
-		currentContribution: PageBrowserGraphContribution,
-	): Promise<GroupedPageBrowserAssetsResult> {
-		const { groupedDependencies, groupedAssetKeysByRoute, routeDisplayPaths, dependencyPaths } =
-			this.mergePeerGroupedContributions(
-				input,
-				currentContribution,
-				this.collectGroupedBuildPlanContributions(input),
-			);
-
-		if (groupedDependencies.length === 0) {
-			return {
-				assetsByRoute: new Map(),
-				dependencyPaths,
-				cacheable: Boolean(input.groupedBuildPlan),
-			};
-		}
-
-		this.addGroupedDependencyFilePaths(groupedDependencies, dependencyPaths);
-
-		const processedGroupedDependencies = await this.assetProcessingService.processDependencies(
-			groupedDependencies,
-			this.getAssetProcessingIntegration(input.integrationName),
-		);
-		const groupedAssetsByBundleKey = indexGroupedAssetsByBundleKey(processedGroupedDependencies);
-		const groupedAssetsByRoute = this.matchGroupedAssetsByRoute(
-			groupedAssetKeysByRoute,
-			routeDisplayPaths,
-			groupedAssetsByBundleKey,
-		);
-		this.addProcessedGroupedAssetDependencyPaths(processedGroupedDependencies, dependencyPaths);
-
-		return {
-			assetsByRoute: groupedAssetsByRoute,
-			dependencyPaths,
-			cacheable: Boolean(input.groupedBuildPlan),
-		};
+		return groupedAssets;
 	}
 
 	private partitionPageBrowserGraphAssets(assets: ProcessedAsset[]): PageBrowserGraphResult {

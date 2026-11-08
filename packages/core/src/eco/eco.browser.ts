@@ -1,13 +1,10 @@
 import type {
 	EcoComponent,
 	EcoHtmlComponent,
-	EcoLayoutComponent,
+	LayoutProps,
 	EcoPagesElement,
 	EcoPageComponent,
 	FileRouteMiddleware,
-	GetMetadata,
-	GetStaticPaths,
-	GetStaticProps,
 	RequestPageContext,
 } from '../types/contracts.ts';
 import type { CacheStrategy } from '../page-cache/cache.types.ts';
@@ -21,6 +18,14 @@ import type {
 } from '../types/eco-api-types.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
 
+/**
+ * Creates a browser component that renders inline for every caller.
+ *
+ * @remarks
+ * A Component another Integration owns still renders its own result here. The React integration gives its own
+ * modules a boundary for such a Component when it builds them, so the factory does not know which Integration
+ * calls it.
+ */
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	const component = ((props: P) => options.render(props)) as EcoComponent<P, E>;
 
@@ -59,8 +64,10 @@ function html<E = EcoPagesElement>(options: HtmlOptions<E>): EcoHtmlComponent<E>
 	return createComponentFactory(options) as EcoHtmlComponent<E>;
 }
 
-function layout<E = EcoPagesElement>(options: LayoutOptions<E>): EcoLayoutComponent<E> {
-	return createComponentFactory(options) as EcoLayoutComponent<E>;
+function layout<E = EcoPagesElement, P extends LayoutProps<E> = LayoutProps<E>>(
+	options: LayoutOptions<E, P>,
+): EcoComponent<P, E> {
+	return createComponentFactory(options);
 }
 
 function page<T, E>(
@@ -127,25 +134,10 @@ function page<T, E>(
 	return pageComponent;
 }
 
-function metadata<T = Record<string, unknown>>(fn: GetMetadata<T>): GetMetadata<T> {
-	return fn;
-}
-
-function staticPaths(fn: GetStaticPaths): GetStaticPaths {
-	return fn;
-}
-
-function staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
-	return fn;
-}
-
 export const eco: Eco = {
 	component,
 	embed,
 	html,
 	layout,
 	page,
-	metadata,
-	staticPaths,
-	staticProps,
 };

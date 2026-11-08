@@ -1,0 +1,150 @@
+import { path } from '@ecopages/file-system/path';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { Processor, ProcessorExtensionPattern } from './processor.ts';
+
+const CSS_EXTENSION = '.css';
+const CSS_MODULE_INFIX = '.module';
+
+/**
+ * Answers which files are stylesheets and which of those are CSS Modules.
+ *
+ * @remarks
+ * A stylesheet is a `.css` file, plus a file with an extension the registered stylesheet Processor declares.
+ * Core names no other extension, so an app without a stylesheet Processor handles plain CSS only.
+ */
+export interface StylesheetKinds {
+	/** The lowercase, dotted stylesheet extensions, `.css` first. */
+	readonly extensions: readonly string[];
+	/** Whether `file`, a path or an import specifier, names a stylesheet. */
+	isStylesheet(file: string): boolean;
+	/**
+	 * Whether `file` names a CSS Module: `.module.css`, or `.module.<ext>` for an extension declared by a capability
+	 * that sets `cssModules`. Any other `.module.<ext>` is a plain stylesheet.
+	 */
+	isCssModule(file: string): boolean;
+	/** Whether the stylesheet Processor declares that it scopes CSS Modules. */
+	readonly scopesCssModules: boolean;
+}
+
+/**
+ * Concrete dotted extensions a Processor extension pattern names.
+ *
+ * @remarks
+ * Handles `.css`, `css`, `*.css` and `*.{css,scss}`. The bare `*` wildcard and patterns that are not an
+ * extension name none, so a Processor cannot turn every file into a stylesheet.
+ */
+export function extensionsOfPattern(pattern: ProcessorExtensionPattern): string[] {
+	const normalized = pattern.trim().toLowerCase();
+	const grouped = /^\*\.\{(.+)\}$/.exec(normalized);
+	const items = grouped ? grouped[1]!.split(',') : [normalized.replace(/^\*/, '')];
+	return items
+		.map((item) => item.trim().replace(/^\./, ''))
+		.filter((item) => item !== '' && !/[*{},/]/.test(item))
+		.map((item) => `.${item}`);
+}
+
+/**
+ * Finds the one Processor that declares a `stylesheet` capability.
+ *
+ * @throws When two Processors declare one, naming both.
+ */
+export function findStylesheetProcessor(processors: Iterable<Processor>): Processor | undefined {
+	let found: Processor | undefined;
+	for (const processor of processors) {
+		if (!processor.canProcessAsset('stylesheet')) continue;
+		if (found) {
+			throw new Error(
+				`Only one Processor may declare a stylesheet capability, but "${found.name}" and "${processor.name}" both do.`,
+			);
+		}
+		found = processor;
+	}
+	return found;
+}
+
+/**
+ * Builds the {@link StylesheetKinds} for the stylesheet Processor among `processors`, or for plain CSS alone.
+ *
+ * @throws When two Processors declare a `stylesheet` capability.
+ */
+export function createStylesheetKinds(processors: Iterable<Processor> = []): StylesheetKinds {
+	const capabilities = (findStylesheetProcessor(processors)?.getAssetCapabilities() ?? []).filter(
+		(capability) => capability.kind === 'stylesheet',
+	);
+	const declared = capabilities.flatMap((capability) => (capability.extensions ?? []).flatMap(extensionsOfPattern));
+	const extensions = [...new Set([CSS_EXTENSION, ...declared])];
+	const moduleExtensions = new Set([
+		CSS_EXTENSION,
+		...capabilities
+			.filter((capability) => capability.cssModules === true)
+			.flatMap((capability) => (capability.extensions ?? []).flatMap(extensionsOfPattern)),
+	]);
+	const moduleSuffixes = [...moduleExtensions].map((extension) => `${CSS_MODULE_INFIX}${extension}`);
+	const endsWithAny = (file: string, suffixes: readonly string[]) => {
+		const lower = file.toLowerCase();
+		return suffixes.some((suffix) => lower.endsWith(suffix));
+	};
+	return {
+		extensions,
+		isStylesheet: (file) => endsWithAny(file, extensions),
+		isCssModule: (file) => endsWithAny(file, moduleSuffixes),
+		scopesCssModules: capabilities.some((capability) => capability.cssModules === true),
+	};
+}
+
+/** What to do about a CSS Module when no registered stylesheet Processor scopes them. */
+export const CSS_MODULE_PROCESSOR_FIX =
+	'No stylesheet Processor scopes CSS Modules. Install @ecopages/lightningcss-processor and register it in the Processors of eco.config.ts.';
+
+/** The kinds of an app with no stylesheet Processor. */
+export const PLAIN_CSS_KINDS: StylesheetKinds = createStylesheetKinds();
+
+/** The {@link StylesheetKinds} of the Processors registered on `appConfig`. */
+export function getStylesheetKinds(appConfig: Pick<EcoPagesAppConfig, 'processors'>): StylesheetKinds {
+	return createStylesheetKinds(appConfig.processors?.values() ?? []);
+}
+
+/**
+ * Extensions of the files a stylesheet reference may copy into the build: fonts, images and media, the types CSS
+ * loads.
+ */
+const EMITTABLE_REFERENCE_EXTENSIONS = new Set([
+	'.woff2',
+	'.woff',
+	'.ttf',
+	'.otf',
+	'.eot',
+	'.png',
+	'.jpg',
+	'.jpeg',
+	'.gif',
+	'.webp',
+	'.avif',
+	'.svg',
+	'.ico',
+	'.bmp',
+	'.apng',
+	'.jxl',
+	'.tif',
+	'.cur',
+	'.mp4',
+	'.webm',
+	'.mov',
+	'.ogg',
+	'.mp3',
+	'.m4a',
+	'.wav',
+]);
+
+/**
+ * Whether a stylesheet reference may copy `file` into the build.
+ *
+ * @remarks
+ * Protection goes by what is copied, not where it lives: in a monorepo the app's packages, hoisted or in pnpm's
+ * store, sit outside its folder, and a package may name a sibling dependency's files. Only a font, image or media
+ * file is copied, never a dotfile, so a reference such as `url(../../.env)` cannot publish a secret or a source file.
+ */
+export function isEmittableReferenceFile(file: string): boolean {
+	const name = path.basename(file);
+	return !name.startsWith('.') && EMITTABLE_REFERENCE_EXTENSIONS.has(path.extname(name).toLowerCase());
+}

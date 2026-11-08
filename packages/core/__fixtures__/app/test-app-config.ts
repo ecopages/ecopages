@@ -1,10 +1,14 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { createApp, type EcopagesAppOptions } from '../../src/adapters/create-app.ts';
 import { finalizeEcoPagesConfig } from '../../src/config/assembly/finalize-config.ts';
 import { loadEcoPagesConfig } from '../../src/config/load-eco-config.ts';
+import type { GlobalScriptResolution } from '../../src/config/assembly/app-runtime.ts';
 import { createFixtureUserConfig, fixtureRootDir } from './fixture-user-config.ts';
 
-export type CreateFixtureAppConfigOptions =
+export type CreateFixtureAppConfigOptions = {
+	/** Pass `'browser-build'` when the test runs a production export with the config. */
+	globalScriptResolution?: GlobalScriptResolution;
+} & (
 	| {
 			/** Loads and finalizes a config module from the fixture directory (for example `eco.config.postcss.ts`). */
 			configFile?: string;
@@ -14,7 +18,8 @@ export type CreateFixtureAppConfigOptions =
 			configFile?: never;
 			/** Root of a copy of the fixture app, for tests that edit sources or write build output. */
 			rootDir?: string;
-	  };
+	  }
+);
 
 /**
  * Finalizes the fixture app config for unit tests.
@@ -26,10 +31,16 @@ export type CreateFixtureAppConfigOptions =
  */
 export async function createFixtureAppConfig(options: CreateFixtureAppConfigOptions = {}) {
 	if (options.configFile) {
-		return await loadEcoPagesConfig({ cwd: fixtureRootDir, configFile: options.configFile });
+		return await loadEcoPagesConfig({
+			cwd: fixtureRootDir,
+			configFile: options.configFile,
+			globalScriptResolution: options.globalScriptResolution,
+		});
 	}
 
-	return await finalizeEcoPagesConfig(createFixtureUserConfig(options.rootDir ? { rootDir: options.rootDir } : {}));
+	return await finalizeEcoPagesConfig(createFixtureUserConfig(options.rootDir ? { rootDir: options.rootDir } : {}), {
+		globalScriptResolution: options.globalScriptResolution,
+	});
 }
 
 export type CreateFixtureAppOptions = { configFile?: string } & Omit<

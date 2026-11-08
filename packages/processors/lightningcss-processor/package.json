@@ -1,0 +1,80 @@
+{
+	"name": "@ecopages/lightningcss-processor",
+	"version": "0.6.0",
+	"description": "Lightning CSS stylesheet processor for Ecopages: bundles @import, lowers for browser targets and minifies",
+	"keywords": [
+		"lightningcss",
+		"processor",
+		"css"
+	],
+	"license": "MIT",
+	"engines": {
+		"node": "^24.22.0 || >=26.0.0"
+	},
+	"main": "./src/index.ts",
+	"type": "module",
+	"types": "./src/index.ts",
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"src"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ecopages/ecopages.git",
+		"directory": "packages/processors/lightningcss-processor"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@ecopages/file-system": "workspace:*",
+		"@ecopages/logger": "^0.2.3",
+		"browserslist": "^4.28.2",
+		"lightningcss": "1.33.0"
+	},
+	"peerDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@tailwindcss/node": ">=4",
+		"@tailwindcss/oxide": ">=4",
+		"tailwindcss": ">=4"
+	},
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@tailwindcss/node": "^4.3.0",
+		"@tailwindcss/oxide": "^4.3.0",
+		"postcss": "^8.5.14",
+		"postcss-nested": "^8.0.1",
+		"tailwindcss": "^4.3.0"
+	},
+	"exports": {
+		".": {
+			"default": "./src/index.ts",
+			"types": "./src/index.ts"
+		},
+		"./plugin": {
+			"default": "./src/plugin.ts",
+			"types": "./src/plugin.ts"
+		},
+		"./presets/tailwind-v4": {
+			"default": "./src/presets/tailwind-v4.ts",
+			"types": "./src/presets/tailwind-v4.ts"
+		},
+		"./plugins/suffix-nesting": {
+			"default": "./src/plugins/suffix-nesting.ts",
+			"types": "./src/plugins/suffix-nesting.ts"
+		}
+	},
+	"peerDependenciesMeta": {
+		"@tailwindcss/node": {
+			"optional": true
+		},
+		"@tailwindcss/oxide": {
+			"optional": true
+		},
+		"tailwindcss": {
+			"optional": true
+		}
+	}
+}

@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 
-const integrationsRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../integrations');
+const integrationsRoot = path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../../../integrations');
 
 function collectIntegrationSourceFiles(directory: string): string[] {
 	const entries = readdirSync(directory, { withFileTypes: true });

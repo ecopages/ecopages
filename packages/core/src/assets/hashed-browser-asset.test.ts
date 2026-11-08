@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import {
 	hashBrowserAssetBytes,
@@ -13,7 +13,7 @@ import {
 let directory: string;
 
 beforeEach(() => {
-	directory = mkdtempSync(path.join(tmpdir(), 'hashed-browser-asset-'));
+	directory = path.fromNative(mkdtempSync(path.join(tmpdir(), 'hashed-browser-asset-')));
 });
 
 afterEach(() => {

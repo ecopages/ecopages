@@ -1,5 +1,6 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
+import { path } from '@ecopages/file-system/path';
 import { hashBrowserAssetBytes } from '../../../hashed-browser-asset.ts';
 import { FileScriptProcessor } from './file-script.processor';
 import { BrowserBundleService } from '../../../browser-bundle.service.ts';
@@ -434,18 +435,16 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('carries build inputs and the entry module closure onto the processed asset', async () => {
-			const entrypoint = '/test/project/src/pages/index.tsx';
-			const helper = '/test/project/src/lib/posts.ts';
-			const pluginInput = '/test/project/data/posts.json';
+			const entrypoint = path.resolve('/test/project/src/pages/index.tsx');
+			const helper = path.resolve('/test/project/src/lib/posts.ts');
+			const pluginInput = path.resolve('/test/project/data/posts.json');
 			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue(
 				createBuildSuccess({
 					outputs: [{ path: '/tmp/index.js' }],
 					entryOutputs: { [entrypoint]: '/tmp/index.js' },
-					loadedInputs: [pluginInput],
-					loadedInputsByModule: { [entrypoint]: [pluginInput] },
 					dependencyGraph: {
 						entrypoints: {
-							[entrypoint]: [entrypoint, helper],
+							[entrypoint]: [entrypoint, helper, pluginInput],
 						},
 					},
 				}),
@@ -460,6 +459,34 @@ describe('FileScriptProcessor', () => {
 			});
 
 			expect(result.bundledSourceFilepaths).toEqual([entrypoint, helper, pluginInput]);
+		});
+
+		test('fails an inline script whose import starts a worker, naming both files', async () => {
+			const entrypoint = path.resolve('/test/project/src/inline.ts');
+			const starter = path.resolve('/test/project/src/start-worker.ts');
+			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue(
+				createBuildSuccess({
+					outputs: [{ path: '/tmp/inline.js' }],
+					entryOutputs: { [entrypoint]: '/tmp/inline.js' },
+					dependencyGraph: { entrypoints: { [entrypoint]: [entrypoint, starter] } },
+				}),
+			);
+			existsMock.mockReturnValue(true);
+			readFileSyncMock.mockImplementation((filePath: string) =>
+				filePath === starter
+					? "new Worker(new URL('./echo.worker.ts', import.meta.url), { type: 'module' });"
+					: "import './start-worker.ts';",
+			);
+
+			await expect(
+				createProcessor().process({
+					kind: 'script',
+					source: 'file',
+					filepath: entrypoint,
+					bundle: true,
+					inline: true,
+				}),
+			).rejects.toThrow(`${entrypoint} is inline, but ${starter} starts new Worker(new URL("./echo.worker.ts"`);
 		});
 
 		test('throws the formatted logs of a failed bundle, with plugin and file', async () => {

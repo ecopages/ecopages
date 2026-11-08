@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { EcoPageFile } from '../types/contracts.ts';
@@ -35,7 +35,7 @@ export class HtmlPagesPlugin extends IntegrationPlugin {
 	override compilePageModule(filePath: string, appConfig: EcoPagesAppConfig): EcoPageFile {
 		const file = path.resolve(filePath);
 		const { pagesDir, htmlTemplatePath } = appConfig.absolutePaths;
-		if (!file.startsWith(`${pagesDir}${path.sep}`) && file !== htmlTemplatePath) {
+		if (!file.startsWith(`${pagesDir}/`) && file !== htmlTemplatePath) {
 			throw new Error(
 				`[ecopages] ${file} is neither a Page under ${pagesDir} nor the HTML template, so HTML Pages cannot load it.`,
 			);

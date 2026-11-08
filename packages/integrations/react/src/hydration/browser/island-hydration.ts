@@ -2,9 +2,8 @@
  * Browser-side React Island Host lifecycle.
  *
  * @remarks
- * This module intentionally receives React's browser runtime as a value. The
- * server entry compiler can therefore keep the application's React and
- * ReactDOM imports external while bundling this framework-owned lifecycle.
+ * The generated Island Host entry imports React and passes its runtime in as a value, so this module itself has no
+ * React import.
  */
 
 export type IslandComponent = (props: Record<string, unknown>) => unknown;
@@ -52,7 +51,7 @@ type IslandWindowRuntime = {
 
 type IslandWindow = Window & { __ECO_PAGES__?: IslandWindowRuntime };
 
-/** Configuration for one compiled React Island Host entry. */
+/** Configuration for one generated React Island Host entry. */
 export type IslandHydrationOptions = {
 	targetSelector: string;
 	componentModule: Record<string, unknown>;
@@ -191,7 +190,7 @@ function IslandLifecycle({ target, runtime, Component, props }: IslandLifecycleP
  *
  * @remarks
  * Decodes the format core's `encodeIslandProps` writes in `islands/island-host.ts` (base64 of UTF-8 JSON). It is
- * inlined because this module compiles into a self-contained browser script that cannot import core.
+ * inlined so this module does not pull core's server-side island code into the browser.
  */
 function readProps(target: HTMLElement): Record<string, unknown> {
 	try {

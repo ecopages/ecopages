@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { AssetProcessingService } from '../assets/asset-processing-service/asset-processing.service.ts';
@@ -60,7 +60,7 @@ describe('HtmlPageRenderer', () => {
 		});
 
 	beforeEach(async () => {
-		rootDir = mkdtempSync(path.join(tmpdir(), 'eco-html-renderer-'));
+		rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-html-renderer-')));
 		mkdirSync(at('src/pages'), { recursive: true });
 		appConfig = await finalizeEcoPagesConfig({ rootDir });
 		processed = [];
@@ -397,9 +397,9 @@ describe('HtmlPageRenderer', () => {
 		const readOutput = (url: string) => readFileSync(path.join(appConfig.absolutePaths.distDir, url), 'utf8');
 		const outputsMatching = (pattern: RegExp) => {
 			const distDir = appConfig.absolutePaths.distDir;
-			return readdirSync(distDir, { recursive: true, encoding: 'utf8' }).filter(
-				(name) => name.endsWith('.js') && pattern.test(readFileSync(path.join(distDir, name), 'utf8')),
-			);
+			return readdirSync(distDir, { recursive: true, encoding: 'utf8' })
+				.map((name) => path.fromNative(name))
+				.filter((name) => name.endsWith('.js') && pattern.test(readFileSync(path.join(distDir, name), 'utf8')));
 		};
 		/** The URLs of `entryUrls` and every file they import statically, transitively. */
 		const loadedUrls = (entryUrls: string[]) => {
@@ -791,6 +791,19 @@ describe('HtmlPageRenderer', () => {
 			write(
 				'src/components/card.eco.ts',
 				"import { eco } from '@ecopages/core';\nimport './card.css';\nexport const Card = eco.component({ render: () => '<div></div>' });",
+			);
+			write('src/pages/main.ts', "import { Card } from '../components/card.eco.ts';\nconsole.log(Card);");
+
+			expect(await renderWithHmr(page('main.ts'))).toContain('<script type="module" src="/assets/main.ts">');
+		});
+
+		it('allows a package stylesheet import the component meta transform moves into Component Dependencies', async () => {
+			appConfig.integrations.push({ name: 'test-string', extensions: ['.eco.ts'] } as never);
+			write('node_modules/slider/package.json', '{ "name": "slider", "exports": { "./css": "./slider.css" } }');
+			write('node_modules/slider/slider.css', '.slider {}');
+			write(
+				'src/components/card.eco.ts',
+				"import { eco } from '@ecopages/core';\nimport 'slider/css';\nexport const Card = eco.component({ render: () => '<div></div>' });",
 			);
 			write('src/pages/main.ts', "import { Card } from '../components/card.eco.ts';\nconsole.log(Card);");
 

@@ -6,12 +6,7 @@ import type { EcoComponent, EcoFunctionComponent, EcoPagesElement, PageParams } 
 import type { RouteRenderResult, RouteRendererOptions } from '@ecopages/core/integration';
 import { createIntegrationRenderer, type IntegrationRendererHookFactoryOptions } from '@ecopages/core/integration';
 import { resolveQueuedTokens } from '@ecopages/core/integration';
-import {
-	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
-	CustomElementScriptPreloader,
-	type CustomElementSsrPreloadComponent,
-} from '@ecopages/core/integration';
-import { requireAppRuntime } from '@ecopages/core/integration';
+import { CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES } from '@ecopages/core/integration';
 import { createCustomElementServerModuleImporter } from '@ecopages/core/integration';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
@@ -19,6 +14,7 @@ import {
 	injectLitRenderedChildren,
 	LIT_COMPONENT_CHILDREN_SLOT_MARKER,
 	normalizeLitHtml,
+	renderLitCustomElementsInMarkup,
 	renderLitValueToString,
 } from './utils/lit-html-rendering.ts';
 
@@ -28,48 +24,30 @@ export type LitRenderer = InstanceType<ReturnType<typeof createLitRenderer>>;
  * Creates the Lit renderer class with a lazy worker-session lookup.
  *
  * @remarks
- * Serving has no session, so page SSR and `ssr: true` preloads run in-process. Static export may create the
- * renderer before `staticExport()` assigns the session, so hooks read it when they run instead of capturing
- * its construction-time value.
+ * Serving has no session, so page SSR runs in-process. Static export may create the renderer before
+ * `staticExport()` assigns the session, so hooks read it when they run instead of capturing its
+ * construction-time value. `ssr: true` preloads always use the in-process preloader, so an export emits no
+ * browser bundle for them.
  */
 export function createLitRenderer(
 	getRenderSession: () => LitStaticRenderSession | undefined = () => undefined,
 ): ReturnType<typeof createIntegrationRenderer<EcoPagesElement>> {
 	return createIntegrationRenderer<EcoPagesElement>(
 		LIT_PLUGIN_NAME,
-		({ appConfig, resolveDependencyPath }: IntegrationRendererHookFactoryOptions) => {
-			const ssrScriptPreloader = new CustomElementScriptPreloader({
+		({ appConfig, createSsrScriptPreloader }: IntegrationRendererHookFactoryOptions) => {
+			const ssrScriptPreloader = createSsrScriptPreloader({
 				cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
-				preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
+				integrationName: LIT_PLUGIN_NAME,
 				logLabel: 'lit',
-				requireLazyScriptEntry: true,
-				resolveDependencyPath,
 				importServerModule: createCustomElementServerModuleImporter(appConfig, '.lit-ssr'),
 			});
 
-			const preloadSsrScripts = async (
-				components: Array<CustomElementSsrPreloadComponent | undefined>,
-			): Promise<void> => {
-				const renderSession = getRenderSession();
-				if (renderSession) {
-					await renderSession.preloadSsrScripts(components);
-					return;
-				}
-
-				await ssrScriptPreloader.preloadSsrScripts(components);
-			};
-
 			return {
-				beforeRender: async (renderOptions) =>
-					preloadSsrScripts([
-						renderOptions.Page,
-						renderOptions.Layout,
-						...(renderOptions.pageDependencyComponents ?? []),
-					]),
 				transformDocumentHtml: normalizeLitHtml,
+				renderCustomElements: renderLitCustomElementsInMarkup,
 				renderRemote: (routeOptions) => renderLitPageInWorker(routeOptions, getRenderSession),
 				renderComponent: async (input) => {
-					await preloadSsrScripts([input.component]);
+					await ssrScriptPreloader.preloadSsrScripts([input.component]);
 
 					if (!isFunctionComponent(input.component)) {
 						throw new TypeError('Lit renderer expected a callable component.');

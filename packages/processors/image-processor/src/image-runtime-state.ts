@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { ImageSpecifications } from './types.ts';
 import { anyCaseToCamelCase } from './utils.ts';

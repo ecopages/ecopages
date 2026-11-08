@@ -8,6 +8,7 @@ import {
 	gotoPath,
 	trackRuntimeErrors,
 } from './helpers';
+import { trackReactModules } from '../../../e2e/utils/react-modules';
 
 async function requestUntilContains(request: APIRequestContext, href: string, text: string) {
 	await expect
@@ -131,7 +132,7 @@ test.describe('Kitchen Sink Preview Regressions @preview', () => {
 
 		expect(html).toContain('<!--lit-part');
 		expect(html).toContain('data-lit-shell="integration-matrix-host-shell-lit"');
-		expect(html).toContain('<lit-counter count="0" data-counter-kind="lit"></lit-counter>');
+		expect(html).toMatch(/<lit-counter\b[^>]*data-counter-kind="lit"[^>]*><template shadowrootmode="open">/);
 		expect(html).not.toContain('<--content-->');
 
 		const runtime = trackRuntimeErrors(page);
@@ -141,22 +142,48 @@ test.describe('Kitchen Sink Preview Regressions @preview', () => {
 		runtime.assertClean();
 	});
 
-	test('keeps React preview vendors available and hydration interactive', async ({ request, page }) => {
-		const reactVendorResponse = await requestGetAndWait(request, '/assets/vendors/react.js', 10000);
-		expect(reactVendorResponse.ok()).toBe(true);
-		expect(reactVendorResponse.headers()['content-type']).toContain('javascript');
+	for (const href of [
+		'/discovery',
+		'/discovery-foreign',
+		'/react-content',
+		'/integration-matrix/kita',
+		'/integration-matrix/lit-entry',
+		'/integration-matrix/react-entry',
+		'/integration-matrix/ecopages-jsx-entry',
+	]) {
+		test(`loads one copy of Lit on ${href}`, async ({ page }) => {
+			const litModules: string[] = [];
+			page.on('response', async (response) => {
+				if (!new URL(response.url()).pathname.endsWith('.js')) return;
+				const body = await response.text().catch(() => '');
+				if (body.includes('litHtmlVersions')) litModules.push(response.url());
+			});
+			await gotoPath(page, href);
+			await page.waitForLoadState('networkidle');
+			await page.mouse.wheel(0, 10_000);
+			await page.waitForLoadState('networkidle');
 
-		const reactDomVendorResponse = await requestGetAndWait(request, '/assets/vendors/react-dom.js', 10000);
-		expect(reactDomVendorResponse.ok()).toBe(true);
-		expect(reactDomVendorResponse.headers()['content-type']).toContain('javascript');
+			expect(litModules.length, litModules.join('\n')).toBeLessThanOrEqual(1);
+			const litVersions = await page.evaluate(
+				() => (globalThis as { litHtmlVersions?: string[] }).litHtmlVersions ?? [],
+			);
+			expect(litVersions.length, litVersions.join(', ')).toBeLessThanOrEqual(1);
+		});
+	}
+
+	test('loads React from one immutable chunk and keeps hydration interactive', async ({ request, page }) => {
 		await requestUntilContains(request, '/react-lab', 'React Page Route');
 
 		const runtime = trackRuntimeErrors(page);
+		const readReactModules = trackReactModules(page);
 		await gotoAndWaitForHeading(page, '/react-lab', 'React Page Route');
 		await expect(page.getByRole('heading', { name: 'React Page Route' })).toBeVisible();
 		await expect(page.locator('[data-react-value]')).toHaveText('0');
 		await waitForReactPageHydration(page);
 		await incrementCounter(page.locator('[data-react-inc]'), page.locator('[data-react-value]'), '1');
+		const reactModules = await readReactModules();
+		expect(reactModules).toHaveLength(1);
+		expect(reactModules[0]?.cacheControl).toContain('immutable');
 		runtime.assertClean();
 	});
 });

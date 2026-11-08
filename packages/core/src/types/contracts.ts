@@ -33,7 +33,7 @@ export type HmrStrategyContract = {
 	readonly priorityOffset: number;
 	readonly priority: number;
 	matches(filePath: string): boolean;
-	ownsDevTransformEntrypoint(sourcePath: string): boolean;
+	ownsDevTransformEntrypoint(sourcePath: string, variant?: string): boolean;
 	process(filePath: string): Promise<HmrAction>;
 };
 
@@ -287,12 +287,13 @@ export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void
 
 /**
  * Adapter-agnostic interface for broadcasting development events to connected clients.
- * Implemented by the Node client bridge.
+ * An adapter's bridge extends the shared `ClientBridge`, which implements every event over its `broadcast`.
  */
 export interface IClientBridge {
 	broadcast(event: ClientBridgeEvent): void;
 	reload(): void;
-	cssUpdate(path: string): void;
+	/** Refreshes the stylesheet the browser loads from `sourceFile`, the source whose processed output changed. */
+	cssUpdate(sourceFile: string): void;
 	update(path: string): void;
 	error(message: string): void;
 	subscriberCount: number;
@@ -334,6 +335,15 @@ export interface IHmrManager {
 	tryHandleDevClientRequest(request: Request): Promise<Response | null>;
 
 	/**
+	 * Rewrites the imports of a module the browser loads as written, as the dev transform server rewrites a
+	 * transpiled module: bare imports become vendor URLs, and named imports of a CommonJS vendor read its default
+	 * export.
+	 *
+	 * @param importerPath - Path relative imports resolve from.
+	 */
+	rewriteModuleImports(code: string, importerPath: string): Promise<string>;
+
+	/**
 	 * Registers a custom HMR strategy.
 	 */
 	registerStrategy(strategy: HmrStrategyContract): void;
@@ -364,6 +374,16 @@ export interface IHmrManager {
 	 * Broadcasts an HMR event to connected clients.
 	 */
 	broadcast(event: ClientBridgeEvent): void;
+
+	/**
+	 * Shows `message` in the browser overlay for a build error found while answering a request, and replays it to
+	 * a browser that connects later.
+	 *
+	 * @remarks
+	 * `source` is the file that failed. The error stays until the next file change, as a dev-transform failure
+	 * does; a request that still fails reports it again.
+	 */
+	reportBuildError(source: string, message: string): void;
 
 	/**
 	 * Returns an existing emitted HMR script artifact without registering it.
@@ -594,6 +614,19 @@ export interface ForeignChildRuntime {
 }
 
 /**
+ * The Integration that renders Eco Components in the browser, and what it renders in place of a Foreign Child.
+ *
+ * @remarks
+ * Kept for compatibility: the browser `eco` factories no longer read a host from `window.__ECO_PAGES__`. They
+ * render inline for every caller, and the React integration swaps a foreign-owned Component for its boundary
+ * when it builds React modules.
+ */
+export interface BrowserForeignChildHost {
+	integration: string;
+	renderForeignChild(component: EcoComponent, props: Record<string, unknown>): unknown;
+}
+
+/**
  * Represents a page in EcoPages.
  */
 export type PageProps<T = unknown> = T & StaticPageContext & { locals?: RequestLocals };
@@ -713,20 +746,31 @@ export type LayoutPropsContext = {
 };
 
 /**
- * One layout tier in a page layout stack (outer→inner).
+ * One normalized layout tier in a page layout stack (outer→inner), as stored on page config.
  */
-export type EcoPageLayoutEntry<E = EcoPagesElement> = {
-	component: EcoComponent<any, E>;
+export type EcoPageLayoutEntry = {
+	component: EcoComponent;
 	props?: (context: LayoutPropsContext) => Record<string, unknown>;
 };
 
 /**
- * Layout declaration accepted by `eco.page()`.
+ * A layout tier with a props factory, as written in `eco.page({ layout })`.
+ */
+export type EcoPageLayoutEntrySpec<E = EcoPagesElement> = {
+	component: EcoLayoutComponent<E>;
+	props?: (context: LayoutPropsContext) => Record<string, unknown>;
+};
+
+/**
+ * Layout declaration accepted by `eco.page()`: an `eco.layout()` result, a plain function typed with
+ * {@link LayoutProps}, or an entry that adds a props factory to either.
  *
  * @remarks
- * Array order is outer→inner, matching Next.js App Router segment nesting.
+ * Array order is outer→inner, matching Next.js App Router segment nesting. A function with fewer parameters is
+ * still assignable, so the type cannot prove that a layout renders `children`; layout composition checks that
+ * when it renders the page.
  */
-export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoComponent<any, E> | EcoPageLayoutEntry<E>;
+export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoLayoutComponent<E> | EcoPageLayoutEntrySpec<E>;
 
 /**
  * One or more layout tiers for `eco.page({ layout })`.
@@ -738,15 +782,7 @@ export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoComponent<any, E> | EcoP
 export type EcoPageLayouts<E = EcoPagesElement> = EcoPageLayoutSpec<E> | EcoPageLayoutSpec<E>[];
 
 /**
- * Layout components accepted by pages.
- *
- * This preserves compatibility with existing `eco.component()` layouts while
- * also supporting semantic `eco.layout()` declarations.
- */
-type EcoPageLayoutComponent<T = EcoPagesElement> = EcoLayoutComponent<T> | EcoComponent<any, T>;
-
-/**
- * Represents a layout component created with eco.layout().
+ * A layout component: an `eco.layout()` result or a plain function that takes {@link LayoutProps}.
  */
 export type EcoLayoutComponent<T = EcoPagesElement> = EcoComponent<LayoutProps<T>, T>;
 
@@ -930,9 +966,6 @@ export type GetStaticProps<T> = (context: {
  */
 export type EcoPageFile<T = unknown> = T & {
 	default: EcoComponent<any, any>;
-	getStaticPaths?: GetStaticPaths;
-	getStaticProps?: GetStaticProps<Record<string, unknown>>;
-	getMetadata?: GetMetadata;
 	cache?: CacheStrategy;
 };
 
@@ -1019,7 +1052,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	HtmlTemplate: EcoHtmlComponent<C>;
 	Page: EcoComponent<PageProps, C>;
 	Layouts?: EcoComponent[];
-	Layout?: EcoPageLayoutComponent<any>;
+	Layout?: EcoComponent;
 	layoutEntries?: EcoPageLayoutEntry[];
 	dependencies?: EcoComponentDependencies;
 	/** Components returned by the page's dependency resolver, available to Integration render hooks. */
@@ -1108,6 +1141,25 @@ export type PageBrowserGraphContributionContext = {
 	dependencyInstanceKey?: string;
 };
 
+/**
+ * What an Integration's contribution hook names for one Page Browser Graph.
+ *
+ * @remarks
+ * The production prebuild calls the hook while it plans routes, before the app-wide browser build, so the hook
+ * names what core should process and processes nothing itself: core processes `dependencies`, `components` and
+ * `bundledScripts` when it resolves the graph, and plans their scripts for the app-wide build.
+ */
+export interface PageBrowserGraphDeclaration {
+	dependencies?: AssetDefinition[];
+	/** Components whose Dependencies join the graph; their scripts share chunks with every other component script. */
+	components?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
+	/** Scripts declared outside any component's Dependencies that the app-wide build bundles with the graph. */
+	bundledScripts?: AssetDefinition[];
+	/** Source files that should invalidate this graph entry when they change. */
+	watchPaths?: string[];
+}
+
+/** What one Page Browser Graph receives once core processed a declaration or a Page's own Dependencies. */
 export interface PageBrowserGraphContribution {
 	dependencies?: AssetDefinition[];
 	assets?: ProcessedAsset[];

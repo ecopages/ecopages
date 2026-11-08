@@ -6,7 +6,7 @@ import { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from '@ecopages/c
 import { toPackageRootSpecifier } from '@ecopages/core/build';
 import { isContentServerVirtualModule } from '@ecopages/core/build';
 import { isServerOnlyModuleSpecifier } from '@ecopages/core/build/contracts';
-import { dirname, resolve } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 export type RequestedExportRules = Set<string> | '*';
 
@@ -150,8 +150,7 @@ export function mergeDeclaredModulesMap(
 }
 
 export function normalizeRequestedExportsKey(pathname: string): string {
-	let normalized = pathname.replace(/\\/g, '/');
-	normalized = normalized.replace(/\.(tsx?|jsx?)$/i, '');
+	let normalized = pathname.replace(/\.(tsx?|jsx?)$/i, '');
 	if (normalized.endsWith('/index')) {
 		normalized = normalized.slice(0, -'/index'.length);
 	}
@@ -173,7 +172,7 @@ export function resolveRequestedExportsKey(importer: string, specifier: string):
 		return undefined;
 	}
 
-	const resolved = specifier.startsWith('/') ? specifier : resolve(dirname(importer), specifier);
+	const resolved = specifier.startsWith('/') ? specifier : path.resolve(path.dirname(importer), specifier);
 	return normalizeRequestedExportsKey(resolved);
 }
 
@@ -186,23 +185,26 @@ export function resolveRequestedExportsKey(importer: string, specifier: string):
  * @param registry - Cross-module requested-export registry.
  * @param moduleKey - Normalized local module key.
  * @param rules - Newly observed reachable export rules for the module.
+ * @returns Whether the registry changed.
  */
 export function mergeRequestedExportRules(
 	registry: Map<string, RequestedExportRules>,
 	moduleKey: string,
 	rules: Set<string> | '*',
-) {
+): boolean {
 	const existing = registry.get(moduleKey);
-	if (existing === '*') return;
+	if (existing === '*') return false;
 	if (rules === '*') {
 		registry.set(moduleKey, '*');
-		return;
+		return true;
 	}
 	if (!existing) {
 		registry.set(moduleKey, new Set(rules));
-		return;
+		return true;
 	}
+	const size = existing.size;
 	for (const rule of rules) {
 		existing.add(rule);
 	}
+	return existing.size !== size;
 }

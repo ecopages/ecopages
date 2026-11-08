@@ -1,8 +1,8 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { DependencyLazyTrigger, EcoComponent, EcoComponentDependencies } from '../../types/contracts.ts';
 import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';
-import { getInferredStylesheets } from '../../eco/discovered-dependencies.ts';
+import { resolveDiscoveredStylesheets } from '../../eco/discovered-dependency-paths.ts';
 import type { AssetDefinition } from '../../assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { extractEcopagesVirtualImports } from './ecopages-virtual-imports.ts';
@@ -64,6 +64,8 @@ export type CollectedComponentDependencies = {
 type CollectComponentDependenciesOptions = {
 	components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>;
 	integrationName: string;
+	/** The app root that root-relative identity files and discovered stylesheets resolve against. */
+	rootDir: string;
 	/**
 	 * Skips nested components owned by another Integration, and their descendants.
 	 *
@@ -85,6 +87,7 @@ type CollectComponentDependenciesOptions = {
 
 type ComponentDependencyCollectionContext = {
 	integrationName: string;
+	rootDir: string;
 	excludeForeignChildren: boolean;
 	skipNestedComponents: boolean;
 	resolveLazyScripts: CollectComponentDependenciesOptions['resolveLazyScripts'];
@@ -94,7 +97,8 @@ type ComponentDependencyCollectionContext = {
 	lazyScriptsByConfig: Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>;
 	lazyDependencyKeys: Set<string>;
 	visited: Set<NonNullable<EcoComponent['config']>>;
-	inferredStyles: Array<{ dir: string; src: string }>;
+	inferredStyles: InferredStyle[];
+	packageStylePaths: Map<string, string>;
 	explicitStylePaths: Set<string>;
 	stylesheetDependencyKeys: Set<string>;
 	scriptDependencyKeys: Set<string>;
@@ -122,7 +126,10 @@ function createLazyScriptRegistrar(
 function recordExplicitAndInferredStyles(
 	config: NonNullable<EcoComponent['config']>,
 	dir: string,
-	context: Pick<ComponentDependencyCollectionContext, 'explicitStylePaths' | 'inferredStyles'>,
+	context: Pick<
+		ComponentDependencyCollectionContext,
+		'explicitStylePaths' | 'inferredStyles' | 'packageStylePaths' | 'rootDir'
+	>,
 ): NonNullable<EcoComponentDependencies['stylesheets']> {
 	const dependenciesConfig = config.dependencies;
 	const explicitStyles = dependenciesConfig?.stylesheets ?? [];
@@ -132,11 +139,41 @@ function recordExplicitAndInferredStyles(
 		if (src) context.explicitStylePaths.add(resolveDependencyPath(dir, src));
 	}
 
-	for (const src of getInferredStylesheets(config)) {
-		context.inferredStyles.push({ dir, src });
+	const discovered = resolveDiscoveredStylesheets(config, context.rootDir);
+	for (const filepath of discovered.imported) {
+		context.inferredStyles.push({ filepath, plainModule: false });
+	}
+	for (const filepath of discovered.plainModules) {
+		context.inferredStyles.push({ filepath, plainModule: true });
+	}
+	for (const [filepath, packagePath] of discovered.packagePaths) {
+		context.packageStylePaths.set(filepath, packagePath);
 	}
 
 	return explicitStyles;
+}
+
+type InferredStyle = { filepath: string; plainModule: boolean };
+
+/**
+ * Orders inferred stylesheets once each, leaving out paths with an explicit entry.
+ *
+ * @remarks
+ * A declaration's own import keeps its first position. A stylesheet that only plain modules import takes
+ * the position of its last occurrence, so it follows the CSS of every declaration that imports its module.
+ */
+function orderInferredStylesheets(styles: InferredStyle[], explicitStylePaths: ReadonlySet<string>): string[] {
+	const positions = new Map<string, { index: number; plainModule: boolean }>();
+	styles.forEach(({ filepath, plainModule }, index) => {
+		if (explicitStylePaths.has(filepath)) return;
+		const known = positions.get(filepath);
+		if (!known || (known.plainModule && !plainModule)) {
+			positions.set(filepath, { index, plainModule });
+		} else if (known.plainModule) {
+			known.index = index;
+		}
+	});
+	return [...positions].sort(([, left], [, right]) => left.index - right.index).map(([filepath]) => filepath);
 }
 
 /**
@@ -156,8 +193,9 @@ function collectComponentConfigDependencies(
 	if (!config || context.visited.has(config)) return;
 	context.visited.add(config);
 
-	const file = getComponentIdentity(config)?.file;
-	if (!file) return;
+	const identityFile = getComponentIdentity(config)?.file;
+	if (!identityFile) return;
+	const file = path.resolve(context.rootDir, identityFile);
 	const dir = path.dirname(file);
 	const explicitStyles = recordExplicitAndInferredStyles(config, dir, context);
 	const dependenciesConfig = config.dependencies;
@@ -181,9 +219,10 @@ function collectComponentConfigDependencies(
 
 	collectLazyScriptEntries({
 		scriptEntries: dependenciesConfig?.scripts ?? [],
+		rootDir: context.rootDir,
 		componentFile: file,
 		componentDir: dir,
-		integrationName: context.integrationName,
+		integrationName: getComponentOwner(config, context.integrationName),
 		dependencies: context.dependencies,
 		lazyDependencyKeys: context.lazyDependencyKeys,
 		registerLazyScript,
@@ -226,7 +265,8 @@ function collectNestedComponentDependencies(
  * @remarks
  * Explicit stylesheet declarations are collected first across the graph. Inferred
  * stylesheets are read from component identity afterward and skipped when the same
- * resolved path already has an explicit entry. The returned structures preserve both
+ * resolved path already has an explicit entry (see {@link orderInferredStylesheets}). One a package import named
+ * carries its package path as `fromPackage`. The returned structures preserve both
  * the flat asset list used by asset processing and the grouped lazy-trigger data used
  * later during render output.
  */
@@ -236,6 +276,7 @@ export function collectComponentDependencies(
 	const {
 		components,
 		integrationName,
+		rootDir,
 		excludeForeignChildren = false,
 		skipNestedComponents = false,
 		resolveLazyScripts,
@@ -246,7 +287,8 @@ export function collectComponentDependencies(
 	const lazyScriptsByConfig = new Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>();
 	const lazyDependencyKeys = new Set<string>();
 	const visited = new Set<NonNullable<EcoComponent['config']>>();
-	const inferredStyles: Array<{ dir: string; src: string }> = [];
+	const inferredStyles: InferredStyle[] = [];
+	const packageStylePaths = new Map<string, string>();
 	const explicitStylePaths = new Set<string>();
 	const modulesMap = new Map<string, Set<string> | null>();
 	const preparedStylesheetDependencyKeys = skipNestedComponents ? new Set<string>() : undefined;
@@ -260,6 +302,7 @@ export function collectComponentDependencies(
 
 		const collectionContext: ComponentDependencyCollectionContext = {
 			integrationName,
+			rootDir,
 			excludeForeignChildren,
 			skipNestedComponents,
 			resolveLazyScripts,
@@ -270,6 +313,7 @@ export function collectComponentDependencies(
 			lazyDependencyKeys,
 			visited,
 			inferredStyles,
+			packageStylePaths,
 			explicitStylePaths,
 			stylesheetDependencyKeys: preparedStylesheetDependencyKeys ?? new Set<string>(),
 			scriptDependencyKeys: preparedScriptDependencyKeys ?? new Set<string>(),
@@ -280,12 +324,14 @@ export function collectComponentDependencies(
 	}
 	dependencies.push(...createModuleDependencies(modulesMap));
 
-	for (const { dir, src } of inferredStyles) {
-		const filepath = resolveDependencyPath(dir, src);
-		if (explicitStylePaths.has(filepath)) continue;
-		explicitStylePaths.add(filepath);
+	for (const filepath of orderInferredStylesheets(inferredStyles, explicitStylePaths)) {
 		dependencies.push(
-			AssetFactory.createFileStylesheet({ filepath, position: 'head', attributes: { rel: 'stylesheet' } }),
+			AssetFactory.createFileStylesheet({
+				filepath,
+				position: 'head',
+				attributes: { rel: 'stylesheet' },
+				...(packageStylePaths.has(filepath) ? { fromPackage: packageStylePaths.get(filepath) } : {}),
+			}),
 		);
 	}
 	return {

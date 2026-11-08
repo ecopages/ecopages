@@ -5,7 +5,6 @@ import { BaseLayout } from '@/layouts/base-layout/base-layout.kita';
 export default eco.page<ErrorPageTemplateProps>({
 	dependencies: {
 		stylesheets: ['./404.css'],
-		components: [BaseLayout],
 	},
 
 	render: () => {

@@ -33,6 +33,28 @@ export const bannerTransform: EcoBuildPlugin = {
 - The callback returns the rewritten source, `{ code, map? }`, or `undefined` to skip the module. A rewrite that changes code without a map clears the earlier mappings; return `map` to keep locations.
 - `environments: ['server']` or `['browser']` limits the plugin to one kind of build.
 
+## Checking a whole build
+
+`build.onEnd(callback)` runs once every module of a build is transformed, so a plugin can check what its transforms saw across modules. It does not run when the build already failed, and an error it throws fails the build under the plugin's name.
+
+```typescript
+export const noTodoCheck: EcoBuildPlugin = {
+	name: 'no-todo',
+	setup(build) {
+		const files: string[] = [];
+		build.transform({ filter: /\.tsx$/ }, (code, id) => {
+			if (code.includes('TODO:')) files.push(id);
+			return undefined;
+		});
+		build.onEnd(() => {
+			if (files.length > 0) throw new Error(`TODO left in ${files.join(', ')}`);
+		});
+	},
+};
+```
+
+Every build calls `setup` again, so keep build state inside `setup`. In development, the browser transform server builds one module at a time, so `onEnd` fires after each module there, seeing only that module; server builds in development and every production build run it once for the whole graph.
+
 ## Registration
 
 ```typescript
@@ -41,8 +63,7 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { bannerTransform } from './banner-transform';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	baseUrl: 'https://example.com',
 	loaders: [bannerTransform],
 	integrations: [ecopagesJsxPlugin()],
 });

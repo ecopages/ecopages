@@ -2,12 +2,14 @@ import path from 'node:path';
 import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
+import { siteOrigin } from './src/lib/site-origin';
 
-const appRoot = import.meta.dirname;
+const appRoot = process.cwd();
 
 export default defineConfig({
+	baseUrl: siteOrigin,
 	integrations: [
 		ecopagesJsxPlugin({
 			radiant: true,
@@ -15,11 +17,12 @@ export default defineConfig({
 		}),
 	],
 	processors: [
-		postcssProcessorPlugin(
-			tailwindV4Preset({
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
-		),
+			targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+		}),
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(appRoot, 'src/images'),

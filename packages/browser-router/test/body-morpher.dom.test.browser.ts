@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { morphBody } from '../src/client/dom/body-morpher.ts';
+import { morphBody, recordInitialServerMarkup, type ServerMarkup } from '../src/client/dom/body-morpher.ts';
 
 function parseDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
@@ -434,5 +434,155 @@ describe('morphBody DOM behavior', () => {
 			(document.querySelector('#toggle-dark-mode') as (HTMLElement & { marker?: string }) | null)?.marker,
 		).toBe('kept');
 		expect(document.querySelector('header.header')).toBeNull();
+	});
+});
+
+describe('morphBody on a reload of the current URL', () => {
+	type Marked = HTMLElement & { marker?: string };
+
+	function serverPage(note: string): string {
+		return [
+			'<main class="page">',
+			`<p id="note">${note}</p>`,
+			renderLightDomCounter('id="light" count="0"'),
+			'<test-dsd-counter id="shadow"><template shadowrootmode="open"><span>0</span></template></test-dsd-counter>',
+			'<div id="plain">plain</div>',
+			'</main>',
+		].join('');
+	}
+
+	function registerDsdCounter(): void {
+		if (!customElements.get('test-dsd-counter')) {
+			customElements.define('test-dsd-counter', class extends HTMLElement {});
+		}
+	}
+
+	function startOn(html: string): ServerMarkup {
+		resetDocument();
+		registerLightDomCounter();
+		registerDsdCounter();
+		document.body.setHTMLUnsafe(html);
+		const serverMarkup: ServerMarkup = new WeakMap();
+		recordInitialServerMarkup(serverMarkup);
+		return serverMarkup;
+	}
+
+	function touchPage(): void {
+		(document.querySelector('#light') as HTMLElement).setAttribute('count', '3');
+		(document.querySelector('#light') as Marked).marker = 'kept';
+		const shadowCount = document.querySelector('#shadow')?.shadowRoot?.querySelector('span');
+		if (shadowCount) shadowCount.textContent = '3';
+		(document.querySelector('#shadow') as Marked).marker = 'kept';
+		document.querySelector('#plain')?.classList.add('is-active');
+		document.querySelector('main')?.classList.add('is-ready');
+	}
+
+	it('keeps elements whose server markup did not change, with their state and runtime attributes', () => {
+		const serverMarkup = startOn(serverPage('v1'));
+		touchPage();
+
+		morphBody(parseDocument(`<html><body>${serverPage('v2')}</body></html>`), 'data-eco-persist', {
+			serverMarkup,
+			reload: true,
+		});
+
+		expect(document.querySelector('#note')?.textContent).toBe('v2');
+		expect((document.querySelector('#light') as Marked).marker).toBe('kept');
+		expect(document.querySelector('#light [data-ref="count"]')?.textContent).toBe('3');
+		expect((document.querySelector('#shadow') as Marked).marker).toBe('kept');
+		expect(document.querySelector('#shadow')?.shadowRoot?.textContent).toBe('3');
+		expect(document.querySelector('#plain')?.classList.contains('is-active')).toBe(true);
+		expect(document.querySelector('main')?.className).toBe('page is-ready');
+	});
+
+	it('replaces a custom element whose server markup changed', () => {
+		const serverMarkup = startOn(serverPage('v1'));
+		touchPage();
+
+		const changed = serverPage('v1').replace('id="light" count="0"', 'id="light" count="1"');
+		morphBody(parseDocument(`<html><body>${changed}</body></html>`), 'data-eco-persist', {
+			serverMarkup,
+			reload: true,
+		});
+
+		expect((document.querySelector('#light') as Marked).marker).toBeUndefined();
+		expect(document.querySelector('#light [data-ref="count"]')?.textContent).toBe('1');
+		expect((document.querySelector('#shadow') as Marked).marker).toBe('kept');
+	});
+
+	it('compares against the server markup of the previous reload, not the first document', () => {
+		const serverMarkup = startOn(serverPage('v1'));
+		const reloadTo = (html: string) =>
+			morphBody(parseDocument(`<html><body>${html}</body></html>`), 'data-eco-persist', {
+				serverMarkup,
+				reload: true,
+			});
+		const changed = serverPage('v2').replace('id="light" count="0"', 'id="light" count="1"');
+
+		reloadTo(changed);
+		touchPage();
+		reloadTo(changed.replace('v2', 'v3'));
+
+		expect(document.querySelector('#note')?.textContent).toBe('v3');
+		expect((document.querySelector('#light') as Marked).marker).toBe('kept');
+		expect(document.querySelector('#light [data-ref="count"]')?.textContent).toBe('3');
+	});
+
+	it('replaces unchanged custom elements on navigation', () => {
+		const serverMarkup = startOn(serverPage('v1'));
+		touchPage();
+
+		morphBody(parseDocument(`<html><body>${serverPage('v1')}</body></html>`), 'data-eco-persist', {
+			serverMarkup,
+		});
+
+		expect((document.querySelector('#light') as Marked).marker).toBeUndefined();
+		expect((document.querySelector('#shadow') as Marked).marker).toBeUndefined();
+		expect(document.querySelector('#plain')?.classList.contains('is-active')).toBe(false);
+	});
+
+	it('keeps unchanged elements inside a changed parent when the page has rerun scripts', () => {
+		const rerun = '<script type="module" data-eco-rerun="true" data-eco-script-id="probe"></script>';
+		const serverMarkup = startOn(`${rerun}${serverPage('v1')}`);
+		touchPage();
+
+		morphBody(parseDocument(`<html><body>${rerun}${serverPage('v2')}</body></html>`), 'data-eco-persist', {
+			serverMarkup,
+			reload: true,
+		});
+
+		expect(document.querySelector('#note')?.textContent).toBe('v2');
+		expect((document.querySelector('#light') as Marked).marker).toBe('kept');
+		expect((document.querySelector('#shadow') as Marked).marker).toBe('kept');
+		expect(document.querySelector('#plain')?.classList.contains('is-active')).toBe(true);
+	});
+
+	it('keeps a persisted element whose server markup changed', () => {
+		const persisted = (count: string) =>
+			renderLightDomCounter(`id="sidebar" data-eco-persist="sidebar" count="${count}"`);
+		const serverMarkup = startOn(`${persisted('0')}${serverPage('v1')}`);
+		(document.querySelector('#sidebar') as Marked).marker = 'kept';
+
+		morphBody(parseDocument(`<html><body>${persisted('1')}${serverPage('v1')}</body></html>`), 'data-eco-persist', {
+			serverMarkup,
+			reload: true,
+		});
+
+		expect((document.querySelector('#sidebar') as Marked).marker).toBe('kept');
+		expect(document.querySelector('#sidebar')?.getAttribute('count')).toBe('0');
+	});
+
+	it('takes the new attributes of a changed element whose own server attributes changed', () => {
+		const serverMarkup = startOn(serverPage('v1'));
+		touchPage();
+
+		const changed = serverPage('v2').replace('<main class="page">', '<main class="page wide">');
+		morphBody(parseDocument(`<html><body>${changed}</body></html>`), 'data-eco-persist', {
+			serverMarkup,
+			reload: true,
+		});
+
+		expect(document.querySelector('main')?.className).toBe('page wide');
+		expect(document.querySelector('#plain')?.classList.contains('is-active')).toBe(true);
 	});
 });

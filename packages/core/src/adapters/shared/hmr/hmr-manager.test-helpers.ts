@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { onTestFinished } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
@@ -11,7 +11,7 @@ import { HmrManager } from './hmr-manager.ts';
  * Creates a directory under `os.tmpdir()` that is removed when the test finishes.
  */
 export function createTempRoot(prefix: string): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`)));
 	onTestFinished(() => {
 		fs.rmSync(root, { recursive: true, force: true });
 	});

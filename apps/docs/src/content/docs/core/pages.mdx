@@ -34,16 +34,16 @@ export default eco.page({
 Key elements:
 
 1. **`eco.page`**: Factory for a file-based route page.
-2. **`layout`**: Declared layout component (`eco.layout()` or `eco.component()`). EcoPages wraps `render` output automatically.
+2. **`layout`**: A plain function typed with `LayoutProps`, or an `eco.layout()` result. EcoPages wraps `render` output automatically.
 3. **`metadata`**: Page title, description, and social metadata.
-4. **`dependencies`**: Page-level scripts and components discovery cannot follow (`export *` barrels, packages). Local component and CSS imports are discovered automatically.
+4. **`dependencies`**: Page-level scripts and components discovery cannot follow (`export *` barrels, packages). Local component and CSS imports, including those of plain function components, are discovered automatically.
 5. **`render`**: Returns JSX for the page body (inside the layout and document shell).
 
 See [Creating Layouts](/docs/core/layouts) for single and nested layout stacks.
 
 ## Using Components in Pages
 
-Import declared components directly. Ecopages discovers local `eco.component()`, `eco.layout()`, and `eco.html()` imports automatically. Every discovered entry must be a declared component — plain functions are rejected at render time.
+Import components directly. Ecopages discovers local `eco.component()`, `eco.layout()`, and `eco.html()` imports automatically, and follows plain function components too: a CSS file a plain component imports reaches the page through the nearest declared component, layout or page that imports it. Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. A layout is a plain function typed with `LayoutProps` unless it needs one of those, then `eco.layout()`; the document shell uses `eco.html()`.
 
 ```tsx
 import { RadiantCounter } from '@/components/radiant-counter';
@@ -63,6 +63,22 @@ export default eco.page({
 
 **Note:** You do not need to repeat the page `layout` in `dependencies.components` — `eco.page()` merges declared layouts into the dependency graph for you. Use explicit `dependencies.components` only when discovery cannot follow the import (`export *` barrels, packages).
 
+## Typing a page from its render
+
+Write no type arguments on `eco.page()`. The props come from `staticProps` when the page has it, and from the annotated `render` parameter when it does not. `metadata`, `render` and `dependencies` all see the same type, and an annotated `render` that disagrees with `staticProps` is an error.
+
+```tsx
+export default eco.page({
+	staticProps: async () => ({ props: { title: 'Home' } }),
+	metadata: ({ props }) => ({ title: props.title, description: 'Welcome' }),
+	render: ({ title }) => <h1>{title}</h1>,
+});
+```
+
+The element type is inferred from what `render` returns, and `layout` must use the same element type. `params` and `query` are always typed, `requires: 'session'` narrows `locals` while the props still come from `staticProps`, and `cache` and `middleware` do not change inference.
+
+The catch is the same as for components: `eco.page<Props>` with one type argument loses the element type, so a JSX or Lit render fails to compile until you write `eco.page<Props, JsxRenderable>`. KitaJS is the exception, since its elements are strings. The table of Integrations is in [Typing a component from its render](/docs/core/components#typing-a-component-from-its-render).
+
 ## Working with Data
 
 For build-time and request-time data, see [Data Fetching](/docs/core/data-fetching).
@@ -74,11 +90,13 @@ Lazy loading is configured on `dependencies.scripts` entries. Add `ssr: true` wh
 ```tsx
 import { eco } from '@ecopages/core';
 
+type MyComponentProps = { label: string };
+
 export const MyComponent = eco.component({
 	dependencies: {
 		scripts: [{ src: './my-component.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
-	render: (props) => <my-component {...props} />,
+	render: (props: MyComponentProps) => <my-component {...props} />,
 });
 ```
 

@@ -9,11 +9,18 @@ import { AssetProcessingService } from '../assets/asset-processing-service/asset
 import type { IHmrManager } from '../types/contracts.ts';
 import type { AssetDefinition } from '../assets/asset-processing-service';
 import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../types/contracts.ts';
-import { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
+import {
+	createIntegrationRenderer,
+	IntegrationRenderer,
+} from '../route-renderer/orchestration/integration-renderer.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 
 class NamelessRenderer extends IntegrationRenderer {
 	declare name: string;
+
+	get heldIntegrationDependencies() {
+		return this.resolvedIntegrationDependencies;
+	}
 
 	override async render(_options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		return '<div>ok</div>';
@@ -60,6 +67,63 @@ describe('IntegrationPlugin', () => {
 		await expect(plugin.teardown()).resolves.toBeUndefined();
 	});
 
+	it('resolves no global script in setup, and fills the list the renderer holds on refresh', async () => {
+		const script: AssetDefinition = {
+			kind: 'script',
+			source: 'content',
+			content: 'globalThis.x = 1;',
+			position: 'head',
+		};
+		const resolved = { kind: 'script' as const, content: 'globalThis.x = 1;', inline: true };
+		const globalsPlugin = new TestIntegrationPlugin({ ...config, integrationDependencies: [script] });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [globalsPlugin] });
+		const processDependencies = vi
+			.spyOn(AssetProcessingService.prototype, 'processDependencies')
+			.mockResolvedValue([resolved]);
+		const runtime = requireAppRuntime(appConfig);
+
+		await globalsPlugin.setup({ appConfig, runtime });
+		const rendererDependencies = (globalsPlugin.getRenderer() as NamelessRenderer).heldIntegrationDependencies;
+
+		expect(processDependencies).not.toHaveBeenCalled();
+		expect(rendererDependencies).toEqual([]);
+
+		await globalsPlugin.refreshResolvedIntegrationDependencies();
+
+		expect(rendererDependencies).toEqual([resolved]);
+	});
+
+	it('keeps one resolved list across a teardown and a later setup, empty until the next resolution', async () => {
+		const script: AssetDefinition = {
+			kind: 'script',
+			source: 'content',
+			content: 'globalThis.x = 1;',
+			position: 'head',
+		};
+		const first = { kind: 'script' as const, content: 'first', inline: true };
+		const second = { kind: 'script' as const, content: 'second', inline: true };
+		const globalsPlugin = new TestIntegrationPlugin({ ...config, integrationDependencies: [script] });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [globalsPlugin] });
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies')
+			.mockResolvedValueOnce([first])
+			.mockResolvedValueOnce([second]);
+		const runtime = requireAppRuntime(appConfig);
+
+		await globalsPlugin.setup({ appConfig, runtime });
+		await globalsPlugin.refreshResolvedIntegrationDependencies();
+		const heldBeforeTeardown = globalsPlugin.getResolvedIntegrationDependencies();
+		await globalsPlugin.teardown();
+		await globalsPlugin.setup({ appConfig, runtime });
+
+		expect(globalsPlugin.getResolvedIntegrationDependencies()).toBe(heldBeforeTeardown);
+		expect(heldBeforeTeardown).toEqual([]);
+
+		await globalsPlugin.refreshResolvedIntegrationDependencies();
+
+		expect(heldBeforeTeardown).toEqual([second]);
+		expect(globalsPlugin.getResolvedIntegrationDependencies()).toBe(heldBeforeTeardown);
+	});
+
 	it('allows integrations to register their HMR strategy from the runtime context', async () => {
 		const registerStrategy = vi.fn();
 		const hmrManager = {
@@ -67,6 +131,7 @@ describe('IntegrationPlugin', () => {
 			registerDevTransformContributor: vi.fn(),
 			registerEntrypoint: vi.fn(),
 			registerScriptEntrypoint: vi.fn(),
+			rewriteModuleImports: vi.fn(),
 			setEnabled: vi.fn(),
 			stop: vi.fn(),
 			isEnabled: vi.fn(() => true),
@@ -78,6 +143,7 @@ describe('IntegrationPlugin', () => {
 			injectDevClientRuntimes: vi.fn(async (response: Response) => response),
 			getDefaultContext: vi.fn(),
 			handleFileChanges: vi.fn(),
+			reportBuildError: vi.fn(),
 		} satisfies IHmrManager;
 		const strategy = { matches: vi.fn(() => false), process: vi.fn(), priority: 10, type: 'integration' } as any;
 		const pluginWithStrategy = new (class extends TestIntegrationPlugin {
@@ -146,5 +212,66 @@ describe('IntegrationPlugin', () => {
 		await pluginWithOverride.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 
 		expect(pluginWithOverride.getRenderer().name).toBe('test-plugin');
+	});
+
+	describe('ssrScriptPreload', () => {
+		const preloaderInit = {
+			cacheScope: 'test-preload',
+			integrationName: 'preloading',
+			importServerModule: async () => undefined,
+		};
+
+		class BuildsPreloaderPlugin extends IntegrationPlugin {
+			renderer = createIntegrationRenderer('preloading', ({ createSsrScriptPreloader }) => {
+				createSsrScriptPreloader(preloaderInit);
+				return {};
+			});
+		}
+
+		class BuildsNoPreloaderPlugin extends IntegrationPlugin {
+			renderer = createIntegrationRenderer('preloading', {});
+		}
+
+		async function start(plugin: IntegrationPlugin) {
+			const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [plugin] });
+			vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+			await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
+		}
+
+		it('reports a renderer that builds a preloader without the declaration when its renderer is built', async () => {
+			const plugin = new BuildsPreloaderPlugin({ name: 'preloading', extensions: ['.test'] });
+			await start(plugin);
+
+			expect(() => plugin.getRenderer()).toThrow(
+				'Integration "preloading" builds a custom-element preloader but declares no ssrScriptPreload',
+			);
+		});
+
+		it('reports a declaration whose renderer builds no preloader when its renderer is built', async () => {
+			const plugin = new (class extends BuildsNoPreloaderPlugin {
+				override readonly ssrScriptPreload = 'own' as const;
+			})({ name: 'preloading', extensions: ['.test'] });
+			await start(plugin);
+
+			expect(() => plugin.getRenderer()).toThrow(
+				'Integration "preloading" declares ssrScriptPreload but its renderer builds no custom-element preloader',
+			);
+		});
+
+		it('builds the preloader of an Integration that declares ssrScriptPreload', async () => {
+			const plugin = new (class extends BuildsPreloaderPlugin {
+				override readonly ssrScriptPreload = 'own' as const;
+			})({ name: 'preloading', extensions: ['.test'] });
+			await start(plugin);
+
+			expect(plugin.getRenderer().buildsSsrScriptPreloader).toBe(true);
+		});
+
+		it('builds no preloader for an Integration that neither declares nor requests one', async () => {
+			const plugin = new BuildsNoPreloaderPlugin({ name: 'preloading', extensions: ['.test'] });
+			await start(plugin);
+
+			expect(plugin.getRenderer().buildsSsrScriptPreloader).toBe(false);
+		});
 	});
 });

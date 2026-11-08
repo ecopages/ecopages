@@ -2,23 +2,25 @@
 
 import { spawn } from 'node:child_process';
 import os from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
 import { createLaunchPlan, resolveEcoConfigFilePath } from './launch-plan.js';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
+	ENTRY_COMMAND_FLAGS,
+	getEntryCommandFlagNames,
 	isEcopagesEnvEnabled,
 	resolveDevelopmentRecoveryWatch,
 } from '@ecopages/core/build';
 import { fileSystem } from '@ecopages/file-system';
 import { withBrandBanner } from './brand.js';
+import { getUnsupportedNodeMessage } from './node-version.js';
 
 const logger = new Logger('[ecopages:cli]', { debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG') });
 
-const pkg = JSON.parse(fileSystem.readFileSync(fileURLToPath(new URL('../package.json', import.meta.url))));
+const pkg = JSON.parse(fileSystem.readFileSync(path.fromFileUrl(new URL('../package.json', import.meta.url))));
 
 const sharedServerOptionDefinitions = {
 	port: {
@@ -112,11 +114,11 @@ function parseCommandArguments(rawArgs, options) {
 function parseServerCommandArgs(rawArgs, definition) {
 	const commandName = definition.name;
 	const valueOptions = definition.valueOptions ?? {};
-	const booleanOptions = definition.booleanOptions ?? {};
+	const entryFlagNames = getEntryCommandFlagNames(commandName);
 	const { values, positionals } = parseCommandArguments(rawArgs, {
 		...sharedServerOptionDefinitions,
 		...Object.fromEntries(Object.keys(valueOptions).map((option) => [option, { type: 'string' }])),
-		...booleanOptions,
+		...Object.fromEntries(entryFlagNames.map((flag) => [flag, { type: 'boolean' }])),
 	});
 
 	if (values.help) {
@@ -124,7 +126,10 @@ function parseServerCommandArgs(rawArgs, definition) {
 			getServerCommandHelpText(
 				commandName,
 				definition.description,
-				[...Object.values(valueOptions), ...(definition.optionHelpLines ?? [])],
+				[
+					...Object.values(valueOptions),
+					...entryFlagNames.map((flag) => `      --${flag.padEnd(33)}${ENTRY_COMMAND_FLAGS[flag].help}`),
+				],
 				definition.ignoredOptions,
 			),
 		);
@@ -141,7 +146,7 @@ function parseServerCommandArgs(rawArgs, definition) {
 
 	return {
 		entry,
-		keepGoing: Boolean(values['keep-going']),
+		entryFlags: entryFlagNames.filter((flag) => values[flag]),
 		options: {
 			port: values.port,
 			hostname: values.hostname,
@@ -338,7 +343,7 @@ async function runServerCommand(rawArgs, definition) {
 
 	const entry = definition.resolveEntry?.() ?? parsed.entry;
 	const entryArgs = [...definition.entryArgs];
-	if (parsed.keepGoing) entryArgs.push('--keep-going');
+	for (const flag of parsed.entryFlags) entryArgs.push(`--${flag}`);
 	await runEntryCommand(
 		entryArgs,
 		{ ...parsed.options, ...definition.optionOverrides, entryFile: entry },
@@ -368,8 +373,6 @@ const SERVER_COMMANDS = {
 		description:
 			'Build the project for production: pre-render the Pages in src/pages, optimize assets and images, and write the result to dist.',
 		entryArgs: ['--build'],
-		booleanOptions: { 'keep-going': { type: 'boolean' } },
-		optionHelpLines: ['      --keep-going                       Continue the build after a Page fails to render'],
 		optionOverrides: { nodeEnv: 'production' },
 	},
 	start: {
@@ -385,7 +388,7 @@ const SERVER_COMMANDS = {
 		description:
 			'Load eco.config.ts so processors write the types for virtual modules such as ecopages:images, then exit. The app entry does not run. Run it before tsc.',
 		entryArgs: [],
-		resolveEntry: () => fileURLToPath(import.meta.resolve('@ecopages/core/config/write-types')),
+		resolveEntry: () => path.fromFileUrl(import.meta.resolve('@ecopages/core/config/write-types')),
 		ignoredOptions: ['port', 'hostname', 'base-url', 'entry-file'],
 		optionOverrides: { nodeEnv: 'production' },
 	},
@@ -398,6 +401,12 @@ const SERVER_COMMANDS = {
 
 export async function runCli(rawArgs = process.argv.slice(2)) {
 	const [commandName, ...commandArgs] = rawArgs;
+
+	const unsupportedNodeMessage = getUnsupportedNodeMessage();
+	if (unsupportedNodeMessage) {
+		logger.error(unsupportedNodeMessage);
+		process.exit(1);
+	}
 
 	if (!commandName || commandName === '--help' || commandName === '-h') {
 		console.log(withBrandBanner(pkg.version, getMainHelpText()));

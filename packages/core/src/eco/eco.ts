@@ -6,13 +6,10 @@
 import type {
 	EcoComponent,
 	EcoHtmlComponent,
-	EcoLayoutComponent,
+	LayoutProps,
 	EcoPagesElement,
 	EcoPageComponent,
 	FileRouteMiddleware,
-	GetMetadata,
-	GetStaticPaths,
-	GetStaticProps,
 	RequestLocals,
 	RequestPageContext,
 } from '../types/contracts.ts';
@@ -171,15 +168,17 @@ function html<E = EcoPagesElement>(options: HtmlOptions<E>): EcoHtmlComponent<E>
 /**
  * Creates a route layout component.
  */
-function layout<E = EcoPagesElement>(options: LayoutOptions<E>): EcoLayoutComponent<E> {
-	return createComponentFactory(options) as EcoLayoutComponent<E>;
+function layout<E = EcoPagesElement, P extends LayoutProps<E> = LayoutProps<E>>(
+	options: LayoutOptions<E, P>,
+): EcoComponent<P, E> {
+	return createComponentFactory(options);
 }
 
 /**
  * Creates a page component with typed props and optional static helpers.
  */
 function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
-function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals = keyof RequestLocals>(
+function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals = never>(
 	options: Omit<PageOptions<T, E>, 'render' | 'requires'> & {
 		requires: PageRequires<K>;
 		render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;
@@ -239,36 +238,6 @@ function page<T, E>(
 }
 
 /**
- * Type-safe wrapper for metadata functions.
- *
- * @param fn Metadata factory function.
- * @returns The same function.
- */
-function metadata<P = {}>(fn: GetMetadata<P>): GetMetadata<P> {
-	return fn;
-}
-
-/**
- * Type-safe wrapper for static paths functions.
- *
- * @param fn Static paths function.
- * @returns The same function.
- */
-function staticPaths(fn: GetStaticPaths): GetStaticPaths {
-	return fn;
-}
-
-/**
- * Type-safe wrapper for static props functions.
- *
- * @param fn Static props function.
- * @returns The same function.
- */
-function staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
-	return fn;
-}
-
-/**
  * The eco namespace - provides factories for components and pages
  */
 export const eco: Eco = {
@@ -277,7 +246,4 @@ export const eco: Eco = {
 	html,
 	layout,
 	page,
-	metadata,
-	staticPaths,
-	staticProps,
 };

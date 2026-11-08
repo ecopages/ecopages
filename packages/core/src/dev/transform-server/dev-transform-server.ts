@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
@@ -7,8 +7,10 @@ import { appLogger } from '../../global/app-logger.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
-import { materializeDevTransformStylesheet, resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
-import { mergeContributorRuntimeSpecifierMaps } from './dev-transform-runtime-specifiers.ts';
+import { DevTransformInstallStamp } from './dev-transform-install-stamp.ts';
+import { getStylesheetKinds, type StylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
+import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
+import { compileStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 import { resolveWorkspacePackageWatchRoots } from '../../watchers/workspace-package-watch-roots.ts';
 import { resolveDevTransformModuleSourcePath, resolveDevTransformModuleUrl } from './dev-transform-url.ts';
 import type { DevTransformBundleContributor } from './types.ts';
@@ -25,6 +27,8 @@ export type DevTransformServerOptions = {
 	onModuleDependencies?: (modulePath: string, dependencies: string[]) => void;
 	/** Called with the error message when a module fails to transpile, before the 500 response is returned. */
 	onTransformError?: (message: string) => void;
+	/** Called when a vendor graph rebuild changes vendor files a browser already loaded, so connected pages can reload. */
+	onVendorGraphChange?: () => void;
 };
 
 /**
@@ -39,33 +43,49 @@ export class DevTransformServer {
 	private readonly bundler: DevTransformBundler;
 	private readonly vendorRegistry: DevTransformVendorRegistry;
 	private readonly contributors: DevTransformBundleContributor[] = [];
-	private readonly runtimeSpecifierMap = new Map<string, string>();
 	private readonly onModuleDependencies?: (modulePath: string, dependencies: string[]) => void;
 	private readonly onTransformError?: (message: string) => void;
 	private readonly failedSources = new Map<string, string>();
 	private readonly urlToSource = new Map<string, string>();
 	private readonly sourceToUrl = new Map<string, string>();
+	/** Compiled modules, keyed by source path, plus the variant of a module compiled in another form. */
 	private readonly cache = new Map<string, CacheEntry>();
+	/**
+	 * The module each source last compiled to, by cache key.
+	 *
+	 * @remarks
+	 * A module whose compile fails keeps answering with it, so the importer still loads while the error shows in the
+	 * page, and the next save that compiles replaces it. A module that never compiled answers `500`. The server only
+	 * exists in `ecopages dev`, so it applies the rule of `keepsLastGoodOutput` without asking it.
+	 */
+	private readonly lastCompiled = new Map<string, string>();
 	private readonly inFlight = new Map<string, Promise<CacheEntry>>();
 	private cacheGeneration = 0;
 	private readonly sourceGenerations = new Map<string, number>();
 	private readonly extraModuleRoots: readonly string[];
+	private readonly stylesheetKinds: StylesheetKinds;
+	private readonly installStamp: DevTransformInstallStamp;
 
 	constructor(options: DevTransformServerOptions) {
 		this.appConfig = options.appConfig;
+		this.stylesheetKinds = getStylesheetKinds(options.appConfig);
 		this.onModuleDependencies = options.onModuleDependencies;
 		this.onTransformError = options.onTransformError;
 		this.contributors.push(...(options.contributors ?? []));
 		this.extraModuleRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
-		this.rebuildRuntimeSpecifierMap();
+		this.installStamp = new DevTransformInstallStamp(this.appConfig.rootDir);
 		this.vendorRegistry = new DevTransformVendorRegistry({
 			appConfig: options.appConfig,
 			resolveVendorBundlePlugins: () => this.resolveVendorBundlePlugins(),
+			onVendorGraphChange: options.onVendorGraphChange,
 		});
+		for (const contributor of this.contributors) {
+			const vendorEntries = contributor.getVendorEntries?.();
+			if (vendorEntries) this.vendorRegistry.addKnownEntries(vendorEntries);
+		}
 		this.bundler = new DevTransformBundler({
 			appConfig: options.appConfig,
 			contributors: this.contributors,
-			getRuntimeSpecifierMap: () => this.runtimeSpecifierMap,
 			vendorRegistry: this.vendorRegistry,
 			extraModuleRoots: this.extraModuleRoots,
 		});
@@ -94,15 +114,22 @@ export class DevTransformServer {
 
 	addContributor(contributor: DevTransformBundleContributor): void {
 		this.contributors.push(contributor);
-		this.rebuildRuntimeSpecifierMap();
 		this.bundler.addContributor(contributor);
+		const vendorEntries = contributor.getVendorEntries?.();
+		if (vendorEntries) this.vendorRegistry.addKnownEntries(vendorEntries);
 	}
 
-	private rebuildRuntimeSpecifierMap(): void {
-		this.runtimeSpecifierMap.clear();
-		for (const [specifier, url] of mergeContributorRuntimeSpecifierMaps(this.contributors)) {
-			this.runtimeSpecifierMap.set(specifier, url);
-		}
+	/**
+	 * Rewrites the imports of a module the browser loads as written, such as an unbundled content script.
+	 *
+	 * @remarks
+	 * The rules are those of a transpiled module: a bare import becomes its vendor URL, with named imports of a
+	 * CommonJS vendor read from its default export, and a project import becomes its dev-transform URL.
+	 * `importerPath` resolves relative imports.
+	 */
+	async rewriteImports(code: string, importerPath: string): Promise<string> {
+		const rewritten = await this.bundler.rewriteImports(code, importerPath);
+		return rewritten.code;
 	}
 
 	private async resolveVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {
@@ -144,7 +171,9 @@ export class DevTransformServer {
 	 */
 	invalidateSource(sourcePath: string): void {
 		const normalized = path.resolve(sourcePath);
-		this.cache.delete(normalized);
+		for (const key of this.cache.keys()) {
+			if (key === normalized || key.startsWith(`${normalized}?`)) this.cache.delete(key);
+		}
 		this.sourceGenerations.set(normalized, (this.sourceGenerations.get(normalized) ?? 0) + 1);
 	}
 
@@ -159,11 +188,21 @@ export class DevTransformServer {
 	reset(): void {
 		this.urlToSource.clear();
 		this.sourceToUrl.clear();
+		this.lastCompiled.clear();
 		this.invalidateAll();
 	}
 
+	/**
+	 * @remarks
+	 * An asset request first checks whether packages were installed since the last one, and if so invalidates
+	 * every compiled module and vendor graph, so an install during the session takes effect without a restart.
+	 */
 	async tryHandleRequest(request: Request): Promise<Response | null> {
 		const url = new URL(request.url);
+		if (url.pathname.startsWith(`/${RESOLVED_ASSETS_DIR}/`) && this.installStamp.changed()) {
+			appLogger.info('[dev-transform] Installed packages changed; rebuilding browser modules and vendors');
+			this.invalidateAll();
+		}
 
 		const vendorResponse = await this.vendorRegistry.tryHandleVendorRequest(
 			url.pathname,
@@ -178,10 +217,11 @@ export class DevTransformServer {
 			return null;
 		}
 
+		const variant = url.searchParams.get('eco-variant') ?? undefined;
 		startupTrace.beginDevClientTransform();
 		const startedAt = performance.now();
 		try {
-			const entry = await this.materialize(sourcePath);
+			const entry = await this.materialize(sourcePath, variant);
 			this.failedSources.delete(path.resolve(sourcePath));
 			if (isEcopagesEnvEnabled('ECOPAGES_STARTUP_TRACE')) {
 				appLogger.debug(
@@ -193,6 +233,12 @@ export class DevTransformServer {
 			const message = error instanceof Error ? error.message : String(error);
 			this.failedSources.set(path.resolve(sourcePath), message);
 			this.onTransformError?.(message);
+			const lastCompiled = fileSystem.exists(sourcePath)
+				? this.lastCompiled.get(this.cacheKey(path.resolve(sourcePath), variant))
+				: undefined;
+			if (lastCompiled !== undefined) {
+				return this.createJavaScriptResponse(lastCompiled);
+			}
 			return new Response(message, {
 				status: 500,
 				headers: {
@@ -210,6 +256,7 @@ export class DevTransformServer {
 			this.appConfig.absolutePaths.srcDir,
 			moduleUrl,
 			this.extraModuleRoots,
+			this.stylesheetKinds,
 		);
 		if (!discoveredSourcePath) {
 			return undefined;
@@ -228,33 +275,46 @@ export class DevTransformServer {
 		});
 	}
 
-	private async materialize(sourcePath: string): Promise<CacheEntry> {
+	/**
+	 * Compiles a stylesheet import into the module of its processed CSS, as server builds and bundles do.
+	 *
+	 * @remarks
+	 * The stylesheets its CSS inlined are not reported as module dependencies: an edit to one reaches this module
+	 * through the development stylesheet service, which plans the importing stylesheet as changed when its output does.
+	 * Reporting them would send the partial itself to HMR, which no served module imports.
+	 */
+	private async compileStylesheet(sourcePath: string): Promise<{ code: string }> {
+		try {
+			return { code: (await compileStylesheetModule(this.appConfig, sourcePath)).code };
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			throw new Error(`[dev-transform] Failed to compile stylesheet ${sourcePath}: ${message}`, { cause: error });
+		}
+	}
+
+	private cacheKey(normalizedSourcePath: string, variant?: string): string {
+		return variant ? `${normalizedSourcePath}?${variant}` : normalizedSourcePath;
+	}
+
+	private async materialize(sourcePath: string, variant?: string): Promise<CacheEntry> {
 		const normalized = path.resolve(sourcePath);
+		const cacheKey = this.cacheKey(normalized, variant);
 		if (!fileSystem.exists(normalized)) {
 			throw new Error(`[dev-transform] Missing source module: ${normalized}`);
 		}
 
 		const sourceHash = fileSystem.hash(normalized);
-		const cached = this.cache.get(normalized);
+		const cached = this.cache.get(cacheKey);
 		if (cached && cached.sourceHash === sourceHash) {
 			return cached;
 		}
 
-		const pending = this.inFlight.get(normalized);
+		const pending = this.inFlight.get(cacheKey);
 		if (pending) {
 			return pending;
 		}
 
-		const moduleKind = resolveDevTransformModuleKind(normalized);
-		if (moduleKind === 'stylesheet') {
-			const entry: CacheEntry = {
-				code: materializeDevTransformStylesheet(fileSystem.readFileSync(normalized)),
-				sourceHash,
-			};
-			this.cache.set(normalized, entry);
-			return entry;
-		}
-
+		const isStylesheet = this.stylesheetKinds.isStylesheet(normalized);
 		const generation = this.cacheGeneration;
 		const sourceGeneration = this.sourceGenerations.get(normalized) ?? 0;
 		const isStale = () =>
@@ -262,8 +322,10 @@ export class DevTransformServer {
 			sourceGeneration !== (this.sourceGenerations.get(normalized) ?? 0) ||
 			!fileSystem.exists(normalized) ||
 			fileSystem.hash(normalized) !== sourceHash;
-		const promise = this.bundler
-			.transpileModule(normalized)
+		const compile: Promise<{ code: string; dependencies?: string[] }> = isStylesheet
+			? this.compileStylesheet(normalized)
+			: this.bundler.transpileModule(normalized, variant);
+		const promise = compile
 			.then((result) => {
 				if (isStale()) {
 					return undefined;
@@ -274,7 +336,8 @@ export class DevTransformServer {
 				}
 
 				const entry: CacheEntry = { code: result.code, sourceHash };
-				this.cache.set(normalized, entry);
+				this.cache.set(cacheKey, entry);
+				this.lastCompiled.set(cacheKey, result.code);
 				return entry;
 			})
 			.catch((error: unknown) => {
@@ -284,11 +347,11 @@ export class DevTransformServer {
 				throw error;
 			})
 			.finally(() => {
-				this.inFlight.delete(normalized);
+				this.inFlight.delete(cacheKey);
 			})
-			.then((entry) => entry ?? this.materialize(normalized));
+			.then((entry) => entry ?? this.materialize(normalized, variant));
 
-		this.inFlight.set(normalized, promise);
+		this.inFlight.set(cacheKey, promise);
 		return promise;
 	}
 }

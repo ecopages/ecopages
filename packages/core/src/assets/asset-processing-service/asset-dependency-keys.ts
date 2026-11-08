@@ -1,15 +1,26 @@
+import { path } from '@ecopages/file-system/path';
 import { contentHash } from '../../utils/content-hash.ts';
+import { toPackagePath } from '../../utils/package-path.ts';
+import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import type { AssetDefinition } from './assets.types.ts';
 
 function generateHash(content: string): string {
 	return BigInt(`0x${contentHash(content, 16)}`).toString(10);
 }
 
-function getBundledSourceSignature(dep: AssetDefinition): string[] {
+function getBundledSourceSignature(dep: AssetDefinition, rootDir: string): string[] {
 	const bundledSourceFilepaths = dep.bundledSourceFilepaths;
 	return bundledSourceFilepaths?.length
-		? [`bundled-sources:${generateHash(JSON.stringify(bundledSourceFilepaths))}`]
+		? [
+				`bundled-sources:${generateHash(JSON.stringify(bundledSourceFilepaths.map((filePath) => toRootRelativePath(rootDir, filePath))))}`,
+			]
 		: [];
+}
+
+function sortedEntries(record: Record<string, string> | undefined): [string, string][] | undefined {
+	return record
+		? Object.entries(record).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+		: undefined;
 }
 
 function getScriptDependencyBuildSignature(dep: AssetDefinition): string | undefined {
@@ -17,52 +28,107 @@ function getScriptDependencyBuildSignature(dep: AssetDefinition): string | undef
 		return undefined;
 	}
 
-	const pluginNames = dep.bundleOptions?.plugins?.map((plugin) => plugin.name) ?? [];
+	const bundleOptions = dep.bundleOptions;
 	const signature = {
 		bundle: dep.bundle,
 		classic: dep.classic,
-		inline: dep.inline,
 		excludeFromHtml: dep.excludeFromHtml,
 		groupedBundle: dep.groupedBundle,
-		naming: dep.bundleOptions?.naming,
-		external: dep.bundleOptions?.external,
-		minify: dep.bundleOptions?.minify,
-		plugins: pluginNames,
+		naming: bundleOptions?.naming,
+		external: bundleOptions?.external,
+		minify: bundleOptions?.minify,
+		define: sortedEntries(bundleOptions?.define),
+		treeshaking: bundleOptions?.treeshaking,
+		splitting: bundleOptions?.splitting,
+		excludeAppBuildPlugins: bundleOptions?.excludeAppBuildPlugins?.toSorted(),
+		plugins: bundleOptions?.plugins?.map((plugin) => [plugin.name, plugin.cacheKey ?? null]),
 	};
 
 	return generateHash(JSON.stringify(signature));
 }
 
 /**
- * Stable identity for dependency deduplication and {@link AssetProcessingService} cache lookups.
+ * The text of a generated script with each member it imports written relative to `rootDir`.
  *
  * @remarks
- * Script dependencies include a build signature derived from bundle flags, grouped-bundle
- * metadata, and selected `bundleOptions` fields (`naming`, `external`, `minify`, plugin names).
- * HTML-affecting script and stylesheet `attributes` are hashed into the key so dedupe and
- * cache reuse do not collapse declarations that would emit different tags. Full plugin
- * objects and `NODE_ENV` are excluded from the key.
+ * Both the raw path and its JSON-escaped form are replaced, as a generator writes either into an import
+ * specifier, and the escaped form differs on Windows.
+ */
+function toPortableGeneratedText(content: string, members: readonly string[], rootDir: string): string {
+	let text = content;
+	for (const member of members) {
+		const relative = toRootRelativePath(rootDir, member);
+		text = text.replaceAll(JSON.stringify(member).slice(1, -1), relative).replaceAll(member, relative);
+	}
+	return text;
+}
+
+/**
+ * @remarks
+ * A generated script, a content script that lists `bundledSourceFilepaths`, imports those members by absolute
+ * path, so its text is hashed with each member written relative to the app root, beside its `name`, which its
+ * generator derives from root-relative paths. Any other change to the text still changes the key. A package
+ * stylesheet is identified by its package path (`fromPackage`), not by where the package is installed.
+ */
+function getSourceSignature(dep: AssetDefinition, rootDir: string): string[] {
+	if (dep.kind === 'stylesheet' && dep.source === 'file' && dep.fromPackage) {
+		return [`package:${dep.fromPackage}`];
+	}
+	if ('filepath' in dep) {
+		return [toRootRelativePath(rootDir, dep.filepath)];
+	}
+	if ('importPath' in dep) {
+		if (!path.isAbsolute(dep.importPath)) return [dep.importPath];
+		const packagePath = toPackagePath(dep.importPath);
+		return [packagePath ? `package:${packagePath}` : toRootRelativePath(rootDir, dep.importPath)];
+	}
+	const members = dep.kind === 'script' ? dep.bundledSourceFilepaths : undefined;
+	const parts = members?.length
+		? [
+				`generated:${('name' in dep && dep.name) || ''}`,
+				`content:${generateHash(toPortableGeneratedText(dep.content, members, rootDir))}`,
+			]
+		: [`content:${generateHash(dep.content)}`];
+	if ('processingOrigin' in dep && dep.processingOrigin) {
+		parts.push(`origin:${toRootRelativePath(rootDir, dep.processingOrigin)}`);
+	}
+	return parts;
+}
+
+/**
+ * The identity of a dependency: two dependencies with one key are built, cached and served as one.
+ *
+ * @remarks
+ * It keys deduplication, the {@link AssetProcessingService} cache and in-flight sharing, and the production
+ * asset ledger (`AppRuntime.processedAssets`), where the app-wide browser build records each script it bundles.
+ *
+ * Script dependencies include a build signature: bundle flags, grouped-bundle metadata and every
+ * `bundleOptions` field, with each plugin as its name and `cacheKey`. `NODE_ENV` and plugin objects are left
+ * out, so a plugin factory that captures an option which changes its output must set `cacheKey`.
+ * `attributes` (hashed) and `inline` join the key so dedupe and cache reuse do not collapse declarations that
+ * would emit different tags or files. `name` only names output files and is left out, except for a generated
+ * script, which it helps identify.
+ *
+ * File paths, bundled sources and a generated script's members are relative to `rootDir`, and a package
+ * stylesheet, like a node-module script, keys by its package path, so the key survives moving the project or
+ * reinstalling its packages in another store layout.
+ * Other content is hashed as written. A plugin `cacheKey` must not capture an absolute path for the same reason.
  *
  * Runtime minify in {@link ContentScriptProcessor} still follows `NODE_ENV` via
  * `isProduction`, not `bundleOptions.minify`.
  */
-export function getAssetDependencyKey(dep: AssetDefinition): string {
-	const parts: string[] = [dep.kind, dep.source];
-
-	if ('filepath' in dep) {
-		parts.push(dep.filepath);
-	} else if ('content' in dep) {
-		parts.push(`content:${generateHash(dep.content)}`);
-		if ('processingOrigin' in dep && dep.processingOrigin) parts.push(`origin:${dep.processingOrigin}`);
-	} else if ('importPath' in dep) {
-		parts.push(dep.importPath);
-	}
+export function getAssetDependencyKey(dep: AssetDefinition, rootDir: string): string {
+	const parts: string[] = [dep.kind, dep.source, ...getSourceSignature(dep, rootDir)];
 
 	if ('position' in dep && dep.position) {
 		parts.push(dep.position);
 	}
 
-	parts.push(...getBundledSourceSignature(dep));
+	if (dep.inline) {
+		parts.push('inline');
+	}
+
+	parts.push(...getBundledSourceSignature(dep, rootDir));
 
 	if ('packageRole' in dep && dep.packageRole) {
 		parts.push(`package:${dep.packageRole}`);
@@ -80,11 +146,27 @@ export function getAssetDependencyKey(dep: AssetDefinition): string {
 	return parts.join(':');
 }
 
-export function deduplicateAssetDependencies(deps: AssetDefinition[]): AssetDefinition[] {
+/**
+ * The key of a dependency declared for the app-wide browser build.
+ *
+ * @remarks
+ * The app-wide build and dependency preparation (the Integration hook and `ensureGroupedContentScriptsBundle`)
+ * set `groupedBundle` and `bundle`. This key leaves both out of {@link getAssetDependencyKey}, so a declaration
+ * keys the same before and after, including when `ecopages start` restores the build without running it. It
+ * names no Integration: the ledger records one output per dependency key, so a script two Integrations declare
+ * is one entry of the build.
+ */
+export function getDeclaredDependencyKey(dependency: AssetDefinition, rootDir: string): string {
+	const declared =
+		dependency.kind === 'script' ? { ...dependency, groupedBundle: undefined, bundle: undefined } : dependency;
+	return getAssetDependencyKey(declared, rootDir);
+}
+
+export function deduplicateAssetDependencies(deps: AssetDefinition[], rootDir: string): AssetDefinition[] {
 	const seen = new Map<string, AssetDefinition>();
 
 	for (const dep of deps) {
-		const key = getAssetDependencyKey(dep);
+		const key = getAssetDependencyKey(dep, rootDir);
 		if (!seen.has(key)) {
 			seen.set(key, dep);
 		}

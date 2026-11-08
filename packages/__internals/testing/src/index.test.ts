@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import type { EcoPagesElement } from '@ecopages/core';
 import { requireAppRuntime } from '@ecopages/core/integration';
@@ -56,7 +57,7 @@ describe('createTestAppConfig', () => {
 			configure: (userConfig) => ({ ...userConfig, rootDir: '/tmp/test-root', workDir: '.eco-parallel' }),
 		});
 
-		expect(config.rootDir).toBe('/tmp/test-root');
+		expect(config.rootDir).toBe(path.resolve('/tmp/test-root'));
 		expect(config.workDir).toBe('.eco-parallel');
 	});
 

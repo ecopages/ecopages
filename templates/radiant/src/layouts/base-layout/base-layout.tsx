@@ -1,17 +1,16 @@
-import { eco } from '@ecopages/core';
+import { eco, type LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Logo } from '@/components/logo/logo';
 import { cx } from '@/lib/cx';
 import './base-layout.css';
 
-export type BaseLayoutProps = {
-	children: JsxRenderable;
+export interface BaseLayoutProps extends LayoutProps<JsxRenderable> {
 	class?: string;
 	prose?: boolean;
-};
+}
 
-export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
+export const BaseLayout = eco.layout<JsxRenderable, BaseLayoutProps>({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},

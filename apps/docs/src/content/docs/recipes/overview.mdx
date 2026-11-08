@@ -1,0 +1,39 @@
+---
+title: "Overview"
+description: "Copy-paste setups that your app owns, each built and typechecked in CI."
+order: 1
+---
+
+# Recipes
+
+A recipe answers "how do I...?" with a few files of code that you copy into your app and own. Rendering Mermaid diagrams at build time, GitHub-flavoured Markdown or an auth-gated layout are setups of this kind: small enough to read in one sitting, specific to how your app is put together.
+
+## Why recipes and not packages
+
+A package export is a promise. It needs a version, a changelog and a place in the API, and it makes every user depend on one way of doing the thing. A recipe makes no promise: you take the code, change it, and it stays yours.
+
+When many apps need the same recipe, or their copies start to drift, it is promoted to a package. Until then it stays a recipe.
+
+## How a recipe is built
+
+Each recipe has two parts:
+
+- A **fixture** under `examples/recipes/<name>/`: a small app whose files are the recipe. CI typechecks and builds every fixture.
+- A **page** in this section that explains the problem and the trade-offs, and includes the code from the fixture.
+
+The code on a page is never pasted text. A fence names the file, and the docs build reads it:
+
+````md
+```ts file="examples/recipes/diagrams/src/lib/remark-mermaid.ts"
+```
+````
+
+Add `region="name"` to include only the lines between `#region name` and `#endregion name` markers in the file. Because the page shows the file CI builds, a recipe breaks CI before it breaks a reader.
+
+## Recipes
+
+- [Diagrams](/docs/recipes/diagrams): render Mermaid diagrams to inline SVG at build time, with no client JavaScript.
+- [GFM and syntax highlighting](/docs/recipes/gfm): tables, task lists and highlighted code blocks in MDX, rendered at build time.
+- [WebAssembly threads](/docs/recipes/wasm-threads): cross-origin isolation headers and a module Worker that shares memory with the page.
+- [Auth-gated layout](/docs/recipes/auth-gate): a sign-in screen or a redirect for visitors without a session.
+- [Components and layouts](/docs/recipes/components-and-layouts): when a plain function is enough and when to use `eco.component()` or `eco.layout()`.

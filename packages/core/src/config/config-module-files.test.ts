@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { appLogger } from '../global/app-logger.ts';
 import { collectConfigModuleFiles } from './config-module-files.ts';
@@ -17,7 +17,7 @@ describe('collectConfigModuleFiles', () => {
 	}
 
 	beforeEach(() => {
-		workDir = mkdtempSync(path.join(tmpdir(), 'eco-config-module-files-'));
+		workDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-config-module-files-')));
 		rootDir = path.join(workDir, 'app');
 		write('app/node_modules/pkg/package.json', '{"name":"pkg","type":"module","main":"index.js"}');
 		write('app/node_modules/pkg/index.js', 'export const pkg = ;\n');

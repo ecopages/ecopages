@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '../path.ts';
 import { expect, test, vi } from 'vitest';
 import { NodeFileSystem } from './node.ts';
 
 test('NodeFileSystem.glob uses native Node glob semantics with ignore support', async () => {
-	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-glob-'));
+	const rootDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-glob-')));
 	const fileSystem = new NodeFileSystem();
 
 	fs.mkdirSync(path.join(rootDir, 'nested'), { recursive: true });
@@ -27,8 +27,8 @@ test('NodeFileSystem.glob uses native Node glob semantics with ignore support', 
 });
 
 test('NodeFileSystem.watch reports nested changes without initial events', async () => {
-	const testRoot = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-parent-'));
-	const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(testRoot, 'root-')));
+	const testRoot = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-parent-')));
+	const rootDir = path.fromNative(fs.realpathSync(fs.mkdtempSync(path.join(testRoot, 'root-'))));
 	const fileSystem = new NodeFileSystem();
 	const sourceDir = path.join(rootDir, 'src');
 	const nestedDir = path.join(sourceDir, 'nested');
@@ -45,7 +45,7 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 			throw error;
 		},
 		ignored: (watchedPath) => {
-			const ignored = watchedPath.split(path.sep).includes('node_modules');
+			const ignored = watchedPath.split('/').includes('node_modules');
 			if (ignored) ignoredPaths.push(watchedPath);
 			return ignored;
 		},
@@ -109,7 +109,7 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 }, 20_000);
 
 test('NodeFileSystem.watch maps real paths back to a symlinked root and follows a root created later', async () => {
-	const realRoot = fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-real-')));
+	const realRoot = path.fromNative(fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-real-'))));
 	const requestedRoot = path.join(tmpdir(), `eco-node-fs-watch-link-${Date.now()}`);
 	const futureParent = path.join(path.dirname(realRoot), `eco-node-fs-watch-future-${Date.now()}`);
 	const futureRoot = path.join(futureParent, 'created-later');
@@ -154,7 +154,7 @@ test('NodeFileSystem.watch maps real paths back to a symlinked root and follows 
 }, 20_000);
 
 test('NodeFileSystem.watch observes an existing file path', async () => {
-	const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-file-')));
+	const rootDir = path.fromNative(fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-file-'))));
 	const watchedFile = path.join(rootDir, 'watched.ts');
 	const fileSystem = new NodeFileSystem();
 	const changes: Array<{ type: string; path: string }> = [];
@@ -190,7 +190,7 @@ test('NodeFileSystem.watch observes an existing file path', async () => {
 }, 20_000);
 
 test('NodeFileSystem.watch adds existing paths to one running subscription', async () => {
-	const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-add-')));
+	const rootDir = path.fromNative(fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-add-'))));
 	const initialRoot = path.join(rootDir, 'initial');
 	const addedRoot = path.join(rootDir, 'added');
 	const firstAddedFile = path.join(addedRoot, 'first.ts');
@@ -237,7 +237,9 @@ test('NodeFileSystem.watch adds existing paths to one running subscription', asy
 }, 20_000);
 
 test('NodeFileSystem.watch skips indexing an ignored root directory', async () => {
-	const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-ignore-root-')));
+	const rootDir = path.fromNative(
+		fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-ignore-root-'))),
+	);
 	const nestedFile = path.join(rootDir, 'nested', 'entry.ts');
 	const fileSystem = new NodeFileSystem();
 	fs.mkdirSync(path.dirname(nestedFile), { recursive: true });
@@ -264,3 +266,13 @@ test('NodeFileSystem.watch skips indexing an ignored root directory', async () =
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
 }, 20_000);
+
+test('NodeFileSystem.tempDir names an existing directory in the Ecopages path form', () => {
+	const fileSystem = new NodeFileSystem();
+
+	const dir = fileSystem.tempDir();
+
+	expect(dir).toBe(path.fromNative(tmpdir()));
+	expect(dir).not.toContain('\\');
+	expect(fileSystem.isDirectory(dir)).toBe(true);
+});

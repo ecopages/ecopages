@@ -7,6 +7,10 @@ import type {
 import type { InternalComponentRenderInput } from '../../../config/internal-types.ts';
 import { getComponentRenderContext } from '../../../eco/component-render-context.ts';
 import type { RouteRenderContextState } from '../foreign-child/render-session.ts';
+import {
+	LayoutChildrenNotRenderedError,
+	type LayoutChildrenNotRenderedHandler,
+} from './layout-children-not-rendered-error.ts';
 
 export type DocumentShellLayoutInput = {
 	component: EcoComponent;
@@ -19,6 +23,8 @@ export type DocumentShellComposeChildrenContext = {
 	layouts: DocumentShellLayoutInput[];
 	rendererCache: BaseIntegrationContext['rendererCache'];
 	renderComponentWithForeignChildren: DocumentShellRenderDependencies['renderComponentWithForeignChildren'];
+	/** Reports a layout that rendered without its children. Throws when omitted. */
+	onLayoutChildrenNotRendered?: LayoutChildrenNotRenderedHandler;
 };
 
 export type DocumentShellComposeChildrenResult = {
@@ -68,6 +74,8 @@ export type DocumentShellPageRenderInput = {
 
 export type DocumentShellRenderDependencies = {
 	renderComponentWithForeignChildren(input: InternalComponentRenderInput): Promise<ComponentRenderResult>;
+	/** Reports a layout that rendered without its children. Throws when omitted. */
+	onLayoutChildrenNotRendered?: LayoutChildrenNotRenderedHandler;
 };
 
 function resolveDocumentShellLayouts(
@@ -80,23 +88,35 @@ function resolveDocumentShellLayouts(
 	return input.layout ? [input.layout] : [];
 }
 
+/** Marks where a layout's `children` start, so composition can tell whether the layout rendered them. */
+const LAYOUT_CHILDREN_MARKER = '<!--eco-layout-children-->';
+
 /**
  * Default sequential string-child composition for document shell layers.
+ *
+ * @remarks
+ * A layout whose output does not contain its children goes to `onLayoutChildrenNotRendered`, which throws by
+ * default; when the handler returns, the layout's output is kept as it is.
  */
 export async function composeSequentialLayoutChildren(
 	context: DocumentShellComposeChildrenContext,
 	primaryHtml: string,
 ): Promise<DocumentShellComposeChildrenResult> {
-	let children: unknown = primaryHtml;
+	let children = primaryHtml;
 
 	for (const layout of [...context.layouts].reverse()) {
 		const layoutRender = await context.renderComponentWithForeignChildren({
 			component: layout.component,
 			props: layout.props ?? {},
-			children,
+			children: `${LAYOUT_CHILDREN_MARKER}${children}`,
 			integrationContext: { rendererCache: context.rendererCache },
 		});
-		children = layoutRender.html;
+		if (!layoutRender.html.includes(LAYOUT_CHILDREN_MARKER)) {
+			const error = LayoutChildrenNotRenderedError.forLayout(layout.component, context.primaryComponent);
+			if (!context.onLayoutChildrenNotRendered) throw error;
+			context.onLayoutChildrenNotRendered(error);
+		}
+		children = layoutRender.html.replaceAll(LAYOUT_CHILDREN_MARKER, '');
 	}
 
 	return { children };
@@ -121,6 +141,7 @@ export async function composeDocumentShell(
 		layouts,
 		rendererCache,
 		renderComponentWithForeignChildren: dependencies.renderComponentWithForeignChildren,
+		onLayoutChildrenNotRendered: dependencies.onLayoutChildrenNotRendered,
 	};
 	let children: unknown;
 	if (input.composeChildren) {

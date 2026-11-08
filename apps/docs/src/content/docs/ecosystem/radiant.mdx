@@ -14,41 +14,56 @@ Radiant uses standard CUSTOM Elements with a thin layer of decorators to handle 
 
 ## Component Example
 
-```typescript
-import { customElement, reactiveProp, onEvent, query } from '@ecopages/radiant';
+```tsx
+/** @jsxImportSource @ecopages/jsx */
+
+import { RadiantElement, customElement, onEvent, prop, query } from '@ecopages/radiant';
 
 @customElement('radiant-counter')
-export class RadiantCounter extends HTMLElement {
-    @reactiveProp() 
-    value = 0;
+export class RadiantCounter extends RadiantElement {
+	@prop({ type: Number, defaultValue: 0 }) value!: number;
 
-    @query('span') 
-    display!: HTMLSpanElement;
+	@query<HTMLSpanElement>({ selector: 'span' }) display!: HTMLSpanElement | null;
 
-    @onEvent('click', 'button.increment')
-    inc() {
-        this.value++;
-    }
+	@onEvent({ type: 'click', selector: 'button.increment' })
+	inc() {
+		this.value += 1;
+	}
 
-    render() {
-        this.display.textContent = this.value.toString();
-    }
+	override render() {
+		return (
+			<div>
+				<span>{this.value}</span>
+				<button class="increment" type="button">
+					Increment
+				</button>
+			</div>
+		);
+	}
 }
 ```
+
+Decorators such as `@prop` need a `RadiantElement` host. A plain `HTMLElement` subclass has none of the reactive machinery they rely on.
 
 ## Decorators
 
 ### `@customElement(tag: string)`
-Registers the class as a custom element with the given tag name.
 
-### `@reactiveProp()`
-Marks a property as reactive. When the property changes, it automatically triggers a re-render or a specific update logic.
+Registers the class as an autonomous custom element with the given tag name.
 
-### `@onEvent(type: string, selector?: string)`
-Declaratively attaches an event listener. If a selector is provided, it uses event delegation.
+### `@prop(options)`
 
-### `@query(selector: string)`
-A shorthand for `this.querySelector(selector)`. Returns the element every time it is accessed.
+Defines a reactive public property. It is also an attribute, named after the kebab-case property name unless `attribute` says otherwise. `type`, `defaultValue`, and `transform` must agree with the declared field type. A change schedules an update of the host.
+
+### `@onEvent(options)`
+
+Declaratively attaches an event listener, with `type` and one target: `selector` or `ref` for delegation on the host, or `window`, `document`, or `mediaQuery`. Delegated listeners need an event that bubbles.
+
+### `@query(options)`
+
+Reads a single element by `selector` or `ref` each time the field is accessed. The field type is `T | null`, or `T[]` with `all: true`, so guard each use.
+
+See the [Radiant docs](https://radiant.ecopages.app/) for `@state`, `@signal`, `@attr`, `@bindTo`, and the rest of the decorator set.
 
 ## Using with Ecopages
 
@@ -84,14 +99,13 @@ if (!customElements.get('radiant-counter')) {
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
 import type { CounterProps } from './counter.script';
 
-export const Counter = eco.component<CounterProps, JsxRenderable>({
+export const Counter = eco.component({
 	dependencies: {
 		scripts: [{ src: './counter.script.ts', ssr: true }],
 	},
-	render: ({ count = 0 }) => <radiant-counter count={count} />,
+	render: ({ count = 0 }: CounterProps) => <radiant-counter count={count} />,
 });
 ```
 

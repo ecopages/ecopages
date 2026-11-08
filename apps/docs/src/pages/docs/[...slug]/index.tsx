@@ -64,7 +64,7 @@ const DocsBreadcrumb = ({ entry }: { entry: DocsContentEntry }) => {
 	);
 };
 
-export const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { entry } }) => ({
+const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { entry } }) => ({
 	title: `Docs | ${entry.title}`,
 	description: entry.description ?? '',
 	url: `/docs/${entry.slug}`,

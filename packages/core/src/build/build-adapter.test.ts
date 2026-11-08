@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { path } from '@ecopages/file-system/path';
 import { test, vi } from 'vitest';
 import {
 	createBuildAdapter,
@@ -7,7 +8,6 @@ import {
 	ensureIntegrationRuntimeReady,
 } from './build-adapter.ts';
 import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
-import { createBrowserRuntimeManifest } from './browser/browser-runtime-manifest.ts';
 import { BuildInputDependencyIndex } from './cache/build-input-dependency-index.ts';
 import { createAppBuildManifest } from './contracts/build-manifest.ts';
 import type { EcoBuildPlugin } from './contracts/build-types.ts';
@@ -30,36 +30,20 @@ test('the sealed manifest holds the plugins of each environment, so readers do n
 	assert.deepEqual(manifest.browser, [loaderPlugin, runtimePlugin, browserPlugin]);
 });
 
-test('the sealed browser list puts the runtime plugin between shared and browser-only plugins', () => {
+test('the sealed browser list puts the plugins shared with the server before the browser-only ones', () => {
 	const shared = { name: 'shared', setup() {} };
 	const browserOnly: EcoBuildPlugin = { name: 'browser-only', environments: ['browser'], setup() {} };
-	const browserRuntimeManifest = createBrowserRuntimeManifest([
-		{
-			specifier: 'react',
-			owner: '@ecopages/react',
-			importPath: 'react',
-			publicPath: '/assets/vendors/react.js',
-		},
-	]);
 
-	const manifest = createAppBuildManifest(registrations(browserOnly, shared), browserRuntimeManifest);
+	const manifest = createAppBuildManifest(registrations(browserOnly, shared));
 
 	assert.deepEqual(
 		manifest.browser.map((plugin) => plugin.name),
-		['shared', 'browser-runtime-plugin', 'browser-only'],
+		['shared', 'browser-only'],
 	);
-	assert.equal(manifest.browserRuntimeManifest.bySpecifier.get('react')?.publicPath, '/assets/vendors/react.js');
 	assert.deepEqual(
 		manifest.server.map((plugin) => plugin.name),
 		['shared'],
 	);
-});
-
-test('a manifest without runtime declarations has no runtime plugin', () => {
-	const manifest = createAppBuildManifest([]);
-
-	assert.deepEqual(manifest.browser, []);
-	assert.deepEqual(manifest.browserRuntimeManifest.assets, []);
 });
 
 test('sealing rejects a plugin name registered twice for one environment, naming both sources', () => {
@@ -102,6 +86,7 @@ test('sealAppBuildManifest gathers loaders, then processor and integration plugi
 			calls.push('processor-plugins');
 			return [processorRuntimePlugin, processorBrowserPlugin];
 		}),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {
 			throw new Error('finalization must not set a processor up');
 		}),
@@ -112,7 +97,7 @@ test('sealAppBuildManifest gathers loaders, then processor and integration plugi
 			calls.push('integration-plugins');
 			return [integrationRuntimePlugin];
 		}),
-		browserRuntimeManifest: createBrowserRuntimeManifest(),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {
 			throw new Error('finalization must not set an integration up');
 		}),
@@ -144,7 +129,6 @@ test('sealAppBuildManifest reports a plugin an integration registers under a loa
 	const integration = {
 		name: 'react',
 		plugins: () => [{ name: 'duplicate', setup() {} }],
-		browserRuntimeManifest: createBrowserRuntimeManifest(),
 	};
 
 	assert.throws(
@@ -158,42 +142,6 @@ test('sealAppBuildManifest reports a plugin an integration registers under a loa
 	);
 });
 
-test('sealAppBuildManifest merges integration browser runtime manifests', () => {
-	const reactManifest = createBrowserRuntimeManifest([
-		{
-			specifier: 'react',
-			owner: '@ecopages/react',
-			importPath: 'react',
-			publicPath: '/assets/vendors/react.js',
-		},
-	]);
-	const routerManifest = createBrowserRuntimeManifest([
-		{
-			specifier: '@ecopages/react-router/browser',
-			owner: '@ecopages/react-router',
-			importPath: '@ecopages/react-router/browser',
-			publicPath: '/assets/vendors/react-router.js',
-		},
-	]);
-	const integrationFor = (name: string, browserRuntimeManifest: typeof reactManifest) => ({
-		name,
-		plugins: () => [],
-		browserRuntimeManifest,
-	});
-	const appConfig = {
-		loaders: new Map(),
-		processors: new Map(),
-		integrations: [integrationFor('react', reactManifest), integrationFor('router', routerManifest)],
-	} as any;
-
-	const manifest = sealAppBuildManifest(appConfig);
-
-	assert.deepEqual(Array.from(manifest.browserRuntimeManifest.bySpecifier.keys()), [
-		'react',
-		'@ecopages/react-router/browser',
-	]);
-});
-
 test('setupAppRuntimePlugins runs runtime setup without recomposing manifest contributions', async () => {
 	const contributionOrder: string[] = [];
 	const watchPaths: string[] = [];
@@ -205,6 +153,7 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 		plugins: [processorRuntimePlugin],
 		setContext: vi.fn(),
 		getWatchConfig: () => ({ paths: watchPaths }),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {
 			contributionOrder.push('processor-setup');
 			watchPaths.push('/app/src/content');
@@ -212,6 +161,7 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 	};
 	const integration = {
 		plugins: [integrationRuntimePlugin],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {
 			contributionOrder.push('integration-setup');
 		}),
@@ -227,7 +177,7 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 	});
 
 	assert.deepEqual(contributionOrder, ['processor-setup']);
-	assert.deepEqual(buildInputIndex.recordedWatchPaths(), ['/app/src/content']);
+	assert.deepEqual(buildInputIndex.recordedWatchPaths(), [path.resolve('/app/src/content')]);
 });
 
 test('setupAppRuntimePlugins restores Processors instead of calling setup when skipProcessorSetup is set', async () => {
@@ -235,6 +185,7 @@ test('setupAppRuntimePlugins restores Processors instead of calling setup when s
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
 		setContext: vi.fn(),
 		getWatchConfig: () => undefined,
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 		restoreProductionRuntime: vi.fn(async () => {}),
 	};
@@ -258,10 +209,12 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 	const processor = {
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
 		setContext: vi.fn(),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 	};
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 	};
 
@@ -286,6 +239,7 @@ test('ensureIntegrationRuntimeReady activates one integration exactly once', asy
 	const integration = {
 		name: 'react',
 		plugins: [integrationRuntimePlugin],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 	};
 
@@ -318,6 +272,7 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 	const integration = {
 		name: 'react',
 		plugins: [],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {
 			await setupGate;
 		}),
@@ -351,6 +306,7 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 	const integration = {
 		name: 'react',
 		plugins: [],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn().mockRejectedValueOnce(new Error('setup failed')).mockResolvedValueOnce(undefined),
 	};
 
@@ -387,10 +343,12 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 	const processor = {
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
 		setContext: vi.fn(),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 	};
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		setup: vi.fn(async () => {}),
 	};
 

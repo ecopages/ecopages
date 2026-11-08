@@ -3,13 +3,33 @@
 		{
 			"id": "jsx",
 			"displayName": "JSX",
-			"description": "A minimal Ecopages JSX application.",
+			"description": "A minimal Ecopages JSX application with Tailwind v4 on Lightning CSS.",
 			"category": "integration",
 			"order": 10,
 			"default": true,
 			"source": "jsx",
 			"packageDirectory": ".",
 			"integrations": ["ecopages-jsx", "mdx"]
+		},
+		{
+			"id": "jsx-postcss",
+			"displayName": "JSX PostCSS",
+			"description": "The JSX application with Tailwind v4 run by PostCSS, for PostCSS plugins and Tailwind v3.",
+			"category": "integration",
+			"order": 11,
+			"source": "jsx-postcss",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "mdx", "postcss"]
+		},
+		{
+			"id": "jsx-css-modules",
+			"displayName": "JSX CSS Modules",
+			"description": "The JSX application styled with plain CSS Modules on Lightning CSS, without Tailwind.",
+			"category": "integration",
+			"order": 12,
+			"source": "jsx-css-modules",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "mdx", "lightningcss"]
 		},
 		{
 			"id": "html",
@@ -24,12 +44,22 @@
 		{
 			"id": "react",
 			"displayName": "React",
-			"description": "A minimal Ecopages React application.",
+			"description": "A minimal Ecopages React application with Tailwind v4 on Lightning CSS.",
 			"category": "integration",
 			"order": 20,
 			"source": "react",
 			"packageDirectory": ".",
 			"integrations": ["react"]
+		},
+		{
+			"id": "react-postcss",
+			"displayName": "React PostCSS",
+			"description": "The React application with Tailwind v4 run by PostCSS, for PostCSS plugins and Tailwind v3.",
+			"category": "integration",
+			"order": 21,
+			"source": "react-postcss",
+			"packageDirectory": ".",
+			"integrations": ["react", "postcss"]
 		},
 		{
 			"id": "react-shadcn",

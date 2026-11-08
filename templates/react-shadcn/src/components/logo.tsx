@@ -1,4 +1,3 @@
-import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 
 export type LogoProps = {
@@ -6,8 +5,8 @@ export type LogoProps = {
 	title?: string;
 };
 
-export const Logo = eco.component<LogoProps, ReactNode>({
-	render: ({ href = '/', title }) => (
+export function Logo({ href = '/', title }: LogoProps): ReactNode {
+	return (
 		<a href={href} title={title} className="site-logo">
 			<svg height="28" viewBox="0 0 35 42" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 				<path
@@ -19,5 +18,5 @@ export const Logo = eco.component<LogoProps, ReactNode>({
 			</svg>
 			Ecopages
 		</a>
-	),
-});
+	);
+}

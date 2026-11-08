@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../types/contracts.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type {
@@ -8,12 +8,15 @@ import type {
 	ProcessedAsset,
 } from '../../assets/asset-processing-service/index.ts';
 import { resolveAssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
+import { prepareAssetDependencies } from '../../assets/asset-processing-service/asset-processing.service.ts';
+import { isBundleableScript } from '../../assets/asset-processing-service/bundleable-script.ts';
 import { contentHash } from '../../utils/content-hash.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigger-planning.ts';
 import { collectComponentDependencies } from './component-dependency-collection.ts';
 import { packagePageDependencies } from './page-dependency-bundling.ts';
+import { getStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import type { LazyGroup } from './lazy-entry-collection.ts';
 import {
 	getResolvedLazyTriggers,
@@ -111,7 +114,7 @@ export class DependencyResolverService {
 	 * Resolves one dependency path relative to the component that declared it.
 	 */
 	resolveDependencyPath(componentDir: string, pathUrl: string): string {
-		return path.join(componentDir, pathUrl);
+		return path.join(path.resolve(this.appConfig.rootDir, componentDir), pathUrl);
 	}
 
 	/**
@@ -148,6 +151,46 @@ export class DependencyResolverService {
 		return this.processPreparedDependencies(components, integrationName, true);
 	}
 
+	/**
+	 * Returns the scripts that processing `components` would bundle, without processing anything.
+	 *
+	 * @remarks
+	 * Each script is prepared as asset processing prepares it, so its dependency key is the one rendering later looks
+	 * up in `AppRuntime.processedAssets`. The production prebuild hands them to the app-wide browser build.
+	 */
+	collectBundleableScripts(
+		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
+		integrationName: string,
+		skipNestedComponents: boolean,
+	): AssetDefinition[] {
+		const { dependencies } = this.collectDependencies(components, integrationName, false, skipNestedComponents);
+		const eagerDeps = this.packageDependencies(dependencies, integrationName).filter(
+			(dep) => !isLazyClientScript(dep),
+		);
+		return prepareAssetDependencies(
+			eagerDeps,
+			this.getAssetProcessingIntegration(integrationName),
+			this.appConfig.rootDir,
+		).filter(isBundleableScript);
+	}
+
+	private bundlesPageDependencies(integrationName: string): boolean {
+		return (
+			this.appConfig.integrations?.find((integration) => integration.name === integrationName)
+				?.bundlesPageDependencies ?? false
+		);
+	}
+
+	private packageDependencies(dependencies: AssetDefinition[], integrationName: string): AssetDefinition[] {
+		return packagePageDependencies(
+			dependencies,
+			integrationName,
+			this.bundlesPageDependencies(integrationName),
+			this.appConfig.rootDir,
+			getStylesheetKinds(this.appConfig),
+		);
+	}
+
 	/** Collects lazy client entries from prepared graph nodes without processing eager assets. */
 	prepareLazyClientDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
@@ -176,10 +219,7 @@ export class DependencyResolverService {
 			skipNestedComponents,
 		);
 
-		const bundlesPageDependencies =
-			this.appConfig.integrations?.find((integration) => integration.name === integrationName)
-				?.bundlesPageDependencies ?? false;
-		const packagedDependencies = packagePageDependencies(dependencies, integrationName, bundlesPageDependencies);
+		const packagedDependencies = this.packageDependencies(dependencies, integrationName);
 		const lazyDeps = packagedDependencies.filter(isLazyClientScript);
 		const eagerDeps = packagedDependencies.filter((dep) => !isLazyClientScript(dep));
 
@@ -196,7 +236,7 @@ export class DependencyResolverService {
 			components,
 			integrationName,
 			skipNestedComponents,
-			bundlesPageDependencies,
+			this.bundlesPageDependencies(integrationName),
 		);
 		if (!cacheKey) {
 			return this.assetProcessingService.processDependencies(
@@ -364,6 +404,7 @@ export class DependencyResolverService {
 		return collectComponentDependencies({
 			components,
 			integrationName,
+			rootDir: this.appConfig.rootDir,
 			excludeForeignChildren,
 			skipNestedComponents,
 			resolveLazyScripts: (componentDir, scripts) => this.resolveLazyScripts(componentDir, scripts),

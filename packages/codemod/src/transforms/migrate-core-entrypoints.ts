@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import type { API, FileInfo, Options } from 'jscodeshift';
 import ts from 'typescript';
+import { printOptions } from './print-options.ts';
 
 export const parser = 'tsx';
 
@@ -377,5 +378,5 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 		return null;
 	}
 
-	return root.toSource({ quote: 'single', tabWidth: 2, useTabs: true });
+	return root.toSource(printOptions(file.source));
 }

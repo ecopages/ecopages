@@ -37,6 +37,7 @@ export function createBuildAdapter(): BuildAdapter {
 
 export {
 	ensureIntegrationRuntimeReady,
+	resolveIntegrationDependencies,
 	sealAppBuildManifest,
 	setupAppRuntimeIntegrations,
 	setupAppRuntimePlugins,

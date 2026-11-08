@@ -24,9 +24,9 @@ Static export calls optional Integration `staticExport(ctx)` hooks before genera
 
 ## Shipped processors
 
-### PostCSS
+### Lightning CSS and PostCSS
 
-Setup: see [styling.md](styling.md#tailwind-v4-setup). Needed for value imports such as `import styles from './styles.css'`; side-effect `import './styles.css'` works without it.
+Setup: see [styling.md](styling.md#tailwind-v4-setup). `@ecopages/lightningcss-processor` is the default stylesheet Processor: Tailwind v4 through its preset, browser `targets`, and CSS Modules. `@ecopages/postcss-processor` stays for PostCSS plugins and Tailwind v3. Register only one. Value imports such as `import styles from './styles.css'` need a stylesheet Processor (either one); side-effect `import './styles.css'` works without it.
 
 ### Image processor
 
@@ -52,7 +52,12 @@ Name and image `capabilities` are fixed inside the factory. Pass options only un
 Extend `Processor` from `@ecopages/core/processor`:
 
 ```typescript
-import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/processor';
+import {
+	Processor,
+	type EcoBuildPlugin,
+	type ProcessorConfig,
+	type StylesheetTransformResult,
+} from '@ecopages/core/processor';
 
 class CustomProcessor extends Processor {
 	constructor(config: Omit<ProcessorConfig, 'name'>) {
@@ -71,15 +76,15 @@ class CustomProcessor extends Processor {
 		// Generation, config loading and cache warming
 	}
 
-	override async transformStylesheet(css: string, file: string): Promise<string> {
-		return css;
+	override async transformStylesheet(css: string, file: string): Promise<StylesheetTransformResult> {
+		return { css, dependencies: [] };
 	}
 }
 
 export const customProcessorPlugin = (config?: Omit<ProcessorConfig, 'name'>) => new CustomProcessor(config ?? {});
 ```
 
-Use `capabilities` to participate in the asset pipeline. Each capability can declare `filter: RegExp` in addition to `extensions`. Stylesheet processing also needs `transformStylesheet(css, file)`; a processor without it is skipped. `transformStylesheet` only receives `.css`, `.scss`, `.sass` and `.less` files. Declare capabilities for file types the processor owns as build assets (for example stylesheets or images). Use `watch.extensions` for dependency notifications that should not block server invalidation or HMR (for example Tailwind class scanning in TSX). Use `IClientBridge` in watch callbacks for dev HMR (`bridge.cssUpdate(path)`).
+Use `capabilities` to participate in the asset pipeline. Each capability can declare `filter: RegExp` in addition to `extensions`. Stylesheet processing also needs `transformStylesheet(css, file)`; a processor without it is skipped. `transformStylesheet` receives `.css` files and the extensions the stylesheet capability declares, and returns `{ css, dependencies }`: `dependencies` are the absolute paths of the files the transform read, of which core keeps the stylesheets (from PostCSS `dependency` messages or Lightning CSS `dependencies`, never a regex), and core rebuilds the stylesheet and its importers when one changes. In development core prewarms, caches, writes and refreshes stylesheets; a stylesheet processor implements `invalidateStylesheets(files)` to name the stylesheets a change to other files makes stale (for example Tailwind class scanning in TSX), returning paths or `'all'`. Declare capabilities for file types the processor owns as build assets (for example stylesheets or images). Use `watch.extensions` for notifications that should not block server invalidation or HMR, and `IClientBridge` in watch callbacks for other live updates. First-party stylesheet processors run `stylesheetProcessorContract` from `@ecopages/core/processor/contract`.
 
 ## Custom integrations
 
@@ -101,7 +106,7 @@ export const customPlugin = defineIntegration({
 
 Class-based integrations extend `IntegrationPlugin`, provide a renderer, and split build declarations (`plugins(app)`, no I/O) from runtime work (`setup`). Overrides of `setup(ctx)` must `await super.setup(ctx)` first; it creates the asset service the renderer needs. For Page files that are not JavaScript modules, implement `compilePageModule(filePath, appConfig)`.
 
-Override `createRenderer(base)` to add framework-specific renderer options, `hmr(ctx)` to register development strategies, and `staticExport(ctx)` when build-time work needs a release function. Set browser runtime rewrites with the constructor's `browserRuntimeManifest` data.
+Override `createRenderer(base)` to add framework-specific renderer options, `hmr(ctx)` to register development strategies, and `staticExport(ctx)` when build-time work needs a release function. A browser package that generated scripts import needs no declaration; it resolves like any other import.
 
 ## Source transforms
 
@@ -111,7 +116,7 @@ A build plugin rewrites module source with its `transform` hook. Register it in 
 import { defineConfig } from '@ecopages/core/config';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
+	rootDir: process.cwd(),
 	loaders: [
 		{
 			name: 'banner-transform',

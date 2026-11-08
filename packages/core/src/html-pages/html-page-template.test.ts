@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
+import { path } from '@ecopages/file-system/path';
 import {
 	compileHtmlPage,
 	compileHtmlShell,
-	findRelativeCssUrls,
 	getHtmlTemplateWatchFiles,
 	type HtmlPageTemplate,
 	type HtmlTemplatePart,
 } from './html-page-template.ts';
 
-const srcDir = '/app/src';
-const pageFile = '/app/src/pages/about.html';
+const srcDir = path.resolve('/app/src');
+const pageFile = path.resolve('/app/src/pages/about.html');
 const options = { srcDir };
 
 /** Renders parts with `[asset N]` and `[children]` placeholders. */
@@ -208,9 +208,9 @@ describe('compileHtmlPage', () => {
 			'[asset 2][asset 3]<script src="https://cdn.example.com/x.js"></script><link rel="stylesheet" href="/root.css"><script>inline()</script><script type="text/template" src="./tpl.html"></script>',
 		);
 		expect(getHtmlTemplateWatchFiles(template)).toEqual([
-			'/app/src/pages/about.css',
-			'/app/src/pages/counter.ts',
-			'/app/src/vendor/jquery.js',
+			path.resolve('/app/src/pages/about.css'),
+			path.resolve('/app/src/pages/counter.ts'),
+			path.resolve('/app/src/vendor/jquery.js'),
 		]);
 
 		expect(warn).toHaveBeenCalledTimes(1);
@@ -230,7 +230,7 @@ describe('compileHtmlPage', () => {
 		);
 
 		expect(template.assets[0]).toMatchObject({
-			filepath: '/app/src/pages/about.css',
+			filepath: path.resolve('/app/src/pages/about.css'),
 			reference: './about.css?v=1#x',
 		});
 		expect(template.htmlAttributes).toEqual({ 'data-x': '&copy; a&amp;b' });
@@ -295,14 +295,6 @@ describe('compileHtmlPage', () => {
 		expect(warn.mock.calls[0]![0]).toContain('Use an absolute URL');
 	});
 
-	it('finds relative CSS URLs in url() and image-set() strings, skipping comments', () => {
-		expect(
-			findRelativeCssUrls(
-				'/* url(old.png) */ a { background: image-set(\'a.png\' 1x, url(b.png) 2x, "/c.png" 3x); mask: url("data:x") url(d.svg#m); }',
-			),
-		).toEqual(['b.png', 'd.svg#m', 'a.png']);
-	});
-
 	it('records a relative preload link as a preload hint, not a processed file', () => {
 		const warn = vi.fn();
 		const template = compileHtmlPage(
@@ -318,9 +310,12 @@ describe('compileHtmlPage', () => {
 			'classic-script',
 			false,
 		]);
-		expect(template.assets[0]).toMatchObject({ filepath: '/app/src/pages/counter.ts', integrity: false });
+		expect(template.assets[0]).toMatchObject({
+			filepath: path.resolve('/app/src/pages/counter.ts'),
+			integrity: false,
+		});
 		expect(template.assets[1]).toMatchObject({ integrity: true });
-		expect(getHtmlTemplateWatchFiles(template)).toEqual(['/app/src/pages/counter.ts']);
+		expect(getHtmlTemplateWatchFiles(template)).toEqual([path.resolve('/app/src/pages/counter.ts')]);
 		expect(warn).not.toHaveBeenCalled();
 	});
 
@@ -358,7 +353,7 @@ describe('compileHtmlPage', () => {
 });
 
 describe('compileHtmlShell', () => {
-	const shellFile = '/app/src/includes/html.html';
+	const shellFile = path.resolve('/app/src/includes/html.html');
 
 	it('drops the doctype and turns the marker into the children slot', () => {
 		const template = compileHtmlShell(
@@ -368,7 +363,10 @@ describe('compileHtmlShell', () => {
 		);
 
 		expect(show(template.parts)).toBe('<html><head>[asset 0]</head><body>[children]</body></html>');
-		expect(template.assets[0]).toMatchObject({ kind: 'stylesheet', filepath: '/app/src/includes/site.css' });
+		expect(template.assets[0]).toMatchObject({
+			kind: 'stylesheet',
+			filepath: path.resolve('/app/src/includes/site.css'),
+		});
 	});
 
 	it('requires <html> with <head> and <body>, and exactly one marker', () => {

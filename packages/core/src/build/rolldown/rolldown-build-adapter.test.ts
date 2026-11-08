@@ -12,25 +12,24 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { appLogger } from '../../global/app-logger.ts';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
 import { resolveRolldownOptions } from './rolldown-adapter-helpers.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
-import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
-import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
+import { attributeComponentIdentity } from '../../plugins/eco-component-meta-plugin.ts';
+import { Processor } from '../../plugins/processor.ts';
+import { createStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import { BuildInputDependencyIndex, runWithBuildInputIndex } from '../cache/build-input-dependency-index.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
 import { assertBuildFailed } from '../../__fixtures__/build/build-result.ts';
 
 let workDir: string;
 
 beforeEach(() => {
-	workDir = mkdtempSync(path.join(tmpdir(), 'rolldown-adapter-test-'));
+	workDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'rolldown-adapter-test-')));
 });
 
 afterEach(() => {
@@ -47,8 +46,8 @@ function writeFixture(filename: string, source: string): string {
 
 function relativeImportPath(outputPath: string, targetPath: string): string {
 	return path
-		.relative(path.dirname(realpathSync(outputPath)), targetPath)
-		.split(path.sep)
+		.relative(path.dirname(path.fromNative(realpathSync(outputPath))), targetPath)
+		.split('/')
 		.join('/');
 }
 
@@ -140,6 +139,77 @@ describe('RolldownBuildAdapter', () => {
 		expect(result.logs.map((log) => log.message).join('\n')).toContain(entrypoint);
 	});
 
+	describe('a module that several entries reach', () => {
+		/** Rewrites the marker in the files it owns, the `component.ts` files, whichever entry reached them. */
+		const markerPlugin: EcoBuildPlugin = {
+			name: 'marker-rewrite',
+			setup(build) {
+				build.transform({ filter: /component\.ts$/ }, (code) => code.replaceAll('MARKER', 'TRANSFORMED'));
+			},
+		};
+
+		/**
+		 * Holds back the load of `slowFile`, so the entry that does not import through it reaches `component.ts`
+		 * first, and records the importer that reached `component.ts` first.
+		 */
+		function createLoadOrderPlugin(slowFile: string, firstImporters: string[]): EcoBuildPlugin {
+			return {
+				name: 'load-order',
+				setup(build) {
+					build.onResolve({ filter: /component\.ts$/ }, (args) => {
+						if (args.importer) firstImporters.push(path.basename(args.importer));
+						return undefined;
+					});
+					build.onLoad({ filter: /\.ts$/ }, async (args) => {
+						if (path.basename(args.path) === slowFile)
+							await new Promise((resolve) => setTimeout(resolve, 50));
+						return undefined;
+					});
+				},
+			};
+		}
+
+		async function buildWithSlowFile(slowFile: string) {
+			const firstImporters: string[] = [];
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser' as const,
+				entrypoints: {
+					lit: path.join(workDir, 'lit-entry.ts'),
+					react: path.join(workDir, 'react-entry.ts'),
+				},
+				outdir: path.join(workDir, 'dist'),
+				target: 'browser',
+				format: 'esm',
+				root: workDir,
+				splitting: true,
+				plugins: [createLoadOrderPlugin(slowFile, firstImporters), markerPlugin],
+			});
+			assertBuildSucceeded(result, 'Build failed');
+			const output = result.outputs
+				.filter((output) => output.path.endsWith('.js'))
+				.map((output) => readFileSync(output.path, 'utf8'))
+				.join('\n');
+			return { firstImporter: firstImporters[0], output };
+		}
+
+		test('compiles the module the same way in either load order', async () => {
+			writeFixture('component.ts', "export const component = 'MARKER-component';");
+			writeFixture('barrel.ts', "export { component } from './component.ts';");
+			writeFixture('lit-entry.ts', "import { component } from './component.ts'; console.log(component);");
+			writeFixture('react-entry.ts', "import { component } from './barrel.ts'; console.log(component);");
+
+			const litFirst = await buildWithSlowFile('barrel.ts');
+			const reactFirst = await buildWithSlowFile('lit-entry.ts');
+
+			expect(litFirst.firstImporter).toBe('lit-entry.ts');
+			expect(reactFirst.firstImporter).toBe('barrel.ts');
+			for (const { output } of [litFirst, reactFirst]) {
+				expect(output.match(/TRANSFORMED-component/g)).toHaveLength(1);
+				expect(output).not.toContain('MARKER-component');
+			}
+		});
+	});
+
 	test('rejects a server-only module reached through a package.json import alias in a browser build', async () => {
 		writeFixture('package.json', JSON.stringify({ name: 'app', imports: { '#db': './db.server.ts' } }));
 		writeFixture('db.server.ts', 'export const secret = "server-secret";');
@@ -200,35 +270,57 @@ describe('RolldownBuildAdapter', () => {
 		);
 	});
 
-	test('records the path a plugin loads during a real Rolldown build', async () => {
-		const entrypoint = writeFixture('entry.ts', 'export const title = "From plugin";');
-		const buildInputIndex = new BuildInputDependencyIndex();
-
-		const result = await runWithBuildInputIndex(buildInputIndex, () =>
-			new RolldownBuildAdapter().build({
-				environment: 'browser',
-				entrypoints: [entrypoint],
-				outdir: path.join(workDir, 'dist'),
-				target: 'browser',
-				format: 'esm',
-				root: workDir,
-				plugins: [
-					{
-						name: 'entry-loader',
-						setup(build) {
-							build.onLoad({ filter: /entry\.ts$/ }, () => ({
-								contents: 'export const title = "Loaded by plugin";',
-								loader: 'js',
-							}));
-						},
-					},
-				],
-			}),
+	test('adds a file a plugin declares to the closure of each entry that holds the module, and no other', async () => {
+		const first = path.fromNative(
+			realpathSync(writeFixture('first.ts', "import './inlined.ts';\nexport const first = 1;\n")),
 		);
+		const second = path.fromNative(realpathSync(writeFixture('second.ts', 'export const second = 2;\n')));
+		writeFixture('inlined.ts', 'export const greeting = INLINED;\n');
+		const data = path.fromNative(realpathSync(writeFixture('greeting.txt', 'hello')));
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser',
+			entrypoints: [first, second],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			plugins: [
+				{
+					name: 'inline-greeting',
+					setup(build) {
+						build.transform({ filter: /inlined\.ts$/ }, (code) => {
+							build.addWatchFile(data);
+							return code.replace('INLINED', JSON.stringify(readFileSync(data, 'utf8')));
+						});
+					},
+				},
+			],
+		});
 
 		assertBuildSucceeded(result, 'Build failed');
-		expect(result.loadedInputs).toContain(realpathSync(entrypoint));
-		expect(buildInputIndex.recordedWatchPaths()).toContain(realpathSync(entrypoint));
+		expect(result.dependencyGraph.entrypoints[first]).toContain(data);
+		expect(result.dependencyGraph.entrypoints[second]).not.toContain(data);
+	});
+
+	test('rejects addWatchFile outside an onLoad or transform callback', async () => {
+		const entrypoint = writeFixture('entry.ts', 'export const value = 1;\n');
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser',
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			plugins: [{ name: 'eager-watch', setup: (build) => build.addWatchFile(entrypoint) }],
+		});
+
+		assertBuildFailed(result);
+		expect(result.logs[0]).toMatchObject({
+			plugin: 'eager-watch',
+			message: expect.stringContaining('outside an onLoad or transform callback'),
+		});
 	});
 
 	test('externalPackages keeps bare package imports external', async () => {
@@ -331,7 +423,7 @@ describe('RolldownBuildAdapter', () => {
 		assertBuildSucceeded(result, 'Build failed');
 		const outputPath = result.outputs[0]!.path;
 		const code = readFileSync(outputPath, 'utf-8');
-		const nativeEntry = path.join(realpathSync(workDir), 'node_modules/native-like/index.js');
+		const nativeEntry = path.join(path.fromNative(realpathSync(workDir)), 'node_modules/native-like/index.js');
 		expect(code).toContain(`from "${relativeImportPath(outputPath, nativeEntry)}"`);
 		expect(code).toContain('bundled-workspace-package');
 		const loaded = execFileSync(
@@ -339,7 +431,7 @@ describe('RolldownBuildAdapter', () => {
 			[
 				'--input-type=module',
 				'-e',
-				`const m = await import(${JSON.stringify(pathToFileURL(outputPath).href)}); console.log(JSON.stringify(m.binding));`,
+				`const m = await import(${JSON.stringify(path.toFileUrl(outputPath).href)}); console.log(JSON.stringify(m.binding));`,
 			],
 			{ encoding: 'utf8' },
 		);
@@ -372,10 +464,10 @@ describe('RolldownBuildAdapter', () => {
 		assertBuildSucceeded(result, 'Build failed');
 		const outputs = Object.keys(result.outputGraph).map((outputPath) => path.relative(outdir, outputPath));
 		expect(outputs.length).toBeGreaterThan(1);
-		expect(outputs.filter((output) => output.includes(path.sep))).toEqual([]);
-		const layoutSource = realpathSync(path.join(workDir, 'src/layouts/base.ts'));
+		expect(outputs.filter((output) => output.includes('/'))).toEqual([]);
+		const layoutSource = path.fromNative(realpathSync(path.join(workDir, 'src/layouts/base.ts')));
 		const layoutChunk = Object.values(result.outputGraph).find((chunk) =>
-			chunk.modules.some((moduleId) => realpathSync(moduleId) === layoutSource),
+			chunk.modules.some((moduleId) => path.fromNative(realpathSync(moduleId)) === layoutSource),
 		);
 		expect(path.basename(layoutChunk!.fileName)).toMatch(/layouts-base-/);
 		const entryOutput = result.entryOutputs[entrypoint];
@@ -384,7 +476,7 @@ describe('RolldownBuildAdapter', () => {
 			[
 				'--input-type=module',
 				'-e',
-				`const m = await import(${JSON.stringify(pathToFileURL(entryOutput!).href)}); console.log(JSON.stringify({ dir: m.dir, parse: m.parse }));`,
+				`const m = await import(${JSON.stringify(path.toFileUrl(entryOutput!).href)}); console.log(JSON.stringify({ dir: m.dir, parse: m.parse }));`,
 			],
 			{ encoding: 'utf8' },
 		);
@@ -405,7 +497,7 @@ describe('RolldownBuildAdapter', () => {
 			naming: '[name]-[hash].[ext]',
 			root: workDir,
 		};
-		const resolved = await resolveRolldownOptions(options, workDir, outdir, new Map(), () => {});
+		const resolved = await resolveRolldownOptions(options, workDir, outdir, new Map(), new Map());
 		const entryFileNames = resolved.outputOptions.entryFileNames;
 		if (typeof entryFileNames !== 'function') {
 			throw new Error('Expected preserved module naming to use a function.');
@@ -454,7 +546,7 @@ describe('RolldownBuildAdapter', () => {
 			[
 				'--input-type=module',
 				'-e',
-				`const m = await import(${JSON.stringify(pathToFileURL(entryOutput!).href)}); console.log(typeof m.parseSync);`,
+				`const m = await import(${JSON.stringify(path.toFileUrl(entryOutput!).href)}); console.log(typeof m.parseSync);`,
 			],
 			{ encoding: 'utf8' },
 		);
@@ -523,9 +615,243 @@ describe('RolldownBuildAdapter', () => {
 		expect(result.logs.map((log) => log.message).join('\n')).toContain(`Node builtin "${specifier}"`);
 	});
 
-	test('a server build turns a css import into an empty module and emits no stylesheet', async () => {
-		writeFixture('styles.css', 'body { color: red; }');
-		const entrypoint = writeFixture('css-entry.ts', "import './styles.css';\nexport const ready = true;\n");
+	test.each(['server', 'browser'] as const)(
+		'a %s build turns a side-effect stylesheet import into an empty module and emits no stylesheet',
+		async (environment) => {
+			writeFixture('styles.css', 'body { color: red; }');
+			const entrypoint = writeFixture('css-entry.ts', "import './styles.css';\nexport const ready = true;\n");
+
+			const result = await new RolldownBuildAdapter().build({
+				environment,
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: environment === 'server' ? 'node' : 'browser',
+				format: 'esm',
+				root: workDir,
+				stylesheets: {
+					extensions: ['.css'],
+					compileModule: async () => ({ code: 'export default "compiled";' }),
+				},
+			});
+
+			assertBuildSucceeded(result, 'Build failed');
+			expect(result.outputs.some((output) => output.path.endsWith('.css'))).toBe(false);
+			const code = readFileSync(result.outputs[0]!.path, 'utf-8');
+			expect(code).not.toContain('color');
+			expect(code).not.toContain('compiled');
+		},
+	);
+
+	test.each(['server', 'browser'] as const)(
+		'a %s build gives a binding stylesheet import the module the stylesheets compiler returns',
+		async (environment) => {
+			const stylesheet = writeFixture('card.css', '.card { @apply text-red; }');
+			writeFixture('side-effect.ts', "import './card.css';\nexport const sideEffect = true;\n");
+			const entrypoint = writeFixture(
+				'card-entry.ts',
+				"import styles from './card.css';\nimport { sideEffect } from './side-effect.ts';\nexport default [styles, sideEffect];\n",
+			);
+			const compiled: string[] = [];
+
+			const result = await new RolldownBuildAdapter().build({
+				environment,
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: environment === 'server' ? 'node' : 'browser',
+				format: 'esm',
+				root: workDir,
+				writeToDisk: false,
+				stylesheets: {
+					extensions: ['.css'],
+					compileModule: async (file) => {
+						compiled.push(file);
+						return { code: 'export default ".card { color: red; }";' };
+					},
+				},
+			});
+
+			assertBuildSucceeded(result, 'Build failed');
+			expect(result.outputs[0]!.content).toContain('.card { color: red; }');
+			expect(result.outputs[0]!.content).not.toContain('@apply');
+			expect(compiled.map((file) => path.fromNative(realpathSync(file)))).toEqual([
+				path.fromNative(realpathSync(stylesheet)),
+			]);
+		},
+	);
+
+	test('a stylesheet import another plugin externalizes stays external', async () => {
+		writeFixture('card.css', '.card { color: red; }');
+		writeFixture('theme.css', '.theme { color: blue; }');
+		const entrypoint = writeFixture(
+			'external-entry.ts',
+			"import styles from './card.css';\nimport './theme.css';\nexport default styles;\n",
+		);
+		const externalize: EcoBuildPlugin = {
+			name: 'externalize-imports',
+			setup(build) {
+				build.onResolve({ filter: /.*/u }, (args) =>
+					args.importer ? { path: args.path, external: true } : undefined,
+				);
+			},
+		};
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+			plugins: [externalize],
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(result.outputs[0]!.content).toContain('"./card.css"');
+		expect(result.outputs[0]!.content).toContain('"./theme.css"');
+		expect(result.outputs[0]!.content).not.toContain('color');
+	});
+
+	test.each([
+		{
+			scenario: 'a module imports the stylesheet both for its side effects and with a binding',
+			source: "import './card.css';\nimport styles from './card.css';\nexport default styles;\n",
+		},
+		{
+			scenario: 'the side-effect scan cannot parse the module',
+			source: "import styles from './card.css';\nexport default styles;\nconst broken = <div>{</div>;\n",
+		},
+	])('a build compiles the stylesheet when $scenario', async ({ source }) => {
+		writeFixture('card.css', '.card {}');
+		const entrypoint = writeFixture('both-entry.tsx', source);
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+			stylesheets: {
+				extensions: ['.css'],
+				compileModule: async () => ({ code: 'export default "compiled card";' }),
+			},
+		});
+
+		if (source.includes('broken')) {
+			assertBuildFailed(result);
+			return;
+		}
+		assertBuildSucceeded(result, 'Build failed');
+		expect(result.outputs[0]!.content).toContain('compiled card');
+	});
+
+	function writeCssWidgetPackage(): string {
+		writeAppPackageJson();
+		const packageDir = path.join(workDir, 'node_modules', 'css-widget');
+		mkdirSync(packageDir, { recursive: true });
+		writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: 'css-widget', version: '1.0.0', type: 'module', main: './index.js' }),
+		);
+		writeFileSync(path.join(packageDir, 'index.js'), "import './style.css';\nexport const widget = 'widget';\n");
+		writeFileSync(path.join(packageDir, 'style.css'), '.css-widget-marker { color: red; }\n');
+		return writeFixture('widget-entry.ts', "import { widget } from 'css-widget';\nconsole.log(widget);\n");
+	}
+
+	test("a browser build fails on a package's own side-effect stylesheet import, naming both files", async () => {
+		const entrypoint = writeCssWidgetPackage();
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+		});
+
+		assertBuildFailed(result);
+		const message = result.logs.map((log) => log.message).join('\n');
+		expect(message).toContain('css-widget/index.js');
+		expect(message).toContain('"./style.css"');
+		expect(message).toContain('never reaches a Page');
+	});
+
+	test("a browser build hands a package's own side-effect stylesheet import to the reporter and builds", async () => {
+		const entrypoint = writeCssWidgetPackage();
+		const reported: string[] = [];
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+			stylesheets: {
+				extensions: ['.css'],
+				compileModule: async () => ({ code: 'export default "compiled";' }),
+				reportUndeliverable: (error) => reported.push(error.message),
+			},
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(result.outputs[0]!.content).not.toContain('css-widget-marker');
+		expect(reported).toHaveLength(1);
+		expect(reported[0]).toContain('css-widget/index.js');
+	});
+
+	function writeKitPackage(): string {
+		writeAppPackageJson();
+		const packageDir = path.join(workDir, 'node_modules', 'ui-kit');
+		mkdirSync(packageDir, { recursive: true });
+		writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: 'ui-kit', version: '1.0.0', type: 'module', main: './index.js' }),
+		);
+		writeFileSync(
+			path.join(packageDir, 'index.js'),
+			"import styles from './button.module.css';\nexport const kit = styles.kit;\n",
+		);
+		writeFileSync(path.join(packageDir, 'button.module.css'), '.kit { color: red; }\n');
+		return writeFixture('kit-entry.ts', "import { kit } from 'ui-kit';\nconsole.log(kit);\n");
+	}
+
+	test.each(['server', 'browser'] as const)(
+		"a %s build fails on a package module's own CSS Module that no declaration reaches, naming both files",
+		async (environment) => {
+			const entrypoint = writeKitPackage();
+
+			const result = await new RolldownBuildAdapter().build({
+				environment,
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: environment === 'server' ? 'node' : 'browser',
+				format: 'esm',
+				root: workDir,
+				writeToDisk: false,
+				stylesheets: {
+					extensions: ['.css'],
+					compileModule: async () => ({ code: 'export default {};' }),
+				},
+			});
+
+			assertBuildFailed(result);
+			const message = result.logs.map((log) => log.message).join('\n');
+			expect(message).toContain('ui-kit/index.js');
+			expect(message).toContain('"./button.module.css"');
+			expect(message).toContain('CSS Module');
+			expect(message).toContain('never reaches a Page');
+		},
+	);
+
+	test("a build hands a package module's unreached CSS Module to the reporter and builds", async () => {
+		const entrypoint = writeKitPackage();
+		const reported: string[] = [];
 
 		const result = await new RolldownBuildAdapter().build({
 			environment: 'server' as const,
@@ -534,11 +860,136 @@ describe('RolldownBuildAdapter', () => {
 			target: 'node',
 			format: 'esm',
 			root: workDir,
+			writeToDisk: false,
+			stylesheets: {
+				extensions: ['.css'],
+				compileModule: async () => ({ code: 'export default { kit: "x_kit" };' }),
+				reportUndeliverable: (error) => reported.push(error.message),
+			},
 		});
 
 		assertBuildSucceeded(result, 'Build failed');
-		expect(result.outputs.some((output) => output.path.endsWith('.css'))).toBe(false);
-		expect(readFileSync(result.outputs[0]!.path, 'utf-8')).not.toContain('color');
+		expect(reported).toHaveLength(1);
+		expect(reported[0]).toContain('ui-kit/index.js');
+	});
+
+	function writeAppToast(): string {
+		writeFixture('toast.module.css', '.toast { color: red; }\n');
+		writeFixture('toast.ts', "import styles from './toast.module.css';\nexport const toast = styles.toast;\n");
+		return writeFixture('toast-entry.ts', "export const load = () => import('./toast.ts');\n");
+	}
+
+	function buildAppToast(entrypoint: string, reportUndeliverable?: (error: Error) => void) {
+		return new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+			stylesheets: {
+				extensions: ['.css'],
+				compileModule: async () => ({ code: 'export default { toast: "x_toast" };' }),
+				...(reportUndeliverable ? { reportUndeliverable } : {}),
+			},
+		});
+	}
+
+	class ScopingProcessor extends Processor {
+		async setup(): Promise<void> {}
+	}
+	const scopingKinds = createStylesheetKinds([
+		new ScopingProcessor({
+			name: 'scoping',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true }],
+		}),
+	]);
+
+	test("a build fails on an app module's CSS Module that no declaration reaches, naming both files", async () => {
+		const result = await buildAppToast(writeAppToast());
+
+		assertBuildFailed(result);
+		const message = result.logs.map((log) => log.message).join('\n');
+		expect(message).toContain('toast.ts');
+		expect(message).toContain('"./toast.module.css"');
+		expect(message).toContain('never reaches a Page');
+	});
+
+	test("a build hands an app module's unreached CSS Module to the reporter once and builds", async () => {
+		const reported: string[] = [];
+
+		const result = await buildAppToast(writeAppToast(), (error) => reported.push(error.message));
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(reported).toHaveLength(1);
+		expect(reported[0]).toContain('toast.ts');
+	});
+
+	test("a build accepts an app module's CSS Module when a declaration reaches the module", async () => {
+		const entrypoint = writeAppToast();
+		attributeComponentIdentity(
+			"import { toast } from './toast.ts';\nimport { eco } from '@ecopages/core';\nexport default eco.page({ render: () => toast });",
+			path.join(workDir, 'page.ts'),
+			{ integration: 'lit', projectRoot: workDir, stylesheets: scopingKinds },
+		);
+
+		assertBuildSucceeded(await buildAppToast(entrypoint), 'Build failed');
+	});
+
+	test('a build accepts a CSS Module that a script binds when a declaration imports the same stylesheet', async () => {
+		writeFixture('card.module.css', '.card { color: red; }\n');
+		const entrypoint = writeFixture(
+			'card.script.ts',
+			"import styles from './card.module.css';\nexport const card = styles.card;\n",
+		);
+		attributeComponentIdentity(
+			"import styles from './card.module.css';\nimport { eco } from '@ecopages/core';\nexport default eco.page({ render: () => styles.card });",
+			path.join(workDir, 'page.ts'),
+			{ integration: 'lit', projectRoot: workDir, stylesheets: scopingKinds },
+		);
+
+		assertBuildSucceeded(await buildAppToast(entrypoint), 'Build failed');
+	});
+
+	test("a server build gives a package's side-effect stylesheet import an empty module", async () => {
+		const entrypoint = writeCssWidgetPackage();
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(result.outputs[0]!.content).toContain('widget');
+		expect(result.outputs[0]!.content).not.toContain('css-widget-marker');
+	});
+
+	test('a build compiles a declared stylesheet extension and parses an undeclared one as JavaScript', async () => {
+		writeFixture('card.scss', '.card { color: red; }');
+		const entrypoint = writeFixture('scss-entry.ts', "import styles from './card.scss';\nexport default styles;\n");
+		const build = (extensions: readonly string[]) =>
+			new RolldownBuildAdapter().build({
+				environment: 'server' as const,
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: 'node',
+				format: 'esm',
+				root: workDir,
+				writeToDisk: false,
+				stylesheets: { extensions, compileModule: async () => ({ code: 'export default "compiled scss";' }) },
+			});
+
+		const compiled = await build(['.css', '.scss']);
+		assertBuildSucceeded(compiled, 'Build failed');
+		expect(compiled.outputs[0]!.content).toContain('compiled scss');
+
+		assertBuildFailed(await build(['.css']));
 	});
 
 	test('externalPackages points undeclared core-owned runtime packages at paths relative to the output', async () => {
@@ -779,10 +1230,8 @@ describe('RolldownBuildAdapter', () => {
 					name: 'virtual-images',
 					setup(build) {
 						build.module('ecopages:images', () => ({
-							loader: 'object',
-							exports: {
-								image: { src: '/images/example.png' },
-							},
+							contents: `export const image = ${JSON.stringify({ src: '/images/example.png' })};`,
+							loader: 'js',
 						}));
 					},
 				},
@@ -825,17 +1274,12 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('does not rewrite hashed browser outputs after the bundler writes them', async () => {
-		const runtimePlugin = createBrowserRuntimePlugin({
-			manifest: createBrowserRuntimeManifest([
-				{
-					specifier: 'react',
-					owner: '@ecopages/react',
-					importPath: 'react',
-					publicPath: '/assets/vendors/react.js',
-				},
-			]),
-		});
-		assert.ok(runtimePlugin);
+		const runtimePlugin: EcoBuildPlugin = {
+			name: 'external-react-url',
+			setup(build) {
+				build.onResolve({ filter: /^react$/ }, () => ({ path: '/assets/vendors/react.js', external: true }));
+			},
+		};
 		const entrypoint = writeFixture('entry.ts', "import React from 'react';\nexport { React };\n");
 		const adapter = new RolldownBuildAdapter();
 		const outdir = path.join(workDir, 'dist');
@@ -858,6 +1302,22 @@ describe('RolldownBuildAdapter', () => {
 		expect(hashedOutputs.every((output) => output.contentHashed)).toBe(true);
 		const hashedCode = readFileSync(hashedOutputs[0]!.path, 'utf-8');
 		expect(hashedCode).toMatch(/from ['"]\/assets\/vendors\/react\.js['"]/);
+	});
+
+	test('lists the entries whose module is CommonJS', async () => {
+		const commonJsEntry = writeFixture('cjs-entry.cjs', 'module.exports = { answer: 42 };\n');
+		const esmEntry = writeFixture('esm-entry.ts', 'export const answer = 42;\n');
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser',
+			entrypoints: [commonJsEntry, esmEntry],
+			outdir: path.join(workDir, 'formats'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(result.dependencyGraph.commonJsEntrypoints).toEqual([path.fromNative(realpathSync(commonJsEntry))]);
 	});
 
 	test.each([
@@ -1001,8 +1461,8 @@ describe('RolldownBuildAdapter', () => {
 			format: 'esm',
 		});
 		assertBuildSucceeded(result, 'Build failed');
-		expect(result.dependencyGraph?.entrypoints[realpathSync(entry)]).toEqual(
-			expect.arrayContaining([realpathSync(dependency), realpathSync(unused)]),
+		expect(result.dependencyGraph?.entrypoints[path.fromNative(realpathSync(entry))]).toEqual(
+			expect.arrayContaining([path.fromNative(realpathSync(dependency)), path.fromNative(realpathSync(unused))]),
 		);
 	});
 
@@ -1062,7 +1522,7 @@ describe('RolldownBuildAdapter', () => {
 
 		assertBuildSucceeded(result, 'Build failed');
 		const modulesOf = (entry: string) =>
-			(result.dependencyGraph?.entrypoints[realpathSync(entry)] ?? []).map((modulePath) =>
+			(result.dependencyGraph?.entrypoints[path.fromNative(realpathSync(entry))] ?? []).map((modulePath) =>
 				path.basename(modulePath),
 			);
 		expect(modulesOf(first)).toEqual(expect.arrayContaining(['first.ts', 'shared.ts', 'lazy.ts', 'lazy-dep.ts']));
@@ -1093,8 +1553,8 @@ describe('RolldownBuildAdapter', () => {
 
 		assertBuildSucceeded(result, 'Build failed');
 		for (const entry of [first, second]) {
-			const modules = (result.dependencyGraph?.entrypoints[realpathSync(entry)] ?? []).map((modulePath) =>
-				path.basename(modulePath),
+			const modules = (result.dependencyGraph?.entrypoints[path.fromNative(realpathSync(entry))] ?? []).map(
+				(modulePath) => path.basename(modulePath),
 			);
 			expect(modules).toEqual(expect.arrayContaining(['first.ts', 'second.ts']));
 		}
@@ -1118,7 +1578,7 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('keeps the code, file and location of a syntax error', async () => {
-		const entrypoint = realpathSync(writeFixture('broken.ts', 'export const value = ;\n'));
+		const entrypoint = path.fromNative(realpathSync(writeFixture('broken.ts', 'export const value = ;\n')));
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
@@ -1142,7 +1602,7 @@ describe('RolldownBuildAdapter', () => {
 
 	test('attributes an error thrown by a bridged plugin to that plugin, with its file, frame and stack', async () => {
 		const entrypoint = writeFixture('index.ts', "import './styles.eco';\n");
-		const stylesheet = realpathSync(writeFixture('styles.eco', 'body {}\n'));
+		const stylesheet = path.fromNative(realpathSync(writeFixture('styles.eco', 'body {}\n')));
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
@@ -1183,7 +1643,7 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('attributes an error thrown by a plugin transform to that plugin and file', async () => {
-		const entrypoint = realpathSync(writeFixture('index.ts', 'export const answer = 42;\n'));
+		const entrypoint = path.fromNative(realpathSync(writeFixture('index.ts', 'export const answer = 42;\n')));
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
@@ -1235,7 +1695,9 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('captures build warnings on the result', async () => {
-		const entrypoint = realpathSync(writeFixture('index.ts', 'eval("1");\nexport const answer = 42;\n'));
+		const entrypoint = path.fromNative(
+			realpathSync(writeFixture('index.ts', 'eval("1");\nexport const answer = 42;\n')),
+		);
 		const adapter = new RolldownBuildAdapter();
 		const printWarning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
@@ -1259,7 +1721,7 @@ describe('RolldownBuildAdapter', () => {
 
 	test('attributes the same thrown error to each file it fails, without changing it', async () => {
 		const entrypoint = writeFixture('index.ts', "import './a.eco';\nimport './b.eco';\n");
-		const files = ['a.eco', 'b.eco'].map((name) => realpathSync(writeFixture(name, 'body {}\n')));
+		const files = ['a.eco', 'b.eco'].map((name) => path.fromNative(realpathSync(writeFixture(name, 'body {}\n'))));
 		const shared = new Error('shared boom');
 		const adapter = new RolldownBuildAdapter();
 
@@ -1290,7 +1752,7 @@ describe('RolldownBuildAdapter', () => {
 
 	test('attributes a frozen thrown error to its plugin', async () => {
 		const entrypoint = writeFixture('index.ts', "import './styles.eco';\n");
-		const stylesheet = realpathSync(writeFixture('styles.eco', 'body {}\n'));
+		const stylesheet = path.fromNative(realpathSync(writeFixture('styles.eco', 'body {}\n')));
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
@@ -1346,8 +1808,8 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('attributes errors from onResolve and module() callbacks', async () => {
-		const entrypoint = realpathSync(
-			writeFixture('index.ts', "import 'virtual:broken';\nimport 'resolve:broken';\n"),
+		const entrypoint = path.fromNative(
+			realpathSync(writeFixture('index.ts', "import 'virtual:broken';\nimport 'resolve:broken';\n")),
 		);
 		const adapter = new RolldownBuildAdapter();
 		const build = (plugins: EcoBuildPlugin[]) =>

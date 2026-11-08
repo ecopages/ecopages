@@ -1,6 +1,7 @@
 /**
  * Entry that `ecopages types` runs: it loads `eco.config.ts` and sets the processors up, so they write the
- * types for their virtual modules (such as `ecopages:images` and `ecopages:content/*`), then exits.
+ * types for their virtual modules (such as `ecopages:images` and `ecopages:content/*`), then declares the CSS
+ * Modules of the app, then exits.
  *
  * @remarks
  * Config finalization runs no processor code, so the types come from each processor's `setup()`, with
@@ -9,11 +10,13 @@
  *
  * @module
  */
+import { writeCssModuleDeclarations } from '../assets/asset-processing-service/processors/stylesheet/css-module-types.ts';
 import { setupAppRuntimePlugins } from '../build/build-adapter.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { loadEcoPagesConfig } from './load-eco-config.ts';
 
 const appConfig = await loadEcoPagesConfig();
 await setupAppRuntimePlugins({ appConfig });
+await writeCssModuleDeclarations(appConfig);
 appLogger.info('Wrote the generated types for the virtual modules in eco.config.ts.');
 process.exit(0);

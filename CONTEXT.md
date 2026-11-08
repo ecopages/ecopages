@@ -16,7 +16,7 @@ A file-based route entry point that renders content for a specific URL path. Pag
 _Avoid_: Route, view
 
 **Layout**:
-A route-level shell that wraps a page's content. Layouts provide structure (headers, navigation, footers) that persists across page navigations.
+A route-level shell that wraps a page's content. Layouts provide structure (headers, navigation, footers) that persists across page navigations. A Layout is a plain function typed with `LayoutProps`, or an `eco.layout()` result when it needs a wrapper, and it must render its `children`.
 _Avoid_: Template, wrapper
 
 **Component**:
@@ -32,7 +32,7 @@ A plugin that owns rendering for a file type (e.g., React, KitaJS, Lit, MDX). Ea
 _Avoid_: Plugin, adapter, template language
 
 **Processor**:
-A build-time plugin that transforms assets like stylesheets (PostCSS, Tailwind) or images. Processors are registered alongside Integrations but have distinct contracts.
+A build-time plugin that transforms assets like stylesheets (PostCSS, Tailwind) or images. Processors are registered alongside Integrations but have distinct contracts. At most one Processor in an app declares a `stylesheet` capability; its declared extensions, plus `.css`, are what core treats as stylesheets. A `stylesheet` capability with `cssModules: true` scopes **CSS Modules**: its transform returns the scoped CSS and `exports`, the class map.
 _Avoid_: Plugin, asset plugin, transformer
 
 **Static Page**:
@@ -76,7 +76,7 @@ A route registered programmatically via the app API (e.g., `app.static(path, vie
 _Avoid_: Programmatic route, registered route
 
 **View Reference**:
-A handle for an Integration-owned view imported from the server entry. The import is not the compiled view: development loads the file through the app module loader so an edit shows without a process restart, and production reads the module from the server-modules map. Two imports of one view share one reference. Pass it to `ctx.render`, `ctx.renderPartial`, `app.static`, and error pages.
+A handle for an Integration-owned view imported from the server entry; the view is the file's default export, so a file without one is not a view and imports as itself. The default import is not the compiled view: development loads the file through the app module loader so an edit shows without a process restart, and production reads the module from the server-modules map. Two imports of one view share one reference. Pass it to `ctx.render`, `ctx.renderPartial`, `app.static`, and error pages.
 _Avoid_: view module loader, view path, server module path
 
 **Route Registry**:
@@ -106,12 +106,12 @@ Request-scoped data injected by middleware or the request pipeline (e.g., authen
 _Avoid_: Request context, server context
 
 **Dependencies**:
-Metadata describing what a Component needs to render correctly: stylesheets, scripts, and nested Components. Explicit declarations and supported static imports both supply this metadata; the dependency pipeline decides which assets to inject. JavaScript imports retain their module execution semantics.
+Metadata describing what a Component needs to render correctly: stylesheets, scripts, and nested Components. Explicit declarations and supported static imports both supply this metadata, including the imports of plain function components, which belong to the nearest declared Component, Layout or Page importing them. Wrap a Component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration; Layouts use `eco.layout()` only for those needs, and the Html shell stays declared. The dependency pipeline decides which assets to inject. JavaScript imports retain their module execution semantics.
 _Avoid_: Requirements, imports
 
 **Foreign Child**:
 A child Component encountered during render whose owning Integration differs from the current Integration. A Foreign Child cannot be rendered inline by the current Integration and must be handed off for resolution by the owning Integration.
-Its owner is resolved from `config.integration`, then the Component's build-time identity, then the inherited owner.
+Its owner is resolved from `config.integration`, then the Component's build-time identity, then the inherited owner. Only a declared Component can be a Foreign Child. The build catches a plain function component rendered by another Integration when the two Integrations compile JSX with different runtimes (a plain React component in a Kita or Ecopages JSX Page); Lit pages and MDX are not checked.
 _Avoid_: Boundary, cross-integration child
 
 **Foreign Subtree**:
@@ -160,7 +160,7 @@ _Avoid_: URL list, crawl map
 - Each **Page** receives context: **Params** (from dynamic routes), **Query** (from URL), and optionally **Locals** (from middleware)
 - An **Integration** owns rendering for a specific file extension; multiple Integrations coexist as peers
 - A **Processor** owns transformation of non-page assets (e.g., stylesheets); Integrations and Processors are distinct
-- **Dependencies** combine explicit declarations with discovery of direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports. Explicit asset settings take precedence; inferred stylesheet provenance stays on Component identity until collection. Scripts retain explicit server and browser loading policy. Merging Page and content Dependencies keeps each file's contribution so relative assets resolve against the file that declared them.
+- **Dependencies** combine explicit declarations with discovery of direct local Eco Component imports (including named `export { X } from` barrels) and relative, aliased or package side-effect CSS imports, walking through plain local modules to the side-effect CSS and Eco Components they import. A CSS Module import (`import styles from './card.module.css'`) keeps its binding for the class map and delivers the scoped CSS as a stylesheet Dependency of the declaration discovery attributes it to; with no Processor that scopes CSS Modules the build fails. Inside the app root, a plain module's side-effect CSS import that no declaration reaches fails the build. Explicit asset settings take precedence; inferred stylesheet provenance stays on Component identity until collection. Scripts retain explicit server and browser loading policy. Merging Page and content Dependencies keeps each file's contribution so relative assets resolve against the file that declared them.
 - When an **Integration** encounters a **Foreign Child**, it must hand off the corresponding **Foreign Subtree** to the owning **Integration** before final HTML is returned
 - Each **Page** may produce one **Page Browser Graph**, including any lazy browser entries that belong to that Page
 - An **Integration** may apply an **SSR Policy** per Page or Component without forcing one global browser runtime bundle for every Page
@@ -176,7 +176,6 @@ _Avoid_: URL list, crawl map
 
 ## Further reading
 
-- [AGENTS.md](./AGENTS.md) — coding standards, documentation routing, and README maintenance
-- [packages/core/README.md](./packages/core/README.md) — subsystem architecture index
+- [AGENTS.md](./AGENTS.md) — coding standards, and documentation routing
+- [Developer pages](./apps/docs/src/content/dev) — architecture, served at `/dev`
 - [Sitemap](./apps/docs/src/content/docs/core/sitemap.mdx) — user guide for automatic `sitemap.xml` generation
-- [docs/adr/](./docs/adr/) — accepted product and release decisions

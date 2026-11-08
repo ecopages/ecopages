@@ -1,18 +1,19 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
 import MagicString from 'magic-string';
 import { rolldown, type LoadResult, type Plugin, type ResolveIdResult } from 'rolldown';
-import { test } from 'vitest';
-import { createRolldownPluginBridge } from './rolldown-plugin-bridge.ts';
+import { afterEach, beforeEach, test } from 'vitest';
+import { createRolldownPluginBridge, type WatchFilesByModule } from './rolldown-plugin-bridge.ts';
+import { toRolldownModuleId } from './rolldown-module-id.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 
-type ResolveHook = (source: string, importer?: string, extraOptions?: unknown) => Promise<ResolveIdResult>;
-type LoadHook = (id: string) => Promise<LoadResult>;
-type TransformHook = (code: string, id: string) => Promise<{ code: string; map?: unknown } | undefined>;
+type ResolveHook = (source: string, importer?: string) => Promise<ResolveIdResult>;
+type LoadHook = (this: unknown, id: string) => Promise<LoadResult>;
+type TransformHook = (code: string, id: string) => Promise<{ code: string; map?: unknown } | null>;
 
 function hookHandler(hook: Plugin['resolveId'] | Plugin['load'] | Plugin['transform']): unknown {
 	return typeof hook === 'function' ? hook : hook?.handler;
@@ -26,385 +27,44 @@ function callLoad(plugin: Plugin, id: string): Promise<LoadResult> {
 	return (hookHandler(plugin.load) as LoadHook)(id);
 }
 
-function callTransform(plugin: Plugin, code: string, id: string): Promise<{ code: string; map?: unknown } | undefined> {
+function callTransform(plugin: Plugin, code: string, id: string): Promise<{ code: string; map?: unknown } | null> {
 	return (hookHandler(plugin.transform) as TransformHook)(code, id);
 }
 
-test('createRolldownPluginBridge returns a single consolidated plugin', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{ name: 'a', setup: () => {} },
-		{ name: 'b', setup: () => {} },
-	];
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	assert.equal(bridge.length, 1);
-	assert.equal(bridge[0]?.name, 'ecopages-plugin-bridge');
+async function bridgeOne(plugin: EcoBuildPlugin): Promise<Plugin> {
+	const [rolldownPlugin] = await createRolldownPluginBridge([plugin], '/app');
+	assert.ok(rolldownPlugin);
+	return rolldownPlugin;
+}
+
+let root: string;
+
+beforeEach(() => {
+	root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-bridge-'))));
 });
 
-test('createRolldownPluginBridge runs each plugin.setup in array order before returning', async () => {
-	const setupCalls: string[] = [];
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'a',
-			setup: () => {
-				setupCalls.push('a');
-			},
-		},
-		{
-			name: 'b',
-			setup: () => {
-				setupCalls.push('b');
-			},
-		},
-	];
-
-	await createRolldownPluginBridge(plugins, '/app');
-	assert.deepEqual(setupCalls, ['a', 'b']);
+afterEach(() => {
+	rmSync(root, { recursive: true, force: true });
 });
 
-test('createRolldownPluginBridge gives every plugin the same entrypoint map', async () => {
-	const entrypoints = Object.freeze({ first: '/app/first.ts', second: '/app/second.ts' });
-	const seen: Array<Readonly<Record<string, string>> | undefined> = [];
-	await createRolldownPluginBridge(
-		[
-			{
-				name: 'first',
-				setup(build) {
-					seen.push(build.entrypoints);
-				},
-			},
-			{
-				name: 'second',
-				setup(build) {
-					seen.push(build.entrypoints);
-				},
-			},
-		],
-		'/app',
-		undefined,
-		entrypoints,
-	);
+/** Bundles `files` (the first is the entry) through the bridged plugins and returns the entry chunk. */
+async function bundle(files: Record<string, string>, plugins: EcoBuildPlugin[], extra: Plugin[] = []) {
+	for (const [name, contents] of Object.entries(files)) writeFileSync(path.join(root, name), contents);
+	const build = await rolldown({
+		input: path.join(root, Object.keys(files)[0]!),
+		cwd: root,
+		plugins: [...(await createRolldownPluginBridge(plugins, root)), ...extra],
+	});
+	try {
+		const { output } = await build.generate({ format: 'esm', sourcemap: true });
+		return output[0];
+	} finally {
+		await build.close();
+	}
+}
 
-	assert.equal(seen[0], entrypoints);
-	assert.equal(seen[1], entrypoints);
-});
-
-test('createRolldownPluginBridge resolveId translates EcoBuildOnResolveResult to Rolldown shape', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'alias',
-			setup(build) {
-				build.onResolve({ filter: /.*/ }, () => ({ path: '/vendor/react.js', external: true }));
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-	const result = (await callResolveId(plugin, 'react', '/app/index.ts')) as
-		{ id: string; external: boolean } | undefined;
-	assert.deepEqual(result, { id: '/vendor/react.js', external: true });
-});
-
-test('createRolldownPluginBridge passes the import kind to onResolve', async () => {
-	const seen: Array<string | undefined> = [];
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'kind',
-			setup(build) {
-				build.onResolve({ filter: /.*/ }, (args) => {
-					seen.push(args.kind);
-					return undefined;
-				});
-			},
-		},
-	];
-
-	const plugin = (await createRolldownPluginBridge(plugins, '/app'))[0]!;
-	const resolveId = hookHandler(plugin.resolveId) as ResolveHook;
-	await resolveId('dep', '/app/index.ts', { kind: 'import-statement' });
-	await resolveId('dep', '/app/index.cjs', { kind: 'require-call' });
-
-	assert.deepEqual(seen, ['import-statement', 'require-call']);
-});
-
-test('createRolldownPluginBridge resolveId resolves relative paths against the importer', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'relative',
-			setup(build) {
-				build.onResolve({ filter: /.*/ }, () => ({ path: './sibling.ts' }));
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-	const result = (await callResolveId(plugin, 'X', '/app/sub/index.ts')) as { id: string } | undefined;
-	assert.equal(result?.id, path.resolve('/app/sub', './sibling.ts'));
-});
-
-test('createRolldownPluginBridge resolveId leaves absolute paths untouched', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'absolute',
-			setup(build) {
-				build.onResolve({ filter: /.*/ }, () => ({ path: '/abs/path.ts' }));
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-	const result = (await callResolveId(plugin, 'X', '/app/index.ts')) as { id: string } | undefined;
-	assert.equal(result?.id, '/abs/path.ts');
-});
-
-test('createRolldownPluginBridge resolveId returns undefined for empty callbacks', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'noop',
-			setup(build) {
-				build.onResolve({ filter: /.*/ }, () => undefined);
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-	const result = await callResolveId(plugin, 'X', '/app/index.ts');
-	assert.equal(result, undefined);
-});
-
-test('createRolldownPluginBridge load records the loaded path alone', async () => {
-	const recorded: Array<{ moduleId: string; filePath: string }> = [];
-	const watchFiles: string[] = [];
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'docs',
-			setup(build) {
-				build.onLoad({ filter: /.*/ }, () => {
-					return { contents: 'export default 1', loader: 'js' };
-				});
-			},
-		},
-	];
-
-	const [plugin] = await createRolldownPluginBridge(plugins, '/app', (moduleId, filePath) =>
-		recorded.push({ moduleId, filePath }),
-	);
-	const load = hookHandler(plugin!.load) as (
-		this: { addWatchFile?: (id: string) => void },
-		id: string,
-	) => Promise<unknown>;
-	await load.call({ addWatchFile: (id) => watchFiles.push(id) }, '/app/pages/about.tsx');
-
-	assert.deepEqual(recorded, [{ moduleId: '/app/pages/about.tsx', filePath: '/app/pages/about.tsx' }]);
-	assert.deepEqual(watchFiles, ['/app/pages/about.tsx']);
-});
-
-test('createRolldownPluginBridge load returns moduleType for .tsx files with explicit loader', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'rewrite',
-			setup(build) {
-				build.onLoad({ filter: /.*/ }, () => ({ contents: 'export const x = 1;', loader: 'tsx' }));
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-	const result = (await callLoad(plugin, '/app/index.tsx')) as { code: string; moduleType: string } | undefined;
-	assert.equal(result?.moduleType, 'tsx');
-	assert.equal(result?.code, 'export const x = 1;');
-});
-
-test('createRolldownPluginBridge load synthesizes source from exports', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'exports',
-			setup(build) {
-				build.onLoad({ filter: /.*/ }, () => ({
-					loader: 'object' as never,
-					exports: { default: 'hello', named: 42 },
-				}));
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-	const result = (await callLoad(plugin, '/app/data.json')) as { code: string; moduleType: string } | undefined;
-	assert.equal(result?.moduleType, 'js');
-	assert.match(result?.code ?? '', /export default "hello";/);
-	assert.match(result?.code ?? '', /export const named = 42;/);
-});
-
-test('createRolldownPluginBridge load returns undefined for empty callbacks', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'noop',
-			setup(build) {
-				build.onLoad({ filter: /.*/ }, () => undefined);
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-	const result = await callLoad(plugin, '/app/index.ts');
-	assert.equal(result, undefined);
-});
-
-test('createRolldownPluginBridge load ignores object prototype loader names', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'proto-loader',
-			setup(build) {
-				build.onLoad({ filter: /.*/ }, () => ({ contents: 'export default 1', loader: 'toString' as never }));
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-	const result = (await callLoad(plugin, '/app/proto.ts')) as { code: string; moduleType: string } | undefined;
-	assert.equal(result?.moduleType, 'ts');
-});
-
-test('createRolldownPluginBridge module() registers unique namespaces per specifier', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'm1',
-			setup(build) {
-				build.module('virtual:foo', () => ({ contents: 'foo', loader: 'js' }));
-			},
-		},
-		{
-			name: 'm2',
-			setup(build) {
-				build.module('virtual:bar', () => ({ contents: 'bar', loader: 'js' }));
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-
-	const fooResolve = (await callResolveId(plugin, 'virtual:foo')) as { id: string } | undefined;
-	const barResolve = (await callResolveId(plugin, 'virtual:bar')) as { id: string } | undefined;
-	assert.ok(fooResolve?.id.startsWith('ecopages-module-0:'), 'first module has its own namespace');
-	assert.ok(barResolve?.id.startsWith('ecopages-module-1:'), 'second module has its own namespace');
-	assert.notEqual(fooResolve?.id, barResolve?.id);
-});
-
-test('createRolldownPluginBridge loads virtual module content with the registered namespace', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'm1',
-			setup(build) {
-				build.module('virtual:foo', () => ({ contents: 'export const x = 1;', loader: 'js' }));
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-
-	const resolve = (await callResolveId(plugin, 'virtual:foo')) as { id: string } | undefined;
-	const load = (await callLoad(plugin, resolve?.id ?? '')) as { code: string; moduleType: string } | undefined;
-	assert.equal(load?.code, 'export const x = 1;');
-	assert.equal(load?.moduleType, 'js');
-});
-
-test('createRolldownPluginBridge applies transform plugins after first-wins onLoad rewrites', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'rewrite',
-			setup(build) {
-				build.onLoad({ filter: /.*/ }, () => ({
-					contents: 'export default eco.component({ render: () => null });',
-					loader: 'tsx',
-				}));
-			},
-		},
-		{
-			name: 'eco-component-meta-plugin',
-			setup(build) {
-				build.transform({ filter: /layout\.tsx$/ }, (code, id) => ({
-					code: code.replace(
-						'eco.component({',
-						`eco.component({ identity: { id: "layout", file: "${id}", integration: "react" },`,
-					),
-				}));
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-	const loaded = (await callLoad(plugin, '/app/src/layouts/minimal-layout.tsx')) as
-		{ code: string; moduleType: string } | undefined;
-	const transformed = await callTransform(plugin, loaded?.code ?? '', '/app/src/layouts/minimal-layout.tsx');
-
-	assert.match(transformed?.code ?? '', /file: "\/app\/src\/layouts\/minimal-layout\.tsx"/);
-	assert.equal(loaded?.moduleType, 'tsx');
-});
-
-test('createRolldownPluginBridge forwards a transform source map', async () => {
-	const map = {
-		version: 3,
-		file: 'page.ts',
-		sources: ['/app/page.ts'],
-		names: [],
-		mappings: ';AAAA',
-	};
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'insert-line',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code) => ({
-					code: `/* injected */\n${code}`,
-					map,
-				}));
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-	const result = await callTransform(plugin, 'export const value = 1;', '/app/page.ts');
-
-	assert.equal(result?.code, '/* injected */\nexport const value = 1;');
-	assert.equal(result?.map, map);
-});
-
-test('createRolldownPluginBridge forwards a source map from a load result', async () => {
-	const map = {
-		version: 3,
-		sources: ['/app/page.mdx'],
-		names: [],
-		mappings: 'AAAA',
-	};
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'mapped-loader',
-			setup(build) {
-				build.onLoad({ filter: /page\.mdx$/ }, () => ({ contents: 'export default 1;', loader: 'js', map }));
-			},
-		},
-	];
-
-	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
-	const result = await callLoad(plugin!, '/app/page.mdx');
-
-	assert.equal(typeof result, 'object');
-	assert.equal(result && typeof result === 'object' && 'map' in result ? result.map : undefined, map);
-});
-
-test('createRolldownPluginBridge composes maps from chained transforms', async () => {
-	const filePath = '/app/page.ts';
-	const plugins: EcoBuildPlugin[] = ['first', 'second'].map((name) => ({
+function prependTransform(name: string, mapped: boolean): EcoBuildPlugin {
+	return {
 		name,
 		setup(build) {
 			build.transform({ filter: /page\.ts$/ }, (code, id) => {
@@ -412,336 +72,472 @@ test('createRolldownPluginBridge composes maps from chained transforms', async (
 				source.prepend(`${name};\n`);
 				return {
 					code: source.toString(),
-					map: source.generateMap({ source: id, includeContent: true, hires: 'boundary' }),
+					...(mapped
+						? { map: source.generateMap({ source: id, includeContent: true, hires: 'boundary' }) }
+						: {}),
 				};
 			});
 		},
-	}));
+	};
+}
 
-	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
-	const result = await callTransform(plugin!, 'export const value = 1;', filePath);
-	assert.ok(result);
-	const mappedLine = result.code.split('\n').findIndex((line) => line.includes('export const value'));
-	assert.notEqual(mappedLine, -1);
-	const original = originalPositionFor(new TraceMap(result.map as SourceMapInput), {
-		line: mappedLine + 1,
-		column: result.code.split('\n')[mappedLine]!.indexOf('export const value'),
-	});
+/** The original line `const value` in the bundled chunk maps back to, or `null` when it does not map. */
+function originalLineOfValue(chunk: { code: string; map: unknown }): number | null {
+	const lines = chunk.code.split('\n');
+	const line = lines.findIndex((text) => text.includes('const value'));
+	assert.notEqual(line, -1);
+	return originalPositionFor(new TraceMap(chunk.map as SourceMapInput), {
+		line: line + 1,
+		column: lines[line]!.indexOf('const value'),
+	}).line;
+}
 
-	assert.equal(original.line, 1);
-	assert.match(original.source ?? '', /page\.ts$/);
+test('maps each handler to a Rolldown plugin named after its EcoBuildPlugin, in order', async () => {
+	const plugins = await createRolldownPluginBridge(
+		[
+			{
+				name: 'a',
+				setup(build) {
+					build.onResolve({ filter: /^x$/ }, () => undefined);
+					build.onLoad({ filter: /\.md$/ }, () => undefined);
+				},
+			},
+			{ name: 'empty', setup: () => {} },
+			{ name: 'b', setup: (build) => build.transform({ filter: /\.ts$/ }, (code) => code) },
+		],
+		'/app',
+	);
+
+	assert.deepEqual(
+		plugins.map((plugin) => plugin.name),
+		['a', 'a', 'b'],
+	);
 });
 
-test('createRolldownPluginBridge emits an empty map when a transform does not provide one', async () => {
-	const plugins: EcoBuildPlugin[] = [
+test('runs each plugin.setup in array order before returning', async () => {
+	const setupCalls: string[] = [];
+	await createRolldownPluginBridge(
+		['a', 'b'].map((name) => ({ name, setup: () => void setupCalls.push(name) })),
+		'/app',
+	);
+	assert.deepEqual(setupCalls, ['a', 'b']);
+});
+
+test('gives every plugin the same entrypoint map', async () => {
+	const entrypoints = Object.freeze({ first: '/app/first.ts', second: '/app/second.ts' });
+	const seen: Array<Readonly<Record<string, string>> | undefined> = [];
+	await createRolldownPluginBridge(
+		['first', 'second'].map((name) => ({ name, setup: (build) => void seen.push(build.entrypoints) })),
+		'/app',
+		{ entrypoints },
+	);
+
+	assert.equal(seen[0], entrypoints);
+	assert.equal(seen[1], entrypoints);
+});
+
+test('resolveId translates EcoBuildOnResolveResult to Rolldown shape', async () => {
+	const plugin = await bridgeOne({
+		name: 'alias',
+		setup: (build) => build.onResolve({ filter: /.*/ }, () => ({ path: '/vendor/react.js', external: true })),
+	});
+	assert.deepEqual(await callResolveId(plugin, 'react', '/app/index.ts'), { id: '/vendor/react.js', external: true });
+});
+
+test('resolveId resolves relative paths against the importer', async () => {
+	const plugin = await bridgeOne({
+		name: 'relative',
+		setup: (build) => build.onResolve({ filter: /.*/ }, () => ({ path: './sibling.ts' })),
+	});
+	const result = (await callResolveId(plugin, 'X', '/app/sub/index.ts')) as { id: string } | null;
+	assert.equal(result?.id, toRolldownModuleId(path.resolve('/app/sub', './sibling.ts')));
+});
+
+test('resolveId leaves absolute paths and virtual ids untouched', async () => {
+	for (const resolved of ['/abs/path.ts', '\0virtual:thing']) {
+		const plugin = await bridgeOne({
+			name: 'absolute',
+			setup: (build) => build.onResolve({ filter: /.*/ }, () => ({ path: resolved })),
+		});
+		const result = (await callResolveId(plugin, 'X', '/app/index.ts')) as { id: string } | null;
+		assert.equal(result?.id, resolved);
+	}
+});
+
+test('resolveId returns null for empty callbacks', async () => {
+	const plugin = await bridgeOne({
+		name: 'noop',
+		setup: (build) => build.onResolve({ filter: /.*/ }, () => undefined),
+	});
+	assert.equal(await callResolveId(plugin, 'X', '/app/index.ts'), null);
+});
+
+test('addWatchFile declares a file to Rolldown and under the module the callback ran for', async () => {
+	const watchFiles: WatchFilesByModule = new Map();
+	const rolldownWatchFiles: string[] = [];
+	const [plugin] = await createRolldownPluginBridge(
+		[
+			{
+				name: 'docs',
+				setup(build) {
+					build.onLoad({ filter: /.*/ }, async (args) => {
+						await Promise.resolve();
+						build.addWatchFile(`data/${path.basename(args.path, '.tsx')}.json`);
+						return { contents: 'export default 1', loader: 'js' };
+					});
+				},
+			},
+		],
+		'/app',
+		{ watchFiles },
+	);
+	const load = hookHandler(plugin!.load) as LoadHook;
+	const context = { addWatchFile: (id: string) => rolldownWatchFiles.push(id) };
+	await Promise.all([load.call(context, '/app/pages/a.tsx'), load.call(context, '/app/pages/b.tsx')]);
+
+	assert.deepEqual(rolldownWatchFiles.sort(), [path.resolve('/app/data/a.json'), path.resolve('/app/data/b.json')]);
+	assert.deepEqual([...watchFiles].map(([moduleId, files]) => [moduleId, [...files]]).sort(), [
+		['/app/pages/a.tsx', [path.resolve('/app/data/a.json')]],
+		['/app/pages/b.tsx', [path.resolve('/app/data/b.json')]],
+	]);
+});
+
+test('resolve answers inside a callback through the other plugins and the bundler', async () => {
+	const resolved: unknown[] = [];
+	await bundle({ 'entry.ts': "import './helper.ts';\n", 'helper.ts': 'export {};\n' }, [
 		{
-			name: 'insert-line',
+			name: 'resolver',
 			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code) => ({
-					code: `/* injected */\n${code}`,
-					map: {},
-				}));
+				build.transform({ filter: /entry\.ts$/ }, async (code, id) => {
+					resolved.push(await build.resolve('./helper.ts', id), await build.resolve('aliased', id));
+					return code;
+				});
 			},
 		},
-	];
+		{
+			name: 'alias',
+			setup: (build) =>
+				build.onResolve({ filter: /^aliased$/ }, () => ({ path: 'https://cdn/x.js', external: true })),
+		},
+	]);
 
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
+	assert.deepEqual(resolved, [
+		{ id: path.join(root, 'helper.ts'), external: false },
+		{ id: 'https://cdn/x.js', external: true },
+	]);
+});
+
+test('load returns moduleType for .tsx files with explicit loader', async () => {
+	const plugin = await bridgeOne({
+		name: 'rewrite',
+		setup: (build) => build.onLoad({ filter: /.*/ }, () => ({ contents: 'export const x = 1;', loader: 'tsx' })),
+	});
+	const result = (await callLoad(plugin, '/app/index.tsx')) as { code: string; moduleType: string } | null;
+	assert.equal(result?.moduleType, 'tsx');
+	assert.equal(result?.code, 'export const x = 1;');
+});
+
+test('load returns null for empty callbacks', async () => {
+	const plugin = await bridgeOne({ name: 'noop', setup: (build) => build.onLoad({ filter: /.*/ }, () => undefined) });
+	assert.equal(await callLoad(plugin, '/app/index.ts'), null);
+});
+
+test('load ignores object prototype loader names', async () => {
+	const plugin = await bridgeOne({
+		name: 'proto-loader',
+		setup: (build) =>
+			build.onLoad({ filter: /.*/ }, () => ({ contents: 'export default 1', loader: 'toString' as never })),
+	});
+	const result = (await callLoad(plugin, '/app/proto.ts')) as { moduleType: string } | null;
+	assert.equal(result?.moduleType, 'ts');
+});
+
+test('module() serves each specifier as its own \\0 virtual module', async () => {
+	const plugins = await createRolldownPluginBridge(
+		['foo', 'bar'].map((name) => ({
+			name,
+			setup: (build) =>
+				build.module(`virtual:${name}`, () => ({ contents: `export default '${name}';`, loader: 'js' })),
+		})),
+		'/app',
+	);
+
+	for (const [index, name] of ['foo', 'bar'].entries()) {
+		const resolved = await callResolveId(plugins[index]!, `virtual:${name}`);
+		assert.equal(resolved, `\0virtual:${name}`);
+		const loaded = (await callLoad(plugins[index]!, resolved as string)) as { code: string; moduleType: string };
+		assert.equal(loaded.code, `export default '${name}';`);
+		assert.equal(loaded.moduleType, 'js');
+	}
+});
+
+test('a module() virtual module bundles and stays out of transforms', async () => {
+	const transformed: string[] = [];
+	const chunk = await bundle({ 'entry.ts': "import images from 'ecopages:images';\nconsole.log(images);\n" }, [
+		{
+			name: 'ecopages:images',
+			setup: (build) => build.module('ecopages:images', () => ({ contents: 'export default "hero.png";' })),
+		},
+		{
+			name: 'record-every-module',
+			setup: (build) =>
+				build.transform({ filter: /.*/ }, (code, id) => {
+					transformed.push(id);
+					return code;
+				}),
+		},
+	]);
+
+	assert.match(chunk.code, /hero\.png/);
+	assert.deepEqual(transformed, [path.join(root, 'entry.ts')]);
+});
+
+test('applies transform plugins after a first-wins onLoad rewrite', async () => {
+	const chunk = await bundle({ 'layout.tsx': 'export default 0;\n' }, [
+		{
+			name: 'rewrite',
+			setup: (build) =>
+				build.onLoad({ filter: /layout\.tsx$/ }, () => ({
+					contents: 'export default "loaded";',
+					loader: 'tsx',
+				})),
+		},
+		{
+			name: 'ignored-loader',
+			setup: (build) =>
+				build.onLoad({ filter: /layout\.tsx$/ }, () => ({
+					contents: 'export default "second";',
+					loader: 'tsx',
+				})),
+		},
+		{
+			name: 'meta',
+			setup: (build) =>
+				build.transform({ filter: /layout\.tsx$/ }, (code) => ({
+					code: code.replace('loaded', 'transformed'),
+				})),
+		},
+	]);
+
+	assert.match(chunk.code, /"transformed"/);
+	assert.doesNotMatch(chunk.code, /second/);
+});
+
+test('runs transforms in plugin order', async () => {
+	const chunk = await bundle({ 'page.ts': 'export const value = [];\n' }, [
+		{
+			name: 'first',
+			setup: (build) => build.transform({ filter: /page\.ts$/ }, (code) => code.replace('[]', '["first"]')),
+		},
+		{
+			name: 'second',
+			setup: (build) =>
+				build.transform({ filter: /page\.ts$/ }, (code) => code.replace('"first"]', '"first", "second"]')),
+		},
+	]);
+
+	assert.match(chunk.code, /\["first", "second"\]/);
+});
+
+test('forwards a transform source map', async () => {
+	const map = { version: 3, file: 'page.ts', sources: ['/app/page.ts'], names: [], mappings: ';AAAA' };
+	const plugin = await bridgeOne({
+		name: 'insert-line',
+		setup: (build) =>
+			build.transform({ filter: /page\.ts$/ }, (code) => ({ code: `/* injected */\n${code}`, map })),
+	});
 	const result = await callTransform(plugin, 'export const value = 1;', '/app/page.ts');
 
 	assert.equal(result?.code, '/* injected */\nexport const value = 1;');
-	assert.deepEqual(result?.map, { mappings: '' });
+	assert.equal(result?.map, map);
 });
 
-test('createRolldownPluginBridge does not reuse an earlier map after an unmapped rewrite', async () => {
-	const map = {
-		version: 3,
-		sources: ['/app/page.ts'],
-		names: [],
-		mappings: 'AAAA',
-	};
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'mapped-rewrite',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code) => ({ code, map }));
-			},
-		},
-		{
-			name: 'unmapped-rewrite',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code) => ({ code: `void 0;\n${code}` }));
-			},
-		},
-	];
-
-	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
-	const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
-
-	assert.deepEqual(result?.map, { mappings: '' });
-});
-
-for (const order of ['mapped-first', 'empty-first'] as const) {
-	test(`createRolldownPluginBridge treats an empty map as unmapped next to a mapped transform (${order})`, async () => {
-		const mapped: EcoBuildPlugin = {
-			name: 'mapped',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code, id) => {
-					const source = new MagicString(code, { filename: id });
-					source.prepend('mapped;\n');
-					return { code: source.toString(), map: source.generateMap({ source: id, hires: 'boundary' }) };
-				});
-			},
-		};
-		const empty: EcoBuildPlugin = {
-			name: 'empty',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code) => ({
-					code: `empty;\n${code}`,
-					map: { mappings: '' },
-				}));
-			},
-		};
-
-		const [plugin] = await createRolldownPluginBridge(
-			order === 'mapped-first' ? [mapped, empty] : [empty, mapped],
-			'/app',
-		);
-		const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
-
-		assert.deepEqual(result?.map, { mappings: '' });
+test('forwards a source map from a load result', async () => {
+	const map = { version: 3, sources: ['/app/page.mdx'], names: [], mappings: 'AAAA' };
+	const plugin = await bridgeOne({
+		name: 'mapped-loader',
+		setup: (build) =>
+			build.onLoad({ filter: /page\.mdx$/ }, () => ({ contents: 'export default 1;', loader: 'js', map })),
 	});
-}
+	const result = await callLoad(plugin, '/app/page.mdx');
 
-test('createRolldownPluginBridge forwards null maps to preserve an upstream map', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'preserve-map',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code) => ({ code, map: null }));
-			},
-		},
-	];
+	assert.equal(result && typeof result === 'object' && 'map' in result ? result.map : undefined, map);
+});
 
-	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
-	const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
+test('emits an empty map for a rewrite without a usable map', async () => {
+	for (const map of [{}, undefined]) {
+		const plugin = await bridgeOne({
+			name: 'insert-line',
+			setup: (build) =>
+				build.transform({ filter: /page\.ts$/ }, (code) => ({ code: `/* injected */\n${code}`, map })),
+		});
+		const result = await callTransform(plugin, 'export const value = 1;', '/app/page.ts');
+
+		assert.equal(result?.code, '/* injected */\nexport const value = 1;');
+		assert.deepEqual(result?.map, { mappings: '' });
+	}
+});
+
+test('emits an empty map for a string-returning rewrite and nothing for an unchanged one', async () => {
+	const plugin = await bridgeOne({
+		name: 'string',
+		setup: (build) => build.transform({ filter: /page\.ts$/ }, (code) => code.replace('changed', 'CHANGED')),
+	});
+
+	assert.deepEqual(await callTransform(plugin, 'changed;', '/app/page.ts'), {
+		code: 'CHANGED;',
+		map: { mappings: '' },
+	});
+	assert.equal(await callTransform(plugin, 'same;', '/app/page.ts'), null);
+});
+
+test('forwards null maps to preserve an upstream map', async () => {
+	const plugin = await bridgeOne({
+		name: 'preserve-map',
+		setup: (build) => build.transform({ filter: /page\.ts$/ }, (code) => ({ code, map: null })),
+	});
+	const result = await callTransform(plugin, 'export const value = 1;', '/app/page.ts');
 
 	assert.equal(result?.map, null);
 });
 
-test('createRolldownPluginBridge composes a mapped rewrite after preserving the incoming map', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'preserve-map',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code) => ({ code, map: null }));
-			},
-		},
-		{
-			name: 'mapped-rewrite',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code, id) => {
-					const source = new MagicString(code, { filename: id });
-					source.prepend('void 0;\n');
-					return {
-						code: source.toString(),
-						map: source.generateMap({ source: id, includeContent: true, hires: 'boundary' }),
-					};
-				});
-			},
-		},
-	];
+test('chains the maps of mapped transforms', async () => {
+	const chunk = await bundle({ 'page.ts': 'export const value = 1;\n' }, [
+		prependTransform('first', true),
+		prependTransform('second', true),
+	]);
 
-	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
-	const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
-	assert.ok(result);
-	const mappedLine = result.code.split('\n').findIndex((line) => line.includes('export const value'));
-	assert.notEqual(mappedLine, -1);
-	const original = originalPositionFor(new TraceMap(result.map as SourceMapInput), {
-		line: mappedLine + 1,
-		column: result.code.split('\n')[mappedLine]!.indexOf('export const value'),
+	assert.equal(originalLineOfValue(chunk), 1);
+});
+
+test('does not reuse an earlier map after an unmapped rewrite', async () => {
+	const chunk = await bundle({ 'page.ts': 'export const value = 1;\n' }, [
+		prependTransform('mapped', true),
+		prependTransform('unmapped', false),
+	]);
+
+	assert.equal(originalLineOfValue(chunk), null);
+});
+
+for (const order of ['mapped-first', 'empty-first'] as const) {
+	test(`treats an empty map as unmapped next to a mapped transform (${order})`, async () => {
+		const empty: EcoBuildPlugin = {
+			name: 'empty',
+			setup: (build) =>
+				build.transform({ filter: /page\.ts$/ }, (code) => ({
+					code: `empty;\n${code}`,
+					map: { mappings: '' },
+				})),
+		};
+		const mapped = prependTransform('mapped', true);
+		const chunk = await bundle(
+			{ 'page.ts': 'export const value = 1;\n' },
+			order === 'mapped-first' ? [mapped, empty] : [empty, mapped],
+		);
+
+		assert.equal(originalLineOfValue(chunk), null);
 	});
-
-	assert.equal(original.line, 1);
-});
-
-test('createRolldownPluginBridge preserves mappings when a null-map transform keeps positions', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'mapped-rewrite',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code) => ({
-					code,
-					map: { version: 3, sources: ['/app/page.ts'], names: [], mappings: 'AAAA' },
-				}));
-			},
-		},
-		{
-			name: 'unmapped-null-rewrite',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code) => ({
-					code: code.replace('value', 'other'),
-					map: null,
-				}));
-			},
-		},
-	];
-
-	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
-	const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
-
-	assert.equal(result?.code, 'export const other = 1;');
-	assert.deepEqual(result?.map, { version: 3, sources: ['/app/page.ts'], names: [], mappings: 'AAAA' });
-});
-
-test('createRolldownPluginBridge clears a preserved map after an unmapped rewrite', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'preserve-map',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code) => ({ code, map: null }));
-			},
-		},
-		{
-			name: 'unmapped-rewrite',
-			setup(build) {
-				build.transform({ filter: /page\.ts$/ }, (code) => ({ code: `void 0;\n${code}` }));
-			},
-		},
-	];
-
-	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
-	const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
-
-	assert.deepEqual(result?.map, { mappings: '' });
-});
-
-test('createRolldownPluginBridge loads each of eleven virtual modules with its own contents', async () => {
-	const specifiers = Array.from({ length: 11 }, (_, index) => `virtual:m${index}`);
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'many-modules',
-			setup(build) {
-				for (const specifier of specifiers) {
-					build.module(specifier, () => ({ contents: `export default '${specifier}';`, loader: 'js' }));
-				}
-			},
-		},
-	];
-
-	const plugin = (await createRolldownPluginBridge(plugins, '/app'))[0]!;
-
-	for (const specifier of specifiers) {
-		const resolve = (await callResolveId(plugin, specifier)) as { id: string } | undefined;
-		const load = (await callLoad(plugin, resolve?.id ?? '')) as { code: string } | undefined;
-		assert.equal(load?.code, `export default '${specifier}';`);
-	}
-});
-
-test('createRolldownPluginBridge tests a namespaced filter against the path after the namespace', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'docs',
-			setup(build) {
-				build.onLoad({ filter: /\.md$/, namespace: 'docs' }, () => ({
-					contents: 'export default 1;',
-					loader: 'js',
-				}));
-			},
-		},
-	];
-
-	const plugin = (await createRolldownPluginBridge(plugins, '/app'))[0]!;
-
-	const matched = (await callLoad(plugin, 'docs:intro.md')) as { code: string } | undefined;
-	const unmatched = (await callLoad(plugin, 'docs:introxmd')) as { code: string } | undefined;
-	const otherNamespace = (await callLoad(plugin, 'other:intro.md')) as { code: string } | undefined;
-	assert.equal(matched?.code, 'export default 1;');
-	assert.notEqual(unmatched?.code, 'export default 1;');
-	assert.notEqual(otherNamespace?.code, 'export default 1;');
-});
-
-test('createRolldownPluginBridge merges plugins into one, where the earlier plugin resolves first', async () => {
-	const plugins: EcoBuildPlugin[] = ['first', 'second'].map((name) => ({
-		name,
-		setup(build) {
-			build.onResolve({ filter: /^shared$/ }, () => ({ path: `/${name}.ts` }));
-		},
-	}));
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-
-	assert.equal(bridge.length, 1);
-	const resolved = (await callResolveId(bridge[0]!, 'shared')) as { id: string } | undefined;
-	assert.equal(resolved?.id, '/first.ts');
-});
-
-function spyOnHook(plugin: Plugin, hookName: 'resolveId' | 'load', calls: string[]): void {
-	const hook = plugin[hookName];
-	const handler = hookHandler(hook) as (this: unknown, ...args: unknown[]) => unknown;
-	const spy = function (this: unknown, ...args: unknown[]) {
-		calls.push(args[0] as string);
-		return handler.apply(this, args);
-	};
-	Object.assign(plugin, { [hookName]: typeof hook === 'function' ? spy : { ...hook, handler: spy } });
 }
 
-test('createRolldownPluginBridge calls into JavaScript only for ids that a registration may match', async () => {
-	const root = mkdtempSync(path.join(os.tmpdir(), 'eco-bridge-filters-'));
-	try {
-		writeFileSync(
-			path.join(root, 'entry.ts'),
-			"import './plain.ts';\nimport './doc.md';\nimport 'virtual:greeting';\n",
-		);
-		writeFileSync(path.join(root, 'plain.ts'), "console.log('plain');\n");
-		writeFileSync(path.join(root, 'doc.md'), '# doc\n');
-		const plugins: EcoBuildPlugin[] = ['first', 'second'].map((name) => ({
+test('chains a mapped rewrite after a transform that preserved the incoming map', async () => {
+	const chunk = await bundle({ 'page.ts': 'export const value = 1;\n' }, [
+		{
+			name: 'preserve-map',
+			setup: (build) => build.transform({ filter: /page\.ts$/ }, (code) => ({ code, map: null })),
+		},
+		prependTransform('mapped', true),
+	]);
+
+	assert.equal(originalLineOfValue(chunk), 1);
+});
+
+test('drops a preserved map after an unmapped rewrite', async () => {
+	const chunk = await bundle({ 'page.ts': 'export const value = 1;\n' }, [
+		{
+			name: 'preserve-map',
+			setup: (build) => build.transform({ filter: /page\.ts$/ }, (code) => ({ code, map: null })),
+		},
+		prependTransform('unmapped', false),
+	]);
+
+	assert.equal(originalLineOfValue(chunk), null);
+});
+
+test('gives the earlier plugin precedence in resolveId', async () => {
+	const chunk = await bundle(
+		{ 'entry.ts': "import value from 'shared';\nconsole.log(value);\n" },
+		['first', 'second'].map((name) => ({
+			name,
+			setup: (build) => build.onResolve({ filter: /^shared$/ }, () => ({ path: `\0${name}` })),
+		})),
+		[{ name: 'virtual', load: (id) => (id.startsWith('\0') ? `export default "${id.slice(1)}";` : null) }],
+	);
+
+	assert.match(chunk.code, /"first"/);
+	assert.doesNotMatch(chunk.code, /"second"/);
+});
+
+function spyOnHooks(plugins: Plugin[], hookName: 'resolveId' | 'load', calls: string[]): void {
+	for (const plugin of plugins) {
+		const hook = plugin[hookName];
+		if (!hook) continue;
+		const handler = hookHandler(hook) as (this: unknown, ...args: unknown[]) => unknown;
+		const spy = function (this: unknown, ...args: unknown[]) {
+			calls.push(args[0] as string);
+			return handler.apply(this, args);
+		};
+		Object.assign(plugin, { [hookName]: typeof hook === 'function' ? spy : { ...hook, handler: spy } });
+	}
+}
+
+test('calls into JavaScript only for ids a handler filter matches, and only until one answers', async () => {
+	writeFileSync(
+		path.join(root, 'entry.ts'),
+		"import './plain.ts';\nimport './doc.md';\nimport './skip.md';\nimport 'virtual:greeting';\n",
+	);
+	writeFileSync(path.join(root, 'plain.ts'), "console.log('plain');\n");
+	writeFileSync(path.join(root, 'doc.md'), '# doc\n');
+	writeFileSync(path.join(root, 'skip.md'), '# skip\n');
+	const plugins = await createRolldownPluginBridge(
+		['first', 'second'].map((name) => ({
 			name,
 			setup(build) {
-				build.onLoad({ filter: /\.md$/ }, () => ({ contents: `console.log('${name} doc');`, loader: 'js' }));
+				build.onLoad({ filter: /\.md$/, exclude: /skip\.md$/ }, () => ({
+					contents: `console.log('${name} doc');`,
+					loader: 'js',
+				}));
 				build.module('virtual:greeting', () => ({
 					contents: `console.log('${name} greeting');`,
 					loader: 'js',
 				}));
 			},
-		}));
+		})),
+		root,
+	);
+	const resolveCalls: string[] = [];
+	const loadCalls: string[] = [];
+	spyOnHooks(plugins, 'resolveId', resolveCalls);
+	spyOnHooks(plugins, 'load', loadCalls);
+	const markdown: Plugin = {
+		name: 'markdown',
+		load: (id) => (id.endsWith('skip.md') ? 'console.log("skipped");' : null),
+	};
 
-		const [plugin] = await createRolldownPluginBridge(plugins, root);
-		const resolveCalls: string[] = [];
-		const loadCalls: string[] = [];
-		spyOnHook(plugin!, 'resolveId', resolveCalls);
-		spyOnHook(plugin!, 'load', loadCalls);
+	const build = await rolldown({ input: path.join(root, 'entry.ts'), cwd: root, plugins: [...plugins, markdown] });
+	const { output } = await build.generate({ format: 'esm' });
+	await build.close();
 
-		const bundle = await rolldown({ input: path.join(root, 'entry.ts'), cwd: root, plugins: [plugin!] });
-		const { output } = await bundle.generate({ format: 'esm' });
-		await bundle.close();
-
-		assert.match(output[0].code, /first doc/);
-		assert.match(output[0].code, /first greeting/);
-		assert.doesNotMatch(output[0].code, /second/);
-		assert.deepEqual(resolveCalls, ['virtual:greeting']);
-		assert.deepEqual(loadCalls.map((id) => id.replace(/^.*[\\/]/, '')).sort(), [
-			'doc.md',
-			'ecopages-module-0:virtual:greeting',
-		]);
-	} finally {
-		rmSync(root, { recursive: true, force: true });
-	}
+	assert.match(output[0].code, /first doc/);
+	assert.match(output[0].code, /first greeting/);
+	assert.match(output[0].code, /skipped/);
+	assert.doesNotMatch(output[0].code, /second/);
+	assert.deepEqual(resolveCalls, ['virtual:greeting']);
+	assert.deepEqual(loadCalls.map((id) => id.replace(/^.*[\\/]/, '')).sort(), ['\0virtual:greeting', 'doc.md']);
 });
 
-test('createRolldownPluginBridge rejects handlers registered after setup finished', async () => {
+test('rejects handlers registered after setup finished, and addWatchFile outside a callback', async () => {
 	let lateBuilder: Parameters<EcoBuildPlugin['setup']>[0] | undefined;
-	await createRolldownPluginBridge(
-		[
-			{
-				name: 'late',
-				setup(build) {
-					lateBuilder = build;
-				},
-			},
-		],
-		'/app',
-	);
+	await createRolldownPluginBridge([{ name: 'late', setup: (build) => void (lateBuilder = build) }], '/app');
 
 	assert.throws(
 		() => lateBuilder!.onLoad({ filter: /\.md$/ }, () => undefined),
@@ -750,39 +546,42 @@ test('createRolldownPluginBridge rejects handlers registered after setup finishe
 	assert.throws(() => lateBuilder!.onResolve({ filter: /^x$/ }, () => undefined), /build\.onResolve\(\)/);
 	assert.throws(() => lateBuilder!.module('virtual:x', () => ({ contents: '' })), /build\.module\(\)/);
 	assert.throws(() => lateBuilder!.transform({ filter: /\.ts$/ }, (code) => code), /build\.transform\(\)/);
+	assert.throws(() => lateBuilder!.addWatchFile('/app/data.json'), /addWatchFile\(\) was called outside/);
 });
 
-test('createRolldownPluginBridge runs a transform filtered on the extension for an id with a query', async () => {
-	const [plugin] = await createRolldownPluginBridge(
-		[
-			{
-				name: 'tagger',
-				setup(build) {
-					build.transform({ filter: /\.ts$/ }, (code) => ({ code: `/* tagged */\n${code}` }));
-				},
+test('transforms a module whose id has a query, also when the query holds a colon', async () => {
+	const tagged = path.join(root, 'tagged.ts');
+	writeFileSync(tagged, 'export const value = 1;\n');
+	const chunk = await bundle({ 'entry.ts': "export * from 'tagged';\n" }, [
+		{
+			name: 'query-resolver',
+			setup(build) {
+				build.onResolve({ filter: /^tagged$/ }, () => ({ path: `${tagged}?v=1&at=12:30` }));
+				build.onLoad({ filter: /\?v=1/ }, () => ({ contents: 'export const value = 1;', loader: 'ts' }));
 			},
-		],
-		'/app',
-	);
+		},
+		{
+			name: 'tagger',
+			setup: (build) => build.transform({ filter: /tagged\.ts$/ }, (code) => `/* tagged */\n${code}`),
+		},
+	]);
 
-	const result = await callTransform(plugin!, 'export {};', '/app/src/a.ts?v=1');
-
-	assert.match(result?.code ?? '', /tagged/);
+	assert.match(chunk.code, /tagged/);
 });
 
-test('createRolldownPluginBridge treats a Windows drive prefix as part of the path, not a namespace', async () => {
+test('hands callbacks a Windows module id as an Ecopages path', async () => {
 	const seen: string[] = [];
-	const [plugin] = await createRolldownPluginBridge(
+	const plugins = await createRolldownPluginBridge(
 		[
 			{
 				name: 'drive',
 				setup(build) {
 					build.transform({ filter: /\.ts$/ }, (code, id) => {
 						seen.push(id);
-						return { code: `/* tagged */\n${code}` };
+						return `/* tagged */\n${code}`;
 					});
-					build.onLoad({ filter: /\.txt$/ }, ({ path: loadPath, namespace }) => {
-						seen.push(`${namespace}|${loadPath}`);
+					build.onLoad({ filter: /\.txt$/ }, ({ path: loadPath }) => {
+						seen.push(loadPath);
 						return { contents: 'x', loader: 'js' };
 					});
 				},
@@ -791,9 +590,50 @@ test('createRolldownPluginBridge treats a Windows drive prefix as part of the pa
 		'/app',
 	);
 
-	const transformed = await callTransform(plugin!, 'export {};', 'C:\\app\\src\\a.ts');
-	await callLoad(plugin!, 'D:/app/a.txt');
+	const transformed = await callTransform(plugins[0]!, 'export {};', 'C:\\app\\src\\a.ts');
+	await callLoad(plugins[1]!, 'D:/app/a.txt');
 
 	assert.match(transformed?.code ?? '', /tagged/);
-	assert.deepEqual(seen, ['C:\\app\\src\\a.ts', 'undefined|D:/app/a.txt']);
+	assert.deepEqual(seen, [path.fromNative('C:\\app\\src\\a.ts'), 'D:/app/a.txt']);
+});
+
+test('runs onEnd after every module is transformed and fails the build when it throws', async () => {
+	const transformed: string[] = [];
+	const plugin: EcoBuildPlugin = {
+		name: 'end-check',
+		setup(build) {
+			build.transform({ filter: /\.js$/ }, (code, id) => {
+				transformed.push(path.basename(id));
+				return code;
+			});
+			build.onEnd(() => {
+				throw new Error(`transformed ${transformed.sort().join(', ')}`);
+			});
+		},
+	};
+
+	await assert.rejects(
+		bundle({ 'entry.js': `import './child.js';\nexport const entry = 1;`, 'child.js': `export const child = 1;` }, [
+			plugin,
+		]),
+		/transformed child\.js, entry\.js/,
+	);
+});
+
+test('skips onEnd when the build already failed', async () => {
+	let ended = 0;
+	const plugin: EcoBuildPlugin = {
+		name: 'end-check',
+		setup(build) {
+			build.transform({ filter: /\.js$/ }, () => {
+				throw new Error('transform failed');
+			});
+			build.onEnd(() => {
+				ended += 1;
+			});
+		},
+	};
+
+	await assert.rejects(bundle({ 'entry.js': `export const entry = 1;` }, [plugin]), /transform failed/);
+	assert.equal(ended, 0);
 });

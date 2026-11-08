@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { isDevelopmentRuntime } from '@ecopages/core/integration';
 import type { JsxImportSource } from './jsx-import-source.ts';

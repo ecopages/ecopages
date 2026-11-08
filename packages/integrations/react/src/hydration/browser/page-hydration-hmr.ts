@@ -7,10 +7,23 @@ type PageWindowRuntime = {
 		reloadCurrentPage?: (options: Record<string, unknown>) => Promise<void> | void;
 	};
 	react?: { pageRoot?: { render: (tree: unknown) => void } | null; mountGeneration?: number };
-	page?: { module: string; props: Record<string, unknown> };
+	page?: { module: string; props: Record<string, unknown>; document?: Document };
 };
 
+type PageData = { moduleUrl?: string; props: Record<string, unknown> };
+type PageDataReader = (options: PageHydrationOptions, source?: Pick<Document, 'getElementById'>) => PageData;
+type PageStateSetter = (options: PageHydrationOptions, pageData: PageData) => void;
+
 type PageWindow = Window & { __ECO_PAGES__?: PageWindowRuntime };
+
+/**
+ * Numbers the updates so the newest one wins.
+ *
+ * @remarks
+ * An update awaits an import and, without a router, a fetch, and the HMR client does not queue the next message.
+ * Two saves in a row can finish out of order; an update that finds a newer one started drops itself.
+ */
+let latestUpdate = 0;
 
 function getRuntime(): PageWindowRuntime {
 	return ((window as PageWindow).__ECO_PAGES__ ??= {});
@@ -18,6 +31,14 @@ function getRuntime(): PageWindowRuntime {
 
 function isCurrentMountGeneration(generation: number): boolean {
 	return (getRuntime().react?.mountGeneration ?? 0) === generation;
+}
+
+/**
+ * @remarks
+ * A layout module has one URL, so an unchanged layout is the same function in both page versions.
+ */
+function haveSameLayouts(current: readonly unknown[], next: readonly unknown[]): boolean {
+	return current.length === next.length && current.every((layout, index) => layout === next[index]);
 }
 
 async function applyRouterHmrUpdate(
@@ -30,10 +51,10 @@ async function applyRouterHmrUpdate(
 		return false;
 	}
 
-	const currentLayoutStack = options.hmr!.getLayoutStack?.(currentPage) ?? '';
-	const nextLayoutStack = options.hmr!.getLayoutStack?.(nextPage) ?? '';
+	const currentLayouts = options.hmr!.getLayouts?.(currentPage) ?? [];
+	const nextLayouts = options.hmr!.getLayouts?.(nextPage) ?? [];
 	await getRuntime().navigation?.reloadCurrentPage?.({
-		clearCache: currentLayoutStack !== nextLayoutStack,
+		clearCache: !haveSameLayouts(currentLayouts, nextLayouts),
 		moduleUrl: newUrl,
 		source: 'react-router',
 	});
@@ -41,21 +62,46 @@ async function applyRouterHmrUpdate(
 	return true;
 }
 
-function applyDirectHmrRender(
+/**
+ * Fetches the current URL and parses it, so a direct re-render has the server HTML of its Foreign Subtrees.
+ *
+ * @remarks
+ * A direct update has no router to refetch the document. The Foreign Subtree boundaries of the edited Page read
+ * their server HTML from it: an edit can change a Foreign Child's props, so the boundary has no HTML in the live
+ * document, and the live boundary of a hydrated custom element no longer holds its declarative shadow root. The
+ * parsed document keeps the `<template shadowrootmode>` of each, as a client navigation's does. A response that is
+ * not a page, such as a server render error, throws, so the update is not applied and the next edit retries it.
+ * The same document is the source of the Page's props, and of its module URL when the page data carries one, since an edit can change what `staticProps`
+ * returns and the live `__ECO_PAGE_DATA__` still holds the old values.
+ */
+async function fetchCurrentDocument(): Promise<Document> {
+	const response = await fetch(window.location.href, { headers: { accept: 'text/html' }, cache: 'no-store' });
+	if (!response.ok) {
+		throw new Error(`The server answered ${response.status} for ${window.location.pathname}`);
+	}
+	return new DOMParser().parseFromString(await response.text(), 'text/html');
+}
+
+async function applyDirectHmrRender(
 	options: PageHydrationOptions,
 	nextPage: unknown,
-	nextProps: Record<string, unknown>,
-	readPageData: (options: PageHydrationOptions) => { moduleUrl?: string; props: Record<string, unknown> },
+	readPageData: PageDataReader,
 	setPageState: (
 		options: PageHydrationOptions,
 		pageData: { moduleUrl?: string; props: Record<string, unknown> },
 	) => void,
 	generation: number,
-): void {
+	isSuperseded: () => boolean,
+): Promise<void> {
+	if (!getRuntime().react?.pageRoot || !isCurrentMountGeneration(generation)) return;
+	const fetchedDocument = await fetchCurrentDocument();
 	const activeRoot = getRuntime().react?.pageRoot ?? null;
-	if (!activeRoot || !isCurrentMountGeneration(generation)) return;
-	setPageState(options, readPageData(options));
-	activeRoot.render(options.createTree(nextPage, nextProps));
+	if (!activeRoot || !isCurrentMountGeneration(generation) || isSuperseded()) return;
+	const pageData = readPageData(options, fetchedDocument);
+	setPageState(options, pageData);
+	const runtime = getRuntime();
+	if (runtime.page) runtime.page.document = fetchedDocument;
+	activeRoot.render(options.createTree(nextPage, pageData.props));
 	console.log(`[ecopages] ${options.isMdx ? 'MDX' : 'React'} component updated`);
 }
 
@@ -66,17 +112,15 @@ export async function handlePageHmr(
 	options: PageHydrationOptions,
 	newUrl: string,
 	generation: number,
-	readPageData: (options: PageHydrationOptions) => { moduleUrl?: string; props: Record<string, unknown> },
-	setPageState: (
-		options: PageHydrationOptions,
-		pageData: { moduleUrl?: string; props: Record<string, unknown> },
-	) => void,
-	getPageDataFromDocument: (options: PageHydrationOptions) => Record<string, unknown>,
+	readPageData: PageDataReader,
+	setPageState: PageStateSetter,
 ): Promise<void> {
 	if (!options.hmr || !isCurrentMountGeneration(generation)) return;
+	const update = ++latestUpdate;
+	const isSuperseded = () => update !== latestUpdate;
 	try {
 		const newModule = (await import(/* @vite-ignore */ newUrl)) as Record<string, unknown>;
-		if (!isCurrentMountGeneration(generation)) return;
+		if (!isCurrentMountGeneration(generation) || isSuperseded()) return;
 		const nextPage = resolvePageComponent(newModule, options.isMdx, options.normalizePageConfig);
 		const currentPage = options.Page;
 		options.Page = nextPage;
@@ -85,14 +129,7 @@ export async function handlePageHmr(
 			return;
 		}
 
-		applyDirectHmrRender(
-			options,
-			nextPage,
-			getPageDataFromDocument(options),
-			readPageData,
-			setPageState,
-			generation,
-		);
+		await applyDirectHmrRender(options, nextPage, readPageData, setPageState, generation, isSuperseded);
 	} catch (error) {
 		console.error(`[ecopages] Failed to hot-reload ${options.isMdx ? 'MDX' : 'React'} component:`, error);
 	}

@@ -1,13 +1,32 @@
+import { path } from '@ecopages/file-system/path';
+import { fileSystem } from '@ecopages/file-system';
 import MagicString from 'magic-string';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { createJsxImportSourcePragma } from './jsx-import-source.utils.ts';
 import type { EcoBuildOnTransformResult, EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { composeSourceMaps, isUsableSourceMap } from '../build/source-maps.ts';
-import { createCoreTransformPlugin, createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
+import { createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
+import { getStylesheetKinds, PLAIN_CSS_KINDS, type StylesheetKinds } from './stylesheet-kinds.ts';
 import { contentHash } from '../utils/content-hash.ts';
 import { escapeRegExp } from '../utils/regex-escaping.ts';
-import { discoverComponentImports, type DiscoveredImports } from './component-import-discovery.ts';
+import { toPackagePath } from '../utils/package-path.ts';
+import { formatPackageStylesheetEntry } from '../eco/discovered-dependency-paths.ts';
+import { toRootRelativePath } from '../utils/root-relative-path.ts';
+import {
+	collectStaticImports,
+	createDiscoveryCache,
+	createUndeliverableStylesheetError,
+	declaresEcoFactory,
+	forgetDiscoveryOwner,
+	discoverComponentImports,
+	isDeliveredStylesheetImport,
+	isReachedByDiscovery,
+	type DiscoveredImports,
+	type DiscoveryCache,
+	type DiscoveryOptions,
+} from './component-import-discovery.ts';
+import { loadTsconfigPathPrefixes } from './tsconfig-import-resolver.ts';
 import { findIntegrationForFile } from './find-integration-for-file.ts';
 
 /**
@@ -70,6 +89,12 @@ function applySourceEdits(
 	return createMappedSourceTransformResult(contents, filePath, editSource);
 }
 
+/**
+ * Matches the text of a side-effect import such as `import 'swiper/css'`, which can name a package stylesheet
+ * without a `.css` suffix.
+ */
+const SIDE_EFFECT_IMPORT = /(?:^|[;}\s])import\s*['"]/m;
+
 function isAstNode(value: unknown): value is AstNode {
 	return typeof value === 'object' && value !== null;
 }
@@ -96,16 +121,6 @@ function isIdentityBinding(node: unknown): boolean {
 	return node.callee.type === 'Identifier' && node.callee.name === 'bindComponentIdentity';
 }
 
-function walkAst(node: unknown, visit: (node: AstNode) => void): void {
-	if (Array.isArray(node)) {
-		for (const child of node) walkAst(child, visit);
-		return;
-	}
-	if (!isAstNode(node)) return;
-	visit(node);
-	for (const value of Object.values(node)) walkAst(value, visit);
-}
-
 /**
  * Visits each `eco.*()` call with the name of the declaration it belongs to.
  *
@@ -128,9 +143,33 @@ function walkEcoFactoryCalls(node: unknown, binding: string, visit: (call: AstNo
 	for (const value of Object.values(node)) walkEcoFactoryCalls(value, scope, visit);
 }
 
-function createIdentityLiteral(identitySource: string, filePath: string, integration: string): string {
+/**
+ * Returns the function that names a file the way server modules and the ledger store it: relative to the app
+ * root, with forward slashes.
+ *
+ * @remarks
+ * Both sides are real paths, so a root reached through a symlink, such as macOS `/tmp`, relativizes the
+ * real module ids the bundler reports. A file not on disk, such as a virtual module, takes the real path of its
+ * folder.
+ */
+function createSourceKeyResolver(projectRoot: string): (file: string) => string {
+	const toRealPath = (file: string): string => {
+		if (fileSystem.exists(file)) return fileSystem.realpath(file);
+		const dir = path.dirname(file);
+		return fileSystem.exists(dir) ? path.join(fileSystem.realpath(dir), path.basename(file)) : path.resolve(file);
+	};
+	const realRoot = toRealPath(projectRoot);
+	return (file) => toRootRelativePath(realRoot, toRealPath(file));
+}
+
+/**
+ * @remarks
+ * `file` is the root-relative source key and `id` hashes it, so an emitted module names its source the same
+ * wherever the app was built and keeps working after the app folder moves.
+ */
+function createIdentityLiteral(identitySource: string, sourceKey: string, integration: string): string {
 	const id = BigInt(`0x${contentHash(identitySource, 16)}`).toString(36);
-	return `{ id: ${JSON.stringify(id)}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
+	return `{ id: ${JSON.stringify(id)}, file: ${JSON.stringify(sourceKey)}, integration: ${JSON.stringify(integration)} }`;
 }
 
 function createNamedImportEdit(
@@ -190,25 +229,86 @@ function createNamedImportEdit(
 	return { start: 0, end: 0, replacement: `import { ${missing.join(', ')} } from '${sourceModule}';\n` };
 }
 
-function serializeDiscoveryArgument(discovered: DiscoveredImports | undefined): string {
-	if (!discovered || (discovered.components.length === 0 && discovered.stylesheets.length === 0)) {
-		return '';
-	}
-	const watchFiles = discovered.watchFiles.length > 0 ? `, watchFiles: ${JSON.stringify(discovered.watchFiles)}` : '';
-	return `, { components: () => [${discovered.components.join(', ')}], stylesheets: ${JSON.stringify(discovered.stylesheets)}${watchFiles} }`;
+/**
+ * Imports the Eco Components plain modules import, so the declaration's component getter can name them.
+ *
+ * @remarks
+ * The imports go at the end of the module: the plain module that imports each Component already evaluates
+ * it, so the extra import does not change evaluation order. Specifiers are resolved absolute paths, so they
+ * do not depend on how the bundler names the importer.
+ */
+function createPlainModuleComponentImports(discovered: DiscoveredImports): { locals: string[]; code: string } {
+	const locals: string[] = [];
+	let code = '';
+	if (discovered.plainModuleComponents.length === 0) return { locals, code };
+	discovered.plainModuleComponents.forEach(({ file, imported }, index) => {
+		const local = `__ecoPlainModuleComponent${index}`;
+		const specifier = JSON.stringify(file);
+		const name = /^[A-Za-z_$][\w$]*$/.test(imported) ? imported : JSON.stringify(imported);
+		code +=
+			imported === 'default'
+				? `\nimport ${local} from ${specifier};`
+				: `\nimport { ${name} as ${local} } from ${specifier};`;
+		locals.push(local);
+	});
+	return { locals, code: code ? `${code}\n` : '' };
 }
 
-function hasEcoFactoryCall(program: AstNode): boolean {
-	let found = false;
-	walkAst(program, (node) => {
-		if (isEcoFactoryCall(node)) found = true;
-	});
-	return found;
+/**
+ * Serializes discovery as the third argument of `bindComponentIdentity`.
+ *
+ * @remarks
+ * Local stylesheets and watch files are written relative to the app root, and a package stylesheet as the folder of
+ * the module that imported it and its package path (`src/components|some-lib@1.2.0/css/style.css`, see
+ * {@link formatPackageStylesheetEntry}), which `packageStylesheets` lists. Core
+ * resolves both at load, so no emitted module holds a path of the machine that built it. A package stylesheet
+ * outside any named package is written as a local one.
+ */
+function serializeDiscoveryArgument(
+	discovered: DiscoveredImports | undefined,
+	toSourceKey: (file: string) => string,
+	plainModuleComponents: string[] = [],
+): string {
+	if (
+		!discovered ||
+		(discovered.components.length === 0 &&
+			discovered.stylesheets.length === 0 &&
+			discovered.plainModuleStylesheets.length === 0 &&
+			discovered.plainModuleComponents.length === 0 &&
+			discovered.watchFiles.length === 0)
+	) {
+		return '';
+	}
+	const packagePaths = new Map<string, string>();
+	for (const { file, importer } of discovered.packageStylesheets) {
+		const packagePath = toPackagePath(file);
+		if (packagePath) {
+			packagePaths.set(file, formatPackageStylesheetEntry(toSourceKey(path.dirname(importer)), packagePath));
+		}
+	}
+	const toStylesheetKey = (file: string) => packagePaths.get(file) ?? toSourceKey(file);
+	const components = [...discovered.components, ...plainModuleComponents].join(', ');
+	const stylesheets = discovered.stylesheets.map(toStylesheetKey);
+	const plain =
+		discovered.plainModuleStylesheets.length > 0
+			? `, plainModuleStylesheets: ${JSON.stringify(discovered.plainModuleStylesheets.map(toStylesheetKey))}`
+			: '';
+	const packages = packagePaths.size > 0 ? `, packageStylesheets: ${JSON.stringify([...packagePaths.values()])}` : '';
+	const watchFiles =
+		discovered.watchFiles.length > 0
+			? `, watchFiles: ${JSON.stringify(discovered.watchFiles.map(toSourceKey))}`
+			: '';
+	return `, { components: () => [${components}], stylesheets: ${JSON.stringify(stylesheets)}${plain}${packages}${watchFiles} }`;
 }
 
 /**
  * Whether the component meta transform moves the side-effect stylesheet imports of `filePath`
- * into its Component Dependencies, removing them from the module.
+ * into its own Component Dependencies, removing them from the module.
+ *
+ * @remarks
+ * Only a module with an `eco.*()` call delivers its own imports. A plain module loses them too, but only a
+ * declaration that imports it delivers them, which an HTML Page module script is not, so the HTML Page scan
+ * still reports them.
  */
 export function stripsSideEffectStylesheetImports(
 	config: EcoPagesAppConfig,
@@ -218,12 +318,70 @@ export function stripsSideEffectStylesheetImports(
 	if (!contents.includes('eco.') || !createComponentMetaFilter(config).test(filePath)) return false;
 	if (!findIntegrationForFile(config.integrations, filePath)) return false;
 	try {
-		return hasEcoFactoryCall(
-			parseModuleSource(filePath, contents, { sourceType: 'module' }).program as unknown as AstNode,
-		);
+		return declaresEcoFactory(parseModuleSource(filePath, contents, { sourceType: 'module' }).program);
 	} catch {
 		return false;
 	}
+}
+
+/**
+ * Options for {@link attributeComponentIdentity}.
+ */
+export type ComponentIdentityAttributionOptions = {
+	/** The Integration that owns the module, or `undefined` for a module no Integration owns. */
+	integration: string | undefined;
+	projectRoot: string;
+	jsxImportSource?: string;
+	/** Resolves the Integration that owns any file, for the cross-Integration check of discovery. */
+	integrationOf?: DiscoveryOptions['integrationOf'];
+	/** Receives each side-effect stylesheet import removed from a module without `eco.*()` calls. */
+	onStrippedStylesheet?: (source: string) => void;
+	/**
+	 * Whether a module without `eco.*()` calls loses its delivered stylesheet imports; defaults to `true`.
+	 *
+	 * @remarks
+	 * The build plugin turns it off for a package module outside the app root that discovery has not reached.
+	 */
+	stripPlainModuleStylesheets?: boolean;
+	/** Discovery results shared by the transforms of one build. */
+	discoveryCache?: DiscoveryCache;
+	/** The stylesheets the build delivers; defaults to plain `.css`. */
+	stylesheets?: StylesheetKinds;
+};
+
+/**
+ * Removes the side-effect stylesheet imports, local or from a package, of a module without `eco.*()` calls.
+ *
+ * @remarks
+ * Discovery hands those stylesheets to the nearest Eco declaration that imports the module, so no server or
+ * browser build sees the import; the build plugin fails at the end of a build for a module no declaration
+ * reached. A CSS Module import stays, since the module uses its class map. Its scoped CSS reaches the Page as a
+ * Dependency of the declaration that imports the module, or that lists the stylesheet itself, so a CSS Module that
+ * no declaration reaches is not an error: a browser script may import the class map of a stylesheet its component
+ * lists. It throws for a CSS Module no Processor scopes.
+ */
+function stripPlainModuleStylesheetImports(
+	program: AstNode,
+	filePath: string,
+	options: ComponentIdentityAttributionOptions,
+): SourceEdit[] {
+	const edits: SourceEdit[] = [];
+	const pathPrefixes = loadTsconfigPathPrefixes(options.projectRoot);
+	const kinds = options.stylesheets ?? PLAIN_CSS_KINDS;
+	for (const entry of collectStaticImports(program)) {
+		if (!isDeliveredStylesheetImport(entry, filePath, options.projectRoot, pathPrefixes, kinds)) continue;
+		if (!entry.sideEffectOnly) continue;
+		edits.push({ start: entry.start, end: entry.end, replacement: '' });
+		options.onStrippedStylesheet?.(entry.source);
+	}
+	return edits;
+}
+
+/** A cheap pre-parse check: whether `contents` names a stylesheet extension or has a side-effect import. */
+function mayImportStylesheet(contents: string, stylesheets: StylesheetKinds): boolean {
+	return (
+		stylesheets.extensions.some((extension) => contents.includes(extension)) || SIDE_EFFECT_IMPORT.test(contents)
+	);
 }
 
 /**
@@ -234,20 +392,21 @@ export function stripsSideEffectStylesheetImports(
  * file share that name. Server and browser builds of one source derive the same id, and a named declaration
  * keeps it while other code in the file changes. Calls bound to no name (an inline argument, a call inside an
  * anonymous function) are numbered in source order, so adding or removing another unnamed call before them
- * changes their id. `file` stays the module path for every call in the file.
+ * changes their id. `file` stays the module's root-relative source key for every call in the file. A module without calls only
+ * loses its side-effect stylesheet imports (see {@link stripPlainModuleStylesheetImports}).
  */
 export function attributeComponentIdentity(
 	contents: string,
 	filePath: string,
-	integration: string,
-	projectRoot?: string,
-	jsxImportSource?: string,
+	options: ComponentIdentityAttributionOptions,
 ): EcoBuildOnTransformResult {
+	const { integration, projectRoot, jsxImportSource } = options;
 	const pragma =
-		jsxImportSource && !contents.includes('@jsxImportSource')
+		integration && jsxImportSource && !contents.includes('@jsxImportSource')
 			? createJsxImportSourcePragma(jsxImportSource)
 			: undefined;
-	if (!contents.includes('eco.')) {
+	const mayDeclare = integration !== undefined && contents.includes('eco.');
+	if (!mayDeclare && !mayImportStylesheet(contents, options.stylesheets ?? PLAIN_CSS_KINDS)) {
 		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
@@ -258,10 +417,19 @@ export function attributeComponentIdentity(
 		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
-	if (!hasEcoFactoryCall(program)) {
-		return applySourceEdits(contents, [], filePath, { prepend: pragma });
+	if (!mayDeclare || !declaresEcoFactory(program)) {
+		forgetDiscoveryOwner(projectRoot, filePath);
+		const edits =
+			options.stripPlainModuleStylesheets === false
+				? []
+				: stripPlainModuleStylesheetImports(program, filePath, options);
+		return applySourceEdits(contents, edits, filePath, {
+			prepend: pragma,
+		});
 	}
 
+	const toSourceKey = createSourceKeyResolver(projectRoot);
+	const sourceKey = toSourceKey(filePath);
 	const factoryArguments: Array<{ start: number; end: number; identityLiteral: string }> = [];
 	const bindingOccurrences = new Map<string, number>();
 	walkEcoFactoryCalls(program, '', (node, binding) => {
@@ -274,7 +442,7 @@ export function attributeComponentIdentity(
 		factoryArguments.push({
 			start: firstArgument.start,
 			end: firstArgument.end,
-			identityLiteral: createIdentityLiteral(`${filePath}:${binding}:${occurrence}`, filePath, integration),
+			identityLiteral: createIdentityLiteral(`${sourceKey}:${binding}:${occurrence}`, sourceKey, integration),
 		});
 	});
 
@@ -282,18 +450,27 @@ export function attributeComponentIdentity(
 		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
-	const discovered = projectRoot ? discoverComponentImports(program, filePath, projectRoot) : undefined;
-	const discoveryArgument = serializeDiscoveryArgument(discovered);
+	const discovered = discoverComponentImports(program, filePath, projectRoot, {
+		integrationOf: options.integrationOf,
+		ownerSource: contents,
+		cache: options.discoveryCache,
+		stylesheets: options.stylesheets,
+	});
+	const plainModuleImports = createPlainModuleComponentImports(discovered);
+	const discoveryArgument = serializeDiscoveryArgument(discovered, toSourceKey, plainModuleImports.locals);
 	const edits: SourceEdit[] = factoryArguments.map((firstArgument) => ({
 		start: firstArgument.start,
 		end: firstArgument.end,
 		prefix: `bindComponentIdentity(${firstArgument.identityLiteral}, `,
 		suffix: `${discoveryArgument})`,
 	}));
-	edits.push(...(discovered?.removals ?? []));
+	edits.push(...discovered.removals);
 	const importEdit = createNamedImportEdit(program, '@ecopages/core', 'bindComponentIdentity');
 	if (importEdit) edits.push(importEdit);
-	return applySourceEdits(contents, edits, filePath, { prepend: pragma });
+	return applySourceEdits(contents, edits, filePath, {
+		prepend: pragma,
+		append: plainModuleImports.code || undefined,
+	});
 }
 
 function findMdxConfigDeclarator(program: AstNode): AstNode | undefined {
@@ -360,6 +537,9 @@ function buildMdxIdentityAppend(options: {
  * @remarks
  * Pass the MDX compiler's map as `previousMap` so the returned map traces back to the `.mdx` file; without
  * it the map is relative to the compiled module.
+ *
+ * `stylesheets` are the kinds of the app's stylesheet Processor, passed by the Integration that creates the MDX
+ * loader; without them only `.css` imports are discovered.
  */
 export function attributeMdxComponentIdentity(
 	contents: string,
@@ -367,6 +547,7 @@ export function attributeMdxComponentIdentity(
 	integration: string,
 	projectRoot: string,
 	previousMap?: unknown,
+	stylesheets?: StylesheetKinds,
 ): EcoBuildOnTransformResult {
 	if (!projectRoot) {
 		throw new Error(`[ecopages] Cannot process MDX dependencies for "${filePath}": projectRoot is required.`);
@@ -386,9 +567,12 @@ export function attributeMdxComponentIdentity(
 		return { code: contents, map: previousMap };
 	}
 
-	const discovered = discoverComponentImports(program, filePath, projectRoot);
-	const identityLiteral = createIdentityLiteral(filePath, filePath, integration);
-	const discoveryArgument = serializeDiscoveryArgument(discovered);
+	const discovered = discoverComponentImports(program, filePath, projectRoot, { stylesheets });
+	const toSourceKey = createSourceKeyResolver(projectRoot);
+	const sourceKey = toSourceKey(filePath);
+	const identityLiteral = createIdentityLiteral(sourceKey, sourceKey, integration);
+	const plainModuleImports = createPlainModuleComponentImports(discovered);
+	const discoveryArgument = serializeDiscoveryArgument(discovered, toSourceKey, plainModuleImports.locals);
 
 	const edits = buildMdxConfigIdentityEdits({
 		contents,
@@ -406,7 +590,7 @@ export function attributeMdxComponentIdentity(
 	if (importEdit) edits.push(importEdit);
 
 	const transformed = applySourceEdits(contents, edits, filePath, {
-		append: `\n${appended}`,
+		append: `\n${appended}${plainModuleImports.code}`,
 	});
 	return {
 		...transformed,
@@ -421,8 +605,7 @@ export function attributeMdxComponentIdentity(
  * Matches the ids of modules with a script extension that an Integration owns, before an optional query.
  *
  * @remarks
- * With no such extension it matches no id, so the hook filter skips every module rather than an empty
- * alternation matching all of them, `node_modules` included.
+ * With no such extension it matches no id, rather than an empty alternation matching all of them.
  */
 function createComponentMetaFilter(config: EcoPagesAppConfig): RegExp {
 	const extensions = config.integrations
@@ -435,30 +618,60 @@ function createComponentMetaFilter(config: EcoPagesAppConfig): RegExp {
 }
 
 /**
- * Creates the build plugin that attributes component identity in every Integration's script files.
+ * Creates the build plugin that attributes component identity in every Integration's script files and
+ * removes the stylesheet imports discovery delivers from every local script module.
  *
  * @remarks
  * Core adds it to every build request after the app's plugins and before its `import.meta` transform, so no
- * contributed plugin sees the attribution of another.
+ * contributed plugin sees the attribution of another. A module no Integration owns can still be a plain
+ * module discovery walks, so the filter takes every script outside `node_modules`. A module outside the app
+ * root, such as a linked workspace package, is a package: its stylesheet imports are only removed once
+ * discovery has reached it, and it never fails the reach check. A build can transform a
+ * plain module before the declaration that imports it, so the check that a declaration reached each
+ * module that lost a stylesheet import runs once the whole build is transformed.
  */
 export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): EcoBuildPlugin {
-	return createCoreTransformPlugin({
+	const { integrations, rootDir } = options.config;
+	const integrationOf = (file: string) => findIntegrationForFile(integrations, file);
+	const stylesheets = getStylesheetKinds(options.config);
+	return {
 		name: 'eco-component-identity-attribution',
-		filter: createComponentMetaFilter(options.config),
-		transform(code, id) {
-			const integration = findIntegrationForFile(options.config.integrations, id);
-			if (!integration) {
-				return { code };
-			}
-			return attributeComponentIdentity(
-				code,
-				id,
-				integration.name,
-				options.config.rootDir,
-				integration.jsxImportSource,
-			);
+		setup(build) {
+			const strippedStylesheets = new Map<string, string>();
+			const discoveryCache = createDiscoveryCache();
+			const appRoot = `${fileSystem.exists(rootDir) ? fileSystem.realpath(rootDir) : path.resolve(rootDir)}/`;
+			build.transform({ filter: /\.[cm]?[jt]sx?(\?.*)?$/ }, (code, rawId) => {
+				const id = rawId.replace(/[?#].*$/, '');
+				if (id.includes('/node_modules/')) {
+					return { code };
+				}
+				const integration = findIntegrationForFile(integrations, id);
+				const insideApp = (fileSystem.exists(id) ? fileSystem.realpath(id) : id).startsWith(appRoot);
+				const stripPlainModuleStylesheets = insideApp || isReachedByDiscovery(rootDir, id);
+				if (!integration && !stripPlainModuleStylesheets) {
+					return { code };
+				}
+				return attributeComponentIdentity(code, id, {
+					integration: integration?.name,
+					projectRoot: rootDir,
+					jsxImportSource: integration?.jsxImportSource,
+					integrationOf,
+					stripPlainModuleStylesheets,
+					discoveryCache,
+					stylesheets,
+					onStrippedStylesheet: (source) => {
+						if (insideApp && !strippedStylesheets.has(id)) strippedStylesheets.set(id, source);
+					},
+				});
+			});
+			build.onEnd(() => {
+				for (const [file, source] of strippedStylesheets) {
+					if (!isReachedByDiscovery(rootDir, file))
+						throw createUndeliverableStylesheetError(rootDir, file, source);
+				}
+			});
 		},
-	});
+	};
 }
 
 export default createEcoComponentMetaPlugin;

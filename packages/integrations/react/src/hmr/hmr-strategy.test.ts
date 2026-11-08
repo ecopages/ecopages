@@ -1,41 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { path } from '@ecopages/file-system/path';
 import { ReactHmrStrategy } from './hmr-strategy.ts';
 import { HmrPageMetadataCache } from './page-metadata-cache.ts';
 import type { DefaultHmrContext } from '@ecopages/core/integration';
-import { createBrowserRuntimeManifest } from '@ecopages/core/build';
-
-const defaultRuntimeManifest = createBrowserRuntimeManifest([
-	{
-		specifier: 'react',
-		owner: '@ecopages/react',
-		importPath: 'react',
-		publicPath: '/assets/vendors/react.development.js',
-	},
-	{
-		specifier: 'react/jsx-runtime',
-		owner: '@ecopages/react',
-		importPath: 'react/jsx-runtime',
-		publicPath: '/assets/vendors/react.development.js',
-	},
-	{
-		specifier: 'react/jsx-dev-runtime',
-		owner: '@ecopages/react',
-		importPath: 'react/jsx-dev-runtime',
-		publicPath: '/assets/vendors/react.development.js',
-	},
-	{
-		specifier: 'react-dom',
-		owner: '@ecopages/react',
-		importPath: 'react-dom',
-		publicPath: '/assets/vendors/react-dom.development.js',
-	},
-	{
-		specifier: 'react-dom/client',
-		owner: '@ecopages/react',
-		importPath: 'react-dom/client',
-		publicPath: '/assets/vendors/react-dom.development.js',
-	},
-]);
 
 function devTransformPageUrl(relativeJsPath: string): string {
 	return `/assets/__eco_dev__/pages/${relativeJsPath}`;
@@ -73,9 +40,9 @@ function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultH
 	return {
 		getWatchedFiles: () => new Map(),
 		getRegisteredEntrypoints: () => new Map(),
-		getSrcDir: () => '/tmp/src',
-		getLayoutsDir: () => '/tmp/src/layouts',
-		getPagesDir: () => '/tmp/src/pages',
+		getSrcDir: () => path.resolve('/tmp/src'),
+		getLayoutsDir: () => path.resolve('/tmp/src/layouts'),
+		getPagesDir: () => path.resolve('/tmp/src/pages'),
 		getEntrypointDependencyGraph: () => ({
 			supportsSelectiveInvalidation: () => true,
 			getDependencyEntrypoints: () => new Set(),
@@ -123,7 +90,6 @@ function createRegisteredScriptStrategy(options: {
 		pageMetadataCache: createPageMetadataCache({
 			ownsEntrypoint,
 		}),
-		runtimeManifest: defaultRuntimeManifest,
 		ownedTemplateExtensions,
 		allTemplateExtensions,
 	});
@@ -135,31 +101,29 @@ describe('ReactHmrStrategy', () => {
 	});
 
 	it('claims owned React entrypoints for dev transform plugin selection', () => {
-		const pagePath = '/tmp/src/pages/index.tsx';
+		const pagePath = path.resolve('/tmp/src/pages/index.tsx');
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		expect(strategy.ownsDevTransformEntrypoint(pagePath)).toBe(true);
 	});
 
 	it('claims page entrypoints for dev transform even before SSR marks them owned', () => {
-		const pagePath = '/tmp/src/pages/dashboard.tsx';
+		const pagePath = path.resolve('/tmp/src/pages/dashboard.tsx');
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache(),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		expect(strategy.ownsDevTransformEntrypoint(pagePath)).toBe(true);
 	});
 
 	it('claims registered script entrypoints that need React transforms', () => {
-		const scriptPath = '/tmp/src/components/counter.tsx';
+		const scriptPath = path.resolve('/tmp/src/components/counter.tsx');
 		const strategy = createRegisteredScriptStrategy({
 			scriptPath,
 			outputUrl: '/assets/__eco_dev__/components/counter.js',
@@ -171,7 +135,7 @@ describe('ReactHmrStrategy', () => {
 	});
 
 	it('does not claim registered script entrypoints that are not React entrypoints', () => {
-		const scriptPath = '/tmp/src/layouts/base-layout.ts';
+		const scriptPath = path.resolve('/tmp/src/layouts/base-layout.ts');
 		const strategy = createRegisteredScriptStrategy({
 			scriptPath,
 			outputUrl: '/assets/__eco_dev__/layouts/base-layout.js',
@@ -180,14 +144,24 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.ownsDevTransformEntrypoint(scriptPath)).toBe(false);
 	});
 
+	it('claims a module requested in the React boundary variant, whatever its extension', () => {
+		const sharedPath = path.resolve('/tmp/src/lib/shared.ts');
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext(),
+			pageMetadataCache: createPageMetadataCache(),
+		});
+
+		expect(strategy.ownsDevTransformEntrypoint(sharedPath)).toBe(false);
+		expect(strategy.ownsDevTransformEntrypoint(sharedPath, 'react-boundary')).toBe(true);
+	});
+
 	it('process returns none when no entrypoints are registered yet', async () => {
-		const pagePath = '/tmp/src/pages/index.tsx';
+		const pagePath = path.resolve('/tmp/src/pages/index.tsx');
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		await expect(strategy.process(pagePath)).resolves.toEqual({ type: 'none' });
@@ -195,27 +169,26 @@ describe('ReactHmrStrategy', () => {
 
 	it('matches route templates only when their configured extension is owned by React', () => {
 		const watchedFiles = new Map<string, string>([
-			['/tmp/src/pages/react-lab.tsx', '/assets/__eco_dev__/pages/react-lab.js'],
+			[path.resolve('/tmp/src/pages/react-lab.tsx'), '/assets/__eco_dev__/pages/react-lab.js'],
 		]);
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
 			pageMetadataCache: createPageMetadataCache({
-				ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/react-lab.tsx',
+				ownsEntrypoint: (entrypointPath) => entrypointPath === path.resolve('/tmp/src/pages/react-lab.tsx'),
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 			ownedTemplateExtensions: ['.tsx', '.react.tsx'],
 			allTemplateExtensions: ['.tsx', '.react.tsx', '.kita.tsx', '.lit.tsx'],
 		});
 
-		expect(strategy.matches('/tmp/src/pages/index.kita.tsx')).toBe(false);
-		expect(strategy.matches('/tmp/src/layouts/base-layout.lit.tsx')).toBe(false);
-		expect(strategy.matches('/tmp/src/pages/react-lab.tsx')).toBe(true);
-		expect(strategy.matches('/tmp/src/pages/react-lab.react.tsx')).toBe(true);
-		expect(strategy.matches('/tmp/src/components/widget.tsx')).toBe(true);
-		expect(strategy.matches('/tmp/src/components/widget.kita.tsx')).toBe(false);
-		expect(strategy.matches('/tmp/src/views/explicit-team-view.kita.tsx')).toBe(false);
+		expect(strategy.matches(path.resolve('/tmp/src/pages/index.kita.tsx'))).toBe(false);
+		expect(strategy.matches(path.resolve('/tmp/src/layouts/base-layout.lit.tsx'))).toBe(false);
+		expect(strategy.matches(path.resolve('/tmp/src/pages/react-lab.tsx'))).toBe(true);
+		expect(strategy.matches(path.resolve('/tmp/src/pages/react-lab.react.tsx'))).toBe(true);
+		expect(strategy.matches(path.resolve('/tmp/src/components/widget.tsx'))).toBe(true);
+		expect(strategy.matches(path.resolve('/tmp/src/components/widget.kita.tsx'))).toBe(false);
+		expect(strategy.matches(path.resolve('/tmp/src/views/explicit-team-view.kita.tsx'))).toBe(false);
 	});
 
 	describe('folders that share the pages or layouts folder name prefix', () => {
@@ -223,13 +196,12 @@ describe('ReactHmrStrategy', () => {
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext(),
 				pageMetadataCache: new HmrPageMetadataCache(),
-				runtimeManifest: defaultRuntimeManifest,
 				ownedTemplateExtensions: ['.react.tsx'],
 				allTemplateExtensions: ['.tsx', '.react.tsx'],
 			});
 
-			expect(strategy.matches('/tmp/src/pages/a.tsx')).toBe(false);
-			expect(strategy.matches('/tmp/src/pages-old/a.tsx')).toBe(true);
+			expect(strategy.matches(path.resolve('/tmp/src/pages/a.tsx'))).toBe(false);
+			expect(strategy.matches(path.resolve('/tmp/src/pages-old/a.tsx'))).toBe(true);
 		});
 
 		it('does not treat a pages sibling folder file as a Page entrypoint', async () => {
@@ -237,16 +209,15 @@ describe('ReactHmrStrategy', () => {
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({ importServerModule }),
 				pageMetadataCache: new HmrPageMetadataCache(),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			await strategy.createDevTransformPlugins('/tmp/src/pages-old/a.tsx');
+			await strategy.createDevTransformPlugins(path.resolve('/tmp/src/pages-old/a.tsx'));
 
 			expect(importServerModule).not.toHaveBeenCalled();
 		});
 
 		it('does not treat a layouts sibling folder file as a layout', async () => {
-			const pageEntrypoint = '/tmp/src/pages/index.tsx';
+			const pageEntrypoint = path.resolve('/tmp/src/pages/index.tsx');
 			const createStrategy = () => {
 				const pageMetadataCache = new HmrPageMetadataCache();
 				pageMetadataCache.markOwnedEntrypoint(pageEntrypoint);
@@ -255,13 +226,16 @@ describe('ReactHmrStrategy', () => {
 						getWatchedFiles: () => new Map([[pageEntrypoint, devTransformPageUrl('index.js')]]),
 					}),
 					pageMetadataCache,
-					runtimeManifest: defaultRuntimeManifest,
 				});
 			};
 			const layoutUpdate = { type: 'broadcast', events: [{ type: 'layout-update' }] };
 
-			await expect(createStrategy().process('/tmp/src/layouts/a.tsx')).resolves.toEqual(layoutUpdate);
-			await expect(createStrategy().process('/tmp/src/layouts-v2/a.tsx')).resolves.not.toEqual(layoutUpdate);
+			await expect(createStrategy().process(path.resolve('/tmp/src/layouts/a.tsx'))).resolves.toEqual(
+				layoutUpdate,
+			);
+			await expect(createStrategy().process(path.resolve('/tmp/src/layouts-v2/a.tsx'))).resolves.not.toEqual(
+				layoutUpdate,
+			);
 		});
 	});
 
@@ -273,13 +247,17 @@ describe('ReactHmrStrategy', () => {
 		},
 		{
 			label: 'with watch ownership',
-			ownsEntrypoint: (entrypointPath: string) => entrypointPath === '/tmp/src/components/radiant-counter.tsx',
+			ownsEntrypoint: (entrypointPath: string) =>
+				entrypointPath === path.resolve('/tmp/src/components/radiant-counter.tsx'),
 			watchedFiles: new Map([
-				['/tmp/src/components/radiant-counter.tsx', '/assets/__eco_dev__/components/radiant-counter.js'],
+				[
+					path.resolve('/tmp/src/components/radiant-counter.tsx'),
+					'/assets/__eco_dev__/components/radiant-counter.js',
+				],
 			]),
 		},
 	])('defers registered script entrypoints to JsHmrStrategy ($label)', ({ ownsEntrypoint, watchedFiles }) => {
-		const scriptPath = '/tmp/src/components/radiant-counter.tsx';
+		const scriptPath = path.resolve('/tmp/src/components/radiant-counter.tsx');
 		const strategy = createRegisteredScriptStrategy({
 			scriptPath,
 			outputUrl: '/assets/__eco_dev__/components/radiant-counter.js',
@@ -301,17 +279,16 @@ describe('ReactHmrStrategy', () => {
 				importServerModule,
 			}),
 			pageMetadataCache: createPageMetadataCache(),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		await strategy.createDevTransformPlugins('/tmp/src/pages/index.tsx');
+		await strategy.createDevTransformPlugins(path.resolve('/tmp/src/pages/index.tsx'));
 
-		expect(importServerModule).toHaveBeenCalledWith('/tmp/src/pages/index.tsx');
+		expect(importServerModule).toHaveBeenCalledWith(path.resolve('/tmp/src/pages/index.tsx'));
 	});
 
 	it('process only broadcasts the changed watched entrypoint update', async () => {
-		const changedEntrypoint = '/tmp/src/pages/react-lab.react.tsx';
-		const otherEntrypoint = '/tmp/src/pages/react-content.mdx';
+		const changedEntrypoint = path.resolve('/tmp/src/pages/react-lab.react.tsx');
+		const otherEntrypoint = path.resolve('/tmp/src/pages/react-content.mdx');
 		const watchedFiles = new Map<string, string>([
 			[changedEntrypoint, '/assets/__eco_dev__/pages/react-lab.react.js'],
 			[otherEntrypoint, '/assets/__eco_dev__/pages/react-content.js'],
@@ -326,7 +303,6 @@ describe('ReactHmrStrategy', () => {
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
 				initialOwnedEntrypoints: [changedEntrypoint],
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 			ownedTemplateExtensions: ['.react.tsx'],
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
 		});
@@ -346,9 +322,9 @@ describe('ReactHmrStrategy', () => {
 	});
 
 	it('process rebuilds all watched entrypoints for non-entrypoint dependency changes', async () => {
-		const entrypointA = '/tmp/src/pages/react-lab.react.tsx';
-		const entrypointB = '/tmp/src/pages/react-content.mdx';
-		const changedDependency = '/tmp/src/components/theme-toggle.react.tsx';
+		const entrypointA = path.resolve('/tmp/src/pages/react-lab.react.tsx');
+		const entrypointB = path.resolve('/tmp/src/pages/react-content.mdx');
+		const changedDependency = path.resolve('/tmp/src/components/theme-toggle.react.tsx');
 		const watchedFiles = new Map<string, string>([
 			[entrypointA, '/assets/__eco_dev__/pages/react-lab.react.js'],
 			[entrypointB, '/assets/__eco_dev__/pages/react-content.js'],
@@ -362,7 +338,6 @@ describe('ReactHmrStrategy', () => {
 				getDeclaredModules: () => [],
 				initialOwnedEntrypoints: [entrypointA, entrypointB],
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 			getMdxLoaderPlugin: () => ({ name: 'mdx-loader', setup: () => {} }),
 			ownedTemplateExtensions: ['.react.tsx', '.mdx'],
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
@@ -389,7 +364,7 @@ describe('ReactHmrStrategy', () => {
 	});
 
 	it('process broadcasts only the requested dev transform page when sibling pages are grouped', async () => {
-		const changedEntrypoint = '/tmp/src/pages/index.tsx';
+		const changedEntrypoint = path.resolve('/tmp/src/pages/index.tsx');
 		const watchedFiles = new Map<string, string>([[changedEntrypoint, devTransformPageUrl('index.js')]]);
 
 		const strategy = new ReactHmrStrategy({
@@ -399,9 +374,8 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
-				initialOwnedEntrypoints: [changedEntrypoint, '/tmp/src/pages/dashboard.tsx'],
+				initialOwnedEntrypoints: [changedEntrypoint, path.resolve('/tmp/src/pages/dashboard.tsx')],
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		const action = await strategy.process(changedEntrypoint);
@@ -419,7 +393,7 @@ describe('ReactHmrStrategy', () => {
 	});
 
 	it('process broadcasts dev transform URLs without rebuilding disk page bundles', async () => {
-		const changedEntrypoint = '/tmp/src/pages/docs/index.tsx';
+		const changedEntrypoint = path.resolve('/tmp/src/pages/docs/index.tsx');
 		const devTransformUrl = '/assets/__eco_dev__/pages/docs/index.js';
 		const watchedFiles = new Map<string, string>([[changedEntrypoint, devTransformUrl]]);
 
@@ -432,7 +406,6 @@ describe('ReactHmrStrategy', () => {
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
 				initialOwnedEntrypoints: [changedEntrypoint],
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		const action = await strategy.process(changedEntrypoint);
@@ -450,8 +423,8 @@ describe('ReactHmrStrategy', () => {
 	});
 
 	it('process broadcasts dev-transform updates for grouped non-page entrypoints', async () => {
-		const pageEntrypoint = '/tmp/src/pages/index.tsx';
-		const islandEntrypoint = '/tmp/src/components/counter.tsx';
+		const pageEntrypoint = path.resolve('/tmp/src/pages/index.tsx');
+		const islandEntrypoint = path.resolve('/tmp/src/components/counter.tsx');
 		const watchedFiles = new Map<string, string>([
 			[pageEntrypoint, '/assets/__eco_dev__/pages/index.js'],
 			[islandEntrypoint, '/assets/__eco_dev__/components/counter.js'],
@@ -463,12 +436,11 @@ describe('ReactHmrStrategy', () => {
 			}),
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
-				initialOwnedEntrypoints: [pageEntrypoint, '/tmp/src/pages/dashboard.tsx'],
+				initialOwnedEntrypoints: [pageEntrypoint, path.resolve('/tmp/src/pages/dashboard.tsx')],
 			}),
-			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		const action = await strategy.process('/tmp/src/components/theme-toggle.tsx');
+		const action = await strategy.process(path.resolve('/tmp/src/components/theme-toggle.tsx'));
 
 		expect(action).toEqual({
 			type: 'broadcast',
@@ -490,25 +462,26 @@ describe('ReactHmrStrategy', () => {
 	describe('dependency graph selective invalidation', () => {
 		it('matches returns true for dependency-hit files tied to owned entrypoints', () => {
 			const watchedFiles = new Map<string, string>([
-				['/tmp/src/pages/index.tsx', '/assets/__eco_dev__/pages/index.js'],
+				[path.resolve('/tmp/src/pages/index.tsx'), '/assets/__eco_dev__/pages/index.js'],
 			]);
-			const changedComponent = '/tmp/src/components/button.tsx';
+			const changedComponent = path.resolve('/tmp/src/components/button.tsx');
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
 						supportsSelectiveInvalidation: () => true,
 						getDependencyEntrypoints: (filePath: string) =>
-							filePath === changedComponent ? new Set(['/tmp/src/pages/index.tsx']) : new Set(),
+							filePath === changedComponent
+								? new Set([path.resolve('/tmp/src/pages/index.tsx')])
+								: new Set(),
 						setEntrypointDependencies: () => {},
 						clearEntrypointDependencies: () => {},
 						reset: () => {},
 					}),
 				}),
 				pageMetadataCache: createPageMetadataCache({
-					ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/index.tsx',
+					ownsEntrypoint: (entrypointPath) => entrypointPath === path.resolve('/tmp/src/pages/index.tsx'),
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			expect(strategy.matches(changedComponent)).toBe(true);
@@ -516,34 +489,35 @@ describe('ReactHmrStrategy', () => {
 
 		it('matches returns false for dependency-hit files not tied to owned entrypoints', () => {
 			const watchedFiles = new Map<string, string>([
-				['/tmp/src/pages/index.tsx', '/assets/__eco_dev__/pages/index.js'],
+				[path.resolve('/tmp/src/pages/index.tsx'), '/assets/__eco_dev__/pages/index.js'],
 			]);
-			const changedComponent = '/tmp/src/components/button.tsx';
+			const changedComponent = path.resolve('/tmp/src/components/button.tsx');
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
 						supportsSelectiveInvalidation: () => true,
 						getDependencyEntrypoints: (filePath: string) =>
-							filePath === changedComponent ? new Set(['/tmp/src/pages/other.tsx']) : new Set(),
+							filePath === changedComponent
+								? new Set([path.resolve('/tmp/src/pages/other.tsx')])
+								: new Set(),
 						setEntrypointDependencies: () => {},
 						clearEntrypointDependencies: () => {},
 						reset: () => {},
 					}),
 				}),
 				pageMetadataCache: createPageMetadataCache({
-					ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/index.tsx',
+					ownsEntrypoint: (entrypointPath) => entrypointPath === path.resolve('/tmp/src/pages/index.tsx'),
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			expect(strategy.matches(changedComponent)).toBe(false);
 		});
 
 		it('process rebuilds only affected entrypoints when dependency hits are present', async () => {
-			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const entrypointB = '/tmp/src/pages/page-b.tsx';
-			const changedComponent = '/tmp/src/components/shared.tsx';
+			const entrypointA = path.resolve('/tmp/src/pages/page-a.tsx');
+			const entrypointB = path.resolve('/tmp/src/pages/page-b.tsx');
+			const changedComponent = path.resolve('/tmp/src/components/shared.tsx');
 			const watchedFiles = new Map<string, string>([
 				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
 				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
@@ -566,7 +540,6 @@ describe('ReactHmrStrategy', () => {
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(changedComponent);
@@ -584,9 +557,9 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		it('process returns none when dependency hits are present but none map to React-owned watched entrypoints', async () => {
-			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const nonReactEntrypoint = '/tmp/src/pages/other.kita.tsx';
-			const changedComponent = '/tmp/src/components/shared.tsx';
+			const entrypointA = path.resolve('/tmp/src/pages/page-a.tsx');
+			const nonReactEntrypoint = path.resolve('/tmp/src/pages/other.kita.tsx');
+			const changedComponent = path.resolve('/tmp/src/components/shared.tsx');
 			const watchedFiles = new Map<string, string>([[entrypointA, '/assets/__eco_dev__/pages/page-a.js']]);
 
 			const strategy = new ReactHmrStrategy({
@@ -605,7 +578,6 @@ describe('ReactHmrStrategy', () => {
 					getDeclaredModules: () => [],
 					ownsEntrypoint: (entrypointPath) => entrypointPath === entrypointA,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(changedComponent);
@@ -614,10 +586,10 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		it('process triggers a layout refresh when dependency hits only an owned layout entrypoint', async () => {
-			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const entrypointB = '/tmp/src/pages/page-b.tsx';
-			const layoutEntrypoint = '/tmp/src/layouts/base-layout.tsx';
-			const changedComponent = '/tmp/src/components/app-shell.tsx';
+			const entrypointA = path.resolve('/tmp/src/pages/page-a.tsx');
+			const entrypointB = path.resolve('/tmp/src/pages/page-b.tsx');
+			const layoutEntrypoint = path.resolve('/tmp/src/layouts/base-layout.tsx');
+			const changedComponent = path.resolve('/tmp/src/components/app-shell.tsx');
 			const watchedFiles = new Map<string, string>([
 				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
 				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
@@ -643,77 +615,6 @@ describe('ReactHmrStrategy', () => {
 						entrypointPath === entrypointB ||
 						entrypointPath === layoutEntrypoint,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
-			});
-
-			const action = await strategy.process(changedComponent);
-
-			expect(action).toEqual({
-				type: 'broadcast',
-				events: [
-					{
-						type: 'layout-update',
-					},
-				],
-			});
-		});
-
-		it('process triggers a layout refresh when a dependency-hit page owns the changed file through its layout subtree', async () => {
-			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const entrypointB = '/tmp/src/pages/page-b.tsx';
-			const changedComponent = '/tmp/src/components/app-shell.tsx';
-			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
-				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
-			]);
-
-			const strategy = new ReactHmrStrategy({
-				context: createMockContext({
-					getWatchedFiles: () => watchedFiles,
-					getEntrypointDependencyGraph: () => ({
-						supportsSelectiveInvalidation: () => true,
-						getDependencyEntrypoints: (filePath: string) =>
-							filePath === changedComponent ? new Set([entrypointA, entrypointB]) : new Set(),
-						setEntrypointDependencies: () => {},
-						clearEntrypointDependencies: () => {},
-						reset: () => {},
-					}),
-					importServerModule: createImportServerModuleMock({
-						config: {
-							layouts: [
-								{
-									config: {
-										identity: {
-											id: 'layout',
-											file: '/tmp/src/layouts/base-layout.tsx',
-											integration: 'react',
-										},
-										dependencies: {
-											components: [
-												{
-													config: {
-														identity: {
-															id: 'shell',
-															file: changedComponent,
-															integration: 'react',
-														},
-													},
-												},
-											],
-										},
-									},
-								},
-							],
-						},
-					}),
-				}),
-				pageMetadataCache: createPageMetadataCache({
-					getDeclaredModules: () => [],
-					initialOwnedEntrypoints: [entrypointA, entrypointB],
-					ownsEntrypoint: (entrypointPath) =>
-						entrypointPath === entrypointA || entrypointPath === entrypointB,
-				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(changedComponent);
@@ -729,9 +630,9 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		it('process falls back to all watched entrypoints when dependency graph has no hits', async () => {
-			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const entrypointB = '/tmp/src/pages/page-b.tsx';
-			const changedComponent = '/tmp/src/components/shared.tsx';
+			const entrypointA = path.resolve('/tmp/src/pages/page-a.tsx');
+			const entrypointB = path.resolve('/tmp/src/pages/page-b.tsx');
+			const changedComponent = path.resolve('/tmp/src/components/shared.tsx');
 			const watchedFiles = new Map<string, string>([
 				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
 				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
@@ -754,7 +655,6 @@ describe('ReactHmrStrategy', () => {
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(changedComponent);
@@ -776,79 +676,10 @@ describe('ReactHmrStrategy', () => {
 			});
 		});
 
-		it('process triggers a layout refresh on dependency-graph miss when the changed file belongs to a page layout subtree', async () => {
-			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const entrypointB = '/tmp/src/pages/page-b.tsx';
-			const changedComponent = '/tmp/src/components/app-shell.tsx';
-			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
-				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
-			]);
-
-			const strategy = new ReactHmrStrategy({
-				context: createMockContext({
-					getWatchedFiles: () => watchedFiles,
-					getEntrypointDependencyGraph: () => ({
-						supportsSelectiveInvalidation: () => true,
-						getDependencyEntrypoints: () => new Set(),
-						setEntrypointDependencies: () => {},
-						clearEntrypointDependencies: () => {},
-						reset: () => {},
-					}),
-					importServerModule: createImportServerModuleMock({
-						config: {
-							layouts: [
-								{
-									config: {
-										identity: {
-											id: 'layout',
-											file: '/tmp/src/layouts/base-layout.tsx',
-											integration: 'react',
-										},
-										dependencies: {
-											components: [
-												{
-													config: {
-														identity: {
-															id: 'shell',
-															file: changedComponent,
-															integration: 'react',
-														},
-													},
-												},
-											],
-										},
-									},
-								},
-							],
-						},
-					}),
-				}),
-				pageMetadataCache: createPageMetadataCache({
-					getDeclaredModules: () => [],
-					initialOwnedEntrypoints: [entrypointA, entrypointB],
-					ownsEntrypoint: (entrypointPath) =>
-						entrypointPath === entrypointA || entrypointPath === entrypointB,
-				}),
-				runtimeManifest: defaultRuntimeManifest,
-			});
-
-			const action = await strategy.process(changedComponent);
-
-			expect(action).toEqual({
-				type: 'broadcast',
-				events: [
-					{
-						type: 'layout-update',
-					},
-				],
-			});
-		});
-
-		it('process triggers a layout refresh when the changed watched entrypoint is owned by a page layout subtree', async () => {
-			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const entrypointB = '/tmp/src/pages/page-b.tsx';
-			const changedComponent = '/tmp/src/components/app-shell.tsx';
+		it('process refreshes the pages that import a changed watched entrypoint', async () => {
+			const entrypointA = path.resolve('/tmp/src/pages/page-a.tsx');
+			const entrypointB = path.resolve('/tmp/src/pages/page-b.tsx');
+			const changedComponent = path.resolve('/tmp/src/components/app-shell.tsx');
 			const watchedFiles = new Map<string, string>([
 				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
 				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
@@ -860,38 +691,11 @@ describe('ReactHmrStrategy', () => {
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
 						supportsSelectiveInvalidation: () => true,
-						getDependencyEntrypoints: () => new Set(),
+						getDependencyEntrypoints: (filePath: string) =>
+							filePath === changedComponent ? new Set([entrypointA]) : new Set(),
 						setEntrypointDependencies: () => {},
 						clearEntrypointDependencies: () => {},
 						reset: () => {},
-					}),
-					importServerModule: createImportServerModuleMock({
-						config: {
-							layouts: [
-								{
-									config: {
-										identity: {
-											id: 'layout',
-											file: '/tmp/src/layouts/base-layout.tsx',
-											integration: 'react',
-										},
-										dependencies: {
-											components: [
-												{
-													config: {
-														identity: {
-															id: 'shell',
-															file: changedComponent,
-															integration: 'react',
-														},
-													},
-												},
-											],
-										},
-									},
-								},
-							],
-						},
 					}),
 				}),
 				pageMetadataCache: createPageMetadataCache({
@@ -902,23 +706,25 @@ describe('ReactHmrStrategy', () => {
 						entrypointPath === entrypointB ||
 						entrypointPath === changedComponent,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(changedComponent);
 
 			expect(action).toEqual({
 				type: 'broadcast',
-				events: [
+				events: expect.arrayContaining([
+					{ type: 'update', path: '/assets/__eco_dev__/pages/page-a.js', timestamp: expect.any(Number) },
 					{
-						type: 'layout-update',
+						type: 'update',
+						path: '/assets/__eco_dev__/components/app-shell.js',
+						timestamp: expect.any(Number),
 					},
-				],
+				]),
 			});
+			expect(JSON.stringify(action)).not.toContain('page-b.js');
 		});
-
 		it('matches gives precedence to watched entrypoint check over dependency graph hits', () => {
-			const entrypointA = '/tmp/src/pages/page-a.tsx';
+			const entrypointA = path.resolve('/tmp/src/pages/page-a.tsx');
 			const watchedFiles = new Map<string, string>([[entrypointA, '/assets/__eco_dev__/pages/page-a.js']]);
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({
@@ -926,7 +732,7 @@ describe('ReactHmrStrategy', () => {
 					getEntrypointDependencyGraph: () => ({
 						supportsSelectiveInvalidation: () => true,
 						getDependencyEntrypoints: (filePath: string) =>
-							filePath === entrypointA ? new Set(['/tmp/src/pages/other.tsx']) : new Set(),
+							filePath === entrypointA ? new Set([path.resolve('/tmp/src/pages/other.tsx')]) : new Set(),
 						setEntrypointDependencies: () => {},
 						clearEntrypointDependencies: () => {},
 						reset: () => {},
@@ -935,15 +741,14 @@ describe('ReactHmrStrategy', () => {
 				pageMetadataCache: createPageMetadataCache({
 					ownsEntrypoint: (entrypointPath) => entrypointPath === entrypointA,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			expect(strategy.matches(entrypointA)).toBe(true);
 		});
 
 		it('process gives precedence to watched entrypoint check over dependency graph hits', async () => {
-			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const entrypointB = '/tmp/src/pages/page-b.tsx';
+			const entrypointA = path.resolve('/tmp/src/pages/page-a.tsx');
+			const entrypointB = path.resolve('/tmp/src/pages/page-b.tsx');
 			const watchedFiles = new Map<string, string>([
 				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
 				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
@@ -966,7 +771,6 @@ describe('ReactHmrStrategy', () => {
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
 				}),
-				runtimeManifest: defaultRuntimeManifest,
 			});
 
 			const action = await strategy.process(entrypointA);

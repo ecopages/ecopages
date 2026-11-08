@@ -1,7 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildOptions } from './build-adapter.ts';
@@ -13,7 +12,7 @@ import { assertBuildSucceeded } from './build-log.ts';
 
 let root: string;
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-')));
+	root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-'))));
 	vi.stubEnv('NODE_ENV', 'production');
 });
 afterEach(() => {
@@ -21,7 +20,7 @@ afterEach(() => {
 	vi.unstubAllEnvs();
 });
 
-test('collects only local source paths for one entry and its plugin inputs', () => {
+test('collects only local source paths for one entry and the files its plugins declared', () => {
 	const entry = path.join(root, 'pages/about.tsx');
 	const helper = path.join(root, 'src/lib/posts.ts');
 	const pluginInput = path.join(root, 'data/posts.json');
@@ -29,45 +28,15 @@ test('collects only local source paths for one entry and its plugin inputs', () 
 		{
 			dependencyGraph: {
 				entrypoints: {
-					[entry]: [entry, helper, 'node:fs', path.join(root, 'node_modules/react/index.js')],
+					[entry]: [entry, helper, 'node:fs', path.join(root, 'node_modules/react/index.js'), pluginInput],
 				},
 			},
-			loadedInputsByModule: { [entry]: [pluginInput] },
 		},
 		entry,
 		root,
 	);
 
 	expect(paths).toEqual([entry, helper, pluginInput]);
-});
-
-test('attributes plugin inputs to their entry closure when inputs overlap another entry module', () => {
-	const firstEntry = path.join(root, 'pages/first.tsx');
-	const firstHelper = path.join(root, 'src/lib/first-helper.tsx');
-	const secondEntry = path.join(root, 'pages/second.tsx');
-	const secondHelper = path.join(root, 'src/lib/second-helper.tsx');
-	const pluginOnlyInput = path.join(root, 'data/generated-routes.json');
-	const result = {
-		dependencyGraph: {
-			entrypoints: {
-				[firstEntry]: [firstEntry, firstHelper],
-				[secondEntry]: [secondEntry, secondHelper],
-			},
-		},
-		loadedInputs: [firstHelper, secondHelper, pluginOnlyInput],
-		loadedInputsByModule: {
-			[firstEntry]: [firstHelper],
-			[secondEntry]: [firstHelper, pluginOnlyInput],
-		},
-	};
-
-	expect(collectBuildEntryInputPaths(result, firstEntry, root)).toEqual([firstEntry, firstHelper]);
-	expect(collectBuildEntryInputPaths(result, secondEntry, root)).toEqual([
-		secondEntry,
-		secondHelper,
-		firstHelper,
-		pluginOnlyInput,
-	]);
 });
 
 test('both cached entries miss after their shared inlined source changes', async () => {
@@ -115,7 +84,7 @@ test('a missing local external generated module invalidates a cached build', asy
 	const entry = path.join(root, 'entry.js');
 	writeFileSync(
 		entry,
-		`import { value } from ${JSON.stringify(pathToFileURL(generated).href)}; export const read = () => value;`,
+		`import { value } from ${JSON.stringify(path.toFileUrl(generated).href)}; export const read = () => value;`,
 	);
 	const outdir = path.join(root, 'dist');
 	const buildOptions = {
@@ -124,7 +93,7 @@ test('a missing local external generated module invalidates a cached build', asy
 		root,
 		outdir,
 		target: 'node',
-		external: [pathToFileURL(generated).href],
+		external: [path.toFileUrl(generated).href],
 	} satisfies BuildOptions;
 	const result = await new RolldownBuildAdapter().build(buildOptions);
 	assertBuildSucceeded(result, 'Build failed');
@@ -161,7 +130,7 @@ test('walks static and dynamic chunk edges through cycles and retains missing le
 	const graph = {
 		outputGraph: {
 			[output]: chunk(output, [shared, 'react'], [lazy]),
-			[shared]: chunk(shared, [output, pathToFileURL(missing).href], []),
+			[shared]: chunk(shared, [output, path.toFileUrl(missing).href], []),
 			[lazy]: chunk(lazy, [shared], []),
 		},
 	};
@@ -169,7 +138,7 @@ test('walks static and dynamic chunk edges through cycles and retains missing le
 });
 
 test('finds the entry output through a symlink root and by the name the caller passed', async () => {
-	const parent = mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-link-'));
+	const parent = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-link-')));
 	try {
 		const realRoot = path.join(parent, 'real');
 		const linkRoot = path.join(parent, 'link');
@@ -197,7 +166,7 @@ test('finds the entry output through a symlink root and by the name the caller p
 });
 
 test('collects the layouts of an entry reached through a symlink root', async () => {
-	const parent = mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-closure-'));
+	const parent = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-closure-')));
 	try {
 		const realRoot = path.join(parent, 'real');
 		const linkRoot = path.join(parent, 'link');
@@ -221,8 +190,8 @@ test('collects the layouts of an entry reached through a symlink root', async ()
 		const inputs = collectBuildEntryInputPaths(result, entry, linkRoot);
 
 		expect(inputs).toEqual([
-			realpathSync(path.join(realRoot, 'page.js')),
-			realpathSync(path.join(realRoot, 'layout.js')),
+			path.fromNative(realpathSync(path.join(realRoot, 'page.js'))),
+			path.fromNative(realpathSync(path.join(realRoot, 'layout.js'))),
 		]);
 		expect(Object.values(result.dependencyGraph?.entrypoints ?? {}).flat()).toContain('node:fs');
 	} finally {

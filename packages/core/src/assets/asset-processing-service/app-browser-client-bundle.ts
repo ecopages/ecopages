@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import { AssetFactory } from './asset.factory.ts';
 import type { ContentScriptAsset, ScriptAsset } from './assets.types.ts';
 
@@ -34,6 +35,10 @@ type AppBrowserClientEntryOptions = {
  * entries set `reexport` so `export * from "path"` keeps named exports for the
  * hydration script. A synthetic `export default` is omitted: Rolldown warns
  * `IMPORT_IS_UNDEFINED` when the source has no default export.
+ *
+ * An entry for a file lists it in `bundledSourceFilepaths`, so it is a generated script: its dependency key hashes
+ * its text with that file written relative to the app root, beside `entryName`, which callers derive from
+ * root-relative paths.
  */
 export function createAppBrowserClientEntry(options: AppBrowserClientEntryOptions): ContentScriptAsset {
 	const specifier = JSON.stringify(options.importPath);
@@ -43,6 +48,7 @@ export function createAppBrowserClientEntry(options: AppBrowserClientEntryOption
 		position: 'head',
 		name: options.entryName,
 		content,
+		...(path.isAbsolute(options.importPath) ? { bundledSourceFilepaths: [options.importPath] } : {}),
 		excludeFromHtml: options.excludeFromHtml ?? true,
 		packageRole: options.packageRole,
 		bundle: true,

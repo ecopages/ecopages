@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { test, vi } from 'vitest';
 import { createAppBuildManifest } from '../contracts/build-manifest.ts';
 import {
@@ -11,8 +11,8 @@ import {
 	resolveAppBuildPlugins,
 	resolveBuildPluginOrder,
 } from './build-request-policy.ts';
+import { Processor } from '../../plugins/processor.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
-import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
@@ -118,6 +118,9 @@ test('createServerBuildRequest keeps import.meta at the source for the directory
 			transform(_options, callback) {
 				transform = callback;
 			},
+			onEnd() {},
+			addWatchFile() {},
+			resolve: async () => undefined,
 		});
 		const result = await transform?.('export const url = import.meta.url;', '/app/src/pages/index.ts');
 		return typeof result === 'object' && result && 'code' in result ? result.code : result;
@@ -220,14 +223,6 @@ function createOrderedAppConfig(): EcoPagesAppConfig {
 			plugin,
 			source: plugin.name,
 		})),
-		createBrowserRuntimeManifest([
-			{
-				specifier: 'react',
-				owner: '@ecopages/react',
-				importPath: 'react',
-				publicPath: '/assets/vendors/react.js',
-			},
-		]),
 	);
 	return {
 		rootDir: '/app',
@@ -274,7 +269,6 @@ test('resolveBuildPluginOrder lists every plugin of a browser request in hook or
 		[
 			'caller',
 			'ecopages-alias-resolver',
-			'browser-runtime-plugin',
 			'browser-only',
 			'ecopages-jsx-ownership-react--tsx',
 			'eco-component-identity-attribution',
@@ -306,26 +300,15 @@ test('resolveBuildPluginOrder throws instead of running a core transform next to
 	);
 });
 
-test('createBrowserBuildRequest drops runtime manifest specifiers from external and keeps the rest', () => {
-	const appConfig = createOrderedAppConfig();
-
-	const request = createBrowserBuildRequest(appConfig, {
-		entrypoints: ['/app/client.ts'],
-		external: ['react', 'left-pad'],
-	});
-
-	assert.deepEqual(request.external, ['left-pad']);
-});
-
 test('browser builds inline the runtime mode used by browser environment helpers', async () => {
 	const appConfig = createOrderedAppConfig();
-	const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-browser-runtime-mode-'));
+	const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-browser-runtime-mode-')));
 	vi.stubEnv('NODE_ENV', 'production');
 	try {
 		const request = createBrowserBuildRequest(appConfig, {
 			entrypoints: [path.resolve('packages/core/src/browser-env.ts')],
 			outdir: path.join(dir, 'dist'),
-			root: process.cwd(),
+			root: path.cwd(),
 			plugins: [],
 		});
 		assert.equal(request.define?.['import.meta.env.NODE_ENV'], '"production"');
@@ -341,34 +324,47 @@ test('browser builds inline the runtime mode used by browser environment helpers
 	}
 });
 
-test('a browser build maps an entry that lists a manifest specifier as external to its public URL', async () => {
-	const appConfig = createOrderedAppConfig();
-	const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-external-manifest-'));
-	try {
-		writeFileSync(path.join(dir, 'entry.ts'), "import React from 'react';\nexport const value = React;\n");
-		const request = createBrowserBuildRequest(appConfig, {
-			entrypoints: [path.join(dir, 'entry.ts')],
-			outdir: path.join(dir, 'dist'),
-			root: dir,
-			external: ['react'],
-			plugins: [],
-		});
+test.each([
+	{ nodeEnv: 'production', minify: false, build: 'production-build' },
+	{ nodeEnv: 'production', minify: true, build: 'production-build' },
+	{ nodeEnv: 'development', minify: true, build: 'development-build' },
+	{ nodeEnv: undefined, minify: false, build: 'development-build' },
+])(
+	'a browser build with NODE_ENV $nodeEnv and minify $minify takes the $build branch of process.env.NODE_ENV',
+	async ({ nodeEnv, minify, build }) => {
+		const appConfig = createOrderedAppConfig();
+		const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-browser-node-env-')));
+		vi.stubEnv('NODE_ENV', nodeEnv);
+		try {
+			writeFileSync(
+				path.join(dir, 'entry.ts'),
+				"export const build = process.env.NODE_ENV === 'production' ? 'production-build' : 'development-build';\n",
+			);
+			const request = createBrowserBuildRequest(appConfig, {
+				entrypoints: [path.join(dir, 'entry.ts')],
+				outdir: path.join(dir, 'dist'),
+				root: dir,
+				minify,
+				plugins: [],
+			});
 
-		const result = await new RolldownBuildAdapter().build({
-			...request,
-			plugins: request.plugins?.filter((plugin) => plugin.name === 'browser-runtime-plugin'),
-		});
+			const result = await new RolldownBuildAdapter().build({ ...request, plugins: [] });
 
-		assertBuildSucceeded(result, 'Build failed');
-		assert.match(readFileSync(result.outputs[0]!.path, 'utf-8'), /from ['"]\/assets\/vendors\/react\.js['"]/);
-	} finally {
-		rmSync(dir, { recursive: true, force: true });
-	}
-});
+			assertBuildSucceeded(result, 'Build failed');
+			const code = readFileSync(result.outputs[0]!.path, 'utf-8');
+			const other = build === 'production-build' ? 'development-build' : 'production-build';
+			assert.match(code, new RegExp(build, 'u'));
+			assert.doesNotMatch(code, new RegExp(`${other}|process\\.env`, 'u'));
+		} finally {
+			vi.unstubAllEnvs();
+			rmSync(dir, { recursive: true, force: true });
+		}
+	},
+);
 
 test('server and browser builds of one file give each declaration the same component id', async () => {
 	const appConfig = createOrderedAppConfig();
-	const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-identity-parity-'));
+	const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-identity-parity-')));
 	try {
 		const entry = path.join(dir, 'widgets.tsx');
 		writeFileSync(
@@ -403,4 +399,27 @@ test('server and browser builds of one file give each declaration the same compo
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
+});
+
+test('server and browser requests carry the stylesheet extensions of the registered stylesheet Processor', () => {
+	class SassProcessor extends Processor {
+		async setup(): Promise<void> {}
+	}
+	const config = createAppConfig();
+	config.processors = new Map([
+		['sass', new SassProcessor({ name: 'sass', capabilities: [{ kind: 'stylesheet', extensions: ['*.scss'] }] })],
+	]);
+
+	assert.deepEqual(createServerBuildRequest(config, { entrypoints: ['/app/a.ts'] }).stylesheets?.extensions, [
+		'.css',
+		'.scss',
+	]);
+	assert.deepEqual(createBrowserBuildRequest(config, { entrypoints: ['/app/a.ts'] }).stylesheets?.extensions, [
+		'.css',
+		'.scss',
+	]);
+	assert.deepEqual(
+		createServerBuildRequest(createAppConfig(), { entrypoints: ['/app/a.ts'] }).stylesheets?.extensions,
+		['.css'],
+	);
 });

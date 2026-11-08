@@ -5,7 +5,7 @@ import { Head } from '@/includes/head';
 
 const HtmlTemplate = eco.component<HtmlTemplateProps, ReactNode>({
 	dependencies: {
-		components: [Head],
+		stylesheets: ['../styles/tailwind.css'],
 	},
 
 	render: ({ children, metadata, headContent, language = 'en' }) => {

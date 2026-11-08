@@ -53,7 +53,7 @@ export async function disposeDevWebSocketServer(websocketServer: WebSocketServer
  * Owns the resources that exist only for a watch-mode server session.
  */
 export class DevSession {
-	private readonly bridge = new NodeClientBridge();
+	private readonly bridge: NodeClientBridge;
 	private readonly hmrManager: HmrManager;
 	private readonly websocketServer = new WebSocketServer({ noServer: true });
 	private readonly prewarmAbort = new AbortController();
@@ -62,6 +62,7 @@ export class DevSession {
 	private disposePromise: Promise<void> | undefined;
 
 	constructor(private readonly options: DevSessionOptions) {
+		this.bridge = new NodeClientBridge(options.appConfig.absolutePaths);
 		this.hmrManager = new HmrManager({ appConfig: options.appConfig, bridge: this.bridge });
 	}
 

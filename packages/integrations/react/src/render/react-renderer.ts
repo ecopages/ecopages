@@ -8,6 +8,7 @@
  *
  * @module
  */
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EcoComponent, EcoComponentConfig, EcoPageFile } from '@ecopages/core';
 import type {
 	ComponentRenderInput,
@@ -22,18 +23,20 @@ import {
 	type IntegrationRendererOptions,
 	type HtmlDocumentContribution,
 	type HtmlDocumentContributionContext,
+	type PageBrowserGraphDeclaration,
 	type PageBrowserGraphContributionContext,
 	selectHydrationIslandEntries,
 	type PageClientBrowserAssets,
 	type PageClientBuildEntry,
 	type PageClientPlan,
 } from '@ecopages/core/integration';
-import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/integration';
+import type { ProcessedAsset } from '@ecopages/core/integration';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
 import { resolveQueuedTokens } from '@ecopages/core/integration';
-import { ensurePageConfigLayouts } from '@ecopages/core/integration';
+import { ensurePageConfigLayouts, moveMdxMetadataOntoPage } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
 import { hasSingleRootElement } from './html-boundary.ts';
+import { toRootRelativePath } from '@ecopages/core/build';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
 import { REACT_PLUGIN_NAME, REACT_SSR_RENDER_TIMEOUT_MS } from '../plugin/react.constants.ts';
 import type { ReactRendererConfig } from '../plugin/react.types.ts';
@@ -56,7 +59,9 @@ import {
 	renderComponentHtml,
 	renderNonReactShellComponent,
 	restoreRuntimeChildHtml,
+	replaceForeignSubtreeTokens,
 	toReactNode,
+	wrapForeignSubtreeTokens,
 	type ReactComponentRenderContext,
 	type ReactForeignSubtreeResolutionContext,
 } from './component-ssr.ts';
@@ -69,6 +74,7 @@ import {
 } from './react-runtime.ts';
 import { composeReactLayoutPageTree, shouldUseUnifiedReactLayoutComposition } from './unified-layout-composition.ts';
 import { assertComposablePage, resolveLayoutContextFromShell } from './layout-compose.ts';
+import { LayoutRenderTracker } from './layout-render-tracker.ts';
 
 export type { ReactRendererConfig } from '../plugin/react.types.ts';
 export { BundleError, ReactRenderError } from './errors.ts';
@@ -113,6 +119,9 @@ type ReactRendererHookTargets = Pick<
 >;
 
 const ReactIntegrationRenderer = createIntegrationRenderer<ReactNode>(REACT_PLUGIN_NAME);
+
+/** Whether the Page being rendered hydrates, for the Components rendered as part of its tree. */
+const pageTreeHydration = new AsyncLocalStorage<boolean>();
 
 /** Renderer adapter that contributes React-specific behavior through core hooks. */
 export class ReactRenderer extends ReactIntegrationRenderer {
@@ -244,6 +253,17 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		return this.reactRuntimeModules;
 	}
 
+	/**
+	 * Renders the route with the Page's hydration decision available to every Layout and document it composes.
+	 *
+	 * @remarks
+	 * A Layout or document is rendered on its own when the Page has Foreign Children, and its config does not say
+	 * whether the Page hydrates; only the Page's does.
+	 */
+	override render(options: IntegrationRendererRenderOptions<ReactNode>) {
+		return pageTreeHydration.run(this.hydratesPageTree(options.Page), () => super.render(options));
+	}
+
 	private renderReactTree(element: ReactNode, label: string): Promise<string> {
 		return renderReactHtml(this.getReactRuntimeModules(), element, {
 			timeoutMs: this.getRuntimeState().renderTimeoutMs,
@@ -251,12 +271,26 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		});
 	}
 
+	/**
+	 * Whether the browser hydrates the tree of the Page `component`.
+	 *
+	 * @remarks
+	 * It reads the Page's own config, which holds the modules of its Layouts and nested Components.
+	 */
+	private hydratesPageTree(component: EcoComponent): boolean {
+		return this.forceBrowserGraph || this.pageModuleService.shouldHydratePage({ default: component });
+	}
+
+	/**
+	 * Resolves the Foreign Subtree tokens in `html`, wrapping them in the hydration boundary only when `hydrates`.
+	 */
 	private resolveReactQueuedForeignSubtreeHtml(
 		html: string,
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
+		hydrates: boolean,
 	): Promise<string> {
 		return this.resolveQueuedForeignSubtrees(
-			html,
+			hydrates ? wrapForeignSubtreeTokens(html, runtimeContext) : html,
 			runtimeContext,
 			async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => ({
 				html: await this.renderQueuedChildrenToHtml({
@@ -391,16 +425,28 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 				label: getComponentIdentity(input.component)?.file ?? 'component',
 			}),
 		);
-		html = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
-		const canAttachAttributes = hasSingleRootElement(html);
 		const componentFile = getComponentIdentity(componentConfig)?.file;
+		const isIslandRoot =
+			Boolean(componentFile && context.componentInstanceId && !hasResolvedChildHtml) &&
+			hasSingleRootElement(replaceForeignSubtreeTokens(html, runtimeContext, '<x></x>'));
+		html = await this.resolveReactQueuedForeignSubtreeHtml(
+			html,
+			runtimeContext,
+			isIslandRoot ||
+				(!context.componentInstanceId &&
+					(pageTreeHydration.getStore() ?? this.hydratesPageTree(input.component))),
+		);
+		const canAttachAttributes = hasSingleRootElement(html);
 
 		let rootAttributes: Record<string, string> | undefined;
-		if (canAttachAttributes && componentFile && context.componentInstanceId && !hasResolvedChildHtml) {
+		if (canAttachAttributes && isIslandRoot && componentFile && context.componentInstanceId) {
 			rootAttributes = buildIslandHostAttributes({
 				integrationName: this.name,
 				componentInstanceId: context.componentInstanceId,
-				componentKey: getIslandComponentKey(componentFile, componentConfig),
+				componentKey: getIslandComponentKey(
+					toRootRelativePath(this.appConfig.rootDir, componentFile),
+					componentConfig,
+				),
 				props: buildHydrationProps(input.props),
 			});
 			html = `<eco-island style="display:contents">${html}</eco-island>`;
@@ -447,53 +493,46 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		pageModule: TPageModule,
 	): TPageModule {
 		const reactModule = pageModule as TPageModule & { config?: EcoComponentConfig };
-		const { default: Page, getMetadata, config } = reactModule;
+		const { default: Page, config } = reactModule;
 
-		if (this.pageModuleService.isMdxFile(file) && config) {
+		if (!this.pageModuleService.isMdxFile(file)) {
+			return pageModule;
+		}
+
+		if (config) {
 			ensurePageConfigLayouts(config);
 			Page.config = config;
 		}
 
-		return {
-			...pageModule,
-			default: Page,
-			getMetadata,
-			config,
-		} as TPageModule;
+		return { ...moveMdxMetadataOntoPage(reactModule), default: Page, config } as unknown as TPageModule;
 	}
 
 	private async collectPageBrowserGraphContributionHook(
 		context: PageBrowserGraphContributionContext,
-	): Promise<{ dependencies?: AssetDefinition[]; assets?: ProcessedAsset[] }> {
+	): Promise<PageBrowserGraphDeclaration> {
 		try {
 			const { file: pagePath, pageModule } = context;
 			const shouldHydrate = this.forceBrowserGraph ? true : this.pageModuleService.shouldHydratePage(pageModule);
 			if (!shouldHydrate) {
-				return { assets: [] };
+				return {};
 			}
 
 			const isMdx = this.pageModuleService.isMdxFile(pagePath);
 			const declaredModules = this.pageModuleService.collectPageDeclaredModules(pageModule);
-
-			if (isMdx) {
-				await this.bundleService.ensurePageLayoutNormalizationVendorProcessed(this.assetProcessingService);
-			}
 
 			const dependencies = await this.hydrationAssetService.createPageBrowserGraphDependencies(
 				pagePath,
 				isMdx,
 				declaredModules,
 			);
-			const assets: ProcessedAsset[] = isMdx
-				? await this.mdxConfigDependencyService.processMdxConfigDependencies({
-						pagePath,
-						config: (pageModule as EcoPageFile & { config?: EcoComponentConfig }).config,
-						processComponentDependencies: async (components) =>
-							await this.processComponentDependencies(components),
-					})
-				: [];
-
-			return { dependencies, assets };
+			if (!isMdx) return { dependencies };
+			return {
+				dependencies,
+				...this.mdxConfigDependencyService.collectMdxConfigContribution(
+					pagePath,
+					(pageModule as EcoPageFile & { config?: EcoComponentConfig }).config,
+				),
+			};
 		} catch (error) {
 			if (error instanceof BundleError) {
 				console.error('[ecopages] Bundle errors:', error.logs);
@@ -515,9 +554,11 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			props: layout.props,
 		}));
 		const runtime = this.getReactRuntimeModules();
+		const renderTracker = new LayoutRenderTracker();
 		const tree = composeReactLayoutPageTree(pageComponent, page.props, shellEntries, {
 			context: resolveLayoutContextFromShell(page.props, shellEntries),
 			react: runtime.react,
+			renderTracker,
 		});
 		const runtimeInput: ComponentRenderInput = {
 			component: page.component,
@@ -530,7 +571,15 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		const html = this.normalizeUnresolvedMarkerArtifactHtml(
 			await this.renderReactTree(tree, getComponentIdentity(page.component)?.file ?? 'page'),
 		);
-		return { children: await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext) };
+		const layoutWithoutChildren = renderTracker.findLayoutWithoutChildren(page.component);
+		if (layoutWithoutChildren) this.onLayoutChildrenNotRendered(layoutWithoutChildren);
+		return {
+			children: await this.resolveReactQueuedForeignSubtreeHtml(
+				html,
+				runtimeContext,
+				this.hydratesPageTree(page.component),
+			),
+		};
 	}
 
 	protected resolveComposeChildren(options: {
@@ -582,14 +631,9 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		options: HtmlDocumentContributionContext<C>,
 	): HtmlDocumentContribution[] | undefined {
 		const renderOptions = options.renderOptions;
-		if (
-			options.partial ||
-			!renderOptions ||
-			!this.routerAdapter ||
-			isReactManagedComponent(renderOptions.HtmlTemplate, this.name)
-		) {
-			return undefined;
-		}
+		if (options.partial || !renderOptions) return undefined;
+		if (!this.routerAdapter) return this.buildRouterlessPageDataContributions(renderOptions);
+		if (isReactManagedComponent(renderOptions.HtmlTemplate, this.name)) return undefined;
 
 		const pagePayload = this.buildPagePayload({
 			Page: renderOptions.Page,
@@ -607,6 +651,34 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			reactIntegrationName: this.name,
 			routerEnabled: true,
 		});
+	}
+
+	/**
+	 * Publishes the props of a hydrating Page that has no router.
+	 *
+	 * @remarks
+	 * A router's Html shell emits `__ECO_PAGE_DATA__` itself (`EcoPropsScript`). Without a router nothing does, so the
+	 * hydration entry and a direct HMR update would read empty props. The script is a head contribution, whatever
+	 * Integration owns the Html template, and only a Page the browser hydrates gets it.
+	 */
+	private buildRouterlessPageDataContributions<C>(
+		renderOptions: IntegrationRendererRenderOptions<C>,
+	): HtmlDocumentContribution[] | undefined {
+		if (!this.hydratesPageTree(renderOptions.Page)) return undefined;
+		const pagePayload = this.buildPagePayload({
+			Page: renderOptions.Page,
+			pageProps: renderOptions.pageProps,
+			params: renderOptions.params,
+			query: renderOptions.query,
+			locals: renderOptions.locals,
+			pagePackage: renderOptions.pagePackage,
+		});
+		return [
+			{
+				placement: 'head-append',
+				html: this.pagePayloadService.buildRouterPageDataScript(pagePayload.pageProps),
+			},
+		];
 	}
 
 	private getDocumentAttributesHook<C>(
@@ -635,10 +707,8 @@ function createReactRendererHookFactory(
 		const bundleService = new BundleService({
 			rootDir: appConfig.rootDir,
 			appConfig,
-			assetProcessingIntegration,
 			hostIntegrationName: REACT_PLUGIN_NAME,
 			routerAdapter,
-			runtimeModules: reactConfig?.runtimeModules,
 			getMdxLoaderPlugin: reactConfig?.getMdxLoaderPlugin,
 		});
 		const pageModuleService = new PageModuleService({
@@ -649,6 +719,7 @@ function createReactRendererHookFactory(
 			hasRouterAdapter: Boolean(routerAdapter),
 		});
 		const hydrationAssetService = new HydrationAssetService({
+			rootDir: appConfig.rootDir,
 			srcDir: appConfig.srcDir,
 			routerAdapter,
 			assetProcessingService,
@@ -669,9 +740,8 @@ function createReactRendererHookFactory(
 			pagePayloadService: new PagePayloadService(),
 			mdxConfigDependencyService: new MdxConfigDependencyService({
 				integrationName: REACT_PLUGIN_NAME,
+				rootDir: appConfig.rootDir,
 				pageModuleService,
-				assetProcessingService,
-				assetProcessingIntegration,
 			}),
 			applyPendingLazyTriggers,
 		};

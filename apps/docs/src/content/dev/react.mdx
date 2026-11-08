@@ -1,0 +1,120 @@
+---
+title: "React"
+description: "How the React Integration renders with the app's React, builds a browser-safe client graph, hydrates Pages and Island Hosts, loads React as an ordinary package and hooks up the router."
+section: packages
+order: 22
+sources:
+  - packages/integrations/react/src/plugin/
+  - packages/integrations/react/src/render/
+  - packages/integrations/react/src/page/
+  - packages/integrations/react/src/hydration/
+  - packages/integrations/react/src/client-graph/
+  - packages/integrations/react/src/bundling/
+  - packages/integrations/react/src/hmr/
+  - packages/integrations/react/src/dev-transform/
+  - packages/integrations/react/src/mdx/
+  - packages/integrations/react/src/contracts/router-adapter.ts
+  - packages/integrations/react/README.md
+  - packages/react-router/src/adapter.ts
+---
+
+# React
+
+`@ecopages/react` renders React Pages, Layouts and Components on the server and hydrates them in the browser, either as a full Page or as Island Hosts inside a Page owned by another Integration.
+
+## What it plugs into core
+
+| Contract                  | React                                                                                                             |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Plugin name / extensions  | `react` / `['.tsx']` by default; `extensions` replaces it and `mdx.extensions` (default `['.mdx']`) is appended   |
+| `jsxImportSource`         | `react`                                                                                                           |
+| Renderer                  | `ReactRenderer` on `createIntegrationRenderer`; the plugin overrides `createRenderer` to pass `reactConfig`       |
+| `bundlesPageDependencies` | `true`                                                                                                            |
+| Build plugins             | `react-mdx-loader` when `mdx` is set; none otherwise                                                              |
+| Global dependencies       | none of its own; `dependencies` adds the app's                                                                    |
+| HMR                       | `ReactHmrStrategy` plus `ReactDevTransformContributor`                                                            |
+
+Options worth knowing: `router` (a `ReactRouterAdapter`), `mdx`, `explicitGraph`, `dependencies`, and `renderTimeoutMs` (whole milliseconds, validated at construction).
+
+## SSR policy
+
+- **App's own React.** `resolveReactRuntimeModules(rootDir)` prefers the app's `react`, `react-dom/static` and `react-dom/server`, and falls back to the Integration's copy only when the app cannot resolve them.
+- **Complete document, not streamed.** The server waits for every `<Suspense>` boundary before returning HTML. One deadline (`REACT_SSR_RENDER_TIMEOUT_MS`, 10 s, or `renderTimeoutMs`) covers the whole Page render through `runWithRenderBudget`. Unfinished boundaries stay in their fallback for the browser to retry and a warning names the Page.
+- **Layouts.** Layout stacks compose through the shared `composeLayoutPageTree` so provider context reaches nested Pages and `useId` values match the browser. `LayoutRenderTracker` reports a Layout that never renders its children.
+- **Non-React shells.** A Page, Layout or `html` template owned by another Integration must return a string; React inserts it unescaped.
+
+## Hydration and islands
+
+Core decides which Components are Island Hosts and stamps `data-eco-island*` attributes ([Islands and hydration](/dev/islands-hydration)). React supplies the client side:
+
+| Piece           | Where                                      | Behavior                                                                                                       |
+| --------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Island entry    | `hydration-island-entry-source.ts`         | generated per component identity; imports the module and `@ecopages/react/island-hydration`, then `mountIslands` |
+| Island runtime  | `hydration/browser/island-hydration.ts`    | keeps the SSR host and children, calls `hydrateRoot()`                                                          |
+| Page entry      | `hydration-page-entry-source.ts`           | generated Page entry using `@ecopages/react/page-hydration`                                                     |
+| Page payload    | `hydration/page-payload.ts`                | serializes page props; `locals` keys are limited to those in `Page.requires`                                    |
+| Foreign Subtree | `hydration/foreign-subtree.ts`, `hydration/browser/foreign-boundary.ts` | wraps each Foreign Subtree of a hydrating tree in `<eco-foreign-subtree>` on the server; the build rewrites React modules' imports of foreign Eco Components to a boundary that keeps that HTML ([Islands and hydration](/dev/islands-hydration#foreign-subtrees-in-a-hydrated-tree)) |
+
+A Page hydrates when it declares `dependencies.modules`, when `explicitGraph` is set, or whenever a router adapter exists (`shouldHydratePage`). `explicitGraph` forces hydration assets; it does not turn off client-graph stripping. Both entries import `react`, `react-dom/client` and their bootstrap package by package name. A Page entry with a router adapter also imports the router; [React in the browser graph](#react-in-the-browser-graph) says where those imports go.
+
+```mermaid
+flowchart TD
+  subgraph Server
+    A["ReactRenderer composes Layouts and Page into one tree"] --> B["Complete document HTML"]
+    B --> C{"Page hydrates, or Island root?"}
+    C -- "yes" --> D["Foreign Subtrees wrapped in eco-foreign-subtree"]
+    C -- "no" --> E["Foreign Subtrees resolve in place"]
+  end
+  subgraph Build
+    F["React module imports a foreign Eco Component"] --> G["Import rewritten to foreignBoundary"]
+  end
+  subgraph Browser
+    H["page-hydration bootstrap hydrates the tree"] --> I["foreignBoundary keeps the server HTML"]
+    J["island-hydration bootstrap hydrates Island Hosts"] --> I
+  end
+  D --> H
+  G --> I
+```
+
+### Client-graph boundary
+
+`client-graph/boundary-plugin.ts` runs on every module in a browser build (page, island, lazy entry and shared helpers) and:
+
+1. computes reachability from client roots,
+2. removes disallowed imports (Node built-ins, `.server` modules, content `/server` modules, named imports outside declared `pkg{name}` rules),
+3. strips server-only `eco.page()` options (`cache`, `middleware`, `dependencies`, `requires`, `metadata`, `staticProps`, `staticPaths`) and declarations only they used,
+4. fails the build, naming binding and `file:line:column`, if needed browser code still uses a removed import.
+
+Legacy `getMetadata`, `getStaticProps` and `getStaticPaths` exports are never browser roots. Declarations that only removed code used are removed, and an exported name keeps its binding set to `undefined`.
+
+Build plugins for a client build are assembled in `bundling/bundle.ts`: the foreign-JSX override (only for files another JSX Integration owns that React's static scan reaches), the graph boundary, the foreign boundary (`createForeignBoundaryPlugin`, which rewrites imports of foreign Components, gives a shared module its own React form, and leaves React-only modules untouched) and the MDX loader. They key off the module, not the entry that reached it, because a shared module has one URL and one compiled form ([Plugin pipeline](/dev/plugin-pipeline), [Build pipeline](/dev/build-pipeline)).
+
+## React in the browser graph
+
+React, React DOM, `@ecopages/react/layout-compose`, the bootstrap packages and the router are ordinary packages: no Integration declares a fixed URL or rewrites their imports.
+
+- **Production.** Every Page entry, router or not, and every island hydration entry is an entry of the app-wide browser build (`APP_BROWSER_CLIENT_BUNDLE_ID`), with code splitting. React and the other shared modules are content-hashed chunks, served `immutable`, and a page loads one copy of React whether its scripts are a Page entry, island entries or both. Rolldown's CommonJS interop gives the entries React's named exports, and React DOM's `require('react')` resolves to the same module.
+- **Development.** The unbundled Page and island entries are content scripts. With HMR, core rewrites their imports like a dev-transform module's ([Dev server](/dev/dev-server)): each package gets its one vendor URL, and named imports of a CommonJS vendor such as React read its default export.
+
+Both graphs define `process.env.NODE_ENV` from the current Node environment, so React's CommonJS entry picks its development or production build the same way in each.
+
+## HMR
+
+`ReactHmrStrategy` is an `INTEGRATION` strategy. It matches watched React entrypoints and files found through the entrypoint dependency graph, ignores registered script entrypoints, and rebuilds the affected targets through the dev transform plugins (including the graph boundary). Result: `layout-update` when a Layout or Layout dependency changed, otherwise per-URL `update` events, otherwise `none` ([HMR strategies](/dev/hmr-strategies), [HMR client](/dev/hmr-client)). A shared `HmrPageMetadataCache` lets save-time rebuilds reuse declared-module analysis. `page-hydration-hmr.ts` is the browser half: `handlePageHmr` imports the new module, then either calls the navigation runtime's `reloadCurrentPage` with `moduleUrl` (when the document owner is `react-router`; `clearCache` is set only if the layout stack differs by reference) or fetches the current URL, publishes the parsed document as `page.document` (the server HTML of the Page's Foreign Subtrees, see [Islands and hydration](/dev/islands-hydration)), reads the Page's props (and its module URL, when the envelope carries one) from that document's `__ECO_PAGE_DATA__`, so an edit that changes what `staticProps` returns is rendered, and re-renders the active page root with the new Page and those props; a response that is an error throws, so the update is not applied and the next edit retries it. A stale mount generation aborts the update. If an uncaught error tears the root down, the server HTML is restored and the Page's HMR handler rejects so the HMR client reloads the document.
+
+A Page without a router has no Html shell that emits `__ECO_PAGE_DATA__` (`EcoPropsScript` belongs to the router). For a Page the browser hydrates, `getHtmlDocumentContributionsHook` therefore appends the script to the document head as a contribution, whoever owns the Html template, so hydration and a direct HMR update read the Page's props from it; a Page that never hydrates gets none.
+
+## Router hookup
+
+A `ReactRouterAdapter` is data: `importPath`, the package of the router's browser entry, the `components.router` and `components.pageContent` names, and `getRouterProps`. `ecoRouter()` from `@ecopages/react-router` returns one (`name: 'eco-router'`, `importPath: '@ecopages/react-router/browser'`). With an adapter the plugin:
+
+- imports the router from `importPath` in every Page entry and keeps that package in every client graph,
+- hydrates every React Page,
+- sets `ECO_DOCUMENT_OWNER_ATTRIBUTE` to `react-router` on the document,
+- contributes router payload to non-React `html` templates through `documentContributions`.
+
+Navigation itself lives in [React router](/dev/react-router), with the framework-neutral parts in [Browser router](/dev/browser-router) and [Navigation](/dev/navigation).
+
+## See also
+
+[Integrations and Foreign Children](/dev/integrations-foreign-children), [Pages, layouts and components](/dev/pages-layouts-components), [MDX](/dev/mdx).

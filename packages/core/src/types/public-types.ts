@@ -1,6 +1,7 @@
 export type {
 	ApiHandler,
 	ApiHandlerContext,
+	BrowserForeignChildHost,
 	EcoComponent,
 	EcoComponentConfig,
 	EcoComponentDependencies,
@@ -12,6 +13,7 @@ export type {
 	EcoPagesAppConfig,
 	EcoPagesElement,
 	EcoPageLayoutEntry,
+	EcoPageLayoutEntrySpec,
 	EcoPageLayoutSpec,
 	EcoPageLayouts,
 	EcoHtmlComponent,

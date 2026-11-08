@@ -1,20 +1,18 @@
-import { eco } from '@ecopages/core';
+import { eco, type LayoutProps } from '@ecopages/core';
 import { Header } from '@/components/header';
 import type { JsxRenderable } from '@ecopages/jsx';
 
-export type BaseLayoutProps = {
-	children: JsxRenderable;
+export interface BaseLayoutProps extends LayoutProps<JsxRenderable> {
 	class?: string;
 	showDocsLink?: boolean;
 	/** When `false`, the caller owns the page chrome. */
 	showHeader?: boolean;
-};
+}
 
-export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
+export const BaseLayout = eco.layout<JsxRenderable, BaseLayoutProps>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
-		components: [Header],
 	},
 
 	render: ({ children, class: className, showDocsLink = true, showHeader = true }) => {

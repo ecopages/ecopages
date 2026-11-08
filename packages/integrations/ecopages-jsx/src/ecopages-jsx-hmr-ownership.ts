@@ -72,13 +72,13 @@ export async function withEjsxHmrOwnershipScope<T>(render: () => T | Promise<T>)
  *
  * @throws Error when called outside {@link withEjsxHmrOwnershipScope}.
  */
-export function recordEjsxHmrOwnership(components: ReadonlyArray<EcoComponent | undefined>): void {
+export function recordEjsxHmrOwnership(components: ReadonlyArray<EcoComponent | undefined>, rootDir: string): void {
 	const fileOwners = pendingFileOwners.getStore();
 	if (!fileOwners) {
 		throw new Error('Ecopages JSX HMR ownership can only be recorded inside an active render scope.');
 	}
 
-	for (const file of collectFileOwners(components)) {
+	for (const file of collectFileOwners(components, rootDir)) {
 		fileOwners.add(file);
 	}
 }
@@ -96,8 +96,11 @@ function publishEjsxHmrOwnership(files: ReadonlySet<string>): void {
 	};
 }
 
-function collectFileOwners(components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>): Set<string> {
-	return collectComponentConfigFilePaths(components, { includeLayouts: true });
+function collectFileOwners(
+	components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>,
+	rootDir: string,
+): Set<string> {
+	return collectComponentConfigFilePaths(components, { rootDir, includeLayouts: true });
 }
 
 function hashFileSet(files: ReadonlySet<string>): string {

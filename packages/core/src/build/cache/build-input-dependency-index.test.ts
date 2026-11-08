@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, it } from 'vitest';
 import { BuildInputDependencyIndex } from './build-input-dependency-index.ts';
 
@@ -22,8 +22,8 @@ describe('BuildInputDependencyIndex', () => {
 		assert.deepEqual(index.resolveKeys('entrypoint', '/app/layouts/base.tsx'), ['/app/pages/about.tsx']);
 		assert.deepEqual(index.resolveKeys('server-route-module', '/app/src/lib/posts.ts'), ['/app/pages/about.tsx']);
 		assert.deepEqual(index.sourcePaths({ consumer: 'server-route-module', key: '/app/pages/about.tsx' }), [
-			'/app/pages/about.tsx',
-			'/app/src/lib/posts.ts',
+			path.resolve('/app/pages/about.tsx'),
+			path.resolve('/app/src/lib/posts.ts'),
 		]);
 		assert.deepEqual(
 			index

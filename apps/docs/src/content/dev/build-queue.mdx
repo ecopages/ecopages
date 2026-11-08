@@ -1,0 +1,99 @@
+---
+title: "Build queue and adapter"
+description: "How every Rolldown build of an app is requested, scheduled and deduplicated, which BuildOptions map unusually, how results and errors come back, and how Worker URLs become entries."
+section: build
+order: 5
+sources:
+  - packages/core/src/build/build-adapter.ts
+  - packages/core/src/build/build-parallelism.ts
+  - packages/core/src/build/build-log.ts
+  - packages/core/src/build/build-graph.ts
+  - packages/core/src/build/contracts/build-contracts.ts
+  - packages/core/src/build/runtime/
+  - packages/core/src/build/rolldown/rolldown-build-adapter.ts
+  - packages/core/src/build/rolldown/rolldown-adapter-helpers.ts
+  - packages/core/src/build/rolldown/rolldown-build-invocation-metrics.ts
+  - packages/core/src/build/rolldown/entry-module-closures.ts
+  - packages/core/src/build/rolldown/stylesheet-module-plugin.ts
+  - packages/core/src/build/rolldown/worker-entries-plugin.ts
+  - packages/core/src/build/worker-urls.ts
+  - packages/core/src/assets/browser-bundle.service.ts
+  - packages/core/src/cache/
+---
+
+# Build queue and adapter
+
+Every server and browser build an app runs, in development and production, is a one-shot Rolldown build that goes through one queue. This page covers that path from request to result. [Plugin pipeline](/dev/plugin-pipeline) covers the plugins a request carries, and [Build pipeline](/dev/build-pipeline) what `ecopages build` asks for.
+
+Config finalization creates one `AppRuntime` per app with its build adapter, build manifest, build-input index and build queue, and the runtime keeps that queue for its lifetime, so builds started during plugin and Integration setup share in-flight results with later ones. Runtime code reaches them through `requireAppRuntime(appConfig)` and `requireBuildQueue(appConfig)`; a service given an unfinalized config fails with `Missing app runtime` instead of creating state of its own.
+
+## Requests
+
+A request is a complete `BuildOptions` object, built by `createServerBuildRequest()` or `createBrowserBuildRequest()` in `build/runtime/build-request-policy.ts`. The queue only schedules; it adds no plugins.
+
+Every request names `environment: 'server' | 'browser'`. The environment selects the platform, the default target and format, and which plugins take part; `resolveBuildEnvironmentOptions()` holds the defaults, one table per environment, and a request names only what differs. Browser requests define `import.meta.env.NODE_ENV` and `process.env.NODE_ENV` from the Ecopages process mode. An explicit numeric `target` changes transpilation without changing the environment.
+
+`createBuildRequestIdentity()` identifies a request by every `BuildOptions` field except `plugins`, plus each plugin's name, environments and `cacheKey` in order. The source of `setup` is not hashed.
+
+## Lanes
+
+The lane selects scheduling only; a browser request keeps its browser defaults on either lane.
+
+| Lane | Used for | Limit |
+| --- | --- | --- |
+| `build` | ordinary server and browser builds | `resolveBuildParallelism()`: all logical CPUs but one, at least one |
+| `hmr` | the dev transform server and HMR browser rebuilds | three, or the `build` limit when lower |
+| `nested` | a build a running build waits for, such as the collection bundle a content plugin requests from `onResolve` | none |
+
+The limited lanes start waiting builds in arrival order. A running build holds its lane's slot until it ends, so a child build in the same lane could wait for a slot its own parent holds; `nested` therefore has no limit, and the limited lane of the build at the top of each chain bounds how many run. Static export and the startup trace use the same `resolveBuildParallelism()` limit.
+
+A request identical to a queued or running one shares that build, whichever lane it asks for. Inside `BuildQueue.withRequestScope()`, which the Node server adapter wraps around each development watch-mode request, a finished build is also shared with later identical requests of that scope. Production requests are not wrapped, and a build that rejects is never kept.
+
+`BrowserBundleService` is the browser-build entry for asset processing and HMR: callers pass the lane explicitly, `build` for ordinary bundles and `hmr` for development rebuilds.
+
+## BuildOptions that map unusually
+
+`BuildOptions` follows Rolldown's option shape. The exceptions:
+
+- `splitting: false` with one entry maps to `codeSplitting: false`, so dynamic imports stay in one file. A worker entry is a second entry, so a module a script shares with its worker still gets its own chunk. With several entries, Rolldown cannot inline and ignores it.
+- `preserveModules` emits each source module as its own file, named after its source path with `/` replaced by `-`, so every module sits directly in the output directory; long names are shortened with a stable digest. Production server-module emit uses it so a shared SSR dependency keeps one output path, and therefore one module instance, across emit passes. Flat names keep `import.meta` of every module pointing at the folder that holds `serverFiles`, and keep relative externals resolvable from every module.
+- `sourcemap` is `none`, `inline`, `external`, `linked` or `hidden`: `linked` writes a map and a `sourceMappingURL`, `external` and `hidden` write a map without the link.
+- `workerEntries` applies to browser builds and is on unless `false`; see [Worker entries](#worker-entries).
+- `writeToDisk: false` calls Rolldown `generate()` and returns outputs in memory; the dev vendor registry uses it to keep vendor bundles process-local.
+
+Around the bridge's plugins the adapter adds a few native ones:
+
+- **Server-only guard**, on browser-platform builds. It rejects Node builtins at resolution and any import of a `.server` module (extensionless `./db.server` included). The check reads the resolved id, so an alias through a `package.json` `imports` entry or a tsconfig path fails like a relative import; a query or fragment does not change the result. Server builds allow `.server` imports. An Integration may prune server-only imports before resolution, as React does when it strips server-only Page options. No `server-only` package marker is read.
+- **Stylesheet modules**, on every build: a binding import of a stylesheet becomes the module `BuildOptions.stylesheets.compileModule` returns, and a side-effect import an empty module, except a package module's own import in a browser build, which fails it; see [Stylesheet imports](/dev/build-pipeline#stylesheet-imports).
+- **Installed-package externalizer**, with `externalPackages`; see [Portable paths](/dev/build-pipeline#portable-paths).
+
+Core's own hooks declare native filters, so Rolldown calls them only for the modules they handle: by id, or by code for the stylesheet module plugin's `transform`. The adapter enables `experimental.nativeMagicString` and closes its Rolldown bundle in a `finally`.
+
+## Results
+
+`BuildResult` is a `BuildSuccess` or a `BuildFailure`, told apart by `success`.
+
+- A `BuildFailure` carries only `logs`. A Rolldown `BundleError` becomes one log per underlying error; any other error, an `AggregateError` included, becomes one log (`toBuildLogs`).
+- A `BuildSuccess` carries `outputs`, `warnings`, `dependencyGraph`, `entryOutputs` and `outputGraph`.
+  - `dependencyGraph.entrypoints` maps each entry to its source-module closure, inlined and tree-shaken imports included, plus the files plugins declared with `addWatchFile` for a module in it. Cache owners bind exactly those paths in the build-input index, so a file one entry's plugin read never ties another entry's cache to it.
+  - `dependencyGraph.commonJsEntrypoints` lists entries whose own module Rolldown read as CommonJS; their output has `module.exports` as its default export and no named exports, which the dev vendor graph relies on.
+  - `entryOutputs` is keyed by the path or grouped name the caller passed, plus Rolldown's facade path when that spelling differs, so a symlinked root or a different Windows drive case still finds the chunk. Look entries up with `getBuildEntryOutput`, never by filename prefix.
+  - `outputGraph` gives static and dynamic chunk reachability without parsing emitted JavaScript.
+  - Each `BuildOutput` records `contentHashed` when Rolldown named it by content. `BrowserBundleService` writes those paths to `.ecopages-hashed-assets` beside the outputs, and file serving applies `immutable` from that record, not from a filename guess.
+
+Logs and warnings are `BuildLog`s: `message` plus, when Rolldown or the plugin provides them, `code`, `plugin`, `hook`, `id`, `loc`, `frame` and `stack`, with terminal colour codes stripped. Warnings come through Rolldown's `onLog`, so a failed build has none. `formatBuildLog()` is the one text form, `[plugin] file:line:column: message` then the frame and stack frames. `assertBuildSucceeded()` throws an error built from it, and `buildOrThrow(appConfig, options, failure, lane)` queues a build and does the same, so no caller joins `log.message` itself. [Plugin pipeline](/dev/plugin-pipeline#the-rolldown-bridge) covers how the bridge attributes an error to its plugin and module.
+
+## Worker entries
+
+A browser build finds every `new Worker(new URL('<literal>', import.meta.url), options)`, and the same with `SharedWorker`, after the bridge's transforms; type assertions and parentheses do not hide one.
+
+- A URL starting with `./` or `../` resolves like an import and becomes an entry of the same build, so the worker shares chunks with the page code. The `new URL(...)` expression becomes the emitted file's URL, and the importing chunk's hash follows the worker's file name. The worker takes the build's entry naming: `[name]-[hash].js` in the app-wide build, or a fixed stem with its own hash in a build whose template has one.
+- The build fails when that URL does not resolve, carries a query or a hash, or starts a classic worker (no options, or a `type` other than `'module'`), because worker output is ESM and may import shared chunks. Options the build cannot read statically count as a module worker. An inline file script fails when it or a module it imports starts a worker entry, since an inline script resolves `import.meta.url` against the page.
+- Any other URL, a Worker started from a non-literal expression, and every Worker URL under `node_modules` are left as written, with a build warning naming the file.
+
+The app-wide browser build records the worker file in the asset ledger like any emitted file, so a sealed `ecopages start` serves it. The dev transform server builds with `workerEntries: false` and rewrites the URL itself; see [Dev server](/dev/dev-server).
+
+## Diagnostics
+
+- `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` logs Rolldown invocation counts in development and production builds; bench and parity tests read the same counters.
+- `parseModuleSource()` (`cache/module-parse-cache.ts`) memoizes Oxc parses that several build plugins request for the same source, keyed by path, content and options.

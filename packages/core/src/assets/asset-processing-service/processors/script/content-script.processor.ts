@@ -1,11 +1,36 @@
 import { randomUUID } from 'node:crypto';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
+import type { EcoPagesAppConfig, IHmrManager } from '../../../../config/internal-types.ts';
 import type { ContentScriptAsset, ProcessedAsset } from '../../assets.types.ts';
 import { resolveInlineContentScriptBody } from '../../inline-content-script-body.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 
 export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAsset> {
+	private readonly getHmrManager: () => IHmrManager | undefined;
+
+	constructor(options: { appConfig: EcoPagesAppConfig; getHmrManager?: () => IHmrManager | undefined }) {
+		super(options);
+		this.getHmrManager = options.getHmrManager ?? (() => undefined);
+	}
+
+	/**
+	 * Returns the source of an unbundled script file as the browser should load it.
+	 *
+	 * @remarks
+	 * With HMR active, a module script's imports are rewritten like a dev-transform module's, so a generated
+	 * bootstrap can import a package by name and get the one vendor URL every other importer gets. This holds for an
+	 * inline script too, whose body is the rewritten source. A script that is not a module, or HMR being off, keeps
+	 * its source.
+	 */
+	private async resolveUnbundledScriptSource(dep: ContentScriptAsset, filepath: string): Promise<string> {
+		const hmrManager = this.getHmrManager();
+		if (!dep.content || dep.attributes?.type !== 'module' || !hmrManager?.isEnabled()) {
+			return dep.content;
+		}
+		return hmrManager.rewriteModuleImports(dep.content, filepath);
+	}
+
 	private getContentScriptEntryDir(): string {
 		const dir = path.join(this.appConfig.absolutePaths.workDir, 'content-script-entries');
 		fileSystem.ensureDir(dir);
@@ -70,6 +95,36 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 	}
 
 	/**
+	 * Bundles an inline script and returns its code as the asset content, with no output file.
+	 *
+	 * @remarks
+	 * The page embeds the code, so nothing may load a file. The bundle is built without chunks in a work-directory
+	 * folder that is removed once read, so no bundle reaches `dist/`.
+	 */
+	private async processInlineBundledScript(dep: ContentScriptAsset, filename: string): Promise<ProcessedAsset> {
+		const bundleDir = path.join(this.getContentScriptEntryDir(), randomUUID());
+		const entryPath = path.join(bundleDir, 'entry.js');
+		fileSystem.ensureDir(bundleDir);
+		fileSystem.write(entryPath, dep.content);
+		try {
+			const bundledOutput = await this.bundleScript({
+				entrypoint: entryPath,
+				outdir: path.join(bundleDir, 'out'),
+				minify: this.isProduction,
+				naming: `${path.parse(filename).name}-[hash].[ext]`,
+				...this.getBundlerOptions(dep),
+				splitting: false,
+			});
+			return {
+				...this.toProcessedAsset(dep, bundledOutput.filepath, bundledOutput.inputPaths, entryPath),
+				filepath: undefined,
+			};
+		} finally {
+			fileSystem.remove(bundleDir);
+		}
+	}
+
+	/**
 	 * Emits one content script asset. Cache reuse is owned by {@link AssetProcessingService}.
 	 */
 	async process(dep: ContentScriptAsset): Promise<ProcessedAsset> {
@@ -79,15 +134,20 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		const filepath = path.join(this.getAssetsDir(), 'scripts', filename);
 
 		if (!shouldBundle) {
-			if (!dep.inline) {
-				fileSystem.write(filepath, dep.content);
+			const unbundled = { ...dep, content: await this.resolveUnbundledScriptSource(dep, filepath) };
+			if (!unbundled.inline) {
+				fileSystem.write(filepath, unbundled.content);
 			}
 
-			return this.toProcessedAsset(dep, filepath);
+			return this.toProcessedAsset(unbundled, filepath);
 		}
 
 		if (!dep.content) {
 			throw new Error('No content found for script asset');
+		}
+
+		if (dep.inline) {
+			return this.processInlineBundledScript(dep, filename);
 		}
 
 		const entryPath = this.getContentScriptEntryPath();

@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
 import { loadProductionTemplateRoutes } from '../../build/production-route-list.ts';
@@ -246,11 +246,8 @@ export class RouteRegistry {
 			const staticPaths = pageModule.staticPaths;
 
 			if (options.requireStaticHooks && this.buildMode) {
-				invariant(staticPaths !== undefined, `[ecopages] Missing getStaticPaths in ${route.filePath}`);
-				invariant(
-					pageModule.staticProps !== undefined,
-					`[ecopages] Missing getStaticProps in ${route.filePath}`,
-				);
+				invariant(staticPaths !== undefined, `[ecopages] Missing staticPaths in ${route.filePath}`);
+				invariant(pageModule.staticProps !== undefined, `[ecopages] Missing staticProps in ${route.filePath}`);
 			}
 
 			if (!staticPaths) {
@@ -276,7 +273,7 @@ export class RouteRegistry {
 	 * @remarks
 	 * The return shape is {@link PathExpansion}, the same records `staticPaths` produces. They are
 	 * not Static Path Expansions: HTML still uses Request-Time Rendering. The build uses them so
-	 * each Params list's graph is in the browser client manifest.
+	 * each Params list's graph scripts are in the production asset ledger.
 	 */
 	async listDynamicPagePathExpansions(input: { runtimeOrigin: string }): Promise<readonly PathExpansion[]> {
 		return this.listPathExpansions(input, {
@@ -394,7 +391,8 @@ export class RouteRegistry {
 	 * Strips the longest template extension the file ends with, so `about.kita.tsx` keeps no
 	 * `.kita` part when `.tsx` is also registered, and `my.html-tips.html` keeps its name. An
 	 * endpoint strips its whole marker, so `users.api.tsx` is `/users` even when `.tsx` is a
-	 * template extension.
+	 * template extension. `file` is relative to the pages directory and uses `/`, as `fileSystem.glob`
+	 * returns it.
 	 */
 	private getRoutePath(file: string, endpointExtension: string | undefined): string {
 		const extension = endpointExtension ?? findLongestExtension(this.templatesExt, file) ?? '';

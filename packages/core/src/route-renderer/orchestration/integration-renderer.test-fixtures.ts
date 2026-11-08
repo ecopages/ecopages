@@ -1,5 +1,4 @@
 import { vi } from 'vitest';
-import { createBrowserRuntimeManifest } from '../../build/browser/browser-runtime-manifest.ts';
 import { createAppRuntime } from '../../config/assembly/app-runtime.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from '../../eco/component-render-context.ts';
@@ -26,8 +25,8 @@ export function createMockIntegrationPlugin(
 	return {
 		getRenderer: vi.fn(),
 		setup: vi.fn(async () => {}),
+		refreshResolvedIntegrationDependencies: vi.fn(async () => {}),
 		hmr: vi.fn(),
-		browserRuntimeManifest: createBrowserRuntimeManifest(),
 		...plugin,
 		plugins:
 			typeof plugin.plugins === 'function'
@@ -38,6 +37,7 @@ export function createMockIntegrationPlugin(
 
 export function createMockAppConfig(overrides: Partial<EcoPagesAppConfig> = {}): EcoPagesAppConfig {
 	const config = {
+		rootDir: '/app',
 		absolutePaths: {
 			pagesDir: '/app/pages',
 			htmlTemplatePath: '/app/index.ts',

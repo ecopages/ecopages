@@ -87,11 +87,11 @@ Install Ecopages and your chosen integration (e.g., KitaJS):
 pnpm add @ecopages/core @ecopages/kitajs
 ```
 
-Add PostCSS processor for Tailwind:
+Add the Lightning CSS processor for Tailwind:
 
 ```bash
-pnpm add @ecopages/postcss-processor
-pnpm add -D @tailwindcss/postcss tailwindcss
+pnpm add @ecopages/lightningcss-processor
+pnpm add -D @tailwindcss/node @tailwindcss/oxide tailwindcss
 ```
 
 ### 2. Configuration
@@ -103,8 +103,8 @@ import path from "node:path";
 import { defineConfig } from "@ecopages/core/config";
 import { reactPlugin } from "@ecopages/react";
 import { ecoRouter } from "@ecopages/react-router";
-import { postcssProcessorPlugin } from "@ecopages/postcss-processor";
-import { tailwindV4Preset } from "@ecopages/postcss-processor/presets/tailwind-v4";
+import { lightningCssProcessorPlugin } from "@ecopages/lightningcss-processor";
+import { tailwindV4Preset } from "@ecopages/lightningcss-processor/presets/tailwind-v4";
 
 export default defineConfig({
   defaultMetadata: {
@@ -113,11 +113,12 @@ export default defineConfig({
   },
   integrations: [reactPlugin({ router: ecoRouter() })],
   processors: [
-    postcssProcessorPlugin(
-      tailwindV4Preset({
-        referencePath: path.resolve(import.meta.dirname, "src/styles/app.css"),
-      })
-    ),
+    lightningCssProcessorPlugin({
+      ...tailwindV4Preset({
+        referencePath: path.resolve(process.cwd(), "src/styles/app.css"),
+      }),
+      targets: ["chrome >= 111", "safari >= 16.4", "firefox >= 128"],
+    }),
   ],
 });
 ```
@@ -434,42 +435,35 @@ import type { ReactNode } from "react";
 import { AuthNav } from "@/components/auth-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AnnouncementBar } from "@/components/announcement-bar";
-import { eco, type WithLocals } from "@ecopages/core";
+import type { LayoutProps } from "@ecopages/core";
+import "./base-layout.css";
 
-type BaseLayoutProps = WithLocals<{ children: ReactNode }>;
-
-export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
-	dependencies: {
-		stylesheets: ["./base-layout.css"],
-		components: [AuthNav, ThemeToggle, AnnouncementBar],
-	},
-	render: ({ children, locals }) => {
-		return (
-			<div className="layout">
-				<AnnouncementBar slideDown />
-				<header className="layout__header">
-					<nav className="layout__nav" aria-label="Main">
-						<a href="/" className="layout__logo">
-							Ecopages
-						</a>
-						<div className="layout__nav-items">
-							<AuthNav initialSession={locals?.session} />
-							<ThemeToggle />
-						</div>
-					</nav>
-				</header>
-				<main className="layout__main" id="main-content">
-					<div className="layout__content">{children}</div>
-				</main>
-				<footer className="layout__footer">
-					<div className="layout__footer-content">
-						<p>&copy; {new Date().getFullYear()} Ecopages + Better Auth.</p>
+export function BaseLayout({ children, locals }: LayoutProps<ReactNode>) {
+	return (
+		<div className="layout">
+			<AnnouncementBar slideDown />
+			<header className="layout__header">
+				<nav className="layout__nav" aria-label="Main">
+					<a href="/" className="layout__logo">
+						Ecopages
+					</a>
+					<div className="layout__nav-items">
+						<AuthNav initialSession={locals?.session} />
+						<ThemeToggle />
 					</div>
-				</footer>
-			</div>
-		);
-	},
-});
+				</nav>
+			</header>
+			<main className="layout__main" id="main-content">
+				<div className="layout__content">{children}</div>
+			</main>
+			<footer className="layout__footer">
+				<div className="layout__footer-content">
+					<p>&copy; {new Date().getFullYear()} Ecopages + Better Auth.</p>
+				</div>
+			</footer>
+		</div>
+	);
+}
 ```
 
 ### Includes

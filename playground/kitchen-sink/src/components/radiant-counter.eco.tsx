@@ -8,7 +8,6 @@ type EcopagesJsxRadiantCounterProps = RadiantCounterProps & {
 };
 
 export const RadiantCounterComponent = eco.component<EcopagesJsxRadiantCounterProps, JsxRenderable>({
-	integration: 'ecopages-jsx',
 	dependencies: {
 		stylesheets: ['./integration-counter.css', './radiant-counter.css'],
 		scripts: [{ src: './radiant-counter-element.script.ts', ssr: true }],

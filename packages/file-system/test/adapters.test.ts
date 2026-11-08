@@ -4,8 +4,8 @@
 
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import os from 'node:os';
-import path from 'node:path';
-import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync, rmSync } from 'node:fs';
+import { path } from '../src/path.ts';
+import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync, rmSync, statSync } from 'node:fs';
 import { NodeFileSystem } from '../src/adapters/node';
 import type { FileSystem } from '../src/types';
 
@@ -16,7 +16,7 @@ let testDirCopy: string;
 const adapters: [string, FileSystem][] = [['NodeFileSystem', new NodeFileSystem()]];
 
 beforeEach(() => {
-	testRoot = mkdtempSync(path.join(os.tmpdir(), 'ecopages-file-system-test-'));
+	testRoot = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-file-system-test-')));
 	testDir = path.join(testRoot, 'fixtures');
 	testDirCopy = path.join(testRoot, 'fixtures-copy');
 	mkdirSync(testDir, { recursive: true });
@@ -132,7 +132,7 @@ for (const [name, fs] of adapters) {
 				const link = path.join(testDir, 'realpath-link');
 				symlinkSync(path.join(testDir, 'test.txt'), link);
 
-				expect(fs.realpath(link)).toBe(realpathSync(path.join(testDir, 'test.txt')));
+				expect(fs.realpath(link)).toBe(path.fromNative(realpathSync(path.join(testDir, 'test.txt'))));
 			});
 
 			test('throws for a missing path', () => {
@@ -147,6 +147,7 @@ for (const [name, fs] of adapters) {
 					isDirectory: false,
 					isSymbolicLink: false,
 					size: 11,
+					mtimeMs: statSync(path.join(testDir, 'test.txt')).mtimeMs,
 				});
 			});
 

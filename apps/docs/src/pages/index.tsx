@@ -11,14 +11,7 @@ import {
 import { RuiHeading, RuiHeadingDescription, RuiHeadingEyebrow, RuiHeadingTitle } from '@ecopages/radiant-ui/heading';
 import { BaseLayout } from '@/layouts/base-layout';
 import { CodeTabs } from '@/components/code-tabs';
-import {
-	componentExample,
-	componentExampleCode,
-	configExample,
-	configExampleCode,
-	pageExample,
-	pageExampleCode,
-} from '@/homepage/examples.server';
+import { componentExampleCode, configExampleCode, pageExampleCode } from '@/homepage/examples';
 
 const HomeFeedArticle = ({
 	href,
@@ -139,7 +132,6 @@ const HomeFooterColumn = ({ title, links }: HomeFooterColumnData) => (
 export default eco.page<{}, JsxRenderable>({
 	layout: BaseLayout,
 	dependencies: {
-		components: [CodeTabs],
 		stylesheets: ['./index.css'],
 	},
 	metadata: () => ({
@@ -205,20 +197,20 @@ export default eco.page<{}, JsxRenderable>({
 								{
 									id: 'eco-config',
 									label: 'eco.config.ts',
-									html: `<figure data-rehype-pretty-code-figure class="home-code-block">${configExample}</figure>`,
-									content: configExampleCode,
+									code: configExampleCode,
+									lang: 'tsx',
 								},
 								{
 									id: 'home-page',
 									label: '@/pages/index.tsx',
-									html: `<figure data-rehype-pretty-code-figure class="home-code-block">${pageExample}</figure>`,
-									content: pageExampleCode,
+									code: pageExampleCode,
+									lang: 'tsx',
 								},
 								{
 									id: 'eco-component',
-									label: '@/components/counter.tsx',
-									html: `<figure data-rehype-pretty-code-figure class="home-code-block">${componentExample}</figure>`,
-									content: componentExampleCode,
+									label: '@/components/counter-card.tsx',
+									code: componentExampleCode,
+									lang: 'tsx',
 								},
 							]}
 							copyLabel="Copy source"

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildIslandHostAttributes, eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
-import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import { createDeferredIntegrationPlugin, createStringMarkupIntegration, createTestAppConfig } from '@ecopages/testing';
 import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
 import { AssetProcessingService } from '@ecopages/core/integration';
 import { IntegrationRenderer } from '@ecopages/core/integration';
@@ -10,13 +10,14 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';
 import { ensureLitDomShim } from '../dom-shim.ts';
 import { createLitRenderer, LitRenderer } from '../lit-renderer.ts';
+import { LitPlugin } from '../lit.plugin.ts';
 import type { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
 ensureLitDomShim();
 
 let customElementIndex = 0;
 
-const Config = await createTestAppConfig();
+const Config = await createTestAppConfig({ integrations: [createStringMarkupIntegration(), new LitPlugin()] });
 
 function createTestAssetProcessingService(appConfig: typeof Config): AssetProcessingService {
 	const service = new AssetProcessingService(appConfig);
@@ -34,7 +35,7 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
  * @remarks
  * The real preload installs a fresh global custom element registry on every
  * call, so elements defined by a test before rendering would be dropped.
- * Preload is therefore skipped here; `lit-ssr-lazy-preload.test.ts` covers it
+ * Preload is therefore skipped here; `lit-ssr-preload.test.ts` covers it
  * with real scripts.
  */
 class TestLitRenderer extends LitRenderer {
@@ -66,7 +67,7 @@ describeRendererContract({
 	...createStringMarkupContractFactories('lit'),
 	async createRenderer({ integrations, processDependencies }) {
 		const testRenderer = new TestLitRenderer({
-			appConfig: await createTestAppConfig({ integrations }),
+			appConfig: await createTestAppConfig({ integrations: [new LitPlugin(), ...integrations] }),
 			assetProcessingService: { processDependencies } as never,
 			resolvedIntegrationDependencies: [],
 		});
@@ -272,7 +273,7 @@ describe('LitRenderer', () => {
 					}),
 				}),
 			});
-			const config = await createTestAppConfig({ integrations: [deferredPlugin] });
+			const config = await createTestAppConfig({ integrations: [new LitPlugin(), deferredPlugin] });
 
 			const testRenderer = new TestLitRenderer({
 				appConfig: config,
@@ -645,27 +646,37 @@ describe('LitRenderer', () => {
 	});
 
 	describe('lazy worker session', () => {
-		it('preloads SSR scripts through the static-export session when one exists', async () => {
-			const sessionPreload = vi.fn(async () => {});
-			const component = (async () => '<div>preload</div>') as EcoComponent<object>;
-			const Renderer = createLitRenderer(
-				() =>
-					({
-						preloadSsrScripts: sessionPreload,
-					}) as Pick<LitStaticRenderSession, 'preloadSsrScripts'> as LitStaticRenderSession,
-			);
+		it('preloads SSR scripts through the server module loader, not the asset pipeline, when a static-export session exists', async () => {
+			const appConfig = await createTestAppConfig({
+				integrations: [createStringMarkupIntegration(), new LitPlugin()],
+			});
+			const importModule = vi.fn(async (_options: { filePath: string }) => ({}));
+			appConfig.appRuntime!.moduleLoader = {
+				...appConfig.appRuntime!.moduleLoader,
+				importModule: async <T = unknown>(options: { filePath: string }) => (await importModule(options)) as T,
+			};
+			const processDependencies = vi.fn(async () => []);
+			const component = eco.component<object, string>({
+				integration: 'lit',
+				identity: { id: 'session-preload', file: '/app/components/counter.lit.tsx', integration: 'lit' },
+				dependencies: {
+					scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'click' } }],
+				},
+				render: () => '<div>preload</div>',
+			});
+			const Renderer = createLitRenderer(() => ({}) as LitStaticRenderSession);
 			const renderer = new Renderer({
-				appConfig: Config,
-				assetProcessingService: createTestAssetProcessingService(Config),
+				appConfig,
+				assetProcessingService: { processDependencies } as never,
 				resolvedIntegrationDependencies: [],
 			});
 
-			const result = await renderer.renderComponent({
-				component,
-				props: {},
-			});
+			const result = await renderer.renderComponent({ component, props: {} });
 
-			expect(sessionPreload).toHaveBeenCalledWith([component]);
+			expect(importModule).toHaveBeenCalledWith(
+				expect.objectContaining({ filePath: expect.stringContaining('counter.script.ts') }),
+			);
+			expect(processDependencies).not.toHaveBeenCalled();
 			expect(result.html).toContain('<div>preload</div>');
 		});
 

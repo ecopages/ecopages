@@ -5,11 +5,12 @@ import * as fs from 'node:fs';
 import os from 'node:os';
 import * as launchPlan from './launch-plan.js';
 import * as childProcess from 'node:child_process';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import * as prompts from '@clack/prompts';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
+	ENTRY_COMMAND_FLAGS,
 	resolveDevelopmentRecoveryWatch,
 } from '@ecopages/core/build';
 import { fileSystem, type WatchOptions } from '@ecopages/file-system';
@@ -68,14 +69,14 @@ describe('CLI Commands', () => {
 		}) as never);
 	}
 
-	const originalCwd = process.cwd();
+	const originalCwd = path.cwd();
 	const forwardedSignals = ['SIGTERM', 'SIGINT'] as const;
 	let signalListenersBefore: Map<string, Set<unknown>>;
 	let tempCwd: string;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		tempCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-cli-test-'));
+		tempCwd = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-cli-test-')));
 		process.chdir(tempCwd);
 		signalListenersBefore = new Map(forwardedSignals.map((signal) => [signal, new Set(process.listeners(signal))]));
 
@@ -250,6 +251,14 @@ describe('CLI Commands', () => {
 			options: { nodeEnv: 'production', baseUrl: '/docs/', hostname: '127.0.0.1' },
 			entry: 'app.ts',
 			mode: 'build',
+		},
+		{
+			name: 'serving an existing build without rebuilding',
+			argv: ['preview', '--serve-only', '--port', '4417'],
+			args: ['--preview', '--serve-only'],
+			options: { nodeEnv: 'production', port: '4417' },
+			entry: 'app.ts',
+			mode: 'preview',
 		},
 		{
 			name: 'keep going after page render failures',
@@ -579,6 +588,31 @@ describe('CLI Commands', () => {
 		const exitSpy = mockProcessExit();
 
 		await expect(runCli([command, '--force'])).rejects.toThrow('process.exit:1');
+		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
+	});
+
+	it('lists every entry flag of a command in its help and accepts it', async () => {
+		const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+		for (const [flag, definition] of Object.entries(ENTRY_COMMAND_FLAGS)) {
+			for (const command of definition.commands) {
+				await runCli([command, `--${flag}`, '--help']);
+				expect(String(log.mock.calls.at(-1)?.[0])).toContain(`--${flag}`);
+			}
+		}
+
+		log.mockRestore();
+	});
+
+	it.each([
+		['serve-only', 'build'],
+		['keep-going', 'preview'],
+	])('rejects --%s for %s, which does not use it', async (flag, command) => {
+		const exitSpy = mockProcessExit();
+
+		await expect(runCli([command, `--${flag}`])).rejects.toThrow('process.exit:1');
 		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
 
 		exitSpy.mockRestore();

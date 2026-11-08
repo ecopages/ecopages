@@ -359,7 +359,7 @@ describe('eco namespace', () => {
 		});
 
 		test('should store layout in config and include in dependencies', async () => {
-			const Layout = eco.component<{ children: string }>({
+			const Layout = eco.layout({
 				render: ({ children }) => `<main class="layout">${children}</main>`,
 			});
 
@@ -375,7 +375,7 @@ describe('eco namespace', () => {
 		});
 
 		test('should render raw content (layout wrapping happens at render time)', async () => {
-			const Layout = eco.component<{ children: string }>({
+			const Layout = eco.layout({
 				render: ({ children }) => `<main class="layout">${children}</main>`,
 			});
 
@@ -393,7 +393,7 @@ describe('eco namespace', () => {
 		});
 
 		test('should include layout in dependencies when provided', () => {
-			const Layout = eco.component<{ children: string }>({
+			const Layout = eco.layout({
 				dependencies: {
 					stylesheets: ['./layout.css'],
 				},
@@ -419,83 +419,6 @@ describe('eco namespace', () => {
 			});
 
 			expect(Page.config?.integration).toBe('react');
-		});
-	});
-
-	describe('eco.metadata()', () => {
-		test('should be an identity function', () => {
-			const metadataFn = () => ({
-				title: 'Home',
-				description: 'Welcome',
-			});
-
-			const wrapped = eco.metadata(metadataFn);
-			expect(wrapped).toBe(metadataFn);
-		});
-
-		test('should work with async metadata function', async () => {
-			const metadataFn = async () => ({
-				title: 'Home',
-				description: 'Welcome',
-			});
-
-			const wrapped = eco.metadata(metadataFn);
-			const result = await wrapped({ props: {}, params: {}, query: {}, appConfig: mockAppConfig });
-			expect(result.title).toBe('Home');
-		});
-
-		test('should work with props-based metadata', () => {
-			const metadataFn = async () => ({ title: 'My Post', description: 'Post excerpt' });
-			const wrapped = eco.metadata(metadataFn);
-			expect(wrapped).toBe(metadataFn);
-		});
-	});
-
-	describe('eco.staticPaths()', () => {
-		test('should be an identity function', () => {
-			const staticPathsFn = async () => ({
-				paths: [{ params: { slug: 'post-1' } }, { params: { slug: 'post-2' } }],
-			});
-
-			const wrapped = eco.staticPaths(staticPathsFn);
-			expect(wrapped).toBe(staticPathsFn);
-		});
-
-		test('should preserve function behavior', async () => {
-			const staticPathsFn = async () => ({
-				paths: [{ params: { slug: 'post-1' } }, { params: { slug: 'post-2' } }],
-			});
-
-			const wrapped = eco.staticPaths(staticPathsFn);
-			const result = await wrapped({ appConfig: mockAppConfig, runtimeOrigin: '' });
-			expect(result.paths).toHaveLength(2);
-			expect(result.paths[0].params.slug).toBe('post-1');
-		});
-	});
-
-	describe('eco.staticProps()', () => {
-		test('should be an identity function', () => {
-			const staticPropsFn = async ({ pathname }: any) => ({
-				props: { slug: pathname.params.slug },
-			});
-
-			const wrapped = eco.staticProps(staticPropsFn);
-			expect(wrapped).toBe(staticPropsFn);
-		});
-
-		test('should preserve function behavior', async () => {
-			const staticPropsFn = async ({ pathname }: any) => ({
-				props: { post: { title: 'Test Post', slug: pathname.params.slug } },
-			});
-
-			const wrapped = eco.staticProps(staticPropsFn);
-			const result = await wrapped({
-				pathname: { params: { slug: 'my-post' } },
-				appConfig: mockAppConfig,
-				runtimeOrigin: '',
-			});
-			expect(result.props.post.title).toBe('Test Post');
-			expect(result.props.post.slug).toBe('my-post');
 		});
 	});
 

@@ -1,5 +1,5 @@
 import { contentHash } from '../utils/content-hash.ts';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { CLIENT_OUTPUT_DIR, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../utils/resolve-entry-file.ts';
@@ -22,7 +22,7 @@ export interface ServerBundleDeployManifest {
 	emittedConfigModule?: string;
 	/** Content hash of the emitted production config artifact. */
 	emittedConfigHash?: string;
-	/** Id shared with `routes.json`, `server-modules.json`, and the browser-client manifest. */
+	/** Id shared with `routes.json`, `server-modules.json`, and `processed-assets.json`. */
 	buildId?: string;
 }
 
@@ -132,7 +132,7 @@ function isServerBundleDeployManifest(value: unknown): value is ServerBundleDepl
  * @returns The absolute path of the build output directory.
  */
 export async function resolveProductionDistDir(options: { cwd?: string; distDir?: string } = {}): Promise<string> {
-	const cwd = path.resolve(options.cwd ?? process.cwd());
+	const cwd = path.resolve(options.cwd ?? path.cwd());
 	const describe = (distDir: string) => path.relative(cwd, distDir) || '.';
 
 	const staticOnlyError = (distDir: string) =>

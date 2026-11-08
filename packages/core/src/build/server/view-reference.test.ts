@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, it } from 'vitest';
 import {
 	collectViewIntegrations,
@@ -14,13 +14,13 @@ import {
 
 describe('view references', () => {
 	it('returns the same object for two imports of one file', () => {
-		const filePath = path.join('/tmp', 'shared-view.kita.tsx');
+		const filePath = path.resolve('/tmp/shared-view.kita.tsx');
 		const first = createViewReference(filePath, 'kitajs');
 		const second = createViewReference(filePath, 'kitajs');
 
 		assert.equal(first, second);
 		assert.equal(isViewReference(first), true);
-		assert.equal(first.filePath, path.resolve(filePath));
+		assert.equal(first.filePath, filePath);
 		assert.equal(first.config.identity.integration, 'kitajs');
 	});
 
@@ -91,10 +91,10 @@ describe('view references', () => {
 		);
 	});
 
-	it('writes a module that constructs the reference for the resolved file', () => {
+	it('writes a module that constructs the reference for the file relative to the app root', () => {
 		const filePath = '/app/src/views/post.kita.tsx';
-		const source = viewReferenceModuleSource(filePath, 'kitajs');
-		assert.match(source, /createViewReference/);
+		const source = viewReferenceModuleSource(filePath, 'kitajs', '/app');
+		assert.match(source, /createViewReference\("src\/views\/post\.kita\.tsx", "kitajs"\)/);
 		assert.match(source, /@ecopages\/core\/view-reference/);
 		assert.equal(viewExtensionFilter(['.kita.tsx', '.html']).test('/app/src/views/post.kita.tsx'), true);
 		assert.equal(viewExtensionFilter(['.kita.tsx']).test('/app/src/views/post.tsx'), false);

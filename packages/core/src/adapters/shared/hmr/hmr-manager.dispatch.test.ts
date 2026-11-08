@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, test, vi } from 'vitest';
 import { appLogger } from '../../../global/app-logger.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
@@ -180,7 +180,7 @@ describe('handleFileChanges dispatch', () => {
 		assert.equal(broadcasts[0].path, cssFile);
 	});
 
-	test('HTML file change routes to DefaultHmrStrategy and broadcasts reload', async () => {
+	test('HTML Page change routes to TemplateSourceHmrStrategy and broadcasts layout-update', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-html');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const { manager, broadcasts } = await startHmrManagerAt(rootDir, 1);
@@ -191,8 +191,22 @@ describe('handleFileChanges dispatch', () => {
 		await manager.handleFileChanges([htmlFile]);
 
 		assert.equal(broadcasts.length, 1);
-		assert.equal(broadcasts[0].type, 'reload');
+		assert.equal(broadcasts[0].type, 'layout-update');
 		assert.equal(broadcasts[0].path, htmlFile);
+	});
+
+	test('HTML file outside the source directory falls through to DefaultHmrStrategy reload', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-html-outside-src');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		const { manager, broadcasts } = await startHmrManagerAt(rootDir, 1);
+
+		const htmlFile = path.join(rootDir, 'fragments', 'banner.html');
+		fs.mkdirSync(path.dirname(htmlFile), { recursive: true });
+		fs.writeFileSync(htmlFile, '<div>Banner</div>\n', 'utf8');
+		await manager.handleFileChanges([htmlFile]);
+
+		assert.equal(broadcasts.length, 1);
+		assert.equal(broadcasts[0].type, 'reload');
 	});
 
 	test('TS file with no registered entrypoints falls through to DefaultHmrStrategy reload', async () => {

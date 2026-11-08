@@ -28,4 +28,4 @@ export type {
 	RouteRenderResult,
 } from './contracts.ts';
 export type { AssetDefinition, ProcessedAsset } from './asset-types.ts';
-export type { DevTransformBundleContributor } from './dev-transform-types.ts';
+export type { DevTransformBundleContributor, DevTransformVendorEntries } from './dev-transform-types.ts';

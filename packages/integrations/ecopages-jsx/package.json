@@ -8,6 +8,9 @@
 		"plugin"
 	],
 	"license": "MIT",
+	"engines": {
+		"node": "^24.22.0 || >=26.0.0"
+	},
 	"main": "./src/ecopages-jsx.plugin.ts",
 	"types": "./src/ecopages-jsx.plugin.ts",
 	"type": "module",
@@ -51,7 +54,7 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/jsx": "^0.6.0",
-		"@ecopages/radiant": "^0.6.0"
+		"@ecopages/jsx": "^0.8.2",
+		"@ecopages/radiant": "^0.8.2"
 	}
 }

@@ -1,5 +1,5 @@
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoBuildPlugin } from '@ecopages/core/integration';
+import type { EcoBuildPlugin, StylesheetKinds } from '@ecopages/core/integration';
 import { attributeMdxComponentIdentity } from '@ecopages/core';
 import { type CompileOptions, compile } from '@mdx-js/mdx';
 import { recordMdxTransform, type RequestPipelineMetricsState } from '@ecopages/core/build';
@@ -17,6 +17,13 @@ export interface CreateMdxLoaderPluginOptions {
 	defaultMdExtensions?: string[];
 	includeSourceMap?: boolean;
 	loader?: 'js' | 'jsx';
+	/**
+	 * The stylesheet kinds of the app, from `getStylesheetKinds(app)` in the Integration's `plugins(app)`.
+	 *
+	 * @remarks
+	 * Without them only `.css` imports of a document are discovered.
+	 */
+	stylesheets?: StylesheetKinds;
 }
 
 type MdxCompileCacheEntry = {
@@ -31,10 +38,10 @@ type MdxCompileCacheEntry = {
  * @remarks
  * Compiler options hold remark and rehype plugins, which are functions; they enter by
  * name, so two loaders that differ only in an anonymous plugin's closure share a key.
- * Regular expressions enter by source, since `JSON.stringify` would drop them.
+ * Regular expressions enter by source, since `JSON.stringify` would drop them. The project root stays out, as
+ * no plugin key may hold an absolute path.
  */
 function createLoaderCacheKey(options: {
-	projectRoot: string;
 	compilerOptions: CompileOptions | undefined;
 	extensions: string[];
 	includeSourceMap: boolean;
@@ -83,7 +90,7 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 
 	return {
 		name,
-		cacheKey: createLoaderCacheKey({ projectRoot, compilerOptions, extensions, includeSourceMap, loader }),
+		cacheKey: createLoaderCacheKey({ compilerOptions, extensions, includeSourceMap, loader }),
 		setup(build) {
 			build.onLoad({ filter }, async (args) => {
 				const filePath = args.path.includes('?') ? args.path.split('?')[0] : args.path;
@@ -110,6 +117,7 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 					integrationName,
 					projectRoot,
 					includeSourceMap ? cached.map : undefined,
+					options.stylesheets,
 				);
 
 				return {

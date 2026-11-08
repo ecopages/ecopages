@@ -11,7 +11,7 @@ import {
 	readFile as readFileAsync,
 	writeFile as writeFileAsync,
 } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { path } from '../path.ts';
 import type { FileSystem, FileWatcher, GlobOptions, WatchOptions } from '../types.ts';
 import { BaseFileSystem } from '../utils/common.ts';
 import { RecursiveFileWatcher } from './recursive-file-watcher.ts';
@@ -20,10 +20,10 @@ async function collectGlobMatches(pattern: string, options: GlobOptions): Promis
 	const matches: string[] = [];
 
 	for await (const entry of globAsync(pattern, {
-		cwd: options.cwd ?? process.cwd(),
+		cwd: options.cwd ?? path.cwd(),
 		exclude: options.ignore,
 	})) {
-		matches.push(entry);
+		matches.push(path.fromNative(entry));
 	}
 
 	return matches;
@@ -42,19 +42,19 @@ export class NodeFileSystem extends BaseFileSystem implements FileSystem {
 		}
 	}
 
-	async readFile(path: string): Promise<string> {
+	async readFile(filePath: string): Promise<string> {
 		try {
-			this.verifyFileExists(path);
-			return await readFileAsync(path, 'utf-8');
+			this.verifyFileExists(filePath);
+			return await readFileAsync(filePath, 'utf-8');
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			throw new Error(`Error reading file: ${path}, ${message}`);
+			throw new Error(`Error reading file: ${filePath}, ${message}`);
 		}
 	}
 
 	async writeAsync(filepath: string, contents: string | Buffer): Promise<void> {
 		try {
-			await this.ensureDirAsync(dirname(filepath));
+			await this.ensureDirAsync(path.dirname(filepath));
 			await writeFileAsync(filepath, contents);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -75,13 +75,13 @@ export class NodeFileSystem extends BaseFileSystem implements FileSystem {
 		return new RecursiveFileWatcher(paths, options);
 	}
 
-	hash(path: string): string {
+	hash(filePath: string): string {
 		try {
-			const buffer = this.readFileAsBuffer(path);
+			const buffer = this.readFileAsBuffer(filePath);
 			return crypto.createHash('sha256').update(buffer).digest('hex');
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			throw new Error(`Error hashing file: ${path}. Cause: ${message}`);
+			throw new Error(`Error hashing file: ${filePath}. Cause: ${message}`);
 		}
 	}
 }

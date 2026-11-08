@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { test, vi } from 'vitest';
 import { BrowserBundleService } from '../../../assets/browser-bundle.service.ts';
 import { createTempRoot, startHmrManagerAt, writeSourceFile } from './hmr-manager.test-helpers.ts';
@@ -23,8 +22,8 @@ test('HmrManager disables HMR instead of throwing when runtime bundle generation
 	await assert.doesNotReject(() => manager.ensureRuntimeReady());
 
 	assert.equal(manager.isEnabled(), false);
-	assert.equal(runtimeEntrypoint, fileURLToPath(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime')));
-	assert.equal(runtimeEntrypoint?.includes(`${path.sep}.eco${path.sep}hmr${path.sep}client${path.sep}`), false);
+	assert.equal(runtimeEntrypoint, path.fromFileUrl(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime')));
+	assert.equal(runtimeEntrypoint?.includes(`/.eco/hmr/client/`), false);
 	assert.match(errorSpy.mock.calls.flat().join(' '), /Failed to build runtime script; continuing with HMR disabled/);
 });
 

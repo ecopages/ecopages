@@ -1,10 +1,9 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { SERVER_BUNDLE_DIR } from '../utils/resolve-entry-file.ts';
 import { PRODUCTION_ROUTES_FILENAME } from './production-route-list.ts';
 import { SERVER_MODULES_MANIFEST_FILENAME } from './server/server-modules-manifest.ts';
-
-const BROWSER_CLIENT_MANIFEST_FILENAME = 'browser-client-manifest.json';
+import { PRODUCTION_ASSET_LEDGER_FILENAME } from './production-asset-ledger.ts';
 
 function describe(rootDir: string, filePath: string): string {
 	return path.relative(rootDir, filePath) || '.';
@@ -101,25 +100,20 @@ function requireServerModules(rootDir: string, serverDir: string, buildId: strin
 	);
 }
 
-function requireOptionalBrowserManifest(
-	rootDir: string,
-	serverDir: string,
-	buildId: string,
-	deployManifestPath: string,
-): void {
-	const browserManifestPath = path.join(serverDir, BROWSER_CLIENT_MANIFEST_FILENAME);
-	if (!fileSystem.exists(browserManifestPath)) return;
-	const browserManifest = requireJsonObject(rootDir, browserManifestPath, 'browser client manifest');
-	requireMatchingBuildId(rootDir, buildId, deployManifestPath, browserManifestPath, browserManifest);
-	const browserOutputPaths = browserManifest.browserOutputPaths;
-	if (Array.isArray(browserOutputPaths)) {
-		requireListedFiles(
-			rootDir,
-			browserOutputPaths,
-			(relativePath) => path.resolve(rootDir, relativePath),
-			'browser output',
-		);
-	}
+function requireAssetLedger(rootDir: string, serverDir: string, buildId: string, deployManifestPath: string): void {
+	const ledgerPath = path.join(serverDir, PRODUCTION_ASSET_LEDGER_FILENAME);
+	const ledger = requireJsonObject(rootDir, ledgerPath, 'asset ledger');
+	requireMatchingBuildId(rootDir, buildId, deployManifestPath, ledgerPath, ledger);
+	const entryOutputs = Array.isArray(ledger.entries)
+		? ledger.entries.flatMap((entry: { asset?: { filepath?: unknown } }) => entry.asset?.filepath ?? [])
+		: [];
+	const browserOutputs = Array.isArray(ledger.browserOutputs) ? ledger.browserOutputs : [];
+	requireListedFiles(
+		rootDir,
+		[...entryOutputs, ...browserOutputs],
+		(relativePath) => path.resolve(rootDir, relativePath),
+		'asset output',
+	);
 }
 
 /**
@@ -148,5 +142,5 @@ export function assertProductionDistComplete(rootDir: string, distDir: string): 
 	const routeList = requireJsonObject(resolvedRoot, routeListPath, 'route list');
 	requireMatchingBuildId(resolvedRoot, buildId, deployManifestPath, routeListPath, routeList);
 	requireServerModules(resolvedRoot, serverDir, buildId, deployManifestPath);
-	requireOptionalBrowserManifest(resolvedRoot, serverDir, buildId, deployManifestPath);
+	requireAssetLedger(resolvedRoot, serverDir, buildId, deployManifestPath);
 }

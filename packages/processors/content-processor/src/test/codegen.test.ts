@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponent } from '@ecopages/core';
 import type { ContentCollectionLoader } from '../types.ts';
 import {
@@ -28,7 +29,7 @@ describe('codegen', () => {
 	});
 
 	test('renderCollectionComponentsModule emits lazy MDX loaders, attach helper, and async getComponent', () => {
-		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
+		const output = renderCollectionComponentsModule('docs', '/tmp/cache', '/app', [
 			{
 				entry: {
 					title: 'Intro',
@@ -52,7 +53,7 @@ describe('codegen', () => {
 		expect(output).not.toContain('getComponentIdentity');
 		expect(output).toContain("import { HttpError } from '@ecopages/core/errors'");
 		expect(output).toContain('throw HttpError.NotFound(`Unknown content entry: ${slug}`)');
-		expect(output).toContain("'intro': '/app/src/content/docs/intro.mdx',");
+		expect(output).toContain("'intro': 'src/content/docs/intro.mdx',");
 		expect(output).toContain('export async function getComponent(slug: string)');
 		expect(output).toContain('export async function getEntryDependencies(slug: string)');
 		expect(output).toContain('export const loadComponent = Object.assign((slug: string) => getComponent(slug), {');
@@ -65,7 +66,7 @@ describe('codegen', () => {
 	});
 
 	test('renderCollectionBrowserModule emits one coalesced dynamic loader per entry', () => {
-		const output = renderCollectionBrowserModule('docs', '/tmp/cache', [
+		const output = renderCollectionBrowserModule('docs', '/tmp/cache', '/app', [
 			{
 				entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
 				filePath: '/app/src/content/docs/intro.mdx',
@@ -121,8 +122,10 @@ describe('codegen', () => {
 
 	test('fallback content-virtual-modules.d.ts separates server and component wildcards and omits them from catch-all', async () => {
 		const { readFileSync } = await import('node:fs');
-		const { resolve } = await import('node:path');
-		const dtsContent = readFileSync(resolve(import.meta.dirname, '../content-virtual-modules.d.ts'), 'utf-8');
+		const dtsContent = readFileSync(
+			path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../content-virtual-modules.d.ts'),
+			'utf-8',
+		);
 
 		const serverIndex = dtsContent.indexOf("declare module 'ecopages:content/*/server'");
 		const componentIndex = dtsContent.indexOf("declare module 'ecopages:content/*/component'");
@@ -143,7 +146,7 @@ describe('codegen', () => {
 	});
 
 	test('attachMdxExports assigns loader-attributed config by reference and does not re-bind', () => {
-		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
+		const output = renderCollectionComponentsModule('docs', '/tmp/cache', '/app', [
 			{
 				entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
 				filePath: '/app/src/content/docs/intro.mdx',
@@ -158,7 +161,7 @@ describe('codegen', () => {
 	});
 
 	test('server module hands owned MDX entries to their owning renderer through the foreign-child queue', () => {
-		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
+		const output = renderCollectionComponentsModule('docs', '/tmp/cache', '/app', [
 			{
 				entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
 				filePath: '/app/src/content/docs/intro.mdx',
@@ -178,25 +181,24 @@ describe('attachMdxExports ownership guard', () => {
 	test('throws for mismatched lanes, skips async invocation in a foreign lane, and passes in the owning lane', async () => {
 		const { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync, rmSync } = await import('node:fs');
 		const { tmpdir } = await import('node:os');
-		const { join } = await import('node:path');
 		const { runWithComponentRenderContext } = await import('@ecopages/core/integration');
 
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-codegen-'));
-		mkdirSync(join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
-		const packageRoot = join(import.meta.dirname, '..', '..');
-		symlinkSync(packageRoot, join(tempDir, 'node_modules', '@ecopages', 'content-processor'), 'dir');
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-codegen-')));
+		mkdirSync(path.join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
+		const packageRoot = path.join(path.dirname(path.fromFileUrl(import.meta.url)), '..', '..');
+		symlinkSync(packageRoot, path.join(tempDir, 'node_modules', '@ecopages', 'content-processor'), 'dir');
 		symlinkSync(
-			realpathSync(join(packageRoot, 'node_modules', '@ecopages', 'core')),
-			join(tempDir, 'node_modules', '@ecopages', 'core'),
+			path.fromNative(realpathSync(path.join(packageRoot, 'node_modules', '@ecopages', 'core'))),
+			path.join(tempDir, 'node_modules', '@ecopages', 'core'),
 			'dir',
 		);
-		const cacheDir = join(tempDir, 'cache');
+		const cacheDir = path.join(tempDir, 'cache');
 		mkdirSync(cacheDir, { recursive: true });
-		mkdirSync(join(tempDir, 'src'), { recursive: true });
+		mkdirSync(path.join(tempDir, 'src'), { recursive: true });
 
-		const reactEntryPath = join(tempDir, 'src', 'intro.react.mjs');
-		const hostEntryPath = join(tempDir, 'src', 'intro.host.mjs');
-		const asyncEntryPath = join(tempDir, 'src', 'intro.async.mjs');
+		const reactEntryPath = path.join(tempDir, 'src', 'intro.react.mjs');
+		const hostEntryPath = path.join(tempDir, 'src', 'intro.host.mjs');
+		const asyncEntryPath = path.join(tempDir, 'src', 'intro.async.mjs');
 		writeFileSync(
 			reactEntryPath,
 			[
@@ -224,7 +226,7 @@ describe('attachMdxExports ownership guard', () => {
 			].join('\n'),
 		);
 
-		const serverModule = renderCollectionComponentsModule('docs', cacheDir, [
+		const serverModule = renderCollectionComponentsModule('docs', cacheDir, tempDir, [
 			{
 				entry: { title: 'Intro React', description: 'Welcome', slug: 'intro-react', segments: ['intro-react'] },
 				filePath: reactEntryPath,
@@ -238,7 +240,7 @@ describe('attachMdxExports ownership guard', () => {
 				filePath: asyncEntryPath,
 			},
 		]);
-		const serverModulePath = join(cacheDir, 'docs.server.mts');
+		const serverModulePath = path.join(cacheDir, 'docs.server.mts');
 		writeFileSync(serverModulePath, serverModule);
 
 		try {
@@ -303,25 +305,24 @@ describe('generated browser loader', () => {
 	test('loads an entry once for concurrent callers and rejects an unknown slug with NotFound', async () => {
 		const { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync, rmSync } = await import('node:fs');
 		const { tmpdir } = await import('node:os');
-		const { join } = await import('node:path');
 
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-codegen-browser-'));
-		mkdirSync(join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
-		const packageRoot = join(import.meta.dirname, '..', '..');
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-codegen-browser-')));
+		mkdirSync(path.join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
+		const packageRoot = path.join(path.dirname(path.fromFileUrl(import.meta.url)), '..', '..');
 		symlinkSync(
-			realpathSync(join(packageRoot, 'node_modules', '@ecopages', 'core')),
-			join(tempDir, 'node_modules', '@ecopages', 'core'),
+			path.fromNative(realpathSync(path.join(packageRoot, 'node_modules', '@ecopages', 'core'))),
+			path.join(tempDir, 'node_modules', '@ecopages', 'core'),
 			'dir',
 		);
-		const cacheDir = join(tempDir, 'cache');
+		const cacheDir = path.join(tempDir, 'cache');
 		mkdirSync(cacheDir, { recursive: true });
-		const entryPath = join(tempDir, 'intro.mjs');
+		const entryPath = path.join(tempDir, 'intro.mjs');
 		writeFileSync(entryPath, 'export default () => "browser-entry";\n');
 
-		const browserModulePath = join(cacheDir, 'docs.browser.mts');
+		const browserModulePath = path.join(cacheDir, 'docs.browser.mts');
 		writeFileSync(
 			browserModulePath,
-			renderCollectionBrowserModule('docs', cacheDir, [
+			renderCollectionBrowserModule('docs', cacheDir, tempDir, [
 				{
 					entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
 					filePath: entryPath,

@@ -5,10 +5,6 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { ScriptHmrHost } from '@/components/script-hmr/script-hmr-host.eco';
 
 export default eco.page<{}, JsxRenderable>({
-	integration: 'ecopages-jsx',
-	dependencies: {
-		components: [BaseLayout, ScriptHmrHost],
-	},
 	layout: BaseLayout,
 	metadata: () => ({
 		title: 'Script HMR Fixture',

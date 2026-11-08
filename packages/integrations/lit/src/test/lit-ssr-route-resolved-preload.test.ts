@@ -1,17 +1,17 @@
 import { mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createTestAppConfig } from '@ecopages/testing';
+import { LitPlugin } from '../lit.plugin.ts';
 import { ensureLitDomShim } from '../dom-shim.ts';
 import { LitRenderer } from '../lit-renderer.ts';
 
 ensureLitDomShim();
 
-const PACKAGE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const FIXTURES_DIR = fileURLToPath(new URL('./fixtures/', import.meta.url));
+const PACKAGE_ROOT = path.fromFileUrl(new URL('../..', import.meta.url));
+const FIXTURES_DIR = path.fromFileUrl(new URL('./fixtures/', import.meta.url));
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => `<html><body>${children}</body></html>`;
 
@@ -34,7 +34,7 @@ async function createRenderer(): Promise<TestLitRenderer> {
 	const workDir = await mkdtemp(path.join(tmpdir(), 'lit-ssr-route-resolved-preload-'));
 	tempDirs.push(workDir);
 	await symlink(path.join(PACKAGE_ROOT, 'node_modules'), path.join(workDir, 'node_modules'), 'dir');
-	const appConfig = await createTestAppConfig({ rootDir: PACKAGE_ROOT, workDir });
+	const appConfig = await createTestAppConfig({ rootDir: PACKAGE_ROOT, workDir, integrations: [new LitPlugin()] });
 
 	return new TestLitRenderer({
 		appConfig,

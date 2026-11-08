@@ -2,8 +2,8 @@ import path from 'node:path';
 import { defineConfig } from '@ecopages/core/config';
 import { imageProcessorPlugin, type ImageProcessorConfig } from '@ecopages/image-processor';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
 
 export const imageProcessorConfig: ImageProcessorConfig = {
 	sourceDir: path.resolve(import.meta.dirname, 'src/images'),
@@ -23,11 +23,12 @@ export const imageProcessorConfig: ImageProcessorConfig = {
 export default defineConfig({
 	integrations: [ecopagesJsxPlugin()],
 	processors: [
-		postcssProcessorPlugin(
-			tailwindV4Preset({
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
 				referencePath: path.resolve(import.meta.dirname, 'src/styles/app.css'),
 			}),
-		),
+			targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+		}),
 		imageProcessorPlugin({ options: imageProcessorConfig }),
 	],
 });

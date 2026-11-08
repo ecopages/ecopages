@@ -12,11 +12,7 @@
  * ```ts
  * const myRouter: ReactRouterAdapter = {
  *   name: 'my-router',
- *   bundle: {
- *     importPath: '@my/router/browser',
- *     outputName: 'my-router',
- *     externals: ['react', 'react-dom'],
- *   },
+ *   importPath: '@my/router/browser',
  *   components: {
  *     router: 'MyRouter',
  *     pageContent: 'PageOutlet',
@@ -32,28 +28,15 @@ export interface ReactRouterAdapter {
 	name: string;
 
 	/**
-	 * Runtime bundle configuration.
+	 * Package specifier of the router's browser entry, which page bootstraps import.
+	 *
+	 * @remarks
+	 * It resolves like any other package: production bundles it into the app-wide build and development serves it
+	 * from the vendor graph, so it shares React with the Pages.
+	 *
+	 * @example '@ecopages/react-router/browser'
 	 */
-	bundle: {
-		/**
-		 * Node module import path for the browser-compatible entry.
-		 * @example '@ecopages/react-router/browser'
-		 */
-		importPath: string;
-
-		/**
-		 * Output filename (without extension).
-		 * @example 'my-router'
-		 */
-		outputName: string;
-
-		/**
-		 * Packages to externalize when bundling.
-		 * These should stay as bare runtime dependencies for the router bundle.
-		 * @example ['react', 'react-dom']
-		 */
-		externals: string[];
-	};
+	importPath: string;
 
 	/**
 	 * Component names to import from the router package.

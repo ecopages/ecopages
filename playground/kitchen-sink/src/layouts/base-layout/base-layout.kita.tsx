@@ -5,7 +5,6 @@ import { getPrimaryLinkTestId, kitchenSinkShell, kitchenSinkShellTestId, primary
 
 export const BaseLayout = eco.layout({
 	dependencies: {
-		components: [ThemeToggleReact],
 		scripts: ['./base-layout.script.ts'],
 	},
 	render: ({ children, locals }: LayoutProps) => {

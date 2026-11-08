@@ -104,7 +104,6 @@ const DocsBreadcrumb = ({ crumbs }: { crumbs: BreadcrumbItem[] }) => (
 export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
 		scripts: [{ src: './docs-layout.script.ts', ssr: true }],
-		components: [CopyForLlm],
 	},
 	render: ({ children, section, slug, nav = wikiNav, rootLabel = 'Wiki', sources = [] }: DocsLayoutRenderProps) => {
 		const crumbs = breadcrumbForPage(nav, rootLabel, section, slug);

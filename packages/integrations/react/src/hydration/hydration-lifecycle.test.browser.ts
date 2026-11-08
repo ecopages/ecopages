@@ -5,6 +5,7 @@ import {
 	lazy,
 	Suspense,
 	useEffect,
+	useState,
 	type ComponentType,
 	type ElementType,
 	type ReactNode,
@@ -101,6 +102,7 @@ function createPageOptions(
 			);
 		},
 		createElement: (...args: unknown[]) => ({ args }),
+		useState,
 	};
 
 	return {
@@ -109,7 +111,6 @@ function createPageOptions(
 		Page,
 		pageDataReader: {
 			readPageDataDocument: () => ({ props: { title: 'Hello React', locals: { theme: 'dark' } } }),
-			getPageDataFromDocument: () => ({ title: 'Hello React' }),
 		},
 		runtime: reactRuntime,
 		createTree: (Component, props) => ({ Component, props }),
@@ -327,7 +328,7 @@ describe('React page lifecycle', () => {
 
 		expect(options.Page).not.toBe(initialPage);
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__!.renderCalls).toEqual([
-			{ Component: options.Page, props: { title: 'Hello React' } },
+			{ Component: options.Page, props: { title: 'Hello React', locals: { theme: 'dark' } } },
 		]);
 	});
 });
@@ -354,7 +355,6 @@ function createRealPageHydrationOptions(Page: unknown): PageHydrationOptions {
 		Page,
 		pageDataReader: {
 			readPageDataDocument: () => ({ props: {} }),
-			getPageDataFromDocument: () => ({}),
 		},
 		runtime: {
 			hydrateRoot: (target, tree, options) => {
@@ -601,6 +601,7 @@ describe('React Island Host lifecycle', () => {
 			},
 			createElement: (type: unknown, props: Record<string, unknown>) => ({ type, props }),
 			useEffect: (effect: () => void) => queueMicrotask(effect),
+			useState,
 		};
 		const Component = () => null;
 		const options = {
@@ -701,6 +702,7 @@ describe('React Island Host lifecycle', () => {
 			useEffect: (effect: () => void) => {
 				useEffect(effect);
 			},
+			useState,
 		};
 		const runtime: IslandHydrationRuntime = { islandRoots: {}, islandComponents: {} };
 
@@ -741,6 +743,7 @@ describe('React Island Host lifecycle', () => {
 			},
 			createElement: (type: unknown, props: Record<string, unknown>) => ({ type, props }),
 			useEffect: () => {},
+			useState,
 		};
 		const runtime: IslandHydrationRuntime = { islandRoots: {}, islandComponents: {} };
 
@@ -857,6 +860,7 @@ function createRecordingIslandRuntime() {
 		},
 		createElement: (type: unknown, props: Record<string, unknown>) => ({ type, props }),
 		useEffect: (effect: () => void) => queueMicrotask(effect),
+		useState,
 	};
 	return { reactRuntime, renderedComponents };
 }

@@ -50,7 +50,6 @@ import remarkGfm from 'remark-gfm';
 import { compareDocsEntries, docsFrontmatterSchema } from './src/content/docs';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	integrations: [
 		ecopagesJsxPlugin({
 			mdx: {
@@ -134,12 +133,13 @@ Forward the active entry's Dependencies on the catch-all Page. Combine Page-loca
 ```typescript
 import { eco, mergePageDependencies } from '@ecopages/core';
 import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
+import type { Entry } from 'ecopages:content/docs';
 import { CopyForLlm } from '@/components/copy-for-llm';
 
 export default eco.page({
 	dependencies: async ({ props }) =>
 		mergePageDependencies({ components: [CopyForLlm] }, await getEntryDependencies(props.entry.slug)),
-	render: async ({ entry }) => {
+	render: async ({ entry }: { entry: Entry }) => {
 		const Content = await getComponent(entry.slug);
 		return await Content({});
 	},

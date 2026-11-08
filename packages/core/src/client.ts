@@ -58,7 +58,11 @@ export {
 	getEcoDocumentOwner,
 	getEcoNavigationRuntime,
 } from './router/client/navigation-coordinator.ts';
-export { ECO_NAVIGATION_LIFECYCLE_EVENTS, type EcoNavigationEvent } from './router/client/navigation-lifecycle.ts';
+export {
+	ECO_NAVIGATION_LIFECYCLE_EVENTS,
+	schedulePageLoad,
+	type EcoNavigationEvent,
+} from './router/client/navigation-lifecycle.ts';
 export {
 	activatePreparedNavigationScripts,
 	activateScriptsInOrder,
@@ -70,6 +74,7 @@ export {
 	fetchNavigationPage,
 	getCachedNavigationHtml,
 	invalidateNavigationHtml,
+	loadNavigationGlobalScripts,
 	type NavigationHeadUpdate,
 	parseNavigationDocument,
 	prepareNavigationHead,

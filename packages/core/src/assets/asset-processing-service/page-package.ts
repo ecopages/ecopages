@@ -48,7 +48,7 @@ function classifyProcessedAsset(asset: ProcessedAsset, buckets: PagePackageBucke
 		return;
 	}
 
-	if (asset.packageRole === 'keep-separate' || asset.packageRole === 'runtime') {
+	if (asset.packageRole === 'keep-separate') {
 		buckets.separateAssets.push(asset);
 		return;
 	}
@@ -100,10 +100,6 @@ export function createPagePackage(
 
 function shouldIncludeInHtml(asset: ProcessedAsset, suppressedSourceFilepaths: Set<string>): boolean {
 	if (asset.excludeFromHtml) {
-		return false;
-	}
-
-	if (asset.packageRole === 'runtime') {
 		return false;
 	}
 

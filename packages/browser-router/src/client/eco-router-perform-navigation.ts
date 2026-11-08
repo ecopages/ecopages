@@ -7,8 +7,10 @@ export type PerformNavigationAttemptInput = {
 	direction: EcoNavigationEvent['direction'];
 	bypassPrefetchCache?: boolean;
 	allowFullDocumentFallback?: boolean;
+	reload?: boolean;
 	navigationCommit: NavigationCommit;
 	isStaleNavigation: () => boolean;
+	isSupersededNavigation: () => boolean;
 	signal: AbortSignal;
 };
 
@@ -34,7 +36,9 @@ export async function runPerformNavigationAttempt(input: PerformNavigationAttemp
 	return await input.navigationCommit.commit(page.finalUrl, input.direction, page.document, {
 		html: page.html,
 		isStaleNavigation: input.isStaleNavigation,
+		isSupersededNavigation: input.isSupersededNavigation,
 		allowFullDocumentFallback: input.allowFullDocumentFallback ?? true,
+		reload: input.reload,
 	});
 }
 

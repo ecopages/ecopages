@@ -23,35 +23,13 @@ function createPluginResult(exports: ImageMap): EcoBuildOnLoadResult {
 }
 
 /**
- * Declares `ecopages:images` as a virtual module for server builds.
+ * Declares `ecopages:images` as a virtual module for server and browser builds.
  */
 export function createImagePlugin(exports: ImageMap, ensureReady: EnsureImagesReady): EcoBuildPlugin {
 	return {
 		name: 'ecopages:images',
 		setup(build) {
 			build.module('ecopages:images', async () => {
-				await ensureReady();
-				return createPluginResult(exports);
-			});
-		},
-	};
-}
-
-/**
- * Resolves `ecopages:images` with `onResolve` and `onLoad` for browser builds.
- */
-export function createImagePluginBundler(exports: ImageMap, ensureReady: EnsureImagesReady): EcoBuildPlugin {
-	return {
-		name: 'ecopages:images',
-		setup(build) {
-			build.onResolve({ filter: /^ecopages:images$/ }, () => {
-				return {
-					namespace: 'ecopages-images',
-					path: 'ecopages:images',
-				};
-			});
-
-			build.onLoad({ filter: /.*/, namespace: 'ecopages-images' }, async () => {
 				await ensureReady();
 				return createPluginResult(exports);
 			});

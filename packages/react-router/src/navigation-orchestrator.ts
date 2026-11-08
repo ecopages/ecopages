@@ -11,7 +11,12 @@
 
 import { isStaticAssetHref } from '@ecopages/core/client';
 import type { EcoNavigationDirection } from '@ecopages/core/client';
-import { commitNavigationPage, ECO_PERSIST_ATTRIBUTE, fetchNavigationPage } from '@ecopages/core/client';
+import {
+	commitNavigationPage,
+	ECO_PERSIST_ATTRIBUTE,
+	fetchNavigationPage,
+	loadNavigationGlobalScripts,
+} from '@ecopages/core/client';
 import { type FetchedPageDocument, type LoadedPageModule, loadPageModuleFromDocument } from './navigation.ts';
 import { isReactRouterPageBootstrapAssetSrc } from './hydration-assets.ts';
 
@@ -27,7 +32,6 @@ export type ReactNavigationOutcome =
 			kind: 'spa';
 			page: LoadedPageModule;
 			direction: NavigationDirection;
-			refreshPersistedLayout: boolean;
 			requestedUrl: string;
 	  }
 	| {
@@ -48,21 +52,17 @@ export type ResolveReactNavigationInput = {
 
 export type SpaCommitEffects = {
 	isStale: () => boolean;
+	isSuperseded: () => boolean;
 	hardAssign: (href: string) => void;
 	viewTransitionsEnabled: boolean;
 	saveScrollPositions: () => void;
 	restoreScrollPositions: (finalPath: string, isPopState: boolean) => void;
 	updateHistory: (finalPath: string, requestedUrl: string, direction: NavigationDirection) => void;
-	commitPageData: (moduleUrl: string, props: Record<string, unknown>) => void;
-	setCurrentPage: (page: {
-		Component: LoadedPageModule['Component'];
-		props: Record<string, unknown>;
-		refreshPersistedLayout: boolean;
-	}) => void;
+	commitPageData: (moduleUrl: string, props: Record<string, unknown>, document: Document) => void;
+	setCurrentPage: (page: { Component: LoadedPageModule['Component']; props: Record<string, unknown> }) => void;
 	waitForRender: (page: {
 		Component: LoadedPageModule['Component'];
 		props: Record<string, unknown>;
-		refreshPersistedLayout: boolean;
 	}) => Promise<void>;
 	runInReactTransition: (update: () => void) => void;
 	onCommittedPath: (finalPath: string) => void;
@@ -134,6 +134,14 @@ export async function resolveReactNavigation(input: ResolveReactNavigationInput)
 		html: sharedPage.html,
 	};
 
+	if (!(await loadNavigationGlobalScripts(sharedPage.document))) {
+		console.error('[EcoRouter] Failed to load a global script of the next page.');
+		return input.isStale() ? { kind: 'stale' } : { kind: 'hard-navigation', href: input.url, mode: 'location' };
+	}
+	if (input.isStale()) {
+		return { kind: 'stale' };
+	}
+
 	let page: LoadedPageModule | null;
 	try {
 		page = await loadPageModuleFromDocument(sharedPage.document, finalPath, {
@@ -154,7 +162,6 @@ export async function resolveReactNavigation(input: ResolveReactNavigationInput)
 			kind: 'spa',
 			page,
 			direction,
-			refreshPersistedLayout: Boolean(input.moduleUrlOverride),
 			requestedUrl: input.url,
 		};
 	}
@@ -179,12 +186,11 @@ export async function applySpaNavigation(
 	effects: SpaCommitEffects,
 	options: { skipViewTransition: boolean; isPopState: boolean },
 ): Promise<SpaCommitResult> {
-	const { page, requestedUrl, refreshPersistedLayout } = outcome;
+	const { page, requestedUrl } = outcome;
 	const navigationUrl = new URL(page.finalPath, window.location.origin);
 	const nextPage = {
 		Component: page.Component,
 		props: page.props,
-		refreshPersistedLayout,
 	};
 
 	return await commitNavigationPage({
@@ -192,6 +198,7 @@ export async function applySpaNavigation(
 		direction: outcome.direction,
 		newDocument: page.doc,
 		isStale: effects.isStale,
+		isSuperseded: effects.isSuperseded,
 		viewTransitionsEnabled: !options.skipViewTransition && effects.viewTransitionsEnabled,
 		persistAttribute: ECO_PERSIST_ATTRIBUTE,
 		includeBodyScripts: false,
@@ -204,7 +211,7 @@ export async function applySpaNavigation(
 		swap: async () => {
 			const renderPromise = effects.waitForRender(nextPage);
 			effects.runInReactTransition(() => {
-				effects.commitPageData(page.moduleUrl, page.props);
+				effects.commitPageData(page.moduleUrl, page.props, page.doc);
 				effects.setCurrentPage(nextPage);
 			});
 			await renderPromise;

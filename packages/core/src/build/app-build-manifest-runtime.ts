@@ -1,4 +1,3 @@
-import { mergeBrowserRuntimeManifests } from './browser/browser-runtime-manifest.ts';
 import { seedProcessorWatchPaths } from './cache/build-input-dependency-index.ts';
 import {
 	createAppBuildManifest,
@@ -8,6 +7,7 @@ import {
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { AppRuntime } from '../config/assembly/app-runtime.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
 import { isLitStaticRenderWorkerThread } from './browser/lit-static-render-worker-context.ts';
 import { installConfiguredServerDom } from '../plugins/server-dom.ts';
@@ -17,15 +17,14 @@ import { installConfiguredServerDom } from '../plugins/server-dom.ts';
  *
  * @remarks
  * Called during runtime assembly. Loaders come first, then processors, then integrations. Each one's
- * `plugins(app)` is read once; every registration is validated once, by {@link createAppBuildManifest}. Browser
- * runtime manifests are data, not lifecycle hooks. Runtime setup happens after finalization.
+ * `plugins(app)` is read once; every registration is validated once, by {@link createAppBuildManifest}. Runtime
+ * setup happens after finalization.
  */
 export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManifest {
 	const registrations: BuildPluginRegistration[] = [...appConfig.loaders.values()].map((plugin) => ({
 		plugin,
 		source: `Loader "${plugin.name}"`,
 	}));
-	const browserRuntimeManifests = [];
 
 	for (const processor of appConfig.processors.values()) {
 		for (const plugin of processor.plugins(appConfig)) {
@@ -37,10 +36,9 @@ export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildMani
 		for (const plugin of integration.plugins(appConfig)) {
 			registrations.push({ plugin, source: `Integration "${integration.name}"` });
 		}
-		browserRuntimeManifests.push(integration.browserRuntimeManifest);
 	}
 
-	return createAppBuildManifest(registrations, mergeBrowserRuntimeManifests(...browserRuntimeManifests));
+	return createAppBuildManifest(registrations);
 }
 
 /**
@@ -90,14 +88,27 @@ export async function setupAppRuntimePlugins(options: {
 }
 
 /**
- * Activates one integration's runtime setup on first use.
+ * Activates one integration's runtime setup on first use, then resolves its global scripts when the runtime's
+ * `globalScriptResolution` is `'activation'`.
  *
  * @remarks
  * Concurrent callers share a single in-flight promise per integration name.
  * Server DOM install runs inside that promise, before `setup()`, so a second
- * caller cannot skip the in-flight activation. Failed activations are evicted
- * so a later caller can retry.
+ * caller cannot skip the in-flight activation. Resolution runs inside it too,
+ * after a successful `setup()`, so an Integration a request activates in dev or
+ * start, or after a failed warmup, has its global scripts once it is ready.
+ * A `'browser-build'` runtime leaves them to {@link resolveIntegrationDependencies} until that has run once; an activation
+ * after it, such as `app.fetch()` after a build in the same process, resolves at activation like any other.
+ * Failed activations are evicted so a later caller can retry.
  */
+/**
+ * Runtimes whose {@link resolveIntegrationDependencies} has run, so their browser build is known.
+ *
+ * @remarks
+ * Kept here rather than on the runtime so only this module can mark one.
+ */
+const browserBuildResolved = new WeakSet<AppRuntime>();
+
 export async function ensureIntegrationRuntimeReady(options: {
 	appConfig: EcoPagesAppConfig;
 	integrationName: string;
@@ -118,6 +129,9 @@ export async function ensureIntegrationRuntimeReady(options: {
 	const activation = (async () => {
 		await installConfiguredServerDom(options.appConfig.integrations);
 		await integration.setup({ appConfig: options.appConfig, runtime });
+		if (runtime.globalScriptResolution === 'activation' || browserBuildResolved.has(runtime)) {
+			await integration.refreshResolvedIntegrationDependencies();
+		}
 	})();
 
 	runtime.integrationActivations.set(options.integrationName, activation);
@@ -133,12 +147,43 @@ export async function ensureIntegrationRuntimeReady(options: {
 export async function setupAppRuntimeIntegrations(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
 	await Promise.all(
 		options.appConfig.integrations.map((integration) =>
-			ensureIntegrationRuntimeReady({
-				appConfig: options.appConfig,
-				integrationName: integration.name,
-			}),
+			ensureIntegrationRuntimeReady({ appConfig: options.appConfig, integrationName: integration.name }),
 		),
 	);
+}
+
+/**
+ * Fails a production export whose runtime resolves Integration global scripts at activation.
+ *
+ * @remarks
+ * Such a runtime bundles each global script on its own into `dist/client` at its first activation, beside the copy
+ * the app-wide browser build emits. Static generation calls this before it activates anything.
+ */
+export function requireBrowserBuildGlobalScriptResolution(appConfig: EcoPagesAppConfig): void {
+	const { globalScriptResolution } = requireAppRuntime(appConfig);
+	if (globalScriptResolution !== 'browser-build') {
+		throw new Error(
+			`A production export needs an app runtime created with globalScriptResolution 'browser-build', but it was created with '${globalScriptResolution}'. Run it through \`ecopages build\` or \`ecopages preview\`, finalize the config with { globalScriptResolution: 'browser-build' }, or load it with loadEcoPagesConfig({ globalScriptResolution: 'browser-build' }).`,
+		);
+	}
+}
+
+/**
+ * Resolves each Integration's global scripts once a `'browser-build'` runtime's browser build is known.
+ *
+ * @remarks
+ * Integration `setup()` does not resolve them. Static generation calls this after the app-wide browser build, so
+ * each global script resolves to that build's output, and the Lit static-render worker calls it after restoring
+ * the asset ledger. An Integration that was never set up is skipped.
+ *
+ * @throws When the runtime resolves at activation (see {@link requireBrowserBuildGlobalScriptResolution}).
+ */
+export async function resolveIntegrationDependencies(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+	requireBrowserBuildGlobalScriptResolution(options.appConfig);
+	browserBuildResolved.add(requireAppRuntime(options.appConfig));
+	for (const integration of options.appConfig.integrations) {
+		await integration.refreshResolvedIntegrationDependencies();
+	}
 }
 
 /**

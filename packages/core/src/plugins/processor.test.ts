@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { EcoPagesAppConfig } from '../config/internal-types';
 import {
 	Processor,
@@ -29,7 +29,7 @@ describe('Processor', () => {
 			},
 		};
 
-		const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'processor-test-'));
+		const testRoot = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'processor-test-')));
 		testRoots.push(testRoot);
 
 		appConfig = {
@@ -64,6 +64,23 @@ describe('Processor', () => {
 		const cacheDir = path.join(testRoots[0]!, '.eco', 'cache', 'test-processor');
 		expect(fs.existsSync(cacheDir)).toBe(false);
 		expect(processor.listProductionServerModuleEntries()).toEqual([]);
+	});
+
+	test('stores a cache entry under a file name every platform accepts', async () => {
+		const cacheProcessor = processor as unknown as {
+			readCache<T>(key: string): Promise<T | null>;
+			writeCache<T>(key: string, data: T): Promise<void>;
+		};
+		const key = 'photo.jpg:7ba5a4e0:q80:webp:320:sm,768:md';
+		const cacheDir = path.join(testRoots[0]!, '.eco', 'cache', 'test-processor');
+
+		await cacheProcessor.writeCache(key, { width: 320 });
+
+		const [fileName, ...rest] = fs.readdirSync(cacheDir);
+		expect(rest).toEqual([]);
+		expect(fileName).toMatch(/^[\w.-]+$/);
+		expect(await cacheProcessor.readCache(key)).toEqual({ width: 320 });
+		expect(await cacheProcessor.readCache(`${key}:lg`)).toBeNull();
 	});
 });
 

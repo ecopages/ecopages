@@ -35,7 +35,7 @@ radiant-code-tabs .rui-tabs__panel {
 }
 
 .code-tabs__code {
-	@apply block w-full max-w-full min-w-0 text-sm;
+	@apply block w-full max-w-full min-w-0 overflow-x-auto whitespace-pre text-sm;
 
 	&:has([data-rehype-pretty-code-figure]) {
 		@apply flex min-h-0 w-full max-w-full flex-col overflow-y-hidden p-0;

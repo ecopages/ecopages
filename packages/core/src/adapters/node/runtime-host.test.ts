@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer, request as httpRequest, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { z } from 'zod';
@@ -229,8 +229,8 @@ describe('NodeRuntimeHost', () => {
 		it.skipIf(!isBunInstalled)(
 			'rejects with EADDRINUSE under Bun',
 			() => {
-				const hostModule = fileURLToPath(new URL('./runtime-host.ts', import.meta.url));
-				const bridgeModule = fileURLToPath(new URL('./http-request-bridge.ts', import.meta.url));
+				const hostModule = path.fromFileUrl(new URL('./runtime-host.ts', import.meta.url));
+				const bridgeModule = path.fromFileUrl(new URL('./http-request-bridge.ts', import.meta.url));
 				const script = `
 				import { createServer } from 'node:http';
 				import { NodeRuntimeHost } from ${JSON.stringify(hostModule)};

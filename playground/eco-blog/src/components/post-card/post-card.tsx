@@ -1,12 +1,11 @@
-import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { formatDate } from '@/lib/format';
 import type { PublishedPost } from '@/lib/posts.server';
 import './post-card.css';
 
 /** One post in the home list; the title link covers the whole card. */
-export const PostCard = eco.component<{ post: PublishedPost }, JsxRenderable>({
-	render: ({ post }) => (
+export function PostCard({ post }: { post: PublishedPost }): JsxRenderable {
+	return (
 		<li class="post-card">
 			<h2 class="post-card__title">
 				<a class="post-card__link" href={`/posts/${post.slug}`}>
@@ -18,5 +17,5 @@ export const PostCard = eco.component<{ post: PublishedPost }, JsxRenderable>({
 			</time>
 			<p class="post-card__excerpt">{post.excerpt ?? ''}</p>
 		</li>
-	),
-});
+	);
+}

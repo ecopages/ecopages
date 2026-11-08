@@ -1,3 +1,5 @@
+import { ProcessedAssetLedger } from '../../assets/asset-processing-service/processed-asset-ledger.ts';
+import { ProcessedStylesheetCache } from '../../assets/asset-processing-service/processors/stylesheet/processed-stylesheet-cache.ts';
 import { createBuildAdapter } from '../../build/build-adapter.ts';
 import { sealAppBuildManifest } from '../../build/app-build-manifest-runtime.ts';
 import { BuildInputDependencyIndex, seedProcessorWatchPaths } from '../../build/cache/build-input-dependency-index.ts';
@@ -19,9 +21,12 @@ import type { HtmlPageWarningState } from '../../html-pages/html-page-warning-st
 import type { HtmlPageModuleScriptState } from '../../html-pages/html-page-module-scripts.ts';
 import type { CustomElementScriptPreloadScopeState } from '../../route-renderer/orchestration/custom-element-scripts/custom-element-script-preload-invalidation.ts';
 import type { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
+import type { DevelopmentStylesheetService } from '../../dev/stylesheets/development-stylesheet.service.ts';
 import type { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import type { IHmrManager } from '../../types/contracts.ts';
+import { getRuntimeArgv } from '../../utils/runtime.ts';
 import { MISSING_APP_RUNTIME } from '../../utils/app-runtime.ts';
+import { isProductionExport, resolveEntryCommand } from '../../utils/parse-cli-args.ts';
 
 export { requireAppRuntime } from '../../utils/app-runtime.ts';
 
@@ -47,13 +52,34 @@ export class ServerInvalidationState {
 }
 
 /**
+ * When an activation resolves each Integration's global scripts (`integrationDependencies`).
+ *
+ * @remarks
+ * - `activation`: right after a successful `setup()`, in dev, `ecopages start` and request-only `app.fetch()`.
+ * - `browser-build`: never at activation. A production export (`ecopages build`, `ecopages preview`) and the Lit
+ *   static-render worker resolve them through `resolveIntegrationDependencies()` once their app-wide browser build is
+ *   known, so no global script is bundled on its own into `dist/client`.
+ */
+export type GlobalScriptResolution = 'activation' | 'browser-build';
+
+/** Options fixed when the {@link AppRuntime} is created. */
+export interface AppRuntimeOptions {
+	/**
+	 * @defaultValue `'browser-build'` when the process runs `ecopages build` or `ecopages preview` without
+	 * `--serve-only`, otherwise `'activation'`.
+	 */
+	globalScriptResolution?: GlobalScriptResolution;
+}
+
+/**
  * Per-app state assembled once for a finalized config.
  *
  * @remarks
  * `origin` starts as `baseUrl` and updates when the runtime binds its listening origin. `hmr` stays
  * `null` until a watch-mode dev session creates an HMR manager, and resets to `null` when dev resources
  * are disposed. `developmentInvalidation` stays `null` until development services need it, then the
- * watcher and HMR manager share that instance. `pageCache` stays `null` until the server adapter stores one.
+ * watcher and HMR manager share that instance. `developmentStylesheets` stays `null` until the watcher or the dev
+ * transform server needs it. `pageCache` stays `null` until the server adapter stores one.
  */
 export interface AppRuntime {
 	buildAdapter: BuildAdapter;
@@ -64,10 +90,16 @@ export interface AppRuntime {
 	pageBrowserGraphSession: SessionPageBrowserGraphCache;
 	serverInvalidation: ServerInvalidationState;
 	developmentInvalidation: DevelopmentInvalidationService | null;
+	developmentStylesheets: DevelopmentStylesheetService | null;
 	moduleLoader: AppModuleLoaderContract;
 	routeModuleBuildCaches: Map<string, RouteModuleBuildCache>;
 	pageCache: PageCacheService | null;
 	integrationActivations: Map<string, Promise<void>>;
+	/**
+	 * Fixed for the runtime's lifetime, so the first activation, whichever caller starts it, follows the strategy of
+	 * the whole run.
+	 */
+	readonly globalScriptResolution: GlobalScriptResolution;
 	runtimeAssetsPrepared: boolean;
 	hmrAttachedToIntegrations: boolean;
 	/**
@@ -85,10 +117,22 @@ export interface AppRuntime {
 	origin: string;
 	hmr: IHmrManager | null;
 	/**
-	 * When true, a production request whose Page Browser Graph is not in the browser client
-	 * manifest is an error. `ecopages start` sets this after it restores the manifest.
+	 * Processed and bundled dependencies of the production build, by dependency key, shared by every
+	 * asset-processing service.
+	 *
+	 * @remarks
+	 * The app-wide browser build records each script it bundles here, and asset processing each dependency it
+	 * processes. `ecopages build` writes it to `dist/server/processed-assets.json`; `ecopages start` restores and
+	 * seals it, so rendering serves every dependency from `dist/` and never compiles or writes.
 	 */
-	productionBrowserGraphsSealed: boolean;
+	processedAssets: ProcessedAssetLedger;
+	/** The stylesheets the app's Processor produced, shared by every path that processes one. */
+	processedStylesheets: ProcessedStylesheetCache;
+	/**
+	 * True while static generation (`ecopages build`) runs. An asset that cannot be processed then
+	 * fails the build.
+	 */
+	staticGenerationActive: boolean;
 }
 
 /**
@@ -102,7 +146,7 @@ export interface AppRuntime {
  *
  * @throws When the config was not assembled by finalization.
  */
-export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
+export function createAppRuntime(appConfig: EcoPagesAppConfig, options: AppRuntimeOptions = {}): AppRuntime {
 	if (appConfig.appRuntime) {
 		return appConfig.appRuntime;
 	}
@@ -125,10 +169,14 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		pageBrowserGraphSession: new SessionPageBrowserGraphCache(buildInputIndex),
 		serverInvalidation: new ServerInvalidationState(),
 		developmentInvalidation: null,
+		developmentStylesheets: null,
 		moduleLoader: new AppModuleLoader(appConfig),
 		routeModuleBuildCaches: new Map(),
 		pageCache: null,
 		integrationActivations: new Map(),
+		globalScriptResolution:
+			options.globalScriptResolution ??
+			(isProductionExport(resolveEntryCommand(getRuntimeArgv())) ? 'browser-build' : 'activation'),
 		runtimeAssetsPrepared: false,
 		hmrAttachedToIntegrations: false,
 		productionBuildId: null,
@@ -138,7 +186,9 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		requestPipelineMetrics: createRequestPipelineMetricsState(),
 		origin: appConfig.baseUrl,
 		hmr: null,
-		productionBrowserGraphsSealed: false,
+		processedAssets: new ProcessedAssetLedger(appConfig.rootDir),
+		processedStylesheets: new ProcessedStylesheetCache(),
+		staticGenerationActive: false,
 	};
 	appConfig.appRuntime = runtime;
 	try {

@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import type {
-	AssetProcessingService,
-	EcoBuildOnResolveResult,
-	EcoBuildPlugin,
-	IntegrationRuntimeContext,
-} from '@ecopages/core/integration';
+import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/integration';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { path } from '@ecopages/file-system/path';
+import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
+import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
+import { getBuildEntryOutput } from '../../../../core/src/build/build-graph.ts';
+import { assertBuildFailed } from '../../../../core/src/__fixtures__/build/build-result.ts';
+import { getJsxOwnershipPlugins } from '../../../../core/src/build/browser/jsx-ownership-plugins.ts';
 import { BundleService } from './bundle.ts';
-import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 
 const withNodeEnv = async <T>(nodeEnv: string | undefined, run: () => Promise<T>): Promise<T> => {
 	if (nodeEnv === undefined) {
@@ -37,18 +39,14 @@ const testAppConfig = {
 } as unknown as IntegrationRuntimeContext['appConfig'];
 
 describe('BundleService', () => {
-	it('does not include the Eco core browser shim in client bundle options', async () => {
+	it('marks neither React nor the router external, so the bundler resolves them like any package', async () => {
 		const service = new BundleService({
 			rootDir: '/app',
 			appConfig: testAppConfig,
 			hostIntegrationName: 'react',
 			routerAdapter: {
 				name: 'eco-router',
-				bundle: {
-					outputName: 'react-router-esm',
-					importPath: '@ecopages/react-router/browser',
-					externals: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
-				},
+				importPath: '@ecopages/react-router/browser',
 				components: {
 					router: 'EcoRouter',
 					pageContent: 'PageContent',
@@ -57,19 +55,14 @@ describe('BundleService', () => {
 			},
 		});
 
-		const options = await service.createBundleOptions('ecopages-react-page', false, []);
+		const options = await service.createBundleOptions('ecopages-react-page', []);
 		const pluginNames = (options.plugins as Array<{ name: string }>).map((plugin) => plugin.name);
-		const runtimeImports = service.getRuntimeImports();
 
-		expect(pluginNames).not.toContain('react-renderer-eco-core-browser-shim');
 		expect(pluginNames).toContain('ecopages-client-graph-boundary');
-		expect(pluginNames).toContain('react-renderer-runtime-import-rewrite');
-		expect(pluginNames).not.toContain('react-runtime-import-alias');
-		expect(options.external).toEqual(expect.arrayContaining(Object.values(runtimeImports)));
-		expect(options.external).not.toEqual(expect.arrayContaining(['react', 'react-dom', 'react-dom/client']));
+		expect(options.external).toBeUndefined();
 	});
 
-	it('adds the plugin-owned MDX loader to MDX bundles only', async () => {
+	it('gives MDX and TSX entries the same plugins so they share one build group', async () => {
 		const mdxLoader = { name: 'react-mdx-loader', setup: () => {} };
 		const service = new BundleService({
 			rootDir: '/app',
@@ -78,11 +71,14 @@ describe('BundleService', () => {
 			getMdxLoaderPlugin: () => mdxLoader,
 		});
 
-		const mdxOptions = await service.createBundleOptions('ecopages-react-page', true, []);
-		const tsxOptions = await service.createBundleOptions('ecopages-react-page', false, []);
+		const mdxPageOptions = await service.createBundleOptions('ecopages-react-mdx-page', [], '/app/page.mdx');
+		const tsxPageOptions = await service.createBundleOptions('ecopages-react-tsx-page', [], '/app/page.tsx');
+		const pluginNames = (options: Record<string, unknown>) =>
+			(options.plugins as Array<{ name: string }>).map((plugin) => plugin.name);
 
-		expect(mdxOptions.plugins).toContain(mdxLoader);
-		expect(tsxOptions.plugins).not.toContain(mdxLoader);
+		expect(mdxPageOptions.plugins).toContain(mdxLoader);
+		expect(tsxPageOptions.plugins).toContain(mdxLoader);
+		expect(pluginNames(mdxPageOptions)).toEqual(pluginNames(tsxPageOptions));
 	});
 
 	it('enables minify only for production runtimes', async () => {
@@ -93,10 +89,10 @@ describe('BundleService', () => {
 		});
 
 		const developmentOptions = await withNodeEnv('development', () =>
-			service.createBundleOptions('ecopages-react-page', false, []),
+			service.createBundleOptions('ecopages-react-page', []),
 		);
 		const productionOptions = await withNodeEnv('production', () =>
-			service.createBundleOptions('ecopages-react-page', false, []),
+			service.createBundleOptions('ecopages-react-page', []),
 		);
 
 		expect(developmentOptions.minify).toBeUndefined();
@@ -106,139 +102,182 @@ describe('BundleService', () => {
 		});
 	});
 
-	it('can bundle runtime specifiers directly into page-owned entries', async () => {
+	const buildReactIsland = async (tempDir: string, entrypoint: string) => {
 		const service = new BundleService({
-			rootDir: '/app',
-			appConfig: testAppConfig,
-			hostIntegrationName: 'react',
-			routerAdapter: {
-				name: 'eco-router',
-				bundle: {
-					outputName: 'react-router-esm',
-					importPath: '@ecopages/react-router/browser',
-					externals: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
-				},
-				components: {
-					router: 'EcoRouter',
-					pageContent: 'PageContent',
-				},
-				getRouterProps: () => '{}',
-			},
-		});
-
-		const options = await service.createBundleOptions('ecopages-react-page', false, [], {
-			includeRuntime: true,
-		});
-		const pluginNames = (options.plugins as Array<{ name: string }>).map((plugin) => plugin.name);
-
-		expect(options.external).toBeUndefined();
-		expect(pluginNames).not.toContain('react-renderer-runtime-import-rewrite');
-		expect(pluginNames).not.toContain('react-runtime-import-alias');
-	});
-
-	async function resolveRuntimeSpecifiers(
-		service: BundleService,
-		specifiers: string[],
-	): Promise<Record<string, EcoBuildOnResolveResult | undefined>> {
-		const options = await service.createBundleOptions('ecopages-react-page', false, []);
-		const runtimeRewritePlugin = (options.plugins as EcoBuildPlugin[]).find(
-			(plugin) => plugin.name === 'react-renderer-runtime-import-rewrite',
-		);
-		expect(runtimeRewritePlugin).toBeDefined();
-		const resolveCallbacks: Array<(args: { path: string }) => EcoBuildOnResolveResult | undefined> = [];
-		await runtimeRewritePlugin!.setup({
-			onResolve(_options, callback) {
-				resolveCallbacks.push(callback as (args: { path: string }) => EcoBuildOnResolveResult | undefined);
-			},
-			onLoad() {},
-			module() {},
-			transform() {},
-		});
-
-		return Object.fromEntries(
-			specifiers.map((specifier) => [
-				specifier,
-				resolveCallbacks.map((cb) => cb({ path: specifier })).find(Boolean),
-			]),
-		);
-	}
-
-	it('resolves React runtime imports to concrete runtime asset URLs', async () => {
-		const service = new BundleService({
-			rootDir: '/app',
-			appConfig: testAppConfig,
+			rootDir: tempDir,
+			appConfig: {
+				...testAppConfig,
+				rootDir: tempDir,
+				absolutePaths: { projectDir: tempDir },
+			} as unknown as IntegrationRuntimeContext['appConfig'],
 			hostIntegrationName: 'react',
 		});
+		const options = await service.createBundleOptions('island', [], entrypoint);
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(tempDir, 'dist'),
+			root: tempDir,
+			target: 'browser',
+			format: 'esm',
+			plugins: options.plugins as EcoBuildPlugin[],
+		});
+		assertBuildSucceeded(result, 'Build failed');
+		return result.outputs[0]!.path;
+	};
 
-		const resolved = await resolveRuntimeSpecifiers(service, [
-			'react',
-			'react/jsx-runtime',
-			'react/jsx-dev-runtime',
-			'react-dom/client',
-			'react-dom',
-		]);
+	const writeForeignJsxIsland = (
+		tempDir: string,
+		widgetBody: string[],
+		islandSource = "import Widget from './widget.kita.tsx';\nexport default Widget;",
+	) => {
+		const srcDir = path.join(tempDir, 'src');
+		mkdirSync(srcDir);
+		symlinkSync(
+			path.fromFileUrl(new URL('../../node_modules', import.meta.url)),
+			path.join(tempDir, 'node_modules'),
+			'dir',
+		);
+		const entrypoint = path.join(srcDir, 'island.tsx');
+		writeFileSync(path.join(srcDir, 'auth.server.ts'), 'export const authMiddleware = "server-secret";');
+		writeFileSync(path.join(srcDir, 'eco.ts'), 'export const eco = { page: (options) => options };');
+		writeFileSync(
+			path.join(srcDir, 'widget.kita.tsx'),
+			["import { eco } from './eco';", "import { authMiddleware } from './auth.server.ts';", ...widgetBody].join(
+				'\n',
+			),
+		);
+		writeFileSync(entrypoint, islandSource);
+		return entrypoint;
+	};
 
-		expect(resolved['react']).toEqual({ path: '/assets/vendors/react.js', external: true });
-		expect(resolved['react-dom']).toEqual({ path: '/assets/vendors/react-dom.js', external: true });
-		for (const specifier of ['react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client']) {
-			expect(resolved[specifier]?.external, specifier).toBe(true);
-			expect(resolved[specifier]?.path, specifier).toMatch(/^\/assets\/vendors\/.+\.js$/);
+	it('strips server imports from foreign-JSX files in the React client graph', async () => {
+		const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-foreign-jsx-'))));
+
+		try {
+			const entrypoint = writeForeignJsxIsland(tempDir, [
+				'export default eco.page({',
+				'middleware: [authMiddleware],',
+				'render: () => <div>Widget</div>,',
+				'});',
+			]);
+			const outputPath = await buildReactIsland(tempDir, entrypoint);
+			const output = readFileSync(outputPath, 'utf8');
+			expect(output).toContain('Widget');
+			expect(output).not.toContain('server-secret');
+			expect(output).not.toContain('auth.server');
+			expect(output).not.toContain('authMiddleware');
+			expect(output).toContain('@ecopages/react/foreign-boundary');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
 
-	it('resolves configured runtime module imports to shared vendor URLs', async () => {
-		const service = new BundleService({
-			rootDir: '/app',
-			appConfig: testAppConfig,
-			hostIntegrationName: 'react',
-			runtimeModules: resolveReactPluginRuntimeModules(['@tanstack/react-query']),
-		});
+	it('fails the build when an island uses an export that needs a stripped server binding', async () => {
+		const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-foreign-jsx-'))));
 
-		const resolved = await resolveRuntimeSpecifiers(service, ['@tanstack/react-query']);
-
-		expect(resolved['@tanstack/react-query']).toEqual({
-			path: '/assets/vendors/tanstack-react-query.js',
-			external: true,
-		});
+		try {
+			const entrypoint = writeForeignJsxIsland(
+				tempDir,
+				[
+					'export const guard = authMiddleware;',
+					'export default eco.page({ render: () => <div>Widget</div> });',
+				],
+				"import Widget, { guard } from './widget.kita.tsx';\nexport default [Widget, guard];",
+			);
+			await expect(buildReactIsland(tempDir, entrypoint)).rejects.toThrow(
+				`'authMiddleware' (imported from './auth.server.ts') is used at ${path.join(tempDir, 'src', 'widget.kita.tsx')}:3:22`,
+			);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 
-	it('processes page-layout-normalization vendor once for concurrent MDX callers', async () => {
-		const assetProcessingIntegration = { name: 'react' };
-		const service = new BundleService({
-			rootDir: '/app',
-			appConfig: testAppConfig,
-			assetProcessingIntegration,
-			hostIntegrationName: 'react',
+	describe('foreign-JSX files in a build shared with another JSX Integration', () => {
+		/** An app where `@ecopages/jsx` owns `.tsx` and React owns `.react.tsx`. */
+		const buildSharedEntries = async (tempDir: string, entrypoints: Record<string, string>) => {
+			const appConfig = {
+				rootDir: tempDir,
+				absolutePaths: { projectDir: tempDir },
+				integrations: [
+					{ name: 'react', jsxImportSource: 'react', extensions: ['.react.tsx'] },
+					{ name: 'ecopages-jsx', jsxImportSource: '@ecopages/jsx', extensions: ['.tsx'] },
+				],
+			} as unknown as IntegrationRuntimeContext['appConfig'];
+			const service = new BundleService({ rootDir: tempDir, appConfig, hostIntegrationName: 'react' });
+			const options = await service.createBundleOptions('island', [], entrypoints.island);
+			return new RolldownBuildAdapter().build({
+				environment: 'browser' as const,
+				entrypoints,
+				outdir: path.join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				splitting: true,
+				external: ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', '@ecopages/jsx/jsx-runtime'],
+				plugins: [...(options.plugins as EcoBuildPlugin[]), ...getJsxOwnershipPlugins(appConfig)],
+			});
+		};
+
+		const writeSharedApp = (tempDir: string, islandImport: string) => {
+			writeFileSync(path.join(tempDir, 'button.tsx'), 'export const Button = () => <button>button</button>;');
+			writeFileSync(path.join(tempDir, 'card.tsx'), 'export const Card = () => <article>card</article>;');
+			writeFileSync(
+				path.join(tempDir, 'foo.script.ts'),
+				"import { Button } from './button.tsx';\ncustomElements.define('x-button', class extends HTMLElement { render = Button; });",
+			);
+			const island = path.join(tempDir, 'island.react.tsx');
+			writeFileSync(island, `${islandImport}\nexport default () => null;`);
+			return { island, radiant: path.join(tempDir, 'foo.script.ts') };
+		};
+
+		const readEntry = (result: Awaited<ReturnType<typeof buildSharedEntries>>, name: string, tempDir: string) => {
+			assertBuildSucceeded(result, 'Build failed');
+			return readFileSync(getBuildEntryOutput(result, name, tempDir)!, 'utf8');
+		};
+
+		it('compiles a foreign file only another Integration imports with its owner runtime', async () => {
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
+			try {
+				const entrypoints = writeSharedApp(tempDir, "import { Card } from './card.tsx'; console.log(Card);");
+				const radiant = readEntry(await buildSharedEntries(tempDir, entrypoints), 'radiant', tempDir);
+				expect(radiant).toContain('@ecopages/jsx/jsx-runtime');
+				expect(radiant).not.toMatch(/react/);
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
 		});
-		let resolveProcess!: () => void;
-		const processGate = new Promise<void>((resolve) => {
-			resolveProcess = resolve;
+
+		it('compiles a foreign file a React island imports with the React runtime', async () => {
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
+			try {
+				const entrypoints = writeSharedApp(tempDir, "import { Card } from './card.tsx'; console.log(Card);");
+				const island = readEntry(await buildSharedEntries(tempDir, entrypoints), 'island', tempDir);
+				expect(island).toContain('card');
+				expect(island).toMatch(/react/);
+				expect(island).not.toContain('@ecopages/jsx/jsx-runtime');
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
 		});
-		const processDependencies = vi.fn(async () => {
-			await processGate;
-			return [];
+
+		it('fails the build when a React island and another Integration import one foreign file', async () => {
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
+			try {
+				const entrypoints = writeSharedApp(
+					tempDir,
+					"import { Button } from './button.tsx'; console.log(Button);",
+				);
+				const result = await buildSharedEntries(tempDir, entrypoints);
+				assertBuildFailed(result);
+				const message = result.logs.map((log) => log.message).join('\n');
+				expect(message).toContain(path.join(tempDir, 'button.tsx'));
+				expect(message).toContain('ecopages-jsx file');
+				expect(message).toContain('react browser entries');
+				expect(message).toContain(path.join(tempDir, 'foo.script.ts'));
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
 		});
-		const assetProcessingService = {
-			processDependencies,
-		} satisfies Pick<AssetProcessingService, 'processDependencies'>;
-
-		const first = service.ensurePageLayoutNormalizationVendorProcessed(assetProcessingService);
-		const second = service.ensurePageLayoutNormalizationVendorProcessed(assetProcessingService);
-
-		expect(processDependencies).toHaveBeenCalledTimes(1);
-		expect(processDependencies).toHaveBeenCalledWith(
-			expect.arrayContaining([
-				expect.objectContaining({
-					name: 'page-layout-normalization',
-				}),
-			]),
-			assetProcessingIntegration,
-		);
-
-		resolveProcess();
-		await Promise.all([first, second]);
-
-		await service.ensurePageLayoutNormalizationVendorProcessed(assetProcessingService);
-		expect(processDependencies).toHaveBeenCalledTimes(1);
 	});
 });

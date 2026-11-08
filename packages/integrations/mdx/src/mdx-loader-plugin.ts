@@ -1,4 +1,4 @@
-import type { EcoBuildPlugin } from '@ecopages/core/integration';
+import type { EcoBuildPlugin, StylesheetKinds } from '@ecopages/core/integration';
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { RequestPipelineMetricsState } from '@ecopages/core/build';
 import { createMdxLoaderPlugin as createMdxLoaderPluginCore } from './core/mdx-loader-plugin.ts';
@@ -11,6 +11,7 @@ export type MdxLoaderPluginOptions = {
 	extensions?: string[];
 	includeSourceMap?: boolean;
 	loader?: 'js' | 'jsx';
+	stylesheets?: StylesheetKinds;
 };
 
 export function createMdxLoaderPlugin(options: MdxLoaderPluginOptions): EcoBuildPlugin {
@@ -24,5 +25,6 @@ export function createMdxLoaderPlugin(options: MdxLoaderPluginOptions): EcoBuild
 		extensions: options.extensions,
 		includeSourceMap: options.includeSourceMap,
 		loader: options.loader,
+		stylesheets: options.stylesheets,
 	});
 }

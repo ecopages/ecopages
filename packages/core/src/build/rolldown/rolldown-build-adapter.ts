@@ -10,7 +10,7 @@
  */
 
 import { createRequire } from 'node:module';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { rolldown } from 'rolldown';
 
 import type { BuildAdapter, BuildLog, BuildOptions, BuildResult, BuildSuccess } from '../build-adapter.ts';
@@ -23,7 +23,7 @@ import {
 import { recordRolldownBuildInvocation } from './rolldown-build-invocation-metrics.ts';
 import { createEntryModuleClosuresPlugin } from './entry-module-closures.ts';
 import type { BuildDependencyGraph } from '../build-adapter.ts';
-import { createBuildInputRecorder, getBuildInputRecordingContext } from '../cache/build-input-dependency-index.ts';
+import type { WatchFilesByModule } from './rolldown-plugin-bridge.ts';
 
 const moduleRequire = createRequire(import.meta.url);
 
@@ -43,23 +43,23 @@ export class RolldownBuildAdapter implements BuildAdapter {
 			throw new Error('Build requests require environment: "server" or "browser".');
 		}
 		recordRolldownBuildInvocation();
-		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
+		const contextRoot = options.root ? path.resolve(options.root) : path.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/client/assets');
-		const recordingContext = getBuildInputRecordingContext();
-		const loadedInputs = new Set<string>();
-		const loadedInputsByModule = new Map<string, Set<string>>();
-		const recordBuildInput = createBuildInputRecorder(recordingContext, loadedInputs, loadedInputsByModule);
+		const watchFiles: WatchFilesByModule = new Map();
 
 		const { inputOptions, outputOptions } = await resolveRolldownOptions(
 			options,
 			contextRoot,
 			outdir,
 			this.appRootRequireCache,
-			recordBuildInput,
+			watchFiles,
 		);
 
-		const dependencyGraph: BuildDependencyGraph = { entrypoints: {} };
-		inputOptions.plugins = [inputOptions.plugins, createEntryModuleClosuresPlugin(dependencyGraph, contextRoot)];
+		const dependencyGraph: BuildDependencyGraph = { entrypoints: {}, commonJsEntrypoints: [] };
+		inputOptions.plugins = [
+			inputOptions.plugins,
+			createEntryModuleClosuresPlugin(dependencyGraph, contextRoot, watchFiles),
+		];
 		const warnings: BuildLog[] = [];
 		const bundle = await rolldown({
 			...inputOptions,
@@ -86,10 +86,6 @@ export class RolldownBuildAdapter implements BuildAdapter {
 					options.naming,
 					options.writeToDisk === false,
 				),
-				loadedInputs: [...loadedInputs],
-				loadedInputsByModule: Object.fromEntries(
-					[...loadedInputsByModule].map(([moduleId, paths]) => [moduleId, [...paths]]),
-				),
 				warnings,
 			};
 		} finally {
@@ -109,7 +105,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 	}
 
 	resolve(importPath: string, rootDir: string): string {
-		return moduleRequire.resolve(importPath, { paths: [rootDir] });
+		return path.fromNative(moduleRequire.resolve(importPath, { paths: [rootDir] }));
 	}
 }
 

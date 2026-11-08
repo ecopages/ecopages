@@ -1,14 +1,19 @@
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import type { BuildEnvironment, BuildOptions } from '../contracts/build-contracts.ts';
+import type { BuildEnvironment, BuildOptions, BuildStylesheets } from '../contracts/build-contracts.ts';
 import { appliesToBuildEnvironment } from '../contracts/build-manifest.ts';
 import { createAliasResolverPlugin } from '../../plugins/alias-resolver-plugin.ts';
 import { resolveBuildEnvironmentOptions } from './build-environment-options.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
 import { createEcoComponentMetaPlugin } from '../../plugins/eco-component-meta-plugin.ts';
+import { getStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { isProductionRuntime } from '../../env.ts';
+import { appLogger } from '../../global/app-logger.ts';
 import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transform.ts';
+import { keepsLastGoodOutput, reportAssetFailure } from '../../assets/asset-processing-service/last-good-output.ts';
+import { emptyStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-failure.ts';
+import { compileStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 
 /**
  * App-owned plugins of one environment, in the order their hooks run.
@@ -16,9 +21,9 @@ import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transfor
  * @remarks
  * Rolldown asks plugins in this order and the first one that returns a result for a resolve or load wins, so
  * position is priority: the alias resolver, then the sealed manifest's plugins for the environment (for the browser,
- * the plugins that also apply to the server, the browser runtime plugin, then the browser-only ones), then the JSX
- * ownership plugins. {@link resolveBuildPluginOrder} puts caller plugins before them and core's own transforms
- * after. The unified pages graph keys its cache by their names.
+ * the plugins that also apply to the server, then the browser-only ones), then the JSX ownership plugins.
+ * {@link resolveBuildPluginOrder} puts caller plugins before them and core's own transforms after. The unified pages
+ * graph keys its cache by their names.
  */
 export function resolveAppBuildPlugins(appConfig: EcoPagesAppConfig, environment: BuildEnvironment): EcoBuildPlugin[] {
 	const projectDir = appConfig.absolutePaths?.projectDir;
@@ -34,9 +39,9 @@ export function resolveAppBuildPlugins(appConfig: EcoPagesAppConfig, environment
  *
  * @remarks
  * App-manifest plugins cannot be silently replaced by same-name caller plugins.
- * Unique caller plugins are prepended so first-wins Rolldown hooks (for example
- * React vendor/alias rewrites) still run before general app loaders. Use
- * `excludeAppBuildPlugins` on browser requests to omit app-owned plugins.
+ * Unique caller plugins are prepended so first-wins Rolldown hooks still run
+ * before general app loaders. Use `excludeAppBuildPlugins` on browser requests
+ * to omit app-owned plugins.
  */
 export function mergeCallerBuildPlugins(
 	appPlugins: EcoBuildPlugin[],
@@ -62,7 +67,7 @@ export function mergeCallerBuildPlugins(
  * that decides priority:
  *
  * 1. Caller plugins that apply to the environment and do not share a name with an app plugin, so a caller's
- *    vendor or alias rewrite runs before the general app loaders. A caller plugin cannot replace an app plugin of
+ *    alias rewrite runs before the general app loaders. A caller plugin cannot replace an app plugin of
  *    the same name.
  * 2. {@link resolveAppBuildPlugins}, less the names in `excludeAppBuildPlugins`. Use it to omit app plugins that a
  *    request replaces; an environment cannot express that.
@@ -93,6 +98,52 @@ export function resolveBuildPluginOrder(
 	return [...plugins, ...coreTransforms];
 }
 
+/** Messages of undeliverable stylesheet imports already warned about, by app. */
+const warnedUndeliverableStylesheets = new WeakMap<EcoPagesAppConfig, Set<string>>();
+
+/**
+ * The app's stylesheets, which every build request compiles with {@link compileStylesheetModule}.
+ *
+ * @remarks
+ * In `ecopages dev` (see {@link keepsLastGoodOutput}), a stylesheet that fails compiles to its last good module,
+ * so a Page that imports it still renders while the error shows.
+ *
+ * Outside production, a package module's own side-effect stylesheet import warns once per import instead of failing
+ * the build, so `ecopages dev` keeps running; `ecopages build` fails on it.
+ */
+function resolveBuildStylesheets(appConfig: EcoPagesAppConfig): BuildStylesheets {
+	const kinds = getStylesheetKinds(appConfig);
+	return {
+		extensions: kinds.extensions,
+		isCssModule: kinds.isCssModule,
+		compileModule: async (file) => {
+			try {
+				return await compileStylesheetModule(appConfig, file);
+			} catch (error) {
+				if (!keepsLastGoodOutput(appConfig)) throw error;
+				reportAssetFailure(appConfig, 'stylesheet', file, error);
+				return (
+					requireAppRuntime(appConfig).developmentStylesheets?.lastGoodModule(file) ?? {
+						code: emptyStylesheetModule(kinds.isCssModule(file)),
+						dependencies: [],
+					}
+				);
+			}
+		},
+		...(isProductionRuntime()
+			? {}
+			: {
+					reportUndeliverable: (error: Error) => {
+						let warned = warnedUndeliverableStylesheets.get(appConfig);
+						if (!warned) warnedUndeliverableStylesheets.set(appConfig, (warned = new Set()));
+						if (warned.has(error.message)) return;
+						warned.add(error.message);
+						appLogger.warn(error.message);
+					},
+				}),
+	};
+}
+
 export type ServerBuildRequestInput = Partial<BuildOptions> & {
 	entrypoints: BuildOptions['entrypoints'];
 };
@@ -119,7 +170,10 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
 	const importMetaDir = input.runtimeOutdir ?? input.outdir;
 	const plugins = resolveBuildPluginOrder(appConfig, 'server', {
 		callerPlugins: input.plugins,
-		coreTransforms: importMetaDir && !isProductionRuntime() ? [createPreserveImportMetaPlugin(importMetaDir)] : [],
+		coreTransforms:
+			importMetaDir && !isProductionRuntime()
+				? [createPreserveImportMetaPlugin(importMetaDir, appConfig.rootDir)]
+				: [],
 	});
 	const { plugins: _callerPlugins, ...overrides } = input;
 
@@ -128,6 +182,7 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
 		...overrides,
 		environment: 'server',
 		entrypoints: input.entrypoints,
+		stylesheets: resolveBuildStylesheets(appConfig),
 		...(plugins.length > 0 ? { plugins } : {}),
 	};
 }
@@ -140,11 +195,6 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
  * chosen by {@link BrowserBundleService}.
  *
  * Plugins follow {@link resolveBuildPluginOrder}; `excludeAppBuildPlugins` omits app-owned names.
- *
- * @remarks
- * Specifiers of the browser runtime manifest are dropped from `external`. Rolldown checks `external` before any
- * plugin, so one listed there would stay a bare import instead of becoming the manifest's public URL, which the
- * browser runtime plugin maps while resolving.
  */
 export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: BrowserBuildRequestInput): BuildOptions {
 	const { excludeAppBuildPlugins, plugins: callerPlugins, define: callerDefines, ...overrides } = input;
@@ -153,18 +203,15 @@ export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: B
 		excludeAppBuildPlugins,
 	});
 
-	const { bySpecifier } = requireAppRuntime(appConfig).buildManifest.browserRuntimeManifest;
 	const environmentOptions = resolveBuildEnvironmentOptions('browser', appConfig);
 
 	return {
 		...environmentOptions,
 		...overrides,
 		define: { ...environmentOptions.define, ...callerDefines },
-		...(overrides.external
-			? { external: overrides.external.filter((specifier) => !bySpecifier.has(specifier)) }
-			: {}),
 		environment: 'browser',
 		entrypoints: input.entrypoints,
+		stylesheets: resolveBuildStylesheets(appConfig),
 		plugins,
 	};
 }

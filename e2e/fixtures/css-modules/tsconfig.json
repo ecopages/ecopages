@@ -1,0 +1,21 @@
+{
+	"compilerOptions": {
+		"allowSyntheticDefaultImports": true,
+		"jsx": "react-jsx",
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"noImplicitOverride": true,
+		"paths": {
+			"@/*": ["./src/*", "./node_modules/@types/ecopages-css-modules/*"]
+		},
+		"rootDirs": ["./src", "./node_modules/@types/ecopages-css-modules"],
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "ES2024",
+		"useDefineForClassFields": true,
+		"verbatimModuleSyntax": true
+	}
+}

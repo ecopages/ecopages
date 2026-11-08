@@ -3,7 +3,6 @@ import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import type { MdxCompilerOptionsInput } from '@ecopages/mdx/core';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import type { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
-import type { ReactPluginRuntimeModule, ResolvedReactPluginRuntimeModule } from '../bundling/runtime-modules.ts';
 
 export type ReactMdxOptions = MdxCompilerOptionsInput;
 
@@ -40,33 +39,6 @@ export type ReactPluginOptions = {
 	 */
 	router?: ReactRouterAdapter;
 	/**
-	 * Optional shared browser runtime vendors.
-	 *
-	 * @remarks
-	 * Packages listed here use one vendor URL across page browser graphs. Add
-	 * singleton packages such as TanStack Query or MobX when pages and layouts
-	 * need to share the same module instance; layouts do not infer these entries.
-	 *
-	 * @example
-	 * ```ts
-	 * reactPlugin({
-	 *   router: ecoRouter(),
-	 *   runtimeModules: ['@tanstack/react-query'],
-	 * });
-	 * ```
-	 *
-	 * Register the exact specifier imported by the page or layout. Package
-	 * subpaths are separate module contracts and need separate entries.
-	 *
-	 * @example Advanced vendor config
-	 * ```ts
-	 * runtimeModules: [
-	 *   { specifier: '@acme/ui', outputName: 'acme-ui' },
-	 * ]
-	 * ```
-	 */
-	runtimeModules?: ReactPluginRuntimeModule[];
-	/**
 	 * MDX configuration for handling .mdx files within the React plugin.
 	 * When configured, MDX files are treated as React pages with full router support.
 	 * @example
@@ -101,7 +73,6 @@ export type ReactPluginOptions = {
 
 export type ReactRendererConfig = {
 	routerAdapter?: ReactRouterAdapter;
-	runtimeModules?: ResolvedReactPluginRuntimeModule[];
 	/**
 	 * Returns the plugin-owned MDX loader, creating it on first call. Set only
 	 * when MDX is enabled.

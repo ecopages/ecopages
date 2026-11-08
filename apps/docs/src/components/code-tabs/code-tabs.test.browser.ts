@@ -118,6 +118,35 @@ describe('RadiantCodeTabs', () => {
 		});
 	});
 
+	it('keeps line breaks and indentation of a multi-line tab and copies the exact source', async () => {
+		const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+		const source = ['export default {', '\tprocessors: [', '\t\tplugin(),', '\t],', '};'].join('\n');
+		const lines = source.split('\n').map((line) => `<span class="line">${line}</span>`);
+		const codeTabs = document.createElement('radiant-code-tabs') as RadiantCodeTabs;
+		codeTabs.tabs = [
+			{
+				id: 'config',
+				label: 'eco.config.ts',
+				html: `<figure data-rehype-pretty-code-figure><pre><code>${lines.join('\n')}</code></pre></figure>`,
+				content: source,
+			},
+		];
+		document.body.appendChild(codeTabs);
+
+		await vi.waitFor(() => {
+			expect(codeTabs.querySelectorAll('.code-tabs__code .line')).toHaveLength(5);
+		});
+		const code = codeTabs.querySelector<HTMLElement>('.code-tabs__code code')!;
+		expect(code.textContent).toBe(source);
+		expect(getComputedStyle(code.closest('pre')!).whiteSpace).toMatch(/^pre/);
+
+		await userEvent.click(codeTabs.querySelector<HTMLButtonElement>('.code-tabs__copy')!);
+
+		await vi.waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith(source);
+		});
+	});
+
 	it('derives tab and panel ids from the provided name and tab ids', async () => {
 		const codeTabs = createCodeTabs();
 		document.body.appendChild(codeTabs);

@@ -80,6 +80,14 @@ export type EcoNavigationTransaction = {
 	id: number;
 	signal: AbortSignal;
 	isCurrent: () => boolean;
+	/**
+	 * Whether a newer navigation began or this one was cancelled.
+	 *
+	 * @remarks
+	 * Unlike `!isCurrent()`, this stays false after `complete()`, so work scheduled for a committed
+	 * navigation (such as `eco:page-load`) is skipped only when another navigation replaced it.
+	 */
+	isSuperseded: () => boolean;
 	cancel: () => void;
 	complete: () => void;
 };
@@ -104,6 +112,14 @@ export type EcoNavigationRuntimeRegistration = {
 	 * not blank the current page before the incoming document is ready.
 	 */
 	cleanupBeforeHandoff?: () => void | Promise<void>;
+	/**
+	 * Starts keeping what the runtime needs to preserve page state on `reloadCurrentPage`.
+	 *
+	 * @remarks
+	 * Development HMR turns this on through `enableReloadStatePreservation()`. A runtime that registers later
+	 * is told on registration, so production navigation never pays for it.
+	 */
+	enableReloadStatePreservation?: () => void;
 };
 
 /** Public browser-side navigation coordinator interface. */
@@ -140,6 +156,8 @@ export interface EcoNavigationRuntime {
 	reloadCurrentPage(request?: EcoReloadRequest): Promise<boolean>;
 	/** Runs a target runtime's cleanup hook before handoff. */
 	cleanupOwner(owner: EcoNavigationOwner): Promise<void>;
+	/** Asks every registered runtime, and each one that registers later, to preserve state on reloads. */
+	enableReloadStatePreservation(): void;
 }
 
 /**
@@ -185,6 +203,7 @@ function getCandidateOwners(
 function createEcoNavigationRuntime(): EcoNavigationRuntime {
 	const registrations = new Map<EcoNavigationOwner, EcoNavigationRuntimeRegistration>();
 	let owner: EcoNavigationOwner = 'none';
+	let reloadStatePreservationEnabled = false;
 	let navigationSequence = 0;
 	let navigationAbortController: AbortController | null = null;
 
@@ -229,6 +248,7 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 				id: navigationId,
 				signal: abortController.signal,
 				isCurrent: () => navigationSequence === navigationId && navigationAbortController === abortController,
+				isSuperseded: () => navigationSequence !== navigationId,
 				cancel: () => {
 					cancelNavigationTransaction(navigationId, abortController);
 				},
@@ -270,6 +290,9 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 
 		register(registration: EcoNavigationRuntimeRegistration): () => void {
 			registrations.set(registration.owner, registration);
+			if (reloadStatePreservationEnabled) {
+				registration.enableReloadStatePreservation?.();
+			}
 
 			return () => {
 				const currentRegistration = registrations.get(registration.owner);
@@ -334,6 +357,17 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 			}
 
 			return false;
+		},
+
+		enableReloadStatePreservation(): void {
+			if (reloadStatePreservationEnabled) {
+				return;
+			}
+
+			reloadStatePreservationEnabled = true;
+			for (const registration of registrations.values()) {
+				registration.enableReloadStatePreservation?.();
+			}
 		},
 
 		async cleanupOwner(targetOwner: EcoNavigationOwner): Promise<void> {

@@ -48,6 +48,64 @@ export function registerDependencyDiscoveryTests() {
 		}
 	});
 
+	test('delivers a plain component stylesheet once, after the CSS of the components importing it @parity', async ({
+		page,
+		request,
+	}) => {
+		const runtime = trackRuntimeErrors(page);
+		const scriptBodies: Promise<string>[] = [];
+		page.on('response', (response) => {
+			if (response.request().resourceType() === 'script') scriptBodies.push(response.text().catch(() => ''));
+		});
+		await page.goto('/discovery-plain');
+		const cards = page.locator('.discovery-plain-card');
+		await expect(cards).toHaveCount(2);
+		for (const card of await cards.all()) {
+			await expect(card).toHaveCSS('border-top-width', '5px');
+		}
+		const stylesheetUrls = await page
+			.locator('link[rel="stylesheet"]')
+			.evaluateAll((links) => links.map((link) => (link as HTMLLinkElement).href));
+		const stylesheetContents = await Promise.all(
+			stylesheetUrls.map(async (url) => (await request.get(url)).text()),
+		);
+		expect(stylesheetContents.join('\n').match(/--discovery-plain-card\s*:/g)).toHaveLength(1);
+		expect((await Promise.all(scriptBodies)).some((body) => body.includes('--discovery-plain-card'))).toBe(false);
+		runtime.assertClean();
+	});
+
+	test('links a package stylesheet once, after the CSS of the component importing its module, with its font emitted @parity', async ({
+		page,
+		request,
+	}) => {
+		const runtime = trackRuntimeErrors(page);
+		await page.goto('/discovery-plain');
+		for (const card of await page.locator('.discovery-plain-card').all()) {
+			await expect(card).toHaveCSS('outline-width', '3px');
+		}
+		const stylesheetUrls = await page
+			.locator('link[rel="stylesheet"]')
+			.evaluateAll((links) => links.map((link) => (link as HTMLLinkElement).href));
+		const stylesheets = await Promise.all(
+			stylesheetUrls.map(async (url) => ({ url, text: await (await request.get(url)).text() })),
+		);
+		const packageIndexes = stylesheets.flatMap(({ text }, index) =>
+			text.includes('.package-css-lib-badge') ? [index] : [],
+		);
+		expect(packageIndexes).toHaveLength(1);
+		const badgeIndex = stylesheets.findIndex(({ text }) => text.includes('.discovery-plain-badge'));
+		expect(badgeIndex).toBeGreaterThanOrEqual(0);
+		expect(packageIndexes[0]).toBeGreaterThan(badgeIndex);
+		const packageStylesheet = stylesheets[packageIndexes[0]!]!;
+		const fontReference = /url\(["']?([^"')]+\.woff2)["']?\)/.exec(packageStylesheet.text)?.[1];
+		expect(fontReference).toBeDefined();
+		expect(fontReference).not.toContain('fonts/');
+		const font = await request.get(new URL(fontReference!, packageStylesheet.url).href);
+		expect(font.ok()).toBe(true);
+		expect(await font.text()).toBe('package-css-lib font fixture\n');
+		runtime.assertClean();
+	});
+
 	test('discovers React component CSS without additional hydration @parity', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 		await page.goto('/discovery-react');

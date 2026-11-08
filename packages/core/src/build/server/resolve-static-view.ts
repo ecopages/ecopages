@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { EcoPageComponent, ViewLoader } from '../../types/contracts.ts';
@@ -19,14 +20,14 @@ export function resolveStaticView<P>(appConfig: EcoPagesAppConfig, view: StaticV
 	}
 
 	if (isViewReference(view)) {
-		return createViewLoaderFromFilePath(appConfig, view.filePath);
+		return createViewLoaderFromFilePath(appConfig, path.resolve(appConfig.rootDir, view.filePath));
 	}
 
 	if (typeof view === 'function' && 'config' in view && view.config) {
 		const loader: ViewLoader<P> = async () => ({ default: view as EcoPageComponent<P> });
 		const filePath = getComponentIdentity(view)?.file;
 		if (filePath) {
-			loader.filePath = filePath;
+			loader.filePath = path.resolve(appConfig.rootDir, filePath);
 		}
 		return loader;
 	}

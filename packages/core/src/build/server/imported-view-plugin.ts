@@ -1,10 +1,12 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
+import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import {
 	collectViewIntegrations,
 	findViewOwner,
 	isExemptFromViewReference,
+	isViewModule,
 	viewExtensionFilter,
 	viewReferenceModuleSource,
 } from './view-reference.ts';
@@ -30,6 +32,7 @@ function recordImportedViewPath(appConfig: EcoPagesAppConfig, filePath: string):
 
 /**
  * Turns Integration-owned imports in the server-entry graph into view references.
+ * A file without a default export is not a view and stays a real module.
  *
  * @remarks
  * Register only on the server-entry bundle. Page and route-module builds must
@@ -64,12 +67,12 @@ export function createImportedViewPlugin(
 					return undefined;
 				}
 				const owner = findViewOwner(integrations, args.path);
-				if (!owner) {
+				if (!owner || !isViewModule(args.path, fileSystem.readFileSync(args.path))) {
 					return undefined;
 				}
 				recordImportedViewPath(appConfig, args.path);
 				return {
-					contents: viewReferenceModuleSource(args.path, owner.name),
+					contents: viewReferenceModuleSource(args.path, owner.name, appConfig.rootDir),
 					loader: 'js',
 				};
 			});

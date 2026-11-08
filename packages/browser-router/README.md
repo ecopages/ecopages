@@ -106,12 +106,21 @@ Call `router.stop()` before replacing the router script in long-lived sessions (
 
 Mark elements with the same persistence key on each page to preserve them across navigations. When the incoming page keeps the element under a compatible ancestor structure, it stays connected and is never recreated; morphdom skips it entirely. This holds when view transitions are disabled and when the incoming page has `data-eco-rerun` scripts. Changing the element's ancestor tags can require replacing its containing path, so keep that structure stable when connection continuity matters.
 
-When an incoming page has a `data-eco-rerun` script, browser-router refreshes matching non-persisted elements before running it, except for the body, persisted elements, their ancestor path, and descendants of custom elements on that path. Those custom-element descendants stay in place because the connected host may have attached handlers to them. Keep handler-bound child markup structurally compatible across pages, or have the component rebind when its child markup changes; replacing a child does not reconnect the host. Event handlers installed on refreshed elements attach to new nodes instead of stacking on nodes retained by the morph. A rerun script that installs handlers on any retained node must make that registration idempotent, because those nodes remain attached across navigations.
+On navigation to another URL, when an incoming page has a `data-eco-rerun` script, browser-router refreshes matching non-persisted elements before running it, except for the body, persisted elements, their ancestor path, and descendants of custom elements on that path. Those custom-element descendants stay in place because the connected host may have attached handlers to them. Keep handler-bound child markup structurally compatible across pages, or have the component rebind when its child markup changes; replacing a child does not reconnect the host. Event handlers installed on refreshed elements attach to new nodes instead of stacking on nodes retained by the morph. A rerun script that installs handlers on any retained node must make that registration idempotent, because those nodes remain attached across navigations.
 
 ```html
 <!-- This counter keeps its internal state across all navigations -->
 <radiant-counter data-eco-persist="counter"></radiant-counter>
 ```
+
+## Reloading the current page
+
+`reloadCurrentPage()` on the navigation runtime, which development HMR calls when a server-rendered template such as a page, layout, include or view is saved, and when a module update reloads the active page (`clearCache: false`), fetches the current URL again and compares each body element's server markup in the previous document with its markup in the new one, rather than with the live element. An element whose server markup did not change stays as it is, with its state, children, shadow root and runtime attributes; a changed custom element is replaced, and a changed plain element is morphed, keeping its live attributes when its own server attributes did not change. Rerun scripts do not refresh elements on a reload, so a `data-eco-rerun` script must register handlers idempotently on every element a reload does not replace, which is all but changed custom elements. Navigation to another URL morphs as described above. The router records server markup only after development HMR calls `enableReloadStatePreservation()` on the navigation runtime, so production navigations copy nothing.
+
+Known limits:
+
+- The first save after a full page load compares against the body as the router found it when recording started, so a component that rendered or changed its attributes on the client before then is replaced once.
+- State follows tree position, so identical sibling hosts can swap state when an earlier sibling is inserted or removed.
 
 ## Scripts on navigation
 

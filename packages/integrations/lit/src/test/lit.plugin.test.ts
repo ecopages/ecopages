@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '@ecopages/core/create-app';
 import { requireAppRuntime } from '@ecopages/core/integration';
@@ -40,33 +40,34 @@ describe('LitPlugin', () => {
 		expect(new LitPlugin().serverDom?.kind).toBe('repair');
 	});
 
-	it('keeps the global hydrate-support bootstrap stable across browser-router swaps', () => {
+	it('loads hydrate support as a module of the app browser graph that browser-router swaps keep', () => {
 		const plugin = new LitPlugin();
 		const [dependency] = plugin.getDependencies();
 
 		expect(dependency).toMatchObject({
 			kind: 'script',
-			source: 'content',
-			inline: true,
+			source: 'file',
+			position: 'head',
 			attributes: {
+				type: 'module',
 				'data-eco-script-id': 'lit-hydrate-support',
 			},
 		});
-		expect(dependency.attributes?.['data-eco-rerun']).toBeUndefined();
-
-		if (dependency.kind !== 'script' || dependency.source !== 'content') {
-			throw new Error('Expected Lit hydrate dependency to be an inline content script');
+		expect(dependency?.attributes?.['data-eco-rerun']).toBeUndefined();
+		if (dependency?.kind !== 'script' || dependency.source !== 'file') {
+			throw new Error('Expected Lit hydrate support to be a file script');
 		}
-
-		expect(dependency.content).toContain('(() => {');
-		expect(dependency.content).toContain('globalThis.litElementHydrateSupport');
+		expect(dependency.filepath).toBe(path.fromFileUrl(import.meta.resolve('@ecopages/lit/hydrate-support')));
+		expect(fs.readFileSync(dependency.filepath, 'utf8')).toContain(
+			"import '@lit-labs/ssr-client/lit-element-hydrate-support.js';",
+		);
 	});
 
 	it('initializes its configured renderer class', async () => {
 		class CustomLitRenderer extends LitRenderer {}
 
-		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
 		const plugin = new LitPlugin();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src', integrations: [plugin] });
 		plugin.renderer = CustomLitRenderer;
 		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
 		const ensureWorker = vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
@@ -135,7 +136,6 @@ describe('LitPlugin staticExport', () => {
 		const plugin = new LitPlugin();
 		const context = { appConfig, baseUrl: 'http://127.0.0.1:3000' } as unknown as StaticExportContext;
 		const ensureWorker = vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
-		vi.spyOn(LitStaticRenderSession.prototype, 'preloadStaticRoutes').mockResolvedValue();
 		const dispose = vi.spyOn(LitStaticRenderSession.prototype, 'dispose').mockResolvedValue();
 		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
 		requireAppRuntime(appConfig).origin = 'http://127.0.0.1:4000';
@@ -143,7 +143,7 @@ describe('LitPlugin staticExport', () => {
 		return { plugin, context, ensureWorker, dispose };
 	}
 
-	it('starts its own render worker with the export base URL and stops it when the returned release runs', async () => {
+	it('starts its own render worker with the export base URL and build directories and stops it when the returned release runs', async () => {
 		const { plugin, context, ensureWorker, dispose } = await createStaticExportFixture();
 
 		expect(ensureWorker).not.toHaveBeenCalled();
@@ -154,6 +154,7 @@ describe('LitPlugin staticExport', () => {
 		expect(ensureWorker).toHaveBeenCalledWith({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: context.baseUrl,
+			directories: { distDir: path.resolve('/app/dist'), workDir: path.resolve('/app/.eco') },
 		});
 		expect(dispose).not.toHaveBeenCalled();
 
@@ -179,7 +180,7 @@ describe('LitPlugin staticExport', () => {
 
 describe('LitPlugin watch restart script-change invalidation', () => {
 	it('runs the Lit SSR preload invalidation once after an app in watch mode is stopped and started again', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-lit-watch-restart-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-lit-watch-restart-')));
 		const srcDir = path.join(rootDir, 'src');
 		const pagesDir = path.join(srcDir, 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
@@ -207,8 +208,9 @@ describe('LitPlugin watch restart script-change invalidation', () => {
 		const preloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
 			preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
+			integrationName: plugin.name,
+			integrations: appConfig.integrations,
 			logLabel: 'lit',
-			requireLazyScriptEntry: true,
 			resolveDependencyPath: (componentDir, sourcePath) => path.join(componentDir, sourcePath),
 			importServerModule,
 		});

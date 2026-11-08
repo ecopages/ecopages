@@ -12,8 +12,7 @@ import type { IntegrationRenderer } from './orchestration/integration-renderer.t
  * loading. Returning this narrowed shape avoids a dedicated wrapper class while
  * still keeping callers off the full integration renderer surface.
  */
-export type PageRouteRenderer = Pick<IntegrationRenderer<unknown>, 'execute' | 'loadPageModule'> &
-	Partial<Pick<IntegrationRenderer<unknown>, 'clearPrebuiltRoutePreparation'>>;
+export type PageRouteRenderer = Pick<IntegrationRenderer<unknown>, 'execute' | 'loadPageModule'>;
 
 /**
  * Narrow explicit-view render contract exposed to static route handling.

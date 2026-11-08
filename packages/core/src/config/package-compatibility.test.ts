@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 
@@ -10,12 +10,12 @@ type PackageManifest = {
 };
 
 function readManifest(relativePath: string): PackageManifest {
-	const manifestPath = path.resolve(import.meta.dirname, '../../../..', relativePath);
+	const manifestPath = path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../../../..', relativePath);
 	return JSON.parse(readFileSync(manifestPath, 'utf-8')) as PackageManifest;
 }
 
 function resolveRepoPath(relativePath: string): string {
-	return path.resolve(import.meta.dirname, '../../../..', relativePath);
+	return path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../../../..', relativePath);
 }
 
 function collectPackageManifestPaths(relativeDir: string): string[] {
@@ -26,7 +26,7 @@ function collectPackageManifestPaths(relativeDir: string): string[] {
 
 	return readdirSync(dirPath, { withFileTypes: true })
 		.filter((entry) => entry.isDirectory())
-		.map((entry) => path.posix.join(relativeDir, entry.name, 'package.json'))
+		.map((entry) => path.join(relativeDir, entry.name, 'package.json'))
 		.filter((manifestPath) => existsSync(resolveRepoPath(manifestPath)));
 }
 

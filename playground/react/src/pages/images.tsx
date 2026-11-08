@@ -73,10 +73,6 @@ function UrbanVintageCredits() {
 }
 
 export default eco.page<{}, ReactNode>({
-	dependencies: {
-		components: [BaseLayout, ClientImageGenerator],
-	},
-
 	metadata: () => ({
 		title: 'Images Labs page',
 		description: 'This is the test page for images',

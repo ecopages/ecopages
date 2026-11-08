@@ -22,21 +22,17 @@ vi.mock('../src/navigation.ts', async (importOriginal) => {
 	};
 });
 
-import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
+import { EcoRouter, PageContent } from '../src/router.ts';
 import { waitForRouterOwner } from './react-router.harness.ts';
 
-type NestedLayoutComponent = FC<{ children?: ReactNode }> & {
-	config?: { identity?: { id: string; file: string; integration: string } };
-};
+type NestedLayoutComponent = FC<{ children?: ReactNode }>;
 
 type StatefulLayoutTestHandle = {
 	mountCount: number;
 };
 
-function createStatefulEcoLayout(
-	testId: string,
-	eco: { id: string; file: string },
-): NestedLayoutComponent & { testState: StatefulLayoutTestHandle } {
+/** A plain layout function, as a layout module exports it: no component identity. */
+function createStatefulLayout(testId: string): NestedLayoutComponent & { testState: StatefulLayoutTestHandle } {
 	const testState: StatefulLayoutTestHandle = { mountCount: 0 };
 	const Layout = ({ children }: { children?: ReactNode }) => {
 		const [tick, setTick] = useState(0);
@@ -59,20 +55,12 @@ function createStatefulEcoLayout(
 		);
 	};
 
-	Layout.displayName = testId;
-	Layout.config = { identity: { ...eco, integration: 'react' } };
-	const StatefulLayout = Layout as NestedLayoutComponent & { testState: StatefulLayoutTestHandle };
-	StatefulLayout.testState = testState;
-	return StatefulLayout;
+	return Object.assign(Layout, { testState });
 }
 
-function createNestedEcoLayout(testId: string, eco: { id: string; file: string }): NestedLayoutComponent {
-	const Layout = ({ children }: { children?: ReactNode }) =>
+function createNestedLayout(testId: string): NestedLayoutComponent {
+	return ({ children }: { children?: ReactNode }) =>
 		createElement('div', { 'data-testid': testId }, testId, children);
-
-	Layout.displayName = testId;
-	Layout.config = { identity: { ...eco, integration: 'react' } };
-	return Layout;
 }
 
 function createNestedLayoutPageWithLink(
@@ -123,26 +111,14 @@ describe('nested layout persistence', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('preserves shared outer layout state across [A,B] and [A,C] SPA navigation', async () => {
-		const sharedEco = { id: 'app-shell', file: '/app/layouts/app-shell.tsx' };
-		const shellDocsImport = createStatefulEcoLayout('shared-shell', sharedEco);
-		const shellSettingsImport = createStatefulEcoLayout('shared-shell', sharedEco);
-		const docsInner = createNestedEcoLayout('docs-inner', {
-			id: 'docs-inner',
-			file: '/app/layouts/docs-inner.tsx',
-		});
-		const settingsInner = createNestedEcoLayout('settings-inner', {
-			id: 'settings-inner',
-			file: '/app/layouts/settings-inner.tsx',
-		});
-
-		const DocsPage = createNestedLayoutPageWithLink('DocsPage', [shellDocsImport, docsInner], {
+	async function navigateFromDocsToSettings(persistLayouts: boolean) {
+		const shell = createStatefulLayout('shared-shell');
+		const DocsPage = createNestedLayoutPageWithLink('DocsPage', [shell, createNestedLayout('docs-inner')], {
 			href: '/settings',
 			testId: 'go-settings',
 		});
-		const SettingsPage = createNestedLayoutPage('SettingsPage', [shellSettingsImport, settingsInner]);
+		const SettingsPage = createNestedLayoutPage('SettingsPage', [shell, createNestedLayout('settings-inner')]);
 
-		clearLayoutCache();
 		vi.spyOn(globalThis, 'fetch').mockResolvedValue(htmlPageResponse('<html><head></head><body></body></html>'));
 		loadPageModuleFromDocumentMock.mockResolvedValue({
 			Component: SettingsPage,
@@ -157,7 +133,7 @@ describe('nested layout persistence', () => {
 			createElement(EcoRouter, {
 				page: DocsPage,
 				pageProps: {},
-				options: { persistLayouts: true, viewTransitions: false },
+				options: { persistLayouts, viewTransitions: false },
 				// oxlint-disable-next-line no-children-prop
 				children: createElement(PageContent),
 			}),
@@ -165,13 +141,11 @@ describe('nested layout persistence', () => {
 
 		await expect.element(page.getByTestId('docs-inner')).toBeInTheDocument();
 		await waitForRouterOwner();
-		const shell = container.querySelector('[data-testid="shared-shell"]') as HTMLDivElement;
-		expect(shell).not.toBeNull();
-		expect(container.querySelector('[data-testid="docs-inner"]')).not.toBeNull();
-		expect(shellDocsImport.testState.mountCount).toBe(1);
+		const shellElement = container.querySelector('[data-testid="shared-shell"]') as HTMLDivElement;
+		expect(shell.testState.mountCount).toBe(1);
 
-		await userEvent.click(shell, { position: { x: 2, y: 2 } });
-		expect(shell.getAttribute('data-tick')).toBe('1');
+		await userEvent.click(shellElement, { position: { x: 2, y: 2 } });
+		expect(shellElement.getAttribute('data-tick')).toBe('1');
 
 		await userEvent.click(container.querySelector('[data-testid="go-settings"]') as HTMLAnchorElement);
 
@@ -180,9 +154,22 @@ describe('nested layout persistence', () => {
 			expect(container.querySelector('[data-testid="settings-inner"]')).not.toBeNull();
 		});
 
-		expect(shellDocsImport.testState.mountCount).toBe(1);
-		expect(container.querySelector('[data-testid="shared-shell"]')?.getAttribute('data-tick')).toBe('1');
 		expect(container.querySelector('[data-testid="docs-inner"]')).toBeNull();
 		expect(container.querySelector('[data-testid="SettingsPage-page"]')).not.toBeNull();
+		return { shell, tick: container.querySelector('[data-testid="shared-shell"]')?.getAttribute('data-tick') };
+	}
+
+	it('keeps a shared plain outer layout mounted across [A,B] and [A,C] SPA navigation', async () => {
+		const { shell, tick } = await navigateFromDocsToSettings(true);
+
+		expect(shell.testState.mountCount).toBe(1);
+		expect(tick).toBe('1');
+	});
+
+	it('remounts the shared outer layout when persistLayouts is off', async () => {
+		const { shell, tick } = await navigateFromDocsToSettings(false);
+
+		expect(shell.testState.mountCount).toBe(1);
+		expect(tick).toBe('0');
 	});
 });

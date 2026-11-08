@@ -14,11 +14,10 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, expect, test } from 'vitest';
 
-const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
+const repoRoot = path.fromFileUrl(new URL('../../../../', import.meta.url));
 const cliPath = path.join(repoRoot, 'packages/ecopages/bin/cli.js');
 const HOME_MARKER = 'Relocated home';
 
@@ -39,7 +38,7 @@ afterEach(async () => {
 function findPackageDir(fromDir: string, name: string): string | undefined {
 	for (let dir = fromDir; ; dir = path.dirname(dir)) {
 		const candidate = path.join(dir, 'node_modules', name);
-		if (existsSync(path.join(candidate, 'package.json'))) return realpathSync(candidate);
+		if (existsSync(path.join(candidate, 'package.json'))) return path.fromNative(realpathSync(candidate));
 		if (path.dirname(dir) === dir) return undefined;
 	}
 }
@@ -75,7 +74,7 @@ function installIsolated(appDir: string, packages: Record<string, string>): void
 			dependencies?: Record<string, string>;
 			optionalDependencies?: Record<string, string>;
 		};
-		const isWorkspacePackage = !sourceDir.split(path.sep).includes('node_modules');
+		const isWorkspacePackage = !sourceDir.split('/').includes('node_modules');
 		const entries = isWorkspacePackage && packageJson.files ? ['package.json', ...packageJson.files] : ['.'];
 		const nativeBindings: string[] = [];
 		for (const entry of entries) {
@@ -84,7 +83,7 @@ function installIsolated(appDir: string, packages: Record<string, string>): void
 				dereference: true,
 				filter: (source) => {
 					const relative = path.relative(sourceDir, source);
-					if (relative.split(path.sep).includes('node_modules')) return false;
+					if (relative.split('/').includes('node_modules')) return false;
 					if (!source.endsWith('.node')) return true;
 					nativeBindings.push(relative);
 					return false;
@@ -262,7 +261,7 @@ test(
 	'a server build keeps serving after dist and node_modules move to another root',
 	{ timeout: 120_000 },
 	async () => {
-		workDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-')));
+		workDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-'))));
 		const buildDir = path.join(workDir, 'build/app');
 		const deployDir = path.join(workDir, 'srv/deploy/app');
 		writeApp(buildDir);
@@ -299,5 +298,131 @@ test(
 		]) {
 			await expectDeployServes(deployDir, launch.command, launch.args);
 		}
+	},
+);
+
+function writeStyledApp(appDir: string): void {
+	mkdirSync(path.join(appDir, 'src/pages'), { recursive: true });
+	mkdirSync(path.join(appDir, 'src/includes'), { recursive: true });
+	writeFileSync(
+		path.join(appDir, 'package.json'),
+		JSON.stringify({
+			name: 'relocated-styled-app',
+			private: true,
+			type: 'module',
+			dependencies: { '@ecopages/core': '*', '@ecopages/kitajs': '*', '@kitajs/html': '*' },
+		}),
+	);
+	writeFileSync(
+		path.join(appDir, 'tsconfig.json'),
+		JSON.stringify({
+			compilerOptions: { jsx: 'react-jsx', jsxImportSource: '@kitajs/html', module: 'ESNext', target: 'ES2024' },
+		}),
+	);
+	writeFileSync(
+		path.join(appDir, 'eco.config.ts'),
+		[
+			"import { defineConfig } from '@ecopages/core/config';",
+			"import { kitajsPlugin } from '@ecopages/kitajs';",
+			'',
+			'export default defineConfig({ rootDir: import.meta.dirname, integrations: [kitajsPlugin()] });',
+			'',
+		].join('\n'),
+	);
+	writeFileSync(
+		path.join(appDir, 'app.ts'),
+		"import { createApp } from '@ecopages/core/create-app';\n\nconst app = await createApp();\napp.get('/api/ping', async ({ response }) => response.json({ ok: true }));\nawait app.start();\n",
+	);
+	writeFileSync(
+		path.join(appDir, 'src/includes/html.kita.tsx'),
+		[
+			"import type { HtmlTemplateProps } from '@ecopages/core';",
+			"import { eco } from '@ecopages/core';",
+			'',
+			'export default eco.html({',
+			'	render: ({ children, metadata }: HtmlTemplateProps) => (',
+			'		<html lang="en">',
+			'			<head>',
+			'				<meta charset="UTF-8" />',
+			'				<title>{metadata.title}</title>',
+			'			</head>',
+			"			<body>{children as 'safe'}</body>",
+			'		</html>',
+			'	),',
+			'});',
+			'',
+		].join('\n'),
+	);
+	writeFileSync(
+		path.join(appDir, 'src/pages/index.kita.tsx'),
+		[
+			"import { eco } from '@ecopages/core';",
+			'',
+			'export default eco.page({',
+			`	metadata: () => ({ title: '${HOME_MARKER}' }),`,
+			"	dependencies: { stylesheets: ['./home.css'], scripts: ['./home.script.ts'] },",
+			`	render: () => <h1>${HOME_MARKER}</h1>,`,
+			'});',
+			'',
+		].join('\n'),
+	);
+	writeFileSync(path.join(appDir, 'src/pages/home.css'), 'h1 { color: rebeccapurple; }\n');
+	writeFileSync(path.join(appDir, 'src/pages/home.script.ts'), "document.documentElement.dataset.home = 'ready';\n");
+}
+
+/**
+ * @remarks
+ * A Page declares a stylesheet and a component script. After the build the
+ * deploy layout moves to another root and the build tree, `src/` included,
+ * is deleted. Request-time asset processing must still link both from `dist/`.
+ */
+test(
+	'a moved build still links the Page stylesheet and script without the source tree',
+	{ timeout: 120_000 },
+	async () => {
+		workDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-assets-'))));
+		const buildDir = path.join(workDir, 'build/app');
+		const deployDir = path.join(workDir, 'srv/deploy/app');
+		writeStyledApp(buildDir);
+		const kitajsDir = path.join(repoRoot, 'packages/integrations/kitajs');
+		installIsolated(buildDir, {
+			'@ecopages/core': path.join(repoRoot, 'packages/core'),
+			'@ecopages/kitajs': kitajsDir,
+			'@kitajs/html': findPackageDir(kitajsDir, '@kitajs/html')!,
+		});
+
+		execFileSync(process.execPath, [cliPath, 'build', '--runtime', 'node'], {
+			cwd: buildDir,
+			env: { ...process.env, VITEST: '', NODE_ENV: 'production' },
+			stdio: 'pipe',
+			timeout: 90_000,
+		});
+
+		mkdirSync(deployDir, { recursive: true });
+		for (const entry of ['dist', 'node_modules']) {
+			renameSync(path.join(buildDir, entry), path.join(deployDir, entry));
+		}
+		rmSync(path.join(workDir, 'build'), { recursive: true, force: true });
+
+		let output = '';
+		server = spawn(process.execPath, ['dist/server/app.mjs'], {
+			cwd: deployDir,
+			env: {
+				...process.env,
+				VITEST: '',
+				NODE_ENV: 'production',
+				ECOPAGES_HOSTNAME: '127.0.0.1',
+				ECOPAGES_PORT: '0',
+			},
+			stdio: 'pipe',
+		});
+		server.stdout?.on('data', (chunk: Buffer) => (output += chunk.toString()));
+		server.stderr?.on('data', (chunk: Buffer) => (output += chunk.toString()));
+		const serverUrl = await waitForServerUrl(server, () => output);
+		const html = await (await fetch(new URL('/', serverUrl), { signal: AbortSignal.timeout(15_000) })).text();
+		expect(html).toContain(HOME_MARKER);
+		expect(html).toMatch(/<link[^>]+rel="stylesheet"[^>]+href="[^"]+\.css"/u);
+		expect(html).toMatch(/<script[^>]+src="[^"]+\.js"/u);
+		expect(output).not.toContain('Skipping missing');
 	},
 );

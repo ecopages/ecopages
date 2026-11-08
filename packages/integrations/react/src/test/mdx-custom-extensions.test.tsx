@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { rmSync } from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { ReactRenderer } from '../render/react-renderer.ts';
 import { reactPlugin } from '../plugin/react.plugin.ts';
@@ -92,34 +92,16 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		expect(renderer.isMdxFile('file.mdx')).toBe(false);
 	});
 
-	it('should add runtime vendor dependencies for the active NODE_ENV during setup', async () => {
+	it('declares no React vendor scripts, since React is an ordinary package of the browser graph', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const plugin = reactPlugin({});
 		const processDependencies = vi
 			.spyOn(AssetProcessingService.prototype, 'processDependencies')
 			.mockResolvedValue([]);
 
-		expect((plugin as any).integrationDependencies).toEqual([]);
-		expect(plugin.browserRuntimeManifest.bySpecifier.has('react')).toBe(true);
-		expect((plugin as any).integrationDependencies).toEqual([]);
-
 		await plugin.setup({ appConfig: Config, runtime: requireAppRuntime(Config) });
 
-		const dependencies = processDependencies.mock.calls[0]?.[0] as Array<{ bundleOptions?: { naming?: string } }>;
-		expect(dependencies).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					name: 'react',
-					bundleOptions: expect.objectContaining({ naming: 'react.js' }),
-				}),
-				expect.objectContaining({
-					name: 'react-dom',
-					bundleOptions: expect.objectContaining({ naming: 'react-dom.js' }),
-				}),
-			]),
-		);
-		expect(
-			dependencies.some((dependency) => String(dependency.bundleOptions?.naming).includes('.development.')),
-		).toBe(false);
+		expect(plugin.getIntegrationDependencies()).toEqual([]);
+		expect(processDependencies.mock.calls.flatMap(([dependencies]) => dependencies)).toEqual([]);
 	});
 });

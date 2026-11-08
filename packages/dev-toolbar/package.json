@@ -8,6 +8,9 @@
 		"dev-toolbar"
 	],
 	"license": "MIT",
+	"engines": {
+		"node": "^24.22.0 || >=26.0.0"
+	},
 	"type": "module",
 	"exports": {
 		".": "./src/bootstrap.ts",
@@ -29,8 +32,8 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@ecopages/jsx": "^0.6.0",
-		"@ecopages/radiant": "^0.6.0",
+		"@ecopages/jsx": "^0.8.2",
+		"@ecopages/radiant": "^0.8.2",
 		"axe-core": "^4.10.3"
 	},
 	"devDependencies": {

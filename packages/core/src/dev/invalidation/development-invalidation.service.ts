@@ -1,4 +1,5 @@
-import path from 'node:path';
+import { getStylesheetKinds, type StylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
+import { path } from '@ecopages/file-system/path';
 import { isDevEnvFilePath } from '../development-restart-watch-paths.ts';
 import { matchesAdditionalWatchPath, resolveAdditionalWatchPath } from '../../utils/additional-watch-paths.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
@@ -6,6 +7,7 @@ import { isPathInside } from '../../utils/path-containment.ts';
 import { clearAppDevelopmentRouteModuleBuildCaches } from '../../build/server/route-module-build-cache-registry.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../../page-cache/page-cache-service.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
+import { forgetDiscoveryOwner } from '../../plugins/component-import-discovery.ts';
 
 export type DevelopmentInvalidationCategory =
 	| 'public-asset'
@@ -154,6 +156,7 @@ export interface AppliedDevFileChanges {
  */
 export class DevelopmentInvalidationService {
 	private readonly appConfig: EcoPagesAppConfig;
+	private stylesheetKinds?: StylesheetKinds;
 
 	constructor(appConfig: EcoPagesAppConfig) {
 		this.appConfig = appConfig;
@@ -199,6 +202,7 @@ export class DevelopmentInvalidationService {
 		}
 		for (const filePath of changes.deleted) {
 			byPath.set(path.resolve(filePath), 'deleted');
+			forgetDiscoveryOwner(this.appConfig.rootDir, filePath);
 		}
 
 		const files: AppliedDevFileChange[] = [];
@@ -291,7 +295,9 @@ export class DevelopmentInvalidationService {
 	 * file it imports) would otherwise leave the cached import serving the old content, because cached
 	 * imports no longer re-hash their dependencies. A source file also used by a browser entrypoint
 	 * reloads the browser so server-rendered markup is refreshed when the same module is used by an
-	 * island. Other categories keep their own reload and processing behavior.
+	 * island. A processor-owned stylesheet a browser module imports also goes to HMR, which hot-updates that module
+	 * with the new CSS, while the Processor still refreshes the links that deliver it. Other categories keep their own
+	 * reload and processing behavior.
 	 */
 	planFileChange(
 		filePath: string,
@@ -302,9 +308,14 @@ export class DevelopmentInvalidationService {
 		const inputIndex = requireAppRuntime(this.appConfig).buildInputIndex;
 		const readByServerRouteModule = inputIndex.resolveKeys('server-route-module', filePath).length > 0;
 		const readByBrowserEntrypoint = inputIndex.resolveKeys('entrypoint', filePath).length > 0;
+		const stylesheetReadByBrowserModule =
+			category === 'processor-owned-asset' &&
+			readByBrowserEntrypoint &&
+			(this.stylesheetKinds ??= getStylesheetKinds(this.appConfig)).isStylesheet(filePath);
 		return {
 			category,
 			...plan,
+			delegateToHmr: plan.delegateToHmr || stylesheetReadByBrowserModule,
 			invalidateServerModules: plan.invalidateServerModules || readByServerRouteModule,
 			reloadBrowser:
 				plan.reloadBrowser || (category === 'source' && readByServerRouteModule && readByBrowserEntrypoint),
@@ -413,6 +424,15 @@ export class DevelopmentInvalidationService {
 		const resolvedPath = path.resolve(filePath);
 		const viewsDir = path.join(this.appConfig.absolutePaths.srcDir, 'views');
 		return isPathInside(resolvedPath, viewsDir) && this.isSourceFile(resolvedPath);
+	}
+
+	/** Returns whether a file under the source directory has an integration template extension. */
+	isTemplateSourceFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		return (
+			isPathInside(resolvedPath, this.appConfig.absolutePaths.srcDir) &&
+			this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))
+		);
 	}
 
 	/**

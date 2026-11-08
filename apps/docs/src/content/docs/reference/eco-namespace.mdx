@@ -17,9 +17,6 @@ The `eco` namespace provides a consistent, type-safe interface for:
 3. **`eco.layout()`** - Semantic alias for route layout components (page-level wrappers)
 4. **`eco.page()`** - Factory for defining page components with optional inline `staticPaths`, `staticProps`, and `metadata`
 5. **`eco.embed()`** - Explicit render helper for foreign or same-integration components during mixed rendering
-6. **`eco.metadata()`** - Type-safe wrapper for page metadata (legacy pattern)
-7. **`eco.staticPaths()`** - Type-safe wrapper for dynamic route generation (legacy pattern)
-8. **`eco.staticProps()`** - Type-safe wrapper for static data fetching (legacy pattern)
 
 
 ## Dependency discovery
@@ -51,6 +48,7 @@ import { eco, mergePageDependencies } from '@ecopages/core';
 import { getEntryDependencies } from 'ecopages:content/posts/server';
 
 export default eco.page({
+	staticProps: async ({ pathname }) => ({ props: { slug: String(pathname.params.slug) } }),
 	dependencies: async ({ props }) =>
 		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.slug)),
 	render: () => <article />,
@@ -69,11 +67,11 @@ scripts: [{
 
 For Lit and Ecopages JSX (Radiant hosts), `ssr: true` imports the script on the server before rendering so `customElements.define` runs without a separate value import in the component file. Only those integrations run SSR preload today; other renderers ignore `ssr: true` until they adopt the same preloader. `lazy` controls browser delivery only; it does not suppress server import. Lazy entries with `ssr: true` do not emit a duplicate eager browser script—browser delivery follows `lazy`, or loads eagerly when `lazy` is omitted. String-form `scripts: ['./file.ts']` stays browser-only unless you opt in with `{ src, ssr: true }`.
 
-Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
+Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components, or custom import attributes. A side-effect import of a package stylesheet (`import 'some-lib/style.css'`) is discovered like local CSS: Ecopages links it once, emits the files its relative `url()` references, and does not run your CSS Processor on it. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain function modules are walked as well: their side-effect CSS reaches the nearest declaration importing them, the Eco Components they import become Components of that declaration, and the walk stops at Eco modules, packages and `.server` modules. A plain module's side-effect CSS import inside the app that no declaration reaches fails the build with the file and the import named. A CSS Module import (`import styles from './card.module.css'`) is delivered like side-effect CSS and keeps its binding; it fails the build when no stylesheet Processor scopes CSS Modules. A plain component rendered by another Integration fails the build when the two Integrations compile JSX with different runtimes (a plain React component in a Kita or Ecopages JSX Page); Lit pages and MDX are not checked; wrap it in `eco.component()` to hand it over as a Foreign Child. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
 
 ## Component Patterns
 
-EcoPages provides a unified API for creating components and pages. While there are a few ways to define components, **`eco.component()` is the standard and recommended approach** for most use cases, as it ensures proper dependency management, lazy loading, and type safety.
+EcoPages provides a unified API for creating components and pages. A component is a plain function by default: discovery follows its CSS and component imports. Wrap it in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. See [Components and layouts](/docs/recipes/components-and-layouts) for when to use each.
 
 ## Component Creation
 
@@ -82,20 +80,22 @@ EcoPages provides a unified API for creating components and pages. While there a
 This is the primary way to create components in EcoPages. It handles:
 - **Dependency Management:** Automatically injects stylesheets and scripts.
 - **Lazy Loading:** Supports interaction, visibility, and idle triggers.
-- **Type Safety:** Infers props for both internal usage and custom elements.
+- **Type Safety:** Infers props and the element type from an annotated `render` parameter. Pass no type arguments: without the annotation props are `{}`, and a single explicit type argument stops TypeScript inferring the element type.
 
 
 For components that need dependencies, scripts, or lazy loading:
 
 ```tsx
 import { eco } from '@ecopages/core';
+import './counter.css';
+
+type CounterProps = { count: number };
 
 export const Counter = eco.component({
 	dependencies: {
-		stylesheets: ['./counter.css'],
 		scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
-	render: ({ count }) => <my-counter count={count}></my-counter>,
+	render: ({ count }: CounterProps) => <my-counter count={count}></my-counter>,
 });
 ```
 
@@ -112,7 +112,7 @@ While `eco.component()` is the default, there are specific scenarios where light
 
 ### Simple JSX Functions (Optimization)
 
-For purely presentational components (static UI) that **do not require** client-side interactivity, scripts, or dedicated stylesheets, you can use plain JSX functions. This is a performance optimization that avoids the overhead of a custom element wrapper and works especially well with utility-first CSS where styles are expressed inline through class names.
+For purely presentational components (static UI) that **do not require** client-side scripts, you can use plain JSX functions, and they may import their own stylesheet. This is a performance optimization that avoids the overhead of a custom element wrapper and works especially well with utility-first CSS where styles are expressed inline through class names. Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. Layouts use `eco.layout()` and the document shell uses `eco.html()`; every other component can be a plain function.
 
 ```tsx
 import type { PropsWithChildren } from '@/types';
@@ -127,10 +127,10 @@ export function Card({ children, className }: PropsWithChildren<{ className?: st
 
 - Static/presentational UI (cards, alerts, badges, layout primitives)
 - Projects using utility-first CSS (Tailwind, UnoCSS, etc.)
-- Components that only render HTML without scripts or dedicated stylesheets
+- Components that only render HTML without scripts, or that import their own stylesheet (`import './card.css'`)
 - Zero runtime cost - just functions returning markup
 
-> **Note:** If your component requires a dedicated CSS file, use `eco.component()` instead to manage the stylesheet dependency.
+> **Note:** Use `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration.
 
 ### Plain React Components (Integration)
 
@@ -138,9 +138,9 @@ You can use standard React components directly if they only rely on hooks (`useS
 
 Powered by [`@ecopages/react`](https://github.com/ecopages/react).
 
-> **Warning:** These components **cannot** declare external dependencies (scripts/stylesheets) or use EcoPages' lazy loading strategies directly. For those features, wrap them in `eco.component()`.
+> **Warning:** These components **cannot** declare scripts or use EcoPages' lazy loading strategies directly, and a page of another Integration cannot render them. For those features, wrap them in `eco.component()`. A side-effect CSS import (`import './counter.css'`) works without a wrapper.
 >
-> **Important:** Plain React functions are **not** valid as `eco.page({ layout })` values or as `dependencies.components` entries. The renderer validates that dependency graph nodes are **declared** components (`eco.component()`, `eco.layout()`, or `eco.html()`) with bound `config.identity`. Use `eco.layout()` for route wrappers instead of ad-hoc functions.
+> **Important:** Plain React functions are **not** valid as `dependencies.components` entries; the renderer validates that dependency graph nodes are **declared** components (`eco.component()`, `eco.layout()`, or `eco.html()`) with bound `config.identity`. A plain function typed with `LayoutProps` is a valid `eco.page({ layout })` value.
 
 ```tsx
 import { useState } from 'react';
@@ -165,14 +165,16 @@ export function Counter() {
 - Complex state logic within a single component
 - When you are already using the React integration
 
-> **Note:** If you need to attach external assets or lazy-load the component, switch to `eco.component()`.
+> **Note:** Use `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration.
 
 ### Comparison
 
 | Aspect | Simple JSX | Plain React | `eco.component()` |
 | :--- | :--- | :--- | :--- |
 | React hooks | No | Yes | Yes |
-| Scripts/Stylesheets | No | No | Yes |
+| Imported stylesheets | Yes | Yes | Yes |
+| Scripts | No | No | Yes |
+| Rendered by another Integration | No | No | Yes |
 | Lazy loading | No | No | Yes |
 | Hydration strategies | No | No | Yes |
 | Runtime cost | Zero | Minimal | Minimal |
@@ -184,23 +186,19 @@ All patterns can coexist in the same project. Use the right tool for the job.
 
 EcoPages fully supports React components. You can use `eco.component()` with React to managing dependencies and hydration while maintaining type safety.
 
-Since React components return `ReactNode` or `JSX.Element` (not `EcoPagesElement`), you need to specify the return type generic:
+React components return `ReactNode` or `JSX.Element`, not `EcoPagesElement`. Annotate the `render` parameter and let the element type be inferred; do not pass only the props type as a type argument, which leaves the element type at `EcoPagesElement`:
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { ReactNode } from 'react';
+import './button.css';
 
 type ButtonProps = {
 	label: string;
 	onClick?: () => void;
 };
 
-// Specify ReactNode as the second generic argument
-export const Button = eco.component<ButtonProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./button.css'],
-	},
-	render: ({ label, onClick }) => (
+export const Button = eco.component({
+	render: ({ label, onClick }: ButtonProps) => (
 		<button className="eco-button" onClick={onClick}>
 			{label}
 		</button>
@@ -220,16 +218,15 @@ export default eco.page<Props, JSX.Element>({
 });
 ```
 
-## Two Patterns for Pages
-
-### Consolidated API (Recommended)
+## Page data
 
 Define everything in one place:
 
 ```tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export default eco.page<BlogPostProps>({
+export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
 	staticPaths: async () => ({ paths: getAllSlugs() }),
 	staticProps: async ({ pathname }) => ({
@@ -243,32 +240,7 @@ export default eco.page<BlogPostProps>({
 });
 ```
 
-### Separate Exports (Legacy)
-
-The traditional pattern with named exports:
-
-```tsx
-import { eco } from '@ecopages/core';
-
-export const getStaticPaths = eco.staticPaths(async () => ({
-	paths: getAllSlugs(),
-}));
-
-export const getStaticProps = eco.staticProps(async ({ pathname }) => ({
-	props: { post: await getPost(pathname.params.slug) },
-}));
-
-export const getMetadata = eco.metadata<typeof getStaticProps>(({ props: { post } }) => ({
-	title: post.title,
-	description: post.excerpt,
-}));
-
-export default eco.page<typeof getStaticProps>({
-	render: ({ post }) => <article>{post.content}</article>,
-});
-```
-
-Both patterns work and can be mixed - the renderer checks for attached properties first, then falls back to named exports.
+A Page declares its data only through the `staticPaths`, `staticProps` and `metadata` options. A page module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata`, or wraps them in `eco.staticPaths()`, `eco.staticProps()` or `eco.metadata()`, fails in `ecopages dev` and `ecopages build` with an error naming the file. The `migrate-to-eco-page` codemod in `@ecopages/codemod` rewrites those pages.
 
 ## API Reference
 
@@ -278,8 +250,9 @@ Creates the document shell component — the outermost HTML wrapper rendered onc
 
 ```tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export const Document = eco.html({
+export const Document = eco.html<JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./document.css'],
 	},
@@ -296,23 +269,43 @@ export const Document = eco.html({
 
 ### `eco.layout()`
 
-Creates a route layout component — a wrapper rendered around page content. Semantically equivalent to `eco.component()` but clearly communicates that the component is intended to be used as a `layout` in `eco.page()`.
+Creates a route layout component — a wrapper rendered around page content — for a layout that declares browser `scripts`, `modules`, stylesheet attributes, or an `integration` override. Any other layout is a plain function typed with `LayoutProps`:
 
 ```tsx
-import { eco } from '@ecopages/core';
+import type { LayoutProps } from '@ecopages/core';
+import type { ReactNode } from 'react';
+import './base-layout.css';
+
+export function BaseLayout({ children }: LayoutProps<ReactNode>) {
+	return <main>{children}</main>;
+}
+```
+
+```tsx
+import { eco, type LayoutProps } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
+import './base-layout.css';
 
 export const BaseLayout = eco.layout({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
-	render: ({ children }) => (
+	render: ({ children }: LayoutProps<JsxRenderable>) => (
 		<main>{children}</main>
 	),
 });
 ```
 
-Use `eco.layout()` components as the `layout` option in `eco.page()`. EcoPages merges declared layouts into the page dependency graph automatically — you do not need to list the layout again in `dependencies.components` unless you also render it manually inside `render` (unusual).
+A layout with extra props passes them as the second type argument; they must be optional for `eco.page({ layout })`, which passes only `LayoutProps` and the entry's `props` factory output:
+
+```tsx
+export const BaseLayout = eco.layout<ReactNode, LayoutProps<ReactNode> & { prose?: boolean }>({
+	dependencies: { scripts: ['./base-layout.script.ts'] },
+	render: ({ children, prose }) => <main className={prose ? 'prose' : undefined}>{children}</main>,
+});
+```
+
+Pass either kind as the `layout` option in `eco.page()`. `layout` takes only layout-shaped components: an `eco.layout()` result or a function whose props are `LayoutProps`, which require `children`. EcoPages merges `eco.layout()` results into the page dependency graph automatically; a plain layout's imports reach the page through discovery. When a layout renders without its `children`, `ecopages build` fails with `Layout <name> (<file>) did not render its children`, a development request logs it as a warning, and a production request returns the layout's HTML unchanged.
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -348,7 +341,7 @@ layout: [
 	AppShell,
 	{
 		component: DocsSection,
-		props: ({ params }) => ({ activeSection: params.slug }),
+		props: ({ params }) => ({ activeSection: params?.slug }),
 	},
 ],
 ```
@@ -361,13 +354,14 @@ Define a reusable component with dependencies. Entries in `dependencies.componen
 
 ```tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
 export const BaseLayout = eco.component({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
-	render: ({ children, class: className }) => (
+	render: ({ children, class: className }: { children?: JsxRenderable; class?: string }) => (
 		<html>
 			<body class={className}>{children}</body>
 		</html>
@@ -385,7 +379,7 @@ export const Counter = eco.component({
 			{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } },
 		],
 	},
-	render: ({ count }) => <my-counter count={count}></my-counter>,
+	render: ({ count }: { count: number }) => <my-counter count={count}></my-counter>,
 });
 ```
 
@@ -460,7 +454,7 @@ Define a page component with optional inline static functions.
 ```tsx
 type BlogPostProps = { slug: string; title: string; text: string };
 
-export default eco.page<BlogPostProps>({
+export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
 
 	// Generate paths for dynamic routes
@@ -528,11 +522,12 @@ export default eco.page({
 
 ## Complete Examples
 
-### Dynamic Blog Post (Consolidated API)
+### Dynamic Blog Post 
 
 ```tsx
 // pages/blog/[slug].tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 import { BaseLayout } from '@/layouts/base-layout';
 import { getBlogPost, getAllBlogPostSlugs, getAuthor } from '@/mocks/data';
 
@@ -544,7 +539,7 @@ type BlogPostProps = {
 	authorName: string;
 };
 
-export default eco.page<BlogPostProps>({
+export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
 
 	staticPaths: async () => {
@@ -595,7 +590,7 @@ export const Counter = eco.component({
 		stylesheets: ['./counter.css'],
 		scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
-	render: ({ count }) => <my-counter count={count}></my-counter>,
+	render: ({ count }: { count: number }) => <my-counter count={count}></my-counter>,
 });
 ```
 
@@ -645,7 +640,7 @@ The `eco` factories use public types exported by `@ecopages/core`. For page prop
 ```tsx
 import { eco } from '@ecopages/core';
 
-eco. // IDE shows: component, html, layout, page, metadata, staticPaths, staticProps
+eco. // IDE shows: component, embed, html, layout, page
 ```
 
 ### 2. Type Safety
@@ -653,15 +648,15 @@ eco. // IDE shows: component, html, layout, page, metadata, staticPaths, staticP
 Props flow through the system automatically:
 
 ```tsx
-export default eco.page<{ title: string }>({
+export default eco.page({
 	staticProps: async () => ({ props: { title: 'Hello' } }),
 	render: ({ title }) => <h1>{title}</h1>, // ✓ TypeScript knows `title` is a string
 });
 ```
 
-### 3. Single Source of Truth (Consolidated API)
+### 3. Single Source of Truth
 
-All page configuration in one place - no hunting for separate exports:
+All page configuration in one place:
 
 ```tsx
 export default eco.page<Props>({
@@ -673,18 +668,14 @@ export default eco.page<Props>({
 });
 ```
 
-### 4. Backwards Compatible
-
-Both patterns work side by side - choose what works best for your use case.
-
 ## Implementation Notes
 
-The renderer checks for attached properties first:
+The renderer reads the data hooks from the Page only:
 
 ```typescript
-// Check for attached static functions (consolidated API) or named exports (legacy)
-const getStaticProps = Page.staticProps ?? module.getStaticProps;
-const getMetadata = Page.metadata ?? module.getMetadata;
+const getStaticProps = Page.staticProps;
+const getMetadata = Page.metadata;
 ```
 
-This ensures both patterns work seamlessly.
+A page module that exports `getStaticProps`, `getStaticPaths` or `getMetadata` fails before it renders. MDX pages are the exception: they cannot call `eco.page()`, so the MDX integrations move their `getMetadata` export onto the Page as `metadata`.
+

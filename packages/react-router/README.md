@@ -11,7 +11,7 @@ Client-side SPA router for Ecopages React applications. Features single-page app
 - **Head sync**: Automatically updates document metadata `<head>` during navigation.
 - **View Transitions**: Built-in support for the browser View Transitions API.
 
-The core navigation pipeline shares document fetching, parsing, caching, head reconciliation, script activation, named view transitions, and lifecycle events with `@ecopages/browser-router`. React-router supplies the page swap by rendering the next React page into the existing root and handles scroll restoration through the shared post-swap hook.
+The core navigation pipeline shares document fetching, parsing, caching, head reconciliation, script activation, named view transitions, and lifecycle events with `@ecopages/browser-router`. React-router supplies the page swap by rendering the next React page into the existing root and handles scroll restoration through the shared post-swap hook. Like the Browser Router, it dispatches `eco:page-load` once on first load and after each committed navigation, skipping it only when a newer navigation began before the frame.
 
 ## Cross-Runtime Handoff
 
@@ -48,21 +48,21 @@ If your site mixes React pages with non-React pages, you can also run `@ecopages
 
 ### Layouts (Optional)
 
-Configure your page with a declared layout to keep UI (headers, navs, sidebars) mounted across navigations:
+Configure your page with a layout to keep UI (headers, navs, sidebars) mounted across navigations. A layout is a plain function typed with `LayoutProps`, or an `eco.layout()` result when it declares browser scripts:
 
 ```tsx
 // src/layouts/base-layout.tsx
-import { eco } from '@ecopages/core';
+import type { LayoutProps } from '@ecopages/core';
 import type { ReactNode } from 'react';
 
-export const BaseLayout = eco.layout<{ children: ReactNode }>({
-	render: ({ children }) => (
+export function BaseLayout({ children }: LayoutProps<ReactNode>) {
+	return (
 		<>
 			<header>My Site</header>
 			<main>{children}</main>
 		</>
-	),
-});
+	);
+}
 
 // src/pages/index.tsx
 import { eco } from '@ecopages/core';
@@ -76,9 +76,9 @@ export default eco.page({
 
 #### Nested layouts and shared parents
 
-Pages declare an outer→inner stack with `layout: [Outer, Inner]` on `eco.page()`. Each tier is cached independently by component identity (`config.identity.id`), so two layouts exported from one file stay distinct. Two routes such as `[AppShell, DocsSection]` and `[AppShell, SettingsSection]` share one mounted **AppShell** instance when `persistLayouts` is enabled (the default with `ecoRouter()`): React state in the shell survives SPA navigation while the inner tier swaps.
+Pages declare an outer→inner stack with `layout: [Outer, Inner]` on `eco.page()`. Layouts persist by reference: a layout module has one URL in development and production, so every page that imports a layout gets the same function, and React keeps a tier mounted while consecutive pages pass the same function at the same position. Two routes such as `[AppShell, DocsSection]` and `[AppShell, SettingsSection]` share one mounted **AppShell** instance when `persistLayouts` is enabled (the default with `ecoRouter()`): React state in the shell survives SPA navigation while the inner tier swaps.
 
-A full document reload, HMR, or bootstrap that sets `refreshPersistedLayout` may replace a cached tier when the imported layout function reference changes, even when the cache key is unchanged.
+An HMR update to a layout imports a new module version, so the new function replaces the mounted tier. With `persistLayouts: false`, every page change remounts its layouts.
 
 ```tsx
 // src/pages/docs/index.tsx
@@ -91,7 +91,7 @@ export default eco.page({
 	render: () => <h1>Docs</h1>,
 });
 
-// src/pages/settings/index.tsx — reuses the same AppShell cache key
+// src/pages/settings/index.tsx — imports the same AppShell function
 import { eco } from '@ecopages/core';
 import { AppShell } from '../../layouts/app-shell';
 import { SettingsSection } from '../../layouts/settings-section';
@@ -213,4 +213,4 @@ The router relies on **HTML-First** navigation to sync perfectly with SSR:
     - A render error after a committed navigation, such as a `React.lazy` chunk that fails to load, also becomes a full navigation to the destination URL, so the document is never left empty (coordinator and HMR reloads count as navigations). After that first navigation, any later render error in the Page on screen reloads the document the same way, so client state in that document is lost. The router does not reload when the error happens before its first navigation, such as a failing lazy chunk while the first Page hydrates: reloading there would loop for as long as the failure lasts. Without a Page-level error boundary, React tears the root down and `@ecopages/react` puts the server HTML back, readable but no longer interactive. A Page-level error boundary around the entry catches the error first: the rest of the Page stays, the boundary fallback is shown, and the router still does not reload.
     - `isNavigating` clears on every non-stale terminal (including handoff and hard fallback); stale attempts leave it for the newer owner.
 
-Coordinator-driven reloads fetch the current HTML instead of reusing prefetched navigation content, and keep the active URL fragment. A reload with `clearCache` also removes the current document and redirect target from the shared navigation cache before refreshing persisted layouts.
+Coordinator-driven reloads fetch the current HTML instead of reusing prefetched navigation content, and keep the active URL fragment. A reload with `clearCache` also removes the current document and redirect target from the shared navigation cache.

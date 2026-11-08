@@ -1,0 +1,18 @@
+{
+	"name": "@ecopages/e2e-package-css-lib",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./style.css": {
+			"style": "./css/style.css"
+		},
+		"./button.module.css": {
+			"style": "./css/button.module.css",
+			"default": "./css/button.module.css"
+		},
+		"./kit": {
+			"types": "./kit.d.ts",
+			"default": "./kit.js"
+		}
+	}
+}

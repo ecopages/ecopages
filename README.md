@@ -35,36 +35,13 @@ As an early-stage project, Ecopages is evolving. Feedback welcome via [GitHub](h
 
 ## Architecture And Docs Map
 
-The workspace now has a more explicit documentation map so architecture notes live close to the code that owns them.
-
 ### For contributors and agents
 
 - [`AGENTS.md`](AGENTS.md) — coding standards for agents
 - [`CONTEXT.md`](CONTEXT.md) — domain vocabulary
+- [Developer pages](apps/docs/src/content/dev) — how the framework works inside, served at `/dev` on the docs site
 
-When a change affects subsystem behavior, update the local `README.md`, the parent documentation map if needed (`packages/core/README.md`, this section), and `CONTEXT.md` only when domain terms change. Other guides: [`e2e/README.md`](e2e/README.md), [`apps/docs/AGENTS.md`](apps/docs/AGENTS.md), package roots under `packages/*/`.
-
-Start here for package-level architecture:
-
-- `packages/core/README.md`: overall core architecture and ownership model
-- `packages/core/src/config/README.md`: config build and finalized app-owned runtime state
-- `packages/core/src/plugins/README.md`: integration and processor contracts
-- `packages/core/src/build/README.md`: build adapter, app-scoped server module loading, executor, and dev-build coordination
-- `packages/core/src/page-cache/README.md`: HTML cache strategies, ISR, and source-aware invalidation
-- `packages/core/src/assets/README.md`: shared asset processing and browser build coordination
-- `packages/core/src/validation/README.md`: request validation with Standard Schema
-- `packages/core/src/html/README.md`: streaming HTML rewriting and source parsing
-- `packages/core/src/adapters/README.md`: HTTP host. The process can be Node or Bun.
-- `packages/core/src/dev/README.md`: development invalidation, dev transform server, and on-demand client delivery
-- `packages/core/src/hmr/README.md`: HMR strategy layer and build error presentation
-- `packages/core/src/dev-toolbar/README.md`: custom toolbar clients and build error event contract
-- `packages/dev-toolbar/README.md`: reference Dev Toolbar apps, including build errors
-- `packages/core/src/router/README.md`: route matching and browser navigation coordination
-- `packages/core/src/route-renderer/README.md`: route rendering orchestration
-- `packages/core/src/static-site-generator/README.md`: static generation flow
-- `packages/core/src/eco/README.md`: `eco` authoring primitives
-
-Domain vocabulary lives in `CONTEXT.md`, implementation details in localized READMEs, and agent rules in `AGENTS.md`. User-facing guides are on the [docs site](https://ecopages.app/docs/core/architecture).
+When a change affects subsystem behavior, update the developer page whose `sources:` cover the changed file, and `CONTEXT.md` only when domain terms change. Other guides: [`e2e/README.md`](e2e/README.md), [`apps/docs/AGENTS.md`](apps/docs/AGENTS.md), package roots under `packages/*/`. User-facing guides are on the [docs site](https://ecopages.app/docs/core/architecture).
 
 The current direction is explicit: Ecopages runs on Node or Bun through Node APIs, the CLI picks the runtime that launched it, and esbuild is no longer a strategic core dependency.
 
@@ -161,7 +138,7 @@ Verify your site's functionality:
 
 CI runs `test:ci:fast` (template checks, lint, format check, typecheck and every Vitest project, including `apps/docs`, the templates and the static-build parity oracle) and the four-shard `test:e2e` suite on every pull request. It also runs `test:e2e:docs` when the docs app or its build dependencies change. Pushes to `next` and `main` run the same sharded `test:e2e` suite.
 
-`pnpm run check:ignored` fails when git tracks a file that an ignore rule matches, because `pnpm pack` leaves such a file out of the published package; `test:ci:fast` runs it. `pnpm run build:npm` also fails when a packed file imports a file that is not in the tarball. `pnpm run smoke:templates` builds the `html`, `jsx` and `lit-jsx` templates from the workspace, and the fast CI job runs it. `pnpm run smoke:packed [template...]` is the slower release check: it packs every public package, installs the `html`, `jsx`, `react` and `lit-jsx` templates from those tarballs, builds each one and serves `html` with `ecopages preview`. Run it locally before a release; CI runs it only for the `changeset-release/main` pull request and on manual dispatch.
+`pnpm run check:ignored` fails when git tracks a file that an ignore rule matches, because `pnpm pack` leaves such a file out of the published package; `test:ci:fast` runs it. `pnpm run build:npm` also fails when a packed file imports a file that is not in the tarball. `pnpm run smoke:templates` builds every template under `templates/` from the workspace with its own `build` script, and the fast CI job runs it. `pnpm run smoke:packed [template...]` is the slower release check: it packs every public package, installs the `html`, `jsx`, `jsx-postcss`, `jsx-css-modules`, `react`, `react-postcss` and `lit-jsx` templates from those tarballs, builds each one and serves `html` with `ecopages preview`. Run it locally before a release; CI runs it only for the `changeset-release/main` pull request and on manual dispatch.
 
 ### Releases
 

@@ -7,22 +7,22 @@
  * @module
  */
 
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/integration';
 import { isRegisteredScriptEntrypoint } from '@ecopages/core/integration';
 import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/integration';
 import { isPathInside } from '@ecopages/core/build';
-import type { EcoBuildPlugin } from '@ecopages/core/integration';
-import { createBrowserRuntimePlugin } from '@ecopages/core/build';
-import type { BrowserRuntimeManifest } from '@ecopages/core/build';
+import type { DevTransformVendorEntries, EcoBuildPlugin } from '@ecopages/core/integration';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core/integration';
-import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
-import { someInConfigTree } from '../client-graph/component-config-traversal.ts';
-import { getReactClientGraphAllowSpecifiers } from '../bundling/runtime-alias-map.ts';
+import { createClientGraphBoundaryPlugin, createForeignBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
+import { REACT_BOUNDARY_VARIANT } from '../client-graph/foreign-boundary-rewrite.ts';
+import { getReactClientGraphAllowSpecifiers } from '../bundling/bundle.ts';
+import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
+import { getReactBrowserPackages } from '../bundling/bootstrap-package-paths.ts';
 import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
-import { getComponentIdentity, type EcoComponentConfig } from '@ecopages/core';
+import type { EcoComponentConfig } from '@ecopages/core';
 import {
 	buildReactDevTransformPlugins,
 	resolveReactDeclaredModulesForEntrypoint,
@@ -43,7 +43,7 @@ export interface ReactHmrStrategyOptions {
 	context: DefaultHmrContext;
 	projectRoot?: string;
 	pageMetadataCache: HmrPageMetadataCache;
-	runtimeManifest: BrowserRuntimeManifest;
+	routerAdapter?: ReactRouterAdapter;
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	ownedTemplateExtensions?: string[];
 	allTemplateExtensions?: string[];
@@ -65,7 +65,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private readonly allTemplateExtensions: string[];
 	private readonly context: DefaultHmrContext;
 	private readonly pageMetadataCache: HmrPageMetadataCache;
-	private readonly runtimeManifest: BrowserRuntimeManifest;
+	private readonly routerAdapter?: ReactRouterAdapter;
 
 	private async importNodePageModule(entrypointPath: string): Promise<ImportedReactPageModule> {
 		return await this.context.importServerModule(entrypointPath);
@@ -85,7 +85,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 		this.context = options.context;
 		this.projectRoot = options.projectRoot ?? path.dirname(this.context.getSrcDir());
 		this.pageMetadataCache = options.pageMetadataCache;
-		this.runtimeManifest = options.runtimeManifest;
+		this.routerAdapter = options.routerAdapter;
 		this.getMdxLoaderPlugin = options.getMdxLoaderPlugin;
 		this.ownedTemplateExtensions = new Set(options.ownedTemplateExtensions ?? ['.tsx']);
 		this.allTemplateExtensions = [...(options.allTemplateExtensions ?? ['.tsx'])].sort(
@@ -94,22 +94,21 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	private getBuildPlugins(declaredModules?: readonly string[]): EcoBuildPlugin[] {
-		const allowSpecifiers = getReactClientGraphAllowSpecifiers(
-			this.runtimeManifest.assets.map((asset) => asset.specifier),
-		);
-		const runtimeRewritePlugin = createBrowserRuntimePlugin({
-			name: 'react-hmr-runtime-import-rewrite',
-			manifest: this.runtimeManifest,
-		});
-
 		return [
 			createClientGraphBoundaryPlugin({
 				projectRoot: this.projectRoot,
 				absWorkingDir: this.projectRoot,
-				alwaysAllowSpecifiers: allowSpecifiers,
+				alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(this.routerAdapter),
 				declaredModules,
 			}),
-			...(runtimeRewritePlugin ? [runtimeRewritePlugin] : []),
+			createForeignBoundaryPlugin({
+				projectRoot: this.projectRoot,
+				isForeignFile: (filePath) => {
+					const templateExtension = this.resolveTemplateExtension(filePath);
+					return templateExtension !== undefined && !this.ownedTemplateExtensions.has(templateExtension);
+				},
+				isSharedFile: (filePath) => !this.isReactEntrypoint(filePath),
+			}),
 		];
 	}
 
@@ -174,43 +173,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return this.pageMetadataCache.ownsEntrypoint(filePath);
 	}
 
-	private configContainsFile(config: EcoComponentConfig | undefined, filePath: string): boolean {
-		const resolvedFilePath = path.resolve(filePath);
-
-		return someInConfigTree(config, (node) => {
-			const identity = getComponentIdentity(node);
-			if (!identity?.file) {
-				return false;
-			}
-
-			return path.resolve(identity.file) === resolvedFilePath;
-		});
-	}
-
-	private pageModuleRequiresLayoutRefresh(pageModule: ImportedReactPageModule, filePath: string): boolean {
-		return [pageModule.default?.config, pageModule.config].some((config) => {
-			return (config?.layouts ?? []).some((layout) => this.configContainsFile(layout?.config, filePath));
-		});
-	}
-
-	private async hasLayoutOwnedDependencyTarget(
-		changedFilePath: string,
-		requestedTargets: ReactHmrBuildTarget[],
-	): Promise<boolean> {
-		for (const target of requestedTargets) {
-			if (!this.isPageEntrypoint(target.entrypointPath)) {
-				continue;
-			}
-
-			const pageModule = await this.importNodePageModule(target.entrypointPath);
-			if (this.pageModuleRequiresLayoutRefresh(pageModule, changedFilePath)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
 	matches(filePath: string): boolean {
 		const watchedFiles = this.context.getWatchedFiles();
 		const resolvedFilePath = path.resolve(filePath);
@@ -246,7 +208,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return this.isReactEntrypoint(filePath);
 	}
 
-	override ownsDevTransformEntrypoint(sourcePath: string): boolean {
+	override ownsDevTransformEntrypoint(sourcePath: string, variant?: string): boolean {
+		if (variant === REACT_BOUNDARY_VARIANT) {
+			return isPathInside(sourcePath, this.context.getSrcDir());
+		}
 		if (!this.isReactEntrypoint(sourcePath)) {
 			return false;
 		}
@@ -254,15 +219,22 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return isPathInside(sourcePath, this.context.getSrcDir());
 	}
 
-	getRuntimeManifest(): BrowserRuntimeManifest {
-		return this.runtimeManifest;
+	/**
+	 * Packages the generated Page and island entries import, plus the JSX runtimes of compiled React modules,
+	 * resolved from this package.
+	 */
+	getVendorEntries(): DevTransformVendorEntries {
+		return {
+			resolveFrom: path.dirname(path.fromFileUrl(import.meta.url)),
+			specifiers: getReactBrowserPackages(this.routerAdapter),
+		};
 	}
 
 	async getVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {
 		return this.getBuildPlugins();
 	}
 
-	async createDevTransformPlugins(sourcePath: string): Promise<EcoBuildPlugin[]> {
+	async createDevTransformPlugins(sourcePath: string, _variant?: string): Promise<EcoBuildPlugin[]> {
 		const shouldResolveDeclaredModules = this.isPageEntrypoint(sourcePath) || sourcePath.endsWith('.mdx');
 		const declaredModules = shouldResolveDeclaredModules
 			? await resolveReactDeclaredModulesForEntrypoint(this.getDevTransformPluginOptions(), sourcePath)
@@ -369,8 +341,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 			ownsWatchedEntrypoint: (filePath) => this.ownsWatchedEntrypoint(filePath),
 			isDevTransformOutputUrl: (outputUrl) => this.isDevTransformOutputUrl(outputUrl),
 			collectReactPageBuildTargets: () => this.collectReactPageBuildTargets(),
-			hasLayoutOwnedDependencyTarget: (changedFilePath, requestedTargets) =>
-				this.hasLayoutOwnedDependencyTarget(changedFilePath, requestedTargets),
 			resolveBuildTargets: (requestedTargets, changedFilePath) =>
 				this.resolveBuildTargets(requestedTargets, changedFilePath),
 			partitionBuildTargets: (requestedTargets, groupedPageTargets) =>
@@ -413,7 +383,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			return { type: 'none' };
 		}
 
-		const { requestedTargets, hasLayoutOwnedRequestedTarget: initialLayoutOwned } = await resolveRequestedTargets(
+		const requestedTargets = await resolveRequestedTargets(
 			processContext,
 			changedEntrypointOutput,
 			isLayout,
@@ -429,16 +399,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			groupedPageTargets,
 		);
 
-		let hasLayoutOwnedRequestedTarget = initialLayoutOwned;
-		if (!changedEntrypointOutput) {
-			hasLayoutOwnedRequestedTarget = await processContext.hasLayoutOwnedDependencyTarget(
-				resolvedFilePath,
-				requestedTargets,
-			);
-		}
-
-		const requiresLayoutRefresh =
-			isLayout || dependencyScan.hasOwnedLayoutDependencyHit || hasLayoutOwnedRequestedTarget;
+		const requiresLayoutRefresh = isLayout || dependencyScan.hasOwnedLayoutDependencyHit;
 		const updates = collectHmrUpdateUrls(processContext, requestedTargets, pageTargets, nonPageTargets);
 
 		if (requiresLayoutRefresh) {

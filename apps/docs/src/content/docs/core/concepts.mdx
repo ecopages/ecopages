@@ -33,26 +33,27 @@ Those extensions are then used to resolve semantic files such as `html.*`, `404.
 ## CSS Processing
 
 By default, Ecopages uses plain css for styling.
-We currently provide a simple **Postcss** and **Tailwind (v4 and v3)** plugin that provides a powerful and flexible system for managing your styles via a preset system.
+The starter templates use the [Lightning CSS Processor](/docs/ecosystem/lightningcss-processor), which runs Tailwind v4 through a preset and supports CSS Modules. The [PostCSS Processor](/docs/ecosystem/postcss-processor) stays available for PostCSS plugins and Tailwind v3.
 You can customize this in your `eco.config.ts` file:
 
 ```typescript
 import path from 'node:path';
 import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
 
-const appRoot = import.meta.dirname;
+const appRoot = process.cwd();
 
 export default defineConfig({
 	rootDir: appRoot,
 	processors: [
-		postcssProcessorPlugin(
-			tailwindV4Preset({
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
-		),
+			targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+		}),
 	],
 	integrations: [ecopagesJsxPlugin()],
 });
@@ -67,6 +68,13 @@ Ecopages injects scripts and CSS by walking declared Component Dependencies.
 In modules that declare `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, and in MDX compiled through `@ecopages/mdx/core`:
 
 - Direct local Eco Component imports and relative or aliased side-effect CSS imports are discovered automatically.
+- A side-effect import of a package stylesheet, such as `import 'react-day-picker/style.css'`, is discovered the same way. A specifier ending in `.css` resolves through the package's `exports`, preferring the `style` condition; any other specifier, such as `import 'swiper/css'`, counts only when the package resolves it to a `.css` file. Ecopages links the stylesheet once and copies the fonts and images its relative `url()` references into the build. Your CSS Processor (PostCSS, Tailwind) does not run on it, so a package must ship built CSS: importing a package file your Processor handles, such as `some-lib/theme.scss`, fails the build. The build fails when such a `url()` or a relative `@import` names a missing file. Only fonts, images and media are copied, never a dotfile; any other file a `url()` names is left as written with a warning.
+- Plain CSS needs no Processor. Ecopages inlines the relative `@import`s of a stylesheet in the build (`@import './partials/buttons.css';`, with `layer()`, `supports()` and media conditions), copies the fonts, images and media files its relative `url()` references name, and rewrites the references to the copies. A missing partial or file logs a warning that names the importing file and leaves the reference as written; in development, creating the file fixes it with no restart.
+- Plain function components are followed too: their side-effect CSS reaches the page through the nearest declared component, layout or page that imports them, and editing their imports in development refreshes the page's stylesheets.
+- Cascade order: explicit `dependencies.stylesheets` come first, then each declaration's own imported CSS, each before the CSS of the plain components it imports. A stylesheet that plain components reach from several declarations on the page takes the position of its last occurrence, after the CSS of every declaration importing it.
+- In development and in `ecopages build`, the build fails, naming the file and the import, for a plain module's side-effect CSS import inside the app that no declaration reaches, and for a CSS Module import when no stylesheet Processor scopes CSS Modules (it names the importer, the specifier and `@ecopages/lightningcss-processor`). Modules outside the app root, such as linked workspace packages, are treated as packages and not checked.
+- `import styles from './card.module.css'` gives the component a map of its local class names to scoped ones, and the scoped CSS reaches the Page like side-effect CSS, from the declaration that imports the module. It needs a Processor that scopes CSS Modules, such as [Lightning CSS](/docs/ecosystem/lightningcss-processor); a CSS Module imported from a package works the same way. A browser script that imports a CSS Module gets the same class names, but the CSS reaches the Page only when the component that uses the script also imports the module or lists it in `dependencies.stylesheets`.
+- Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. A layout is a plain function typed with `LayoutProps` unless it needs one of those, then `eco.layout()`; the document shell uses `eco.html()`.
 - Browser scripts stay explicit in `dependencies.scripts`. Ecopages does **not** detect script files by name pattern.
 - Explicit `dependencies.stylesheets` entries override discovered references to the same resolved file (for example `media="print"`). Discovered CSS is not copied into that array.
 
@@ -125,7 +133,7 @@ Optional `sitemap.xml` generation is separate and disabled by default. Enable it
 
 ## Import CSS as String in JS Files
 
-Ecopages provides a way to load CSS directly into your JavaScript files as strings through Ecopages build plugins. This feature is enabled when you use the `@ecopages/postcss-processor` plugin in your `eco.config.ts`.
+Ecopages provides a way to load CSS directly into your JavaScript files as strings through Ecopages build plugins. This feature is enabled when you register a stylesheet Processor, such as `@ecopages/lightningcss-processor` or `@ecopages/postcss-processor`, in your `eco.config.ts`.
 
 ## Import MDX as a Component
 
@@ -144,7 +152,6 @@ const MyPage = () => Component();
 Ecopages expects a specific project structure:
 
 ```
-
 my-project/
 ├── src/
 │ ├── pages/

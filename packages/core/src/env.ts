@@ -67,6 +67,22 @@ export function getNodeEnvironment(environment?: NodeJS.ProcessEnv): string | un
 	return environment === undefined ? process.env.NODE_ENV : environment[nodeEnvironmentVariable];
 }
 
+/**
+ * Sets the runtime mode of this process and returns a function that restores the previous one.
+ *
+ * @remarks
+ * For tests that check behavior by runtime mode and run under a runner with no environment stubbing of its own,
+ * such as the Processor contract cases.
+ */
+export function setNodeEnvironment(mode: string): () => void {
+	const previous = process.env[nodeEnvironmentVariable];
+	process.env[nodeEnvironmentVariable] = mode;
+	return () => {
+		if (previous === undefined) delete process.env[nodeEnvironmentVariable];
+		else process.env[nodeEnvironmentVariable] = previous;
+	};
+}
+
 export function isDevelopmentRuntime(environment?: NodeJS.ProcessEnv): boolean {
 	return getNodeEnvironment(environment) === 'development';
 }

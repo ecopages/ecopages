@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { getComponentIdentity } from '@ecopages/core';
 import { PageModuleService } from './page-module.ts';
 
@@ -27,7 +27,7 @@ describe('PageModuleService', () => {
 
 	describe('ensureConfigFileMetadata', () => {
 		const createWorkspace = () => {
-			const root = mkdtempSync(path.join(os.tmpdir(), 'react-page-module-'));
+			const root = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'react-page-module-')));
 			tempDirs.push(root);
 			const layoutsDir = path.join(root, 'layouts');
 			const componentsDir = path.join(root, 'components');

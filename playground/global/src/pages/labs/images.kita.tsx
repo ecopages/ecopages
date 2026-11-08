@@ -71,10 +71,6 @@ function UrbanVintageCredits() {
 }
 
 export default eco.page({
-	dependencies: {
-		components: [BaseLayout],
-	},
-
 	metadata: () => ({
 		title: 'Images Labs page',
 		description: 'This is the homepage of the website',

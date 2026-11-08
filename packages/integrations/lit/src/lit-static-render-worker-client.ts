@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import type { PageParams, PageQuery } from '@ecopages/core';
 import { fromLitStaticRenderErrorMessage } from './lit-static-render-error.ts';
 import type {
@@ -29,6 +29,7 @@ function resolveLitStaticRenderWorkerUrl(): URL {
 export class LitStaticRenderWorkerClient {
 	private readonly configModulePath: string;
 	private readonly runtimeOrigin: string;
+	private readonly directories: { distDir: string; workDir: string };
 	private worker: Worker | null = null;
 	private workerExitPromise: Promise<number> | null = null;
 	private workerExitCode: number | null = null;
@@ -37,9 +38,18 @@ export class LitStaticRenderWorkerClient {
 	private nextRenderId = 0;
 	private shutdownHandler: { resolve: () => void; reject: (error: Error) => void } | null = null;
 
-	constructor({ configModulePath, runtimeOrigin }: { configModulePath: string; runtimeOrigin: string }) {
+	constructor({
+		configModulePath,
+		runtimeOrigin,
+		directories,
+	}: {
+		configModulePath: string;
+		runtimeOrigin: string;
+		directories: { distDir: string; workDir: string };
+	}) {
 		this.configModulePath = configModulePath;
 		this.runtimeOrigin = runtimeOrigin;
+		this.directories = directories;
 	}
 
 	private rejectPending(error: Error): void {
@@ -134,6 +144,7 @@ export class LitStaticRenderWorkerClient {
 				type: 'init',
 				configModulePath: this.configModulePath,
 				runtimeOrigin: this.runtimeOrigin,
+				directories: this.directories,
 			};
 			worker.postMessage(initMessage);
 		});
@@ -230,4 +241,4 @@ export class LitStaticRenderWorkerClient {
 	}
 }
 
-export const litStaticRenderWorkerEntryPath = fileURLToPath(resolveLitStaticRenderWorkerUrl());
+export const litStaticRenderWorkerEntryPath = path.fromFileUrl(resolveLitStaticRenderWorkerUrl());

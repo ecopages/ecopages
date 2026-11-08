@@ -1,12 +1,12 @@
 import { execFile } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 const execFileAsync = promisify(execFile);
 const RESULT_PREFIX = '__SERVER_DOM_ORDER__';
-const CASE_SCRIPT = fileURLToPath(new URL('./fixtures/server-dom-order-case.ts', import.meta.url));
-const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
+const CASE_SCRIPT = path.fromFileUrl(new URL('./fixtures/server-dom-order-case.ts', import.meta.url));
+const REPO_ROOT = path.fromFileUrl(new URL('../../../../../', import.meta.url));
 
 type OrderCase = {
 	order: 'radiant-then-lit-define' | 'lit-define-then-radiant' | 'lit-define-after-radiant';

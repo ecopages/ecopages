@@ -2,14 +2,19 @@ import { contentHash } from '../utils/content-hash.ts';
 import { getBuildEntryOutput } from '../build/build-graph.ts';
 import { assertBuildSucceeded } from '../build/build-log.ts';
 import { createRequire } from 'node:module';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { RESOLVED_ASSETS_DIR } from '../constants.ts';
-import { isCssImport } from '../plugins/component-import-discovery.ts';
+import { getStylesheetKinds, type StylesheetKinds } from '../plugins/stylesheet-kinds.ts';
+import { isCssImport, isDeliveredStylesheetImport } from '../plugins/component-import-discovery.ts';
 import { stripsSideEffectStylesheetImports } from '../plugins/eco-component-meta-plugin.ts';
-import { isBarePackageImportSpecifier, resolveProjectModulePath } from '../plugins/tsconfig-import-resolver.ts';
+import {
+	isBarePackageImportSpecifier,
+	loadTsconfigPathPrefixes,
+	resolveProjectModulePath,
+} from '../plugins/tsconfig-import-resolver.ts';
 import { BrowserBundleService } from '../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { isProductionRuntime } from '../utils/runtime.ts';
@@ -159,7 +164,7 @@ function bindsNothing(statement: ModuleStatement): boolean {
 
 function resolvePackageFile(importer: string, specifier: string): string | undefined {
 	try {
-		return createRequire(importer).resolve(specifier);
+		return path.fromNative(createRequire(importer).resolve(specifier));
 	} catch {
 		return undefined;
 	}
@@ -168,6 +173,7 @@ function resolvePackageFile(importer: string, specifier: string): string | undef
 /** The stylesheet an import names, by its resolved path or, when it does not resolve, its specifier. */
 function stylesheetPath(
 	appConfig: EcoPagesAppConfig,
+	kinds: StylesheetKinds,
 	importer: string,
 	specifier: string,
 	resolved: string | undefined,
@@ -178,7 +184,34 @@ function stylesheetPath(
 			? resolvePackageFile(importer, specifier)
 			: undefined) ??
 		specifier;
-	return target.endsWith('.css') ? target : undefined;
+	return kinds.isStylesheet(target) ? target : undefined;
+}
+
+/**
+ * Whether the component meta transform moves the side-effect import of a package specifier into Component
+ * Dependencies, by the rule it applies.
+ *
+ * @remarks
+ * An import the transform would refuse is reported here instead.
+ */
+function deliversPackageStylesheet(
+	appConfig: EcoPagesAppConfig,
+	kinds: StylesheetKinds,
+	importer: string,
+	specifier: string,
+): boolean {
+	const entry = { source: specifier, start: 0, end: 0, bindings: [], sideEffectOnly: true, attributed: false };
+	try {
+		return isDeliveredStylesheetImport(
+			entry,
+			importer,
+			appConfig.rootDir,
+			loadTsconfigPathPrefixes(appConfig.rootDir),
+			kinds,
+		);
+	} catch {
+		return false;
+	}
 }
 
 /**
@@ -191,6 +224,7 @@ function readModuleImports(
 	const source = fileSystem.readFileSync(file);
 	const { program, module } = parseModuleSource(file, source);
 	const stripped = stripsSideEffectStylesheetImports(appConfig, file, source);
+	const kinds = getStylesheetKinds(appConfig);
 	const resolve = (specifier: string) =>
 		resolveProjectModulePath(appConfig.rootDir, file, specifier, { preserveBarrel: true });
 	const dependencies: string[] = [];
@@ -199,11 +233,15 @@ function readModuleImports(
 		const specifier = statement.source?.value;
 		if (!specifier || isTypeOnly(statement)) continue;
 		const resolved = resolve(specifier);
-		const strippedByTransform =
-			stripped && statement.type === 'ImportDeclaration' && resolved !== undefined && isCssImport(specifier);
-		if (bindsNothing(statement) && !strippedByTransform) {
-			const stylesheet = stylesheetPath(appConfig, file, specifier, resolved);
-			if (stylesheet) return { stylesheet, dependencies };
+		if (bindsNothing(statement)) {
+			const stylesheet = stylesheetPath(appConfig, kinds, file, specifier, resolved);
+			const strippedByTransform =
+				stripped &&
+				statement.type === 'ImportDeclaration' &&
+				(resolved === undefined
+					? deliversPackageStylesheet(appConfig, kinds, file, specifier)
+					: isCssImport(specifier, kinds));
+			if (stylesheet && !strippedByTransform) return { stylesheet, dependencies };
 		}
 		if (resolved) dependencies.push(resolved);
 	}
@@ -228,7 +266,8 @@ function readModuleImports(
  * component meta transform moves into Component Dependencies are not reported.
  *
  * Relative and tsconfig-alias imports are followed; packages are not scanned, but a side-effect
- * import of a package stylesheet is reported. The result is kept while the visited files keep
+ * import of a package stylesheet is reported, except in a module with an `eco.*()` declaration,
+ * which moves it into its Dependencies. The result is kept while the visited files keep
  * their contents. The scan stops at the first stylesheet import, so the visited
  * files then include every file whose edit can remove it.
  */
@@ -280,7 +319,7 @@ function listHtmlFiles(appConfig: EcoPagesAppConfig): string[] {
 function fingerprint(files: string[], rootDir: string): string {
 	return files
 		.map((file) => {
-			const relativePath = path.relative(rootDir, file).split(path.sep).join('/');
+			const relativePath = path.relative(rootDir, file);
 			if (!fileSystem.exists(file)) return `${relativePath}:missing`;
 			return `${relativePath}:${contentHash(fileSystem.readFileSync(file))}`;
 		})
@@ -338,7 +377,7 @@ async function buildModuleScripts(
 	for (const script of scripts) {
 		const baseName = path
 			.relative(srcDir, script)
-			.split(path.sep)
+			.split('/')
 			.join('/')
 			.replace(/\.[^./]+$/, '');
 		let name = baseName;
@@ -366,8 +405,7 @@ async function buildModuleScripts(
 	const urls = new Map<string, string>();
 	for (const script of scripts) {
 		const output = getBuildEntryOutput(result, script, appConfig.rootDir);
-		if (output)
-			urls.set(fileSystem.realpath(script), `/${path.relative(distDir, output).split(path.sep).join('/')}`);
+		if (output) urls.set(fileSystem.realpath(script), `/${path.relative(distDir, output)}`);
 	}
 	return urls;
 }

@@ -4,12 +4,14 @@ import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
+import { siteOrigin } from './src/lib/site-origin';
 
 const appRoot = process.cwd();
 
 export default defineConfig({
+	baseUrl: siteOrigin,
 	integrations: [
 		kitajsPlugin(),
 		litPlugin(),
@@ -20,11 +22,12 @@ export default defineConfig({
 		}),
 	],
 	processors: [
-		postcssProcessorPlugin(
-			tailwindV4Preset({
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
-		),
+			targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+		}),
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(appRoot, 'src/images'),

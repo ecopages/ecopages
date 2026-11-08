@@ -1,0 +1,107 @@
+---
+title: "Overview"
+description: "How Ecopages works inside: the lifecycle of dev, build and start, and a map of the packages."
+section: overview
+order: 1
+sources:
+  - packages/ecopages/bin/
+  - packages/core/src/build/
+  - packages/core/src/dev/
+  - packages/core/src/adapters/
+  - packages/file-system/src/path.ts
+  - packages/core/src/build/rolldown/rolldown-module-id.ts
+  - scripts/check-portability.ts
+  - scripts/core-layering-allowlist.json
+---
+
+# Architecture
+
+These pages explain how Ecopages works inside, for people who change the framework. Building an app does not need them: start with the [documentation](/docs/getting-started/introduction).
+
+## Lifecycle
+
+Three commands share one config and one set of plugins, and differ in when they compile.
+
+```mermaid
+flowchart TD
+  C[eco.config.ts] --> F[Finalize config, seal build manifest]
+  F --> D["ecopages dev"]
+  F --> B["ecopages build"]
+  B --> E[Server modules, app-wide browser build, static export]
+  E --> L[(dist: server modules, assets, ledger)]
+  L --> S["ecopages start"]
+  D --> T[Transform server compiles modules on request]
+  D --> W[Watcher, invalidation, HMR]
+  D --> R[Render Pages per request]
+  S --> V[Restore and seal ledger]
+  V --> R2[Render Pages per request, no compiling]
+```
+
+- **Dev** compiles each browser module when the browser asks for it and rebuilds dirty results on the next request. See [Dev server](/dev/dev-server) and [Watcher and invalidation](/dev/hmr-watcher-invalidation).
+- **Build** does all compiling once and records what it processed. See [Build pipeline](/dev/build-pipeline).
+- **Start** restores those records and compiles nothing. See [Ledger and start](/dev/ledger-and-start).
+
+Every path renders a Page the same way: route preparation collects its assets into a Page Package before the first Component renders; see [From graph to HTML](/dev/graph-to-html). How a config becomes the per-app state all three share is in [App runtime](/dev/app-runtime).
+
+## Packages
+
+| Package | What it is for |
+| --- | --- |
+| `packages/core` | The framework: config, routing, rendering, asset processing, build, dev server and HMR. Every other package plugs into it. |
+| `packages/ecopages` | The CLI: `dev`, `build`, `start`, `preview` and project templates. |
+| `packages/file-system` | The file system access and the path operations every package goes through. See [Paths](#paths). |
+| `packages/browser-router` | Client navigation for server-rendered documents. [Browser router](/dev/browser-router) |
+| `packages/react-router` | Client navigation for React pages. [React router](/dev/react-router) |
+| `packages/dev-toolbar` | The development toolbar. |
+| `packages/codemod` | Codemods for migrating to current patterns. |
+| `packages/integrations/react` | [React](/dev/react) |
+| `packages/integrations/lit` | [Lit](/dev/lit) |
+| `packages/integrations/kitajs` | [Kita](/dev/kita) |
+| `packages/integrations/ecopages-jsx` | [Ecopages JSX](/dev/ecopages-jsx) |
+| `packages/integrations/mdx` | [MDX](/dev/mdx) |
+| `packages/processors/content-processor` | [Content processor](/dev/content-processor) |
+| `packages/processors/image-processor` | [Image processor](/dev/image-processor) |
+| `packages/processors/lightningcss-processor` | [Lightning CSS processor](/dev/lightningcss-processor) |
+| `packages/processors/postcss-processor` | [PostCSS processor](/dev/postcss-processor) |
+| `packages/__internals/testing` | Private test helpers shared by the packages. |
+
+Integrations render files and own a JSX runtime; Processors own asset semantics. Both contribute build plugins through the contracts in [Plugin pipeline](/dev/plugin-pipeline) and [Integrations and foreign children](/dev/integrations-foreign-children).
+
+## Core source layers
+
+`packages/core/src` is ordered in layers. A module may import from its own layer or an earlier one, never from a later one.
+
+| Layer | Folders and root files |
+| --- | --- |
+| Foundation | `types/`, `errors/`, `global/`, `utils/`, `html/`, `client/`, `islands/`, `validation/`, `constants.ts`, `env.ts`, `browser-env.ts`, the `.d.ts` declarations |
+| Contracts | `plugins/`, `eco/` |
+| Build | `build/`, `assets/`, `cache/`, `diagnostics/` |
+| Rendering | `router/`, `route-renderer/`, `html-pages/`, `page-cache/`, `static-site-generator/` |
+| Development and HMR | `dev/`, `dev-toolbar/`, `hmr/`, `watchers/` |
+| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`, `integration.ts`, `processor.ts`, `processor-contract.ts`, `build.ts`, `client.ts` |
+
+Foundation code knows nothing of the systems that use it: `types/` holds contracts only, error classes do not depend on what reports them, `client/` browser helpers stay independent of rendering and dev services, and per-app state lives on the `AppRuntime`, not in module globals.
+
+`pnpm check:portability` (`scripts/check-portability.ts`, also run by `pnpm typecheck`) enforces the order on runtime module references, including `import()`, `require()` and resolver calls. An inline `type` modifier counts, since `verbatimModuleSyntax` keeps the import; `import type` and `export type` are erased and skipped, and so are tests and fixtures. A new source folder or root file fails the check until it is added to the layer map in the script. Existing upward references are listed in `scripts/core-layering-allowlist.json` with the issue that removes each one. The list only shrinks: the check fails for an unlisted upward reference and for an entry whose reference is gone.
+
+## Paths
+
+Every path Ecopages holds uses forward slashes, on every host. An absolute path keeps its Windows drive letter as Node or the user spelled it (`D:/app/src/pages/index.tsx`); on POSIX it is the usual `/app/src/pages/index.tsx`. Paths therefore split on `/` and become URLs, cache keys and route names without a separator check.
+
+The drive letter is not upper-cased on purpose: Node's ESM loader keys modules by URL and keeps the drive case, so a process started from a lower-case cwd loads its config as `file:///d:/...`, and an upper-cased path would load the same module a second time. Containment goes through `path.isWithin`, which compares drives without regard to case.
+
+Package code takes its path operations from `@ecopages/file-system/path`, never from `node:path` (or its `posix` and `win32` subpaths), and takes `file:` URL conversion from it rather than from `node:url`. It also reads the working directory with `path.cwd()` rather than `process.cwd()`, and a module's own location with `path.fromFileUrl(import.meta.url)` rather than `import.meta.dirname` or `import.meta.filename`. Lint rules enforce all of this in `packages/`: `no-restricted-imports` for static imports, `no-restricted-properties` for `process.cwd`, and the JS plugin `scripts/oxlint-path-convention.ts` for `node:path` loaded through `require`, a `createRequire` result or `import()`, and for the `import.meta` paths. App fixtures under `test/fixtures/` keep `import.meta.dirname`, as an app's config does. `packages/codemod` is exempt: its jscodeshift transforms run on their own and do not depend on Ecopages packages. The module mirrors the `node:path` operations Ecopages uses and returns every result in this form. Node's file system APIs accept forward slashes on Windows, so most code never needs the native form.
+
+A native path is converted once, where it enters Ecopages:
+
+| Where a path enters | Conversion |
+| --- | --- |
+| `fileSystem.realpath`, `glob`, `readdir`, `readlink`, `mkdtemp`, `tempDir` and watcher events | Converted inside `@ecopages/file-system` |
+| Config directories and `additionalWatchPaths` | `path.resolve` while the config is finalized; `path.fromNative` for a glob |
+| `import.meta.url`, `import.meta.resolve` and other `file:` URLs | `path.fromFileUrl` |
+| `process.cwd()`, `require.resolve` and oxc-resolver results | `path.cwd()`, or `path.fromNative` |
+| Rolldown module ids in hooks and build output | `fromRolldownModuleId` |
+
+On the way out, `import()` of a file takes `path.toFileUrl(file).href`. A path a resolve hook hands back to Rolldown goes through `toRolldownModuleId`, which returns the native form on Windows: Rolldown keys modules by id, and its own resolver produces native paths, so a forward-slash id for the same file would become a second module. `path.toNative` is for any other consumer that needs backslashes.
+
+A test that needs Windows behaviour on any host mocks `@ecopages/file-system/path` with `createPath('win32')`, as `route-registry.windows-paths.test.ts` does.

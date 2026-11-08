@@ -27,12 +27,39 @@ async function loadWorkerClient() {
 }
 
 describe('LitStaticRenderWorkerClient', () => {
+	it('tells the worker the output directory of the build it renders for', async () => {
+		createdWorkers.length = 0;
+		const { LitStaticRenderWorkerClient } = await loadWorkerClient();
+		const client = new LitStaticRenderWorkerClient({
+			configModulePath: '/app/eco.config.ts',
+			runtimeOrigin: 'http://127.0.0.1:3000',
+			directories: { distDir: '/app/dist/scoped', workDir: '/app/.eco/scoped' },
+		});
+
+		const startPromise = client.start();
+		const createdWorker = createdWorkers[0]!;
+		createdWorker.emit('message', { type: 'ready' });
+		await startPromise;
+
+		expect(createdWorker.postMessage).toHaveBeenCalledWith({
+			type: 'init',
+			configModulePath: '/app/eco.config.ts',
+			runtimeOrigin: 'http://127.0.0.1:3000',
+			directories: { distDir: '/app/dist/scoped', workDir: '/app/.eco/scoped' },
+		});
+		const disposal = client.dispose();
+		createdWorker.emit('message', { type: 'shutdown-complete' });
+		createdWorker.emit('exit', 0);
+		await disposal;
+	});
+
 	it('waits for graceful shutdown before disposing the worker', async () => {
 		createdWorkers.length = 0;
 		const { LitStaticRenderWorkerClient } = await loadWorkerClient();
 		const client = new LitStaticRenderWorkerClient({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: 'http://127.0.0.1:3000',
+			directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 		});
 
 		const startPromise = client.start();
@@ -65,6 +92,7 @@ describe('LitStaticRenderWorkerClient', () => {
 			const client = new LitStaticRenderWorkerClient({
 				configModulePath: '/app/eco.config.ts',
 				runtimeOrigin: 'http://127.0.0.1:3000',
+				directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 			});
 
 			const startPromise = client.start();
@@ -91,6 +119,7 @@ describe('LitStaticRenderWorkerClient', () => {
 		const client = new LitStaticRenderWorkerClient({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: 'http://127.0.0.1:3000',
+			directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 		});
 
 		const startPromise = client.start();
@@ -110,6 +139,7 @@ describe('LitStaticRenderWorkerClient', () => {
 		const client = new LitStaticRenderWorkerClient({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: 'http://127.0.0.1:3000',
+			directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 		});
 
 		const renderPromise = client.renderPage({
@@ -155,6 +185,7 @@ describe('LitStaticRenderWorkerClient', () => {
 		const client = new LitStaticRenderWorkerClient({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: 'http://127.0.0.1:3000',
+			directories: { distDir: '/app/dist', workDir: '/app/.eco' },
 		});
 
 		const renderPromise = client.renderPage({ filePath: '/app/src/pages/missing.lit.tsx', params: {} });

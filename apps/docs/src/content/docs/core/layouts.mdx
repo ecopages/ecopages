@@ -1,6 +1,6 @@
 ---
 title: "Layouts"
-description: "Wrap pages with shared chrome using eco.layout and nested layout composition."
+description: "Wrap pages with shared chrome using layout functions and nested layout composition."
 order: 8
 ---
 
@@ -36,8 +36,8 @@ Defines `<head>` content — title, meta, icons:
 import { eco, type PageHeadProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 
-export const Head = eco.component<PageHeadProps<JsxRenderable>, JsxRenderable>({
-	render: ({ metadata, children }) => (
+export const Head = eco.component({
+	render: ({ metadata, children }: PageHeadProps<JsxRenderable>) => (
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -52,25 +52,23 @@ export const Head = eco.component<PageHeadProps<JsxRenderable>, JsxRenderable>({
 
 Includes are applied automatically. Pages and route layouts render **inside** this shell — they do not replace it.
 
-## Declared layout components
+## Layout components
 
-Route layouts must be created with **`eco.layout()`** (or `eco.component()` when you need the broader factory). Plain functions — including standard React components without eco metadata — are **not** valid layout values.
-
-**Why:** `eco.page({ layout })` merges layouts into `dependencies.components`. At render time, EcoPages validates that every dependency entry is a **declared** component with bound `config.identity` (`eco.component()`, `eco.layout()`, or `eco.html()`). Undeclared values throw `UndeclaredComponentDependencyError`.
+A layout is a plain function typed with `LayoutProps`, or an `eco.layout()` result when it needs a wrapper. `LayoutProps` makes `children` required, so `eco.page({ layout })` rejects a component that does not take `children`. A layout imports its own CSS and components like any plain function: discovery delivers them with the page, and they stay with the layout across client-side navigation.
 
 ```tsx
-import { eco } from '@ecopages/core';
+import type { LayoutProps } from '@ecopages/core';
 import type { ReactNode } from 'react';
+import './base-layout.css';
 
-export const BaseLayout = eco.layout<{ children: ReactNode }>({
-	dependencies: {
-		stylesheets: ['./base-layout.css'],
-	},
-	render: ({ children }) => <main>{children}</main>,
-});
+export function BaseLayout({ children }: LayoutProps<ReactNode>) {
+	return <main>{children}</main>;
+}
 ```
 
-Use `eco.layout()` for wrappers around page content. Reserve `eco.html()` for the document shell in `src/includes`.
+Use `eco.layout()` when the layout declares browser `scripts`, `modules`, stylesheet attributes, or an `integration` override. Reserve `eco.html()` for the document shell in `src/includes`.
+
+A layout must render `children`. TypeScript accepts a function that ignores them, so composition checks it: when a layout renders without its page, `ecopages build` fails with `Layout <name> (<file>) did not render its children`, a development request logs it as a warning, and a production request returns the layout's HTML unchanged, so a layout that shows a sign-in gate instead of the page still works on a dynamic route. An `eco.layout()` result is named after its file; a plain function is named by its function name, with the file of the page that uses it.
 
 ## Single layout on a page
 
@@ -125,37 +123,38 @@ layout: [
 	{
 		component: DocsSection,
 		props: ({ params, locals }) => ({
-			activeSlug: params.slug,
-			viewer: locals.user?.name,
+			activeSlug: params?.slug,
+			viewer: locals?.session?.user.email,
 		}),
 	},
 ],
 ```
 
-`props` receives `LayoutPropsContext` (`params`, `query`, `locals`). See [Request Locals](/docs/core/request-locals) for how `locals` reach layout tiers during SSR and hydration.
+`props` receives `LayoutPropsContext`, whose `params`, `query`, and `locals` are all optional. Reading `locals` throws `LocalsAccessError` unless the Page has `cache: 'dynamic'`, so the sample above fits only a Dynamic Page. See [Request Locals](/docs/core/request-locals) for how `locals` reach layout tiers during SSR and hydration.
 
 ### Shared outer layouts and SPA navigation
 
-On React sites with [`@ecopages/react-router`](/docs/ecosystem/react-router), `persistLayouts` is enabled by default. Each layout tier is cached by `config.identity.file` (or `id`). Two routes such as `[AppShell, Docs]` and `[AppShell, Settings]` share one mounted **AppShell** during client navigation; only the inner tier swaps. React state in the outer layout survives SPA transitions.
+On React sites with [`@ecopages/react-router`](/docs/ecosystem/react-router), `persistLayouts` is enabled by default. A layout module has one URL, so every page that imports a layout gets the same function, and React keeps a tier mounted while consecutive pages pass the same function at the same position. Two routes such as `[AppShell, Docs]` and `[AppShell, Settings]` share one mounted **AppShell** during client navigation; only the inner tier swaps. React state in the outer layout survives SPA transitions.
 
-When a Layout and multiple Pages need one module instance for shared state (for example, a query client or MobX store), list that package in the React plugin's `runtimeModules`. See [Shared runtime vendors](/docs/integrations/react#shared-runtime-vendors) in the React integration guide.
+When a Layout and multiple Pages need one module instance for shared state (for example, a query client or MobX store), Ecopages already loads that package once for every Page and Layout. See [Shared browser modules](/docs/integrations/react#shared-browser-modules) in the React integration guide.
 
-**Note:** Full reloads, HMR, and bootstrap paths that refresh persisted layouts may replace a cached tier when the imported function reference changes.
+**Note:** Editing a layout in development reloads its module, so the new function replaces the mounted tier and its state resets.
 
 ## Layout dependencies
 
-Declare stylesheets, scripts, and child components on the layout factory. Direct local component imports are discovered automatically:
+A layout's local CSS and component imports are discovered. Declare browser scripts on `eco.layout()`:
 
 ```tsx
 import { SiteHeader } from '@/components/site-header';
-import { eco } from '@ecopages/core';
+import { eco, type LayoutProps } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
+import './base-layout.css';
 
 export const BaseLayout = eco.layout({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
-	render: ({ children }) => (
+	render: ({ children }: LayoutProps<JsxRenderable>) => (
 		<>
 			<SiteHeader />
 			<main>{children}</main>
@@ -168,7 +167,7 @@ Every entry in `dependencies.components` must be a declared eco component, same 
 
 ## How layouts are assigned
 
-Assign layouts on `eco.page({ layout })` — one component or an outer→inner array. Import layout modules from `src/layouts/` (or elsewhere) and pass the declared component to `layout`; EcoPages does not auto-wrap pages based on layout file paths or route folders.
+Assign layouts on `eco.page({ layout })` — one component or an outer→inner array. Import layout modules from `src/layouts/` (or elsewhere) and pass the layout to `layout`; EcoPages does not auto-wrap pages based on layout file paths or route folders.
 
 ## Related guides
 

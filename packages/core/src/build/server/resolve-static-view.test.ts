@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, it } from 'vitest';
 import { eco } from '../../eco/eco.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
@@ -8,7 +8,9 @@ import { resolveStaticView } from './resolve-static-view.ts';
 
 describe('resolveStaticView', () => {
 	const importedPaths: string[] = [];
+	const rootDir = path.resolve('/app');
 	const appConfig = {
+		rootDir,
 		appRuntime: {
 			moduleLoader: {
 				importModule: async (options: { filePath: string }) => {
@@ -19,25 +21,24 @@ describe('resolveStaticView', () => {
 		},
 	} as unknown as EcoPagesAppConfig;
 
-	it('loads an imported view through the app module loader', async () => {
-		const filePath = path.join('/app', 'src', 'views', 'post.kita.tsx');
-		const loader = resolveStaticView(appConfig, createViewReference(filePath, 'kitajs'));
-		assert.equal(loader.filePath, path.resolve(filePath));
+	it('loads an imported view, named relative to the app root, through the app module loader', async () => {
+		const filePath = path.join(rootDir, 'src', 'views', 'post.kita.tsx');
+		const loader = resolveStaticView(appConfig, createViewReference('src/views/post.kita.tsx', 'kitajs'));
+		assert.equal(loader.filePath, filePath);
 		await loader();
-		assert.deepEqual(importedPaths, [path.resolve(filePath)]);
+		assert.deepEqual(importedPaths, [filePath]);
 	});
 
 	it('keeps a view loader and records identity.file from an eco.page component', async () => {
 		const existingLoader = async () => ({ default: eco.page({ render: () => 'ok' }) });
 		assert.equal(resolveStaticView(appConfig, existingLoader), existingLoader);
 
-		const filePath = path.join('/app', 'src', 'views', 'inline.kita.tsx');
 		const view = eco.page({ render: () => 'ok' });
 		view.config = {
-			identity: { id: 'inline', file: filePath, integration: 'kitajs' },
+			identity: { id: 'inline', file: 'src/views/inline.kita.tsx', integration: 'kitajs' },
 		};
 		const loader = resolveStaticView(appConfig, view);
-		assert.equal(loader.filePath, filePath);
+		assert.equal(loader.filePath, path.join(rootDir, 'src', 'views', 'inline.kita.tsx'));
 		assert.equal((await loader()).default, view);
 	});
 

@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../config/internal-types.ts';
@@ -49,9 +49,10 @@ export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig): void {
  * @remarks
  * Awaited before network request readiness is released, so requests do not
  * compete with cold Integration `setup()`. The listener may already be bound.
+ * Each activation resolves the Integration's global scripts after its setup.
  * Failures are logged after all setup attempts settle and do not crash the
- * server. Concurrent first-page renders still join the same coalesced
- * {@link ensureIntegrationRuntimeReady} promise.
+ * server; a later request retries a failed activation. Concurrent first-page
+ * renders still join the same coalesced {@link ensureIntegrationRuntimeReady} promise.
  */
 export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
 	const { appConfig } = options;

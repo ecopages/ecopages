@@ -8,6 +8,9 @@
 		"ssg"
 	],
 	"license": "MIT",
+	"engines": {
+		"node": "^24.22.0 || >=26.0.0"
+	},
 	"main": "./src/index.ts",
 	"type": "module",
 	"publishConfig": {
@@ -79,6 +82,11 @@
 			"import": "./src/processor.ts",
 			"types": "./src/processor.ts",
 			"default": "./src/processor.ts"
+		},
+		"./processor/contract": {
+			"import": "./src/processor-contract.ts",
+			"types": "./src/processor-contract.ts",
+			"default": "./src/processor-contract.ts"
 		},
 		"./build": {
 			"import": "./src/build.ts",

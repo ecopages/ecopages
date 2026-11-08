@@ -1,19 +1,19 @@
 /** @jsxImportSource @ecopages/jsx */
 import { mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
-import { createTestAppConfig } from '@ecopages/testing';
+import { createStringMarkupIntegration, createTestAppConfig } from '@ecopages/testing';
 import { requireAppRuntime } from '@ecopages/core/integration';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	invalidateCustomElementScriptPreload,
 } from '@ecopages/core/integration';
 import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
+import { EcopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
 
 declare module '@ecopages/jsx' {
 	interface JsxCustomIntrinsicElements {
@@ -21,10 +21,14 @@ declare module '@ecopages/jsx' {
 	}
 }
 
-const PACKAGE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const RADIANT_HOST_SCRIPT = fileURLToPath(new URL('./fixtures/ssr-preload-radiant-host.script.tsx', import.meta.url));
+const PACKAGE_ROOT = path.fromFileUrl(new URL('../..', import.meta.url));
+const RADIANT_HOST_SCRIPT = path.fromFileUrl(
+	new URL('./fixtures/ssr-preload-radiant-host.script.tsx', import.meta.url),
+);
 
-const Config = await createTestAppConfig();
+const Config = await createTestAppConfig({
+	integrations: [createStringMarkupIntegration(), new EcopagesJsxPlugin()],
+});
 
 const HtmlTemplate = ({ children }: { children: JsxRenderable }) => (
 	<html>
@@ -73,6 +77,7 @@ describe('Ecopages JSX SSR script preload integration', () => {
 				const appConfig = await createTestAppConfig({
 					rootDir: PACKAGE_ROOT,
 					workDir: tempDir,
+					integrations: [new EcopagesJsxPlugin()],
 				});
 				const Host = eco.component<{}, JsxRenderable>({
 					integration: 'ecopages-jsx',

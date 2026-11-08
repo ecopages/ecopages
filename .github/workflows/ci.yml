@@ -31,7 +31,7 @@ jobs:
             - name: Setup Node
               uses: actions/setup-node@v6
               with:
-                  node-version: 24
+                  node-version: '24.22'
                   cache: pnpm
 
             - name: Get pnpm store directory
@@ -72,8 +72,59 @@ jobs:
             - name: Fast gate
               run: pnpm run test:ci:fast
 
-            - name: Build static templates
+            - name: Build every template
               run: pnpm run smoke:templates
+
+            - name: Build every recipe fixture
+              run: pnpm run smoke:recipes
+
+    windows:
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        runs-on: windows-latest
+        permissions:
+            contents: read
+        steps:
+            - name: Checkout Repo
+              uses: actions/checkout@v6
+
+            - name: Keep temp on the checkout drive
+              shell: pwsh
+              run: |
+                  $tempDrive = (Split-Path -Qualifier $env:RUNNER_TEMP)
+                  $workspaceDrive = (Split-Path -Qualifier $env:GITHUB_WORKSPACE)
+                  Write-Host "runner.temp=$env:RUNNER_TEMP workspace=$env:GITHUB_WORKSPACE TEMP=$env:TEMP"
+                  $temp = $env:RUNNER_TEMP
+                  if ($tempDrive -ne $workspaceDrive) {
+                      $temp = Join-Path (Split-Path -Parent $env:GITHUB_WORKSPACE) 'tmp'
+                      New-Item -ItemType Directory -Force -Path $temp | Out-Null
+                  }
+                  Write-Host "using TEMP=$temp"
+                  "TEMP=$temp" >> $env:GITHUB_ENV
+                  "TMP=$temp" >> $env:GITHUB_ENV
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v6
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Setup Node
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '24.22'
+                  cache: pnpm
+
+            - name: Install Dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Typecheck
+              run: pnpm run typecheck
+
+            - name: Production smoke
+              run: pnpm run smoke:start
+
+            - name: Unit suites
+              run: node --experimental-strip-types scripts/test-vitest-windows.ts
 
     e2e-shard:
         strategy:
@@ -96,7 +147,7 @@ jobs:
             - name: Setup Node
               uses: actions/setup-node@v6
               with:
-                  node-version: 24
+                  node-version: '24.22'
                   cache: pnpm
 
             - name: Get pnpm store directory
@@ -202,7 +253,7 @@ jobs:
             - name: Setup Node
               uses: actions/setup-node@v6
               with:
-                  node-version: 24
+                  node-version: '24.22'
                   cache: pnpm
 
             - name: Get pnpm store directory

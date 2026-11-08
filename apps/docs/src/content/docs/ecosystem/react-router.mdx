@@ -54,7 +54,6 @@ import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	integrations: [reactPlugin({ router: ecoRouter() })],
 });
 ```
@@ -63,21 +62,21 @@ That's it, all pages now have SPA navigation enabled.
 
 ### 2. Use Layouts (Optional)
 
-For persistent UI across navigations (headers, sidebars), assign a **declared** layout on `eco.page()`. Use `eco.layout()` — plain React functions are not valid layout values.
+For persistent UI across navigations (headers, sidebars), assign a layout on `eco.page()`: a plain function typed with `LayoutProps`, or an `eco.layout()` result when it needs browser scripts.
 
 ```tsx
 // src/layouts/base-layout.tsx
-import { eco } from '@ecopages/core';
+import type { LayoutProps } from '@ecopages/core';
 import type { ReactNode } from 'react';
 
-export const BaseLayout = eco.layout<{ children: ReactNode }>({
-	render: ({ children }) => (
+export function BaseLayout({ children }: LayoutProps<ReactNode>) {
+	return (
 		<>
 			<header>My Site</header>
 			<main>{children}</main>
 		</>
-	),
-});
+	);
+}
 
 // src/pages/index.tsx
 import { BaseLayout } from '../layouts/base-layout';
@@ -89,9 +88,9 @@ export default eco.page({
 });
 ```
 
-When navigating between pages that share the same layout key (`config.identity.file` or `id`), `persistLayouts` (enabled by default with `ecoRouter()`) keeps the layout mounted. Only page content updates.
+When navigating between pages that pass the same layout, `persistLayouts` (enabled by default with `ecoRouter()`) keeps the layout mounted. A layout module has one URL, so every page that imports it gets the same function. Only page content updates. With `persistLayouts: false`, layouts remount on every page change.
 
-**Shared npm vendors:** persisted layouts stay mounted across navigation, so shared-state libraries such as TanStack Query, MobX, or Redux need one browser module instance. Add those packages to the React plugin's `runtimeModules`. See [Shared runtime vendors](/docs/integrations/react#shared-runtime-vendors).
+**Shared npm packages:** persisted layouts stay mounted across navigation, so shared-state libraries such as TanStack Query, MobX, or Redux need one browser module instance. Ecopages loads each package once without configuration. See [Shared browser modules](/docs/integrations/react#shared-browser-modules).
 
 #### Nested layouts
 
@@ -236,7 +235,7 @@ The router uses a **pluggable adapter pattern** that separates concerns:
 ```typescript
 interface ReactRouterAdapter {
 	name: string;
-	bundle: { importPath: string; outputName: string; externals: string[] };
+	importPath: string;
 	components: { router: string; pageContent: string };
 	getRouterProps(page: string, props: string): string;
 }

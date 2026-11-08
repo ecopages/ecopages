@@ -1,5 +1,5 @@
-import { fileSystem } from '@ecopages/file-system';
-import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import type { EcoBuildPlugin, EcoBuildPluginBuilder } from '../build/contracts/build-types.ts';
+import MagicString from 'magic-string';
 import { escapeRegExp } from '../utils/regex-escaping.ts';
 import { createJsxImportSourcePragma, filterJsxSourceExtensions } from './jsx-import-source.utils.ts';
 
@@ -15,6 +15,14 @@ export interface ForeignJsxOverrideOptions {
 	excludeExtensions?: string[];
 	/** Optional plugin name override for debug output. */
 	name?: string;
+	/**
+	 * Returns, for one build, whether the override claims a foreign file; omitted, it claims every one.
+	 *
+	 * @remarks
+	 * It runs in `setup`, and the check it returns runs for each matching file before any rewrite. A file the
+	 * check rejects keeps its owner's JSX runtime; a check that throws fails the build.
+	 */
+	scope?: (build: EcoBuildPluginBuilder) => (sourcePath: string) => boolean;
 }
 
 /**
@@ -31,6 +39,11 @@ export interface ForeignJsxOverrideOptions {
  * The plugin is intentionally framework-agnostic: any integration that does
  * client-side bundling can use it by passing its own `jsxImportSource` and the
  * set of foreign extensions collected from the app config.
+ *
+ * @remarks
+ * The override is a `transform`, so it runs on whatever an earlier `onLoad`
+ * produced and composes with loaders such as the React client-graph boundary
+ * instead of replacing their output.
  *
  * When no JSX-bearing foreign extensions are present, the returned plugin is a
  * no-op so integrations can register it unconditionally.
@@ -53,21 +66,25 @@ export function createForeignJsxOverridePlugin(options: ForeignJsxOverrideOption
 		name: options.name ?? 'foreign-jsx-override',
 		cacheKey: JSON.stringify([options.hostJsxImportSource, extensions, excludedExtensions]),
 		setup(build) {
-			build.onLoad({ filter }, (args) => {
-				if (excludedExtensions.some((extension) => args.path.endsWith(extension))) {
+			const claims = options.scope?.(build);
+			build.transform({ filter }, (code, id) => {
+				const sourcePath = id.replace(/[?#].*$/, '');
+				if (excludedExtensions.some((extension) => sourcePath.endsWith(extension))) {
+					return undefined;
+				}
+				if (claims && !claims(sourcePath)) {
 					return undefined;
 				}
 
-				const source = fileSystem.readFileSync(args.path);
-				const loader = args.path.endsWith('.jsx') ? 'jsx' : 'tsx';
-
-				if (source.includes('@jsxImportSource')) {
+				if (code.includes('@jsxImportSource')) {
 					return undefined;
 				}
 
+				const source = new MagicString(code, { filename: sourcePath });
+				source.prepend(pragma);
 				return {
-					contents: pragma + source,
-					loader,
+					code: source.toString(),
+					map: source.generateMap({ source: sourcePath, includeContent: true, hires: 'boundary' }),
 				};
 			});
 		},

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { requireAppRuntime, type IClientBridge } from '@ecopages/core/integration';
@@ -174,11 +174,11 @@ order: 1
 		const workDir = appConfig.absolutePaths.workDir;
 		const entriesKey = path
 			.relative(rootDir, path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts'))
-			.split(path.sep)
+			.split('/')
 			.join('/');
 		const serverKey = path
 			.relative(rootDir, path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.server.ts'))
-			.split(path.sep)
+			.split('/')
 			.join('/');
 		const outdir = path.join(rootDir, 'dist', 'server');
 		const entriesOutput = 'docs-entries.mjs';
@@ -531,6 +531,9 @@ order: 2
 				onLoad() {},
 				module() {},
 				transform() {},
+				onEnd() {},
+				addWatchFile() {},
+				resolve: async () => undefined,
 			} as EcoBuildPluginBuilder);
 
 		const resolver = resolvers.find(({ filter }) => filter.test('ecopages:content/docs'));
@@ -568,8 +571,6 @@ order: 2
 					success: true,
 					outputs: [{ path: output }],
 					warnings: [],
-					loadedInputs: [],
-					loadedInputsByModule: {},
 					dependencyGraph: { entrypoints: {} },
 					entryOutputs: { [entry]: output },
 					outputGraph: {},
@@ -594,6 +595,9 @@ order: 2
 				onLoad() {},
 				module() {},
 				transform() {},
+				onEnd() {},
+				addWatchFile() {},
+				resolve: async () => undefined,
 			} as EcoBuildPluginBuilder);
 		const resolveServerModule = () =>
 			resolvers
@@ -635,8 +639,6 @@ order: 2
 					success: true,
 					outputs: [{ path: compiledOutput }],
 					warnings: [],
-					loadedInputs: [],
-					loadedInputsByModule: {},
 					dependencyGraph: { entrypoints: {} },
 					entryOutputs: { [entry]: compiledOutput },
 					outputGraph: {},
@@ -661,6 +663,9 @@ order: 2
 					onLoad() {},
 					module() {},
 					transform() {},
+					onEnd() {},
+					addWatchFile() {},
+					resolve: async () => undefined,
 				} as EcoBuildPluginBuilder);
 			}
 			return resolvers.find(({ filter }) => filter.test(specifier))?.callback({ path: specifier });

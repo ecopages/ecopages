@@ -1,6 +1,7 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "react"],
+	"jsPlugins": ["./scripts/oxlint-path-convention.ts"],
 	"ignorePatterns": ["node_modules", "dist", "out", "coverage", ".nyc_output", ".vscode", ".env", ".eco"],
 	"rules": {
 		"no-param-reassign": "error",
@@ -29,12 +30,6 @@
 	},
 	"overrides": [
 		{
-			"files": ["packages/core/src/env.ts", "packages/core/src/browser-env.ts"],
-			"rules": {
-				"no-restricted-properties": "off"
-			}
-		},
-		{
 			"files": ["playground/kitchen-sink/bench/**"],
 			"rules": {
 				"no-restricted-properties": "off"
@@ -50,24 +45,128 @@
 							{ "name": "node:fs", "message": "Use fileSystem from @ecopages/file-system." },
 							{ "name": "node:fs/promises", "message": "Use fileSystem from @ecopages/file-system." },
 							{ "name": "fs", "message": "Use fileSystem from @ecopages/file-system." },
-							{ "name": "fs/promises", "message": "Use fileSystem from @ecopages/file-system." }
+							{ "name": "fs/promises", "message": "Use fileSystem from @ecopages/file-system." },
+							{
+								"name": "node:path",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "node:path/posix",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "node:path/win32",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path/posix",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path/win32",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "node:url",
+								"importNames": ["default", "fileURLToPath", "pathToFileURL"],
+								"message": "Use path.fromFileUrl or path.toFileUrl from @ecopages/file-system/path, which keep every path in forward slashes."
+							}
+						]
+					}
+				],
+				"no-restricted-properties": [
+					"error",
+					{
+						"property": "NODE_ENV",
+						"message": "Use the centralized runtime mode helpers from @ecopages/core."
+					},
+					{
+						"object": "process",
+						"property": "cwd",
+						"message": "Use path.cwd() from @ecopages/file-system/path, which keeps every path in forward slashes."
+					}
+				],
+				"ecopages-path/no-native-path-module": "error",
+				"ecopages-path/no-import-meta-native-path": "error"
+			}
+		},
+		{
+			"files": [
+				"packages/file-system/**",
+				"packages/**/*.test.*",
+				"packages/**/*.test-helpers.ts",
+				"packages/**/test/**",
+				"packages/**/__tests__/**",
+				"packages/**/__fixtures__/**"
+			],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"paths": [
+							{
+								"name": "node:path",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "node:path/posix",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "node:path/win32",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path/posix",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "path/win32",
+								"message": "Use path from @ecopages/file-system/path, which keeps every path in forward slashes."
+							},
+							{
+								"name": "node:url",
+								"importNames": ["default", "fileURLToPath", "pathToFileURL"],
+								"message": "Use path.fromFileUrl or path.toFileUrl from @ecopages/file-system/path, which keep every path in forward slashes."
+							}
 						]
 					}
 				]
 			}
 		},
 		{
-			"files": [
-				"packages/file-system/**",
-				"packages/codemod/**",
-				"**/*.test.*",
-				"**/*.test-helpers.ts",
-				"**/test/**",
-				"**/__tests__/**",
-				"**/__fixtures__/**"
-			],
+			"files": ["packages/file-system/src/path.ts", "packages/codemod/**"],
 			"rules": {
-				"no-restricted-imports": "off"
+				"no-restricted-imports": "off",
+				"no-restricted-properties": [
+					"error",
+					{
+						"property": "NODE_ENV",
+						"message": "Use the centralized runtime mode helpers from @ecopages/core."
+					}
+				],
+				"ecopages-path/no-native-path-module": "off",
+				"ecopages-path/no-import-meta-native-path": "off"
+			}
+		},
+		{
+			"files": ["packages/**/test/fixtures/**"],
+			"rules": {
+				"ecopages-path/no-import-meta-native-path": "off"
+			}
+		},
+		{
+			"files": ["packages/core/src/env.ts", "packages/core/src/browser-env.ts"],
+			"rules": {
+				"no-restricted-properties": "off"
 			}
 		}
 	]

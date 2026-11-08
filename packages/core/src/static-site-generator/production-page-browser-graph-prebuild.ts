@@ -1,32 +1,29 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { isProductionRuntime } from '../utils/runtime.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
-import type { PageParams } from '../types/contracts.ts';
 import type { PageRendererResolver } from '../route-renderer/route-renderer.ts';
-import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
+import type { PlannedRoutePreparation } from '../route-renderer/orchestration/route-pipeline/route-render-orchestrator.ts';
+import type {
+	IntegrationRenderer,
+	PlannedRouteInstance,
+	ProductionRoutesPlan,
+} from '../route-renderer/orchestration/integration-renderer.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
 import { createPageDependencyInstanceKey } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
-import { setPrebuiltHtmlPageModuleScriptUrls } from '../html-pages/html-page-module-scripts.ts';
 import { buildAppBrowserClient } from '../assets/app-browser-client-build.ts';
 import {
-	assertAppBrowserClientOutputsExist,
-	assertAppBrowserClientManifestHtmlOutputsExist,
-	clearAppBrowserClientManifest,
-	createNormalizedAppBrowserClientEntryKey,
-	readAppBrowserClientManifest,
-	restoreAppBrowserClientAssets,
-	resolveAppBrowserClientManifestPath,
-	writeAppBrowserClientManifest,
-} from '../assets/app-browser-client-manifest.ts';
-import type { AppBrowserClientManifestEntry } from '../assets/app-browser-client-manifest.ts';
-
-export type ProductionPageBrowserGraphRouteInstance = {
-	routeFile: string;
-	params?: PageParams;
-	skipStaticProps?: boolean;
-	isRouteTemplate?: boolean;
-};
+	clearProductionAssetLedger,
+	restoreProductionAssetLedger,
+	writeProductionAssetLedger,
+} from '../build/production-asset-ledger.ts';
+import { prepareAssetDependencies } from '../assets/asset-processing-service/asset-processing.service.ts';
+import {
+	getPrebuiltHtmlPageModuleScriptUrls,
+	setPrebuiltHtmlPageModuleScriptUrls,
+} from '../html-pages/html-page-module-scripts.ts';
+import { isBundleableScript } from '../assets/asset-processing-service/bundleable-script.ts';
+import { resolveIntegrationDependencies } from '../build/app-build-manifest-runtime.ts';
 
 /**
  * Returns whether production should reuse prebuilt Page Browser Graphs.
@@ -43,18 +40,19 @@ export function shouldPrebuildProductionPageBrowserGraphs(): boolean {
  * Clears in-memory production Page Browser Graph session records.
  *
  * @remarks
- * Clears only the `'production'` policy so a failed or force export cannot
- * reuse staged graph output. Also sets `productionBrowserGraphsSealed` to false so a
- * retry of `ecopages build` can still emit graphs. Development session records are left intact.
+ * Clears only the `'production'` policy so a failed or force export cannot reuse staged graph output, forgets the
+ * app-wide browser build so a retry of `ecopages build` records only its own outputs, and removes the asset ledger
+ * file a previous build wrote. Development session records are left intact.
  */
 export function clearProductionPageBrowserGraphSession(appConfig: EcoPagesAppConfig): void {
 	const runtime = requireAppRuntime(appConfig);
 	runtime.pageBrowserGraphSession.clearPolicyRecords('production');
-	runtime.productionBrowserGraphsSealed = false;
-	clearAppBrowserClientManifest(appConfig);
+	runtime.processedAssets.clearBrowserOutputs();
+	clearProductionAssetLedger(appConfig);
 }
 
-function serializeProductionRouteInstance(instance: ProductionPageBrowserGraphRouteInstance): string {
+/** Identifies one planned route instance: its file, Params and whether it is a template without static props. */
+export function getPlannedRouteKey(instance: PlannedRouteInstance): string {
 	const routeFile = path.resolve(instance.routeFile);
 	const dependencyInstanceKey = createPageDependencyInstanceKey({ params: instance.params });
 	return JSON.stringify([
@@ -65,255 +63,110 @@ function serializeProductionRouteInstance(instance: ProductionPageBrowserGraphRo
 	]);
 }
 
-/**
- * Warms production Page Browser Graphs for the supplied static route instances.
- *
- * @remarks
- * Deduplicates route file + params pairs, then calls each integration renderer's
- * `prebuildProductionPageBrowserGraph` sequentially (activates integration runtime,
- * then resolves into `page-browser-graph-session`). Does not persist a disk manifest.
- */
-export async function prebuildProductionPageBrowserGraphs(
-	appConfig: EcoPagesAppConfig,
-	routeInstances: readonly ProductionPageBrowserGraphRouteInstance[],
+function groupRouteInstancesByRenderer(
+	routeInstances: readonly PlannedRouteInstance[],
 	routeRendererFactory: PageRendererResolver,
-): Promise<void> {
-	const uniqueRouteInstances = [
-		...new Map(
-			routeInstances.map((instance) => [serializeProductionRouteInstance(instance), instance] as const),
-		).values(),
-	].sort((left, right) =>
-		serializeProductionRouteInstance(left).localeCompare(serializeProductionRouteInstance(right)),
-	);
-
-	const instancesByRenderer = new Map<IntegrationRenderer<unknown>, ProductionPageBrowserGraphRouteInstance[]>();
-	for (const routeInstance of uniqueRouteInstances) {
+): Map<IntegrationRenderer<unknown>, PlannedRouteInstance[]> {
+	const instancesByRenderer = new Map<IntegrationRenderer<unknown>, PlannedRouteInstance[]>();
+	for (const routeInstance of routeInstances) {
 		const renderer = routeRendererFactory.getPageRenderer(routeInstance.routeFile) as IntegrationRenderer<unknown>;
 		const instances = instancesByRenderer.get(renderer) ?? [];
 		instances.push(routeInstance);
 		instancesByRenderer.set(renderer, instances);
 	}
-
-	const rendererPlans: Array<{
-		renderer: IntegrationRenderer<unknown>;
-		routeInstances: ProductionPageBrowserGraphRouteInstance[];
-		groupedBuildPlan: GroupedGraphBuildPlan;
-	}> = [];
-	for (const [renderer, routeInstancesForRenderer] of instancesByRenderer) {
-		const failedRouteInstances = new Set<string>();
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan(routeInstancesForRenderer, {
-			onRouteFailure: (routeInstance) => {
-				failedRouteInstances.add(serializeProductionRouteInstance(routeInstance));
-			},
-		});
-		const successfulRouteInstances = routeInstancesForRenderer.filter(
-			(routeInstance) => !failedRouteInstances.has(serializeProductionRouteInstance(routeInstance)),
-		);
-		if (successfulRouteInstances.length === 0) continue;
-		rendererPlans.push({
-			renderer,
-			routeInstances: successfulRouteInstances,
-			groupedBuildPlan,
-		});
-	}
-	if (rendererPlans.length === 0) return;
-	const appBrowserBuild = await buildAppBrowserClient(
-		appConfig,
-		rendererPlans.map(({ groupedBuildPlan }) => groupedBuildPlan),
-	);
-	await writeAppBrowserClientManifest(
-		appConfig,
-		appBrowserBuild.plans,
-		rendererPlans.flatMap(({ routeInstances: instances }) => instances),
-		appBrowserBuild,
-	);
-
-	for (const [index, { renderer, routeInstances: routeInstancesForRenderer }] of rendererPlans.entries()) {
-		const groupedBuildPlan = appBrowserBuild.plans[index];
-		if (!groupedBuildPlan) continue;
-		for (const routeInstance of routeInstancesForRenderer) {
-			await renderer.prebuildProductionPageBrowserGraph(routeInstance.routeFile, {
-				params: routeInstance.params,
-				skipStaticProps: routeInstance.skipStaticProps,
-				isRouteTemplate: routeInstance.isRouteTemplate,
-				groupedBuildPlan,
-			});
-		}
-	}
-}
-
-type ResolvedManifestEntry = AppBrowserClientManifestEntry & { routeFile: string };
-
-function groupManifestEntriesByRenderer(
-	appConfig: EcoPagesAppConfig,
-	routeRendererFactory: PageRendererResolver,
-	manifestEntries: readonly AppBrowserClientManifestEntry[],
-): Map<IntegrationRenderer<unknown>, ResolvedManifestEntry[]> {
-	const entriesByRenderer = new Map<IntegrationRenderer<unknown>, ResolvedManifestEntry[]>();
-	for (const manifestEntry of manifestEntries) {
-		const routeFile = resolveAppBrowserClientManifestPath(appConfig, manifestEntry.routeFile);
-		const renderer = routeRendererFactory.getPageRenderer(routeFile) as IntegrationRenderer<unknown>;
-		if (renderer.name !== manifestEntry.integrationName) {
-			throw new Error(
-				`The app browser build manifest assigns ${manifestEntry.routeFile} to ${manifestEntry.integrationName}, but the current route uses ${renderer.name}. Run \`ecopages build\` again.`,
-			);
-		}
-		const entries = entriesByRenderer.get(renderer) ?? [];
-		entries.push({ ...manifestEntry, routeFile });
-		entriesByRenderer.set(renderer, entries);
-	}
-	return entriesByRenderer;
-}
-
-function findPlanInstance(
-	entry: ResolvedManifestEntry,
-	instances: readonly GroupedGraphBuildPlan['instances'][number][],
-): GroupedGraphBuildPlan['instances'][number] {
-	const dependencyInstanceKey = createPageDependencyInstanceKey({ params: entry.params });
-	const instance = instances.find(
-		(candidate) =>
-			candidate.routeFile === entry.routeFile &&
-			candidate.dependencyInstanceKey === dependencyInstanceKey &&
-			(candidate.skipStaticProps ?? false) === (entry.skipStaticProps ?? false) &&
-			(candidate.isRouteTemplate ?? false) === (entry.isRouteTemplate ?? false),
-	);
-	if (!instance) {
-		throw new Error(
-			`The app browser build manifest has no current route plan for ${entry.routeFile}. Run \`ecopages build\` again.`,
-		);
-	}
-	return instance;
-}
-
-function assertManifestDependenciesMatch(
-	rootDir: string,
-	renderer: IntegrationRenderer<unknown>,
-	entry: ResolvedManifestEntry,
-	instance: GroupedGraphBuildPlan['instances'][number],
-): void {
-	const groupedDependencyKeys = [
-		...new Set(
-			(instance.contribution?.dependencies ?? []).map((dependency) =>
-				createNormalizedAppBrowserClientEntryKey(rootDir, renderer.name, dependency),
-			),
-		),
-	].sort();
-	const pageClientBuildEntryKeys = (instance.pageClientBuildEntries ?? [])
-		.map((clientEntry) =>
-			createNormalizedAppBrowserClientEntryKey(rootDir, clientEntry.integrationName, clientEntry.dependency),
-		)
-		.sort();
-	if (
-		JSON.stringify(groupedDependencyKeys) !== JSON.stringify(entry.groupedDependencyKeys) ||
-		JSON.stringify(pageClientBuildEntryKeys) !== JSON.stringify(entry.pageClientBuildEntryKeys)
-	) {
-		throw new Error(
-			`The app browser build manifest does not match the current client dependencies for ${entry.routeFile}. Run \`ecopages build\` again.`,
-		);
-	}
-}
-
-function restoreFallbackDependencies(
-	rootDir: string,
-	entry: ResolvedManifestEntry,
-	instance: GroupedGraphBuildPlan['instances'][number],
-): NonNullable<GroupedGraphBuildPlan['instances'][number]['prebuiltPageClientBrowserAssets']>['fallbackDependencies'] {
-	return entry.pageClientAssets.fallbackPageClientBuildEntryKeys.map((key) => {
-		const fallbackEntry = instance.pageClientBuildEntries?.find(
-			(clientEntry) =>
-				createNormalizedAppBrowserClientEntryKey(
-					rootDir,
-					clientEntry.integrationName,
-					clientEntry.dependency,
-				) === key,
-		);
-		if (!fallbackEntry) {
-			throw new Error(
-				`The app browser build manifest has a missing fallback client entry for ${entry.routeFile}. Run \`ecopages build\` again.`,
-			);
-		}
-		return {
-			dependency: fallbackEntry.dependency,
-			integrationName: fallbackEntry.integrationName,
-		};
-	});
-}
-
-function restoreManifestRouteAssets(
-	appConfig: EcoPagesAppConfig,
-	renderer: IntegrationRenderer<unknown>,
-	entry: ResolvedManifestEntry,
-	instance: GroupedGraphBuildPlan['instances'][number],
-): void {
-	assertManifestDependenciesMatch(appConfig.rootDir, renderer, entry, instance);
-	instance.prebuiltGroupedAssets = restoreAppBrowserClientAssets(appConfig, entry.groupedAssets);
-	instance.prebuiltPageClientBrowserAssets = {
-		processedAssets: restoreAppBrowserClientAssets(appConfig, entry.pageClientAssets.processedAssets),
-		fallbackDependencies: restoreFallbackDependencies(appConfig.rootDir, entry, instance),
-	};
-}
-
-async function prebuildManifestEntriesForRenderer(
-	appConfig: EcoPagesAppConfig,
-	renderer: IntegrationRenderer<unknown>,
-	entries: readonly ResolvedManifestEntry[],
-): Promise<void> {
-	const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan(
-		entries.map(({ routeFile, params, skipStaticProps, isRouteTemplate }) => ({
-			routeFile,
-			params,
-			skipStaticProps,
-			isRouteTemplate,
-		})),
-	);
-	groupedBuildPlan.planKey = entries[0]?.planKey ?? groupedBuildPlan.planKey;
-
-	for (const entry of entries) {
-		const instance = findPlanInstance(entry, groupedBuildPlan.instances);
-		restoreManifestRouteAssets(appConfig, renderer, entry, instance);
-	}
-	for (const entry of entries) {
-		await renderer.prebuildProductionPageBrowserGraph(entry.routeFile, {
-			params: entry.params,
-			skipStaticProps: entry.skipStaticProps,
-			isRouteTemplate: entry.isRouteTemplate,
-			groupedBuildPlan,
-		});
-	}
+	return instancesByRenderer;
 }
 
 /**
- * Reuses the browser outputs written by `ecopages build` while `ecopages start` prepares SSR routes.
+ * Builds the production browser client for the supplied route instances and prepares each of them.
  *
  * @remarks
- * A successful restore sets `productionBrowserGraphsSealed` so a missing graph is an error.
+ * Deduplicates route file + params pairs and plans each renderer's routes, which collects the scripts they bundle
+ * without processing them. The app-wide browser build then records every planned script in the asset ledger, and
+ * each planned route processes its dependencies through it, so the ledger records everything `ecopages start`
+ * serves those routes with. The ledger is then written beside the server bundle, where the Lit static-render
+ * worker restores it during the export. A route that fails to plan is left out and reported to `onRouteFailure`.
+ * Each Integration's global scripts are resolved once, after that build, or on their own when no route is planned.
+ *
+ * Returns the preparation of every planned instance that runs its static props, by {@link getPlannedRouteKey}, so
+ * static export renders it without running its data hooks again. The caller owns the map for the build; no
+ * renderer keeps it.
  */
-export async function prebuildProductionPageBrowserGraphsFromManifest(
+export async function prebuildProductionPageBrowserGraphs(
 	appConfig: EcoPagesAppConfig,
+	routeInstances: readonly PlannedRouteInstance[],
 	routeRendererFactory: PageRendererResolver,
-): Promise<boolean> {
-	if (!shouldPrebuildProductionPageBrowserGraphs()) return false;
-	const manifest = readAppBrowserClientManifest(appConfig);
-	if (!manifest) return false;
-	assertAppBrowserClientOutputsExist(appConfig, manifest.browserOutputPaths);
-	assertAppBrowserClientManifestHtmlOutputsExist(appConfig, manifest.htmlPageModuleScriptUrls);
+	options: { onRouteFailure?: (routeInstance: PlannedRouteInstance, error: unknown) => void } = {},
+): Promise<Map<string, PlannedRoutePreparation>> {
+	const uniqueRouteInstances = [
+		...new Map(routeInstances.map((instance) => [getPlannedRouteKey(instance), instance] as const)).values(),
+	].sort((left, right) => getPlannedRouteKey(left).localeCompare(getPlannedRouteKey(right)));
 
-	setPrebuiltHtmlPageModuleScriptUrls(
-		appConfig,
-		new Map(
-			Object.entries(manifest.htmlPageModuleScriptUrls).map(([filePath, url]) => [
-				resolveAppBrowserClientManifestPath(appConfig, filePath),
-				url,
-			]),
-		),
-	);
-	for (const [renderer, entries] of groupManifestEntriesByRenderer(
-		appConfig,
-		routeRendererFactory,
-		manifest.entries,
-	)) {
-		await prebuildManifestEntriesForRenderer(appConfig, renderer, entries);
+	const routePlans: ProductionRoutesPlan[] = [];
+	for (const [renderer, instances] of groupRouteInstancesByRenderer(uniqueRouteInstances, routeRendererFactory)) {
+		const routePlan = await renderer.planProductionRoutes(instances, {
+			onRouteFailure: options.onRouteFailure ?? (() => {}),
+		});
+		if (routePlan) routePlans.push(routePlan);
 	}
-	requireAppRuntime(appConfig).productionBrowserGraphsSealed = true;
+	const preparations = new Map<string, PlannedRoutePreparation>();
+	if (routePlans.length === 0) {
+		await resolveIntegrationDependencies({ appConfig });
+		return preparations;
+	}
+	await buildAppBrowserClient(appConfig, [
+		...routePlans.map(({ plan }) => plan),
+		...collectIntegrationScriptPlans(appConfig),
+	]);
+	await resolveIntegrationDependencies({ appConfig });
+	for (const { prepare } of routePlans) {
+		await prepare();
+	}
+	writeProductionAssetLedger(appConfig, await getPrebuiltHtmlPageModuleScriptUrls(appConfig));
+	for (const { instance, preparation } of routePlans.flatMap((routePlan) => routePlan.preparations)) {
+		if (!instance.skipStaticProps) preparations.set(getPlannedRouteKey(instance), preparation);
+	}
+	return preparations;
+}
+
+/**
+ * Lists each Integration's global scripts as a plan without routes, so the app-wide build bundles them.
+ */
+function collectIntegrationScriptPlans(appConfig: EcoPagesAppConfig): GroupedGraphBuildPlan[] {
+	return appConfig.integrations.flatMap((integration) => {
+		const bundledScripts = prepareAssetDependencies(
+			[...integration.getIntegrationDependencies()],
+			integration,
+			appConfig.rootDir,
+		).filter(isBundleableScript);
+		return bundledScripts.length > 0
+			? [{ integrationName: integration.name, bundledScripts, pageClientEntries: [] }]
+			: [];
+	});
+}
+
+/**
+ * Restores the app-wide browser build `ecopages build` recorded in the asset ledger.
+ *
+ * @remarks
+ * Rendering then resolves every script that build bundled through the ledger. With `seal`, as `ecopages start` from
+ * a complete `dist/` restores it, a missing ledger is an error. Every dependency then resolves through the ledger,
+ * one it does not record is an error, and start compiles and writes nothing. The Lit static-render worker restores without sealing: it renders
+ * during the build, which still processes what the ledger does not yet record. It resolves no Integration global
+ * scripts: the caller resolves them after it, whether or not a ledger was restored.
+ */
+export async function restoreProductionBrowserBuild(
+	appConfig: EcoPagesAppConfig,
+	options: { seal: boolean },
+): Promise<boolean> {
+	const restored = shouldPrebuildProductionPageBrowserGraphs() ? restoreProductionAssetLedger(appConfig) : undefined;
+	if (!restored) {
+		if (options.seal && shouldPrebuildProductionPageBrowserGraphs()) {
+			throw new Error('The production asset ledger is missing. Run `ecopages build` again.');
+		}
+		return false;
+	}
+	setPrebuiltHtmlPageModuleScriptUrls(appConfig, restored.htmlPageModuleScriptUrls);
+	if (options.seal) requireAppRuntime(appConfig).processedAssets.seal();
 	return true;
 }

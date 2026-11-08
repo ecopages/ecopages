@@ -20,6 +20,7 @@ import {
 	Processor,
 	type EcoBuildPlugin,
 	type ProcessorConfig,
+	type StylesheetTransformResult,
 } from '@ecopages/core/processor';
 
 class CustomProcessor extends Processor {
@@ -50,8 +51,8 @@ class CustomProcessor extends Processor {
 		// Generation, cache warming and other runtime work
 	}
 
-	override async transformStylesheet(css: string, file: string): Promise<string> {
-		return css;
+	override async transformStylesheet(css: string, file: string): Promise<StylesheetTransformResult> {
+		return { css, dependencies: [] };
 	}
 }
 
@@ -67,9 +68,10 @@ Core owns the ordering. Processors participate in these phases:
 
 1. **`plugins(app)`** — read once during config finalization to seal the app build manifest. It is the only hook that runs then, so it must not do I/O.
 2. **`setup()`** — runs after the manifest is sealed when preparing a development, build, preview, or type-generation runtime. Generate files, load configuration and warm caches here. Production `ecopages start` restores emitted Processor state instead of calling `setup()`.
-3. **`transformStylesheet(css, file)`** — optional; transforms every `.css`, `.scss`, `.sass` and `.less` asset the processor's `stylesheet` capability matches, in processor registration order. A processor without it takes no part in stylesheet processing.
-4. **Watch batches** — in development, `watch.onChanges({ created, changed, deleted, bridge })` receives matching absolute paths grouped once per debounce window. `extensions` select notifications; `capabilities` define asset ownership.
-5. **Prewarm** — a processor that owns pages to warm appends their pathnames to `this.context.config.devPrewarmPaths` from `setup()`. Core renders that list in the background once the development server handles requests.
+3. **`transformStylesheet(css, file)`** — optional; transforms each stylesheet the processor's `stylesheet` capability matches: a `.css` file, or a file with an extension the capability declares. It returns `{ css, dependencies, exports }`, where `dependencies` lists the absolute paths of the other files the transform read, such as the partials an `@import` inlined; core keeps the stylesheets among them. Take them from the transform itself (PostCSS `dependency` messages, Lightning CSS `dependencies`): core rebuilds the stylesheet, and every module and Page that uses it, when one changes. An app can register only one processor with a `stylesheet` capability. `exports` is for CSS Modules: a processor whose `stylesheet` capability sets `cssModules: true` returns, for every `*.module.css` file, the scoped `css` and a class map from each local class name to its scoped name followed by the names it composes, separated by spaces. Derive the scoped names from the path relative to `rootDir`, so a build gives the same names in any folder. For a CSS Module that an installed package ships, hash the path `toPackageScopeFile(file, rootDir)` from `@ecopages/core/processor` returns instead (it returns `undefined` for an app file), which names the package and the path inside it, and run no app processing on it. Without `cssModules: true`, importing a CSS Module fails the build. A processor without it takes no part in stylesheet processing. In development core prewarms, caches, writes and refreshes the stylesheets; the processor only transforms.
+4. **`invalidateStylesheets(files)`** — optional; in development, receives the changed paths of a batch that are not stylesheets and returns the stylesheets they make stale, or `'all'`. Use it when the output depends on content, as Tailwind's does on the class names it scans, and reset any cached state there.
+5. **Watch batches** — in development, `watch.onChanges({ created, changed, deleted, bridge })` receives matching absolute paths grouped once per debounce window. `extensions` select notifications; `capabilities` define asset ownership.
+6. **Prewarm** — a processor that owns pages to warm appends their pathnames to `this.context.config.devPrewarmPaths` from `setup()`. Core renders that list in the background once the development server handles requests.
 
 ## Production Runtime
 
@@ -132,7 +134,7 @@ Keep source generation in `setup()` or in a build-plugin callback. `restoreProdu
 
 ## Asset Capabilities
 
-Declare which asset kinds a processor owns through `capabilities`. Without capabilities, `canProcessAsset()` returns false and the processor will not participate in the asset pipeline. Stylesheet processing needs both a matching `stylesheet` capability and a `transformStylesheet()` method.
+Declare which asset kinds a processor owns through `capabilities`. Without capabilities, `canProcessAsset()` returns false and the processor will not participate in the asset pipeline. Stylesheet processing needs both a matching `stylesheet` capability and a `transformStylesheet()` method. Core treats `.css` and the extensions the `stylesheet` capability declares as stylesheets: `import './card.scss'` is discovered, kept out of server builds and served in development only when the capability declares `*.scss`. Config finalization fails when two processors declare a `stylesheet` capability.
 
 ```typescript
 super({
@@ -150,6 +152,45 @@ super({
 Supported `kind` values: `script`, `stylesheet`, `image`. Extension patterns support `*`, `.css`, `*.css`, and grouped forms such as `*.{css,scss}`.
 
 `filter` is an optional regular expression tested against the full file path after the extension patterns match. Core clones it for each capability and removes the stateful `g` and `y` flags, so repeated asset checks do not depend on a previous match.
+
+### Declare the module types of your extensions
+
+Core types `import styles from './card.css'` and `./card.module.css` with the declarations it ships. A stylesheet extension you declare, such as `*.scss`, is typed by your processor: write the declaration from `setup()`, into the generated `@types` package TypeScript loads on its own. `serializeStylesheetModuleDeclarations(capabilities)` builds the text from the extensions your `stylesheet` capability declares: `declare module '*.scss'` for the CSS string and, when the capability sets `cssModules: true`, `declare module '*.module.scss'` for the class map. It is empty when you declare only `.css`, so nothing is written then. Core treats `*.module.<ext>` as a CSS Module under the same rule: only when the capability that declares `<ext>` sets `cssModules: true`. Otherwise `card.module.scss` is a plain stylesheet, typed as a `string`.
+
+```typescript
+import { fileSystem } from '@ecopages/file-system';
+import { path } from '@ecopages/file-system/path';
+import {
+	Processor,
+	resolveGeneratedPath,
+	serializeStylesheetModuleDeclarations,
+	writeGeneratedTypesPackage,
+} from '@ecopages/core/processor';
+
+class SassProcessor extends Processor {
+	override async setup(): Promise<void> {
+		const declarations = serializeStylesheetModuleDeclarations(this.getAssetCapabilities());
+		if (!declarations || !this.context) return;
+
+		const write = (filePath: string, content: string) => {
+			fileSystem.ensureDir(path.dirname(filePath));
+			fileSystem.write(filePath, content);
+		};
+		writeGeneratedTypesPackage({
+			root: this.context.rootDir,
+			module: this.name,
+			packageName: `@types/ecopages-${this.name}`,
+			writeFile: write,
+		});
+		write(
+			resolveGeneratedPath('types', { root: this.context.rootDir, module: this.name, subPath: 'index.d.ts' }),
+			declarations,
+		);
+	}
+}
+```
+
+`ecopages types` runs `setup()`, so the declaration exists before the type checker runs, and the app writes no `declare module '*.scss'` of its own.
 
 ## plugins(app)
 
@@ -182,20 +223,20 @@ Work that needs the file system, such as generating modules or loading a config 
 
 ## Working with Cache
 
-Processors have built-in caching capabilities:
+Processors have built-in caching capabilities. Each entry is a JSON file in the Processor's cache folder under the work directory, named after a digest of its key, so a key may contain any character:
 
 ```typescript
 class CustomProcessor extends Processor {
-	override async transformStylesheet(css: string, file: string): Promise<string> {
+	override async transformStylesheet(css: string, file: string): Promise<StylesheetTransformResult> {
 		const cacheKey = 'my-cache-key';
 
 		const cached = await this.readCache<string>(cacheKey);
-		if (cached) return cached;
+		if (cached) return { css: cached };
 
 		const result = await someExpensiveOperation(css);
 		await this.writeCache(cacheKey, result);
 
-		return result;
+		return { css: result };
 	}
 }
 ```
@@ -233,6 +274,15 @@ class CustomProcessor extends Processor {
 
 Plugins that declare `environments: ['browser']` apply to browser bundles only. Plugins that omit `environments` apply to server and browser builds.
 
+### Virtual modules, loaders and watch files
+
+- `build.module(specifier, callback)` declares a virtual module. An import of exactly `specifier` resolves to it, and `callback` returns the `onLoad` result that provides its contents. The image Processor uses it for `ecopages:images`. A virtual module path you return from `onResolve` yourself starts with `\0`, so no other plugin reads it as a file.
+- `loader` in an `onLoad` result (`js`, `jsx`, `ts` or `tsx`) sets the language `contents` compiles as. The PostCSS Processor returns `` { contents: `export default ${JSON.stringify(css)};`, loader: 'js' } `` to hand a stylesheet's compiled CSS to the importer.
+- `onResolve`, `onLoad` and `transform` take an optional `exclude` pattern next to `filter`. Rolldown tests both before your callback runs, against ids with `/` separators.
+- `build.addWatchFile(path)`, called inside an `onLoad` or `transform` callback, declares a file the callback read, so an edit to it rebuilds the module in development and invalidates the caches that hold it.
+
+Like `onResolve`, `onLoad`, and `transform`, call `module()` before `setup` returns. A later call throws.
+
 ## File Watching
 
 Configure file watching for development mode. Core calls `onChanges` once per debounce batch. Its `created`, `changed`, and `deleted` arrays contain the matching absolute paths for each event kind.
@@ -264,7 +314,6 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { customProcessorPlugin } from './custom-processor';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	processors: [customProcessorPlugin()],
 	integrations: [ecopagesJsxPlugin()],
 });
@@ -272,41 +321,32 @@ export default defineConfig({
 
 ## Communicating with the Browser (IClientBridge)
 
-Processors can broadcast events to connected browser clients for live updates using the `bridge` provided in watch callbacks:
+Processors can broadcast events to connected browser clients for live updates using the `bridge` provided in watch callbacks. A stylesheet processor needs none of this: core rebuilds its stylesheets and refreshes their links.
 
 ```typescript
-import type { IClientBridge } from '@ecopages/core/integration';
-import path from 'node:path';
-import { fileSystem } from '@ecopages/file-system';
+import { Processor } from '@ecopages/core/processor';
 
-class StyleProcessor extends Processor {
+class DataProcessor extends Processor {
 	constructor() {
 		super({
-			name: 'style-processor',
+			name: 'data-processor',
 			watch: {
-				paths: ['src/styles'],
-				extensions: ['.css'],
-				onChanges: async ({ created, changed, deleted, bridge }) => {
-					for (const filePath of [...created, ...changed]) {
-						await this.processFile(filePath, bridge);
-					}
-					if (deleted.length > 0) {
-						bridge.reload();
-					}
+				paths: ['src/data'],
+				extensions: ['.json'],
+				onChanges: async ({ bridge }) => {
+					await this.regenerate();
+					bridge.reload();
 				},
 			},
 		});
 	}
 
-	private async processFile(filePath: string, bridge: IClientBridge) {
-		if (!this.context) return;
+	override async setup(): Promise<void> {
+		await this.regenerate();
+	}
 
-		const source = await fileSystem.readFile(filePath);
-		const processed = await this.transformStylesheet(source, filePath);
-		const outputPath = path.join(this.context.distDir, path.basename(filePath));
-		await fileSystem.write(outputPath, processed);
-
-		bridge.cssUpdate(filePath);
+	private async regenerate(): Promise<void> {
+		// Rebuild the modules generated from src/data
 	}
 }
 ```
@@ -314,7 +354,7 @@ class StyleProcessor extends Processor {
 The `IClientBridge` contract provides:
 
 - `reload()`: Triggers a full page reload.
-- `cssUpdate(path)`: Triggers a CSS hot update for the given path.
+- `cssUpdate(sourceFile)`: Refreshes the stylesheet link delivered from `sourceFile`, the source whose processed output changed.
 - `update(path)`: Triggers a JS module update.
 - `error(message)`: Sends an error notification to the client.
 - `broadcast(event)`: Sends a raw `ClientBridgeEvent`.

@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type {
 	ComponentRenderInput,
@@ -17,6 +17,7 @@ import type { IntegrationRendererOptions } from '../route-renderer/orchestration
 import { findElements, parseHtml } from '../html/html-source-parser.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { invariant } from '../utils/invariant.ts';
+import { listCssReferences } from '../assets/asset-processing-service/processors/stylesheet/css-scanner.ts';
 import { resolveClassicScriptOptions } from './html-page-classic-script.ts';
 import { findHtmlFilesLoading, getHtmlPageModuleScriptUrls, scanModuleScript } from './html-page-module-scripts.ts';
 import { reconcileHtmlPageDocument, type RenderedHtmlPageHead } from './html-page-document.ts';
@@ -27,7 +28,6 @@ import {
 	warnHtmlTemplateRender,
 } from './html-page-module.ts';
 import {
-	findRelativeCssUrls,
 	getHtmlAssetKey,
 	type HtmlAssetDeclaration,
 	type HtmlFileAssetKind,
@@ -276,7 +276,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 				processed?.content !== undefined,
 				`${file}: could not process an inline <style>; the asset pipeline logged the cause.`,
 			);
-			for (const url of findRelativeCssUrls(processed.content)) {
+			for (const url of listCssReferences(processed.content).references) {
 				warnHtmlTemplateRender(
 					this.appConfig,
 					file,
@@ -401,16 +401,15 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 		if (!found) return;
 		const real = (target: string) => (fileSystem.exists(target) ? fileSystem.realpath(target) : target);
 		const rootDir = real(this.appConfig.rootDir);
-		const show = (target: string) =>
-			path.isAbsolute(target) ? path.relative(rootDir, real(target)).split(path.sep).join('/') : target;
+		const show = (target: string) => (path.isAbsolute(target) ? path.relative(rootDir, real(target)) : target);
 		const stylesheet = real(found.stylesheet);
 		const through = found.importer === path.resolve(script) ? '' : ` through ${show(found.importer)}`;
 		const srcDir = real(this.appConfig.absolutePaths.srcDir);
 		const href = path
 			.relative(path.dirname(real(file)), stylesheet)
-			.split(path.sep)
+			.split('/')
 			.join('/');
-		const fix = stylesheet.startsWith(`${srcDir}${path.sep}`)
+		const fix = stylesheet.startsWith(`${srcDir}/`)
 			? `Load it with <link rel="stylesheet" href="${href.startsWith('../') ? href : `./${href}`}"> in ${show(file)} instead.`
 			: `A <link> cannot point outside ${show(srcDir)}, so copy the stylesheet under ${show(srcDir)} and link it from ${show(file)} instead.`;
 		throw new Error(

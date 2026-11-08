@@ -1,17 +1,15 @@
-import { eco } from '@ecopages/core';
+import { eco, type EcoPagesElement, type LayoutProps } from '@ecopages/core';
 import { Navigation } from '@/components/navigation';
 import { RadiantCounter } from '@/components/radiant-counter';
+import './base-layout.css';
 
-export type BaseLayoutProps = {
-	children: JSX.Element | JSX.Element[];
+export interface BaseLayoutProps extends LayoutProps<EcoPagesElement> {
 	class?: string;
-};
+}
 
-export const BaseLayout = eco.component<BaseLayoutProps>({
+export const BaseLayout = eco.layout<EcoPagesElement, BaseLayoutProps>({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
-		components: [Navigation, RadiantCounter],
 	},
 
 	render: ({ children, class: className }) => {

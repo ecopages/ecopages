@@ -1,11 +1,9 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
-
-export type PluginFactoryRecord = Record<string, () => postcss.AcceptedPlugin>;
-export type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
+import type { PluginFactoryRecord, PluginsRecord } from './plugin.ts';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
 	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),

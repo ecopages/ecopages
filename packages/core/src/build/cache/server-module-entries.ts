@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { isEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
@@ -95,9 +95,9 @@ export async function collectServerModuleEntries(options: {
 	return [...entries];
 }
 
-function addSsrScripts(component: EcoComponent, scripts: Set<string>): void {
+function addSsrScripts(component: EcoComponent, rootDir: string, scripts: Set<string>): void {
 	const identity = getComponentIdentity(component);
-	const ownerDir = identity?.file ? path.dirname(identity.file) : undefined;
+	const ownerDir = identity?.file ? path.dirname(path.resolve(rootDir, identity.file)) : undefined;
 	if (!ownerDir) {
 		return;
 	}
@@ -108,32 +108,37 @@ function addSsrScripts(component: EcoComponent, scripts: Set<string>): void {
 	}
 }
 
-function collectSsrScriptsFromComponent(component: unknown, seen: Set<unknown>, scripts: Set<string>): void {
+function collectSsrScriptsFromComponent(
+	component: unknown,
+	rootDir: string,
+	seen: Set<unknown>,
+	scripts: Set<string>,
+): void {
 	if (!component || seen.has(component) || !isEcoDeclaredComponent(component)) {
 		return;
 	}
 	seen.add(component);
 	const ecoComponent = component as EcoComponent;
-	addSsrScripts(ecoComponent, scripts);
+	addSsrScripts(ecoComponent, rootDir, scripts);
 	for (const related of ecoComponent.config?.layouts ?? []) {
-		collectSsrScriptsFromComponent(related, seen, scripts);
+		collectSsrScriptsFromComponent(related, rootDir, seen, scripts);
 	}
 	for (const related of ecoComponent.config?.dependencies?.components ?? []) {
-		collectSsrScriptsFromComponent(related, seen, scripts);
+		collectSsrScriptsFromComponent(related, rootDir, seen, scripts);
 	}
 }
 
 /**
  * Walks compiled Page, Layout, and view modules for `ssr: true` script paths.
  */
-export function collectSsrScriptPaths(modules: readonly unknown[]): string[] {
+export function collectSsrScriptPaths(modules: readonly unknown[], rootDir: string): string[] {
 	const scripts = new Set<string>();
 	const seen = new Set<unknown>();
 	for (const module of modules) {
 		if (!module || typeof module !== 'object') {
 			continue;
 		}
-		collectSsrScriptsFromComponent((module as { default?: unknown }).default, seen, scripts);
+		collectSsrScriptsFromComponent((module as { default?: unknown }).default, rootDir, seen, scripts);
 	}
 	return [...scripts];
 }

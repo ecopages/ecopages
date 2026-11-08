@@ -88,6 +88,11 @@ test('createBuildRequestIdentity distinguishes every BuildOptions field', () => 
 		writeToDisk: [true, false],
 		external: [['react'], ['react-dom']],
 		jsx: [{ importSource: 'react' }, { importSource: 'preact' }],
+		workerEntries: [true, false],
+		stylesheets: [
+			{ extensions: ['.css'], compileModule: async () => '' },
+			{ extensions: ['.css', '.scss'], compileModule: async () => '' },
+		],
 	} satisfies Record<Exclude<keyof BuildOptions, 'plugins'>, [unknown, unknown]>;
 
 	for (const [field, [left, right]] of Object.entries(fields)) {
@@ -97,6 +102,16 @@ test('createBuildRequestIdentity distinguishes every BuildOptions field', () => 
 			`expected different identities for ${field}`,
 		);
 	}
+});
+
+test('createBuildRequestIdentity keys stylesheets by their extensions, not by their compiler', () => {
+	const request = (compileModule: () => Promise<{ code: string }>) =>
+		createBuildRequestIdentity({ ...baseOptions, stylesheets: { extensions: ['.css'], compileModule } });
+
+	assert.equal(
+		request(async () => ({ code: 'export default "a";' })),
+		request(async () => ({ code: 'export default "b";' })),
+	);
 });
 
 test('createBuildRequestIdentity treats unset and empty collections alike', () => {
@@ -123,7 +138,7 @@ test('createBuildRequestIdentity tells apart import.meta transforms of different
 	const identityFor = (runtimeDir: string) =>
 		createBuildRequestIdentity({
 			...baseOptions,
-			plugins: [createPreserveImportMetaPlugin(runtimeDir)],
+			plugins: [createPreserveImportMetaPlugin(runtimeDir, '/out')],
 		});
 
 	assert.notEqual(identityFor('/out/a'), identityFor('/out/b'));

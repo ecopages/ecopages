@@ -16,6 +16,7 @@
  */
 
 import type { API, FileInfo, Options, ASTPath, ExportDefaultDeclaration, JSCodeshift, Collection } from 'jscodeshift';
+import { printOptions } from './print-options.ts';
 
 export const parser = 'tsx';
 
@@ -28,6 +29,8 @@ interface ExtractedPageInfo {
 	staticPaths: unknown | null;
 	staticProps: unknown | null;
 	metadata: unknown | null;
+	/** Data options the existing `eco.page(...)` call already sets. */
+	declared: Set<PageDataKey>;
 }
 
 function readPagePropsTypeName(
@@ -90,42 +93,198 @@ function applyComponentDeclaratorToPageInfo(
 	}
 }
 
-function applyNamedPageExport(j: JSCodeshift, path: ASTPath<unknown>, info: ExtractedPageInfo): boolean {
-	const declaration = (path.node as { declaration?: { type?: string; declarations?: unknown[] } }).declaration;
-	if (declaration?.type !== 'VariableDeclaration') {
-		return false;
-	}
+type PageDataKey = keyof Pick<ExtractedPageInfo, 'staticPaths' | 'staticProps' | 'metadata'>;
 
-	const declarator = declaration.declarations?.[0] as {
+const LEGACY_EXPORT_TARGETS: Record<string, PageDataKey> = {
+	getStaticPaths: 'staticPaths',
+	getStaticProps: 'staticProps',
+	getMetadata: 'metadata',
+};
+
+const LEGACY_WRAPPER_NAMES = new Set(['staticPaths', 'staticProps', 'metadata']);
+
+function readLegacyTarget(exportName: string | undefined): PageDataKey | null {
+	if (exportName === undefined || !Object.prototype.hasOwnProperty.call(LEGACY_EXPORT_TARGETS, exportName)) {
+		return null;
+	}
+	return LEGACY_EXPORT_TARGETS[exportName];
+}
+
+/** Returns the function inside an `eco.staticPaths(fn)`, `eco.staticProps(fn)` or `eco.metadata(fn)` wrapper. */
+function unwrapLegacyWrapper(value: unknown): unknown {
+	const call = value as {
 		type?: string;
-		id?: { type?: string; name?: string };
-		init?: unknown;
+		callee?: { type?: string; object?: { name?: string }; property?: { name?: string } };
+		arguments?: unknown[];
 	};
+	if (
+		call?.type === 'CallExpression' &&
+		call.callee?.type === 'MemberExpression' &&
+		call.callee.object?.name === 'eco' &&
+		LEGACY_WRAPPER_NAMES.has(call.callee.property?.name ?? '') &&
+		call.arguments?.length === 1
+	) {
+		return call.arguments[0];
+	}
+	return value;
+}
+
+function isReferencedByTypeof(j: JSCodeshift, root: Collection<unknown>, name: string): boolean {
+	return (
+		root.find(j.TSTypeQuery).filter((path) => {
+			const exprName = path.node.exprName as { type?: string; name?: string };
+			return exprName.type === 'Identifier' && exprName.name === name;
+		}).length > 0
+	);
+}
+
+function toFunctionExpression(j: JSCodeshift, declaration: Record<string, unknown>): unknown {
+	const expression = j.functionExpression(
+		null,
+		declaration.params as never,
+		declaration.body as never,
+		Boolean(declaration.generator),
+	);
+	expression.async = Boolean(declaration.async);
+	(expression as { returnType?: unknown }).returnType = declaration.returnType;
+	(expression as { typeParameters?: unknown }).typeParameters = declaration.typeParameters;
+	return expression;
+}
+
+/**
+ * Moves one `export const|function getX` declaration into the page info.
+ *
+ * @remarks
+ * A declaration that a `typeof getX` type still names, or that the existing `eco.page(...)` call
+ * already references, stays in the file unexported. Only the first case also sets the page option.
+ */
+function applyDeclaredPageExport(
+	j: JSCodeshift,
+	root: Collection<unknown>,
+	path: ASTPath<unknown>,
+	info: ExtractedPageInfo,
+): boolean {
+	const declaration = (path.node as { declaration?: Record<string, any> }).declaration;
+	if (declaration?.type === 'VariableDeclaration') {
+		return applyVariableExport(j, root, path, declaration, info);
+	}
+	if (declaration?.type === 'FunctionDeclaration') {
+		return applyFunctionExport(j, root, path, declaration, info);
+	}
+	return false;
+}
+
+function applyVariableExport(
+	j: JSCodeshift,
+	root: Collection<unknown>,
+	path: ASTPath<unknown>,
+	declaration: Record<string, any>,
+	info: ExtractedPageInfo,
+): boolean {
+	const declarator = declaration.declarations?.[0];
 	if (declarator?.type !== 'VariableDeclarator' || declarator.id?.type !== 'Identifier' || !declarator.init) {
 		return false;
 	}
-
-	const exportName = declarator.id.name ?? '';
-	const exportTargets: Record<string, keyof Pick<ExtractedPageInfo, 'staticPaths' | 'staticProps' | 'metadata'>> = {
-		getStaticPaths: 'staticPaths',
-		getStaticProps: 'staticProps',
-		getMetadata: 'metadata',
-	};
-	if (!Object.prototype.hasOwnProperty.call(exportTargets, exportName)) {
+	const targetKey = readLegacyTarget(declarator.id.name);
+	if (!targetKey) {
 		return false;
 	}
-	const targetKey = exportTargets[exportName];
 
-	info[targetKey] = declarator.init;
+	const value = unwrapLegacyWrapper(declarator.init);
+	const isDeclared = info.declared.has(targetKey);
+	if (isDeclared || isReferencedByTypeof(j, root, declarator.id.name)) {
+		declarator.init = value;
+		if (!isDeclared) {
+			declarator.id.typeAnnotation = null;
+			info[targetKey] = j.identifier(declarator.id.name);
+		}
+		j(path).replaceWith(declaration);
+		return true;
+	}
+	info[targetKey] = value;
 	j(path).remove();
 	return true;
+}
+
+function applyFunctionExport(
+	j: JSCodeshift,
+	root: Collection<unknown>,
+	path: ASTPath<unknown>,
+	declaration: Record<string, any>,
+	info: ExtractedPageInfo,
+): boolean {
+	const targetKey = readLegacyTarget(declaration.id?.name);
+	if (!targetKey) {
+		return false;
+	}
+
+	const isDeclared = info.declared.has(targetKey);
+	if (isDeclared || isReferencedByTypeof(j, root, declaration.id.name)) {
+		if (!isDeclared) {
+			info[targetKey] = j.identifier(declaration.id.name);
+		}
+		j(path).replaceWith(declaration);
+		return true;
+	}
+	info[targetKey] = toFunctionExpression(j, declaration);
+	j(path).remove();
+	return true;
+}
+
+function findTopLevelDeclarator(root: Collection<unknown>, j: JSCodeshift, name: string): Record<string, any> | null {
+	let found: Record<string, any> | null = null;
+	root.find(j.VariableDeclarator).forEach((path) => {
+		const id = path.node.id as { type?: string; name?: string };
+		const grandParent = path.parent?.parent?.node as { type?: string } | undefined;
+		if (id.type === 'Identifier' && id.name === name && grandParent?.type === 'Program') {
+			found = path.node as Record<string, any>;
+		}
+	});
+	return found;
+}
+
+/** Moves the `export { local as getX }` specifiers into the page info and drops them from the list. */
+function applyExportListSpecifiers(
+	j: JSCodeshift,
+	root: Collection<unknown>,
+	path: ASTPath<unknown>,
+	info: ExtractedPageInfo,
+): boolean {
+	const node = path.node as { source?: unknown; declaration?: unknown; specifiers?: Array<Record<string, any>> };
+	if (node.declaration || node.source || !node.specifiers) {
+		return false;
+	}
+
+	let moved = false;
+	node.specifiers = node.specifiers.filter((specifier) => {
+		const exportedName = specifier.exported?.name as string | undefined;
+		const localName = specifier.local?.name as string | undefined;
+		const targetKey = readLegacyTarget(exportedName);
+		if (!targetKey || !localName) {
+			return true;
+		}
+		const declarator = findTopLevelDeclarator(root, j, localName);
+		if (declarator?.init) {
+			declarator.init = unwrapLegacyWrapper(declarator.init);
+		}
+		if (!info.declared.has(targetKey)) {
+			info[targetKey] = j.identifier(localName);
+		}
+		moved = true;
+		return false;
+	});
+
+	if (moved && node.specifiers.length === 0) {
+		j(path).remove();
+	}
+	return moved;
 }
 
 function extractNamedPageExports(j: JSCodeshift, root: Collection<unknown>, info: ExtractedPageInfo): boolean {
 	let hasChanges = false;
 
 	root.find(j.ExportNamedDeclaration).forEach((path) => {
-		if (applyNamedPageExport(j, path, info)) {
+		if (applyDeclaredPageExport(j, root, path, info) || applyExportListSpecifiers(j, root, path, info)) {
 			hasChanges = true;
 		}
 	});
@@ -328,6 +487,56 @@ function pruneLegacyPageTypeImports(j: JSCodeshift, root: Collection<unknown>): 
 	});
 }
 
+/** Whether `name` is still named anywhere in the file besides its import specifier. */
+function isStillReferenced(j: JSCodeshift, root: Collection<unknown>, name: string): boolean {
+	return (
+		root.find(j.Identifier, { name }).filter((path) => {
+			const parentType = (path.parent?.node as { type?: string } | undefined)?.type;
+			return parentType !== 'ImportSpecifier';
+		}).length > 0
+	);
+}
+
+function pruneUnusedLegacyTypeImports(j: JSCodeshift, root: Collection<unknown>): void {
+	root.find(j.ImportDeclaration, { source: { value: '@ecopages/core' } }).forEach((path) => {
+		path.node.specifiers = path.node.specifiers?.filter((spec) => {
+			if (spec.type !== 'ImportSpecifier' || spec.imported.type !== 'Identifier') {
+				return true;
+			}
+			const name = spec.imported.name;
+			return (
+				!['GetStaticPaths', 'GetStaticProps', 'GetMetadata'].includes(name) || isStillReferenced(j, root, name)
+			);
+		});
+		if (path.node.specifiers?.length === 0) {
+			j(path).remove();
+		}
+	});
+}
+
+/** Adds the extracted data hooks to an existing `eco.page({...})` options object, ahead of `render`. */
+function mergeIntoExistingEcoPage(j: JSCodeshift, ecoPageCall: Collection<unknown>, info: ExtractedPageInfo): boolean {
+	let merged = false;
+	ecoPageCall.forEach((path) => {
+		const options = (path.node as { arguments?: Array<{ type?: string; properties?: Array<Record<string, any>> }> })
+			.arguments?.[0];
+		if (options?.type !== 'ObjectExpression' || !options.properties) {
+			return;
+		}
+		const present = new Set(options.properties.map((property) => property.key?.name as string | undefined));
+		const additions = (['staticPaths', 'staticProps', 'metadata'] as const)
+			.filter((key) => info[key] && !present.has(key))
+			.map((key) => j.objectProperty(j.identifier(key), info[key] as never));
+		if (additions.length === 0) {
+			return;
+		}
+		const renderIndex = options.properties.findIndex((property) => property.key?.name === 'render');
+		options.properties.splice(renderIndex === -1 ? options.properties.length : renderIndex, 0, ...additions);
+		merged = true;
+	});
+	return merged;
+}
+
 export default function transformer(file: FileInfo, api: API, _options: Options): string | null {
 	const j = api.jscodeshift;
 	const root = j(file.source);
@@ -339,9 +548,6 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 			property: { name: 'page' },
 		},
 	});
-	if (existingEcoPage.length > 0) {
-		return null;
-	}
 
 	const info: ExtractedPageInfo = {
 		componentName: null,
@@ -352,9 +558,30 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 		staticPaths: null,
 		staticProps: null,
 		metadata: null,
+		declared: new Set(),
 	};
 
+	existingEcoPage.forEach((path) => {
+		const options = (path.node as { arguments?: Array<{ type?: string; properties?: Array<Record<string, any>> }> })
+			.arguments?.[0];
+		for (const property of options?.type === 'ObjectExpression' ? (options.properties ?? []) : []) {
+			const optionName = property.key?.name as string | undefined;
+			if (optionName === 'staticPaths' || optionName === 'staticProps' || optionName === 'metadata') {
+				info.declared.add(optionName);
+			}
+		}
+	});
+
 	let hasChanges = extractNamedPageExports(j, root, info);
+
+	if (existingEcoPage.length > 0) {
+		if (!hasChanges) {
+			return null;
+		}
+		mergeIntoExistingEcoPage(j, existingEcoPage, info);
+		pruneUnusedLegacyTypeImports(j, root);
+		return root.toSource(printOptions(file.source));
+	}
 
 	let defaultExportPath: ASTPath<ExportDefaultDeclaration> | null = null;
 
@@ -386,5 +613,5 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 	ensureEcoImport(j, root);
 	pruneLegacyPageTypeImports(j, root);
 
-	return root.toSource({ quote: 'single', tabWidth: 2, useTabs: true });
+	return root.toSource(printOptions(file.source));
 }

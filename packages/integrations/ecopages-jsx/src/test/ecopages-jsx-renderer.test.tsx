@@ -1,7 +1,7 @@
 /** @jsxImportSource @ecopages/jsx */
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { eco, type EcoComponent, type EcoPagesElement, type HtmlTemplateProps } from '@ecopages/core';
@@ -11,10 +11,10 @@ import { IntegrationRenderer } from '@ecopages/core/integration';
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { getActiveSsrScopeValue, renderToString, withActiveSsrScopeValue } from '@ecopages/jsx/server';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
-import { createTestAppConfig, setupTestIntegration } from '@ecopages/testing';
+import { createStringMarkupIntegration, createTestAppConfig, setupTestIntegration } from '@ecopages/testing';
 import { describeRendererContract } from '@ecopages/testing/renderer-contract';
 import type { ForeignChildInterceptionInput } from '@ecopages/core/integration';
-import { ecopagesJsxPlugin } from '../ecopages-jsx.plugin';
+import { EcopagesJsxPlugin, ecopagesJsxPlugin } from '../ecopages-jsx.plugin';
 import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer';
 
 type StringChildProps = {
@@ -31,14 +31,17 @@ declare module '@ecopages/jsx' {
 	}
 }
 
-const outputRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-jsx-renderer-test-'));
+const outputRoot = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-jsx-renderer-test-')));
 const outputDirs = { distDir: path.join(outputRoot, 'dist'), workDir: path.join(outputRoot, '.eco') };
 
 afterAll(() => {
 	rmSync(outputRoot, { recursive: true, force: true });
 });
 
-const Config = await createTestAppConfig(outputDirs);
+const Config = await createTestAppConfig({
+	...outputDirs,
+	integrations: [createStringMarkupIntegration(), new EcopagesJsxPlugin()],
+});
 
 const HtmlTemplate = ({ children }: { children: JsxRenderable }) => {
 	return (
@@ -146,7 +149,10 @@ describeRendererContract({
 	errorPrefix: 'Error rendering page',
 	async createRenderer({ integrations, processDependencies }) {
 		const testRenderer = new TestEcopagesJsxRenderer({
-			appConfig: await createTestAppConfig({ ...outputDirs, integrations }),
+			appConfig: await createTestAppConfig({
+				...outputDirs,
+				integrations: [new EcopagesJsxPlugin(), ...integrations],
+			}),
 			assetProcessingService: { processDependencies } as never,
 			resolvedIntegrationDependencies: [],
 		});

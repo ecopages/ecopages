@@ -1,5 +1,5 @@
 import { type Server as NodeHttpServer } from 'node:http';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimeIntegrations, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -15,7 +15,6 @@ import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocke
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { ServerRequestPipeline, type ServerRequestContext } from '../shared/runtime/server-request-pipeline.ts';
-import { runWithBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
 import { ServerStaticBuilder } from '../shared/runtime/server-static-builder.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { disposeDevResources, prepareRuntimePublicDir } from '../shared/runtime/runtime-server-lifecycle.ts';
@@ -23,9 +22,10 @@ import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstr
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import type { RuntimeHost } from './runtime-host.ts';
 import { serveDistFile } from '../shared/http/dist-file-handler.ts';
+import { applyResponseHeaders } from '../shared/http/response-headers.ts';
 import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import { DevSession } from './dev-session.ts';
-import { prebuildProductionPageBrowserGraphsFromManifest } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
+import { restoreProductionBrowserBuild } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
 import { assertProductionDistComplete } from '../../build/production-dist-complete.ts';
 import { requireProductionServerModules } from '../../build/server/server-modules-manifest.ts';
 import { isProductionRuntime } from '../../env.ts';
@@ -138,10 +138,7 @@ export class NodeServerAdapter {
 			runtime: this.runtime,
 			watch: this.options.watch,
 			runInRequestBuildScope: this.options.watch
-				? (operation) =>
-						this.runtime.buildQueue.withRequestScope(() =>
-							runWithBuildInputIndex(this.runtime.buildInputIndex, operation),
-						)
+				? (operation) => this.runtime.buildQueue.withRequestScope(operation)
 				: undefined,
 		});
 		this.runtimeAssetSetup = options.runtimeAssetSetup ?? 'start';
@@ -199,8 +196,10 @@ export class NodeServerAdapter {
 	 *
 	 * @remarks
 	 * Such a start checks that `dist/` is complete, restores Processors from the emitted
-	 * server-modules map instead of calling `setup()`, and leaves `dist/` untouched: the build
-	 * already copied the public directory, and the deploy may hold no sources.
+	 * server-modules map instead of calling `setup()`, restores and seals the asset ledger before any
+	 * Integration processes a dependency, and leaves `dist/` untouched: the build already copied the
+	 * public directory and processed every asset, and the deploy may hold no sources. Any other start
+	 * restores no ledger, so a source edited after the build is never served from stale outputs.
 	 */
 	private startsFromCompleteDist(): boolean {
 		return this.runtimeAssetSetup === 'start' && this.requireCompleteDist && isProductionRuntime();
@@ -225,6 +224,7 @@ export class NodeServerAdapter {
 			if (fromCompleteDist) {
 				assertProductionDistComplete(this.appConfig.rootDir, this.appConfig.distDir);
 				requireProductionServerModules(this.appConfig);
+				await restoreProductionBrowserBuild(this.appConfig, { seal: true });
 			}
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
@@ -308,12 +308,16 @@ export class NodeServerAdapter {
 				serveOptions: {
 					hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
 					port: Number(this.serveOptions.port ?? DEFAULT_ECOPAGES_PORT),
-					handleRequest: (request) =>
-						serveDistFile(request, {
-							distDir: this.appConfig.absolutePaths.distDir,
-							watchMode: false,
-							resolveExportedPages: true,
-						}),
+					handleRequest: async (request) =>
+						applyResponseHeaders(
+							await serveDistFile(request, {
+								distDir: this.appConfig.absolutePaths.distDir,
+								watchMode: false,
+								resolveExportedPages: true,
+							}),
+							request,
+							this.appConfig.headers,
+						),
 				},
 				allowPortFallback: this.allowPortFallback,
 				usePortManager: true,
@@ -437,9 +441,17 @@ export class NodeServerAdapter {
 			if (waitForReadiness) {
 				await this.requestReadiness;
 			}
-			return await this.requestPipeline.handleSharedRequest(request, context);
+			return applyResponseHeaders(
+				await this.requestPipeline.handleSharedRequest(request, context),
+				request,
+				this.appConfig.headers,
+			);
 		} catch (error) {
-			return await this.requestPipeline.handleUnexpectedRequestError(error, request, context);
+			return applyResponseHeaders(
+				await this.requestPipeline.handleUnexpectedRequestError(error, request, context),
+				request,
+				this.appConfig.headers,
+			);
 		}
 	}
 
@@ -491,8 +503,6 @@ export class NodeServerAdapter {
 					if (this.startsFromCompleteDist()) {
 						requireProductionServerModules(this.appConfig);
 					}
-					const { routeRendererFactory } = this.requestPipeline.getStaticBuildContext();
-					await prebuildProductionPageBrowserGraphsFromManifest(this.appConfig, routeRendererFactory);
 				}
 				attachNodeHttpWebSocketUpgrades(server, {
 					runtimeOrigin: this.runtime.origin,

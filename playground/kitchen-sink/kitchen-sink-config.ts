@@ -17,8 +17,9 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { suffixNesting } from '@ecopages/lightningcss-processor/plugins/suffix-nesting';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 import { comparePosts, POSTS_CONTENT_DIR, postFrontmatterSchema } from './src/content/posts.ts';
@@ -51,7 +52,6 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 				mdx: {
 					...withContentMdxPlugins(),
 				},
-				runtimeModules: ['zod'],
 			}),
 			mdxPlugin({
 				extensions: ['.md'],
@@ -76,7 +76,7 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 			imageProcessorPlugin({
 				options: {
 					sourceDir: path.resolve(projectRoot, 'src/images'),
-					outputDir: path.resolve(projectRoot, distDir, 'images'),
+					outputDir: path.resolve(projectRoot, distDir, 'client', 'images'),
 					publicPath: '/images',
 					acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 					quality: 80,
@@ -89,11 +89,13 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 					],
 				},
 			}),
-			postcssProcessorPlugin(
-				tailwindV4Preset({
+			lightningCssProcessorPlugin({
+				...tailwindV4Preset({
 					referencePath: path.resolve(projectRoot, 'src/styles/tailwind.css'),
 				}),
-			),
+				targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+				plugins: [suffixNesting()],
+			}),
 		],
 		devToolbar: devToolbar(),
 	};
@@ -109,8 +111,12 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 }
 
 /**
- * Finalizes the kitchen-sink config for tests and benchmarks that need a built app config.
+ * Finalizes the kitchen-sink config for tests and benchmarks that build the app in process, like `ecopages build`.
+ *
+ * @remarks
+ * The runtime resolves global scripts at the browser build (`'browser-build'`), not at activation, so a caller that
+ * only serves requests should use `createKitchenSinkUserConfig()` through `eco.config.ts` instead.
  */
 export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions) {
-	return finalizeEcoPagesConfig(createKitchenSinkUserConfig(options));
+	return finalizeEcoPagesConfig(createKitchenSinkUserConfig(options), { globalScriptResolution: 'browser-build' });
 }

@@ -8,7 +8,6 @@ import type {
 	EcoComponent,
 	EcoComponentDependencies,
 	EcoHtmlComponent,
-	EcoLayoutComponent,
 	EcoPageLayouts,
 	EcoPagesElement,
 	EcoPageComponent,
@@ -48,7 +47,8 @@ export type PropsOf<TComponent extends EcoComponent> = TComponent extends EcoCom
 /**
  * Extracts the render result type from one eco component.
  */
-export type ResultOf<TComponent extends EcoComponent> = TComponent extends EcoComponent<any, infer R> ? R : never;
+export type ResultOf<TComponent extends EcoComponent> =
+	CallableComponentOf<TComponent> extends (props: any, ...args: any[]) => infer R ? R : never;
 
 /**
  * Narrows an eco component to its callable function signature.
@@ -122,7 +122,14 @@ export interface ComponentOptions<P, E = EcoPagesElement> {
 
 export type HtmlOptions<E = EcoPagesElement> = ComponentOptions<HtmlTemplateProps<E>, E>;
 
-export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E>;
+/**
+ * Options for `eco.layout()`.
+ *
+ * @remarks
+ * `P` adds props to `LayoutProps`. Extra props must be optional for the layout to be accepted by
+ * `eco.page({ layout })`, which passes only `LayoutProps` and the entry's props factory output.
+ */
+export type LayoutOptions<E = EcoPagesElement, P extends LayoutProps<E> = LayoutProps<E>> = ComponentOptions<P, E>;
 
 /**
  * Base options shared by all page variants
@@ -255,36 +262,23 @@ export interface Eco {
 	/**
 	 * Create a route layout component.
 	 */
-	layout: <E = EcoPagesElement>(options: LayoutOptions<E>) => EcoLayoutComponent<E>;
+	layout: <E = EcoPagesElement, P extends LayoutProps<E> = LayoutProps<E>>(
+		options: LayoutOptions<E, P>,
+	) => EcoComponent<P, E>;
 
 	/**
-	 * Create a page component with type-safe props from getStaticProps.
+	 * Create a page component with type-safe props from `staticProps`.
 	 * Returns an EcoPageComponent with attached staticPaths, staticProps, and metadata.
 	 *
 	 * If `requires` is provided, the `render` callback receives `locals` as required and non-null for the required keys.
 	 */
 	page: {
 		<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
-		<T = {}, E = EcoPagesElement, const K extends RequiresKeys = RequiresKeys>(
+		<T = {}, E = EcoPagesElement, const K extends RequiresKeys = never>(
 			options: Omit<PageOptions<T, E>, 'render' | 'requires'> & {
 				requires: PageRequires<K>;
 				render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;
 			},
 		): EcoPageComponent<T>;
 	};
-
-	/**
-	 * Type-safe wrapper for page metadata (identity function)
-	 */
-	metadata: <P = {}>(fn: GetMetadata<P>) => GetMetadata<P>;
-
-	/**
-	 * Type-safe wrapper for static paths (identity function)
-	 */
-	staticPaths: (fn: GetStaticPaths) => GetStaticPaths;
-
-	/**
-	 * Type-safe wrapper for static props (identity function)
-	 */
-	staticProps: <P>(fn: GetStaticProps<P>) => GetStaticProps<P>;
 }

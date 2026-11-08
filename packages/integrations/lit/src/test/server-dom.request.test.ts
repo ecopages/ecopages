@@ -1,19 +1,18 @@
 import { cpSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadEcoPagesConfig } from '../../../../core/src/config/load-eco-config.ts';
 import { createNodeApp } from '../../../../core/src/adapters/node/create-app.ts';
 import type { EcopagesApp } from '@ecopages/core/create-app';
 
 const ORIGIN = 'http://localhost:3000';
-const FIXTURE_SOURCE = fileURLToPath(new URL('./fixtures/mixed-server-dom-app', import.meta.url));
-const WORKSPACE_NODE_MODULES = fileURLToPath(
+const FIXTURE_SOURCE = path.fromFileUrl(new URL('./fixtures/mixed-server-dom-app', import.meta.url));
+const WORKSPACE_NODE_MODULES = path.fromFileUrl(
 	new URL('../../../../../playground/kitchen-sink/node_modules', import.meta.url),
 );
 
-const appDir = mkdtempSync(path.join(tmpdir(), 'eco-mixed-server-dom-'));
+const appDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-mixed-server-dom-')));
 cpSync(FIXTURE_SOURCE, appDir, { recursive: true });
 symlinkSync(WORKSPACE_NODE_MODULES, path.join(appDir, 'node_modules'), 'dir');
 
@@ -104,5 +103,90 @@ describe('server DOM across Lit and Radiant', () => {
 		expect(concurrent[4].html).toContain('ada');
 		expect(concurrent[4].html).toContain('data-server-dom-lit-probe');
 		expect(concurrent[4].html).toContain('<template shadowrootmode="open">');
+	}, 60_000);
+});
+
+function countSsrScriptEvaluations(script: string): number {
+	const store = globalThis as typeof globalThis & { __ecoSsrScriptEvaluations?: string[] };
+	return (store.__ecoSsrScriptEvaluations ?? []).filter((evaluated) => evaluated === script).length;
+}
+
+/** Lists the script tags of a document in order, each by its `data-eco-script-id`, else its `src`. */
+function listScripts(html: string): string[] {
+	return Array.from(html.matchAll(/<script\b[^>]*>/g), ([tag]) => {
+		const id = /data-eco-script-id="([^"]+)"/.exec(tag)?.[1];
+		return id ?? /\ssrc="([^"]+)"/.exec(tag)?.[1] ?? 'inline';
+	});
+}
+
+describe('ssr script ownership', () => {
+	it('A Radiant script on a Lit Page is evaluated once', async () => {
+		const page = await requestPage('/lit-with-ssr-once-radiant');
+
+		expect(page.status).toBe(200);
+		expect(countSsrScriptEvaluations('ssr-once-radiant-probe')).toBe(1);
+		expect(page.html).toMatch(
+			/<ssr-once-radiant-probe\b[^>]*\sdata-radiant-ssr\b[^>]*>[^]*?data-ssr-once-radiant-probe/,
+		);
+	}, 60_000);
+
+	it('A Lit element declared on a Kita Component is still server-rendered', async () => {
+		const page = await requestPage('/lit-with-kita-lit-element');
+
+		expect(page.status).toBe(200);
+		expect(countSsrScriptEvaluations('ssr-once-lit-probe')).toBe(1);
+		expect(page.html).toMatch(
+			/<ssr-once-lit-probe\b[^>]*><template shadowrootmode="open">[^]*?data-ssr-once-lit-probe/,
+		);
+	}, 60_000);
+
+	it('A Lit element declared on a Kita Component on a Kita Page is server-rendered', async () => {
+		const page = await requestPage('/kita-with-kita-lit-element');
+
+		expect(page.status).toBe(200);
+		expect(page.html).toMatch(
+			/<ssr-once-lit-probe\b[^>]*><template shadowrootmode="open">[^]*?data-ssr-once-lit-probe/,
+		);
+		expect(page.html.match(/<template shadowrootmode="open">/g)).toHaveLength(1);
+	}, 60_000);
+
+	it('A Lit element written as a raw tag in a React Component is server-rendered', async () => {
+		const page = await requestPage('/react-with-raw-lit');
+
+		expect(page.status).toBe(200);
+		expect(page.html).toMatch(
+			/<ssr-once-lit-probe\b[^>]*><template shadowrootmode="open">[^]*?data-ssr-once-lit-probe/,
+		);
+		expect(page.html.match(/<template shadowrootmode="open">/g)).toHaveLength(1);
+	}, 60_000);
+
+	it('Lit hydration support precedes the Lit element script on a Kita Page', async () => {
+		const page = await requestPage('/kita-with-kita-lit-element');
+		const scripts = listScripts(page.html);
+		const elementIndex = scripts.findIndex((script) => script.includes('ssr-once-lit-probe'));
+
+		expect(elementIndex).toBeGreaterThan(-1);
+		expect(scripts.indexOf('lit-hydrate-support')).toBeGreaterThan(-1);
+		expect(scripts.indexOf('lit-hydrate-support')).toBeLessThan(elementIndex);
+	}, 60_000);
+
+	it('Global scripts keep one order whichever Integration owns the Page', async () => {
+		const globalScripts = ['lit-hydrate-support', 'ecopages-jsx-radiant-hydrator'];
+		const componentScripts = ['server-dom-lit-probe.script', 'server-dom-radiant-probe.script'];
+
+		for (const pathname of ['/lit-with-both', '/kita-with-both']) {
+			const page = await requestPage(pathname);
+			expect(page.status).toBe(200);
+
+			const scripts = listScripts(page.html);
+			const componentIndexes = componentScripts.map((name) =>
+				scripts.findIndex((script) => script.includes(name)),
+			);
+			expect(scripts.filter((script) => globalScripts.includes(script))).toEqual(globalScripts);
+			expect(componentIndexes).not.toContain(-1);
+			expect(Math.max(...globalScripts.map((id) => scripts.indexOf(id)))).toBeLessThan(
+				Math.min(...componentIndexes),
+			);
+		}
 	}, 60_000);
 });

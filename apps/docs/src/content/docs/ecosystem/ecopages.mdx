@@ -70,7 +70,7 @@ Use the init command with a target directory, then optionally select a template:
 
 Use these when you want a full bootstrap in one command chain.
 
-**JSX template** - Creates a minimal Ecopages app with default setup. <a href="https://github.com/ecopages/ecopages/tree/main/templates/jsx" target="_blank">jsx</a>.
+**JSX template** - Creates a minimal Ecopages app with default setup, styled with Tailwind v4 on the [Lightning CSS processor](/docs/ecosystem/lightningcss-processor). <a href="https://github.com/ecopages/ecopages/tree/main/templates/jsx" target="_blank">jsx</a>.
 
 <CodeTabs
 	name="ecopages-basic-starter"
@@ -89,6 +89,54 @@ Use these when you want a full bootstrap in one command chain.
 			id: 'bun',
 			label: 'bun',
 			code: 'bunx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+**JSX with PostCSS template** - Creates the JSX app with Tailwind v4 run by the [PostCSS processor](/docs/ecosystem/postcss-processor) instead of the default Lightning CSS. Pick it for PostCSS plugins or Tailwind v3. <a href="https://github.com/ecopages/ecopages/tree/main/templates/jsx-postcss" target="_blank">jsx-postcss</a>.
+
+<CodeTabs
+	name="ecopages-jsx-postcss"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init jsx-postcss-app --template jsx-postcss && cd jsx-postcss-app && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init jsx-postcss-app --template jsx-postcss && cd jsx-postcss-app && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init jsx-postcss-app --template jsx-postcss && cd jsx-postcss-app && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+**JSX with CSS Modules template** - Creates the JSX app styled with plain CSS Modules on the Lightning CSS processor, without Tailwind. <a href="https://github.com/ecopages/ecopages/tree/main/templates/jsx-css-modules" target="_blank">jsx-css-modules</a>.
+
+<CodeTabs
+	name="ecopages-jsx-css-modules"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init jsx-css-modules-app --template jsx-css-modules && cd jsx-css-modules-app && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init jsx-css-modules-app --template jsx-css-modules && cd jsx-css-modules-app && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init jsx-css-modules-app --template jsx-css-modules && cd jsx-css-modules-app && bun install && bun dev',
 		},
 	]}
 	defaultSelectedKey="npm"
@@ -185,6 +233,30 @@ Use these when you want a full bootstrap in one command chain.
 			id: 'bun',
 			label: 'bun',
 			code: 'bunx ecopages init blog-react --template blog-react && cd blog-react && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+**React with PostCSS template** - Creates the React app with Tailwind v4 run by the [PostCSS processor](/docs/ecosystem/postcss-processor) instead of the default Lightning CSS. Pick it for PostCSS plugins or Tailwind v3. <a href="https://github.com/ecopages/ecopages/tree/main/templates/react-postcss" target="_blank">react-postcss</a>.
+
+<CodeTabs
+	name="ecopages-react-postcss"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init react-postcss-app --template react-postcss && cd react-postcss-app && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init react-postcss-app --template react-postcss && cd react-postcss-app && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init react-postcss-app --template react-postcss && cd react-postcss-app && bun install && bun dev',
 		},
 	]}
 	defaultSelectedKey="npm"

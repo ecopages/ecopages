@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { PostCssProcessor } from '../postcss-processor';
 import { createAppAwarePostcssImport, resolveAppRootFromPath } from '../postcss-import-app-aware';
@@ -24,7 +24,7 @@ describe('resolveAppRootFromPath', () => {
 
 describe('createAppAwarePostcssImport', () => {
 	test('should resolve hoisted bare package imports through package exports', async () => {
-		const tempRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-import-'));
+		const tempRoot = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-import-')));
 		tempDirs.push(tempRoot);
 
 		const appRoot = path.join(tempRoot, 'apps', 'synapse');
@@ -52,5 +52,110 @@ describe('createAppAwarePostcssImport', () => {
 		});
 
 		expect(result).toContain('.theme{color:red}');
+	});
+
+	test('rebases the relative urls of inlined files onto the importing stylesheet', async () => {
+		const tempRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-import-'));
+		tempDirs.push(tempRoot);
+
+		const appRoot = path.join(tempRoot, 'app');
+		const stylesDir = path.join(appRoot, 'src', 'styles');
+		const packageDir = path.join(appRoot, 'node_modules', '@fontsource', 'mono');
+		mkdirSync(path.join(stylesDir, 'partials'), { recursive: true });
+		mkdirSync(packageDir, { recursive: true });
+		writeFileSync(path.join(appRoot, 'package.json'), JSON.stringify({ name: 'app', private: true }));
+		writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: '@fontsource/mono', style: 'index.css' }),
+		);
+		writeFileSync(
+			path.join(packageDir, 'index.css'),
+			"@font-face{src:url(files/mono.woff2?v=1) format('woff2'),url('./files/mono.woff') format('woff'),url(data:font/woff2;base64,AA)}",
+		);
+		writeFileSync(
+			path.join(stylesDir, 'partials', 'bg.css'),
+			'.bg{background:url("../images/bg.png#x"),url(/root.png)}',
+		);
+
+		const result = await PostCssProcessor.processStringOrBuffer(
+			"@import '@fontsource/mono';\n@import './partials/bg.css';\n.own{background:url(own.png)}",
+			{ filePath: path.join(stylesDir, 'site.css'), plugins: [createAppAwarePostcssImport(appRoot)] },
+		);
+
+		expect(result).toContain(
+			'src:url("../../node_modules/@fontsource/mono/files/mono.woff2?v=1") format(\'woff2\'),url("../../node_modules/@fontsource/mono/files/mono.woff") format(\'woff\'),url(data:font/woff2;base64,AA)',
+		);
+		expect(result).toContain('.bg{background:url("images/bg.png#x"),url(/root.png)}');
+		expect(result).toContain('.own{background:url(own.png)}');
+	});
+
+	test('rebases an inlined package url wherever it points and leaves strings alone', async () => {
+		const tempRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-import-'));
+		tempDirs.push(tempRoot);
+
+		const appRoot = path.join(tempRoot, 'app');
+		const stylesDir = path.join(appRoot, 'src', 'styles');
+		const evilDir = path.join(appRoot, 'node_modules', 'evil');
+		mkdirSync(path.join(evilDir, 'css'), { recursive: true });
+		mkdirSync(stylesDir, { recursive: true });
+		writeFileSync(path.join(appRoot, 'package.json'), JSON.stringify({ name: 'app', private: true }));
+		writeFileSync(path.join(appRoot, '.env'), 'SECRET=1');
+		writeFileSync(path.join(evilDir, 'package.json'), JSON.stringify({ name: 'evil', style: 'css/index.css' }));
+		writeFileSync(path.join(evilDir, 'css', 'index.css'), '.e{background:url(../../../.env)}');
+		writeFileSync(path.join(stylesDir, 'quoted.css'), '.q{content:"url(x.png)";background:url(a\\(1\\).png)}');
+
+		const plugins = [createAppAwarePostcssImport(appRoot)];
+		const evil = await PostCssProcessor.processStringOrBuffer("@import 'evil';", {
+			filePath: path.join(stylesDir, 'site.css'),
+			plugins,
+		});
+		const quoted = await PostCssProcessor.processStringOrBuffer("@import './styles/quoted.css';", {
+			filePath: path.join(appRoot, 'src', 'site.css'),
+			plugins,
+		});
+
+		expect(evil).toBe('.e{background:url("../../.env")}');
+		expect(quoted).toBe('.q{content:"url(x.png)";background:url("styles/a(1).png")}');
+	});
+
+	test('orders a stylesheet imported twice at its last import, nested imports and dependencies included', async () => {
+		const tempRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-duplicate-'));
+		tempDirs.push(tempRoot);
+		const stylesDir = path.join(tempRoot, 'src', 'styles');
+		mkdirSync(stylesDir, { recursive: true });
+		writeFileSync(path.join(tempRoot, 'package.json'), JSON.stringify({ name: 'app', private: true }));
+		writeFileSync(path.join(stylesDir, 'a.css'), '.x{color:red}');
+		writeFileSync(path.join(stylesDir, 'b.css'), '.x{color:blue}');
+		writeFileSync(path.join(stylesDir, 'c.css'), "@import './a.css';\n.c{color:green}");
+		const main = path.join(stylesDir, 'main.css');
+
+		const direct = await PostCssProcessor.processStringOrBuffer(
+			"@import './a.css';\n@import './b.css';\n@import './a.css';",
+			{ filePath: main, plugins: [createAppAwarePostcssImport(tempRoot)] },
+		);
+		const nested = await PostCssProcessor.processStringOrBuffer(
+			"@import './a.css';\n@import './b.css';\n@import './c.css';",
+			{ filePath: main, plugins: [createAppAwarePostcssImport(tempRoot)] },
+		);
+
+		expect(direct).toBe('.x{color:blue}\n.x{color:red}');
+		expect(nested).toBe('.x{color:blue}\n.x{color:red}\n.c{color:green}');
+	});
+
+	test('keeps the only reachable import of a stylesheet that an import cycle closes on', async () => {
+		const tempRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-postcss-cycle-'));
+		tempDirs.push(tempRoot);
+		const stylesDir = path.join(tempRoot, 'src', 'styles');
+		mkdirSync(stylesDir, { recursive: true });
+		writeFileSync(path.join(tempRoot, 'package.json'), JSON.stringify({ name: 'app', private: true }));
+		writeFileSync(path.join(stylesDir, 'a.css'), "@import './b.css';\n.a{color:red}");
+		writeFileSync(path.join(stylesDir, 'b.css'), "@import './a.css';\n.b{color:blue}");
+
+		const css = await PostCssProcessor.processStringOrBuffer("@import './a.css';", {
+			filePath: path.join(stylesDir, 'main.css'),
+			plugins: [createAppAwarePostcssImport(tempRoot)],
+		});
+
+		expect(css.trim()).toBe('.b{color:blue}\n.a{color:red}');
 	});
 });

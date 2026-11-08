@@ -15,6 +15,8 @@ type EcoIslandRuntime = {
 type EcoPageData = {
 	module: string;
 	props: Record<string, unknown>;
+	/** Set by a react-router navigation to the document it fetched; absent otherwise. */
+	document?: Document;
 };
 type EcoPagesWindowRuntime = {
 	hmrHandlers?: Record<string, HMRHandler>;

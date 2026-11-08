@@ -1,20 +1,20 @@
 import type {
 	EcoComponentConfig,
 	EcoComponentDependencies,
-	EcoComponent,
 	EcoPageLayoutEntry,
+	EcoPageLayoutEntrySpec,
 	EcoPageLayoutSpec,
 	EcoPageLayouts,
 } from '../types/contracts.ts';
 
-function isLayoutSpecObject<E>(spec: EcoPageLayoutSpec<E>): spec is EcoPageLayoutEntry<E> {
+function isLayoutSpecObject<E>(spec: EcoPageLayoutSpec<E>): spec is EcoPageLayoutEntrySpec<E> {
 	return typeof spec === 'object' && spec !== null && 'component' in spec;
 }
 
 /**
  * Normalizes `layout` page options to an outer→inner stack of layout entries.
  */
-export function normalizePageLayouts<E>(layout?: EcoPageLayouts<E>): EcoPageLayoutEntry<E>[] {
+export function normalizePageLayouts<E>(layout?: EcoPageLayouts<E>): EcoPageLayoutEntry[] {
 	if (!layout) {
 		return [];
 	}
@@ -29,25 +29,28 @@ export function normalizePageLayouts<E>(layout?: EcoPageLayouts<E>): EcoPageLayo
 			};
 		}
 
-		return {
-			component: spec as EcoComponent<any, E>,
-		};
+		return { component: spec };
 	});
 }
 
 /**
- * Merges layout components into `dependencies.components` without duplicates.
+ * Merges `eco.layout()` components into `dependencies.components` without duplicates.
+ *
+ * @remarks
+ * A plain layout function carries no `config`, so it stays out: it is composed, not rendered as a declared
+ * dependency, and the assets it imports reach the page through plain-module discovery.
  */
 export function mergeLayoutDependencies(
 	dependencies: EcoComponentDependencies | undefined,
 	layoutEntries: EcoPageLayoutEntry[],
 ): EcoComponentDependencies | undefined {
-	if (layoutEntries.length === 0) {
+	const declaredLayouts = layoutEntries.filter((entry) => entry.component.config !== undefined);
+	if (declaredLayouts.length === 0) {
 		return dependencies;
 	}
 
 	const mergedComponents = [...(dependencies?.components ?? [])];
-	for (const entry of layoutEntries) {
+	for (const entry of declaredLayouts) {
 		if (!mergedComponents.includes(entry.component)) {
 			mergedComponents.push(entry.component);
 		}

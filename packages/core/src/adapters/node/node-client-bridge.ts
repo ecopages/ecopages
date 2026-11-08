@@ -1,13 +1,16 @@
 import type { WebSocket } from 'ws';
-import type { ClientBridgeEvent, IClientBridge } from '../../types/contracts.ts';
+import type { ClientBridgeEvent } from '../../types/contracts.ts';
+import type { SourceRelativeStylesheetDirs } from '../../assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts';
+import { ClientBridge } from '../shared/hmr/client-bridge.ts';
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
-export class NodeClientBridge implements IClientBridge {
+export class NodeClientBridge extends ClientBridge {
 	private subscribers = new Set<WebSocket>();
 	private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-	constructor() {
+	constructor(stylesheetDirs: SourceRelativeStylesheetDirs) {
+		super(stylesheetDirs);
 		this.heartbeatTimer = setInterval(() => this.sweep(), HEARTBEAT_INTERVAL_MS);
 		/* Allow the process to exit even if the timer is still active */
 		this.heartbeatTimer.unref?.();
@@ -43,22 +46,6 @@ export class NodeClientBridge implements IClientBridge {
 				ws.send(payload);
 			}
 		}
-	}
-
-	reload(): void {
-		this.broadcast({ type: 'reload' });
-	}
-
-	cssUpdate(path: string): void {
-		this.broadcast({ type: 'css-update', path, timestamp: Date.now() });
-	}
-
-	update(path: string): void {
-		this.broadcast({ type: 'update', path, timestamp: Date.now() });
-	}
-
-	error(message: string): void {
-		this.broadcast({ type: 'error', message });
 	}
 
 	get subscriberCount(): number {

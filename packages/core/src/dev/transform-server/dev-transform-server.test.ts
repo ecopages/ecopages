@@ -1,16 +1,20 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformServer } from './dev-transform-server.ts';
+import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
+import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
+import { Processor } from '../../plugins/processor.ts';
+import { ScopingProcessor } from '../../__fixtures__/stylesheets/scoping-processor.ts';
 
 const tempRoots: string[] = [];
 
 function createTempRoot(prefix: string): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`)));
 	tempRoots.push(root);
 	return root;
 }
@@ -23,6 +27,50 @@ afterEach(() => {
 });
 
 describe('DevTransformServer', () => {
+	it('serves a module with the new contents of a file its plugin inlined after that file changes', async () => {
+		const rootDir = createTempRoot('dev-transform-watch-file');
+		const sourcePath = path.join(rootDir, 'src', 'greeting.ts');
+		const inlinedPath = path.join(rootDir, 'src', 'greeting.txt');
+		fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+		fs.writeFileSync(sourcePath, 'export const greeting = GREETING;');
+		fs.writeFileSync(inlinedPath, 'before');
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const index = new BuildInputDependencyIndex();
+		const server = new DevTransformServer({
+			appConfig: config,
+			contributors: [
+				{
+					ownsModule: () => true,
+					getModulePlugins: async () => [
+						{
+							name: 'inline-greeting',
+							setup(build) {
+								build.transform({ filter: /greeting\.ts$/ }, (code) => {
+									build.addWatchFile(inlinedPath);
+									return code.replace(
+										'GREETING',
+										JSON.stringify(fs.readFileSync(inlinedPath, 'utf8')),
+									);
+								});
+							},
+						},
+					],
+				},
+			],
+			onModuleDependencies: (modulePath, dependencies) =>
+				index.register({ consumer: 'entrypoint', key: modulePath }, [modulePath, ...dependencies]),
+		});
+		const outputUrl = server.registerModule(sourcePath);
+		const request = async () =>
+			(await server.tryHandleRequest(new Request(`http://localhost${outputUrl}`)))?.text();
+
+		expect(await request()).toContain('"before"');
+		fs.writeFileSync(inlinedPath, 'after');
+		for (const modulePath of index.resolveKeys('entrypoint', inlinedPath)) server.invalidateSource(modulePath);
+
+		expect(await request()).toContain('"after"');
+	});
+
 	it.each([true, false])(
 		'retries an edited source during compilation (watcher notified: %s)',
 		async (notifyWatcher) => {
@@ -309,5 +357,462 @@ describe('DevTransformServer', () => {
 
 		expect(response?.status).toBe(200);
 		expect(await response!.text()).toContain('export default ":host { color: tomato; }\\n"');
+	});
+	it.each([
+		{ declared: true, expected: 'export default ".card { color: red; }\\n/* scss */";\n' },
+		{ declared: false, expected: undefined },
+	])(
+		'serves a .scss import only when the stylesheet Processor declares it (declared: $declared)',
+		async ({ declared, expected }) => {
+			class ScssProcessor extends Processor {
+				async setup(): Promise<void> {}
+
+				override async transformStylesheet(css: string): Promise<{ css: string }> {
+					return { css: `${css}/* scss */` };
+				}
+			}
+			const rootDir = createTempRoot('dev-transform-server-scss');
+			const scssPath = path.join(rootDir, 'src', 'components', 'card.scss');
+			fs.mkdirSync(path.dirname(scssPath), { recursive: true });
+			fs.writeFileSync(scssPath, '.card { color: red; }\n');
+			const config = await finalizeEcoPagesConfig({
+				rootDir,
+				integrations: [],
+				processors: declared
+					? [
+							new ScssProcessor({
+								name: 'scss',
+								capabilities: [{ kind: 'stylesheet', extensions: ['*.scss'] }],
+							}),
+						]
+					: [],
+			});
+			const server = new DevTransformServer({ appConfig: config });
+
+			const response = await server.tryHandleRequest(
+				new Request(`http://localhost${DEV_TRANSFORM_URL_PREFIX}/components/card.scss`),
+			);
+
+			expect(await response?.text()).toBe(expected);
+		},
+	);
+
+	describe('a CSS Module', () => {
+		async function createModuleServer(css: string) {
+			const rootDir = createTempRoot('dev-transform-server-css-module');
+			const cssPath = path.join(rootDir, 'src', 'components', 'card.module.css');
+			fs.mkdirSync(path.dirname(cssPath), { recursive: true });
+			fs.writeFileSync(cssPath, css);
+			const processor = new ScopingProcessor();
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [], processors: [processor] });
+			processor.setContext(config);
+			const errors: string[] = [];
+			const server = new DevTransformServer({
+				appConfig: config,
+				onTransformError: (message) => errors.push(message),
+			});
+			const url = server.registerModule(cssPath);
+			const request = async () => {
+				const response = await server.tryHandleRequest(new Request(`http://localhost${url}`));
+				return { status: response?.status, code: await response?.text() };
+			};
+			const save = (contents: string) => {
+				fs.writeFileSync(cssPath, contents);
+				server.invalidateSource(cssPath);
+			};
+			return { errors, request, save };
+		}
+
+		it('is served as its class map, not as CSS', async () => {
+			const { request } = await createModuleServer('.card { color: red; }\n');
+			const { status, code } = await request();
+
+			expect(status).toBe(200);
+			expect(code).toMatch(
+				/^export const card = "c[0-9a-f]+_card";\nexport default \{"card":"c[0-9a-f]+_card"\};\n$/u,
+			);
+		});
+
+		it('keeps serving the last class map and reports the error until a save compiles again', async () => {
+			const { errors, request, save } = await createModuleServer('.card { color: red; }\n');
+			const good = await request();
+
+			save('.card { color: red;\n');
+			expect(await request()).toEqual(good);
+			expect(errors).toHaveLength(1);
+			expect(errors[0]).toContain('card.module.css');
+
+			save('.card { color: red; }\n.title { color: blue; }\n');
+			const recovered = await request();
+			expect(recovered.status).toBe(200);
+			expect(recovered.code).toContain('"title":');
+			expect(errors).toHaveLength(1);
+		});
+	});
+
+	describe('a script module that fails to compile', () => {
+		async function createScriptServer(source: string) {
+			const rootDir = createTempRoot('dev-transform-server-script-recovery');
+			const scriptPath = path.join(rootDir, 'src', 'components', 'counter.ts');
+			fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+			fs.writeFileSync(scriptPath, source);
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+			const errors: string[] = [];
+			const server = new DevTransformServer({
+				appConfig: config,
+				onTransformError: (message) => errors.push(message),
+			});
+			const url = server.registerModule(scriptPath);
+			const request = async () => {
+				const response = await server.tryHandleRequest(new Request(`http://localhost${url}`));
+				return { status: response?.status, code: await response?.text() };
+			};
+			const save = (contents: string) => {
+				fs.writeFileSync(scriptPath, contents);
+				server.invalidateSource(scriptPath);
+			};
+			return { server, errors, request, save, scriptPath };
+		}
+
+		it('keeps serving the last compiled module and reports the error until a save compiles again', async () => {
+			const { server, errors, request, save } = await createScriptServer('export const value = "good";');
+			const good = await request();
+			expect(good.status).toBe(200);
+
+			save('export const value = ;');
+			expect(await request()).toEqual(good);
+			expect(errors).toHaveLength(1);
+			expect(errors[0]).toContain('counter.ts');
+			expect(server.getFailureMessages()).toEqual(errors);
+
+			save('export const value = "fixed";');
+			const fixed = await request();
+			expect(fixed.status).toBe(200);
+			expect(fixed.code).toContain('"fixed"');
+			expect(server.getFailureMessages()).toEqual([]);
+		});
+
+		it('answers 500 with the error when the script never compiled', async () => {
+			const { errors, request } = await createScriptServer('export const value = ;');
+
+			const response = await request();
+
+			expect(response.status).toBe(500);
+			expect(response.code).toContain('counter.ts');
+			expect(errors).toHaveLength(1);
+		});
+
+		it('answers 500 once a script that compiled before is deleted', async () => {
+			const { server, request, scriptPath } = await createScriptServer('export const value = "good";');
+			expect((await request()).status).toBe(200);
+
+			fs.rmSync(scriptPath);
+			server.invalidateSource(scriptPath);
+
+			expect((await request()).status).toBe(500);
+		});
+	});
+
+	describe('a stylesheet whose Processor throws', () => {
+		class StrictProcessor extends Processor {
+			async setup(): Promise<void> {}
+
+			override async transformStylesheet(css: string): Promise<{ css: string }> {
+				if (css.includes('{{')) throw new Error('Unclosed block');
+				return { css: css.replace('@apply text-red;', 'color: red;') };
+			}
+		}
+
+		async function createStylesheetServer(css: string) {
+			const rootDir = createTempRoot('dev-transform-server-css-recovery');
+			const cssPath = path.join(rootDir, 'src', 'components', 'card.css');
+			fs.mkdirSync(path.dirname(cssPath), { recursive: true });
+			fs.writeFileSync(cssPath, css);
+			const config = await finalizeEcoPagesConfig({
+				rootDir,
+				integrations: [],
+				processors: [
+					new StrictProcessor({
+						name: 'strict',
+						capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }],
+					}),
+				],
+			});
+			const errors: string[] = [];
+			const server = new DevTransformServer({
+				appConfig: config,
+				onTransformError: (message) => errors.push(message),
+			});
+			const url = server.registerModule(cssPath);
+			const request = async () => {
+				const response = await server.tryHandleRequest(new Request(`http://localhost${url}`));
+				return { status: response?.status, code: await response?.text() };
+			};
+			const save = (contents: string) => {
+				fs.writeFileSync(cssPath, contents);
+				server.invalidateSource(cssPath);
+			};
+			return { server, errors, request, save, cssPath };
+		}
+
+		const GOOD = '.card { @apply text-red; }';
+		const COMPILED = { status: 200, code: 'export default ".card { color: red; }";\n' };
+
+		it('keeps serving the last compiled module and reports the error until a save compiles again', async () => {
+			const { server, errors, request, save } = await createStylesheetServer(GOOD);
+			expect(await request()).toEqual(COMPILED);
+
+			save('.card {{');
+			expect(await request()).toEqual(COMPILED);
+			expect(errors).toHaveLength(1);
+			expect(errors[0]).toContain('card.css');
+			expect(errors[0]).toContain('Unclosed block');
+			expect(server.getFailureMessages()).toEqual(errors);
+
+			save('.card { @apply text-red; margin: 0; }');
+			expect(await request()).toEqual({
+				status: 200,
+				code: 'export default ".card { color: red; margin: 0; }";\n',
+			});
+			expect(errors).toHaveLength(1);
+			expect(server.getFailureMessages()).toEqual([]);
+		});
+
+		it('answers 500 once a stylesheet that compiled before is deleted', async () => {
+			const { server, request, cssPath } = await createStylesheetServer(GOOD);
+			expect(await request()).toEqual(COMPILED);
+
+			fs.rmSync(cssPath);
+			server.invalidateSource(cssPath);
+
+			expect((await request()).status).toBe(500);
+		});
+
+		it('answers 500 when the stylesheet never compiled', async () => {
+			const { errors, request } = await createStylesheetServer('.card {{');
+
+			const response = await request();
+
+			expect(response.status).toBe(500);
+			expect(response.code).toContain('Unclosed block');
+			expect(errors).toHaveLength(1);
+		});
+	});
+
+	function writeFixturePackage(rootDir: string, name: string, source: string): void {
+		const packageDir = path.join(rootDir, 'node_modules', name);
+		fs.mkdirSync(packageDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name, version: '1.0.0', type: 'module', module: 'index.js' }),
+		);
+		fs.writeFileSync(path.join(packageDir, 'index.js'), source);
+	}
+
+	async function requestConsumer(server: DevTransformServer, sourcePath: string, code: string): Promise<string> {
+		fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+		fs.writeFileSync(sourcePath, code);
+		const response = await server.tryHandleRequest(
+			new Request(`http://localhost${server.registerModule(sourcePath)}`),
+		);
+		expect(response?.status).toBe(200);
+		return (await response?.text()) ?? '';
+	}
+
+	function vendorBuildsUnder(bundle: { mock: { calls: unknown[][] } }, rootDir: string): number {
+		const modules = path.join(path.fromNative(fs.realpathSync(rootDir)), 'node_modules');
+		return bundle.mock.calls.filter(([options]) =>
+			Object.values((options as { entrypoints: Record<string, string> }).entrypoints).some((entry) =>
+				entry.startsWith(modules),
+			),
+		).length;
+	}
+
+	it('builds the vendor graph once for a module that imports five new packages', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-batch');
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify({ name: 'vendor-batch-app', type: 'module' }),
+		);
+		const names = ['lib-a', 'lib-b', 'lib-c', 'lib-d', 'lib-e'];
+		for (const name of names) writeFixturePackage(rootDir, name, `export const marker = '${name}';\n`);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const server = new DevTransformServer({ appConfig: config });
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+
+		const code = await requestConsumer(
+			server,
+			path.join(config.absolutePaths.srcDir, 'many-vendors.ts'),
+			`${names.map((name, index) => `import { marker as m${index} } from '${name}';`).join('\n')}\nexport const markers = [m0, m1, m2, m3, m4];\n`,
+		);
+
+		expect(code.match(/\/assets\/vendors\//gu)).toHaveLength(5);
+		expect(vendorBuildsUnder(bundle, rootDir)).toBe(1);
+	});
+
+	it.each(['constructor', 'addContributor'] as const)(
+		'builds the vendor entries a contributor declares through %s in the first vendor build',
+		async (registration) => {
+			const rootDir = createTempRoot('dev-transform-known-vendors');
+			fs.writeFileSync(
+				path.join(rootDir, 'package.json'),
+				JSON.stringify({ name: 'known-vendors', type: 'module' }),
+			);
+			for (const name of ['lib-a', 'lib-b'])
+				writeFixturePackage(rootDir, name, `export const marker = '${name}';\n`);
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+			const contributor = {
+				ownsModule: () => false,
+				getModulePlugins: async () => [],
+				getVendorEntries: () => ({ resolveFrom: rootDir, specifiers: ['lib-a', 'lib-b'] }),
+			};
+			const server = new DevTransformServer({
+				appConfig: config,
+				contributors: registration === 'constructor' ? [contributor] : [],
+			});
+			if (registration === 'addContributor') server.addContributor(contributor);
+			const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+
+			await requestConsumer(
+				server,
+				path.join(config.absolutePaths.srcDir, 'a.ts'),
+				"export { marker } from 'lib-a';\n",
+			);
+			await requestConsumer(
+				server,
+				path.join(config.absolutePaths.srcDir, 'b.ts'),
+				"export { marker } from 'lib-b';\n",
+			);
+
+			expect(vendorBuildsUnder(bundle, rootDir)).toBe(1);
+		},
+	);
+
+	describe('a bare import resolves from the module that imports it', () => {
+		/** Writes an ES module package at `packageDir` whose `index.js` exports `marker`. */
+		function writePackageAt(packageDir: string, name: string, version: string, marker: string): void {
+			fs.mkdirSync(packageDir, { recursive: true });
+			fs.writeFileSync(
+				path.join(packageDir, 'package.json'),
+				JSON.stringify({ name, version, type: 'module', module: 'index.js' }),
+			);
+			fs.writeFileSync(path.join(packageDir, 'index.js'), `export const marker = '${marker}';\n`);
+		}
+
+		/** An app with a workspace package `host` at `packages/host`, laid out as pnpm links it. */
+		async function createWorkspaceApp(prefix: string) {
+			const rootDir = path.fromNative(fs.realpathSync(createTempRoot(prefix)));
+			fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ name: 'app', type: 'module' }));
+			const hostDir = path.join(rootDir, 'packages', 'host');
+			fs.mkdirSync(path.join(hostDir, 'src'), { recursive: true });
+			fs.writeFileSync(path.join(hostDir, 'package.json'), JSON.stringify({ name: 'host', type: 'module' }));
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+			return { rootDir, hostDir, config, server: new DevTransformServer({ appConfig: config }) };
+		}
+
+		async function vendorUrlOf(server: DevTransformServer, importerPath: string, specifier: string) {
+			const code = await server.rewriteImports(`export { marker } from '${specifier}';\n`, importerPath);
+			const url = code.match(/['"](\/assets\/vendors\/[^'"]+)['"]/u)?.[1];
+			if (!url) throw new Error(`no vendor URL in ${code}`);
+			return url;
+		}
+
+		async function readVendor(server: DevTransformServer, url: string) {
+			const response = await server.tryHandleRequest(new Request(`http://localhost${url}`));
+			expect(response?.status).toBe(200);
+			return (await response?.text()) ?? '';
+		}
+
+		it('serves a dependency that only the importing workspace package declares', async () => {
+			const { rootDir, hostDir, server } = await createWorkspaceApp('dev-transform-vendor-transitive');
+			writePackageAt(path.join(hostDir, 'node_modules', 'host-only-lib'), 'host-only-lib', '1.0.0', 'host-only');
+			expect(fs.existsSync(path.join(rootDir, 'node_modules', 'host-only-lib'))).toBe(false);
+
+			const url = await vendorUrlOf(server, path.join(hostDir, 'src', 'hydrate.js'), 'host-only-lib');
+
+			expect(await readVendor(server, url)).toContain('"host-only"');
+		});
+
+		it("serves a linked package's dependency from beside it in the pnpm store", async () => {
+			const { rootDir, server } = await createWorkspaceApp('dev-transform-vendor-linked-importer');
+			const store = path.join(rootDir, 'node_modules', '.pnpm', 'linked-host@1.0.0', 'node_modules');
+			writePackageAt(path.join(store, 'linked-host'), 'linked-host', '1.0.0', 'linked-host');
+			writePackageAt(path.join(store, 'store-only-lib'), 'store-only-lib', '1.0.0', 'store-only');
+			fs.symlinkSync(path.join(store, 'linked-host'), path.join(rootDir, 'node_modules', 'linked-host'), 'dir');
+
+			const url = await vendorUrlOf(
+				server,
+				path.join(rootDir, 'node_modules', 'linked-host', 'hydrate.js'),
+				'store-only-lib',
+			);
+
+			expect(await readVendor(server, url)).toContain('"store-only"');
+		});
+
+		it('gives two installed versions of one package two vendor URLs', async () => {
+			const { rootDir, hostDir, config, server } = await createWorkspaceApp('dev-transform-vendor-versions');
+			writePackageAt(path.join(rootDir, 'node_modules', 'dup-lib'), 'dup-lib', '1.0.0', 'dup-one');
+			writePackageAt(path.join(hostDir, 'node_modules', 'dup-lib'), 'dup-lib', '2.0.0', 'dup-two');
+
+			const appUrl = await vendorUrlOf(server, path.join(config.absolutePaths.srcDir, 'page.js'), 'dup-lib');
+			const hostUrl = await vendorUrlOf(server, path.join(hostDir, 'src', 'hydrate.js'), 'dup-lib');
+
+			expect(appUrl).not.toBe(hostUrl);
+			expect(await readVendor(server, appUrl)).toContain('"dup-one"');
+			expect(await readVendor(server, hostUrl)).toContain('"dup-two"');
+		});
+
+		it('gives a package that two importers resolve to the same file one vendor URL', async () => {
+			const { rootDir, hostDir, config, server } = await createWorkspaceApp('dev-transform-vendor-linked');
+			const storeDir = path.join(
+				rootDir,
+				'node_modules',
+				'.pnpm',
+				'shared-lib@1.0.0',
+				'node_modules',
+				'shared-lib',
+			);
+			writePackageAt(storeDir, 'shared-lib', '1.0.0', 'shared');
+			for (const modules of [path.join(rootDir, 'node_modules'), path.join(hostDir, 'node_modules')]) {
+				fs.mkdirSync(modules, { recursive: true });
+				fs.symlinkSync(storeDir, path.join(modules, 'shared-lib'), 'dir');
+			}
+
+			const appUrl = await vendorUrlOf(server, path.join(config.absolutePaths.srcDir, 'page.js'), 'shared-lib');
+			const hostUrl = await vendorUrlOf(server, path.join(hostDir, 'src', 'hydrate.js'), 'shared-lib');
+
+			expect(hostUrl).toBe(appUrl);
+		});
+	});
+
+	it('rebuilds the vendor graph when the lockfile changes', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-lockfile');
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify({ name: 'vendor-lockfile-app', type: 'module' }),
+		);
+		const lockfile = path.join(rootDir, 'pnpm-lock.yaml');
+		fs.writeFileSync(lockfile, 'lockfileVersion: one\n');
+		writeFixturePackage(rootDir, 'fixture-lib', "export const release = 'release-one';\n");
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const server = new DevTransformServer({ appConfig: config });
+		const consumer = await requestConsumer(
+			server,
+			path.join(config.absolutePaths.srcDir, 'vendor-consumer.ts'),
+			"import { release } from 'fixture-lib';\nexport { release };\n",
+		);
+		const vendorUrl = consumer.match(/['"](\/assets\/vendors\/[^'"]+)['"]/u)?.[1];
+		const readVendor = async () =>
+			(await server.tryHandleRequest(new Request(`http://localhost${vendorUrl}`)))?.text();
+		expect(await readVendor()).toContain('release-one');
+
+		writeFixturePackage(rootDir, 'fixture-lib', "export const release = 'release-two';\n");
+		expect(await readVendor()).toContain('release-one');
+
+		fs.writeFileSync(lockfile, 'lockfileVersion: two, reinstalled\n');
+		const later = new Date(Date.now() + 60_000);
+		fs.utimesSync(lockfile, later, later);
+		vi.spyOn(Date, 'now').mockReturnValue(later.getTime());
+		expect(await readVendor()).toContain('release-two');
 	});
 });

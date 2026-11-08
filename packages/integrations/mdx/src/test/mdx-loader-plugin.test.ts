@@ -1,10 +1,12 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compile } from '@mdx-js/mdx';
 import sourceMap from 'source-map';
 import { createRequestPipelineMetricsState } from '@ecopages/core/build';
+import { getStylesheetKinds, type StylesheetKinds } from '@ecopages/core/integration';
+import { Processor } from '@ecopages/core/processor';
 import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult, EcoBuildPluginBuilder } from '@ecopages/core/integration';
 import {
 	createMdxLoaderPlugin as createMdxLoaderPluginWithMetrics,
@@ -38,6 +40,9 @@ function createBuilderHarness() {
 		},
 		module() {},
 		transform() {},
+		onEnd() {},
+		addWatchFile() {},
+		resolve: async () => undefined,
 	};
 
 	return {
@@ -73,7 +78,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('treats opted-in .md files as MDX so ESM config is preserved', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-')));
 		tempDirs.push(tempDir);
 
 		const layoutsDir = path.join(tempDir, 'layouts', 'base-layout');
@@ -174,7 +179,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('reuses compiled output for unchanged MDX source', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-cache-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-cache-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -193,7 +198,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('reuses compiled output across builds that share one loader', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-shared-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-shared-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -210,7 +215,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('recompiles when the MDX source changes', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-edit-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-edit-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -229,7 +234,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('recompiles when compiler plugin functions change and the source does not', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugins-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugins-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -260,7 +265,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('applies one shared top-level remark plugin once in both React and JSX pipelines', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugin-options-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugin-options-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -298,7 +303,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('discovers component and CSS imports and strips bare CSS in compiled MDX', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-deps-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-deps-')));
 		tempDirs.push(tempDir);
 
 		writeFileSync(
@@ -358,8 +363,34 @@ describe('createMdxLoaderPlugin', () => {
 		expect(result?.map).toMatchObject({ sourcesContent: [expect.stringContaining('Post Title')] });
 	});
 
+	it('discovers the stylesheet extensions its creator passes, and only those', async () => {
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-kinds-')));
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, 'post.mdx');
+		writeFileSync(path.join(tempDir, 'card.scss'), '.card {}');
+		writeFileSync(filePath, ["import './card.scss';", '', '# Post'].join('\n'));
+
+		class SassProcessor extends Processor {
+			async setup(): Promise<void> {}
+		}
+		const sass = new SassProcessor({
+			name: 'sass',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.scss'] }],
+		});
+		const load = async (stylesheets?: StylesheetKinds) => {
+			const { builder, getOnLoadCallback } = createBuilderHarness();
+			createMdxLoaderPlugin({ projectRoot: tempDir, stylesheets }).setup(builder);
+			return (await getOnLoadCallback()({ path: filePath }))?.contents as string;
+		};
+
+		const delivered = await load(getStylesheetKinds({ processors: new Map([['sass', sass]]) }));
+		expect(delivered).not.toContain("import './card.scss';");
+		expect(delivered).toContain('card.scss');
+		expect(await load()).toContain("import './card.scss';");
+	});
+
 	it('omits maps when includeSourceMap is disabled', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-no-map-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-no-map-')));
 		tempDirs.push(tempDir);
 
 		const filePath = path.join(tempDir, 'page.mdx');
@@ -373,7 +404,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('re-runs discovery and reflects imported child changes even when MDX compile is cache-hit', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-dyn-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-dyn-')));
 		tempDirs.push(tempDir);
 
 		const childPath = path.join(tempDir, 'child.ts');
@@ -407,7 +438,7 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('keys the loader identity on the options that change its output', () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-'));
+		const tempDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-')));
 		tempDirs.push(tempDir);
 		function remarkNamed() {}
 		const withPlugin = { projectRoot: tempDir, compilerOptions: { remarkPlugins: [remarkNamed] } };
@@ -422,6 +453,13 @@ describe('createMdxLoaderPlugin', () => {
 		expect(createMdxLoaderPlugin({ projectRoot: tempDir }).cacheKey).not.toBe(
 			createMdxLoaderPlugin({ projectRoot: tempDir, compilerOptions: { jsxImportSource: 'react' } }).cacheKey,
 		);
+	});
+
+	it('keys the loader identity the same in two project roots, holding no absolute path', () => {
+		const first = createMdxLoaderPlugin({ projectRoot: '/builds/one/app' }).cacheKey;
+
+		expect(createMdxLoaderPlugin({ projectRoot: '/srv/two/app' }).cacheKey).toBe(first);
+		expect(first).not.toContain('/builds/one/app');
 	});
 
 	it('throws if projectRoot is missing when creating the loader plugin', async () => {

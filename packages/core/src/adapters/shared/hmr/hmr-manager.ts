@@ -1,6 +1,5 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { getServerModuleBuildCacheOutdir } from '../../../build/server/route-module-build-cache-registry.ts';
-import { fileURLToPath } from 'node:url';
 import { HMR_RUNTIME_SCRIPT_URL, resolveHmrRuntimeWorkDir } from '../../../hmr/hmr-runtime-paths.ts';
 import {
 	bundleDevClientRuntime,
@@ -17,9 +16,12 @@ import type {
 	IHmrManager,
 	IClientBridge,
 } from '../../../config/internal-types.ts';
+import { getDevelopmentStylesheetService } from '../../../dev/stylesheets/development-stylesheet.service.ts';
+import { clearFailedCustomElementScriptPreloads } from '../../../route-renderer/orchestration/custom-element-scripts/custom-element-script-preload-invalidation.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategyType, type HmrAction, type HmrStrategy } from '../../../hmr/hmr-strategy.ts';
 import { DefaultHmrStrategy } from '../../../hmr/strategies/default-hmr-strategy.ts';
+import { TemplateSourceHmrStrategy } from '../../../hmr/strategies/template-source-hmr-strategy.ts';
 import { JsHmrStrategy } from '../../../hmr/strategies/js-hmr-strategy.ts';
 import { ServerRenderedTemplateHmrStrategy } from '../../../hmr/strategies/server-rendered-template-hmr-strategy.ts';
 import {
@@ -38,6 +40,7 @@ import { BrowserBundleService } from '../../../assets/browser-bundle.service.ts'
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';
+import { getStylesheetKinds, type StylesheetKinds } from '../../../plugins/stylesheet-kinds.ts';
 import type { DevTransformBundleContributor } from '../../../dev/transform-server/types.ts';
 import type { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
 
@@ -70,6 +73,8 @@ export class HmrManager implements IHmrManager {
 	 * request the way a dev-transform failure is.
 	 */
 	private readonly fileChangeErrors = new Map<string, string>();
+	/** Build errors found while answering a request, by the file that failed, until the next file change. */
+	private readonly requestBuildErrors = new Map<string, string>();
 	protected readonly entrypointRegistry: DevTransformEntrypointRegistry;
 	protected readonly browserBundleService: BrowserBundleService;
 	protected readonly invalidationService: DevelopmentInvalidationService;
@@ -82,6 +87,7 @@ export class HmrManager implements IHmrManager {
 	private readonly runtimeBuilds = new Map<DevClientRuntime, Promise<boolean>>();
 	private readonly readyRuntimes = new Set<DevClientRuntime>();
 	protected readonly devTransformServer: DevTransformServer;
+	private stylesheetKinds?: StylesheetKinds;
 
 	constructor({ appConfig, bridge }: HmrManagerParams) {
 		this.appConfig = appConfig;
@@ -91,7 +97,7 @@ export class HmrManager implements IHmrManager {
 			name: 'HMR',
 			url: HMR_RUNTIME_SCRIPT_URL,
 			workDir: this.runtimeWorkDir,
-			resolveEntry: () => fileURLToPath(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime')),
+			resolveEntry: () => path.fromFileUrl(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime')),
 			onFailure: (error) => this.onRuntimeBundleFailure(error),
 		};
 		this.devToolbarRuntime = createDevToolbarClientRuntime(appConfig);
@@ -111,6 +117,7 @@ export class HmrManager implements IHmrManager {
 				]);
 			},
 			onTransformError: (message) => this.broadcast({ type: 'error', message }),
+			onVendorGraphChange: () => this.broadcast({ type: 'reload' }),
 		});
 		this.ensureRuntimeWorkDir();
 		this.initializeStrategies();
@@ -169,6 +176,8 @@ export class HmrManager implements IHmrManager {
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 			getTemplateExtensions: () => this.appConfig.templatesExt,
+			isStylesheet: (filePath: string) =>
+				(this.stylesheetKinds ??= getStylesheetKinds(this.appConfig)).isStylesheet(filePath),
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
 			consumeRegisteredScriptReloadRequired: (sourcePath: string) =>
@@ -178,6 +187,7 @@ export class HmrManager implements IHmrManager {
 		this.strategies = [
 			new JsHmrStrategy(jsContext),
 			new ServerRenderedTemplateHmrStrategy(this.invalidationService),
+			new TemplateSourceHmrStrategy(this.invalidationService, jsContext),
 		];
 	}
 
@@ -250,12 +260,19 @@ export class HmrManager implements IHmrManager {
 		this.bridge.broadcast(event);
 	}
 
+	public reportBuildError(source: string, message: string): void {
+		this.requestBuildErrors.set(path.resolve(source), message);
+		this.broadcast({ type: 'error', message });
+	}
+
 	public async handleFileChanges(filePaths: string[], options: HmrFileChangeOptions = {}): Promise<void> {
 		if (filePaths.length === 0) {
 			return;
 		}
 
 		this.devTransformServer.clearFailures();
+		this.requestBuildErrors.clear();
+		clearFailedCustomElementScriptPreloads(requireAppRuntime(this.appConfig).customElementSsrPreloadScopes);
 		const events: ClientBridgeEvent[] = [];
 		const uniqueFilePaths = [...new Set(filePaths.map((candidate) => path.resolve(candidate)))];
 
@@ -271,7 +288,14 @@ export class HmrManager implements IHmrManager {
 			}
 		}
 
+		for (const message of this.stylesheetFailures()) events.push({ type: 'error', message });
+
 		this.broadcastBatchEvents(events, options, uniqueFilePaths);
+	}
+
+	/** The errors of the stylesheets that fail to process, which the development stylesheet service keeps. */
+	private stylesheetFailures(): string[] {
+		return getDevelopmentStylesheetService(this.appConfig).failureMessages();
 	}
 
 	private async processFileChange(filePath: string): Promise<ClientBridgeEvent[]> {
@@ -400,8 +424,8 @@ export class HmrManager implements IHmrManager {
 	}
 
 	/**
-	 * Sends a browser that just connected the build errors of modules that still fail to transpile, and of
-	 * changed files whose last processing failed.
+	 * Sends a browser that just connected the build errors of modules that still fail to transpile, of
+	 * changed files whose last processing failed, and of assets a request failed to build.
 	 *
 	 * @remarks
 	 * A build error is broadcast while the failing module is served, which can happen before the page's HMR
@@ -409,7 +433,12 @@ export class HmrManager implements IHmrManager {
 	 * it. Without this replay that browser would never show the error.
 	 */
 	public sendPendingBuildErrors(client: { send(payload: string): void }): void {
-		for (const message of [...this.devTransformServer.getFailureMessages(), ...this.fileChangeErrors.values()]) {
+		for (const message of [
+			...this.devTransformServer.getFailureMessages(),
+			...this.fileChangeErrors.values(),
+			...this.requestBuildErrors.values(),
+			...this.stylesheetFailures(),
+		]) {
 			client.send(JSON.stringify({ type: 'error', message } satisfies ClientBridgeEvent));
 		}
 	}
@@ -447,6 +476,7 @@ export class HmrManager implements IHmrManager {
 		this.scriptEntrypointChangeHandlers.length = 0;
 		this.registeredScriptReloadRequired.clear();
 		this.fileChangeErrors.clear();
+		this.requestBuildErrors.clear();
 		this.entrypointRegistry.clearAll();
 		this.devTransformServer.reset();
 		this.buildInputIndex.clearConsumer('entrypoint');
@@ -462,6 +492,10 @@ export class HmrManager implements IHmrManager {
 
 	public async registerEntrypoint(entrypointPath: string): Promise<string> {
 		return this.registerDevTransformEntrypoint(entrypointPath, 'page').outputUrl;
+	}
+
+	public rewriteModuleImports(code: string, importerPath: string): Promise<string> {
+		return this.devTransformServer.rewriteImports(code, importerPath);
 	}
 
 	public async registerScriptEntrypoint(entrypointPath: string): Promise<ResolvedHmrEntrypoint> {

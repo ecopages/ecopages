@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildSuccess } from '../../build/build-adapter.ts';
 import { collectBuildEntryInputPaths } from '../../build/build-graph.ts';
@@ -138,7 +138,7 @@ function isTrackableRouteModuleDependency(modulePath: string): boolean {
 		return false;
 	}
 
-	if (normalizedPath.includes(`${path.sep}node_modules${path.sep}`)) {
+	if (normalizedPath.includes(`/node_modules/`)) {
 		return false;
 	}
 
@@ -170,7 +170,7 @@ function filterTrackableRouteModuleDependencies(modulePaths: readonly string[]):
  * @returns Normalized module paths, falling back to the entrypoint when no graph is available.
  */
 export function resolveRouteModuleDependencyPaths(
-	buildResult: Pick<BuildSuccess, 'dependencyGraph' | 'loadedInputsByModule'>,
+	buildResult: Pick<BuildSuccess, 'dependencyGraph'>,
 	entrypointPath: string,
 	rootDir: string,
 ): string[] {

@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponent, EcoComponentConfig } from '@ecopages/core';
 import type { ResolvedHmrEntrypoint } from '@ecopages/core/integration';
 
@@ -11,14 +11,14 @@ let recordEjsxHmrOwnership: OwnershipModule['recordEjsxHmrOwnership'];
 let withEjsxHmrOwnershipScope: OwnershipModule['withEjsxHmrOwnershipScope'];
 
 async function publishOwnership(components: Parameters<typeof recordEjsxHmrOwnership>[0]): Promise<void> {
-	await withEjsxHmrOwnershipScope(() => recordEjsxHmrOwnership(components));
+	await withEjsxHmrOwnershipScope(() => recordEjsxHmrOwnership(components, '/'));
 }
 
-const SRC_DIR = '/test/project/src';
-const PAGES_DIR = '/test/project/src/pages';
-const LAYOUTS_DIR = '/test/project/src/layouts';
-const INCLUDES_DIR = '/test/project/src/includes';
-const COMPONENTS_DIR = '/test/project/src/components';
+const SRC_DIR = path.resolve('/test/project/src');
+const PAGES_DIR = path.resolve('/test/project/src/pages');
+const LAYOUTS_DIR = path.resolve('/test/project/src/layouts');
+const INCLUDES_DIR = path.resolve('/test/project/src/includes');
+const COMPONENTS_DIR = path.resolve('/test/project/src/components');
 const TEMPLATE_EXTENSIONS = ['.tsx', '.mdx'];
 
 function makeConfig(file: string, extras: Partial<EcoComponentConfig> = {}): EcoComponentConfig {
@@ -320,8 +320,8 @@ describe('ecopages-jsx-hmr-ownership', () => {
 		const page = makeComponent(pageFile);
 
 		await withEjsxHmrOwnershipScope(async () => {
-			recordEjsxHmrOwnership([mdx]);
-			await withEjsxHmrOwnershipScope(() => recordEjsxHmrOwnership([page]));
+			recordEjsxHmrOwnership([mdx], '/');
+			await withEjsxHmrOwnershipScope(() => recordEjsxHmrOwnership([page], '/'));
 		});
 
 		const state = getEjsxHmrOwnership();

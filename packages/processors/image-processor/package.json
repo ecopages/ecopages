@@ -7,6 +7,9 @@
 		"processor"
 	],
 	"license": "MIT",
+	"engines": {
+		"node": "^24.22.0 || >=26.0.0"
+	},
 	"main": "./src/image-processor.ts",
 	"type": "module",
 	"publishConfig": {
@@ -25,7 +28,7 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/jsx": "^0.6.0"
+		"@ecopages/jsx": "^0.8.2"
 	},
 	"peerDependenciesMeta": {
 		"@ecopages/jsx": {
@@ -40,7 +43,7 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/jsx": "^0.6.0",
+		"@ecopages/jsx": "^0.8.2",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3"
 	},

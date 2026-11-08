@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
 import {
@@ -10,10 +11,11 @@ import type { EcoPagesAppConfig } from '../config/internal-types';
 
 /**
  * Creates a regex pattern to match identity attribution with any id hash.
- * The id is a base36 hash that varies, so we match it with a pattern.
+ * The id is a base36 hash that varies, so we match it with a pattern. `file` is absolute; the attribution names it
+ * relative to the `/path/to` app root of these tests.
  */
 function ecoMetaPattern(file: string, integration: string): RegExp {
-	const escapedFile = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const escapedFile = path.relative('/path/to', file).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 	return new RegExp(
 		`bindComponentIdentity\\(\\{ id: "[a-z0-9]+", file: "${escapedFile}", integration: "${integration}" \\},`,
 	);
@@ -21,6 +23,7 @@ function ecoMetaPattern(file: string, integration: string): RegExp {
 
 describe('eco-component-meta-plugin', () => {
 	const Config = {
+		rootDir: '/path/to',
 		integrations: [
 			{
 				name: 'kitajs',
@@ -51,6 +54,7 @@ describe('eco-component-meta-plugin', () => {
 				regexFilter = options.filter;
 				transformCallback = callback;
 			},
+			onEnd: () => undefined,
 		};
 
 		plugin.setup(buildMock as never);
@@ -88,16 +92,25 @@ describe('eco-component-meta-plugin', () => {
 		expect(transform.filter.test('/src/a.kitaXtsx')).toBe(false);
 	});
 
-	it('matches no module when no Integration owns a script extension', () => {
+	it('filters every script module, not only the extensions an Integration owns', () => {
 		const { filter } = getPluginTransform(
 			createEcoComponentMetaPlugin({
-				config: { integrations: [{ name: 'mdx', extensions: ['.mdx'] }] } as EcoPagesAppConfig,
+				config: { rootDir: '/src', integrations: [{ name: 'mdx', extensions: ['.mdx'] }] } as EcoPagesAppConfig,
 			}),
 		);
 
-		for (const id of ['/src/page.mdx', '/src/index.ts', '/node_modules/react/index.js', '']) {
-			expect(filter.test(id)).toBe(false);
-		}
+		expect(filter.test('/src/index.ts')).toBe(true);
+		expect(filter.test('/src/page.mdx')).toBe(false);
+	});
+
+	it('leaves an unreached module outside the app root that no Integration owns untouched', () => {
+		const code = `import './style.css';\nexport const Card = () => '';`;
+		expect(transform.transform(code, '/elsewhere/kit/card.js')).toEqual({ code });
+	});
+
+	it('leaves node_modules untouched', () => {
+		const code = `import './style.css';\nexport const Card = () => '';`;
+		expect(transform.transform(code, '/path/to/node_modules/kit/card.tsx')).toEqual({ code });
 	});
 
 	it('attributes the file an id with a query suffix names', () => {
@@ -357,7 +370,7 @@ export const Input = eco.component({
 
 		expect(result).toBeDefined();
 		const matches = result.contents.match(
-			/bindComponentIdentity\(\{ id: "[a-z0-9]+", file: "\/path\/to\/components\.tsx", integration: "react" \},/g,
+			/bindComponentIdentity\(\{ id: "[a-z0-9]+", file: "components\.tsx", integration: "react" \},/g,
 		);
 		expect(matches).toHaveLength(2);
 	});
@@ -367,7 +380,7 @@ export const Input = eco.component({
 		const idsOf = (code: string): string[] =>
 			[...code.matchAll(/bindComponentIdentity\(\{ id: "([a-z0-9]+)"/g)].map((match) => match[1]!);
 		const attribute = (source: string): string[] =>
-			idsOf(attributeComponentIdentity(source, filePath, 'react').code);
+			idsOf(attributeComponentIdentity(source, filePath, { integration: 'react', projectRoot: '/path/to' }).code);
 
 		it('gives each declaration in one file its own id', () => {
 			const ids = attribute(`
@@ -441,7 +454,12 @@ export const Simple = eco.component(bindComponentIdentity(
 	it('leaves text mentions of Eco factories unchanged', () => {
 		const content = `// eco.page({ render: () => null });\nconst example = 'eco.component({ render: () => null })';`;
 
-		expect(attributeComponentIdentity(content, '/path/to/example.ts', 'test-string').code).toBe(content);
+		expect(
+			attributeComponentIdentity(content, '/path/to/example.ts', {
+				integration: 'test-string',
+				projectRoot: '/path/to',
+			}).code,
+		).toBe(content);
 	});
 
 	it('should not inject into non-eco call expressions', async () => {

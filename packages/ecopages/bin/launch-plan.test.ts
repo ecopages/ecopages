@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildEnvOverrides, buildLaunchEnv, createLaunchPlan, detectRuntime } from './launch-plan.js';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/build';
@@ -11,9 +10,9 @@ import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/build'
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
 const viewReferencePreload = import.meta.resolve('./view-reference-preload.js');
-const viewReferencePreloadPath = fileURLToPath(viewReferencePreload);
+const viewReferencePreloadPath = path.fromFileUrl(viewReferencePreload);
 
-const originalCwd = process.cwd();
+const originalCwd = path.cwd();
 
 afterEach(() => {
 	process.chdir(originalCwd);
@@ -75,7 +74,7 @@ describe('launch-plan', () => {
 	});
 
 	it('createLaunchPlan adds bun --watch for dev:watch', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		const tempDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-')));
 		try {
 			process.chdir(tempDir);
 			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
@@ -98,12 +97,13 @@ describe('launch-plan', () => {
 			]);
 			expect(plan.env.ECOPAGES_ENTRY_WATCH).toBe('1');
 		} finally {
+			process.chdir(originalCwd);
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
 
 	it('buildLaunchEnv loads env files and lets process env and CLI overrides win', () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		const tempDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-')));
 		try {
 			process.chdir(tempDir);
 			fs.writeFileSync(
@@ -123,12 +123,13 @@ describe('launch-plan', () => {
 				ECOPAGES_PORT: '2222',
 			});
 		} finally {
+			process.chdir(originalCwd);
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
 
 	it('createLaunchPlan adds node --watch for dev:watch', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		const tempDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-')));
 		try {
 			vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 			process.chdir(tempDir);
@@ -154,6 +155,7 @@ describe('launch-plan', () => {
 			]);
 			expect(plan.env.ECOPAGES_ENTRY_WATCH).toBe('1');
 		} finally {
+			process.chdir(originalCwd);
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
@@ -162,7 +164,7 @@ describe('launch-plan', () => {
 		{ name: 'without a config file', withConfig: false },
 		{ name: 'next to an eco.config.ts', withConfig: true },
 	])('createLaunchPlan runs the requested Node entry directly $name', async ({ withConfig }) => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		const tempDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-')));
 		try {
 			vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 			process.chdir(tempDir);
@@ -191,6 +193,7 @@ describe('launch-plan', () => {
 				'--dev',
 			]);
 		} finally {
+			process.chdir(originalCwd);
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
@@ -199,7 +202,7 @@ describe('launch-plan', () => {
 		{ mode: 'dev', flag: '--dev', nodeEnv: 'development', withConfig: false },
 		{ mode: 'preview', flag: '--preview', nodeEnv: 'production', withConfig: true },
 	])('createLaunchPlan runs a Bun $mode with the entry file and the Node arguments', async (row) => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		const tempDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-')));
 		try {
 			process.chdir(tempDir);
 			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
@@ -215,13 +218,14 @@ describe('launch-plan', () => {
 			expect(plan).toMatchObject({ runtime: 'bun', command: 'bun' });
 			expect(plan.commandArgs).toEqual(['run', '--preload', viewReferencePreloadPath, 'app.ts', row.flag]);
 		} finally {
+			process.chdir(originalCwd);
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
 
 	describe('bundle detection', () => {
 		function setupBundleFixture() {
-			const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-bundle-'));
+			const tempDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-bundle-')));
 			process.chdir(tempDir);
 			return tempDir;
 		}
@@ -233,7 +237,7 @@ describe('launch-plan', () => {
 
 		it('uses the bundled server entry in production for Node', async () => {
 			const tempDir = setupBundleFixture();
-			const realTempDir = fs.realpathSync(tempDir);
+			const realTempDir = path.fromNative(fs.realpathSync(tempDir));
 			try {
 				vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 				fs.mkdirSync(path.join(tempDir, 'dist', SERVER_BUNDLE_DIR), { recursive: true });
@@ -252,13 +256,14 @@ describe('launch-plan', () => {
 					path.join(realTempDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
 				]);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
 
 		it('runs production bundles with the emitted config even when source config exists', async () => {
 			const tempDir = setupBundleFixture();
-			const realTempDir = fs.realpathSync(tempDir);
+			const realTempDir = path.fromNative(fs.realpathSync(tempDir));
 			try {
 				const serverDir = path.join(tempDir, 'dist', SERVER_BUNDLE_DIR);
 				const sourceConfigPath = path.join(tempDir, 'eco.config.ts');
@@ -282,13 +287,14 @@ describe('launch-plan', () => {
 				expect(plan.env.ECOPAGES_CONFIG_FILE).toBe(resolvedEmittedConfigPath);
 				expect(plan.envOverrides.ECOPAGES_CONFIG_FILE).toBe(resolvedEmittedConfigPath);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
 
 		it('uses the bundled server entry in production for Bun', async () => {
 			const tempDir = setupBundleFixture();
-			const realTempDir = fs.realpathSync(tempDir);
+			const realTempDir = path.fromNative(fs.realpathSync(tempDir));
 			try {
 				fs.mkdirSync(path.join(tempDir, 'dist', SERVER_BUNDLE_DIR), { recursive: true });
 				fs.writeFileSync(
@@ -307,6 +313,7 @@ describe('launch-plan', () => {
 					path.join(realTempDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
 				]);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
@@ -342,6 +349,7 @@ describe('launch-plan', () => {
 					'--dev',
 				]);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
@@ -363,7 +371,7 @@ describe('launch-plan', () => {
 
 		it('starts the bundle built into a custom distDir when no dist directory exists', async () => {
 			const tempDir = setupBundleFixture();
-			const realTempDir = fs.realpathSync(tempDir);
+			const realTempDir = path.fromNative(fs.realpathSync(tempDir));
 			try {
 				writeBundle(tempDir, 'build');
 
@@ -373,6 +381,7 @@ describe('launch-plan', () => {
 					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
 				]);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
@@ -387,13 +396,14 @@ describe('launch-plan', () => {
 					/Multiple production bundles found: build, dist\. Pass --dist-dir <dir> to select one\./,
 				);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
 
 		it('starts the bundle that --dist-dir names when several exist', async () => {
 			const tempDir = setupBundleFixture();
-			const realTempDir = fs.realpathSync(tempDir);
+			const realTempDir = path.fromNative(fs.realpathSync(tempDir));
 			try {
 				writeBundle(tempDir, 'dist');
 				writeBundle(tempDir, 'build');
@@ -404,6 +414,7 @@ describe('launch-plan', () => {
 					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
 				]);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
@@ -417,6 +428,7 @@ describe('launch-plan', () => {
 					/No production bundle found in build\/server/,
 				);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
@@ -429,6 +441,7 @@ describe('launch-plan', () => {
 
 				await expect(startPlan()).rejects.toThrow(/static-only build.*ecopages preview/);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
@@ -443,13 +456,14 @@ describe('launch-plan', () => {
 					/build\/ holds a static-only build.*ecopages preview/,
 				);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
 
 		it('runs the emitted config of the selected output directory', async () => {
 			const tempDir = setupBundleFixture();
-			const realTempDir = fs.realpathSync(tempDir);
+			const realTempDir = path.fromNative(fs.realpathSync(tempDir));
 			try {
 				writeBundle(tempDir, 'build', { emittedConfigModule: 'eco.config.mjs' });
 				fs.writeFileSync(path.join(tempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'), 'export default {}');
@@ -460,6 +474,7 @@ describe('launch-plan', () => {
 					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'),
 				);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
@@ -476,13 +491,14 @@ describe('launch-plan', () => {
 
 				await expect(startPlan()).rejects.toThrow(/Ecopages config mismatch/);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
 
 		it('runs the emitted config of the selected output directory for an explicit --config', async () => {
 			const tempDir = setupBundleFixture();
-			const realTempDir = fs.realpathSync(tempDir);
+			const realTempDir = path.fromNative(fs.realpathSync(tempDir));
 			try {
 				const configPath = path.join(tempDir, 'eco.config.ts');
 				fs.writeFileSync(configPath, 'export default {};', 'utf8');
@@ -497,13 +513,14 @@ describe('launch-plan', () => {
 					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'),
 				);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
 
 		it('runs the emitted config of the selected output even when --config names a source file', async () => {
 			const tempDir = setupBundleFixture();
-			const realTempDir = fs.realpathSync(tempDir);
+			const realTempDir = path.fromNative(fs.realpathSync(tempDir));
 			try {
 				fs.writeFileSync(path.join(tempDir, 'other.config.ts'), 'export default { other: true };', 'utf8');
 				writeBundle(tempDir, 'dist', { emittedConfigModule: 'eco.config.mjs' });
@@ -520,6 +537,7 @@ describe('launch-plan', () => {
 					path.join(realTempDir, 'dist', SERVER_BUNDLE_DIR, 'eco.config.mjs'),
 				);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
@@ -554,6 +572,7 @@ describe('launch-plan', () => {
 					'--preview',
 				]);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
@@ -566,13 +585,14 @@ describe('launch-plan', () => {
 
 				await expect(startPlan()).rejects.toThrow(/No production bundle found/);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
 
 		it('passes user args through to the bundled entry file', async () => {
 			const tempDir = setupBundleFixture();
-			const realTempDir = fs.realpathSync(tempDir);
+			const realTempDir = path.fromNative(fs.realpathSync(tempDir));
 			try {
 				vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 				fs.mkdirSync(path.join(tempDir, 'dist', SERVER_BUNDLE_DIR), { recursive: true });
@@ -598,13 +618,14 @@ describe('launch-plan', () => {
 					'127.0.0.1',
 				]);
 			} finally {
+				process.chdir(originalCwd);
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
 	});
 
 	describe('real node CLI path', () => {
-		const cliPath = fileURLToPath(import.meta.resolve('./cli.js'));
+		const cliPath = path.fromFileUrl(import.meta.resolve('./cli.js'));
 		let tempDir: string;
 		let run: { exitCode: number | null; stdout: string; stderr: string };
 		let output: Record<string, unknown> | undefined;
@@ -621,7 +642,7 @@ describe('launch-plan', () => {
 		 * the Node start-up and the tsx loader. The entry records one field per case in `result.json`.
 		 */
 		beforeAll(async () => {
-			tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+			tempDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-')));
 			writeFixtureFile('package.json', '{"type":"module"}');
 			writeFixtureFile('.env', 'TEST_ECOPAGES_ENV=loaded-from-dotenv\nECOPAGES_PORT=1111\n');
 			writeFixtureFile('node_modules/cjs-tool/package.json', '{"main":"index.cjs"}');
@@ -706,13 +727,13 @@ describe('launch-plan', () => {
 		});
 
 		it('runs top-level await, CJS dependencies, and native import.meta values', () => {
-			const realTempDir = fs.realpathSync(tempDir);
+			const realTempDir = path.fromNative(fs.realpathSync(tempDir));
 			expect(output).toMatchObject({
 				cjs: 'from-cjs',
 				metaEnv: null,
-				dirname: realTempDir,
-				filename: path.join(realTempDir, 'app.ts'),
-				sibling: new URL('./sibling.txt', pathToFileURL(path.join(realTempDir, 'app.ts'))).href,
+				dirname: path.toNative(realTempDir),
+				filename: path.toNative(path.join(realTempDir, 'app.ts')),
+				sibling: new URL('./sibling.txt', path.toFileUrl(path.join(realTempDir, 'app.ts'))).href,
 			});
 		});
 

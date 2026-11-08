@@ -5,10 +5,10 @@
 
 import { bench, group, run } from 'mitata';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import { path } from '../src/path.ts';
 import { NodeFileSystem } from '../src/adapters/node.ts';
 
-const benchDir = path.join(import.meta.dirname, '.bench-fixtures');
+const benchDir = path.join(path.dirname(path.fromFileUrl(import.meta.url)), '.bench-fixtures');
 const largeFile = path.join(benchDir, 'large.txt');
 const smallFile = path.join(benchDir, 'small.txt');
 

@@ -1,6 +1,24 @@
-import type { CompiledPageHydrationOptions } from './compiled-page-hydration-options.ts';
+import {
+	LAYOUT_COMPOSE_PACKAGE,
+	PAGE_HYDRATION_PACKAGE,
+	PAGE_LAYOUT_NORMALIZATION_PACKAGE,
+	REACT_DOM_CLIENT_PACKAGE,
+	REACT_PACKAGE,
+} from '../bundling/bootstrap-package-paths.ts';
 
-function assertRouterConfiguration(options: CompiledPageHydrationOptions): void {
+/** Complete inputs that affect a Page hydration entry's generated source. */
+export type PageEntrySourceOptions = {
+	importPath: string;
+	pageModuleUrlExpression: string;
+	scriptId: string;
+	routerImportPath?: string;
+	routerComponents?: { router: string; pageContent: string };
+	routerPropsExpression?: string;
+	hmrEnabled: boolean;
+	isMdx: boolean;
+};
+
+function assertRouterConfiguration(options: PageEntrySourceOptions): void {
 	if (options.routerComponents && !options.routerImportPath) {
 		throw new Error('routerImportPath is required when router components are configured');
 	}
@@ -9,26 +27,26 @@ function assertRouterConfiguration(options: CompiledPageHydrationOptions): void 
 	}
 }
 
-function buildPageImport(options: CompiledPageHydrationOptions): string {
+function buildPageImport(options: PageEntrySourceOptions): string {
 	if (options.isMdx) {
 		return `import * as PageModule from ${JSON.stringify(options.importPath)};`;
 	}
 	return `import Page from ${JSON.stringify(options.importPath)};`;
 }
 
-function buildInitialPageBinding(options: CompiledPageHydrationOptions): string {
+function buildInitialPageBinding(options: PageEntrySourceOptions): string {
 	if (options.isMdx) {
 		return 'const initialPage = resolvePageComponent(PageModule, true, ensurePageConfigLayouts);';
 	}
 	return 'const initialPage = Page;';
 }
 
-function buildRouterImports(options: CompiledPageHydrationOptions): string {
+function buildRouterImports(options: PageEntrySourceOptions): string {
 	if (!options.routerComponents) return '';
 	return `import { ${options.routerComponents.router}, ${options.routerComponents.pageContent} } from ${JSON.stringify(options.routerImportPath)};`;
 }
 
-function buildRouterTree(options: CompiledPageHydrationOptions): string {
+function buildRouterTree(options: PageEntrySourceOptions): string {
 	if (!options.routerComponents) {
 		return 'const createTree = (Page, props) => composeLayoutPageTree(Page, props);';
 	}
@@ -38,16 +56,14 @@ function buildRouterTree(options: CompiledPageHydrationOptions): string {
 };`;
 }
 
-function buildNormalizationImport(options: CompiledPageHydrationOptions): string {
+function buildNormalizationImport(options: PageEntrySourceOptions): string {
 	if (!options.isMdx) return '';
-	return `import { ensurePageConfigLayouts } from ${JSON.stringify(options.pageLayoutNormalizationImportPath)};`;
+	return `import { ensurePageConfigLayouts } from ${JSON.stringify(PAGE_LAYOUT_NORMALIZATION_PACKAGE)};`;
 }
 
-function buildHmrOptions(options: CompiledPageHydrationOptions): string {
+function buildHmrOptions(options: PageEntrySourceOptions): string {
 	if (!options.hmrEnabled) return '';
-	const layoutStack = options.routerComponents
-		? 'getLayoutStack: (Page) => (Page.config?.layouts ?? []).map((layout) => layout?.config?.identity?.id ?? "").join("|"),'
-		: '';
+	const layoutStack = options.routerComponents ? 'getLayouts: (Page) => Page.config?.layouts ?? [],' : '';
 	return `hmr: {
     importPath: ${JSON.stringify(options.importPath)},
     ${layoutStack}
@@ -56,18 +72,24 @@ function buildHmrOptions(options: CompiledPageHydrationOptions): string {
 
 /**
  * Creates the Page entry contract consumed by the browser lifecycle.
+ *
+ * @remarks
+ * The entry only wires the Page module to `@ecopages/react/page-hydration`. It imports React, the bootstrap and the
+ * router by package name, like any other module: production bundles them into the app-wide build, and development
+ * rewrites them to their vendor URLs.
  */
-export function createPageEntrySource(options: CompiledPageHydrationOptions): string {
+export function createPageEntrySource(options: PageEntrySourceOptions): string {
 	assertRouterConfiguration(options);
-	const pageBootstrapId = '\0ecopages-react-page-bootstrap';
-	const pageDataReaderId = '\0ecopages-react-page-data-reader';
 
 	return `
-import { hydrateRoot } from ${JSON.stringify(options.reactDomClientImportPath)};
-import { createElement } from ${JSON.stringify(options.reactImportPath)};
-import { resolvePageComponent, startPageHydration } from ${JSON.stringify(pageBootstrapId)};
-import { readPageDataDocument, getPageDataFromDocument } from ${JSON.stringify(pageDataReaderId)};
-${options.routerComponents ? '' : `import { composeLayoutPageTree } from ${JSON.stringify(options.layoutComposeImportPath)};`}
+import { hydrateRoot } from ${JSON.stringify(REACT_DOM_CLIENT_PACKAGE)};
+import { createElement } from ${JSON.stringify(REACT_PACKAGE)};
+import {
+  readPageDataDocument,
+  resolvePageComponent,
+  startPageHydration,
+} from ${JSON.stringify(PAGE_HYDRATION_PACKAGE)};
+${options.routerComponents ? '' : `import { composeLayoutPageTree } from ${JSON.stringify(LAYOUT_COMPOSE_PACKAGE)};`}
 ${buildRouterImports(options)}
 ${buildNormalizationImport(options)}
 ${buildPageImport(options)}
@@ -80,7 +102,7 @@ startPageHydration({
   scriptId: ${JSON.stringify(options.scriptId)},
   pageModuleUrl,
   Page: initialPage,
-  pageDataReader: { readPageDataDocument, getPageDataFromDocument },
+  pageDataReader: { readPageDataDocument },
   runtime: { hydrateRoot, createElement },
   createTree,
   hasRouter: ${Boolean(options.routerComponents)},

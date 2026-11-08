@@ -19,56 +19,44 @@ function isPageOwnedGroupableContentScript(dep: AssetDefinition): dep is Content
 		return false;
 	}
 
-	if (dep.packageRole === 'keep-separate' || dep.packageRole === 'runtime' || dep.packageRole === 'dynamic-chunk') {
+	if (dep.packageRole === 'keep-separate' || dep.packageRole === 'dynamic-chunk') {
 		return false;
 	}
 
 	return true;
 }
 
-function createPageOwnedGroupedEntryName(dep: ContentScriptAsset, usedEntryNames: Set<string>): string {
-	const baseName = dep.name ?? `script-${contentHash(dep.content, 16)}`;
-	if (!usedEntryNames.has(baseName)) {
-		usedEntryNames.add(baseName);
-		return baseName;
-	}
-
-	let suffix = 2;
-	let candidate = `${baseName}-${suffix}`;
-	while (usedEntryNames.has(candidate)) {
-		suffix += 1;
-		candidate = `${baseName}-${suffix}`;
-	}
-
-	usedEntryNames.add(candidate);
-	return candidate;
+/**
+ * Names a script's entry from the script alone, so every batch that prepares it gives it the same name and key.
+ *
+ * @remarks
+ * A generated script, which lists `bundledSourceFilepaths`, keeps its own name: its text imports its members by
+ * absolute path, so a name hashed from it would change when the app folder moves.
+ */
+function createPageOwnedGroupedEntryName(dep: ContentScriptAsset): string {
+	if (dep.name && dep.bundledSourceFilepaths?.length) return dep.name;
+	return dep.name ? `${dep.name}-${contentHash(dep.content, 8)}` : `script-${contentHash(dep.content, 16)}`;
 }
 
 /**
  * Tags page-owned content scripts in one dependency batch with the app-wide client bundle id.
  *
  * @remarks
- * Component file scripts and integration runtime assets stay ungrouped. Entries that
- * already assign a grouped id are left unchanged.
+ * Component file scripts and integration runtime assets stay ungrouped. Entries that already assign a grouped id
+ * are left unchanged. Returns tagged copies and leaves the given dependencies untouched, so preparing a batch
+ * again, or a different batch with the same script, yields the same dependency key.
  */
 export function assignPageOwnedContentScriptGroupedBundles(dependencies: AssetDefinition[]): AssetDefinition[] {
-	const bundleId = APP_BROWSER_CLIENT_BUNDLE_ID;
-	const usedEntryNames = new Set<string>();
-
-	for (const dependency of dependencies) {
-		if (!isPageOwnedGroupableContentScript(dependency)) {
-			continue;
-		}
-
-		dependency.groupedBundle = {
-			id: bundleId,
-			entryName: createPageOwnedGroupedEntryName(dependency, usedEntryNames),
-		};
-
-		if (dependency.bundle === false) {
-			dependency.bundle = true;
-		}
-	}
-
-	return dependencies;
+	return dependencies.map((dependency) =>
+		isPageOwnedGroupableContentScript(dependency)
+			? {
+					...dependency,
+					bundle: true,
+					groupedBundle: {
+						id: APP_BROWSER_CLIENT_BUNDLE_ID,
+						entryName: createPageOwnedGroupedEntryName(dependency),
+					},
+				}
+			: dependency,
+	);
 }

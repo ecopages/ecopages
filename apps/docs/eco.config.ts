@@ -3,8 +3,10 @@ import { defineConfig } from '@ecopages/core/config';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { suffixNesting } from '@ecopages/lightningcss-processor/plugins/suffix-nesting';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
+import { compareDevEntries, devFrontmatterSchema, DEV_ROOT } from './src/content/dev';
 import { compareDocsEntries, docsFrontmatterSchema, DOCS_ROOT } from './src/content/docs';
 import { docsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
 import { configuredSiteOrigin, DOCS_SITEMAP_EXTRA_URLS } from './src/lib/docs/site-meta';
@@ -41,14 +43,23 @@ export default defineConfig({
 						entryType: './src/content/docs#DocsFrontmatter',
 						routePrefix: DOCS_ROOT,
 					},
+					dev: {
+						contentDir: 'content/dev',
+						schema: devFrontmatterSchema,
+						orderBy: compareDevEntries,
+						entryType: './src/content/dev#DevFrontmatter',
+						routePrefix: DEV_ROOT,
+					},
 				},
 			},
 		}),
-		postcssProcessorPlugin(
-			tailwindV4Preset({
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
 				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
 			}),
-		),
+			targets: ['>0.3%', 'not ie 11', 'not dead', 'not op_mini all'],
+			plugins: [suffixNesting()],
+		}),
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(import.meta.dirname, 'src/images'),

@@ -1,0 +1,65 @@
+---
+title: "HTML Pages"
+description: "How the built-in html-pages Integration compiles .html files in process, delivers their assets in place, builds every module script together and reconciles the Page head with the shell."
+section: rendering
+order: 12
+sources:
+  - packages/core/src/html-pages/
+  - packages/core/src/html/html-source-parser.ts
+  - packages/core/src/html/html-tokenizer.ts
+  - packages/core/src/config/assembly/finalize-config.ts
+  - packages/core/src/router/server/route-registry.ts
+  - packages/core/src/route-renderer/orchestration/route-pipeline/route-render-orchestrator.ts
+---
+
+# HTML Pages
+
+An HTML Page is a plain `.html` file under the pages directory. The user-facing rules (what a Page may contain, which tags are processed, head precedence) are in [Pages](/docs/core/pages#html-pages); this page covers how core implements them.
+
+HTML Pages are an ordinary Integration that core registers itself. `finalizeEcoPagesConfig()` appends `HtmlPagesPlugin` after the user's Integrations unless one of them already declares `.html`. Appending it last keeps the first-extension fallback for a missing semantic template unchanged. There is no public factory, and core never checks for HTML Pages by name: every special case below goes through a hook any Integration can implement.
+
+| File | Role |
+| --- | --- |
+| `html-pages.plugin.ts` | Owns `.html`, implements `compilePageModule` with serialize and revive, sets `acceptsParams = false` |
+| `html-page-template.ts` | Compiles a Page or Html shell into template parts, asset declarations, head nodes, metadata and derived social tags |
+| `html-page-module.ts` | Builds the Page or shell module in process, serializes it for production and owns the built-in shell |
+| `html-page-renderer.ts` | `StringMarkupRenderer` subclass: emits assets in place, uses the shared shell render, reconciles the head |
+| `html-page-document.ts` | Reconciles Page head tags and `<html>`/`<body>` attributes onto the finished document |
+| `html-page-module-scripts.ts` | Builds every HTML module script together and scans them for stylesheet imports |
+| `html-page-classic-script.ts` | Validates a classic `<script src>` |
+
+Parsing uses `html/html-source-parser.ts`, a positional parser that exposes source offsets for splicing and shares its lexical rules with `HtmlRewriter` through `html/html-tokenizer.ts`.
+
+## Loading
+
+An `.html` file is not a JavaScript module, so it never enters a Rolldown graph.
+
+- **Development.** `PageModuleImportService.loadModule()` asks the owning Integration (`findIntegrationForFile()`) for `compilePageModule()`. `HtmlPagesPlugin` compiles files under the pages directory and the `html.html` template and throws for any other `.html` file.
+- **Build.** `ecopages build` compiles each HTML Page, writes it through `serializeCompiledPageModule()` as a `-html.json` record and maps it in `server-modules.json` ([Build pipeline](/dev/build-pipeline)). `ecopages start` restores it with `reviveCompiledPageModule()` and never compiles. The Html shell is recorded the same way, so production uses the built-in shell only when the map has no entry for one.
+- **Routes.** Route discovery rejects a `[param]` filename whose owner sets `acceptsParams` to `false`, since an HTML Page has no `staticPaths`.
+
+A compiled component carries its template on an interned symbol (`getCompiledHtmlTemplate()`). Calling the component directly throws, because rendering needs the owning renderer's asset pipeline. A Page component also exposes `metadata`, built from its head tags, so static export and the Sitemap read it like an `eco.page()` Page.
+
+The Page and `html.html` register their local asset files as discovered watch files on their identity. `collectRenderShellSourcePaths()` adds those to each rendered document's cache dependencies, so editing a stylesheet the shell links invalidates every route the shell wraps, including routes of other Integrations.
+
+## Assets in place
+
+Unlike every other Page, whose assets are injected from the [Page Package](/dev/graph-to-html), an HTML Page or shell writes its own asset tags. `renderHtmlPage()` processes each declaration and splices the emitted URL, or the processed CSS, into the tag as written, keeping every other attribute. A processed `<style>` gets a `processingOrigin` beside the HTML file ending in `.css`, because stylesheet Processors resolve relative imports against it and filter by extension.
+
+The body then renders through the shared document-shell composition, so an `html.html`, built-in, JSX or React shell wraps it the same way. A Page owned by another Integration whose shell is `html.html` delegates the shell to this renderer through the Foreign Child path.
+
+### Module scripts
+
+Without HMR, module scripts are not processed one by one. One multi-entry build with code splitting covers every module script of every HTML Page and the shell, so a module several scripts import is one chunk with one URL, and a script keeps its URL on every Page; the browser runs it once, also across [browser-router](/dev/browser-router) navigations, which separate builds would break. Static export places these entries in the app-wide browser build, and `ecopages start` restores their URLs from the build manifest. Elsewhere, production builds once and development reuses the build while the HTML files, scripts and scanned local modules keep their contents; an edit inside a package is not detected. An HTML file that does not compile is left out, so only its own render fails; a script that does not build fails every HTML Page with a module script until a later render builds again. With HMR, module scripts go through `FileScriptProcessor` and the HMR manager instead.
+
+A module script cannot add a stylesheet to the Page: a build gives a side-effect stylesheet import an empty module, so the CSS would never load. `scanModuleScript()` therefore follows the script's local imports for a side-effect stylesheet import; the shared build leaves such a script out, and rendering an HTML file that loads it throws. Imports the component identity transform already moves into Component Dependencies are not reported.
+
+An inline module script that imports a relative specifier is a compile error rather than an inline content script: that path builds each script alone from the work directory, so a relative import would resolve against the wrong folder, and a module shared with the Page's module scripts would run a second time.
+
+### Warnings
+
+Compile-time warnings (relative URLs left literal, relative social image URLs) are logged once per file revision. Two warnings depend on rendering and go through `warnHtmlTemplateRender()`: a relative URL in processed `<style>` output, and a preload hint that matches no processed file. For an unmatched stylesheet or script preload, the message lists the other HTML files that load the file, found with `findHtmlFilesLoading()`; it compiles every HTML file, so it runs only in development, at most once per revision. Both warning histories live on the `AppRuntime`, so two apps loading one file warn separately.
+
+## Head reconciliation
+
+The renderer keeps the Page head for the active render, and its `finalizeDocument` hook reconciles it after Integration and core head contributions, including the robots tag, are in the document; a direct `render()` call reconciles its own output the same way. Singleton keys are `<title>`, `<base>`, `<meta charset>`, `<link rel="canonical">` and keyed `<meta>`, keyed by the value of its first `name`, `property` or `http-equiv`. A Page singleton replaces the shell tag in place, repeated keys pair in source order, and anything else is inserted before `</head>`. Only HTML Pages are reconciled; other routes keep their head output.

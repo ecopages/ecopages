@@ -34,7 +34,7 @@ pnpm --filter @ecopages/codemod exec jscodeshift \
 
 ### Migrate Pages to `eco.page()`
 
-Transforms pages from the legacy separate exports pattern to the consolidated API:
+Transforms pages from the removed module-level data exports to the `eco.page()` options. Core no longer reads `getStaticPaths`, `getStaticProps` or `getMetadata` exports and fails a page that still has them, so run this on every page before you upgrade. It migrates `export const` and `export function` declarations, `export { local as getStaticProps }` lists, the removed `eco.staticPaths()`, `eco.staticProps()` and `eco.metadata()` wrappers, legacy `Page.config` pages, and pages that already call `eco.page()`. A `typeof getStaticProps` type keeps the declaration in the file, unexported:
 
 ```bash
 pnpm --filter @ecopages/codemod exec jscodeshift -t src/transforms/migrate-to-eco-page.ts --parser tsx /path/to/project/src/pages

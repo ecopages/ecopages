@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 
@@ -24,7 +24,7 @@ describe('RolldownBuildAdapter bundle lifetime', () => {
 
 	beforeEach(() => {
 		bundles.length = 0;
-		workDir = mkdtempSync(path.join(tmpdir(), 'rolldown-close-test-'));
+		workDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'rolldown-close-test-')));
 	});
 
 	afterEach(() => {

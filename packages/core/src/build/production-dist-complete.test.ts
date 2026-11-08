@@ -1,9 +1,10 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { assertProductionDistComplete } from './production-dist-complete.ts';
+import { PRODUCTION_ASSET_LEDGER_FILENAME } from './production-asset-ledger.ts';
 import { PRODUCTION_ROUTES_FILENAME } from './production-route-list.ts';
 import { SERVER_MODULES_MANIFEST_FILENAME } from './server/server-modules-manifest.ts';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../utils/resolve-entry-file.ts';
@@ -23,7 +24,7 @@ describe('assertProductionDistComplete', () => {
 	}
 
 	function createCompleteDist(buildId = 'build-1') {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-dist-complete-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-dist-complete-')));
 		tempDirs.push(rootDir);
 		const serverDir = path.join(rootDir, 'dist', SERVER_BUNDLE_DIR);
 		fileSystem.ensureDir(serverDir);
@@ -40,6 +41,11 @@ describe('assertProductionDistComplete', () => {
 		writeJson(path.join(serverDir, SERVER_MODULES_MANIFEST_FILENAME), {
 			buildId,
 			modules: { 'src/pages/index.tsx': 'page.mjs' },
+		});
+		writeJson(path.join(serverDir, PRODUCTION_ASSET_LEDGER_FILENAME), {
+			buildId,
+			entries: [],
+			browserOutputs: [],
 		});
 		return rootDir;
 	}
@@ -83,12 +89,21 @@ describe('assertProductionDistComplete', () => {
 		expect((failure as Error).cause).toBeInstanceOf(SyntaxError);
 	});
 
-	it('rejects an unreadable browser client manifest instead of starting without it', () => {
+	it('rejects a dist/ whose asset ledger is missing instead of starting unsealed', () => {
 		const rootDir = createCompleteDist();
-		writeFileSync(path.join(rootDir, 'dist', SERVER_BUNDLE_DIR, 'browser-client-manifest.json'), '{ bad');
+		fileSystem.remove(path.join(rootDir, 'dist', SERVER_BUNDLE_DIR, PRODUCTION_ASSET_LEDGER_FILENAME));
 
 		expect(() => assertProductionDistComplete(rootDir, 'dist')).toThrow(
-			/The production browser client manifest .* is invalid or unreadable/,
+			/The production asset ledger .*processed-assets\.json is missing\. Run `ecopages build` again\./,
+		);
+	});
+
+	it('rejects an unreadable asset ledger instead of starting without it', () => {
+		const rootDir = createCompleteDist();
+		writeFileSync(path.join(rootDir, 'dist', SERVER_BUNDLE_DIR, 'processed-assets.json'), '{ bad');
+
+		expect(() => assertProductionDistComplete(rootDir, 'dist')).toThrow(
+			/The production asset ledger .* is invalid or unreadable/,
 		);
 	});
 });

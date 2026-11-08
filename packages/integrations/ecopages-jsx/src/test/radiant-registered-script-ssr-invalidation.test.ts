@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CustomElementScriptPreloadScopeState } from '@ecopages/core/integration';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { tmpdir } from 'node:os';
 import {
 	clearRadiantCustomElementDefinition,
@@ -11,8 +11,8 @@ import {
 
 describe('resolveRadiantCustomElementTag', () => {
 	it('reads the tag from @customElement decorators', () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'radiant-script-tag-'));
-		const scriptPath = join(tempDir, 'theme-toggle.tsx');
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'radiant-script-tag-')));
+		const scriptPath = path.join(tempDir, 'theme-toggle.tsx');
 
 		writeFileSync(scriptPath, `@customElement('theme-toggle')\nexport class ThemeToggle {}\n`, 'utf-8');
 
@@ -66,8 +66,8 @@ describe('clearRadiantCustomElementDefinition', () => {
 
 describe('invalidateRadiantRegisteredScriptSsrRegistration', () => {
 	it('clears the registry entry for registered Radiant script modules', () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'radiant-script-invalidate-'));
-		const scriptPath = join(tempDir, 'widget.tsx');
+		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'radiant-script-invalidate-')));
+		const scriptPath = path.join(tempDir, 'widget.tsx');
 		const definitions = new Map<string, unknown>([['widget', class {}]]);
 		const previousRegistry = (globalThis as { customElements?: unknown }).customElements;
 

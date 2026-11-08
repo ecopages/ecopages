@@ -6,13 +6,15 @@ import type { BuildAdapter, BuildOptions, BuildResult } from '../../../build/bui
 import { createAppBuildManifest } from '../../../build/contracts/build-manifest.ts';
 import { BuildQueue } from '../../../build/runtime/build-queue.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
+import { ProcessedAssetLedger } from '../../../assets/asset-processing-service/processed-asset-ledger.ts';
+import { createHtmlPageModuleScriptState } from '../../../html-pages/html-page-module-scripts.ts';
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator';
 import type { RouteRegistry } from '../../../router/server/route-registry';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer';
 import fs from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import os from 'node:os';
 import { createBuildSuccess } from '../../../__fixtures__/build/build-result.ts';
 import { defineGet } from '../http/define-api-handler.ts';
@@ -47,6 +49,7 @@ function createMockDependencies() {
 
 	const mockProcessor = {
 		plugins: [],
+		canProcessAsset: () => false,
 		setContext: () => {},
 		setup: async () => {
 			calls.processorSetup += 1;
@@ -85,7 +88,9 @@ function createMockDependencies() {
 		hmr: null,
 		runtimeAssetsPrepared: false,
 		integrationActivations: new Map(),
-	} as AppRuntime;
+		processedAssets: new ProcessedAssetLedger('/test'),
+		htmlPageModuleScripts: createHtmlPageModuleScriptState(),
+	} as unknown as AppRuntime;
 
 	const ServeOptions: ServeOptions = {
 		hostname: 'localhost',
@@ -215,7 +220,7 @@ describe('resolveEntryFile', () => {
 
 describe('ServerStaticBuilder', () => {
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'server-static-builder-test-'));
+		tmpDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'server-static-builder-test-')));
 	});
 
 	afterEach(() => {

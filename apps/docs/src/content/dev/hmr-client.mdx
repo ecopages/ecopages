@@ -1,0 +1,36 @@
+---
+title: "HMR client"
+description: "How the browser applies HMR events: module swaps, stylesheet refreshes, soft reloads through the navigation runtime and full reloads."
+section: hmr
+order: 21
+sources:
+  - packages/core/src/hmr/
+  - packages/core/src/adapters/shared/hmr/hmr-manager.ts
+  - packages/core/src/adapters/node/node-client-bridge.ts
+  - packages/core/src/adapters/shared/hmr/client-bridge.ts
+  - packages/core/src/router/client/navigation-coordinator.ts
+  - packages/integrations/react/src/hmr/hmr-strategy.ts
+---
+
+# HMR client
+
+
+`HmrManager` bundles the HMR client and serves it at `/_hmr_runtime.js`; every HTML response gets it as a module script at the start of `<head>`, so it runs before page scripts. It connects to `/_hmr` and handles each event the [strategies](/dev/hmr-strategies) send:
+
+| Event | Client behavior |
+| --- | --- |
+| `update` | Calls the module's registered `hmrHandlers` entry with a cache-busted URL. Without a handler, a dev-transform module that is the active page module asks the navigation runtime for a soft reload (`clearCache: false`); any other dev-transform module is re-imported. A non-dev-transform URL without a handler, an unhandled soft reload, or any throw falls back to `layout-update` handling. |
+| `css-update` | Sets a `t` query on the stylesheet `link` whose pathname is exactly `path`, the href the server resolved from the changed source, so the browser refetches only that file. |
+| `layout-update` | Soft reload through the navigation runtime with `clearCache: true`; `location.reload()` if no runtime handles it. |
+| `reload` | `location.reload()`. |
+| `error` | Logs and offers the message to the Dev Toolbar, with an in-page fallback overlay. |
+
+The HMR client and the [Dev toolbar](/dev/dev-toolbar) client are both `DevClientRuntime` entries (`hmr/dev-client-runtime.ts`): `HmrManager` bundles each once per `DevSession` on the `hmr` lane, serves it at its URL, and injects only runtimes whose bundle was built, and only while `isEnabled()` is true. A failed HMR client bundle disables HMR for the session, which also drops the toolbar; a failed toolbar bundle is logged and leaves HMR on. On start the client calls `enableReloadStatePreservation()` on the navigation runtime, so the active router records what a soft reload must keep before any page script changes the markup; production navigation records nothing.
+
+An unclaimed `error` message appears once in a fixed element appended to `<html>` (`hmr/client/build-error-overlay.ts`); Escape, Dismiss or a click outside a text selection removes it, and any non-error event clears it. The window events custom toolbars use to claim errors are in the public [Dev toolbar](/docs/core/dev-toolbar) docs.
+
+React islands and pages register `hmrHandlers` entries that import the new module and apply it to the mounted components. Before acting on `reload`, `layout-update` or `update`, the client waits up to five seconds for an in-flight navigation transaction to settle, so an update does not race a page swap.
+
+## Soft reload from the client
+
+A soft reload refetches the current URL and commits it into the live document instead of reloading it. The client calls `reloadCurrentPage()` on the navigation coordinator ([Navigation](/dev/navigation)), which forwards it to the registered runtime of the active owner (browser-router or react-router). How [browser-router](/dev/browser-router) performs the fetch, the morph and the state preservation is on its own page, and [react-router](/dev/react-router) covers the React side. When no runtime handles the request, the client falls back to `location.reload()`.

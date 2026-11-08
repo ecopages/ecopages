@@ -11,7 +11,6 @@ import type {
 	RouteRendererOptions,
 } from '../../../types/contracts.ts';
 import { resolvePageLayoutComponents } from '../document-shell/layout-shell-props.service.ts';
-import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
 import type { ResolvedPageDependencies } from '../../page-loading/resolved-page-dependencies.ts';
 import type { PreparedComponentGraphNode } from '../ownership-graph/component-graph.ts';
 import type { RouteHtmlFinalization, RouteRenderHost } from './route-render-orchestrator.ts';
@@ -58,6 +57,7 @@ export function createFlowRenderer<C = unknown>(input: FlowRendererInput = {}): 
 
 	return {
 		name: input.name ?? 'string',
+		getPageSsrScriptIntegrationNames: () => [],
 		resolveRouteRenderInputs: async () => {
 			const Layouts = resolvePageLayoutComponents(Page.config?.layouts);
 
@@ -81,23 +81,10 @@ export function createFlowRenderer<C = unknown>(input: FlowRendererInput = {}): 
 				? await input.collectPageBrowserGraphContribution(context)
 				: { assets: [] },
 		resolvePageDependenciesForRoute: input.resolvePageDependencies ?? (async () => undefined),
-		getPrebuiltRouteComponentGraphs: () => undefined,
-		getGroupedBuildPlanForRoute: () => undefined,
 		resolvePageDependencyContribution: input.resolvePageDependencyContribution ?? (async () => undefined),
 		buildPageClientBrowserAssets: async () => ({
 			processedAssets: [],
 			lazyTriggers: [],
-		}),
-		buildPageBrowserGraphContributionContext: async (routeFile, routeOptions) => ({
-			file: routeFile,
-			pageModule,
-			props: pageData.props,
-			params: routeOptions?.params,
-			query: routeOptions?.query,
-			dependencyInstanceKey: createPageDependencyInstanceKey({
-				params: routeOptions?.params,
-				query: routeOptions?.query,
-			}),
 		}),
 		renderRouteBody: input.renderRouteBody ?? (async () => ''),
 		getRouteHtmlFinalization: input.getRouteHtmlFinalization ?? (() => ({})),

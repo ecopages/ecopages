@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, it } from 'vitest';
 import type { BuildExecutor } from '../../build/build-adapter.ts';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
@@ -52,10 +52,10 @@ describe('app server module transpiler runtime state', () => {
 				return hash;
 			},
 		};
-		const tempParentDir = path.join(process.cwd(), 'playground', 'kitchen-sink');
+		const tempParentDir = path.join(path.cwd(), 'playground', 'kitchen-sink');
 		const tempRootBase = path.join(tempParentDir, '.tmp-app-module-loader-');
 		fs.mkdirSync(tempParentDir, { recursive: true });
-		const rootDir = fs.mkdtempSync(tempRootBase);
+		const rootDir = path.fromNative(fs.mkdtempSync(tempRootBase));
 		const componentsDir = path.join(rootDir, 'src', 'components');
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(componentsDir, { recursive: true });
@@ -126,7 +126,7 @@ describe('app server module transpiler runtime state', () => {
 	});
 
 	it('preserves top-level await through the Node app-module loader path', async () => {
-		const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-node-app-module-tla-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'ecopages-node-app-module-tla-')));
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
 		fs.writeFileSync(
@@ -172,7 +172,7 @@ describe('app server module transpiler runtime state', () => {
 	});
 
 	it('includes manifest runtime plugins in app module imports', async () => {
-		const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-app-module-runtime-plugins-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'ecopages-app-module-runtime-plugins-')));
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
 		const pageFilePath = path.join(pagesDir, 'index.tsx');
@@ -245,7 +245,7 @@ describe('app server module transpiler runtime state', () => {
 	});
 
 	it('defaults app module imports to the route-module build executor', async () => {
-		const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-app-module-route-executor-'));
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'ecopages-app-module-route-executor-')));
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
 		const pageFilePath = path.join(pagesDir, 'index.tsx');

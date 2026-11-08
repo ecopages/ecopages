@@ -3,9 +3,6 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { getPageTestId } from '@/data/primary-links';
 
 export default eco.page({
-	dependencies: {
-		components: [BaseLayout],
-	},
 	layout: BaseLayout,
 	metadata: () => ({
 		title: 'Not Found',

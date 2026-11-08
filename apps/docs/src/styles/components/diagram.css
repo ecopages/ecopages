@@ -1,0 +1,18 @@
+/* Maps the docs theme to Pele's variables; the theme attribute flips the tokens, so diagrams follow it without re-rendering. */
+.diagram {
+	--pele-bg: var(--color-background);
+	--pele-fg: var(--color-on-background);
+	--pele-muted: color-mix(in oklab, var(--color-on-background) 60%, transparent);
+	--pele-line: var(--color-on-background);
+	--pele-surface: var(--color-background-accent);
+	--pele-surface-alt: var(--color-muted);
+	--pele-border: var(--color-border);
+	--pele-accent: var(--color-primary);
+	--pele-critical: var(--color-secondary);
+	--pele-font: var(--font-sans);
+	@apply my-6 overflow-x-auto;
+
+	svg {
+		@apply mx-auto h-auto max-w-full;
+	}
+}

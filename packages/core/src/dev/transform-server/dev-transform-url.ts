@@ -1,10 +1,10 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 
 import { fileSystem } from '@ecopages/file-system';
 import { DEV_TRANSFORM_URL_PREFIX, stripModuleUrlQuery } from '../../hmr/hmr-asset-paths.ts';
 import { decodeHmrDynamicSegments, encodeHmrDynamicSegments } from '../../hmr/hmr-entrypoint-output.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
-import { resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
+import { PLAIN_CSS_KINDS, type StylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 
 export { DEV_TRANSFORM_URL_PREFIX } from '../../hmr/hmr-asset-paths.ts';
 
@@ -13,7 +13,7 @@ const FS_URL_SEGMENT = '@fs';
 
 function toDevTransformUrlPath(relativeOrAbsolutePath: string): string {
 	const relativePathJs = relativeOrAbsolutePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-	return encodeHmrDynamicSegments(relativePathJs).split(path.sep).map(encodeURIComponent).join('/');
+	return encodeHmrDynamicSegments(relativePathJs).split('/').map(encodeURIComponent).join('/');
 }
 
 function isInsideAllowedRoot(filePath: string, allowedRoots: readonly string[]): boolean {
@@ -26,7 +26,8 @@ function isInsideAllowedRoot(filePath: string, allowedRoots: readonly string[]):
  * @remarks
  * Files under `srcDir` keep path-relative URLs. Files in `extraRoots` (workspace
  * packages) use `/assets/__eco_dev__/@fs/...` so an island outside the app folder
- * can still hydrate.
+ * can still hydrate. The absolute path follows `@fs/` without its leading `/`, so a Windows path keeps its drive
+ * letter as the first segment (`@fs/D%3A/repo/...`).
  */
 export function resolveDevTransformModuleUrl(
 	srcDir: string,
@@ -49,8 +50,12 @@ export function resolveDevTransformModuleUrl(
 	return `${DEV_TRANSFORM_URL_PREFIX}/${FS_URL_SEGMENT}/${fsPath}`;
 }
 
-function resolveExistingModuleFile(jsPath: string, allowedRoots: readonly string[]): string | undefined {
-	if (resolveDevTransformModuleKind(jsPath) === 'stylesheet') {
+function resolveExistingModuleFile(
+	jsPath: string,
+	allowedRoots: readonly string[],
+	kinds: StylesheetKinds,
+): string | undefined {
+	if (kinds.isStylesheet(jsPath)) {
 		if (isInsideAllowedRoot(jsPath, allowedRoots) && fileSystem.exists(jsPath)) {
 			return jsPath;
 		}
@@ -82,6 +87,7 @@ export function resolveDevTransformModuleSourcePath(
 	srcDir: string,
 	moduleUrl: string,
 	extraRoots: readonly string[] = [],
+	kinds: StylesheetKinds = PLAIN_CSS_KINDS,
 ): string | undefined {
 	const pathname = stripModuleUrlQuery(moduleUrl);
 	const prefix = `${DEV_TRANSFORM_URL_PREFIX}/`;
@@ -100,11 +106,11 @@ export function resolveDevTransformModuleSourcePath(
 	const fsPrefix = `${FS_URL_SEGMENT}/`;
 
 	if (relativeUrlPath.startsWith(fsPrefix)) {
-		const absoluteJsPath = path.resolve(`/${decodeHmrDynamicSegments(relativeUrlPath.slice(fsPrefix.length))}`);
-		return resolveExistingModuleFile(absoluteJsPath, allowedRoots);
+		const fsPath = decodeHmrDynamicSegments(relativeUrlPath.slice(fsPrefix.length));
+		const absoluteJsPath = path.resolve(path.isAbsolute(fsPath) ? fsPath : `/${fsPath}`);
+		return resolveExistingModuleFile(absoluteJsPath, allowedRoots, kinds);
 	}
 
-	const relativePathJs = relativeUrlPath.split('/').join(path.sep);
-	const decodedRelativePathJs = decodeHmrDynamicSegments(relativePathJs);
-	return resolveExistingModuleFile(path.resolve(resolvedSrcDir, decodedRelativePathJs), allowedRoots);
+	const decodedRelativePathJs = decodeHmrDynamicSegments(relativeUrlPath);
+	return resolveExistingModuleFile(path.resolve(resolvedSrcDir, decodedRelativePathJs), allowedRoots, kinds);
 }

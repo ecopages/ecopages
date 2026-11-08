@@ -49,7 +49,6 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	processors: [postcssProcessorPlugin(tailwindV3Preset())],
 });
 ```
@@ -75,7 +74,7 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
-const appRoot = import.meta.dirname;
+const appRoot = process.cwd();
 
 export default defineConfig({
 	rootDir: appRoot,
@@ -90,6 +89,8 @@ export default defineConfig({
 	integrations: [ecopagesJsxPlugin()],
 });
 ```
+
+For Tailwind v4 without PostCSS, see the [Tailwind v4 preset of the Lightning CSS Processor](/docs/ecosystem/lightningcss-processor#tailwind-v4), which shows both setups side by side.
 
 ### Browser Support
 
@@ -126,7 +127,6 @@ import { defineConfig } from '@ecopages/core/config';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	processors: [postcssProcessorPlugin()],
 });
 ```
@@ -157,7 +157,6 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	processors: [
 		postcssProcessorPlugin({
 			// Define a filter for files to process (defaults to /\.css$/)
@@ -176,9 +175,7 @@ export default defineConfig({
 
 ## Using CSS Imports
 
-To enable CSS imports in your TypeScript/JavaScript files (e.g., `import styles from './styles.css'`), you **must** add the `postcssProcessorPlugin` to your `eco.config.ts` as shown above.
-
-This plugin registers the build-time CSS handling Ecopages uses when those imports are loaded.
+A stylesheet imported with a binding in your TypeScript/JavaScript files (e.g., `import styles from './styles.css'`) is a string of the CSS the `postcssProcessorPlugin` produced, the same in `ecopages dev`, in server rendering and in browser bundles. Without the plugin, the string is the file as written.
 
 ```typescript
 // Component.ts
@@ -188,18 +185,28 @@ import styles from './styles.css';
 console.log(styles);
 ```
 
+### Package stylesheets
+
+A side-effect import of a package stylesheet in a component, such as `import 'react-day-picker/style.css'`, is linked on the Page as published. The processor does not run on it: Tailwind and the preset plugins are written for your own CSS, not for third-party CSS that is already built. Ecopages still copies the fonts and images its relative `url()` references into the build. To run a package stylesheet through PostCSS, `@import` it from one of your own stylesheets instead; that needs `postcss-import` in the plugin list. The presets' `postcss-import` rebases the relative `url()` references of each file it inlines, so the fonts and images they name are copied into the build as well. A plain `postcss-import` in your own `postcss.config` does not rebase them: they then resolve from your stylesheet and usually name nothing, so use the presets for package `@import`s.
+
+Ecopages copies the files that the relative `url()` references of your processed stylesheets name, resolved from the source file. Only a font (`woff2`, `woff`, `ttf`, `otf`, `eot`), image (`png`, `jpg`, `jpeg`, `gif`, `webp`, `avif`, `svg`, `ico`, `bmp`, `cur`) or media file (`mp4`, `webm`, `ogg`, `mp3`, `wav`) is copied, never a dotfile; a reference to any other file is left as written with a warning, so a package cannot publish a file such as `.env`. A reference to a missing file is also left as written with a warning: reference a file in `src/public/` with a root-relative URL such as `/images/hero.png`. CSS imported from JavaScript (`import styles from './styles.css'`) is returned as a string and its references are not rewritten.
+
 ## Processing Methods
 
 The processor also exports standalone methods if you need to process CSS programmatically:
 
 ```typescript
-import { PostCssProcessor } from '@ecopages/postcss-processor';
-
-// Process a file
-const cssFromFile = await PostCssProcessor.processPath('path/to/file.css');
+import postcssImport from 'postcss-import';
+import { PostCssProcessor, transformWithPostcss } from '@ecopages/postcss-processor';
 
 // Process a string
 const cssString = await PostCssProcessor.processStringOrBuffer('.foo { @apply bg-red-500; }', { filePath: 'mock.css' });
+
+// Process a string and list the files its plugins read, such as the partials postcss-import inlined
+const { css, dependencies } = await transformWithPostcss("@import './base.css';", {
+	filePath: 'src/main.css',
+	plugins: [postcssImport()],
+});
 ```
 
 ## Error Handling
@@ -207,10 +214,11 @@ const cssString = await PostCssProcessor.processStringOrBuffer('.foo { @apply bg
 The processor includes built-in error handling:
 
 - File not found errors are thrown with clear messages.
-- Processing errors are caught and logged.
-- On error (e.g., syntax error in CSS), processing methods return an empty string to prevent build crashes, while logging the error details.
+- A processing error (for example a syntax error or an unknown utility in `@apply`) is thrown. A `CssSyntaxError` names the file, line and column. `ecopages build` fails, and `ecopages dev` shows the error overlay and keeps the last good stylesheet. Fixing the file clears the overlay without a restart, even when the fix restores the previous content.
+- PostCSS warnings are logged with the file and line, once per stylesheet.
 
 ## See also
 
+- [Lightning CSS Processor](/docs/ecosystem/lightningcss-processor) — the native alternative for plain CSS
 - [Custom Processor](/docs/plugins/custom-processor) — authoring processors
 - [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when processor hooks run

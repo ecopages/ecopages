@@ -1,6 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { jsx as kitaJsx } from '@kitajs/html/jsx-runtime';
 import type { EcoComponent, EcoPageComponent, EcoPageFile, HtmlTemplateProps } from '@ecopages/core';
@@ -37,7 +37,7 @@ afterEach(() => {
 describe('Kita static export', () => {
 	it('renders pages of one Integration concurrently and exports both', async () => {
 		availableParallelismMock.mockReturnValue(3);
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-kita-static-export-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-kita-static-export-')));
 		temporaryRoots.push(rootDir);
 
 		let releaseBarrier!: () => void;
@@ -126,7 +126,11 @@ describe('Kita static export', () => {
 		}
 
 		const integration = new StaticExportKitaPlugin();
-		const appConfig = await createTestAppConfig({ rootDir, integrations: [integration] });
+		const appConfig = await createTestAppConfig({
+			rootDir,
+			integrations: [integration],
+			globalScriptResolution: 'browser-build',
+		});
 		const routeRendererFactory = new RouteRendererFactory({
 			appConfig,
 		});

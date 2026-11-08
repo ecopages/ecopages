@@ -4,7 +4,6 @@ import { html } from 'lit';
 import type { LitCounterProps } from './lit-counter.script';
 
 export const LitCounter = eco.component<LitCounterProps, EcoPagesElement>({
-	integration: 'lit',
 	dependencies: {
 		scripts: [{ src: './lit-counter.script.ts', ssr: true }],
 	},

@@ -1,8 +1,4 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
-import {
-	createBrowserRuntimeManifest,
-	type BrowserRuntimeManifest,
-} from '../build/browser/browser-runtime-manifest.ts';
 import type { AppRuntime } from '../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { EcoPageFile, EcoPagesElement } from '../types/contracts.ts';
@@ -15,18 +11,20 @@ import type { AssetDefinition, ProcessedAsset } from '../assets/asset-processing
 import { deepMerge } from '../utils/deep-merge.ts';
 import type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';
 import { installConfiguredServerDom, type ServerDomInstaller } from './server-dom.ts';
+import type { SsrScriptPreload } from '../route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader.ts';
 
 export type { ServerDomInstaller, ServerDomSurfaceKind } from './server-dom.ts';
 
 export type {
+	EcoBuildFilter,
 	EcoBuildLoader,
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
-	EcoBuildImportKind,
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
+	EcoBuildResolvedId,
 } from '../build/contracts/build-types.ts';
 export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../types/contracts.ts';
 export type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';
@@ -43,8 +41,8 @@ export type {
  * renderer still owns its framework-specific render payload type internally.
  *
  * @remarks
- * The plugin contract currently constructs the Build-layer asset service and runtime manifest; #556
- * tracks moving those implementations behind the plugin contracts layer.
+ * The plugin contract currently constructs the Build-layer asset service; #556 tracks moving that
+ * implementation behind the plugin contracts layer.
  */
 export type AnyIntegrationPlugin = IntegrationPlugin<unknown>;
 
@@ -91,8 +89,6 @@ export interface IntegrationPluginConfig {
 	 * integration.
 	 */
 	jsxImportSource?: string;
-	/** Browser runtime rewrites declared as data for the app build manifest. */
-	browserRuntimeManifest?: BrowserRuntimeManifest;
 }
 
 type RendererClass<C> = new (
@@ -119,8 +115,7 @@ export type IntegrationRendererBase = IntegrationRendererOptions & {
  *
  * Core owns lifecycle ordering. Integrations declare contributions through the
  * hooks on this class, while config finalization and app startup decide when
- * those hooks run. `plugins` declares environment-selected build hooks and
- * `browserRuntimeManifest` declares client import rewrites. For page-browser and
+ * those hooks run. `plugins` declares environment-selected build hooks. For page-browser and
  * document shaping, integrations should prefer the contribution contracts
  * re-exported from this module:
  * `PageBrowserGraphContribution` / `PageBrowserGraphContributionContext` and
@@ -131,7 +126,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly extensions: string[];
 	abstract renderer: RendererClass<C>;
 	readonly jsxImportSource?: string;
-	readonly browserRuntimeManifest: BrowserRuntimeManifest;
 
 	/**
 	 * Whether this Integration's Pages can receive Params from `[param]` and `[...param]`
@@ -154,9 +148,18 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Omit this when the Integration does not install DOM globals.
 	 */
 	readonly serverDom?: ServerDomInstaller;
+	/**
+	 * Which `ssr: true` Component scripts this Integration's custom-element preloader evaluates.
+	 *
+	 * @remarks
+	 * Core assigns each `ssr: true` script to exactly one preloader: the preloading Integration that owns the
+	 * declaring Component, else the first `'own-and-foreign'` Integration in config order. Omit this when the
+	 * Integration has no custom-element preloader: a preloader whose Integration omits it is assigned no script.
+	 */
+	readonly ssrScriptPreload?: SsrScriptPreload;
 
 	protected integrationDependencies: AssetDefinition[];
-	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
+	protected readonly resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	protected appConfig?: EcoPagesAppConfig;
 	protected runtime?: AppRuntime;
 	protected assetProcessingService?: AssetProcessingService;
@@ -189,7 +192,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.extensions = config.extensions;
 		this.integrationDependencies = config.integrationDependencies || [];
 		this.jsxImportSource = config.jsxImportSource;
-		this.browserRuntimeManifest = config.browserRuntimeManifest ?? createBrowserRuntimeManifest();
 	}
 
 	/**
@@ -221,10 +223,39 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	reviveCompiledPageModule?(contents: string, context: { rootDir: string; filePath: string }): EcoPageFile;
 
 	/**
-	 * Returns processed global assets resolved during `setup()`.
+	 * Returns this Integration's processed global assets.
+	 *
+	 * @remarks
+	 * The list is one array for the plugin's lifetime. {@link refreshResolvedIntegrationDependencies} updates it in
+	 * place, so a renderer that holds it, across a teardown and a later setup too, sees each new resolution. Each
+	 * `setup()` empties it; it stays empty until the Integration's activation, or the browser build of a
+	 * `'browser-build'` runtime, resolves it. A subclass updates it in place or calls
+	 * {@link refreshResolvedIntegrationDependencies}; it never replaces it.
 	 */
 	getResolvedIntegrationDependencies(): ProcessedAsset[] {
 		return this.resolvedIntegrationDependencies;
+	}
+
+	/** Returns the global assets this Integration adds to every Page it takes part in, before processing. */
+	getIntegrationDependencies(): readonly AssetDefinition[] {
+		return this.integrationDependencies;
+	}
+
+	/**
+	 * Processes the global assets and replaces the resolved list in place.
+	 *
+	 * @remarks
+	 * `setup()` does not call it. Core's activation calls it right after a successful `setup()` when the runtime's
+	 * `globalScriptResolution` is `'activation'`: in dev and in `ecopages start` (whose ledger is restored before any
+	 * activation). A production build and the Lit static-render worker run a `'browser-build'` runtime: the build
+	 * calls it after the app-wide browser build (or when it plans no route), the worker after restoring the asset
+	 * ledger. A global script then resolves to that build's output instead of being bundled on its own. Does nothing
+	 * before `setup()`.
+	 */
+	async refreshResolvedIntegrationDependencies(): Promise<void> {
+		if (!this.assetProcessingService) return;
+		const resolved = await this.assetProcessingService.processDependencies(this.integrationDependencies, this);
+		this.resolvedIntegrationDependencies.splice(0, this.resolvedIntegrationDependencies.length, ...resolved);
 	}
 
 	/**
@@ -264,9 +295,22 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	/**
 	 * Returns the renderer shared by this Integration's application runtime.
+	 *
+	 * @remarks
+	 * Creating the renderer checks that {@link ssrScriptPreload} and the renderer's custom-element preloader agree.
+	 * A renderer that builds a preloader without the declaration throws as it builds it. A declaration whose renderer
+	 * builds none throws here, since core would assign the renderer scripts it never evaluates.
 	 */
 	getRenderer(): IntegrationRenderer<C> {
-		this.rendererInstance ??= this.createRenderer(this.createRendererBase());
+		if (!this.rendererInstance) {
+			const renderer = this.createRenderer(this.createRendererBase());
+			if (this.ssrScriptPreload && !renderer.buildsSsrScriptPreloader) {
+				throw new Error(
+					`[ecopages] Integration "${this.name}" declares ssrScriptPreload but its renderer builds no custom-element preloader, so the scripts assigned to it would never be evaluated. Build one with createSsrScriptPreloader() or drop the declaration.`,
+				);
+			}
+			this.rendererInstance = renderer;
+		}
 		this.rendererInstance.name ||= this.name;
 		return this.rendererInstance;
 	}
@@ -287,8 +331,14 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	/**
 	 * Performs runtime integration setup, after config finalization has sealed the build manifest.
+	 *
+	 * @remarks
+	 * Global scripts are not resolved yet: {@link getResolvedIntegrationDependencies} reads them only after
+	 * {@link refreshResolvedIntegrationDependencies} runs. It empties the resolved list in place, so a setup after a
+	 * teardown does not show the previous lifecycle's assets before the next resolution.
 	 */
 	async setup(context: IntegrationRuntimeContext): Promise<void> {
+		this.resolvedIntegrationDependencies.splice(0);
 		await installConfiguredServerDom(context.appConfig.integrations);
 		this.appConfig = context.appConfig;
 		this.runtime = context.runtime;
@@ -297,10 +347,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		if (context.runtime.hmr) {
 			this.assetProcessingService.setHmrManager(context.runtime.hmr);
 		}
-		this.resolvedIntegrationDependencies = await this.assetProcessingService.processDependencies(
-			this.integrationDependencies,
-			this,
-		);
 	}
 
 	/** Registers Integration-owned development behavior against the app runtime. */

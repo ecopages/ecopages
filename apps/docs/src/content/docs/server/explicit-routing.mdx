@@ -43,7 +43,7 @@ await app.start();
 
 ## Rendering Views
 
-Route handlers render `eco.page` views with `ctx.render(View, props)`. Import the view: an Integration-owned file becomes a view reference, so development reloads on save and production reads the built module.
+Route handlers render `eco.page` views with `ctx.render(View, props)`. Import the view: the default export of an Integration-owned file becomes a view reference, so development reloads on save and production reads the built module. A file without a default export, such as a file of named plain components, imports as itself. Any default export of an Integration-owned file counts as a view, so import only the default from a view file, and export a component the server entry imports by name.
 
 ```typescript
 import PostView from './src/views/post-view.kita';
@@ -74,10 +74,16 @@ When neither a pages error file nor an app loader is configured, Ecopages serves
 | Hook | Usage |
 | :--- | :--- |
 | `eco-error-page` | Root `<body>` class on built-in pages |
-| `eco-error-page--not-found` / `eco-error-page--server-error` | Status modifier |
-| `eco-error-page__title`, `eco-error-page__message`, `eco-error-page__stack` | Text regions |
-| `eco-error-page__copy` | Development-only copy button on the default 500 page (icon + label; adds `eco-error-page__copy--copied` after a successful copy) |
-| `eco-error-page__copy-icon`, `eco-error-page__copy-label` | Clipboard / check icons and label text inside the copy button |
+| `eco-error-page--bad-request`, `eco-error-page--unauthorized`, `eco-error-page--forbidden`, `eco-error-page--not-found`, `eco-error-page--conflict` | Status modifier for 400, 401, 403, 404 and 409 |
+| `eco-error-page--server-error` | Status modifier for 500 and any other 5xx |
+| `eco-error-page--status-<code>` | Status modifier for any other 4xx, such as `eco-error-page--status-418` |
+| `eco-error-page__content` | The card that holds the page text |
+| `eco-error-page__status`, `eco-error-page__title`, `eco-error-page__message` | Status line (`ERROR 404`), heading and message |
+| `eco-error-page__diagnostic-message` | Development-only message on the default 500 page, shown when there is no stack or the stack does not open with it; also carries `eco-error-page__message` |
+| `eco-error-page__diagnostics`, `eco-error-page__diagnostics-header`, `eco-error-page__diagnostics-label` | Development-only stack panel on the default 500 page, its header row and its `Stack trace` label |
+| `eco-error-page__stack` | The stack trace inside the panel |
+| `eco-error-page__copy` | Development-only copy button, in the panel header, or after the message when there is no stack; adds `eco-error-page__copy--copied` after a successful copy and `eco-error-page__copy--failed` after a failed one |
+| `eco-error-page__copy-icon`, `eco-error-page__copy-label` | Icons and label inside the copy button. It holds both `eco-error-page__copy-icon--clipboard` and `eco-error-page__copy-icon--success`; the stylesheet shows the success icon only after a successful copy |
 
 To match your site chrome, register `eco.page` views with `app.notFound()` / `app.serverError()` and style them like any other view. Common conventions:
 
@@ -410,7 +416,7 @@ Import the view and pass it to `app.static()`. Development reloads it through th
 // src/views/post-view.tsx
 import { eco } from '@ecopages/core';
 
-const PostView = eco.page<PostViewProps>({
+const PostView = eco.page({
 	staticPaths: async () => {
 		const posts = await getPosts();
 		return {
@@ -418,12 +424,17 @@ const PostView = eco.page<PostViewProps>({
 		};
 	},
 
-	staticProps: async ({ params }) => {
-		const post = await getPost(params.slug);
+	staticProps: async ({ pathname }) => {
+		const post = await getPost(String(pathname.params.slug));
 		return { props: { title: post.title, content: post.content } };
 	},
 
-	render: (props) => <article>...</article>
+	render: ({ title, content }) => (
+		<article>
+			<h1>{title}</h1>
+			<div>{content}</div>
+		</article>
+	)
 });
 
 export default PostView;
@@ -438,7 +449,9 @@ Define `eco.page` views anywhere in your codebase. Views used with `app.static()
 import { eco } from '@ecopages/core';
 import { MainLayout } from '@/layouts/main-layout';
 
-const PostView = eco.page<PostViewProps>({
+type PostViewProps = { title: string; content: string; authorName: string };
+
+const PostView = eco.page({
 	layout: MainLayout,
 
 	metadata: ({ props }) => ({
@@ -450,7 +463,7 @@ const PostView = eco.page<PostViewProps>({
 		stylesheets: ['/styles/post.css']
 	},
 
-	render: ({ title, content }) => (
+	render: ({ title, content }: PostViewProps) => (
 		<article>
 			<h1>{title}</h1>
 			<div>{content}</div>

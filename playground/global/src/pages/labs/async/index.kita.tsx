@@ -8,9 +8,7 @@ const getData = async () => {
 };
 
 export default eco.page({
-	dependencies: {
-		components: [BaseLayout],
-	},
+	cache: 'dynamic',
 
 	render: async () => {
 		const data = await getData();

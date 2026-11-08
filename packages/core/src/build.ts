@@ -1,21 +1,12 @@
-export {
-	type BrowserRuntimeAssetDeclaration,
-	type BrowserRuntimeManifest,
-	createBrowserRuntimeManifest,
-	getBrowserRuntimeSpecifierMap,
-} from './build/browser/browser-runtime-manifest.ts';
-export {
-	createBrowserRuntimePlugin,
-	DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME,
-	getBrowserRuntimeManifestFromPlugin,
-} from './build/browser/browser-runtime-plugin.ts';
-export { getHostScopedJsxOwnershipPlugins } from './build/browser/jsx-ownership-plugins.ts';
+export { findJsxExtensionOwner, getHostScopedJsxOwnershipPlugins } from './build/browser/jsx-ownership-plugins.ts';
 export { isLitStaticRenderWorkerThread } from './build/browser/lit-static-render-worker-context.ts';
+export { restoreProductionBrowserBuild } from './static-site-generator/production-page-browser-graph-prebuild.ts';
 export {
 	type BuildAdapter,
 	type BuildExecutor,
 	type BuildOptions,
 	type BuildResult,
+	resolveIntegrationDependencies,
 	setupAppRuntimeIntegrations,
 	setupAppRuntimePlugins,
 	teardownAppRuntimeIntegrations,
@@ -52,9 +43,20 @@ export {
 	recordMdxTransform,
 	type RequestPipelineMetricsState,
 } from './diagnostics/request-pipeline-metrics.ts';
+export { findIntegrationForFile } from './plugins/find-integration-for-file.ts';
 export { toPackageRootSpecifier } from './plugins/package-specifier.ts';
-export { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from './plugins/tsconfig-import-resolver.ts';
+export {
+	loadTsconfigPathPrefixes,
+	matchesTsconfigPathPrefix,
+	resolveProjectModulePath,
+} from './plugins/tsconfig-import-resolver.ts';
+export {
+	ENTRY_COMMAND_FLAGS,
+	getEntryCommandFlagNames,
+	type EntryCommandFlagName,
+} from './utils/entry-command-flags.ts';
 export { contentHash } from './utils/content-hash.ts';
+export { toRootRelativePath } from './utils/root-relative-path.ts';
 export { isPathInside } from './utils/path-containment.ts';
 export { CLIENT_OUTPUT_DIR, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from './utils/resolve-entry-file.ts';
 export {

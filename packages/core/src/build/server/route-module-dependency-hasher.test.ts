@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { describe, it } from 'vitest';
 import { RouteModuleDependencyHasher, resolveRouteModuleDependencyPaths } from './route-module-dependency-hasher.ts';
 
@@ -59,22 +59,26 @@ describe('RouteModuleDependencyHasher', () => {
 	it('resolves dependency paths from build results', () => {
 		const dependencyPaths = resolveRouteModuleDependencyPaths(
 			{
-				loadedInputsByModule: { '/app/pages/about.tsx': ['/app/data/posts.json'] },
 				dependencyGraph: {
 					entrypoints: {
-						'/app/pages/about.tsx': [
-							'/app/pages/about.tsx',
-							'/app/layouts/shared.tsx',
+						[path.resolve('/app/pages/about.tsx')]: [
+							path.resolve('/app/pages/about.tsx'),
+							path.resolve('/app/layouts/shared.tsx'),
 							'node:fs',
-							'/app/node_modules/react/index.js',
+							path.resolve('/app/node_modules/react/index.js'),
+							path.resolve('/app/data/posts.json'),
 						],
 					},
 				},
 			},
-			'/app/pages/about.tsx',
+			path.resolve('/app/pages/about.tsx'),
 			'/app',
 		);
 
-		assert.deepEqual(dependencyPaths, ['/app/pages/about.tsx', '/app/layouts/shared.tsx', '/app/data/posts.json']);
+		assert.deepEqual(dependencyPaths, [
+			path.resolve('/app/pages/about.tsx'),
+			path.resolve('/app/layouts/shared.tsx'),
+			path.resolve('/app/data/posts.json'),
+		]);
 	});
 });

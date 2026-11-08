@@ -17,6 +17,20 @@ describe('getEcoNavigationRuntime', () => {
 		expect(first).toBe(second);
 	});
 
+	it('asks registered and later runtimes once to preserve reload state', () => {
+		const runtime = getEcoNavigationRuntime(createWindowLike());
+		const early = vi.fn();
+		const late = vi.fn();
+		runtime.register({ owner: 'browser-router', enableReloadStatePreservation: early });
+
+		runtime.enableReloadStatePreservation();
+		runtime.enableReloadStatePreservation();
+		runtime.register({ owner: 'react-router', enableReloadStatePreservation: late });
+
+		expect(early).toHaveBeenCalledTimes(1);
+		expect(late).toHaveBeenCalledTimes(1);
+	});
+
 	it('tracks explicit ownership claims', () => {
 		const windowLike = createWindowLike();
 		const runtime = getEcoNavigationRuntime(windowLike);

@@ -9,8 +9,8 @@ import tailwindcss from '@tailwindcss/postcss';
 import autoprefixer from 'autoprefixer';
 import browserslist from 'browserslist';
 import cssnano from 'cssnano';
-import path from 'node:path';
-import type postcss from 'postcss';
+import { path } from '@ecopages/file-system/path';
+import postcss from 'postcss';
 import postcssNested from 'postcss-nested';
 import { createAppAwarePostcssImport, resolveAppRootFromPath } from '../postcss-import-app-aware.ts';
 import type { PluginFactoryRecord, PostCssProcessorPluginConfig } from '../plugin.ts';
@@ -24,6 +24,31 @@ export interface TailwindV4PresetOptions {
 	 * Used to calculate relative @reference paths for CSS files using @apply.
 	 */
 	referencePath: string;
+}
+
+/**
+ * Adds `@reference` after the `@charset`, `@layer` and `@import` statements that open the stylesheet.
+ *
+ * @remarks
+ * `postcss-import` inlines an `@import` only when every statement before it is an `@import`, a `@charset` or an empty
+ * `@layer`, so a `@reference` placed first would leave the stylesheet's imports unresolved. PostCSS counts offsets
+ * after a leading byte order mark, so the mark is set aside while the stylesheet is cut.
+ */
+function insertReference(css: string, referencePath: string): string {
+	const statement = `@reference "${referencePath}";`;
+	const bom = css.startsWith('\uFEFF') ? '\uFEFF' : '';
+	const body = css.slice(bom.length);
+	let end = 0;
+	for (const node of postcss.parse(body).nodes) {
+		const isLeading =
+			node.type === 'comment' ||
+			(node.type === 'atrule' &&
+				(node.name === 'charset' || node.name === 'import' || (node.name === 'layer' && !node.nodes)));
+		if (!isLeading) break;
+		end = node.source?.end ? node.source.end.offset : end;
+	}
+	if (end === 0) return `${bom}${statement}\n\n${body}`;
+	return `${bom}${body.slice(0, end)}\n${statement}${body.slice(end)}`;
 }
 
 /**
@@ -59,7 +84,7 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 	const appRoot = resolveAppRootFromPath(referencePath);
 
 	// Check if browserslist config exists
-	const browserslistConfig = browserslist.loadConfig({ path: process.cwd() });
+	const browserslistConfig = browserslist.loadConfig({ path: path.cwd() });
 	const autoprefixerOptions = browserslistConfig
 		? {}
 		: {
@@ -120,7 +145,7 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 
 			/** If file uses @apply but has no tailwind import, add @reference */
 			if (css.includes('@apply')) {
-				return `@reference "${normalizedReferencePath}";\n\n${css}`;
+				return insertReference(css, normalizedReferencePath);
 			}
 
 			return css;

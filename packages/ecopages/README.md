@@ -22,7 +22,7 @@ pnpm install
 pnpm dev
 ```
 
-The commands above run on Node. Bun is optional: launch them through Bun (`bunx ecopages init`, `bun dev`) or pass `--runtime bun` to run the app on Bun.
+The commands above run on Node.js `^24.22.0 || >=26.0.0`; the CLI exits with an error on any other version. Bun is optional: launch them through Bun (`bunx ecopages init`, `bun dev`) or pass `--runtime bun` to run the app on Bun.
 
 ## Commands
 
@@ -50,7 +50,7 @@ ecopages init my-site --template jsx
 ecopages init my-site --from github:acme/my-template#v1.0.0
 ```
 
-The official template IDs are `jsx`, `html`, `react`, `react-shadcn`, `lit-jsx`, `radiant`, `blog-jsx`, `blog-react`, `docs-starter`, `react-better-auth`, and `llm-wiki`.
+The official template IDs are `jsx`, `jsx-postcss`, `jsx-css-modules`, `html`, `react`, `react-postcss`, `react-shadcn`, `lit-jsx`, `radiant`, `blog-jsx`, `blog-react`, `docs-starter`, `react-better-auth`, and `llm-wiki`.
 
 ## Environment & Runtime Options
 

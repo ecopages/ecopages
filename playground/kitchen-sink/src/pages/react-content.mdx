@@ -5,7 +5,6 @@ import { ReactCounter } from '../components/react-counter.react';
 export const config = {
 	layout: ReactPlaygroundLayout,
 	dependencies: {
-		components: [ReactCounter, LitCounter],
 		stylesheets: ['./docs.css'],
 	},
 };
@@ -25,7 +24,7 @@ This route is rendered through `@ecopages/react`, while the document shell stays
 
 <div className="flex flex-wrap gap-3 my-6 not-prose">
 	<ReactCounter />
-	<lit-counter count={1}></lit-counter>
+	<LitCounter count={1} />
 </div>
 
 ## Route handoff

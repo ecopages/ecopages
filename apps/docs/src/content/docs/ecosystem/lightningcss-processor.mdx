@@ -1,0 +1,194 @@
+---
+title: 'Lightning CSS Processor'
+description: 'Bundle @import, lower CSS for browser targets and minify with Lightning CSS.'
+order: 9
+---
+
+import { CodeTabs } from '@/components/code-tabs';
+
+# Lightning CSS Processor
+
+The `@ecopages/lightningcss-processor` package is a stylesheet Processor that runs [Lightning CSS](https://lightningcss.dev). It bundles `@import`, lowers modern CSS for the browsers you target, and minifies, in one native step with nothing else to configure.
+
+## Which processor to pick
+
+| Your stylesheets                                                               | Pick                                                                      |
+| :----------------------------------------------------------------------------- | :------------------------------------------------------------------------ |
+| Plain CSS: nesting, `color-mix()`, `@import` with `layer()` and media          | Lightning CSS                                                             |
+| Tailwind v4 with Lightning CSS features: targets, bundling, CSS Modules        | Lightning CSS, with the [Tailwind v4 preset](#tailwind-v4)                |
+| Tailwind v4 on PostCSS                                                         | [PostCSS Processor](/docs/ecosystem/postcss-processor)                    |
+| A setup built on PostCSS plugins                                               | [PostCSS Processor](/docs/ecosystem/postcss-processor)                    |
+| Tailwind v3                                                                    | [PostCSS Processor](/docs/ecosystem/postcss-processor)                    |
+
+CSS Modules are in this package, see [CSS Modules](#css-modules). An app has one stylesheet Processor, so choosing this one replaces the PostCSS Processor. Do not register both.
+
+## Installation
+
+<CodeTabs
+	name="lightningcss-processor-install"
+	tabs={[
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/lightningcss-processor' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/lightningcss-processor' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/lightningcss-processor' },
+	]}
+	defaultSelectedKey="npm"
+/>
+
+## Usage
+
+```typescript
+import { defineConfig } from '@ecopages/core/config';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+
+export default defineConfig({
+	processors: [lightningCssProcessorPlugin({ targets: ['chrome >= 90', 'safari >= 15'] })],
+});
+```
+
+## Options
+
+| Option          | Description                                                                                          |
+| :-------------- | :--------------------------------------------------------------------------------------------------- |
+| `targets`       | Browserslist queries, a string or an array. Unset, nothing is lowered.                               |
+| `minify`        | Minify the CSS. On in production, off otherwise.                                                     |
+| `drafts`        | Draft syntax, such as `{ customMedia: true }`.                                                       |
+| `nonStandard`   | Non-standard syntax, such as `{ deepSelectorCombinator: true }`.                                     |
+| `include`       | Names of Lightning CSS `Features` to compile even when `targets` support them, such as `['Nesting']`. |
+| `exclude`       | Names of `Features` to leave as written even when `targets` do not support them.                     |
+| `visitor`       | A Lightning CSS visitor, run over every stylesheet.                                                  |
+| `plugins`       | [Plugins](#plugins) that rewrite the source or visit the rules of every stylesheet, in order.        |
+| `errorRecovery` | Drop a rule Lightning CSS cannot parse with a warning, instead of failing the stylesheet.            |
+| `filter`        | Regex that picks the stylesheets to process. Default `/\.css$/`.                                     |
+| `cssModules`    | `{ pattern }`: how scoped class names are built. Default `'[hash]_[local]'`.                         |
+
+## Tailwind v4
+
+`tailwindV4Preset({ referencePath })` runs Tailwind v4 inside the Processor, without PostCSS. Each stylesheet goes through Tailwind, then through the Processor's own steps: `@import` bundling, `targets`, minifying and CSS Modules. Install Tailwind and its scanner, which are optional peers so plain Lightning CSS apps never install them:
+
+<CodeTabs
+	name="lightningcss-processor-tailwind-v4"
+	tabs={[
+		{ id: 'npm', label: 'npm', code: 'npm install -D @tailwindcss/node @tailwindcss/oxide tailwindcss' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add -D @tailwindcss/node @tailwindcss/oxide tailwindcss' },
+		{ id: 'bun', label: 'bun', code: 'bun add -d @tailwindcss/node @tailwindcss/oxide tailwindcss' },
+	]}
+	defaultSelectedKey="npm"
+/>
+
+The two setups side by side, with the same `referencePath`, a stylesheet that contains `@import "tailwindcss";`:
+
+<CodeTabs
+	name="tailwind-v4-setups"
+	tabs={[
+		{
+			id: 'lightningcss',
+			label: 'Lightning CSS',
+			file: 'src/snippets/lightningcss-tailwind-v4.txt',
+			lang: 'typescript',
+		},
+		{
+			id: 'postcss',
+			label: 'PostCSS',
+			file: 'src/snippets/postcss-tailwind-v4.txt',
+			lang: 'typescript',
+		},
+	]}
+	defaultSelectedKey="lightningcss"
+/>
+
+Both generate the same utility classes. The preset's `targets` are the Processor's own option, so the output is lowered for those browsers; the PostCSS preset uses autoprefixer and a browserslist instead.
+
+- A stylesheet that uses `@apply`, and every CSS Module, gets an `@reference` to `referencePath`, so `@apply` finds the theme and utilities of the app. `@reference` emits nothing of the entry, so the utilities are not repeated.
+- Tailwind scans the files of the app that git does not ignore, plus the `@source` directives of the stylesheet, for class names.
+- In development, a saved template that uses a class the stylesheet lacks rebuilds that stylesheet and refreshes it in the browser. A saved file that Tailwind does not scan, such as a lockfile, rebuilds nothing.
+- A stylesheet Tailwind rejects, such as an `@apply` of a utility that does not exist, fails `ecopages build` and shows the error in `ecopages dev`, which keeps the last good stylesheet until a save fixes it.
+
+## Plugins
+
+A plugin is `{ name, transformSource?(css, file), visitor? }`. `transformSource` rewrites a stylesheet before Lightning CSS parses it, and before the Tailwind preset runs, so what it writes can use `@apply`. `visitor` is a Lightning CSS `Visitor`, composed with the `visitor` option. Plugins run in the order of the array, on every stylesheet: the entry, each imported partial (including the ones the Tailwind preset inlines) and every CSS Module.
+
+### Suffix nesting
+
+Lightning CSS stays standard by default: Sass-style suffix nesting, such as `.button { &--primary { ... } }` or `&__element`, fails the build. If you like that style, opt in with the `suffixNesting()` plugin:
+
+```typescript
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { suffixNesting } from '@ecopages/lightningcss-processor/plugins/suffix-nesting';
+
+lightningCssProcessorPlugin({
+	...tailwindV4Preset({ referencePath }),
+	targets: ['chrome >= 111', 'safari >= 16.4'],
+	plugins: [suffixNesting()],
+});
+```
+
+- `&--x`, `&__x` and `&-x` become the parent selectors with the suffix appended: `.button, a.button { &--primary { ... } }` is written as `.button--primary, a.button--primary { ... }` after the rule it came from. Rules nested in it, such as `&:hover svg`, and the order of the cascade keep working.
+- It also expands inside `:is()`, `:where()` and `:not()`, and in an `@media` that sits in the parent.
+- Every parent selector must be one compound selector that ends in a class, id or type. A parent such as `.card .title` or `.a:hover` fails the build with the file, line, column and selector.
+- `@apply` works inside the expanded rules, and CSS Modules are scoped after the expansion.
+- Anything a plugin leaves invalid still fails the build, so a mistyped rule is not dropped silently.
+
+## Imports
+
+`@import` is bundled with its `layer()`, `supports()` and media conditions. A relative path, a tsconfig alias or a package name resolves. A stylesheet imported twice appears once, at its last import, and an import that closes a cycle is skipped with a warning.
+
+A root-relative or remote `@import` stays external and moves to the top of the output. An `@import` of a missing file, a dotfile or a file that is not `.css` is left as written with a warning that names the importing file. Relative `url()` references of an imported partial are rewritten to name the same file from the importing stylesheet, and the files they name are copied to the build output.
+
+## CSS Modules
+
+A stylesheet named `*.module.css` is a CSS Module. Import it and use the class names it exports:
+
+```tsx
+import styles from './button.module.css';
+
+export const Button = eco.component({
+	render: () => <button class={styles.primary}>Save</button>,
+});
+```
+
+To combine several classes, an Ecopages JSX element takes `classes`, which accepts a string, an array, an object whose truthy keys are kept, or a signal holding one of those. `class` stays for a single string. React takes a string in `className`:
+
+```tsx
+import styles, { primary } from './button.module.css';
+
+// Ecopages JSX
+<button classes={[primary, { [styles['is-active']]: isActive }]}>Save</button>;
+
+// React
+<button className={`${primary} ${isActive ? styles['is-active'] : ''}`}>Save</button>;
+```
+
+- The server HTML, the browser bundle and the hydrated island use the same scoped names. Ecopages links the scoped CSS on the Page that renders the component, like any other stylesheet of the component.
+- The default export is a read-only map of the local class name to the scoped one. `composes` adds the composed names to the entry, so `class={styles.primary}` carries them.
+- Each class whose name is a valid JavaScript identifier is also a named export: `import { primary } from './button.module.css'`. Names are not renamed, so `is-active` is available as `styles['is-active']` only.
+- Names are `[hash]_[local]`, hashed from the path relative to the app, so a build gives the same names in any folder. Set `cssModules: { pattern }` to change the pattern.
+- `composes: base from './base.module.css'` bundles the other file.
+- Type the default import with the declaration core ships: `import '@ecopages/core/declarations'` in your `modules.d.ts`.
+- Type the named exports with `ecopages types`, which writes one declaration per CSS Module into `node_modules/@types/ecopages-css-modules`. The official templates already list that folder in `tsconfig.json`; an existing app adds the lines below. `import { secondary }` and `styles.secondary` then fail type checking when the file has no `.secondary`. In development the declarations are rewritten when a CSS Module changes.
+- A browser script that imports a CSS Module gets the same class names; the CSS reaches the Page when the component that uses the script imports the module too or lists it in `dependencies.stylesheets`.
+- A package can ship a CSS Module: `import styles from 'ui-kit/button.module.css'` is scoped by this Processor, with no preprocessor (Tailwind) or other app processing, and its names hash the package name and the path inside it, so they are identical in every folder and package-manager layout. The package must export the `.module.css` file, and its `url()` references are copied like any package stylesheet's. A module of the package that imports its own CSS Module works when your page, layout or component imports that module with a static import; otherwise the build fails and names both files, instead of dropping the CSS.
+- Without this Processor, importing a CSS Module fails the build and names the importing file.
+
+```json
+{
+	"compilerOptions": {
+		"rootDirs": ["./src", "./node_modules/@types/ecopages-css-modules"],
+		"paths": { "@/*": ["./src/*", "./node_modules/@types/ecopages-css-modules/*"] }
+	}
+}
+```
+
+`rootDirs` types relative imports, and the second `paths` entry types imports through an alias such as `@/components/button.module.css`. Change `./src` if your sources live elsewhere. `ecopages types` and the dev server warn, with these lines, when the app has CSS Modules and `tsconfig.json` does not list the folder. A CSS Module without a declaration, such as one added before `ecopages types` ran, keeps the default export typed by core.
+
+In development, an edit to the CSS refreshes the stylesheet in place. An edit that adds, removes or renames a class also updates the components that import the module.
+
+## Error Handling
+
+- A stylesheet Lightning CSS rejects throws an error with the file, line and column. `ecopages build` fails, and `ecopages dev` shows the error overlay and keeps the last good stylesheet until a save fixes it.
+- Warnings are logged with their location, once per stylesheet.
+- Only native CSS nesting is supported by default. Sass-style suffix nesting, such as `.button { &--primary { ... } }` or `&__element`, cannot work: native nesting cannot concatenate selectors, so a browser drops the rule and lowering turns it into a selector that matches nothing. The Processor fails the stylesheet instead, with the file, line, column and the offending selector, every `&` pair of a selector and a hint to write the full selector, such as `.button--primary { ... }`, or to add the [`suffixNesting()` plugin](#suffix-nesting). A type selector after `&`, such as `&div`, gets its own message. The check also covers CSS Modules and the stylesheets the Tailwind v4 preset generates.
+
+## See also
+
+- [PostCSS Processor](/docs/ecosystem/postcss-processor)
+- [Custom Processor](/docs/plugins/custom-processor) — authoring processors

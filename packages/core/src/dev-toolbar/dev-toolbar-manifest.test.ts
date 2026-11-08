@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import { buildDevToolbarManifestPayload } from './dev-toolbar-manifest.ts';
 
-const manifestSourcePath = fileURLToPath(new URL('./dev-toolbar-manifest.ts', import.meta.url));
+const manifestSourcePath = path.fromFileUrl(new URL('./dev-toolbar-manifest.ts', import.meta.url));
 
 describe('buildDevToolbarManifestPayload', () => {
 	it('does not import the optional dev-toolbar package', () => {

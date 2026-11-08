@@ -1,6 +1,8 @@
-import { LitElement, html } from 'lit';
+import { LitElement, html, unsafeCSS } from 'lit';
+import styles from './counter-element.css';
 
 class DiscoveryCounter extends LitElement {
+	static override styles = unsafeCSS(styles);
 	static override properties = { count: { type: Number } };
 	declare count: number;
 	constructor() {

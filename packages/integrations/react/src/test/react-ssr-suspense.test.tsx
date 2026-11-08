@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { AssetProcessingService, IntegrationRendererRenderOptions } from '@ecopages/core/integration';
@@ -13,6 +13,7 @@ import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/
 import { renderToStaticMarkup } from 'react-dom/server';
 import { lazy, Suspense, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
+import { getForeignSubtreeKey, renderForeignSubtreeBoundary } from '../hydration/foreign-subtree.ts';
 import { renderReactHtml, resolveReactRuntimeModules, runWithRenderBudget } from '../render/react-runtime.ts';
 
 class TestReactRenderer extends ReactRenderer {
@@ -29,7 +30,7 @@ class TestReactRenderer extends ReactRenderer {
 	}
 }
 
-const testDir = mkdtempSync(path.join(os.tmpdir(), 'react-ssr-suspense-'));
+const testDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'react-ssr-suspense-')));
 const SUSPENSE_FALLBACK = <i>loading</i>;
 const FALLBACK = renderToStaticMarkup(SUSPENSE_FALLBACK);
 
@@ -223,12 +224,45 @@ describe('React server rendering waits for Suspense', () => {
 			),
 		});
 
-		const html = await renderPage(await createRenderer(), Page);
+		const html = await renderPage(await createRenderer(undefined, { forceBrowserGraph: true }), Page);
 
-		expect(html).toContain('<aside><button data-testid="deferred-widget">Deferred widget</button></aside>');
+		expect(html).toContain(
+			`<aside>${renderForeignSubtreeBoundary(
+				getForeignSubtreeKey(DeferredWidget, {}),
+				'<button data-testid="deferred-widget">Deferred widget</button>',
+			)}</aside>`,
+		);
 		expect(html).not.toContain('eco-marker');
 		expect(html).not.toContain('__ECO_');
 		expect(html).not.toContain(FALLBACK);
+	});
+
+	it('wraps a foreign child of a Layout when the Page hydrates, though the Layout declares no modules', async () => {
+		const Layout = eco.layout<JSX.Element>({
+			integration: 'react',
+			dependencies: { components: [DeferredWidget] },
+			render: ({ children }) => (
+				<div data-layout="root">
+					<ForeignWidget />
+					{children as ReactNode}
+				</div>
+			),
+		});
+		const Page = eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			dependencies: { modules: ['./page.ts'] },
+			layout: Layout as never,
+			render: () => <p>page body</p>,
+		});
+
+		const html = await renderPage(await createRenderer(), Page, Layout);
+
+		expect(html).toContain(
+			`<div data-layout="root">${renderForeignSubtreeBoundary(
+				getForeignSubtreeKey(DeferredWidget, {}),
+				'<button data-testid="deferred-widget">Deferred widget</button>',
+			)}`,
+		);
 	});
 
 	it('renders suspended React children of a foreign component before the foreign component wraps them', async () => {

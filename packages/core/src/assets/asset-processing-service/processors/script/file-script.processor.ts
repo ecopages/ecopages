@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../../config/internal-types.ts';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types.ts';
@@ -6,6 +6,19 @@ import { assertBrowserOutputInsideDist, sourceRelativeBrowserAssetPath } from '.
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 import { classicScriptOutputName, compileClassicScript } from './classic-script-compiler.ts';
+import { findWorkerEntrySource } from '../../../../build/worker-urls.ts';
+
+/**
+ * @throws When an inline script, or a module it imports, starts a worker the build emits: inline, the script's
+ * `import.meta.url` is the page URL, so the worker URL would resolve against the page instead of the worker file.
+ */
+export function assertInlineScriptStartsNoWorker(scriptPath: string, inputPaths: readonly string[]): void {
+	const worker = findWorkerEntrySource([scriptPath, ...inputPaths]);
+	if (!worker) return;
+	throw new Error(
+		`${scriptPath} is inline, but ${worker.sourcePath} starts new ${worker.url.constructorName}(new URL(${JSON.stringify(worker.url.specifier)}, import.meta.url)): an inline script resolves import.meta.url against the page, so declare it without inline.`,
+	);
+}
 
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	private readonly getHmrManager: () => IHmrManager | undefined;
@@ -62,14 +75,13 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 	/**
 	 * @remarks
-	 * With HMR active, a bundled script is built and watched by the HMR manager, which emits an ES
-	 * module and serves the dev-transform URL. In production, a `bundle: false` script is written
+	 * With HMR active, a bundled script is registered with the HMR manager, which returns its
+	 * dev-transform URL; the dev transform server compiles the module when the browser requests it. In production, a `bundle: false` script is written
 	 * under a hash of its bytes. In development, a non-classic `bundle: false` file inside `srcDir`
 	 * is copied to its source-relative path. A classic script inside `srcDir` is compiled and written
 	 * under that path with a `.js` name. A file outside `srcDir` has no such path that stays inside
 	 * `dist`: an unbundled or classic script is written under a content hash, and a bundled script
-	 * is emitted in `dist/client/assets` under the bundler's `[name]-[hash]` name. Vendor runtimes inside
-	 * `src` keep their stable names.
+	 * is emitted in `dist/client/assets` under the bundler's `[name]-[hash]` name.
 	 */
 	async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
 		const hmrManager = this.getActiveHmrManager();
@@ -108,7 +120,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		let filepath = output?.filepath;
 
 		if (!dep.classic && !dep.inline) {
-			if (outFilepath && (dep.packageRole === 'runtime' || !this.isProduction)) {
+			if (outFilepath && !this.isProduction) {
 				const destination = path.join(this.getAssetsDir(), outFilepath);
 				assertBrowserOutputInsideDist(this.appConfig.absolutePaths.distDir, destination);
 				fileSystem.copyFile(dep.filepath, destination);
@@ -153,6 +165,8 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 			...bundlerOptions,
 			plugins: bundlerOptions.plugins,
 		});
+
+		if (dep.inline) assertInlineScriptStartsNoWorker(dep.filepath, bundledOutput.inputPaths);
 
 		return {
 			filepath: bundledOutput.filepath,

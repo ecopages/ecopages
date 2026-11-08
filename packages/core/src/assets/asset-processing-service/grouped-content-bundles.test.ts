@@ -6,7 +6,7 @@ import {
 import type { AssetDefinition, ContentScriptAsset } from './assets.types.ts';
 
 describe('grouped-content-bundles', () => {
-	test('ensureGroupedContentScriptsBundle enables bundling for grouped scripts in production', () => {
+	test('ensureGroupedContentScriptsBundle enables bundling for grouped scripts in production, on a copy', () => {
 		vi.stubEnv('NODE_ENV', 'production');
 
 		const dependency: ContentScriptAsset = {
@@ -20,9 +20,10 @@ describe('grouped-content-bundles', () => {
 			},
 		};
 
-		ensureGroupedContentScriptsBundle([dependency]);
+		const [prepared] = ensureGroupedContentScriptsBundle([dependency]);
 
-		expect(dependency.bundle).toBe(true);
+		expect(prepared).toMatchObject({ bundle: true });
+		expect(dependency.bundle).toBe(false);
 	});
 
 	test('ensureGroupedContentScriptsBundle leaves grouped scripts unbundled in development', () => {
@@ -39,9 +40,9 @@ describe('grouped-content-bundles', () => {
 			},
 		};
 
-		ensureGroupedContentScriptsBundle([dependency]);
+		const [prepared] = ensureGroupedContentScriptsBundle([dependency]);
 
-		expect(dependency.bundle).toBe(false);
+		expect(prepared).toMatchObject({ bundle: false });
 	});
 
 	test('partitionGroupedContentScriptDependencies routes grouped scripts together', () => {

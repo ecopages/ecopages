@@ -4,11 +4,14 @@ import type { EcoBuildOnTransformResult, EcoBuildPlugin } from '../../build/cont
 export type RegisteredTransform = {
 	filter: RegExp;
 	transform(code: string, id: string): EcoBuildOnTransformResult | string | undefined;
+	/** Runs the `onEnd` checks the plugin registered, as the end of a build does. */
+	end(): Promise<void>;
 };
 
 /** Runs a plugin's `setup` against a recording builder and returns the one `transform` it registered. */
 export function getPluginTransform(plugin: EcoBuildPlugin): RegisteredTransform {
-	let registered: RegisteredTransform | undefined;
+	let registered: Omit<RegisteredTransform, 'end'> | undefined;
+	const endCallbacks: Array<() => void | Promise<void>> = [];
 	void plugin.setup({
 		onResolve() {},
 		onLoad() {},
@@ -19,9 +22,19 @@ export function getPluginTransform(plugin: EcoBuildPlugin): RegisteredTransform 
 				transform: (code, id) => callback(code, id) as EcoBuildOnTransformResult | string | undefined,
 			};
 		},
+		onEnd(callback) {
+			endCallbacks.push(callback);
+		},
+		addWatchFile() {},
+		resolve: async () => undefined,
 	});
 	if (!registered) {
 		throw new Error(`Plugin "${plugin.name}" registered no transform.`);
 	}
-	return registered;
+	return {
+		...registered,
+		end: async () => {
+			for (const callback of endCallbacks) await callback();
+		},
+	};
 }

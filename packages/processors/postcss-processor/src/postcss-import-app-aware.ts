@@ -1,9 +1,11 @@
 import { fileSystem } from '@ecopages/file-system';
+import { rebaseStylesheetReferences } from '@ecopages/core/processor';
 import { createRequire } from 'node:module';
-import path from 'node:path';
-import type postcss from 'postcss';
+import { path } from '@ecopages/file-system/path';
+import postcss from 'postcss';
 import postcssImportDefault from 'postcss-import';
 import type postcssImport from 'postcss-import';
+import resolveImportIdDefault from './postcss-import-resolve-id.js';
 
 type PostcssImportOptions = NonNullable<Parameters<typeof postcssImport>[0]>;
 type ResolveImportId = (id: string, base: string, options: PostcssImportOptions, node: unknown) => Promise<string>;
@@ -12,8 +14,6 @@ type PackageJson = {
 	main?: string;
 	exports?: Record<string, string | { style?: string; import?: string; require?: string; default?: string }>;
 };
-
-const requireFromProcessor = createRequire(import.meta.url);
 
 /**
  * Finds the nearest directory containing a package.json by walking up from a file path.
@@ -35,7 +35,7 @@ export function resolveAppRootFromPath(filePath: string): string {
 		dir = parent;
 	}
 
-	return process.cwd();
+	return path.cwd();
 }
 
 function loadPostcssImport(requireFromApp: NodeRequire): typeof postcssImportDefault {
@@ -46,11 +46,16 @@ function loadPostcssImport(requireFromApp: NodeRequire): typeof postcssImportDef
 	}
 }
 
+/**
+ * @remarks
+ * The fallback is imported statically: a server bundle that inlines this module keeps the import, where a
+ * `require` relative to this module would resolve from the bundle's folder.
+ */
 function loadResolveImportId(requireFromApp: NodeRequire): ResolveImportId {
 	try {
 		return requireFromApp('postcss-import/lib/resolve-id') as ResolveImportId;
 	} catch {
-		return requireFromProcessor('postcss-import/lib/resolve-id') as ResolveImportId;
+		return resolveImportIdDefault;
 	}
 }
 
@@ -165,7 +170,118 @@ function resolveBarePackageImport(id: string, appRoot: string): string {
 }
 
 /**
- * Creates a postcss-import instance that resolves bare package imports from the app root.
+ * Rebases the relative `url()` references of the declarations postcss-import inlined from other files, so they
+ * resolve from the importing stylesheet as they did from their own file.
+ *
+ * @remarks
+ * Core resolves a processed stylesheet's relative references from its source file's real directory and emits the
+ * files they name; without this, `url(files/font.woff2)` from `@import '@fontsource/inter'` would resolve beside
+ * the app's file. Core's {@link rebaseStylesheetReferences} does the rewrite with its stylesheet tokenizer; core
+ * decides which referenced files it copies.
+ */
+function rebaseInlinedUrls(): postcss.Plugin {
+	return {
+		postcssPlugin: 'ecopages-rebase-inlined-urls',
+		Once(root) {
+			const entry = root.source?.input.file;
+			if (!entry) return;
+			root.walkDecls((decl) => {
+				const file = decl.source?.input.file;
+				if (!file || file === entry || !/url\(|image-set\(/i.test(decl.value)) return;
+				decl.value = rebaseStylesheetReferences(decl.value, file, entry);
+			});
+		},
+	};
+}
+
+const IMPORT_SPECIFIER = /^\s*(?:url\(\s*)?(?:"([^"]*)"|'([^']*)'|([^\s)'"]+))/i;
+const REMOTE_SPECIFIER = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
+
+/** The partial an `@import` at-rule names, or `undefined` for a remote, `data:` or unparsable one. */
+function importSpecifier(node: postcss.AtRule): string | undefined {
+	const match = IMPORT_SPECIFIER.exec(node.params);
+	const specifier = match?.[1] ?? match?.[2] ?? match?.[3];
+	return specifier && !REMOTE_SPECIFIER.test(specifier) ? specifier : undefined;
+}
+
+/** The `@import`s of each stylesheet that must not be inlined, by their offset in the file's source. */
+type DroppedImports = Map<string, Set<number>>;
+
+/**
+ * Finds the `@import`s, in the entry stylesheet and the partials it reaches, of a stylesheet that a later
+ * `@import` imports again.
+ *
+ * @remarks
+ * `postcss-import` inlines a stylesheet where it is first imported, but the cascade orders it at its last
+ * import, as core and Lightning CSS do. Walking the imports in the order they inline, the last occurrence of each
+ * resolved file is the one kept. An `@import` that closes a cycle is not an occurrence, since `postcss-import` skips it. An `@import` that does not resolve is left to `postcss-import`, which reports it.
+ */
+async function findEarlierDuplicateImports(
+	entry: postcss.Root,
+	entryFile: string,
+	resolve: ResolveImportId,
+	options: PostcssImportOptions,
+): Promise<DroppedImports> {
+	const occurrences: { file: string; offset: number; target: string }[] = [];
+
+	const visit = async (root: postcss.Root, file: string, ancestors: string[]): Promise<void> => {
+		for (const node of root.nodes) {
+			if (node.type !== 'atrule' || node.name.toLowerCase() !== 'import') continue;
+			const specifier = importSpecifier(node);
+			const offset = node.source?.start?.offset;
+			if (!specifier || offset === undefined) continue;
+
+			let target: string;
+			try {
+				target = await resolve(specifier, path.dirname(file), options, node);
+			} catch {
+				continue;
+			}
+			if (ancestors.includes(target)) continue;
+			occurrences.push({ file, offset, target });
+			if (!fileSystem.exists(target)) continue;
+			try {
+				const partial = postcss.parse(await fileSystem.readFile(target), { from: target });
+				await visit(partial, target, [...ancestors, target]);
+			} catch {
+				continue;
+			}
+		}
+	};
+
+	await visit(entry, entryFile, [entryFile]);
+
+	const last = new Map<string, number>();
+	occurrences.forEach(({ target }, index) => last.set(target, index));
+	const dropped: DroppedImports = new Map();
+	occurrences.forEach(({ file, offset, target }, index) => {
+		if (last.get(target) === index) return;
+		const offsets = dropped.get(file) ?? new Set<number>();
+		offsets.add(offset);
+		dropped.set(file, offsets);
+	});
+	return dropped;
+}
+
+function dropImports(root: postcss.Root, offsets: Set<number>): void {
+	root.each((node) => {
+		if (
+			node.type === 'atrule' &&
+			node.source?.start?.offset !== undefined &&
+			offsets.has(node.source.start.offset)
+		) {
+			node.remove();
+		}
+	});
+}
+
+/**
+ * Creates a postcss-import step that resolves bare package imports from the app root, orders a stylesheet imported
+ * twice at its last import as the cascade does, and rebases the relative `url()` references of the files it
+ * inlines onto the importing stylesheet.
+ *
+ * @remarks
+ * Every run builds its own `postcss-import` instance, since which imports it drops depends on the stylesheet.
  */
 export function createAppAwarePostcssImport(appRoot: string): postcss.AcceptedPlugin {
 	const requireFromApp = createRequire(path.join(appRoot, 'package.json'));
@@ -185,9 +301,38 @@ export function createAppAwarePostcssImport(appRoot: string): postcss.AcceptedPl
 			}
 		});
 	};
-
-	return postcssImport({
+	const importOptions: PostcssImportOptions = {
 		root: appRoot,
+		path: [],
+		addModulesDirectories: [],
 		resolve: resolve as unknown as NonNullable<PostcssImportOptions['resolve']>,
-	});
+	};
+
+	return {
+		postcssPlugin: 'ecopages-postcss-import',
+		async Once(root, { result }) {
+			const entryFile = root.source?.input.file;
+			const dropped = entryFile
+				? await findEarlierDuplicateImports(root, entryFile, resolve, importOptions)
+				: new Map<string, Set<number>>();
+			const entryDrops = entryFile ? dropped.get(entryFile) : undefined;
+			if (entryDrops) dropImports(root, entryDrops);
+
+			const inner = await postcss([
+				postcssImport({
+					...importOptions,
+					load: async (filename: string) => {
+						const css = await fileSystem.readFile(filename);
+						const offsets = dropped.get(filename);
+						if (!offsets) return css;
+						const partial = postcss.parse(css, { from: filename });
+						dropImports(partial, offsets);
+						return partial.toString();
+					},
+				}),
+				rebaseInlinedUrls(),
+			]).process(root, { from: entryFile });
+			result.messages.push(...inner.messages);
+		},
+	};
 }

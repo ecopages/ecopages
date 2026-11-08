@@ -64,6 +64,35 @@ describe('StaticSiteGenerator Integration lifecycle', () => {
 		expect(listStaticGenerationRoutes).toHaveBeenCalledTimes(1);
 	});
 
+	test('resolves global scripts once, after setup and before writing pages, when no browser graph is prebuilt', async () => {
+		const events: string[] = [];
+		writeMock.mockImplementation((filePath: string) => {
+			if (filePath.endsWith('robots.txt')) events.push('write robots.txt');
+		});
+		const ssg = new StaticSiteGenerator({
+			appConfig: createMockConfig({
+				integrations: [
+					{
+						name: 'test',
+						setup: async () => {
+							events.push('setup');
+						},
+						refreshResolvedIntegrationDependencies: async () => {
+							events.push('resolve');
+						},
+					},
+				] as unknown as EcoPagesAppConfig['integrations'],
+			}),
+		});
+
+		await ssg.run({
+			router: { listStaticGenerationRoutes: vi.fn(async () => []) },
+			baseUrl: 'http://localhost:3000',
+		});
+
+		expect(events).toEqual(['setup', 'resolve', 'write robots.txt']);
+	});
+
 	test('awaits every release in reverse order after the pages are written', async () => {
 		const events: string[] = [];
 		writeMock.mockImplementation((filePath: string) => {

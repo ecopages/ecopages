@@ -1,27 +1,12 @@
 [
 	{
-		"from": "packages/core/src/assets/browser-runtime-asset-page-cache.ts",
+		"from": "packages/core/src/assets/page-script-page-cache.ts",
 		"to": "packages/core/src/page-cache/page-cache-service.ts",
 		"issue": "#556"
 	},
 	{
 		"from": "packages/core/src/assets/app-browser-client-build.ts",
 		"to": "packages/core/src/html-pages/html-page-module-scripts.ts",
-		"issue": "#556"
-	},
-	{
-		"from": "packages/core/src/assets/app-browser-client-build.ts",
-		"to": "packages/core/src/route-renderer/orchestration/page-browser-graph/route-instance-key.ts",
-		"issue": "#556"
-	},
-	{
-		"from": "packages/core/src/assets/app-browser-client-manifest.ts",
-		"to": "packages/core/src/html-pages/html-page-module-scripts.ts",
-		"issue": "#556"
-	},
-	{
-		"from": "packages/core/src/assets/app-browser-client-manifest.ts",
-		"to": "packages/core/src/route-renderer/orchestration/page-browser-graph/route-instance-key.ts",
 		"issue": "#556"
 	},
 	{
@@ -52,11 +37,6 @@
 	{
 		"from": "packages/core/src/plugins/integration-plugin.ts",
 		"to": "packages/core/src/assets/asset-processing-service/asset-processing.service.ts",
-		"issue": "#556"
-	},
-	{
-		"from": "packages/core/src/plugins/integration-plugin.ts",
-		"to": "packages/core/src/build/browser/browser-runtime-manifest.ts",
 		"issue": "#556"
 	},
 	{

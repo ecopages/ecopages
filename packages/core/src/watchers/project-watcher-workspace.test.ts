@@ -1,7 +1,6 @@
-import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { DevTransformVendorRegistry } from '../dev/transform-server/dev-transform-vendor-registry.ts';
@@ -22,7 +21,7 @@ afterEach(async () => {
 test.each(['package', 'dependency', 'add', 'unlink'])(
 	'a linked package %s event requests a restart and serves current browser code',
 	async (edited) => {
-		const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-')));
+		const root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-'))));
 		roots.push(root);
 		const rootDir = path.join(root, 'app');
 		const packageDir = path.join(root, 'ui');
@@ -66,11 +65,10 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		const running = registry();
 		const oldUrl = await running.resolveVendorUrl('@acme/ui');
 		const oldResponse = await running.tryHandleVendorRequest(oldUrl);
+		const oldEtag = oldResponse?.headers.get('ETag');
 		const oldCode = (await oldResponse?.text()) ?? '';
 		expect(oldCode).toContain('before-edit');
-		const dependencyUrl = /from\s*["'](\/assets\/vendors\/ui-dep[^"']+)["']/.exec(oldCode)?.[1];
-		assert.ok(dependencyUrl);
-		const oldDependencyEtag = (await running.tryHandleVendorRequest(dependencyUrl))?.headers.get('ETag');
+		expect(oldCode).toContain('dependency-before');
 		const restart = vi.fn(async () => {});
 		const hmrManager = createMockHmrManager();
 		const watcher = new ProjectWatcher({
@@ -97,10 +95,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		const restarted = registry();
 		const newUrl = await restarted.resolveVendorUrl('@acme/ui');
 		expect(newUrl).toBe(oldUrl);
-		const newResponse =
-			edited === 'dependency'
-				? await restarted.tryHandleVendorRequest(dependencyUrl, oldDependencyEtag)
-				: await restarted.tryHandleVendorRequest(newUrl);
+		const newResponse = await restarted.tryHandleVendorRequest(newUrl, edited === 'dependency' ? oldEtag : null);
 		expect(newResponse?.status).toBe(200);
 		expect(await newResponse?.text()).toContain(
 			edited === 'package' ? 'after-edit' : edited === 'dependency' ? 'dependency-after' : 'before-edit',
@@ -109,7 +104,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 );
 
 test('ignores installed and hidden linked-package files while app source retains HMR', async () => {
-	const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-ignore-')));
+	const root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-ignore-'))));
 	roots.push(root);
 	const rootDir = path.join(root, 'app');
 	const linked = path.join(root, 'ui');
@@ -168,7 +163,7 @@ test('ignores installed and hidden linked-package files while app source retains
 });
 
 test('activates a linked package root when a build input is recorded after startup', async () => {
-	const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-late-')));
+	const root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-late-'))));
 	roots.push(root);
 	const rootDir = path.join(root, 'app');
 	const packageDir = path.join(root, 'ui');
@@ -198,8 +193,12 @@ test('activates a linked package root when a build input is recorded after start
 
 	expect(fake.watch.mock.calls[0]?.[0]).not.toContain(packageDir);
 	const ignored = fake.watch.mock.calls[0]?.[1].ignored;
-	expect(ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(true);
-	expect(ignored?.(packageDoc, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(false);
+	expect(
+		ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1, mtimeMs: 0 }),
+	).toBe(true);
+	expect(
+		ignored?.(packageDoc, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1, mtimeMs: 0 }),
+	).toBe(false);
 	fake.handle.add.mockRejectedValueOnce(new Error('temporary watch failure'));
 	requireAppRuntime(config).buildInputIndex.recordWatchPath(packageSource);
 	requireAppRuntime(config).buildInputIndex.recordWatchPath(path.join(packageDir, 'src/second.ts'));
@@ -208,7 +207,9 @@ test('activates a linked package root when a build input is recorded after start
 	expect(fake.handle.add).toHaveBeenCalledWith([packageDir]);
 	await vi.waitFor(() => expect(fake.handle.add).toHaveBeenCalledTimes(2));
 	expect(fake.handle.paths).toContain(packageDir);
-	expect(ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1 })).toBe(false);
+	expect(
+		ignored?.(packageSource, { isFile: true, isDirectory: false, isSymbolicLink: false, size: 1, mtimeMs: 0 }),
+	).toBe(false);
 	requireAppRuntime(config).buildInputIndex.recordWatchPath(path.join(packageDir, 'src/fourth.ts'));
 	expect(fake.handle.add).toHaveBeenCalledTimes(2);
 	await fake.emit('change', packageSource);
@@ -216,7 +217,7 @@ test('activates a linked package root when a build input is recorded after start
 });
 
 test('watches a build input recorded after startup under an additional watch path base', async () => {
-	const rootDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-glob-base-input-')));
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-glob-base-input-'))));
 	roots.push(rootDir);
 	const dataFile = path.join(rootDir, 'data', 'site.json');
 	mkdirSync(path.dirname(dataFile), { recursive: true });
@@ -236,7 +237,7 @@ test('watches a build input recorded after startup under an additional watch pat
 	await watcher.createWatcherSubscription();
 
 	const ignored = fake.watch.mock.calls[0]?.[1].ignored;
-	const fileStats = { isFile: true, isDirectory: false, isSymbolicLink: false, size: 2 };
+	const fileStats = { isFile: true, isDirectory: false, isSymbolicLink: false, size: 2, mtimeMs: 0 };
 	expect(ignored?.(dataFile, fileStats)).toBe(true);
 	requireAppRuntime(config).buildInputIndex.recordWatchPath(dataFile);
 	expect(fake.handle.add).toHaveBeenCalledWith([dataFile]);

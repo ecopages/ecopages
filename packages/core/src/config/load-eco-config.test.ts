@@ -1,8 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { pathToFileURL } from 'node:url';
 import { defineConfig } from './define-config.ts';
 import { finalizeEcoPagesConfig } from './assembly/finalize-config.ts';
 import { loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
@@ -21,7 +20,7 @@ describe('resolveEcoConfigPath', () => {
 	let tempDir: string;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-resolve-'));
+		tempDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-resolve-')));
 		vi.stubEnv(ECOPAGES_CONFIG_FILE_ENV, undefined);
 	});
 
@@ -107,11 +106,11 @@ describe('resolveEcoConfigPath', () => {
 
 describe('resolveUserConfigRootDir', () => {
 	it('defaults omitted rootDir to cwd', () => {
-		expect(resolveUserConfigRootDir(undefined, '/project')).toBe('/project');
+		expect(resolveUserConfigRootDir(undefined, '/project')).toBe(path.resolve('/project'));
 	});
 
 	it('resolves a relative rootDir against cwd', () => {
-		expect(resolveUserConfigRootDir('apps/docs', '/repo')).toBe(path.join('/repo', 'apps/docs'));
+		expect(resolveUserConfigRootDir('apps/docs', '/repo')).toBe(path.resolve('/repo', 'apps/docs'));
 	});
 });
 
@@ -119,7 +118,7 @@ describe('loadEcoPagesConfig', () => {
 	let tempDir: string;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-load-'));
+		tempDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-load-')));
 		vi.stubEnv(ECOPAGES_CONFIG_FILE_ENV, undefined);
 	});
 
@@ -138,6 +137,22 @@ describe('loadEcoPagesConfig', () => {
 		expect(appConfig.rootDir).toBe(tempDir);
 	});
 
+	it('replaces the configured output and work directories with the ones it is given', async () => {
+		const configPath = path.join(tempDir, 'eco.config.ts');
+		fs.writeFileSync(configPath, `export default { rootDir: ${JSON.stringify(tempDir)}, distDir: 'dist' };`);
+		const distDir = path.join(tempDir, 'dist', 'scoped');
+		const workDir = path.join(tempDir, '.eco', 'scoped');
+
+		const appConfig = await loadEcoPagesConfig({
+			cwd: tempDir,
+			configFile: configPath,
+			directories: { distDir, workDir },
+		});
+
+		expect(appConfig.absolutePaths.distDir).toBe(path.join(distDir, 'client'));
+		expect(appConfig.absolutePaths.workDir).toBe(workDir);
+	});
+
 	it('records the project files the config imports', async () => {
 		const optionsPath = path.join(tempDir, 'options.ts');
 		const configPath = path.join(tempDir, 'eco.config.ts');
@@ -153,7 +168,9 @@ describe('loadEcoPagesConfig', () => {
 	});
 
 	it('caches the config module while its factory creates distinct plugin instances and runtimes', async () => {
-		const processorModule = pathToFileURL(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
+		const processorModule = path.toFileUrl(
+			path.join(path.dirname(path.fromFileUrl(import.meta.url)), '../plugins/processor.ts'),
+		).href;
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		const otherRoot = path.join(tempDir, 'other-root');
 		fs.mkdirSync(otherRoot);
@@ -199,7 +216,9 @@ describe('loadEcoPagesConfig', () => {
 	});
 
 	it('rejects reusing mutable plugin instances from an object config for a second app', async () => {
-		const processorModule = pathToFileURL(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
+		const processorModule = path.toFileUrl(
+			path.join(path.dirname(path.fromFileUrl(import.meta.url)), '../plugins/processor.ts'),
+		).href;
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		fs.writeFileSync(
 			configPath,
@@ -220,7 +239,9 @@ describe('loadEcoPagesConfig', () => {
 	});
 
 	it('rejects a config factory that reuses a plugin instance across fresh config objects', async () => {
-		const processorModule = pathToFileURL(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
+		const processorModule = path.toFileUrl(
+			path.join(path.dirname(path.fromFileUrl(import.meta.url)), '../plugins/processor.ts'),
+		).href;
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		fs.writeFileSync(
 			configPath,

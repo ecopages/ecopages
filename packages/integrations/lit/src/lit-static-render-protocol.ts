@@ -10,6 +10,8 @@ export type LitStaticRenderWorkerInitMessage = {
 	type: 'init';
 	configModulePath: string;
 	runtimeOrigin: string;
+	/** Output and work directories of the build being exported; the output holds the ledger the worker restores. */
+	directories: { distDir: string; workDir: string };
 };
 
 export type LitStaticRenderWorkerRenderMessage = {

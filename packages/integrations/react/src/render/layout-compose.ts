@@ -2,6 +2,7 @@ import * as bundledReact from 'react';
 import type { FunctionComponent, ReactElement } from 'react';
 import type { EcoComponent, EcoPageLayoutEntry, LayoutPropsContext, RequestLocals } from '@ecopages/core';
 import type { EcoComponentConfig } from '@ecopages/core';
+import type { LayoutRenderTracker } from './layout-render-tracker.ts';
 
 export type LayoutComposeContext = LayoutPropsContext;
 
@@ -12,10 +13,11 @@ export type LayoutComposeOptions = {
 	/** @remarks Pass the app-resolved React runtime during SSR so composition uses the same React instance as server rendering. */
 	react?: ReactRuntime;
 	/**
-	 * Optional resolver that substitutes cached layout instances and React keys
-	 * for SPA layout persistence.
+	 * Optional resolver that substitutes layout instances and React keys per tier.
 	 */
 	resolvePersistedTier?: (layout: EcoComponent, index: number) => { layout: EcoComponent; key?: string };
+	/** Records which tiers render, so a server render can tell a layout that drops its children. */
+	renderTracker?: LayoutRenderTracker;
 };
 
 function resolveReact(options?: LayoutComposeOptions): ReactRuntime {
@@ -130,7 +132,8 @@ export function composeLayoutPageTree<P extends Record<string, unknown>>(
 ): ReactElement {
 	const { createElement } = resolveReact(options);
 	const context = options?.context ?? resolveLayoutContext(pageProps);
-	const pageElement = createElement(Page, pageProps);
+	const tracker = options?.renderTracker;
+	const pageElement = createElement(tracker ? tracker.trackPage(Page) : Page, pageProps);
 	const layoutEntries = Page.config?.layoutEntries;
 	const resolvePersistedTier = options?.resolvePersistedTier;
 
@@ -139,7 +142,7 @@ export function composeLayoutPageTree<P extends Record<string, unknown>>(
 			const index = layoutEntries.length - 1 - reverseIndex;
 			const layoutProps = resolveLayoutEntryProps(entry, context);
 			const tier = resolvePersistedTier?.(entry.component, index);
-			const Layout = toReactComponent(tier?.layout ?? entry.component);
+			const Layout = toTrackedReactComponent(tier?.layout ?? entry.component, index, tracker);
 			const elementProps = tier?.key ? { key: tier.key, ...layoutProps } : layoutProps;
 			return createElement(Layout, elementProps, children);
 		}, pageElement);
@@ -151,13 +154,22 @@ export function composeLayoutPageTree<P extends Record<string, unknown>>(
 		return [...layouts].reverse().reduce<ReactElement>((children, Layout, reverseIndex) => {
 			const index = layouts.length - 1 - reverseIndex;
 			const tier = resolvePersistedTier?.(Layout, index);
-			const ResolvedLayout = toReactComponent(tier?.layout ?? Layout);
+			const ResolvedLayout = toTrackedReactComponent(tier?.layout ?? Layout, index, tracker);
 			const elementProps = tier?.key ? { key: tier.key, ...layoutProps } : layoutProps;
 			return createElement(ResolvedLayout, elementProps, children);
 		}, pageElement);
 	}
 
 	return pageElement;
+}
+
+function toTrackedReactComponent(
+	component: EcoComponent,
+	index: number,
+	tracker: LayoutRenderTracker | undefined,
+): FunctionComponent<Record<string, unknown>> {
+	const Layout = toReactComponent(component);
+	return tracker ? tracker.trackLayout(Layout, index) : Layout;
 }
 
 /**
@@ -178,10 +190,12 @@ export function composeLayoutPageTreeFromShell<P extends Record<string, unknown>
 		return composeLayoutPageTree(Page, pageProps, options);
 	}
 
-	const pageElement = createElement(Page, pageProps);
+	const tracker = options?.renderTracker;
+	const pageElement = createElement(tracker ? tracker.trackPage(Page) : Page, pageProps);
 
-	return [...shellLayouts].reverse().reduce<ReactElement>((children, entry) => {
-		return createElement(toReactComponent(entry.component), entry.props ?? {}, children);
+	return [...shellLayouts].reverse().reduce<ReactElement>((children, entry, reverseIndex) => {
+		const index = shellLayouts.length - 1 - reverseIndex;
+		return createElement(toTrackedReactComponent(entry.component, index, tracker), entry.props ?? {}, children);
 	}, pageElement);
 }
 

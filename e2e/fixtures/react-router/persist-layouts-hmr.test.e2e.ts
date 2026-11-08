@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '../../app-fixture';
 import { trackRuntimeErrors } from '../../utils/runtime-error-tracker';
-import { gotoAndWait } from '../../utils/test-helpers';
+import { gotoAndWait, waitForNavigationOwner } from '../../utils/test-helpers';
+import { registerLayoutPersistenceTests } from './layout-persistence.e2e-shared';
+
+test.describe('React Router Persist Layouts - Dev', () => {
+	registerLayoutPersistenceTests(test);
+});
 
 function patchDocsHeading(content: string, suffix: string) {
 	return content.replace('<h1>Documentation</h1>', `<h1>Documentation ${suffix}</h1>`);
@@ -59,6 +64,8 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	let docsPageFile: string;
 	let docsLayoutFile: string;
 	let docsLayoutSidebarLinkFile: string;
+	let baseLayoutFile: string;
+	let originalBaseLayout: string;
 	let originalDocsPage: string;
 	let originalDocsLayout: string;
 	let originalDocsLayoutSidebarLink: string;
@@ -73,12 +80,15 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		originalDocsPage = fs.readFileSync(docsPageFile, 'utf-8');
 		originalDocsLayout = fs.readFileSync(docsLayoutFile, 'utf-8');
 		originalDocsLayoutSidebarLink = fs.readFileSync(docsLayoutSidebarLinkFile, 'utf-8');
+		baseLayoutFile = path.join(app.dir, 'src/layouts/base-layout.tsx');
+		originalBaseLayout = fs.readFileSync(baseLayoutFile, 'utf-8');
 	});
 
 	function restoreAllFixtureFiles(options?: { force?: boolean }) {
 		restoreFixtureFile(docsPageFile, originalDocsPage, options);
 		restoreFixtureFile(docsLayoutFile, originalDocsLayout, options);
 		restoreFixtureFile(docsLayoutSidebarLinkFile, originalDocsLayoutSidebarLink, options);
+		restoreFixtureFile(baseLayoutFile, originalBaseLayout, options);
 	}
 
 	/**
@@ -194,5 +204,46 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		});
 
 		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
+	});
+
+	test('HMR updates an eco.layout() layout (persist layouts enabled)', async ({ page }) => {
+		restoreAllFixtureFiles({ force: true });
+		await gotoAndWait(page, '/');
+		await expect(page.getByTestId('base-layout')).toBeVisible();
+
+		fs.writeFileSync(
+			baseLayoutFile,
+			originalBaseLayout.replace(
+				'{children}',
+				'{children}\n\t\t\t\t<p data-testid="base-layout-hmr">updated</p>',
+			),
+			'utf-8',
+		);
+
+		await expect(page.getByTestId('base-layout-hmr')).toHaveText('updated', { timeout: 10000 });
+	});
+
+	/**
+	 * @remarks
+	 * The edited layout is not on the index page, so the server answers the edit with a full reload. The back
+	 * traversal waits for that reload to finish and for the router to own the new document: earlier, it either
+	 * aborts the reload or lands before the router listens for `popstate` and leaves the index HTML under `/docs`.
+	 */
+	test('navigating back after a layout edit renders the edited layout', async ({ page }) => {
+		await gotoWithCleanDocsLayout(page, '/docs');
+		await page.getByRole('link', { name: '← Back to Home' }).click();
+		await page.waitForURL('**/');
+		await expect(page.getByTestId('index-page')).toBeVisible();
+
+		const reloaded = page.waitForEvent('load', { timeout: 10000 });
+		fs.writeFileSync(docsLayoutFile, patchLayoutMdxLabel(originalDocsLayout, '(edited away)'), 'utf-8');
+		await reloaded;
+		await waitForNavigationOwner(page, 'react-router');
+
+		await page.goBack();
+		await page.waitForURL('**/docs');
+		await expect(page.getByRole('link', { name: 'MDX Docs 1 (edited away)', exact: true })).toBeVisible({
+			timeout: 10000,
+		});
 	});
 });

@@ -6,9 +6,11 @@ export const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): Ec
 		...integration,
 		setup: integration.setup ?? (async () => {}),
 		teardown: integration.teardown ?? (async () => {}),
+		refreshResolvedIntegrationDependencies: integration.refreshResolvedIntegrationDependencies ?? (async () => {}),
 	}));
 	return {
 		rootDir: '/test/project',
+		baseUrl: 'http://localhost:3000',
 		distDir: 'dist',
 		workDir: DEFAULT_ECOPAGES_WORK_DIR,
 		srcDir: 'src',
@@ -39,6 +41,7 @@ export const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): Ec
 			overrides.appRuntime ??
 			({
 				integrationActivations: new Map(),
+				globalScriptResolution: 'browser-build',
 			} as unknown as EcoPagesAppConfig['appRuntime']),
 	} as unknown as EcoPagesAppConfig;
 };

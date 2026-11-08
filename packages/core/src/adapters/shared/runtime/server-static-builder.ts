@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { isEcopagesEnvEnabled } from '../../../env.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT, RESOLVED_ASSETS_DIR } from '../../../constants.ts';
@@ -14,6 +14,8 @@ import { createServerBuildRequest } from '../../../build/runtime/build-request-p
 import { buildOrThrow } from '../../../build/runtime/build-queue.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
 import { copyDeclaredServerFiles } from '../../../build/copy-server-files.ts';
+import { writeProductionAssetLedger } from '../../../build/production-asset-ledger.ts';
+import { getPrebuiltHtmlPageModuleScriptUrls } from '../../../html-pages/html-page-module-scripts.ts';
 import { writeProductionRouteList } from '../../../build/production-route-list.ts';
 import {
 	getServerBundleOutputPaths,
@@ -37,6 +39,14 @@ import {
 	emitProductionServerModules,
 	shouldBuildPagesUnifiedGraph,
 } from '../../../build/cache/pages-unified-graph-build.ts';
+
+type StaticBuildDependencies = {
+	router: RouteRegistry;
+	routeRendererFactory: StaticGenerationRendererResolver;
+	staticRoutes?: StaticRoute[];
+	errorPageLoaders?: ErrorPageLoaders;
+	importServerModule: EndpointRouteHandlerOptions['importServerModule'];
+};
 
 export interface StaticBuildOptions {
 	baseUrl?: string;
@@ -236,6 +246,18 @@ export class ServerStaticBuilder {
 	}
 
 	/**
+	 * Records the processed file dependencies beside the server bundle, which is the only consumer of them.
+	 *
+	 * @remarks
+	 * The production prebuild already wrote the app-wide browser build there; this adds what rendering processed.
+	 */
+	private async writeAssetLedger(buildsServerBundle: boolean): Promise<void> {
+		if (buildsServerBundle) {
+			writeProductionAssetLedger(this.appConfig, await getPrebuiltHtmlPageModuleScriptUrls(this.appConfig));
+		}
+	}
+
+	/**
 	 * Generates a static build of the site for deployment.
 	 * @param dependencies.router - The initialized router
 	 * @param dependencies.routeRendererFactory - The route renderer factory
@@ -245,18 +267,10 @@ export class ServerStaticBuilder {
 	 * @remarks
 	 * Every server entry is emitted into `dist/server/` before endpoints are checked, so a broken
 	 * module fails the build with the error its first request would log. `ecopages start` loads those
-	 * emitted modules and never compiles.
+	 * emitted modules and never compiles. Static generation resolves each Integration's global scripts after the
+	 * app-wide browser build, so none is bundled on its own into `dist/`.
 	 */
-	async build(
-		options: StaticBuildOptions | undefined,
-		dependencies: {
-			router: RouteRegistry;
-			routeRendererFactory: StaticGenerationRendererResolver;
-			staticRoutes?: StaticRoute[];
-			errorPageLoaders?: ErrorPageLoaders;
-			importServerModule: EndpointRouteHandlerOptions['importServerModule'];
-		},
-	): Promise<void> {
+	async build(options: StaticBuildOptions | undefined, dependencies: StaticBuildDependencies): Promise<void> {
 		const { baseUrl: explicitBaseUrl, force = false } = options ?? {};
 
 		const baseUrl =
@@ -268,8 +282,18 @@ export class ServerStaticBuilder {
 		}
 		this.exportPrepared = false;
 
+		await this.buildPreparedExport(baseUrl, force, dependencies, options?.keepGoing);
+	}
+
+	private async buildPreparedExport(
+		baseUrl: string,
+		force: boolean,
+		dependencies: StaticBuildDependencies,
+		keepGoing: boolean | undefined,
+	): Promise<void> {
 		const endpointRoutes = dependencies.router.templateRoutes.filter((route) => route.role === 'endpoint');
-		if (this.needsServerBundle || endpointRoutes.length > 0) {
+		const buildsServerBundle = this.needsServerBundle || endpointRoutes.length > 0;
+		if (buildsServerBundle) {
 			await this.bundleServerEntry();
 		}
 
@@ -296,8 +320,10 @@ export class ServerStaticBuilder {
 			staticRoutes: dependencies.staticRoutes,
 			errorPageLoaders: dependencies.errorPageLoaders,
 			force,
-			keepGoing: options?.keepGoing,
+			keepGoing,
 		});
+
+		await this.writeAssetLedger(buildsServerBundle);
 
 		if (isEcopagesEnvEnabled('ECOPAGES_BENCH') && !isEcopagesEnvEnabled('ECOPAGES_BENCH_VERBOSE')) {
 			this.logger.debug('Build completed');

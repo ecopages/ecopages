@@ -149,23 +149,22 @@ interface HMRPayload {
 	}
 
 	/**
-	 * Hot-reload CSS by updating stylesheet link href with cache-busting query param.
-	 * This causes the browser to re-fetch the stylesheet without a full page reload.
+	 * Re-fetches the stylesheet links whose pathname is `href`, the exact href the server sent, through a `t` query.
+	 *
+	 * @remarks
+	 * Both sides go through `URL`, so a path with a space or a non-ASCII character compares percent-encoded on both.
 	 */
-	function refreshStylesheet(path: string) {
-		const filename = path.split('/').pop() || '';
-		const links = document.querySelectorAll('link[rel="stylesheet"]');
-
-		links.forEach((link) => {
-			const href = (link as HTMLLinkElement).href;
-			if (href.includes(filename) || href.includes(path.replace(/^.*\/src\//, '/assets/'))) {
-				const url = new URL(href, location.origin);
-				url.searchParams.set('t', Date.now().toString());
-				(link as HTMLLinkElement).href = url.toString();
-				console.log('[ecopages] CSS updated:', filename);
-			}
+	function refreshStylesheet(href: string) {
+		const pathname = new URL(href, location.href).pathname;
+		document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]').forEach((link) => {
+			const url = new URL(link.href, location.href);
+			if (url.pathname !== pathname) return;
+			url.searchParams.set('t', Date.now().toString());
+			link.href = url.toString();
+			console.log('[ecopages] CSS updated:', href);
 		});
 	}
 
+	getEcoNavigationRuntime(window).enableReloadStatePreservation();
 	connect();
 })();

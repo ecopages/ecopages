@@ -44,7 +44,6 @@ const NAMED_VARIANTS = [
 export default eco.page<{}, ReactNode>({
 	dependencies: {
 		stylesheets: ['./index.css'],
-		components: [BaseLayout, LogoSquircle],
 	},
 
 	metadata: () => ({

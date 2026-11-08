@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { getEcopagesEnv } from '../../env.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -16,10 +16,12 @@ import {
 	DEFAULT_ECOPAGES_PORT,
 	DEFAULT_ECOPAGES_WORK_DIR,
 } from '../../constants.ts';
+import { assertResponseHeaderRules } from '../../adapters/shared/http/response-headers.ts';
 import { collectConfigModuleFiles } from '../config-module-files.ts';
 import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from '../resolve-eco-config-path.ts';
 import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from '../user-config-types.ts';
 import { listProductionServerModuleKeysFromDist } from '../../build/server/server-modules-manifest.ts';
+import { findStylesheetProcessor } from '../../plugins/stylesheet-kinds.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { CLIENT_OUTPUT_DIR, SERVER_BUNDLE_DIR } from '../../utils/resolve-entry-file.ts';
 
@@ -68,7 +70,7 @@ function resolveEmittedConfigRootDir(
 	if (path.basename(serverDir) === SERVER_BUNDLE_DIR) {
 		const emittedDistDir = path.dirname(serverDir);
 		const normalizedDistDir = path.normalize(distDirName);
-		const distSegments = normalizedDistDir.split(/[\\/]/u).filter((segment) => segment !== '' && segment !== '.');
+		const distSegments = normalizedDistDir.split('/').filter((segment) => segment !== '' && segment !== '.');
 		const deployRoot = path.resolve(emittedDistDir, ...distSegments.map(() => '..'));
 		if (path.resolve(deployRoot, distDirName) === emittedDistDir) {
 			return deployRoot;
@@ -341,11 +343,14 @@ export async function finalizeEcoPagesConfig(
 	for (const plugin of pluginInstances) finalizedPluginInstances.add(plugin);
 
 	try {
-		const cwd = options.cwd ?? process.cwd();
+		const cwd = options.cwd ?? path.cwd();
 		const directories = resolveDirectories(userConfig);
 		let rootDir = resolveUserConfigRootDir(userConfig.rootDir, cwd);
-		const configFilePath = options.configFilePath ?? path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
+		const configFilePath = options.configFilePath
+			? path.resolve(cwd, options.configFilePath)
+			: path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
 		rootDir = resolveEmittedConfigRootDir(rootDir, configFilePath, directories.distDir, cwd);
+		if (userConfig.headers !== undefined) assertResponseHeaderRules(userConfig.headers);
 		const integrations = withHtmlPagesIntegration(userConfig.integrations ?? []);
 		const partialConfig: Omit<EcoPagesAppConfig, 'absolutePaths'> = {
 			baseUrl: resolveBaseUrl(userConfig.baseUrl),
@@ -365,9 +370,11 @@ export async function finalizeEcoPagesConfig(
 			additionalWatchPaths: userConfig.additionalWatchPaths ?? [],
 			devPrewarmPaths: userConfig.devPrewarmPaths ?? [],
 			serverFiles: userConfig.serverFiles,
+			headers: userConfig.headers,
 			cache: userConfig.cache,
 			devToolbar: userConfig.devToolbar,
 		};
+		findStylesheetProcessor(partialConfig.processors.values());
 		const config: EcoPagesAppConfig = {
 			...partialConfig,
 			absolutePaths: createAbsolutePaths(
@@ -382,7 +389,7 @@ export async function finalizeEcoPagesConfig(
 			),
 		};
 
-		createAppRuntime(config);
+		createAppRuntime(config, { globalScriptResolution: options.globalScriptResolution });
 
 		return config;
 	} catch (error) {

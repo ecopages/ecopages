@@ -1,3 +1,4 @@
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { setResolvedLazyTriggers } from '../../eco/component-internal-state.ts';
@@ -58,7 +59,7 @@ describe('IntegrationRenderer', () => {
 			`<html><body>${String(props.children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
 
 		const html = await IntegrationRenderer.prototype.render.call(renderer, {
-			file: '/app/pages/posts/[slug].tsx',
+			file: path.resolve('/app/pages/posts/[slug].tsx'),
 			params: { slug: 'current' },
 			query: { sort: 'recent' },
 			props: { params: { slug: 'stale' }, query: { sort: 'stale' }, title: 'from static props' },
@@ -69,6 +70,21 @@ describe('IntegrationRenderer', () => {
 		} as IntegrationRendererRenderOptions);
 
 		expect(String(html)).toContain('<main>current:recent:from static props</main>');
+	});
+
+	it('fails loadPageModule for a page module that still exports getStaticProps', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+		});
+		renderer.PageModule = {
+			default: (() => 'ok') as EcoComponent,
+			getStaticProps: async () => ({ props: {} }),
+		} as EcoPageFile;
+
+		await expect(renderer.loadPageModule(path.resolve('/app/src/pages/index.tsx'))).rejects.toThrow(
+			/\/app\/src\/pages\/index\.tsx exports getStaticProps.*migrate-to-eco-page codemod/,
+		);
 	});
 
 	it('creates a renderer from hooks without a renderer subclass', async () => {
@@ -111,7 +127,11 @@ describe('IntegrationRenderer', () => {
 		});
 		const component = (() => '') as EcoComponent;
 		component.config = {
-			identity: { id: 'hook-rendered', file: '/app/components/hook-rendered.tsx', integration: 'hooked' },
+			identity: {
+				id: 'hook-rendered',
+				file: path.resolve('/app/components/hook-rendered.tsx'),
+				integration: 'hooked',
+			},
 			dependencies: { scripts: ['./hook-rendered.js'] },
 		};
 
@@ -146,8 +166,8 @@ describe('IntegrationRenderer', () => {
 				assetProcessingService: testAssetService,
 				assetProcessingIntegration,
 			});
-		const firstRenderer = createRenderer('/app/first');
-		const secondRenderer = createRenderer('/app/second');
+		const firstRenderer = createRenderer(path.resolve('/app/first'));
+		const secondRenderer = createRenderer(path.resolve('/app/second'));
 		const component = (() => '') as EcoComponent;
 		const processDependencies = vi.spyOn(testAssetService, 'processDependencies');
 		processDependencies.mockClear();
@@ -160,14 +180,16 @@ describe('IntegrationRenderer', () => {
 		const resolveDependencies = hookFactoryOptions.resolveDependencies;
 
 		expect(await resolveDependencies([])).toEqual([]);
-		expect(hookFactoryOptions.resolveDependencyPath('/app/pages', './style.css')).toBe('/app/pages/style.css');
+		expect(hookFactoryOptions.resolveDependencyPath(path.resolve('/app/pages'), './style.css')).toBe(
+			path.resolve('/app/pages/style.css'),
+		);
 		expect(processDependencies).toHaveBeenCalledOnce();
 		expect(processDependencies).toHaveBeenCalledWith([], assetProcessingIntegration);
 
-		expect(firstResult.html).toBe('<main>/app/first</main>');
-		expect(firstRenderAgain.html).toBe('<main>/app/first</main>');
-		expect(secondResult.html).toBe('<main>/app/second</main>');
-		expect(secondRenderAgain.html).toBe('<main>/app/second</main>');
+		expect(firstResult.html).toBe(`<main>${path.resolve('/app/first')}</main>`);
+		expect(firstRenderAgain.html).toBe(`<main>${path.resolve('/app/first')}</main>`);
+		expect(secondResult.html).toBe(`<main>${path.resolve('/app/second')}</main>`);
+		expect(secondRenderAgain.html).toBe(`<main>${path.resolve('/app/second')}</main>`);
 		expect(hookFactory).toHaveBeenCalledTimes(2);
 	});
 
@@ -260,7 +282,7 @@ describe('IntegrationRenderer', () => {
 		expect(result.html).toBe('<section><aside><strong>queued child</strong></aside></section>');
 	});
 
-	it('reuses production prebuild page data and prepares render options on demand', async () => {
+	it('prepares a planned route without running its data hooks again', async () => {
 		const validateGraph = vi.spyOn(OwnershipValidationService.prototype, 'validateGraph');
 		const staticProps = vi.fn(async ({ pathname }: { pathname: { params: Record<string, string> } }) => ({
 			props: { slug: pathname.params.slug },
@@ -275,57 +297,46 @@ describe('IntegrationRenderer', () => {
 		});
 		const pageDependency = (() => 'dependency') as EcoComponent;
 		pageDependency.config = {
-			identity: { id: 'dependency', file: '/app/components/dependency.tsx', integration: 'test-renderer' },
+			identity: {
+				id: 'dependency',
+				file: path.resolve('/app/components/dependency.tsx'),
+				integration: 'test-renderer',
+			},
 			dependencies: {},
 		};
 		const resolveDependencies = vi.fn(async () => ({ components: [pageDependency] }));
 		Page.resolveDependencies = resolveDependencies;
 		let preparedContributionHookCalls = 0;
-		let preparedDependencyCalls = 0;
 		const renderer = new (class extends TestIntegrationRenderer {
-			protected override async resolvePageBrowserGraphContributionFromComponents(
-				components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
-				ownerFile: string,
-				preparedNodes?: ReadonlyArray<PreparedComponentGraphNode>,
-			) {
+			override async resolvePageDependencyContribution(input: {
+				nodes: ReadonlyArray<PreparedComponentGraphNode>;
+				ownerFile: string;
+			}) {
 				preparedContributionHookCalls += 1;
-				return super.resolvePageBrowserGraphContributionFromComponents(components, ownerFile, preparedNodes);
-			}
-
-			protected override async processComponentDependencies(
-				components: (EcoComponent | Partial<EcoComponent>)[],
-				options?: { preparedGraph?: true },
-			) {
-				if (options?.preparedGraph) {
-					preparedDependencyCalls += 1;
-				}
-				return super.processComponentDependencies(components, options);
+				return super.resolvePageDependencyContribution(input);
 			}
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
-		const routeFile = '/app/pages/[slug].tsx';
+		const routeFile = path.resolve('/app/pages/[slug].tsx');
 		const params = { slug: 'captured' };
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile, params }]);
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { params, groupedBuildPlan });
-		const result = await renderer.execute({ file: routeFile, params });
+		const routesPlan = await renderer.planProductionRoutes([{ routeFile, params }]);
+		await routesPlan?.prepare();
 
 		expect(staticProps).toHaveBeenCalledTimes(1);
 		expect(metadata).toHaveBeenCalledTimes(1);
 		expect(resolveDependencies).toHaveBeenCalledTimes(1);
 		expect(preparedContributionHookCalls).toBe(1);
-		expect(preparedDependencyCalls).toBe(1);
 		expect(validateGraph).toHaveBeenCalledTimes(2);
-		expect(result.metadata?.title).toBe('captured');
 		validateGraph.mockRestore();
 	});
 
 	it('continues grouped production prebuild after a route data hook fails', async () => {
-		const routeFile = '/app/pages/[slug].tsx';
+		const routeFile = path.resolve('/app/pages/[slug].tsx');
 		const failure = new Error('broken static props');
 		const staticProps: GetStaticProps<{ slug: string }> = async ({ pathname }) => {
 			const slug = String(pathname.params.slug);
@@ -342,7 +353,7 @@ describe('IntegrationRenderer', () => {
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const onRouteFailure = vi.fn();
 
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan(
+		const routesPlan = await renderer.planProductionRoutes(
 			[
 				{ routeFile, params: { slug: 'broken' } },
 				{ routeFile, params: { slug: 'healthy' } },
@@ -356,149 +367,174 @@ describe('IntegrationRenderer', () => {
 			message: 'Error fetching static props: broken static props',
 			cause: failure,
 		});
-		expect(groupedBuildPlan.instances).toHaveLength(1);
-		expect(groupedBuildPlan.instances[0]?.routeFile).toBe(routeFile);
-		expect(groupedBuildPlan.instances[0]?.dependencyInstanceKey).toContain('healthy');
+		expect(routesPlan?.plan.integrationName).toBe('test-renderer');
 	});
 
-	it('resolves lazy triggers from the prebuilt app browser client assets', async () => {
-		const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
-		lazyComponent.config = {
-			identity: { id: 'lazy-component', file: '/app/components/lazy.tsx', integration: 'lit' },
-			dependencies: { scripts: [{ src: './lazy.client.ts', lazy: { 'on:idle': true } }] },
+	it('plans component scripts as definitions without changing a render that runs meanwhile', async () => {
+		const routeFile = path.resolve('/app/pages/index.tsx');
+		const appConfig = createMockAppConfig({ rootDir: path.resolve('/app') });
+		const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
+			deps.map((dep) => ({ kind: dep.kind, srcUrl: `/assets/${dep.kind}.js` }) as ProcessedAsset),
+		);
+		const Card = (() => '<div>card</div>') as EcoComponent;
+		Card.config = {
+			identity: { id: 'card', file: path.resolve('/app/components/card.tsx'), integration: 'test-renderer' },
+			dependencies: { scripts: ['./card.script.ts'] },
 		};
+		const pendingStaticProps: Array<() => void> = [];
 		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-		Page.resolveDependencies = async () => ({ components: [lazyComponent] });
-		const routeFile = '/app/pages/lazy.tsx';
-		const appConfig = {
-			...testAppConfig,
-			integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
-		} as EcoPagesAppConfig;
+		Page.config = {
+			identity: { id: 'index', file: routeFile, integration: 'test-renderer' },
+			dependencies: { components: [Card] },
+		};
+		const staticPropsStarted = new Promise<void>((resolveStarted) => {
+			Page.staticProps = async () => {
+				resolveStarted();
+				await new Promise<void>((resolveRelease) => pendingStaticProps.push(resolveRelease));
+				return { props: {} };
+			};
+		});
 		const renderer = new (class extends TestIntegrationRenderer {
-			readonly resolvedGroupedPlans: unknown[] = [];
-
-			constructor(options: ConstructorParameters<typeof TestIntegrationRenderer>[0]) {
-				super(options);
-				const resolve = this.routeRenderOrchestrator.resolveDeclaredPageBrowserGraph.bind(
-					this.routeRenderOrchestrator,
-				);
-				vi.spyOn(this.routeRenderOrchestrator, 'resolveDeclaredPageBrowserGraph').mockImplementation(
-					async (input) => {
-						this.resolvedGroupedPlans.push(input.groupedBuildPlan);
-						return resolve(input);
-					},
-				);
-			}
-
-			async resolveGraphForRoute(routeFile: string) {
-				return this.resolvePageBrowserGraphForRoute(routeFile);
+			processForRender(components: EcoComponent[]) {
+				return this.processComponentDependencies(components, { preparedGraph: true });
 			}
 		})({
 			appConfig,
-			assetProcessingService: testAssetService,
+			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
 		});
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
-		const instance = groupedBuildPlan.instances[0];
-		const lazyEntry = instance?.pageClientBuildEntries?.find(
-			({ dependency }) => dependency.kind === 'script' && Boolean(dependency.attributes?.['data-eco-lazy-key']),
-		);
-		expect(lazyEntry).toBeDefined();
-		expect(lazyEntry?.integrationName).toBe('test-renderer');
-		const lazyDependency = lazyEntry?.dependency;
-		if (lazyDependency?.kind !== 'script') throw new Error('Expected a planned lazy script entry');
-		if (!instance) throw new Error('Expected a production route instance');
-		instance.prebuiltPageClientBrowserAssets = {
-			processedAssets: [
-				{
-					kind: 'script',
-					srcUrl: '/assets/lazy-entry-hash.js',
-					attributes: lazyDependency.attributes,
-				} as ProcessedAsset,
-			],
-			fallbackDependencies: [],
-		};
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
 
-		const pageClientPlan = collectPageClientPlan([{ component: lazyComponent }], 'test-renderer');
-		const result = await renderer.buildPageClientBrowserAssets(pageClientPlan, { file: routeFile });
+		const planning = renderer.planProductionRoutes([
+			{ routeFile },
+			{ routeFile: path.resolve('/app/pages/other.tsx') },
+		]);
+		await staticPropsStarted;
+		const resolvedDependencies = await renderer.processForRender([Card]);
+		for (const release of pendingStaticProps) release();
+		const routesPlan = await planning;
 
-		expect(result.lazyTriggers).toHaveLength(1);
-		expect(result.lazyTriggers[0]?.rules).toEqual([{ 'on:idle': { scripts: ['/assets/lazy-entry-hash.js'] } }]);
-
-		renderer.clearPrebuiltRoutePreparation({ file: routeFile });
-		const afterClear = await renderer.buildPageClientBrowserAssets(pageClientPlan, { file: routeFile });
-		await renderer.resolveGraphForRoute(routeFile);
-
-		expect(afterClear.processedAssets).not.toContainEqual(
-			expect.objectContaining({ srcUrl: '/assets/lazy-entry-hash.js' }),
-		);
-		expect(renderer.resolvedGroupedPlans).toEqual([groupedBuildPlan, undefined]);
+		expect(resolvedDependencies).toEqual([{ kind: 'script', srcUrl: '/assets/script.js' }]);
+		expect(routesPlan?.plan.bundledScripts).toEqual([
+			expect.objectContaining({ kind: 'script', filepath: path.resolve('/app/components/card.script.ts') }),
+		]);
+		expect(processDependencies).toHaveBeenCalledOnce();
 	});
 
-	it('keeps prebuilt page client assets for every render of an exact route', async () => {
-		const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
-		lazyComponent.config = {
-			identity: { id: 'repeat-lazy-component', file: '/app/components/repeat-lazy.tsx', integration: 'lit' },
-		};
-		const dependency: AssetDefinition = {
-			kind: 'script',
-			source: 'content',
-			content: 'window.repeatLazy = true;',
-			name: 'repeat-lazy',
+	it('processes planned page dependencies after the app-wide build', async () => {
+		const routeFile = path.resolve('/app/pages/index.tsx');
+		const appConfig = createMockAppConfig({ rootDir: path.resolve('/app') });
+		const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
+			deps.map((dep) => ({ kind: dep.kind, srcUrl: '/assets/card-built.js' }) as ProcessedAsset),
+		);
+		const Card = (() => '<div>card</div>') as EcoComponent;
+		Card.config = {
+			identity: { id: 'card', file: path.resolve('/app/components/card.tsx'), integration: 'test-renderer' },
+			dependencies: { scripts: ['./card.script.ts'] },
 		};
 		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-		Page.resolveDependencies = async () => ({ components: [lazyComponent] });
-		const routeFile = '/app/pages/repeat.tsx';
-		const renderedPageEntryAssets: ProcessedAsset[][] = [];
-		const renderer = new (class extends TestIntegrationRenderer {
-			override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>) {
-				renderedPageEntryAssets.push(options.pagePackage?.assets ?? []);
-				return await super.render(options);
-			}
-		})({
-			appConfig: {
-				...testAppConfig,
-				integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
-			} as EcoPagesAppConfig,
-			assetProcessingService: testAssetService,
+		Page.resolveDependencies = async () => ({ components: [Card] });
+		const renderer = new TestIntegrationRenderer({
+			appConfig,
+			assetProcessingService: {
+				processDependencies,
+				getHmrManager: () => undefined,
+			} as unknown as AssetProcessingService,
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+
+		const routesPlan = await renderer.planProductionRoutes([{ routeFile }]);
+		const scriptProcessingCallsWhilePlanning = processDependencies.mock.calls.filter(([deps]) =>
+			deps.some((dep) => dep.kind === 'script'),
+		);
+		await routesPlan?.prepare();
+
+		expect(scriptProcessingCallsWhilePlanning).toEqual([]);
+		expect(routesPlan?.plan.bundledScripts).toEqual([
+			expect.objectContaining({ kind: 'script', filepath: path.resolve('/app/components/card.script.ts') }),
+		]);
+		expect(processDependencies.mock.calls.flatMap(([deps]) => deps)).toContainEqual(
+			expect.objectContaining({ kind: 'script', filepath: path.resolve('/app/components/card.script.ts') }),
+		);
+	});
+
+	it('plans what a contribution hook names without processing it, and processes it when the route is prepared', async () => {
+		const routeFile = path.resolve('/app/pages/post.mdx');
+		const appConfig = createMockAppConfig({ rootDir: path.resolve('/app') });
+		const processDependencies = vi.fn(async (deps: AssetDefinition[]) =>
+			deps.map(
+				(dep) =>
+					({
+						kind: dep.kind,
+						srcUrl:
+							dep.source === 'file' && dep.filepath.endsWith('ssr.script.ts')
+								? '/assets/ssr.js'
+								: '/assets/mdx.js',
+					}) as ProcessedAsset,
+			),
+		);
+		const mdxConfig = {
+			identity: { id: 'post', file: routeFile, integration: 'test-renderer' },
+			dependencies: { scripts: ['./post.script.ts'] },
+		};
+		const ssrLazyScript: AssetDefinition = {
+			kind: 'script',
+			source: 'file',
+			filepath: path.resolve('/app/components/ssr.script.ts'),
+			position: 'head',
+		};
+		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+		const renderer = new TestIntegrationRenderer({
+			appConfig,
+			assetProcessingService: {
+				processDependencies,
+				getHmrManager: () => undefined,
+			} as unknown as AssetProcessingService,
 			hooks: {
-				collectAppBrowserClientBuildEntries: async (plan) =>
-					plan.sourceComponents.includes(lazyComponent) ? [{ dependency }] : [],
+				collectPageBrowserGraphContribution: async () => ({
+					components: [{ config: mdxConfig }],
+					bundledScripts: [ssrLazyScript],
+				}),
 			},
 		});
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
-		const instance = groupedBuildPlan.instances[0];
-		if (!instance) throw new Error('Expected a production route instance');
-		instance.prebuiltPageClientBrowserAssets = {
-			processedAssets: [{ kind: 'script', srcUrl: '/assets/repeat-entry-hash.js' } as ProcessedAsset],
-			fallbackDependencies: [],
-		};
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
 
-		await renderer.execute({ file: routeFile });
-		await renderer.execute({ file: routeFile });
+		const routesPlan = await renderer.planProductionRoutes([{ routeFile }]);
+		const scriptProcessingCallsWhilePlanning = processDependencies.mock.calls.filter(([deps]) =>
+			deps.some((dep) => dep.kind === 'script'),
+		);
+		await routesPlan?.prepare();
 
-		expect(renderedPageEntryAssets).toHaveLength(2);
-		for (const assets of renderedPageEntryAssets) {
-			expect(assets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/repeat-entry-hash.js' }));
-		}
+		expect(scriptProcessingCallsWhilePlanning).toEqual([]);
+		expect(routesPlan?.plan.bundledScripts).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ kind: 'script', filepath: path.resolve('/app/pages/post.script.ts') }),
+				expect.objectContaining({ kind: 'script', filepath: path.resolve('/app/components/ssr.script.ts') }),
+			]),
+		);
+		const processedScripts = processDependencies.mock.calls.flatMap(([deps]) => deps);
+		expect(processedScripts).toContainEqual(
+			expect.objectContaining({ kind: 'script', filepath: path.resolve('/app/pages/post.script.ts') }),
+		);
+		expect(processedScripts).toContainEqual(ssrLazyScript);
 	});
 
-	it('reuses dynamic route template client assets when the page client entries match', async () => {
-		const renderedPageEntryAssets: ProcessedAsset[][] = [];
+	describe('page client entries after an app-wide browser build', () => {
 		const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
 		lazyComponent.config = {
-			identity: { id: 'lazy-template-component', file: '/app/components/lazy-template.tsx', integration: 'lit' },
+			identity: {
+				id: 'lazy-template-component',
+				file: path.resolve('/app/components/lazy-template.tsx'),
+				integration: 'lit',
+			},
 		};
 		const otherComponent = (() => '<button>other</button>') as EcoComponent;
 		otherComponent.config = {
 			identity: {
 				id: 'other-template-component',
-				file: '/app/components/other-template.tsx',
+				file: path.resolve('/app/components/other-template.tsx'),
 				integration: 'lit',
 			},
 		};
@@ -508,110 +544,38 @@ describe('IntegrationRenderer', () => {
 			content: 'window.lazyTemplate = true;',
 			name: 'lazy-template',
 		};
-		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-		Page.resolveDependencies = async () => ({ components: [lazyComponent] });
-		const routeFile = '/app/pages/products/[slug].tsx';
-		const appConfig = {
-			...testAppConfig,
-			integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
-		} as EcoPagesAppConfig;
-		const renderer = new (class extends TestIntegrationRenderer {
-			override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>) {
-				renderedPageEntryAssets.push(options.pagePackage?.assets ?? []);
-				return await super.render(options);
-			}
-		})({
-			appConfig,
-			assetProcessingService: testAssetService,
-			hooks: {
-				collectAppBrowserClientBuildEntries: async (plan) =>
-					plan.sourceComponents.includes(lazyComponent) ? [{ dependency }] : [],
-			},
-		});
-		renderer.PageModule = { default: Page };
-		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([
-			{ routeFile, skipStaticProps: true, isRouteTemplate: true },
-		]);
-		const instance = groupedBuildPlan.instances[0];
-		if (!instance) throw new Error('Expected a dynamic route template plan');
-		instance.prebuiltPageClientBrowserAssets = {
-			processedAssets: [{ kind: 'script', srcUrl: '/assets/template-client.js' } as ProcessedAsset],
-			fallbackDependencies: [],
+		const otherDependency: AssetDefinition = {
+			kind: 'script',
+			source: 'content',
+			content: 'window.otherTemplate = true;',
+			name: 'other-template',
 		};
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, {
-			skipStaticProps: true,
-			isRouteTemplate: true,
-			groupedBuildPlan,
-		});
-		await renderer.execute({ file: routeFile, params: { slug: 'new-product' } });
+		const builtAsset = { kind: 'script', srcUrl: '/assets/template-client.js' } as ProcessedAsset;
+		const integrationBuiltAsset = { kind: 'script', srcUrl: '/assets/integration-built.js' } as ProcessedAsset;
+		const routeFile = path.resolve('/app/pages/products/[slug].tsx');
 
-		const matchingPlan = collectPageClientPlan([{ component: lazyComponent }], 'test-renderer');
-		const reusedAssets = await renderer.buildPageClientBrowserAssets(matchingPlan, {
-			file: routeFile,
-			params: { slug: 'new-product' },
-		});
-		const changedPlan = collectPageClientPlan([{ component: otherComponent }], 'test-renderer');
-		const fallbackAssets = await renderer.buildPageClientBrowserAssets(changedPlan, {
-			file: routeFile,
-			params: { slug: 'new-product' },
-		});
-
-		expect(reusedAssets.processedAssets).toContainEqual(
-			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
-		);
-		expect(renderedPageEntryAssets.at(-1)).toContainEqual(
-			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
-		);
-		expect(fallbackAssets.processedAssets).not.toContainEqual(
-			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
-		);
-	});
-
-	it('fails a production request whose page-client graph is missing from the manifest, naming the route', async () => {
-		vi.stubEnv('NODE_ENV', 'production');
-		const runtime = requireAppRuntime(testAppConfig);
-		runtime.productionBrowserGraphsSealed = true;
-		try {
-			const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
-			lazyComponent.config = {
-				identity: {
-					id: 'lazy-template-component',
-					file: '/app/components/lazy-template.tsx',
-					integration: 'lit',
-				},
-			};
-			const otherComponent = (() => '<button>other</button>') as EcoComponent;
-			otherComponent.config = {
-				identity: {
-					id: 'other-template-component',
-					file: '/app/components/other-template.tsx',
-					integration: 'lit',
-				},
-			};
-			const dependency: AssetDefinition = {
-				kind: 'script',
-				source: 'content',
-				content: 'window.lazyTemplate = true;',
-				name: 'lazy-template',
-			};
-			const otherDependency: AssetDefinition = {
-				kind: 'script',
-				source: 'content',
-				content: 'window.otherTemplate = true;',
-				name: 'other-template',
-			};
-			const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-			Page.resolveDependencies = async () => ({ components: [lazyComponent] });
-			const routeFile = '/app/pages/products/[slug].tsx';
-			const appConfig = {
-				...testAppConfig,
+		function createBuiltRenderer() {
+			const appConfig = createMockAppConfig({
+				rootDir: path.resolve('/app'),
 				integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
-			} as EcoPagesAppConfig;
-			const renderer = new TestIntegrationRenderer({
+			});
+			const ledger = requireAppRuntime(appConfig).processedAssets;
+			ledger.record(dependency, builtAsset);
+			ledger.recordBrowserOutputs([]);
+			const renderedPageEntryAssets: ProcessedAsset[][] = [];
+			const renderer = new (class extends TestIntegrationRenderer {
+				override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>) {
+					renderedPageEntryAssets.push(options.pagePackage?.assets ?? []);
+					return await super.render(options);
+				}
+			})({
 				appConfig,
 				assetProcessingService: testAssetService,
 				hooks: {
+					buildIslandClientAssets: async () => ({
+						processedAssets: [integrationBuiltAsset],
+						lazyTriggers: [],
+					}),
 					collectAppBrowserClientBuildEntries: async (plan) =>
 						plan.sourceComponents.includes(otherComponent)
 							? [{ dependency: otherDependency }]
@@ -620,40 +584,73 @@ describe('IntegrationRenderer', () => {
 								: [],
 				},
 			});
+			const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+			Page.resolveDependencies = async () => ({ components: [lazyComponent] });
 			renderer.PageModule = { default: Page };
 			renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-			const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([
-				{ routeFile, skipStaticProps: true, isRouteTemplate: true },
-			]);
-			const instance = groupedBuildPlan.instances[0];
-			if (!instance) throw new Error('Expected a dynamic route template plan');
-			instance.prebuiltPageClientBrowserAssets = {
-				processedAssets: [{ kind: 'script', srcUrl: '/assets/template-client.js' } as ProcessedAsset],
-				fallbackDependencies: [],
-			};
-			await renderer.prebuildProductionPageBrowserGraph(routeFile, {
-				skipStaticProps: true,
-				isRouteTemplate: true,
-				groupedBuildPlan,
-			});
+			return { appConfig, renderer, renderedPageEntryAssets };
+		}
+
+		it('links the recorded output for any params of the route', async () => {
+			const { renderer, renderedPageEntryAssets } = createBuiltRenderer();
+
+			await renderer.execute({ file: routeFile, params: { slug: 'planned' } });
+			await renderer.execute({ file: routeFile, params: { slug: 'new-product' } });
+
+			expect(renderedPageEntryAssets).toHaveLength(2);
+			for (const assets of renderedPageEntryAssets) {
+				expect(assets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/template-client.js' }));
+			}
+		});
+
+		it('builds an entry the ledger does not record through the Integration', async () => {
+			const { renderer } = createBuiltRenderer();
 			const changedPlan = collectPageClientPlan([{ component: otherComponent }], 'test-renderer');
 
-			await expect(
-				renderer.buildPageClientBrowserAssets(changedPlan, {
-					file: routeFile,
-					params: { slug: 'new-product' },
-				}),
-			).rejects.toThrow(
-				'The production Page Browser Graph for /app/pages/products/[slug].tsx is missing from the manifest (entry slug=new-product). Run `ecopages build` again.',
+			const fallbackAssets = await renderer.buildPageClientBrowserAssets(changedPlan, true);
+
+			expect(fallbackAssets.processedAssets).toEqual([integrationBuiltAsset]);
+		});
+
+		it('resolves lazy triggers from the recorded app browser client assets', async () => {
+			const lazyClientComponent = (() => '<button>lazy</button>') as EcoComponent;
+			lazyClientComponent.config = {
+				identity: { id: 'lazy-component', file: path.resolve('/app/components/lazy.tsx'), integration: 'lit' },
+				dependencies: { scripts: [{ src: './lazy.client.ts', lazy: { 'on:idle': true } }] },
+			};
+			const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+			Page.resolveDependencies = async () => ({ components: [lazyClientComponent] });
+			const lazyRouteFile = path.resolve('/app/pages/lazy.tsx');
+			const appConfig = createMockAppConfig({
+				rootDir: path.resolve('/app'),
+				integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
+			});
+			const renderer = new TestIntegrationRenderer({ appConfig, assetProcessingService: testAssetService });
+			renderer.PageModule = { default: Page };
+			renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+			const routesPlan = await renderer.planProductionRoutes([{ routeFile: lazyRouteFile }]);
+			const lazyEntry = routesPlan?.plan.pageClientEntries.find(
+				({ dependency: entry }) => entry.kind === 'script' && Boolean(entry.attributes?.['data-eco-lazy-key']),
 			);
-		} finally {
-			runtime.productionBrowserGraphsSealed = false;
-			vi.unstubAllEnvs();
-		}
+			if (lazyEntry?.dependency.kind !== 'script') throw new Error('Expected a planned lazy script entry');
+			const ledger = requireAppRuntime(appConfig).processedAssets;
+			ledger.record(lazyEntry.dependency, {
+				kind: 'script',
+				srcUrl: '/assets/lazy-entry-hash.js',
+				attributes: lazyEntry.dependency.attributes,
+			});
+			ledger.recordBrowserOutputs([]);
+
+			const pageClientPlan = collectPageClientPlan([{ component: lazyClientComponent }], 'test-renderer');
+			const result = await renderer.buildPageClientBrowserAssets(pageClientPlan, true);
+
+			expect(result.lazyTriggers).toHaveLength(1);
+			expect(result.lazyTriggers[0]?.rules).toEqual([{ 'on:idle': { scripts: ['/assets/lazy-entry-hash.js'] } }]);
+		});
 	});
 
 	it('keeps metadata active for route plans that only skip static props', async () => {
-		const routeFile = '/app/pages/products/[slug].tsx';
+		const routeFile = path.resolve('/app/pages/products/[slug].tsx');
 		const metadata = vi.fn(async ({ params }: Parameters<GetMetadata>[0]) => ({
 			title: String(params.slug),
 			description: 'Route metadata',
@@ -674,22 +671,30 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		await renderer.buildGroupedGraphBuildPlan([
+		await renderer.planProductionRoutes([
 			{ routeFile, params: { slug: 'existing-product' }, skipStaticProps: true },
 		]);
 
 		expect(metadata).toHaveBeenCalledWith(expect.objectContaining({ params: { slug: 'existing-product' } }));
 	});
 
-	it('does not reuse prebuilt page dependencies when render props override the route', async () => {
+	it('resolves the page dependencies of each render from its own props', async () => {
 		const defaultDependency = (() => 'default') as EcoComponent;
 		defaultDependency.config = {
-			identity: { id: 'default', file: '/app/components/default.tsx', integration: 'test-renderer' },
+			identity: {
+				id: 'default',
+				file: path.resolve('/app/components/default.tsx'),
+				integration: 'test-renderer',
+			},
 			dependencies: {},
 		};
 		const overrideDependency = (() => 'override') as EcoComponent;
 		overrideDependency.config = {
-			identity: { id: 'override', file: '/app/components/override.tsx', integration: 'test-renderer' },
+			identity: {
+				id: 'override',
+				file: path.resolve('/app/components/override.tsx'),
+				integration: 'test-renderer',
+			},
 			dependencies: {},
 		};
 		const resolveDependencies = vi.fn(async ({ props }: { props: Record<string, unknown> }) => ({
@@ -717,11 +722,11 @@ describe('IntegrationRenderer', () => {
 				return await super.render(options);
 			}
 
-			protected override async resolvePageBrowserGraphContributionFromComponents(
-				components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
-				_ownerFile: string,
-				_preparedNodes?: ReadonlyArray<PreparedComponentGraphNode>,
-			) {
+			override async resolvePageDependencyContribution(input: {
+				nodes: ReadonlyArray<PreparedComponentGraphNode>;
+				ownerFile: string;
+			}) {
+				const components = input.nodes.map((node) => node.component);
 				pageDependencyContributions.push(
 					components.flatMap((component) => {
 						const id = getComponentIdentity(component)?.id;
@@ -740,12 +745,10 @@ describe('IntegrationRenderer', () => {
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
-		const routeFile = '/app/pages/override-dependencies.tsx';
+		const routeFile = path.resolve('/app/pages/override-dependencies.tsx');
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
-		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
 		await renderer.execute({ file: routeFile, params: {}, query: {} });
 		expect(renderedPageEntryAssets.at(-1)).toEqual([defaultAsset]);
 		await renderer.execute({ file: routeFile, params: {}, query: {}, props: { variant: 'override' } });
@@ -792,8 +795,8 @@ describe('IntegrationRenderer', () => {
 		renderer.HtmlTemplate = HtmlTemplate;
 
 		const both = Promise.all([
-			renderer.execute({ file: '/app/pages/a.tsx', params: {}, query: {} }),
-			renderer.execute({ file: '/app/pages/b.tsx', params: {}, query: {} }),
+			renderer.execute({ file: path.resolve('/app/pages/a.tsx'), params: {}, query: {} }),
+			renderer.execute({ file: path.resolve('/app/pages/b.tsx'), params: {}, query: {} }),
 		]);
 		await vi.waitUntil(() => entered === 2);
 
@@ -843,7 +846,7 @@ describe('IntegrationRenderer', () => {
 			integration: 'foreign-renderer',
 			identity: {
 				id: 'foreign-view',
-				file: '/app/components/foreign-view.tsx',
+				file: path.resolve('/app/components/foreign-view.tsx'),
 				integration: 'foreign-renderer',
 			},
 		};
@@ -872,7 +875,11 @@ describe('IntegrationRenderer', () => {
 		});
 		const component = (() => '<div />') as EcoComponent;
 		component.config = {
-			identity: { id: 'hmr-cache', file: '/app/components/hmr-cache.tsx', integration: 'hmr-cache-test' },
+			identity: {
+				id: 'hmr-cache',
+				file: path.resolve('/app/components/hmr-cache.tsx'),
+				integration: 'hmr-cache-test',
+			},
 			dependencies: { scripts: ['./client.ts'] },
 		};
 		renderer.setHmrManager({ isEnabled: () => true } as IHmrManager);
@@ -914,7 +921,7 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = HtmlTemplate;
 
-		const route = renderer.execute({ file: '/app/pages/a.tsx', params: {}, query: {} });
+		const route = renderer.execute({ file: path.resolve('/app/pages/a.tsx'), params: {}, query: {} });
 		await vi.waitUntil(() => routeEntered);
 
 		const response = await renderer.renderExplicitView(View, { content: 'Partial' }, { partial: true });
@@ -927,7 +934,7 @@ describe('IntegrationRenderer', () => {
 	it('keeps each render plan when a nested foreign-child context opens', async () => {
 		const Page = (() => 'page') as EcoComponent;
 		Page.config = {
-			identity: { id: 'page', file: '/app/pages/a.tsx', integration: 'test-renderer' },
+			identity: { id: 'page', file: path.resolve('/app/pages/a.tsx'), integration: 'test-renderer' },
 		};
 		const HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
 		let nestedHasPage = false;
@@ -948,7 +955,7 @@ describe('IntegrationRenderer', () => {
 			return '<html><body>ok</body></html>';
 		};
 
-		await renderer.execute({ file: '/app/pages/a.tsx', params: {}, query: {} });
+		await renderer.execute({ file: path.resolve('/app/pages/a.tsx'), params: {}, query: {} });
 
 		expect(nestedHasPage).toBe(true);
 	});
@@ -963,13 +970,13 @@ describe('IntegrationRenderer', () => {
 			};
 			return component;
 		};
-		const pageA = declare('/app/pages/a.tsx');
-		const pageB = declare('/app/pages/b.tsx');
-		const explicitView = declare('/app/views/explicit.tsx');
+		const pageA = declare(path.resolve('/app/pages/a.tsx'));
+		const pageB = declare(path.resolve('/app/pages/b.tsx'));
+		const explicitView = declare(path.resolve('/app/views/explicit.tsx'));
 		const HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
 		HtmlTemplate.config = {
 			integration: 'test-renderer',
-			identity: { id: 'html', file: '/app/includes/html.ts', integration: 'test-renderer' },
+			identity: { id: 'html', file: path.resolve('/app/includes/html.ts'), integration: 'test-renderer' },
 		};
 
 		const renderer = new TestIntegrationRenderer({
@@ -990,15 +997,25 @@ describe('IntegrationRenderer', () => {
 			return '<html><body>ok</body></html>';
 		};
 
-		await renderer.execute({ file: '/app/pages/a.tsx', pageModule: { default: pageA }, params: {}, query: {} });
-		await renderer.execute({ file: '/app/pages/b.tsx', pageModule: { default: pageB }, params: {}, query: {} });
-		await renderer.renderExplicitView(explicitView, {}, { file: '/app/views/explicit.tsx' });
+		await renderer.execute({
+			file: path.resolve('/app/pages/a.tsx'),
+			pageModule: { default: pageA },
+			params: {},
+			query: {},
+		});
+		await renderer.execute({
+			file: path.resolve('/app/pages/b.tsx'),
+			pageModule: { default: pageB },
+			params: {},
+			query: {},
+		});
+		await renderer.renderExplicitView(explicitView, {}, { file: path.resolve('/app/views/explicit.tsx') });
 
 		expect(seen).toEqual(
 			new Set([
-				'/app/includes/html.ts,/app/pages/a.tsx',
-				'/app/includes/html.ts,/app/pages/b.tsx',
-				'/app/includes/html.ts,/app/views/explicit.tsx',
+				`${path.resolve('/app/includes/html.ts')},${path.resolve('/app/pages/a.tsx')}`,
+				`${path.resolve('/app/includes/html.ts')},${path.resolve('/app/pages/b.tsx')}`,
+				`${path.resolve('/app/includes/html.ts')},${path.resolve('/app/views/explicit.tsx')}`,
 			]),
 		);
 	});
@@ -1045,7 +1062,7 @@ describe('IntegrationRenderer', () => {
 			assetProcessingIntegration,
 		});
 
-		await renderer.execute({ file: '/app/pages/test.tsx', params: {}, query: {} });
+		await renderer.execute({ file: path.resolve('/app/pages/test.tsx'), params: {}, query: {} });
 
 		expect(renderOptions?.pagePackage).toEqual(
 			expect.objectContaining({
@@ -1102,7 +1119,7 @@ describe('IntegrationRenderer', () => {
 			assetProcessingIntegration,
 		});
 
-		await renderer.execute({ file: '/app/pages/demo.tsx', params: {}, query: {} });
+		await renderer.execute({ file: path.resolve('/app/pages/demo.tsx'), params: {}, query: {} });
 
 		expect(renderOptions?.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
 			{ kind: 'script', inline: false, srcUrl: '/demo.js' },
@@ -1112,7 +1129,7 @@ describe('IntegrationRenderer', () => {
 				expect.objectContaining({
 					kind: 'script',
 					source: 'file',
-					filepath: '/app/pages/demo.client.ts',
+					filepath: path.resolve('/app/pages/demo.client.ts'),
 				}),
 			]),
 			assetProcessingIntegration,
@@ -1126,7 +1143,7 @@ describe('IntegrationRenderer', () => {
 		const Page = (() => 'Page') as EcoPageComponent<any>;
 		Page.resolveDependencies = async () => ({
 			scripts: ['./demo.client.ts'],
-			ownerFile: '/app/content/docs/demo.mdx',
+			ownerFile: path.resolve('/app/content/docs/demo.mdx'),
 		});
 		const renderer = new (class extends IntegrationRenderer<EcoPagesElement> {
 			name = 'declarative-renderer';
@@ -1153,7 +1170,7 @@ describe('IntegrationRenderer', () => {
 		});
 
 		await renderer.execute({
-			file: '/app/pages/docs/[...slug]/index.tsx',
+			file: path.resolve('/app/pages/docs/[...slug]/index.tsx'),
 			params: {},
 			query: {},
 		});
@@ -1166,7 +1183,7 @@ describe('IntegrationRenderer', () => {
 				expect.objectContaining({
 					kind: 'script',
 					source: 'file',
-					filepath: '/app/content/docs/demo.client.ts',
+					filepath: path.resolve('/app/content/docs/demo.client.ts'),
 				}),
 			]),
 			assetProcessingIntegration,
@@ -1212,7 +1229,7 @@ describe('IntegrationRenderer', () => {
 			assetProcessingIntegration,
 		});
 
-		await renderer.execute({ file: '/app/pages/demo.tsx', params: {}, query: {} });
+		await renderer.execute({ file: path.resolve('/app/pages/demo.tsx'), params: {}, query: {} });
 
 		expect(processDependencies).toHaveBeenCalledWith(
 			expect.arrayContaining([
@@ -1252,38 +1269,42 @@ describe('IntegrationRenderer', () => {
 		const foreignIntegration = 'prepared-package-foreign';
 		const Card = eco.component({
 			integration,
-			identity: { id: 'card', file: '/app/components/card.ts', integration },
+			identity: { id: 'card', file: path.resolve('/app/components/card.ts'), integration },
 			dependencies: { stylesheets: ['./card.css'] },
 			render: () => '<article>card</article>',
 		});
 		const Widget = eco.component({
 			integration: foreignIntegration,
-			identity: { id: 'widget', file: '/app/components/widget.ts', integration: foreignIntegration },
+			identity: {
+				id: 'widget',
+				file: path.resolve('/app/components/widget.ts'),
+				integration: foreignIntegration,
+			},
 			dependencies: { stylesheets: ['./widget.css'], scripts: ['./widget.script.ts'] },
 			render: () => '<aside>widget</aside>',
 		});
 		const UndeclaredBadge = eco.component({
 			integration: foreignIntegration,
-			identity: { id: 'badge', file: '/app/components/badge.ts', integration: foreignIntegration },
+			identity: { id: 'badge', file: path.resolve('/app/components/badge.ts'), integration: foreignIntegration },
 			dependencies: { stylesheets: ['./badge.css'], scripts: ['./badge.script.ts'] },
 			render: () => '<small>badge</small>',
 		});
 		const Layout = eco.layout({
 			integration,
-			identity: { id: 'layout', file: '/app/layouts/base.ts', integration },
+			identity: { id: 'layout', file: path.resolve('/app/layouts/base.ts'), integration },
 			dependencies: { stylesheets: ['./base.css'] },
 			render: ({ children }) => `<div class="layout">${String(children ?? '')}</div>`,
 		});
 		const Page = eco.page({
 			integration,
-			identity: { id: 'page', file: '/app/pages/index.ts', integration },
+			identity: { id: 'page', file: path.resolve('/app/pages/index.ts'), integration },
 			layout: Layout,
 			dependencies: { stylesheets: ['./index.css'], components: [Card, Widget] },
 			render: () => `<main>${String(Card({}))}${String(Widget({}))}${String(UndeclaredBadge({}))}</main>`,
 		});
 		const HtmlTemplate = eco.html({
 			integration,
-			identity: { id: 'html', file: '/app/html.ts', integration },
+			identity: { id: 'html', file: path.resolve('/app/html.ts'), integration },
 			render: ({ children }) => `<html><head></head><body>${String(children ?? '')}</body></html>`,
 		});
 		const assetProcessingService = { processDependencies } as unknown as AssetProcessingService;
@@ -1314,7 +1335,7 @@ describe('IntegrationRenderer', () => {
 			}
 		})({ appConfig, assetProcessingService });
 
-		const result = await renderer.execute({ file: '/app/pages/index.ts', params: {}, query: {} });
+		const result = await renderer.execute({ file: path.resolve('/app/pages/index.ts'), params: {}, query: {} });
 		const html = await new Response(result.body as BodyInit).text();
 		const emittedUrls = [...html.matchAll(/<(?:link|script) [^>]*(?:href|src)="([^"]+)"/g)]
 			.map((match) => match[1])
@@ -1348,7 +1369,7 @@ describe('IntegrationRenderer', () => {
 		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
 
 		const result = await renderer.execute({
-			file: '/app/pages/cached-page.ts',
+			file: path.resolve('/app/pages/cached-page.ts'),
 			params: {},
 			query: {},
 		});
@@ -1370,7 +1391,7 @@ describe('IntegrationRenderer', () => {
 		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
 
 		const result = await renderer.execute({
-			file: '/app/pages/simple-page.ts',
+			file: path.resolve('/app/pages/simple-page.ts'),
 			params: {},
 			query: {},
 		});
@@ -1399,7 +1420,7 @@ describe('IntegrationRenderer', () => {
 		renderer.UseDocumentShellRender = true;
 
 		const result = await renderer.execute({
-			file: '/app/pages/props-page.ts',
+			file: path.resolve('/app/pages/props-page.ts'),
 			params: {},
 			query: {},
 		});
@@ -1438,7 +1459,7 @@ describe('IntegrationRenderer', () => {
 			`<html><body>${String(children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
 
 		const result = await renderer.execute({
-			file: '/app/pages/static-page.ts',
+			file: path.resolve('/app/pages/static-page.ts'),
 			params: {},
 			query: {},
 		});
@@ -1446,7 +1467,7 @@ describe('IntegrationRenderer', () => {
 
 		expect(html).toContain('data-layout-locals="absent"');
 		expect(html).toContain(
-			"[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: /app/pages/static-page.ts",
+			`[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: ${path.resolve('/app/pages/static-page.ts')}`,
 		);
 	});
 
@@ -1476,7 +1497,7 @@ describe('IntegrationRenderer', () => {
 			`<html><body>${String(children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
 
 		const result = await renderer.execute({
-			file: '/app/pages/dynamic-page.ts',
+			file: path.resolve('/app/pages/dynamic-page.ts'),
 			params: {},
 			query: {},
 			locals: { session: { userId: 'u-1' } },
@@ -1494,7 +1515,7 @@ describe('IntegrationRenderer', () => {
 			});
 			renderer.HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
 			renderer.HtmlTemplate.config = {
-				identity: { id: 'html', file: '/app/includes/html.ts', integration: 'test-renderer' },
+				identity: { id: 'html', file: path.resolve('/app/includes/html.ts'), integration: 'test-renderer' },
 			};
 
 			const View = ((props: { title: string }) => `<h1>${props.title}</h1>`) as EcoComponent<{
@@ -1532,7 +1553,7 @@ describe('IntegrationRenderer', () => {
 
 			renderer.HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
 			renderer.HtmlTemplate.config = {
-				identity: { id: 'html', file: '/app/includes/html.ts', integration: 'test-renderer' },
+				identity: { id: 'html', file: path.resolve('/app/includes/html.ts'), integration: 'test-renderer' },
 			};
 			const View = (() => '<p>Not Found</p>') as EcoComponent<object>;
 
@@ -1549,7 +1570,7 @@ describe('IntegrationRenderer', () => {
 
 			renderer.HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
 			renderer.HtmlTemplate.config = {
-				identity: { id: 'html', file: '/app/includes/html.ts', integration: 'test-renderer' },
+				identity: { id: 'html', file: path.resolve('/app/includes/html.ts'), integration: 'test-renderer' },
 			};
 			const View = (() => '<p>Cached</p>') as EcoComponent<object>;
 
@@ -1604,7 +1625,7 @@ describe('IntegrationRenderer', () => {
 				'<html><body><main>Stream Body</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
 			const result = await renderer.execute({
-				file: '/app/pages/index.ts',
+				file: path.resolve('/app/pages/index.ts'),
 				params: {},
 				query: {},
 			});
@@ -1633,7 +1654,7 @@ describe('IntegrationRenderer', () => {
 				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
 			const result = await renderer.execute({
-				file: '/app/pages/index.ts',
+				file: path.resolve('/app/pages/index.ts'),
 				params: {},
 				query: {},
 			});
@@ -1682,7 +1703,7 @@ describe('IntegrationRenderer', () => {
 				integration: 'explicit-renderer',
 				identity: {
 					id: 'nested-component',
-					file: '/app/components/nested-component.ts',
+					file: path.resolve('/app/components/nested-component.ts'),
 					integration: 'test-renderer',
 				},
 			};
@@ -1701,7 +1722,7 @@ describe('IntegrationRenderer', () => {
 				'<html><body><main>Test Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
 
 			const result = await renderer.execute({
-				file: '/app/pages/index.ts',
+				file: path.resolve('/app/pages/index.ts'),
 				params: {},
 				query: {},
 			});
@@ -1724,7 +1745,7 @@ describe('IntegrationRenderer', () => {
 				integration: 'test-renderer',
 				identity: {
 					id: 'child-component',
-					file: '/app/components/child-component.ts',
+					file: path.resolve('/app/components/child-component.ts'),
 					integration: 'test-renderer',
 				},
 			};
@@ -1734,7 +1755,7 @@ describe('IntegrationRenderer', () => {
 				integration: 'test-renderer',
 				identity: {
 					id: 'root-component',
-					file: '/app/components/root-component.ts',
+					file: path.resolve('/app/components/root-component.ts'),
 					integration: 'test-renderer',
 				},
 				dependencies: { components: [Child] },
@@ -1744,7 +1765,7 @@ describe('IntegrationRenderer', () => {
 			renderer.PageModule = { default: Root as EcoPageComponent<Record<string, unknown>> };
 			renderer.HtmlTemplate = (() => '<html><body></body></html>') as EcoComponent<HtmlTemplateProps>;
 
-			await renderer.execute({ file: '/app/pages/index.tsx', params: {}, query: {} });
+			await renderer.execute({ file: path.resolve('/app/pages/index.tsx'), params: {}, query: {} });
 
 			expect(renderer.ForeignChildRuntimeCreationCount).toBe(0);
 		});
@@ -1763,7 +1784,7 @@ describe('IntegrationRenderer', () => {
 				integration: 'react',
 				identity: {
 					id: 'foreign-child-component',
-					file: '/app/components/foreign-child-component.tsx',
+					file: path.resolve('/app/components/foreign-child-component.tsx'),
 					integration: 'react',
 				},
 			};
@@ -1773,7 +1794,7 @@ describe('IntegrationRenderer', () => {
 				integration: 'test-renderer',
 				identity: {
 					id: 'root-component',
-					file: '/app/components/root-component.ts',
+					file: path.resolve('/app/components/root-component.ts'),
 					integration: 'test-renderer',
 				},
 				dependencies: { components: [ForeignChild] },
@@ -1783,7 +1804,7 @@ describe('IntegrationRenderer', () => {
 			renderer.PageModule = { default: Root as EcoPageComponent<Record<string, unknown>> };
 			renderer.HtmlTemplate = (() => '<html><body></body></html>') as EcoComponent<HtmlTemplateProps>;
 
-			await renderer.execute({ file: '/app/pages/index.tsx', params: {}, query: {} });
+			await renderer.execute({ file: path.resolve('/app/pages/index.tsx'), params: {}, query: {} });
 
 			expect(renderer.ForeignChildRuntimeCreationCount).toBe(1);
 		});
@@ -1797,12 +1818,12 @@ describe('IntegrationRenderer', () => {
 			const Leaf = (() => '<span>Leaf</span>') as EcoComponent<Record<string, unknown>>;
 			Leaf.config = {
 				integration: 'test-renderer',
-				identity: { id: 'leaf', file: '/app/components/leaf.tsx', integration: 'test-renderer' },
+				identity: { id: 'leaf', file: path.resolve('/app/components/leaf.tsx'), integration: 'test-renderer' },
 			};
 			const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
 			Page.config = {
 				integration: 'page-owner',
-				identity: { id: 'page', file: '/app/pages/index.tsx', integration: 'page-owner' },
+				identity: { id: 'page', file: path.resolve('/app/pages/index.tsx'), integration: 'page-owner' },
 				dependencies: { components: [Leaf] },
 			};
 			const ownerPlan = collectPageClientPlan([{ component: Page }], 'page-owner');
@@ -1826,7 +1847,11 @@ describe('IntegrationRenderer', () => {
 			'<!--lit-part SJL2YkzXbQY=--><div class="discovery-counter-host">x</div>') as EcoComponent;
 		component.config = {
 			integration: 'test-renderer',
-			identity: { id: 'discovery-counter', file: '/app/discovery-counter.tsx', integration: 'test-renderer' },
+			identity: {
+				id: 'discovery-counter',
+				file: path.resolve('/app/discovery-counter.tsx'),
+				integration: 'test-renderer',
+			},
 		};
 		setResolvedLazyTriggers(component.config, [
 			{ triggerId: 'eco-trigger-1', rules: [{ 'on:visible': { scripts: ['/assets/lazy.js'] } }] },
@@ -1873,7 +1898,7 @@ describe('IntegrationRenderer', () => {
 		});
 		const island = eco.component({
 			integration: 'react',
-			identity: { id: 'react-counter', file: '/app/react-counter.tsx', integration: 'react' },
+			identity: { id: 'react-counter', file: path.resolve('/app/react-counter.tsx'), integration: 'react' },
 			render: () => '<button>Counter</button>',
 		});
 		const Page = eco.component({
@@ -1886,7 +1911,7 @@ describe('IntegrationRenderer', () => {
 		host.HtmlTemplate = (({ children }) =>
 			`<html><head></head><body>${String(children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
 
-		const result = await host.execute({ file: '/app/pages/index.kita.tsx', params: {}, query: {} });
+		const result = await host.execute({ file: path.resolve('/app/pages/index.kita.tsx'), params: {}, query: {} });
 		const html = await new Response(result.body as BodyInit).text();
 
 		expect(html).toContain('<button>Counter</button>');
@@ -1894,7 +1919,7 @@ describe('IntegrationRenderer', () => {
 	});
 
 	describe('components missing from the prepared graph', () => {
-		const undeclaredFile = '/app/lib/render-only-card.ts';
+		const undeclaredFile = path.resolve('/app/lib/render-only-card.ts');
 
 		afterEach(() => {
 			vi.unstubAllEnvs();
@@ -1915,21 +1940,23 @@ describe('IntegrationRenderer', () => {
 				undeclaredFile,
 				options.withDependencies === false ? undefined : { stylesheets: ['./card.css'] },
 			);
-			const Page = createComponent('/app/pages/render-only.tsx', {
+			const Page = createComponent(path.resolve('/app/pages/render-only.tsx'), {
 				components: options.listed ? [rendered] : [],
 			});
 			const renderer = new TestIntegrationRenderer({
 				appConfig: testAppConfig,
 				assetProcessingService: testAssetService,
 			});
-			renderer.HtmlTemplate = createComponent('/app/includes/html.ts') as EcoComponent<HtmlTemplateProps>;
+			renderer.HtmlTemplate = createComponent(
+				path.resolve('/app/includes/html.ts'),
+			) as EcoComponent<HtmlTemplateProps>;
 			renderer.RenderBodyFactory = async () => {
 				await renderer.renderComponentWithForeignChildren({ component: rendered, props: {} });
 				return '<html><body>ok</body></html>';
 			};
 			return async () => {
 				const result = await renderer.execute({
-					file: '/app/pages/render-only.tsx',
+					file: path.resolve('/app/pages/render-only.tsx'),
 					pageModule: { default: Page },
 					params: {},
 					query: {},
@@ -1975,6 +2002,215 @@ describe('IntegrationRenderer', () => {
 			const response = await renderer.renderExplicitView(View, {}, { partial: true });
 
 			expect(await response.text()).toBe(`<p>${undeclaredFile}</p>`);
+		});
+	});
+
+	it('names the missing Html template instead of asking to run ecopages build', async () => {
+		const appConfig = createMockAppConfig({
+			rootDir: '/missing-html-app',
+			distDir: 'dist',
+			absolutePaths: {
+				pagesDir: '/missing-html-app/src/pages',
+				htmlTemplatePath: '/missing-html-app/src/includes/html.tsx',
+			},
+		} as Partial<EcoPagesAppConfig>);
+		const renderer = new TestIntegrationRenderer({ appConfig, assetProcessingService: testAssetService });
+		const getHtmlTemplate = (IntegrationRenderer.prototype as unknown as { getHtmlTemplate(): Promise<unknown> })
+			.getHtmlTemplate;
+
+		const error = await getHtmlTemplate.call(renderer).then(
+			() => undefined,
+			(caught: unknown) => caught as Error,
+		);
+
+		expect(error?.message).toContain('Missing Html template');
+		expect(error?.message).toContain('src/includes/html.<ext>');
+		expect(error?.message).not.toContain('ecopages build');
+	});
+
+	describe('ssr script preloading', () => {
+		const scriptHost = (id: string, integration: string) =>
+			eco.component({
+				integration,
+				identity: { id, file: path.resolve(`/app/components/${id}.tsx`), integration },
+				dependencies: { scripts: [{ src: './counter.script.ts', ssr: true }] },
+				render: () => '',
+			}) as EcoComponent;
+
+		function createPreloadingApp(pageOwner: string) {
+			const imports = { lit: vi.fn(async () => undefined), 'ecopages-jsx': vi.fn(async () => undefined) };
+			const declarations = {
+				kitajs: undefined,
+				lit: 'own-and-foreign',
+				'ecopages-jsx': 'own',
+			} as const;
+			const renderers = new Map<string, IntegrationRenderer<EcoPagesElement>>();
+			const integrations = Object.entries(declarations).map(([name, ssrScriptPreload]) =>
+				createMockIntegrationPlugin({
+					name,
+					ssrScriptPreload,
+					getRenderer: () => renderers.get(name),
+				}),
+			);
+			const appConfig = createMockAppConfig({ integrations });
+			const createPreloadingRenderer = (name: 'lit' | 'ecopages-jsx') =>
+				new (class extends createIntegrationRenderer(name, ({ createSsrScriptPreloader }) => {
+					createSsrScriptPreloader({
+						cacheScope: name,
+						integrationName: name,
+						importServerModule: imports[name],
+					});
+					return { renderCustomElements: (html: string) => `${html}[${name}]` };
+				}) {
+					protected override async renderRouteDocument() {
+						return '<doc>';
+					}
+				})({ appConfig, assetProcessingService: testAssetService });
+			renderers.set('lit', createPreloadingRenderer('lit'));
+			renderers.set('ecopages-jsx', createPreloadingRenderer('ecopages-jsx'));
+			const Page = Object.assign(() => '', {
+				config: {
+					dependencies: {
+						components: [scriptHost('kita-counter', 'kitajs'), scriptHost('ejsx-counter', 'ecopages-jsx')],
+					},
+				},
+			}) as unknown as EcoComponent;
+
+			return { imports, renderer: renderers.get(pageOwner)!, Page, appConfig };
+		}
+
+		const render = (renderer: IntegrationRenderer<EcoPagesElement>, Page: EcoComponent) =>
+			renderer.render({
+				file: path.resolve('/app/pages/index.tsx'),
+				params: {},
+				query: {},
+				props: {},
+				metadata: { title: 'Page', description: 'Page' },
+				HtmlTemplate: (() => '') as unknown as EcoComponent<HtmlTemplateProps>,
+				Page,
+				resolvedDependencies: [],
+			} as IntegrationRendererRenderOptions);
+
+		it('evaluates a script declared on a Kita and an Ecopages JSX Component once, by the Ecopages JSX preloader', async () => {
+			const { imports, renderer, Page } = createPreloadingApp('lit');
+
+			await render(renderer, Page);
+
+			expect(imports['ecopages-jsx']).toHaveBeenCalledTimes(1);
+			expect(imports['ecopages-jsx']).toHaveBeenCalledWith(
+				path.resolve('/app/components/counter.script.ts'),
+				expect.any(String),
+			);
+			expect(imports.lit).not.toHaveBeenCalled();
+		});
+
+		it('evaluates it once when the Ecopages JSX renderer owns the Page', async () => {
+			const { imports, renderer, Page } = createPreloadingApp('ecopages-jsx');
+
+			await render(renderer, Page);
+
+			expect(imports['ecopages-jsx']).toHaveBeenCalledTimes(1);
+			expect(imports.lit).not.toHaveBeenCalled();
+		});
+
+		it("hands a Kita Component's script to the own-and-foreign preloader when no Component of a preloading Integration declares it", async () => {
+			const { imports, renderer } = createPreloadingApp('lit');
+			const Page = Object.assign(() => '', {
+				config: { dependencies: { components: [scriptHost('kita-counter', 'kitajs')] } },
+			}) as unknown as EcoComponent;
+
+			await render(renderer, Page);
+
+			expect(imports.lit).toHaveBeenCalledTimes(1);
+			expect(imports['ecopages-jsx']).not.toHaveBeenCalled();
+		});
+
+		it('passes the finished document through the renderer a script was assigned to, whoever owns the Page', async () => {
+			const { renderer } = createPreloadingApp('ecopages-jsx');
+			const Page = Object.assign(() => '', {
+				config: { dependencies: { components: [scriptHost('kita-counter', 'kitajs')] } },
+			}) as unknown as EcoComponent;
+
+			expect(await render(renderer, Page)).toBe('<doc>[lit]');
+		});
+
+		it('leaves the document of a Page with no assigned script unchanged', async () => {
+			const { renderer } = createPreloadingApp('lit');
+			const Page = Object.assign(() => '', { config: {} }) as unknown as EcoComponent;
+
+			expect(await render(renderer, Page)).toBe('<doc>');
+		});
+
+		it('names the Integrations a Page has scripts assigned to', () => {
+			const { renderer, Page } = createPreloadingApp('lit');
+
+			expect(renderer.getPageSsrScriptIntegrationNames({ Page })).toEqual(['ecopages-jsx']);
+		});
+
+		describe('a script that fails to preload', () => {
+			afterEach(() => {
+				vi.unstubAllEnvs();
+			});
+
+			async function renderWithFailingScript(nodeEnv: string, staticGenerationActive = false) {
+				vi.stubEnv('NODE_ENV', nodeEnv);
+				vi.spyOn(console, 'warn').mockImplementation(() => {});
+				const { imports, renderer, Page, appConfig } = createPreloadingApp('lit');
+				const reportBuildError = vi.fn();
+				const hmr: Partial<IHmrManager> = { reportBuildError };
+				const runtime = requireAppRuntime(appConfig);
+				runtime.hmr = hmr as IHmrManager;
+				runtime.staticGenerationActive = staticGenerationActive;
+				imports['ecopages-jsx'].mockRejectedValue(new Error('Unexpected token'));
+				const html = await render(renderer, Page);
+				return { html, reportBuildError };
+			}
+
+			it('still renders the Page and shows the failure in the overlay in development', async () => {
+				const { html, reportBuildError } = await renderWithFailingScript('development');
+
+				expect(html).toBe('<doc>[ecopages-jsx]');
+				expect(reportBuildError).toHaveBeenCalledWith(
+					path.resolve('/app/components/counter.script.ts'),
+					`Failed to process script ${path.resolve('/app/components/counter.script.ts')}: Unexpected token`,
+				);
+			});
+
+			it.each([
+				['production', true],
+				['development', true],
+			])(
+				'fails the render, naming the script and the cause, in %s with static generation %s',
+				async (nodeEnv, staticGenerationActive) => {
+					await expect(renderWithFailingScript(nodeEnv, staticGenerationActive)).rejects.toThrow(
+						`Failed to preload the ssr script ${path.resolve('/app/components/counter.script.ts')}: Unexpected token`,
+					);
+				},
+			);
+
+			it('only warns in production outside static generation, as `ecopages start` does', async () => {
+				const { reportBuildError } = await renderWithFailingScript('production', false);
+
+				expect(reportBuildError).not.toHaveBeenCalled();
+			});
+		});
+
+		it('builds a preloader only for an Integration that declares ssrScriptPreload', () => {
+			const appConfig = createMockAppConfig({
+				integrations: [createMockIntegrationPlugin({ name: 'lit', ssrScriptPreload: 'own' })],
+			});
+			const Undeclared = createIntegrationRenderer('other', ({ createSsrScriptPreloader }) => {
+				createSsrScriptPreloader({
+					cacheScope: 'other',
+					integrationName: 'other',
+					importServerModule: async () => undefined,
+				});
+				return {};
+			});
+
+			expect(() => new Undeclared({ appConfig, assetProcessingService: testAssetService })).toThrow(
+				'Integration "other" builds a custom-element preloader but declares no ssrScriptPreload',
+			);
 		});
 	});
 });

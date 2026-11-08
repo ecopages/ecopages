@@ -7,16 +7,20 @@
  * @module
  */
 
-import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
-import { getReactClientGraphAllowSpecifiers, getReactRuntimeExternalSpecifiers } from './runtime-alias-map.ts';
-import { createBrowserRuntimePlugin } from '@ecopages/core/build';
-import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build';
+import {
+	createClientGraphBoundaryPlugin,
+	createForeignBoundaryPlugin,
+	createForeignJsxScope,
+} from '../client-graph/boundary-plugin.ts';
+import {
+	findIntegrationForFile,
+	findJsxExtensionOwner,
+	getHostScopedJsxOwnershipPlugins,
+	isProductionRuntime,
+} from '@ecopages/core/build';
 import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/integration';
-import type { AssetProcessingIntegration, AssetProcessingService } from '@ecopages/core/integration';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
-import { RuntimeBundleService, type ReactRuntimeImports } from './runtime-bundle.ts';
-import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
-import { isReactProductionRuntime } from './runtime-mode.ts';
+import { getReactBrowserPackages } from './bootstrap-package-paths.ts';
 
 /**
  * Configuration for the BundleService.
@@ -24,149 +28,80 @@ import { isReactProductionRuntime } from './runtime-mode.ts';
 export interface BundleServiceConfig {
 	rootDir: string;
 	appConfig: IntegrationRuntimeContext['appConfig'];
-	assetProcessingIntegration?: AssetProcessingIntegration;
 	hostIntegrationName: string;
 	routerAdapter?: ReactRouterAdapter;
-	runtimeModules?: ResolvedReactPluginRuntimeModule[];
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 }
 
 /**
- * Optional flags that adjust how a React client entry is bundled.
+ * Packages whose imports the client-graph boundary keeps whatever a module's declared `modules` say.
+ *
+ * @remarks
+ * Hydration needs core and every package React's browser entries import, the configured router included.
  */
-export interface ReactClientBundleOptions {
-	/**
-	 * When `true`, bundle React runtime dependencies into the emitted entry instead of
-	 * rewriting them to external runtime specifiers.
-	 */
-	includeRuntime?: boolean;
-	/**
-	 * When set, overrides the build adapter chunk splitting mode for this entry.
-	 */
-	splitting?: boolean;
+export function getReactClientGraphAllowSpecifiers(routerAdapter?: ReactRouterAdapter): string[] {
+	return ['@ecopages/core', ...getReactBrowserPackages(routerAdapter)];
 }
 
 /**
  * Manages bundle configuration and plugin creation for React page/component builds.
  */
 export class BundleService {
-	private readonly runtimeBundleService: RuntimeBundleService;
 	private readonly config: BundleServiceConfig;
 	private readonly foreignJsxOverridePlugin: EcoBuildPlugin | undefined;
-	private readonly runtimeRewritePlugin: EcoBuildPlugin | null;
-	private pageLayoutNormalizationVendorPromise: Promise<void> | undefined;
 	private mdxLoaderPlugin: EcoBuildPlugin | null | undefined;
 
 	constructor(config: BundleServiceConfig) {
 		this.config = config;
-		this.runtimeBundleService = new RuntimeBundleService({
-			rootDir: config.rootDir,
-			routerAdapter: config.routerAdapter,
-			runtimeModules: config.runtimeModules,
-		});
 		[this.foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(
 			config.appConfig,
 			config.hostIntegrationName,
-			{ name: 'react-renderer-foreign-jsx-override' },
+			{
+				name: 'react-renderer-foreign-jsx-override',
+				scope: createForeignJsxScope({
+					projectRoot: config.appConfig?.absolutePaths?.projectDir ?? config.rootDir,
+					hostIntegrationName: config.hostIntegrationName,
+					findForeignOwner: (filePath) => {
+						const owner = findJsxExtensionOwner(config.appConfig, filePath);
+						return owner === config.hostIntegrationName ? undefined : owner;
+					},
+				}),
+			},
 		);
-		this.runtimeRewritePlugin = createBrowserRuntimePlugin({
-			name: 'react-renderer-runtime-import-rewrite',
-			manifest: this.runtimeBundleService.getRuntimeManifest(),
-		});
-	}
-
-	/**
-	 * Returns resolved runtime import paths for the React runtime.
-	 */
-	getRuntimeImports(): ReactRuntimeImports {
-		return this.runtimeBundleService.getRuntimeImports();
-	}
-
-	/**
-	 * Processes the MDX-only page-layout-normalization vendor once per BundleService instance.
-	 *
-	 * @remarks
-	 * Concurrent callers share the same in-flight promise. Asset processing itself caches
-	 * by dependency key, so repeats after success remain cheap.
-	 */
-	async ensurePageLayoutNormalizationVendorProcessed(
-		assetProcessingService: Pick<AssetProcessingService, 'processDependencies'>,
-	): Promise<void> {
-		if (!this.pageLayoutNormalizationVendorPromise) {
-			this.pageLayoutNormalizationVendorPromise = assetProcessingService
-				.processDependencies(
-					this.runtimeBundleService.getPageLayoutNormalizationDependencies(),
-					this.config.assetProcessingIntegration,
-				)
-				.then(() => undefined)
-				.catch((error) => {
-					this.pageLayoutNormalizationVendorPromise = undefined;
-					throw error;
-				});
-		}
-
-		await this.pageLayoutNormalizationVendorPromise;
 	}
 
 	/**
 	 * Creates bundle options for a page or component entry.
 	 *
 	 * @remarks
-	 * React derives runtime specifier mappings from the core browser runtime manifest
-	 * so ESM imports resolve to concrete runtime asset URLs during module loading.
+	 * React, React DOM and the router are ordinary packages of the build, so the bundler resolves and shares them
+	 * like any other import.
 	 *
 	 * @param componentName - Generated unique component name for output naming
-	 * @param isMdx - Whether the source file is an MDX file
 	 * @param declaredModules - Explicitly declared browser module specifiers
 	 * @returns Bundle options object for the build adapter
 	 */
 	async createBundleOptions(
 		componentName: string,
-		isMdx: boolean,
 		declaredModules: string[],
-		bundleOptions: ReactClientBundleOptions = {},
 		entrypointFile?: string,
 		groupedEntrypointFiles?: readonly string[],
 		groupedDeclaredModules?: readonly string[],
 	): Promise<Record<string, unknown>> {
-		const runtimeImports = this.getRuntimeImports();
-		const options: Record<string, unknown> = {
+		return {
 			mainFields: ['module', 'browser', 'main'],
 			naming: `${componentName}.[ext]`,
-			...(isReactProductionRuntime() && {
+			...(isProductionRuntime() && {
 				minify: true,
 				treeshaking: true,
 			}),
-			...(bundleOptions.splitting === undefined ? {} : { splitting: bundleOptions.splitting }),
+			plugins: this.createClientBuildPlugins({
+				declaredModules,
+				entrypointFile,
+				groupedEntrypointFiles,
+				groupedDeclaredModules,
+			}),
 		};
-
-		if (!bundleOptions.includeRuntime) {
-			const reactRuntimeSpecifiers = new Set(getReactRuntimeExternalSpecifiers());
-			options.external = [
-				...Object.values(runtimeImports).filter(
-					(specifier): specifier is string =>
-						Boolean(specifier) &&
-						!reactRuntimeSpecifiers.has(
-							specifier as typeof getReactRuntimeExternalSpecifiers extends () => infer T
-								? T extends readonly (infer U)[]
-									? U
-									: never
-								: never,
-						),
-				),
-			];
-		}
-
-		options.plugins = this.createClientBuildPlugins({
-			declaredModules,
-			entrypointFile,
-			groupedEntrypointFiles,
-			groupedDeclaredModules,
-			includeRuntime: bundleOptions.includeRuntime,
-			isMdx,
-		});
-
-		return options;
 	}
 
 	private createClientBuildPlugins(options: {
@@ -174,8 +109,6 @@ export class BundleService {
 		entrypointFile?: string;
 		groupedEntrypointFiles?: readonly string[];
 		groupedDeclaredModules?: readonly string[];
-		includeRuntime?: boolean;
-		isMdx: boolean;
 	}): EcoBuildPlugin[] {
 		const graphBoundaryPlugin = createClientGraphBoundaryPlugin({
 			projectRoot: this.config.appConfig?.absolutePaths?.projectDir ?? this.config.rootDir,
@@ -184,21 +117,20 @@ export class BundleService {
 			groupedEntrypointFiles: options.groupedEntrypointFiles,
 			groupedDeclaredModules: options.groupedDeclaredModules,
 			declaredModules: options.declaredModules,
-			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(
-				this.runtimeBundleService.getConfiguredRuntimeModuleSpecifiers(),
-				this.config.routerAdapter,
-			),
+			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(this.config.routerAdapter),
 		});
 
-		const runtimePlugins = options.includeRuntime
-			? []
-			: [this.runtimeRewritePlugin].filter((plugin): plugin is NonNullable<typeof plugin> => plugin !== null);
-
-		const mdxPlugin = options.isMdx ? this.getMdxLoaderPlugin() : undefined;
+		const mdxPlugin = this.getMdxLoaderPlugin();
 		return [
 			...(this.foreignJsxOverridePlugin ? [this.foreignJsxOverridePlugin] : []),
 			graphBoundaryPlugin,
-			...runtimePlugins,
+			createForeignBoundaryPlugin({
+				projectRoot: this.config.appConfig?.absolutePaths?.projectDir ?? this.config.rootDir,
+				isForeignFile: (filePath) => {
+					const owner = findIntegrationForFile(this.config.appConfig?.integrations ?? [], filePath);
+					return owner !== undefined && owner.name !== this.config.hostIntegrationName;
+				},
+			}),
 			...(mdxPlugin ? [mdxPlugin] : []),
 		];
 	}

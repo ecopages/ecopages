@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { ContentScanner } from '@ecopages/content-processor';
 import { DOCS_SECTION_CONFIG, LLM_SECTION_ORDER, type DocsFrontmatter } from '../src/content/docs';
+import { expandSnippetFences } from '../src/lib/docs/snippet-include';
 import { absoluteUrl } from '../src/lib/docs/site-meta';
 import { SKILL_REFERENCE_MODULES } from './skill-reference-modules';
 
@@ -69,7 +70,7 @@ export async function exportLlmSectionPages(
 		const body = await scanner.getRawContent(page.slug);
 		const outputPath = join(stagingRoot, sectionId, `${pageSlug}.md`);
 		await mkdir(dirname(outputPath), { recursive: true });
-		await writeFile(outputPath, body, 'utf8');
+		await writeFile(outputPath, expandSnippetFences(body), 'utf8');
 
 		const url = absoluteUrl(`/docs-llm/${sectionId}/${pageSlug}.md`, origin);
 		lines.push(`- [${page.title}](${url})`);

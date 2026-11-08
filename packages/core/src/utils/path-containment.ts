@@ -1,12 +1,4 @@
-import path from 'node:path';
-
-function getRelativePath(filePath: string, directory: string): string {
-	return path.relative(path.resolve(directory), path.resolve(filePath));
-}
-
-function isRelativePathInside(relativePath: string): boolean {
-	return relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath);
-}
+import { path } from '@ecopages/file-system/path';
 
 /**
  * Returns whether `filePath` is `directory` itself or a path inside it.
@@ -16,7 +8,7 @@ function isRelativePathInside(relativePath: string): boolean {
  * comparison is on resolved path strings only; symlinks are not followed.
  */
 export function isPathInside(filePath: string, directory: string): boolean {
-	return isRelativePathInside(getRelativePath(filePath, directory));
+	return path.isWithin(directory, filePath);
 }
 
 /**
@@ -26,6 +18,5 @@ export function isPathInside(filePath: string, directory: string): boolean {
  * Compares resolved path strings; symlinks are not followed.
  */
 export function isPathStrictlyInside(filePath: string, directory: string): boolean {
-	const relativePath = getRelativePath(filePath, directory);
-	return relativePath !== '' && isRelativePathInside(relativePath);
+	return path.isWithin(directory, filePath) && path.relative(directory, filePath) !== '';
 }

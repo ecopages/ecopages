@@ -97,11 +97,11 @@ Install Ecopages and your chosen integration (e.g., KitaJS):
 pnpm add @ecopages/core @ecopages/kitajs
 ```
 
-Add PostCSS processor for Tailwind:
+Add the Lightning CSS processor for Tailwind:
 
 ```bash
-pnpm add @ecopages/postcss-processor
-pnpm add -D @tailwindcss/postcss tailwindcss
+pnpm add @ecopages/lightningcss-processor
+pnpm add -D @tailwindcss/node @tailwindcss/oxide tailwindcss
 ```
 
 ### 2. Configuration
@@ -113,8 +113,8 @@ import path from "node:path";
 import { defineConfig } from "@ecopages/core/config";
 import { reactPlugin } from "@ecopages/react";
 import { ecoRouter } from "@ecopages/react-router";
-import { postcssProcessorPlugin } from "@ecopages/postcss-processor";
-import { tailwindV4Preset } from "@ecopages/postcss-processor/presets/tailwind-v4";
+import { lightningCssProcessorPlugin } from "@ecopages/lightningcss-processor";
+import { tailwindV4Preset } from "@ecopages/lightningcss-processor/presets/tailwind-v4";
 
 export default defineConfig({
   defaultMetadata: {
@@ -123,11 +123,12 @@ export default defineConfig({
   },
   integrations: [reactPlugin({ router: ecoRouter() })],
   processors: [
-    postcssProcessorPlugin(
-      tailwindV4Preset({
-        referencePath: path.resolve(import.meta.dirname, "src/styles/app.css"),
-      })
-    ),
+    lightningCssProcessorPlugin({
+      ...tailwindV4Preset({
+        referencePath: path.resolve(process.cwd(), "src/styles/app.css"),
+      }),
+      targets: ["chrome >= 111", "safari >= 16.4", "firefox >= 128"],
+    }),
   ],
 });
 ```
@@ -456,39 +457,35 @@ import type { ReactNode } from "react";
 import { AuthNav } from "@/components/auth-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AnnouncementBar } from "@/components/announcement-bar";
-import { eco, type WithLocals } from "@ecopages/core";
+import type { LayoutProps } from "@ecopages/core";
 import "./base-layout.css";
 
-type BaseLayoutProps = WithLocals<{ children: ReactNode }>;
-
-export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
-  render: ({ children, locals }) => {
-    return (
-      <div className="layout">
-        <AnnouncementBar slideDown />
-        <header className="layout__header">
-          <nav className="layout__nav" aria-label="Main">
-            <a href="/" className="layout__logo">
-              Ecopages
-            </a>
-            <div className="layout__nav-items">
-              <AuthNav initialSession={locals?.session} />
-              <ThemeToggle />
-            </div>
-          </nav>
-        </header>
-        <main className="layout__main" id="main-content">
-          <div className="layout__content">{children}</div>
-        </main>
-        <footer className="layout__footer">
-          <div className="layout__footer-content">
-            <p>&copy; {new Date().getFullYear()} Ecopages + Better Auth.</p>
+export function BaseLayout({ children, locals }: LayoutProps<ReactNode>) {
+  return (
+    <div className="layout">
+      <AnnouncementBar slideDown />
+      <header className="layout__header">
+        <nav className="layout__nav" aria-label="Main">
+          <a href="/" className="layout__logo">
+            Ecopages
+          </a>
+          <div className="layout__nav-items">
+            <AuthNav initialSession={locals?.session} />
+            <ThemeToggle />
           </div>
-        </footer>
-      </div>
-    );
-  },
-});
+        </nav>
+      </header>
+      <main className="layout__main" id="main-content">
+        <div className="layout__content">{children}</div>
+      </main>
+      <footer className="layout__footer">
+        <div className="layout__footer-content">
+          <p>&copy; {new Date().getFullYear()} Ecopages + Better Auth.</p>
+        </div>
+      </footer>
+    </div>
+  );
+}
 ```
 
 ### Includes
@@ -550,7 +547,7 @@ export const Head = eco.component<PageHeadProps, ReactNode>({
 ```tsx
 import type { PageMetadataProps } from "@ecopages/core";
 
-const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${path}`;
+import { absoluteUrl } from "../lib/site-origin";
 
 export function Seo({
   title,
@@ -572,7 +569,7 @@ export function Seo({
       <meta property="og:description" content={description} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
-      {url ? <link rel="canonical" href={withBaseUrl(url)} /> : null}
+      {url ? <link rel="canonical" href={absoluteUrl(url)} /> : null}
     </>
   );
 }
@@ -583,7 +580,8 @@ export function Seo({
 - `head.tsx` spreads metadata to `Seo` component: `<Seo {...metadata} />`
 - `seo.tsx` uses `PageMetadataProps` type from `@ecopages/core`
 - Default metadata from `eco.config.ts` merges with page-specific metadata automatically
-- The `withBaseUrl` helper converts relative paths to absolute URLs using `import.meta.env.ECOPAGES_BASE_URL`
+- `absoluteUrl` is a small helper (for example in `src/lib/site-origin.ts`) that joins the canonical origin with a pathname. The origin is the config `baseUrl`; `--base-url` or `ECOPAGES_BASE_URL` feeds it when the config leaves it unset, so import one origin value instead of reading the environment in each component
+- Resolve the app root from `process.cwd()`, not `import.meta.dirname`: the production build bundles `eco.config.ts` into `dist/server/`
 
 ## Metadata and SEO
 
@@ -733,10 +731,10 @@ export default eco.page({
 
 ### Environment Variables
 
-Access via `process.env` or `import.meta.env`:
+`baseUrl` in `eco.config.ts` is the canonical origin. When the config does not set it, `--base-url` or `ECOPAGES_BASE_URL` supplies it, then `http://localhost:3000`. Access other variables via `process.env`:
 
 ```typescript
-const baseUrl = process.env.ECOPAGES_BASE_URL ?? "http://localhost:3000";
+const authUrl = process.env.BETTER_AUTH_URL;
 ```
 
 ## Best Practices

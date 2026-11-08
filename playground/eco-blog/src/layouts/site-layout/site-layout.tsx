@@ -1,9 +1,9 @@
-import { eco } from '@ecopages/core';
+import type { LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import './site-layout.css';
 
-export const SiteLayout = eco.layout<JsxRenderable>({
-	render: ({ children }) => (
+export function SiteLayout({ children }: LayoutProps<JsxRenderable>) {
+	return (
 		<body class="site">
 			<a class="skip-link" href="#main">
 				Skip to content
@@ -32,5 +32,5 @@ export const SiteLayout = eco.layout<JsxRenderable>({
 				<p class="breakout">Built with Ecopages and Radiant UI.</p>
 			</footer>
 		</body>
-	),
-});
+	);
+}

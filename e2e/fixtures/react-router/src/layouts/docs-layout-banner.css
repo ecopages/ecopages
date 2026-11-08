@@ -1,0 +1,4 @@
+.docs-layout-banner {
+	--docs-layout-banner: 1;
+	border-top: 5px solid rgb(12, 34, 56);
+}

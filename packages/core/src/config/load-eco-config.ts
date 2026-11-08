@@ -1,5 +1,4 @@
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { finalizeEcoPagesConfig } from './assembly/finalize-config.ts';
 import { resolveEcoConfigPath, resolveEcoConfigPathFromServerBundle } from './resolve-eco-config-path.ts';
@@ -16,11 +15,11 @@ type EcoPagesConfigModuleExport = EcoPagesUserConfig | EcoPagesUserConfigFactory
 const moduleLoadCache = new Map<string, Promise<EcoPagesConfigModuleExport>>();
 
 function resolveLoaderCwd(cwd?: string): string {
-	return path.resolve(cwd ?? process.cwd());
+	return path.resolve(cwd ?? path.cwd());
 }
 
 async function importEcoConfigModule(configFilePath: string): Promise<unknown> {
-	const moduleUrl = pathToFileURL(configFilePath).href;
+	const moduleUrl = path.toFileUrl(configFilePath).href;
 	const configModule = await import(/* @vite-ignore */ moduleUrl);
 	return configModule.default ?? configModule;
 }
@@ -114,5 +113,9 @@ async function loadEcoPagesConfigWithBundleDir(
 		: resolveEcoConfigPath({ ...options, cwd });
 	const exported = await loadConfigModule(configFilePath);
 	const userConfig = materializeUserConfig(exported, configFilePath);
-	return await finalizeEcoPagesConfig(userConfig, { configFilePath, cwd });
+	return await finalizeEcoPagesConfig(options.directories ? { ...userConfig, ...options.directories } : userConfig, {
+		configFilePath,
+		cwd,
+		globalScriptResolution: options.globalScriptResolution,
+	});
 }

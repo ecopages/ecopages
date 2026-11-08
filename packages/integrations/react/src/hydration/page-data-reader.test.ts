@@ -34,4 +34,13 @@ describe('page-data-reader', () => {
 
 		expect(readPageDataDocument()).toEqual({ props: { slug: 'legacy' } });
 	});
+
+	it('should read from the document it is given instead of the live one', () => {
+		installPageDataScript(JSON.stringify({ slug: 'live' }));
+		const fetched = {
+			getElementById: () => ({ id: '__ECO_PAGE_DATA__', textContent: JSON.stringify({ slug: 'fetched' }) }),
+		} as unknown as Document;
+
+		expect(readPageDataDocument(fetched)).toEqual({ props: { slug: 'fetched' } });
+	});
 });

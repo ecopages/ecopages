@@ -3,6 +3,7 @@ import type { AssetProcessingService } from '@ecopages/core/integration';
 import type { HtmlTemplateProps } from '@ecopages/core';
 import type { IntegrationRendererRenderOptions } from '@ecopages/core/integration';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { path } from '@ecopages/file-system/path';
 import type { ReactNode } from 'react';
 import { ReactRenderer } from './react-renderer.ts';
 
@@ -17,7 +18,7 @@ class TestReactRenderer extends ReactRenderer {
 }
 
 const appConfig = await finalizeEcoPagesConfig({
-	rootDir: process.cwd(),
+	rootDir: path.cwd(),
 	defaultMetadata: {
 		title: 'Test',
 		description: 'Test',

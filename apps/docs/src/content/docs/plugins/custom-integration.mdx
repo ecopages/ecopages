@@ -73,13 +73,13 @@ The base contract keeps configuration reads separate from runtime work:
 - `staticExport(ctx)` may start export-wide work and return an async release function.
 - `teardown()` releases runtime resources when the app stops, restarts, or finishes a static export.
 
-Pass `browserRuntimeManifest` as constructor data when the browser runtime needs specifier rewrites; it is read while the build manifest is sealed and is not a lifecycle hook.
+A browser runtime the Integration's generated scripts import, such as a framework package, needs no declaration: it resolves like any other import, bundled into the app-wide build in production and served from the vendor graph in development.
 
 ## Pages That Are Not JavaScript Modules
 
 Core bundles an Integration's Page files and imports the result. An Integration whose files are not JavaScript, such as core's own HTML Pages, can compile them itself instead:
 
-- **`compilePageModule(filePath, appConfig)`** returns the module for a Page or `html.*` template file, or a promise of it: a `default` component, plus optional `getMetadata` or `cache`. Core calls it for every file of the Integration that it loads and never bundles those files itself, so throw for a file the Integration cannot compile.
+- **`compilePageModule(filePath, appConfig)`** returns the module for a Page or `html.*` template file, or a promise of it: a `default` component, plus an optional `cache`. Put page metadata on the component as `metadata`: a module that exports `getMetadata`, `getStaticProps` or `getStaticPaths` fails. Core calls it for every file of the Integration that it loads and never bundles those files itself, so throw for a file the Integration cannot compile.
   - Every Page of an Integration that implements it stays out of the production pages graph, so a static export compiles each one on its own.
   - Core caches the result by the file's content hash, so editing another file it reads does not invalidate it.
 - **`acceptsParams = false`** as a class field says its Pages cannot receive Params. Route discovery then rejects `[param]` and `[...param]` filenames the Integration owns, instead of failing at render time. It is not a constructor option, because it describes the Integration rather than the app.
@@ -108,7 +108,7 @@ export class TemplateIntegration extends IntegrationPlugin {
 
 ## Creating a Custom Renderer
 
-`createIntegrationRenderer(name, hooks)` returns an `IntegrationRenderer` class without requiring a renderer subclass. Pass a hook object when its callbacks need no renderer-specific setup, or pass a factory that receives the renderer's app config, asset service, and dependency helpers. Core calls that factory once for each renderer instance, then supplies the route `render()` implementation, shared document shell, per-render session, dependency handling, and final document transform. A renderer instance can provide a second hook factory through its `hooks` option; that factory receives the generated hooks and its returned hooks override matching entries. Use `beforeImportPageModule` to prepare a runtime before a Page module loads, `normalizePageModule` to adapt the loaded module, and `renderRoute` to scope work around core's full route render. `normalizeForeignChildProps` transforms props before core queues a foreign child. Use `resolveDependencies()` when a hook contributes a custom component list to the Page Browser Graph; it includes Integration-wide assets. Use `applyPendingLazyTriggers(assets, configs)` to resolve this render session's lazy triggers from processed assets and component configs. `resolveDependencyPath()` applies core's path rules to a declared relative asset. Core resolves queued children and finalizes island host attributes after the hook returns. Use `finalizeDocument` only when an Integration must reconcile its document markup after core transforms the response.
+`createIntegrationRenderer(name, hooks)` returns an `IntegrationRenderer` class without requiring a renderer subclass. Pass a hook object when its callbacks need no renderer-specific setup, or pass a factory that receives the renderer's app config, asset service, and dependency helpers. Core calls that factory once for each renderer instance, then supplies the route `render()` implementation, shared document shell, per-render session, dependency handling, and final document transform. A renderer instance can provide a second hook factory through its `hooks` option; that factory receives the generated hooks and its returned hooks override matching entries. Use `beforeImportPageModule` to prepare a runtime before a Page module loads, `normalizePageModule` to adapt the loaded module, and `renderRoute` to scope work around core's full route render. `normalizeForeignChildProps` transforms props before core queues a foreign child. `resolveDependencies()` processes a component list with this renderer's dependency rules and returns its Component assets; core places every Integration's global assets on the Page, in config order, before them. Use `applyPendingLazyTriggers(assets, configs)` to resolve this render session's lazy triggers from processed assets and component configs. `resolveDependencyPath()` applies core's path rules to a declared relative asset. Core resolves queued children and finalizes island host attributes after the hook returns. Use `finalizeDocument` only when an Integration must reconcile its document markup after core transforms the response.
 
 ```typescript
 import { createIntegrationRenderer } from '@ecopages/core/integration';
@@ -126,7 +126,7 @@ export const CustomRenderer = createIntegrationRenderer('custom-integration', ({
 }));
 ```
 
-The hook surface includes `renderComponent`, `renderQueuedChildren`, `composeChildren`, `normalizePageModule`, `collectPageBrowserGraphContribution`, `documentContributions`, `documentAttributes`, `documentShellProps`, `buildIslandClientAssets`, `collectAppBrowserClientBuildEntries`, `beforeRender`, `transformDocumentHtml`, `finalizeDocument`, and `renderRemote`. `beforeRender` receives route-resolved components from the page dependency resolver as `pageDependencyComponents`, so an Integration can prepare assets for components outside the page's declared component tree. `documentShellProps` can supply Integration-specific browser `pageProps` and top-level `documentProps` to the shared document shell. `collectAppBrowserClientBuildEntries` contributes raw Integration-owned client entries to the app-wide browser build during static production export. Omit hooks whose behavior core already supplies. `renderComponent` returns a `ComponentRenderResult`: the component's HTML and root attributes, without assets. Core collects a page's stylesheets and scripts once before rendering, from the Dependencies of every component the route declares and from the Page's `dependencies`. A component rendered without being declared contributes no assets, so a component's stylesheets and scripts belong in its Dependencies. `renderQueuedChildren` lets a renderer serialize or preserve structured children while core resolves the owning renderer.
+The hook surface includes `renderComponent`, `renderQueuedChildren`, `composeChildren`, `normalizePageModule`, `collectPageBrowserGraphContribution`, `documentContributions`, `documentAttributes`, `documentShellProps`, `buildIslandClientAssets`, `collectAppBrowserClientBuildEntries`, `beforeRender`, `transformDocumentHtml`, `finalizeDocument`, and `renderRemote`. `beforeRender` receives route-resolved components from the page dependency resolver as `pageDependencyComponents`, so an Integration can prepare assets for components outside the page's declared component tree. `documentShellProps` can supply Integration-specific browser `pageProps` and top-level `documentProps` to the shared document shell. `collectAppBrowserClientBuildEntries` contributes raw Integration-owned client entries to the app-wide browser build during static production export. `collectPageBrowserGraphContribution` names what a Page adds to its Page Browser Graph and processes nothing: the production build calls it while it plans routes, before the app-wide browser build exists. It returns a `PageBrowserGraphDeclaration`: `dependencies`, a custom component list in `components` and scripts declared outside any component in `bundledScripts`; core processes all three when it resolves the graph and bundles their scripts in the app-wide build. The declaration has no `assets`, since the hook processes nothing. Omit hooks whose behavior core already supplies. `renderComponent` returns a `ComponentRenderResult`: the component's HTML and root attributes, without assets. Core collects a page's stylesheets and scripts once before rendering, from the Dependencies of every component the route declares and from the Page's `dependencies`. A component rendered without being declared contributes no assets, so a component's stylesheets and scripts belong in its Dependencies. `renderQueuedChildren` lets a renderer serialize or preserve structured children while core resolves the owning renderer.
 
 The shared string renderer serializes string and markup children itself. A framework with structured child values can provide `renderQueuedChildren`; a framework with its own component result can provide `renderComponent` while keeping core's route pipeline.
 
@@ -337,7 +337,6 @@ const customIntegration = new CustomIntegration();
 
 export default defineConfig({
 	baseUrl: 'https://example.com',
-	rootDir: import.meta.dirname,
 	integrations: [customIntegration],
 });
 ```
@@ -406,7 +405,10 @@ export class CustomIntegration extends IntegrationPlugin {
 
 export default defineConfig({
 	baseUrl: 'https://example.com',
-	rootDir: import.meta.dirname,
 	integrations: [new CustomIntegration()],
 });
 ```
+
+## Under the hood
+
+How core orders and runs the build plugins that an integration contributes is described in [Plugin pipeline](/dev/plugin-pipeline).

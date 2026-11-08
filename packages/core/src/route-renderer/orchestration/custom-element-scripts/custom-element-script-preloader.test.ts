@@ -1,17 +1,17 @@
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { bindComponentIdentity, eco } from '@ecopages/core';
+import { bindComponentIdentity, eco, type EcoComponent } from '@ecopages/core';
 import {
 	CustomElementScriptPreloader,
-	collectCustomElementSsrPreloadScripts,
+	assignSsrPreloadScripts,
 	invalidateCustomElementScriptPreload,
 	isExpectedCustomElementSsrPreloadError,
+	type SsrScriptPreloadDeclaration,
 } from './custom-element-script-preloader.ts';
-import type { CustomElementScriptPreloadScopeState } from './custom-element-script-preload-invalidation.ts';
-import { createCustomElementSsrPipelineImporter } from './custom-element-ssr-preload-entrypoint.ts';
-import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
+import {
+	clearFailedCustomElementScriptPreloads,
+	type CustomElementScriptPreloadScopeState,
+} from './custom-element-script-preload-invalidation.ts';
 
 let cacheScope = '';
 let scopeCounter = 0;
@@ -52,23 +52,58 @@ beforeEach(() => {
 });
 
 function createPreloader(options?: {
-	enabled?: boolean;
 	preloadScopes?: Map<string, CustomElementScriptPreloadScopeState>;
 	resolveDependencyPath?: (componentDir: string, sourcePath: string) => string;
 	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;
+	onPreloadFailure?: (scriptPath: string, error: unknown) => void;
 }) {
 	return new CustomElementScriptPreloader({
 		cacheScope,
 		preloadScopes: options?.preloadScopes ?? preloadScopes,
-		enabled: options?.enabled ?? true,
 		resolveDependencyPath:
 			options?.resolveDependencyPath ?? ((componentDir, sourcePath) => path.join(componentDir, sourcePath)),
 		importServerModule: options?.importServerModule ?? (async () => undefined),
+		integrationName: 'lit',
+		integrations: [{ name: 'lit', ssrScriptPreload: 'own-and-foreign' }],
 		logLabel: 'test',
+		onPreloadFailure: options?.onPreloadFailure,
 	});
 }
 
-describe('collectCustomElementSsrPreloadScripts', () => {
+const integrations = [
+	{ name: 'kitajs' },
+	{ name: 'lit', ssrScriptPreload: 'own-and-foreign' },
+	{ name: 'ecopages-jsx', ssrScriptPreload: 'own' },
+] satisfies SsrScriptPreloadDeclaration[];
+
+const resolvePath = (componentDir: string, sourcePath: string) => path.join(componentDir, sourcePath);
+
+function createScriptHost(
+	identity: { id: string; file: string; integration: string },
+	scripts: string[],
+	options: { integration?: string; components?: EcoComponent[] } = {},
+): EcoComponent {
+	return eco.component(
+		bindComponentIdentity(identity, {
+			integration: options.integration,
+			render: () => '',
+			dependencies: {
+				components: options.components,
+				scripts: scripts.map((src) => ({ src, ssr: true })),
+			},
+		}),
+	);
+}
+
+function collectFor(
+	integrationName: string,
+	components: EcoComponent[],
+	declarations: readonly SsrScriptPreloadDeclaration[] = integrations,
+): string[] {
+	return [...(assignSsrPreloadScripts(components, resolvePath, declarations).get(integrationName) ?? [])];
+}
+
+describe('assignSsrPreloadScripts', () => {
 	it('finds SSR registration through inferred page component dependencies', () => {
 		const child = eco.component(
 			bindComponentIdentity(
@@ -86,98 +121,111 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 				{ components: () => [child], stylesheets: [] },
 			),
 		);
-		expect(collectCustomElementSsrPreloadScripts([page], (dir, source) => `${dir}/${source}`)).toEqual([
-			'/app/./counter.ts',
+		expect(collectFor('lit', [page])).toEqual(['/app/counter.ts']);
+	});
+
+	it("assigns the script of a preloading Integration's Component to that Integration only", () => {
+		const radiant = createScriptHost(
+			{ id: 'radiant', file: '/app/components/radiant.eco.tsx', integration: 'ecopages-jsx' },
+			['./radiant.script.ts'],
+		);
+		const page = createScriptHost({ id: 'page', file: '/app/pages/index.lit.tsx', integration: 'lit' }, [], {
+			components: [radiant],
+		});
+
+		expect(collectFor('lit', [page])).toEqual([]);
+		expect(collectFor('ecopages-jsx', [page])).toEqual(['/app/components/radiant.script.ts']);
+	});
+
+	it('assigns the script of a Component whose Integration does not preload to the own-and-foreign Integration', () => {
+		const radiant = createScriptHost(
+			{ id: 'radiant', file: '/app/components/radiant.eco.tsx', integration: 'ecopages-jsx' },
+			['./radiant.script.ts'],
+		);
+		const group = createScriptHost(
+			{ id: 'group', file: '/app/components/group.kita.tsx', integration: 'kitajs' },
+			['./lit-element.script.ts'],
+			{ components: [radiant] },
+		);
+
+		expect(collectFor('lit', [group])).toEqual(['/app/components/lit-element.script.ts']);
+		expect(collectFor('ecopages-jsx', [group])).toEqual(['/app/components/radiant.script.ts']);
+	});
+
+	it('leaves the scripts of non-preloading Components unevaluated when no Integration claims foreign scripts', () => {
+		const group = createScriptHost({ id: 'group', file: '/app/components/group.kita.tsx', integration: 'kitajs' }, [
+			'./lit-element.script.ts',
 		]);
+		const withoutLit = integrations.filter((integration) => integration.name !== 'lit');
+
+		expect(collectFor('ecopages-jsx', [group], withoutLit)).toEqual([]);
 	});
 
-	it('can limit collection to one integration while still walking nested components', () => {
-		const radiantChild = eco.component(
-			bindComponentIdentity(
-				{ id: 'radiant', file: '/app/components/radiant.eco.tsx', integration: 'ecopages-jsx' },
-				{
-					render: () => '',
-					dependencies: { scripts: [{ src: './radiant.script.ts', ssr: true }] },
-				},
-			),
+	it('gives a script declared by a preloading and a non-preloading Component to the preloading owner', () => {
+		const kitaCounter = createScriptHost(
+			{ id: 'kita-counter', file: '/app/components/counter.kita.tsx', integration: 'kitajs' },
+			['./counter.script.ts'],
 		);
-		const group = eco.component(
-			bindComponentIdentity(
-				{ id: 'group', file: '/app/components/group.kita.tsx', integration: 'kitajs' },
-				{
-					render: () => '',
-					dependencies: {
-						components: [radiantChild],
-						scripts: [{ src: './kita.script.ts', ssr: true }],
-					},
-				},
-			),
+		const ejsxCounter = createScriptHost(
+			{ id: 'ejsx-counter', file: '/app/components/counter.eco.tsx', integration: 'ecopages-jsx' },
+			['./counter.script.ts'],
 		);
 
-		expect(
-			collectCustomElementSsrPreloadScripts(
-				[group],
-				(componentDir, sourcePath) => path.join(componentDir, sourcePath),
-				false,
-				'ecopages-jsx',
-			),
-		).toEqual(['/app/components/radiant.script.ts']);
+		expect(collectFor('lit', [kitaCounter, ejsxCounter])).toEqual([]);
+		expect(collectFor('ecopages-jsx', [kitaCounter, ejsxCounter])).toEqual(['/app/components/counter.script.ts']);
 	});
 
-	it('prefers config.integration over identity when filtering owned scripts', () => {
-		const resolvePath = (componentDir: string, sourcePath: string) => path.join(componentDir, sourcePath);
-
-		const foreignOverride = eco.component(
-			bindComponentIdentity(
-				{ id: 'foreign', file: '/app/components/foreign.eco.tsx', integration: 'ecopages-jsx' },
-				{
-					integration: 'kitajs',
-					render: () => '',
-					dependencies: { scripts: [{ src: './foreign.script.ts', ssr: true }] },
-				},
-			),
+	it('gives a script declared by Components of two preloading Integrations to the first in config order', () => {
+		const litCounter = createScriptHost(
+			{ id: 'lit-counter', file: '/app/components/counter.lit.tsx', integration: 'lit' },
+			['./counter.script.ts'],
 		);
-		expect(collectCustomElementSsrPreloadScripts([foreignOverride], resolvePath, false, 'ecopages-jsx')).toEqual(
-			[],
+		const ejsxCounter = createScriptHost(
+			{ id: 'ejsx-counter', file: '/app/components/counter.eco.tsx', integration: 'ecopages-jsx' },
+			['./counter.script.ts'],
 		);
 
-		const ownedOverride = eco.component(
-			bindComponentIdentity(
-				{ id: 'owned', file: '/app/components/owned.kita.tsx', integration: 'kitajs' },
-				{
-					integration: 'ecopages-jsx',
-					render: () => '',
-					dependencies: { scripts: [{ src: './owned.script.ts', ssr: true }] },
-				},
-			),
-		);
-		expect(collectCustomElementSsrPreloadScripts([ownedOverride], resolvePath, false, 'ecopages-jsx')).toEqual([
-			'/app/components/owned.script.ts',
-		]);
+		expect(collectFor('lit', [ejsxCounter, litCounter])).toEqual(['/app/components/counter.script.ts']);
+		expect(collectFor('ecopages-jsx', [ejsxCounter, litCounter])).toEqual([]);
 	});
 
-	it('can limit collection to lazy scripts marked ssr: true', () => {
-		const host = eco.component(
-			bindComponentIdentity(
-				{ id: 'host', file: '/app/components/host.tsx', integration: 'lit' },
-				{
-					render: () => '',
-					dependencies: {
-						scripts: [
-							{ src: './eager.script.ts', ssr: true },
-							{ src: './lazy.script.ts', ssr: true, lazy: { 'on:idle': true } },
-						],
-					},
-				},
-			),
+	it('prefers config.integration over identity when assigning a script', () => {
+		const foreignOverride = createScriptHost(
+			{ id: 'foreign', file: '/app/components/foreign.eco.tsx', integration: 'ecopages-jsx' },
+			['./foreign.script.ts'],
+			{ integration: 'kitajs' },
 		);
-		expect(
-			collectCustomElementSsrPreloadScripts(
-				[host],
-				(componentDir, sourcePath) => path.join(componentDir, sourcePath),
-				true,
-			),
-		).toEqual(['/app/components/lazy.script.ts']);
+		expect(collectFor('ecopages-jsx', [foreignOverride])).toEqual([]);
+		expect(collectFor('lit', [foreignOverride])).toEqual(['/app/components/foreign.script.ts']);
+
+		const ownedOverride = createScriptHost(
+			{ id: 'owned', file: '/app/components/owned.kita.tsx', integration: 'kitajs' },
+			['./owned.script.ts'],
+			{ integration: 'ecopages-jsx' },
+		);
+		expect(collectFor('ecopages-jsx', [ownedOverride])).toEqual(['/app/components/owned.script.ts']);
+	});
+
+	it('assigns every script of a tree in one pass, each to one Integration', () => {
+		const kitaCounter = createScriptHost(
+			{ id: 'kita-counter', file: '/app/components/counter.kita.tsx', integration: 'kitajs' },
+			['./counter.script.ts'],
+		);
+		const ejsxCounter = createScriptHost(
+			{ id: 'ejsx-counter', file: '/app/components/counter.eco.tsx', integration: 'ecopages-jsx' },
+			['./counter.script.ts'],
+		);
+		const kitaOnly = createScriptHost(
+			{ id: 'kita-only', file: '/app/components/only.kita.tsx', integration: 'kitajs' },
+			['./only.script.ts'],
+		);
+
+		expect(assignSsrPreloadScripts([kitaCounter, kitaOnly, ejsxCounter], resolvePath, integrations)).toEqual(
+			new Map([
+				['lit', ['/app/components/only.script.ts']],
+				['ecopages-jsx', ['/app/components/counter.script.ts']],
+			]),
+		);
 	});
 
 	it('collects eager and lazy scripts marked ssr: true', () => {
@@ -197,11 +245,10 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 				},
 			),
 		);
-		expect(
-			collectCustomElementSsrPreloadScripts([host], (componentDir, sourcePath) =>
-				path.join(componentDir, sourcePath),
-			),
-		).toEqual(['/app/components/eager.script.ts', '/app/components/lazy.script.ts']);
+		expect(collectFor('ecopages-jsx', [host])).toEqual([
+			'/app/components/eager.script.ts',
+			'/app/components/lazy.script.ts',
+		]);
 	});
 });
 
@@ -236,7 +283,7 @@ describe('CustomElementScriptPreloader', () => {
 		);
 	});
 
-	it('imports collected scripts and skips work when disabled', async () => {
+	it('imports collected scripts once', async () => {
 		const importServerModule = vi.fn(async () => undefined);
 		const enabledPreloader = createPreloader({ importServerModule });
 		const host = eco.component(
@@ -253,10 +300,6 @@ describe('CustomElementScriptPreloader', () => {
 		expect(importServerModule).toHaveBeenCalledTimes(1);
 
 		await enabledPreloader.preloadSsrScripts([host]);
-		expect(importServerModule).toHaveBeenCalledTimes(1);
-
-		const disabledPreloader = createPreloader({ enabled: false, importServerModule });
-		await disabledPreloader.preloadSsrScripts([host]);
 		expect(importServerModule).toHaveBeenCalledTimes(1);
 	});
 
@@ -360,122 +403,6 @@ describe('CustomElementScriptPreloader', () => {
 		}
 	});
 
-	/**
-	 * @remarks
-	 * Bun ignores a query-only URL change, so a second registry only gets the
-	 * definition when it imports a different file path. Node re-evaluates on a
-	 * query, so the path assertion keeps this failing there too. The sibling
-	 * import pins that the copy still resolves relative imports from the
-	 * pipeline file's directory.
-	 */
-	it('registers a pipeline entrypoint again from a different path when another integration replaces the registry', async () => {
-		const restoreRegistry = installTestCustomElementsRegistry();
-		const createRegistry = () => {
-			const definitions = new Map<string, CustomElementConstructor>();
-			return {
-				define(name: string, ctor: CustomElementConstructor) {
-					definitions.set(name, ctor);
-				},
-				get(name: string) {
-					return definitions.get(name);
-				},
-				definitions,
-			};
-		};
-		const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'core-pipeline-registry-')));
-		const source = path.join(directory, 'counter.ts');
-		const pipelineDir = path.join(directory, 'assets');
-		const pipelineEntrypoint = path.join(pipelineDir, 'counter.mjs');
-		mkdirSync(pipelineDir);
-		writeFileSync(source, '');
-		writeFileSync(path.join(pipelineDir, 'tag.mjs'), "export const tag = 'pipeline-counter';");
-		writeFileSync(
-			pipelineEntrypoint,
-			[
-				"import { tag } from './tag.mjs';",
-				'(globalThis.__ecoPipelineImports ??= []).push(new URL(import.meta.url).pathname);',
-				'customElements.define(tag, class extends HTMLElement {});',
-			].join('\n'),
-		);
-		const preloader = createPreloader({
-			resolveDependencyPath: (_dir, src) => src,
-			importServerModule: createCustomElementSsrPipelineImporter({
-				processDependencies: async () => [{ filepath: pipelineEntrypoint } as ProcessedAsset],
-			}),
-		});
-		const child = eco.component(
-			bindComponentIdentity(
-				{ id: 'pipeline-registry', file: path.join(directory, 'component.ts'), integration: 'lit' },
-				{
-					render: () => '',
-					dependencies: { scripts: [{ src: source, ssr: true, lazy: { 'on:visible': true } }] },
-				},
-			),
-		);
-		const imports = ((globalThis as { __ecoPipelineImports?: string[] }).__ecoPipelineImports = []);
-		try {
-			Object.assign(globalThis, { customElements: createRegistry() });
-			await preloader.preloadSsrScripts([child]);
-			expect(customElements.get('pipeline-counter')).toBeDefined();
-			Object.assign(globalThis, { customElements: createRegistry() });
-			await preloader.preloadSsrScripts([child]);
-			expect(customElements.get('pipeline-counter')).toBeDefined();
-			expect(imports).toHaveLength(2);
-			expect(imports[1]).not.toBe(imports[0]);
-			expect(imports.map((importPath) => path.dirname(decodeURIComponent(importPath)))).toEqual([
-				pipelineDir,
-				pipelineDir,
-			]);
-			expect(readdirSync(pipelineDir).sort()).toEqual(['counter.mjs', 'tag.mjs']);
-		} finally {
-			delete (globalThis as { __ecoPipelineImports?: string[] }).__ecoPipelineImports;
-			restoreRegistry();
-			rmSync(directory, { recursive: true, force: true });
-		}
-	});
-
-	it.each([
-		['no output', []],
-		['the source path', 'source'],
-	] as const)(
-		'reports an SSR script whose pipeline gives %s instead of importing its source',
-		async (_case, output) => {
-			const restoreRegistry = installTestCustomElementsRegistry();
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-			const directory = mkdtempSync(path.join(tmpdir(), 'core-pipeline-source-'));
-			const source = path.join(directory, 'register.mjs');
-			writeFileSync(source, "customElements.define('pipeline-source-counter', class extends HTMLElement {});");
-			const preloader = createPreloader({
-				resolveDependencyPath: (_dir, src) => src,
-				importServerModule: createCustomElementSsrPipelineImporter({
-					processDependencies: async () =>
-						output === 'source' ? [{ filepath: source } as ProcessedAsset] : [...output],
-				}),
-			});
-			const child = eco.component(
-				bindComponentIdentity(
-					{ id: 'pipeline-source', file: path.join(directory, 'component.ts'), integration: 'lit' },
-					{
-						render: () => '',
-						dependencies: { scripts: [{ src: source, ssr: true, lazy: { 'on:visible': true } }] },
-					},
-				),
-			);
-			try {
-				await preloader.preloadSsrScripts([child]);
-				expect(customElements.get('pipeline-source-counter')).toBeUndefined();
-				expect(warnSpy).toHaveBeenCalledWith(
-					`[ecopages][test] Failed to preload SSR script: ${source}`,
-					expect.objectContaining({ message: expect.stringContaining('no server module') }),
-				);
-			} finally {
-				warnSpy.mockRestore();
-				restoreRegistry();
-				rmSync(directory, { recursive: true, force: true });
-			}
-		},
-	);
-
 	it('does not treat ERR_UNKNOWN_FILE_EXTENSION as an expected browser-only failure', () => {
 		expect(
 			isExpectedCustomElementSsrPreloadError({
@@ -505,5 +432,138 @@ describe('CustomElementScriptPreloader', () => {
 
 		await Promise.all([preloader.preloadSsrScripts([host]), preloader.preloadSsrScripts([host])]);
 		expect(importServerModule).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('a script that fails to preload', () => {
+	const scriptPath = '/app/broken.script.ts';
+
+	it('reports the failure once and evaluates the script again after it is invalidated', async () => {
+		const failure = new Error('Unexpected token');
+		const importServerModule = vi.fn(async (): Promise<unknown> => {
+			throw failure;
+		});
+		const onPreloadFailure = vi.fn();
+		const preloader = createPreloader({ importServerModule, onPreloadFailure });
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		await preloader.preloadScripts([scriptPath]);
+		await preloader.preloadScripts([scriptPath]);
+
+		expect(importServerModule).toHaveBeenCalledTimes(1);
+		expect(onPreloadFailure).toHaveBeenCalledTimes(1);
+		expect(onPreloadFailure).toHaveBeenCalledWith(scriptPath, failure);
+
+		preloader.invalidateScript(scriptPath);
+		importServerModule.mockResolvedValueOnce(undefined);
+		await preloader.preloadScripts([scriptPath]);
+		expect(importServerModule).toHaveBeenCalledTimes(2);
+		expect(onPreloadFailure).toHaveBeenCalledTimes(1);
+	});
+
+	it('evaluates a failed script again once the failed preloads are cleared, and reports it if it still fails', async () => {
+		const importServerModule = vi.fn(async (): Promise<unknown> => {
+			throw new Error('Unexpected token');
+		});
+		const onPreloadFailure = vi.fn();
+		const preloader = createPreloader({ importServerModule, onPreloadFailure });
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		await preloader.preloadScripts([scriptPath]);
+
+		clearFailedCustomElementScriptPreloads(preloadScopes);
+		await preloader.preloadScripts([scriptPath]);
+
+		expect(importServerModule).toHaveBeenCalledTimes(2);
+		expect(onPreloadFailure).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not report a script that only needs the browser', async () => {
+		const onPreloadFailure = vi.fn();
+		const preloader = createPreloader({
+			importServerModule: async () => {
+				throw new Error('window is not defined');
+			},
+			onPreloadFailure,
+		});
+
+		await preloader.preloadScripts([scriptPath]);
+		await preloader.preloadScripts([scriptPath]);
+
+		expect(onPreloadFailure).not.toHaveBeenCalled();
+	});
+});
+
+describe('CustomElementScriptPreloader across Integrations', () => {
+	function createFor(integrationName: string, importServerModule: () => Promise<unknown>) {
+		return new CustomElementScriptPreloader({
+			cacheScope: `${cacheScope}-${integrationName}`,
+			preloadScopes,
+			resolveDependencyPath: resolvePath,
+			importServerModule,
+			integrationName,
+			integrations,
+			logLabel: 'test',
+		});
+	}
+
+	it('does not evaluate a script another Integration preloader already evaluated', async () => {
+		const restore = installTestCustomElementsRegistry();
+		try {
+			const jsxImport = vi.fn(async () => undefined);
+			const litImport = vi.fn(async () => undefined);
+			const jsx = createFor('ecopages-jsx', jsxImport);
+			const lit = createFor('lit', litImport);
+
+			await jsx.preloadScripts(['/app/marker.script.ts']);
+			await lit.preloadScripts(['/app/marker.script.ts']);
+
+			expect(jsxImport).toHaveBeenCalledTimes(1);
+			expect(litImport).not.toHaveBeenCalled();
+		} finally {
+			restore();
+		}
+	});
+
+	it('does not evaluate a script another Integration preloader is evaluating', async () => {
+		const restore = installTestCustomElementsRegistry();
+		try {
+			let finish: (() => void) | undefined;
+			const jsxImport = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+			const litImport = vi.fn(async () => undefined);
+			const jsx = createFor('ecopages-jsx', jsxImport);
+			const lit = createFor('lit', litImport);
+
+			const first = jsx.preloadScripts(['/app/marker.script.ts']);
+			await lit.preloadScripts(['/app/marker.script.ts']);
+			finish?.();
+			await first;
+
+			expect(litImport).not.toHaveBeenCalled();
+		} finally {
+			restore();
+		}
+	});
+
+	it('preloads the share of a render-wide assignment that belongs to its Integration', async () => {
+		const jsxImport = vi.fn(async () => undefined);
+		const litImport = vi.fn(async () => undefined);
+		const assignment = new Map([
+			['ecopages-jsx', ['/app/a.script.ts']],
+			['lit', ['/app/b.script.ts']],
+		]);
+
+		await createFor('ecopages-jsx', jsxImport).preloadAssigned(assignment);
+		await createFor('lit', litImport).preloadAssigned(assignment);
+
+		expect(jsxImport).toHaveBeenCalledWith('/app/a.script.ts', expect.any(String));
+		expect(litImport).toHaveBeenCalledWith('/app/b.script.ts', expect.any(String));
+		expect(jsxImport).toHaveBeenCalledTimes(1);
+		expect(litImport).toHaveBeenCalledTimes(1);
+	});
+
+	it('preloads nothing when no assignment is given', async () => {
+		const importServerModule = vi.fn(async () => undefined);
+		await createFor('lit', importServerModule).preloadAssigned(undefined);
+		expect(importServerModule).not.toHaveBeenCalled();
 	});
 });

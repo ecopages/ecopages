@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/integration';
 import { isRegisteredDevTransformEntrypoint, isRegisteredScriptEntrypoint } from '@ecopages/core/integration';
 import type { HmrRegisteredEntrypointsContext } from '@ecopages/core/integration';
@@ -30,12 +30,12 @@ export class EcopagesJsxHmrStrategy extends HmrStrategy {
 		}
 		const srcDir = path.resolve(this.context.getSrcDir());
 
-		if (!resolvedPath.startsWith(`${srcDir}${path.sep}`) && resolvedPath !== srcDir) {
+		if (!resolvedPath.startsWith(`${srcDir}/`) && resolvedPath !== srcDir) {
 			return false;
 		}
 
 		const includesDir = path.resolve(this.context.getIncludesDir());
-		if (includesDir && (resolvedPath === includesDir || resolvedPath.startsWith(`${includesDir}${path.sep}`))) {
+		if (includesDir && (resolvedPath === includesDir || resolvedPath.startsWith(`${includesDir}/`))) {
 			return false;
 		}
 
@@ -77,11 +77,11 @@ export class EcopagesJsxHmrStrategy extends HmrStrategy {
 		const pagesDir = path.resolve(this.context.getPagesDir());
 		const layoutsDir = path.resolve(this.context.getLayoutsDir());
 
-		if (pagesDir && (resolvedPath === pagesDir || resolvedPath.startsWith(`${pagesDir}${path.sep}`))) {
+		if (pagesDir && (resolvedPath === pagesDir || resolvedPath.startsWith(`${pagesDir}/`))) {
 			return true;
 		}
 
-		if (layoutsDir && (resolvedPath === layoutsDir || resolvedPath.startsWith(`${layoutsDir}${path.sep}`))) {
+		if (layoutsDir && (resolvedPath === layoutsDir || resolvedPath.startsWith(`${layoutsDir}/`))) {
 			return true;
 		}
 

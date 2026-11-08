@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { gzipSync } from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
 import { recordHashedBrowserAsset } from '../../../assets/hashed-browser-asset.ts';
@@ -10,7 +10,7 @@ import { serveDistFile } from './dist-file-handler.ts';
 const tempRoots: string[] = [];
 
 function createDist(): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dist-handler-'));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dist-handler-')));
 	tempRoots.push(root);
 	const distDir = path.join(root, 'dist');
 	fs.mkdirSync(distDir, { recursive: true });

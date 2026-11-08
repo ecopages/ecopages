@@ -6,7 +6,7 @@
 import type { EcoComponent, EcoComponentConfig, EcoPageFile, EcoPagesElement } from '@ecopages/core';
 import { createIntegrationRenderer, type PageBrowserGraphContributionContext } from '@ecopages/core/integration';
 import { attachEcoFileMetadataToConfig } from '@ecopages/core/integration';
-import { ensurePageConfigLayouts } from '@ecopages/core/integration';
+import { ensurePageConfigLayouts, moveMdxMetadataOntoPage } from '@ecopages/core/integration';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
 
 export type { MDXFile } from './mdx.types.ts';
@@ -17,7 +17,7 @@ function normalizeImportedMdxPage<TPageModule extends EcoPageFile>(
 ): TPageModule {
 	try {
 		const mdxModule = pageModule as TPageModule & { config?: EcoComponentConfig };
-		const { default: Page, config, getMetadata } = mdxModule;
+		const { default: Page, config } = mdxModule;
 
 		if (typeof Page !== 'function') {
 			throw new Error('MDX file must export a default function');
@@ -31,11 +31,10 @@ function normalizeImportedMdxPage<TPageModule extends EcoPageFile>(
 		if (config) Page.config = config;
 
 		return {
-			...pageModule,
+			...moveMdxMetadataOntoPage(pageModule),
 			default: Page,
 			layout: resolvedLayout,
-			getMetadata,
-		} as TPageModule;
+		} as unknown as TPageModule;
 	} catch (error) {
 		throw new Error(`[ecopages] Error importing MDX file: ${error}`);
 	}
@@ -67,9 +66,7 @@ function collectMdxPageComponents(
 /**
  * MDX routes use the shared renderer pipeline with page-module and dependency hooks.
  */
-export const MDXRenderer = createIntegrationRenderer<EcoPagesElement>(MDX_PLUGIN_NAME, ({ resolveDependencies }) => ({
-	collectPageBrowserGraphContribution: async (context) => ({
-		assets: await resolveDependencies(collectMdxPageComponents(context)),
-	}),
+export const MDXRenderer = createIntegrationRenderer<EcoPagesElement>(MDX_PLUGIN_NAME, () => ({
+	collectPageBrowserGraphContribution: async (context) => ({ components: collectMdxPageComponents(context) }),
 	normalizePageModule: normalizeImportedMdxPage,
 }));

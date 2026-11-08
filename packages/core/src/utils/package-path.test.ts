@@ -1,0 +1,143 @@
+import {
+	mkdirSync,
+	mkdtempSync,
+	realpathSync,
+	renameSync,
+	rmSync,
+	symlinkSync,
+	unlinkSync,
+	writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { path } from '@ecopages/file-system/path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { resolvePackagePath, toPackageScopeFile, toPackagePath } from './package-path.ts';
+
+const roots: string[] = [];
+
+afterEach(() => {
+	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+function write(file: string, content: string): string {
+	mkdirSync(path.dirname(file), { recursive: true });
+	writeFileSync(file, content);
+	return file;
+}
+
+/** An app whose `some-lib` lives in a pnpm-style store folder of `version`, linked from `node_modules`. */
+function pnpmApp() {
+	const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-package-path-'))));
+	roots.push(root);
+	const storeDir = (version: string) =>
+		path.join(root, 'node_modules', '.pnpm', `some-lib@${version}`, 'node_modules', 'some-lib');
+	const install = (version: string) => {
+		write(path.join(storeDir(version), 'package.json'), JSON.stringify({ name: 'some-lib', version }));
+		write(path.join(storeDir(version), 'css', 'style.css'), `.v${version.replace(/\./g, '')} {}`);
+		symlinkSync(storeDir(version), path.join(root, 'node_modules', 'some-lib'), 'junction');
+	};
+	return { root, storeDir, install };
+}
+
+describe('toPackagePath', () => {
+	it('names a file in a pnpm store folder by package name, version and subpath, not by the store folder', () => {
+		const { storeDir, install } = pnpmApp();
+		install('1.0.0');
+
+		expect(toPackagePath(path.join(storeDir('1.0.0'), 'css', 'style.css'))).toBe('some-lib@1.0.0/css/style.css');
+	});
+
+	it('skips a nested package.json without a name and keeps the scope of a scoped package', () => {
+		const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-package-path-'))));
+		roots.push(root);
+		const packageDir = path.join(root, 'node_modules', '@scope', 'kit');
+		write(path.join(packageDir, 'package.json'), JSON.stringify({ name: '@scope/kit' }));
+		write(path.join(packageDir, 'dist', 'esm', 'package.json'), JSON.stringify({ type: 'module' }));
+		const file = write(path.join(packageDir, 'dist', 'esm', 'theme.css'), '.kit {}');
+
+		expect(toPackagePath(file)).toBe('@scope/kit/dist/esm/theme.css');
+	});
+});
+
+describe('resolvePackagePath', () => {
+	it('finds the file in the package installed now after a version bump moves its store folder', () => {
+		const { root, storeDir, install } = pnpmApp();
+		install('1.0.0');
+		const packagePath = toPackagePath(path.join(storeDir('1.0.0'), 'css', 'style.css'))!;
+		expect(resolvePackagePath(root, packagePath)).toBe(path.join(storeDir('1.0.0'), 'css', 'style.css'));
+
+		unlinkSync(path.join(root, 'node_modules', 'some-lib'));
+		renameSync(
+			path.join(root, 'node_modules', '.pnpm', 'some-lib@1.0.0'),
+			path.join(root, 'node_modules', '.pnpm', 'gone'),
+		);
+		install('2.0.0');
+
+		expect(resolvePackagePath(root, packagePath)).toBe(path.join(storeDir('2.0.0'), 'css', 'style.css'));
+	});
+
+	it('looks in the node_modules of each folder above the app root', () => {
+		const { root, storeDir, install } = pnpmApp();
+		install('1.0.0');
+		const appDir = path.join(root, 'apps', 'web');
+		mkdirSync(appDir, { recursive: true });
+
+		expect(resolvePackagePath(appDir, 'some-lib/css/style.css')).toBe(
+			path.join(storeDir('1.0.0'), 'css', 'style.css'),
+		);
+	});
+
+	it('returns the path under the app node_modules when no folder holds the package', () => {
+		const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-package-path-'))));
+		roots.push(root);
+
+		expect(resolvePackagePath(root, '@scope/kit/theme.css')).toBe(
+			path.join(root, 'node_modules', '@scope', 'kit', 'theme.css'),
+		);
+	});
+});
+
+describe('toPackageScopeFile', () => {
+	const install = (packageDir: string) => {
+		write(path.join(packageDir, 'package.json'), JSON.stringify({ name: '@scope/kit', version: '1.2.3' }));
+		return write(path.join(packageDir, 'dist', 'button.module.css'), '.primary {}');
+	};
+	const newRoot = () => {
+		const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-scope-file-'))));
+		roots.push(root);
+		return root;
+	};
+
+	it('puts a package file under the app node_modules by package name and path, whatever the layout or folder', () => {
+		const hoistedRoot = newRoot();
+		const hoisted = install(path.join(hoistedRoot, 'node_modules', '@scope', 'kit'));
+		const pnpmRoot = newRoot();
+		const pnpm = install(
+			path.join(pnpmRoot, 'node_modules', '.pnpm', '@scope+kit@1.2.3', 'node_modules', '@scope', 'kit'),
+		);
+		const linkedRoot = newRoot();
+		const linked = install(path.join(linkedRoot, 'libs', 'kit'));
+		const app = path.join(linkedRoot, 'apps', 'site');
+		mkdirSync(app, { recursive: true });
+
+		expect(toPackageScopeFile(hoisted, hoistedRoot)).toBe(
+			path.join(hoistedRoot, 'node_modules', '@scope', 'kit', 'dist', 'button.module.css'),
+		);
+		expect(path.relative(pnpmRoot, toPackageScopeFile(pnpm, pnpmRoot)!)).toBe(
+			'node_modules/@scope/kit/dist/button.module.css',
+		);
+		expect(path.relative(app, toPackageScopeFile(linked, app)!)).toBe(
+			'node_modules/@scope/kit/dist/button.module.css',
+		);
+	});
+
+	it('leaves a file of the app, and a file outside any named package, as it is', () => {
+		const root = newRoot();
+		const own = write(path.join(root, 'src', 'card.module.css'), '.card {}');
+		const outside = newRoot();
+		const loose = write(path.join(outside, 'loose.module.css'), '.loose {}');
+
+		expect(toPackageScopeFile(own, root)).toBeUndefined();
+		expect(toPackageScopeFile(loose, root)).toBeUndefined();
+	});
+});

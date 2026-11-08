@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, onTestFinished, test, vi } from 'vitest';
 import { HMR_RUNTIME_SCRIPT_URL } from '../../../hmr/hmr-runtime-paths.ts';
 import { injectDevClientRuntimes } from '../../../hmr/dev-client-runtime.ts';
@@ -19,7 +19,7 @@ import { appLogger } from '../../../global/app-logger.ts';
 const tempRoots: string[] = [];
 
 function createTempRoot(prefix: string): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+	const root = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`)));
 	tempRoots.push(root);
 	return root;
 }
@@ -34,6 +34,7 @@ function createHmrAssetManager(runtimePath: string, enabled = true): IHmrManager
 	return {
 		registerEntrypoint: vi.fn(),
 		registerScriptEntrypoint: vi.fn(),
+		rewriteModuleImports: vi.fn(),
 		registerStrategy: vi.fn(),
 		registerDevTransformContributor: vi.fn(),
 		setEnabled: vi.fn(),
@@ -67,6 +68,7 @@ function createHmrAssetManager(runtimePath: string, enabled = true): IHmrManager
 			]),
 		getDefaultContext: vi.fn(),
 		handleFileChanges: vi.fn(),
+		reportBuildError: vi.fn(),
 	};
 }
 
@@ -280,7 +282,9 @@ test('RouteRegistry page module adapter loads page modules through integration r
 });
 
 describe('ServerRequestPipeline endpoint files', () => {
-	const helpersPath = JSON.stringify(path.resolve(import.meta.dirname, '../http/define-api-handler.ts'));
+	const helpersPath = JSON.stringify(
+		path.resolve(path.dirname(path.fromFileUrl(import.meta.url)), '../http/define-api-handler.ts'),
+	);
 	const textBodySchema = `{
 		'~standard': {
 			version: 1,

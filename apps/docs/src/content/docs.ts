@@ -7,6 +7,7 @@ import {
 	gettingStartedIcon,
 	integrationsIcon,
 	pluginsIcon,
+	recipesIcon,
 	referenceIcon,
 	serverIcon,
 } from './docs/section-icons';
@@ -22,6 +23,7 @@ export const DOCS_SECTION_ORDER = [
 	'integrations',
 	'ecosystem',
 	'plugins',
+	'recipes',
 	'reference',
 ] as const;
 
@@ -47,6 +49,7 @@ export const DOCS_SECTION_CONFIG: Record<
 	integrations: { title: 'Integrations', icon: integrationsIcon },
 	ecosystem: { title: 'Ecosystem', icon: ecosystemIcon },
 	plugins: { title: 'Extending', icon: pluginsIcon },
+	recipes: { title: 'Recipes', icon: recipesIcon },
 	reference: { title: 'Reference', icon: referenceIcon },
 };
 

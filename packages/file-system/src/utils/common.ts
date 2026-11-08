@@ -21,7 +21,8 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { cp as cpAsync, mkdir as mkdirAsync, readdir, rm as rmAsync, stat as statAsync } from 'node:fs/promises';
-import { dirname, extname, join as pathJoin, relative } from 'node:path';
+import { path } from '../path.ts';
+import { tmpdir } from 'node:os';
 import zlib from 'node:zlib';
 import {
 	type DirectoryEntry,
@@ -37,12 +38,13 @@ function toFileStats(stats: Stats): FileStats {
 		isDirectory: stats.isDirectory(),
 		isSymbolicLink: stats.isSymbolicLink(),
 		size: stats.size,
+		mtimeMs: stats.mtimeMs,
 	};
 }
 
 function toDirectoryEntry(dirPath: string, entry: Dirent): DirectoryEntry {
 	return {
-		name: relative(dirPath, pathJoin(entry.parentPath, entry.name)),
+		name: path.relative(dirPath, path.join(entry.parentPath, entry.name)),
 		isFile: entry.isFile(),
 		isDirectory: entry.isDirectory(),
 		isSymbolicLink: entry.isSymbolicLink(),
@@ -99,7 +101,7 @@ export abstract class BaseFileSystem {
 	 */
 	write(filepath: string, contents: string | Buffer): void {
 		try {
-			this.ensureDir(dirname(filepath));
+			this.ensureDir(path.dirname(filepath));
 			writeFileSync(filepath, contents);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -157,7 +159,7 @@ export abstract class BaseFileSystem {
 		}
 		const entries = readdirSync(dirPath);
 		for (const entry of entries) {
-			const fullPath = pathJoin(dirPath, entry);
+			const fullPath = path.join(dirPath, entry);
 			rmSync(fullPath, { recursive: true, force: true });
 		}
 	}
@@ -170,7 +172,7 @@ export abstract class BaseFileSystem {
 			return;
 		}
 		const entries = await readdir(dirPath);
-		await Promise.all(entries.map((entry) => rmAsync(pathJoin(dirPath, entry), { recursive: true, force: true })));
+		await Promise.all(entries.map((entry) => rmAsync(path.join(dirPath, entry), { recursive: true, force: true })));
 	}
 
 	/**
@@ -198,7 +200,7 @@ export abstract class BaseFileSystem {
 	 * Resolve a path to its canonical absolute form, following symbolic links.
 	 */
 	realpath(filePath: string): string {
-		return realpathSync(filePath);
+		return path.fromNative(realpathSync(filePath));
 	}
 
 	stat(filePath: string): FileStats {
@@ -216,11 +218,15 @@ export abstract class BaseFileSystem {
 	}
 
 	readlink(filePath: string): string {
-		return readlinkSync(filePath);
+		return path.fromNative(readlinkSync(filePath));
 	}
 
 	mkdtemp(prefix: string): string {
-		return mkdtempSync(prefix);
+		return path.fromNative(mkdtempSync(prefix));
+	}
+
+	tempDir(): string {
+		return path.fromNative(tmpdir());
 	}
 
 	rename(source: string, destination: string): void {
@@ -256,9 +262,9 @@ export abstract class BaseFileSystem {
 		const entries = readdirSync(dirPath, { recursive: true, withFileTypes: true });
 		for (const entry of entries) {
 			if (entry.isFile()) {
-				const ext = extname(entry.name).slice(1);
+				const ext = path.extname(entry.name).slice(1);
 				if (extensionsToGzip.includes(ext)) {
-					this.gzipFile(pathJoin(entry.parentPath, entry.name));
+					this.gzipFile(path.join(entry.parentPath, entry.name));
 				}
 			}
 		}
@@ -272,7 +278,7 @@ export abstract class BaseFileSystem {
 	/**
 	 * Read file async - must be implemented by runtime-specific adapters.
 	 */
-	abstract readFile(path: string): Promise<string>;
+	abstract readFile(filePath: string): Promise<string>;
 
 	/**
 	 * Write file async - must be implemented by runtime-specific adapters.
@@ -292,5 +298,5 @@ export abstract class BaseFileSystem {
 	/**
 	 * Hash file - must be implemented by runtime-specific adapters.
 	 */
-	abstract hash(path: string): string;
+	abstract hash(filePath: string): string;
 }

@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import {
 	eco,
 	getComponentIdentity,
@@ -25,16 +25,14 @@ import { describeRendererContract } from '@ecopages/testing/renderer-contract';
 import React, { type JSX, type ReactNode } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
 import type { ReactRuntimeModules } from '../render/react-runtime.ts';
+import { toRootRelativePath } from '@ecopages/core/build';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
+import { getForeignSubtreeKey, renderForeignSubtreeBoundary } from '../hydration/foreign-subtree.ts';
 import { Page } from './fixture/test-page';
 
 const mockRouterAdapter = {
 	name: 'test-router',
-	bundle: {
-		importPath: '@test/router/browser',
-		outputName: 'test-router',
-		externals: ['react', 'react-dom'],
-	},
+	importPath: '@test/router/browser',
 	components: {
 		router: 'TestRouter',
 		pageContent: 'TestPageContent',
@@ -42,7 +40,7 @@ const mockRouterAdapter = {
 	getRouterProps: (page: string, props: string) => `{ page: ${page}, pageProps: ${props} }`,
 };
 
-const testDir = mkdtempSync(path.join(os.tmpdir(), 'react-renderer-test-'));
+const testDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'react-renderer-test-')));
 
 const Config = await createTestAppConfig({
 	distDir: testDir,
@@ -162,12 +160,6 @@ class TestReactRenderer extends ReactRenderer {
 				(this.pageBrowserGraphOverride ? [...this.pageBrowserGraphOverride.entryAssets] : undefined) ??
 				originalProcessDependencies(...(args as Parameters<typeof originalProcessDependencies>)),
 		) as typeof this.assetProcessingService.processDependencies;
-	}
-
-	protected override async resolvePageBrowserGraphForFile(
-		filePath: string,
-	): Promise<PageBrowserGraphResult | undefined> {
-		return this.pageBrowserGraphOverride ?? super.resolvePageBrowserGraphForFile(filePath);
 	}
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps, JSX.Element>> {
@@ -313,7 +305,7 @@ describe('ReactRenderer', () => {
 		it.each(['layoutsDir', 'componentsDir'] as const)(
 			'resolves a page relative script against the app %s',
 			async (dir) => {
-				const rootDir = mkdtempSync(path.join(os.tmpdir(), 'react-renderer-app-dirs-'));
+				const rootDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'react-renderer-app-dirs-')));
 				try {
 					const config = await createTestAppConfig({ rootDir, distDir: testDir });
 					const scriptDir = config.absolutePaths[dir];
@@ -384,7 +376,11 @@ describe('ReactRenderer', () => {
 				createPageClientPlan('kitajs', Component),
 			);
 
-			expect(islandAssets.processedAssets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/mock.js' }));
+			expect(islandAssets.processedAssets).toEqual([
+				expect.objectContaining({
+					srcUrl: expect.stringMatching(/^\/assets\/ecopages-react-island-\d+-hydration-\d+\.js$/),
+				}),
+			]);
 		});
 
 		it('stamps an attachable component root as an island host', async () => {
@@ -413,7 +409,7 @@ describe('ReactRenderer', () => {
 			expect(result.rootAttributes?.['data-eco-island-integration']).toBe('react');
 			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-1');
 			expect(result.rootAttributes?.['data-eco-component-key']).toBe(
-				getIslandComponentKey(pageFilePath, Component.config),
+				getIslandComponentKey(toRootRelativePath(Config.rootDir, pageFilePath), Component.config),
 			);
 			expect(result.rootAttributes?.['data-eco-props']).toBe(btoa(JSON.stringify({ title: 'Island' })));
 		});
@@ -656,8 +652,221 @@ describe('ReactRenderer', () => {
 				integrationContext: { componentInstanceId: 'island-foreign-root' },
 			});
 
-			expect(result.html).toBe('<eco-island style="display:contents"><button>Foreign root</button></eco-island>');
+			expect(result.html).toBe(
+				`<eco-island style="display:contents">${renderForeignSubtreeBoundary(
+					getForeignSubtreeKey(DeferredWidget, {}),
+					'<button>Foreign root</button>',
+				)}</eco-island>`,
+			);
 			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-foreign-root');
+		});
+
+		it('does not wrap a foreign Component in a multi-root island that emits no island host', async () => {
+			const deferredPlugin = createDeferredIntegrationPlugin({
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<button>Foreign</button>',
+					canAttachAttributes: true,
+					integrationName: 'deferred',
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [deferredPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				resolvedIntegrationDependencies: [],
+			});
+			const DeferredWidget = eco.component<{}, string>({
+				identity: {
+					id: 'deferred-multi-root',
+					file: '/app/components/deferred-multi-root.deferred.tsx',
+					integration: 'deferred',
+				},
+				integration: 'deferred',
+				render: () => '',
+			});
+			const ForeignWidget = DeferredWidget as unknown as React.ComponentType;
+			const Island = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-multi-root-island', file: pageFilePath, integration: 'react' },
+				integration: 'react',
+				dependencies: { components: [DeferredWidget] },
+				render: () => (
+					<>
+						<h2>Title</h2>
+						<ForeignWidget />
+					</>
+				),
+			});
+
+			const result = await testRenderer.renderComponentWithForeignChildren({
+				component: Island,
+				props: {},
+				integrationContext: { componentInstanceId: 'island-multi-root' },
+			});
+
+			expect(result.html).toBe('<h2>Title</h2><button>Foreign</button>');
+			expect(result.rootAttributes).toBeUndefined();
+		});
+
+		it('wraps a foreign Component in a Foreign Subtree boundary that hydration keeps', async () => {
+			const litPlugin = createDeferredIntegrationPlugin({
+				name: 'lit',
+				extensions: ['.lit.tsx'],
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<lit-counter count="1"><template shadowrootmode="open">1</template></lit-counter>',
+					canAttachAttributes: true,
+					integrationName: 'lit',
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [litPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				resolvedIntegrationDependencies: [],
+			});
+			const LitCounter = eco.component<{ count: number }, string>({
+				identity: { id: 'lit-counter', file: '/app/components/lit-counter.lit.tsx', integration: 'lit' },
+				render: () => '',
+			});
+			const ForeignCounter = LitCounter as unknown as React.ComponentType<{ count: number }>;
+			const Page = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-page', file: pageFilePath, integration: 'react' },
+				dependencies: { components: [LitCounter] },
+				render: () => (
+					<main>
+						<ForeignCounter count={1} />
+					</main>
+				),
+			});
+
+			testRenderer.shouldHydratePageOverride = true;
+
+			const result = await testRenderer.renderComponentWithForeignChildren({ component: Page, props: {} });
+
+			expect(result.html).toBe(
+				`<main>${renderForeignSubtreeBoundary(
+					getForeignSubtreeKey(LitCounter, { count: 1 }),
+					'<lit-counter count="1"><template shadowrootmode="open">1</template></lit-counter>',
+				)}</main>`,
+			);
+		});
+
+		it('keeps a foreign table row in its table when the Page does not hydrate', async () => {
+			const litPlugin = createDeferredIntegrationPlugin({
+				name: 'lit',
+				extensions: ['.lit.tsx'],
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<tr><td>Row</td></tr>',
+					canAttachAttributes: true,
+					integrationName: 'lit',
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [litPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				resolvedIntegrationDependencies: [],
+			});
+			const LitRow = eco.component<Record<string, never>, string>({
+				identity: { id: 'lit-row', file: '/app/components/lit-row.lit.tsx', integration: 'lit' },
+				render: () => '',
+			});
+			const ForeignRow = LitRow as unknown as React.ComponentType;
+			const Page = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-table-page', file: pageFilePath, integration: 'react' },
+				dependencies: { components: [LitRow] },
+				render: () => (
+					<table>
+						<tbody>
+							<ForeignRow />
+						</tbody>
+					</table>
+				),
+			});
+			testRenderer.shouldHydratePageOverride = false;
+
+			const result = await testRenderer.renderComponentWithForeignChildren({ component: Page, props: {} });
+
+			expect(result.html).toBe('<table><tbody><tr><td>Row</td></tr></tbody></table>');
+		});
+
+		it('wraps a foreign table row in a boundary when the Page hydrates', async () => {
+			const litPlugin = createDeferredIntegrationPlugin({
+				name: 'lit',
+				extensions: ['.lit.tsx'],
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<tr><td>Row</td></tr>',
+					canAttachAttributes: true,
+					integrationName: 'lit',
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [litPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				resolvedIntegrationDependencies: [],
+			});
+			const LitRow = eco.component<Record<string, never>, string>({
+				identity: { id: 'lit-row', file: '/app/components/lit-row.lit.tsx', integration: 'lit' },
+				render: () => '',
+			});
+			const ForeignRow = LitRow as unknown as React.ComponentType;
+			const Page = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-table-page', file: pageFilePath, integration: 'react' },
+				dependencies: { components: [LitRow] },
+				render: () => (
+					<main>
+						<ForeignRow />
+					</main>
+				),
+			});
+			testRenderer.shouldHydratePageOverride = true;
+
+			const result = await testRenderer.renderComponentWithForeignChildren({ component: Page, props: {} });
+
+			expect(result.html).toBe(
+				`<main>${renderForeignSubtreeBoundary(getForeignSubtreeKey(LitRow, {}), '<tr><td>Row</td></tr>')}</main>`,
+			);
+		});
+
+		it('leaves a Foreign Subtree in the document head unwrapped', async () => {
+			const litPlugin = createDeferredIntegrationPlugin({
+				name: 'lit',
+				extensions: ['.lit.tsx'],
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<meta name="lit" content="1">',
+					canAttachAttributes: true,
+					integrationName: 'lit',
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [litPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				resolvedIntegrationDependencies: [],
+			});
+			const LitMeta = eco.component<Record<string, never>, string>({
+				identity: { id: 'lit-meta', file: '/app/components/lit-meta.lit.tsx', integration: 'lit' },
+				render: () => '',
+			});
+			const ForeignMeta = LitMeta as unknown as React.ComponentType;
+			const Shell = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-shell', file: pageFilePath, integration: 'react' },
+				dependencies: { components: [LitMeta] },
+				render: () => (
+					<html>
+						<head>
+							<ForeignMeta />
+						</head>
+						<body />
+					</html>
+				),
+			});
+
+			testRenderer.shouldHydratePageOverride = true;
+
+			const result = await testRenderer.renderComponentWithForeignChildren({ component: Shell, props: {} });
+
+			expect(result.html).toContain('<head><meta name="lit" content="1"></head>');
 		});
 
 		it('returns island host metadata with the component render result', async () => {
@@ -683,7 +892,10 @@ describe('ReactRenderer', () => {
 				html: '<eco-island style="display:contents"><h3>Island</h3></eco-island>',
 				rootAttributes: {
 					'data-eco-component-id': 'island-1',
-					'data-eco-component-key': getIslandComponentKey(pageFilePath, Component.config),
+					'data-eco-component-key': getIslandComponentKey(
+						toRootRelativePath(Config.rootDir, pageFilePath),
+						Component.config,
+					),
 					'data-eco-props': btoa(JSON.stringify({ title: 'Island' })),
 					'data-eco-island': '',
 					'data-eco-island-integration': 'react',
@@ -945,43 +1157,24 @@ describe('ReactRenderer', () => {
 		expect(withForceSpy).toHaveBeenCalledWith('/app/src/pages/with-force.tsx', false, []);
 	});
 
-	it('ensures page-layout-normalization vendor only for MDX page graphs', async () => {
-		const tsxRenderer = createRenderer({ forceBrowserGraph: true });
-		const mdxAssetProcessingService = createAssetProcessingServiceMock();
-		const mdxRenderer = new TestReactRenderer({
-			appConfig: Config,
-			assetProcessingService: mdxAssetProcessingService as any,
-			resolvedIntegrationDependencies: [],
-			reactConfig: {
-				forceBrowserGraph: true,
-				mdxExtensions: ['.mdx'],
-			},
-		});
-		const pageModule = {
-			default: Page,
-			config: {},
-		} as EcoPageFile;
-		tsxRenderer.importedPageFileOverride = pageModule;
-		mdxRenderer.importedPageFileOverride = pageModule;
+	it('should emit page data for a hydrating page without a router, and not for a page that never hydrates', async () => {
+		const hydrating = createRenderer({ forceBrowserGraph: true });
+		const plain = createRenderer();
+		vi.spyOn(hydrating.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
+		for (const testRenderer of [hydrating, plain]) {
+			testRenderer.importedPageFileOverride = { default: Page, config: {} } as EcoPageFile;
+			testRenderer.declaredModulesOverride = [];
+		}
 
-		vi.spyOn(tsxRenderer.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
-		vi.spyOn(mdxRenderer.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
-		const tsxEnsureSpy = vi
-			.spyOn(tsxRenderer.bundleService, 'ensurePageLayoutNormalizationVendorProcessed')
-			.mockResolvedValue(undefined);
-		const mdxEnsureSpy = vi
-			.spyOn(mdxRenderer.bundleService, 'ensurePageLayoutNormalizationVendorProcessed')
-			.mockResolvedValue(undefined);
+		const withData = await new Response(
+			(await hydrating.execute({ file: pageFilePath, params: {}, query: {} })).body as BodyInit,
+		).text();
+		const without = await new Response(
+			(await plain.execute({ file: pageFilePath, params: {}, query: {} })).body as BodyInit,
+		).text();
 
-		tsxRenderer.isMdxFileOverride = false;
-		mdxRenderer.isMdxFileOverride = true;
-
-		await tsxRenderer.execute({ file: '/app/src/pages/tsx-graph.tsx', params: {}, query: {} });
-		await mdxRenderer.execute({ file: '/app/src/pages/guide.mdx', params: {}, query: {} });
-
-		expect(tsxEnsureSpy).not.toHaveBeenCalled();
-		expect(mdxEnsureSpy).toHaveBeenCalledTimes(1);
-		expect(mdxEnsureSpy).toHaveBeenCalledWith(mdxAssetProcessingService);
+		expect(withData).toContain('<script id="__ECO_PAGE_DATA__" type="application/json">');
+		expect(without).not.toContain('__ECO_PAGE_DATA__');
 	});
 
 	it('should emit canonical page data for router-backed pages inside non-react html templates', async () => {

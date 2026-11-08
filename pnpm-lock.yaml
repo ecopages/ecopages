@@ -71,34 +71,40 @@ importers:
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
         version: link:../../packages/integrations/ecopages-jsx
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../packages/file-system
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.0
-        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@ecopages/signals':
-        specifier: ^0.6.0
-        version: 0.6.0
+        specifier: ^0.8.2
+        version: 0.8.2
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
       '@rehype-pretty/transformers':
         specifier: ^0.13.2
         version: 0.13.2
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       '@types/hast':
@@ -113,6 +119,9 @@ importers:
       lit:
         specifier: ^3.3.3
         version: 3.3.3
+      mdast-util-from-markdown:
+        specifier: ^2.0.3
+        version: 2.0.3
       react:
         specifier: ^19.2.6
         version: 19.2.8
@@ -152,6 +161,12 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.5.4
+
+  e2e/fixtures/browser-identity-package:
+    dependencies:
+      react:
+        specifier: ^19.0.0
+        version: 19.2.8
 
   e2e/fixtures/browser-router:
     dependencies:
@@ -212,6 +227,9 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../../packages/core
+      '@ecopages/e2e-package-css-lib':
+        specifier: workspace:*
+        version: link:../package-css-lib
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../../packages/integrations/mdx
@@ -221,6 +239,39 @@ importers:
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../../../packages/__internals/testing
+      react:
+        specifier: ^19.2.6
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.8(react@19.2.8)
+
+  e2e/fixtures/css-modules:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/e2e-package-css-lib':
+        specifier: workspace:*
+        version: link:../package-css-lib
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../../packages/processors/lightningcss-processor
+      '@ecopages/lit':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/lit
+      '@ecopages/react':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/react
+      lit:
+        specifier: ^3.3.3
+        version: 3.3.3
       react:
         specifier: ^19.2.6
         version: 19.2.8
@@ -255,6 +306,35 @@ importers:
         specifier: ^4.2.13
         version: 4.2.13
 
+  e2e/fixtures/lightningcss:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../../packages/processors/lightningcss-processor
+
+  e2e/fixtures/package-css-lib: {}
+
+  e2e/fixtures/page-script-splitting:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+
+  e2e/fixtures/plain-css:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+
   e2e/fixtures/production-server-modules:
     devDependencies:
       '@ecopages/core':
@@ -264,8 +344,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/integrations/ecopages-jsx
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../../packages/integrations/kitajs
@@ -273,14 +353,35 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/integrations/lit
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../../packages/integrations/react
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
+      lit:
+        specifier: ^3.3.3
+        version: 3.3.3
+      react:
+        specifier: ^19.2.6
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.8(react@19.2.8)
+
+  e2e/fixtures/react-direct-hmr:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/lit':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/lit
+      '@ecopages/react':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/react
       lit:
         specifier: ^3.3.3
         version: 3.3.3
@@ -306,8 +407,38 @@ importers:
         specifier: ^19.2.6
         version: 19.2.8(react@19.2.8)
 
+  e2e/fixtures/react-production-start:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/e2e-package-css-lib':
+        specifier: workspace:*
+        version: link:../package-css-lib
+      '@ecopages/kitajs':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/kitajs
+      '@ecopages/react':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/react
+      '@ecopages/react-router':
+        specifier: workspace:*
+        version: link:../../../packages/react-router
+      '@kitajs/html':
+        specifier: ^4.2.13
+        version: 4.2.13
+      react:
+        specifier: ^19.2.6
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.8(react@19.2.8)
+
   e2e/fixtures/react-router:
     dependencies:
+      '@ecopages/e2e-browser-identity':
+        specifier: workspace:*
+        version: link:../browser-identity-package
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -334,14 +465,128 @@ importers:
         specifier: ^19.2.6
         version: 19.2.8(react@19.2.8)
 
+  e2e/fixtures/web-workers:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/radiant':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
+
+  examples/recipes/auth-gate:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/radiant':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
+      ecopages:
+        specifier: workspace:*
+        version: link:../../../packages/ecopages
+
+  examples/recipes/components-and-layouts:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      ecopages:
+        specifier: workspace:*
+        version: link:../../../packages/ecopages
+
+  examples/recipes/diagrams:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/mdx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/mdx
+      ecopages:
+        specifier: workspace:*
+        version: link:../../../packages/ecopages
+      pele:
+        specifier: 1.13.0
+        version: 1.13.0
+
+  examples/recipes/gfm:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/mdx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/mdx
+      ecopages:
+        specifier: workspace:*
+        version: link:../../../packages/ecopages
+      rehype-pretty-code:
+        specifier: ^0.14.3
+        version: 0.14.5(shiki@3.23.0)
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
+      shiki:
+        specifier: ^3.23.0
+        version: 3.23.0
+
+  examples/recipes/wasm-threads:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      ecopages:
+        specifier: workspace:*
+        version: link:../../../packages/ecopages
+
   packages/__internals/testing:
     dependencies:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../core
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../file-system
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
@@ -457,6 +702,9 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../..
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../../file-system
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../../integrations/mdx
@@ -470,11 +718,11 @@ importers:
   packages/dev-toolbar:
     dependencies:
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       axe-core:
         specifier: ^4.10.3
         version: 4.13.0
@@ -522,14 +770,14 @@ importers:
         specifier: workspace:*
         version: link:../../file-system
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../mdx
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -568,12 +816,18 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../core
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../file-system
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../../__internals/testing
 
   packages/integrations/lit:
     dependencies:
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../file-system
       '@lit-labs/ssr':
         specifier: ^3.3.0
         version: 3.3.1
@@ -645,9 +899,6 @@ importers:
       react-dom:
         specifier: ^19
         version: 19.2.8(react@19.2.8)
-      rolldown:
-        specifier: ^1.1.0
-        version: 1.2.7
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
@@ -706,14 +957,48 @@ importers:
         specifier: workspace:*
         version: link:../../core
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.18
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.5(@types/react@19.2.18)
+
+  packages/processors/lightningcss-processor:
+    dependencies:
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../file-system
+      '@ecopages/logger':
+        specifier: ^0.2.3
+        version: 0.2.3(typescript@5.9.3)
+      browserslist:
+        specifier: ^4.28.2
+        version: 4.28.8
+      lightningcss:
+        specifier: 1.33.0
+        version: 1.33.0
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
+        specifier: ^4.3.0
+        version: 4.3.3
+      postcss:
+        specifier: ^8.5.14
+        version: 8.5.26
+      postcss-nested:
+        specifier: ^8.0.1
+        version: 8.0.1(postcss@8.5.26)
+      tailwindcss:
+        specifier: ^4.3.0
+        version: 4.3.3
 
   packages/processors/postcss-processor:
     dependencies:
@@ -730,8 +1015,8 @@ importers:
         specifier: ^4.28.2
         version: 4.28.8
       cssnano:
-        specifier: ^8.0.2
-        version: 8.0.10(postcss@8.5.26)
+        specifier: ^9.9.0
+        version: 9.9.0(postcss@8.5.26)
       postcss:
         specifier: ^8.5.14
         version: 8.5.26
@@ -794,19 +1079,22 @@ importers:
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       ecopages:
@@ -868,24 +1156,27 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
-      '@ecopages/postcss-processor':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.0
-        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@ecopages/signals':
-        specifier: ^0.6.0
-        version: 0.6.0
+        specifier: ^0.8.2
+        version: 0.8.2
       '@faker-js/faker':
         specifier: ^10.4.0
         version: 10.6.0
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.3
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.3
         version: 4.3.3
       '@types/mdast':
@@ -919,13 +1210,16 @@ importers:
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
-      '@ecopages/postcss-processor':
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/lightningcss-processor
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       ecopages:
@@ -963,8 +1257,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
@@ -1026,6 +1320,9 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@ecopages/e2e-package-css-lib':
+        specifier: workspace:*
+        version: link:../../e2e/fixtures/package-css-lib
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
         version: link:../../packages/integrations/ecopages-jsx
@@ -1036,23 +1333,23 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/lit':
         specifier: workspace:*
         version: link:../../packages/integrations/lit
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
@@ -1074,7 +1371,10 @@ importers:
       '@playwright/test':
         specifier: ^1.60.0
         version: 1.62.1
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       '@types/node':
@@ -1122,22 +1422,25 @@ importers:
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/lit':
         specifier: workspace:*
         version: link:../../packages/integrations/lit
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@faker-js/faker':
         specifier: ^10.4.0
         version: 10.6.0
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       '@types/alpinejs':
@@ -1181,8 +1484,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
@@ -1229,19 +1532,22 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       '@types/react':
@@ -1277,19 +1583,22 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
-      '@ecopages/postcss-processor':
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       '@types/react':
@@ -1338,6 +1647,36 @@ importers:
         specifier: ^4.3.0
         version: 4.3.3
 
+  playground/tailwind-v4-lightningcss:
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
+      '@ecopages/react':
+        specifier: workspace:*
+        version: link:../../packages/integrations/react
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
+        specifier: ^4.3.0
+        version: 4.3.3
+      ecopages:
+        specifier: workspace:*
+        version: link:../../packages/ecopages
+      react:
+        specifier: ^19.2.6
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.8(react@19.2.8)
+      tailwindcss:
+        specifier: ^4.3.0
+        version: 4.3.3
+
   templates/blog-jsx:
     devDependencies:
       '@ecopages/browser-router':
@@ -1356,24 +1695,27 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.0
-        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.1.18
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.1.18
         version: 4.3.3
       ecopages:
@@ -1407,19 +1749,22 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.1.18
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.1.18
         version: 4.3.3
       '@types/react':
@@ -1456,27 +1801,30 @@ importers:
         specifier: workspace:*
         version: link:../../packages/integrations/ecopages-jsx
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.0
-        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
       '@rehype-pretty/transformers':
         specifier: ^0.13.2
         version: 0.13.2
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       '@types/hast':
@@ -1521,10 +1869,13 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@ecopages/postcss-processor':
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
-      '@tailwindcss/postcss':
+        version: link:../../packages/processors/lightningcss-processor
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       ecopages:
@@ -1549,8 +1900,77 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
+      '@ecopages/mdx':
+        specifier: workspace:*
+        version: link:../../packages/integrations/mdx
+      '@ecopages/radiant':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
+        specifier: ^4.0.0
+        version: 4.3.3
+      ecopages:
+        specifier: workspace:*
+        version: link:../../packages/ecopages
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.3.3
+
+  templates/jsx-css-modules:
+    devDependencies:
+      '@ecopages/browser-router':
+        specifier: workspace:*
+        version: link:../../packages/browser-router
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../packages/integrations/ecopages-jsx
+      '@ecopages/image-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/image-processor
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
+      '@ecopages/mdx':
+        specifier: workspace:*
+        version: link:../../packages/integrations/mdx
+      '@ecopages/radiant':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
+      ecopages:
+        specifier: workspace:*
+        version: link:../../packages/ecopages
+
+  templates/jsx-postcss:
+    devDependencies:
+      '@ecopages/browser-router':
+        specifier: workspace:*
+        version: link:../../packages/browser-router
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../packages/integrations/ecopages-jsx
+      '@ecopages/image-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/image-processor
+      '@ecopages/jsx':
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
@@ -1558,8 +1978,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.3
@@ -1584,22 +2004,25 @@ importers:
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/lit':
         specifier: workspace:*
         version: link:../../packages/integrations/lit
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/scripts-injector':
         specifier: ^0.1.5
         version: 0.1.5(typescript@5.9.3)
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       ecopages:
@@ -1630,27 +2053,30 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/integrations/ecopages-jsx
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../../packages/processors/lightningcss-processor
       '@ecopages/logger':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.0
-        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       '@types/node':
@@ -1665,6 +2091,9 @@ importers:
       mdast-util-from-markdown:
         specifier: ^2.0.3
         version: 2.0.3
+      pele:
+        specifier: 1.13.0
+        version: 1.13.0
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
@@ -1708,24 +2137,27 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/signals@0.6.0)
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: ^0.6.0
-        version: 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
+        specifier: ^0.8.2
+        version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@ecopages/radiant-ui':
-        specifier: ^0.3.0
-        version: 0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)
+        specifier: ^0.3.4
+        version: 0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)
       '@ecopages/signals':
-        specifier: ^0.6.0
-        version: 0.6.0
-      '@tailwindcss/postcss':
+        specifier: ^0.8.2
+        version: 0.8.2
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       ecopages:
@@ -1756,16 +2188,19 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
-      '@ecopages/postcss-processor':
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       '@types/react':
@@ -1808,19 +2243,22 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.1.18
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.1.18
         version: 4.3.3
       '@types/react':
@@ -1847,6 +2285,52 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  templates/react-postcss:
+    dependencies:
+      '@tanstack/react-table':
+        specifier: ^8.20.6
+        version: 8.21.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: ^19
+        version: 19.2.8
+      react-aria-components:
+        specifier: ^1.6.0
+        version: 1.21.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react-dom:
+        specifier: ^19
+        version: 19.2.8(react@19.2.8)
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ecopages/image-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/image-processor
+      '@ecopages/postcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/postcss-processor
+      '@ecopages/react':
+        specifier: workspace:*
+        version: link:../../packages/integrations/react
+      '@ecopages/react-router':
+        specifier: workspace:*
+        version: link:../../packages/react-router
+      '@tailwindcss/postcss':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@types/react':
+        specifier: ^19
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.5(@types/react@19.2.18)
+      ecopages:
+        specifier: workspace:*
+        version: link:../../packages/ecopages
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.3.3
 
   templates/react-shadcn:
     dependencies:
@@ -1881,16 +2365,19 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
-      '@ecopages/postcss-processor':
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       '@types/react':
@@ -2333,8 +2820,12 @@ packages:
     resolution: {integrity: sha512-y7/yvZ2TPAnR9+jnc00klvNNLkJiXFFrQA/hlLCcxA9a2A4zQIOimyFQ9XfwYKiGD1fb5GY8vbKIIgO8d5Tb2A==}
     engines: {node: '>= 20.12.0'}
 
-  '@colordx/core@5.8.0':
-    resolution: {integrity: sha512-cG0QJAO6VkaRUlIb0zOzX9gfJgs1pjoOL9gZ/PK1kfvBs0GCkADu5oQh6gPxXgQnZ3gV575h+lQRC0NlMDTclA==}
+  '@colordx/core@7.3.0':
+    resolution: {integrity: sha512-LVzTTPhX7wpy7TkGjouA9zbbCBIw92RGm7ZQqSKFE0oYE3sMx2FGXz90eVpgw7k/+wrrY+qJ86nHXifZWMS5jA==}
+
+  '@csstools/css-tokenizer@4.0.2':
+    resolution: {integrity: sha512-OoKoR0f76dCY666JlcbhmVTs2drYj1GUXZTYTcbUgJjh9Nv41aFfZ21bPQTERm5+L5cBDo466NltB2lplS5GBw==}
+    engines: {node: '>=20.19.0'}
 
   '@dotenvx/dotenvx@1.75.1':
     resolution: {integrity: sha512-/BITOC9dmS/edY2zQwZNicQ059O6RKabtQfyEafV0nGtfYRNHYy1DIPiYVcov40+tob9hfmBnbR963dS+EQ1DQ==}
@@ -2349,35 +2840,35 @@ packages:
   '@drizzle-team/brocli@0.12.0':
     resolution: {integrity: sha512-mlUE+rZ8CatQekLhnaiN91Iemdd+e2gFKooGlnRB3oPTL3VghLfX24dx7HrzMNeC1JrIB/0kpsfyty3f5HNfxQ==}
 
-  '@ecopages/jsx@0.6.0':
-    resolution: {integrity: sha512-kFTN6RuRuzQfo3D2cP4j3yy0xwAFSTUFQGEYOKAsB6eLIxX1Op2Cn0DIRTPEBphXsttYPbuWxmxo02UbWilUWA==}
+  '@ecopages/jsx@0.8.2':
+    resolution: {integrity: sha512-BxC/H7B3BsuGdywirCiaZ9IIrrqQmjhJdfnskBsPk+qavwPrvEhe9jHwzCPeqTXJhONrPpx2apgowGZnxBf50Q==}
     peerDependencies:
-      '@ecopages/signals': '>=0.6.0'
+      '@ecopages/signals': '>=0.8.2'
 
   '@ecopages/logger@0.2.3':
     resolution: {integrity: sha512-Hkt5H9Kzv6y07aiPZPaDkJ6/Bp7+Aen5ZFuI5zQ6ON7PyeuVu1lMiQy9pL+9Wm8yeO3wnMO44Jmph84Cc0X0lQ==}
     peerDependencies:
       typescript: ^5.0.0
 
-  '@ecopages/radiant-ui@0.3.0':
-    resolution: {integrity: sha512-9Vua6b5oDaQrEVenxOCAefym8am71Mts3XYnBHgvitAGK+0PaVU87VK/sBgc/YyIGGYbIZhZTOq7ucA82o8jaA==}
+  '@ecopages/radiant-ui@0.3.4':
+    resolution: {integrity: sha512-dOPAA4SMHqrDwvs6R8F3fctkpD+ik79LCrSl7zseqMgtMy+0duOXt9zv2goFAQ8hAopsFh9RTDt2WivWq+rHSQ==}
     peerDependencies:
-      '@ecopages/jsx': '>=0.6.0'
-      '@ecopages/radiant': '>=0.6.0'
-      '@ecopages/signals': '>=0.6.0'
+      '@ecopages/jsx': '>=0.8.2'
+      '@ecopages/radiant': '>=0.8.2'
+      '@ecopages/signals': '>=0.8.2'
 
-  '@ecopages/radiant@0.6.0':
-    resolution: {integrity: sha512-D4NOvKZRqWmJcEP9/JYWc5RIXQOsBsiq5/y+Gvjt6p/GbQJWwXNbepnDr83I0RNAk154PRxxzyNxL9f9iLOkiw==}
+  '@ecopages/radiant@0.8.2':
+    resolution: {integrity: sha512-5nGsgmmmDR1pc9lkIToGEZpwWfsQfk9HDl/4HWX4mx+NuB34dmszOkAkPeJSUHx6kVtBpqqjMd9QaG+rO4zSwA==}
     peerDependencies:
-      '@ecopages/jsx': '>=0.6.0'
+      '@ecopages/jsx': '>=0.8.2'
 
   '@ecopages/scripts-injector@0.1.5':
     resolution: {integrity: sha512-4julGcmVkf4G8asK0/vAZ9o9bIWudEyGk4D/rRF/IE2J4ePT5FgmR8QdzRxD+DElzEnkJTnS7gyX2Dj7JeNtdg==}
     peerDependencies:
       typescript: ^5.0.0
 
-  '@ecopages/signals@0.6.0':
-    resolution: {integrity: sha512-GdYRehANSJbZO/QC7B5XPmevxBxKKjNu4fI+9fwHAskGkn1GUf3qT6RNtr/QrDeKGEXuWnA9CNk6aerg8FadLw==}
+  '@ecopages/signals@0.8.2':
+    resolution: {integrity: sha512-k8S5veRDLAXL6Is+VpkqbkxWIRQUvei+lkVWMTfruJPCOfnbSMCGSvDawJIcTIEAxKJ5Q5j41ygVEtnR5a4pjw==}
 
   '@emnapi/core@1.11.2':
     resolution: {integrity: sha512-TC8MkTuZUtcTSiFeuC0ksCh9QIJ5+F21MvZ4Wn4ORfYaFJ/0dsiudv5tVkejgwZlwQ39jL9WWDe2lz8x0WglOA==}
@@ -4406,6 +4897,11 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
+  baseline-browser-mapping@2.11.35:
+    resolution: {integrity: sha512-GNk8KX52CHqeNKGk8+7tZnQab/2k1t/BgrUHPKNdijzpEhF1saPQZHVKb6m5loSAxB39gyrTYw34Qf9CQ3u1qQ==}
+    engines: {node: '>=6.0.0'}
+    hasBin: true
+
   better-auth@1.7.10:
     resolution: {integrity: sha512-Paf0X8cHKQc8jCgM3vl4AoxRicWdNf0zw8Aggn1q6aNSWCDDxSZCb6rkXa/O9cPc8idjVPK0rV/eHPHAbs07ZA==}
     peerDependencies:
@@ -4556,9 +5052,6 @@ packages:
     resolution: {integrity: sha512-2cGmJupaNgg+QUwVLAucDuWuoMZ6EX9iHDRswZ5lsNYEmwPaRknMPCLZz07yTzVq/83p4o/wzbDZbBrTvGGTIw==}
     engines: {node: '>=18'}
 
-  boolbase@1.0.0:
-    resolution: {integrity: sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww==}
-
   brace-expansion@5.0.12:
     resolution: {integrity: sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==}
     engines: {node: 20 || >=22}
@@ -4569,6 +5062,11 @@ packages:
 
   browserslist@4.28.8:
     resolution: {integrity: sha512-V2NpofLblG64mfOtSgDhOJESZEGogzDMBv/q+W6oc4LXWP/q75eOXoOaaOu1EOadB9U4Bwx/e0yzbvwKH8zalA==}
+    engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
+    hasBin: true
+
+  browserslist@4.29.5:
+    resolution: {integrity: sha512-khTmKu5NGYTotqcYo8Bew2k4RAE9PuXRSFRXG2lQBrCEQHyeQ/vX6gKMxfokwywBsLiXZMnHsmWMG1pnO8J7uQ==}
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
 
@@ -4615,6 +5113,9 @@ packages:
 
   caniuse-lite@1.0.30001810:
     resolution: {integrity: sha512-TITQPUkaz+aVk5GL6NhOdwk1aEaNTSDPsGFWrTuhKGtjTF70jL/Oht2W4c6rXUe5fu7Ie19VIahAXHIIiWWNeg==}
+
+  caniuse-lite@1.0.30001823:
+    resolution: {integrity: sha512-TQ5s/djDjNk1axreUW+4rULH+BmdCMLiJkhaXnO5wqivG7tITkSUj4ItIdzqdZHKaXcHAV8dhH3JxOM7/7bwqw==}
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
@@ -4776,47 +5277,16 @@ packages:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
 
-  css-select@6.0.0:
-    resolution: {integrity: sha512-rZZVSLle8v0+EY8QAkDWrKhpgt6SA5OtHsgBnsj6ZaLb5dmDVOWUDtQitd9ydxxvEjhewNudS6eTVU7uOyzvXw==}
-
-  css-tree@2.2.1:
-    resolution: {integrity: sha512-OA0mILzGc1kCOCSJerOeqDxDQ4HOh+G8NbOJFOTgOCzpw7fCBubk0fEyxp8AgOL/jvLgYA/uV0cMbe43ElF1JA==}
-    engines: {node: ^10 || ^12.20.0 || ^14.13.0 || >=15.0.0, npm: '>=7.0.0'}
-
-  css-tree@3.2.1:
-    resolution: {integrity: sha512-X7sjQzceUhu1u7Y/ylrRZFU2FS6LRiFVp6rKLPg23y3x3c3DOKAwuXGDp+PAGjh6CSnCjYeAul8pcT8bAl+lSA==}
-    engines: {node: ^10 || ^12.20.0 || ^14.13.0 || >=15.0.0}
-
-  css-what@7.0.0:
-    resolution: {integrity: sha512-wD5oz5xibMOPHzy13CyGmogB3phdvcDaB5t0W/Nr5Z2O/agcB8YwOz6e2Lsp10pNDzBoDO9nVa3RGs/2BttpHQ==}
-    engines: {node: '>= 6'}
-
   cssesc@3.0.0:
     resolution: {integrity: sha512-/Tb/JcjK111nNScGob5MNtsntNM1aCNUDipB/TkwZFhyDrrE47SOx/18wF2bbjgc3ZzCSKW1T5nt5EbFoAz/Vg==}
     engines: {node: '>=4'}
     hasBin: true
 
-  cssnano-preset-default@8.0.10:
-    resolution: {integrity: sha512-34uq3q7OXgmfxXn+MHTgIqysCLH7zRZZUMAwrBiO09F5/KLVD33iDFNRRUNYStKdj0SaAIUVr6Akao2Fpp0aVA==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
+  cssnano@9.9.0:
+    resolution: {integrity: sha512-JS914Th2NRk2979JHJvbE3UjPtLmyXtPnr23NNul9BOQwEt9r/A2aM1STrKtKHAPc3XRaUDwMoqkXnjEpgHkAw==}
+    engines: {node: ^22.22.3 || ^24.15.0 || >=26.0}
     peerDependencies:
-      postcss: ^8.5.26
-
-  cssnano-utils@6.0.4:
-    resolution: {integrity: sha512-j1z2mW4MqtcGM4I8TxXAdOXUifp1DZ5/bZnyYnCpHlzQ/ilCj2voLxE0aqEKnBDA5hF6HahSY13JU8kyZ1s8Mg==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  cssnano@8.0.10:
-    resolution: {integrity: sha512-aMlBsvQW5g1b8vfPnkuy5Bk7g/jyRsf5eMpbhe4nKnePx+n2IrC0L6dFqnd3r4/OGNIYGEHfAt09oywi84fWKQ==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  csso@5.0.5:
-    resolution: {integrity: sha512-0LrrStPOdJj+SPCCrGhzryycLjwcgUSHBtxNA8aIDxf0GLsRh1cKYhB00Gd1lDOS4yGH69+SNn13+TWbVHETFQ==}
-    engines: {node: ^10 || ^12.20.0 || ^14.13.0 || >=15.0.0, npm: '>=7.0.0'}
+      postcss: ^8.5.29
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
@@ -4907,19 +5377,6 @@ packages:
 
   dlv@1.1.3:
     resolution: {integrity: sha512-+HlytyjlPKnIG8XuRG8WvmBP8xs8P71y+SKKS6ZXWoEgLuePxtDoUEiH7WkdePWrQ5JBpE6aoVqfZfJUQkjXwA==}
-
-  dom-serializer@2.0.0:
-    resolution: {integrity: sha512-wIkAryiqt/nV5EQKqQpo3SToSOV9J0DnbJqwK7Wv/Trc92zIAYZ4FlMu+JPFW1DfGFt81ZTCGgDEabffXeLyJg==}
-
-  domelementtype@2.3.0:
-    resolution: {integrity: sha512-OLETBj6w0OsagBwdXnPdN0cnMfF9opN69co+7ZrbfPGrdpPVNBUj02spi6B1N7wChLQiPn4CSH/zJvXw56gmHw==}
-
-  domhandler@5.0.3:
-    resolution: {integrity: sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==}
-    engines: {node: '>= 4'}
-
-  domutils@3.2.2:
-    resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}
 
   dot-prop@6.0.1:
     resolution: {integrity: sha512-tE7ztYzXHIeyvc7N+hR3oi7FIbf/NIjVP9hmAt3yMXzrQ072/fpjGLx2GxNxGxUl5V73MEqYzioOMoVhGMJ5cA==}
@@ -5042,6 +5499,9 @@ packages:
 
   electron-to-chromium@1.5.420:
     resolution: {integrity: sha512-2yD6XreGusOfNV+dUcvipJEXc3n/n7fgr7996aszTG+YY5E4mqM4tOq/3uhP129cazL9YHbVWSpc79ePotWtPA==}
+
+  electron-to-chromium@1.5.478:
+    resolution: {integrity: sha512-pftG+ma5Lm8O6/p45bhYT6StBN5ziQymaRzmCZwFl8DwWHKPPD93FdOmP1aqftcepolQYvrcyTLa17kE8Yf+jg==}
 
   emoji-regex-xs@1.0.0:
     resolution: {integrity: sha512-LRlerrMYoIDrT6jgpeZ2YYl/L8EulRTt5hQcYjy5AInh7HWXKimpqx68aknBFpGL2+/IcogTcaydJEgaTmOpDg==}
@@ -5968,12 +6428,6 @@ packages:
   mdast-util-to-string@4.0.0:
     resolution: {integrity: sha512-0H44vDimn51F0YwvxSJSm0eCDOJTRlmN0R1yBh4HLj9wiV1Dn0QoXGbvFAWj2hSItVTlCmBF1hqKlIyUBVFLPg==}
 
-  mdn-data@2.0.28:
-    resolution: {integrity: sha512-aylIc7Z9y4yzHYAJNuESG3hfhC+0Ibp/MAMiaOZgNv4pmEdFyfZhhhny4MNiAfWdBQ1RQ2mfDWmM1x8SvGyp8g==}
-
-  mdn-data@2.27.1:
-    resolution: {integrity: sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==}
-
   mdurl@2.1.0:
     resolution: {integrity: sha512-1+HBaOx0zi/dQWht8rNv9MYf9qqpqL/kxI0hXImU6Y547zM6Sni8BQibt7ifgMcYtQg41ao3Ivd6cnSM86inpg==}
 
@@ -6183,6 +6637,10 @@ packages:
     resolution: {integrity: sha512-YHs7BmmcsdAI5Ozuf8JZo6PT0mv2GIWC9vMfvUC3dp65M8hn7Ux8CPL+2oBI7juNuj9d0ndhTcznq2ODBps9cQ==}
     engines: {node: '>=18'}
 
+  node-releases@2.0.63:
+    resolution: {integrity: sha512-6li2QanLsAXpIH2R6j77MzRyvOyrvdTqlKtO4CgBdHGNvN99ZZfyxszHc5o5+IZBWD5u6Hzwg83JoGXmqZNG9Q==}
+    engines: {node: '>=18'}
+
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
@@ -6198,9 +6656,6 @@ packages:
   npm-run-path@6.0.0:
     resolution: {integrity: sha512-9qny7Z9DsQU8Ou39ERsPU4OZQlSTP47ShQzuKZ6PRXpYLtIFgl/DEBYEXKlvcEa+9tHVcK8CF81Y2V72qaZhWA==}
     engines: {node: '>=18'}
-
-  nth-check@2.1.1:
-    resolution: {integrity: sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==}
 
   nypm@0.6.9:
     resolution: {integrity: sha512-zxlE2yvSWZWmHcNdT3+5zV2lrCogeE9YOklHrR3dFjqutq5wO7GFDYLFDRXLsYnJzwvy/im9fYoxePvS0VTW0w==}
@@ -6358,6 +6813,10 @@ packages:
     resolution: {integrity: sha512-//nshmD55c46FuFw26xV/xFAaB5HF9Xdap7HJBBnrKdAd6/GxDBaNA1870O79+9ueg61cZLSVc+OaFlfmObYVQ==}
     engines: {node: '>= 14.16'}
 
+  pele@1.13.0:
+    resolution: {integrity: sha512-Ie8UKY9x00MsuR3jO6AzUwzK2Z6MIV3Tf4EDdITiuk8Uaz8K7g0R082WqsqNaSU8DdgkrRvZThzhit83mi/uiw==}
+    engines: {node: '>=20'}
+
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
@@ -6408,47 +6867,11 @@ packages:
     resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
     engines: {node: '>=14.19.0'}
 
-  postcss-calc@10.1.1:
-    resolution: {integrity: sha512-NYEsLHh8DgG/PRH2+G9BTuUdtf9ViS+vdoQ0YA5OQdGsfN4ztiwtDWNtBl9EKeqNMFnIu8IKZ0cLxEQ5r5KVMw==}
-    engines: {node: ^18.12 || ^20.9 || >=22.0}
+  postcss-calc@11.2.3:
+    resolution: {integrity: sha512-pFW3MR2a4W7uHcSGUiyQGGXZWHon83ljbNwnUJ1mRKublWQbv+3o9NiqhlV4TJfNby+U+zLY2OgiywzhA5eFqw==}
+    engines: {node: ^22.22.3 || ^24.15 || >=26.0}
     peerDependencies:
-      postcss: ^8.4.38
-
-  postcss-colormin@8.0.5:
-    resolution: {integrity: sha512-U/N+7tkHgHoD24NB6q9k9uFcRfVJRdzVSit0fM0T2L6fvnpUoTIAYgzkyjD56LHEoCoPNfkMcfTB47SW/lNegQ==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-convert-values@8.0.4:
-    resolution: {integrity: sha512-ifBmAJBfpDymi7r/CqxYRJWlG+BLdVmusUC/kFPOqH/+TitdBeHA68CYqY79wXL+iQnqg6e4LGHA2Mte14X6Ig==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-discard-comments@8.0.4:
-    resolution: {integrity: sha512-SU1uLYRQPKLJJmqEmqzu+Ze+9xDurBm7m/LOzXG/ANBAfAGLjbQF+oIyZnf3jV3F155q5rRMYXsoTNEJsPyHng==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-discard-duplicates@8.0.4:
-    resolution: {integrity: sha512-/ugMYYTE+IpHpTmwz6/S8w+blCz9pZNroUgadTdlbPnHoLLWis9QvwmoyWui2mOgFzuRM6Me7AnoGU3i0Ua2ng==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-discard-empty@8.0.5:
-    resolution: {integrity: sha512-im0QtfNFa6V3SGPrfqzrWYuhzSz1ztWORKsuhZHQbWdKMh0DiNj3pmqBnABbhdKjyeW6nZ1oZYGh4dMc3biyaw==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-discard-overridden@8.0.4:
-    resolution: {integrity: sha512-NqupxmnSSfWPJJDYbQk1qXWRwr+lw4Kyp/LSOjqwTpy/vSwo34EVXYKywgemSWpgh39P7Cs/G+tqynbRlXoJhw==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
+      postcss: ^8.5.29
 
   postcss-import@15.1.0:
     resolution: {integrity: sha512-hpr+J05B2FVYUAXHeK1YyI267J/dDDhMU6B6civm8hSY1jYJnBXxzKDKDswzJmtLHryrjhnDjqqp/49t8FALew==}
@@ -6486,42 +6909,6 @@ packages:
       yaml:
         optional: true
 
-  postcss-merge-longhand@8.0.4:
-    resolution: {integrity: sha512-ammolHhMvuTz/L9YN/ge1SWbUDcD3Y9o2gXlo3S6H4MCJHheyVPwcI/LAnSuNT4gcUmSF9pNTXo7+3M/2MFPAQ==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-merge-rules@8.0.5:
-    resolution: {integrity: sha512-jz+QaKz4VhjsqTVsJMRuH+EvrX1F9l6kYFuF8g6geVxFoYnPEZN4G+zqCb6zhxOIcc2aeAo38XEl2pOIZi2gBw==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-minify-font-values@8.0.4:
-    resolution: {integrity: sha512-wZZgJ87U5WbQCEM0EOY/oM7M1a+sqW6vrOClGC9lNbsY0HYmbMFvFuukBn8PzF+ikKmaT0QB+uSAHTRLzMkD+A==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-minify-gradients@8.0.6:
-    resolution: {integrity: sha512-NsqlG34WSO44NOHVT6m6ZWpN80fK2l5Zt73PMDXBJKT6fO6GPnI0NBi6xIVFr/naej3ukVUlIFQGxb7JGaa9Zg==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-minify-params@8.0.4:
-    resolution: {integrity: sha512-TDx9O/ni7KazRK32pVvoo3MjExyVxWE0949vB2XZ0oHnxdAtQFHa9oG21wWkvsOL3osjiOVejwDLe6a0d0EuSw==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-minify-selectors@8.0.5:
-    resolution: {integrity: sha512-i+PlhVCaPa7xevjhpActH2PrP27kDNSuuFf/ZGk8YrIcd1pd3Mfcfiv8H7dbY1/vz7U+QparioAtJaFV+IEwQg==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
   postcss-nested@6.2.0:
     resolution: {integrity: sha512-HQbt28KulC5AJzG+cZtj9kvKB93CFCdLvog1WFLf1D+xmMvPGlBstkpTEZfK5+AN9hfJocyBFCNiqyS48bpgzQ==}
     engines: {node: '>=12.0'}
@@ -6533,78 +6920,6 @@ packages:
     engines: {node: ^22.0.0 || ^24.0.0 || >= 26.0.0}
     peerDependencies:
       postcss: ^8.2.14
-
-  postcss-normalize-charset@8.0.5:
-    resolution: {integrity: sha512-l0L1rIe9YHbLaf4xfL2pkkQV3gq/QIy8D0bjsaHYdGVgR+eQk7IBp3dUdIKe6XuG7DzFiCwJn248nvAFAi5CjA==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-normalize-display-values@8.0.4:
-    resolution: {integrity: sha512-F8DGtzelJDV6S5mhcugc+EJ8sXI+kFv2PBedkfMWqd8mvTE4qyy3kva6AQwjy2+L2lZ9TGTkSumdq+n3EhGeAw==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-normalize-positions@8.0.4:
-    resolution: {integrity: sha512-anOMhqe6Z0OP4jvchK1v1hIG08kO7rsp8uHrxT2+XaKp8wbvVcUO3QHUzRmQDazWUPtRzy1h2UlixyJenF42sg==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-normalize-repeat-style@8.0.4:
-    resolution: {integrity: sha512-vY8+k+/bFT7B8gzlHVye8FxBTMEpUAQxAgb4UYFAGGsKmXfwEvc7VPs+kpFNrTeqVKAvVh8+VVhZ+f3S4TWJPg==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-normalize-string@8.0.4:
-    resolution: {integrity: sha512-dWnV1frIV1XUlSYzJudceAbQ7PGyho9EgVHQXMcAoog6Nwnet3G9rz8IXcCb0EF2eefmpYG9hDT9+yWJOxc5zw==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-normalize-timing-functions@8.0.4:
-    resolution: {integrity: sha512-VANJsokAWdQ03ZJwmcdEKXJjVHRtMgalB/BgbCgN3CRTdbwB5TXlSDRmdShSCxpnZs8WLAm0mPa//p5o5D/ZTg==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-normalize-unicode@8.0.4:
-    resolution: {integrity: sha512-SxVEoFdYed0bxxwZwAXnaAZ2lzNb5jtiQvYWyMIEqnGOzCuztWpVO8LvsqpOfUIacOb6oYaWi7WOAZR36OhYqw==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-normalize-url@8.0.4:
-    resolution: {integrity: sha512-JKZW8KRHkLEYkUb/55n3knDUMZeyvxlTv7ZA82bcHiCjL81b0Yyf9fIUBAYKZ6ucDgKfCDM78xhXuteVlk/o9Q==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-normalize-whitespace@8.0.5:
-    resolution: {integrity: sha512-xuFovful3vVIA9fWWmAL2pG1Qr95Udj2MrLgjU50C6r+Xnh3s6t2BN1xXQ8lnCOCAtzMvMpPWYlnAh4nSv5VEQ==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-ordered-values@8.0.5:
-    resolution: {integrity: sha512-aDL7nPR7w1foUqo4rN6QY1Kr45+SYELnmUg5taZehh7FfFdxQmUjbuOOBuffIXjiHV45zqgFHCb4azsWW19jyw==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-reduce-initial@8.0.5:
-    resolution: {integrity: sha512-Bh5d7zjH1Ai9LzJ1qULUZIaC18cniD+wA6gFlOPglMxJRC7meXbuPvpJ/zHQGg5QKwQgit++XQhDTiEIhCk8Ow==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-reduce-transforms@8.0.4:
-    resolution: {integrity: sha512-ZGU7/R0GmjE3x2mOGB0g9Ohx74X+JjYX62RB5IBYLOe6R0fuHGZ76HtTY2CdM5NE8Yey/ew5clEf8iZQnjDjWA==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
 
   postcss-selector-parser@6.1.4:
     resolution: {integrity: sha512-bIoJLOmjCO1S9XdY/DcnR5hJxvrDir1PbGChrzXG3vw0/FOliy/fA3dmdhQ441kah4gKv+TwckGzex6wNS5cnQ==}
@@ -6619,18 +6934,6 @@ packages:
     engines: {node: '>=14.0'}
     peerDependencies:
       postcss: ^8.2.1
-
-  postcss-svgo@8.0.6:
-    resolution: {integrity: sha512-auQHNmduFFHzz1sWYM3sroW7IDMzxshlLjnwAALfkrAgPegHFats+jMK6BRCcdIulxPmqXFSQvgoAX4vw8I59g==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
-  postcss-unique-selectors@8.0.4:
-    resolution: {integrity: sha512-Sby0EtmD1mlvcZSWP5eXjxhxVgvXE5QVRzd+8NH0IbF+lYQIM57ybwAvJYYtI/fexMgCWcRnDETovjKOcLJb8w==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
 
   postcss-value-parser@4.2.0:
     resolution: {integrity: sha512-1NNCs6uurfkVbeXG4S8JFT9t19m45ICnif8zWLd5oPSZ50QnwMfK+H3jv408d4jw/7Bttv5axS5IiHoLaVNHeQ==}
@@ -6905,10 +7208,6 @@ packages:
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
 
-  sax@1.6.1:
-    resolution: {integrity: sha512-42tBVwLWnaQvW5zc4HbZrTuWccECCZfBi92FDuwtqxasH+JbPB3/FOKb1m222K42R4WxuxzzMsTswfzgtSu64Q==}
-    engines: {node: '>=11.0.0'}
-
   scheduler@0.27.0:
     resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==}
 
@@ -7115,12 +7414,6 @@ packages:
   style-to-object@1.0.14:
     resolution: {integrity: sha512-LIN7rULI0jBscWQYaSswptyderlarFkjQ+t79nzty8tcIAceVomEVlLzH5VP4Cmsv6MtKhs7qaAiwlcp+Mgaxw==}
 
-  stylehacks@8.0.4:
-    resolution: {integrity: sha512-irgZeyYBFVkb8k7yTRQ9No/bTniTGqzptGVMG1/Mj3N2YnI8nIozzY1pcok4i01NfrCSqvc0PdQB6O6kr6dJHw==}
-    engines: {node: ^22.11.0 || ^24.11.0 || >=26.0}
-    peerDependencies:
-      postcss: ^8.5.26
-
   sucrase@3.35.1:
     resolution: {integrity: sha512-DhuTmvZWux4H1UOnWMB3sk0sbaCVOoQZjv8u1rDoTV0HTdGem9hkAZtl4JZy8P2z4Bg0nT+YMeOFyVr4zcG5Tw==}
     engines: {node: '>=16 || 14 >=14.17'}
@@ -7129,11 +7422,6 @@ packages:
   supports-preserve-symlinks-flag@1.0.0:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
-
-  svgo@4.1.0:
-    resolution: {integrity: sha512-bkxnTg1kSU0guhIBmibA6UUhrQmPVA1XsQLN+ylCd+UWzbnLkySOcXpyk1mrl05f+pcaCx2eHb+sp6BgMZWX+Q==}
-    engines: {node: '>=16'}
-    hasBin: true
 
   systeminformation@5.33.13:
     resolution: {integrity: sha512-GtyakkchTQKymM1WeAB652zi3rM1q00RKdc+jZe9KGstuc/mWUwAnQGN/RE5gVYvHIR8xYOUIUD9irVKDtA0wA==}
@@ -7298,6 +7586,12 @@ packages:
 
   update-browserslist-db@1.3.2:
     resolution: {integrity: sha512-UQ+MSxlhRm1bzjhU+DcuXfjFO1FzNtqhK5+9Yvlp90ItDLk5vT932A0rFu619nf7RVS+Y/VeaUW1jaRDqZ8VJw==}
+    hasBin: true
+    peerDependencies:
+      browserslist: '>= 4.21.0'
+
+  update-browserslist-db@1.3.4:
+    resolution: {integrity: sha512-t8wonIOdQyOjtPd2VktlBu6QjTVTks6v8bSi7kd0r2Vll8TK1JYDZtRRdbmCHOAMphkZgrzK+L+vXK4pyZ8t4A==}
     hasBin: true
     peerDependencies:
       browserslist: '>= 4.21.0'
@@ -7646,7 +7940,7 @@ snapshots:
     dependencies:
       '@babel/compat-data': 7.29.7
       '@babel/helper-validator-option': 7.29.7
-      browserslist: 4.28.8
+      browserslist: 4.29.5
       lru-cache: 5.1.1
       semver: 6.3.1
 
@@ -8079,7 +8373,9 @@ snapshots:
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
 
-  '@colordx/core@5.8.0': {}
+  '@colordx/core@7.3.0': {}
+
+  '@csstools/css-tokenizer@4.0.2': {}
 
   '@dotenvx/dotenvx@1.75.1':
     dependencies:
@@ -8106,29 +8402,29 @@ snapshots:
 
   '@drizzle-team/brocli@0.12.0': {}
 
-  '@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)':
+  '@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)':
     dependencies:
-      '@ecopages/signals': 0.6.0
+      '@ecopages/signals': 0.8.2
 
   '@ecopages/logger@0.2.3(typescript@5.9.3)':
     dependencies:
       typescript: 5.9.3
 
-  '@ecopages/radiant-ui@0.3.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))(@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0)))(@ecopages/signals@0.6.0)':
+  '@ecopages/radiant-ui@0.3.4(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))(@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2)))(@ecopages/signals@0.8.2)':
     dependencies:
-      '@ecopages/jsx': 0.6.0(@ecopages/signals@0.6.0)
-      '@ecopages/radiant': 0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))
-      '@ecopages/signals': 0.6.0
+      '@ecopages/jsx': 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/radiant': 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
+      '@ecopages/signals': 0.8.2
 
-  '@ecopages/radiant@0.6.0(@ecopages/jsx@0.6.0(@ecopages/signals@0.6.0))':
+  '@ecopages/radiant@0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))':
     dependencies:
-      '@ecopages/jsx': 0.6.0(@ecopages/signals@0.6.0)
+      '@ecopages/jsx': 0.8.2(@ecopages/signals@0.8.2)
 
   '@ecopages/scripts-injector@0.1.5(typescript@5.9.3)':
     dependencies:
       typescript: 5.9.3
 
-  '@ecopages/signals@0.6.0': {}
+  '@ecopages/signals@0.8.2': {}
 
   '@emnapi/core@1.11.2':
     dependencies:
@@ -9717,6 +10013,8 @@ snapshots:
 
   baseline-browser-mapping@2.11.20: {}
 
+  baseline-browser-mapping@2.11.35: {}
+
   better-auth@1.7.10(drizzle-kit@0.31.11)(drizzle-orm@0.45.2(@libsql/client@0.17.4)(bun-types@1.4.2)(kysely@0.29.5))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.11):
     dependencies:
       '@better-auth/core': 1.7.10(@better-auth/utils@0.5.0)(@better-fetch/fetch@1.3.2)(better-call@1.4.2(zod@4.6.7))(jose@6.2.10)(kysely@0.29.5)(nanostores@1.5.3)
@@ -9844,8 +10142,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  boolbase@1.0.0: {}
-
   brace-expansion@5.0.12:
     dependencies:
       balanced-match: 4.0.4
@@ -9861,6 +10157,14 @@ snapshots:
       electron-to-chromium: 1.5.420
       node-releases: 2.0.54
       update-browserslist-db: 1.3.2(browserslist@4.28.8)
+
+  browserslist@4.29.5:
+    dependencies:
+      baseline-browser-mapping: 2.11.35
+      caniuse-lite: 1.0.30001823
+      electron-to-chromium: 1.5.478
+      node-releases: 2.0.63
+      update-browserslist-db: 1.3.4(browserslist@4.29.5)
 
   buffer-from@1.1.2: {}
 
@@ -9899,6 +10203,8 @@ snapshots:
       caniuse-lite: 1.0.30001810
 
   caniuse-lite@1.0.30001810: {}
+
+  caniuse-lite@1.0.30001823: {}
 
   ccount@2.0.1: {}
 
@@ -10042,74 +10348,16 @@ snapshots:
       shebang-command: 2.0.0
       which: 2.0.2
 
-  css-select@6.0.0:
-    dependencies:
-      boolbase: 1.0.0
-      css-what: 7.0.0
-      domhandler: 5.0.3
-      domutils: 3.2.2
-      nth-check: 2.1.1
-
-  css-tree@2.2.1:
-    dependencies:
-      mdn-data: 2.0.28
-      source-map-js: 1.2.1
-
-  css-tree@3.2.1:
-    dependencies:
-      mdn-data: 2.27.1
-      source-map-js: 1.2.1
-
-  css-what@7.0.0: {}
-
   cssesc@3.0.0: {}
 
-  cssnano-preset-default@8.0.10(postcss@8.5.26):
+  cssnano@9.9.0(postcss@8.5.26):
     dependencies:
-      browserslist: 4.28.8
-      cssnano-utils: 6.0.4(postcss@8.5.26)
+      '@colordx/core': 7.3.0
+      '@csstools/css-tokenizer': 4.0.2
+      browserslist: 4.29.5
+      caniuse-api: 4.0.0
       postcss: 8.5.26
-      postcss-calc: 10.1.1(postcss@8.5.26)
-      postcss-colormin: 8.0.5(postcss@8.5.26)
-      postcss-convert-values: 8.0.4(postcss@8.5.26)
-      postcss-discard-comments: 8.0.4(postcss@8.5.26)
-      postcss-discard-duplicates: 8.0.4(postcss@8.5.26)
-      postcss-discard-empty: 8.0.5(postcss@8.5.26)
-      postcss-discard-overridden: 8.0.4(postcss@8.5.26)
-      postcss-merge-longhand: 8.0.4(postcss@8.5.26)
-      postcss-merge-rules: 8.0.5(postcss@8.5.26)
-      postcss-minify-font-values: 8.0.4(postcss@8.5.26)
-      postcss-minify-gradients: 8.0.6(postcss@8.5.26)
-      postcss-minify-params: 8.0.4(postcss@8.5.26)
-      postcss-minify-selectors: 8.0.5(postcss@8.5.26)
-      postcss-normalize-charset: 8.0.5(postcss@8.5.26)
-      postcss-normalize-display-values: 8.0.4(postcss@8.5.26)
-      postcss-normalize-positions: 8.0.4(postcss@8.5.26)
-      postcss-normalize-repeat-style: 8.0.4(postcss@8.5.26)
-      postcss-normalize-string: 8.0.4(postcss@8.5.26)
-      postcss-normalize-timing-functions: 8.0.4(postcss@8.5.26)
-      postcss-normalize-unicode: 8.0.4(postcss@8.5.26)
-      postcss-normalize-url: 8.0.4(postcss@8.5.26)
-      postcss-normalize-whitespace: 8.0.5(postcss@8.5.26)
-      postcss-ordered-values: 8.0.5(postcss@8.5.26)
-      postcss-reduce-initial: 8.0.5(postcss@8.5.26)
-      postcss-reduce-transforms: 8.0.4(postcss@8.5.26)
-      postcss-svgo: 8.0.6(postcss@8.5.26)
-      postcss-unique-selectors: 8.0.4(postcss@8.5.26)
-
-  cssnano-utils@6.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-
-  cssnano@8.0.10(postcss@8.5.26):
-    dependencies:
-      cssnano-preset-default: 8.0.10(postcss@8.5.26)
-      lilconfig: 3.1.3
-      postcss: 8.5.26
-
-  csso@5.0.5:
-    dependencies:
-      css-tree: 2.2.1
+      postcss-calc: 11.2.3(postcss@8.5.26)
 
   csstype@3.2.3: {}
 
@@ -10166,24 +10414,6 @@ snapshots:
 
   dlv@1.1.3: {}
 
-  dom-serializer@2.0.0:
-    dependencies:
-      domelementtype: 2.3.0
-      domhandler: 5.0.3
-      entities: 4.5.0
-
-  domelementtype@2.3.0: {}
-
-  domhandler@5.0.3:
-    dependencies:
-      domelementtype: 2.3.0
-
-  domutils@3.2.2:
-    dependencies:
-      dom-serializer: 2.0.0
-      domelementtype: 2.3.0
-      domhandler: 5.0.3
-
   dot-prop@6.0.1:
     dependencies:
       is-obj: 2.0.0
@@ -10222,6 +10452,8 @@ snapshots:
   ee-first@1.1.1: {}
 
   electron-to-chromium@1.5.420: {}
+
+  electron-to-chromium@1.5.478: {}
 
   emoji-regex-xs@1.0.0: {}
 
@@ -11383,10 +11615,6 @@ snapshots:
     dependencies:
       '@types/mdast': 4.0.4
 
-  mdn-data@2.0.28: {}
-
-  mdn-data@2.27.1: {}
-
   mdurl@2.1.0: {}
 
   media-typer@1.1.1: {}
@@ -11729,6 +11957,8 @@ snapshots:
 
   node-releases@2.0.54: {}
 
+  node-releases@2.0.63: {}
+
   normalize-path@3.0.0: {}
 
   npm-run-path@4.0.1:
@@ -11743,10 +11973,6 @@ snapshots:
     dependencies:
       path-key: 4.0.0
       unicorn-magic: 0.3.0
-
-  nth-check@2.1.1:
-    dependencies:
-      boolbase: 1.0.0
 
   nypm@0.6.9:
     dependencies:
@@ -11955,6 +12181,8 @@ snapshots:
 
   pathval@2.0.1: {}
 
+  pele@1.13.0: {}
+
   picocolors@1.1.1: {}
 
   picomatch@2.3.2: {}
@@ -11987,41 +12215,9 @@ snapshots:
 
   pngjs@7.0.0: {}
 
-  postcss-calc@10.1.1(postcss@8.5.26):
+  postcss-calc@11.2.3(postcss@8.5.26):
     dependencies:
-      postcss: 8.5.26
-      postcss-selector-parser: 7.1.5
-      postcss-value-parser: 4.2.0
-
-  postcss-colormin@8.0.5(postcss@8.5.26):
-    dependencies:
-      '@colordx/core': 5.8.0
-      browserslist: 4.28.8
-      caniuse-api: 4.0.0
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-convert-values@8.0.4(postcss@8.5.26):
-    dependencies:
-      browserslist: 4.28.8
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-discard-comments@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-selector-parser: 7.1.5
-
-  postcss-discard-duplicates@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-
-  postcss-discard-empty@8.0.5(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-
-  postcss-discard-overridden@8.0.4(postcss@8.5.26):
-    dependencies:
+      '@csstools/css-tokenizer': 4.0.2
       postcss: 8.5.26
 
   postcss-import@15.1.0(postcss@8.5.26):
@@ -12052,47 +12248,6 @@ snapshots:
       tsx: 4.23.13
       yaml: 2.9.0
 
-  postcss-merge-longhand@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-      stylehacks: 8.0.4(postcss@8.5.26)
-
-  postcss-merge-rules@8.0.5(postcss@8.5.26):
-    dependencies:
-      browserslist: 4.28.8
-      caniuse-api: 4.0.0
-      cssnano-utils: 6.0.4(postcss@8.5.26)
-      postcss: 8.5.26
-      postcss-selector-parser: 7.1.5
-
-  postcss-minify-font-values@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-minify-gradients@8.0.6(postcss@8.5.26):
-    dependencies:
-      '@colordx/core': 5.8.0
-      cssnano-utils: 6.0.4(postcss@8.5.26)
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-minify-params@8.0.4(postcss@8.5.26):
-    dependencies:
-      browserslist: 4.28.8
-      cssnano-utils: 6.0.4(postcss@8.5.26)
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-minify-selectors@8.0.5(postcss@8.5.26):
-    dependencies:
-      browserslist: 4.28.8
-      caniuse-api: 4.0.0
-      cssesc: 3.0.0
-      postcss: 8.5.26
-      postcss-selector-parser: 7.1.5
-
   postcss-nested@6.2.0(postcss@8.5.26):
     dependencies:
       postcss: 8.5.26
@@ -12102,68 +12257,6 @@ snapshots:
     dependencies:
       postcss: 8.5.26
       postcss-selector-parser: 7.1.5
-
-  postcss-normalize-charset@8.0.5(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-
-  postcss-normalize-display-values@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-normalize-positions@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-normalize-repeat-style@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-normalize-string@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-normalize-timing-functions@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-normalize-unicode@8.0.4(postcss@8.5.26):
-    dependencies:
-      browserslist: 4.28.8
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-normalize-url@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-normalize-whitespace@8.0.5(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-ordered-values@8.0.5(postcss@8.5.26):
-    dependencies:
-      cssnano-utils: 6.0.4(postcss@8.5.26)
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-
-  postcss-reduce-initial@8.0.5(postcss@8.5.26):
-    dependencies:
-      browserslist: 4.28.8
-      caniuse-api: 4.0.0
-      postcss: 8.5.26
-
-  postcss-reduce-transforms@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
 
   postcss-selector-parser@6.1.4:
     dependencies:
@@ -12178,17 +12271,6 @@ snapshots:
   postcss-simple-vars@7.0.1(postcss@8.5.26):
     dependencies:
       postcss: 8.5.26
-
-  postcss-svgo@8.0.6(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-value-parser: 4.2.0
-      svgo: 4.1.0
-
-  postcss-unique-selectors@8.0.4(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-      postcss-selector-parser: 7.1.5
 
   postcss-value-parser@4.2.0: {}
 
@@ -12641,8 +12723,6 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
-  sax@1.6.1: {}
-
   scheduler@0.27.0: {}
 
   semver@5.7.2: {}
@@ -12924,12 +13004,6 @@ snapshots:
     dependencies:
       inline-style-parser: 0.2.7
 
-  stylehacks@8.0.4(postcss@8.5.26):
-    dependencies:
-      browserslist: 4.28.8
-      postcss: 8.5.26
-      postcss-selector-parser: 7.1.5
-
   sucrase@3.35.1:
     dependencies:
       '@jridgewell/gen-mapping': 0.3.13
@@ -12941,16 +13015,6 @@ snapshots:
       ts-interface-checker: 0.1.13
 
   supports-preserve-symlinks-flag@1.0.0: {}
-
-  svgo@4.1.0:
-    dependencies:
-      commander: 11.1.0
-      css-select: 6.0.0
-      css-tree: 3.2.1
-      css-what: 7.0.0
-      csso: 5.0.5
-      picocolors: 1.1.1
-      sax: 1.6.1
 
   systeminformation@5.33.13: {}
 
@@ -13122,6 +13186,12 @@ snapshots:
   update-browserslist-db@1.3.2(browserslist@4.28.8):
     dependencies:
       browserslist: 4.28.8
+      escalade: 3.2.0
+      picocolors: 1.1.1
+
+  update-browserslist-db@1.3.4(browserslist@4.29.5):
+    dependencies:
+      browserslist: 4.29.5
       escalade: 3.2.0
       picocolors: 1.1.1
 

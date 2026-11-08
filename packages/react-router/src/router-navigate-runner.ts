@@ -19,10 +19,6 @@ export type RouterNavigateOptions = {
 	moduleUrlOverride?: string;
 };
 
-type RouterPageState = PageState & {
-	refreshPersistedLayout?: boolean;
-};
-
 type PendingRender = {
 	navigationId: number;
 	page: PageState;
@@ -38,7 +34,7 @@ export type RouterNavigateRunnerDeps = {
 	queuedNavigationHrefRef: MutableRefObject<string | null>;
 	committedPathRef: MutableRefObject<string>;
 	setIsNavigating: Dispatch<SetStateAction<boolean>>;
-	setCurrentPage: Dispatch<SetStateAction<RouterPageState>>;
+	setCurrentPage: Dispatch<SetStateAction<PageState>>;
 	startTransition: TransitionStartFunction;
 	replayLocalNavigate: (href: string) => void;
 	createDeferred: <T>() => { promise: Promise<T>; resolve: (value: T) => void };
@@ -49,7 +45,7 @@ function createWaitForRender(
 	navigationId: number,
 	createDeferred: RouterNavigateRunnerDeps['createDeferred'],
 ) {
-	return (nextPage: RouterPageState) => {
+	return (nextPage: PageState) => {
 		pendingRenderRef.current?.resolve();
 		const renderDeferred = createDeferred<void>();
 		pendingRenderRef.current = {
@@ -65,6 +61,7 @@ async function applyRouterNavigationOutcome(
 	outcome: ReactNavigationOutcome,
 	input: {
 		isStale: () => boolean;
+		isSuperseded: () => boolean;
 		skipViewTransition: boolean;
 		isPopState: boolean;
 		navigationId: number;
@@ -95,6 +92,7 @@ async function applyRouterNavigationOutcome(
 			outcome,
 			{
 				isStale: input.isStale,
+				isSuperseded: input.isSuperseded,
 				hardAssign: (href) => {
 					window.location.assign(href);
 				},
@@ -108,11 +106,12 @@ async function applyRouterNavigationOutcome(
 						window.history.replaceState(null, '', finalPath);
 					}
 				},
-				commitPageData: (moduleUrl, props) => {
+				commitPageData: (moduleUrl, props, document) => {
 					window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
 					window.__ECO_PAGES__.page = {
 						module: moduleUrl,
 						props,
+						document,
 					};
 				},
 				setCurrentPage: input.deps.setCurrentPage,
@@ -210,6 +209,7 @@ export async function runRouterNavigate(
 	deps.activeNavigationRef.current = navigation;
 	const navigationId = navigation.id;
 	const isStale = () => !navigation.isCurrent();
+	const isSuperseded = () => navigation.isSuperseded();
 
 	try {
 		deps.isNavigatingRef.current = true;
@@ -226,6 +226,7 @@ export async function runRouterNavigate(
 
 		await applyRouterNavigationOutcome(outcome, {
 			isStale,
+			isSuperseded,
 			skipViewTransition,
 			isPopState,
 			navigationId,

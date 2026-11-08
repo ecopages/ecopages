@@ -6,7 +6,7 @@ order: 3
 
 # Build and Host
 
-Ecopages owns build execution. Core uses [Rolldown](https://rolldown.rs) through the build adapter, including production server bundles, whether the process is Node or Bun. Ecopages plugins are bridged to Rolldown through a single consolidated plugin to minimize FFI overhead.
+Ecopages owns build execution. Core uses [Rolldown](https://rolldown.rs) through the build adapter, including production server bundles, whether the process is Node or Bun. Each Ecopages plugin handler becomes a Rolldown plugin with a native filter, so Rolldown calls into JavaScript only for the modules a handler matches.
 
 ## What gets built
 
@@ -27,4 +27,3 @@ See [Starting the server](/docs/server/server-api#starting-the-server) for a ful
 
 - [Architecture](/docs/core/architecture)
 - [Sitemap](/docs/core/sitemap) — optional `sitemap.xml` during static export
-- [Build layer README](https://github.com/ecopages/ecopages/blob/main/packages/core/src/build/README.md) in the repository

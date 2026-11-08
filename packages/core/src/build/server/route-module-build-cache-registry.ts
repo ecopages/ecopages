@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { hashAppConfigFile } from '../../build/cache/app-config-hash.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';

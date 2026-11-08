@@ -43,14 +43,14 @@ Lit page components receive the resolved page props and request locals prepared 
 
 - `.lit.tsx` route files.
 - Nested Lit component boundaries rendered inside pages owned by other integrations.
-- The Lit hydration support script required for SSR custom elements and declarative shadow DOM. Injected synchronously into `document.head` so `globalThis.litElementHydrateSupport` is available before any custom element connects.
+- The Lit hydration support required for SSR custom elements and declarative shadow DOM: `@ecopages/lit/hydrate-support`, a module script placed first in `document.head`. It imports `@lit-labs/ssr-client` and `lit`, which resolve from `@ecopages/lit` as any package's imports do, so with one installed `lit` it patches the same `LitElement` and `lit-html` the custom elements use. Production builds it in the app-wide browser build and development serves it through the transform server, so the page loads one copy of Lit.
 
 ## Hydration Architecture
 
 Lit component SSR reuses existing declarative shadow roots rather than replacing host nodes. When hydrated:
 
 1. The server renders declarative shadow roots (`<template shadowrootmode="open">`) and stamps `defer-hydration` on nodes needing client hydration.
-2. The global `lit-hydrate-support` script initializes `globalThis.litElementHydrateSupport` before custom element definitions execute.
+2. The `lit-hydrate-support` module script installs `globalThis.litElementHydrateSupport` before custom element definitions execute. If a bundle evaluates `lit-element` first, the module applies the patch itself, and it never patches twice.
 3. Custom elements register via their client scripts, remove `defer-hydration`, and perform in-place hydration against the preserved SSR shadow roots.
 
 ## Mixed Rendering
@@ -62,14 +62,14 @@ Important:
 - Direct local imports of declared Eco Components contribute their Dependencies automatically, including Foreign Children and named `export { X } from` barrels. Use `dependencies.components` for `export *` barrels and package imports.
 - Ecopages validates ownership from declared dependencies during render preparation instead of relying on post-render HTML discovery.
 - Route-level dependency resolvers can supply Components at request time; Lit includes those resolved roots when deciding whether a Foreign Subtree needs handoff.
-- Lit keeps slot transport, shadow-root handling, and SSR preload behavior inside the Lit renderer.
+- Lit keeps slot transport, shadow-root handling, and SSR preload behavior inside the Lit renderer. Children go where the template renders its children slot; only a document shell without a slot gets them before `</body>`, so a layout that drops its children is reported.
 - Lit renderers use the required core `AssetProcessingService` to process declared component dependencies.
 
 ## Discovered assets and lazy custom elements
 
 A Lit Component can import a relative stylesheet with `import './counter.css'`; core extracts it into the shared asset pipeline. Direct local imports of that Component make its Dependencies available to the Lit SSR preloader, including through Foreign Child rendering.
 
-Keep custom-element registration explicit with `scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:visible': true } }]`. Entries with `ssr: true` execute on the server before rendering (eager or lazy) and load in the browser according to `lazy`. `ssr: true` does not emit an additional eager browser script. Omit `lazy` when eager browser loading is intended. SSR preload artifacts are excluded from HTML, and hydration support must be available before the browser registers the element. Serving preloads those scripts in-process. Static export warms Lit-owned page routes on the main thread, then renders them in the static-render worker so `@lit-labs/ssr` sees the registered custom element. Preload deduplication and invalidation state belongs to the app's `AppRuntime`, so separate apps keep separate preload history. Elements registered by a page, layout or route-resolved dependency root stay registered for the rest of that render, so every one of them renders with its shadow DOM.
+Keep custom-element registration explicit with `scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:visible': true } }]`. Entries with `ssr: true` execute on the server before rendering (eager or lazy) and load in the browser according to `lazy`. `ssr: true` does not emit an additional eager browser script. Omit `lazy` when eager browser loading is intended. SSR preload artifacts are excluded from HTML, and hydration support must be available before the browser registers the element. Serving preloads those scripts in-process. Static export renders Lit-owned page routes in the static-render worker, which preloads their scripts so `@lit-labs/ssr` sees the registered custom element. Preload compiles scripts with the server module loader, so a build emits no browser bundle for them beyond the app-wide output. Preload deduplication and invalidation state belongs to the app's `AppRuntime`, so separate apps keep separate preload history. Elements registered by a page, layout or route-resolved dependency root stay registered for the rest of that render, so every one of them renders with its shadow DOM.
 
 ## Custom-element registration
 

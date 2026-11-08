@@ -8,9 +8,12 @@
 		"css"
 	],
 	"license": "MIT",
-	"main": "./src/postcss-processor.ts",
+	"engines": {
+		"node": "^24.22.0 || >=26.0.0"
+	},
+	"main": "./src/index.ts",
 	"type": "module",
-	"types": "./src/postcss-processor.ts",
+	"types": "./src/index.ts",
 	"publishConfig": {
 		"access": "public"
 	},
@@ -30,7 +33,7 @@
 		"@ecopages/logger": "^0.2.3",
 		"autoprefixer": "^10.5.0",
 		"browserslist": "^4.28.2",
-		"cssnano": "^8.0.2",
+		"cssnano": "^9.9.0",
 		"postcss": "^8.5.14",
 		"postcss-import": "^16.1.1",
 		"postcss-nested": "^8.0.1"

@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { getServerModuleBuildCacheOutdir } from '../../../build/server/route-module-build-cache-registry.ts';
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
@@ -206,8 +206,8 @@ export class ServerRequestPipeline {
 				const pageComponent = page as EcoPageComponent<any> | undefined;
 
 				return {
-					staticPaths: pageComponent?.staticPaths ?? module.getStaticPaths,
-					staticProps: pageComponent?.staticProps ?? module.getStaticProps,
+					staticPaths: pageComponent?.staticPaths,
+					staticProps: pageComponent?.staticProps,
 					cache: pageComponent?.cache,
 				};
 			},
@@ -316,7 +316,7 @@ export class ServerRequestPipeline {
 			integrations: this.appConfig.integrations,
 			ensureIntegrationReady: (integrationName) =>
 				ensureIntegrationRuntimeReady({ appConfig: this.appConfig, integrationName }),
-			importServerModule: (filePath) => this.importServerModule(filePath),
+			importServerModule: (filePath) => this.importServerModule(path.resolve(this.appConfig.rootDir, filePath)),
 		});
 	}
 

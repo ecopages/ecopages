@@ -14,16 +14,15 @@ Declare the styles, browser scripts, and child Components a Component needs. Eco
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
 import './radiant-counter.css';
 
 type RadiantCounterProps = { count: number };
 
-export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>({
+export const RadiantCounter = eco.component({
 	dependencies: {
 		scripts: [{ src: './radiant-counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
-	render: ({ count }) => (
+	render: ({ count }: RadiantCounterProps) => (
 		<radiant-counter count={count}>
 			<button type="button" data-ref="decrement" aria-label="Decrement">-</button>
 			<span data-ref="count">{count}</span>
@@ -32,6 +31,10 @@ export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>(
 	),
 });
 ```
+
+Import a local stylesheet at the top of the file as a side-effect import; Ecopages discovers it, so `dependencies.stylesheets` is not needed. Do not pass type arguments to `eco.component`: annotate the parameter of `render` and both the props type and the element type are inferred from it.
+
+Two cases lose that inference. Without an annotation on the `render` parameter, props are `{}` and nothing is checked. With a single explicit type argument, such as `eco.component<RadiantCounterProps>({ ... })`, TypeScript does not infer the second one, so the element type falls back to `EcoPagesElement`, which a React or Ecopages JSX `render` may not match.
 
 Radiant support is enabled by default when you configure `ecopagesJsxPlugin()`. Its SSR output becomes an island only when the Component brings browser behavior.
 
@@ -78,6 +81,54 @@ dependencies: {
 - **Server errors or skipped preload:** Do not set `ssr: true` on browser-only scripts that touch `window` or `document` without guards.
 
 Ecopages stamps [island host attributes](/docs/core/island-hosts) on hydratable Component SSR roots so developer tools and client runtimes can discover them.
+
+## Web Workers
+
+Start a worker from browser code with a relative URL resolved against `import.meta.url`:
+
+```ts
+const worker = new Worker(new URL('./resize.worker.ts', import.meta.url), { type: 'module' });
+```
+
+The worker file is built like any browser script and can import other modules. `ecopages build` writes it as its own hashed file under `dist/client/assets` and rewrites the URL to that file; modules it shares with the scripts of the app's Pages load from the same chunk. `ecopages dev` serves it through the dev transform server. `SharedWorker` works the same way.
+
+- Pass `{ type: 'module' }`: workers are built as ES modules, so a relative worker URL without it fails `ecopages build`, and the module request in `ecopages dev`.
+- The URL must be a string literal that starts with `./` or `../` and resolves to a file; one that does not resolve fails the same way. Any other URL is left as written, with a warning in development; point it at a file the server serves, such as one in `public/`.
+- Write the `new URL(...)` inside the `new Worker(...)` call, without a query or a hash. A URL built elsewhere, such as one held in a variable, is left as written with a warning naming the file.
+- Call `Worker` or `SharedWorker` directly: `window.Worker` and `self.Worker` are not recognized.
+- Do not start a worker from an `inline` script: it resolves `import.meta.url` against the page, so the build fails.
+
+`SharedArrayBuffer` in a worker needs a cross-origin isolated page. Set the two headers with the [`headers` option](/docs/getting-started/configuration#webassembly-and-cross-origin-isolation).
+
+## Typing a component from its render
+
+Annotate the props of `render` and write no type arguments. TypeScript infers both the props and the element type from the function, so callers are checked and the render may return whatever its Integration produces.
+
+```tsx
+type CounterProps = { count: number };
+
+export const Counter = eco.component({
+	render: ({ count }: CounterProps) => <span>{count}</span>,
+});
+
+<Counter count={1} />; // ok
+<Counter count="1" />; // error: wrong prop type
+```
+
+Two catches:
+
+- **An unannotated `render` has props `{}`.** `eco.component({ render: ({ count }) => ... })` does not compile, because `count` is not on `{}`. A render that ignores its props gives a component with no declared props: a JSX caller can pass none, and a direct function call (Lit, `eco.embed()`) accepts any object.
+- **One type argument loses the element type.** TypeScript cannot infer part of a type argument list, so `eco.component<CounterProps>` leaves the element at its default, `EcoPagesElement` (a string). A render that returns JSX or a Lit template is then a type error. Write both, `eco.component<CounterProps, JsxRenderable>`, or none.
+
+| Integration | Recommended style | Element type inferred | `eco.component<Props>` with one argument |
+| --- | --- | --- | --- |
+| Ecopages JSX (and Radiant) | `render: (props: Props) => <.../>` | `JsxRenderable` | error: needs `<Props, JsxRenderable>` |
+| React | `render: (props: Props) => <.../>` | `JSX.Element` | error: needs `<Props, ReactNode>` |
+| Lit | ``render: (props: Props) => html`...` `` | `TemplateResult<1>` | error: needs `<Props, TemplateResult>` |
+| KitaJS | `render: (props: Props) => <.../>` | `string` | works, because the default is already a string |
+| MDX | none: `.mdx` modules are typed `EcoComponent<Record<string, unknown>>` | not applicable | not applicable |
+
+Inference holds for an `async` render, for a render that embeds another Eco Component (the inner props are checked), and for `children` props declared in the annotation. A Layout infers the same way when its `children` carry the element type: write `({ children }: LayoutProps<JsxRenderable>)`, or `eco.layout<JsxRenderable>(...)`. An unannotated `eco.layout({ render: ({ children }) => ... })` types `children` as a string before it reads the return, so only KitaJS types it correctly. Pages and the other options are in [Pages](/docs/core/pages#typing-a-page-from-its-render).
 
 ## Related guides
 

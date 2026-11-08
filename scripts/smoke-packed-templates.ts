@@ -16,7 +16,7 @@ type TemplateManifest = {
 };
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
-const defaultTemplateIds = ['html', 'jsx', 'react', 'lit-jsx'];
+const defaultTemplateIds = ['html', 'jsx', 'jsx-postcss', 'jsx-css-modules', 'react', 'react-postcss', 'lit-jsx'];
 const dependencyBlocks = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
 const previewStopTimeoutMs = 10_000;
 const previewReadyTimeoutMs = 120_000;

@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import type { FileRouteMiddleware } from '../types/contracts.ts';
 import { eco } from './eco.browser.ts';
 
@@ -32,12 +32,31 @@ describe('browser eco facade', () => {
 		expect(Page.middleware).toBe(middleware);
 	});
 
-	test('preserves the metadata helper contract', async () => {
-		const getMetadata = eco.metadata(async () => ({ title: 'Browser title', description: 'Browser desc' }));
-
-		await expect(getMetadata({} as never)).resolves.toEqual({
-			title: 'Browser title',
-			description: 'Browser desc',
+	test('renders every Component inline for its caller, whatever Integration owns it or is rendering', () => {
+		const LitCounter = eco.component<{ count: number }, string>({
+			identity: { id: 'lit-counter', file: 'src/lit-counter.lit.tsx', integration: 'lit' },
+			render: ({ count }) => `lit ${count}`,
 		});
+		const ReactCounter = eco.component<{ count: number }, string>({
+			integration: 'react',
+			render: ({ count }) => `react ${count}`,
+		});
+		const UnownedCounter = eco.component<{ count: number }, string>({
+			render: ({ count }) => `unowned ${count}`,
+		});
+
+		vi.stubGlobal('window', {
+			__ECO_PAGES__: {
+				foreignChildHost: {
+					integration: 'react',
+					renderForeignChild: (component: unknown, props: Record<string, unknown>) => ({ component, props }),
+				},
+			},
+		});
+
+		expect(LitCounter({ count: 1 })).toBe('lit 1');
+		expect(ReactCounter({ count: 2 })).toBe('react 2');
+		expect(UnownedCounter({ count: 3 })).toBe('unowned 3');
+		vi.unstubAllGlobals();
 	});
 });

@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { ContentStylesheetAsset, ProcessedAsset } from '../../assets.types.ts';
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
@@ -9,7 +9,7 @@ export class ContentStylesheetProcessor extends BaseProcessor<ContentStylesheetA
 	async process(dep: ContentStylesheetAsset): Promise<ProcessedAsset> {
 		const virtualFilepath =
 			dep.processingOrigin ?? path.join(this.appConfig.absolutePaths.distDir, 'styles', 'page-bundle.css');
-		const processedContent = await applyStylesheetProcessors(this.appConfig, dep.content, virtualFilepath);
+		const { css: processedContent } = await applyStylesheetProcessors(this.appConfig, dep.content, virtualFilepath);
 		const hash = this.generateHash(processedContent);
 		let filepath: string | undefined;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type {
@@ -15,6 +15,7 @@ import { BuildInputDependencyIndex } from '../../../build/cache/build-input-depe
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { SessionPageBrowserGraphCache } from '../page-browser-graph/page-browser-graph-session.ts';
+import { ProcessedAssetLedger } from '../../../assets/asset-processing-service/processed-asset-ledger.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import type {
 	AssetDefinition,
@@ -50,6 +51,11 @@ function createScriptAsset(srcUrl: string, overrides: Partial<ProcessedAsset> = 
 	return { kind: 'script', srcUrl, position: 'head', ...overrides } as ProcessedAsset;
 }
 
+/** The asset as the page package lists an Integration's global script. */
+function asGlobalScript(asset: ProcessedAsset): ProcessedAsset {
+	return { ...asset, attributes: { ...asset.attributes, 'data-eco-global-script': '' } };
+}
+
 /**
  * Builds a {@link RouteRenderOrchestrator} over a recording `processDependencies` double.
  *
@@ -70,11 +76,13 @@ function createOrchestrator(
 		options.processDependencies ?? (async () => []),
 	);
 	const appConfig = {
+		rootDir: path.resolve('/app'),
 		cache: { defaultStrategy: 'static' },
 		integrations: options.integrations ?? [],
 		appRuntime: {
 			buildInputIndex: new BuildInputDependencyIndex(),
 			pageBrowserGraphSession: new SessionPageBrowserGraphCache(),
+			processedAssets: new ProcessedAssetLedger(path.resolve('/app')),
 		} as AppRuntime,
 		...options.appConfig,
 	} as unknown as EcoPagesAppConfig;
@@ -135,7 +143,7 @@ function createGroupedHarness(options: {
 	const reactIntegration = createReactIntegration([], { extensions: ['.tsx'] });
 	const { flow, processDependencies } = createOrchestrator({
 		integrations: [reactIntegration],
-		appConfig: { absolutePaths: { pagesDir: '/app/pages' } },
+		appConfig: { absolutePaths: { pagesDir: path.resolve('/app/pages') } },
 		hmrEnabled: options.hmrEnabled ?? false,
 		processDependencies: async (dependencies, integration) =>
 			integration === reactIntegration
@@ -196,14 +204,14 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const { flow } = createOrchestrator({ integrations: [createReactIntegration([integrationDependency])] });
 		const Nested = createComponent({
 			integration: 'react',
-			identity: { id: 'nested', file: '/app/components/nested.tsx', integration: 'react' },
+			identity: { id: 'nested', file: path.resolve('/app/components/nested.tsx'), integration: 'react' },
 		});
 		const Page = createPage({ dependencies: { components: [Nested] } });
 		Page.cache = 'dynamic';
 		const collectPageBrowserGraphContribution = vi.fn(async () => ({ assets: [pageDependency] }));
 
 		const result = await flow.prepareRenderOptions(
-			createRouteOptions('/app/pages/index.tsx', {
+			createRouteOptions(path.resolve('/app/pages/index.tsx'), {
 				params: { slug: 'hello' },
 				query: { preview: '1' },
 				props: { title: 'Overridden title' },
@@ -231,7 +239,11 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect((result as typeof result & { layoutMode?: string }).layoutMode).toBe('full');
 		expect(result.pagePackage).toEqual(
 			expect.objectContaining({
-				assets: expect.arrayContaining([resolvedDependency, integrationDependency, pageDependency]),
+				assets: expect.arrayContaining([
+					resolvedDependency,
+					asGlobalScript(integrationDependency),
+					pageDependency,
+				]),
 				pageBrowserGraph: {
 					entryAssets: [pageDependency],
 					chunkAssets: [],
@@ -243,8 +255,8 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 	describe('source dependency paths', () => {
 		it('adds registered route-module inputs to the cached HTML dependencies', async () => {
 			const { flow, appConfig } = createOrchestrator();
-			const routeFile = '/app/pages/about.html';
-			const routeHelper = '/app/components/shared-title.ts';
+			const routeFile = path.resolve('/app/pages/about.html');
+			const routeHelper = path.resolve('/app/components/shared-title.ts');
 			requireAppRuntime(appConfig).buildInputIndex.register({ consumer: 'server-route-module', key: routeFile }, [
 				routeFile,
 				routeHelper,
@@ -264,7 +276,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		it('collects none in production, where nothing watches them', async () => {
 			vi.stubEnv('NODE_ENV', 'production');
 			const { flow, appConfig } = createOrchestrator();
-			const routeFile = '/app/pages/about.html';
+			const routeFile = path.resolve('/app/pages/about.html');
 
 			const result = await flow.prepareRenderOptions(
 				createRouteOptions(routeFile),
@@ -280,30 +292,45 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		it('adds nested Component identity files', async () => {
 			const { flow } = createOrchestrator();
 			const Child = createComponent({
-				identity: { id: 'counter', file: '/app/src/components/counter.lit.tsx', integration: 'string' },
+				identity: {
+					id: 'counter',
+					file: path.resolve('/app/src/components/counter.lit.tsx'),
+					integration: 'string',
+				},
 			});
 
 			const result = await flow.prepareRenderOptions(
-				createRouteOptions('/app/src/pages/discovery.lit.tsx'),
+				createRouteOptions(path.resolve('/app/src/pages/discovery.lit.tsx')),
 				createFlowRenderer({
 					Page: createPage({
-						identity: { id: 'discovery', file: '/app/src/pages/discovery.lit.tsx', integration: 'string' },
+						identity: {
+							id: 'discovery',
+							file: path.resolve('/app/src/pages/discovery.lit.tsx'),
+							integration: 'string',
+						},
 						dependencies: { components: [Child] },
 					}),
 				}),
 			);
 
 			expect(result.sourceDependencyPaths).toEqual(
-				expect.arrayContaining(['/app/src/pages/discovery.lit.tsx', '/app/src/components/counter.lit.tsx']),
+				expect.arrayContaining([
+					path.resolve('/app/src/pages/discovery.lit.tsx'),
+					path.resolve('/app/src/components/counter.lit.tsx'),
+				]),
 			);
 		});
 
 		it('adds the watch files a Page identity registers', async () => {
 			const { flow, appConfig } = createOrchestrator();
-			const identity = { id: 'discovery', file: '/app/src/pages/discovery.lit.tsx', integration: 'string' };
+			const identity = {
+				id: 'discovery',
+				file: path.resolve('/app/src/pages/discovery.lit.tsx'),
+				integration: 'string',
+			};
 			const watchFiles = [
-				'/app/src/components/dependency-discovery/counter.lit.tsx',
-				'/app/src/components/dependency-discovery/barrel/index.ts',
+				path.resolve('/app/src/components/dependency-discovery/counter.lit.tsx'),
+				path.resolve('/app/src/components/dependency-discovery/barrel/index.ts'),
 			];
 			registerDiscoveredDependencies(identity, { components: () => [], stylesheets: [], watchFiles });
 
@@ -325,14 +352,14 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			integrations: [{ ...createReactIntegration([integrationDependency]), name: 'lit' }],
 		});
 		const resolvedContent = createComponent({
-			identity: { id: 'content', file: '/app/content/intro.mdx', integration: 'lit' },
+			identity: { id: 'content', file: path.resolve('/app/content/intro.mdx'), integration: 'lit' },
 		});
 
 		const result = await flow.prepareRenderOptions(
-			createRouteOptions('/app/pages/docs/[...slug].tsx', { params: { slug: ['intro'] } }),
+			createRouteOptions(path.resolve('/app/pages/docs/[...slug].tsx'), { params: { slug: ['intro'] } }),
 			createFlowRenderer({
 				resolvePageDependencies: async () => ({
-					ownerFile: '/app/content/intro.mdx',
+					ownerFile: path.resolve('/app/content/intro.mdx'),
 					components: [resolvedContent],
 					contribution: { assets: [pageDependency] },
 				}),
@@ -341,12 +368,14 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		expect(result.pageDependencyComponents).toEqual([resolvedContent]);
 		expect(result.pagePackage).toEqual(
-			expect.objectContaining({ assets: expect.arrayContaining([integrationDependency, pageDependency]) }),
+			expect.objectContaining({
+				assets: expect.arrayContaining([asGlobalScript(integrationDependency), pageDependency]),
+			}),
 		);
 	});
 
 	it('inlines the global injector bootstrap when resolved lazy triggers are present', async () => {
-		const fixtureRootDir = path.join(process.cwd(), 'playground/react');
+		const fixtureRootDir = path.join(path.cwd(), 'playground/react');
 		const ownerIntegration = { name: 'string' };
 		const { flow, processDependencies } = createOrchestrator({
 			integrations: [ownerIntegration],
@@ -369,7 +398,10 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			},
 		]);
 
-		await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowRenderer({ Page }));
+		await flow.prepareRenderOptions(
+			createRouteOptions(path.resolve('/app/pages/index.tsx')),
+			createFlowRenderer({ Page }),
+		);
 
 		expect(processDependencies).toHaveBeenCalledOnce();
 		expect(processDependencies).toHaveBeenCalledWith(
@@ -407,7 +439,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				],
 			}));
 			const renderer = createFlowRenderer({ collectPageBrowserGraphContribution });
-			const route = createRouteOptions('/app/pages/index.tsx');
+			const route = createRouteOptions(path.resolve('/app/pages/index.tsx'));
 
 			await flow.prepareRenderOptions(route, renderer);
 			await flow.prepareRenderOptions(route, renderer);
@@ -426,7 +458,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const { flow } = createOrchestrator({ hmrEnabled: false, processDependencies: async () => [entryAsset] });
 
 		const result = await flow.prepareRenderOptions(
-			createRouteOptions('/app/pages/index.tsx'),
+			createRouteOptions(path.resolve('/app/pages/index.tsx')),
 			createFlowRenderer({
 				collectPageBrowserGraphContribution: async () => ({
 					dependencies: [
@@ -456,18 +488,18 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 	});
 
 	describe('grouped page-browser assets', () => {
-		it('resolves them per route without a production build plan', async () => {
+		it('resolves them per route without an app-wide browser build', async () => {
 			const { prepare, processDependencies, collectPageBrowserGraphContribution } = createGroupedHarness({
 				bundleFor: reactRouterBundleFor,
 			});
 
-			const firstResult = await prepare('/app/pages/index.tsx');
-			const secondResult = await prepare('/app/pages/dashboard.tsx');
+			const firstResult = await prepare(path.resolve('/app/pages/index.tsx'));
+			const secondResult = await prepare(path.resolve('/app/pages/dashboard.tsx'));
 
 			expect(processDependencies).toHaveBeenCalledTimes(2);
 			expect(processDependencies.mock.calls[0]?.[1]).toMatchObject({ name: 'react' });
 			expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith(
-				expect.objectContaining({ file: '/app/pages/dashboard.tsx' }),
+				expect.objectContaining({ file: path.resolve('/app/pages/dashboard.tsx') }),
 			);
 			expect(firstResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
 				expect.objectContaining({ groupedBundle: { id: 'react-router-pages', entryName: 'index' } }),
@@ -487,8 +519,8 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				srcUrl: (bundle) => `/assets/${bundle.id}-${bundle.entryName}.js`,
 			});
 
-			const marketingResult = await prepare('/app/pages/marketing.tsx');
-			const docsResult = await prepare('/app/pages/docs.tsx');
+			const marketingResult = await prepare(path.resolve('/app/pages/marketing.tsx'));
+			const docsResult = await prepare(path.resolve('/app/pages/docs.tsx'));
 
 			expect(marketingResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
 				expect.objectContaining({
@@ -514,9 +546,9 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				srcUrl: (bundle) => `/assets/${bundle.entryName}-v${groupedVersion}.js`,
 			});
 
-			const firstResult = await prepare('/app/pages/index.tsx');
+			const firstResult = await prepare(path.resolve('/app/pages/index.tsx'));
 			groupedVersion = 2;
-			const secondResult = await prepare('/app/pages/index.tsx');
+			const secondResult = await prepare(path.resolve('/app/pages/index.tsx'));
 
 			expect(firstResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
 				expect.objectContaining({ srcUrl: '/assets/index-v1.js' }),
@@ -534,11 +566,11 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				bundleFor: reactRouterBundleFor,
 			});
 
-			await prepare('/app/pages/index.tsx');
+			await prepare(path.resolve('/app/pages/index.tsx'));
 
 			expect(collectPageBrowserGraphContribution).toHaveBeenCalledOnce();
 			expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith(
-				expect.objectContaining({ file: '/app/pages/index.tsx' }),
+				expect.objectContaining({ file: path.resolve('/app/pages/index.tsx') }),
 			);
 			const groupedCall = processDependencies.mock.calls.find((call) => call[1]?.name === 'react');
 			expect(groupedCall?.[0]).toHaveLength(1);
@@ -552,7 +584,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const { flow } = createOrchestrator();
 
 		const result = await flow.prepareRenderOptions(
-			createRouteOptions('/app/pages/index.tsx'),
+			createRouteOptions(path.resolve('/app/pages/index.tsx')),
 			createFlowRenderer(),
 		);
 
@@ -565,37 +597,109 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const { flow } = createOrchestrator({ integrations: [createReactIntegration([integrationDependency])] });
 		const Nested = createComponent({
 			integration: 'react',
-			identity: { id: 'nested', file: '/app/components/nested.tsx', integration: 'react' },
+			identity: { id: 'nested', file: path.resolve('/app/components/nested.tsx'), integration: 'react' },
 		});
 		const Page = createPage({ dependencies: { components: [undefined, Nested] as unknown as EcoComponent[] } });
 
 		const result = await flow.prepareRenderOptions(
-			createRouteOptions('/app/pages/404.tsx'),
+			createRouteOptions(path.resolve('/app/pages/404.tsx')),
 			createFlowRenderer({ Page }),
 		);
 
-		expect(result.pagePackage).toEqual(expect.objectContaining({ assets: [integrationDependency] }));
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({ assets: [asGlobalScript(integrationDependency)] }),
+		);
+	});
+
+	it('places the global scripts of a foreign Integration before the component scripts of the page', async () => {
+		const hydrateSupport = createScriptAsset('/assets/lit-hydrate-support.js');
+		const elementScript = createScriptAsset('/assets/lit-counter.script.js');
+		const clientAsset = createScriptAsset('/assets/island-entry.js');
+		const { flow } = createOrchestrator({
+			integrations: [{ ...createReactIntegration([hydrateSupport]), name: 'lit' }],
+		});
+		const LitCounter = createComponent({
+			integration: 'lit',
+			identity: {
+				id: 'lit-counter',
+				file: path.resolve('/app/components/lit-counter.lit.tsx'),
+				integration: 'lit',
+			},
+		});
+		const Page = createPage({ dependencies: { components: [LitCounter] } });
+
+		const result = await flow.prepareRenderOptions(createRouteOptions(path.resolve('/app/pages/index.kita.tsx')), {
+			...createFlowRenderer({ name: 'kitajs', Page, resolveDependencies: async () => [elementScript] }),
+			buildPageClientBrowserAssets: async () => ({ processedAssets: [clientAsset], lazyTriggers: [] }),
+		});
+
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({ assets: [asGlobalScript(hydrateSupport), elementScript, clientAsset] }),
+		);
+	});
+
+	it("reads the owner's global scripts from its plugin, in config order with the foreign ones", async () => {
+		const hydrateSupport = createScriptAsset('/assets/lit-hydrate-support.js');
+		const radiantHydrator = createScriptAsset('/assets/radiant-hydrator.js');
+		const elementScript = createScriptAsset('/assets/lit-counter.script.js');
+		const { flow } = createOrchestrator({
+			integrations: [
+				{ ...createReactIntegration([hydrateSupport]), name: 'lit' },
+				{ ...createReactIntegration([radiantHydrator]), name: 'ecopages-jsx' },
+			],
+		});
+		const LitCounter = createComponent({
+			integration: 'lit',
+			identity: {
+				id: 'lit-counter',
+				file: path.resolve('/app/components/lit-counter.lit.tsx'),
+				integration: 'lit',
+			},
+		});
+		const Page = createPage({ dependencies: { components: [LitCounter] } });
+
+		const result = await flow.prepareRenderOptions(createRouteOptions(path.resolve('/app/pages/index.tsx')), {
+			...createFlowRenderer({
+				name: 'ecopages-jsx',
+				Page,
+				resolveDependencies: async () => [elementScript],
+			}),
+		});
+
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({
+				assets: [asGlobalScript(hydrateSupport), asGlobalScript(radiantHydrator), elementScript],
+			}),
+		);
 	});
 
 	it('materializes page dependency assets from the prepared graph nodes', async () => {
 		const { flow } = createOrchestrator();
 		const Page = createPage();
 		const child = createComponent({
-			identity: { id: 'dependency-child', file: '/app/dependencies/child.tsx', integration: 'string' },
+			identity: {
+				id: 'dependency-child',
+				file: path.resolve('/app/dependencies/child.tsx'),
+				integration: 'string',
+			},
 		});
 		const dependency = createComponent({
-			identity: { id: 'dependency-root', file: '/app/dependencies/root.tsx', integration: 'string' },
+			identity: {
+				id: 'dependency-root',
+				file: path.resolve('/app/dependencies/root.tsx'),
+				integration: 'string',
+			},
 			dependencies: { components: [child] },
 		});
 		const pageDependency = createScriptAsset('/assets/page-dependency.js');
 		const resolvePageDependencyContribution = vi.fn(async () => ({ assets: [pageDependency] }));
 
 		const result = await flow.prepareRenderOptions(
-			createRouteOptions('/app/pages/index.tsx'),
+			createRouteOptions(path.resolve('/app/pages/index.tsx')),
 			createFlowRenderer({
 				Page,
 				resolvePageDependencies: async () => ({
-					ownerFile: '/app/dependencies/root.tsx',
+					ownerFile: path.resolve('/app/dependencies/root.tsx'),
 					components: [dependency],
 				}),
 				resolvePageDependencyContribution,
@@ -607,7 +711,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				expect.objectContaining({ component: dependency }),
 				expect.objectContaining({ component: child }),
 			]),
-			ownerFile: '/app/dependencies/root.tsx',
+			ownerFile: path.resolve('/app/dependencies/root.tsx'),
 		});
 		expect(result.pagePackage?.assets).toContain(pageDependency);
 	});
@@ -624,7 +728,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
 			await flow.prepareRenderOptions(
-				createRouteOptions('/app/pages/index.tsx'),
+				createRouteOptions(path.resolve('/app/pages/index.tsx')),
 				createFlowRenderer({ Page, HtmlTemplate }),
 			);
 
@@ -649,7 +753,10 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			});
 
 			await expect(
-				flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowRenderer()),
+				flow.prepareRenderOptions(
+					createRouteOptions(path.resolve('/app/pages/index.tsx')),
+					createFlowRenderer(),
+				),
 			).rejects.toThrow(message);
 		});
 
@@ -661,24 +768,30 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				integration: 'foreign-renderer',
 				identity: {
 					id: 'foreign-component',
-					file: '/app/components/foreign-component.tsx',
+					file: path.resolve('/app/components/foreign-component.tsx'),
 					integration: 'foreign-renderer',
 				},
 			});
 			const Layout = createComponent({
-				identity: { id: 'layout-component', file: '/app/layouts/default.tsx', integration: 'string' },
+				identity: {
+					id: 'layout-component',
+					file: path.resolve('/app/layouts/default.tsx'),
+					integration: 'string',
+				},
 				dependencies: { components: [ForeignComponent] },
 			});
 			const Page = createPage({
 				layouts: [Layout],
-				identity: { id: 'page-component', file: '/app/pages/index.tsx', integration: 'string' },
+				identity: { id: 'page-component', file: path.resolve('/app/pages/index.tsx'), integration: 'string' },
 			});
 			const HtmlTemplate = Object.assign(() => '<html></html>', {
-				config: { identity: { id: 'html-template', file: '/app/index.ts', integration: 'string' } },
+				config: {
+					identity: { id: 'html-template', file: path.resolve('/app/index.ts'), integration: 'string' },
+				},
 			}) as unknown as EcoComponent<HtmlTemplateProps>;
 
 			const result = await flow.prepareRenderOptions(
-				createRouteOptions('/app/pages/index.tsx'),
+				createRouteOptions(path.resolve('/app/pages/index.tsx')),
 				createFlowRenderer({ Page, HtmlTemplate }),
 			);
 
@@ -690,11 +803,11 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const { flow } = createOrchestrator({ integrations: [createReactIntegration()] });
 		const OuterLayout = createComponent({
 			integration: 'react',
-			identity: { id: 'outer', file: '/app/layouts/outer.tsx', integration: 'react' },
+			identity: { id: 'outer', file: path.resolve('/app/layouts/outer.tsx'), integration: 'react' },
 		});
 		const InnerLayout = createComponent({
 			integration: 'react',
-			identity: { id: 'inner', file: '/app/layouts/inner.tsx', integration: 'react' },
+			identity: { id: 'inner', file: path.resolve('/app/layouts/inner.tsx'), integration: 'react' },
 		});
 		const Page = createPage({
 			layouts: [OuterLayout, InnerLayout],
@@ -704,7 +817,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const resolvedComponents: EcoComponent[] = [];
 
 		await flow.prepareRenderOptions(
-			createRouteOptions('/app/pages/index.tsx'),
+			createRouteOptions(path.resolve('/app/pages/index.tsx')),
 			createFlowRenderer({
 				name: 'react',
 				Page,

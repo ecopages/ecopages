@@ -1,9 +1,11 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
+import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { isViewReference, VIEW_REFERENCE, type ViewReference } from '../../types/view-reference.ts';
 
 export { isViewReference, VIEW_REFERENCE, type ViewReference } from '../../types/view-reference.ts';
+export { isViewModule } from './view-module.ts';
 
 const HTML_VIEW_EXTENSION = '.html';
 /** Same name as `HTML_PAGES_INTEGRATION_NAME`; this file cannot import the Rendering layer. */
@@ -36,7 +38,7 @@ const ECO_CONFIG_BASENAME = /^eco\.config(?:\.[cm]?[jt]sx?)?$/;
 
 /** True when a native import of this path must stay a real module. */
 export function isIgnoredViewPath(filePath: string): boolean {
-	return filePath.split(path.sep).includes('node_modules');
+	return filePath.split('/').includes('node_modules');
 }
 
 function isInsideDir(filePath: string, dir: string): boolean {
@@ -106,18 +108,20 @@ export function viewExtensionFilter(extensions: readonly string[]): RegExp {
 }
 
 /**
- * Returns the one view reference for `filePath`.
+ * Returns the one view reference for `filePath`, the view's source path relative to the app root.
  *
  * @remarks
- * Two imports of the same file, including from the server-entry bundle and the
- * development preload, share this object.
+ * Two imports that name the file with the same string share this object. The
+ * server-entry bundle names it relative to the app root, so the bundle holds no path
+ * of the machine that built it; the development preload names it by absolute path.
+ * One process loads only one of them. Core resolves `filePath` against the app root
+ * when it renders the view.
  */
 export function createViewReference<P = Record<string, unknown>>(
 	filePath: string,
 	integration?: string | null,
 ): ViewReference<P> {
-	const resolvedPath = path.resolve(filePath);
-	const existing = viewReferences.get(resolvedPath);
+	const existing = viewReferences.get(filePath);
 	if (existing) {
 		return existing as ViewReference<P>;
 	}
@@ -125,22 +129,29 @@ export function createViewReference<P = Record<string, unknown>>(
 	const integrationName = integration ?? undefined;
 	const reference: ViewReference<P> = {
 		[VIEW_REFERENCE]: true,
-		filePath: resolvedPath,
+		filePath,
 		config: {
 			identity: {
-				id: resolvedPath,
-				file: resolvedPath,
+				id: filePath,
+				file: filePath,
 				integration: integrationName,
 			},
 		},
 	};
-	viewReferences.set(resolvedPath, reference as ViewReference);
+	viewReferences.set(filePath, reference as ViewReference);
 	return reference;
 }
 
-/** Synthetic ESM source the CLI hook and server-entry plugin evaluate instead of the view. */
-export function viewReferenceModuleSource(filePath: string, integrationName?: string): string {
-	const pathLiteral = JSON.stringify(path.resolve(filePath));
+/**
+ * Synthetic ESM source the CLI hook and server-entry plugin evaluate instead of the view.
+ *
+ * @remarks
+ * The server-entry plugin passes `appRoot`, so the bundle names the view relative to it with forward slashes
+ * (see {@link createViewReference}). The development preload passes none and keeps the absolute path, which
+ * only lives in that process.
+ */
+export function viewReferenceModuleSource(filePath: string, integrationName?: string, appRoot?: string): string {
+	const pathLiteral = JSON.stringify(appRoot ? toRootRelativePath(appRoot, filePath) : path.resolve(filePath));
 	const integrationLiteral = JSON.stringify(integrationName);
 	return `import { createViewReference } from '@ecopages/core/view-reference';
 export default createViewReference(${pathLiteral}, ${integrationLiteral});

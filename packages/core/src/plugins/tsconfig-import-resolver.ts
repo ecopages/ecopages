@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { ResolverFactory, type ResolverFactory as ResolverFactoryType } from 'oxc-resolver';
 import { toPackageRootSpecifier } from './package-specifier.ts';
@@ -83,6 +83,57 @@ export function loadTsconfigPathPrefixes(projectRoot: string): string[] {
 	const resolvedPrefixes = [...prefixes];
 	pathPrefixCache.set(projectRoot, resolvedPrefixes);
 	return resolvedPrefixes;
+}
+
+/** The `compilerOptions` the TypeScript checker reads for module resolution, with every path made absolute. */
+export interface TsconfigResolutionOptions {
+	rootDirs?: string[];
+	paths?: Record<string, string[]>;
+}
+
+/**
+ * Loads `compilerOptions.rootDirs` and `compilerOptions.paths` from the tsconfig of `projectRoot`, following `extends`.
+ *
+ * @remarks
+ * As in TypeScript, an option set in a config replaces the one it extends, and a relative path is relative to the
+ * config that sets it. `baseUrl` is not applied. Returns `undefined` when the project has no readable tsconfig.
+ */
+export function loadTsconfigResolutionOptions(projectRoot: string): TsconfigResolutionOptions | undefined {
+	const tsconfigPath = findTsconfigPath(projectRoot);
+	if (!tsconfigPath) return undefined;
+	const options: TsconfigResolutionOptions = {};
+	const visited = new Set<string>();
+	const collect = (configPath: string): void => {
+		const normalized = path.resolve(configPath);
+		if (visited.has(normalized)) return;
+		visited.add(normalized);
+		let config: {
+			extends?: string;
+			compilerOptions?: { rootDirs?: string[]; paths?: Record<string, string[]> };
+		};
+		try {
+			config = readJsonFile(normalized) as typeof config;
+		} catch {
+			return;
+		}
+		const base = path.dirname(normalized);
+		const { rootDirs, paths } = config.compilerOptions ?? {};
+		if (rootDirs && !options.rootDirs) options.rootDirs = rootDirs.map((dir) => path.resolve(base, dir));
+		if (paths && !options.paths) {
+			options.paths = Object.fromEntries(
+				Object.entries(paths).map(([key, targets]) => [
+					key,
+					targets.map((target) => path.resolve(base, target)),
+				]),
+			);
+		}
+		if (typeof config.extends === 'string') {
+			const parent = path.resolve(base, config.extends);
+			collect(fileSystem.exists(parent) ? parent : `${parent}.json`);
+		}
+	};
+	collect(tsconfigPath);
+	return options;
 }
 
 export function matchesTsconfigPathPrefix(specifier: string, prefixes: readonly string[]): boolean {
@@ -185,10 +236,21 @@ function getBrowserPackageResolver(
 }
 
 /**
+ * Drops what the bare package resolvers cached about the filesystem.
+ *
+ * @remarks
+ * The resolvers cache directory lookups and symlink targets, so after a package install a specifier would keep
+ * resolving to the file it reached before.
+ */
+export function clearBarePackageResolverCaches(): void {
+	for (const resolver of browserPackageResolvers.values()) resolver.clearCache();
+}
+
+/**
  * Resolves a bare npm package entry for browser vendor prebundles.
  *
- * @param fromDirectory - Where resolution starts. Defaults to `projectRoot`; a vendor's own dependency
- * resolves from the importing file's directory, since strict installs do not expose it at the root.
+ * @param fromDirectory - Where resolution starts: the importing module's directory, since strict installs do
+ * not expose a package's own dependencies at the root. Defaults to `projectRoot`.
  * @returns The entry `path` and the installed package's root `package.json`
  * (`packageJsonPath`), which stays the root manifest when the entry sits below a
  * nested one such as `cjs/package.json`.
@@ -214,9 +276,15 @@ export function resolveBarePackageBrowserEntry(
 	}
 
 	try {
-		return { path: fileSystem.realpath(result.path), packageJsonPath: result.packageJsonPath };
+		return {
+			path: fileSystem.realpath(result.path),
+			packageJsonPath: result.packageJsonPath && path.fromNative(result.packageJsonPath),
+		};
 	} catch {
-		return { path: result.path, packageJsonPath: result.packageJsonPath };
+		return {
+			path: path.fromNative(result.path),
+			packageJsonPath: result.packageJsonPath && path.fromNative(result.packageJsonPath),
+		};
 	}
 }
 
@@ -288,13 +356,17 @@ export function resolveRelativeModulePath(fromFile: string, specifier: string): 
 
 /**
  * Resolves a relative or tsconfig path alias import (via oxc-resolver).
+ *
+ * @remarks
+ * A query or hash on the specifier, such as a module variant, is not part of the file and is dropped.
  */
 export function resolveProjectModulePath(
 	projectRoot: string,
 	fromFile: string,
-	specifier: string,
+	moduleSpecifier: string,
 	options?: { preserveBarrel?: boolean },
 ): string | undefined {
+	const specifier = moduleSpecifier.replace(/[?#].*$/u, '');
 	const prefixes = loadTsconfigPathPrefixes(projectRoot);
 	const isRelative = specifier.startsWith('.');
 	const isPathAlias = matchesTsconfigPathPrefix(specifier, prefixes);
@@ -329,4 +401,61 @@ export function resolveProjectImportPath(projectRoot: string, fromFile: string, 
 	}
 
 	return resolveProjectModulePath(projectRoot, fromFile, specifier);
+}
+
+const packageStylesheetResolvers = new Map<string, ResolverFactoryType>();
+
+function getPackageStylesheetResolver(conditionNames: readonly string[]): ResolverFactoryType {
+	const key = conditionNames.join(',');
+	let resolver = packageStylesheetResolvers.get(key);
+	if (!resolver) {
+		resolver = new ResolverFactory({ conditionNames: [...conditionNames], extensions: [] });
+		packageStylesheetResolvers.set(key, resolver);
+	}
+	return resolver;
+}
+
+/**
+ * Resolves a bare package specifier imported for its side effects to the stylesheet it names.
+ *
+ * @returns The real path of the stylesheet, or `undefined` when the specifier does not name one.
+ *
+ * @remarks
+ * A specifier ending in `.css` (`pkg/style.css`) resolves through the package's `exports` with the `style`
+ * condition first, then `browser`, `import` and `default`, and throws when the package does not provide it. Any
+ * other specifier (`swiper/css`, `@fontsource/inter`) resolves as a browser script import would, without the
+ * `style` condition, and names a stylesheet only when that resolves to a `.css` file, so a package whose entry is
+ * a script is never read as its stylesheet.
+ */
+export function resolvePackageStylesheetPath(fromFile: string, specifier: string): string | undefined {
+	const named = specifier.endsWith('.css');
+	const conditionNames = named ? ['style', 'browser', 'import', 'default'] : ['browser', 'import', 'default'];
+	const result = getPackageStylesheetResolver(conditionNames).sync(path.dirname(fromFile), specifier);
+	if (!result.path) {
+		if (named) {
+			throw new Error(
+				`[ecopages] Cannot resolve package stylesheet ${JSON.stringify(specifier)} from ${fromFile}${result.error ? `: ${result.error}` : ''}`,
+			);
+		}
+		return undefined;
+	}
+	return result.path.endsWith('.css') ? fileSystem.realpath(result.path) : undefined;
+}
+
+const packageModuleResolver = new ResolverFactory({
+	conditionNames: ['browser', 'import', 'default'],
+	extensions: ['.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx', '.mts', '.cts'],
+});
+
+/**
+ * Resolves a bare package specifier, or a relative one inside a package, to the real path of the script it names.
+ *
+ * @returns The real path, or `undefined` when nothing resolves.
+ *
+ * @remarks
+ * Resolves as a browser script import would, so discovery reads the same module a browser bundle holds.
+ */
+export function resolvePackageModulePath(fromFile: string, specifier: string): string | undefined {
+	const result = packageModuleResolver.sync(path.dirname(fromFile), specifier);
+	return result.path ? fileSystem.realpath(result.path) : undefined;
 }

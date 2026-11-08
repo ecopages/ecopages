@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import {
 	getComponentIdentity,
 	type DependencyAttributes,
@@ -6,32 +6,23 @@ import {
 	type EcoComponentConfig,
 } from '@ecopages/core';
 import { attachEcoFileMetadataToConfig } from '@ecopages/core/integration';
-import {
-	AssetFactory,
-	type AssetProcessingIntegration,
-	type AssetDefinition,
-	type AssetProcessingService,
-	type ProcessedAsset,
-} from '@ecopages/core/integration';
+import { AssetFactory, type AssetDefinition } from '@ecopages/core/integration';
 import { collectFromConfigForest, getComponentConfigs } from '../client-graph/component-config-traversal.ts';
 import type { PageModuleService } from '../page/page-module.ts';
 
-type MdxConfigDependencyProcessor = (components: Partial<EcoComponent>[]) => Promise<ProcessedAsset[]>;
-
 export interface MdxConfigDependencyServiceConfig {
 	integrationName: string;
+	/** The app root that root-relative identity files resolve against. */
+	rootDir: string;
 	pageModuleService: Pick<PageModuleService, 'ensureConfigFileMetadata'>;
-	assetProcessingService: Pick<AssetProcessingService, 'processDependencies'>;
-	assetProcessingIntegration?: AssetProcessingIntegration;
 }
 
 /**
  * Resolves MDX-owned config dependencies that live outside the normal React component tree.
  *
  * React MDX pages can declare dependencies on the page config itself or on a
- * resolved layout config. Those roots need to be materialized as synthetic
- * component configs so the shared dependency pipeline can process them without
- * growing more MDX-specific logic inside the renderer.
+ * resolved layout config. Those roots become synthetic component configs that core
+ * processes through the shared dependency pipeline, and plans for the app-wide browser build.
  */
 export class MdxConfigDependencyService {
 	private readonly config: MdxConfigDependencyServiceConfig;
@@ -41,22 +32,14 @@ export class MdxConfigDependencyService {
 	}
 
 	/**
-	 * Processes MDX-owned config dependencies and eagerly emits any SSR-marked lazy scripts.
+	 * Returns the MDX-owned config components and, as eager head scripts, their SSR-marked lazy scripts.
 	 */
-	async processMdxConfigDependencies(options: {
-		pagePath: string;
-		config?: EcoComponentConfig;
-		processComponentDependencies: MdxConfigDependencyProcessor;
-	}): Promise<ProcessedAsset[]> {
-		const components = this.createOwnedConfigComponents(options.pagePath, options.config);
-		if (components.length === 0) {
-			return [];
-		}
-
-		const processedDependencies = await options.processComponentDependencies(components);
-		const eagerSsrLazyDependencies = await this.processDeclaredSsrLazyDependencies(components);
-
-		return [...processedDependencies, ...eagerSsrLazyDependencies];
+	collectMdxConfigContribution(
+		pagePath: string,
+		config: EcoComponentConfig | undefined,
+	): { components: Partial<EcoComponent>[]; bundledScripts: AssetDefinition[] } {
+		const components = this.createOwnedConfigComponents(pagePath, config);
+		return { components, bundledScripts: this.collectDeclaredSsrLazyDependencies(components) };
 	}
 
 	private createOwnedConfigComponents(
@@ -81,18 +64,6 @@ export class MdxConfigDependencyService {
 		return components;
 	}
 
-	private async processDeclaredSsrLazyDependencies(components: Partial<EcoComponent>[]): Promise<ProcessedAsset[]> {
-		const dependencies = this.collectDeclaredSsrLazyDependencies(components);
-		if (dependencies.length === 0) {
-			return [];
-		}
-
-		return this.config.assetProcessingService.processDependencies(
-			dependencies,
-			this.config.assetProcessingIntegration,
-		);
-	}
-
 	/**
 	 * Collects `lazy` script dependencies that also opt into SSR from an MDX config graph.
 	 */
@@ -112,7 +83,7 @@ export class MdxConfigDependencyService {
 				return [];
 			}
 
-			const componentDir = path.dirname(componentFile);
+			const componentDir = path.dirname(path.resolve(this.config.rootDir, componentFile));
 			for (const script of config.dependencies?.scripts ?? []) {
 				if (typeof script === 'string' || !script.lazy || script.ssr !== true) {
 					continue;

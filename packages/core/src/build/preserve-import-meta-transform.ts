@@ -1,5 +1,6 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
+import { toRootRelativePath } from '../utils/root-relative-path.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import type { EcoBuildPlugin } from './contracts/build-types.ts';
 import { createCoreTransformPlugin, createMappedSourceTransformResult } from './mapped-source-transform.ts';
@@ -76,7 +77,7 @@ function collectImportMetaEdits(
 	pathBinding: string;
 } {
 	const program = parseModuleSource(id, code, { sourceType: 'module' }).program as unknown as AstNode;
-	const relativeDir = path.relative(runtimeDir, path.dirname(id)).replaceAll('\\', '/');
+	const relativeDir = path.relative(runtimeDir, path.dirname(id));
 	const relativeFile = relativeDir ? `${relativeDir}/${path.basename(id)}` : `./${path.basename(id)}`;
 	const edits: SourceEdit[] = [];
 	let needsNodePath = false;
@@ -140,12 +141,14 @@ function collectImportMetaEdits(
  * The filter matches the extensions this transform accepts
  * (`.ts`, `.tsx`, `.js`, `.jsx`), so bundled `.mjs`, `.cjs`, `.mts` and
  * `.cts` modules keep the `import.meta` of their output chunk.
+ *
+ * The `cacheKey` names `runtimeDir` relative to `rootDir`, as no plugin key may hold an absolute path.
  */
-export function createPreserveImportMetaPlugin(runtimeDir: string): EcoBuildPlugin {
+export function createPreserveImportMetaPlugin(runtimeDir: string, rootDir: string): EcoBuildPlugin {
 	let realRuntimeDir: string | undefined;
 	return createCoreTransformPlugin({
 		name: 'preserve-import-meta-for-server-output',
-		cacheKey: runtimeDir,
+		cacheKey: toRootRelativePath(rootDir, runtimeDir),
 		filter: /\.[jt]sx?$/,
 		transform(code, id) {
 			if (!code.includes('import.meta')) {

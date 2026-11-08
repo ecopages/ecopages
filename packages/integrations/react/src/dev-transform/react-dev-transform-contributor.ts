@@ -1,6 +1,5 @@
 import type { EcoBuildPlugin } from '@ecopages/core/integration';
-import { getBrowserRuntimeSpecifierMap } from '@ecopages/core/build';
-import type { DevTransformBundleContributor } from '@ecopages/core/integration';
+import type { DevTransformBundleContributor, DevTransformVendorEntries } from '@ecopages/core/integration';
 import type { ReactHmrStrategy } from '../hmr/hmr-strategy.ts';
 
 export type ReactDevTransformContributorOptions = {
@@ -17,16 +16,16 @@ export class ReactDevTransformContributor implements DevTransformBundleContribut
 		this.strategy = options.strategy;
 	}
 
-	ownsModule(sourcePath: string): boolean {
-		return this.strategy.ownsDevTransformEntrypoint(sourcePath);
+	ownsModule(sourcePath: string, variant?: string): boolean {
+		return this.strategy.ownsDevTransformEntrypoint(sourcePath, variant);
 	}
 
-	async getModulePlugins(sourcePath: string): Promise<readonly EcoBuildPlugin[]> {
-		return this.strategy.createDevTransformPlugins(sourcePath);
+	async getModulePlugins(sourcePath: string, variant?: string): Promise<readonly EcoBuildPlugin[]> {
+		return this.strategy.createDevTransformPlugins(sourcePath, variant);
 	}
 
-	getRuntimeSpecifierMap(): ReadonlyMap<string, string> {
-		return getBrowserRuntimeSpecifierMap(this.strategy.getRuntimeManifest());
+	getVendorEntries(): DevTransformVendorEntries {
+		return this.strategy.getVendorEntries();
 	}
 
 	async getVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {

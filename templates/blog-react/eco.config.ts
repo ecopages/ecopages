@@ -4,14 +4,16 @@ import { POSTS_CONTENT_DIR, comparePosts, postsFrontmatterSchema } from './src/c
 import { blogMdxPluginOptions } from './src/lib/mdx-plugin-options';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
+import { siteOrigin } from './src/lib/site-origin';
 
-const appRoot = import.meta.dirname;
+const appRoot = process.cwd();
 
 export default defineConfig({
+	baseUrl: siteOrigin,
 	sitemap: {
 		enabled: true,
 		extraUrls: ['/rss.xml'],
@@ -52,10 +54,11 @@ export default defineConfig({
 				],
 			},
 		}),
-		postcssProcessorPlugin(
-			tailwindV4Preset({
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
-		),
+			targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+		}),
 	],
 });

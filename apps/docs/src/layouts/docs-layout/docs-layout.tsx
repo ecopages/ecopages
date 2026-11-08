@@ -19,24 +19,23 @@ import { RuiToc } from '@ecopages/radiant-ui/toc';
 import { Logo } from '@/components/logo/logo';
 import { CodeTabs } from '@/components/code-tabs';
 import { ThemeToggle } from '@/components/theme-toggle/theme-toggle';
-import { docsNav } from '@/lib/content-nav';
+import { docsNav, type DocsNav } from '@/lib/content-nav';
+import { devNav } from '@/lib/dev-nav';
 import { BaseLayout } from '@/layouts/base-layout';
 import { frameworkVersion } from '@/lib/framework-version';
 import { DocsPagination } from './components/docs-pagination';
 
-const paginationData = JSON.stringify({
-	pages: docsNav.sections.flatMap((section) => section.items).map(({ href, title }) => ({ href, title })),
-});
 const ECO_NAVIGATION_EVENTS = 'eco:page-load,eco:after-swap';
-const DOCS_SIDEBAR_ID = 'docs-sidebar';
 
-export type DocsLayoutProps = {
-	children: JsxRenderable;
-};
+function paginationData(nav: DocsNav): string {
+	return JSON.stringify({
+		pages: nav.sections.flatMap((section) => section.items).map(({ href, title }) => ({ href, title })),
+	});
+}
 
-const DocsNavigation = () => (
+const DocsNavigation = ({ nav }: { nav: DocsNav }) => (
 	<>
-		{docsNav.sections.map((section, index) => (
+		{nav.sections.map((section, index) => (
 			<>
 				{index > 0 ? <RuiSidebarSeparator aria-label="Section divider" /> : null}
 				<RuiSidebarGroup aria-label={section.title}>
@@ -63,19 +62,19 @@ const DocsNavigation = () => (
 	</>
 );
 
-const DocsSiteHeader = () => (
+const DocsSiteHeader = ({ sidebarId }: { sidebarId: string }) => (
 	<div class="rui-sidebar-provider__site-header-inner">
 		<div class="rui-sidebar-provider__site-header-start">
 			<RuiSidebarTrigger
 				class="md:hidden rui-sidebar-trigger-placement--header"
 				placement="header"
-				controls={DOCS_SIDEBAR_ID}
+				controls={sidebarId}
 				triggerLabel="Close documentation navigation"
 			/>
 			<RuiSidebarTrigger
 				class="md:hidden rui-sidebar-trigger-placement--inset"
 				placement="inset"
-				controls={DOCS_SIDEBAR_ID}
+				controls={sidebarId}
 				triggerLabel="Open documentation navigation"
 			/>
 			<Logo href="/" target="_self" title="Ecopages" />
@@ -101,59 +100,85 @@ const DocsSiteHeader = () => (
 	</div>
 );
 
-export const DocsLayout = eco.component<DocsLayoutProps, JsxRenderable>({
-	dependencies: {
-		stylesheets: ['./docs-layout.css'],
-		scripts: [{ src: './docs-layout.script.ts', ssr: true }],
-		components: [BaseLayout, CodeTabs, DocsPagination, Logo, ThemeToggle],
-	},
-	render: ({ children }) => {
-		return (
-			<BaseLayout showHeader={false}>
-				<script type="application/json" id="docs-pagination-data" safe>
-					{paginationData}
-				</script>
-				<RuiSidebarProvider
-					layout="docs"
-					class="docs-layout"
-					siteHeader={<DocsSiteHeader />}
-					sidebar={
-						<RuiSidebar
-							id={DOCS_SIDEBAR_ID}
-							data={{ ecoPersist: DOCS_SIDEBAR_ID }}
-							collapsible="off"
-							defaultWidth={250}
-							mobileBreakpoint={768}
-							mobileDefaultOpen={false}
-							label="Documentation navigation"
-							matchActive
-							scrollActiveOnMount
-							navigationEvents={ECO_NAVIGATION_EVENTS}
-						>
-							<RuiSidebarContent aria-label="Documentation navigation">
-								<DocsNavigation />
-							</RuiSidebarContent>
-						</RuiSidebar>
-					}
+type DocsShellProps = {
+	nav: DocsNav;
+	/**
+	 * @remarks The sidebar persists across client navigation by this id, so each area needs its own:
+	 * a shared id would keep the docs sidebar on developer pages and the reverse.
+	 */
+	sidebarId: string;
+	children: JsxRenderable;
+};
+
+const DocsShell = ({ nav, sidebarId, children }: DocsShellProps) => (
+	<BaseLayout showHeader={false}>
+		<script type="application/json" id="docs-pagination-data" safe>
+			{paginationData(nav)}
+		</script>
+		<RuiSidebarProvider
+			layout="docs"
+			class="docs-layout"
+			siteHeader={<DocsSiteHeader sidebarId={sidebarId} />}
+			sidebar={
+				<RuiSidebar
+					id={sidebarId}
+					data={{ ecoPersist: sidebarId }}
+					collapsible="off"
+					defaultWidth={250}
+					mobileBreakpoint={768}
+					mobileDefaultOpen={false}
+					label="Documentation navigation"
+					matchActive
+					scrollActiveOnMount
+					navigationEvents={ECO_NAVIGATION_EVENTS}
 				>
-					<RuiSidebarInset>
-						<div class="docs-layout__content">
-							<div class="prose">{children}</div>
-							<DocsPagination />
-						</div>
-					</RuiSidebarInset>
-					<RuiToc
-						class="docs-layout__toc"
-						target=".docs-layout__content"
-						headingSelector="h2,h3"
-						label="On this page"
-						scrollOffset={120}
-						navigationEvents={ECO_NAVIGATION_EVENTS}
-					/>
-				</RuiSidebarProvider>
-			</BaseLayout>
-		);
-	},
+					<RuiSidebarContent aria-label="Documentation navigation">
+						<DocsNavigation nav={nav} />
+					</RuiSidebarContent>
+				</RuiSidebar>
+			}
+		>
+			<RuiSidebarInset>
+				<div class="docs-layout__content">
+					<div class="prose">{children}</div>
+					<DocsPagination />
+				</div>
+			</RuiSidebarInset>
+			<RuiToc
+				class="docs-layout__toc"
+				target=".docs-layout__content"
+				headingSelector="h2,h3"
+				label="On this page"
+				scrollOffset={120}
+				navigationEvents={ECO_NAVIGATION_EVENTS}
+			/>
+		</RuiSidebarProvider>
+	</BaseLayout>
+);
+
+const docsShellDependencies = {
+	stylesheets: ['./docs-layout.css'],
+	scripts: [{ src: './docs-layout.script.ts', ssr: true }],
+	components: [CodeTabs],
+};
+
+export const DocsLayout = eco.layout<JsxRenderable>({
+	dependencies: docsShellDependencies,
+	render: ({ children }) => (
+		<DocsShell nav={docsNav} sidebarId="docs-sidebar">
+			{children}
+		</DocsShell>
+	),
+});
+
+/** Shell of the developer area: the docs chrome with the developer sidebar in place of the docs one. */
+export const DevLayout = eco.layout<JsxRenderable>({
+	dependencies: docsShellDependencies,
+	render: ({ children }) => (
+		<DocsShell nav={devNav} sidebarId="dev-sidebar">
+			{children}
+		</DocsShell>
+	),
 });
 
 export default DocsLayout;

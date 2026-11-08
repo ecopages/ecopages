@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { path } from '@ecopages/file-system/path';
 import type { EcoComponent, EcoFunctionComponent, EcoPageFile, HtmlTemplateProps, PageProps } from '@ecopages/core';
 import { AssetProcessingService } from '@ecopages/core/integration';
 import type { AppRuntime } from '@ecopages/core/integration';
@@ -13,6 +12,7 @@ import type { JsxRenderable } from '@ecopages/jsx';
 import { jsx } from '@ecopages/jsx/jsx-runtime';
 import { test, vi } from 'vitest';
 import { getEjsxHmrOwnership } from '../ecopages-jsx-hmr-ownership.ts';
+import { EcopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
 
 const radiantEntryUrl = import.meta.resolve('@ecopages/radiant');
 const radiantCustomElementEntryUrl = import.meta.resolve('@ecopages/radiant/decorators/custom-element');
@@ -47,7 +47,7 @@ function createScopedModuleUrl(moduleUrl: string, token: string): string {
 async function createAppConfig(rootDir: string): Promise<FinalizedAppConfig> {
 	const appModuleLoader = {
 		async importModule<T = unknown>(options: { filePath: string }): Promise<T> {
-			const moduleUrl = pathToFileURL(options.filePath).href;
+			const moduleUrl = path.toFileUrl(options.filePath).href;
 			return (await import(moduleUrl)) as T;
 		},
 		invalidateDevelopmentGraph(): void {
@@ -61,6 +61,7 @@ async function createAppConfig(rootDir: string): Promise<FinalizedAppConfig> {
 	const config = await finalizeEcoPagesConfig({
 		rootDir,
 		defaultMetadata: { title: '', description: '' },
+		integrations: [new EcopagesJsxPlugin()],
 	});
 	config.appRuntime!.moduleLoader = appModuleLoader;
 	return config;
@@ -257,6 +258,6 @@ test('EcopagesJsxRenderer records declared content dependencies for HMR ownershi
 	});
 
 	const { fileOwners } = getEjsxHmrOwnership();
-	assert.equal(fileOwners.has('/app/content/docs/intro.mdx'), true);
-	assert.equal(fileOwners.has('/app/components/demo.tsx'), true);
+	assert.equal(fileOwners.has(path.resolve('/app/content/docs/intro.mdx')), true);
+	assert.equal(fileOwners.has(path.resolve('/app/components/demo.tsx')), true);
 });

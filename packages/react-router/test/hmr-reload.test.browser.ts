@@ -4,7 +4,7 @@ import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/client';
 import { cacheNavigationHtml, getCachedNavigationHtml } from '../../core/src/router/client/navigation-document.ts';
-import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
+import { EcoRouter, PageContent } from '../src/router.ts';
 import {
 	createDeferred,
 	createMockPageComponent,
@@ -249,7 +249,6 @@ describe('EcoRouter HMR Integration', () => {
 		};
 		Page.config = { layouts: [Layout] };
 
-		clearLayoutCache();
 		ctx.root = createRoot(ctx.container);
 		const routerProps = {
 			page: Page,

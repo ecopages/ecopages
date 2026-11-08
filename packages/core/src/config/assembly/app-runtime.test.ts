@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import {
@@ -31,7 +31,7 @@ describe('AppRuntime', () => {
 	});
 
 	function tempRoot(): string {
-		const dir = mkdtempSync(path.join(tmpdir(), 'eco-app-runtime-'));
+		const dir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-app-runtime-')));
 		tempDirs.push(dir);
 		return dir;
 	}

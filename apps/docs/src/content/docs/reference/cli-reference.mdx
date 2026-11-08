@@ -10,6 +10,8 @@ import { CodeTabs } from '@/components/code-tabs';
 
 The Ecopages CLI is the canonical command-line interface for scaffolding, developing, building, and serving Ecopages apps.
 
+The CLI needs Node.js `^24.22.0 || >=26.0.0`. On an unsupported Node.js it prints an error naming the required range and exits with code 1. A launch through Bun is not checked.
+
 Run it with your package manager's one-off executor:
 
 <CodeTabs
@@ -87,7 +89,7 @@ Starts the production server using the existing build. It needs a server bundle,
 
 ### `types`
 
-Writes the types for virtual modules such as `ecopages:images` and `ecopages:content/*`, then exits.
+Writes the types for virtual modules such as `ecopages:images` and `ecopages:content/*`, and a declaration for each CSS Module so its classes can be imported by name, then exits.
 
 - Processors generate these types in `setup()`. The `types` command runs that setup to write virtual-module declarations; production `start` restores Processor state from emitted server modules and does not call `setup()`.
 - It loads `eco.config.ts` (or the file given with `--config`), as `astro sync` does, and sets the processors up, so image optimization and the first PostCSS pass run too. Your entry file (`app.ts`) does not run.
@@ -122,9 +124,9 @@ Ecopages listens to environment variables for configuration. When these are set,
 
 Used for generating absolute URLs in production builds (meta tags, [sitemap](/docs/core/sitemap) locations, etc.).
 
-1. **CLI flag**: `--base-url <url>`.
-2. **`baseUrl` in `eco.config.ts`**: Set directly via `defineConfig({ baseUrl: '...' })`.
-3. **`ECOPAGES_BASE_URL`**: Environment variable override when the config does not set it explicitly.
+1. **`baseUrl` in `eco.config.ts`**: Set directly via `defineConfig({ baseUrl: '...' })`. When set, it wins over the flag and the variable.
+2. **`--base-url <url>`**: The CLI flag exports `ECOPAGES_BASE_URL` for the process, so it applies only when the config does not set `baseUrl`.
+3. **`ECOPAGES_BASE_URL`**: Environment variable, used when the config does not set `baseUrl`.
 4. **Default**: `http://localhost:3000`.
 
 ### Server Hostname & Port

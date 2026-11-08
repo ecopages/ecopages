@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestAppConfig } from '@ecopages/testing';
 import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
@@ -43,7 +43,7 @@ describe('handler-rendered view asset cache', () => {
 	});
 
 	it('processes each stylesheet and script once when the same view renders twice', async () => {
-		rootDir = mkdtempSync(path.join(tmpdir(), 'render-context-assets-'));
+		rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'render-context-assets-')));
 		const viewDir = path.join(rootDir, 'src', 'views');
 		mkdirSync(viewDir, { recursive: true });
 		writeFileSync(path.join(viewDir, 'site.css'), 'body { color: red; }');
@@ -72,7 +72,7 @@ describe('handler-rendered view asset cache', () => {
 	});
 
 	it('processes each stylesheet and script once when the same view renders twice at once', async () => {
-		rootDir = mkdtempSync(path.join(tmpdir(), 'render-context-assets-'));
+		rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'render-context-assets-')));
 		const viewDir = path.join(rootDir, 'src', 'views');
 		mkdirSync(viewDir, { recursive: true });
 		writeFileSync(path.join(viewDir, 'site.css'), 'body { color: red; }');

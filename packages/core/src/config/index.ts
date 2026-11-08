@@ -19,4 +19,6 @@ export type {
 	EcoPagesUserConfigFactory,
 	LoadedEcoPagesUserConfig,
 	LoadEcoPagesConfigOptions,
+	ResponseHeaderRule,
 } from './user-config-types.ts';
+export type { GlobalScriptResolution } from './assembly/app-runtime.ts';

@@ -4,16 +4,17 @@ export {
 	AssetFactory,
 	type AssetProcessingIntegration,
 	AssetProcessingService,
-	buildBrowserRuntimeAssetUrl,
 	type ContentScriptAsset,
 	createAppBrowserClientEntry,
-	createBrowserRuntimeModuleAsset,
-	createBrowserRuntimeScriptAsset,
 	type ProcessedAsset,
 } from './assets/asset-processing-service/index.ts';
 export type { AppRuntime } from './config/assembly/app-runtime.ts';
 export { requireAppRuntime } from './utils/app-runtime.ts';
-export { DEV_TRANSFORM_URL_PREFIX, type DevTransformBundleContributor } from './dev/transform-server/index.ts';
+export {
+	DEV_TRANSFORM_URL_PREFIX,
+	type DevTransformBundleContributor,
+	type DevTransformVendorEntries,
+} from './dev/transform-server/index.ts';
 export {
 	type ForeignChildInterceptionInput,
 	type ForeignChildInterceptionResult,
@@ -21,6 +22,7 @@ export {
 	runWithComponentRenderContext,
 } from './eco/component-render-context.ts';
 export { ensurePageConfigLayouts } from './eco/page-layout-normalization.ts';
+export { moveMdxMetadataOntoPage } from './eco/mdx-page-metadata.ts';
 export {
 	collectJsxExtensions,
 	createJsxImportSourcePragma,
@@ -36,19 +38,22 @@ export {
 	type DocumentShellLayoutResolutionInput,
 	type LayoutShellPropsContext,
 } from './route-renderer/orchestration/document-shell/layout-shell-props.service.ts';
+export { LayoutChildrenNotRenderedError } from './route-renderer/orchestration/document-shell/layout-children-not-rendered-error.ts';
 export { isRegisteredDevTransformEntrypoint, isRegisteredScriptEntrypoint } from './hmr/hmr-entrypoint-output.ts';
 export { type HmrRegisteredEntrypointsContext } from './hmr/hmr-registered-entrypoints-context.ts';
 export { HmrStrategy, HmrStrategyType } from './hmr/hmr-strategy.ts';
+export { getStylesheetKinds, type StylesheetKinds } from './plugins/stylesheet-kinds.ts';
 export { type DefinedIntegration, defineIntegration } from './plugins/define-integration.ts';
 export {
 	type AnyIntegrationPlugin,
+	type EcoBuildFilter,
 	type EcoBuildOnLoadArgs,
 	type EcoBuildOnLoadResult,
-	type EcoBuildImportKind,
 	type EcoBuildOnResolveArgs,
 	type EcoBuildOnResolveResult,
 	type EcoBuildPlugin,
 	type EcoBuildPluginBuilder,
+	type EcoBuildResolvedId,
 	IntegrationPlugin,
 	type IntegrationPluginConfig,
 	type IntegrationRendererBase,
@@ -66,12 +71,15 @@ export {
 	type CustomElementScriptPreloadScopeState,
 	type CustomElementSsrPreloadComponent,
 	invalidateCustomElementScriptPreload,
+	type SsrScriptAssignment,
+	type SsrScriptPreload,
+	type SsrScriptPreloadDeclaration,
+	type SsrScriptPreloaderInit,
 } from './route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader.ts';
 export {
 	createCustomElementServerModuleImporter,
 	createSharedServerModuleImporter,
 } from './route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer.ts';
-export { createCustomElementSsrPipelineImporter } from './route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint.ts';
 export {
 	type DocumentShellComposeChildrenContext,
 	type DocumentShellComposeChildrenResult,
@@ -90,7 +98,9 @@ export {
 	type IntegrationRendererHookFactoryOptions,
 	type IntegrationRendererHooks,
 	type IntegrationRendererOptions,
+	type PageBrowserGraphContribution,
 	type PageBrowserGraphContributionContext,
+	type PageBrowserGraphDeclaration,
 	type PageClientBrowserAssets,
 	type PageClientBuildEntry,
 	type PageClientPlan,

@@ -50,6 +50,28 @@ await watcher.close();
 
 `watch()` reports file changes as `add`, `change` or `unlink`, and directory changes as `addDir` or `unlinkDir`. Atomic replacement of an existing file is reported as one `change`. If a native event omits its filename, `watch()` reconciles the native root and can emit a `rescan` event for each mapped requested root; consumers should invalidate those roots once. A missing root is watched from its nearest existing parent and begins reporting once it is created. `add()` extends the running subscription and indexes entries already present under the new paths without reporting them. If registration fails, the added paths are rolled back so callers can retry them. Permission-denied children are skipped during indexing so accessible siblings remain watched. Symlinked roots are reported using the path passed to `watch()`. The optional `ignored` predicate runs before existing subdirectory contents are indexed, so ignored subtrees are not scanned. A path the predicate ignores when called without stats is also skipped by the native recursive watcher; on Linux, where Node opens one inotify watch per entry of a recursive root, that keeps trees such as `node_modules` from costing kernel watches. Return `true` without stats only for paths that stay ignored, because a predicate that widens later can only do so for answers given with stats. A directory removed while it is being indexed is treated as gone, not as an error.
 
+## Paths
+
+`@ecopages/file-system/path` holds the path convention of Ecopages: every path uses forward slashes, and an absolute Windows path keeps its drive letter as given (`D:/app/src/page.tsx`); use `path.isWithin` rather than a string prefix to test containment. Its operations mirror `node:path` (`join`, `resolve`, `relative`, `dirname`, `basename`, `extname`, `isAbsolute`, `normalize`, `parse`, `format`, `matchesGlob`) and always return that form. Paths that `fileSystem` returns, from `realpath`, `glob`, `readdir`, `readlink`, `mkdtemp`, `tempDir` and `watch`, are in it too.
+
+```typescript
+import { path } from '@ecopages/file-system/path';
+
+const page = path.join(rootDir, 'src', 'pages', 'index.tsx');
+const here = path.fromFileUrl(import.meta.url);
+const module = await import(path.toFileUrl(page).href);
+```
+
+| Export                           | Description                                                     |
+| :------------------------------- | :-------------------------------------------------------------- |
+| `path.cwd()`                     | The working directory, in this form                             |
+| `path.isWithin(directory, file)` | Whether `file` is `directory` or below it                       |
+| `path.fromNative(path)`          | Convert a native path, such as `import.meta.dirname`            |
+| `path.toNative(path)`            | Convert to backslashes on Windows, for a tool that needs them   |
+| `path.fromFileUrl(url)`          | Convert a `file:` URL to a path                                 |
+| `path.toFileUrl(path)`           | Convert a path to a `file:` URL, as `import()` needs on Windows |
+| `createPath('posix' \| 'win32')` | The same operations for one host flavor, for tests              |
+
 ## API
 
 | Method                             | Description                                   |
@@ -71,15 +93,16 @@ await watcher.close();
 | `gzipDir(path, extensions)`        | Gzip files in directory                       |
 | `isDirectory(path)`                | Check if path is directory                    |
 | `realpath(path)`                   | Resolve symlinks to canonical path            |
-| `stat(path)`                       | Kind and size, following symlinks             |
-| `lstat(path)`                      | Kind and size of the path itself              |
+| `stat(path)`                       | Kind, size and mtime, following symlinks      |
+| `lstat(path)`                      | Kind, size and mtime of the path itself       |
 | `readdir(path, options)`           | List entries with their kind                  |
 | `readlink(path)`                   | Read a symlink's stored target                |
 | `mkdtemp(prefix)`                  | Create a uniquely named directory             |
+| `tempDir()`                        | The OS directory for temporary files          |
 | `rename(src, dest)`                | Move a file or directory                      |
 | `verifyFileExists(path)`           | Throw if file doesn't exist                   |
 | `watch(paths, options)`            | Watch paths; the returned handle can add more |
 | `installFileSystem(next)`          | Replace the process-wide `fileSystem` (tests) |
 | `createRecordingFileSystem(inner)` | Wrap `inner` and record every path argument   |
 
-`stat`, `lstat` and `readdir` return plain objects (`isFile`, `isDirectory`, `isSymbolicLink`, plus `size` for stats). `readdir(path, { recursive: true })` also lists subdirectories, naming each entry by its path relative to `path`. `stat`, `lstat`, `readdir`, `readlink`, `mkdtemp` and `rename` throw Node's error unchanged, so a missing path can be detected by `error.code === 'ENOENT'`.
+`stat`, `lstat` and `readdir` return plain objects (`isFile`, `isDirectory`, `isSymbolicLink`, plus `size` and `mtimeMs` for stats). `readdir(path, { recursive: true })` also lists subdirectories, naming each entry by its path relative to `path`. `stat`, `lstat`, `readdir`, `readlink`, `mkdtemp` and `rename` throw Node's error unchanged, so a missing path can be detected by `error.code === 'ENOENT'`.

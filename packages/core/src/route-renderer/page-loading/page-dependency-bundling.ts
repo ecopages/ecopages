@@ -1,11 +1,17 @@
 import { fileSystem } from '@ecopages/file-system';
+import { PLAIN_CSS_KINDS, type StylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import type {
 	AssetDefinition,
 	FileScriptAsset,
 	FileStylesheetAsset,
 } from '../../assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
+import {
+	isExternalReference,
+	listCssReferences,
+} from '../../assets/asset-processing-service/processors/stylesheet/css-scanner.ts';
 import { contentHash } from '../../utils/content-hash.ts';
+import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 
 /**
@@ -26,43 +32,13 @@ function hasOnlyExpectedAttributes(
 	return expectedKeys.every((key) => attributes?.[key] === expected[key]);
 }
 
-function isSafeBundledStylesheetReference(reference: string): boolean {
-	return (
-		reference.startsWith('/') ||
-		reference.startsWith('data:') ||
-		reference.startsWith('http://') ||
-		reference.startsWith('https://') ||
-		reference.startsWith('#')
-	);
-}
-
-/**
- * Normalizes CSS URL tokens before safety checks so quoted and unquoted forms are treated equally.
- */
-function normalizeCssReferenceToken(token: string): string {
-	return token.trim().replace(/^['"]|['"]$/g, '');
-}
-
 /**
  * Rejects stylesheet content that contains relative references which would stop
  * working once multiple files are collapsed into one page-owned bundle.
  */
 function isSafeBundledStylesheetContent(content: string): boolean {
-	for (const match of content.matchAll(/@import\s+(?:url\()?['"]?([^'")\s]+)['"]?\)?/g)) {
-		const reference = normalizeCssReferenceToken(match[1] ?? '');
-		if (reference && !isSafeBundledStylesheetReference(reference)) {
-			return false;
-		}
-	}
-
-	for (const match of content.matchAll(/url\(([^)]+)\)/g)) {
-		const reference = normalizeCssReferenceToken(match[1] ?? '');
-		if (reference && !isSafeBundledStylesheetReference(reference)) {
-			return false;
-		}
-	}
-
-	return true;
+	const { references, imports } = listCssReferences(content);
+	return references.length === 0 && imports.every((statement) => isExternalReference(statement.specifier));
 }
 
 function isBundleableFileStylesheetAsset(dependency: AssetDefinition): dependency is FileStylesheetAsset {
@@ -90,6 +66,8 @@ export function shouldBundlePageDependencies(bundlesPageDependencies: boolean): 
 function createPageDependencyPackagingPlan(
 	dependencies: AssetDefinition[],
 	integrationName: string,
+	rootDir: string,
+	stylesheets: StylesheetKinds,
 ): PageDependencyPackagingPlan | undefined {
 	const shouldBundleDependencies = isProductionRuntime();
 
@@ -109,6 +87,10 @@ function createPageDependencyPackagingPlan(
 
 			if (dependency.source === 'content') {
 				return isSafeBundledStylesheetContent(dependency.content);
+			}
+
+			if (dependency.fromPackage || stylesheets.isCssModule(dependency.filepath)) {
+				return false;
 			}
 
 			if (!fileSystem.exists(dependency.filepath)) {
@@ -167,7 +149,7 @@ function createPageDependencyPackagingPlan(
 	for (const run of collectContiguousEligibleRuns(dependencies, isEligibleScript)) {
 		const pageScriptImports = [...new Set(run.assets.map((dependency) => dependency.filepath))];
 		const bundledScript = AssetFactory.createContentScript({
-			name: `${integrationName}-page-${contentHash(pageScriptImports.join('|'), 16)}`,
+			name: `${integrationName}-page-${contentHash(pageScriptImports.map((filepath) => toRootRelativePath(rootDir, filepath)).join('|'), 16)}`,
 			content: pageScriptImports.map((filepath) => `import ${JSON.stringify(filepath)};`).join('\n'),
 			position: 'head',
 			attributes: { type: 'module', defer: '' },
@@ -247,18 +229,22 @@ function applyPageDependencyPackagingPlan(
  * Rewrites eligible flat dependency declarations into page-owned stylesheet and script bundles.
  *
  * Only consecutive assets with the default attribute shape and without explicit packaging roles are
- * collapsed so integration-specific, lazy, or custom-attribute assets keep their declared order.
+ * collapsed so integration-specific, lazy, or custom-attribute assets keep their declared order. A CSS Module is
+ * never collapsed: the bundle concatenates the stylesheet sources and processes the result as one plain stylesheet,
+ * which would leave its classes unscoped, so it stays a link of its own, scoped by the Processor.
  */
 export function packagePageDependencies(
 	dependencies: AssetDefinition[],
 	integrationName: string,
 	bundlesPageDependencies: boolean,
+	rootDir: string,
+	stylesheets: StylesheetKinds = PLAIN_CSS_KINDS,
 ): AssetDefinition[] {
 	if (!shouldBundlePageDependencies(bundlesPageDependencies)) {
 		return dependencies;
 	}
 
-	const plan = createPageDependencyPackagingPlan(dependencies, integrationName);
+	const plan = createPageDependencyPackagingPlan(dependencies, integrationName, rootDir, stylesheets);
 	if (!plan) {
 		return dependencies;
 	}

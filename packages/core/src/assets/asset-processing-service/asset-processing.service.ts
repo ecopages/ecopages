@@ -1,7 +1,8 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
+import { keepsLastGoodOutput, reportAssetFailure } from './last-good-output.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../config/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -24,10 +25,10 @@ import {
 } from './grouped-content-bundles.ts';
 import type { AssetProcessor } from './processor.interface.ts';
 import { materializeContentScriptAsset } from './materialize-content-script-asset.ts';
-import { clearPageCacheForBrowserRuntimeAssetChange } from '../browser-runtime-asset-page-cache.ts';
-import { isBrowserRuntimeAssetRole } from './asset-package-role.ts';
+import { clearPageCacheForPageScriptChange } from '../page-script-page-cache.ts';
 import type { AssetProcessingIntegration } from './asset-processing-integration.ts';
 import { finalizeProcessedAsset } from './finalize-processed-asset.ts';
+import { isBundleableScript } from './bundleable-script.ts';
 import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,
@@ -80,6 +81,13 @@ function isFileScriptBundle(dependencies: AssetDefinition[]): dependencies is Fi
 	);
 }
 
+/** Names `dep` in an error message: its file or package path, else its name, else that it is inline content. */
+function describeAsset(dep: AssetDefinition): string {
+	if ('filepath' in dep) return dep.filepath;
+	if ('importPath' in dep) return dep.importPath;
+	return `${dep.source} ${'name' in dep && dep.name ? dep.name : 'content'}`;
+}
+
 /**
  * Processes declared component and page asset dependencies for one app instance.
  *
@@ -89,6 +97,23 @@ function isFileScriptBundle(dependencies: AssetDefinition[]): dependencies is Fi
  * output URL normalization, and production gzip preparation so route rendering
  * and HMR flows do not need to understand processor-specific behavior.
  */
+/**
+ * Applies the deduplication and Integration preparation that {@link AssetProcessingService.processDependencies}
+ * runs first.
+ *
+ * @remarks
+ * The production prebuild uses it to collect scripts under the same dependency keys that rendering later
+ * looks up in `AppRuntime.processedAssets`.
+ */
+export function prepareAssetDependencies(
+	deps: AssetDefinition[],
+	integration: AssetProcessingIntegration | undefined,
+	rootDir: string,
+): AssetDefinition[] {
+	const dedupedDeps = deduplicateAssetDependencies(deps, rootDir);
+	return ensureGroupedContentScriptsBundle(integration?.prepareAssetDependencies?.(dedupedDeps) ?? dedupedDeps);
+}
+
 export class AssetProcessingService {
 	static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
 	private readonly processors: AssetProcessorRecord = { script: {}, stylesheet: {} };
@@ -96,6 +121,10 @@ export class AssetProcessingService {
 	private cache = new Map<string, CachedAsset>();
 	private readonly groupedBundleCache = new Map<string, CachedGroupedBundle>();
 	private readonly inFlight = new Map<string, Promise<unknown>>();
+	/** The latest successfully processed output of each dependency in development, which a failed edit falls back to. */
+	private readonly lastGoodAssets = new Map<string, ProcessedAsset>();
+	/** The latest successfully processed bundle of each grouped script bundle in development. */
+	private readonly lastGoodGroupedBundles = new Map<string, ProcessedAsset[]>();
 	private readonly gzippedFiles = new Set<string>();
 	private readonly config: EcoPagesAppConfig;
 
@@ -113,6 +142,10 @@ export class AssetProcessingService {
 				this.invalidateCacheForFile(filePath);
 			}
 		});
+	}
+
+	private getDependencyKey(dep: AssetDefinition): string {
+		return getAssetDependencyKey(dep, this.config.rootDir);
 	}
 
 	/**
@@ -176,21 +209,65 @@ export class AssetProcessingService {
 	 * entries. Returned asset order is unspecified — consumers must re-associate
 	 * outputs with inputs via dependency metadata such as `groupedBundle`, not by
 	 * array index alignment with the input list.
+	 *
+	 * Once the app-wide browser build ran, in this process or in the restored build, a script it can bundle
+	 * resolves to the output the asset ledger records for it, so scripts it bundled together share chunks.
+	 *
+	 * Once `ecopages start` sealed the ledger, every dependency resolves to its recorded output and nothing is
+	 * compiled or written; a dependency the ledger does not record is an error.
 	 */
 	async processDependencies(
 		deps: AssetDefinition[],
 		integration: AssetProcessingIntegration | undefined,
 	): Promise<ProcessedAsset[]> {
-		const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
-		fileSystem.ensureDir(depsDir);
+		const preparedDeps = prepareAssetDependencies(deps, integration, this.config.rootDir);
+		const ledger = requireAppRuntime(this.config).processedAssets;
+		if (ledger.isSealed) {
+			return preparedDeps.map((dep) => this.requireRecordedAsset(dep));
+		}
 
-		const dedupedDeps = deduplicateAssetDependencies(deps);
-		const preparedDeps = integration?.prepareAssetDependencies?.(dedupedDeps) ?? dedupedDeps;
-		ensureGroupedContentScriptsBundle(preparedDeps);
-		const results = await this.processDependenciesParallel(preparedDeps);
+		fileSystem.ensureDir(path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
+		const prebuilt: ProcessedAsset[] = [];
+		const pending: AssetDefinition[] = [];
+		for (const dep of preparedDeps) {
+			const asset = ledger.hasBrowserBuild && isBundleableScript(dep) ? this.lookupRecordedAsset(dep) : undefined;
+			if (asset) {
+				prebuilt.push(asset);
+			} else {
+				pending.push(dep);
+			}
+		}
+		const results = await this.processDependenciesParallel(pending);
 
 		await this.optimizeDependencies(results);
-		return results;
+		return [...prebuilt, ...results];
+	}
+
+	/**
+	 * Returns the emitted form of `dep` the production build recorded, if any.
+	 *
+	 * @remarks
+	 * A recorded output that is gone is an error: serving the Page without it would drop its styles or scripts.
+	 */
+	private lookupRecordedAsset(dep: AssetDefinition): ProcessedAsset | undefined {
+		const recorded = requireAppRuntime(this.config).processedAssets.lookup(dep);
+		if (recorded?.filepath && !fileSystem.exists(recorded.filepath)) {
+			throw new Error(
+				`The production build recorded ${path.relative(this.config.rootDir, recorded.filepath)} but it is missing. Run \`ecopages build\` again.`,
+			);
+		}
+		return recorded;
+	}
+
+	private requireRecordedAsset(dep: AssetDefinition): ProcessedAsset {
+		const recorded = this.lookupRecordedAsset(dep);
+		if (!recorded) {
+			const ledger = requireAppRuntime(this.config).processedAssets;
+			throw new Error(
+				`The production build did not record the ${dep.kind} ${ledger.describe(dep)}. Run \`ecopages build\` again.`,
+			);
+		}
+		return finalizeProcessedAsset(recorded, (processed) => this.resolveProcessedAssetSrcUrl(processed));
 	}
 
 	/**
@@ -207,19 +284,18 @@ export class AssetProcessingService {
 			const { groupedBundleDeps, ungroupedDeps } = partitionGroupedContentScriptDependencies(typeDeps);
 
 			const typePromises = ungroupedDeps.map((dep) =>
-				this.shareInFlight(getAssetDependencyKey(dep), () => this.processUngroupedDependency(dep)),
+				this.shareInFlight(this.getDependencyKey(dep), () => this.processUngroupedDependency(dep)),
 			);
 
 			const groupedBundles = Array.from(groupedBundleDeps.values());
 			const groupedKey = groupedBundles
-				.flatMap((bundle) => bundle.map(getAssetDependencyKey))
+				.flatMap((bundle) => bundle.map((dep) => this.getDependencyKey(dep)))
 				.sort()
 				.join('|');
-			const groupedResults = await this.shareInFlight(`grouped:${groupedKey}`, () =>
-				this.processGroupedDependencyBundles(groupedBundles),
-			);
-
-			const typeResults = await Promise.all(typePromises);
+			const [groupedResults, typeResults] = await Promise.all([
+				this.shareInFlight(`grouped:${groupedKey}`, () => this.processGroupedDependencyBundles(groupedBundles)),
+				Promise.all(typePromises),
+			]);
 			const processedTypeResults = typeResults.flatMap((result) => {
 				if (!result) {
 					return [];
@@ -236,7 +312,7 @@ export class AssetProcessingService {
 	}
 
 	private async processUngroupedDependency(dep: AssetDefinition): Promise<ProcessedAsset | null> {
-		const dependencyKey = getAssetDependencyKey(dep);
+		const dependencyKey = this.getDependencyKey(dep);
 		const cached = this.getCachedAsset(dep, dependencyKey);
 		if (cached) {
 			return finalizeProcessedAsset(cached, (processed) => this.resolveProcessedAssetSrcUrl(processed));
@@ -256,11 +332,49 @@ export class AssetProcessingService {
 
 			const finalized = finalizeProcessedAsset(processed, (asset) => this.resolveProcessedAssetSrcUrl(asset));
 			this.setCachedAsset(dep, dependencyKey, finalized);
+			if (keepsLastGoodOutput(this.config)) this.lastGoodAssets.set(dependencyKey, finalized);
 			return finalized;
 		} catch (error) {
-			appLogger.error(`Failed to process ${dep.kind}/${dep.source} dependency:`, error);
-			return null;
+			if (keepsLastGoodOutput(this.config)) return this.recoverAsset(dep, dependencyKey, error);
+			return this.handleProcessingFailure(`${dep.kind}/${dep.source} dependency`, error, null);
 		}
+	}
+
+	/**
+	 * Reports a failed `dep` and answers with its last good output, or with no asset when it never processed, so the
+	 * Page renders without the link or script.
+	 *
+	 * @remarks
+	 * Only called where {@link keepsLastGoodOutput} holds. The last good file is still on disk, since a failed
+	 * transform or bundle writes nothing; one that is gone counts as never processed.
+	 */
+	private recoverAsset(dep: AssetDefinition, dependencyKey: string, error: unknown): ProcessedAsset | null {
+		reportAssetFailure(this.config, dep.kind, describeAsset(dep), error);
+		return this.usableLastGood(this.lastGoodAssets.get(dependencyKey));
+	}
+
+	private usableLastGood(lastGood: ProcessedAsset | undefined): ProcessedAsset | null {
+		return lastGood && (lastGood.inline || !lastGood.filepath || fileSystem.exists(lastGood.filepath))
+			? lastGood
+			: null;
+	}
+
+	/**
+	 * Rethrows a processor failure so the build, or the request, fails with the bundler's message.
+	 *
+	 * @remarks
+	 * A production server answering requests outside a build keeps serving the Page without the
+	 * asset and logs the error: its request-time rebuilds can fail where the build did not, for example
+	 * when the source tree was not deployed, and that is a separate defect from a build that exits 0.
+	 * During static generation a failed asset is never dropped silently. Development does not reach this rule:
+	 * it keeps the last good output (see {@link keepsLastGoodOutput}).
+	 */
+	private handleProcessingFailure<T>(label: string, error: unknown, fallback: T): T {
+		if (!isProductionRuntime() || requireAppRuntime(this.config).staticGenerationActive) {
+			throw error;
+		}
+		appLogger.error(`Failed to process ${label}:`, error);
+		return fallback;
 	}
 
 	private runProcessor(dep: AssetDefinition): Promise<ProcessedAsset> | undefined {
@@ -293,7 +407,7 @@ export class AssetProcessingService {
 	private async processGroupedDependencyBundles(bundles: AssetDefinition[][]): Promise<ProcessedAsset[]> {
 		const processedBundles = await Promise.all(
 			bundles.map(async (bundleDeps) => {
-				const dependencyKeys = bundleDeps.map(getAssetDependencyKey);
+				const dependencyKeys = bundleDeps.map((dep) => this.getDependencyKey(dep));
 				const cachedBundle = this.getCachedGroupedBundle(bundleDeps, dependencyKeys);
 				if (cachedBundle) {
 					return cachedBundle.map((asset) =>
@@ -301,48 +415,60 @@ export class AssetProcessingService {
 					);
 				}
 
+				let processedAssets: ProcessedAsset[] | undefined;
 				try {
-					const processedAssets = await this.runGroupedProcessor(bundleDeps);
-					if (!processedAssets) {
-						return [];
-					}
-
-					const processedByEntryKey = new Map<string, ProcessedAsset>();
-					for (const processed of processedAssets) {
-						if (processed.groupedBundle) {
-							processedByEntryKey.set(
-								`${processed.groupedBundle.id}:${processed.groupedBundle.entryName}`,
-								processed,
-							);
-						}
-					}
-
-					const processedBundle = bundleDeps.flatMap((dep) => {
-						if (dep.kind !== 'script' || !dep.groupedBundle) {
-							return [];
-						}
-						const asset = processedByEntryKey.get(`${dep.groupedBundle.id}:${dep.groupedBundle.entryName}`);
-						return asset
-							? [
-									finalizeProcessedAsset(asset, (processed) =>
-										this.resolveProcessedAssetSrcUrl(processed),
-									),
-								]
-							: [];
-					});
-
-					if (processedBundle.length === bundleDeps.length) {
-						this.setCachedGroupedBundle(bundleDeps, dependencyKeys, processedBundle);
-					}
-					return processedBundle;
+					processedAssets = await this.runGroupedProcessor(bundleDeps);
 				} catch (error) {
-					appLogger.error('Failed to process grouped dependency bundle:', error);
+					if (keepsLastGoodOutput(this.config)) return this.recoverGroupedBundle(bundleDeps, error);
+					return this.handleProcessingFailure('grouped dependency bundle', error, []);
+				}
+				if (!processedAssets) {
 					return [];
 				}
+
+				const processedByEntryKey = new Map<string, ProcessedAsset>();
+				for (const processed of processedAssets) {
+					if (processed.groupedBundle) {
+						processedByEntryKey.set(
+							`${processed.groupedBundle.id}:${processed.groupedBundle.entryName}`,
+							processed,
+						);
+					}
+				}
+
+				const processedBundle = bundleDeps.flatMap((dep) => {
+					if (dep.kind !== 'script' || !dep.groupedBundle) {
+						return [];
+					}
+					const asset = processedByEntryKey.get(`${dep.groupedBundle.id}:${dep.groupedBundle.entryName}`);
+					return asset
+						? [finalizeProcessedAsset(asset, (processed) => this.resolveProcessedAssetSrcUrl(processed))]
+						: [];
+				});
+
+				if (processedBundle.length === bundleDeps.length) {
+					this.setCachedGroupedBundle(bundleDeps, dependencyKeys, processedBundle);
+					const groupKey = this.getGroupedBundleCacheKey(bundleDeps);
+					if (groupKey && keepsLastGoodOutput(this.config)) {
+						this.lastGoodGroupedBundles.set(groupKey, processedBundle);
+					}
+				}
+				return processedBundle;
 			}),
 		);
 
 		return processedBundles.flat();
+	}
+
+	/**
+	 * Reports a failed grouped script bundle and answers with the last good bundle of the same group, or with no
+	 * assets when it never built.
+	 */
+	private recoverGroupedBundle(bundleDeps: AssetDefinition[], error: unknown): ProcessedAsset[] {
+		reportAssetFailure(this.config, 'script', bundleDeps.map(describeAsset).join(', '), error);
+		const groupKey = this.getGroupedBundleCacheKey(bundleDeps);
+		const lastGood = groupKey ? this.lastGoodGroupedBundles.get(groupKey) : undefined;
+		return lastGood?.every((asset) => this.usableLastGood(asset)) ? lastGood : [];
 	}
 
 	private runGroupedProcessor(deps: AssetDefinition[]): Promise<ProcessedAsset[]> | undefined {
@@ -400,7 +526,7 @@ export class AssetProcessingService {
 		const distDir = this.config.absolutePaths.distDir;
 		if (!path.isAbsolute(filepath) || !isPathInside(filepath, distDir)) return undefined;
 
-		return `/${path.relative(distDir, filepath).replace(/\\/g, '/')}`;
+		return `/${path.relative(distDir, filepath)}`;
 	}
 
 	/**
@@ -445,7 +571,7 @@ export class AssetProcessingService {
 			return true;
 		}
 
-		return /^[A-Za-z]:\\/.test(value);
+		return /^[A-Za-z]:\//.test(path.fromNative(value));
 	}
 
 	/**
@@ -588,7 +714,16 @@ export class AssetProcessingService {
 		}
 	}
 
+	/**
+	 * @remarks
+	 * A bundled inline script keeps its code and no output file, so it is reused as cached.
+	 */
 	private getCachedContentScriptAsset(dep: ContentScriptAsset, depKey: string): ProcessedAsset | null {
+		const cachedInline = this.cache.get(depKey)?.asset;
+		if (cachedInline?.inline && !cachedInline.filepath && cachedInline.content !== undefined) {
+			return cachedInline;
+		}
+
 		const filepath = this.resolveCachedContentScriptFilepath(depKey);
 
 		if (!filepath) {
@@ -631,38 +766,41 @@ export class AssetProcessingService {
 	 * Stores one processed asset in the dependency cache.
 	 *
 	 * @remarks
-	 * Clears the development HTML cache when a runtime or page-script asset is stored over an
+	 * Clears the development HTML cache when a page-script asset is stored over an
 	 * existing entry under a new file path, because cached pages embed the previous URL. This
 	 * happens when a grouped bundle is rebuilt for a new member and re-emits its cached siblings.
 	 */
 	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
 		const previous = this.cache.get(depKey)?.asset;
-		const isBrowserRuntimeAsset = isBrowserRuntimeAssetRole(dep.packageRole);
+		const isPageScript = dep.packageRole === 'page-script';
 
 		this.cache.set(depKey, {
 			asset,
 			sourceHash: this.getFileSourceHash(asset.sourceFilepath ?? this.getDependencySourceFilepath(dep)),
 		});
+		if (isProductionRuntime()) {
+			requireAppRuntime(this.config).processedAssets.record(dep, asset);
+		}
 		if (asset.filepath) {
 			this.gzippedFiles.delete(asset.filepath);
 		}
 
-		if (isBrowserRuntimeAsset && previous !== undefined && previous.filepath !== asset.filepath) {
-			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
+		if (isPageScript && previous !== undefined && previous.filepath !== asset.filepath) {
+			void clearPageCacheForPageScriptChange(this.config);
 		}
 	}
 
 	/**
 	 * Removes a cached asset and clears the development HTML cache when the
-	 * removed asset can determine browser runtime URLs.
+	 * removed asset is a page script, whose URL cached pages embed.
 	 */
 	private invalidateCachedAsset(depKey: string): void {
 		const cached = this.cache.get(depKey);
 		this.cache.delete(depKey);
 		this.invalidateGroupedBundlesContaining(depKey);
 
-		if (isBrowserRuntimeAssetRole(cached?.asset.packageRole)) {
-			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
+		if (cached?.asset.packageRole === 'page-script') {
+			void clearPageCacheForPageScriptChange(this.config);
 		}
 	}
 
@@ -684,7 +822,7 @@ export class AssetProcessingService {
 	private invalidateCacheForFile(filepath: string): void {
 		this.inFlight.clear();
 		const resolvedPath = path.resolve(filepath);
-		let invalidatesBrowserRuntime = false;
+		let invalidatesPageScript = false;
 		const invalidatedKeys = new Set<string>();
 		for (const [key, value] of this.cache.entries()) {
 			if (
@@ -692,7 +830,7 @@ export class AssetProcessingService {
 				(value.asset.sourceFilepath && path.resolve(value.asset.sourceFilepath) === resolvedPath) ||
 				value.asset.bundledSourceFilepaths?.some((sourcePath) => path.resolve(sourcePath) === resolvedPath)
 			) {
-				invalidatesBrowserRuntime ||= isBrowserRuntimeAssetRole(value.asset.packageRole);
+				invalidatesPageScript ||= value.asset.packageRole === 'page-script';
 				this.cache.delete(key);
 				invalidatedKeys.add(key);
 			}
@@ -700,8 +838,8 @@ export class AssetProcessingService {
 		for (const key of invalidatedKeys) {
 			this.invalidateGroupedBundlesContaining(key);
 		}
-		if (invalidatesBrowserRuntime) {
-			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
+		if (invalidatesPageScript) {
+			void clearPageCacheForPageScriptChange(this.config);
 		}
 	}
 
@@ -719,7 +857,11 @@ export class AssetProcessingService {
 	static createWithDefaultProcessors(appConfig: EcoPagesAppConfig): AssetProcessingService {
 		const service = new AssetProcessingService(appConfig);
 
-		service.registerProcessor('script', 'content', new ContentScriptProcessor({ appConfig }));
+		service.registerProcessor(
+			'script',
+			'content',
+			new ContentScriptProcessor({ appConfig, getHmrManager: () => service.getHmrManager() }),
+		);
 		service.registerProcessor(
 			'script',
 			'file',

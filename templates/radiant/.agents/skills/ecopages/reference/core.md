@@ -46,7 +46,7 @@ Ecopages does not auto-detect script files by name pattern.
 
 ```tsx
 export default eco.page({
-	metadata: () => ({ title: 'My Page' }),
+	metadata: () => ({ title: 'My Page', description: 'An example page' }),
 	render: () => <h1>Hello</h1>,
 });
 ```
@@ -76,16 +76,15 @@ In files declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
 import { Counter } from './counter';
 import './my-component.css';
 
-export const MyComponent = eco.component<{ title: string }, JsxRenderable>({
+export const MyComponent = eco.component({
 	dependencies: {
 		// scripts remain explicit; Counter and my-component.css are discovered automatically
 		scripts: [{ src: './my-component.script.ts', ssr: true, lazy: { 'on:visible': true } }],
 	},
-	render: ({ title }) => (
+	render: ({ title }: { title: string }) => (
 		<div>
 			<h2>{title}</h2>
 			<Counter />

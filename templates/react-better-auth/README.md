@@ -30,7 +30,7 @@ This app features an **editorial/magazine aesthetic** with:
 
 ### Prerequisites
 
-- Node.js 24 or later (Bun is optional)
+- Node.js 24.22 or later in the 24 line, or Node.js 26 or later (Bun is optional)
 
 ### Installation
 

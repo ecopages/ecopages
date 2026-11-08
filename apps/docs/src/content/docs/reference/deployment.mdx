@@ -44,6 +44,14 @@ If your site **does not** use API routes or programmatic server logic, point you
 	</RuiAlertDescription>
 </RuiAlert>
 
+Response headers from `headers` in `eco.config.ts` apply only while Ecopages serves the files. A static host sends its own, so repeat them there, such as a `_headers` file on Netlify or Cloudflare Pages:
+
+```text
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+```
+
 ---
 
 ## Server Hosting (Node/Bun)
@@ -134,3 +142,7 @@ Before going live, check that these environment variables are set on your hostin
 | `ECOPAGES_BASE_URL` | Your production domain (e.g., `https://example.com`) |
 | `ECOPAGES_PORT`     | The port required by your host (e.g., `8080`)        |
 | `ECOPAGES_HOSTNAME` | `0.0.0.0` (for Docker/Cloud environments)            |
+
+## Under the hood
+
+How `ecopages build` and `ecopages start` produce and serve these files is described in [Build pipeline](/dev/build-pipeline).

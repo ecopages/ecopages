@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import type { BuildAdapter, BuildExecutor, BuildOptions, BuildResult } from '@ecopages/core/build';
 import { BuildQueue } from '@ecopages/core/build';
@@ -17,8 +17,6 @@ function successfulBuild(outputPath: string, sourceFilePath: string): BuildResul
 		success: true,
 		outputs: [{ path: outputPath }],
 		warnings: [],
-		loadedInputs: [],
-		loadedInputsByModule: {},
 		dependencyGraph: { entrypoints: {} },
 		entryOutputs: { [sourceFilePath]: outputPath },
 		outputGraph: {},
@@ -45,7 +43,7 @@ describe('content processor collection server module builds', () => {
 	let artifacts: Map<string, CollectionServerBuildArtifact>;
 
 	beforeEach(() => {
-		rootDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-collection-build-'));
+		rootDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'ecopages-collection-build-')));
 		artifacts = new Map();
 		generation = 0;
 	});

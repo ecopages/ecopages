@@ -9,6 +9,9 @@
 		"node"
 	],
 	"license": "MIT",
+	"engines": {
+		"node": "^24.22.0 || >=26.0.0"
+	},
 	"main": "./src/index.ts",
 	"type": "module",
 	"publishConfig": {
@@ -36,6 +39,10 @@
 		"./node": {
 			"import": "./src/adapters/node.ts",
 			"types": "./src/adapters/node.ts"
+		},
+		"./path": {
+			"import": "./src/path.ts",
+			"types": "./src/path.ts"
 		}
 	},
 	"devDependencies": {

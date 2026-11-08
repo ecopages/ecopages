@@ -3,7 +3,7 @@ import { userEvent } from 'vitest/browser';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/client';
-import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
+import { EcoRouter, PageContent } from '../src/router.ts';
 import { flushTasks } from './react-router.harness.ts';
 
 function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
@@ -47,7 +47,6 @@ describe('react-router navigation lifecycle', () => {
 		root?.unmount();
 		container?.remove();
 		vi.restoreAllMocks();
-		clearLayoutCache();
 		delete window.__ECO_PAGES__;
 	});
 
@@ -93,6 +92,7 @@ describe('react-router navigation lifecycle', () => {
 		await vi.waitFor(
 			() => {
 				expect(events).toEqual([
+					ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD,
 					ECO_NAVIGATION_LIFECYCLE_EVENTS.BEFORE_SWAP,
 					ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP,
 					ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD,
@@ -159,7 +159,7 @@ describe('react-router navigation lifecycle', () => {
 		await vi.waitFor(
 			() => {
 				expect(afterSwapSpy).toHaveBeenCalledTimes(1);
-				expect(pageLoadSpy).toHaveBeenCalledTimes(1);
+				expect(pageLoadSpy).toHaveBeenCalledTimes(2);
 			},
 			{ timeout: 2000 },
 		);
@@ -169,7 +169,100 @@ describe('react-router navigation lifecycle', () => {
 		await flushTasks();
 
 		expect(afterSwapSpy).toHaveBeenCalledTimes(1);
-		expect(pageLoadSpy).toHaveBeenCalledTimes(1);
+		expect(pageLoadSpy).toHaveBeenCalledTimes(2);
 		requestAnimationFrameSpy.mockRestore();
+	});
+	function renderRouter(page: ReturnType<typeof createLinkPage>) {
+		root = createRoot(container);
+		root.render(
+			createElement(EcoRouter, {
+				page,
+				pageProps: {},
+				options: { viewTransitions: false },
+				// oxlint-disable-next-line no-children-prop
+				children: createElement(PageContent),
+			}),
+		);
+	}
+
+	async function clickLink(name: string) {
+		const link = await vi.waitFor(() => {
+			const node = container.querySelector(`[data-testid="${name}-link"]`) as HTMLAnchorElement | null;
+			expect(node).not.toBeNull();
+			return node as HTMLAnchorElement;
+		});
+		await userEvent.click(link);
+	}
+
+	it('dispatches page-load once on the first load', async () => {
+		const pageLoadPaths: string[] = [];
+		const record = (event: Event) => pageLoadPaths.push((event as CustomEvent).detail.url.pathname);
+		document.addEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, record);
+
+		try {
+			renderRouter(createLinkPage('FirstLoad', '/next', 'Next'));
+
+			await vi.waitFor(() => expect(pageLoadPaths).toEqual([window.location.pathname]));
+		} finally {
+			document.removeEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, record);
+		}
+	});
+
+	it('dispatches page-load after a committed navigation on a real animation frame', async () => {
+		const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+		vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+			htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'done' }), { status: 200 }),
+		);
+		const pageLoadPaths: string[] = [];
+		const record = (event: Event) => pageLoadPaths.push((event as CustomEvent).detail.url.pathname);
+		document.addEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, record);
+
+		try {
+			renderRouter(createLinkPage('RealFrame', '/next', 'Next'));
+			await clickLink('RealFrame');
+
+			await vi.waitFor(() => expect(pageLoadPaths.filter((path) => path === '/next')).toHaveLength(1), {
+				timeout: 2000,
+			});
+		} finally {
+			document.removeEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, record);
+		}
+	});
+
+	it('skips page-load only for a navigation superseded before its frame runs', async () => {
+		const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+		vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
+			Promise.resolve(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'done' }), { status: 200 })),
+		);
+		const frames: FrameRequestCallback[] = [];
+		vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
+			frames.push(callback);
+			return frames.length;
+		});
+		const pageLoadPaths: string[] = [];
+		const record = (event: Event) => pageLoadPaths.push((event as CustomEvent).detail.url.pathname);
+		const afterSwap = vi.fn();
+		document.addEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, record);
+		document.addEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, afterSwap);
+
+		try {
+			renderRouter(createLinkPage('Superseded', '/first', 'First'));
+			await clickLink('Superseded');
+			await vi.waitFor(() => expect(afterSwap).toHaveBeenCalledTimes(1));
+
+			const secondLink = document.createElement('a');
+			secondLink.href = '/second';
+			secondLink.textContent = 'Second';
+			container.append(secondLink);
+			await userEvent.click(secondLink);
+			await vi.waitFor(() => expect(afterSwap).toHaveBeenCalledTimes(2));
+
+			for (const frame of frames) frame(performance.now());
+
+			expect(pageLoadPaths.filter((path) => path === '/first' || path === '/second')).toEqual(['/second']);
+		} finally {
+			document.removeEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, record);
+			document.removeEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, afterSwap);
+		}
 	});
 });

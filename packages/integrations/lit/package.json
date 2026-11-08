@@ -8,6 +8,9 @@
 		"plugin"
 	],
 	"license": "MIT",
+	"engines": {
+		"node": "^24.22.0 || >=26.0.0"
+	},
 	"main": "./src/lit.plugin.ts",
 	"types": "./src/lit.plugin.ts",
 	"type": "module",
@@ -26,6 +29,10 @@
 			"default": "./src/styled-mixin.ts",
 			"types": "./src/styled-mixin.ts"
 		},
+		"./hydrate-support": {
+			"default": "./src/lit-hydrate-support.ts",
+			"types": "./src/lit-hydrate-support.ts"
+		},
 		"./static-render-worker": {
 			"default": "./src/lit-static-render-worker.ts",
 			"types": "./src/lit-static-render-worker.ts"
@@ -38,6 +45,9 @@
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@ecopages/file-system": "workspace:*"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

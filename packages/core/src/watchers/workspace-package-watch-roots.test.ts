@@ -1,5 +1,5 @@
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import os from 'node:os';
 import { afterEach, expect, test } from 'vitest';
 import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 test('resolves hoisted linked dependencies with subpath-only exports and deduplicates aliases', () => {
-	const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-roots-')));
+	const root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-roots-'))));
 	roots.push(root);
 	const app = path.join(root, 'app');
 	const linked = path.join(root, 'linked');
@@ -47,13 +47,13 @@ test('resolves hoisted linked dependencies with subpath-only exports and dedupli
 });
 
 test('allows projects without a manifest', () => {
-	const root = mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-empty-'));
+	const root = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-empty-')));
 	roots.push(root);
 	expect(resolveWorkspacePackageWatchRoots(root)).toEqual([]);
 });
 
 test('follows linked package dependencies to find transitive linked roots', () => {
-	const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-transitive-')));
+	const root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-transitive-'))));
 	roots.push(root);
 	const app = path.join(root, 'app');
 	const ui = path.join(root, 'ui');

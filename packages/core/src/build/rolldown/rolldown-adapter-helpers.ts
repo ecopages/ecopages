@@ -12,9 +12,8 @@
 
 import { createHash } from 'node:crypto';
 import { builtinModules, createRequire } from 'node:module';
-import path from 'node:path';
+import { path, type PathApi } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
-import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { recordBuildEntryOutput, resolveBuildEntryPath } from '../build-graph.ts';
 import type {
@@ -34,11 +33,12 @@ import { isEcopagesEnvEnabled } from '../../env.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.ts';
-import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
+import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
+import { createStylesheetModulePlugin } from './stylesheet-module-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
-import type { BuildInputRecorder } from './rolldown-plugin-bridge.ts';
-import { createRolldownPluginBridge, getEcoBuildPluginName } from './rolldown-plugin-bridge.ts';
+import { fromRolldownModuleId } from './rolldown-module-id.ts';
+import { createRolldownPluginBridge, type WatchFilesByModule } from './rolldown-plugin-bridge.ts';
 import { isDeclaredAppPackageImport, isWorkspacePackageImport } from './app-package-declarations.ts';
 import type {
 	BuildDependencyGraph,
@@ -50,7 +50,7 @@ import type {
 	BuildSourcemap,
 } from '../build-adapter.ts';
 
-const coreSourceFile = fileURLToPath(import.meta.url);
+const coreSourceFile = path.fromFileUrl(import.meta.url);
 const nodeBuiltinSpecifiers = new Set(builtinModules);
 const MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES = 120;
 const PRESERVED_MODULE_NAME_HASH_LENGTH = 16;
@@ -72,7 +72,7 @@ function getCorePackageNames(): Set<string> {
 		return corePackageNames;
 	}
 
-	const packageJsonPath = fileURLToPath(new URL('../../../package.json', import.meta.url));
+	const packageJsonPath = path.fromFileUrl(new URL('../../../package.json', import.meta.url));
 	corePackageNames = new Set<string>();
 
 	try {
@@ -146,7 +146,7 @@ function createExternalMatcher(
 ): (id: string) => boolean {
 	const explicitExternals = new Set(options.external ?? []);
 	const externalPackages = options.externalPackages === true;
-	const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
+	const contextRoot = options.root ? path.resolve(options.root) : path.cwd();
 
 	return (id: string): boolean => {
 		if (explicitExternals.has(id)) {
@@ -204,7 +204,24 @@ function isUndeclaredPackageImport(id: string, contextRoot: string): boolean {
  * loader, so PnP installs are not supported for relocated server output.
  */
 function isInstalledCompiledModule(filePath: string): boolean {
-	return /\.[cm]?js$/u.test(filePath) && /[\\/]node_modules[\\/]/u.test(filePath) && !/\.zip[\\/]/u.test(filePath);
+	return /\.[cm]?js$/u.test(filePath) && filePath.includes('/node_modules/') && !filePath.includes('.zip/');
+}
+
+/**
+ * Returns the import specifier that a server output file in `outdir` uses to load an installed package file.
+ *
+ * @remarks
+ * The specifier is a `./` or `../` path relative to `outdir`. On Windows a package installed on another drive
+ * than `outdir` (a temp folder on `C:` and a checkout on `D:`) has no relative path, so it is a `file:` URL,
+ * which Node's ESM loader accepts where a bare `D:/` path is rejected. `pathApi` exists so tests can run the
+ * Windows rules on any platform.
+ */
+export function toInstalledPackageExternalId(resolvedPath: string, outdir: string, pathApi: PathApi = path): string {
+	const relativePath = pathApi.relative(outdir, resolvedPath);
+	if (pathApi.isAbsolute(relativePath)) {
+		return pathApi.toFileUrl(resolvedPath).href;
+	}
+	return relativePath.startsWith('../') ? relativePath : `./${relativePath}`;
 }
 
 /**
@@ -241,8 +258,8 @@ function isInstalledCompiledModule(filePath: string): boolean {
  * Packages the app declares stay bare specifiers through the `external`
  * option, which Rolldown checks before this hook. Packages in
  * `CORE_RUNTIME_BUNDLED_PACKAGES`, workspace and source packages, anything
- * that does not resolve and anything on another drive than `outdir` are
- * bundled.
+ * that does not resolve are bundled. On Windows a package on another drive than
+ * `outdir` stays external as a `file:` URL.
  */
 export function createInstalledPackageExternalPlugin(
 	contextRoot: string,
@@ -267,19 +284,19 @@ export function createInstalledPackageExternalPlugin(
 				const resolved =
 					(importer ? await this.resolve(id, importer, resolveOptions) : null) ??
 					(coreNames.has(packageName) ? await this.resolve(id, coreSourceFile, resolveOptions) : null);
-				if (!resolved || resolved.external || !isInstalledCompiledModule(resolved.id)) {
+				const resolvedPath = resolved && !resolved.external ? fromRolldownModuleId(resolved.id) : undefined;
+				if (!resolvedPath || !isInstalledCompiledModule(resolvedPath)) {
 					return null;
 				}
 				realOutdir ??= realpathOfDirectory(outdir);
-				const relativePath = path.relative(realOutdir, resolved.id).split(path.sep).join('/');
-				if (path.isAbsolute(relativePath)) {
-					return null;
-				}
 				realContextRoot ??= realpathOfDirectory(contextRoot);
-				if (reportDir && !isPathInside(resolved.id, realContextRoot)) {
+				if (reportDir && !isPathInside(resolvedPath, realContextRoot)) {
 					outsideRootPackages.add(packageName);
 				}
-				const externalId = relativePath.startsWith('../') ? relativePath : `./${relativePath}`;
+				const externalId = toInstalledPackageExternalId(resolvedPath, realOutdir);
+				if (externalId.startsWith('file:')) {
+					return { id: externalId, external: true };
+				}
 				externalIds.add(externalId);
 				return { id: externalId, external: true };
 			},
@@ -298,9 +315,7 @@ export function createInstalledPackageExternalPlugin(
 			}
 			if (reportDir) {
 				const outputLabel = entryFileNames
-					.map((fileName) =>
-						path.relative(contextRoot, path.join(reportDir, fileName)).split(path.sep).join('/'),
-					)
+					.map((fileName) => path.relative(contextRoot, path.join(reportDir, fileName)))
 					.join(', ');
 				warnPackagesOutsideAppRoot(outputLabel, outsideRootPackages);
 			}
@@ -331,9 +346,9 @@ const nodeBuiltinFilter = new RegExp(
  */
 export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 	const rejectServerOnly = (id: string, importer: string | undefined): never => {
-		const from = importer ? ` (imported from ${importer})` : '';
+		const from = importer ? ` (imported from ${fromRolldownModuleId(importer)})` : '';
 		throw new Error(
-			`[browser-build] server-only module "${id}" cannot be bundled for the browser${from}. Check the browser graph boundary for the importer.`,
+			`[browser-build] server-only module "${fromRolldownModuleId(id)}" cannot be bundled for the browser${from}. Check the browser graph boundary for the importer.`,
 		);
 	};
 	return {
@@ -344,7 +359,7 @@ export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 				if (!isNodeBuiltinSpecifier(id)) {
 					return null;
 				}
-				const from = importer ? ` (imported from ${importer})` : '';
+				const from = importer ? ` (imported from ${fromRolldownModuleId(importer)})` : '';
 				throw new Error(
 					`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. Check package "browser" exports and the client-graph boundary for the importer.`,
 				);
@@ -452,15 +467,17 @@ export function toBuildLog(entry: unknown): BuildLog {
 			Object.assign(log, { [key]: source[key] });
 		}
 	}
+	if (typeof log.id === 'string') {
+		log.id = fromRolldownModuleId(log.id);
+	}
+	if (typeof log.loc?.file === 'string') {
+		log.loc = { ...log.loc, file: fromRolldownModuleId(log.loc.file) };
+	}
 	if (typeof source.frame === 'string') {
 		log.frame = stripVTControlCharacters(source.frame);
 	}
 	if (typeof source.stack === 'string') {
 		log.stack = source.stack;
-	}
-	const ecoBuildPluginName = getEcoBuildPluginName(entry);
-	if (ecoBuildPluginName) {
-		log.plugin = ecoBuildPluginName;
 	}
 	return log;
 }
@@ -469,14 +486,12 @@ export function toBuildLog(entry: unknown): BuildLog {
  * Converts a build failure into logs, one per underlying error of a Rolldown `BundleError`.
  *
  * @remarks
- * Only an unattributed `BundleError` is expanded. An `AggregateError` or an error an `EcoBuildPlugin`
- * threw is one failure and becomes one log.
+ * Only a `BundleError` is expanded. An `AggregateError` an `EcoBuildPlugin` setup threw is one failure
+ * and becomes one log.
  */
 export function toBuildLogs(error: unknown): BuildLog[] {
 	const errors =
-		error instanceof Error && !(error instanceof AggregateError) && !getEcoBuildPluginName(error)
-			? (error as BundleError).errors
-			: undefined;
+		error instanceof Error && !(error instanceof AggregateError) ? (error as BundleError).errors : undefined;
 	return (Array.isArray(errors) && errors.length > 0 ? errors : [error]).map(toBuildLog);
 }
 
@@ -505,7 +520,7 @@ async function buildRolldownInputPlugins(
 	contextRoot: string,
 	outdir: string,
 	rolldownPlatform: 'browser' | 'node',
-	recordBuildInput: BuildInputRecorder,
+	watchFiles: WatchFilesByModule,
 ): Promise<RolldownPlugin[]> {
 	const entrypoints = Array.isArray(options.entrypoints)
 		? Object.fromEntries(options.entrypoints.map((entry, index) => [String(index), entry]))
@@ -513,8 +528,7 @@ async function buildRolldownInputPlugins(
 	const appPlugins = await createRolldownPluginBridge(
 		(options.plugins ?? []).filter((plugin) => plugin.environments?.includes(options.environment) ?? true),
 		contextRoot,
-		recordBuildInput,
-		entrypoints,
+		{ entrypoints, watchFiles },
 	);
 	return [
 		...(options.externalPackages === true
@@ -527,8 +541,13 @@ async function buildRolldownInputPlugins(
 				]
 			: []),
 		...(rolldownPlatform === 'browser' ? [createBrowserServerOnlyGuardPlugin()] : []),
-		...(options.environment === 'server' ? [createServerSideCssShimPlugin()] : []),
+		createStylesheetModulePlugin(
+			{ environment: options.environment, root: contextRoot },
+			options.stylesheets,
+			watchFiles,
+		),
 		...appPlugins,
+		...(options.environment === 'browser' && options.workerEntries !== false ? [createWorkerEntriesPlugin()] : []),
 	];
 }
 
@@ -538,7 +557,7 @@ async function buildRolldownInputOptions(
 	outdir: string,
 	external: (id: string) => boolean,
 	rolldownPlatform: 'browser' | 'node',
-	recordBuildInput: BuildInputRecorder,
+	watchFiles: WatchFilesByModule,
 ): Promise<InputOptions> {
 	return {
 		input: options.entrypoints,
@@ -558,7 +577,7 @@ async function buildRolldownInputOptions(
 		experimental: {
 			nativeMagicString: true,
 		},
-		plugins: await buildRolldownInputPlugins(options, contextRoot, outdir, rolldownPlatform, recordBuildInput),
+		plugins: await buildRolldownInputPlugins(options, contextRoot, outdir, rolldownPlatform, watchFiles),
 	};
 }
 
@@ -594,7 +613,12 @@ function truncateUtf8(value: string, maximumBytes: number): string {
 }
 
 function flattenPreservedModuleName(sourceName: string): string {
-	const flattened = sourceName.replaceAll(/[\\/]/g, '-');
+	const flattened = path
+		.fromNative(sourceName)
+		.split('/')
+		.filter((segment) => segment !== '' && segment !== '.' && segment !== '..')
+		.join('-')
+		.replaceAll(':', '');
 	if (Buffer.byteLength(flattened) <= MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES) return flattened;
 	const digest = createHash('sha256').update(sourceName).digest('hex').slice(0, PRESERVED_MODULE_NAME_HASH_LENGTH);
 	const prefixBytes = MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES - digest.length - 1;
@@ -614,6 +638,18 @@ function flattenPreservedModuleFileNames(pattern: string): (chunk: PreRenderedCh
 	return (chunk) => pattern.replaceAll('[name]', () => flattenPreservedModuleName(chunk.name));
 }
 
+/**
+ * Sanitizes the name Rolldown gives a preserved module before it fills `[name]`.
+ *
+ * @remarks
+ * A module on another drive than `preserveModulesRoot` has no path relative to it, and Rolldown names it with a
+ * `../` prefix that it rejects as a `[name]` substitution before `entryFileNames` can rewrite it. The prefix is
+ * dropped here, along with the characters Rolldown's default sanitizer removes.
+ */
+function sanitizePreservedModuleName(name: string): string {
+	return name.replace(/^(?:\.\.?\/)+/u, '').replaceAll(/[\0?*:]/gu, '_');
+}
+
 function buildRolldownOutputOptions(options: BuildOptions, outdir: string): OutputOptions {
 	const entryFileNames = resolveRolldownEntryFileNames(options);
 	return {
@@ -626,7 +662,10 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 		...(options.preserveModules
 			? {
 					preserveModules: true,
-					...(options.preserveModulesRoot ? { preserveModulesRoot: options.preserveModulesRoot } : {}),
+					sanitizeFileName: sanitizePreservedModuleName,
+					...(options.preserveModulesRoot
+						? { preserveModulesRoot: path.toNative(options.preserveModulesRoot) }
+						: {}),
 				}
 			: {}),
 		sourcemap: mapRolldownSourcemap(options.sourcemap),
@@ -637,15 +676,15 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 /**
  * Translates a {@link BuildOptions} into Rolldown's `InputOptions` and
  * `OutputOptions`. Always sets `experimental.nativeMagicString: true`
- * and always consolidates eco plugins via the bridge, which runs every
- * plugin `setup`.
+ * and always maps eco plugins via the bridge, which runs every plugin
+ * `setup`. `watchFiles` receives the files those plugins declare.
  */
 export async function resolveRolldownOptions(
 	options: BuildOptions,
 	contextRoot: string,
 	outdir: string,
 	appRootRequireCache: Map<string, NodeJS.Require>,
-	recordBuildInput: BuildInputRecorder,
+	watchFiles: WatchFilesByModule,
 ): Promise<ResolvedRolldownOptions> {
 	const rolldownPlatform = options.environment === 'browser' ? 'browser' : 'node';
 	const external = createExternalMatcher(options, appRootRequireCache);
@@ -656,7 +695,7 @@ export async function resolveRolldownOptions(
 			outdir,
 			external,
 			rolldownPlatform,
-			recordBuildInput,
+			watchFiles,
 		),
 		outputOptions: buildRolldownOutputOptions(options, outdir),
 	};
@@ -674,10 +713,10 @@ export async function resolveRolldownOptions(
 function isContentHashedOutput(entry: RolldownOutput['output'][number], entryNamingHashed: boolean): boolean {
 	if (entry.type === 'chunk') return entry.isEntry ? entryNamingHashed : true;
 
-	const fileName = path.posix.basename(entry.fileName);
+	const fileName = path.basename(entry.fileName);
 	return entry.names.some((name) => {
-		const extension = path.posix.extname(name);
-		const stem = path.posix.basename(name, extension);
+		const extension = path.extname(name);
+		const stem = path.basename(name, extension);
 		return (
 			fileName.startsWith(`${stem}-`) &&
 			fileName.endsWith(extension) &&
@@ -696,7 +735,7 @@ function isHashedSourceMap(fileName: string, hashedFileNames: ReadonlySet<string
  */
 function sourceModulePath(moduleId: string, root: string): string[] {
 	if (moduleId.startsWith('\0')) return [];
-	const filePath = moduleId.startsWith('file:') ? fileURLToPath(moduleId) : moduleId;
+	const filePath = moduleId.startsWith('file:') ? path.fromFileUrl(moduleId) : moduleId;
 	return path.isAbsolute(filePath) ? [resolveBuildEntryPath(filePath, root)] : [];
 }
 

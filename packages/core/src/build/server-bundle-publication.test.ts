@@ -1,5 +1,5 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import { mkdtempSync, mkdirSync, readFileSync, statSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { path } from '@ecopages/file-system/path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
@@ -13,7 +13,7 @@ describe('server bundle publication', () => {
 	});
 
 	function createFixture(): { rootDir: string; serverOutdir: string } {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-publication-'));
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-server-publication-')));
 		tempDirs.push(rootDir);
 		const serverOutdir = path.join(rootDir, 'dist', 'server');
 		fileSystem.ensureDir(serverOutdir);
@@ -34,6 +34,18 @@ describe('server bundle publication', () => {
 		expect(readFileSync(path.join(serverOutdir, 'app.mjs'), 'utf8')).toBe('new app');
 		expect(readFileSync(path.join(serverOutdir, 'eco.config.mjs'), 'utf8')).toBe('new config');
 		expect(readdirSync(path.join(rootDir, 'dist')).filter((entry) => entry.includes('.previous-'))).toEqual([]);
+	});
+
+	it('publishes a directory with the mode a plain mkdir gives dist/client', () => {
+		const { rootDir, serverOutdir } = createFixture();
+		const clientDir = path.join(rootDir, 'dist', 'client');
+		mkdirSync(clientDir);
+
+		const stagingDir = createServerBundleStagingDirectory(serverOutdir);
+		writeFileSync(path.join(stagingDir, 'app.mjs'), 'new app');
+		publishServerBundleDirectory(stagingDir, serverOutdir);
+
+		expect(statSync(serverOutdir).mode & 0o777).toBe(statSync(clientDir).mode & 0o777);
 	});
 
 	it('restores the previous generation when publication fails', () => {

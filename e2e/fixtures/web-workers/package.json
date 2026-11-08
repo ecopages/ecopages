@@ -1,0 +1,11 @@
+{
+	"name": "@ecopages/e2e-web-workers-app",
+	"private": true,
+	"type": "module",
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/ecopages-jsx": "workspace:*",
+		"@ecopages/jsx": "^0.8.2",
+		"@ecopages/radiant": "^0.8.2"
+	}
+}

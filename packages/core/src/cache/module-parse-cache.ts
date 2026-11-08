@@ -14,7 +14,7 @@
  * still-valid parse.
  */
 
-import { extname } from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { parseSync, type ParseResult, type ParserOptions } from 'oxc-parser';
 import { contentHash } from '../utils/content-hash.ts';
 
@@ -33,7 +33,7 @@ type ParserLanguage = 'js' | 'jsx' | 'ts' | 'tsx';
 
 /** Resolves the Oxc dialect for a source module from its file extension. */
 function parserLanguageForFile(filePath: string): ParserLanguage {
-	const extension = extname(filePath).toLowerCase();
+	const extension = path.extname(filePath).toLowerCase();
 	if (extension === '.tsx') return 'tsx';
 	if (extension === '.ts' || extension === '.mts' || extension === '.cts') return 'ts';
 	if (extension === '.jsx') return 'jsx';

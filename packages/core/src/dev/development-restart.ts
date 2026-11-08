@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { getNodeEnvironment, isEcopagesEnvEnabled } from '../env.ts';
 import { DEFAULT_ECOPAGES_DIST_DIR, DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 import { createProjectWatcherIgnorePredicate } from '../watchers/project-watcher-ignore.ts';

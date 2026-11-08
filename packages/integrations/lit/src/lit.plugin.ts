@@ -15,9 +15,8 @@ import {
 	type StaticExportContext,
 	type StaticExportRelease,
 } from '@ecopages/core/integration';
-import path from 'node:path';
+import { path } from '@ecopages/file-system/path';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/integration';
-import { litElementHydrateScript } from './lit-element-hydrate.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { ensureLitDomShim } from './dom-shim.ts';
 import { createLitRenderer, LitRenderer } from './lit-renderer.ts';
@@ -27,6 +26,8 @@ import { LitStaticRenderSession } from './lit-static-render-session.ts';
  * The name of the Lit plugin
  */
 export const PLUGIN_NAME = LIT_PLUGIN_NAME;
+
+const litHydrateSupportPath = path.fromFileUrl(import.meta.resolve('@ecopages/lit/hydrate-support'));
 
 /**
  * @remarks
@@ -43,6 +44,12 @@ export class LitPlugin extends IntegrationPlugin {
 			ensureLitDomShim();
 		},
 	};
+	/**
+	 * @remarks
+	 * Lit is the custom-element server renderer, so it also evaluates the `ssr: true` scripts of Components whose
+	 * Integration has no preloader, such as a Lit element declared on a Kita Component.
+	 */
+	override readonly ssrScriptPreload = 'own-and-foreign' as const;
 	private renderSession: LitStaticRenderSession | null = null;
 
 	constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
@@ -59,19 +66,16 @@ export class LitPlugin extends IntegrationPlugin {
 	 * Returns the global integration dependencies required in the browser.
 	 *
 	 * @remarks
-	 * Injects Lit's hydration support script into the document head before any
-	 * custom element connects. While `@lit-labs/ssr-client/lit-element-hydrate-support.js`
-	 * can be resolved directly in modern Bun and Node environments, an inline self-contained
-	 * script is currently emitted to ensure synchronous availability before custom-element
-	 * registration without requiring an import map for `@lit-labs/ssr-client` subpath imports.
+	 * Lit's SSR hydration support is a module script of the app's browser graph, so it shares the `lit` module the
+	 * app's elements load instead of carrying its own copy. It is placed first in the head, before any custom element is defined.
 	 */
 	getDependencies(): AssetDefinition[] {
 		return [
-			AssetFactory.createInlineContentScript({
+			AssetFactory.createFileScript({
 				position: 'head',
-				content: `(() => {${litElementHydrateScript}})();`,
-				bundle: false,
+				filepath: litHydrateSupportPath,
 				attributes: {
+					type: 'module',
 					'data-eco-script-id': 'lit-hydrate-support',
 				},
 			}),
@@ -79,17 +83,7 @@ export class LitPlugin extends IntegrationPlugin {
 	}
 
 	private createRenderSession(): LitStaticRenderSession {
-		if (!this.appConfig || !this.runtime || !this.assetProcessingService) {
-			throw new Error('Lit plugin must be initialized before starting the render worker');
-		}
-		const assetProcessingService = this.assetProcessingService;
-
 		return new LitStaticRenderSession({
-			preloadScopes: this.runtime.customElementSsrPreloadScopes,
-			integration: this,
-			resolveDependencyPath: (componentDir, sourcePath) => path.join(componentDir, sourcePath),
-			processDependencies: (dependencies, integration) =>
-				assetProcessingService.processDependencies(dependencies, integration),
 			getInvalidationVersion: () => this.runtime?.moduleLoader.getDevelopmentGeneration() ?? 0,
 		});
 	}
@@ -123,7 +117,7 @@ export class LitPlugin extends IntegrationPlugin {
 	}
 
 	/**
-	 * Starts the render worker for this export, preloads Lit routes, and returns a release that stops it.
+	 * Starts the render worker for this export and returns a release that stops it.
 	 *
 	 * @remarks
 	 * Serving never starts this session. Static export owns the worker for the duration of the export and
@@ -139,10 +133,13 @@ export class LitPlugin extends IntegrationPlugin {
 		await this.renderSession.ensureWorker({
 			configModulePath,
 			runtimeOrigin: context.baseUrl,
+			directories: {
+				distDir: path.resolve(context.appConfig.rootDir, context.appConfig.distDir),
+				workDir: context.appConfig.absolutePaths.workDir,
+			},
 		});
 
 		const session = this.renderSession;
-		await session.preloadStaticRoutes(context);
 
 		return async () => {
 			await session.dispose();

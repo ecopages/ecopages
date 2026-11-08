@@ -62,6 +62,12 @@ async function expectResponseContains(
 		.toBe(marker);
 }
 
+test('keeps the export of a plain component file the entry imports through a barrel', async ({ request }) => {
+	const response = await request.get('/plain');
+	expect(response.status()).toBe(200);
+	expect(await response.json()).toEqual({ label: 'Plain 1' });
+});
+
 test.describe('Imported views reload without a process restart', () => {
 	/** Worker app copy is shared; edits overlap on `/latest`. */
 	test.describe.configure({ mode: 'serial' });

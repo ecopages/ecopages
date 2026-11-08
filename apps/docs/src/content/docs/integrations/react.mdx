@@ -34,8 +34,7 @@ import { defineConfig } from '@ecopages/core/config';
 import { reactPlugin } from '@ecopages/react';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	baseUrl: 'https://example.com',
 	integrations: [reactPlugin()],
 });
 ```
@@ -70,9 +69,9 @@ export const Counter = eco.component({
 
 ### Plain React Components
 
-You can also write standard React components directly when they only need React runtime behavior and do not need Ecopages-managed dependency declarations.
+You can also write standard React components directly when they only need React runtime behavior. A plain component can import its own stylesheet (`import './counter.css'`): Ecopages hands it to the nearest declared component, layout or page that imports the component.
 
-**This is especially useful if you are using Tailwind CSS**, as you do not need to attach specific stylesheets or declare dependencies.
+Wrap a component in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. A layout is a plain function typed with `LayoutProps` unless it needs one of those, then `eco.layout()`; the document shell uses `eco.html()`. A page of another Integration cannot render a plain React component; for a Kita or Ecopages JSX page the build fails and suggests `eco.component()`, which renders it as a Foreign Child.
 
 ```tsx
 import { useState } from 'react';
@@ -185,8 +184,7 @@ import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	baseUrl: 'https://example.com',
 	integrations: [
 		reactPlugin({
 			router: ecoRouter(),
@@ -212,55 +210,22 @@ This is the recommended approach when using a client-side router, as it ensures 
 	</RuiAlertDescription>
 </RuiAlert>
 
-## Shared runtime vendors
+## Shared browser modules
 
-With [`ecoRouter()`](/docs/ecosystem/react-router), Ecopages can keep outer Layout tiers mounted across client navigation (`persistLayouts` defaults to `true`). Each Page chunk still loads separately, so a package used by both a Layout and a Page may otherwise load as separate module instances. That breaks libraries with shared state, such as React context and TanStack Query.
+With [`ecoRouter()`](/docs/ecosystem/react-router), Ecopages can keep outer Layout tiers mounted across client navigation (`persistLayouts` defaults to `true`). A package used by both a Layout and a Page must then be one browser module instance, or libraries with shared state, such as React context and TanStack Query, break.
 
-Register packages that need one browser module instance in `runtimeModules`. Ecopages builds each entry once into `/assets/vendors/*.js`; Page and Layout code then import the same vendor URL. React, React DOM, and the configured router are already shared. Ecopages does not infer vendor packages from Layout files.
+Ecopages keeps every package to one instance without configuration. A production build bundles every browser entry of the app in one build with code splitting, so a package that several Pages, Layouts or islands import is one chunk with one URL. In `ecopages dev`, Page modules are served from `/assets/__eco_dev__/` and import each package from one vendor URL under `/assets/vendors/`; React, React DOM and the configured router are no exception. In production they are content-hashed chunks, cached `immutable`, and each page loads React once. Use the dev toolbar **Deps** panel to inspect the vendor URLs loaded by the active Page.
 
-```typescript
-import { defineConfig } from '@ecopages/core/config';
-import { reactPlugin } from '@ecopages/react';
-import { ecoRouter } from '@ecopages/react-router';
+A library that depends on a singleton such as MobX or TanStack Query should declare it as a `peerDependency` and keep it external in its own build, so it imports the app's copy instead of inlining its own.
 
-export default defineConfig({
-	integrations: [
-		reactPlugin({
-			router: ecoRouter(),
-			runtimeModules: ['@tanstack/react-query'],
-		}),
-	],
-});
-```
-
-Register the specifier that app code imports. Package subpaths are separate modules, so list each subpath used by a Page or Layout. `runtimeModules` also accepts entries with a custom vendor filename:
-
-**Migration from layout discovery:** remove `runtimeProvider` from layout options. Add each shared package the scanner previously supplied to `runtimeModules` using the exact specifier imported by app code.
-
-```typescript
-reactPlugin({
-	router: ecoRouter(),
-	runtimeModules: [
-		'@tanstack/react-query',
-		{ specifier: '@acme/ui', outputName: 'acme-ui' },
-	],
-});
-```
-
-A library that depends on a singleton such as MobX or TanStack Query should declare it as a `peerDependency` and keep it external in its own build. Register both the library package and singleton in the app's `runtimeModules`; matching imports between their vendors are rewritten to the shared vendor URL. Remove any existing `externals` fields from runtime module entries and register each non-framework shared dependency as a separate entry. React, React DOM, and the configured router are shared automatically.
-
-In `ecopages dev`, Page modules are served from `/assets/__eco_dev__/` and import shared packages from `/assets/vendors/*`. Use the dev toolbar **Deps** panel to inspect vendor URLs loaded by the active Page.
+**Migration:** remove `runtimeModules` from `reactPlugin()`. The option no longer exists; packages it listed are shared automatically.
 
 ### Vendor troubleshooting
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `No QueryClient set` after SPA navigation | TanStack Query is not shared by the Page and Layout graphs | Add `@tanstack/react-query` to `runtimeModules` and rebuild vendors |
-| Duplicate React context / Tone init logs | Provider package is bundled through multiple client entrypoints | Import through the package root and register that root in `runtimeModules` |
-| Store updates / `reaction` / `observer` no-op | Duplicate singleton (for example MobX) — a library inlines one copy and app code loads another | Peer the singleton in the library; register the library and singleton specifiers in `runtimeModules` |
-| Stale bootstrap script hash in dev | Rendered HTML cached before runtime vendors changed | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation |
-| `MISSING_EXPORT` for names like `BasePlugin` | Vendor listed CJS enumerable keys that the ESM file does not export | Register the package root only; bundle subpath plugins separately |
-| `Calling require for "/assets/vendors/…"` | A CJS vendor graph `require()`d another runtime module after URL rewrite | Prefer packages with an ESM/`module` entry; register sibling singletons as separate `runtimeModules` entries |
+| Store updates / `reaction` / `observer` no-op | Duplicate singleton (for example MobX) — a library inlines one copy and app code loads another | Peer the singleton in the library and keep it external in the library build |
+| `does not provide an export named …` in dev | An inline or non-module script imports a CommonJS package such as React by name, which the dev rewrite skips | Move the import into a module file or a non-inline `type="module"` script |
 
 ## Related guides
 

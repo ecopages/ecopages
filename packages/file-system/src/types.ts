@@ -45,12 +45,13 @@ export interface FileWatcher {
 	close(): Promise<void>;
 }
 
-/** What kind of entry a path is, and its size in bytes. */
+/** What kind of entry a path is, its size in bytes, and when its content last changed. */
 export interface FileStats {
 	isFile: boolean;
 	isDirectory: boolean;
 	isSymbolicLink: boolean;
 	size: number;
+	mtimeMs: number;
 }
 
 /** An entry returned by {@link FileSystem.readdir}. */
@@ -198,6 +199,9 @@ export interface FileSystem {
 	 * @param prefix - Path prefix; six random characters are appended to it
 	 */
 	mkdtemp(prefix: string): string;
+
+	/** The operating system's directory for temporary files, to pass to {@link mkdtemp}. */
+	tempDir(): string;
 
 	/**
 	 * Move a file or directory in one step, replacing an existing file at the destination.

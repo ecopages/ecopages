@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { PostCssProcessor } from '../postcss-processor';
+import { path } from '@ecopages/file-system/path';
+import postcss from 'postcss';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { PostCssProcessorPlugin } from '../plugin';
+import { collectDependencies, PostCssProcessor } from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
 import { tailwindV4Preset } from '../presets/tailwind-v4';
 
@@ -27,10 +30,10 @@ let outputDir: string;
  * the app root.
  */
 beforeAll(() => {
-	tailwindAppDir = mkdtempSync(path.join(tmpdir(), 'eco-tailwind-app-'));
+	tailwindAppDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-tailwind-app-')));
 	tailwindReferencePath = path.join(tailwindAppDir, 'src/styles/tailwind.css');
 	bemApplyPath = path.join(tailwindAppDir, 'src/styles/bem-apply.css');
-	outputDir = mkdtempSync(path.join(tmpdir(), 'eco-tailwind-out-'));
+	outputDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-tailwind-out-')));
 	mkdirSync(path.join(tailwindAppDir, 'node_modules'), { recursive: true });
 	mkdirSync(path.dirname(tailwindReferencePath), { recursive: true });
 	symlinkSync(tailwindV4PackageDir, path.join(tailwindAppDir, 'node_modules/tailwindcss'), 'dir');
@@ -258,7 +261,7 @@ test('Tailwind v4 preset should preserve nested BEM selectors with @apply in pro
 }, 30_000);
 
 describe('Tailwind v4 transformInput', () => {
-	const referencePath = '/abs/path/src/styles/tailwind.css';
+	const referencePath = path.resolve('/abs/path/src/styles/tailwind.css');
 
 	test('should inject an absolute @reference for files using @apply', async () => {
 		const preset = tailwindV4Preset({ referencePath });
@@ -269,6 +272,26 @@ describe('Tailwind v4 transformInput', () => {
 
 		expect(result).toContain(`@reference "${referencePath}"`);
 		expect(result).toContain('@apply');
+	});
+
+	test('should place @reference after the leading @charset, @layer and @import statements', async () => {
+		const preset = tailwindV4Preset({ referencePath });
+		const css = `@charset "UTF-8";\n@layer base, theme;\n@import './a.css';\n@import './b.css';\n.x { @apply flex; }`;
+
+		const result = await preset.transformInput!(css, '/abs/path/src/pages/index.css');
+
+		expect(result).toBe(
+			`@charset "UTF-8";\n@layer base, theme;\n@import './a.css';\n@import './b.css';\n@reference "${referencePath}";\n.x { @apply flex; }`,
+		);
+	});
+
+	test('should place @reference after the imports of a stylesheet that starts with a byte order mark', async () => {
+		const preset = tailwindV4Preset({ referencePath });
+		const css = `\uFEFF@import './a.css';\n.x { @apply flex; }`;
+
+		const result = await preset.transformInput!(css, '/abs/path/src/pages/index.css');
+
+		expect(result).toBe(`\uFEFF@import './a.css';\n@reference "${referencePath}";\n.x { @apply flex; }`);
 	});
 
 	test('should inject the same absolute @reference regardless of importing file location', async () => {
@@ -344,5 +367,89 @@ describe('Tailwind v4 preset @apply resolution (regression)', () => {
 		expect(result.length).toBeGreaterThan(0);
 		expect(result).toContain('font-size');
 		expect(result).toContain('.main-title');
+	});
+});
+
+describe('Tailwind v4 preset with @import and @apply together', () => {
+	test('keeps the partials of a stylesheet that uses @apply and reports them as dependencies', async () => {
+		const pagesDir = path.join(tailwindAppDir, 'src/pages');
+		const partialPath = path.join(pagesDir, 'part.css');
+		const pagePath = path.join(pagesDir, 'a.css');
+		mkdirSync(pagesDir, { recursive: true });
+		writeFileSync(partialPath, '.from-partial { color: red; }\n');
+		const preset = tailwindV4Preset({ referencePath: tailwindReferencePath });
+
+		const input = await preset.transformInput!(
+			`@charset "UTF-8";\n@import './part.css';\n.x { @apply flex; }\n`,
+			pagePath,
+		);
+		const result = await postcss(Object.values(preset.plugins!)).process(input, { from: pagePath });
+
+		expect(result.css).toContain('.from-partial');
+		expect(result.css).toContain('display:flex');
+		expect(collectDependencies(result.messages)).toContain(path.fromNative(realpathSync(partialPath)));
+		expect(result.warnings().map((warning) => warning.text)).toEqual([]);
+	}, 30_000);
+});
+
+describe('Tailwind v4 preset invalidation by content sources', () => {
+	let entryPath: string;
+	let pagesDir: string;
+	let plugin: PostCssProcessorPlugin;
+
+	let appDir: string;
+
+	/** Tailwind reports real paths, so the app is addressed by its real path as well. */
+	beforeAll(async () => {
+		appDir = path.fromNative(realpathSync(tailwindAppDir));
+		entryPath = path.join(appDir, 'src/styles/scan.css');
+		pagesDir = path.join(appDir, 'src/pages');
+		mkdirSync(path.join(appDir, 'src/data'), { recursive: true });
+		mkdirSync(pagesDir, { recursive: true });
+		writeFileSync(entryPath, `@import 'tailwindcss' source('../pages');\n`);
+		writeFileSync(path.join(pagesDir, 'home.tsx'), `export const x = 'flex';\n`);
+		plugin = new PostCssProcessorPlugin({ options: tailwindV4Preset({ referencePath: entryPath }) });
+		plugin.setContext(await finalizeEcoPagesConfig({ rootDir: appDir, srcDir: 'src', distDir: 'dist' }));
+	});
+
+	test('a json or lockfile save outside the scanned directory rebuilds nothing, and a template save adds its classes', async () => {
+		const entry = await readFile(entryPath, 'utf-8');
+		const first = await plugin.transformStylesheet(entry, entryPath);
+		expect(first.css).toContain('display:flex');
+		expect(first.css).not.toContain('text-decoration-line:underline');
+
+		expect(
+			plugin.invalidateStylesheets([path.join(appDir, 'src/data/nav.json'), path.join(appDir, 'pnpm-lock.yaml')]),
+		).toEqual([]);
+
+		writeFileSync(path.join(pagesDir, 'home.tsx'), `export const x = 'flex underline';\n`);
+		const stale = plugin.invalidateStylesheets([path.join(pagesDir, 'home.tsx')]);
+		expect(stale).toEqual([entryPath]);
+
+		const second = await plugin.transformStylesheet(entry, entryPath);
+		expect(second.css).toContain('text-decoration-line:underline');
+	}, 30_000);
+
+	test.each([
+		['Tailwind v3', () => tailwindV3Preset()],
+		['Tailwind v4', () => tailwindV4Preset({ referencePath: path.resolve(__dirname, '../fixtures/tailwind.css') })],
+	])('%s preset should leave relative color channel math alone without warnings', async (_name, createPreset) => {
+		const preset = createPreset();
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		try {
+			const result = await PostCssProcessor.processStringOrBuffer(
+				'.tint { color: oklch(from var(--accent) l calc(c * 0.29) h); }',
+				{
+					plugins: preset.plugins ? Object.values(preset.plugins) : [],
+					filePath: path.resolve(__dirname, 'style.css'),
+				},
+			);
+
+			expect(result).toMatch(/oklch\(from var\(--accent\) l calc\((c \* \.29|\.29 \* c)\) h\)/);
+			expect(warn).not.toHaveBeenCalled();
+		} finally {
+			warn.mockRestore();
+		}
 	});
 });

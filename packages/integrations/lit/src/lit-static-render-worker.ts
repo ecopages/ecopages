@@ -1,6 +1,8 @@
 import { parentPort } from 'node:worker_threads';
 import { loadEcoPagesConfig } from '@ecopages/core/config';
 import {
+	resolveIntegrationDependencies,
+	restoreProductionBrowserBuild,
 	setupAppRuntimeIntegrations,
 	setupAppRuntimePlugins,
 	teardownAppRuntimeIntegrations,
@@ -20,6 +22,7 @@ type LoadedAppConfig = Awaited<ReturnType<typeof loadEcoPagesConfig>>;
 
 let appConfig: LoadedAppConfig | null = null;
 let routeRendererFactory: RouteRendererFactory | null = null;
+let appBrowserBuildRestore: Promise<void> | undefined;
 let activeRenders = 0;
 let shutdownRequested = false;
 let resolveRendersIdle: (() => void) | undefined;
@@ -30,12 +33,22 @@ let resolveRendersIdle: (() => void) | undefined;
  * @remarks
  * Processor `.setup()` is skipped here because the main thread already prepared disk artifacts
  * before static export started the Lit worker (`ECOPAGES_LIT_STATIC_RENDER_WORKER`). Integrations
- * still need setup in this isolate before route renderers are created.
+ * still need setup in this isolate before route renderers are created. Its `'browser-build'` runtime resolves their
+ * global scripts once {@link restoreAppBrowserBuild} has restored the browser build.
  */
-async function initializeWorker(configModulePath: string, runtimeOrigin: string): Promise<void> {
-	appConfig = await loadEcoPagesConfig({ configFile: configModulePath });
+async function initializeWorker(
+	configModulePath: string,
+	runtimeOrigin: string,
+	directories: { distDir: string; workDir: string },
+): Promise<void> {
+	appConfig = await loadEcoPagesConfig({
+		configFile: configModulePath,
+		directories,
+		globalScriptResolution: 'browser-build',
+	});
 	const runtime = requireAppRuntime(appConfig);
 	runtime.origin = runtimeOrigin;
+	runtime.staticGenerationActive = true;
 
 	await setupAppRuntimePlugins({
 		appConfig,
@@ -47,10 +60,30 @@ async function initializeWorker(configModulePath: string, runtimeOrigin: string)
 	});
 }
 
+/**
+ * Restores the production app-wide browser build once, before the first render.
+ *
+ * @remarks
+ * Static export starts the worker before the main thread builds the app browser client and writes its asset ledger,
+ * so the worker restores the ledger on its first render instead of at init. It reads the ledger of the build it
+ * renders for, whose directories the main thread passed at init, so an older build in the configured output cannot
+ * leak in. A Lit Page then links the same outputs as every other Page. The ledger stays unsealed: the export
+ * still processes the dependencies only rendering reveals. Each Integration's global scripts are resolved after the
+ * restore, not at init, so the worker never bundles them on its own into `dist/`.
+ */
+function restoreAppBrowserBuild(config: LoadedAppConfig): Promise<void> {
+	appBrowserBuildRestore ??= (async () => {
+		await restoreProductionBrowserBuild(config, { seal: false });
+		await resolveIntegrationDependencies({ appConfig: config });
+	})();
+	return appBrowserBuildRestore;
+}
+
 async function renderPage(filePath: string, params: PageParams, query?: PageQuery): Promise<LitStaticRenderResult> {
-	if (!routeRendererFactory) {
+	if (!routeRendererFactory || !appConfig) {
 		throw new Error('Lit static render worker is not initialized');
 	}
+	await restoreAppBrowserBuild(appConfig);
 
 	const result = await routeRendererFactory.getPageRenderer(filePath).execute({
 		file: filePath,
@@ -93,7 +126,7 @@ if (!parentPort) {
 parentPort.on('message', async (message: LitStaticRenderWorkerRequestMessage) => {
 	try {
 		if (message.type === 'init') {
-			await initializeWorker(message.configModulePath, message.runtimeOrigin);
+			await initializeWorker(message.configModulePath, message.runtimeOrigin, message.directories);
 			postMessage({ type: 'ready' });
 			return;
 		}

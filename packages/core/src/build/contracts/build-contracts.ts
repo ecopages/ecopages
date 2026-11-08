@@ -13,13 +13,22 @@ export interface BuildOutput {
 export interface BuildDependencyGraph {
 	/**
 	 * Each entry's resolved absolute path, mapped to its static and dynamic source
-	 * module closure, including inlined and tree-shaken imports and the entry itself.
+	 * module closure, including inlined and tree-shaken imports and the entry itself,
+	 * plus the files a plugin declared with `addWatchFile` for a module in it.
 	 *
 	 * @remarks
 	 * Production caches hash these files to decide reuse, so an omitted module leaves stale output after it
 	 * changes.
 	 */
 	entrypoints: Record<string, string[]>;
+	/**
+	 * Resolved paths of the entries whose own module the bundler detected as CommonJS.
+	 *
+	 * @remarks
+	 * Such an entry's output has a default export, `module.exports`, and no named exports. The development vendor
+	 * graph reads it so importers can take named bindings from the default export.
+	 */
+	commonJsEntrypoints?: string[];
 }
 
 /**
@@ -46,17 +55,6 @@ export interface BuildSuccess {
 	outputs: BuildOutput[];
 	/** Warnings reported by the bundler. */
 	warnings: BuildLog[];
-	/** Absolute filesystem paths recorded by plugin load hooks during this build. */
-	loadedInputs: string[];
-	/**
-	 * Filesystem inputs recorded by each plugin-loaded module in this build.
-	 *
-	 * @remarks
-	 * Cache owners use module ownership to keep plugin inputs scoped to their
-	 * own entry closure, including when one entry's plugin explicitly reads a
-	 * file that another entry loads as a source module.
-	 */
-	loadedInputsByModule: Record<string, string[]>;
 	dependencyGraph: BuildDependencyGraph;
 	/**
 	 * Emitted absolute output paths keyed by the entry path or name the caller
@@ -159,6 +157,53 @@ export interface BuildOptions {
 		sideEffects?: boolean;
 	};
 	plugins?: EcoBuildPlugin[];
+	/**
+	 * How the build compiles the stylesheets its modules import; defaults to `.css` files exported as written.
+	 *
+	 * @remarks
+	 * Server and browser requests set it from the app: the extensions of the registered stylesheet Processor (see
+	 * `StylesheetKinds`) and core's `compileStylesheetModule`, so both environments give an import the same CSS.
+	 */
+	stylesheets?: BuildStylesheets;
+	/**
+	 * Builds each `new Worker(new URL('./x.ts', import.meta.url), { type: 'module' })`, and the same with
+	 * `SharedWorker`, as its own entry and points the URL at the emitted file. Browser builds only; defaults to `true`.
+	 *
+	 * @remarks
+	 * The dev transform server sets `false`: it compiles one module at a time and points the URL at its own module URL.
+	 */
+	workerEntries?: boolean;
+}
+
+/**
+ * The stylesheets of one build request and the compiler of the module a binding import of one receives.
+ *
+ * @remarks
+ * Only `extensions` is part of the request identity: `compileModule` is the app's one stylesheet compiler, the same
+ * for every request of the app.
+ */
+export interface BuildStylesheets {
+	/** The lowercase, dotted stylesheet extensions. */
+	readonly extensions: readonly string[];
+	/** Whether `file` names a CSS Module, by the same rule as `StylesheetKinds.isCssModule`; defaults to `.module.css`. */
+	isCssModule?(file: string): boolean;
+	/**
+	 * Compiles the stylesheet at `file` into ES module code whose default export is its processed CSS, with the other
+	 * files that CSS inlined.
+	 *
+	 * @remarks
+	 * The build joins `dependencies` to the module closure of each entry that imports the stylesheet, so a change to an
+	 * `@import` partial rebuilds the server module that embeds it.
+	 */
+	compileModule(file: string): Promise<{ code: string; dependencies?: readonly string[] }>;
+	/**
+	 * Receives the error for a package module's own side-effect stylesheet import in a browser build, which then loads
+	 * an empty module. Without it, that error fails the build.
+	 *
+	 * @remarks
+	 * Development requests set it, so `ecopages dev` warns about such a package instead of stopping.
+	 */
+	reportUndeliverable?(error: Error): void;
 }
 
 /** Compilation environment, independent of the build queue's scheduling lane. */

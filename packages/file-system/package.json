@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/file-system",
-	"version": "0.6.0",
+	"version": "0.6.1",
 	"description": "Node file system utilities for Ecopages",
 	"keywords": [
 		"ecopages",

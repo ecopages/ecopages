@@ -51,13 +51,14 @@ export class DevTransformServer {
 	/** Compiled modules, keyed by source path, plus the variant of a module compiled in another form. */
 	private readonly cache = new Map<string, CacheEntry>();
 	/**
-	 * The module each stylesheet last compiled to, by source path.
+	 * The module each source last compiled to, by cache key.
 	 *
 	 * @remarks
-	 * A stylesheet whose compile fails keeps answering with it, so the importer still loads while the error shows in
-	 * the page, and the next save that compiles replaces it. A stylesheet that never compiled answers `500`.
+	 * A module whose compile fails keeps answering with it, so the importer still loads while the error shows in the
+	 * page, and the next save that compiles replaces it. A module that never compiled answers `500`. The server only
+	 * exists in `ecopages dev`, so it applies the rule of `keepsLastGoodOutput` without asking it.
 	 */
-	private readonly lastCompiledStylesheets = new Map<string, string>();
+	private readonly lastCompiled = new Map<string, string>();
 	private readonly inFlight = new Map<string, Promise<CacheEntry>>();
 	private cacheGeneration = 0;
 	private readonly sourceGenerations = new Map<string, number>();
@@ -187,7 +188,7 @@ export class DevTransformServer {
 	reset(): void {
 		this.urlToSource.clear();
 		this.sourceToUrl.clear();
-		this.lastCompiledStylesheets.clear();
+		this.lastCompiled.clear();
 		this.invalidateAll();
 	}
 
@@ -216,10 +217,11 @@ export class DevTransformServer {
 			return null;
 		}
 
+		const variant = url.searchParams.get('eco-variant') ?? undefined;
 		startupTrace.beginDevClientTransform();
 		const startedAt = performance.now();
 		try {
-			const entry = await this.materialize(sourcePath, url.searchParams.get('eco-variant') ?? undefined);
+			const entry = await this.materialize(sourcePath, variant);
 			this.failedSources.delete(path.resolve(sourcePath));
 			if (isEcopagesEnvEnabled('ECOPAGES_STARTUP_TRACE')) {
 				appLogger.debug(
@@ -231,10 +233,9 @@ export class DevTransformServer {
 			const message = error instanceof Error ? error.message : String(error);
 			this.failedSources.set(path.resolve(sourcePath), message);
 			this.onTransformError?.(message);
-			const lastCompiled =
-				error instanceof StylesheetCompileError
-					? this.lastCompiledStylesheets.get(path.resolve(sourcePath))
-					: undefined;
+			const lastCompiled = fileSystem.exists(sourcePath)
+				? this.lastCompiled.get(this.cacheKey(path.resolve(sourcePath), variant))
+				: undefined;
 			if (lastCompiled !== undefined) {
 				return this.createJavaScriptResponse(lastCompiled);
 			}
@@ -286,13 +287,18 @@ export class DevTransformServer {
 		try {
 			return { code: (await compileStylesheetModule(this.appConfig, sourcePath)).code };
 		} catch (error) {
-			throw new StylesheetCompileError(sourcePath, error);
+			const message = error instanceof Error ? error.message : String(error);
+			throw new Error(`[dev-transform] Failed to compile stylesheet ${sourcePath}: ${message}`, { cause: error });
 		}
+	}
+
+	private cacheKey(normalizedSourcePath: string, variant?: string): string {
+		return variant ? `${normalizedSourcePath}?${variant}` : normalizedSourcePath;
 	}
 
 	private async materialize(sourcePath: string, variant?: string): Promise<CacheEntry> {
 		const normalized = path.resolve(sourcePath);
-		const cacheKey = variant ? `${normalized}?${variant}` : normalized;
+		const cacheKey = this.cacheKey(normalized, variant);
 		if (!fileSystem.exists(normalized)) {
 			throw new Error(`[dev-transform] Missing source module: ${normalized}`);
 		}
@@ -331,7 +337,7 @@ export class DevTransformServer {
 
 				const entry: CacheEntry = { code: result.code, sourceHash };
 				this.cache.set(cacheKey, entry);
-				if (isStylesheet) this.lastCompiledStylesheets.set(normalized, result.code);
+				this.lastCompiled.set(cacheKey, result.code);
 				return entry;
 			})
 			.catch((error: unknown) => {
@@ -347,16 +353,5 @@ export class DevTransformServer {
 
 		this.inFlight.set(cacheKey, promise);
 		return promise;
-	}
-}
-
-/**
- * A stylesheet whose Processor threw, which the server answers with the stylesheet's last compiled module when it has one.
- */
-class StylesheetCompileError extends Error {
-	constructor(sourcePath: string, cause: unknown) {
-		const message = cause instanceof Error ? cause.message : String(cause);
-		super(`[dev-transform] Failed to compile stylesheet ${sourcePath}: ${message}`, { cause });
-		this.name = 'StylesheetCompileError';
 	}
 }

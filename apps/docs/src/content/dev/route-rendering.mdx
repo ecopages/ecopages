@@ -104,6 +104,8 @@ Every `ssr: true` entry is preloaded, eager or lazy, and assigned to one preload
 - A script declared by a Component whose Integration preloads (`'own'` or `'own-and-foreign'`) goes to that Integration. When Components of several preloading Integrations declare it, the first in config order takes it.
 - Any other script, such as one on a Kita, React or plain Component, goes to the first `'own-and-foreign'` Integration in config order: Lit. Without one, it is not evaluated on the server.
 
+A script that throws while it is preloaded is recorded as failed until a save invalidates it. The Page still renders with a 200, and the element renders without server rendering unless an earlier evaluation of the script already registered it. In `ecopages dev` outside static generation, the preloader's `onPreloadFailure` shows the error in the overlay each time a render reaches the script, so a later file change that cleared the overlay does not hide a script that is still broken; a script that only needs the browser (`window is not defined`) is not reported. A build logs the warning and does the same.
+
 Ecopages JSX declares `'own'` when Radiant is enabled, and Lit declares `'own-and-foreign'`. The declaration is the only statement of whether an Integration preloads, so the two cannot drift. A renderer that builds a preloader for an Integration with no `ssrScriptPreload` throws, and so does an Integration that declares one whose renderer builds none; `getRenderer()` reports both when it creates the renderer.
 
 ```mermaid

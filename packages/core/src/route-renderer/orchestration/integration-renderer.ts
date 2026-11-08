@@ -87,6 +87,7 @@ import {
 	getForeignSubtreeTokenPrefix,
 	resolveOwningIntegrationRenderer,
 } from './foreign-child/owning-renderer-resolution.ts';
+import { keepsLastGoodOutput, showAssetFailure } from '../../assets/asset-processing-service/last-good-output.ts';
 import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
 import {
 	assignSsrPreloadScripts,
@@ -770,6 +771,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			integrations: this.appConfig.integrations,
 			preloadScopes: requireAppRuntime(this.appConfig).customElementSsrPreloadScopes,
 			resolveDependencyPath: (componentDir, pathUrl) => this.resolveDependencyPath(componentDir, pathUrl),
+			onPreloadFailure: (scriptPath, error) => {
+				if (keepsLastGoodOutput(this.appConfig)) showAssetFailure(this.appConfig, 'script', scriptPath, error);
+			},
 		});
 		return this.ssrScriptPreloader;
 	}

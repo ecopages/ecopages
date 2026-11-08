@@ -187,6 +187,15 @@ export interface CustomElementScriptPreloaderOptions {
 	 */
 	integrations: readonly SsrScriptPreloadDeclaration[];
 	logLabel?: string;
+	/**
+	 * Called with the error of a script that failed to preload, except one that only needs the browser, every time a
+	 * render reaches it until the script is invalidated.
+	 *
+	 * @remarks
+	 * The preloader itself only warns and leaves the element without server rendering. Core uses this to show the
+	 * failure in the development overlay, which a later render must be able to repeat after the error was cleared.
+	 */
+	onPreloadFailure?: (scriptPath: string, error: unknown) => void;
 }
 
 /** What a renderer supplies to build its preloader; core adds the rest from the Integration's declaration. */
@@ -216,6 +225,7 @@ export class CustomElementScriptPreloader {
 	private readonly integrationName: string;
 	private readonly integrations: readonly SsrScriptPreloadDeclaration[];
 	private readonly logLabel: string;
+	private readonly onPreloadFailure?: (scriptPath: string, error: unknown) => void;
 
 	constructor({
 		cacheScope,
@@ -225,6 +235,7 @@ export class CustomElementScriptPreloader {
 		integrationName,
 		integrations,
 		logLabel = 'ecopages',
+		onPreloadFailure,
 	}: CustomElementScriptPreloaderOptions) {
 		this.cacheScope = cacheScope;
 		this.preloadScopes = preloadScopes;
@@ -233,6 +244,7 @@ export class CustomElementScriptPreloader {
 		this.integrationName = integrationName;
 		this.integrations = integrations;
 		this.logLabel = logLabel;
+		this.onPreloadFailure = onPreloadFailure;
 	}
 
 	invalidateScript(scriptPath: string): void {
@@ -308,12 +320,21 @@ export class CustomElementScriptPreloader {
 		return false;
 	}
 
+	private reportFailure(scriptPath: string, error: unknown): void {
+		if (!this.isExpectedSsrPreloadError(error)) this.onPreloadFailure?.(scriptPath, error);
+	}
+
 	private async preloadOneScript(
 		scriptPath: string,
 		scopeState: CustomElementScriptPreloadScopeState,
 		registry: CustomElementRegistry | undefined,
 	): Promise<void> {
-		if (scopeState.preloadedScripts.has(scriptPath) || scopeState.preloadFailedScripts.has(scriptPath)) {
+		if (scopeState.preloadedScripts.has(scriptPath)) {
+			return;
+		}
+
+		if (scopeState.preloadFailedScripts.has(scriptPath)) {
+			this.reportFailure(scriptPath, scopeState.preloadFailedScripts.get(scriptPath));
 			return;
 		}
 
@@ -332,8 +353,9 @@ export class CustomElementScriptPreloader {
 				await this.importServerModule(scriptPath, registry ? getRegistryKey(registry) : 'default');
 				scopeState.preloadedScripts.add(scriptPath);
 			} catch (error) {
-				scopeState.preloadFailedScripts.add(scriptPath);
+				scopeState.preloadFailedScripts.set(scriptPath, error);
 
+				this.reportFailure(scriptPath, error);
 				if (this.isExpectedSsrPreloadError(error)) {
 					if (isEcopagesEnvEnabled('ECOPAGES_DEBUG')) {
 						console.warn(

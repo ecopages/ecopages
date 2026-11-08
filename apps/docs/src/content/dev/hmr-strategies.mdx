@@ -63,10 +63,10 @@ The manager merges the batch before broadcasting: any `reload` replaces every ot
 
 Errors are the exception, and are replayed:
 
-- A dev-transform compile failure is broadcast when the module is requested, which on a fresh page load can be before its HMR socket connects. `DevTransformServer` records the message under the module until the next `handleFileChanges()` clears every failure (the cause can be another file) or a request for that module succeeds.
+- A dev-transform compile failure is broadcast when the module is requested, which on a fresh page load can be before its HMR socket connects. `DevTransformServer` records the message under the module until the next `handleFileChanges()` clears every failure (the cause can be another file) or a request for that module succeeds. The module itself keeps answering with its last compiled form, so the error shows while the page keeps working.
 - A file whose strategy or script-change handler throws is recorded under that file until it processes without error, so its error survives a `reload` that another file of the same save triggers.
 - The Node host calls `sendPendingBuildErrors()` right after subscribing a socket, which sends one `error` event per recorded failure.
 
 ## Errors reported by a request
 
-`reportBuildError(source, message)` shows an error found while answering a request, such as a stylesheet a Page request could not process in development, and keeps it for `sendPendingBuildErrors`, so a page that loads after the request still shows it. The next file change clears it, and a request that still fails reports it again. The errors of stylesheets the development stylesheet service holds as failed are appended to every batch as `error` events, after the updates, because the client clears a shown error on any other event.
+`reportBuildError(source, message)` shows an error found while answering a request, such as a stylesheet or script a Page request could not process in development, or an `ssr: true` script that failed to preload on the server, and keeps it for `sendPendingBuildErrors`, so a page that loads after the request still shows it. The next file change clears it, and a request that still fails reports it again. The errors of stylesheets the development stylesheet service holds as failed are appended to every batch as `error` events, after the updates, because the client clears a shown error on any other event.

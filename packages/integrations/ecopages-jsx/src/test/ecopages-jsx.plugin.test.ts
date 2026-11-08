@@ -215,7 +215,7 @@ test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabl
 	const runtime = requireAppRuntime(appConfig);
 	const scopeState: CustomElementScriptPreloadScopeState = {
 		preloadedScripts: new Set(['/tmp/widget.js']),
-		preloadFailedScripts: new Set(),
+		preloadFailedScripts: new Map(),
 		inFlightImports: new Map(),
 	};
 	preloadScopes.set(CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx, scopeState);

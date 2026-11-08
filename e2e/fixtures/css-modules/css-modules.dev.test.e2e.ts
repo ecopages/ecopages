@@ -143,4 +143,38 @@ test.describe('CSS Modules under ecopages dev', () => {
 		await expect(overlay).toBeHidden({ timeout: 30_000 });
 		await expect(page.getByTestId('react-button')).toHaveCSS('color', 'rgb(255, 0, 0)', { timeout: 30_000 });
 	});
+
+	test('answers a page request 200 with the last good script and the error overlay while a script is broken', async ({
+		page,
+		request,
+		app,
+	}) => {
+		await page.goto('/lit');
+		await page.getByTestId('lit-card').click();
+		await expect(page.getByTestId('lit-card')).toContainText('Lit 1');
+		const file = path.join(app.dir, 'src/components/card.script.ts');
+		const good = readFileSync(file, 'utf8');
+		const overlay = page.locator('#__ecopages_build_error__');
+
+		writeFileSync(file, `${good}\nexport const broken = ;\n`);
+		await expect(overlay).toBeVisible({ timeout: 30_000 });
+
+		const response = await request.get('/lit');
+		expect(response.status()).toBe(200);
+		await page.reload();
+		await expect(overlay).toBeVisible({ timeout: 30_000 });
+		await expect(overlay).toContainText('card.script.ts');
+		await page.getByTestId('lit-card').click();
+		await expect(page.getByTestId('lit-card')).toContainText('Lit 1');
+
+		writeFileSync(file, good.replace('this.count += 1', 'this.count += 2'));
+
+		await expect(overlay).toBeHidden({ timeout: 30_000 });
+		await expect(async () => {
+			await page.reload();
+			await page.getByTestId('lit-card').click();
+			await expect(page.getByTestId('lit-card')).toContainText('Lit 2', { timeout: 2_000 });
+		}).toPass({ timeout: 30_000 });
+		expect(await (await request.get('/lit')).text()).toContain('shadowrootmode');
+	});
 });

@@ -1,7 +1,8 @@
 export type CustomElementScriptPreloadScopeState = {
 	activeRegistry?: CustomElementRegistry;
 	preloadedScripts: Set<string>;
-	preloadFailedScripts: Set<string>;
+	/** The error each script that failed to preload threw, until the script is invalidated. */
+	preloadFailedScripts: Map<string, unknown>;
 	inFlightImports: Map<string, Promise<void>>;
 };
 
@@ -13,7 +14,7 @@ export function getCustomElementScriptPreloadScopeState(
 	if (!state) {
 		state = {
 			preloadedScripts: new Set(),
-			preloadFailedScripts: new Set(),
+			preloadFailedScripts: new Map(),
 			inFlightImports: new Map(),
 		};
 		scopeStates.set(cacheScope, state);

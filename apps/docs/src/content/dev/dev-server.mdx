@@ -6,6 +6,7 @@ order: 16
 sources:
   - packages/core/src/dev/transform-server/
   - packages/core/src/hmr/hmr-asset-paths.ts
+  - packages/core/src/assets/asset-processing-service/last-good-output.ts
   - packages/core/src/adapters/shared/hmr/hmr-manager.ts
   - packages/core/src/assets/asset-processing-service/processors/script/file-script.processor.ts
   - packages/core/src/assets/asset-processing-service/processors/script/content-script.processor.ts
@@ -58,7 +59,7 @@ sequenceDiagram
 
 The server keeps one cache entry per source file, keyed by the file's content hash, and one in-flight compile per source. A result is committed only if the source did not change or get invalidated while it compiled; otherwise the request compiles again. A failed compile of a source that changed meanwhile is retried the same way, so its error is neither returned nor reported. A stylesheet a module imports with a binding is not bundled: `compileStylesheetModule` runs the app's stylesheet Processor and answers `export default "<processed css>"`, the same module server builds and browser bundles give the import.
 
-A failed compile answers `500` with the error text and reports it to the HMR manager, which shows it in the page. A stylesheet whose Processor throws, and that compiled before, answers with its last compiled module instead, so the importer keeps loading while the error shows, and the next save that compiles replaces it. The server builds of a Page request (and browser bundles) behave the same in development: `compileModule` of the build request falls back to `DevelopmentStylesheetService.lastGoodModule`, the class map or CSS of the last good output, or an empty module when the stylesheet never compiled, and reports the error; a production build rethrows. The stylesheet failures the development stylesheet service holds are sent after the updates of every HMR batch and replayed to a browser that connects, so a later update does not clear the overlay. See [HMR client](/dev/hmr-client) for how errors and updates reach the browser.
+A failed compile reports the error to the HMR manager, which shows it in the page. A module that compiled before, a script or a stylesheet whose Processor throws, answers with its last compiled module instead, so the importer keeps loading and the page keeps its behaviour while the error shows, and the next save that compiles replaces it. A module that never compiled, or whose source was deleted, answers `500` with the error text. The server exists only in `ecopages dev`, so it applies the rule of `keepsLastGoodOutput` ([Asset processing](/dev/asset-processing#a-broken-asset-in-development)) without asking it. The server builds of a Page request (and browser bundles) behave the same in development: `compileModule` of the build request falls back to `DevelopmentStylesheetService.lastGoodModule`, the class map or CSS of the last good output, or an empty module when the stylesheet never compiled, and reports the error; a production build rethrows. The stylesheet failures the development stylesheet service holds are sent after the updates of every HMR batch and replayed to a browser that connects, so a later update does not clear the overlay. See [HMR client](/dev/hmr-client) for how errors and updates reach the browser.
 
 ### Import rewriting
 

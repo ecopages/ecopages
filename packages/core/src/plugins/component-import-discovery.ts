@@ -335,12 +335,6 @@ function relativeToRoot(projectRoot: string, file: string): string {
 	return relative.startsWith('..') || path.isAbsolute(relative) ? file : relative;
 }
 
-function createPackageCssModuleError(projectRoot: string, importer: string, source: string): Error {
-	return new Error(
-		`[ecopages] ${relativeToRoot(projectRoot, importer)}: ${JSON.stringify(source)} is a CSS Module from a package, which Ecopages cannot scope. Copy it into the app and import it from there.`,
-	);
-}
-
 function createPackageProcessedStylesheetError(projectRoot: string, importer: string, source: string): Error {
 	return new Error(
 		`[ecopages] ${relativeToRoot(projectRoot, importer)}: ${JSON.stringify(source)} is a package stylesheet that is not CSS. Packages must ship built CSS, because Ecopages does not run a stylesheet Processor on a package file. Import the package's built .css file instead, or copy the source into the app.`,
@@ -363,8 +357,9 @@ type StylesheetImportTarget = { kind: 'local' } | { kind: 'css-module' } | { kin
  * The one rule behind both stripping and discovery, so the two cannot drift. A plain stylesheet is delivered by a
  * side-effect import alone, as the module has no binding to keep. A CSS Module is delivered by any import without
  * attributes, since the importer keeps its class map. A package specifier names a stylesheet as
- * {@link resolvePackageStylesheetPath} decides. Throws for a CSS Module when no Processor scopes them (naming the
- * package to install) and for a package CSS Module, for a package stylesheet named with `.css` that does not resolve,
+ * {@link resolvePackageStylesheetPath} decides, and a CSS Module of a package is delivered by any import. Throws for a CSS Module,
+ * local or from a package, when no Processor scopes them (naming the package to install), for a package stylesheet
+ * named with `.css` that does not resolve,
  * and for a `.css` specifier that is neither relative, aliased nor a package, such as `#styles/x.css` or an absolute
  * path, which no Page could receive.
  */
@@ -393,21 +388,56 @@ function classifyStylesheetImport(
 	return classifyPackageStylesheetImport(entry, importer, projectRoot, kinds);
 }
 
-/** Classifies an import of a bare package specifier; a CSS Module of a package is never delivered. */
+/**
+ * Classifies an import of a bare package specifier.
+ *
+ * @remarks
+ * A CSS Module of a package is delivered by any import without attributes, like a local one, and a plain package
+ * stylesheet by a side-effect import alone.
+ */
 function classifyPackageStylesheetImport(
 	entry: StaticImport,
 	importer: string,
 	projectRoot: string,
 	kinds: StylesheetKinds,
 ): StylesheetImportTarget | undefined {
-	if (kinds.isCssModule(entry.source)) throw createPackageCssModuleError(projectRoot, importer, entry.source);
-	if (!entry.sideEffectOnly) return undefined;
+	const isModule = kinds.isCssModule(entry.source);
+	if (isModule && !kinds.scopesCssModules) throw createUnscopedCssModuleError(projectRoot, importer, entry.source);
+	if (!isModule && !entry.sideEffectOnly) return classifyBoundPackageStylesheet(entry, importer, projectRoot, kinds);
 	if (kinds.isStylesheet(entry.source) && !entry.source.toLowerCase().endsWith('.css')) {
 		throw createPackageProcessedStylesheetError(projectRoot, importer, entry.source);
 	}
 	const file = resolvePackageStylesheetPath(importer, entry.source);
-	if (file && kinds.isCssModule(file)) throw createPackageCssModuleError(projectRoot, importer, entry.source);
+	if (file && kinds.isCssModule(file) && !kinds.scopesCssModules) {
+		throw createUnscopedCssModuleError(projectRoot, importer, entry.source);
+	}
 	return file ? { kind: 'package', file } : undefined;
+}
+
+/**
+ * Classifies a binding import of a `.css` package specifier that is not named like a CSS Module.
+ *
+ * @remarks
+ * The package may export a CSS Module under that name (`"./module.css": "./dist/x.module.css"`), which the importer
+ * keeps the class map of and which is delivered like any package CSS Module. Any other file stays the importer's own
+ * string, and a specifier that does not resolve is left to the build that imports it.
+ */
+function classifyBoundPackageStylesheet(
+	entry: StaticImport,
+	importer: string,
+	projectRoot: string,
+	kinds: StylesheetKinds,
+): StylesheetImportTarget | undefined {
+	if (!entry.source.toLowerCase().endsWith('.css')) return undefined;
+	let file: string | undefined;
+	try {
+		file = resolvePackageStylesheetPath(importer, entry.source);
+	} catch {
+		return undefined;
+	}
+	if (!file || !kinds.isCssModule(file)) return undefined;
+	if (!kinds.scopesCssModules) throw createUnscopedCssModuleError(projectRoot, importer, entry.source);
+	return { kind: 'package', file };
 }
 
 /**

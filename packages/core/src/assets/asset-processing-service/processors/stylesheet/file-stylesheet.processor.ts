@@ -4,7 +4,9 @@ import type { FileStylesheetAsset, ProcessedAsset } from '../../assets.types.ts'
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 import { BaseProcessor } from '../base/base-processor.ts';
 import { applyStylesheetProcessors } from './stylesheet-processor-pipeline.ts';
+import { getStylesheetKinds } from '../../../../plugins/stylesheet-kinds.ts';
 import {
+	emitPackageStylesheetReferences,
 	emitStylesheetReferences,
 	preparePackageStylesheet,
 	type StylesheetReferenceOutput,
@@ -16,7 +18,8 @@ import { type SourceRelativeStylesheetDirs, writeSourceRelativeStylesheet } from
  *
  * @remarks
  * A package stylesheet (`fromPackage`) skips Processors (see {@link preparePackageStylesheet}) and is always
- * written under its content hash. The files any stylesheet's relative `url()` references name are emitted to
+ * written under its content hash. A package CSS Module is the one exception: the Processor that scopes CSS Modules
+ * scopes it, and the files it references follow the package policy (see {@link emitPackageStylesheetReferences}). The files any stylesheet's relative `url()` references name are emitted to
  * `dist/client/assets` under a content hash (see {@link emitStylesheetReferences}); a linked stylesheet names them
  * relative to where it is written, and an inline one root-relative, since a `<style>` resolves against the Page. In
  * development a stylesheet inside `srcDir` keeps its source-relative path (see {@link writeSourceRelativeStylesheet}).
@@ -37,7 +40,10 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 				dep.inline ? `/${path.relative(distDir, emitted)}` : path.relative(directory, emitted),
 		};
 
-		if (dep.fromPackage) return this.toProcessedAsset(dep, preparePackageStylesheet(dep.filepath, output));
+		const isCssModule = getStylesheetKinds(this.appConfig).isCssModule(dep.filepath);
+		if (dep.fromPackage && !isCssModule) {
+			return this.toProcessedAsset(dep, preparePackageStylesheet(dep.filepath, output));
+		}
 
 		const { css, dependencies } = await applyStylesheetProcessors(
 			this.appConfig,
@@ -49,12 +55,13 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 				? { ...dep, bundledSourceFilepaths: [...(dep.bundledSourceFilepaths ?? []), ...dependencies] }
 				: dep;
 		const sourceRelativePath =
-			dep.inline || this.isProduction
+			dep.inline || this.isProduction || dep.fromPackage
 				? undefined
 				: writeSourceRelativeStylesheet(this.appDirs(), dep.filepath, css);
 		if (sourceRelativePath) return this.toProcessedAsset(processed, undefined, sourceRelativePath);
 
-		return this.toProcessedAsset(processed, emitStylesheetReferences(css, dep.filepath, output));
+		const emit = dep.fromPackage ? emitPackageStylesheetReferences : emitStylesheetReferences;
+		return this.toProcessedAsset(processed, emit(css, dep.filepath, output));
 	}
 
 	private appDirs(): SourceRelativeStylesheetDirs {

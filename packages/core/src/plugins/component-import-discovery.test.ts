@@ -236,10 +236,53 @@ export const Button = eco.component({ render: () => '' });`,
 			const result = page(`import { Card } from './card';\nconsole.log(Card);`);
 			expect(result).toContain(`plainModuleStylesheets: ${JSON.stringify(['style.module.css'])}`);
 		});
-		it('fails on a CSS Module from a package', () => {
-			const { page } = moduleFixture();
-			expect(() => page(`import styles from 'some-lib/dist/x.module.css';`)).toThrow(
-				'is a CSS Module from a package',
+		it('delivers a CSS Module from a package for any import form, keeping the binding import', () => {
+			const { root, page, attribute } = moduleFixture();
+			const dist = path.join(root, 'node_modules', 'some-lib', 'dist');
+			mkdirSync(dist, { recursive: true });
+			writeFileSync(path.join(root, 'node_modules', 'some-lib', 'package.json'), '{"name":"some-lib"}');
+			writeFileSync(path.join(dist, 'x.module.css'), '.x {}');
+			const entry = '|some-lib/dist/x.module.css';
+
+			const bound = page(`import styles from 'some-lib/dist/x.module.css';`);
+			expect(bound).toContain(`import styles from 'some-lib/dist/x.module.css'`);
+			expect(bound).toContain(`stylesheets: ${JSON.stringify([entry])}`);
+			expect(bound).toContain(`packageStylesheets: ${JSON.stringify([entry])}`);
+
+			const sideEffect = page(`import 'some-lib/dist/x.module.css';`);
+			expect(sideEffect).not.toContain(`import 'some-lib/dist/x.module.css'`);
+			expect(sideEffect).toContain(`packageStylesheets: ${JSON.stringify([entry])}`);
+
+			const plain = attribute(
+				`import styles from 'some-lib/dist/x.module.css';\nexport const x = styles.x;`,
+				'x.ts',
+			);
+			expect(plain).toContain(`import styles from 'some-lib/dist/x.module.css'`);
+		});
+		it('delivers a CSS Module a package exports under another name, for a binding import too', () => {
+			const { root, page, attribute } = moduleFixture();
+			const packageDir = path.join(root, 'node_modules', 'some-lib');
+			mkdirSync(path.join(packageDir, 'dist'), { recursive: true });
+			writeFileSync(
+				path.join(packageDir, 'package.json'),
+				JSON.stringify({
+					name: 'some-lib',
+					exports: { './module.css': './dist/x.module.css', './plain.css': './dist/plain.css' },
+				}),
+			);
+			writeFileSync(path.join(packageDir, 'dist', 'x.module.css'), '.x {}');
+			writeFileSync(path.join(packageDir, 'dist', 'plain.css'), '.plain {}');
+
+			const bound = page(`import styles from 'some-lib/module.css';`);
+			expect(bound).toContain(`import styles from 'some-lib/module.css'`);
+			expect(bound).toContain(`packageStylesheets: ${JSON.stringify(['|some-lib/dist/x.module.css'])}`);
+			const plain = attribute(`import css from 'some-lib/plain.css';\nexport const x = css;`, 'x.ts');
+			expect(plain).toContain(`import css from 'some-lib/plain.css'`);
+		});
+		it('fails with the file, the import and the package to install on a package CSS Module no Processor scopes', () => {
+			const { transform } = fixture();
+			expect(() => transform(`import styles from 'some-lib/dist/x.module.css';`)).toThrow(
+				/page\.ts: "some-lib\/dist\/x\.module\.css" is a CSS Module\..*@ecopages\/lightningcss-processor/u,
 			);
 		});
 		it('fails on a CSS Module of a specifier no Page could receive', () => {
@@ -379,10 +422,10 @@ export const Button = eco.component({ render: () => '' });`,
 			).code;
 			expect(code).not.toContain('some-lib');
 		});
-		it('fails on a package CSS Module and on a package stylesheet the package does not export', () => {
+		it('fails on a package CSS Module no Processor scopes and on a package stylesheet the package does not export', () => {
 			const { transform } = packageFixture();
 			expect(() => transform(`import 'some-lib/module.css';`)).toThrow(
-				'page.ts: "some-lib/module.css" is a CSS Module from a package, which Ecopages cannot scope.',
+				/page\.ts: "some-lib\/module\.css" is a CSS Module\..*@ecopages\/lightningcss-processor/u,
 			);
 			expect(() => transform(`import 'some-lib/missing.css';`)).toThrow(
 				'Cannot resolve package stylesheet "some-lib/missing.css"',

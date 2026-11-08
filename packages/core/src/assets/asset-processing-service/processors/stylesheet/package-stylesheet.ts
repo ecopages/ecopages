@@ -195,3 +195,19 @@ export function preparePackageStylesheet(stylesheet: string, output: StylesheetR
 export function emitStylesheetReferences(css: string, stylesheet: string, output: StylesheetReferenceOutput): string {
 	return scanCss(css, { reference: (reference) => emitAppReference(stylesheet, css, reference, output) });
 }
+
+/**
+ * Emits the files the relative `url()` and `image-set()` references of a processed package stylesheet name, and
+ * rewrites each reference to what `toReference` returns for the emitted file.
+ *
+ * @remarks
+ * For a package CSS Module a Processor scoped, whose references stay as the package wrote them. It applies the
+ * policy of {@link preparePackageStylesheet} to them: a reference to a missing file fails the build.
+ */
+export function emitPackageStylesheetReferences(
+	css: string,
+	stylesheet: string,
+	output: StylesheetReferenceOutput,
+): string {
+	return scanCss(css, { reference: (reference) => emitPackageReference(stylesheet, reference, output) });
+}

@@ -3,7 +3,12 @@
  * @module @ecopages/lightningcss-processor
  */
 
-import { Processor, type ProcessorConfig, type StylesheetTransformResult } from '@ecopages/core/processor';
+import {
+	Processor,
+	type ProcessorConfig,
+	type StylesheetInvalidation,
+	type StylesheetTransformResult,
+} from '@ecopages/core/processor';
 import { bundleStylesheet } from './bundle-stylesheet.ts';
 import {
 	logWarnings,
@@ -13,7 +18,9 @@ import {
 	type ResolvedLightningCssOptions,
 	type LightningCssOptions,
 } from './lightningcss-engine.ts';
+import type { LightningCssPreprocessor } from './preprocessor.ts';
 
+export type { LightningCssPreprocessor, PreprocessedStylesheet } from './preprocessor.ts';
 export type { LightningCssFeature, LightningCssModulesOptions, LightningCssOptions } from './lightningcss-engine.ts';
 
 /** Configuration for the Lightning CSS Processor. */
@@ -23,6 +30,13 @@ export interface LightningCssProcessorPluginConfig extends LightningCssOptions {
 	 * @default /\.css$/
 	 */
 	filter?: RegExp;
+	/**
+	 * A stage that runs on every stylesheet before Lightning CSS, such as the Tailwind v4 preset.
+	 *
+	 * @remarks
+	 * Presets set it; most apps never write one.
+	 */
+	preprocessor?: LightningCssPreprocessor;
 }
 
 /**
@@ -69,6 +83,17 @@ export class LightningCssProcessorPlugin extends Processor<LightningCssProcessor
 	 */
 	async setup(): Promise<void> {}
 
+	/**
+	 * Names the stylesheets the preprocessor rebuilds for the changed files that are not stylesheets.
+	 *
+	 * @remarks
+	 * Without a preprocessor nothing but a stylesheet's own `@import`s changes its output, and core rebuilds those from
+	 * the transform's `dependencies`.
+	 */
+	override invalidateStylesheets(files: readonly string[]): StylesheetInvalidation | Promise<StylesheetInvalidation> {
+		return this.options?.preprocessor?.invalidate?.(files) ?? [];
+	}
+
 	override async transformStylesheet(css: string, file: string): Promise<StylesheetTransformResult> {
 		if (!this.context) {
 			throw new Error('Context must be set');
@@ -80,12 +105,20 @@ export class LightningCssProcessorPlugin extends Processor<LightningCssProcessor
 			},
 		);
 		try {
-			const bundled = await bundleStylesheet(css, file, this.context.rootDir, await this.resolvedOptions);
+			const preprocessed = await this.options?.preprocessor?.transform(css, file, {
+				rootDir: this.context.rootDir,
+			});
+			const bundled = await bundleStylesheet(
+				preprocessed?.css ?? css,
+				file,
+				this.context.rootDir,
+				await this.resolvedOptions,
+			);
 			logWarnings(bundled.warnings, file, css);
 			const bundledCss = Buffer.from(bundled.code).toString();
 			return {
 				css: bundled.hoisted.length > 0 ? `${bundled.hoisted.join('\n')}\n${bundledCss}` : bundledCss,
-				dependencies: bundled.dependencies,
+				dependencies: [...new Set([...(preprocessed?.dependencies ?? []), ...bundled.dependencies])],
 				...(bundled.exports ? { exports: serializeExports(bundled.exports) } : {}),
 			};
 		} catch (error) {

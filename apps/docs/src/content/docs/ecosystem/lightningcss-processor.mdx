@@ -15,10 +15,12 @@ The `@ecopages/lightningcss-processor` package is a stylesheet Processor that ru
 | Your stylesheets                                                               | Pick                                                                      |
 | :----------------------------------------------------------------------------- | :------------------------------------------------------------------------ |
 | Plain CSS: nesting, `color-mix()`, `@import` with `layer()` and media          | Lightning CSS                                                             |
+| Tailwind v4 with Lightning CSS features: targets, bundling, CSS Modules        | Lightning CSS, with the [Tailwind v4 preset](#tailwind-v4)                |
+| Tailwind v4 on PostCSS                                                         | [PostCSS Processor](/docs/ecosystem/postcss-processor)                    |
 | A setup built on PostCSS plugins                                               | [PostCSS Processor](/docs/ecosystem/postcss-processor)                    |
 | Tailwind v3                                                                    | [PostCSS Processor](/docs/ecosystem/postcss-processor)                    |
 
-A Tailwind v4 preset is not in this package yet; CSS Modules are, see [CSS Modules](#css-modules). An app has one stylesheet Processor, so choosing this one replaces the PostCSS Processor. Do not register both.
+CSS Modules are in this package, see [CSS Modules](#css-modules). An app has one stylesheet Processor, so choosing this one replaces the PostCSS Processor. Do not register both.
 
 ## Installation
 
@@ -57,6 +59,73 @@ export default defineConfig({
 | `errorRecovery` | Drop a rule Lightning CSS cannot parse with a warning, instead of failing the stylesheet.            |
 | `filter`        | Regex that picks the stylesheets to process. Default `/\.css$/`.                                     |
 | `cssModules`    | `{ pattern }`: how scoped class names are built. Default `'[hash]_[local]'`.                         |
+
+## Tailwind v4
+
+`tailwindV4Preset({ referencePath })` runs Tailwind v4 inside the Processor, without PostCSS. Each stylesheet goes through Tailwind, then through the Processor's own steps: `@import` bundling, `targets`, minifying and CSS Modules. Install Tailwind and its scanner, which are optional peers so plain Lightning CSS apps never install them:
+
+<CodeTabs
+	name="lightningcss-processor-tailwind-v4"
+	tabs={[
+		{ id: 'npm', label: 'npm', code: 'npm install -D @tailwindcss/node @tailwindcss/oxide tailwindcss' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add -D @tailwindcss/node @tailwindcss/oxide tailwindcss' },
+		{ id: 'bun', label: 'bun', code: 'bun add -d @tailwindcss/node @tailwindcss/oxide tailwindcss' },
+	]}
+	defaultSelectedKey="npm"
+/>
+
+The two setups side by side, with the same `referencePath`, a stylesheet that contains `@import "tailwindcss";`:
+
+<CodeTabs
+	name="tailwind-v4-setups"
+	tabs={[
+		{
+			id: 'lightningcss',
+			label: 'Lightning CSS',
+			code: `import path from 'node:path';
+import { defineConfig } from '@ecopages/core/config';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
+
+export default defineConfig({
+	processors: [
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
+				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
+			}),
+			targets: ['chrome >= 111', 'safari >= 16.4'],
+		}),
+	],
+});`,
+		},
+		{
+			id: 'postcss',
+			label: 'PostCSS',
+			code: `import path from 'node:path';
+import { defineConfig } from '@ecopages/core/config';
+import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
+import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+
+export default defineConfig({
+	processors: [
+		postcssProcessorPlugin(
+			tailwindV4Preset({
+				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
+			}),
+		),
+	],
+});`,
+		},
+	]}
+	defaultSelectedKey="lightningcss"
+/>
+
+Both generate the same utility classes. The preset's `targets` are the Processor's own option, so the output is lowered for those browsers; the PostCSS preset uses autoprefixer and a browserslist instead.
+
+- A stylesheet that uses `@apply`, and every CSS Module, gets an `@reference` to `referencePath`, so `@apply` finds the theme and utilities of the app. `@reference` emits nothing of the entry, so the utilities are not repeated.
+- Tailwind scans the files of the app that git does not ignore, plus the `@source` directives of the stylesheet, for class names.
+- In development, a saved template that uses a class the stylesheet lacks rebuilds that stylesheet and refreshes it in the browser. A saved file that Tailwind does not scan, such as a lockfile, rebuilds nothing.
+- A stylesheet Tailwind rejects, such as an `@apply` of a utility that does not exist, fails `ecopages build` and shows the error in `ecopages dev`, which keeps the last good stylesheet until a save fixes it.
 
 ## Imports
 

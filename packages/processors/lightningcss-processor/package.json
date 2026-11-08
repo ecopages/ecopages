@@ -32,10 +32,16 @@
 		"lightningcss": "1.33.0"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "workspace:*"
+		"@ecopages/core": "workspace:*",
+		"@tailwindcss/node": ">=4",
+		"@tailwindcss/oxide": ">=4",
+		"tailwindcss": ">=4"
 	},
 	"devDependencies": {
-		"@ecopages/core": "workspace:*"
+		"@ecopages/core": "workspace:*",
+		"@tailwindcss/node": "^4.3.0",
+		"@tailwindcss/oxide": "^4.3.0",
+		"tailwindcss": "^4.3.0"
 	},
 	"exports": {
 		".": {
@@ -45,6 +51,21 @@
 		"./plugin": {
 			"default": "./src/plugin.ts",
 			"types": "./src/plugin.ts"
+		},
+		"./presets/tailwind-v4": {
+			"default": "./src/presets/tailwind-v4.ts",
+			"types": "./src/presets/tailwind-v4.ts"
+		}
+	},
+	"peerDependenciesMeta": {
+		"@tailwindcss/node": {
+			"optional": true
+		},
+		"@tailwindcss/oxide": {
+			"optional": true
+		},
+		"tailwindcss": {
+			"optional": true
 		}
 	}
 }

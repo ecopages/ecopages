@@ -1,12 +1,15 @@
 ---
 title: "Lightning CSS processor"
-description: "How @ecopages/lightningcss-processor bundles @import with Lightning CSS, resolves imports as core does, and reports the partials it read."
+description: "How @ecopages/lightningcss-processor bundles @import with Lightning CSS, resolves imports as core does, reports the partials it read, and runs Tailwind v4 before it."
 section: packages
 order: 31
 sources:
   - packages/processors/lightningcss-processor/src/plugin.ts
   - packages/processors/lightningcss-processor/src/bundle-stylesheet.ts
   - packages/processors/lightningcss-processor/src/lightningcss-engine.ts
+  - packages/processors/lightningcss-processor/src/preprocessor.ts
+  - packages/processors/lightningcss-processor/src/presets/tailwind-v4.ts
+  - packages/processors/lightningcss-processor/src/presets/tailwind-reference.ts
   - packages/core/src/processor.ts
   - packages/core/src/processor-contract.ts
 ---
@@ -45,6 +48,20 @@ The `stylesheet` capability sets `cssModules: true`, so core delivers CSS Module
 - `serializeExports` turns each export into one string: the scoped name, then the scoped names it composes, separated by spaces, with the keys sorted so a reordered file gives the same map.
 - `composes: x from './other.module.css'` is resolved like an `@import`, with the same walk, so the other file is read, scoped with the rest and listed in `dependencies`. A file that cannot be found fails the stylesheet, since the exported name would have no rule.
 
+## Preprocessor and the Tailwind v4 preset
+
+The `preprocessor` option is a `LightningCssPreprocessor`: `transform(css, file, { rootDir })` returns the CSS Lightning CSS reads in place of the source, with the files it read, and the optional `invalidate(files)` is the Processor's `invalidateStylesheets`. The plugin runs `transform` first, passes its CSS to `bundleStylesheet`, merges both sets of `dependencies`, and delegates `invalidateStylesheets` to `invalidate`. A failure in either stage goes through `toStylesheetError`, so a build stops and development keeps the last good output. Presets set the option; `tailwindV4Preset({ referencePath })` returns `{ preprocessor }`, so an app spreads it into `lightningCssProcessorPlugin` beside its own options.
+
+The Tailwind preprocessor needs no PostCSS. `@tailwindcss/node`, `@tailwindcss/oxide` and `tailwindcss` are optional peers, imported on the first stylesheet that uses a Tailwind at-rule (`loadTailwind`), so config finalization and plain apps never load them. For one stylesheet:
+
+- `withReference` decides what the source becomes. The reference file itself, and a file that already references or imports it, stay as written; `@import "tailwindcss"` becomes an import of the reference file, so the app's theme applies; a CSS Module, or a file that uses `@apply`, gets an `@reference`. `insertReference` puts it after the leading comments, `@charset`, `@import` and empty `@layer` statements, since an `@import` is inlined only while every statement before it is one of those, and keeps a leading byte order mark first. This is the rule of the PostCSS preset. That preset has no CSS Module case: its Processor does not declare `cssModules`, so a CSS Module never reaches it.
+- A stylesheet with no Tailwind at-rule is returned untouched and the Processor continues as it would without the preset.
+- `compile(css, { base, from, onDependency })` from `@tailwindcss/node` reads the Tailwind entry and every `@import`, `@plugin` and `@config` file; `onDependency` becomes the returned `dependencies`. A `customCssResolver` resolves a tsconfig alias through `resolveProjectImportPath`, as the bundler does, since Tailwind's own resolver reads packages only. A compile that reports no feature returns the source.
+- When the stylesheet emits utilities, oxide scans the app root and the stylesheet's `@source` directives (`scanSources`), and `build(candidates)` generates the CSS. The scanner is kept per stylesheet and reused while its sources are the same, so a rebuild does not scan the app again. Then `bundleStylesheet` bundles, lowers and minifies the result with the Processor's options; a CSS Module is scoped from the generated CSS, with `@property` fallbacks left out as in `@tailwindcss/postcss`.
+- Tailwind declares its `Features` and `Polyfills` as ambient `const enum`s, which `verbatimModuleSyntax` cannot import, so `TAILWIND_FLAGS` repeats the four values the preset reads and a test pins them to the installed Tailwind.
+
+`invalidate(files)` is the invalidation hook. Core calls it once per watcher batch with the changed files that are not stylesheets, before it rebuilds. For each stylesheet that has been transformed it returns the stylesheet when a changed file is one of the modules its compile loaded, or when rescanning raises a class name its last build lacks. A changed file the scanner already reads is rescanned alone (`scanFiles`). A file the scanner has not seen that matches one of its globs is new, so the scanner is replaced by a fresh one, which also tells whether Tailwind would read the file at all (it skips ignored and binary files). A file that is gone, or that no glob matches, such as a lockfile, rebuilds nothing, and a stylesheet whose class names did not grow is not rebuilt. A failed transform keeps its state, so the next save of the template or the stylesheet rebuilds it. Tailwind caches a loaded `@plugin` module, so editing a plugin rebuilds the stylesheet but may not change its output until the dev server restarts.
+
 ## Contract tests
 
-The package runs `stylesheetProcessorContract` from `@ecopages/core/processor/contract`, once with `cssModules: true`, and adds a bundling matrix, development rebuild tests and the `e2e/fixtures/lightningcss` production fixture.
+The package runs `stylesheetProcessorContract` from `@ecopages/core/processor/contract`, once with `cssModules: true`, and adds a bundling matrix, development rebuild tests and the `e2e/fixtures/lightningcss` production fixture. The preset has unit tests against fixture CSS, a development test where a new class in a template reaches the stylesheet, and `e2e/fixtures/tailwind-v4-parity`, which builds `playground/tailwind-v4` and `playground/tailwind-v4-lightningcss` and compares the classes they define.

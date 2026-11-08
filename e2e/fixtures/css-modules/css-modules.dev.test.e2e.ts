@@ -26,6 +26,15 @@ test.describe('CSS Modules under ecopages dev', () => {
 		const kit = classInServerHtml(html, 'kit-button');
 		expect(kit, 'the package CSS Module has no scoped class in the server HTML').toMatch(/\w+_kit/);
 		await expect(page.getByTestId('kit-button')).toHaveAttribute('class', kit!);
+		await page.getByTestId('kit-lib-react').click();
+		await expect(page.getByTestId('kit-lib-react')).toContainText('Kit lib 1');
+		for (const testId of ['kit-lib-eco', 'kit-lib-react']) {
+			expect(classInServerHtml(html, testId), `${testId} has another class than the package CSS Module`).toBe(
+				kit,
+			);
+			await expect(page.getByTestId(testId)).toHaveAttribute('class', kit!);
+			await expect(page.getByTestId(testId)).toHaveCSS('color', 'rgb(128, 0, 128)');
+		}
 		const badge = classInServerHtml(html, 'eco-jsx-badge');
 		expect(badge, 'Eco JSX has no scoped class in the server HTML').toMatch(/\w+_label \w+_badge/);
 		await expect(page.getByTestId('eco-jsx-badge')).toHaveAttribute('class', badge!);

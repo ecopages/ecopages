@@ -1157,6 +1157,26 @@ describe('ReactRenderer', () => {
 		expect(withForceSpy).toHaveBeenCalledWith('/app/src/pages/with-force.tsx', false, []);
 	});
 
+	it('should emit page data for a hydrating page without a router, and not for a page that never hydrates', async () => {
+		const hydrating = createRenderer({ forceBrowserGraph: true });
+		const plain = createRenderer();
+		vi.spyOn(hydrating.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
+		for (const testRenderer of [hydrating, plain]) {
+			testRenderer.importedPageFileOverride = { default: Page, config: {} } as EcoPageFile;
+			testRenderer.declaredModulesOverride = [];
+		}
+
+		const withData = await new Response(
+			(await hydrating.execute({ file: pageFilePath, params: {}, query: {} })).body as BodyInit,
+		).text();
+		const without = await new Response(
+			(await plain.execute({ file: pageFilePath, params: {}, query: {} })).body as BodyInit,
+		).text();
+
+		expect(withData).toContain('<script id="__ECO_PAGE_DATA__" type="application/json">');
+		expect(without).not.toContain('__ECO_PAGE_DATA__');
+	});
+
 	it('should emit canonical page data for router-backed pages inside non-react html templates', async () => {
 		const testRenderer = createRenderer({ routerAdapter: mockRouterAdapter });
 		testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;

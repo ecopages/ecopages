@@ -631,14 +631,9 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		options: HtmlDocumentContributionContext<C>,
 	): HtmlDocumentContribution[] | undefined {
 		const renderOptions = options.renderOptions;
-		if (
-			options.partial ||
-			!renderOptions ||
-			!this.routerAdapter ||
-			isReactManagedComponent(renderOptions.HtmlTemplate, this.name)
-		) {
-			return undefined;
-		}
+		if (options.partial || !renderOptions) return undefined;
+		if (!this.routerAdapter) return this.buildRouterlessPageDataContributions(renderOptions);
+		if (isReactManagedComponent(renderOptions.HtmlTemplate, this.name)) return undefined;
 
 		const pagePayload = this.buildPagePayload({
 			Page: renderOptions.Page,
@@ -656,6 +651,34 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			reactIntegrationName: this.name,
 			routerEnabled: true,
 		});
+	}
+
+	/**
+	 * Publishes the props of a hydrating Page that has no router.
+	 *
+	 * @remarks
+	 * A router's Html shell emits `__ECO_PAGE_DATA__` itself (`EcoPropsScript`). Without a router nothing does, so the
+	 * hydration entry and a direct HMR update would read empty props. The script is a head contribution, whatever
+	 * Integration owns the Html template, and only a Page the browser hydrates gets it.
+	 */
+	private buildRouterlessPageDataContributions<C>(
+		renderOptions: IntegrationRendererRenderOptions<C>,
+	): HtmlDocumentContribution[] | undefined {
+		if (!this.hydratesPageTree(renderOptions.Page)) return undefined;
+		const pagePayload = this.buildPagePayload({
+			Page: renderOptions.Page,
+			pageProps: renderOptions.pageProps,
+			params: renderOptions.params,
+			query: renderOptions.query,
+			locals: renderOptions.locals,
+			pagePackage: renderOptions.pagePackage,
+		});
+		return [
+			{
+				placement: 'head-append',
+				html: this.pagePayloadService.buildRouterPageDataScript(pagePayload.pageProps),
+			},
+		];
 	}
 
 	private getDocumentAttributesHook<C>(

@@ -137,7 +137,7 @@ Before rendering any HTML, the static-site generator calls `prebuildProductionPa
 
 - each Page the export renders, with its Params
 - each Dynamic Page entry from `staticPaths`, which runs `staticProps` so prop-dependent Dependencies are built
-- a parameter-free instance of every non-exact Page route template and every view the server entry imports, without data hooks
+- a parameter-free instance of every non-exact Page route template that has no entries above, and every view the server entry imports, without data hooks
 - each `app.static` route instance
 
 Each Integration renderer plans its instances with `planProductionRoutes()`. Planning processes nothing: it lists the bundleable scripts of the Page Browser Graph and the island and lazy entries, each prepared as asset processing prepares it.
@@ -162,7 +162,7 @@ flowchart LR
 
 Only `define`, `minify`, `treeshaking` and plugin exclusions split entries into separate builds. Why: those options apply to a whole build. Plugins and external modules do not split it, because a module has one URL and therefore one compiled form; the build runs every plugin any entry declares, once each. [Plugin pipeline](/dev/plugin-pipeline) covers how those plugins reach Rolldown.
 
-A route that fails to plan is reported, not fatal on its own. A concrete instance becomes a page failure; a route template only warns, and `ecopages start` then fails the requests that need a dependency only that plan would have recorded.
+A route that fails to plan is reported, not fatal on its own. A concrete instance becomes a page failure; a route template only warns (a dynamic Page whose `staticPaths` lists entries is planned once per entry with that entry's Params, never as a template), and `ecopages start` then fails the requests that need a dependency only that plan would have recorded.
 
 ## Outputs of the browser build
 

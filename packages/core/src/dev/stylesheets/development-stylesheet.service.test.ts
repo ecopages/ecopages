@@ -444,4 +444,18 @@ describe('DevelopmentStylesheetService, for a CSS Module', () => {
 		expect(await service.applyChanges(changed(file), bridge)).toEqual([file]);
 		expect(service.keepsClassMap(file)).toBe(true);
 	});
+
+	it('does not claim the browser holds a class map after the module was deleted and restored', async () => {
+		const file = write(MODULE, '.primary { color: red; }\n');
+		const service = await createModuleService();
+		await service.prewarm();
+		const { bridge } = createBridge();
+
+		fs.rmSync(file);
+		await service.applyChanges({ created: [], changed: [], deleted: [file] }, bridge);
+		write(MODULE, '.primary { color: red; }\n');
+		await service.applyChanges({ created: [file], changed: [], deleted: [] }, bridge);
+
+		expect(service.keepsClassMap(file)).toBe(false);
+	});
 });

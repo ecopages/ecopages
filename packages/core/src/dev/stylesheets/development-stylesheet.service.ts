@@ -320,7 +320,7 @@ export class DevelopmentStylesheetService {
 		this.recordDependencies(file, dependencies);
 		const previous = this.outputs.get(file);
 		if (classMap !== undefined)
-			this.classMapKept.set(file, previous === undefined || previous.classMap === classMap);
+			this.classMapKept.set(file, previous !== undefined && previous.classMap === classMap);
 		if (previous?.css === css && previous.classMap === classMap) return false;
 		const { srcDir, distDir } = this.appConfig.absolutePaths;
 		writeSourceRelativeStylesheet({ srcDir, distDir }, file, css);

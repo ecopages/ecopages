@@ -6,6 +6,7 @@ import rehypePrettyCode from 'rehype-pretty-code';
 import { remarkMermaid } from '../../../../../examples/recipes/diagrams/src/lib/remark-mermaid';
 import { remarkSnippetInclude } from './snippet-include';
 import { rehypeHeadingIds } from './rehype-heading-ids';
+import { DOCS_SHIKI_THEMES } from './shiki-themes';
 import { rehypePrettyCopyCompatibility } from './rehype-pretty-copy-compatibility';
 
 const rehypePlugins = [
@@ -13,10 +14,8 @@ const rehypePlugins = [
 	[
 		rehypePrettyCode,
 		{
-			theme: {
-				light: 'light-plus',
-				dark: 'dark-plus',
-			},
+			theme: DOCS_SHIKI_THEMES,
+			defaultLang: { block: 'text' },
 			transformers: [transformerCopyButton()],
 		},
 	],

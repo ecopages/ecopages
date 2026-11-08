@@ -6,7 +6,7 @@ import { RadiantElement, customElement, onEvent, prop, state } from '@ecopages/r
 import { renderTabLabel } from './code-tab-icons';
 
 /**
- * Plain-text tabs escape `code`. Rich tabs pass highlighted HTML in `html` and
+ * Plain-text tabs escape `code`; the docs `CodeTabs` wrapper turns them into rich tabs on the server. Rich tabs pass highlighted HTML in `html` and
  * clipboard text in `content` — strings survive host-attribute JSON round-trips;
  * JSX/`unsafeHtml` brands do not.
  */
@@ -15,6 +15,8 @@ export type RadiantCodeTabItem =
 			id: string;
 			label: string;
 			code: string;
+			/** Shiki language of `code`. Inferred from the label and the source when omitted. */
+			lang?: string;
 	  }
 	| {
 			id: string;

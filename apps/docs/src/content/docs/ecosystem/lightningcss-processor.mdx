@@ -82,39 +82,14 @@ The two setups side by side, with the same `referencePath`, a stylesheet that co
 		{
 			id: 'lightningcss',
 			label: 'Lightning CSS',
-			code: `import path from 'node:path';
-import { defineConfig } from '@ecopages/core/config';
-import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
-import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
-
-export default defineConfig({
-	processors: [
-		lightningCssProcessorPlugin({
-			...tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
-			}),
-			targets: ['chrome >= 111', 'safari >= 16.4'],
-		}),
-	],
-});`,
+			file: 'apps/docs/src/snippets/lightningcss-tailwind-v4.txt',
+			lang: 'typescript',
 		},
 		{
 			id: 'postcss',
 			label: 'PostCSS',
-			code: `import path from 'node:path';
-import { defineConfig } from '@ecopages/core/config';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
-
-export default defineConfig({
-	processors: [
-		postcssProcessorPlugin(
-			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
-			}),
-		),
-	],
-});`,
+			file: 'apps/docs/src/snippets/postcss-tailwind-v4.txt',
+			lang: 'typescript',
 		},
 	]}
 	defaultSelectedKey="lightningcss"

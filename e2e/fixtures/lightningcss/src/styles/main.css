@@ -1,0 +1,10 @@
+@import url('https://fonts.example.test/inter.css');
+@import './partials/buttons.css' layer(components);
+
+main {
+	color: rgb(0, 0, 128);
+
+	& .button {
+		margin: 0;
+	}
+}

@@ -20,6 +20,8 @@ import { type SourceRelativeStylesheetDirs, writeSourceRelativeStylesheet } from
  * `dist/client/assets` under a content hash (see {@link emitStylesheetReferences}); a linked stylesheet names them
  * relative to where it is written, and an inline one root-relative, since a `<style>` resolves against the Page. In
  * development a stylesheet inside `srcDir` keeps its source-relative path (see {@link writeSourceRelativeStylesheet}).
+ * The stylesheets the Processor inlined join `bundledSourceFilepaths`, so an edit to an `@import` partial evicts the
+ * cached asset and the Pages that link it.
  */
 export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> {
 	getStyleContent = (srcUrl: string): Buffer => {
@@ -37,18 +39,22 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 
 		if (dep.fromPackage) return this.toProcessedAsset(dep, preparePackageStylesheet(dep.filepath, output));
 
-		const css = await applyStylesheetProcessors(
+		const { css, dependencies } = await applyStylesheetProcessors(
 			this.appConfig,
 			this.getStyleContent(dep.filepath).toString(),
 			dep.filepath,
 		);
+		const processed =
+			dependencies.length > 0
+				? { ...dep, bundledSourceFilepaths: [...(dep.bundledSourceFilepaths ?? []), ...dependencies] }
+				: dep;
 		const sourceRelativePath =
 			dep.inline || this.isProduction
 				? undefined
 				: writeSourceRelativeStylesheet(this.appDirs(), dep.filepath, css);
-		if (sourceRelativePath) return this.toProcessedAsset(dep, undefined, sourceRelativePath);
+		if (sourceRelativePath) return this.toProcessedAsset(processed, undefined, sourceRelativePath);
 
-		return this.toProcessedAsset(dep, emitStylesheetReferences(css, dep.filepath, output));
+		return this.toProcessedAsset(processed, emitStylesheetReferences(css, dep.filepath, output));
 	}
 
 	private appDirs(): SourceRelativeStylesheetDirs {

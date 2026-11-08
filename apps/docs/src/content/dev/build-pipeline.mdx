@@ -10,6 +10,8 @@ sources:
   - packages/core/src/build/cache/server-module-entries.ts
   - packages/core/src/build/production-build-id.ts
   - packages/core/src/build/production-route-list.ts
+  - packages/core/src/build/rolldown/stylesheet-module-plugin.ts
+  - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts
   - packages/core/src/build/server-bundle-deploy-manifest.ts
   - packages/core/src/build/server/page-module-import.service.ts
   - packages/core/src/build/server/server-modules-manifest.ts
@@ -100,6 +102,21 @@ Pages of an Integration that implements `compilePageModule`, such as HTML Pages,
 Emit then imports the bundled modules to find `ssr: true` scripts the entries did not name. A script already inside the first output maps to it; otherwise a second emit adds it. Why: preserved modules keep their output path across both emits, so a module imported after the first emit is never evaluated from a second copy. Integrations are activated before that import, which is why an Integration that needs process globals installs them in `setup()`.
 
 In production, `PageModuleImportService.importModule()` imports from this map whenever it exists. A missing key or file throws ``No compiled server module for <source>. Run `ecopages build`.`` Every key is the source path relative to the app root, the form `identity.file` already has.
+
+## Stylesheet imports
+
+A module imports a stylesheet in one of two ways, and every environment gives each one the same module:
+
+| Import | Module | Where its CSS goes |
+| --- | --- | --- |
+| `import './card.css'` | removed from app modules by the component meta transform; an empty module when a package keeps it in a server build | the Page, as a Dependency |
+| `import styles from './card.css'` | `export default "<processed css>"` | the importer, such as a Lit component's `static styles` |
+
+`compileStylesheetModule(appConfig, file)` builds the second shape: it runs the app's stylesheet Processor through `applyStylesheetProcessors` and default-exports the result, with the stylesheets the transform reported reading. Server and browser build requests pass it in `BuildOptions.stylesheets`, and the stylesheet module plugin (`build/rolldown/stylesheet-module-plugin.ts`) calls it from its `load` and declares each of those stylesheets with `addWatchFile`, so an `@import` partial joins the module closure of every entry that imports the stylesheet: the route-module build cache rebuilds a server module whose embedded CSS changed, and the Project Watcher marks it stale. The dev transform server calls it directly ([/dev/dev-server](/dev/dev-server)). So a Lit `ssr: true` component renders the processed CSS inside its declarative shadow root, and hydration adopts the same string.
+
+The plugin tells the two shapes apart in a `transform` that runs after every other plugin: it parses each module that names a stylesheet and lists the stylesheets it imports only for their side effects. Those resolve through the other plugins to an id with a query and load as an empty module; an external result, as in the dev transform server's one-module builds, stays external. Any other stylesheet import compiles. An error the Processor throws fails the build, so `ecopages build` fails on a stylesheet it rejects.
+
+A side-effect import that a package module keeps, one under `node_modules` or outside the app root that discovery never reached, has no Page to reach. In a browser build it fails the build with the "never reaches a Page" error, naming the package module and the import, and asking for the stylesheet in `eco.component({ dependencies: { stylesheets } })`. Outside production, build requests set `BuildOptions.stylesheets.reportUndeliverable`, so `ecopages dev` logs that error once per import and loads an empty module instead. Server builds give it an empty module, since the server never delivers CSS.
 
 ## The app-wide browser graph
 

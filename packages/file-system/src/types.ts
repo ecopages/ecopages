@@ -200,6 +200,9 @@ export interface FileSystem {
 	 */
 	mkdtemp(prefix: string): string;
 
+	/** The operating system's directory for temporary files, to pass to {@link mkdtemp}. */
+	tempDir(): string;
+
 	/**
 	 * Move a file or directory in one step, replacing an existing file at the destination.
 	 * @throws If the source does not exist

@@ -644,7 +644,7 @@ describe('production build with an unbundlable Page script', () => {
 		expect(`${built.stdout}\n${built.stderr}`).toContain('secret.server.ts');
 	});
 
-	it('fails the build when a package CSS import cannot be bundled', { timeout: 180_000 }, () => {
+	it("fails the build when a package's own stylesheet import would never reach a Page", { timeout: 180_000 }, () => {
 		const appDir = copyAppWithPackage({
 			'eco-css-widget/package.json': JSON.stringify({
 				name: 'eco-css-widget',
@@ -658,8 +658,11 @@ describe('production build with an unbundlable Page script', () => {
 		addKitaPageScript(appDir, "import 'eco-css-widget';\n");
 
 		const built = runCliBuild(appDir);
+		const output = `${built.stdout}\n${built.stderr}`;
 
 		expect(built.error).toBeUndefined();
 		expect(built.status).not.toBe(0);
+		expect(output).toContain('eco-css-widget/index.js');
+		expect(output).toContain('never reaches a Page');
 	});
 });

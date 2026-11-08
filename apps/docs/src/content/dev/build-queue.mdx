@@ -14,7 +14,7 @@ sources:
   - packages/core/src/build/rolldown/rolldown-adapter-helpers.ts
   - packages/core/src/build/rolldown/rolldown-build-invocation-metrics.ts
   - packages/core/src/build/rolldown/entry-module-closures.ts
-  - packages/core/src/build/rolldown/server-side-css-shim-plugin.ts
+  - packages/core/src/build/rolldown/stylesheet-module-plugin.ts
   - packages/core/src/build/rolldown/worker-entries-plugin.ts
   - packages/core/src/build/worker-urls.ts
   - packages/core/src/assets/browser-bundle.service.ts
@@ -64,10 +64,10 @@ A request identical to a queued or running one shares that build, whichever lane
 Around the bridge's plugins the adapter adds a few native ones:
 
 - **Server-only guard**, on browser-platform builds. It rejects Node builtins at resolution and any import of a `.server` module (extensionless `./db.server` included). The check reads the resolved id, so an alias through a `package.json` `imports` entry or a tsconfig path fails like a relative import; a query or fragment does not change the result. Server builds allow `.server` imports. An Integration may prune server-only imports before resolution, as React does when it strips server-only Page options. No `server-only` package marker is read.
-- **CSS shim**, on server builds: a `.css` import becomes an empty module.
+- **Stylesheet modules**, on every build: a binding import of a stylesheet becomes the module `BuildOptions.stylesheets.compileModule` returns, and a side-effect import an empty module, except a package module's own import in a browser build, which fails it; see [Stylesheet imports](/dev/build-pipeline#stylesheet-imports).
 - **Installed-package externalizer**, with `externalPackages`; see [Portable paths](/dev/build-pipeline#portable-paths).
 
-Core's own hooks declare native filters, so Rolldown calls them only for the ids they handle. The adapter enables `experimental.nativeMagicString` and closes its Rolldown bundle in a `finally`.
+Core's own hooks declare native filters, so Rolldown calls them only for the modules they handle: by id, or by code for the stylesheet module plugin's `transform`. The adapter enables `experimental.nativeMagicString` and closes its Rolldown bundle in a `finally`.
 
 ## Results
 

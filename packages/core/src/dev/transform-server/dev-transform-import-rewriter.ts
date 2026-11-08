@@ -20,20 +20,25 @@ import {
  * @remarks
  * Soft HMR reloads cache-bust the active page module, but transitive layout/component
  * imports keep stable pathnames. A content hash query makes the browser ESM module map
- * treat the updated dependency as a new module without a full page reload.
+ * treat the updated dependency as a new module without a full page reload. `moduleVersion` replaces the hash for a
+ * module whose output changes without its source, such as a stylesheet whose `@import` partial changed.
  */
 function resolveVersionedDevTransformModuleUrl(
 	srcDir: string,
 	resolvedPath: string,
 	extraRoots: readonly string[] = [],
+	moduleVersion?: ModuleVersion,
 ): string {
 	const baseUrl = resolveDevTransformModuleUrl(srcDir, resolvedPath, extraRoots);
 	if (!fileSystem.exists(resolvedPath)) {
 		return baseUrl;
 	}
 
-	return `${baseUrl}?v=${fileSystem.hash(resolvedPath)}`;
+	return `${baseUrl}?v=${moduleVersion?.(resolvedPath) ?? fileSystem.hash(resolvedPath)}`;
 }
+
+/** The version of the module at an absolute path, or `undefined` to version it by its source hash. */
+export type ModuleVersion = (resolvedPath: string) => string | undefined;
 
 type ImportEdit = {
 	start: number;
@@ -73,6 +78,7 @@ type RewriteModuleImportsOptions = {
 	projectRoot: string;
 	extraModuleRoots?: readonly string[];
 	resolveVendorImport: (specifier: string) => Promise<VendorImport>;
+	moduleVersion?: ModuleVersion;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -125,7 +131,12 @@ function rewriteWorkerUrls(
 			);
 		}
 		dependencies.add(workerPath);
-		const workerUrl = resolveVersionedDevTransformModuleUrl(options.srcDir, workerPath, options.extraModuleRoots);
+		const workerUrl = resolveVersionedDevTransformModuleUrl(
+			options.srcDir,
+			workerPath,
+			options.extraModuleRoots,
+			options.moduleVersion,
+		);
 		edits.push({ start: url.start, end: url.end, replacement: JSON.stringify(workerUrl) });
 	}
 	return edits;
@@ -197,6 +208,7 @@ export async function rewriteModuleImports(options: RewriteModuleImportsOptions)
 				projectRoot: options.projectRoot,
 				extraModuleRoots: options.extraModuleRoots,
 				resolveVendorImport: options.resolveVendorImport,
+				moduleVersion: options.moduleVersion,
 				dependencies,
 			}),
 		),
@@ -251,6 +263,7 @@ async function resolveImportSpecifier(options: {
 	projectRoot: string;
 	extraModuleRoots?: readonly string[];
 	resolveVendorImport: (specifier: string) => Promise<VendorImport>;
+	moduleVersion?: ModuleVersion;
 	dependencies: Set<string>;
 }): Promise<ResolvedSpecifier | undefined> {
 	if (options.specifier.startsWith('node:')) {
@@ -270,7 +283,12 @@ async function resolveImportSpecifier(options: {
 
 		options.dependencies.add(resolvedPath);
 		return {
-			specifier: resolveVersionedDevTransformModuleUrl(options.srcDir, resolvedPath, options.extraModuleRoots),
+			specifier: resolveVersionedDevTransformModuleUrl(
+				options.srcDir,
+				resolvedPath,
+				options.extraModuleRoots,
+				options.moduleVersion,
+			),
 			commonJs: false,
 		};
 	}

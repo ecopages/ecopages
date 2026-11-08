@@ -8,6 +8,7 @@ import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformServer } from './dev-transform-server.ts';
 import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
+import { Processor } from '../../plugins/processor.ts';
 
 const tempRoots: string[] = [];
 
@@ -356,6 +357,131 @@ describe('DevTransformServer', () => {
 		expect(response?.status).toBe(200);
 		expect(await response!.text()).toContain('export default ":host { color: tomato; }\\n"');
 	});
+	it.each([
+		{ declared: true, expected: 'export default ".card { color: red; }\\n/* scss */";\n' },
+		{ declared: false, expected: undefined },
+	])(
+		'serves a .scss import only when the stylesheet Processor declares it (declared: $declared)',
+		async ({ declared, expected }) => {
+			class ScssProcessor extends Processor {
+				async setup(): Promise<void> {}
+
+				override async transformStylesheet(css: string): Promise<{ css: string }> {
+					return { css: `${css}/* scss */` };
+				}
+			}
+			const rootDir = createTempRoot('dev-transform-server-scss');
+			const scssPath = path.join(rootDir, 'src', 'components', 'card.scss');
+			fs.mkdirSync(path.dirname(scssPath), { recursive: true });
+			fs.writeFileSync(scssPath, '.card { color: red; }\n');
+			const config = await finalizeEcoPagesConfig({
+				rootDir,
+				integrations: [],
+				processors: declared
+					? [
+							new ScssProcessor({
+								name: 'scss',
+								capabilities: [{ kind: 'stylesheet', extensions: ['*.scss'] }],
+							}),
+						]
+					: [],
+			});
+			const server = new DevTransformServer({ appConfig: config });
+
+			const response = await server.tryHandleRequest(
+				new Request(`http://localhost${DEV_TRANSFORM_URL_PREFIX}/components/card.scss`),
+			);
+
+			expect(await response?.text()).toBe(expected);
+		},
+	);
+
+	describe('a stylesheet whose Processor throws', () => {
+		class StrictProcessor extends Processor {
+			async setup(): Promise<void> {}
+
+			override async transformStylesheet(css: string): Promise<{ css: string }> {
+				if (css.includes('{{')) throw new Error('Unclosed block');
+				return { css: css.replace('@apply text-red;', 'color: red;') };
+			}
+		}
+
+		async function createStylesheetServer(css: string) {
+			const rootDir = createTempRoot('dev-transform-server-css-recovery');
+			const cssPath = path.join(rootDir, 'src', 'components', 'card.css');
+			fs.mkdirSync(path.dirname(cssPath), { recursive: true });
+			fs.writeFileSync(cssPath, css);
+			const config = await finalizeEcoPagesConfig({
+				rootDir,
+				integrations: [],
+				processors: [
+					new StrictProcessor({
+						name: 'strict',
+						capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }],
+					}),
+				],
+			});
+			const errors: string[] = [];
+			const server = new DevTransformServer({
+				appConfig: config,
+				onTransformError: (message) => errors.push(message),
+			});
+			const url = server.registerModule(cssPath);
+			const request = async () => {
+				const response = await server.tryHandleRequest(new Request(`http://localhost${url}`));
+				return { status: response?.status, code: await response?.text() };
+			};
+			const save = (contents: string) => {
+				fs.writeFileSync(cssPath, contents);
+				server.invalidateSource(cssPath);
+			};
+			return { server, errors, request, save, cssPath };
+		}
+
+		const GOOD = '.card { @apply text-red; }';
+		const COMPILED = { status: 200, code: 'export default ".card { color: red; }";\n' };
+
+		it('keeps serving the last compiled module and reports the error until a save compiles again', async () => {
+			const { server, errors, request, save } = await createStylesheetServer(GOOD);
+			expect(await request()).toEqual(COMPILED);
+
+			save('.card {{');
+			expect(await request()).toEqual(COMPILED);
+			expect(errors).toHaveLength(1);
+			expect(errors[0]).toContain('card.css');
+			expect(errors[0]).toContain('Unclosed block');
+			expect(server.getFailureMessages()).toEqual(errors);
+
+			save('.card { @apply text-red; margin: 0; }');
+			expect(await request()).toEqual({
+				status: 200,
+				code: 'export default ".card { color: red; margin: 0; }";\n',
+			});
+			expect(errors).toHaveLength(1);
+			expect(server.getFailureMessages()).toEqual([]);
+		});
+
+		it('answers 500 once a stylesheet that compiled before is deleted', async () => {
+			const { server, request, cssPath } = await createStylesheetServer(GOOD);
+			expect(await request()).toEqual(COMPILED);
+
+			fs.rmSync(cssPath);
+			server.invalidateSource(cssPath);
+
+			expect((await request()).status).toBe(500);
+		});
+
+		it('answers 500 when the stylesheet never compiled', async () => {
+			const { errors, request } = await createStylesheetServer('.card {{');
+
+			const response = await request();
+
+			expect(response.status).toBe(500);
+			expect(response.code).toContain('Unclosed block');
+			expect(errors).toHaveLength(1);
+		});
+	});
+
 	function writeFixturePackage(rootDir: string, name: string, source: string): void {
 		const packageDir = path.join(rootDir, 'node_modules', name);
 		fs.mkdirSync(packageDir, { recursive: true });

@@ -159,12 +159,13 @@ describe('static-build unified graph parity', () => {
 
 		const baselineConfig = await loadStaticBuildBenchConfigWithScope(PARITY_SCOPE_BASELINE);
 		resetBenchBuildState(baselineConfig);
+		fileSystem.remove(baselineConfig.absolutePaths.distDir);
 		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', '0');
 		await runStaticSiteGeneration(baselineConfig, { force: true });
 
 		const graphConfig = await loadStaticBuildBenchConfigWithScope(PARITY_SCOPE_GRAPH);
 		resetBenchBuildState(graphConfig);
-		rmSync(path.resolve(graphConfig.rootDir, graphConfig.distDir), { recursive: true, force: true });
+		fileSystem.remove(graphConfig.absolutePaths.distDir);
 		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', undefined);
 		resetRolldownBuildInvocationCounts();
 		await runStaticSiteGeneration(graphConfig, { force: true });

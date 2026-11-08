@@ -4,12 +4,12 @@ PostCSS processing pipeline for Ecopages. It provides a processor plugin that se
 
 ## Features
 
-Build contributions use one `plugins(app)` method. The PostCSS plugin list loads on the first stylesheet transform. The one build loader declares `environments: ['browser']` and runs PostCSS on every stylesheet a browser build imports. Server builds replace stylesheet imports with an empty module before any plugin loads them, so the Processor registers nothing for them.
+The Processor contributes no build plugins: core compiles every stylesheet an app imports through its `transformStylesheet`. The PostCSS plugin list loads on the first stylesheet transform.
 
-- **Ecopages Processor Plugin**: Hook right into the build pipeline. In development, processed CSS is written at its source-relative path for CSS HMR; in production the stylesheet pipeline emits each linked stylesheet under a hash of its bytes, and the plugin writes no copy of its own.
+- **Ecopages Processor Plugin**: Hook right into the build pipeline. Core writes the processed CSS at its source-relative path in development for CSS HMR, and in production the stylesheet pipeline emits each linked stylesheet under a hash of its bytes; the plugin itself writes nothing.
 - **Tailwind Presets**: Pre-configured pipelines for Tailwind CSS v3 and v4.
 - **Automatic Configuration**: Detects existing `postcss.config.{js,ts,etc}`.
-- **CSS imports**: A browser-only build loader runs PostCSS on CSS imported from TS/JS files. Server builds receive an empty module for each CSS import from core's server CSS shim.
+- **CSS imports**: `import styles from './card.css'` gets the CSS PostCSS produced in server builds, browser bundles and `ecopages dev` alike, since core runs the Processor for each of them.
 
 ## Installation
 
@@ -86,11 +86,15 @@ export default defineConfig({
 You can bypass Ecopages entirely and use the processor utilities directly:
 
 ```typescript
-import { PostCssProcessor } from '@ecopages/postcss-processor';
-
-// Process a file
-const css = await PostCssProcessor.processPath('path/to/file.css');
+import postcssImport from 'postcss-import';
+import { PostCssProcessor, transformWithPostcss } from '@ecopages/postcss-processor';
 
 // Process a string
 const result = await PostCssProcessor.processStringOrBuffer('.class { @apply bg-red-500; }', { filePath: 'style.css' });
+
+// Process a string and list the files its plugins read
+const { css, dependencies } = await transformWithPostcss("@import './base.css';", {
+	filePath: 'src/main.css',
+	plugins: [postcssImport()],
+});
 ```

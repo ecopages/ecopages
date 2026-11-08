@@ -11,8 +11,10 @@ sources:
   - packages/core/src/adapters/node/create-app.ts
   - packages/ecopages/bin/cli.js
   - packages/core/src/dev/invalidation/
+  - packages/core/src/dev/stylesheets/
   - packages/core/src/adapters/shared/hmr/hmr-manager.ts
   - packages/core/src/adapters/node/node-client-bridge.ts
+  - packages/core/src/adapters/shared/hmr/client-bridge.ts
 ---
 
 # Watcher and invalidation
@@ -26,10 +28,12 @@ flowchart TD
   I -->|"restart category"| R[Process restart]
   I -->|"mark dirty"| C[(Dirty results)]
   W --> P[Processors onChanges]
+  W --> ST[Stylesheet service]
   W -->|"HMR-eligible files"| M[HmrManager]
   M --> S{Strategy per file}
   S --> B[Coalesced events]
-  P -->|"css-update"| WS[Client bridge]
+  ST -->|"css-update"| WS[Client bridge]
+  ST -->|"restyled stylesheets"| I
   B --> WS
   WS --> H[HMR client]
 ```
@@ -47,7 +51,10 @@ For each batch the watcher:
 1. Calls `applyDevFileChanges()` once. A restart category returns its path and the watcher hands it to the runtime owner without touching anything else.
 2. Copies changed public files into `distDir` (or removes deleted ones) and refreshes the Route Registry once when the batch touches a route source or a pages directory.
 3. Calls each Processor's `onChanges()` once with the batch files that match its extensions.
-4. Sends every file whose plan has `delegateToHmr` to `HmrManager.handleFileChanges()` in one call.
+4. Has the development stylesheet service rebuild the stylesheets the batch affects ([PostCSS processor](/dev/postcss-processor#development-lifecycle)). A stylesheet whose output changed though it is not in the batch, such as one whose `@import` partial changed, goes through `applyDevFileChanges()` as changed, so the server modules that embed it, the Pages that cached it and the browser modules that import it as text are invalidated; Processors are not notified of it.
+5. Sends every file whose plan has `delegateToHmr` to `HmrManager.handleFileChanges()` in one call.
+
+Subscribing prewarms the stylesheet service, so the first edit has an output to compare with.
 
 A Processor whose `onChanges()` throws is logged and shown in the browser error overlay; the other Processors and the client update still run. A batch of only directory events under the pages directory refreshes the Route Registry and notifies nothing else. Closing the watcher drops batches that have not started.
 
@@ -63,7 +70,7 @@ When the batch needs a full reload (a public file, an `additionalWatchPaths` mat
 | `entry-watched-config` | the config module, when a runtime entry watcher owns it | no | no | no |
 | `public-asset` | file in the public directory | no | yes | no |
 | `additional-watch` | `additionalWatchPaths` match | yes | yes | no |
-| `processor-owned-asset` | asset a Processor can process, such as a stylesheet | no | no | no |
+| `processor-owned-asset` | asset a Processor can process, such as a stylesheet | no | no | no, unless a browser module imports the stylesheet as text |
 | `route-source` | file under the pages directory | yes | no | yes |
 | `source` | recorded build input or server source | yes | no | yes |
 | `other` | anything else | no | no | yes |

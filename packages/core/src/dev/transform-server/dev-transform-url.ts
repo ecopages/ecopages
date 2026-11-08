@@ -5,7 +5,6 @@ import { DEV_TRANSFORM_URL_PREFIX, stripModuleUrlQuery } from '../../hmr/hmr-ass
 import { decodeHmrDynamicSegments, encodeHmrDynamicSegments } from '../../hmr/hmr-entrypoint-output.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { PLAIN_CSS_KINDS, type StylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
-import { resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
 
 export { DEV_TRANSFORM_URL_PREFIX } from '../../hmr/hmr-asset-paths.ts';
 
@@ -56,7 +55,7 @@ function resolveExistingModuleFile(
 	allowedRoots: readonly string[],
 	kinds: StylesheetKinds,
 ): string | undefined {
-	if (resolveDevTransformModuleKind(jsPath, kinds) === 'stylesheet') {
+	if (kinds.isStylesheet(jsPath)) {
 		if (isInsideAllowedRoot(jsPath, allowedRoots) && fileSystem.exists(jsPath)) {
 			return jsPath;
 		}

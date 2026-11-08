@@ -173,9 +173,7 @@ export default defineConfig({
 
 ## Using CSS Imports
 
-To enable CSS imports in your TypeScript/JavaScript files (e.g., `import styles from './styles.css'`), you **must** add the `postcssProcessorPlugin` to your `eco.config.ts` as shown above.
-
-This plugin registers the build-time CSS handling Ecopages uses when those imports are loaded.
+A stylesheet imported with a binding in your TypeScript/JavaScript files (e.g., `import styles from './styles.css'`) is a string of the CSS the `postcssProcessorPlugin` produced, the same in `ecopages dev`, in server rendering and in browser bundles. Without the plugin, the string is the file as written.
 
 ```typescript
 // Component.ts
@@ -196,13 +194,17 @@ Ecopages copies the files that the relative `url()` references of your processed
 The processor also exports standalone methods if you need to process CSS programmatically:
 
 ```typescript
-import { PostCssProcessor } from '@ecopages/postcss-processor';
-
-// Process a file
-const cssFromFile = await PostCssProcessor.processPath('path/to/file.css');
+import postcssImport from 'postcss-import';
+import { PostCssProcessor, transformWithPostcss } from '@ecopages/postcss-processor';
 
 // Process a string
 const cssString = await PostCssProcessor.processStringOrBuffer('.foo { @apply bg-red-500; }', { filePath: 'mock.css' });
+
+// Process a string and list the files its plugins read, such as the partials postcss-import inlined
+const { css, dependencies } = await transformWithPostcss("@import './base.css';", {
+	filePath: 'src/main.css',
+	plugins: [postcssImport()],
+});
 ```
 
 ## Error Handling
@@ -215,5 +217,6 @@ The processor includes built-in error handling:
 
 ## See also
 
+- [Lightning CSS Processor](/docs/ecosystem/lightningcss-processor) — the native alternative for plain CSS
 - [Custom Processor](/docs/plugins/custom-processor) — authoring processors
 - [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when processor hooks run

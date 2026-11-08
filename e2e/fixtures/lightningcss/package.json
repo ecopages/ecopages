@@ -1,0 +1,9 @@
+{
+	"name": "@ecopages/e2e-lightningcss-app",
+	"private": true,
+	"type": "module",
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/lightningcss-processor": "workspace:*"
+	}
+}

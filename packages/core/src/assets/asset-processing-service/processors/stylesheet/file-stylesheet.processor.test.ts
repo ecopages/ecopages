@@ -6,7 +6,7 @@ import { hashBrowserAssetBytes } from '../../../hashed-browser-asset.ts';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { FileStylesheetProcessor } from './file-stylesheet.processor.ts';
 import { appLogger } from '../../../../global/app-logger.ts';
-import { rebaseStylesheetReferences } from './package-stylesheet.ts';
+import { rebaseStylesheetReferences } from './app-stylesheet-imports.ts';
 import { Processor } from '../../../../plugins/processor.ts';
 
 let rootDir: string;
@@ -104,7 +104,7 @@ test('emits the files a package stylesheet references and rewrites its relative 
 			'.b { color: theme(colors.red); }',
 		].join('\n'),
 	);
-	const transformStylesheet = vi.fn(async (content: string) => `${content}\n/* processed */`);
+	const transformStylesheet = vi.fn(async (content: string) => ({ css: `${content}\n/* processed */` }));
 	const appConfig = createConfig();
 	appConfig.processors.set('postcss', {
 		transformStylesheet,
@@ -307,8 +307,9 @@ test('emits the files the processed output of an app stylesheet references, reso
 	const stylesheet = writeAppFile('src/styles/site.css', '@import "some-lib";');
 	const appConfig = createConfig();
 	appConfig.processors.set('postcss', {
-		transformStylesheet: async () =>
-			"@import url(/remote.css);\n@font-face { src: url('../../node_modules/some-lib/files/x.woff2?v=1'); }\n.a { background: url(../images/bg.png), url(/root.png); }",
+		transformStylesheet: async () => ({
+			css: "@import url(/remote.css);\n@font-face { src: url('../../node_modules/some-lib/files/x.woff2?v=1'); }\n.a { background: url(../images/bg.png), url(/root.png); }",
+		}),
 		canProcessAsset: () => true,
 		getAssetCapabilities: () => [],
 	} as never);
@@ -432,7 +433,7 @@ class FailingStylesheetProcessor extends Processor {
 
 	override async setup(): Promise<void> {}
 
-	override async transformStylesheet(_css: string, file: string): Promise<string> {
+	override async transformStylesheet(_css: string, file: string): Promise<{ css: string }> {
 		throw new Error(`${file}:3:5 Unknown word`);
 	}
 }
@@ -460,8 +461,8 @@ test('writes a development stylesheet of a declared extension under a .css name'
 	vi.stubEnv('NODE_ENV', 'development');
 	class SassProcessor extends Processor {
 		async setup(): Promise<void> {}
-		override async transformStylesheet(css: string): Promise<string> {
-			return css.replace('$c', 'red');
+		override async transformStylesheet(css: string): Promise<{ css: string }> {
+			return { css: css.replace('$c', 'red') };
 		}
 	}
 	const appConfig = createConfig();
@@ -479,4 +480,45 @@ test('writes a development stylesheet of a declared extension under a .css name'
 
 	expect(processed.filepath).toBe(path.join(rootDir, '.eco/public/assets/styles/card.scss.css'));
 	expect(readFileSync(processed.filepath!, 'utf-8')).toBe('.card { color: red; }');
+});
+
+test('lists the partials the Processor inlined among the sources bundled into the stylesheet', async () => {
+	const partial = writeAppFile('src/styles/base.css', '.base { color: red; }');
+	class InliningProcessor extends Processor {
+		async setup(): Promise<void> {}
+		override async transformStylesheet(css: string) {
+			return { css: css.replace("@import './base.css';", '.base { color: red; }'), dependencies: [partial] };
+		}
+	}
+	const appConfig = createConfig();
+	appConfig.processors.set(
+		'inlining',
+		new InliningProcessor({ name: 'inlining', capabilities: [{ kind: 'stylesheet', extensions: ['*.css'] }] }),
+	);
+	const stylesheet = writeAppFile('src/styles/main.css', "@import './base.css';");
+
+	const processed = await new FileStylesheetProcessor({ appConfig }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+	});
+
+	expect(processed.bundledSourceFilepaths).toEqual([partial]);
+});
+
+test('inlines a relative @import with no Processor, emits the files its url() names and lists the partial', async () => {
+	writeAppFile('src/img/bg.png', 'png-bytes');
+	const partial = writeAppFile('src/styles/partials/buttons.css', ".button { background: url('../../img/bg.png'); }");
+	const stylesheet = writeAppFile('src/styles/main.css', "@import './partials/buttons.css';\n.main {}");
+
+	const processed = await new FileStylesheetProcessor({ appConfig: createConfig() }).process({
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: stylesheet,
+	});
+
+	const emitted = `${hashBrowserAssetBytes('png-bytes')}.png`;
+	expect(readFileSync(processed.filepath!, 'utf-8')).toBe(`.button { background: url("${emitted}"); }\n.main {}`);
+	expect(readFileSync(path.join(rootDir, '.eco/public/assets', emitted), 'utf-8')).toBe('png-bytes');
+	expect(processed.bundledSourceFilepaths).toEqual([partial]);
 });

@@ -8,6 +8,8 @@ sources:
   - packages/core/src/plugins/integration-plugin.ts
   - packages/core/src/plugins/processor.ts
   - packages/core/src/plugins/stylesheet-kinds.ts
+  - packages/core/src/processor-contract.ts
+  - packages/core/src/assets/asset-processing-service/processors/stylesheet/processed-stylesheet-cache.ts
   - packages/core/src/plugins/find-integration-for-file.ts
   - packages/core/src/plugins/foreign-jsx-override-plugin.ts
   - packages/core/src/plugins/eco-component-meta-plugin.ts
@@ -17,8 +19,7 @@ sources:
   - packages/core/src/build/browser/jsx-ownership-plugins.ts
   - packages/core/src/build/rolldown/rolldown-plugin-bridge.ts
   - packages/core/src/build/rolldown/rolldown-adapter-helpers.ts
-  - packages/core/src/build/rolldown/server-side-css-shim-plugin.ts
-  - packages/core/src/dev/transform-server/dev-transform-module-kind.ts
+  - packages/core/src/build/rolldown/stylesheet-module-plugin.ts
 ---
 
 # Plugin pipeline
@@ -84,7 +85,6 @@ Real contributors:
 | React and Ecopages JSX Integrations | MDX loader, when MDX is enabled | both |
 | Content Processor | content plugin, plus browser collection plugins | `server`, `browser` |
 | Image Processor | image plugin (`module('ecopages:images')`) | both |
-| PostCSS Processor | build CSS loader | `browser` |
 
 ## Environments
 
@@ -147,7 +147,7 @@ What the bridge adds on top of the hook mapping:
 
 One Rolldown plugin per handler leaves first-wins `resolveId` and `load`, ordered `transform` with chained source maps, native filters and plugin names in errors to Rolldown, so the bridge only translates between the two contracts.
 
-Around the bridge, the adapter places a few native Rolldown plugins that are not part of the contract: the installed-package externalizer when packages are external, a server-only import guard on browser platform builds, a CSS shim on server builds (see [Stylesheet kinds](#stylesheet-kinds)), and, after the bridge, the Worker entries plugin on browser builds.
+Around the bridge, the adapter places a few native Rolldown plugins that are not part of the contract: the installed-package externalizer when packages are external, a server-only import guard on browser platform builds, the stylesheet module plugin on every build (see [Stylesheet kinds](#stylesheet-kinds)), and, after the bridge, the Worker entries plugin on browser builds.
 
 ## Stylesheet kinds
 
@@ -156,11 +156,22 @@ One core module, `stylesheet-kinds.ts`, decides which files are stylesheets. A f
 These sites ask the module, so they cannot disagree:
 
 - Discovery and the component meta plugin: which side-effect imports are delivered as Page stylesheets, and which are CSS Modules that fail the build. A package stylesheet is still a `.css` file that `resolvePackageStylesheetPath` resolves.
-- The server CSS shim: `createServerBuildRequest` puts the extensions in `BuildOptions.stylesheetExtensions`, so Rolldown never parses a declared stylesheet as JavaScript.
-- The dev transform server (`resolveDevTransformModuleKind`): it serves a stylesheet import as a string module.
+- The stylesheet module plugin: server and browser requests put the extensions in `BuildOptions.stylesheets`, so Rolldown never parses a declared stylesheet as JavaScript and compiles each import of one.
+- The dev transform server: it serves a stylesheet import as the same compiled module.
 - The stylesheet pipeline (`applyStylesheetProcessors`) and the copy list of files a stylesheet `url()` may emit (`isEmittableReferenceFile`).
 
-At most one Processor may declare a `stylesheet` capability. Config finalization fails when two do, naming both, so `transformStylesheet` has one owner and there is no chain. `import './card.scss'` is discovered, shimmed on the server and served in dev when that Processor declares `*.scss`, and is left alone when none does. The ambient `*.css` module declaration is the one place that stays `.css`; an app adds `declare module '*.scss'` for its own extension.
+At most one Processor may declare a `stylesheet` capability. Config finalization fails when two do, naming both, so `transformStylesheet` has one owner and there is no chain. When that Processor declares `*.scss`, `import './card.scss'` is discovered and kept out of every build, and `import styles from './card.scss'` compiles to the Processor's output. When none does, both are left alone. The ambient `*.css` module declaration is the one place that stays `.css`; an app adds `declare module '*.scss'` for its own extension.
+
+## Stylesheet Processors
+
+The stylesheet Processor is a transform with an optional invalidation hook; core owns everything around it.
+
+- `transformStylesheet(css, file)` returns `{ css, dependencies }`. `dependencies` are the absolute paths of the other files the transform read, taken from the transform itself (PostCSS `dependency` messages, Lightning CSS `dependencies`), never from a scan of the source. `applyStylesheetProcessors` keeps the ones that are stylesheets, without the file itself: a Processor that scans content, such as Tailwind, reports every file it scanned too, and a content edit must not invalidate every Page and module that uses the stylesheet. The stylesheet module plugin declares them with `addWatchFile`, the file stylesheet processor adds them to the asset's `bundledSourceFilepaths`, and the development stylesheet service keeps the reverse map that rebuilds a stylesheet when one changes.
+- `invalidateStylesheets(files)` is called in development with the changed paths of a batch that are not stylesheets, and returns the stylesheets to rebuild or `'all'` for every entry stylesheet. It is where a Processor whose output depends on content, such as Tailwind, resets its state. Without it, a change to a file that is not a stylesheet rebuilds none.
+- One edit runs the Processor once. `applyStylesheetProcessors` reads through the app's `ProcessedStylesheetCache` (`runtime.processedStylesheets`), so the dev stylesheet service, the dev transform server, server builds, browser bundles and the asset pipeline share one output per stylesheet. The dev stylesheet service empties it at the start of each watcher batch and again after the invalidation hook, so any changed input, including content Tailwind scans and files only the Processor knows it read, is transformed again; a transform that started before an eviction stores nothing. Between batches an entry is reused only while the source and its reported dependencies hash the same. Outside development no source changes while the process runs. Concurrent misses share one transform, and a failure is not cached.
+- Core persists, caches, queues and broadcasts in development (`DevelopmentStylesheetService`, see [PostCSS processor](/dev/postcss-processor#development-lifecycle)); with no stylesheet Processor, plain CSS passes through as written.
+
+`@ecopages/core/processor/contract` exports `stylesheetProcessorContract({ createProcessor })`, cases any test runner can register to check a stylesheet Processor against this contract; the PostCSS Processor runs them.
 
 ## Scoping by module ownership
 

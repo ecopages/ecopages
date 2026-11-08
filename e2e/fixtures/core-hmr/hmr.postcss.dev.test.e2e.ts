@@ -86,4 +86,34 @@ test.describe('HMR E2E PostCSS', () => {
 			await writeFile(testCssFile, originalCss, { flush: true });
 		}
 	});
+
+	test('refreshes only the link of the saved stylesheet when two share a file name', async ({ page, app }) => {
+		const savedCssFile = path.join(app.dir, 'src/pages/postcss-twins/a/style.css');
+		const originalCss = readFileSync(savedCssFile, 'utf-8');
+		const linkHref = (twin: 'a' | 'b') =>
+			page.locator(`link[rel="stylesheet"][href*="postcss-twins/${twin}/style.css"]`).getAttribute('href');
+
+		try {
+			await gotoAndWait(page, '/postcss-twins');
+			await page.waitForFunction(
+				() => (window as Window & { __ECO_HMR_CONNECTED__?: boolean }).__ECO_HMR_CONNECTED__ === true,
+			);
+			const otherHref = await linkHref('b');
+			expect(otherHref).not.toContain('t=');
+
+			await writeFile(savedCssFile, originalCss.replace('font-weight: 700;', 'color: rgb(255, 0, 0);'), {
+				flush: true,
+			});
+
+			await expect
+				.poll(async () => page.locator('.twin-a').evaluate((el) => getComputedStyle(el).color), {
+					timeout: 10000,
+				})
+				.toBe('rgb(255, 0, 0)');
+			expect(await linkHref('a')).toContain('t=');
+			expect(await linkHref('b')).toBe(otherHref);
+		} finally {
+			await writeFile(savedCssFile, originalCss, { flush: true });
+		}
+	});
 });

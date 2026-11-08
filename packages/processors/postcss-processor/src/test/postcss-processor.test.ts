@@ -1,50 +1,21 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { Logger } from '@ecopages/logger';
-import { path } from '@ecopages/file-system/path';
+import { createPath, path } from '@ecopages/file-system/path';
 import postcss, { CssSyntaxError } from 'postcss';
 import postCssSimpleVars from 'postcss-simple-vars';
-import { PostCssProcessor } from '../postcss-processor';
+import postcssImport from 'postcss-import';
+import {
+	PostCssProcessor,
+	collectContentSources,
+	collectDependencies,
+	matchesContentSources,
+	transformWithPostcss,
+} from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
 
 const noop: postcss.AcceptedPlugin = { postcssPlugin: 'noop' };
 
 describe('PostCssProcessor', () => {
-	test('processPath should return the processed CSS', async () => {
-		const filePath = path.resolve(__dirname, './css/correct.css');
-		const expected = '.test{--tw-bg-opacity:1;background-color:rgb(239 68 68/var(--tw-bg-opacity,1))}';
-		const { plugins } = tailwindV3Preset();
-		const result = await PostCssProcessor.processPath(filePath, { plugins: plugins ? Object.values(plugins) : [] });
-		expect(result).toEqual(expected);
-	});
-
-	test('processPath should reject with the file, line and column when css conversion fails', async () => {
-		const filePath = path.resolve(__dirname, './css/error.css');
-		const { plugins } = tailwindV3Preset();
-		const failure = await PostCssProcessor.processPath(filePath, {
-			plugins: plugins ? Object.values(plugins) : [],
-		}).catch((error: unknown) => error);
-
-		expect(failure).toBeInstanceOf(CssSyntaxError);
-		expect((failure as CssSyntaxError).file).toBe(filePath);
-		expect((failure as CssSyntaxError).line).toBe(2);
-		expect((failure as CssSyntaxError).column).toBe(2);
-		expect((failure as CssSyntaxError).message).toContain(`${filePath}:2:2`);
-	});
-
-	test('processPath should throw when the file does not exist', async () => {
-		const filePath = 'fake-path.css';
-		await expect(PostCssProcessor.processPath(filePath)).rejects.toThrow();
-	});
-
-	test('processPath should use the custom plugins', async () => {
-		const filePath = path.resolve(__dirname, './css/external-plugins.css');
-		const expected = '.menu_link{background:#056ef0;width:200px}.menu{width:800px;margin-top:10px}';
-		const result = await PostCssProcessor.processPath(filePath, {
-			plugins: [...Object.values(tailwindV3Preset().plugins ?? {}), postCssSimpleVars()],
-		});
-		expect(result).toEqual(expected);
-	});
-
 	test('processStringOrBuffer should return the processed CSS', async () => {
 		const string = 'body { @apply bg-white; }';
 		const expected = 'body{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}';
@@ -79,15 +50,6 @@ describe('PostCssProcessor', () => {
 		).rejects.toThrow('/app/src/main.css:1:1: Unclosed block');
 	});
 
-	test('processStringOrBufferSync should throw on a syntax error', () => {
-		expect(() =>
-			PostCssProcessor.processStringOrBufferSync('.a { color: red;', {
-				filePath: '/app/src/main.css',
-				plugins: [noop],
-			}),
-		).toThrow('/app/src/main.css:1:1: Unclosed block');
-	});
-
 	test('processStringOrBuffer should return an empty string when the input is empty', async () => {
 		const string = '';
 		const expected = '';
@@ -117,14 +79,6 @@ describe('PostCssProcessor', () => {
 		expect(result).toEqual(expected);
 	});
 
-	test('processPath should resolve @import', async () => {
-		const filePath = path.resolve(__dirname, './css/import.css');
-		const expected = '.base{color:red}.main{background:blue}';
-		const { plugins } = tailwindV3Preset();
-		const result = await PostCssProcessor.processPath(filePath, { plugins: plugins ? Object.values(plugins) : [] });
-		expect(result).toEqual(expected);
-	});
-
 	test('processStringOrBuffer should resolve @import', async () => {
 		const string = '@import "base.css"; .main { background: blue; }';
 		const filePath = path.resolve(__dirname, './css/import.css');
@@ -136,6 +90,72 @@ describe('PostCssProcessor', () => {
 		});
 		expect(result).toEqual(expected);
 	});
+	test.each(["@import './base.css' layer(base);", '@import url(./base.css);', "@import './base.css' screen;"])(
+		'transformWithPostcss reports the partial %s inlines as a dependency',
+		async (statement) => {
+			const filePath = path.resolve(__dirname, './css/import.css');
+
+			const result = await transformWithPostcss(`${statement}\n.main { background: blue; }`, {
+				filePath,
+				plugins: [postcssImport()],
+			});
+
+			expect(result.css).toContain('.base');
+			expect(result.dependencies).toEqual([path.resolve(__dirname, './css/base.css')]);
+		},
+	);
+
+	test('transformWithPostcss leaves out the content files Tailwind reports scanning', async () => {
+		const scanned = path.resolve(__dirname, './css/correct.css');
+		const tailwindLike: postcss.AcceptedPlugin = {
+			postcssPlugin: '@tailwindcss/postcss',
+			Once(_root, { result }) {
+				result.messages.push({ type: 'dependency', plugin: '@tailwindcss/postcss', file: scanned, parent: '' });
+			},
+		};
+
+		const result = await transformWithPostcss("@import './base.css';\n", {
+			filePath: path.resolve(__dirname, './css/import.css'),
+			plugins: [postcssImport(), tailwindLike],
+		});
+
+		expect(result.dependencies).toEqual([path.resolve(__dirname, './css/base.css')]);
+	});
+
+	test('collectDependencies reports a Windows path with forward slashes, once', () => {
+		const message = (file: string): postcss.Message => ({
+			type: 'dependency',
+			plugin: 'postcss-import',
+			file,
+			parent: '',
+		});
+		expect(
+			collectDependencies(
+				[message('D:\\app\\css\\base.css'), message('D:/app/css/base.css'), message('D:\\app\\css\\b.css')],
+				createPath('win32'),
+			),
+		).toEqual(['D:/app/css/base.css', 'D:/app/css/b.css']);
+	});
+
+	test('Tailwind messages are content sources, not dependencies', () => {
+		const win = createPath('win32');
+		const messages: postcss.Message[] = [
+			{ type: 'dependency', plugin: '@tailwindcss/postcss', file: 'D:\\app\\src\\a.tsx' },
+			{ type: 'dir-dependency', plugin: '@tailwindcss/postcss', dir: 'D:\\app\\src', glob: '**/*.tsx' },
+			{ type: 'dependency', plugin: 'postcss-import', file: 'D:\\app\\src\\base.css', parent: '' },
+		];
+
+		expect(collectDependencies(messages, win)).toEqual(['D:/app/src/base.css']);
+		const sources = collectContentSources(messages, win);
+		expect(sources).toEqual({
+			files: ['D:/app/src/a.tsx'],
+			directories: [{ dir: 'D:/app/src', glob: '**/*.tsx' }],
+		});
+		expect(matchesContentSources(sources, 'D:/app/src/x/b.tsx', win)).toBe(true);
+		expect(matchesContentSources(sources, 'D:/app/src/x/b.json', win)).toBe(false);
+		expect(matchesContentSources(sources, 'D:/app/pnpm-lock.yaml', win)).toBe(false);
+	});
+
 	describe('warnings', () => {
 		const warnOnWord: postcss.AcceptedPlugin = {
 			postcssPlugin: 'warn-on-word',
@@ -170,7 +190,6 @@ describe('PostCssProcessor', () => {
 
 			await PostCssProcessor.processStringOrBuffer('.a { color: red; }', options);
 			await PostCssProcessor.processStringOrBuffer('.a { color: red; }', options);
-			PostCssProcessor.processStringOrBufferSync('.a { color: red; }', options);
 
 			expect(warn).toHaveBeenCalledTimes(1);
 		});

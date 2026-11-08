@@ -104,6 +104,7 @@ const coreRootFileLayers = new Map<string, string>([
 	['browser-env.ts', 'foundation'],
 	['integration.ts', 'assembly'],
 	['processor.ts', 'assembly'],
+	['processor-contract.ts', 'assembly'],
 	['build.ts', 'assembly'],
 	['client.ts', 'assembly'],
 	['index.ts', 'assembly'],

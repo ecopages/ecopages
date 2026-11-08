@@ -9,6 +9,31 @@ const logger = new Logger('[@ecopages/lightningcss-processor]');
 /** The names of the Lightning CSS features `include` and `exclude` accept, such as `Nesting` or `ColorFunction`. */
 export type LightningCssFeature = keyof typeof Features;
 
+/**
+ * A plugin of the Lightning CSS Processor: a rewrite of the source before Lightning CSS parses it, a visitor, or both.
+ *
+ * @remarks
+ * Plugins run in the order of the `plugins` option, on every stylesheet the Processor bundles: the entry, each
+ * imported partial and every CSS Module. A `preprocessor` that reads partials itself, as the Tailwind v4 preset does for
+ * the `@import`s it inlines, runs `transformSource` over them too, so a plugin sees them before the preprocessor does.
+ * The visitors are composed with Lightning CSS `composeVisitors`, ahead of the Processor's own check
+ * for invalid suffix nesting and the app's `visitor`, so a rule a plugin leaves invalid still fails the stylesheet.
+ */
+export interface LightningCssPlugin {
+	/** Names the plugin in errors. */
+	name: string;
+	/**
+	 * Rewrites the source of one stylesheet before Lightning CSS parses it, and before the `preprocessor` runs, so the
+	 * CSS it writes can use what the preprocessor handles, such as Tailwind's `@apply`.
+	 *
+	 * @param css - Stylesheet source.
+	 * @param file - Absolute path of the stylesheet.
+	 */
+	transformSource?(css: string, file: string): string | Promise<string>;
+	/** Visits the rules and values of every stylesheet, as the `visitor` option does. */
+	visitor?: Visitor<never>;
+}
+
 /** The options of the Lightning CSS Processor. */
 export interface LightningCssOptions {
 	/**
@@ -37,6 +62,11 @@ export interface LightningCssOptions {
 	errorRecovery?: boolean;
 	/** How `*.module.css` stylesheets are scoped. */
 	cssModules?: LightningCssModulesOptions;
+	/**
+	 * Plugins that rewrite the source or visit the rules of every stylesheet, in order, such as `suffixNesting()`.
+	 * @default []
+	 */
+	plugins?: readonly LightningCssPlugin[];
 }
 
 /** The options of the CSS Modules Lightning CSS scopes. */
@@ -57,8 +87,17 @@ export class StylesheetDiagnosticsError extends Error {
 	override name = 'StylesheetDiagnosticsError';
 }
 
-/** A rule whose selector is Sass-style suffix nesting, such as `&--primary`. */
-export type SuffixNestingRule = { file: string; line: number; column: number; selector: string };
+/**
+ * A selector that writes a name straight after `&`: Sass-style suffix nesting such as `&--primary`, or a type selector
+ * such as `&div`, which a browser does not accept either.
+ */
+export type SuffixNestingRule = {
+	file: string;
+	line: number;
+	column: number;
+	selector: string;
+	kind: 'suffix' | 'type';
+};
 
 /** A failure Lightning CSS raised, which names the file and the position. */
 type LightningCssError = Error & { fileName?: string; loc?: { line: number; column: number } };
@@ -114,7 +153,17 @@ export type ResolvedLightningCssOptions = Pick<
 > & {
 	/** The `pattern` of the CSS Modules this Processor scopes. */
 	cssModulesPattern: string;
+	/** The plugins of this Processor, in order. */
+	plugins: readonly LightningCssPlugin[];
 };
+
+/** The options a Processor resolves to a value when they are unset. */
+function resolvedDefaults(options: LightningCssOptions | undefined) {
+	return {
+		cssModulesPattern: options?.cssModules?.pattern ?? DEFAULT_CSS_MODULES_PATTERN,
+		plugins: options?.plugins ?? [],
+	};
+}
 
 /**
  * Resolves the options of a Processor for an app rooted at `rootDir`.
@@ -128,7 +177,7 @@ export async function resolveLightningCssOptions(
 ): Promise<ResolvedLightningCssOptions> {
 	return {
 		projectRoot: fileSystem.exists(rootDir) ? fileSystem.realpath(rootDir) : rootDir,
-		cssModulesPattern: options?.cssModules?.pattern ?? DEFAULT_CSS_MODULES_PATTERN,
+		...resolvedDefaults(options),
 		minify: options?.minify ?? isProductionRuntime(),
 		...withoutUndefined({
 			drafts: options?.drafts,
@@ -140,6 +189,33 @@ export async function resolveLightningCssOptions(
 			exclude: await toFeatureFlags(options?.exclude),
 		}),
 	};
+}
+
+/**
+ * Runs the `transformSource` of each plugin over `css`, in order.
+ *
+ * @remarks
+ * A failure that is not a {@link StylesheetDiagnosticsError} is rethrown naming the plugin, so a plugin author's
+ * exception does not surface as a bare message.
+ */
+export async function transformSourceWithPlugins(
+	css: string,
+	file: string,
+	plugins: readonly LightningCssPlugin[],
+): Promise<string> {
+	let transformed = css;
+	for (const plugin of plugins) {
+		if (!plugin.transformSource) continue;
+		try {
+			transformed = await plugin.transformSource(transformed, file);
+		} catch (error) {
+			if (error instanceof StylesheetDiagnosticsError) throw error;
+			throw new Error(`plugin ${plugin.name}: ${error instanceof Error ? error.message : String(error)}`, {
+				cause: error,
+			});
+		}
+	}
+	return transformed;
 }
 
 /** Logs the warnings of the stylesheet `entry`, once per message until its `source` changes, each with its location. */
@@ -186,21 +262,22 @@ export function serializeExports(exports: CSSModuleExports): Record<string, stri
 	);
 }
 
-/** The `&` and the name a selector writes straight after it, such as `&--primary`, or `undefined` for valid nesting. */
-function suffixNestingOf(selector: Selector): string | undefined {
+/** Every `&` and the name a selector writes straight after it, such as `&--primary`; empty for valid nesting. */
+function suffixNestingOf(selector: Selector): Array<Pick<SuffixNestingRule, 'selector' | 'kind'>> {
+	const found: Array<Pick<SuffixNestingRule, 'selector' | 'kind'>> = [];
 	for (let index = 0; index < selector.length; index++) {
 		const component = selector[index]!;
 		const next = selector[index + 1];
-		if (component.type === 'nesting' && next?.type === 'type') return `&${next.name}`;
+		if (component.type === 'nesting' && next?.type === 'type') {
+			found.push({ selector: `&${next.name}`, kind: /^[-_]/u.test(next.name) ? 'suffix' : 'type' });
+		}
 		if (component.type === 'pseudo-class' && 'selectors' in component && component.selectors) {
 			for (const inner of component.selectors) {
-				if (!Array.isArray(inner)) continue;
-				const found = suffixNestingOf(inner);
-				if (found) return found;
+				if (Array.isArray(inner)) found.push(...suffixNestingOf(inner));
 			}
 		}
 	}
-	return undefined;
+	return found;
 }
 
 /**
@@ -222,13 +299,12 @@ export function suffixNestingVisitor(rules: SuffixNestingRule[]): Visitor<never>
 			style(rule) {
 				const { loc, selectors } = rule.value;
 				for (const selector of selectors) {
-					const found = suffixNestingOf(selector);
-					if (found) {
+					for (const found of suffixNestingOf(selector)) {
 						rules.push({
 							file: sources[loc.source_index] ?? '',
 							line: loc.line + 1,
 							column: loc.column,
-							selector: found,
+							...found,
 						});
 					}
 				}
@@ -237,11 +313,12 @@ export function suffixNestingVisitor(rules: SuffixNestingRule[]): Visitor<never>
 	};
 }
 
-/** The error for the rules {@link suffixNestingVisitor} collected, one line per rule with its file, line and column. */
+/** The error for the rules {@link suffixNestingVisitor} collected, one line per selector with its file, line and column. */
 export function suffixNestingError(rules: readonly SuffixNestingRule[]): StylesheetDiagnosticsError {
-	const lines = rules.map(
-		({ file, line, column, selector }) =>
-			`${file}:${line}:${column} \`${selector}\` is Sass-style suffix nesting; native CSS nesting cannot concatenate selectors, so write the full selector explicitly, such as \`.button${selector.slice(1)}\` for \`.button { ${selector} {} }\`.`,
+	const lines = rules.map(({ file, line, column, selector, kind }) =>
+		kind === 'type'
+			? `${file}:${line}:${column} \`${selector}\` puts a type selector after \`&\`, which is not valid CSS; a type selector can only start a compound selector, so write \`${selector.slice(1)}&\`.`
+			: `${file}:${line}:${column} \`${selector}\` is Sass-style suffix nesting; native CSS nesting cannot concatenate selectors, so write the full selector explicitly, such as \`.button${selector.slice(1)}\` for \`.button { ${selector} {} }\`, or add the suffixNesting() plugin from @ecopages/lightningcss-processor/plugins/suffix-nesting.`,
 	);
 	return new StylesheetDiagnosticsError(lines.join('\n'));
 }

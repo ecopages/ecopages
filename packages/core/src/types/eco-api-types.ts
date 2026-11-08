@@ -47,7 +47,8 @@ export type PropsOf<TComponent extends EcoComponent> = TComponent extends EcoCom
 /**
  * Extracts the render result type from one eco component.
  */
-export type ResultOf<TComponent extends EcoComponent> = TComponent extends EcoComponent<any, infer R> ? R : never;
+export type ResultOf<TComponent extends EcoComponent> =
+	CallableComponentOf<TComponent> extends (props: any, ...args: any[]) => infer R ? R : never;
 
 /**
  * Narrows an eco component to its callable function signature.

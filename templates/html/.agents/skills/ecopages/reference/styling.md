@@ -8,7 +8,7 @@
 
 ## Tailwind v4 setup
 
-Register the PostCSS Processor with `tailwindV4Preset({ referencePath })` in `eco.config.ts`, as in [getting-started.md](getting-started.md#configuration). `referencePath` points at the stylesheet below.
+Register the Lightning CSS Processor with `tailwindV4Preset({ referencePath })` in `eco.config.ts`, as in [getting-started.md](getting-started.md#configuration). `referencePath` points at the stylesheet below. Apps that need PostCSS plugins or Tailwind v3 register `postcssProcessorPlugin` with the `tailwindV4Preset` from `@ecopages/postcss-processor/presets/tailwind-v4` instead; an app has one stylesheet Processor.
 
 `src/styles/app.css`:
 
@@ -36,7 +36,7 @@ Load the global stylesheet once, with `import '../styles/app.css'` in `src/inclu
 
 Side-effect CSS imports (`import './component.css'`, `import '@/styles/shared.css'`) in `eco.*` modules are discovered and served as `<link rel="stylesheet">`; see [core.md](core.md#components-and-dependency-discovery). Use explicit `dependencies.stylesheets` for custom attributes (such as `media="print"`) or a fixed order.
 
-With `postcssProcessorPlugin`, a value import binds the processed CSS as a string, for example to style a shadow root:
+With a stylesheet Processor registered, a value import binds the processed CSS as a string, for example to style a shadow root:
 
 ```typescript
 import styles from './styles.css';

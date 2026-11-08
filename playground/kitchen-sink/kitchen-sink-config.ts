@@ -17,8 +17,9 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { litPlugin } from '@ecopages/lit';
 import { mdxPlugin } from '@ecopages/mdx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { suffixNesting } from '@ecopages/lightningcss-processor/plugins/suffix-nesting';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 import { comparePosts, POSTS_CONTENT_DIR, postFrontmatterSchema } from './src/content/posts.ts';
@@ -88,11 +89,13 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 					],
 				},
 			}),
-			postcssProcessorPlugin(
-				tailwindV4Preset({
+			lightningCssProcessorPlugin({
+				...tailwindV4Preset({
 					referencePath: path.resolve(projectRoot, 'src/styles/tailwind.css'),
 				}),
-			),
+				targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+				plugins: [suffixNesting()],
+			}),
 		],
 		devToolbar: devToolbar(),
 	};

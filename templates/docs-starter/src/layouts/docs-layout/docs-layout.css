@@ -1,7 +1,7 @@
 @import '@ecopages/radiant-ui/sidebar/docs.css';
 
 /**
- * Keep `@reference` after the skin `@import` so postcss-import inlines the package
+ * Keep `@reference` after the skin `@import` so the Processor inlines the package
  * CSS before Tailwind sees a leading `@reference` (which would drop the import).
  */
 @reference '../../styles/tailwind.css';

@@ -80,12 +80,12 @@ importers:
       '@ecopages/jsx':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
@@ -101,7 +101,10 @@ importers:
       '@rehype-pretty/transformers':
         specifier: ^0.13.2
         version: 0.13.2
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       '@types/hast':
@@ -987,6 +990,12 @@ importers:
       '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
+      postcss:
+        specifier: ^8.5.14
+        version: 8.5.26
+      postcss-nested:
+        specifier: ^8.0.1
+        version: 8.0.1(postcss@8.5.26)
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.3
@@ -1070,19 +1079,22 @@ importers:
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       ecopages:
@@ -1146,9 +1158,9 @@ importers:
       '@ecopages/jsx':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/signals@0.8.2)
-      '@ecopages/postcss-processor':
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
@@ -1161,7 +1173,10 @@ importers:
       '@faker-js/faker':
         specifier: ^10.4.0
         version: 10.6.0
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.3
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.3
         version: 4.3.3
       '@types/mdast':
@@ -1195,13 +1210,16 @@ importers:
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
-      '@ecopages/postcss-processor':
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/lightningcss-processor
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       ecopages:
@@ -1320,15 +1338,15 @@ importers:
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/lit':
         specifier: workspace:*
         version: link:../../packages/integrations/lit
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
@@ -1353,7 +1371,10 @@ importers:
       '@playwright/test':
         specifier: ^1.60.0
         version: 1.62.1
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       '@types/node':
@@ -1401,12 +1422,12 @@ importers:
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/lit':
         specifier: workspace:*
         version: link:../../packages/integrations/lit
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
@@ -1416,7 +1437,10 @@ importers:
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       '@types/alpinejs':
@@ -1508,19 +1532,22 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       '@types/react':
@@ -1556,9 +1583,9 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
-      '@ecopages/postcss-processor':
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
@@ -1568,7 +1595,10 @@ importers:
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       '@types/react':
@@ -1667,12 +1697,12 @@ importers:
       '@ecopages/jsx':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
@@ -1682,7 +1712,10 @@ importers:
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.1.18
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.1.18
         version: 4.3.3
       ecopages:
@@ -1716,19 +1749,22 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.1.18
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.1.18
         version: 4.3.3
       '@types/react':
@@ -1767,12 +1803,12 @@ importers:
       '@ecopages/jsx':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
@@ -1785,7 +1821,10 @@ importers:
       '@rehype-pretty/transformers':
         specifier: ^0.13.2
         version: 0.13.2
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       '@types/hast':
@@ -1830,10 +1869,13 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@ecopages/postcss-processor':
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
-      '@tailwindcss/postcss':
+        version: link:../../packages/processors/lightningcss-processor
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       ecopages:
@@ -1860,16 +1902,19 @@ importers:
       '@ecopages/jsx':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       ecopages:
@@ -1909,7 +1954,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ecopages
 
-  templates/jsx-lightningcss:
+  templates/jsx-postcss:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
@@ -1926,19 +1971,16 @@ importers:
       '@ecopages/jsx':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/signals@0.8.2)
-      '@ecopages/lightningcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
+      '@ecopages/postcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
-      '@tailwindcss/node':
-        specifier: ^4.0.0
-        version: 4.3.3
-      '@tailwindcss/oxide':
+      '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.3
       ecopages:
@@ -1962,22 +2004,25 @@ importers:
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/lit':
         specifier: workspace:*
         version: link:../../packages/integrations/lit
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/scripts-injector':
         specifier: ^0.1.5
         version: 0.1.5(typescript@5.9.3)
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       ecopages:
@@ -2010,15 +2055,15 @@ importers:
       '@ecopages/jsx':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../../packages/processors/lightningcss-processor
       '@ecopages/logger':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
@@ -2028,7 +2073,10 @@ importers:
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       '@types/node':
@@ -2091,12 +2139,12 @@ importers:
       '@ecopages/jsx':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
@@ -2106,7 +2154,10 @@ importers:
       '@ecopages/signals':
         specifier: ^0.8.2
         version: 0.8.2
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       ecopages:
@@ -2137,16 +2188,19 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
-      '@ecopages/postcss-processor':
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       '@types/react':
@@ -2189,19 +2243,22 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.1.18
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.1.18
         version: 4.3.3
       '@types/react':
@@ -2228,6 +2285,52 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  templates/react-postcss:
+    dependencies:
+      '@tanstack/react-table':
+        specifier: ^8.20.6
+        version: 8.21.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: ^19
+        version: 19.2.8
+      react-aria-components:
+        specifier: ^1.6.0
+        version: 1.21.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react-dom:
+        specifier: ^19
+        version: 19.2.8(react@19.2.8)
+    devDependencies:
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ecopages/image-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/image-processor
+      '@ecopages/postcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/postcss-processor
+      '@ecopages/react':
+        specifier: workspace:*
+        version: link:../../packages/integrations/react
+      '@ecopages/react-router':
+        specifier: workspace:*
+        version: link:../../packages/react-router
+      '@tailwindcss/postcss':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@types/react':
+        specifier: ^19
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.5(@types/react@19.2.18)
+      ecopages:
+        specifier: workspace:*
+        version: link:../../packages/ecopages
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.3.3
 
   templates/react-shadcn:
     dependencies:
@@ -2262,16 +2365,19 @@ importers:
       '@ecopages/image-processor':
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
-      '@ecopages/postcss-processor':
+      '@ecopages/lightningcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
       '@ecopages/react-router':
         specifier: workspace:*
         version: link:../../packages/react-router
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.0.0
         version: 4.3.3
       '@types/react':
@@ -7834,7 +7940,7 @@ snapshots:
     dependencies:
       '@babel/compat-data': 7.29.7
       '@babel/helper-validator-option': 7.29.7
-      browserslist: 4.28.8
+      browserslist: 4.29.5
       lru-cache: 5.1.1
       semver: 6.3.1
 

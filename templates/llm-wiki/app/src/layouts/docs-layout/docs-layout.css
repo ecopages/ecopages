@@ -68,15 +68,15 @@
 	.rui-sidebar-provider__site-header {
 		@apply bg-surface-container/20!;
 
-		&-inner {
+		.rui-sidebar-provider__site-header-inner {
 			@apply px-4 md:px-8;
 		}
 
-		&-start {
+		.rui-sidebar-provider__site-header-start {
 			@apply min-w-0 gap-2 md:gap-4;
 		}
 
-		&-brand {
+		.rui-sidebar-provider__site-header-brand {
 			@apply flex items-center gap-2;
 		}
 	}

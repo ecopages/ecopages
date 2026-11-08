@@ -3,8 +3,8 @@ import { defineConfig } from '@ecopages/core/config';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
 
 export default defineConfig({
 	integrations: [
@@ -32,10 +32,11 @@ export default defineConfig({
 				],
 			},
 		}),
-		postcssProcessorPlugin(
-			tailwindV4Preset({
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
 				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
 			}),
-		),
+			targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+		}),
 	],
 });

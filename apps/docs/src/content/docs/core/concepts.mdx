@@ -33,26 +33,27 @@ Those extensions are then used to resolve semantic files such as `html.*`, `404.
 ## CSS Processing
 
 By default, Ecopages uses plain css for styling.
-We currently provide a simple **Postcss** and **Tailwind (v4 and v3)** plugin that provides a powerful and flexible system for managing your styles via a preset system.
+The starter templates use the [Lightning CSS Processor](/docs/ecosystem/lightningcss-processor), which runs Tailwind v4 through a preset and supports CSS Modules. The [PostCSS Processor](/docs/ecosystem/postcss-processor) stays available for PostCSS plugins and Tailwind v3.
 You can customize this in your `eco.config.ts` file:
 
 ```typescript
 import path from 'node:path';
 import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
 
 const appRoot = process.cwd();
 
 export default defineConfig({
 	rootDir: appRoot,
 	processors: [
-		postcssProcessorPlugin(
-			tailwindV4Preset({
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
-		),
+			targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+		}),
 	],
 	integrations: [ecopagesJsxPlugin()],
 });
@@ -132,7 +133,7 @@ Optional `sitemap.xml` generation is separate and disabled by default. Enable it
 
 ## Import CSS as String in JS Files
 
-Ecopages provides a way to load CSS directly into your JavaScript files as strings through Ecopages build plugins. This feature is enabled when you use the `@ecopages/postcss-processor` plugin in your `eco.config.ts`.
+Ecopages provides a way to load CSS directly into your JavaScript files as strings through Ecopages build plugins. This feature is enabled when you register a stylesheet Processor, such as `@ecopages/lightningcss-processor` or `@ecopages/postcss-processor`, in your `eco.config.ts`.
 
 ## Import MDX as a Component
 

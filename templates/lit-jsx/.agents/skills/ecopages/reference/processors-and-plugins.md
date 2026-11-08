@@ -24,9 +24,9 @@ Static export calls optional Integration `staticExport(ctx)` hooks before genera
 
 ## Shipped processors
 
-### PostCSS
+### Lightning CSS and PostCSS
 
-Setup: see [styling.md](styling.md#tailwind-v4-setup). Needed for value imports such as `import styles from './styles.css'`; side-effect `import './styles.css'` works without it.
+Setup: see [styling.md](styling.md#tailwind-v4-setup). `@ecopages/lightningcss-processor` is the default stylesheet Processor: Tailwind v4 through its preset, browser `targets`, and CSS Modules. `@ecopages/postcss-processor` stays for PostCSS plugins and Tailwind v3. Register only one. Value imports such as `import styles from './styles.css'` need a stylesheet Processor (either one); side-effect `import './styles.css'` works without it.
 
 ### Image processor
 

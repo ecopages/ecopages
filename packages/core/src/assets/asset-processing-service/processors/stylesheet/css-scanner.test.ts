@@ -1,6 +1,13 @@
 import { createPath } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
-import { isExternalReference, listCssReferences, scanCss, splitReference, wrapInConditions } from './css-scanner.ts';
+import {
+	isExternalReference,
+	listCssReferences,
+	scanCss,
+	splitReference,
+	tokenizeCss,
+	wrapInConditions,
+} from './css-scanner.ts';
 
 /** Rewrites every file reference to `<name>` so a test sees which ones the scan offered. */
 const mark = (reference: string) => `<${reference}>`;
@@ -148,5 +155,54 @@ describe('on Windows paths', () => {
 			decoded: 'D:\\lib\\a.png',
 			suffix: '?v=1#x',
 		});
+	});
+});
+
+describe('tokenizeCss', () => {
+	const typed = (css: string) =>
+		tokenizeCss(css).map(({ type, start, end }) => [type, css.slice(start, end)] as const);
+
+	it('covers the source without gaps', () => {
+		const css = '.a { content: "x;{"; /* } */ background: url(a;b.png) } \\{ b:hover { }';
+
+		expect(
+			tokenizeCss(css)
+				.map(({ start, end }) => css.slice(start, end))
+				.join(''),
+		).toBe(css);
+	});
+
+	it('reads strings, comments, escapes and urls as single tokens', () => {
+		expect(typed('a{b:"}";/*;*/c:url(x;y)}\\;')).toEqual([
+			['word', 'a'],
+			['punct', '{'],
+			['word', 'b'],
+			['punct', ':'],
+			['string', '"}"'],
+			['punct', ';'],
+			['comment', '/*;*/'],
+			['word', 'c'],
+			['punct', ':'],
+			['url', 'url(x;y)'],
+			['punct', '}'],
+			['escape', '\\;'],
+		]);
+	});
+
+	it('keeps a function name and its parenthesis apart, and a url holding a function as a function', () => {
+		expect(typed('calc(1px) url(var(--x))')).toEqual([
+			['word', 'calc'],
+			['punct', '('],
+			['word', '1px'],
+			['punct', ')'],
+			['space', ' '],
+			['word', 'url'],
+			['punct', '('],
+			['word', 'var'],
+			['punct', '('],
+			['word', '--x'],
+			['punct', ')'],
+			['punct', ')'],
+		]);
 	});
 });

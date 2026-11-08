@@ -142,8 +142,8 @@ import { eco } from '@ecopages/core';
 export default eco.page({
 	staticProps: async ({ appConfig }) => {
 		const response = await fetch(`${appConfig.baseUrl}/api/data`);
-		const data = await response.json();
-		
+		const data = (await response.json()) as { items: string[] };
+
 		return {
 			props: { data },
 		};

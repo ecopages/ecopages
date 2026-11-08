@@ -13,7 +13,7 @@ The [JSX template](../jsx) restyled with plain CSS Modules on [`@ecopages/lightn
 
 ## When to pick it
 
-Pick this starter for scoped, component-owned CSS without a utility framework. Pick [JSX with Lightning CSS](../jsx-lightningcss) to keep Tailwind v4 on the same processor, or the [JSX template](../jsx) for Tailwind on PostCSS.
+Pick this starter for scoped, component-owned CSS without a utility framework. Pick the [JSX template](../jsx) to keep Tailwind v4 on the same processor, or [JSX with PostCSS](../jsx-postcss) for PostCSS plugins.
 
 ## Overview
 

@@ -375,3 +375,61 @@ export function listCssReferences(css: string): CssReferences {
 	});
 	return { references: [...references], imports };
 }
+
+/** What a {@link CssToken} is. */
+export type CssTokenType =
+	| 'comment'
+	| 'string'
+	| 'escape'
+	| 'url'
+	| 'word'
+	| 'space'
+	/** Any other single character, such as `{`, `;`, `(` or `.`. */
+	| 'punct';
+
+/** A token of a stylesheet: its type and the half-open range `[start, end)` it covers. */
+export type CssToken = { type: CssTokenType; start: number; end: number };
+
+/**
+ * Splits `css` into tokens that cover it without gaps, so a caller finds the structure of a stylesheet without
+ * reading a `{` or a `;` inside a string, a comment, an escape or a `url()`.
+ *
+ * @remarks
+ * A `word` is a run of letters, digits, `_` and `-`; a `url()` with a literal argument is one `url` token. It is a
+ * lexer, not a parser: it keeps no brace or parenthesis depth, which is the caller's to track.
+ */
+export function tokenizeCss(css: string): CssToken[] {
+	const tokens: CssToken[] = [];
+	let index = 0;
+	while (index < css.length) {
+		const char = css[index]!;
+		let type: CssTokenType = 'punct';
+		let end = index + 1;
+		if (css.startsWith('/*', index)) {
+			type = 'comment';
+			end = readComment(css, index);
+		} else if (char === '"' || char === "'") {
+			type = 'string';
+			end = readString(css, index).end;
+		} else if (char === '\\') {
+			type = 'escape';
+			end = readEscape(css, index).end;
+		} else if (/\s/.test(char)) {
+			type = 'space';
+			while (end < css.length && /\s/.test(css[end]!)) end += 1;
+		} else if (IDENT_CHAR.test(char)) {
+			type = 'word';
+			IDENT.lastIndex = index;
+			end = index + IDENT.exec(css)![0].length;
+			const url =
+				css[end] === '(' && css.slice(index, end).toLowerCase() === 'url' ? readUrl(css, end + 1) : undefined;
+			if (url) {
+				type = 'url';
+				end = url.end;
+			}
+		}
+		tokens.push({ type, start: index, end });
+		index = end;
+	}
+	return tokens;
+}

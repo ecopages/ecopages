@@ -151,7 +151,7 @@ export const Button = eco.component({
 - Names are `[hash]_[local]`, hashed from the path relative to the app, so a build gives the same names in any folder. Set `cssModules: { pattern }` to change the pattern.
 - `composes: base from './base.module.css'` bundles the other file.
 - Type the default import with the declaration core ships: `import '@ecopages/core/declarations'` in your `modules.d.ts`.
-- Type the named exports with `ecopages types`, which writes one declaration per CSS Module into `node_modules/@types/ecopages-css-modules`, and point TypeScript at it in `tsconfig.json`. `import { secondary }` and `styles.secondary` then fail type checking when the file has no `.secondary`. In development the declarations are rewritten when a CSS Module changes.
+- Type the named exports with `ecopages types`, which writes one declaration per CSS Module into `node_modules/@types/ecopages-css-modules`. The official templates already list that folder in `tsconfig.json`; an existing app adds the lines below. `import { secondary }` and `styles.secondary` then fail type checking when the file has no `.secondary`. In development the declarations are rewritten when a CSS Module changes.
 - A browser script that imports a CSS Module gets the same class names; the CSS reaches the Page when the component that uses the script imports the module too or lists it in `dependencies.stylesheets`.
 - A CSS Module from a package is not supported.
 - Without this Processor, importing a CSS Module fails the build and names the importing file.
@@ -165,7 +165,7 @@ export const Button = eco.component({
 }
 ```
 
-`rootDirs` types relative imports, and the second `paths` entry types imports through an alias such as `@/components/button.module.css`. Change `./src` if your sources live elsewhere. A CSS Module without a declaration, such as one added before `ecopages types` ran, keeps the default export typed by core.
+`rootDirs` types relative imports, and the second `paths` entry types imports through an alias such as `@/components/button.module.css`. Change `./src` if your sources live elsewhere. `ecopages types` and the dev server warn, with these lines, when the app has CSS Modules and `tsconfig.json` does not list the folder. A CSS Module without a declaration, such as one added before `ecopages types` ran, keeps the default export typed by core.
 
 In development, an edit to the CSS refreshes the stylesheet in place. An edit that adds, removes or renames a class also updates the components that import the module.
 

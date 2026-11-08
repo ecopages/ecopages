@@ -38,7 +38,7 @@ Ecopages needs Node 24 or later. The app runs on Node by default. Launch the sam
 
 ```bash
 pnpm add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant
-pnpm add -D ecopages @ecopages/postcss-processor @tailwindcss/postcss tailwindcss
+pnpm add -D ecopages @ecopages/lightningcss-processor @tailwindcss/node @tailwindcss/oxide tailwindcss
 ```
 
 `ecopages` provides the CLI. `@ecopages/jsx` and `@ecopages/radiant` are required peers of `@ecopages/ecopages-jsx`.
@@ -51,8 +51,8 @@ Create `eco.config.ts`:
 import path from 'node:path';
 import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
 
 const appRoot = process.cwd();
 
@@ -64,11 +64,12 @@ export default defineConfig({
 	},
 	integrations: [ecopagesJsxPlugin()],
 	processors: [
-		postcssProcessorPlugin(
-			tailwindV4Preset({
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/app.css'),
 			}),
-		),
+			targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+		}),
 	],
 });
 ```

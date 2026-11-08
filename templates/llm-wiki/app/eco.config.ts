@@ -3,8 +3,8 @@ import { defineConfig } from '@ecopages/core/config';
 import { compareWikiEntries, wikiFrontmatterSchema } from './src/content/wiki';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
 import { mdxPluginOptions } from './src/lib/mdx-plugin-options';
 import { obsidianIngestPlugin } from './src/lib/obsidian';
 import { LLM_WIKI_ORIGIN } from './src/lib/site-origin';
@@ -36,11 +36,12 @@ export default defineConfig({
 	],
 	additionalWatchPaths: ['src/lib', 'src/layouts/docs-layout'],
 	processors: [
-		postcssProcessorPlugin(
-			tailwindV4Preset({
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
-		),
+			targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+		}),
 		obsidianIngestPlugin(),
 		contentProcessorPlugin({
 			options: {

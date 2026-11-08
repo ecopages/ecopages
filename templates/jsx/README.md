@@ -1,6 +1,6 @@
 # Ecopages JSX template
 
-An Ecopages JSX app with MDX Pages, Tailwind v4, and custom elements for small interactive components.
+An Ecopages JSX app with MDX Pages, Tailwind v4 run by Lightning CSS, and custom elements for small interactive components.
 
 ## Getting started
 

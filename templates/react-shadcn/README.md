@@ -26,7 +26,7 @@ Add another component from the template directory:
 pnpm dlx shadcn@latest add dialog
 ```
 
-The CLI writes into `src/components/ui`. Class names use the `cn` package, re-exported at `src/lib/utils.ts`. Tokens live in `src/styles/tailwind.css`; `eco.config.ts` compiles that file with the Tailwind v4 PostCSS Processor. `d` toggles the `dark` class and `data-theme` (`src/lib/theme.ts`). Until then the preference is `system`.
+The CLI writes into `src/components/ui`. Class names use the `cn` package, re-exported at `src/lib/utils.ts`. Tokens live in `src/styles/tailwind.css`; `eco.config.ts` compiles that file with the Tailwind v4 preset of the Lightning CSS Processor. `d` toggles the `dark` class and `data-theme` (`src/lib/theme.ts`). Until then the preference is `system`.
 
 ## Structure
 

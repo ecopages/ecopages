@@ -3,8 +3,8 @@ import { defineConfig } from '@ecopages/core/config';
 import { compareDocsEntries, docsFrontmatterSchema } from './src/content/docs';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { tailwindV4Preset } from '@ecopages/lightningcss-processor/presets/tailwind-v4';
 import { docsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
 import { configuredSiteOrigin, DOCS_SITEMAP_EXTRA_URLS } from './src/lib/docs/site-meta';
 
@@ -30,11 +30,12 @@ export default defineConfig({
 	],
 	additionalWatchPaths: ['src/content', 'src/lib/docs', 'src/layouts/docs-layout'],
 	processors: [
-		postcssProcessorPlugin(
-			tailwindV4Preset({
+		lightningCssProcessorPlugin({
+			...tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
-		),
+			targets: ['chrome >= 111', 'safari >= 16.4', 'firefox >= 128'],
+		}),
 		contentProcessorPlugin({
 			options: {
 				collections: {

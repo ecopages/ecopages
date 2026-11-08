@@ -1,6 +1,6 @@
 # Ecopages React template
 
-A React Integration template for [Ecopages](https://ecopages.app), with MDX Pages, islands, and Tailwind v4.
+A React Integration template for [Ecopages](https://ecopages.app), with MDX Pages, islands, and Tailwind v4 run by Lightning CSS.
 
 ## Getting started
 

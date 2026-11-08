@@ -477,6 +477,20 @@ describe('DevelopmentStylesheetService, for a CSS Module', () => {
 			expect(declared()).toContain('export declare const secondary: string;');
 		});
 
+		it('warns once, when it prewarms, that the tsconfig does not list the declarations', async () => {
+			write(MODULE, '.primary { color: red; }\n');
+			const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+			const service = await createModuleService();
+
+			await service.prewarm();
+			await service.applyChanges(changed(path.join(rootDir, MODULE)), createBridge().bridge);
+
+			expect(warn).toHaveBeenCalledTimes(1);
+			expect(String(warn.mock.calls[0]![0])).toContain(
+				'"rootDirs": ["./src", "./node_modules/@types/ecopages-css-modules"]',
+			);
+		});
+
 		it('drops the declaration of a deleted CSS Module', async () => {
 			const file = write(MODULE, '.primary { color: red; }\n');
 			const service = await createModuleService();

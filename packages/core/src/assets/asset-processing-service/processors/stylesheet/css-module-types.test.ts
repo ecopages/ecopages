@@ -155,7 +155,7 @@ describe('the tsconfig check for CSS Module declarations', () => {
 		return warn.mock.calls.map(([message]) => String(message));
 	}
 
-	it.fails('names the rootDirs to add, and the alias to extend, when the tsconfig lists neither', async () => {
+	it('names the rootDirs to add, and the alias to extend, when the tsconfig lists neither', async () => {
 		const [message, ...rest] = await warningFor({ paths: { '@/*': ['./src/*'] } });
 
 		expect(rest).toEqual([]);
@@ -163,7 +163,7 @@ describe('the tsconfig check for CSS Module declarations', () => {
 		expect(message).toContain(`"@/*": ["./src/*", "${TYPES}/*"]`);
 	});
 
-	it.fails('warns about an app with no tsconfig.json too, naming only the rootDirs', async () => {
+	it('warns about an app with no tsconfig.json too, naming only the rootDirs', async () => {
 		const [message] = await warningFor(null);
 
 		expect(message).toContain('"rootDirs"');

@@ -6,6 +6,7 @@ import {
 } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts';
 import {
 	removeCssModuleDeclaration,
+	warnMissingCssModuleRootDirs,
 	writeCssModuleDeclaration,
 } from '../../assets/asset-processing-service/processors/stylesheet/css-module-types.ts';
 import { writeSourceRelativeStylesheet } from '../../assets/asset-processing-service/processors/stylesheet/source-relative-stylesheet.ts';
@@ -127,6 +128,7 @@ export class DevelopmentStylesheetService {
 				this.failed.add(file);
 				appLogger.error(`Failed to process stylesheet ${file}: ${message}`);
 			}
+			warnMissingCssModuleRootDirs(this.appConfig);
 		});
 	}
 

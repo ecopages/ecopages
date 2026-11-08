@@ -4,6 +4,7 @@ import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import { appLogger } from '../../../../global/app-logger.ts';
 import { resolveGeneratedPath, writeGeneratedTypesPackage } from '../../../../plugins/processor.ts';
 import { findStylesheetProcessor, getStylesheetKinds } from '../../../../plugins/stylesheet-kinds.ts';
+import { loadTsconfigResolutionOptions } from '../../../../plugins/tsconfig-import-resolver.ts';
 import { isPathInside } from '../../../../utils/path-containment.ts';
 import { isCssModuleExportName } from './stylesheet-module.ts';
 import { applyStylesheetProcessors } from './stylesheet-processor-pipeline.ts';
@@ -115,13 +116,42 @@ export async function writeCssModuleDeclarations(appConfig: EcoPagesAppConfig): 
 			);
 		}
 	}
+	warnMissingCssModuleRootDirs(appConfig);
 }
 
 /**
- * Warns, once, when the app has CSS Module declarations but its tsconfig cannot find them, and prints the lines to add.
+ * Warns when the app has CSS Module declarations but its tsconfig cannot find them, and prints the lines to add.
  *
  * @remarks
- * TypeScript resolves a declaration only through `rootDirs`, and an alias such as `@/*` also needs the package folder
+ * The caller runs it once, after the declarations are written. TypeScript resolves a declaration only through `rootDirs`, and an alias such as `@/*` also needs the package folder
  * as a second `paths` target. Until they are listed, a named import of a CSS Module class fails type checking.
  */
-export function warnMissingCssModuleRootDirs(_appConfig: EcoPagesAppConfig): void {}
+export function warnMissingCssModuleRootDirs(appConfig: EcoPagesAppConfig): void {
+	const root = typesRoot(appConfig);
+	if (!fileSystem.exists(root)) return;
+	const declared = fileSystem
+		.readdir(root, { recursive: true })
+		.some((entry) => entry.isFile && entry.name.endsWith('.d.ts') && entry.name !== 'index.d.ts');
+	if (!declared) return;
+
+	const options = loadTsconfigResolutionOptions(appConfig.rootDir);
+	const { srcDir } = appConfig.absolutePaths;
+	const relative = (target: string) => {
+		const value = path.relative(appConfig.rootDir, target);
+		return value.startsWith('.') ? value : `./${value}`;
+	};
+	const lines: string[] = [];
+	if (!options?.rootDirs?.some((dir) => path.resolve(dir) === path.resolve(root))) {
+		lines.push(`"rootDirs": ["${relative(srcDir)}", "${relative(root)}"]`);
+	}
+	for (const [alias, targets] of Object.entries(options?.paths ?? {})) {
+		const source = targets.find((target) => path.resolve(target) === path.join(srcDir, '*'));
+		if (!alias.endsWith('/*') || !source) continue;
+		if (targets.some((target) => path.resolve(target) === path.join(root, '*'))) continue;
+		lines.push(`"${alias}": ["${relative(srcDir)}/*", "${relative(root)}/*"]`);
+	}
+	if (lines.length === 0) return;
+	appLogger.warn(
+		`CSS Modules are declared in ${relative(root)}, but tsconfig.json does not list that folder, so importing a class by name fails type checking. Add to compilerOptions:\n  ${lines.join(',\n  ')}`,
+	);
+}

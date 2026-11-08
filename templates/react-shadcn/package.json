@@ -13,10 +13,11 @@
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
-		"@ecopages/postcss-processor": "workspace:*",
+		"@ecopages/lightningcss-processor": "workspace:*",
 		"@ecopages/react": "workspace:*",
 		"@ecopages/react-router": "workspace:*",
-		"@tailwindcss/postcss": "^4.0.0",
+		"@tailwindcss/node": "^4.0.0",
+		"@tailwindcss/oxide": "^4.0.0",
 		"@types/react": "^19",
 		"@types/react-dom": "^19",
 		"ecopages": "workspace:*",

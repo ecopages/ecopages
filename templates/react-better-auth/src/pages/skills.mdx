@@ -97,11 +97,11 @@ Install Ecopages and your chosen integration (e.g., KitaJS):
 pnpm add @ecopages/core @ecopages/kitajs
 ```
 
-Add PostCSS processor for Tailwind:
+Add the Lightning CSS processor for Tailwind:
 
 ```bash
-pnpm add @ecopages/postcss-processor
-pnpm add -D @tailwindcss/postcss tailwindcss
+pnpm add @ecopages/lightningcss-processor
+pnpm add -D @tailwindcss/node @tailwindcss/oxide tailwindcss
 ```
 
 ### 2. Configuration
@@ -113,8 +113,8 @@ import path from "node:path";
 import { defineConfig } from "@ecopages/core/config";
 import { reactPlugin } from "@ecopages/react";
 import { ecoRouter } from "@ecopages/react-router";
-import { postcssProcessorPlugin } from "@ecopages/postcss-processor";
-import { tailwindV4Preset } from "@ecopages/postcss-processor/presets/tailwind-v4";
+import { lightningCssProcessorPlugin } from "@ecopages/lightningcss-processor";
+import { tailwindV4Preset } from "@ecopages/lightningcss-processor/presets/tailwind-v4";
 
 export default defineConfig({
   defaultMetadata: {
@@ -123,11 +123,12 @@ export default defineConfig({
   },
   integrations: [reactPlugin({ router: ecoRouter() })],
   processors: [
-    postcssProcessorPlugin(
-      tailwindV4Preset({
+    lightningCssProcessorPlugin({
+      ...tailwindV4Preset({
         referencePath: path.resolve(process.cwd(), "src/styles/app.css"),
-      })
-    ),
+      }),
+      targets: ["chrome >= 111", "safari >= 16.4", "firefox >= 128"],
+    }),
   ],
 });
 ```

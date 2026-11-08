@@ -2,4 +2,4 @@
 'ecopages': minor
 ---
 
-`ecopages init` has two new official templates. `jsx-lightningcss` is the JSX starter with Tailwind v4 run by `@ecopages/lightningcss-processor` instead of PostCSS. `jsx-css-modules` is the same app styled with plain CSS Modules on that Processor, without Tailwind. Pick one with `--template jsx-lightningcss` or `--template jsx-css-modules`.
+`ecopages init` has a new official template, `jsx-css-modules`: the JSX app styled with plain CSS Modules on `@ecopages/lightningcss-processor`, without Tailwind. Pick it with `--template jsx-css-modules`.

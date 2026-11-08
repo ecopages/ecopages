@@ -80,12 +80,12 @@ importers:
       '@ecopages/jsx':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/signals@0.8.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
-      '@ecopages/postcss-processor':
-        specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
         specifier: ^0.8.2
         version: 0.8.2(@ecopages/jsx@0.8.2(@ecopages/signals@0.8.2))
@@ -101,7 +101,10 @@ importers:
       '@rehype-pretty/transformers':
         specifier: ^0.13.2
         version: 0.13.2
-      '@tailwindcss/postcss':
+      '@tailwindcss/node':
+        specifier: ^4.3.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
         specifier: ^4.3.0
         version: 4.3.3
       '@types/hast':
@@ -7840,7 +7843,7 @@ snapshots:
     dependencies:
       '@babel/compat-data': 7.29.7
       '@babel/helper-validator-option': 7.29.7
-      browserslist: 4.28.8
+      browserslist: 4.29.5
       lru-cache: 5.1.1
       semver: 6.3.1
 

@@ -7,6 +7,7 @@ import {
 	isEmittableReferenceFile,
 	PLAIN_CSS_KINDS,
 } from './stylesheet-kinds.ts';
+import { serializeStylesheetModuleDeclarations } from './processor.ts';
 
 class FixtureProcessor extends Processor {
 	constructor(name: string, capabilities: ProcessorAssetCapability[]) {
@@ -57,7 +58,16 @@ describe('createStylesheetKinds', () => {
 		expect(kinds.isStylesheet('./card.scss')).toBe(true);
 		expect(kinds.isStylesheet('./card.SCSS')).toBe(true);
 		expect(kinds.isStylesheet('./card.less')).toBe(false);
+		expect(kinds.isCssModule('./card.module.scss')).toBe(false);
+		expect(kinds.isCssModule('./card.scss')).toBe(false);
+	});
+
+	it('takes *.module.<ext> as a CSS Module when the capability declaring <ext> sets cssModules', () => {
+		const kinds = createStylesheetKinds([
+			new FixtureProcessor('sass', [{ kind: 'stylesheet', extensions: ['*.scss'], cssModules: true }]),
+		]);
 		expect(kinds.isCssModule('./card.module.scss')).toBe(true);
+		expect(kinds.isCssModule('./card.module.SCSS')).toBe(true);
 		expect(kinds.isCssModule('./card.scss')).toBe(false);
 	});
 
@@ -117,4 +127,34 @@ describe('isEmittableReferenceFile', () => {
 			expect(isEmittableReferenceFile(file)).toBe(false);
 		},
 	);
+});
+
+describe('CSS Module detection and generated declarations', () => {
+	const capabilitySets: Array<[string, ProcessorAssetCapability[]]> = [
+		[
+			'cssModules on .css only',
+			[
+				{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true },
+				{ kind: 'stylesheet', extensions: ['*.scss'] },
+			],
+		],
+		['cssModules on .scss', [{ kind: 'stylesheet', extensions: ['*.css', '*.scss'], cssModules: true }]],
+		['cssModules on neither', [{ kind: 'stylesheet', extensions: ['*.css', '*.scss'] }]],
+	];
+
+	it('treats *.module.<ext> as a CSS Module only when the capability that declares <ext> sets cssModules', () => {
+		const kinds = createStylesheetKinds([new FixtureProcessor('p', capabilitySets[0]![1])]);
+		expect(kinds.isCssModule('./card.module.css')).toBe(true);
+		expect(kinds.isCssModule('./card.module.scss')).toBe(false);
+		expect(kinds.isStylesheet('./card.module.scss')).toBe(true);
+	});
+
+	it('agrees with the generated declarations for every capability set', () => {
+		for (const [, capabilities] of capabilitySets) {
+			const kinds = createStylesheetKinds([new FixtureProcessor('p', capabilities)]);
+			const declaresClassMap =
+				serializeStylesheetModuleDeclarations(capabilities).includes(`declare module '*.module.scss'`);
+			expect(kinds.isCssModule('./card.module.scss')).toBe(declaresClassMap);
+		}
+	});
 });

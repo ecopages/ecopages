@@ -155,7 +155,7 @@ Supported `kind` values: `script`, `stylesheet`, `image`. Extension patterns sup
 
 ### Declare the module types of your extensions
 
-Core types `import styles from './card.css'` and `./card.module.css` with the declarations it ships. A stylesheet extension you declare, such as `*.scss`, is typed by your processor: write the declaration from `setup()`, into the generated `@types` package TypeScript loads on its own. `serializeStylesheetModuleDeclarations(capabilities)` builds the text from the extensions your `stylesheet` capability declares: `declare module '*.scss'` for the CSS string and, when the capability sets `cssModules: true`, `declare module '*.module.scss'` for the class map. It is empty when you declare only `.css`, so nothing is written then.
+Core types `import styles from './card.css'` and `./card.module.css` with the declarations it ships. A stylesheet extension you declare, such as `*.scss`, is typed by your processor: write the declaration from `setup()`, into the generated `@types` package TypeScript loads on its own. `serializeStylesheetModuleDeclarations(capabilities)` builds the text from the extensions your `stylesheet` capability declares: `declare module '*.scss'` for the CSS string and, when the capability sets `cssModules: true`, `declare module '*.module.scss'` for the class map. It is empty when you declare only `.css`, so nothing is written then. Core treats `*.module.<ext>` as a CSS Module under the same rule: only when the capability that declares `<ext>` sets `cssModules: true`. Otherwise `card.module.scss` is a plain stylesheet, typed as a `string`.
 
 ```typescript
 import { fileSystem } from '@ecopages/file-system';

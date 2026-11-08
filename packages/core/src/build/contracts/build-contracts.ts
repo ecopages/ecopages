@@ -185,6 +185,8 @@ export interface BuildOptions {
 export interface BuildStylesheets {
 	/** The lowercase, dotted stylesheet extensions. */
 	readonly extensions: readonly string[];
+	/** Whether `file` names a CSS Module, by the same rule as `StylesheetKinds.isCssModule`; defaults to `.module.css`. */
+	isCssModule?(file: string): boolean;
 	/**
 	 * Compiles the stylesheet at `file` into ES module code whose default export is its processed CSS, with the other
 	 * files that CSS inlined.

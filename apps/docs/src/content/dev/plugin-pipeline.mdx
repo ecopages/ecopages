@@ -168,7 +168,7 @@ Core types the default export of every CSS Module in `css-imports.d.ts` as `{ re
 
 ## Stylesheet kinds
 
-One core module, `stylesheet-kinds.ts`, decides which files are stylesheets. A file is a stylesheet when it is `.css` or has an extension the registered stylesheet Processor declares in its `stylesheet` capability (`*.scss`, `.sass`, `*.{less,styl}`; the bare `*` names none). It is a CSS Module when it ends in `.module.css` or `.module.<ext>` for a declared extension. Core names no other extension, so an app with no stylesheet Processor handles plain `.css` only.
+One core module, `stylesheet-kinds.ts`, decides which files are stylesheets. A file is a stylesheet when it is `.css` or has an extension the registered stylesheet Processor declares in its `stylesheet` capability (`*.scss`, `.sass`, `*.{less,styl}`; the bare `*` names none). It is a CSS Module when it ends in `.module.css`, or in `.module.<ext>` for an extension declared by a `stylesheet` capability that sets `cssModules`; with the capabilities `{*.css, cssModules}` and `{*.scss}`, `card.module.scss` is a plain stylesheet. `serializeStylesheetModuleDeclarations` follows the same rule, so detection and the generated types agree. Core names no other extension, so an app with no stylesheet Processor handles plain `.css` only.
 
 These sites ask the module, so they cannot disagree:
 

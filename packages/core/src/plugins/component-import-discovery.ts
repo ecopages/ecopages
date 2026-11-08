@@ -327,7 +327,10 @@ function jsxPragmaOf(source: string): string | undefined {
 	return /^\s*\/\*[\s\S]*?@jsxImportSource\s+(\S+)[\s\S]*?\*\//.exec(source)?.[1];
 }
 
-/** Per app root: each walked plain module and the declaration files whose discovery walked it. */
+/**
+ * Per app root: each walked plain module, each stylesheet a declaration delivers, and the declaration files whose
+ * discovery reached them.
+ */
 const reachOwners = new Map<string, { byModule: Map<string, Set<string>>; byOwner: Map<string, Set<string>> }>();
 
 function canonicalFile(file: string): string {
@@ -535,6 +538,16 @@ export function createUndeliverablePackageCssModuleError(projectRoot: string, fi
 	const module = relativeToRoot(projectRoot, file);
 	return new Error(
 		`[ecopages] ${module}: ${JSON.stringify(source)} is a CSS Module of a package module that never reaches a Page, because no eco.page(), eco.layout(), eco.html() or eco.component() module imports ${module} with a static import. Import it from one of them, or list the stylesheet in eco.component({ dependencies: { stylesheets } }).`,
+	);
+}
+
+/**
+ * Builds the error for a CSS Module an app module binds when no Eco declaration reaches that module or delivers the CSS Module.
+ */
+export function createUndeliverableCssModuleError(projectRoot: string, file: string, source: string): Error {
+	const module = relativeToRoot(projectRoot, file);
+	return new Error(
+		`[ecopages] ${module}: ${JSON.stringify(source)} is a CSS Module that never reaches a Page, because no eco.page(), eco.layout(), eco.html() or eco.component() module imports ${module} or ${JSON.stringify(source)} with a static import. Import one of them from one of those modules.`,
 	);
 }
 
@@ -1043,7 +1056,7 @@ export function discoverComponentImports(
 		const { walk } = walkPlainModule(file, state, inProgress);
 		if (walk) mergePlainModuleWalk(plain, walk);
 	}
-	recordDiscoveryOwner(projectRoot, ownerFile, plain.modules);
+	recordDiscoveryOwner(projectRoot, ownerFile, [...plain.modules, ...result.stylesheets, ...plain.stylesheets]);
 	for (const watchFile of plain.watchFiles) state.watchFiles.add(watchFile);
 	for (const [key, component] of plain.components) {
 		if (!ownComponents.has(key)) result.plainModuleComponents.push(component);

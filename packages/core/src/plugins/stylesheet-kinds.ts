@@ -17,7 +17,10 @@ export interface StylesheetKinds {
 	readonly extensions: readonly string[];
 	/** Whether `file`, a path or an import specifier, names a stylesheet. */
 	isStylesheet(file: string): boolean;
-	/** Whether `file` names a CSS Module: `.module.css`, or `.module.<ext>` for a declared extension. */
+	/**
+	 * Whether `file` names a CSS Module: `.module.css`, or `.module.<ext>` for an extension declared by a capability
+	 * that sets `cssModules`. Any other `.module.<ext>` is a plain stylesheet.
+	 */
 	isCssModule(file: string): boolean;
 	/** Whether the stylesheet Processor declares that it scopes CSS Modules. */
 	readonly scopesCssModules: boolean;
@@ -70,7 +73,13 @@ export function createStylesheetKinds(processors: Iterable<Processor> = []): Sty
 	);
 	const declared = capabilities.flatMap((capability) => (capability.extensions ?? []).flatMap(extensionsOfPattern));
 	const extensions = [...new Set([CSS_EXTENSION, ...declared])];
-	const moduleSuffixes = extensions.map((extension) => `${CSS_MODULE_INFIX}${extension}`);
+	const moduleExtensions = new Set([
+		CSS_EXTENSION,
+		...capabilities
+			.filter((capability) => capability.cssModules === true)
+			.flatMap((capability) => (capability.extensions ?? []).flatMap(extensionsOfPattern)),
+	]);
+	const moduleSuffixes = [...moduleExtensions].map((extension) => `${CSS_MODULE_INFIX}${extension}`);
 	const endsWithAny = (file: string, suffixes: readonly string[]) => {
 		const lower = file.toLowerCase();
 		return suffixes.some((suffix) => lower.endsWith(suffix));

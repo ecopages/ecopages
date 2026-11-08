@@ -19,6 +19,9 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
 import { resolveRolldownOptions } from './rolldown-adapter-helpers.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
+import { attributeComponentIdentity } from '../../plugins/eco-component-meta-plugin.ts';
+import { Processor } from '../../plugins/processor.ts';
+import { createStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
 import { assertBuildFailed } from '../../__fixtures__/build/build-result.ts';
@@ -868,6 +871,85 @@ describe('RolldownBuildAdapter', () => {
 		assertBuildSucceeded(result, 'Build failed');
 		expect(reported).toHaveLength(1);
 		expect(reported[0]).toContain('ui-kit/index.js');
+	});
+
+	function writeAppToast(): string {
+		writeFixture('toast.module.css', '.toast { color: red; }\n');
+		writeFixture('toast.ts', "import styles from './toast.module.css';\nexport const toast = styles.toast;\n");
+		return writeFixture('toast-entry.ts', "export const load = () => import('./toast.ts');\n");
+	}
+
+	function buildAppToast(entrypoint: string, reportUndeliverable?: (error: Error) => void) {
+		return new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			root: workDir,
+			writeToDisk: false,
+			stylesheets: {
+				extensions: ['.css'],
+				compileModule: async () => ({ code: 'export default { toast: "x_toast" };' }),
+				...(reportUndeliverable ? { reportUndeliverable } : {}),
+			},
+		});
+	}
+
+	class ScopingProcessor extends Processor {
+		async setup(): Promise<void> {}
+	}
+	const scopingKinds = createStylesheetKinds([
+		new ScopingProcessor({
+			name: 'scoping',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], cssModules: true }],
+		}),
+	]);
+
+	test("a build fails on an app module's CSS Module that no declaration reaches, naming both files", async () => {
+		const result = await buildAppToast(writeAppToast());
+
+		assertBuildFailed(result);
+		const message = result.logs.map((log) => log.message).join('\n');
+		expect(message).toContain('toast.ts');
+		expect(message).toContain('"./toast.module.css"');
+		expect(message).toContain('never reaches a Page');
+	});
+
+	test("a build hands an app module's unreached CSS Module to the reporter once and builds", async () => {
+		const reported: string[] = [];
+
+		const result = await buildAppToast(writeAppToast(), (error) => reported.push(error.message));
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(reported).toHaveLength(1);
+		expect(reported[0]).toContain('toast.ts');
+	});
+
+	test("a build accepts an app module's CSS Module when a declaration reaches the module", async () => {
+		const entrypoint = writeAppToast();
+		attributeComponentIdentity(
+			"import { toast } from './toast.ts';\nimport { eco } from '@ecopages/core';\nexport default eco.page({ render: () => toast });",
+			path.join(workDir, 'page.ts'),
+			{ integration: 'lit', projectRoot: workDir, stylesheets: scopingKinds },
+		);
+
+		assertBuildSucceeded(await buildAppToast(entrypoint), 'Build failed');
+	});
+
+	test('a build accepts a CSS Module that a script binds when a declaration imports the same stylesheet', async () => {
+		writeFixture('card.module.css', '.card { color: red; }\n');
+		const entrypoint = writeFixture(
+			'card.script.ts',
+			"import styles from './card.module.css';\nexport const card = styles.card;\n",
+		);
+		attributeComponentIdentity(
+			"import styles from './card.module.css';\nimport { eco } from '@ecopages/core';\nexport default eco.page({ render: () => styles.card });",
+			path.join(workDir, 'page.ts'),
+			{ integration: 'lit', projectRoot: workDir, stylesheets: scopingKinds },
+		);
+
+		assertBuildSucceeded(await buildAppToast(entrypoint), 'Build failed');
 	});
 
 	test("a server build gives a package's side-effect stylesheet import an empty module", async () => {

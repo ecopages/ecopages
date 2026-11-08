@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0
+
+### Minor Changes
+
+- [#1137](https://github.com/ecopages/ecopages/pull/1137) [`e7a129b`](https://github.com/ecopages/ecopages/commit/e7a129ba19003015bad6e64d40b191a46276273c) Thanks [@andeeplus](https://github.com/andeeplus)! - Require Node.js `^24.22.0 || >=26.0.0`, declared in `engines.node`. Node 24 releases before 24.22 and Node 25 are no longer supported, because older Node 24 releases report file deletions unreliably in the Linux recursive watcher. Upgrade Node.js before updating.
+
+### Patch Changes
+
+- [#1116](https://github.com/ecopages/ecopages/pull/1116) [`711dce1`](https://github.com/ecopages/ecopages/commit/711dce1055e730c1d5cc845545f0670de20403bc) Thanks [@andeeplus](https://github.com/andeeplus)! - The `@ecopages/jsx` and `@ecopages/radiant` peer and dependency ranges move to `^0.8.2` (`@ecopages/signals` `^0.8.2`, `@ecopages/radiant-ui` `^0.3.4` in the templates). Update them in your app with `pnpm add @ecopages/jsx@^0.8.2 @ecopages/radiant@^0.8.2 @ecopages/signals@^0.8.2`.
+
+    Radiant 0.8 removes `<slot>`: a host that renders its children uses `{this.slotted}` (and `this.slottedElements` in place of `@querySlot` and `getSlotElements()`), and named slots become properties. Radiant and JSX 0.7 also made `className` on a native element a type error: write `class`. The `ecopages` skills and templates now describe the 0.8 model.
+
 ## 0.6.1
 
 No changes in this release.

@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.0
+
+### Minor Changes
+
+- [#1137](https://github.com/ecopages/ecopages/pull/1137) [`e7a129b`](https://github.com/ecopages/ecopages/commit/e7a129ba19003015bad6e64d40b191a46276273c) Thanks [@andeeplus](https://github.com/andeeplus)! - Require Node.js `^24.22.0 || >=26.0.0`, declared in `engines.node`. Node 24 releases before 24.22 and Node 25 are no longer supported, because older Node 24 releases report file deletions unreliably in the Linux recursive watcher. Upgrade Node.js before updating.
+
+- [#1071](https://github.com/ecopages/ecopages/pull/1071) [`a763a03`](https://github.com/ecopages/ecopages/commit/a763a036b9dc7831cc5eb26b60080f7781d417b2) Thanks [@andeeplus](https://github.com/andeeplus)! - Add `@ecopages/file-system/path`, path operations that always return forward slashes, with converters from native paths and `file:` URLs. `fileSystem.realpath`, `glob`, `readdir`, `readlink`, `mkdtemp` and watcher events now return paths in that form on Windows.
+
+    Ecopages now holds every path in that form, so on Windows paths no longer leak backslashes into URLs, cache keys and generated imports, and a separator difference no longer breaks a path comparison. On Windows, resolved config paths (`rootDir` and `absolutePaths.*`) and the paths build plugins receive in `onResolve`, `onLoad` and `transform` are now forward-slash paths such as `D:/app/src/page.tsx`. A server build with `preserveModules` also names a module on another drive than its root instead of failing.
+
+- [#1100](https://github.com/ecopages/ecopages/pull/1100) [`eea38b2`](https://github.com/ecopages/ecopages/commit/eea38b2b330dd937d96e16cb4078d8da3b64dc26) Thanks [@andeeplus](https://github.com/andeeplus)! - Core now owns the development lifecycle of stylesheets, and a stylesheet Processor only transforms them.
+
+    Breaking: `Processor.transformStylesheet(css, file)` returns `{ css, dependencies }` instead of a string. `dependencies` lists the absolute paths of the other files the transform read, such as the partials an `@import` inlined, and core keeps the stylesheets among them; take them from the transform (PostCSS `dependency` messages, Lightning CSS `dependencies`). To migrate a custom Processor, return `{ css }` where it returned the CSS string, and add `dependencies` when it inlines other files.
+
+    - An edit to an `@import` partial rebuilds the stylesheets that inline it, whatever the form of the import (`layer()`, a media query, an unquoted `url()` or an alias). Their links refresh, modules that import them as text hot-update with the new CSS, and server modules that embed them, as for Lit SSR, are rebuilt.
+    - A stylesheet Processor may implement `invalidateStylesheets(files)` to name the stylesheets a change to other files makes stale, or `'all'`. The PostCSS Processor uses it to recreate its plugins and rebuild `dependencyEntryPaths` (every entry when unset) after an edit to any file that is not a stylesheet, so Tailwind still finds new classes.
+    - `writeSourceRelativeStylesheet` and `SourceRelativeStylesheetDirs` are no longer exported from `@ecopages/core/processor`, since core writes processed stylesheets itself.
+    - `@ecopages/core/processor/contract` exports `stylesheetProcessorContract`, the cases a stylesheet Processor must pass.
+    - `@ecopages/postcss-processor` no longer prewarms, caches, writes or broadcasts stylesheets itself and has no default `watch`. `PostCssProcessor.processPath`, `PostCssProcessor.processStringOrBufferSync`, `getFileAsBuffer` and the `ProcessPath` and `ProcessStringOrBufferSync` types are removed; use `PostCssProcessor.processStringOrBuffer`, or `transformWithPostcss` for the CSS with its dependencies. The package `main` and `types` now point at `src/index.ts`.
+    - `@ecopages/file-system` adds `fileSystem.tempDir()`, the operating system's directory for temporary files.
+
+- [#1059](https://github.com/ecopages/ecopages/pull/1059) [`507dca2`](https://github.com/ecopages/ecopages/commit/507dca219ea88f97bb864b0bf4c50db2c9b0456a) Thanks [@andeeplus](https://github.com/andeeplus)! - Keep serving the last good vendor output when a dev vendor-graph build fails as a whole, keep every entry in `dev-vendor-entries.json`, rebuild vendors after a package install without a restart, and build the new bare imports of one module in a single vendor build.
+
+    `FileStats`, returned by `stat()` and `lstat()`, gains a required `mtimeMs` field; a custom `FileSystem` implementation must now return it.
+
 ## 0.6.1
 
 No changes in this release.

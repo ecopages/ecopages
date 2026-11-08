@@ -5,7 +5,7 @@
  * Install the peers: pnpm add -D @tailwindcss/node @tailwindcss/oxide tailwindcss
  */
 
-import { resolveProjectImportPath } from '@ecopages/core/processor';
+import { resolveProjectImportPath, type StylesheetInvalidation } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
 import type { Scanner, SourceEntry } from '@tailwindcss/oxide';
@@ -89,6 +89,46 @@ function scanSources(
 	return [...root, ...compiler.sources];
 }
 
+/** Whether `candidates` has a class name `known` lacks. */
+function hasNewCandidate(candidates: readonly string[], known: ReadonlySet<string>): boolean {
+	return candidates.some((candidate) => !known.has(candidate));
+}
+
+/**
+ * Rescans the changed files of one stylesheet and tells whether they define a class name its last build lacks.
+ *
+ * @remarks
+ * A changed file the scanner already reads is rescanned alone. A file it has not seen, which matches one of its globs,
+ * is a new file, and only a fresh scan knows whether the scanner would read it (it skips ignored and binary files), so
+ * the scanner is replaced. A file that is gone or that no glob matches is ignored.
+ */
+function rescan(
+	scanner: NonNullable<StylesheetState['scanner']>,
+	candidates: ReadonlySet<string>,
+	changed: readonly string[],
+	Oxide: typeof Scanner,
+): boolean {
+	const present = changed.filter((file) => fileSystem.exists(file));
+	const read = new Set(scanner.instance.files.map((file) => path.resolve(file)));
+	const unseen = present.filter(
+		(file) =>
+			!read.has(file) &&
+			scanner.instance.globs.some(
+				({ base, pattern }) =>
+					path.isWithin(path.resolve(base), file) &&
+					path.matchesGlob(path.relative(path.resolve(base), file), pattern),
+			),
+	);
+	if (unseen.length > 0) {
+		scanner.instance = new Oxide({ sources: scanner.sources });
+		return hasNewCandidate(scanner.instance.scan(), candidates);
+	}
+	const known = present.filter((file) => read.has(file));
+	if (known.length === 0) return false;
+	scanner.instance.scanFiles(known.map((file) => ({ file, extension: path.extname(file).slice(1) })));
+	return hasNewCandidate(scanner.instance.scan(), candidates);
+}
+
 /**
  * Runs Tailwind v4 over each stylesheet before Lightning CSS, without PostCSS.
  *
@@ -146,9 +186,23 @@ function createTailwindPreprocessor(options: TailwindV4PresetOptions): Lightning
 				state.candidates = new Set(candidates);
 				return { css: built, dependencies: [...dependencies] };
 			} catch (error) {
-				state.dependencies = dependencies;
+				state.dependencies = new Set([...state.dependencies, ...dependencies]);
 				throw error;
 			}
+		},
+
+		async invalidate(files): Promise<StylesheetInvalidation> {
+			const changed = files.map((file) => path.resolve(file));
+			const { oxide } = await loadTailwind();
+			const stale: string[] = [];
+			for (const [entry, state] of stylesheets) {
+				if (changed.some((file) => state.dependencies.has(file) && !file.endsWith('.css'))) {
+					stale.push(entry);
+				} else if (state.scanner && rescan(state.scanner, state.candidates, changed, oxide.Scanner)) {
+					stale.push(entry);
+				}
+			}
+			return stale;
 		},
 	};
 }

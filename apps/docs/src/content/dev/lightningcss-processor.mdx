@@ -27,6 +27,22 @@ sources:
 - Lightning CSS rejects an explicit `undefined` option, so unset options are left out.
 - An error becomes an `Error` with `file:line:column` and the original as its cause. A warning is logged with its location through `warnStylesheetOnce`, once per stylesheet until it changes.
 
+```mermaid
+flowchart TD
+  C["Core: applyStylesheetProcessors"] --> PP{"preprocessor set and not a package file?"}
+  PP -- yes --> TW["preprocessor.transform: Tailwind v4 compile, oxide scan, build"]
+  PP -- no --> BS
+  TW --> BS["bundleStylesheet: walk imports, scanCss, resolveImport as core does"]
+  BS --> BA["Lightning CSS bundleAsync: inline, lower targets, minify"]
+  BA --> CM{"file ends in .module.css?"}
+  CM -- yes --> EX["Scoped CSS plus exports class map (hash of path relative to rootDir, or package-relative)"]
+  CM -- no --> OUT
+  EX --> OUT["css, dependencies, exports"]
+  OUT --> CORE["Core: inline leftover @import, emit url() files"]
+  W["Watcher batch: changed non-stylesheet files"] --> INV["preprocessor.invalidate: rescan with oxide"]
+  INV -- "new class names or loaded module changed" --> RB["Core rebuilds that stylesheet"]
+```
+
 ## Bundling
 
 `bundleStylesheet` first walks the imports depth first, in the order written, so what is hoisted and which import closes a cycle do not depend on the order Lightning CSS reads files in. It then calls `bundleAsync` with a resolver whose `read` serves the prepared CSS: the in-memory source of the entry, so the stylesheet that core hands over is the one bundled, and each partial from disk. Each file goes through core's CSS scanner (`scanCss`) as it is walked:

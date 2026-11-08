@@ -57,6 +57,19 @@ A bundler can evaluate `lit-element` in a chunk before this module's body, and t
 
 Registered elements stay registered for the rest of that render, so every one renders with its shadow DOM. Preload state lives on the `AppRuntime` (`customElementSsrPreloadScopes`), so separate apps keep separate histories. Every in-process render, serving and static export alike, preloads through `createCustomElementServerModuleImporter`, which compiles the script with the app's server module loader into the work directory. Preload never runs the script through the browser asset pipeline, so a build emits no browser bundle for it beside the app-wide output. Every `ssr: true` script is preloaded, eager or lazy, so a Lit Component renders its element with its shadow DOM whichever Integration hosts it; `lazy` still controls browser loading. `LitPlugin` declares `ssrScriptPreload: 'own-and-foreign'`: Lit evaluates the scripts of its own Components and of Components whose Integration has no preloader, such as a Lit element declared on a Kita Component, but never a script another preloading Integration owns, such as a Radiant element's ([Route rendering](/dev/route-rendering#custom-element-ssr-scripts)). A stylesheet such a script imports with a binding (`static styles = unsafeCSS(styles)`) compiles to the app's processed CSS in the server build too, so the declarative shadow root carries the same styles hydration adopts ([Stylesheet imports](/dev/build-pipeline#stylesheet-imports)).
 
+```mermaid
+flowchart TD
+  R["IntegrationRenderer.render: assignSsrPreloadScripts once over Page, Layouts, Html and Component tree"] --> G["Global scripts of each taking-part Integration, config order, then Component scripts, in document.head"]
+  R --> A{"Script owner"}
+  A -- "Component of a preloading Integration ('own' or 'own-and-foreign')" --> O["That Integration's preloader"]
+  A -- "Kita, React or plain Component" --> L["First 'own-and-foreign' Integration: Lit"]
+  O --> RN["Render Page"]
+  L --> RN
+  RN --> HTML["Complete document string"]
+  HTML --> CE["renderCustomElements of each assigned Integration"]
+  CE --> LS["Lit: renderLitCustomElementsInMarkup gives Lit elements in Kita or React markup a declarative shadow root"]
+```
+
 ## Static export worker
 
 Lit only renders a declarative shadow root for markup that passes through `@lit-labs/ssr`, so core passes the finished document of a Page that has `ssr: true` scripts assigned to Lit through `renderCustomElements`. That covers a Lit element in a Kita Component on a Kita Page and in a Foreign Subtree spliced into a Lit Page alike ([Route rendering](/dev/route-rendering#custom-element-ssr-scripts)). `renderLitCustomElementsInMarkup` renames the elements that already have a declarative shadow root to a placeholder while it renders, so what Lit rendered earlier is not rendered twice. `@lit-labs/ssr` emits that template for every Lit element, including one that renders into the light DOM, so the check holds for all of them. React bodies are complete strings, so a Lit element written as a raw tag in a React Component gets its shadow root the same way. A Page with no Lit-assigned script is not touched.

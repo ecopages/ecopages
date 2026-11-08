@@ -156,7 +156,7 @@ Around the bridge, the adapter places a few native Rolldown plugins that are not
 
 ## CSS Modules
 
-A stylesheet Processor opts in with `cssModules: true` on its `stylesheet` capability and returns `exports` from `transformStylesheet` for every CSS Module: each local class name mapped to its scoped name followed by the names it composes, separated by spaces. It scopes from the path relative to `rootDir`, so names do not depend on the folder.
+A stylesheet Processor opts in with `cssModules: true` on its `stylesheet` capability and returns `exports` from `transformStylesheet` for every CSS Module: each local class name mapped to its scoped name followed by the names it composes, separated by spaces. It scopes from the path relative to `rootDir`, so names do not depend on the folder. For a file of an installed package it scopes from `toPackageScopeFile(file, rootDir)` (exported from `@ecopages/core/processor`) instead, the package name and the path inside the package under the app's `node_modules`, so names do not depend on the store layout either; a package CSS Module is scoped by the Processor but gets no other app processing.
 
 `applyStylesheetProcessors` is the one place that calls the Processor, and its cached result carries both the scoped `css` and the `exports`. It rejects a CSS Module when no Processor scopes them, or when a Processor that declares the capability returns no `exports`. The class map reaches every environment through `compileStylesheetModule`, which compiles a CSS Module to its class map in server builds, browser bundles and the dev transform server, and the scoped CSS reaches the Page through the file stylesheet processor from the same cached result, so one edit runs the Processor once.
 
@@ -172,7 +172,7 @@ One core module, `stylesheet-kinds.ts`, decides which files are stylesheets. A f
 
 These sites ask the module, so they cannot disagree:
 
-- Discovery and the component meta plugin: which side-effect imports are delivered as Page stylesheets, and which are CSS Modules, which are delivered when the Processor declares `cssModules` (`StylesheetKinds.scopesCssModules`) and fail the build otherwise. A package stylesheet is still a `.css` file that `resolvePackageStylesheetPath` resolves.
+- Discovery and the component meta plugin: which side-effect imports are delivered as Page stylesheets, and which are CSS Modules, which are delivered when the Processor declares `cssModules` (`StylesheetKinds.scopesCssModules`) and fail the build otherwise. A package stylesheet is still a `.css` file that `resolvePackageStylesheetPath` resolves, and a package CSS Module is delivered by any import of it.
 - The stylesheet module plugin: server and browser requests put the extensions in `BuildOptions.stylesheets`, so Rolldown never parses a declared stylesheet as JavaScript and compiles each import of one.
 - The dev transform server: it serves a stylesheet import as the same compiled module.
 - The stylesheet pipeline (`applyStylesheetProcessors`) and the copy list of files a stylesheet `url()` may emit (`isEmittableReferenceFile`).

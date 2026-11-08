@@ -117,4 +117,30 @@ test.describe('CSS Modules under ecopages dev', () => {
 
 		await expect(page.getByTestId('react-button')).toHaveCSS('color', 'rgb(255, 0, 0)', { timeout: 30_000 });
 	});
+
+	test('answers a page request 200 with the last good stylesheet and the error overlay while a CSS Module is broken', async ({
+		page,
+		request,
+		app,
+	}) => {
+		await page.goto('/');
+		await waitForHydration(page);
+		const file = path.join(app.dir, 'src/components/button.module.css');
+		const good = readFileSync(file, 'utf8');
+		const overlay = page.locator('#__ecopages_build_error__');
+
+		writeFileSync(file, `${good}\n}\n`);
+		await expect(overlay).toBeVisible({ timeout: 30_000 });
+
+		const response = await request.get('/');
+		expect(response.status()).toBe(200);
+		await page.reload();
+		await expect(overlay).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByTestId('react-button')).toHaveCSS('color', 'rgb(0, 0, 255)');
+
+		writeFileSync(file, good.replace('rgb(0, 0, 255)', 'rgb(255, 0, 0)'));
+
+		await expect(overlay).toBeHidden({ timeout: 30_000 });
+		await expect(page.getByTestId('react-button')).toHaveCSS('color', 'rgb(255, 0, 0)', { timeout: 30_000 });
+	});
 });

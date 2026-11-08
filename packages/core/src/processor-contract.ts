@@ -18,6 +18,7 @@ import { HmrManager } from './adapters/shared/hmr/hmr-manager.ts';
 import { setNodeEnvironment } from './env.ts';
 import { finalizeEcoPagesConfig } from './config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig, IClientBridge } from './config/internal-types.ts';
+import { getDevelopmentStylesheetService } from './dev/stylesheets/development-stylesheet.service.ts';
 import { DevelopmentStylesheetService } from './dev/stylesheets/development-stylesheet.service.ts';
 import type { AnyProcessor } from './plugins/processor.ts';
 import type { ClientBridgeEvent } from './types/contracts.ts';
@@ -201,7 +202,7 @@ export function stylesheetProcessorContract(
 
 					const result = await buildServerEntry(app, entry);
 					assert.ok(result.success, 'the server build failed');
-					const css = result.outputs.map((output) => output.content ?? '').join('\n');
+					const css = result.success ? result.outputs.map((output) => output.content ?? '').join('\n') : '';
 					assert.ok(
 						css.indexOf('.other-rule') !== -1 && css.indexOf('.other-rule') < css.indexOf('.shared-rule'),
 						'a stylesheet imported twice is not ordered by its last import, as the cascade orders it',
@@ -278,6 +279,50 @@ async function pageRequest(subject: StylesheetProcessorContractSubject, file: st
 	};
 }
 
+/**
+ * A server build, which a Page request runs for the modules it renders, of a module that imports the stylesheet
+ * with a binding: in development it compiles the import to the last good CSS, and a production build fails.
+ */
+function serverBuildCase(subject: StylesheetProcessorContractSubject, file: string): StylesheetProcessorContractCase {
+	const invalidCss = subject.invalidCss ?? '.broken {\n';
+	const goodCss = '.card { color: red; }\n';
+	const build = async (environment: string, expectation: (success: boolean, css: string) => void) => {
+		const page = await pageRequest(subject, file, environment);
+		try {
+			const card = page.app.write(file, goodCss);
+			const entry = page.app.write(
+				'src/card.script.ts',
+				`import styles from './${path.basename(file)}';\nexport default styles;\n`,
+			);
+			await getDevelopmentStylesheetService(page.app.config).prewarm();
+			await page.save(invalidCss);
+			await getDevelopmentStylesheetService(page.app.config).applyChanges(
+				changed(card),
+				createRecordingBridge().bridge,
+			);
+			const result = await buildServerEntry(page.app, entry);
+			expectation(
+				result.success,
+				result.success ? result.outputs.map((output) => output.content ?? '').join('\n') : '',
+			);
+		} finally {
+			page.finish();
+		}
+	};
+	return {
+		name: 'in development, a server build compiles a broken stylesheet import to its last good CSS, and a production build fails',
+		run: async () => {
+			await build('development', (success, code) => {
+				assert.ok(success, 'a broken stylesheet fails the server build in development');
+				assert.ok(/\.card\b/u.test(code) && !code.includes('.broken'), 'the last good CSS is not in the build');
+			});
+			await build('production', (success) =>
+				assert.equal(success, false, 'a production build serves a broken stylesheet'),
+			);
+		},
+	};
+}
+
 function pageRequestCases(
 	subject: StylesheetProcessorContractSubject,
 	file: string,
@@ -331,6 +376,7 @@ function pageRequestCases(
 				}
 			},
 		},
+		...(file.includes('.module.') ? [] : [serverBuildCase(subject, file)]),
 		{
 			name: 'during a production build, a Page request fails on a stylesheet that throws',
 			run: async () => {

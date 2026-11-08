@@ -11,6 +11,11 @@ import { getStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import { isProductionRuntime } from '../../env.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transform.ts';
+import {
+	emptyStylesheetModule,
+	keepsLastGoodStylesheet,
+	reportStylesheetFailure,
+} from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-failure.ts';
 import { compileStylesheetModule } from '../../assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts';
 
 /**
@@ -103,6 +108,9 @@ const warnedUndeliverableStylesheets = new WeakMap<EcoPagesAppConfig, Set<string
  * The app's stylesheets, which every build request compiles with {@link compileStylesheetModule}.
  *
  * @remarks
+ * In `ecopages dev` (see {@link keepsLastGoodStylesheet}), a stylesheet that fails compiles to its last good module,
+ * so a Page that imports it still renders while the error shows.
+ *
  * Outside production, a package module's own side-effect stylesheet import warns once per import instead of failing
  * the build, so `ecopages dev` keeps running; `ecopages build` fails on it.
  */
@@ -111,7 +119,20 @@ function resolveBuildStylesheets(appConfig: EcoPagesAppConfig): BuildStylesheets
 	return {
 		extensions: kinds.extensions,
 		isCssModule: kinds.isCssModule,
-		compileModule: (file) => compileStylesheetModule(appConfig, file),
+		compileModule: async (file) => {
+			try {
+				return await compileStylesheetModule(appConfig, file);
+			} catch (error) {
+				if (!keepsLastGoodStylesheet(appConfig)) throw error;
+				reportStylesheetFailure(appConfig, file, error);
+				return (
+					requireAppRuntime(appConfig).developmentStylesheets?.lastGoodModule(file) ?? {
+						code: emptyStylesheetModule(kinds.isCssModule(file)),
+						dependencies: [],
+					}
+				);
+			}
+		},
 		...(isProductionRuntime()
 			? {}
 			: {

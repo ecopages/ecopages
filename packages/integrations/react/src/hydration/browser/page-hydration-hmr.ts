@@ -10,6 +10,10 @@ type PageWindowRuntime = {
 	page?: { module: string; props: Record<string, unknown>; document?: Document };
 };
 
+type PageData = { moduleUrl?: string; props: Record<string, unknown> };
+type PageDataReader = (options: PageHydrationOptions, source?: Pick<Document, 'getElementById'>) => PageData;
+type PageStateSetter = (options: PageHydrationOptions, pageData: PageData) => void;
+
 type PageWindow = Window & { __ECO_PAGES__?: PageWindowRuntime };
 
 /**
@@ -67,6 +71,8 @@ async function applyRouterHmrUpdate(
  * document, and the live boundary of a hydrated custom element no longer holds its declarative shadow root. The
  * parsed document keeps the `<template shadowrootmode>` of each, as a client navigation's does. A response that is
  * not a page, such as a server render error, throws, so the update is not applied and the next edit retries it.
+ * The same document is the source of the Page's props, and of its module URL when the page data carries one, since an edit can change what `staticProps`
+ * returns and the live `__ECO_PAGE_DATA__` still holds the old values.
  */
 async function fetchCurrentDocument(): Promise<Document> {
 	const response = await fetch(window.location.href, { headers: { accept: 'text/html' }, cache: 'no-store' });
@@ -79,8 +85,7 @@ async function fetchCurrentDocument(): Promise<Document> {
 async function applyDirectHmrRender(
 	options: PageHydrationOptions,
 	nextPage: unknown,
-	nextProps: Record<string, unknown>,
-	readPageData: (options: PageHydrationOptions) => { moduleUrl?: string; props: Record<string, unknown> },
+	readPageData: PageDataReader,
 	setPageState: (
 		options: PageHydrationOptions,
 		pageData: { moduleUrl?: string; props: Record<string, unknown> },
@@ -92,10 +97,11 @@ async function applyDirectHmrRender(
 	const fetchedDocument = await fetchCurrentDocument();
 	const activeRoot = getRuntime().react?.pageRoot ?? null;
 	if (!activeRoot || !isCurrentMountGeneration(generation) || isSuperseded()) return;
-	setPageState(options, readPageData(options));
+	const pageData = readPageData(options, fetchedDocument);
+	setPageState(options, pageData);
 	const runtime = getRuntime();
 	if (runtime.page) runtime.page.document = fetchedDocument;
-	activeRoot.render(options.createTree(nextPage, nextProps));
+	activeRoot.render(options.createTree(nextPage, pageData.props));
 	console.log(`[ecopages] ${options.isMdx ? 'MDX' : 'React'} component updated`);
 }
 
@@ -106,12 +112,8 @@ export async function handlePageHmr(
 	options: PageHydrationOptions,
 	newUrl: string,
 	generation: number,
-	readPageData: (options: PageHydrationOptions) => { moduleUrl?: string; props: Record<string, unknown> },
-	setPageState: (
-		options: PageHydrationOptions,
-		pageData: { moduleUrl?: string; props: Record<string, unknown> },
-	) => void,
-	getPageDataFromDocument: (options: PageHydrationOptions) => Record<string, unknown>,
+	readPageData: PageDataReader,
+	setPageState: PageStateSetter,
 ): Promise<void> {
 	if (!options.hmr || !isCurrentMountGeneration(generation)) return;
 	const update = ++latestUpdate;
@@ -127,15 +129,7 @@ export async function handlePageHmr(
 			return;
 		}
 
-		await applyDirectHmrRender(
-			options,
-			nextPage,
-			getPageDataFromDocument(options),
-			readPageData,
-			setPageState,
-			generation,
-			isSuperseded,
-		);
+		await applyDirectHmrRender(options, nextPage, readPageData, setPageState, generation, isSuperseded);
 	} catch (error) {
 		console.error(`[ecopages] Failed to hot-reload ${options.isMdx ? 'MDX' : 'React'} component:`, error);
 	}

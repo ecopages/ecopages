@@ -6,14 +6,15 @@ export type ReadPageDataDocumentResult = {
 };
 
 /**
- * Reads `__ECO_PAGE_DATA__`, supporting both v1 envelopes and legacy flat props.
+ * Reads `__ECO_PAGE_DATA__` from `source`, supporting both v1 envelopes and legacy flat props.
  *
  * @remarks
  * Always returns unwrapped `props`. `moduleUrl` is set only when the document
- * carries a valid v1 envelope.
+ * carries a valid v1 envelope. `source` defaults to the live document; a direct HMR update passes the document it
+ * fetched, whose data is the newer.
  */
-export function readPageDataDocument(): ReadPageDataDocumentResult {
-	const element = document.getElementById('__ECO_PAGE_DATA__');
+export function readPageDataDocument(source: Pick<Document, 'getElementById'> = document): ReadPageDataDocumentResult {
+	const element = source.getElementById('__ECO_PAGE_DATA__');
 	if (!element?.textContent) {
 		return { props: {} };
 	}
@@ -28,11 +29,4 @@ export function readPageDataDocument(): ReadPageDataDocumentResult {
 	} catch {
 		return { props: {} };
 	}
-}
-
-/**
- * Returns page props from `__ECO_PAGE_DATA__` for hydration and HMR handlers.
- */
-export function getPageDataFromDocument(): EcoPageDataProps {
-	return readPageDataDocument().props;
 }

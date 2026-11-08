@@ -11,7 +11,7 @@
  */
 
 import { createElement, useState, type ComponentType } from 'react';
-import type { EcoComponent } from '@ecopages/core';
+import { isProductionRuntime, type EcoComponent } from '@ecopages/core';
 import { REACT_PLUGIN_NAME } from '../../plugin/react.constants.ts';
 import {
 	FOREIGN_SUBTREE_DISPLAY,
@@ -33,7 +33,7 @@ type ForeignSubtreeWindow = Window & {
  * Every mount reads it, hydration included, where React keeps the existing DOM whatever was read. A client
  * navigation publishes the fetched document as `page.document` before it renders the next Page, and that document
  * comes first, and a direct HMR update publishes the document it fetched the same way; otherwise the live document
- * holds it. Without either, the boundary stays empty.
+ * holds it. Without either, the boundary stays empty and warns.
  */
 function readServerHtml(key: string): string {
 	const selector = `${FOREIGN_SUBTREE_TAG}[${FOREIGN_SUBTREE_KEY_ATTRIBUTE}="${key}"]`;
@@ -66,9 +66,30 @@ function fillBoundary(boundary: Element | null, html: string): void {
 
 const BOUNDARY_STYLE = { display: FOREIGN_SUBTREE_DISPLAY };
 
-function ForeignSubtree({ subtreeKey }: { subtreeKey: string }) {
+const warnedKeys = new Set<string>();
+
+/**
+ * Warns once per key, outside production, that a boundary found no server HTML and stays empty.
+ *
+ * @remarks
+ * The supported path is a Foreign Subtree the server rendered inside the hydrating tree, with the props it had
+ * there. A foreign Component that first renders on the client, or a client-only prop change, has no server HTML
+ * to keep, and the boundary cannot render the Component itself.
+ */
+function warnEmptyBoundary(key: string, component: EcoComponent): void {
+	if (isProductionRuntime() || warnedKeys.has(key)) return;
+	warnedKeys.add(key);
+	const file = component.config?.identity?.file ?? component.config?.identity?.id ?? 'a foreign Component';
+	console.warn(
+		`[ecopages] The foreign Component ${file} has no server HTML for the subtree "${key}", so it renders empty. ` +
+			`A foreign Component renders in React only where the server rendered it with the same props.`,
+	);
+}
+
+function ForeignSubtree({ subtreeKey, component }: { subtreeKey: string; component: EcoComponent }) {
 	const [boundary] = useState(() => {
 		const html = readServerHtml(subtreeKey);
+		if (!html) warnEmptyBoundary(subtreeKey, component);
 		return { emptyHtml: { __html: '' }, ref: (element: Element | null) => fillBoundary(element, html) };
 	});
 	return createElement(FOREIGN_SUBTREE_TAG, {
@@ -107,7 +128,7 @@ export function foreignBoundary<T>(value: T): T {
 	if (!boundary) {
 		boundary = (props) => {
 			const subtreeKey = getForeignSubtreeKey(value, props);
-			return createElement(ForeignSubtree, { key: subtreeKey, subtreeKey });
+			return createElement(ForeignSubtree, { key: subtreeKey, subtreeKey, component: value });
 		};
 		boundaries.set(value, boundary);
 	}

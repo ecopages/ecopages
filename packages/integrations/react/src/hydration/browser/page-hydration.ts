@@ -29,7 +29,7 @@ export type PageData = {
 };
 
 export { resolvePageComponent } from './page-hydration-module.ts';
-export { getPageDataFromDocument, readPageDataDocument } from '../page-data-reader.ts';
+export { readPageDataDocument } from '../page-data-reader.ts';
 import { handlePageHmr } from './page-hydration-hmr.ts';
 
 /** Configuration passed from a generated Page hydration entry. */
@@ -38,8 +38,7 @@ export type PageHydrationOptions = {
 	pageModuleUrl: string;
 	Page: unknown;
 	pageDataReader: {
-		readPageDataDocument: () => PageData;
-		getPageDataFromDocument: () => Record<string, unknown>;
+		readPageDataDocument: (source?: Pick<Document, 'getElementById'>) => PageData;
 	};
 	runtime: PageReactRuntime;
 	createTree: (Page: unknown, props: Record<string, unknown>) => unknown;
@@ -93,9 +92,9 @@ function recordHydrationTiming(): void {
 	pageWindow.__ECO_DEV_HYDRATION_MS__ = Math.round(performance.now() - pageWindow.__ECO_DEV_HYDRATION_STARTED__);
 }
 
-/** Reads the current page-data document through the shared reader contract. */
-function readPageData(options: PageHydrationOptions): PageData {
-	return options.pageDataReader.readPageDataDocument();
+/** Reads the page data of `source`, the live document by default, through the shared reader contract. */
+function readPageData(options: PageHydrationOptions, source?: Pick<Document, 'getElementById'>): PageData {
+	return options.pageDataReader.readPageDataDocument(source);
 }
 
 /** Publishes the current module URL and props for router/navigation consumers. */
@@ -166,9 +165,7 @@ function registerHmr(options: PageHydrationOptions): void {
 	const generation = runtime.react?.mountGeneration ?? 0;
 	runtime.hmrHandlers ??= {};
 	runtime.hmrHandlers[options.hmr.importPath] = (newUrl) =>
-		handlePageHmr(options, newUrl, generation, readPageData, setPageState, (opts) =>
-			opts.pageDataReader.getPageDataFromDocument(),
-		);
+		handlePageHmr(options, newUrl, generation, readPageData, setPageState);
 }
 
 /**

@@ -41,7 +41,7 @@ async function applyUpdate(nextLayouts: unknown[]) {
 		},
 	} as unknown as PageHydrationOptions;
 
-	await handlePageHmr(options, pageModuleUrl(), 0, vi.fn(), vi.fn(), vi.fn());
+	await handlePageHmr(options, pageModuleUrl(), 0, vi.fn(), vi.fn());
 	return reloadCurrentPage;
 }
 
@@ -106,7 +106,6 @@ describe('handlePageHmr without the router', () => {
 			0,
 			vi.fn(() => ({ props: {} })),
 			setPageState,
-			vi.fn(() => ({})),
 		);
 		return { render, fetchMock, documentSeenByRender };
 	}
@@ -117,6 +116,45 @@ describe('handlePageHmr without the router', () => {
 		expect(fetchMock).toHaveBeenCalledWith('http://localhost/page', expect.anything());
 		expect(render).toHaveBeenCalledTimes(1);
 		expect(documentSeenByRender).toEqual([fetchedDocument]);
+	});
+
+	it('renders and publishes the page data of the fetched document, not the live one', async () => {
+		const render = vi.fn();
+		const runtime = {
+			react: { mountGeneration: 0, pageRoot: { render } },
+			page: undefined as unknown,
+		};
+		testGlobal.window = { __ECO_PAGES__: runtime, location: { href: 'http://localhost/page', pathname: '/page' } };
+		const fetched = { marker: 'fetched' };
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => ({ ok: true, status: 200, text: async () => '<html></html>' })),
+		);
+		vi.stubGlobal(
+			'DOMParser',
+			class {
+				parseFromString = () => fetched;
+			},
+		);
+		const readPageData = vi.fn((_options: unknown, source?: unknown) =>
+			source === fetched
+				? { moduleUrl: '/assets/new.js', props: { count: 2 } }
+				: { moduleUrl: '/assets/old.js', props: { count: 1 } },
+		);
+		const setPageState = vi.fn();
+		const createTree = vi.fn((_page: unknown, props: unknown) => props);
+		const options = {
+			Page: () => null,
+			hasRouter: false,
+			isMdx: false,
+			hmr: { importPath: '/page.js' },
+			createTree,
+		} as unknown as PageHydrationOptions;
+
+		await handlePageHmr(options, pageModuleUrl(), 0, readPageData, setPageState);
+
+		expect(setPageState).toHaveBeenCalledWith(options, { moduleUrl: '/assets/new.js', props: { count: 2 } });
+		expect(render).toHaveBeenCalledWith({ count: 2 });
 	});
 
 	it('drops an update that a newer one overtook while it fetched', async () => {
@@ -155,7 +193,6 @@ describe('handlePageHmr without the router', () => {
 				0,
 				vi.fn(() => ({ props: {} })),
 				vi.fn(),
-				vi.fn(() => ({})),
 			);
 
 		const first = update('first');

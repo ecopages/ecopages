@@ -67,7 +67,6 @@ function createPageOptions(errors: unknown[]): PageHydrationOptions {
 		Page: ReactPage,
 		pageDataReader: {
 			readPageDataDocument: () => ({ props: {} }),
-			getPageDataFromDocument: () => ({}),
 		},
 		runtime: createReactRuntime(errors),
 		createTree: (Component: unknown, props: Record<string, unknown>) =>
@@ -179,5 +178,28 @@ describe('Foreign Subtree in a hydrated React tree', () => {
 		expect(container.querySelector('lit-counter')).toBe(litCounter);
 		expect(errors).toEqual([]);
 		root.unmount();
+	});
+
+	it('A boundary with no server HTML stays empty and warns once, naming the Component file', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+		const Lonely = eco.component<{ count: number }, unknown>({
+			identity: { id: 'lonely-counter', file: 'src/components/lonely-counter.lit.tsx', integration: 'lit' },
+			render: () => null,
+		});
+		const LonelyBoundary = foreignBoundary(Lonely);
+		const container = document.createElement('div');
+		document.body.append(container);
+		const root = createRoot(container);
+
+		flushSync(() => root.render(createElement(LonelyBoundary as ElementType, { count: 7 })));
+		flushSync(() => root.render(createElement(LonelyBoundary as ElementType, { count: 7 })));
+		root.unmount();
+		const root2 = createRoot(container);
+		flushSync(() => root2.render(createElement(LonelyBoundary as ElementType, { count: 7 })));
+
+		expect(container.querySelector('eco-foreign-subtree')?.childNodes.length).toBe(0);
+		expect(warn).toHaveBeenCalledTimes(1);
+		expect(String(warn.mock.calls[0]?.[0])).toContain('src/components/lonely-counter.lit.tsx');
+		root2.unmount();
 	});
 });

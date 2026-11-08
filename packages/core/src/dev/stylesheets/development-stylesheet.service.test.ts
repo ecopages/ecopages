@@ -458,4 +458,15 @@ describe('DevelopmentStylesheetService, for a CSS Module', () => {
 
 		expect(service.keepsClassMap(file)).toBe(false);
 	});
+
+	it('leaves an unused CSS Module alone when the Processor does not scope them', async () => {
+		write('src/components/unused.module.css', '.unused { color: red; }\n');
+		const service = await createService(new InliningProcessor());
+		const error = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+
+		await service.prewarm();
+
+		expect(error).not.toHaveBeenCalled();
+		expect(persisted('components/unused.module.css')).toBeUndefined();
+	});
 });

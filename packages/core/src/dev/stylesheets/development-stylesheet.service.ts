@@ -259,6 +259,7 @@ export class DevelopmentStylesheetService {
 		return (
 			(processor?.canProcessAsset('stylesheet', file) ?? true) &&
 			kinds.isStylesheet(file) &&
+			(kinds.scopesCssModules || !kinds.isCssModule(file)) &&
 			!isPathInside(file, this.appConfig.absolutePaths.publicDir)
 		);
 	}

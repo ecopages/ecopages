@@ -5,12 +5,21 @@
  * Install the peers: pnpm add -D @tailwindcss/node @tailwindcss/oxide tailwindcss
  */
 
-import { resolveProjectImportPath, type StylesheetInvalidation } from '@ecopages/core/processor';
+import {
+	rebaseStylesheetReferences,
+	resolvePackageStylesheetPath,
+	resolveProjectImportPath,
+	type StylesheetInvalidation,
+} from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
 import type { Scanner, SourceEntry } from '@tailwindcss/oxide';
 import type { LightningCssProcessorPluginConfig } from '../plugin.ts';
-import type { LightningCssPreprocessor, PreprocessedStylesheet } from '../preprocessor.ts';
+import type {
+	LightningCssPreprocessor,
+	LightningCssPreprocessorContext,
+	PreprocessedStylesheet,
+} from '../preprocessor.ts';
 import { withReference } from './tailwind-reference.ts';
 
 /** Options for the Tailwind v4 preset. */
@@ -130,6 +139,94 @@ function rescan(
 }
 
 /**
+ * The stylesheets Tailwind reads in place of partials a plugin rewrites.
+ *
+ * @remarks
+ * Tailwind inlines an `@import` by reading the file itself, so the `transformSource` of a plugin cannot reach it. For
+ * each app partial that `transformSource` changes, the rewritten copy is written to a temporary folder of its own,
+ * with its `url()` references rebased onto that folder, and the resolver hands Tailwind the copy. A partial no plugin
+ * changes is left to Tailwind. Imports of a copy resolve from the folder of the partial it stands for.
+ */
+class RewrittenPartials {
+	private folder?: string;
+	/** The folder of the copy of each partial. */
+	private readonly directories = new Map<string, string>();
+	private readonly originByDirectory = new Map<string, string>();
+	private readonly originByCopy = new Map<string, string>();
+
+	constructor(private readonly transformSource: NonNullable<LightningCssPreprocessorContext['transformSource']>) {}
+
+	/** Whether `base` is the folder of a copy. */
+	holdsCopy(base: string): boolean {
+		return this.originByDirectory.has(base);
+	}
+
+	/** The folder an import is resolved from: the folder of the partial when `base` holds its copy. */
+	originOf(base: string): string {
+		return this.originByDirectory.get(base) ?? base;
+	}
+
+	/** The partial a file Tailwind reported stands for, or the file itself. */
+	fileOf(dependency: string): string {
+		return this.originByCopy.get(path.resolve(dependency)) ?? dependency;
+	}
+
+	/** The copy of `partial` a plugin rewrites, or `undefined` when no plugin changes it. */
+	async copyOf(partial: string): Promise<string | undefined> {
+		const source = fileSystem.readFileSync(partial);
+		const rewritten = await this.transformSource(source, partial);
+		if (rewritten === source) return undefined;
+		let directory = this.directories.get(partial);
+		if (!directory) {
+			this.folder ??= fileSystem.mkdtemp(path.join(fileSystem.tempDir(), 'ecopages-lightningcss-'));
+			directory = path.join(this.folder, String(this.directories.size));
+			fileSystem.ensureDir(directory);
+			this.directories.set(partial, directory);
+			this.originByDirectory.set(directory, path.dirname(partial));
+		}
+		const copy = path.join(directory, path.basename(partial));
+		this.originByCopy.set(copy, partial);
+		fileSystem.write(copy, rebaseStylesheetReferences(rewritten, partial, copy));
+		return copy;
+	}
+}
+
+/**
+ * The file Tailwind reads for an `@import`: an app stylesheet a plugin rewrites, a tsconfig alias, or `undefined` to
+ * leave it to Tailwind's resolver.
+ */
+async function resolveImport(
+	id: string,
+	base: string,
+	rootDir: string,
+	rewritten: RewrittenPartials | undefined,
+): Promise<string | undefined> {
+	const origin = rewritten?.originOf(base) ?? base;
+	const local = id.startsWith('.') ? path.resolve(origin, id) : undefined;
+	const aliased = local ? undefined : resolveProjectImportPath(rootDir, path.join(origin, 'index.css'), id);
+	const existing = [local, aliased].find((file) => file && fileSystem.exists(file));
+	if (existing) return resolveExisting(existing, existing === aliased, base, rewritten);
+	if (local || !rewritten?.holdsCopy(base)) return undefined;
+	try {
+		return resolvePackageStylesheetPath(path.join(origin, 'index.css'), id);
+	} catch {
+		return undefined;
+	}
+}
+
+/** The file Tailwind reads for an app stylesheet that exists: the copy a plugin rewrote, or the file when it must be named. */
+async function resolveExisting(
+	file: string,
+	aliased: boolean,
+	base: string,
+	rewritten: RewrittenPartials | undefined,
+): Promise<string | undefined> {
+	const copy = file.endsWith('.css') ? await rewritten?.copyOf(file) : undefined;
+	if (copy) return copy;
+	return aliased || rewritten?.holdsCopy(base) ? file : undefined;
+}
+
+/**
  * Runs Tailwind v4 over each stylesheet before Lightning CSS, without PostCSS.
  *
  * @remarks
@@ -152,6 +249,7 @@ function createTailwindPreprocessor(options: TailwindV4PresetOptions): Lightning
 			const state = stylesheets.get(entry) ?? { candidates: new Set<string>(), dependencies: new Set<string>() };
 			stylesheets.set(entry, state);
 			const dependencies = new Set<string>();
+			const rewritten = context.transformSource && new RewrittenPartials(context.transformSource);
 			try {
 				const compiler = await node.compile(source, {
 					base: path.dirname(entry),
@@ -160,12 +258,9 @@ function createTailwindPreprocessor(options: TailwindV4PresetOptions): Lightning
 					polyfills: entry.endsWith('.module.css')
 						? TAILWIND_FLAGS.polyfillsAll ^ TAILWIND_FLAGS.polyfillsAtProperty
 						: TAILWIND_FLAGS.polyfillsAll,
-					onDependency: (dependency) => dependencies.add(path.resolve(dependency)),
-					customCssResolver: async (id, base) => {
-						if (id.startsWith('.')) return undefined;
-						const aliased = resolveProjectImportPath(context.rootDir, path.join(base, 'index.css'), id);
-						return aliased && fileSystem.exists(aliased) ? aliased : undefined;
-					},
+					onDependency: (dependency) =>
+						dependencies.add(path.resolve(rewritten?.fileOf(dependency) ?? dependency)),
+					customCssResolver: (id, base) => resolveImport(id, base, context.rootDir, rewritten),
 				});
 				state.dependencies = dependencies;
 				if (compiler.features === TAILWIND_FLAGS.featuresNone) {

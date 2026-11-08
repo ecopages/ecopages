@@ -15,6 +15,8 @@ import type { CSSModuleExports, Warning } from 'lightningcss';
 import {
 	loadLightningCss,
 	suffixNestingError,
+	transformSourceWithPlugins,
+	type LightningCssPlugin,
 	suffixNestingVisitor,
 	type ResolvedLightningCssOptions,
 	type SuffixNestingRule,
@@ -91,6 +93,7 @@ class StylesheetBundle {
 		private readonly source: string,
 		private readonly rootDir: string,
 		private readonly cssModules: boolean,
+		private readonly plugins: readonly LightningCssPlugin[],
 	) {}
 
 	private warn(message: string): void {
@@ -145,11 +148,11 @@ class StylesheetBundle {
 	 * each partial prepared where it is imported.
 	 *
 	 * @remarks
-	 * An external `@import` is taken out to be hoisted, since Lightning CSS fails on one that follows a bundled
+	 * The plugins rewrite the source of a partial first, as it is read. An external `@import` is taken out to be hoisted, since Lightning CSS fails on one that follows a bundled
 	 * `@import`, where core hoists them all to the top of the output. An `@import` that closes a cycle is taken out
 	 * with a warning, since Lightning CSS drops the CSS of every stylesheet in a cycle, where core inlines each once.
 	 */
-	prepare(file = this.entry): void {
+	async prepare(file = this.entry): Promise<void> {
 		const real = fileSystem.exists(file) ? fileSystem.realpath(file) : file;
 		if (this.scanned.has(real)) return;
 		this.scanned.set(real, '');
@@ -158,31 +161,39 @@ class StylesheetBundle {
 		let css = isEntry ? this.source : fileSystem.readFileSync(file);
 		if (!isEntry) {
 			this.dependencies.add(file);
-			css = rebaseStylesheetReferences(css, file, this.entry);
+			css = rebaseStylesheetReferences(
+				await transformSourceWithPlugins(css, file, this.plugins),
+				file,
+				this.entry,
+			);
 		}
 		const composed = this.cssModules ? composedStylesheets(css) : [];
-		this.scanned.set(
-			real,
-			scanCss(css, {
-				import: (statement) => {
-					const imported = this.resolveImport(statement.specifier, file);
-					if (!imported) {
-						this.hoisted.push(statement.statement);
-						return '';
-					}
-					if (this.stack.includes(imported.real)) {
-						this.warn(
-							`@import ${JSON.stringify(statement.specifier)} in ${file} names ${imported.real}, which imports ${file}, so it is skipped.`,
-						);
-						return '';
-					}
-					this.resolutions.set(resolutionKey(real, statement.specifier), imported.real);
-					this.prepare(imported.located);
-					return undefined;
-				},
-			}),
-		);
-		for (const specifier of composed) this.prepareComposed(specifier, file, real);
+		const decisions = new Map<number, string | undefined>();
+		const imports: Array<{ statement: string; specifier: string }> = [];
+		scanCss(css, {
+			import: (statement) => {
+				imports.push(statement);
+				return undefined;
+			},
+		});
+		for (const [index, { statement, specifier }] of imports.entries()) {
+			const imported = this.resolveImport(specifier, file);
+			if (!imported) {
+				this.hoisted.push(statement);
+				decisions.set(index, '');
+			} else if (this.stack.includes(imported.real)) {
+				this.warn(
+					`@import ${JSON.stringify(specifier)} in ${file} names ${imported.real}, which imports ${file}, so it is skipped.`,
+				);
+				decisions.set(index, '');
+			} else {
+				this.resolutions.set(resolutionKey(real, specifier), imported.real);
+				await this.prepare(imported.located);
+			}
+		}
+		let position = 0;
+		this.scanned.set(real, scanCss(css, { import: () => decisions.get(position++) }));
+		for (const specifier of composed) await this.prepareComposed(specifier, file, real);
 		this.stack.pop();
 	}
 
@@ -195,11 +206,11 @@ class StylesheetBundle {
 	 * declaration as written would export a class name that is not defined. One that closes a cycle is skipped, since
 	 * the stylesheet being walked already defines its classes.
 	 */
-	private prepareComposed(specifier: string, file: string, real: string): void {
+	private async prepareComposed(specifier: string, file: string, real: string): Promise<void> {
 		const imported = this.resolveImport(specifier, file);
 		if (!imported) throw new Error(`${file}: composes from ${JSON.stringify(specifier)} names no stylesheet.`);
 		this.resolutions.set(resolutionKey(real, specifier), imported.real);
-		if (!this.stack.includes(imported.real)) this.prepare(imported.located);
+		if (!this.stack.includes(imported.real)) await this.prepare(imported.located);
 	}
 
 	/** The name Lightning CSS knows `real` by: its scope file for a file of a package, `real` itself otherwise. */
@@ -237,7 +248,8 @@ class StylesheetBundle {
  * Bundles the `@import`s of an app stylesheet with Lightning CSS.
  *
  * @remarks
- * `css` is the in-memory source of `file`, which may differ from the file on disk. A cycle of `@import`s and a
+ * `css` is the in-memory source of `file`, which may differ from the file on disk, and is bundled as given: the caller
+ * runs the `transformSource` of the plugins on it, and this function runs them on every partial it reads. A cycle of `@import`s and a
  * stylesheet imported twice are handled by Lightning CSS: the last import of a stylesheet wins, as the specification says.
  * Lightning CSS names the files of a package CSS Module by their scope file (see {@link packageScopeFile}), which
  * is what its class names hash.
@@ -251,14 +263,18 @@ export async function bundleStylesheet(
 	const { bundleAsync, composeVisitors } = await loadLightningCss();
 	const entry = path.resolve(file);
 	const isCssModule = CSS_MODULE_FILE.test(entry);
-	const bundle = new StylesheetBundle(entry, css, rootDir, isCssModule);
-	bundle.prepare();
-	const { cssModulesPattern, ...lightningOptions } = options;
+	const { cssModulesPattern, plugins, ...lightningOptions } = options;
+	const bundle = new StylesheetBundle(entry, css, rootDir, isCssModule, plugins);
+	await bundle.prepare();
 	const suffixNesting: SuffixNestingRule[] = [];
-	const checks = suffixNestingVisitor(suffixNesting);
+	const visitors = [
+		...plugins.flatMap((plugin) => (plugin.visitor ? [plugin.visitor] : [])),
+		suffixNestingVisitor(suffixNesting),
+		...(lightningOptions.visitor ? [lightningOptions.visitor] : []),
+	];
 	const result = await bundleAsync({
 		...lightningOptions,
-		visitor: lightningOptions.visitor ? composeVisitors([checks, lightningOptions.visitor]) : checks,
+		visitor: visitors.length === 1 ? visitors[0] : composeVisitors(visitors),
 		...(isCssModule ? { cssModules: { pattern: cssModulesPattern } } : {}),
 		filename: bundle.scopeOf(fileSystem.exists(entry) ? fileSystem.realpath(entry) : entry),
 		resolver: {

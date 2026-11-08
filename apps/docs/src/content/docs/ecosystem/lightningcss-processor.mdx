@@ -56,6 +56,7 @@ export default defineConfig({
 | `include`       | Names of Lightning CSS `Features` to compile even when `targets` support them, such as `['Nesting']`. |
 | `exclude`       | Names of `Features` to leave as written even when `targets` do not support them.                     |
 | `visitor`       | A Lightning CSS visitor, run over every stylesheet.                                                  |
+| `plugins`       | [Plugins](#plugins) that rewrite the source or visit the rules of every stylesheet, in order.        |
 | `errorRecovery` | Drop a rule Lightning CSS cannot parse with a warning, instead of failing the stylesheet.            |
 | `filter`        | Regex that picks the stylesheets to process. Default `/\.css$/`.                                     |
 | `cssModules`    | `{ pattern }`: how scoped class names are built. Default `'[hash]_[local]'`.                         |
@@ -101,6 +102,31 @@ Both generate the same utility classes. The preset's `targets` are the Processor
 - Tailwind scans the files of the app that git does not ignore, plus the `@source` directives of the stylesheet, for class names.
 - In development, a saved template that uses a class the stylesheet lacks rebuilds that stylesheet and refreshes it in the browser. A saved file that Tailwind does not scan, such as a lockfile, rebuilds nothing.
 - A stylesheet Tailwind rejects, such as an `@apply` of a utility that does not exist, fails `ecopages build` and shows the error in `ecopages dev`, which keeps the last good stylesheet until a save fixes it.
+
+## Plugins
+
+A plugin is `{ name, transformSource?(css, file), visitor? }`. `transformSource` rewrites a stylesheet before Lightning CSS parses it, and before the Tailwind preset runs, so what it writes can use `@apply`. `visitor` is a Lightning CSS `Visitor`, composed with the `visitor` option. Plugins run in the order of the array, on every stylesheet: the entry, each imported partial (including the ones the Tailwind preset inlines) and every CSS Module.
+
+### Suffix nesting
+
+Lightning CSS stays standard by default: Sass-style suffix nesting, such as `.button { &--primary { ... } }` or `&__element`, fails the build. If you like that style, opt in with the `suffixNesting()` plugin:
+
+```typescript
+import { lightningCssProcessorPlugin } from '@ecopages/lightningcss-processor';
+import { suffixNesting } from '@ecopages/lightningcss-processor/plugins/suffix-nesting';
+
+lightningCssProcessorPlugin({
+	...tailwindV4Preset({ referencePath }),
+	targets: ['chrome >= 111', 'safari >= 16.4'],
+	plugins: [suffixNesting()],
+});
+```
+
+- `&--x`, `&__x` and `&-x` become the parent selectors with the suffix appended: `.button, a.button { &--primary { ... } }` is written as `.button--primary, a.button--primary { ... }` after the rule it came from. Rules nested in it, such as `&:hover svg`, and the order of the cascade keep working.
+- It also expands inside `:is()`, `:where()` and `:not()`, and in an `@media` that sits in the parent.
+- Every parent selector must be one compound selector that ends in a class, id or type. A parent such as `.card .title` or `.a:hover` fails the build with the file, line, column and selector.
+- `@apply` works inside the expanded rules, and CSS Modules are scoped after the expansion.
+- Anything a plugin leaves invalid still fails the build, so a mistyped rule is not dropped silently.
 
 ## Imports
 
@@ -148,7 +174,7 @@ In development, an edit to the CSS refreshes the stylesheet in place. An edit th
 
 - A stylesheet Lightning CSS rejects throws an error with the file, line and column. `ecopages build` fails, and `ecopages dev` shows the error overlay and keeps the last good stylesheet until a save fixes it.
 - Warnings are logged with their location, once per stylesheet.
-- Only native CSS nesting is supported. Sass-style suffix nesting, such as `.button { &--primary { ... } }` or `&__element`, cannot work: native nesting cannot concatenate selectors, so a browser drops the rule and lowering turns it into a selector that matches nothing. The Processor fails the stylesheet instead, with the file, line, column and the offending selector. Write the full selector, such as `.button--primary { ... }`. The check also covers CSS Modules and the stylesheets the Tailwind v4 preset generates.
+- Only native CSS nesting is supported by default. Sass-style suffix nesting, such as `.button { &--primary { ... } }` or `&__element`, cannot work: native nesting cannot concatenate selectors, so a browser drops the rule and lowering turns it into a selector that matches nothing. The Processor fails the stylesheet instead, with the file, line, column and the offending selector, every `&` pair of a selector and a hint to write the full selector, such as `.button--primary { ... }`, or to add the [`suffixNesting()` plugin](#suffix-nesting). A type selector after `&`, such as `&div`, gets its own message. The check also covers CSS Modules and the stylesheets the Tailwind v4 preset generates.
 
 ## See also
 

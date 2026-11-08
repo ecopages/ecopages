@@ -41,6 +41,8 @@
 		"@ecopages/core": "workspace:*",
 		"@tailwindcss/node": "^4.3.0",
 		"@tailwindcss/oxide": "^4.3.0",
+		"postcss": "^8.5.14",
+		"postcss-nested": "^8.0.1",
 		"tailwindcss": "^4.3.0"
 	},
 	"exports": {
@@ -55,6 +57,10 @@
 		"./presets/tailwind-v4": {
 			"default": "./src/presets/tailwind-v4.ts",
 			"types": "./src/presets/tailwind-v4.ts"
+		},
+		"./plugins/suffix-nesting": {
+			"default": "./src/plugins/suffix-nesting.ts",
+			"types": "./src/plugins/suffix-nesting.ts"
 		}
 	},
 	"peerDependenciesMeta": {

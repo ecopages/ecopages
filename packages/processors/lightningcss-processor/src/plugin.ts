@@ -15,13 +15,23 @@ import {
 	resolveLightningCssOptions,
 	serializeExports,
 	toStylesheetError,
+	transformSourceWithPlugins,
 	type ResolvedLightningCssOptions,
 	type LightningCssOptions,
 } from './lightningcss-engine.ts';
 import type { LightningCssPreprocessor } from './preprocessor.ts';
 
-export type { LightningCssPreprocessor, PreprocessedStylesheet } from './preprocessor.ts';
-export type { LightningCssFeature, LightningCssModulesOptions, LightningCssOptions } from './lightningcss-engine.ts';
+export type {
+	LightningCssPreprocessor,
+	LightningCssPreprocessorContext,
+	PreprocessedStylesheet,
+} from './preprocessor.ts';
+export type {
+	LightningCssFeature,
+	LightningCssModulesOptions,
+	LightningCssOptions,
+	LightningCssPlugin,
+} from './lightningcss-engine.ts';
 
 /** Configuration for the Lightning CSS Processor. */
 export interface LightningCssProcessorPluginConfig extends LightningCssOptions {
@@ -105,15 +115,21 @@ export class LightningCssProcessorPlugin extends Processor<LightningCssProcessor
 			},
 		);
 		try {
+			const options = await this.resolvedOptions;
+			const hasSourcePlugin = options.plugins.some((plugin) => plugin.transformSource);
+			const source = await transformSourceWithPlugins(css, file, options.plugins);
 			const preprocessed = packageScopeFile(file, this.context.rootDir)
 				? undefined
-				: await this.options?.preprocessor?.transform(css, file, { rootDir: this.context.rootDir });
-			const bundled = await bundleStylesheet(
-				preprocessed?.css ?? css,
-				file,
-				this.context.rootDir,
-				await this.resolvedOptions,
-			);
+				: await this.options?.preprocessor?.transform(source, file, {
+						rootDir: this.context.rootDir,
+						...(hasSourcePlugin
+							? {
+									transformSource: (text, name) =>
+										transformSourceWithPlugins(text, name, options.plugins),
+								}
+							: {}),
+					});
+			const bundled = await bundleStylesheet(preprocessed?.css ?? source, file, this.context.rootDir, options);
 			logWarnings(bundled.warnings, file, css);
 			const bundledCss = Buffer.from(bundled.code).toString();
 			return {

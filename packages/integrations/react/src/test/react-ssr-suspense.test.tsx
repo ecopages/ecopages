@@ -237,6 +237,34 @@ describe('React server rendering waits for Suspense', () => {
 		expect(html).not.toContain(FALLBACK);
 	});
 
+	it('wraps a foreign child of a Layout when the Page hydrates, though the Layout declares no modules', async () => {
+		const Layout = eco.layout<JSX.Element>({
+			integration: 'react',
+			dependencies: { components: [DeferredWidget] },
+			render: ({ children }) => (
+				<div data-layout="root">
+					<ForeignWidget />
+					{children as ReactNode}
+				</div>
+			),
+		});
+		const Page = eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			dependencies: { modules: ['./page.ts'] },
+			layout: Layout as never,
+			render: () => <p>page body</p>,
+		});
+
+		const html = await renderPage(await createRenderer(), Page, Layout);
+
+		expect(html).toContain(
+			`<div data-layout="root">${renderForeignSubtreeBoundary(
+				getForeignSubtreeKey(DeferredWidget, {}),
+				'<button data-testid="deferred-widget">Deferred widget</button>',
+			)}`,
+		);
+	});
+
 	it('renders suspended React children of a foreign component before the foreign component wraps them', async () => {
 		const renderer = await createRenderer(async (input) => ({
 			html: `<div data-host>${String(input.children ?? '')}</div>`,

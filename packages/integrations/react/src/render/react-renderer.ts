@@ -8,6 +8,7 @@
  *
  * @module
  */
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EcoComponent, EcoComponentConfig, EcoPageFile } from '@ecopages/core';
 import type {
 	ComponentRenderInput,
@@ -118,6 +119,9 @@ type ReactRendererHookTargets = Pick<
 >;
 
 const ReactIntegrationRenderer = createIntegrationRenderer<ReactNode>(REACT_PLUGIN_NAME);
+
+/** Whether the Page being rendered hydrates, for the Components rendered as part of its tree. */
+const pageTreeHydration = new AsyncLocalStorage<boolean>();
 
 /** Renderer adapter that contributes React-specific behavior through core hooks. */
 export class ReactRenderer extends ReactIntegrationRenderer {
@@ -249,6 +253,17 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		return this.reactRuntimeModules;
 	}
 
+	/**
+	 * Renders the route with the Page's hydration decision available to every Layout and document it composes.
+	 *
+	 * @remarks
+	 * A Layout or document is rendered on its own when the Page has Foreign Children, and its config does not say
+	 * whether the Page hydrates; only the Page's does.
+	 */
+	override render(options: IntegrationRendererRenderOptions<ReactNode>) {
+		return pageTreeHydration.run(this.hydratesPageTree(options.Page), () => super.render(options));
+	}
+
 	private renderReactTree(element: ReactNode, label: string): Promise<string> {
 		return renderReactHtml(this.getReactRuntimeModules(), element, {
 			timeoutMs: this.getRuntimeState().renderTimeoutMs,
@@ -257,11 +272,10 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 	}
 
 	/**
-	 * Whether the browser hydrates the Page, Layout or document tree `component` belongs to.
+	 * Whether the browser hydrates the tree of the Page `component`.
 	 *
 	 * @remarks
-	 * A Component without an Island Host is rendered as part of its Page's tree, so it hydrates when its Page does.
-	 * The check reads the Component's own config, which holds the modules of its Layouts and nested Components.
+	 * It reads the Page's own config, which holds the modules of its Layouts and nested Components.
 	 */
 	private hydratesPageTree(component: EcoComponent): boolean {
 		return this.forceBrowserGraph || this.pageModuleService.shouldHydratePage({ default: component });
@@ -418,7 +432,9 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		html = await this.resolveReactQueuedForeignSubtreeHtml(
 			html,
 			runtimeContext,
-			isIslandRoot || (!context.componentInstanceId && this.hydratesPageTree(input.component)),
+			isIslandRoot ||
+				(!context.componentInstanceId &&
+					(pageTreeHydration.getStore() ?? this.hydratesPageTree(input.component))),
 		);
 		const canAttachAttributes = hasSingleRootElement(html);
 

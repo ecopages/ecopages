@@ -6,6 +6,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource, resolveProjectModulePath } from '@ecopages/core/build';
 import { FOREIGN_BOUNDARY_PACKAGE } from '../bundling/bootstrap-package-paths.ts';
 import { toRealPath } from './foreign-jsx-reach.ts';
+import { walkScopedReferences } from './scope-walk.ts';
 
 const HELPER_BINDING = '__ecoForeignBoundary';
 const NAMESPACE_HELPER_BINDING = '__ecoForeignBoundaryNamespace';
@@ -190,7 +191,9 @@ class ForeignExports {
  * Rewrites an import declaration so each binding that resolves to a foreign Component goes through the boundary.
  *
  * @remarks
- * The declaration keeps its line: the replacement holds no newline, so positions after it stay valid.
+ * The declaration keeps its line: the replacement holds no newline, so positions after it stay valid. Only a
+ * binding the module reads as a value is wrapped; a type or an unused binding keeps its plain import, so the
+ * bundler drops it as it would without the rewrite.
  */
 function rewriteImport(
 	node: any,
@@ -198,6 +201,7 @@ function rewriteImport(
 	filePath: string,
 	foreignExports: ForeignExports,
 	uid: () => string,
+	valueReads: ReadonlySet<string>,
 ): string | undefined {
 	if (node.importKind === 'type' || !node.specifiers?.length) return undefined;
 	const target = foreignExports.resolve(filePath, node.source.value as string);
@@ -214,7 +218,7 @@ function rewriteImport(
 		}
 		const local = specifier.local.name as string;
 		if (specifier.type === 'ImportNamespaceSpecifier') {
-			if (!foreignExports.isForeign(target, undefined)) {
+			if (!valueReads.has(local) || !foreignExports.isForeign(target, undefined)) {
 				extra.push(`import * as ${local} from ${from};`);
 				continue;
 			}
@@ -225,7 +229,7 @@ function rewriteImport(
 			continue;
 		}
 		const imported = specifier.type === 'ImportDefaultSpecifier' ? 'default' : moduleName(specifier.imported);
-		if (!foreignExports.isForeign(target, imported)) {
+		if (!valueReads.has(local) || !foreignExports.isForeign(target, imported)) {
 			imports.push(`${JSON.stringify(imported)} as ${local}`);
 			continue;
 		}
@@ -246,10 +250,13 @@ function planEdit(
 	filePath: string,
 	foreignExports: ForeignExports,
 	uid: () => string,
+	valueReads: ReadonlySet<string>,
 ): SourceEdit | undefined {
 	if (!node.source || (node.importKind ?? node.exportKind) === 'type') return undefined;
 	const replacement =
-		node.type === 'ImportDeclaration' ? rewriteImport(node, code, filePath, foreignExports, uid) : undefined;
+		node.type === 'ImportDeclaration'
+			? rewriteImport(node, code, filePath, foreignExports, uid, valueReads)
+			: undefined;
 	if (replacement !== undefined) return { start: node.start, end: node.end, replacement };
 	const specifier = node.source.value as string;
 	if (specifier.includes('?')) return undefined;
@@ -283,9 +290,11 @@ export function rewriteForeignImports(
 	let counter = 0;
 	const uid = () => String(counter++);
 	const foreignExports = new ForeignExports(options);
+	const valueReads = new Set<string>();
+	walkScopedReferences(program.body, { onReference: (name) => valueReads.add(name) });
 	const edits: SourceEdit[] = [];
 	for (const node of program.body as any[]) {
-		const edit = planEdit(node, code, filePath, foreignExports, uid);
+		const edit = planEdit(node, code, filePath, foreignExports, uid, valueReads);
 		if (edit) edits.push(edit);
 	}
 	if (edits.length === 0) return undefined;

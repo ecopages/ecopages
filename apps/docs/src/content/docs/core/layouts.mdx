@@ -36,8 +36,8 @@ Defines `<head>` content — title, meta, icons:
 import { eco, type PageHeadProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 
-export const Head = eco.component<PageHeadProps<JsxRenderable>, JsxRenderable>({
-	render: ({ metadata, children }) => (
+export const Head = eco.component({
+	render: ({ metadata, children }: PageHeadProps<JsxRenderable>) => (
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />

@@ -123,7 +123,7 @@
 	}
 }
 
-.home-code-block[data-rehype-pretty-code-figure] {
+.home-hero__code [data-rehype-pretty-code-figure] {
 	@apply my-0 overflow-x-auto rounded-none border-0 bg-background-accent;
 
 	pre code {

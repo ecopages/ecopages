@@ -24,7 +24,9 @@ import type { DevelopmentInvalidationService } from '../../dev/invalidation/deve
 import type { DevelopmentStylesheetService } from '../../dev/stylesheets/development-stylesheet.service.ts';
 import type { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import type { IHmrManager } from '../../types/contracts.ts';
+import { getRuntimeArgv } from '../../utils/runtime.ts';
 import { MISSING_APP_RUNTIME } from '../../utils/app-runtime.ts';
+import { isProductionExport, resolveEntryCommand } from '../../utils/parse-cli-args.ts';
 
 export { requireAppRuntime } from '../../utils/app-runtime.ts';
 
@@ -47,6 +49,26 @@ export class ServerInvalidationState {
 	advance(): void {
 		this.generation += 1;
 	}
+}
+
+/**
+ * When an activation resolves each Integration's global scripts (`integrationDependencies`).
+ *
+ * @remarks
+ * - `activation`: right after a successful `setup()`, in dev, `ecopages start` and request-only `app.fetch()`.
+ * - `browser-build`: never at activation. A production export (`ecopages build`, `ecopages preview`) and the Lit
+ *   static-render worker resolve them through `resolveIntegrationDependencies()` once their app-wide browser build is
+ *   known, so no global script is bundled on its own into `dist/client`.
+ */
+export type GlobalScriptResolution = 'activation' | 'browser-build';
+
+/** Options fixed when the {@link AppRuntime} is created. */
+export interface AppRuntimeOptions {
+	/**
+	 * @defaultValue `'browser-build'` when the process runs `ecopages build` or `ecopages preview` without
+	 * `--serve-only`, otherwise `'activation'`.
+	 */
+	globalScriptResolution?: GlobalScriptResolution;
 }
 
 /**
@@ -73,6 +95,11 @@ export interface AppRuntime {
 	routeModuleBuildCaches: Map<string, RouteModuleBuildCache>;
 	pageCache: PageCacheService | null;
 	integrationActivations: Map<string, Promise<void>>;
+	/**
+	 * Fixed for the runtime's lifetime, so the first activation, whichever caller starts it, follows the strategy of
+	 * the whole run.
+	 */
+	readonly globalScriptResolution: GlobalScriptResolution;
 	runtimeAssetsPrepared: boolean;
 	hmrAttachedToIntegrations: boolean;
 	/**
@@ -119,7 +146,7 @@ export interface AppRuntime {
  *
  * @throws When the config was not assembled by finalization.
  */
-export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
+export function createAppRuntime(appConfig: EcoPagesAppConfig, options: AppRuntimeOptions = {}): AppRuntime {
 	if (appConfig.appRuntime) {
 		return appConfig.appRuntime;
 	}
@@ -147,6 +174,9 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		routeModuleBuildCaches: new Map(),
 		pageCache: null,
 		integrationActivations: new Map(),
+		globalScriptResolution:
+			options.globalScriptResolution ??
+			(isProductionExport(resolveEntryCommand(getRuntimeArgv())) ? 'browser-build' : 'activation'),
 		runtimeAssetsPrepared: false,
 		hmrAttachedToIntegrations: false,
 		productionBuildId: null,

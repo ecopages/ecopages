@@ -5,6 +5,7 @@ import { Card, CardTitle } from '@/components/card.kita';
 import { Alert } from '@/components/alert.kita';
 
 export default eco.page({
+	cache: 'dynamic',
 	layout: BaseLayout,
 
 	metadata: () => ({

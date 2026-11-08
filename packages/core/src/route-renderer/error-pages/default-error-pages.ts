@@ -16,6 +16,7 @@ export const DEFAULT_ERROR_PAGE_CLASS_NAMES = {
 	status: 'eco-error-page__status',
 	title: 'eco-error-page__title',
 	message: 'eco-error-page__message',
+	diagnosticMessage: 'eco-error-page__diagnostic-message',
 	diagnostics: 'eco-error-page__diagnostics',
 	diagnosticsHeader: 'eco-error-page__diagnostics-header',
 	diagnosticsLabel: 'eco-error-page__diagnostics-label',
@@ -30,15 +31,16 @@ export const DEFAULT_ERROR_PAGE_CLASS_NAMES = {
 } as const;
 
 const sharedStyles = `
-.eco-error-page { box-sizing: border-box; display: grid; place-items: center; margin: 0; padding: 2rem; color: #18181b; background: radial-gradient(circle at top, #f4f4f5, #fff 42rem); font-family: ui-sans-serif, system-ui, sans-serif; line-height: 1.5; }
-.eco-error-page__content { width: min(100%, 42rem); padding: clamp(2rem, 8vw, 4.5rem); border: 1px solid #e4e4e7; border-radius: 1rem; background: #fff; }
+.eco-error-page { box-sizing: border-box; display: grid; place-items: center; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 2rem; color: #18181b; background: #fff radial-gradient(circle at top, #f4f4f5, #fff 42rem) no-repeat; font-family: ui-sans-serif, system-ui, sans-serif; line-height: 1.5; }
+.eco-error-page__content { box-sizing: border-box; width: min(100%, 51rem); padding: clamp(2rem, 8vw, 4.5rem); border: 1px solid #e4e4e7; border-radius: 1rem; background: #fff; }
 .eco-error-page__status { margin: 0 0 1rem; color: #71717a; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .75rem; font-weight: 700; letter-spacing: .12em; }
 .eco-error-page__title { margin: 0; font-size: clamp(2rem, 6vw, 3.5rem); font-weight: 650; letter-spacing: -.05em; line-height: 1.05; }
-.eco-error-page__message { max-width: 36rem; margin: 1rem 0 0; color: #52525b; font-size: 1rem; }
+.eco-error-page__message { max-width: 36rem; margin: 1rem 0 0; color: #52525b; font-size: 1rem; overflow-wrap: anywhere; }
+.eco-error-page__diagnostic-message { max-width: none; margin: 1.5rem 0 0; padding: .75rem 1rem; border-left: 3px solid #dc2626; border-radius: .25rem; color: #991b1b; background: #fef2f2; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .8125rem; line-height: 1.6; }
 .eco-error-page__diagnostics { margin-top: 2rem; border: 1px solid #e4e4e7; border-radius: .75rem; overflow: hidden; background: #fafafa; }
 .eco-error-page__diagnostics-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 3rem; padding: 0 .75rem 0 1rem; border-bottom: 1px solid #e4e4e7; background: #fff; }
 .eco-error-page__diagnostics-label { color: #52525b; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .75rem; font-weight: 650; }
-.eco-error-page__stack { max-height: 22rem; overflow: auto; box-sizing: border-box; margin: 0; padding: 1rem; color: #3f3f46; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .8125rem; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+.eco-error-page__stack { max-height: min(22rem, 50vh); overflow: auto; box-sizing: border-box; margin: 0; padding: 1rem; color: #3f3f46; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .8125rem; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
 .eco-error-page__copy { font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: .5rem; min-height: 2rem; padding: .375rem .625rem; border: 1px solid #d4d4d8; border-radius: .4375rem; color: #3f3f46; background: #fff; font-size: .8125rem; font-weight: 600; transition: border-color .15s ease, background-color .15s ease, color .15s ease; }
 .eco-error-page__copy:hover { border-color: #a1a1aa; background: #fafafa; }
 .eco-error-page__copy--copied { border-color: #86efac; background: #f0fdf4; color: #166534; }
@@ -50,7 +52,7 @@ const sharedStyles = `
 .eco-error-page__copy--copied .eco-error-page__copy-icon--success { display: inline-flex; }
 .eco-error-page__copy:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 @media (max-width: 40rem) { .eco-error-page { padding: 1rem; } .eco-error-page__content { padding: 2rem 1.5rem; border-radius: .75rem; } }
-@media (prefers-color-scheme: dark) { .eco-error-page { color: #f4f4f5; background: radial-gradient(circle at top, #27272a, #09090b 42rem); } .eco-error-page__content { border-color: #3f3f46; background: #18181b; } .eco-error-page__status, .eco-error-page__message { color: #a1a1aa; } .eco-error-page__diagnostics { border-color: #3f3f46; background: #18181b; } .eco-error-page__diagnostics-header { border-color: #3f3f46; background: #27272a; } .eco-error-page__diagnostics-label, .eco-error-page__stack { color: #d4d4d8; } .eco-error-page__copy { border-color: #52525b; color: #e4e4e7; background: #27272a; } .eco-error-page__copy:hover { border-color: #a1a1aa; background: #3f3f46; } .eco-error-page__copy--copied { border-color: #166534; background: #052e16; color: #bbf7d0; } .eco-error-page__copy--failed { border-color: #991b1b; background: #450a0a; color: #fecaca; } }
+@media (prefers-color-scheme: dark) { .eco-error-page { color: #f4f4f5; background: #09090b radial-gradient(circle at top, #27272a, #09090b 42rem) no-repeat; } .eco-error-page__content { border-color: #3f3f46; background: #18181b; } .eco-error-page__status, .eco-error-page__message { color: #a1a1aa; } .eco-error-page__diagnostic-message { border-left-color: #f87171; color: #fecaca; background: #2a1215; } .eco-error-page__diagnostics { border-color: #3f3f46; background: #18181b; } .eco-error-page__diagnostics-header { border-color: #3f3f46; background: #27272a; } .eco-error-page__diagnostics-label, .eco-error-page__stack { color: #d4d4d8; } .eco-error-page__copy { border-color: #52525b; color: #e4e4e7; background: #27272a; } .eco-error-page__copy:hover { border-color: #a1a1aa; background: #3f3f46; } .eco-error-page__copy--copied { border-color: #166534; background: #052e16; color: #bbf7d0; } .eco-error-page__copy--failed { border-color: #991b1b; background: #450a0a; color: #fecaca; } }
 `.trim();
 
 const clipboardIconSvg =
@@ -178,12 +180,30 @@ function createDefaultErrorPageViewModel(status: number, details?: DefaultErrorP
 	};
 }
 
+/**
+ * Whether the stack opens with the message, either bare or after the name on its first line, such as `TypeError: `.
+ */
+function stackOpensWithMessage(stack: string | undefined, message: string): boolean {
+	if (!stack) return false;
+	if (stack.startsWith(message)) return true;
+	const firstLine = stack.split('\n', 1)[0];
+	const separator = firstLine.indexOf(': ');
+	return separator >= 0 && stack.startsWith(message, separator + 2);
+}
+
+/**
+ * @remarks
+ * A development stack normally opens with the error message, so the message is rendered on its own only when the
+ * stack does not already open with it. Repeating it pushed the stack below the fold.
+ */
 function renderDiagnosticsMarkup(diagnostics: DefaultErrorPageDiagnostics): string {
 	const names = DEFAULT_ERROR_PAGE_CLASS_NAMES;
 	const copyMarkup = buildDefaultCopyButtonMarkup(diagnostics.copyPayload);
-	const messageMarkup = diagnostics.message
-		? `<p class="${names.message}" role="alert">${escapeHtml(diagnostics.message)}</p>`
-		: '';
+	const { message } = diagnostics;
+	const messageMarkup =
+		message !== undefined && !stackOpensWithMessage(diagnostics.stack, message)
+			? `<p class="${names.message} ${names.diagnosticMessage}" role="alert">${escapeHtml(message)}</p>`
+			: '';
 	if (!diagnostics.stack) {
 		return `${messageMarkup}${copyMarkup}`;
 	}

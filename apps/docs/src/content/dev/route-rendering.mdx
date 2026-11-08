@@ -77,7 +77,7 @@ An explicit view is an `eco.page()` value passed to `ctx.render`, `app.static()`
 2. a view registered with `app.notFound()` and similar, prepared with `prepareExplicitStaticRender`;
 3. the built-in document.
 
-A failing custom page propagates its error; the request adapter then calls `renderBuiltIn()`, which never re-enters a custom source. Built-in pages show diagnostics only for a 5xx in development, with the stack of every wrapped `cause`; production pages never include a stack. During static export, `SemanticErrorPageExporter` writes one file per semantic status pathname (`/404`, …) unless a generated route already owns it. Adapters classify route failures and build the HTTP response; the renderer only chooses and renders the source.
+A failing custom page propagates its error; the request adapter then calls `renderBuiltIn()`, which never re-enters a custom source. Built-in pages show diagnostics only for a 5xx in development, with the stack of every wrapped `cause`, and show the message on its own only when the stack does not open with it; production pages never include a stack. During static export, `SemanticErrorPageExporter` writes one file per semantic status pathname (`/404`, …) unless a generated route already owns it. Adapters classify route failures and build the HTTP response; the renderer only chooses and renders the source.
 
 ## Page cache
 
@@ -99,4 +99,9 @@ A script is always evaluated through the preloader's `importServerModule`, never
 | `createCustomElementServerModuleImporter` | Lit | Compiles through the app module loader into a separate outdir per registry under the work directory. |
 | `createSharedServerModuleImporter` | Ecopages JSX | Compiles into the shared page server-module outdir, since a separate copy would load a second Radiant graph and break host SSR. |
 
-Lit preloads only lazy entries (`requireLazyScriptEntry`), so an eager registration is not evaluated in an isolated graph that would break `@lit-labs/ssr`. Ecopages JSX sets `collectForIntegration` so it never preloads another Integration's scripts in a shared Dependency tree. Neither path builds a browser bundle for a preloaded script; `lazy` still controls browser loading. Per-Integration details: [Lit](/dev/lit), [Ecopages JSX](/dev/ecopages-jsx).
+Every `ssr: true` entry is preloaded, eager or lazy, and assigned to one preloader, so an element's module graph does not load twice. Each Integration states which scripts its preloader takes with `ssrScriptPreload` on `IntegrationPlugin`, and `collectCustomElementSsrPreloadScripts` assigns every script found in the Dependency tree:
+
+- A script declared by a Component whose Integration preloads (`'own'` or `'own-and-foreign'`) goes to that Integration. When Components of several preloading Integrations declare it, the first in config order takes it.
+- Any other script, such as one on a Kita, React or plain Component, goes to the first `'own-and-foreign'` Integration in config order: Lit. Without one, it is not evaluated on the server.
+
+Ecopages JSX declares `'own'` when Radiant is enabled, and Lit declares `'own-and-foreign'`. An Integration with a preloader that leaves `ssrScriptPreload` unset is assigned no script. Each preloader assigns from the Components its own hook receives: when a script is declared on a Kita Component that Lit's hook sees and on an Ecopages JSX Component it does not, both Lit and Ecopages JSX evaluate it. Neither path builds a browser bundle for a preloaded script; `lazy` still controls browser loading. Per-Integration details: [Lit](/dev/lit), [Ecopages JSX](/dev/ecopages-jsx).

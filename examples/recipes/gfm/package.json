@@ -1,0 +1,21 @@
+{
+	"name": "@ecopages/recipe-gfm",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "ecopages build",
+		"dev": "ecopages dev",
+		"preview": "ecopages preview",
+		"typecheck": "ecopages types && tsc --noEmit"
+	},
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/ecopages-jsx": "workspace:*",
+		"@ecopages/jsx": "^0.8.2",
+		"@ecopages/mdx": "workspace:*",
+		"ecopages": "workspace:*",
+		"rehype-pretty-code": "^0.14.3",
+		"remark-gfm": "^4.0.1",
+		"shiki": "^3.23.0"
+	}
+}

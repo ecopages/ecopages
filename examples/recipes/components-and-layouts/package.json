@@ -1,0 +1,17 @@
+{
+	"name": "@ecopages/recipe-components-and-layouts",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "ecopages build",
+		"dev": "ecopages dev",
+		"preview": "ecopages preview",
+		"typecheck": "ecopages types && tsc --noEmit"
+	},
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/ecopages-jsx": "workspace:*",
+		"@ecopages/jsx": "^0.8.2",
+		"ecopages": "workspace:*"
+	}
+}

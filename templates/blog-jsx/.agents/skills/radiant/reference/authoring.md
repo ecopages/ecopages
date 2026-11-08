@@ -14,7 +14,7 @@
 4. **Keep event code plain** — ordinary methods or arrow functions; use the browser event object directly.
 5. **Keep JSX intentional** — avoid extra wrapper components, memoization-style patterns without need, and assuming cached JSX nodes with plain props stay live automatically.
 6. **Paint existing DOM with `@bindTo`** — sit it on a `@prop` / `@state` / `@signal` field. Do not `@query` + `@onUpdated` to copy a value into text, an attribute, or a DOM property. `@onUpdated` is for procedures (focus, timers, joined ARIA, derived state).
-7. **Use slots deliberately** — literal `<slot>` tags and the Radiant projection model for HTML-first hosts. JSX libraries keep Authored Children in the parent tree.
+7. **Place children with `this.slotted`** — a render-owning host renders `{this.slotted}` (`null` when the parent passed none, so `{this.slotted ?? <p>Fallback</p>}` is the fallback) and reads the top-level elements through `this.slottedElements`. `<slot>` is an ordinary element, not a projection point; pass named regions as properties (`<x-card header={<h2 />}>`) or compose.
 8. **Document important APIs** — meaningful TSDoc for new public APIs or significant architecture. No noisy inline comments.
 9. **Keep docs examples minimal** — smallest number of hosts that still demonstrates the target API. A second custom element only when provider/consumer boundaries or leaf ownership is the lesson.
 

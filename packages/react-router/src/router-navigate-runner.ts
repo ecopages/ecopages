@@ -106,11 +106,12 @@ async function applyRouterNavigationOutcome(
 						window.history.replaceState(null, '', finalPath);
 					}
 				},
-				commitPageData: (moduleUrl, props) => {
+				commitPageData: (moduleUrl, props, document) => {
 					window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
 					window.__ECO_PAGES__.page = {
 						module: moduleUrl,
 						props,
+						document,
 					};
 				},
 				setCurrentPage: input.deps.setCurrentPage,

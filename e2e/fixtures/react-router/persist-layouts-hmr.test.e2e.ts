@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '../../app-fixture';
 import { trackRuntimeErrors } from '../../utils/runtime-error-tracker';
-import { gotoAndWait } from '../../utils/test-helpers';
+import { gotoAndWait, waitForNavigationOwner } from '../../utils/test-helpers';
 import { registerLayoutPersistenceTests } from './layout-persistence.e2e-shared';
 
 test.describe('React Router Persist Layouts - Dev', () => {
@@ -223,21 +223,22 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		await expect(page.getByTestId('base-layout-hmr')).toHaveText('updated', { timeout: 10000 });
 	});
 
+	/**
+	 * @remarks
+	 * The edited layout is not on the index page, so the server answers the edit with a full reload. The back
+	 * traversal waits for that reload to finish and for the router to own the new document: earlier, it either
+	 * aborts the reload or lands before the router listens for `popstate` and leaves the index HTML under `/docs`.
+	 */
 	test('navigating back after a layout edit renders the edited layout', async ({ page }) => {
-		let hmrMessages = 0;
-		page.on('websocket', (socket) => {
-			socket.on('framereceived', () => {
-				hmrMessages += 1;
-			});
-		});
 		await gotoWithCleanDocsLayout(page, '/docs');
 		await page.getByRole('link', { name: '← Back to Home' }).click();
 		await page.waitForURL('**/');
 		await expect(page.getByTestId('index-page')).toBeVisible();
 
-		const messagesBeforeEdit = hmrMessages;
+		const reloaded = page.waitForEvent('load', { timeout: 10000 });
 		fs.writeFileSync(docsLayoutFile, patchLayoutMdxLabel(originalDocsLayout, '(edited away)'), 'utf-8');
-		await expect.poll(() => hmrMessages, { timeout: 10000 }).toBeGreaterThan(messagesBeforeEdit);
+		await reloaded;
+		await waitForNavigationOwner(page, 'react-router');
 
 		await page.goBack();
 		await page.waitForURL('**/docs');

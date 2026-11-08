@@ -33,21 +33,26 @@ let resolveRendersIdle: (() => void) | undefined;
  * @remarks
  * Processor `.setup()` is skipped here because the main thread already prepared disk artifacts
  * before static export started the Lit worker (`ECOPAGES_LIT_STATIC_RENDER_WORKER`). Integrations
- * still need setup in this isolate before route renderers are created.
+ * still need setup in this isolate before route renderers are created. Its `'browser-build'` runtime resolves their
+ * global scripts once {@link restoreAppBrowserBuild} has restored the browser build.
  */
 async function initializeWorker(
 	configModulePath: string,
 	runtimeOrigin: string,
 	directories: { distDir: string; workDir: string },
 ): Promise<void> {
-	appConfig = await loadEcoPagesConfig({ configFile: configModulePath, directories });
+	appConfig = await loadEcoPagesConfig({
+		configFile: configModulePath,
+		directories,
+		globalScriptResolution: 'browser-build',
+	});
 	const runtime = requireAppRuntime(appConfig);
 	runtime.origin = runtimeOrigin;
 
 	await setupAppRuntimePlugins({
 		appConfig,
 	});
-	await setupAppRuntimeIntegrations({ appConfig, deferGlobalScripts: true });
+	await setupAppRuntimeIntegrations({ appConfig });
 
 	routeRendererFactory = new RouteRendererFactory({
 		appConfig,

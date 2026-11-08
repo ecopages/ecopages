@@ -308,7 +308,7 @@ test('browser builds inline the runtime mode used by browser environment helpers
 		const request = createBrowserBuildRequest(appConfig, {
 			entrypoints: [path.resolve('packages/core/src/browser-env.ts')],
 			outdir: path.join(dir, 'dist'),
-			root: process.cwd(),
+			root: path.cwd(),
 			plugins: [],
 		});
 		assert.equal(request.define?.['import.meta.env.NODE_ENV'], '"production"');

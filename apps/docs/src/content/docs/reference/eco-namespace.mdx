@@ -70,7 +70,7 @@ Named barrel re-exports (`export { Counter } from './counter'`) are followed for
 
 ## Component Patterns
 
-EcoPages provides a unified API for creating components and pages. While there are a few ways to define components, **`eco.component()` is the standard and recommended approach** for most use cases, as it ensures proper dependency management, lazy loading, and type safety.
+EcoPages provides a unified API for creating components and pages. A component is a plain function by default: discovery follows its CSS and component imports. Wrap it in `eco.component()` only when it needs browser scripts, `modules`, stylesheet attributes, an `integration` override, or rendering by another Integration. See [Components and layouts](/docs/recipes/components-and-layouts) for when to use each.
 
 ## Component Creation
 

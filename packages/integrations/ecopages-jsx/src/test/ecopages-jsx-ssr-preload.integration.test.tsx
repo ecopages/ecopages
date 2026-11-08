@@ -13,6 +13,7 @@ import {
 	invalidateCustomElementScriptPreload,
 } from '@ecopages/core/integration';
 import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
+import { EcopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
 
 declare module '@ecopages/jsx' {
 	interface JsxCustomIntrinsicElements {
@@ -74,6 +75,7 @@ describe('Ecopages JSX SSR script preload integration', () => {
 				const appConfig = await createTestAppConfig({
 					rootDir: PACKAGE_ROOT,
 					workDir: tempDir,
+					integrations: [new EcopagesJsxPlugin()],
 				});
 				const Host = eco.component<{}, JsxRenderable>({
 					integration: 'ecopages-jsx',

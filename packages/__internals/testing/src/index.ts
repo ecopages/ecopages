@@ -1,6 +1,6 @@
 import type { EcoComponent, EcoFunctionComponent, EcoPagesElement } from '@ecopages/core';
 import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
-import { type EcoPagesUserConfig } from '@ecopages/core/config';
+import { type EcoPagesUserConfig, type GlobalScriptResolution } from '@ecopages/core/config';
 import { requireAppRuntime } from '@ecopages/core/integration';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { defineIntegration } from '@ecopages/core/integration';
@@ -18,6 +18,8 @@ export type CreateTestAppConfigOptions = {
 	configure?: (config: EcoPagesUserConfig) => EcoPagesUserConfig | void;
 	description?: string;
 	distDir?: string;
+	/** Pass `'browser-build'` when the test runs a production export with the config. */
+	globalScriptResolution?: GlobalScriptResolution;
 	integrations?: AnyIntegrationPlugin[];
 	rootDir?: string;
 	runtimeOrigin?: string;
@@ -82,6 +84,7 @@ export async function createTestAppConfig(options: CreateTestAppConfigOptions = 
 		configure,
 		description = 'Ecopages',
 		distDir,
+		globalScriptResolution,
 		integrations = [createStringMarkupIntegration()],
 		rootDir = '.',
 		runtimeOrigin = baseUrl,
@@ -111,7 +114,7 @@ export async function createTestAppConfig(options: CreateTestAppConfigOptions = 
 		userConfig = configured;
 	}
 
-	const config = await finalizeEcoPagesConfig(userConfig);
+	const config = await finalizeEcoPagesConfig(userConfig, { globalScriptResolution });
 	requireAppRuntime(config).origin = runtimeOrigin;
 
 	return config;

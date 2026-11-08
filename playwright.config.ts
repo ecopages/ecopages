@@ -185,6 +185,50 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		use: { ...chrome, baseURL: 'http://localhost:4627' },
 	},
 	{
+		name: 'recipe-wasm-threads-dev-e2e',
+		testMatch: 'e2e/fixtures/recipes/wasm-threads.dev.test.e2e.ts',
+		timeout: 60_000,
+		use: { ...chrome, appOptions: { source: 'examples/recipes/wasm-threads' } },
+	},
+	{
+		name: 'recipe-wasm-threads-preview-e2e',
+		testMatch: 'e2e/fixtures/recipes/wasm-threads.preview.test.e2e.ts',
+		use: { ...chrome, baseURL: 'http://localhost:4640' },
+	},
+	{
+		name: 'recipe-auth-gate-dev-e2e',
+		testMatch: 'e2e/fixtures/recipes/auth-gate.dev.test.e2e.ts',
+		timeout: 60_000,
+		use: { ...chrome, appOptions: { source: 'examples/recipes/auth-gate' } },
+	},
+	{
+		name: 'recipe-auth-gate-start-e2e',
+		testMatch: 'e2e/fixtures/recipes/auth-gate.start.test.e2e.ts',
+		use: { ...chrome, baseURL: 'http://localhost:4641' },
+	},
+	{
+		name: 'recipe-components-and-layouts-dev-e2e',
+		testMatch: 'e2e/fixtures/recipes/components-and-layouts.dev.test.e2e.ts',
+		timeout: 60_000,
+		use: { ...chrome, appOptions: { source: 'examples/recipes/components-and-layouts' } },
+	},
+	{
+		name: 'recipe-components-and-layouts-preview-e2e',
+		testMatch: 'e2e/fixtures/recipes/components-and-layouts.preview.test.e2e.ts',
+		use: { ...chrome, baseURL: 'http://localhost:4642' },
+	},
+	{
+		name: 'recipe-gfm-dev-e2e',
+		testMatch: 'e2e/fixtures/recipes/gfm.dev.test.e2e.ts',
+		timeout: 60_000,
+		use: { ...chrome, appOptions: { source: 'examples/recipes/gfm' } },
+	},
+	{
+		name: 'recipe-gfm-preview-e2e',
+		testMatch: 'e2e/fixtures/recipes/gfm.preview.test.e2e.ts',
+		use: { ...chrome, baseURL: 'http://localhost:4643' },
+	},
+	{
 		name: 'react-router-preview-e2e',
 		testMatch: 'e2e/fixtures/react-router/persist-layouts.test.e2e.ts',
 		use: { ...chrome, baseURL: 'http://localhost:4004' },
@@ -431,6 +475,46 @@ const projectWebServers: ProjectWebServer[] = [
 		timeout: 180_000,
 		reuseExistingServer: !process.env.CI,
 		env: { NODE_ENV: 'production', ECOPAGES_PORT: '4627', ECOPAGES_E2E_ARTIFACT_SCOPE: 'web-workers-start-e2e' },
+	},
+	{
+		projects: ['recipe-wasm-threads-preview-e2e'],
+		command:
+			'node ../../../packages/ecopages/bin/cli.js build --runtime node && node ../../../packages/ecopages/bin/cli.js preview --runtime node --port 4640',
+		cwd: 'examples/recipes/wasm-threads',
+		url: 'http://localhost:4640',
+		timeout: 180_000,
+		reuseExistingServer: !process.env.CI,
+		env: { NODE_ENV: 'production', ECOPAGES_PORT: '4640' },
+	},
+	{
+		projects: ['recipe-auth-gate-start-e2e'],
+		command:
+			'node ../../../packages/ecopages/bin/cli.js build --runtime node && node ../../../packages/ecopages/bin/cli.js start --runtime node --port 4641',
+		cwd: 'examples/recipes/auth-gate',
+		url: 'http://localhost:4641',
+		timeout: 180_000,
+		reuseExistingServer: !process.env.CI,
+		env: { NODE_ENV: 'production', ECOPAGES_PORT: '4641' },
+	},
+	{
+		projects: ['recipe-components-and-layouts-preview-e2e'],
+		command:
+			'node ../../../packages/ecopages/bin/cli.js build --runtime node && node ../../../packages/ecopages/bin/cli.js preview --runtime node --port 4642',
+		cwd: 'examples/recipes/components-and-layouts',
+		url: 'http://localhost:4642',
+		timeout: 180_000,
+		reuseExistingServer: !process.env.CI,
+		env: { NODE_ENV: 'production', ECOPAGES_PORT: '4642' },
+	},
+	{
+		projects: ['recipe-gfm-preview-e2e'],
+		command:
+			'node ../../../packages/ecopages/bin/cli.js build --runtime node && node ../../../packages/ecopages/bin/cli.js preview --runtime node --port 4643',
+		cwd: 'examples/recipes/gfm',
+		url: 'http://localhost:4643',
+		timeout: 180_000,
+		reuseExistingServer: !process.env.CI,
+		env: { NODE_ENV: 'production', ECOPAGES_PORT: '4643' },
 	},
 	{
 		projects: ['react-router-preview-e2e'],

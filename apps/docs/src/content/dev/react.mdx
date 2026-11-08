@@ -57,6 +57,25 @@ Core decides which Components are Island Hosts and stamps `data-eco-island*` att
 
 A Page hydrates when it declares `dependencies.modules`, when `explicitGraph` is set, or whenever a router adapter exists (`shouldHydratePage`). `explicitGraph` forces hydration assets; it does not turn off client-graph stripping. Both entries import `react`, `react-dom/client` and their bootstrap package by package name. A Page entry with a router adapter also imports the router; [React in the browser graph](#react-in-the-browser-graph) says where those imports go.
 
+```mermaid
+flowchart TD
+  subgraph Server
+    A["ReactRenderer composes Layouts and Page into one tree"] --> B["Complete document HTML"]
+    B --> C{"Page hydrates, or Island root?"}
+    C -- "yes" --> D["Foreign Subtrees wrapped in eco-foreign-subtree"]
+    C -- "no" --> E["Foreign Subtrees resolve in place"]
+  end
+  subgraph Build
+    F["React module imports a foreign Eco Component"] --> G["Import rewritten to foreignBoundary"]
+  end
+  subgraph Browser
+    H["page-hydration bootstrap hydrates the tree"] --> I["foreignBoundary keeps the server HTML"]
+    J["island-hydration bootstrap hydrates Island Hosts"] --> I
+  end
+  D --> H
+  G --> I
+```
+
 ### Client-graph boundary
 
 `client-graph/boundary-plugin.ts` runs on every module in a browser build (page, island, lazy entry and shared helpers) and:

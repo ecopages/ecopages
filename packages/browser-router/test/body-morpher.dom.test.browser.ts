@@ -586,3 +586,147 @@ describe('morphBody on a reload of the current URL', () => {
 		expect(document.querySelector('#plain')?.classList.contains('is-active')).toBe(true);
 	});
 });
+
+describe('morphBody keeps the incoming custom elements', () => {
+	type Engine = { name: string };
+	type Seen = { tag: string; engine: Engine | undefined; shadowRoot: boolean };
+	const connected: Seen[] = [];
+	const disconnected: Element[] = [];
+
+	function registerPropHosts(): void {
+		if (customElements.get('test-prop-host')) return;
+		for (const tag of ['test-prop-host', 'test-prop-child', 'test-prop-shadow']) {
+			customElements.define(
+				tag,
+				class extends HTMLElement {
+					declare engine: Engine | undefined;
+					connectedCallback() {
+						connected.push({ tag, engine: this.engine, shadowRoot: this.shadowRoot !== null });
+					}
+					disconnectedCallback() {
+						disconnected.push(this);
+					}
+				},
+			);
+		}
+	}
+
+	function setUp(liveHtml: string): void {
+		resetDocument();
+		registerPropHosts();
+		document.body.innerHTML = liveHtml;
+		connected.length = 0;
+		disconnected.length = 0;
+	}
+
+	const host = '<test-prop-host><test-prop-child></test-prop-child></test-prop-host>';
+
+	function morphIncoming(html: string, assign: (incoming: Document) => void) {
+		const incoming = parseDocument(`<html><body>${html}</body></html>`);
+		assign(incoming);
+		morphBody(incoming, 'data-eco-persist');
+		return incoming;
+	}
+
+	it('connects an added custom element with the properties set on the incoming node', () => {
+		setUp('<p>old</p>');
+		const engine = { name: 'added' };
+		let incomingHost: Element | null = null;
+		let incomingChild: Element | null = null;
+
+		morphIncoming(`<p>old</p>${host}`, (incoming) => {
+			incomingHost = incoming.querySelector('test-prop-host');
+			incomingChild = incoming.querySelector('test-prop-child');
+			(incomingHost as unknown as { engine: Engine }).engine = engine;
+			(incomingChild as unknown as { engine: Engine }).engine = engine;
+		});
+
+		expect(connected.map((seen) => [seen.tag, seen.engine])).toEqual([
+			['test-prop-host', engine],
+			['test-prop-child', engine],
+		]);
+		expect(document.querySelector('test-prop-host')).toBe(incomingHost);
+		expect(document.querySelector('test-prop-child')).toBe(incomingChild);
+	});
+
+	it('replaces a live light-DOM host with the incoming node, preserving properties and nested identity', () => {
+		setUp(`<p>before</p>${host}`);
+		const oldHost = document.querySelector('test-prop-host');
+		connected.length = 0;
+		const engine = { name: 'deferred' };
+		let incomingHost: Element | null = null;
+		let incomingChild: Element | null = null;
+
+		morphIncoming(`<p>after</p>${host}`, (incoming) => {
+			incomingHost = incoming.querySelector('test-prop-host');
+			incomingChild = incoming.querySelector('test-prop-child');
+			(incomingHost as unknown as { engine: Engine }).engine = engine;
+			(incomingChild as unknown as { engine: Engine }).engine = engine;
+		});
+
+		expect(document.querySelector('test-prop-host')).toBe(incomingHost);
+		expect(document.querySelector('test-prop-child')).toBe(incomingChild);
+		expect(connected.filter((seen) => seen.tag === 'test-prop-host')).toEqual([
+			{ tag: 'test-prop-host', engine, shadowRoot: false },
+		]);
+		expect(connected.find((seen) => seen.tag === 'test-prop-child')?.engine).toBe(engine);
+		expect(disconnected.filter((element) => element === oldHost)).toHaveLength(1);
+	});
+
+	it('replaces a hydrated shadow host with the incoming node and attaches its declarative shadow root', () => {
+		setUp('<test-prop-shadow></test-prop-shadow>');
+		const oldHost = document.querySelector('test-prop-shadow') as HTMLElement;
+		oldHost.attachShadow({ mode: 'open' }).innerHTML = '<span>old</span>';
+		connected.length = 0;
+		const engine = { name: 'shadow' };
+		let incomingHost: Element | null = null;
+
+		morphIncoming(
+			'<test-prop-shadow><template shadowrootmode="open"><span>new</span></template></test-prop-shadow>',
+			(incoming) => {
+				incomingHost = incoming.querySelector('test-prop-shadow');
+				(incomingHost as unknown as { engine: Engine }).engine = engine;
+			},
+		);
+
+		const liveHost = document.querySelector('test-prop-shadow');
+		expect(liveHost).toBe(incomingHost);
+		expect(connected).toEqual([{ tag: 'test-prop-shadow', engine, shadowRoot: false }]);
+		expect(disconnected.filter((element) => element === oldHost)).toHaveLength(1);
+		expect(liveHost?.shadowRoot?.querySelector('span')?.textContent).toBe('new');
+	});
+
+	it('refreshes a host replaced by a rerun script with the incoming node', () => {
+		setUp(`<main>${host}</main>`);
+		connected.length = 0;
+		const engine = { name: 'rerun' };
+		let incomingHost: Element | null = null;
+
+		morphIncoming(`<main>${host}</main><script data-eco-rerun></script>`, (incoming) => {
+			incomingHost = incoming.querySelector('test-prop-host');
+			(incomingHost as unknown as { engine: Engine }).engine = engine;
+		});
+
+		expect(document.querySelector('test-prop-host')).toBe(incomingHost);
+		expect(connected.find((seen) => seen.tag === 'test-prop-host')?.engine).toBe(engine);
+	});
+
+	it('keeps the live properties of a persisted host and ignores incoming properties on a kept element', () => {
+		setUp(`<test-prop-host data-eco-persist="side"></test-prop-host><p id="plain">same</p>`);
+		const liveEngine = { name: 'live' };
+		const liveHost = document.querySelector('test-prop-host') as unknown as HTMLElement & { engine: Engine };
+		liveHost.engine = liveEngine;
+		const livePlain = document.querySelector('#plain') as Element & { marker?: string };
+		livePlain.marker = 'live';
+
+		morphIncoming(`<test-prop-host data-eco-persist="side"></test-prop-host><p id="plain">same</p>`, (incoming) => {
+			(incoming.querySelector('test-prop-host') as unknown as { engine: Engine }).engine = { name: 'incoming' };
+			(incoming.querySelector('#plain') as unknown as { marker: string }).marker = 'incoming';
+		});
+
+		expect(document.querySelector('test-prop-host')).toBe(liveHost);
+		expect(liveHost.engine).toBe(liveEngine);
+		expect(document.querySelector('#plain')).toBe(livePlain);
+		expect(livePlain.marker).toBe('live');
+	});
+});

@@ -188,6 +188,39 @@ describe('EcoRouter', () => {
 			expect(document.body.textContent).toContain('Next');
 		});
 
+		it('should connect an incoming custom element with a property set during before-swap', async () => {
+			const seen: unknown[] = [];
+			class BeforeSwapHost extends HTMLElement {
+				declare engine: unknown;
+				connectedCallback() {
+					seen.push(this.engine);
+				}
+			}
+			if (!customElements.get('test-before-swap-host')) {
+				customElements.define('test-before-swap-host', BeforeSwapHost);
+			}
+			fixtures.router = createRouter();
+			fixtures.fetchSpy?.mockResolvedValueOnce(
+				htmlFetchResponse(
+					'<html><head></head><body><test-before-swap-host></test-before-swap-host></body></html>',
+				),
+			);
+			const engine = { name: 'engine' };
+			const handler = (event: Event) => {
+				const { newDocument } = (event as CustomEvent<{ newDocument: Document }>).detail;
+				(newDocument.querySelector('test-before-swap-host') as BeforeSwapHost).engine = engine;
+			};
+			document.addEventListener('eco:before-swap', handler);
+
+			try {
+				await fixtures.router.navigate('/property-handoff');
+
+				expect(seen).toEqual([engine]);
+			} finally {
+				document.removeEventListener('eco:before-swap', handler);
+			}
+		});
+
 		it('should hard-navigate when before-swap requests reload', async () => {
 			const reloadDocument = vi.fn();
 			fixtures.router = createRouter({ reloadDocument });

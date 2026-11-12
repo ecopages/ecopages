@@ -25,6 +25,16 @@ export interface EcoNavigationEvent {
 
 /** Detail for the pre-commit lifecycle event. */
 export interface EcoBeforeSwapEvent extends EcoNavigationEvent {
+	/**
+	 * The parsed incoming document, which a listener may change before the swap.
+	 *
+	 * @remarks
+	 * Browser-router inserts or replaces custom elements with the nodes of this document, so properties set on
+	 * them and their descendants survive and the browser upgrades them when they connect. Elements the swap
+	 * keeps in place, such as persisted elements, ignore properties set on their incoming counterpart. A
+	 * property set before an element upgrades shadows a class accessor of the same name and is reset by a
+	 * class field of that name.
+	 */
 	newDocument: Document;
 	reload: () => void;
 }

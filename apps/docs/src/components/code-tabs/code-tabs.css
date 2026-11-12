@@ -50,8 +50,12 @@ radiant-code-tabs .rui-tabs__panel {
 	}
 }
 
+/**
+ * Ghost is transparent until hover. `:focus-within` would keep the control up
+ * after a click focuses the tabindex=0 `pre`.
+ */
 .code-tabs__copy {
-	@apply absolute right-1.5 top-1.5 z-10 opacity-0;
+	@apply absolute right-1.5 top-1.5 z-10 rounded-sm border border-border bg-background px-2 text-xs font-medium text-on-background opacity-0 transition-opacity;
 
 	&:hover,
 	&:focus-visible {
@@ -59,9 +63,20 @@ radiant-code-tabs .rui-tabs__panel {
 	}
 
 	.code-tabs__body:hover &,
-	.code-tabs__body:focus-within & {
+	.code-tabs__body:has(:focus-visible) & {
 		@apply opacity-100;
 	}
+
+	@media (hover: none) {
+		@apply opacity-100;
+	}
+}
+
+radiant-code-tabs .code-tabs__copy,
+radiant-code-tabs .code-tabs__copy:hover:not(:disabled),
+radiant-code-tabs .code-tabs__copy:active:not(:disabled) {
+	background-color: var(--color-background);
+	color: var(--color-on-background);
 }
 
 .code-tabs__status {

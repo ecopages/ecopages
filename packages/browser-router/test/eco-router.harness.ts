@@ -81,12 +81,19 @@ export function simulateClick(element: HTMLElement, options: Partial<MouseEventI
 	element.dispatchEvent(event);
 }
 
+/**
+ * Resolves on the next navigation lifecycle event.
+ *
+ * @remarks
+ * Browser test files run in iframes of one page, so a busy machine can delay a click-driven swap past a
+ * short deadline. The timeout only bounds a swap that never happens, so it is generous.
+ */
 export async function waitForNavigation(eventName = 'eco:after-swap'): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const timeoutId = window.setTimeout(() => {
 			document.removeEventListener(eventName, handleNavigation);
 			reject(new Error(`Timed out waiting for ${eventName}`));
-		}, 1000);
+		}, 10_000);
 
 		const handleNavigation = () => {
 			window.clearTimeout(timeoutId);

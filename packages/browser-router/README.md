@@ -166,6 +166,17 @@ document.addEventListener('eco:page-load', (e) => {
 });
 ```
 
+`e.detail.newDocument` is the parsed incoming document and a listener may change it. Custom elements the router inserts or replaces are the nodes of that document themselves, so properties you set on them, and their nested nodes, are still there when the browser upgrades and connects them:
+
+```ts
+document.addEventListener('eco:before-swap', (e) => {
+	const host = e.detail.newDocument.querySelector('my-host');
+	if (host) host.engine = engine;
+});
+```
+
+Elements the router keeps in place, such as persisted elements, ignore properties set on their incoming counterpart. A property set before an element upgrades shadows a class accessor of the same name and is reset by a class field of that name: the component should read the own value, delete it and assign it through the accessor in its constructor.
+
 ## Programmatic Navigation
 
 Use the router instance to navigate programmatically:

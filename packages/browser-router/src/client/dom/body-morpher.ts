@@ -173,7 +173,7 @@ function isLightDomCustomElement(element: Element): boolean {
 	return element.localName.includes('-') && element.shadowRoot === null;
 }
 
-type DeferredReplacement = { from: Element; to: Element; server: Element | undefined; isCustomElement: boolean };
+type DeferredReplacement = { from: Element; to: Element; server: Element | undefined };
 
 /**
  * @returns Always `false` to tell morphdom to skip updating this element.
@@ -189,35 +189,21 @@ function deferElementReplacement(
 	server: Element | undefined,
 	deferred: DeferredReplacement[],
 ): false {
-	deferred.push({
-		from: fromEl,
-		to: toEl.cloneNode(true) as Element,
-		server,
-		isCustomElement: fromEl.localName.includes('-'),
-	});
+	deferred.push({ from: fromEl, to: toEl, server });
 	return false;
-}
-
-function materializeCustomElement(element: Element): Element {
-	const materializedElement = document.createElement(element.localName);
-	for (const attr of element.attributes) {
-		materializedElement.setAttribute(attr.name, attr.value);
-	}
-	materializedElement.innerHTML = element.innerHTML;
-	return materializedElement;
 }
 
 /**
  * @remarks
- * Custom elements are recreated via `document.createElement` so the browser fires
+ * The incoming element itself replaces the live one, so properties set on it and the identity of its descendants
+ * survive. The browser disconnects the live element and upgrades and connects the incoming one, which fires
  * their full lifecycle. Elements already removed during the morph pass are skipped.
  */
 function flushDeferredReplacements(deferred: DeferredReplacement[], serverMarkup: ServerMarkup | undefined): void {
-	for (const { from, to, server, isCustomElement } of deferred) {
+	for (const { from, to, server } of deferred) {
 		if (!from.isConnected) continue;
-		const newEl = isCustomElement ? materializeCustomElement(to) : (to.cloneNode(true) as Element);
-		if (serverMarkup && server) recordServerSubtree(serverMarkup, newEl, server);
-		from.replaceWith(newEl);
+		if (serverMarkup && server) recordServerSubtree(serverMarkup, to, server);
+		from.replaceWith(to);
 	}
 }
 
@@ -260,8 +246,11 @@ export function processDeclarativeShadowDOM(root: Element | Document | ShadowRoo
  * also remain the same nodes when their markup stays structurally compatible;
  * changed child markup can replace nodes without reconnecting the host, so
  * components must handle rebinding.
- * Light-DOM custom elements are fully replaced to trigger their
- * disconnectedCallback → connectedCallback lifecycle.
+ * Light-DOM and hydrated custom elements are replaced by the incoming element itself, which triggers the
+ * disconnectedCallback → connectedCallback lifecycle. Elements the morph adds or replaces are the parsed
+ * nodes, so properties set on them in `eco:before-swap`, and the identity of their descendants, are preserved.
+ * Elements the morph keeps in place (persisted, retained, or plain elements it morphs) ignore properties set
+ * on their incoming counterpart.
  *
  * On a reload of the current URL, an element whose server markup is the same in the previous and the incoming
  * document is kept with its state, its runtime attributes and its children, including custom elements and their
@@ -296,11 +285,9 @@ export function morphBody(
 	morphdom(document.body, newDocument.body, {
 		getNodeKey: (node) => getBodyMorphKey(node, persistAttribute),
 		onBeforeNodeAdded: (node) => {
-			const added =
-				node instanceof Element && isLightDomCustomElement(node) ? materializeCustomElement(node) : node;
 			const server = node instanceof Element ? incomingServerMarkup.get(node) : undefined;
-			if (serverMarkup && server && added instanceof Element) recordServerSubtree(serverMarkup, added, server);
-			return added;
+			if (serverMarkup && server && node instanceof Element) recordServerSubtree(serverMarkup, node, server);
+			return node;
 		},
 		onBeforeElUpdated: (fromEl, toEl) => {
 			if (isPersisted(fromEl, persistAttribute)) {

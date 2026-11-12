@@ -1,27 +1,45 @@
 /**
  * Pretty-code figures own their chrome. Background, border, and padding live on
  * the same box so prose `pre` padding cannot show the page color around `code`.
+ * The copy control is a sibling of `pre` so horizontal scroll of the source does
+ * not move it. It reveals on hover or keyboard focus within the figure, and
+ * stays visible on devices without hover. `:focus-within` would keep it stuck after a click or
+ * tap focuses the `pre`.
  */
 figure[data-rehype-pretty-code-figure] {
-	@apply my-8 overflow-hidden rounded-md border border-border shadow-sm;
+	@apply relative my-8 overflow-hidden rounded-md border border-border shadow-sm;
 	background-color: var(--shiki-light-bg);
 }
 
 figure[data-rehype-pretty-code-figure] pre {
-	@apply relative m-0 overflow-x-auto rounded-none border-0 p-4 shadow-none;
+	@apply m-0 overflow-x-auto rounded-none border-0 p-4 shadow-none;
 	background-color: var(--shiki-light-bg);
 }
 
-figure[data-rehype-pretty-code-figure] pre:has([data-rehype-pretty-copy]) {
+figure[data-rehype-pretty-code-figure]:has(> [data-rehype-pretty-copy]) > :is(pre, [data-rehype-pretty-code-title]) {
 	@apply pr-16;
 }
 
-figure[data-rehype-pretty-code-figure] [data-rehype-pretty-copy] {
-	@apply absolute top-2 right-2 z-1 cursor-pointer rounded-sm border border-border bg-background/80 px-2 py-0.5 font-sans text-xs font-medium text-on-background opacity-0 backdrop-blur-sm transition-opacity;
+figure[data-rehype-pretty-code-figure] > [data-rehype-pretty-copy] {
+	@apply absolute top-2 right-2 z-10 cursor-pointer rounded-sm border border-border px-2 py-0.5 font-sans text-xs font-medium text-on-background opacity-0 transition-opacity;
+	background-color: var(--shiki-light-bg, var(--color-background));
+
+	&:focus-visible {
+		@apply opacity-100;
+	}
+
+	@media (hover: none) {
+		@apply opacity-100;
+	}
 }
 
-figure[data-rehype-pretty-code-figure]:hover [data-rehype-pretty-copy],
-figure[data-rehype-pretty-code-figure]:focus-within [data-rehype-pretty-copy] {
+@media (hover: hover) {
+	figure[data-rehype-pretty-code-figure]:hover > [data-rehype-pretty-copy] {
+		@apply opacity-100;
+	}
+}
+
+figure[data-rehype-pretty-code-figure]:has(:focus-visible) > [data-rehype-pretty-copy] {
 	@apply opacity-100;
 }
 
@@ -43,8 +61,9 @@ figure[data-rehype-pretty-code-figure] pre > code span {
 	background-color: var(--shiki-light-bg);
 }
 
-[data-theme='dark'] figure[data-rehype-pretty-code-figure] {
-	background-color: var(--shiki-dark-bg);
+[data-theme='dark'] figure[data-rehype-pretty-code-figure],
+[data-theme='dark'] figure[data-rehype-pretty-code-figure] > [data-rehype-pretty-copy] {
+	background-color: var(--shiki-dark-bg, var(--color-background));
 }
 
 [data-theme='dark'] figure[data-rehype-pretty-code-figure] pre {

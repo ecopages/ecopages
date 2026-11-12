@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/lightningcss-processor",
-	"version": "0.7.0",
+	"version": "0.7.1",
 	"description": "Lightning CSS stylesheet processor for Ecopages: bundles @import, lowers for browser targets and minifies",
 	"keywords": [
 		"lightningcss",

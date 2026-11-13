@@ -207,8 +207,7 @@ export class ServerRequestPipeline {
 				const pageComponent = page as EcoPageComponent<any> | undefined;
 
 				return {
-					staticPaths: pageComponent?.staticPaths,
-					staticProps: pageComponent?.staticProps,
+					paths: pageComponent?.paths,
 					cache: pageComponent?.cache,
 				};
 			},

@@ -345,7 +345,7 @@ export const Head = eco.component({ render: () => <head /> });`;
 import { eco } from '@ecopages/core';
 
 export default eco.page<{ title: string; callback: (arg: string) => void }>({
-	staticProps: async () => ({ props: { title: 'Hello', callback: () => {} } }),
+	props: async () => ({ title: 'Hello', callback: () => {} }),
 	render: (props) => '<div>' + props.title + '</div>' });
 `;
 

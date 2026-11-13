@@ -69,8 +69,8 @@ Each `execute()` opens a session that holds the render's cache of owning rendere
 
 An explicit view is an `eco.page()` value passed to `ctx.render`, `app.static()` or an error-page helper rather than found on disk.
 
-- `resolveExplicitViewRenderer` finds the view's renderer without reading `staticProps`, so static export can plan a dynamic route before any slug exists. `prepareExplicitStaticRender` then runs `staticProps` with the route's Params.
-- A full render goes through `executeExplicitView` (route result with metadata, used by static export for sitemap eligibility) or `renderExplicitView` (a response). Both call `execute` with the view as the Page module and `skipStaticProps`, so the view gets the same Layouts, metadata and client plan as a filesystem Page, and the call's props, Params, query and locals reach the view and its `metadata`.
+- `resolveExplicitViewRenderer` finds the view's renderer without reading `props`, so static export can plan a dynamic route before any slug exists. `prepareExplicitStaticRender` then runs `props` with the route's Params.
+- A full render goes through `executeExplicitView` (route result with metadata, used by static export for sitemap eligibility) or `renderExplicitView` (a response). Both call `execute` with the view as the Page module and `skipPropsHook`, so the view gets the same Layouts, metadata and client plan as a filesystem Page, and the call's props, Params, query and locals reach the view and its `metadata`.
 - A partial render (`ctx.renderPartial`) stays on the component path: it opens its own session, builds no browser assets and is not checked against a prepared graph.
 
 ## Error pages

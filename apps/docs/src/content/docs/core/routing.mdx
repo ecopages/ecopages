@@ -58,7 +58,7 @@ Use bracket syntax: `[param]`.
 - `src/pages/blog/[slug].tsx` → `/blog/[slug]`
 - `src/pages/users/[id]/profile.tsx` → `/users/[id]/profile`
 
-Access params via `staticPaths` and `staticProps` on `eco.page` views, or at request time with `cache: 'dynamic'`.
+`paths` lists the Params known at build. `props` receives the Params, from `paths` at build and from the request at run time with `cache: 'dynamic'`. See [Data Fetching](/docs/core/data-fetching).
 
 ### Catch-all Routes
 

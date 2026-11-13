@@ -11,8 +11,9 @@ type HomeProps = { posts: PublishedPost[]; pageCount: number };
 export default eco.page<HomeProps, JsxRenderable>({
 	layout: SiteLayout,
 	cache: { revalidate: 60, tags: ['posts'] },
-	staticProps: async () => ({
-		props: { posts: await postsService.listPublished(1), pageCount: await postsService.countPublishedPages() },
+	props: async () => ({
+		posts: await postsService.listPublished(1),
+		pageCount: await postsService.countPublishedPages(),
 	}),
 	metadata: () => ({
 		title: 'EcoBlog',

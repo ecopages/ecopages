@@ -1116,14 +1116,12 @@ describe('StaticSiteGenerator', () => {
 			expect(writeMock).not.toHaveBeenCalledWith(expect.stringContaining('dashboard'), expect.anything());
 		});
 
-		test('should render dynamic explicit static routes from staticPaths', async () => {
+		test('should render dynamic explicit static routes from paths', async () => {
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
 			});
 			const executeExplicitView = vi.fn(async () => ({ body: '<html>Post</html>' }));
-			const staticProps = vi.fn(async ({ pathname }) => ({
-				props: pathname.params,
-			}));
+			const props = vi.fn(async ({ pathname }) => pathname.params);
 
 			await ssg.run({
 				router: {
@@ -1143,20 +1141,20 @@ describe('StaticSiteGenerator', () => {
 						loader: async () => ({
 							default: Object.assign(() => null, {
 								config: { identity: testInjectedMeta },
-								staticPaths: async () => ({ paths: [{ params: { slug: 'hello-world' } }] }),
-								staticProps,
+								paths: async () => [{ params: { slug: 'hello-world' } }],
+								props,
 							}),
 						}),
 					},
 				],
 			});
 
-			expect(staticProps).toHaveBeenCalledWith({
+			expect(props).toHaveBeenCalledWith({
 				pathname: { params: { slug: 'hello-world' } },
 				appConfig: expect.any(Object),
 				runtimeOrigin: 'http://localhost:3000',
 			});
-			expect(staticProps).toHaveBeenCalledTimes(1);
+			expect(props).toHaveBeenCalledTimes(1);
 			expect(executeExplicitView).toHaveBeenCalledWith(
 				expect.any(Function),
 				{ slug: 'hello-world' },
@@ -1195,7 +1193,7 @@ describe('StaticSiteGenerator', () => {
 				params: [{ slug: 'hello', lang: 'en' }],
 				files: ['/test/project/dist/client/blog/hello/en.html'],
 			},
-		])('should write one file per staticPaths entry for $name', async ({ path, params, files }) => {
+		])('should write one file per paths entry for $name', async ({ path, params, files }) => {
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
 			});
@@ -1218,8 +1216,8 @@ describe('StaticSiteGenerator', () => {
 						loader: async () => ({
 							default: Object.assign(() => null, {
 								config: { identity: testInjectedMeta },
-								staticPaths: async () => ({ paths: params.map((entry) => ({ params: entry })) }),
-								staticProps: async () => ({ props: {} }),
+								paths: async () => params.map((entry) => ({ params: entry })),
+								props: async () => ({}),
 							}),
 						}),
 					},
@@ -1233,7 +1231,7 @@ describe('StaticSiteGenerator', () => {
 		});
 
 		test.each([false, true])(
-			'should continue exporting explicit staticPaths after one entry fails (keepGoing=%s)',
+			'should continue exporting explicit paths after one entry fails (keepGoing=%s)',
 			async (keepGoing) => {
 				const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
 				const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
@@ -1243,9 +1241,7 @@ describe('StaticSiteGenerator', () => {
 					.mockResolvedValueOnce({ body: '<html>Second post</html>' });
 				const view = Object.assign(() => null, {
 					config: { identity: testInjectedMeta },
-					staticPaths: async () => ({
-						paths: [{ params: { slug: 'broken' } }, { params: { slug: 'works' } }],
-					}),
+					paths: async () => [{ params: { slug: 'broken' } }, { params: { slug: 'works' } }],
 				});
 
 				const generation = ssg.run({
@@ -1325,7 +1321,7 @@ describe('StaticSiteGenerator', () => {
 			);
 		});
 
-		test('should reject for dynamic explicit routes without staticPaths', async () => {
+		test('should reject for dynamic explicit routes without paths', async () => {
 			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
@@ -1360,7 +1356,7 @@ describe('StaticSiteGenerator', () => {
 			expect(errorSpy).toHaveBeenCalledWith(
 				'Error generating explicit static page for /blog/[slug]:',
 				expect.objectContaining({
-					message: 'Dynamic route /blog/[slug] requires staticPaths to be defined on the view.',
+					message: 'Dynamic route /blog/[slug] requires paths to be defined on the view.',
 				}),
 			);
 			expect(writeMock).not.toHaveBeenCalledWith(

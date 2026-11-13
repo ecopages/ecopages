@@ -15,11 +15,11 @@ const pageParams = z.object({ n: z.coerce.number().int().min(2) });
 export default eco.page<ArchiveProps, JsxRenderable>({
 	layout: SiteLayout,
 	cache: 'dynamic',
-	staticProps: async ({ pathname }) => {
+	props: async ({ pathname }) => {
 		const parsed = pageParams.safeParse(pathname.params);
 		const pageCount = await postsService.countPublishedPages();
 		if (!parsed.success || parsed.data.n > pageCount) throw HttpError.NotFound('Page not found');
-		return { props: { posts: await postsService.listPublished(parsed.data.n), page: parsed.data.n, pageCount } };
+		return { posts: await postsService.listPublished(parsed.data.n), page: parsed.data.n, pageCount };
 	},
 	metadata: ({ props }) => ({
 		title: `Older posts, page ${props.page} | EcoBlog`,

@@ -175,7 +175,7 @@ This structure helps Ecopages efficiently process and build your site. While Eco
 
 ## Runtime Origin and API Requests
 
-When fetching data in `staticPaths` or `staticProps`, Ecopages provides different approaches. **For most cases, calling your data functions directly is recommended** for better performance and reliability.
+When fetching data in `paths` or `props`, Ecopages provides different approaches. **For most cases, calling your data functions directly is recommended** for better performance and reliability.
 
 ### Direct Function Calls (Recommended)
 
@@ -186,17 +186,15 @@ import { eco } from '@ecopages/core';
 import { getAllBlogPosts, getBlogPost } from '@/data/blog';
 
 export default eco.page({
-	staticPaths: async () => {
+	paths: async () => {
 		const posts = getAllBlogPosts();
 
-		return {
-			paths: posts.map((post) => ({
-				params: { slug: post.slug },
-			})),
-		};
+		return posts.map((post) => ({
+			params: { slug: post.slug },
+		}));
 	},
 
-	staticProps: async ({ pathname }) => {
+	props: async ({ pathname }) => {
 		const slug = pathname.params.slug;
 		const post = getBlogPost(slug);
 
@@ -204,7 +202,7 @@ export default eco.page({
 			throw new Error(`Post not found: ${slug}`);
 		}
 
-		return { props: { post } };
+		return { post };
 	},
 
 	render: ({ post }) => <article>{post.title}</article>,

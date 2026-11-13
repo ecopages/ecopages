@@ -9,18 +9,14 @@ type CatalogPageProps = {
 
 export default eco.page<CatalogPageProps>({
 	layout: BaseLayout,
-	staticPaths: async () => {
-		return {
-			paths: showcasePatterns.map((pattern) => ({ params: { slug: pattern.slug } })),
-		};
+	paths: async () => {
+		return showcasePatterns.map((pattern) => ({ params: { slug: pattern.slug } }));
 	},
-	staticProps: async ({ pathname }) => {
+	props: async ({ pathname }) => {
 		const slug = pathname.params.slug as string;
 		const pattern = showcasePatterns.find((entry) => entry.slug === slug) ?? null;
 		return {
-			props: {
-				pattern,
-			},
+			pattern,
 		};
 	},
 	metadata: ({ props }) => {

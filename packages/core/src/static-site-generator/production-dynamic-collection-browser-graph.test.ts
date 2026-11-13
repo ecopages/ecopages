@@ -31,7 +31,7 @@ function snapshotFiles(dir: string): Record<string, number> {
 }
 
 declare global {
-	var __ecoDynamicCollectionStaticPropsRuns: number | undefined;
+	var __ecoDynamicCollectionPropsRuns: number | undefined;
 }
 
 function installThrowingBuildAdapter(appConfig: EcoPagesAppConfig): void {
@@ -55,7 +55,7 @@ describe('ecopages start from a complete production build', () => {
 		for (const appDir of copiedApps.splice(0)) rmSync(appDir, { recursive: true, force: true });
 		vi.unstubAllEnvs();
 		vi.restoreAllMocks();
-		globalThis.__ecoDynamicCollectionStaticPropsRuns = undefined;
+		globalThis.__ecoDynamicCollectionPropsRuns = undefined;
 	});
 
 	async function buildDynamicCollectionApp(): Promise<string> {
@@ -123,12 +123,10 @@ describe('ecopages start from a complete production build', () => {
 				'',
 				'export default eco.page<PostProps>({',
 				"	cache: 'dynamic',",
-				'	staticPaths: async () => ({',
-				"		paths: [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }],",
-				'	}),',
-				'	staticProps: async ({ pathname }) => {',
-				'		globalThis.__ecoDynamicCollectionStaticPropsRuns = (globalThis.__ecoDynamicCollectionStaticPropsRuns ?? 0) + 1;',
-				'		return { props: { slug: String(pathname.params.slug) } };',
+				"	paths: async () => [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }],",
+				'	props: async ({ pathname }) => {',
+				'		globalThis.__ecoDynamicCollectionPropsRuns = (globalThis.__ecoDynamicCollectionPropsRuns ?? 0) + 1;',
+				'		return { slug: String(pathname.params.slug) };',
 				'	},',
 				'	dependencies: async ({ props }) => ({',
 				'		components: [BaseLayout, props.slug === "chart" || props.slug === "unlisted" ? Chart : Plain],',
@@ -189,11 +187,11 @@ describe('ecopages start from a complete production build', () => {
 		expect(ledger.entries.some(builtFromChartScript)).toBe(true);
 		ledger.entries = ledger.entries.filter((entry) => !builtFromChartScript(entry));
 		writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, '\t')}\n`);
-		globalThis.__ecoDynamicCollectionStaticPropsRuns = 0;
+		globalThis.__ecoDynamicCollectionPropsRuns = 0;
 
 		const { app, startConfig } = await startApp(appDir, { fromCompleteDist: true });
 		try {
-			expect(globalThis.__ecoDynamicCollectionStaticPropsRuns).toBe(0);
+			expect(globalThis.__ecoDynamicCollectionPropsRuns).toBe(0);
 			expect(requireAppRuntime(startConfig).processedAssets.isSealed).toBe(true);
 			const errorSpy = vi.spyOn(appLogger, 'error');
 			installThrowingBuildAdapter(startConfig);

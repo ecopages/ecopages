@@ -1,5 +1,5 @@
 import { eco } from '@ecopages/core';
-import type { GetMetadata, GetStaticProps } from '@ecopages/core';
+import type { GetMetadata, GetProps } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { getComponent, getEntryDependencies } from 'ecopages:content/dev/server';
@@ -19,7 +19,7 @@ const getMetadata: GetMetadata<DevPageProps> = ({ props: { entry } }) => ({
 	robots: DEV_ROBOTS,
 });
 
-const staticProps: GetStaticProps<DevPageProps> = async ({ pathname }) => {
+const getProps: GetProps<DevPageProps> = async ({ pathname }) => {
 	const slug = pathname.params.slug;
 	const entry = devEntries.find((candidate) => candidate.slug === slug && candidate.slug !== DEV_INDEX_SLUG);
 
@@ -27,7 +27,7 @@ const staticProps: GetStaticProps<DevPageProps> = async ({ pathname }) => {
 		throw HttpError.NotFound(`Unknown developer page: ${String(slug)}`);
 	}
 
-	return { props: { entry } };
+	return { entry };
 };
 
 export default eco.page<DevPageProps, JsxRenderable>({
@@ -35,12 +35,9 @@ export default eco.page<DevPageProps, JsxRenderable>({
 		component: DevLayout,
 		props: ({ params }) => ({ currentHref: devEntryHref(String(params?.slug)) }),
 	},
-	staticPaths: async () => ({
-		paths: devEntries
-			.filter((entry) => entry.slug !== DEV_INDEX_SLUG)
-			.map((entry) => ({ params: { slug: entry.slug } })),
-	}),
-	staticProps,
+	paths: async () =>
+		devEntries.filter((entry) => entry.slug !== DEV_INDEX_SLUG).map((entry) => ({ params: { slug: entry.slug } })),
+	props: getProps,
 	metadata: getMetadata,
 	dependencies: ({ props }) => getEntryDependencies(props.entry.slug),
 	render: async ({ entry }) => {

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { EcoPageComponent } from '../types/eco-api-types.ts';
-import type { EcoComponent, GetMetadata, GetStaticProps, HtmlTemplateProps } from '../types/contracts.ts';
+import type { EcoComponent, GetMetadata, GetProps, HtmlTemplateProps } from '../types/contracts.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 import { createAppRuntime } from '../config/assembly/app-runtime.ts';
@@ -64,7 +64,7 @@ describe('StaticSiteGenerator production export', () => {
 		vi.restoreAllMocks();
 	});
 
-	test('runs staticProps once per expanded path, includes each path in the sitemap, and prebuilds no browser graph for an endpoint route', async () => {
+	test('runs props once per expanded path, includes each path in the sitemap, and prebuilds no browser graph for an endpoint route', async () => {
 		writes.length = 0;
 		fileSystem.ensureDir = () => {};
 		fileSystem.write = (filePath, contents) => writes.push({ filePath, contents });
@@ -72,10 +72,10 @@ describe('StaticSiteGenerator production export', () => {
 		const appConfig = createMockConfig();
 		const routeFile = '/src/pages/blog/[slug].tsx';
 		type PageProps = { slug: string | string[] | undefined };
-		const staticPropsMock = vi.fn(async ({ pathname }: Parameters<GetStaticProps<PageProps>>[0]) => ({
-			props: { slug: pathname.params.slug },
+		const propsMock = vi.fn(async ({ pathname }: Parameters<GetProps<PageProps>>[0]) => ({
+			slug: pathname.params.slug,
 		}));
-		const staticProps: GetStaticProps<PageProps> = staticPropsMock;
+		const props: GetProps<PageProps> = propsMock;
 		const metadataMock = vi.fn(async ({ params }: Parameters<GetMetadata>[0]) => {
 			if (!params.slug) throw new Error('metadata requires a route slug');
 			return { title: String(params.slug), description: 'Route metadata' };
@@ -83,7 +83,7 @@ describe('StaticSiteGenerator production export', () => {
 		const metadata: GetMetadata = metadataMock;
 		const Page = (({ slug }: PageProps) => `<p>${slug}</p>`) as EcoPageComponent<PageProps>;
 		Page.cache = 'static';
-		Page.staticProps = staticProps;
+		Page.props = props;
 		Page.metadata = metadata;
 		Page.config = {
 			integration: 'test-renderer',
@@ -154,12 +154,9 @@ describe('StaticSiteGenerator production export', () => {
 			{ routeFile, params: { slug: 'second' } },
 		]);
 		expect(planProductionRoutes.mock.calls[0]?.[1]?.onRouteFailure).toEqual(expect.any(Function));
-		expect(staticPropsMock).toHaveBeenCalledTimes(2);
+		expect(propsMock).toHaveBeenCalledTimes(2);
 		expect(metadataMock).toHaveBeenCalledTimes(2);
-		expect(staticPropsMock.mock.calls.map(([context]) => context.pathname.params.slug)).toEqual([
-			'first',
-			'second',
-		]);
+		expect(propsMock.mock.calls.map(([context]) => context.pathname.params.slug)).toEqual(['first', 'second']);
 		expect(writes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ filePath: '/test/project/dist/client/blog/first.html' }),
@@ -178,9 +175,9 @@ describe('StaticSiteGenerator production export', () => {
 		const routeFile = '/src/pages/blog/[slug].tsx';
 		type PageProps = { slug: string | string[] | undefined };
 		const Page = (({ slug }: PageProps) => `<p>${slug}</p>`) as EcoPageComponent<PageProps>;
-		Page.staticProps = async ({ pathname }) => {
+		Page.props = async ({ pathname }) => {
 			if (pathname.params.slug === 'broken') throw new Error('broken static props');
-			return { props: { slug: pathname.params.slug } };
+			return { slug: pathname.params.slug };
 		};
 		Page.config = {
 			integration: 'test-renderer',
@@ -290,14 +287,14 @@ describe('StaticSiteGenerator production export', () => {
 		}
 	});
 
-	test('plans a dynamic Page once per staticPaths entry without a parameter-free template plan', async () => {
+	test('plans a dynamic Page once per paths entry without a parameter-free template plan', async () => {
 		fileSystem.ensureDir = () => {};
 		fileSystem.write = () => {};
 		const routeFile = '/src/pages/products/[slug].tsx';
 		const Page = (() => '<p>product</p>') as EcoPageComponent<Record<string, unknown>>;
 		Page.cache = 'dynamic';
-		Page.staticPaths = async () => ({ paths: [{ params: { slug: 'one' } }] });
-		Page.staticProps = async ({ pathname }) => ({ props: { slug: pathname.params.slug } });
+		Page.paths = async () => [{ params: { slug: 'one' } }];
+		Page.props = async ({ pathname }) => ({ slug: pathname.params.slug });
 		const resolveDependencies = vi.fn(async ({ props }: { props: Record<string, unknown> }) => {
 			if (!props.slug) throw new Error('a product needs its slug');
 			return { components: [] };
@@ -354,9 +351,9 @@ describe('StaticSiteGenerator production export', () => {
 		const routeFile = '/src/pages/posts/[slug].tsx';
 		const Page = (() => '<p>post</p>') as EcoPageComponent<Record<string, unknown>>;
 		Page.cache = 'dynamic';
-		Page.staticProps = async ({ pathname }) => {
+		Page.props = async ({ pathname }) => {
 			if (pathname.params.slug === 'chart') throw new Error('chart data is unavailable');
-			return { props: {} };
+			return {};
 		};
 		Page.config = {
 			integration: 'test-renderer',
@@ -419,10 +416,8 @@ describe('StaticSiteGenerator production export', () => {
 		type PageProps = { slug: string | string[] | undefined };
 		const Page = (({ slug }: PageProps) => `<p>${slug}</p>`) as EcoPageComponent<PageProps>;
 		Page.cache = 'dynamic';
-		Page.staticPaths = async () => ({
-			paths: [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }],
-		});
-		Page.staticProps = async ({ pathname }) => ({ props: { slug: pathname.params.slug } });
+		Page.paths = async () => [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }];
+		Page.props = async ({ pathname }) => ({ slug: pathname.params.slug });
 		Page.config = {
 			integration: 'test-renderer',
 			identity: { id: 'dynamic-collection-page', file: routeFile, integration: 'test-renderer' },
@@ -507,13 +502,13 @@ describe('StaticSiteGenerator production export', () => {
 		const appConfig = createMockConfig();
 		const routeFile = '/src/views/archive/[slug].tsx';
 		type ViewProps = { slug: string | string[] | undefined };
-		const staticPaths = vi.fn(async () => ({ paths: [{ params: { slug: 'spring' } }] }));
-		const staticProps = vi.fn(async ({ pathname }: Parameters<GetStaticProps<ViewProps>>[0]) => ({
-			props: { slug: pathname.params.slug },
+		const paths = vi.fn(async () => [{ params: { slug: 'spring' } }]);
+		const props = vi.fn(async ({ pathname }: Parameters<GetProps<ViewProps>>[0]) => ({
+			slug: pathname.params.slug,
 		}));
 		const view = (({ slug }: ViewProps) => `<p>${slug}</p>`) as EcoPageComponent<ViewProps>;
-		view.staticPaths = staticPaths;
-		view.staticProps = staticProps;
+		view.paths = paths;
+		view.props = props;
 		view.config = {
 			integration: 'test-renderer',
 			identity: { id: 'explicit-view', file: routeFile, integration: 'test-renderer' },
@@ -553,8 +548,8 @@ describe('StaticSiteGenerator production export', () => {
 		}
 
 		expect(loader).toHaveBeenCalledTimes(1);
-		expect(staticPaths).toHaveBeenCalledTimes(1);
-		expect(staticProps).toHaveBeenCalledTimes(2);
+		expect(paths).toHaveBeenCalledTimes(1);
+		expect(props).toHaveBeenCalledTimes(2);
 		expect(planProductionRoutes).toHaveBeenCalledTimes(1);
 		expect(planProductionRoutes.mock.calls[0]?.[0]).toEqual([{ routeFile, params: { slug: 'spring' } }]);
 		expect(writes).toEqual(

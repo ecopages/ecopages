@@ -8,12 +8,12 @@ order: 6
 
 Ecopages provides built-in functions for fetching data at build time (for static generation) and at runtime (via API handlers).
 
-## Build-Time Data Fetching
+## Page Data Hooks
 
-When generating static pages, use the `eco.page` factory to provide data to your components.
+An `eco.page` declares its data with two hooks. **`paths` lists the Params known at build; `props` receives Params, from `paths` at build and from the request at run time.** Both return their value directly, without an envelope.
 
-### `staticProps`
-Injects custom props into your page component at build time.
+### `props`
+Returns the props object of your page component. `render`, `metadata` and `dependencies` all see it.
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -22,15 +22,13 @@ import type { JsxRenderable } from '@ecopages/jsx';
 export type PageProps = { title: string; content: string };
 
 export default eco.page<PageProps, JsxRenderable>({
-    staticProps: async () => {
+    props: async () => {
         // Fetch data from a database, file, or external API
         const data = await fetch('https://api.example.com/page-data').then(res => res.json());
 
         return {
-            props: {
-                title: data.title,
-                content: data.content,
-            },
+            title: data.title,
+            content: data.content,
         };
     },
     render: ({ title, content }) => (
@@ -42,26 +40,46 @@ export default eco.page<PageProps, JsxRenderable>({
 });
 ```
 
-### `staticPaths`
-Required for dynamic routes (`[param]`). It tells Ecopages which paths should be pre-rendered.
+A dynamic route reads the Params from `pathname.params`:
+
+```tsx
+props: async ({ pathname }) => ({ post: await getPost(String(pathname.params.slug)) }),
+```
+
+### `paths`
+Required for a dynamic route (`[param]`) whose Cache Strategy is `'static'` or `{ revalidate }`. It returns `[{ params }]`, one entry per page to render at build. `props` is optional there: a page that only needs `params` can leave it out.
 
 ```typescript
 import { eco } from '@ecopages/core';
 
 export default eco.page({
-    staticPaths: async () => {
+    paths: async () => {
         const posts = await getAllPosts();
-        return {
-            paths: posts.map((post) => ({ params: { slug: post.slug } })),
-        };
+        return posts.map((post) => ({ params: { slug: post.slug } }));
     },
     // ... rest of page config
 });
 ```
 
----
+### What each Cache Strategy does
 
-Production builds also emit the Page Browser Graphs used by browser scripts and component dependencies. If those dependencies vary by route params, return every required route instance from `staticPaths`. `ecopages start` reuses the graphs in the build; a request that needs an unlisted graph fails instead of building it at request time. Development is unchanged.
+The Cache Strategy decides when the hooks run and what the build does with each entry of `paths`.
+
+| Cache Strategy | `paths` | `props` |
+| --- | --- | --- |
+| `'static'` (default) | Each entry is rendered and written as HTML at build. A dynamic route without `paths` fails the build. | Runs once per entry at build. |
+| `{ revalidate, tags }` | Same as `'static'`: each entry is rendered at build. | Runs at build for each entry, then again with the request's Params when the cached page is revalidated. |
+| `'dynamic'` | Optional. No HTML is written at build; each entry plans one Page Browser Graph, so scripts that depend on props are in the build. Without `paths` the page gets one plan with no Params. | Runs at build only to plan each entry, then on every request with the request's Params. |
+
+Production builds emit the Page Browser Graphs used by browser scripts and component dependencies. If those dependencies vary by route params, return every required route instance from `paths`. `ecopages start` reuses the graphs in the build; a request that needs an unlisted graph fails instead of building it at request time. Development is unchanged.
+
+The hooks run on the server only. `props` and `paths` are removed from the browser bundle of the page.
+
+### Migrating from `staticProps` and `staticPaths`
+
+`staticProps` is now `props` and `staticPaths` is now `paths`. The old names fail with an error that names the codemod. `props` no longer wraps its result in `{ props }`, and `paths` returns the array without `{ paths }`. The `migrate-data-hooks` codemod in `@ecopages/codemod` applies both changes; see its README.
+
+---
 
 ## Runtime Data Fetching
 
@@ -85,6 +103,6 @@ Standard browser `fetch` works as expected inside your `*.script.ts` files or hy
 
 ## Best Practices
 
-1. **Direct Calls**: Inside `staticProps`, prefer direct function calls (e.g., `db.query()`) rather than calling your own API routes via HTTP to improve build performance.
-2. **Type Safety**: The `eco.page` factory provides automatic type inference for your component props based on the return type of `staticProps`.
+1. **Direct Calls**: Inside `props` and `paths`, prefer direct function calls (e.g., `db.query()`) rather than calling your own API routes via HTTP to improve build performance.
+2. **Type Safety**: The `eco.page` factory provides automatic type inference for your component props based on the return type of `props`.
 3. **Environment Variables**: Read API keys and configuration secrets from `process.env` on the server.

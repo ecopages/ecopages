@@ -36,7 +36,7 @@ An `.html` file is not a JavaScript module, so it never enters a Rolldown graph.
 
 - **Development.** `PageModuleImportService.loadModule()` asks the owning Integration (`findIntegrationForFile()`) for `compilePageModule()`. `HtmlPagesPlugin` compiles files under the pages directory and the `html.html` template and throws for any other `.html` file.
 - **Build.** `ecopages build` compiles each HTML Page, writes it through `serializeCompiledPageModule()` as a `-html.json` record and maps it in `server-modules.json` ([Build pipeline](/dev/build-pipeline)). `ecopages start` restores it with `reviveCompiledPageModule()` and never compiles. The Html shell is recorded the same way, so production uses the built-in shell only when the map has no entry for one.
-- **Routes.** Route discovery rejects a `[param]` filename whose owner sets `acceptsParams` to `false`, since an HTML Page has no `staticPaths`.
+- **Routes.** Route discovery rejects a `[param]` filename whose owner sets `acceptsParams` to `false`, since an HTML Page has no `paths`.
 
 A compiled component carries its template on an interned symbol (`getCompiledHtmlTemplate()`). Calling the component directly throws, because rendering needs the owning renderer's asset pipeline. A Page component also exposes `metadata`, built from its head tags, so static export and the Sitemap read it like an `eco.page()` Page.
 

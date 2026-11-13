@@ -71,17 +71,17 @@ The build recognizes a Page by its literal `eco.page(...)` call, so call it dire
 
 ## Typing a page from its render
 
-Write no type arguments on `eco.page()`. The props come from `staticProps` when the page has it, and from the annotated `render` parameter when it does not. `metadata`, `render` and `dependencies` all see the same type, and an annotated `render` that disagrees with `staticProps` is an error.
+Write no type arguments on `eco.page()`. The props come from `props` when the page has it, and from the annotated `render` parameter when it does not. `metadata`, `render` and `dependencies` all see the same type, and an annotated `render` that disagrees with `props` is an error.
 
 ```tsx
 export default eco.page({
-	staticProps: async () => ({ props: { title: 'Home' } }),
+	props: async () => ({ title: 'Home' }),
 	metadata: ({ props }) => ({ title: props.title, description: 'Welcome' }),
 	render: ({ title }) => <h1>{title}</h1>,
 });
 ```
 
-The element type is inferred from what `render` returns, and `layout` must use the same element type. `params` and `query` are always typed, `requires: 'session'` narrows `locals` while the props still come from `staticProps`, and `cache` and `middleware` do not change inference.
+The element type is inferred from what `render` returns, and `layout` must use the same element type. `params` and `query` are always typed, `requires: 'session'` narrows `locals` while the props still come from `props`, and `cache` and `middleware` do not change inference.
 
 The catch is the same as for components: `eco.page<Props>` with one type argument loses the element type, so a JSX or Lit render fails to compile until you write `eco.page<Props, JsxRenderable>`. KitaJS is the exception, since its elements are strings. The table of Integrations is in [Typing a component from its render](/docs/core/components#typing-a-component-from-its-render).
 
@@ -280,4 +280,4 @@ After each client navigation, a head script runs only if the previous page's hea
 
 Core serves `src/pages/404.html` for unmatched routes and `src/pages/500.html` when a page fails to render, both inside the shell. Core passes error pages the status and message, but an HTML Page cannot read props, so these pages show fixed content.
 
-A dynamic filename such as `[slug].html` is an error, because an HTML Page has no `staticPaths` to expand it. Two Page files that produce the same route, such as `about.html` next to `about.tsx` or `about/index.html`, are also an error.
+A dynamic filename such as `[slug].html` is an error, because an HTML Page has no `paths` to expand it. Two Page files that produce the same route, such as `about.html` next to `about.tsx` or `about/index.html`, are also an error.

@@ -49,9 +49,9 @@ describe('transformModuleImports', () => {
 			"import { getPost } from './posts.server';",
 			"import { format } from './format';",
 			'const load = () => getPost();',
-			'async function staticProps() { return { props: { post: format(await load()) } }; }',
+			'async function getProps() { return { post: format(await load()) }; }',
 			'const unused = 1;',
-			'export default eco.page({ staticProps, render: () => null });',
+			'export default eco.page({ props: getProps, render: () => null });',
 		].join('\n');
 
 		const { transformed } = transform(source, '/app/src/pages/post.tsx');
@@ -59,7 +59,7 @@ describe('transformModuleImports', () => {
 		expect(transformed).not.toContain('getPost');
 		expect(transformed).not.toContain('./format');
 		expect(transformed).not.toContain('load');
-		expect(transformed).not.toContain('staticProps');
+		expect(transformed).not.toContain('getProps');
 		expect(transformed).toContain('const unused = 1;');
 		expect(transformed).toContain('eco.page({ render: () => null })');
 	});
@@ -314,7 +314,7 @@ describe('transformModuleImports', () => {
 			'export default eco.page({',
 			"\tcache: 'dynamic',",
 			'\tmiddleware: [],',
-			'\t"staticProps": async () => ({}),',
+			'\t"props": async () => ({}),',
 			'\trender: () => null,',
 			'});',
 		].join('\n');
@@ -324,7 +324,7 @@ describe('transformModuleImports', () => {
 		expect(modified).toBe(true);
 		expect(transformed).not.toContain('cache:');
 		expect(transformed).not.toContain('middleware:');
-		expect(transformed).not.toContain('staticProps');
+		expect(transformed).not.toContain('props');
 		expect(transformed).toContain('render: () => null');
 	});
 

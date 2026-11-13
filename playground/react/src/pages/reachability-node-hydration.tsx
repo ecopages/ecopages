@@ -29,8 +29,8 @@ export default eco.page<{ data: string[] }, ReactNode>({
 	dependencies: {
 		stylesheets: ['./index.css'],
 	},
-	staticProps: async () => {
-		return { props: { data: loadServerData() } };
+	props: async () => {
+		return { data: loadServerData() };
 	},
 	render: (props: { data: string[] }) => {
 		return (

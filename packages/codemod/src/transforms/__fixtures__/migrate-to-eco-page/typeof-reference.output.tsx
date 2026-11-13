@@ -1,10 +1,12 @@
 import { eco } from '@ecopages/core';
-const getStaticProps = async () => ({ props: { title: 'Home' } });
+const getStaticProps = async () => ({
+	title: 'Home',
+});
 
 export type Data = Awaited<ReturnType<typeof getStaticProps>>;
 
 export default eco.page({
-	staticProps: getStaticProps,
+	props: getStaticProps,
 	metadata: ({ props }) => ({ title: props.title }),
 	render: ({ title }) => <h1>{title}</h1>,
 });

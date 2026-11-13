@@ -14,7 +14,7 @@ type ExplicitStaticRenderPreparationResult = {
  * Resolves the renderer for one explicit view without reading its static props.
  *
  * @remarks
- * Static export planning calls this so a dynamic route whose `staticProps`
+ * Static export planning calls this so a dynamic route whose `props`
  * reads params is not invoked before a slug exists.
  */
 export function resolveExplicitViewRenderer(input: {
@@ -67,14 +67,12 @@ export async function prepareExplicitStaticRender(input: {
 	}
 	const { renderer, view } = resolveExplicitViewRenderer(input);
 
-	const props = input.view.staticProps
-		? (
-				await input.view.staticProps({
-					pathname: { params: input.params },
-					appConfig: input.appConfig,
-					runtimeOrigin: input.runtimeOrigin,
-				})
-			).props
+	const props = input.view.props
+		? await input.view.props({
+				pathname: { params: input.params },
+				appConfig: input.appConfig,
+				runtimeOrigin: input.runtimeOrigin,
+			})
 		: {};
 
 	return {

@@ -33,7 +33,7 @@ Semantic discovery: `src/includes/html.*` and the error pages `src/pages/<status
 ## The eco namespace
 
 - `eco.component()` — reusable components; **required** when declaring dependencies (scripts, stylesheets, child components)
-- `eco.page()` — page routes with metadata, layouts, `staticPaths`, `staticProps`
+- `eco.page()` — page routes with metadata, layouts, `paths`, `props`
 - `eco.layout()` / `eco.html()` — semantic aliases for layouts and document shell
 
 Ecopages does not auto-detect script files by name pattern.
@@ -127,11 +127,11 @@ Included URLs: successfully exported static pages whose metadata resolves and `r
 
 ## Common patterns
 
-**Dynamic routes:** `src/pages/blog/[slug].tsx` exports `staticPaths` returning `{ paths: [{ params: { slug } }] }` and `staticProps` reading `pathname.params` and returning `{ props }`. A catch-all `[...path]` captures an array.
+**Dynamic routes:** `src/pages/blog/[slug].tsx` sets `paths` returning `[{ params: { slug } }]` and `props` reading `pathname.params` and returning the props object. A catch-all `[...path]` captures an array.
 
 **Cache Strategy:** `cache: 'static'` (the default; rendered at build), `cache: 'dynamic'` (rendered per request; Params, Query and Locals arrive as render props, and Page `middleware` / `requires` need it), or `cache: { revalidate: seconds, tags }`.
 
-**Data fetching:** Prefer direct function calls in `staticPaths` / `staticProps` over HTTP to your own API during static generation.
+**Data fetching:** Prefer direct function calls in `paths` / `props` over HTTP to your own API during static generation.
 
 **Type checking:** `ecopages:images` and `ecopages:content/*` get their types only when the processors set up, so a fresh checkout has none. Run `ecopages types && tsc --noEmit` (the templates' `typecheck` script) instead of bare `tsc`.
 

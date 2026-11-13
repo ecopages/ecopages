@@ -58,7 +58,7 @@ export function getPlannedRouteKey(instance: PlannedRouteInstance): string {
 	return JSON.stringify([
 		routeFile,
 		dependencyInstanceKey,
-		instance.skipStaticProps ?? false,
+		instance.skipPropsHook ?? false,
 		instance.isRouteTemplate ?? false,
 	]);
 }
@@ -124,7 +124,7 @@ export async function prebuildProductionPageBrowserGraphs(
 	}
 	writeProductionAssetLedger(appConfig, await getPrebuiltHtmlPageModuleScriptUrls(appConfig));
 	for (const { instance, preparation } of routePlans.flatMap((routePlan) => routePlan.preparations)) {
-		if (!instance.skipStaticProps) preparations.set(getPlannedRouteKey(instance), preparation);
+		if (!instance.skipPropsHook) preparations.set(getPlannedRouteKey(instance), preparation);
 	}
 	return preparations;
 }

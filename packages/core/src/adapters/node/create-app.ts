@@ -302,7 +302,7 @@ export class EcopagesApp implements AsyncDisposable {
 
 	/**
 	 * Register a view for static generation at build time.
-	 * The view must have staticPaths defined for dynamic routes.
+	 * The view must have paths defined for dynamic routes.
 	 *
 	 * @param path - URL path pattern (e.g., '/posts/:slug')
 	 * @param view - An imported view, an `eco.page` component, or a view loader

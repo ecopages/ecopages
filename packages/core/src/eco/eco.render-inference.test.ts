@@ -11,7 +11,7 @@ declare module '../types/contracts.ts' {
 
 type Props = { title: string };
 
-describe('page props inference from staticProps and render', () => {
+describe('page props inference from props and render', () => {
 	it('infers props from an annotated render alone', () => {
 		const Page = eco.page({ render: ({ title }: Props) => `<h1>${title}</h1>` });
 		expectTypeOf(Page).parameter(0).toMatchObjectType<Props>();
@@ -29,31 +29,40 @@ describe('page props inference from staticProps and render', () => {
 		});
 	});
 
-	it('types metadata from staticProps when render is unannotated', () => {
+	it('types metadata from props when render is unannotated', () => {
 		eco.page({
-			staticProps: async () => ({ props: { title: 'x', count: 2 } }),
+			props: async () => ({
+				title: 'x',
+				count: 2,
+			}),
 			metadata: ({ props }) => ({ title: `${props.title}${props.count.toFixed()}`, description: 'd' }),
 			render: ({ title, count }) => `<h1>${title}${count}</h1>`,
 		});
 		eco.page({
-			staticProps: async () => ({ props: { title: 'x' } }),
-			// @ts-expect-error count is not returned by staticProps
+			props: async () => ({
+				title: 'x',
+			}),
+			// @ts-expect-error count is not returned by props
 			render: ({ count }) => `<h1>${count}</h1>`,
 		});
 	});
 
-	it('keeps params and query typed beside staticProps', () => {
+	it('keeps params and query typed beside props', () => {
 		eco.page({
-			staticPaths: async () => ({ paths: [{ params: { slug: 'a' } }] }),
-			staticProps: async ({ pathname }) => ({ props: { slug: String(pathname.params.slug) } }),
+			paths: async () => [{ params: { slug: 'a' } }],
+			props: async ({ pathname }) => ({
+				slug: String(pathname.params.slug),
+			}),
 			render: ({ slug, params, query }) => `${slug}${params?.slug}${query?.page}`,
 		});
 	});
 
-	it('narrows locals through requires while props still come from staticProps', () => {
+	it('narrows locals through requires while props still come from props', () => {
 		eco.page({
 			requires: 'renderInferenceSession',
-			staticProps: async () => ({ props: { title: 'x' } }),
+			props: async () => ({
+				title: 'x',
+			}),
 			render: ({ title, locals }) => `${title}${locals.renderInferenceSession.userId}`,
 		});
 		eco.page({
@@ -69,7 +78,9 @@ describe('page props inference from staticProps and render', () => {
 		eco.page({
 			cache: 'dynamic',
 			middleware: [async (ctx: FileRouteMiddlewareContext, next) => (ctx.locals, next())],
-			staticProps: async () => ({ props: { title: 'x' } }),
+			props: async () => ({
+				title: 'x',
+			}),
 			render: ({ title }) => title,
 		});
 		// @ts-expect-error middleware requires a dynamic cache

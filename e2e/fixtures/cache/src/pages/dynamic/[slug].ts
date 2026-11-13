@@ -10,16 +10,12 @@ export default eco.page<BlogPostProps>({
 		revalidate: 10,
 		tags: ['blog', 'posts'],
 	},
-	staticPaths: async () => {
-		return {
-			paths: [{ params: { slug: 'blog-post' } }, { params: { slug: 'another-blog-post' } }],
-		};
+	paths: async () => {
+		return [{ params: { slug: 'blog-post' } }, { params: { slug: 'another-blog-post' } }];
 	},
-	staticProps: async ({ pathname }) => {
+	props: async ({ pathname }) => {
 		return {
-			props: {
-				slug: pathname.params.slug as string,
-			},
+			slug: pathname.params.slug as string,
 		};
 	},
 	metadata: async ({ params }) => {
@@ -32,9 +28,9 @@ export default eco.page<BlogPostProps>({
 		const timestamp = Date.now();
 		return `${BaseLayout({
 			children: `<div>
-				<h1>Blog Post ${slug} ${JSON.stringify(query || [])}</h1>
-				<div id="timestamp">${timestamp}</div>
-			</div>`,
+								<h1>Blog Post ${slug} ${JSON.stringify(query || [])}</h1>
+								<div id="timestamp">${timestamp}</div>
+						</div>`,
 		})}`;
 	},
 });

@@ -122,8 +122,8 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 				const page = module.default as EcoPageComponent<unknown> | undefined;
 
 				return {
-					staticPaths: page?.staticPaths,
-					staticProps: page?.staticProps,
+					paths: page?.paths,
+					props: page?.props,
 				};
 			},
 		},

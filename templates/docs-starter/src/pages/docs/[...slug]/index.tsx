@@ -1,5 +1,5 @@
 import { eco } from '@ecopages/core';
-import type { GetMetadata, GetStaticProps } from '@ecopages/core';
+import type { GetMetadata, GetProps } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { entries } from 'ecopages:content/docs';
@@ -20,7 +20,7 @@ const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { section, slug, t
 	url: `/docs/${section}/${slug}`,
 });
 
-const staticProps: GetStaticProps<DocsCatchAllProps> = async ({ pathname }) => {
+const getProps: GetProps<DocsCatchAllProps> = async ({ pathname }) => {
 	const segments = parseDocsCatchAllSegments(pathname.params.slug);
 	const slug = segments.join('/');
 	const entry = entries.find((candidate) => candidate.slug === slug);
@@ -30,12 +30,10 @@ const staticProps: GetStaticProps<DocsCatchAllProps> = async ({ pathname }) => {
 	}
 
 	return {
-		props: {
-			section: entry.segments[0]!,
-			slug: entry.segments[entry.segments.length - 1]!,
-			title: entry.title,
-			description: entry.description,
-		},
+		section: entry.segments[0]!,
+		slug: entry.segments[entry.segments.length - 1]!,
+		title: entry.title,
+		description: entry.description,
 	};
 };
 
@@ -44,14 +42,13 @@ export default eco.page<DocsCatchAllProps, JsxRenderable>({
 		component: DocsLayout,
 		props: ({ params }) => resolveFromCatchAll(params?.slug),
 	},
-	staticPaths: async () => ({
-		paths: entries.map((entry) => ({
+	paths: async () =>
+		entries.map((entry) => ({
 			params: {
 				slug: entry.segments,
 			},
 		})),
-	}),
-	staticProps,
+	props: getProps,
 	metadata: getMetadata,
 	dependencies: async ({ props }) => getEntryDependencies(`${props.section}/${props.slug}`),
 	render: async ({ section, slug }) => {

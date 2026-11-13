@@ -100,11 +100,11 @@ The canonical route pattern declared by a Page or Endpoint file, before any dyna
 _Avoid_: Route path, abstract route
 
 **Static Path Expansion**:
-One concrete URL path derived from a dynamic Template Route via `staticPaths`. For example, `/blog/hello-world` is a Static Path Expansion of `/blog/[slug]`.
+One concrete URL path derived from a dynamic Template Route via the Page's `paths` hook. For example, `/blog/hello-world` is a Static Path Expansion of `/blog/[slug]`.
 _Avoid_: Concrete route, generated route
 
 **Params**:
-Dynamic segments captured from a route's URL path; a catch-all captures an array. For example, in `/blog/[slug]`, the `slug` param captures the actual value (e.g., `{ slug: 'my-post' }`), and `/docs/[...path]` captures `{ path: ['a', 'b'] }` for `/docs/a/b`.
+Dynamic segments captured from a route's URL path; a catch-all captures an array. For example, in `/blog/[slug]`, the `slug` param captures the actual value (e.g., `{ slug: 'my-post' }`), and `/docs/[...path]` captures `{ path: ['a', 'b'] }` for `/docs/a/b`. A Page's `paths` hook lists the Params known at build; its `props` hook receives Params, from `paths` at build and from the request at run time.
 _Avoid_: Path params, route params, URL segments
 
 **Query**:

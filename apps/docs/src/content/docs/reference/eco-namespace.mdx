@@ -15,7 +15,7 @@ The `eco` namespace provides a consistent, type-safe interface for:
 1. **`eco.component()`** - Factory for defining reusable components with dependencies and optional lazy-loading
 2. **`eco.html()`** - Semantic alias for the document shell component (owns `<html>`, `<head>`, `<body>`)
 3. **`eco.layout()`** - Semantic alias for route layout components (page-level wrappers)
-4. **`eco.page()`** - Factory for defining page components with optional inline `staticPaths`, `staticProps`, and `metadata`
+4. **`eco.page()`** - Factory for defining page components with optional inline `paths`, `props`, and `metadata`
 5. **`eco.embed()`** - Explicit render helper for foreign or same-integration components during mixed rendering
 
 
@@ -48,7 +48,7 @@ import { eco, mergePageDependencies } from '@ecopages/core';
 import { getEntryDependencies } from 'ecopages:content/posts/server';
 
 export default eco.page({
-	staticProps: async ({ pathname }) => ({ props: { slug: String(pathname.params.slug) } }),
+	props: async ({ pathname }) => ({ slug: String(pathname.params.slug) }),
 	dependencies: async ({ props }) =>
 		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.slug)),
 	render: () => <article />,
@@ -228,9 +228,9 @@ import type { JsxRenderable } from '@ecopages/jsx';
 
 export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
-	staticPaths: async () => ({ paths: getAllSlugs() }),
-	staticProps: async ({ pathname }) => ({
-		props: { post: await getPost(pathname.params.slug) },
+	paths: async () => getAllSlugs(),
+	props: async ({ pathname }) => ({
+		post: await getPost(pathname.params.slug),
 	}),
 	metadata: ({ props: { post } }) => ({
 		title: post.title,
@@ -240,7 +240,9 @@ export default eco.page<BlogPostProps, JsxRenderable>({
 });
 ```
 
-A Page declares its data only through the `staticPaths`, `staticProps` and `metadata` options. A page module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata`, or wraps them in `eco.staticPaths()`, `eco.staticProps()` or `eco.metadata()`, fails in `ecopages dev` and `ecopages build` with an error naming the file. The `migrate-to-eco-page` codemod in `@ecopages/codemod` rewrites those pages.
+A Page declares its data only through the `paths`, `props` and `metadata` options. `paths` lists the Params known at build; `props` receives Params, from `paths` at build and from the request at run time. Both return their value directly: `paths` an array of `{ params }`, `props` the props object. See [Data Fetching](/docs/core/data-fetching) for what each Cache Strategy does with them.
+
+A page that still declares `staticPaths` or `staticProps` (or wraps them in an envelope), a module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata`, or a page that wraps them in `eco.staticPaths()`, `eco.staticProps()` or `eco.metadata()`, fails in `ecopages dev` and `ecopages build` with an error naming the file and the codemod. The `migrate-data-hooks` codemod in `@ecopages/codemod` renames the options and drops the envelopes; `migrate-to-eco-page` rewrites the older module-level exports and then runs it.
 
 ### Call the factories literally
 
@@ -471,17 +473,13 @@ export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
 
 	// Generate paths for dynamic routes
-	staticPaths: async () => ({
-		paths: posts.map((p) => ({ params: { slug: p.slug } })),
-	}),
+	paths: async () => posts.map((p) => ({ params: { slug: p.slug } })),
 
-	// Fetch data at build time
-	staticProps: async ({ pathname }) => ({
-		props: {
-			slug: pathname.params.slug as string,
-			title: post.title,
-			text: post.text,
-		},
+	// Fetch data for the Params: at build, and per request when the page is dynamic
+	props: async ({ pathname }) => ({
+		slug: pathname.params.slug as string,
+		title: post.title,
+		text: post.text,
 	}),
 
 	// Generate page metadata
@@ -555,23 +553,21 @@ type BlogPostProps = {
 export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
 
-	staticPaths: async () => {
-		return { paths: getAllBlogPostSlugs() };
+	paths: async () => {
+		return getAllBlogPostSlugs();
 	},
 
-	staticProps: async ({ pathname }) => {
+	props: async ({ pathname }) => {
 		const slug = pathname.params.slug as string;
 		const post = getBlogPost(slug);
 		if (!post) throw new Error(`Post not found: ${slug}`);
 		const author = getAuthor(post.authorId);
 		return {
-			props: {
-				slug,
-				title: post.title,
-				text: post.text,
-				authorId: post.authorId,
-				authorName: author?.name ?? 'Unknown',
-			},
+			slug,
+			title: post.title,
+			text: post.text,
+			authorId: post.authorId,
+			authorName: author?.name ?? 'Unknown',
 		};
 	},
 
@@ -662,7 +658,7 @@ Props flow through the system automatically:
 
 ```tsx
 export default eco.page({
-	staticProps: async () => ({ props: { title: 'Hello' } }),
+	props: async () => ({ title: 'Hello' }),
 	render: ({ title }) => <h1>{title}</h1>, // ✓ TypeScript knows `title` is a string
 });
 ```
@@ -674,8 +670,8 @@ All page configuration in one place:
 ```tsx
 export default eco.page<Props>({
   layout: BaseLayout,
-  staticPaths: async () => ...,
-  staticProps: async () => ...,
+  paths: async () => ...,
+  props: async () => ...,
   metadata: () => ...,
   render: () => ...,
 });
@@ -686,7 +682,7 @@ export default eco.page<Props>({
 The renderer reads the data hooks from the Page only:
 
 ```typescript
-const getStaticProps = Page.staticProps;
+const getProps = Page.props;
 const getMetadata = Page.metadata;
 ```
 

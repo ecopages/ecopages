@@ -34,14 +34,14 @@ sources:
 - The kind comes from the path inside the pages directory, so brackets in the project path do not make routes dynamic.
 - `utils/file-roles.ts` is the one definition of file roles: `<name>.<role>.<ext>` with `api`, `server` or `script` as the role and `.ts`, `.tsx`, `.js` or `.jsx` as the extension. `ENDPOINT_FILE_EXTENSIONS` (the `api` suffixes) is shared with config finalization, which rejects an Integration that registers any role suffix. An endpoint drops the whole marker, so `users.api.tsx` is the endpoint `/users` even when `.tsx` is a template extension.
 - The scan skips, before it matches a template extension, every `.server.*` and `.script.*` file and every file with a `_`-prefixed path segment under the pages directory (`isPrivatePath()`). They are never routes, so they can sit beside Pages. The client graph and the Rolldown browser build read the `.server` boundary from the same module (`isServerOnlyModuleSpecifier()`).
-- An endpoint has no Integration owner, Layout, Cache Strategy or `staticPaths`, and its dynamic segments need no `acceptsParams`. Static expansion, the sitemap and the browser-graph prebuild read `page` routes only.
+- An endpoint has no Integration owner, Layout, Cache Strategy or `paths`, and its dynamic segments need no `acceptsParams`. Static expansion, the sitemap and the browser-graph prebuild read `page` routes only.
 
 Discovery fails, naming the files, when:
 
 - two files produce the same route, whatever their parameter names: `segmentPathPatternKey()` drops names and syntax, so `blog/[slug].tsx` and `blog/[id].api.ts` collide;
 - a role segment sits anywhere but directly before a script extension (`card.server.kita.tsx`, `nav.script.lit.tsx`, `users.api.html`), because the file would be a server-only module or a Page of that Integration and the build will not pick one (`findMisplacedRole()`); a private file is exempt;
 - an endpoint's pathname ends in a known static file extension (`feed.xml.api.ts`), because the server never sends such a URL to a file route; the error points to `app.ts`;
-- a dynamic Page belongs to an Integration with `acceptsParams: false`, such as `[slug].html`, because HTML Pages have no `staticPaths` source.
+- a dynamic Page belongs to an Integration with `acceptsParams: false`, such as `[slug].html`, because HTML Pages have no `paths` source.
 
 ## Matching
 
@@ -66,10 +66,10 @@ API handlers and WebSocket routes are tried by a specificity score (`scoreSegmen
 
 ## Static expansion
 
-The registry runs no `staticPaths()` during discovery. The static generator asks for expansions later, and the registry loads Page modules through an injected adapter:
+The registry runs no `paths()` during discovery. The static generator asks for expansions later, and the registry loads Page modules through an injected adapter:
 
-- `listStaticPathExpansions()` expands dynamic `page` routes whose `cache` is not `'dynamic'`. In a build, such a route must export both `staticPaths` and `staticProps`.
-- `listDynamicPagePathExpansions()` returns the `staticPaths` Params of Dynamic Pages (`cache: 'dynamic'`). They are not Static Path Expansions, since the HTML still renders per request; the build plans one Page Browser Graph per Params list so its scripts are in the asset ledger. A Dynamic Page without `staticPaths` gets the parameter-free template plan.
+- `listStaticPathExpansions()` expands dynamic `page` routes whose `cache` is not `'dynamic'`. In a build, such a route must declare `paths`; `props` is optional, since the render always receives the route's `params`. `paths` lists the Params known at build and `props` receives them, from `paths` at build and from the request at run time.
+- `listDynamicPagePathExpansions()` returns the `paths` Params of Dynamic Pages (`cache: 'dynamic'`). They are not Static Path Expansions, since the HTML still renders per request; the build plans one Page Browser Graph per Params list so its scripts are in the asset ledger. A Dynamic Page without `paths` gets the parameter-free template plan.
 - `listStaticGenerationRoutes()` returns the exact `page` routes and the static path expansions, each with its request URL.
 
 ## Endpoint files at request time

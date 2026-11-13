@@ -6,6 +6,7 @@
 	"private": true,
 	"main": "src/transforms/index.ts",
 	"scripts": {
+		"transform:data-hooks": "jscodeshift -t src/transforms/migrate-data-hooks.ts --parser tsx",
 		"transform:pages": "jscodeshift -t src/transforms/migrate-to-eco-page.ts --parser tsx",
 		"transform:components": "jscodeshift -t src/transforms/migrate-to-eco-component.ts --parser tsx",
 		"transform:core-entrypoints": "jscodeshift -t src/transforms/migrate-core-entrypoints.ts --parser tsx",

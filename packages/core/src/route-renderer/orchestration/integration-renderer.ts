@@ -306,7 +306,7 @@ export type PlannedRouteInstance = {
 	routeFile: string;
 	params?: RouteRendererOptions['params'];
 	query?: RouteRendererOptions['query'];
-	skipStaticProps?: RouteRendererOptions['skipStaticProps'];
+	skipPropsHook?: RouteRendererOptions['skipPropsHook'];
 	isRouteTemplate?: boolean;
 };
 
@@ -446,7 +446,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			file: routeInstance.routeFile,
 			params: routeInstance.params,
 			query: routeInstance.query,
-			skipStaticProps: routeInstance.skipStaticProps,
+			skipPropsHook: routeInstance.skipPropsHook,
 		};
 		const resolvedInputs = await this.resolveRouteRenderInputs(routeOptions, {
 			skipMetadata: routeInstance.isRouteTemplate,
@@ -1212,7 +1212,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * `file` is the view's identity file, or a stable synthetic key when the view has
-	 * none. `props` are the view's final props: its `staticProps` hook is the caller's
+	 * none. `props` are the view's final props: its `props` hook is the caller's
 	 * to run, so it is not run here.
 	 */
 	async executeExplicitView<P>(
@@ -1231,7 +1231,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			query: ctx.query,
 			locals: ctx.locals,
 			props: (props ?? {}) as Record<string, unknown>,
-			skipStaticProps: true,
+			skipPropsHook: true,
 		});
 	}
 

@@ -11,17 +11,13 @@ export default eco.page<PageProps<BlogPostProps>>({
 		components: [BaseLayout],
 	},
 
-	staticPaths: async () => {
-		return {
-			paths: [{ params: { slug: 'blog-post' } }, { params: { slug: 'another-blog-post' } }],
-		};
+	paths: async () => {
+		return [{ params: { slug: 'blog-post' } }, { params: { slug: 'another-blog-post' } }];
 	},
 
-	staticProps: async ({ pathname }) => {
+	props: async ({ pathname }) => {
 		return {
-			props: {
-				slug: pathname.params.slug as string,
-			},
+			slug: pathname.params.slug as string,
 		};
 	},
 
@@ -35,7 +31,7 @@ export default eco.page<PageProps<BlogPostProps>>({
 	render: ({ query, slug }) =>
 		`${BaseLayout({
 			children: `<div>
-							<h1>Blog Post ${slug} ${JSON.stringify(query || [])}</h1>
-					</div>`,
+														<h1>Blog Post ${slug} ${JSON.stringify(query || [])}</h1>
+										</div>`,
 		})}`,
 });

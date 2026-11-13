@@ -131,8 +131,8 @@ export const STATIC_SITE_GENERATOR_ERRORS = {
 	missingIntegration: (routePath: string) =>
 		`View at ${routePath} is missing component identity integration. Ensure it's defined with eco.page().`,
 	noRendererForIntegration: (integrationName: string) => `No renderer found for integration: ${integrationName}`,
-	dynamicRouteRequiresStaticPaths: (routePath: string) =>
-		`Dynamic route ${routePath} requires staticPaths to be defined on the view.`,
+	dynamicRouteRequiresPaths: (routePath: string) =>
+		`Dynamic route ${routePath} requires paths to be defined on the view.`,
 } as const;
 
 async function runWithConcurrency<T>(
@@ -544,10 +544,10 @@ export class StaticSiteGenerator {
 					(route) =>
 						route.kind !== 'exact' && route.role === 'page' && !expandedRouteFiles.has(route.filePath),
 				)
-				.map((route) => ({ routeFile: route.filePath, skipStaticProps: true, isRouteTemplate: true }));
+				.map((route) => ({ routeFile: route.filePath, skipPropsHook: true, isRouteTemplate: true }));
 			const importedViews = getImportedViewPaths(this.appConfig).map((routeFile) => ({
 				routeFile,
-				skipStaticProps: true,
+				skipPropsHook: true,
 				isRouteTemplate: true,
 			}));
 			const exportedRouteKeys = new Set(
@@ -913,11 +913,11 @@ export class StaticSiteGenerator {
 			return [{ pathname: routePath, params: {} }];
 		}
 
-		if (!view.staticPaths) {
-			throw new Error(STATIC_SITE_GENERATOR_ERRORS.dynamicRouteRequiresStaticPaths(routePath));
+		if (!view.paths) {
+			throw new Error(STATIC_SITE_GENERATOR_ERRORS.dynamicRouteRequiresPaths(routePath));
 		}
 
-		const { paths } = await view.staticPaths({
+		const paths = await view.paths({
 			appConfig: this.appConfig,
 			runtimeOrigin: this.appConfig.baseUrl,
 		});

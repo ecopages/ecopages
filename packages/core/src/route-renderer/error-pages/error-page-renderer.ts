@@ -156,7 +156,7 @@ export class ErrorPageRenderer {
 		const view = (await loader()).default;
 		const {
 			renderer,
-			props: staticProps,
+			props: hookProps,
 			view: renderableView,
 		} = await prepareExplicitStaticRender({
 			routePath: `__error__/${status}`,
@@ -168,7 +168,7 @@ export class ErrorPageRenderer {
 			errors: ERROR_PAGE_RENDER_ERRORS,
 		});
 
-		const response = await renderer.renderExplicitView(renderableView, { ...staticProps, ...props }, { status });
+		const response = await renderer.renderExplicitView(renderableView, { ...hookProps, ...props }, { status });
 
 		return { body: await response.text() };
 	}

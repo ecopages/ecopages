@@ -40,19 +40,15 @@ export default eco.page<PostPageProps, ReactNode>({
 		stylesheets: ['./post.css'],
 	},
 
-	staticPaths: async () => {
-		return {
-			paths: Object.keys(postsData).map((slug) => ({ params: { slug } })),
-		};
+	paths: async () => {
+		return Object.keys(postsData).map((slug) => ({ params: { slug } }));
 	},
 
-	staticProps: async ({ pathname }) => {
+	props: async ({ pathname }) => {
 		const slug = pathname.params.slug as string;
 		const post = postsData[slug] || null;
 		return {
-			props: {
-				post,
-			},
+			post,
 		};
 	},
 

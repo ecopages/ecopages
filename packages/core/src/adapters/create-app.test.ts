@@ -33,8 +33,8 @@ describe('createApp', () => {
 				'	({ origin }: { origin: string }) => `<p id="first-origin">${origin}</p>`,',
 				'	{',
 				'		config: { integration: "first-renderer", identity: { id: "first", file: "src/pages/index.first.ts", integration: "first-renderer" } },',
-				'		staticProps: async ({ runtimeOrigin }: { runtimeOrigin: string }) => ({',
-				'			props: { origin: runtimeOrigin },',
+				'		props: async ({ runtimeOrigin }: { runtimeOrigin: string }) => ({',
+				'			origin: runtimeOrigin,',
 				'		}),',
 				'	},',
 				');',
@@ -103,7 +103,9 @@ describe('createApp', () => {
 
 		const explicitPage = eco.page<{ origin: string }>({
 			integration: 'second-renderer',
-			staticProps: async ({ runtimeOrigin }) => ({ props: { origin: runtimeOrigin } }),
+			props: async ({ runtimeOrigin }) => ({
+				origin: runtimeOrigin,
+			}),
 			render: ({ origin }) => `<p id="second-origin">${origin}</p>`,
 		});
 		app.static('/explicit', async () => ({ default: explicitPage }));

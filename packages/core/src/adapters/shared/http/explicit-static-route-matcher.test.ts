@@ -281,11 +281,9 @@ describe('ExplicitStaticRouteMatcher', () => {
 			expect(RenderToResponse).toHaveBeenCalledWith(view, {}, { params: {} });
 		});
 
-		test('should resolve staticProps and pass to renderer', async () => {
+		test('should resolve props and pass to renderer', async () => {
 			const view = createMockView('string');
-			view.staticProps = vi.fn(async () => ({
-				props: { title: 'About Page', content: 'Hello' },
-			}));
+			view.props = vi.fn(async () => ({ title: 'About Page', content: 'Hello' }));
 
 			const mockResponse = new Response('<html>Test</html>');
 			const RenderToResponse = vi.fn(() => mockResponse);
@@ -304,7 +302,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const match = matcher.match('http://localhost:3000/about');
 			await matcher.handleMatch(match!);
 
-			expect(view.staticProps).toHaveBeenCalledTimes(1);
+			expect(view.props).toHaveBeenCalledTimes(1);
 			expect(RenderToResponse).toHaveBeenCalledWith(
 				view,
 				{ title: 'About Page', content: 'Hello' },
@@ -314,11 +312,9 @@ describe('ExplicitStaticRouteMatcher', () => {
 			);
 		});
 
-		test('should pass params to staticProps', async () => {
+		test('should pass params to props', async () => {
 			const view = createMockView('string');
-			view.staticProps = vi.fn(async ({ pathname }) => ({
-				props: { slug: pathname.params.slug },
-			}));
+			view.props = vi.fn(async ({ pathname }) => ({ slug: pathname.params.slug }));
 
 			const mockResponse = new Response('<html>Test</html>');
 			const RendererFactory = {
@@ -336,7 +332,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const match = matcher.match('http://localhost:3000/blog/hello-world');
 			await matcher.handleMatch(match!);
 
-			expect(view.staticProps).toHaveBeenCalledWith(
+			expect(view.props).toHaveBeenCalledWith(
 				expect.objectContaining({
 					pathname: { params: { slug: 'hello-world' } },
 				}),

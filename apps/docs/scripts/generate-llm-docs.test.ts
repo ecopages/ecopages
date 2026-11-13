@@ -67,6 +67,7 @@ test('generateLlmDocs writes llms.txt and markdown exports', async () => {
 		expect(llmsTxt).toContain('Introduction');
 		expect(llmsTxt).toContain('Installation');
 		expect(llmsTxt).not.toContain('Excluded');
+		expect(llmsTxt).not.toContain('## llms-fixture');
 		expect(llmsTxt).toContain('## When to use this');
 		expect(llmsTxt).toContain('Scaffolding a new HTML-first multi-page app');
 		expect(llmsTxt).toContain('## How to read the docs');

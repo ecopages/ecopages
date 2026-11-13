@@ -44,12 +44,16 @@ figure[data-rehype-pretty-code-figure]:has(:focus-visible) > [data-rehype-pretty
 }
 
 figure[data-rehype-pretty-code-figure] [data-rehype-pretty-copy][data-copy-error='true'] {
-	@apply border-secondary/60 text-secondary;
+	@apply border-error/60 text-error;
 }
 
 figure[data-rehype-pretty-code-figure] pre > code {
 	display: grid;
 	@apply rounded-none border-none bg-transparent p-0 font-mono text-[0.875em] leading-relaxed;
+}
+
+figure[data-rehype-pretty-code-figure] pre > code > :is(.line, [data-line]) {
+	min-height: 1lh;
 }
 
 figure[data-rehype-pretty-code-figure] pre > code,

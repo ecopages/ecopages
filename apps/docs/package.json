@@ -10,8 +10,7 @@
 		"build": "pnpm run sync:font-assets && pnpm run generate:llms && ecopages build",
 		"preview": "pnpm run sync:font-assets && ecopages preview",
 		"test": "vitest run",
-		"typecheck": "ecopages types && tsc --noEmit",
-		"watch:dev": "pnpm run sync:font-assets && pnpm run generate:llms && ecopages dev"
+		"typecheck": "ecopages types && tsc --noEmit"
 	},
 	"devDependencies": {
 		"@fontsource/ibm-plex-mono": "^5.3.0",
@@ -36,6 +35,7 @@
 		"@types/mdast": "^4.0.4",
 		"ecopages": "workspace:*",
 		"lit": "^3.3.3",
+		"pele": "1.13.0",
 		"mdast-util-from-markdown": "^2.0.3",
 		"react": "^19.2.6",
 		"react-dom": "^19.2.6",

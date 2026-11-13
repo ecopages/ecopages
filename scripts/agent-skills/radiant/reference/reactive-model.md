@@ -4,6 +4,7 @@
 
 - Plain reads
 - Bindings
+- Attribute rules
 - Existing DOM (`@bindTo`)
 - Derived bindings
 - Class and style
@@ -17,7 +18,7 @@ Use them for:
 
 - conditional branches and comparisons
 - derived strings that decide structure
-- list shape and `this.slotted` fallback
+- list shape and slot fallback
 - `class` / `style` composition
 - imperative code and event handlers outside JSX binding positions
 
@@ -35,6 +36,14 @@ Prefer bindings for:
 - `prop:*` bindings `prop:value={this.$.draft}`
 
 Do not treat bindings as raw values. If logic needs a boolean, string, or number, use the plain property.
+
+## Attribute rules
+
+- A boolean on a standard HTML boolean attribute (`hidden`, `disabled`, `checked`, `open`, ...) binds by presence, with or without `attr:`: `true` writes it empty, `false` removes it. It is never written as `"false"`. A non-empty string such as `hidden="until-found"` is written as given.
+- Any other attribute writes `false` as `"false"` (`aria-expanded`, `data-open`). `null` and `undefined` remove it.
+- `bool:name` binds any attribute by presence, such as a custom element's boolean attribute: `<x-panel bool:expanded={this.$.open} />`. It takes `boolean | null | undefined`.
+- `attr:name` forces a string attribute and `prop:name` forces a property, for example on a custom element.
+- Write `class`, never `className`: on a native element `className` is a type error and is not rendered.
 
 ## Existing DOM (`@bindTo`)
 
@@ -75,9 +84,9 @@ Rules:
 
 ## Class and style
 
-Treat `class` and `style` as render-time composition. They are normalized eagerly and usually express host render logic.
+Compose `class` and `style` at render time when they express host render logic.
 
-If styling should react without a host rerender, bind a state attribute such as `data={{ state: this.$.status }}` and let CSS key off that.
+A binding or signal in `classes` binds live: `classes={this.$.variant}` normalizes each value like a static one (a string, a list or a class map) and patches the attribute without a host rerender. `class` takes a plain string, so a wrapper can merge it with its own classes. A state attribute such as `data={{ state: this.$.status }}` that CSS keys off is the other way to restyle without a rerender. `style` binds live the same way, and a style object in the binding is serialized like a static one.
 
 Use bindings confidently for child text, whole `data-*` / `aria-*` values, boolean attributes, and `prop:*`.
 

@@ -104,6 +104,18 @@ export async function waitForNavigation(eventName = 'eco:after-swap'): Promise<v
 	});
 }
 
+/**
+ * Resolves after the next animation frame, once every frame callback queued before it has run.
+ *
+ * @remarks
+ * `eco:page-load` is dispatched on a frame, so the first-load event of a started router and the event of
+ * a committed navigation land after the call that caused them returned. A test that asserts a page-load
+ * is absent must drain these first, or the spy counts events of an earlier navigation or router.
+ */
+export function nextFrame(): Promise<void> {
+	return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
 export function createDeferred(): { promise: Promise<void>; resolve: () => void } {
 	let resolve!: () => void;
 	const promise = new Promise<void>((innerResolve) => {
@@ -173,11 +185,11 @@ export function installEcoRouterTestHooks(fixtures: EcoRouterTestFixtures): void
 		fixtures.fetchSpy = mockFetch(mockHtml);
 	});
 
-	afterEach(() => {
+	afterEach(async () => {
+		vi.restoreAllMocks();
+		await nextFrame();
 		fixtures.router?.stop();
 		fixtures.router = null;
-		fixtures.fetchSpy?.mockRestore();
 		resetBrowserRuntimeState();
-		vi.restoreAllMocks();
 	});
 }

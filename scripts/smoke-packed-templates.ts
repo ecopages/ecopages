@@ -203,14 +203,42 @@ function killGroup(child: ChildProcess, signal: NodeJS.Signals): void {
 	}
 }
 
+interface ServeSmoke {
+	mode: 'preview' | 'start';
+	host: string;
+	runtimeArgs: string[];
+	/** Serve the build with the `src` folder removed, proving the server needs no source files. */
+	withoutSource: boolean;
+}
+
+interface TemplateSmoke {
+	artifact: string;
+	build: [command: string, args: string[]];
+	serve?: ServeSmoke;
+}
+
+const defaultTemplateSmoke: TemplateSmoke = {
+	artifact: 'dist/client/index.html',
+	build: ['npx', ['--no-install', 'ecopages', 'build']],
+};
+
+const templateSmokes: Record<string, TemplateSmoke> = {
+	html: {
+		...defaultTemplateSmoke,
+		serve: { mode: 'preview', host: 'localhost', runtimeArgs: [], withoutSource: false },
+	},
+	electrobun: {
+		artifact: 'dist/server/manifest.json',
+		build: ['pnpm', ['run', 'build']],
+		serve: { mode: 'start', host: '127.0.0.1', runtimeArgs: ['--runtime', 'bun'], withoutSource: true },
+	},
+};
+
 /**
  * Checks that the built project serves `/` and stops on SIGTERM.
  */
-async function smokeServing(projectDir: string, mode: 'preview' | 'start'): Promise<void> {
+async function smokeServing(projectDir: string, { mode, host, runtimeArgs }: ServeSmoke): Promise<void> {
 	const port = await findFreePort();
-	const desktop = mode === 'start';
-	const host = desktop ? '127.0.0.1' : 'localhost';
-	const runtimeArgs = desktop ? ['--runtime', 'bun'] : [];
 	const child = spawn('npx', ['--no-install', 'ecopages', mode, '--port', String(port), ...runtimeArgs], {
 		cwd: projectDir,
 		env: { ...process.env, ECOPAGES_PORT: String(port), WORKSPACE_DATA_DIR: path.join(projectDir, '.data') },
@@ -251,19 +279,13 @@ async function smokeTemplate(templateId: string, workDir: string, tarballs: Map<
 	const projectDir = path.join(workDir, 'projects', templateId);
 	mkdirSync(projectDir, { recursive: true });
 	const label = (name: string) => `${templateId}: ${name}`;
-	const artifact = templateId === 'electrobun' ? 'dist/server/manifest.json' : 'dist/client/index.html';
+	const { artifact, build, serve } = templateSmokes[templateId] ?? defaultTemplateSmoke;
 
 	const steps: Array<[string, () => void | Promise<void>]> = [
 		['create project from tarballs', () => createProject(templateId, projectDir, tarballs)],
 		['pnpm install', () => void run('pnpm', ['install', '--no-frozen-lockfile'], projectDir)],
 		['every repository package comes from a tarball', () => assertInstalledFromTarballs(projectDir, tarballs)],
-		[
-			'ecopages build',
-			() =>
-				void (templateId === 'electrobun'
-					? run('pnpm', ['run', 'build'], projectDir)
-					: run('npx', ['--no-install', 'ecopages', 'build'], projectDir)),
-		],
+		['ecopages build', () => void run(build[0], build[1], projectDir)],
 		[
 			`${artifact} exists`,
 			() => {
@@ -271,15 +293,14 @@ async function smokeTemplate(templateId: string, workDir: string, tarballs: Map<
 			},
 		],
 	];
-	if (templateId === 'html')
-		steps.push(['ecopages preview serves / and stops', () => smokeServing(projectDir, 'preview')]);
-
-	if (templateId === 'electrobun') {
+	if (serve) {
 		steps.push([
-			'ecopages start serves / without source files and stops',
+			serve.withoutSource
+				? `ecopages ${serve.mode} serves / without source files and stops`
+				: `ecopages ${serve.mode} serves / and stops`,
 			() => {
-				rmSync(path.join(projectDir, 'src'), { recursive: true });
-				return smokeServing(projectDir, 'start');
+				if (serve.withoutSource) rmSync(path.join(projectDir, 'src'), { recursive: true });
+				return smokeServing(projectDir, serve);
 			},
 		]);
 	}

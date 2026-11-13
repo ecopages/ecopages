@@ -104,10 +104,25 @@ export function readSession(headers: Headers) {
 	return authClient.pipe(Effect.flatMap((auth) => Effect.promise(() => auth.api.getSession({ headers }))));
 }
 
-export const requireSession: FileRouteMiddleware = async (ctx, next) => {
+/**
+ * Rejects non-loopback hosts, reads the session and hands it to `onSession` or `onAnonymous`.
+ */
+export async function withSession(
+	ctx: { request: Request },
+	onSession: (session: Session) => Response | Promise<Response>,
+	onAnonymous: () => Response | Promise<Response>,
+): Promise<Response> {
 	if (!isLocalRequest(ctx.request)) return new Response('Invalid host', { status: 403 });
 	const session = await authRuntime.runPromise(readSession(ctx.request.headers));
-	if (!session) return Response.redirect(new URL('/', origin));
-	ctx.locals.workspace = { session, sidebarOpen: sidebarStartsOpen(ctx.request.headers.get('cookie') ?? '') };
-	return next();
-};
+	return session ? onSession(session) : onAnonymous();
+}
+
+export const requireSession: FileRouteMiddleware = (ctx, next) =>
+	withSession(
+		ctx,
+		(session) => {
+			ctx.locals.workspace = { session, sidebarOpen: sidebarStartsOpen(ctx.request.headers.get('cookie') ?? '') };
+			return next();
+		},
+		() => Response.redirect(new URL('/', origin)),
+	);

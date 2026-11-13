@@ -4,17 +4,18 @@ import { RuiHeadline } from '@ecopages/radiant-ui/headline';
 import { RuiLabel } from '@ecopages/radiant-ui/label';
 import { RuiInput } from '@ecopages/radiant-ui/input';
 import { ShellLayout } from '../layouts/shell-layout';
-import { authRuntime, readSession } from '../lib/auth.server';
-import { githubEnabled, isLocalRequest, origin } from '../lib/settings';
+import { withSession } from '../lib/auth.server';
+import { githubEnabled, origin } from '../lib/settings';
 
 export default eco.page({
 	cache: 'dynamic',
 	middleware: [
-		async (ctx, next) => {
-			if (!isLocalRequest(ctx.request)) return new Response('Invalid host', { status: 403 });
-			const session = await authRuntime.runPromise(readSession(ctx.request.headers));
-			return session ? Response.redirect(new URL('/dashboard', origin)) : next();
-		},
+		(ctx, next) =>
+			withSession(
+				ctx,
+				() => Response.redirect(new URL('/dashboard', origin)),
+				() => next(),
+			),
 	],
 	dependencies: { scripts: [{ src: '../lib/github-sign-in.ts' }] },
 	metadata: () => ({ title: 'Sign in', description: 'Sign in to your workspace.' }),

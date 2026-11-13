@@ -3,7 +3,9 @@ import { wrapInConditions } from './css-scanner.ts';
 /** One inlined `@import`: the stylesheet it names, its inlined CSS (which holds the placeholders of its own `@import`s) and its conditions. */
 type ImportOccurrence = { stylesheet: string; css: string; conditions?: string };
 
-const PLACEHOLDER = /\u0000(h?)(\d+)\u0000/g;
+/** A character CSS cannot contain, so a placeholder never clashes with the text around it. */
+const NUL = String.fromCharCode(0);
+const PLACEHOLDER = new RegExp(`${NUL}(h?)(\\d+)${NUL}`, 'g');
 
 /**
  * Orders inlined `@import`s the way the cascade does: a stylesheet imported more than once keeps only its last
@@ -23,7 +25,7 @@ export class ImportOrder {
 	/** Records an inlined `@import` and returns the placeholder that stands for it in the importing CSS. */
 	add(stylesheet: string, css: string, conditions?: string): string {
 		this.occurrences.push({ stylesheet, css, conditions });
-		return `\u0000${this.occurrences.length - 1}\u0000`;
+		return `${NUL}${this.occurrences.length - 1}${NUL}`;
 	}
 
 	/**
@@ -32,7 +34,7 @@ export class ImportOrder {
 	 */
 	hoist(statement: string): string {
 		this.hoistable.push(statement);
-		return `\u0000h${this.hoistable.length - 1}\u0000`;
+		return `${NUL}h${this.hoistable.length - 1}${NUL}`;
 	}
 
 	/** Whether any `@import` was recorded. */

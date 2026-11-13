@@ -1,9 +1,6 @@
 import { createRouter } from '@ecopages/browser-router/client';
 
-createRouter({
-	viewTransitions: true,
-	prefetch: { strategy: 'hover' },
-});
+createRouter();
 
 const codeCopySelector = '[data-rehype-pretty-copy]';
 const codeCopyFeedbackMs = 1200;

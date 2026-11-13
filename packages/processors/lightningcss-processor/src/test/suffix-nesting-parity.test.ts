@@ -14,7 +14,6 @@ const DOCS_FILES = [
 	'styles/components/button.css',
 	'components/burger/burger.css',
 	'components/error-diagnostics/error-diagnostics.css',
-	'components/banner/banner.css',
 	'components/header/header.css',
 	'components/api-field/api-field.css',
 	'pages/404.css',

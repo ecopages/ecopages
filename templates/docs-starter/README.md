@@ -1,6 +1,6 @@
 # Docs starter template
 
-An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MDX, and a catch-all docs Page. Chrome uses `@ecopages/radiant-ui` (sidebar, TOC, breadcrumb, cycle theme toggle, alerts). Fenced MDX code blocks are highlighted with `rehype-pretty-code` and include a Copy button.
+An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MDX, and a catch-all docs Page. Chrome uses `@ecopages/radiant-ui` (sidebar, TOC, breadcrumb, cycle theme toggle, alerts). Fenced MDX code blocks are highlighted with `rehype-pretty-code` and include a Copy button; headings get ids at build time so `#fragment` links resolve before any script runs.
 
 ## Agent skills
 
@@ -17,18 +17,21 @@ Index: [`.agents/README.md`](.agents/README.md). Those packs describe the framew
 - `src/content/docs/**` — MDX with YAML frontmatter (`title`, `description`, `order`, optional `llms`)
 - `src/content/docs.ts` — frontmatter schema, section order, icons, and sort helpers
 - `src/content-nav.ts` — sidebar navigation from `ecopages:content/docs`
-- `src/lib/docs/` — MDX plugin options, catch-all slug helpers, and LLM URL generation
+- `src/lib/docs/` — MDX plugin options (`createDocsMdxPlugins`), heading ids, copy-button compatibility, catch-all slug helpers, breadcrumb and previous/next helpers, and LLM URL generation
+- `src/components/code-tabs/` — `CodeTabs`, a tabbed, highlighted block with its own Copy button (see [Code tabs](#code-tabs))
 - `src/layouts/docs-layout/` — sidebar, mobile trigger, table of contents, docs bar, pagination
 - `src/pages/index.tsx` — homepage with links into the docs set
 - `src/pages/docs/[...slug]/index.tsx` — catch-all route using `entries` and `getComponent`
 - `src/styles/components/prose.css` — markdown typography (skips `.unstyled`; tables scroll with `overflow-x: auto`)
 - `src/styles/vendor/shiki.css` — pretty-code figure chrome and copy-button layout
+- `src/styles/fonts.css` and `scripts/copy-font-assets.mjs` — IBM Plex, copied from the Fontsource packages into `src/public/assets/fonts` before `dev`, `build` and `preview`
 - `.agents/skills` — Ecopages, Radiant, and Radiant UI skill packs
 
 ## Configuration
 
 - Register `contentProcessorPlugin()` from `@ecopages/content-processor/plugin` in `eco.config.ts`.
-- Fenced code highlighting and copy buttons are configured in `src/lib/docs/mdx-plugin-options.ts`.
+- Fenced code highlighting, heading ids and copy buttons are configured in `src/lib/docs/mdx-plugin-options.ts`. `createDocsMdxPlugins({ remarkPlugins, rehypePlugins })` adds your own plugins after the built-in ones.
+- Edit `src/public/favicon/site.webmanifest` (`name`, `short_name`) and `SITE_NAME` in `src/lib/docs/site-meta.ts` for your site. The manifest ships as "Docs starter".
 - Add pages as `<section>/<slug>.mdx` with frontmatter; reorder with `order` and `DOCS_SECTION_ORDER`.
 - Import each JSX component directly in the MDX document that uses it. Use `class="unstyled"` on alerts and other chrome so prose styles do not restyle them.
 
@@ -39,7 +42,29 @@ Index: [`.agents/README.md`](.agents/README.md). Those packs describe the framew
 - `RuiBreadcrumb` — resolved server-side from `docsNav` and passed into the docs layout
 - Cycle theme toggle — system / light / dark, persisted in `localStorage`
 - `CopyForLlm` — fetches `/docs-llm/<section>/<slug>.md` for the current page (path-derived; see LLM exports)
-- Previous / next pagination across the flattened docs set
+- Previous / next pagination across the flattened docs set, rendered on the server
+
+### Code tabs
+
+`CodeTabs` (`src/components/code-tabs`) renders tabs of highlighted code with a Copy button. Pass inline `{ id, label, code }` tabs from a Page or an MDX file; the server highlights them with the same Shiki themes as fenced blocks (`src/lib/docs/shiki-themes.ts`).
+
+### Diagrams (optional)
+
+Mermaid diagrams render at build time with [Pele](https://www.npmjs.com/package/pele) and are off by default. To turn them on, pass the plugin to the factory and import the stylesheet:
+
+```ts
+// src/lib/docs/mdx-plugin-options.ts
+import { remarkMermaid } from './remark-mermaid';
+
+export const docsMdxPluginOptions = createDocsMdxPlugins({ remarkPlugins: [remarkMermaid] });
+```
+
+```css
+/* src/styles/tailwind.css */
+@import './components/diagram.css';
+```
+
+A fence labelled `mermaid` then becomes inline SVG that follows the light and dark theme. An invalid diagram fails the build with its file and line.
 
 ## LLM exports
 

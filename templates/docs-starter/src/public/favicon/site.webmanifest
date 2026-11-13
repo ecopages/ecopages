@@ -1,6 +1,6 @@
 {
-	"name": "MyWebSite",
-	"short_name": "MySite",
+	"name": "Docs starter",
+	"short_name": "Docs starter",
 	"icons": [
 		{
 			"src": "/favicon/web-app-manifest-192x192.png",

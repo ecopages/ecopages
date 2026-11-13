@@ -99,18 +99,15 @@ export async function generateLlmDocs(outputRoot = publicRoot, options: Generate
 
 		for (const sectionId of orderedSections) {
 			const sectionPosts = sections.get(sectionId);
-			if (!sectionPosts || sectionPosts.length === 0) {
+			const exportedPosts = sectionPosts?.filter((page) => page.llms !== false) ?? [];
+			if (exportedPosts.length === 0) {
 				continue;
 			}
 
 			const sectionTitle = DOCS_SECTION_CONFIG[sectionId as keyof typeof DOCS_SECTION_CONFIG]?.title ?? sectionId;
 			lines.push(`## ${sectionTitle}`);
 
-			for (const page of sectionPosts) {
-				if (page.llms === false) {
-					continue;
-				}
-
+			for (const page of exportedPosts) {
 				const pageSlug = page.segments[page.segments.length - 1]!;
 				const body = await scanner.getRawContent(page.slug);
 				const outputPath = join(stagingRoot, sectionId, `${pageSlug}.md`);

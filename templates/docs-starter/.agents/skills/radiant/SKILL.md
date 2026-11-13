@@ -81,15 +81,15 @@ open = false;
 
 Read only the modules relevant to the task. Each file is one level deep from this entry.
 
-| Module                                                     | Read when                                                                                                                   |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| [reference/reactive-model.md](reference/reactive-model.md) | Bindings vs plain reads vs `@bindTo`, attribute rules (`bool:`, `false`, `class`), derived `.map`, class/style              |
-| [reference/hosts.md](reference/hosts.md)                   | Element vs controller, public props vs internal bindings types, children and named regions                                  |
-| [reference/decorators.md](reference/decorators.md)         | `@prop` / `@attr` / `@state` / `@signal`, field types, `@bindTo`, `@query`, `@onEvent`, `@onUpdated`, `@bound`, `@debounce` |
-| [reference/context.md](reference/context.md)               | Provide/consume, `@contextSelector` vs `@onContextUpdate`, context field types                                              |
-| [reference/ssr.md](reference/ssr.md)                       | Server entrypoints, hydrate modes, nested and page-level hydration, render scope                                            |
-| [reference/authoring.md](reference/authoring.md)           | Authoring rules, development warnings, review checklist, output shape                                                       |
-| [reference/jsx-signals.md](reference/jsx-signals.md)       | `@ecopages/jsx` with `createRoot` and signals, no host: render once, computed keyed lists, signals in attributes            |
+| Module                                                     | Read when                                                                                                                                 |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| [reference/reactive-model.md](reference/reactive-model.md) | Bindings vs plain reads vs `@bindTo`, attribute rules (`bool:`, `false`, `class`), derived `.map`, class/style                            |
+| [reference/hosts.md](reference/hosts.md)                   | Element vs controller, public props vs internal bindings types, children and named regions                                                |
+| [reference/decorators.md](reference/decorators.md)         | `@prop` / `@attr` / `@state` / `@signal`, field types, `@bindTo`, `@query`, `@onEvent`, `@onUpdated`, `@bound`, `@debounce`               |
+| [reference/context.md](reference/context.md)               | Provide/consume, `@contextSelector` vs `@onContextUpdate`, manual `ContextRequestEvent` and other protocol libraries, context field types |
+| [reference/ssr.md](reference/ssr.md)                       | Server entrypoints, hydrate modes, nested and page-level hydration, render scope                                                          |
+| [reference/authoring.md](reference/authoring.md)           | Authoring rules, development warnings, review checklist, output shape                                                                     |
+| [reference/jsx-signals.md](reference/jsx-signals.md)       | `@ecopages/jsx` with `createRoot` and signals, no host: render once, computed keyed lists, signals in attributes                          |
 
 ## Critical rules
 
@@ -107,4 +107,4 @@ Read only the modules relevant to the task. Each file is one level deep from thi
 
 ## Resources
 
-Start with this skill pack. Full docs index: [llms.txt](https://radiant.ecopages.app/llms.txt); page exports under `/llms-content/.../*.txt`.
+Start with this skill pack. Full docs index: [llms.txt](https://radiant.ecopages.app/llms.txt); page exports under `/docs-llm/<section>/<slug>.md`.

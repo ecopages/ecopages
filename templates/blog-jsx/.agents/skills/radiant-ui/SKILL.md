@@ -64,7 +64,7 @@ Read only the modules relevant to the task. Each file is one level deep from thi
 
 ## Resources
 
-Start with this skill pack for application work. Full docs index: [llms.txt](https://radiant-ui.ecopages.app/llms.txt); page exports under `/llms-content/.../*.txt`.
+Start with this skill pack for application work. Full docs index: [llms.txt](https://radiant-ui.ecopages.app/llms.txt); page exports under `/docs-llm/<section>/<slug>.md`.
 
 - [Introduction](/docs/getting-started/introduction)
 - [Themes](/docs/getting-started/theming) and [Tokens](/docs/getting-started/tokens)

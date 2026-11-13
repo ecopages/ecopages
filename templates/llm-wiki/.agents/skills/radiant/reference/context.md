@@ -7,6 +7,7 @@ Import all context APIs from `@ecopages/radiant/context`, not `@ecopages/radiant
 - Core pieces
 - Provide vs consume
 - Definition order
+- Manual requests and other libraries
 - Field types
 - Performance
 
@@ -45,7 +46,26 @@ When stale display should persist across refetches, store one explicit display v
 
 ## Definition order
 
-A provider defined after its consumers still answers. When a provider upgrades it dispatches a bubbling, composed `context-provider` event (`ContextProviderEvent`, an `Event` with `context` and `contextTarget`, exported from `@ecopages/radiant/context`), and unanswered consumers below it ask again, for plain and subscribing requests. A consumer that disconnects stops waiting; a request is answered once. A provider that only reconnects does not announce again. Lazy-defined providers need no import-order workaround.
+A provider defined after its consumers still answers. When a provider upgrades it dispatches a bubbling, composed `context-provider` event (`ContextProviderEvent`, an `Event` with `context` and `contextTarget`, exported from `@ecopages/radiant/context`; the late-provider event Lit's `@lit/context` uses, not part of the community protocol), and unanswered consumers below it ask again, for plain and subscribing requests. A consumer that disconnects stops waiting; a request is answered once. A provider that only reconnects does not announce again. Lazy-defined providers need no import-order workaround.
+
+## Manual requests and other libraries
+
+`ContextRequestEvent` is the community protocol's `context-request`. Its callback receives the context **value**, not the provider. A Radiant provider stops immediate propagation, then calls the callback at once with the current value (`undefined` while it has none). Pass `true` as the third argument to subscribe: the callback also receives `unsubscribe` and runs again on every `setContext`; call `unsubscribe` in `disconnectedCallback`.
+
+```ts
+this.dispatchEvent(
+	new ContextRequestEvent(
+		themeContext,
+		(theme, unsubscribe) => {
+			this.theme = theme;
+			this.unsubscribe = unsubscribe;
+		},
+		true,
+	),
+);
+```
+
+Prefer the decorators in Radiant hosts. `@contextSelector` and `@onContextUpdate` also accept a provider from another protocol library (asked only when no Radiant provider answers). `@consumeContext` needs a Radiant provider, because its field holds the `ContextProvider` instance.
 
 ## Field types
 

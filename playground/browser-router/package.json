@@ -16,7 +16,7 @@
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/lightningcss-processor": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
-		"@ecopages/radiant": "^0.8.4",
+		"@ecopages/radiant": "^0.9.0",
 		"@kitajs/html": "^4.2.13",
 		"@tailwindcss/node": "^4.3.0",
 		"@tailwindcss/oxide": "^4.3.0",

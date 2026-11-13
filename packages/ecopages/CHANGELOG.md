@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0
+
+### Minor Changes
+
+- [#1179](https://github.com/ecopages/ecopages/pull/1179) [`a4cc078`](https://github.com/ecopages/ecopages/commit/a4cc078230e2f90fcf96ee105492f59305c09881) Thanks [@andeeplus](https://github.com/andeeplus)! - Add the `electrobun` template (`ecopages init <dir> --template electrobun`), a desktop starter that needs Bun and pnpm, with Ecopages Filesystem Routes, a Radiant UI workspace, Better Auth sign-in, Effect workflows, and Drizzle on SQLite.
+
+### Patch Changes
+
+- Updated dependencies []:
+    - @ecopages/core@0.8.0
+    - @ecopages/file-system@0.8.0
+
 ## 0.7.1
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @ecopages/lightningcss-processor
 
+## 0.8.0
+
+### Minor Changes
+
+- [#1182](https://github.com/ecopages/ecopages/pull/1182) [`d01f88b`](https://github.com/ecopages/ecopages/commit/d01f88b877354f52c5cc56a8252b19747f03fd9e) Thanks [@andeeplus](https://github.com/andeeplus)! - `lightningCssProcessorPlugin()` now lowers CSS for the app's browserslist config when `targets` is not set: a `.browserslistrc`, or the `browserslist` field of `package.json`, found from the app root. An app with such a config gets lowered CSS it did not get before; an app without one is unchanged. An explicit `targets` still wins, and `targets: false` keeps lowering off.
+
+### Patch Changes
+
+- Updated dependencies []:
+    - @ecopages/core@0.8.0
+    - @ecopages/file-system@0.8.0
+
 ## 0.7.1
 
 ### Patch Changes

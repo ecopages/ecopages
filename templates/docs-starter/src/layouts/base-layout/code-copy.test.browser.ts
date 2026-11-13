@@ -30,6 +30,8 @@ describe('code block copy', () => {
 	afterEach(() => {
 		unregister();
 		vi.useRealTimers();
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
 		document.body.innerHTML = '';
 	});
 
@@ -113,7 +115,7 @@ describe('code block copy', () => {
 	});
 
 	it('reports an error and restores focus when the execCommand fallback returns false', async () => {
-		vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
+		vi.stubGlobal('navigator', { clipboard: undefined });
 		const execCommand = vi.spyOn(document, 'execCommand').mockReturnValue(false);
 		const { button, status } = renderCodeBlock();
 		button.focus();
@@ -128,7 +130,7 @@ describe('code block copy', () => {
 	});
 
 	it('reports success when the execCommand fallback copies', async () => {
-		vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
+		vi.stubGlobal('navigator', { clipboard: undefined });
 		vi.spyOn(document, 'execCommand').mockReturnValue(true);
 		const { button, status } = renderCodeBlock();
 		button.focus();

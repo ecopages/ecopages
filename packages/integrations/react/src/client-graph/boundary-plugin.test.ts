@@ -124,6 +124,51 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
+	it.each([
+		['layouts', 'layout script'],
+		['pages', 'page helper'],
+		['components', 'component control'],
+	])('keeps bare side-effect imports in a module under %s (%s)', async (folder) => {
+		await withTempDir(async (tempDir) => {
+			const reactEntrypoint = path.join(tempDir, 'entry.tsx');
+			const dir = path.join(tempDir, 'src', folder);
+			mkdirSync(dir, { recursive: true });
+			const script = path.join(dir, 'docs.script.ts');
+			writeFileSync(reactEntrypoint, 'export default () => null;', 'utf-8');
+			writeFileSync(
+				script,
+				"import 'some-element-package/sidebar';\nimport './theme.css';\nimport './secret.server.ts';\nexport const ready = true;",
+				'utf-8',
+			);
+
+			const harness = createPluginTestHarness(
+				{ absWorkingDir: tempDir, projectRoot: tempDir, entrypointFile: reactEntrypoint },
+				{ react: reactEntrypoint },
+			);
+			const transformed = (await harness.transformFile(script)) ?? readFileSync(script, 'utf-8');
+
+			expect(transformed).toContain("import 'some-element-package/sidebar'");
+			expect(transformed).not.toContain('secret.server');
+		});
+	});
+
+	it('keeps bare side-effect imports in an entry module', async () => {
+		await withTempDir(async (tempDir) => {
+			const dir = path.join(tempDir, 'src', 'layouts');
+			mkdirSync(dir, { recursive: true });
+			const entry = path.join(dir, 'docs-layout.script.ts');
+			writeFileSync(entry, "import 'some-element-package/sidebar';\nexport const ready = true;", 'utf-8');
+
+			const harness = createPluginTestHarness(
+				{ absWorkingDir: tempDir, projectRoot: tempDir, entrypointFile: entry },
+				{ script: entry },
+			);
+			const transformed = (await harness.transformFile(entry)) ?? readFileSync(entry, 'utf-8');
+
+			expect(transformed).toContain("import 'some-element-package/sidebar'");
+		});
+	});
+
 	it('scopes declared modules to their grouped entry', async () => {
 		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const islandA = path.join(tempDir, 'island-a.tsx');

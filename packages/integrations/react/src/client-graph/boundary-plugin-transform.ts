@@ -2,7 +2,6 @@ import { path } from '@ecopages/file-system/path';
 import type { EcoBuildOnLoadResult } from '@ecopages/core/integration';
 import { recordModuleTransformProfile } from '@ecopages/core/build';
 import { transformModuleImports } from './ast-transform.ts';
-import { isPageOrLayoutEntry } from './module-classification.ts';
 import type { ClientGraphModuleKind } from './module-classification.ts';
 import type { RequestedExportRules } from './specifier-classification.ts';
 import type { PlannedModule } from './requested-exports-plan.ts';
@@ -14,7 +13,6 @@ export type TransformClientGraphModuleOptions = {
 	category: ClientGraphModuleKind;
 	globallyDeclaredSources: Map<string, Set<string> | '*'>;
 	requestedExports: RequestedExportRules | undefined;
-	preserveUnreachableSideEffectImports?: boolean;
 };
 
 function toLoaderResult(filePath: string, contents: string): EcoBuildOnLoadResult {
@@ -35,7 +33,6 @@ export function transformClientGraphModule(
 		options.filePath,
 		options.globallyDeclaredSources,
 		options.requestedExports,
-		Boolean(options.preserveUnreachableSideEffectImports) && !isPageOrLayoutEntry(options.filePath),
 		module.program,
 	);
 	recordModuleTransformProfile({

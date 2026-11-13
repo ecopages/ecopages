@@ -74,6 +74,10 @@ dependencies: {
 
 `lazy` controls browser delivery only; `ssr: true` still evaluates the script on the server so `customElements.define` runs before SSR. String-form `scripts: ['./browser-only.ts']` stays browser-only.
 
+### Bare imports in browser modules
+
+On React sites, a bare side-effect import (`import '@scope/pkg/define-element'`) in a component, page, layout or script stays in the browser bundle, whichever folder the file is in. Only `.server` modules and Node built-ins are removed from the browser build, and stylesheet imports are delivered by Ecopages as CSS. `dependencies.modules` is not needed to keep a bare import.
+
 ### Troubleshooting custom element SSR
 
 - **Host renders empty or never upgrades on the server:** Add `ssr: true` on the registration script in the owning `eco.component()` `dependencies.scripts` entry. Lit and Ecopages JSX preload those entries; a side-effect `import './my.script.ts'` in the wrapper is not required (and duplicates ownership).

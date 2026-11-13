@@ -33,8 +33,3 @@ export function classifyClientGraphModule(filePath: string, projectRoot?: string
 	}
 	return 'workspace';
 }
-
-export function isPageOrLayoutEntry(filePath: string): boolean {
-	const segments = pathSegments(filePath);
-	return segments.includes('pages') || segments.includes('layouts');
-}

@@ -14,7 +14,6 @@ export type WalkImportsContext = {
 	reachability: ReachabilityResult;
 	edits: SourceEdit[];
 	allowedMap: Map<string, Set<string> | '*'>;
-	preserveUnreachableSideEffectImports: boolean;
 	/** Receives the local name of each removed value binding, mapped to its import specifier. */
 	strippedBindings: Map<string, string>;
 	/** Receives each import declaration that gets an edit. */
@@ -62,7 +61,6 @@ function recordStrippedBindings(
 
 function handleImportDeclaration(node: any, ctx: WalkImportsContext): boolean {
 	const specifier = node.source.value as string;
-	const reachableRules = ctx.reachability.reachableImports.get(specifier);
 	const { allowed, rules } = processSpecifier(specifier, ctx.allowedMap);
 
 	if (!allowed) {
@@ -82,15 +80,6 @@ function handleImportDeclaration(node: any, ctx: WalkImportsContext): boolean {
 			ctx.editedImports.add(node);
 		}
 		return true;
-	}
-
-	if (
-		!ctx.preserveUnreachableSideEffectImports &&
-		!reachableRules &&
-		(!node.specifiers || node.specifiers.length === 0)
-	) {
-		ctx.edits.push({ start: node.start, end: node.end, replacement: '' });
-		ctx.editedImports.add(node);
 	}
 
 	return true;

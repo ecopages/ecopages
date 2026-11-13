@@ -104,6 +104,8 @@ Call `router.stop()` before replacing the router script in long-lived sessions (
 
 ## Persistence
 
+Unless persisted, a custom element that exists on both pages is replaced by the incoming element on navigation: it upgrades from its own server markup and does not keep the live element's state.
+
 Mark elements with the same persistence key on each page to preserve them across navigations. When the incoming page keeps the element under a compatible ancestor structure, it stays connected and is never recreated; morphdom skips it entirely. This holds when view transitions are disabled and when the incoming page has `data-eco-rerun` scripts. Changing the element's ancestor tags can require replacing its containing path, so keep that structure stable when connection continuity matters.
 
 On navigation to another URL, when an incoming page has a `data-eco-rerun` script, browser-router refreshes matching non-persisted elements before running it, except for the body, persisted elements, their ancestor path, and descendants of custom elements on that path. Those custom-element descendants stay in place because the connected host may have attached handlers to them. Keep handler-bound child markup structurally compatible across pages, or have the component rebind when its child markup changes; replacing a child does not reconnect the host. Event handlers installed on refreshed elements attach to new nodes instead of stacking on nodes retained by the morph. A rerun script that installs handlers on any retained node must make that registration idempotent, because those nodes remain attached across navigations.
@@ -175,7 +177,7 @@ document.addEventListener('eco:before-swap', (e) => {
 });
 ```
 
-Elements the router keeps in place, such as persisted elements, ignore properties set on their incoming counterpart. A property set before an element upgrades shadows a class accessor of the same name and is reset by a class field of that name: the component should read the own value, delete it and assign it through the accessor in its constructor.
+Elements the router keeps in place, such as persisted elements, ignore properties set on their incoming counterpart. Radiant `@prop` members adopt a value set before the element upgrades, so Radiant hosts need nothing. For other libraries, a property set before upgrade shadows a class accessor of the same name and is reset by a class field of that name: the component should read the own value, delete it and assign it through the accessor in its constructor.
 
 ## Programmatic Navigation
 

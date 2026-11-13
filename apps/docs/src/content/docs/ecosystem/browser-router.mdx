@@ -189,10 +189,7 @@ Add the `data-eco-persist` attribute with a unique ID:
 	<RuiAlertTitle>How It Works</RuiAlertTitle>
 	<RuiAlertDescription>
 		<p>
-			Unlike traditional DOM swapping which destroys and recreates elements, morphdom diffs the current DOM
-			against the new HTML. Persisted elements are matched by their ID and left untouched, keeping their internal
-			state intact.
-		</p>
+			morphdom diffs the current DOM against the new HTML and keeps ordinary nodes, updating only what changed. Persisted elements are matched by their ID and left untouched, keeping their internal state intact. Custom elements are replaced by the incoming element unless persisted.</p>
 	</RuiAlertDescription>
 </RuiAlert>
 
@@ -214,7 +211,7 @@ document.addEventListener('eco:before-swap', (event) => {
 });
 ```
 
-Properties set on the incoming counterpart of an element the router keeps, such as a persisted one, are ignored. A property set before an element upgrades shadows a class accessor of the same name and is reset by a class field of that name. In the component, read the own value, delete it, then assign it through the accessor in the constructor.
+Properties set on the incoming counterpart of an element the router keeps, such as a persisted one, are ignored. Radiant `@prop` members adopt a value set before the element upgrades, so Radiant hosts need nothing. For other libraries, a property set before upgrade shadows a class accessor of the same name and is reset by a class field of that name, so read the own value, delete it, then assign it through the accessor in the constructor.
 
 ### Development saves
 

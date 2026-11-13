@@ -94,6 +94,28 @@ describe('RadiantCodeTabs', () => {
 		});
 	});
 
+	it('announces a failed copy and clears the status so a repeat is announced again', async () => {
+		vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(new Error('denied'));
+		const codeTabs = createCodeTabs();
+		codeTabs.selectedKey = 'js';
+		document.body.appendChild(codeTabs);
+
+		await vi.waitFor(() => {
+			expect(codeTabs.querySelector('.code-tabs__copy')).not.toBeNull();
+		});
+		await userEvent.click(codeTabs.querySelector<HTMLButtonElement>('.code-tabs__copy')!);
+
+		await vi.waitFor(() => {
+			expect(codeTabs.querySelector('.code-tabs__status')?.textContent).toBe('Failed to copy JavaScript');
+		});
+		await vi.waitFor(
+			() => {
+				expect(codeTabs.querySelector('.code-tabs__status')?.textContent).toBe('');
+			},
+			{ timeout: 4000 },
+		);
+	});
+
 	it('renders Shiki markup as HTML and copies its plain-text content', async () => {
 		const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
 		const codeTabs = document.createElement('radiant-code-tabs') as RadiantCodeTabs;

@@ -34,6 +34,9 @@ export type RadiantCodeTabsProps = {
 	selectedKey?: string;
 };
 
+/** How long a copy result stays in the live region before it is cleared, so a repeated copy is announced again. */
+const COPY_STATUS_TIMEOUT_MS = 2000;
+
 function isRichTab(tab: RadiantCodeTabItem): tab is Extract<RadiantCodeTabItem, { html: string; content: string }> {
 	return 'html' in tab;
 }
@@ -56,6 +59,8 @@ export class RadiantCodeTabs extends RadiantElement {
 	@prop({ type: String, reflect: true }) selectedKey = '';
 	@state copyStatus = '';
 
+	private copyStatusTimer: ReturnType<typeof setTimeout> | undefined;
+
 	private static nextInstanceId = 0;
 	private readonly instanceId = `radiant-code-tabs-${++RadiantCodeTabs.nextInstanceId}`;
 
@@ -77,14 +82,27 @@ export class RadiantCodeTabs extends RadiantElement {
 		}
 	}
 
+	private announce(message: string): void {
+		clearTimeout(this.copyStatusTimer);
+		this.copyStatus = message;
+		this.copyStatusTimer = setTimeout(() => {
+			this.copyStatus = '';
+		}, COPY_STATUS_TIMEOUT_MS);
+	}
+
 	private handleCopy = async (tab: RadiantCodeTabItem): Promise<void> => {
 		try {
 			await navigator.clipboard.writeText(tabClipboardText(tab));
-			this.copyStatus = `${tab.label} copied to clipboard`;
-		} catch (error) {
-			console.error('Failed to copy code', error);
+			this.announce(`${tab.label} copied to clipboard`);
+		} catch {
+			this.announce(`Failed to copy ${tab.label}`);
 		}
 	};
+
+	override disconnectedCallback(): void {
+		clearTimeout(this.copyStatusTimer);
+		super.disconnectedCallback();
+	}
 
 	private getIdBase(): string {
 		const normalizedName = this.name

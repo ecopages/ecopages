@@ -367,6 +367,20 @@ function getForeignJsxReach(
 }
 
 /**
+ * The file itself when it is a browser entry of the build that no React entry file claims.
+ *
+ * @remarks
+ * The import scan records only files an entry imports, so a foreign file that is bundled as its own entry, such
+ * as a Radiant script, is absent from it. Without this it would count as a file the scan did not find and keep
+ * React's override.
+ */
+function findForeignEntry(context: ClientGraphBoundaryBuildContext, filePath: string): string | undefined {
+	const entryFiles = new Set([...context.entrypointFiles].map(toRealPath));
+	const reactEntryFiles = new Set([...getReactEntrypointFiles(context)].map(toRealPath));
+	return entryFiles.has(filePath) && !reactEntryFiles.has(filePath) ? filePath : undefined;
+}
+
+/**
  * Scope for React's foreign-JSX override: a file another JSX Integration owns gets React's JSX runtime only when
  * a React entry file reaches it.
  *
@@ -389,12 +403,15 @@ export function createForeignJsxScope(options: {
 		if (!context || context.configs.length === 0 || owner === undefined) return true;
 		const reach = getForeignJsxReach(context, options.projectRoot, isForeignFile);
 		const filePath = toRealPath(sourcePath);
-		const otherEntry = reach.others.get(filePath);
+		const otherEntry = reach.others.get(filePath) ?? findForeignEntry(context, filePath);
 		if (otherEntry === undefined) return true;
 		if (!reach.react.has(filePath)) return false;
+		const importedBy =
+			otherEntry === filePath
+				? `is itself a browser entry and ${options.hostIntegrationName} browser entries import it`
+				: `that both ${options.hostIntegrationName} browser entries and another browser entry (${otherEntry}) import`;
 		throw new Error(
-			`[ecopages] ${filePath} is a ${owner} file that both ${options.hostIntegrationName} browser entries and ` +
-				`another browser entry (${otherEntry}) import. ${options.hostIntegrationName} compiles it with its ` +
+			`[ecopages] ${filePath} is a ${owner} file ${importedBy}. ${options.hostIntegrationName} compiles it with its ` +
 				`own JSX runtime and ${owner} with its runtime, but one module has one compiled form. Import it ` +
 				`from one of them only.`,
 		);

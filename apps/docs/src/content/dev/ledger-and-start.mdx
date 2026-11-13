@@ -17,6 +17,30 @@ sources:
   - packages/core/src/eco/discovered-dependency-paths.ts
   - packages/core/src/utils/package-path.ts
   - packages/ecopages/bin/launch-plan.js
+  - templates/electrobun/app.ts
+  - templates/electrobun/desktop/dev.ts
+  - templates/electrobun/desktop/main.ts
+  - templates/electrobun/desktop/live-server.ts
+  - templates/electrobun/desktop/stage.ts
+  - templates/electrobun/eco.config.ts
+  - templates/electrobun/src/includes/html.tsx
+  - templates/electrobun/src/lib/system-appearance.ts
+  - templates/electrobun/electrobun.config.ts
+  - templates/electrobun/src/layouts/shell-layout/shell-layout.css
+  - templates/electrobun/src/layouts/shell-layout/shell-layout.tsx
+  - templates/electrobun/src/layouts/shell-layout/window-header.script.ts
+  - templates/electrobun/src/layouts/shell-layout/window-header.tsx
+  - templates/electrobun/src/lib/auth.server.ts
+  - templates/electrobun/src/lib/credentials.server.ts
+  - templates/electrobun/src/lib/forms.server.ts
+  - templates/electrobun/src/lib/github-flow.server.ts
+  - templates/electrobun/src/lib/github.server.ts
+  - templates/electrobun/src/lib/http.server.ts
+  - templates/electrobun/src/lib/settings.ts
+  - templates/electrobun/src/pages/account.tsx
+  - templates/electrobun/src/pages/dashboard.tsx
+  - templates/electrobun/src/pages/index.tsx
+  - templates/electrobun/src/lib/github-sign-in.ts
 ---
 
 # Ledger and start
@@ -83,3 +107,17 @@ Once sealed, `AssetProcessingService.processDependencies()` is a pure lookup. It
 A build copied or moved to another folder starts like one that stayed. Every dependency key is free of the build machine's location: file paths are relative to the app root, a generated entry hashes its text with the files it imports written relative to the root, a package stylesheet (`fromPackage`) and a node-module script are keyed by package name, version and subpath rather than store folder, and no plugin `cacheKey` holds an absolute path. The emitted modules name their sources relative to the root too, so the dependencies rendering collects resolve against the new root and match the keys the build recorded. `processed-assets.json` is version 4; a file from an earlier format fails startup and asks for a new build.
 
 Only a start from a complete `dist/` restores and seals the ledger. Any other start restores no ledger, so a source edited after the build is never served from stale outputs. For how content collections join this map, see [Content processor](/dev/content-processor).
+
+## Desktop host
+
+The Electrobun starter stages `dist/` and its production dependencies as application resources. Its Bun main process changes to the web app root, points `ECOPAGES_CONFIG_FILE` at the emitted config, and awaits the same `dist/server/app.mjs` loader before opening a window on the loopback origin. The Route Registry and the processed-asset ledger keep their usual startup and request-time behavior. The window and server share the main process lifetime. The SQLite database lives under Electrobun's user-data directory so app updates can replace the resources.
+
+The starter uses Electrobun's draggable-region preload. macOS uses inset native window buttons to retain AppKit's minimize behavior. On Windows and Linux the app header draws the buttons, and the desktop host handles the three window commands from that webview. The window limits navigation to its loopback origin, and the server config applies a same-origin content policy. Run in a browser with `pnpm dev`, the same app sends no content policy, draws no window buttons, and opens GitHub sign-in in a second tab.
+
+All starter Pages use `ShellLayout` for the window header and Zed Compact styles. Dashboard and Account pass `workspace` layout props to add the sidebar and content panel. The sign-in Page uses the same header and supplies its own content.
+
+The Html shell applies the webview's `prefers-color-scheme` setting before loading styles and listens for changes. The desktop content policy allows the inline bootstrap by its SHA-256 hash.
+
+Explicit Route handlers run Effect workflows for credentials, session lookup, and the GitHub handoff. The POST handlers check Host and Origin before parsing input with Effect Schema, and the GitHub GET handlers that the system browser calls check Host and turn workflow outcomes into redirects, cookies, or status codes. The app entry and Page bundles share one Effect runtime per process. Its auth Layer opens SQLite in a scope, uses Drizzle for app settings, and runs Better Auth's migrations on the same connection. The GitHub browser script runs an Effect with a timeout that cancels pending fetches.
+
+`pnpm desktop:dev` launches the Ecopages development CLI from the native process and waits for the loopback server to answer before it opens the window. The development content policy permits the HMR bootstrap and the loopback WebSocket. The native process stops the CLI when the window closes. Packaged startup uses the compiled server and the platform icons declared in `electrobun.config.ts`.

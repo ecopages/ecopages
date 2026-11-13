@@ -132,6 +132,16 @@
 			"integrations": ["react"]
 		},
 		{
+			"id": "electrobun",
+			"displayName": "Electrobun",
+			"description": "A desktop workspace with Ecopages JSX, Radiant UI and Better Auth.",
+			"category": "application",
+			"order": 75,
+			"source": "electrobun",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "radiant-ui", "electrobun"]
+		},
+		{
 			"id": "llm-wiki",
 			"displayName": "LLM Wiki",
 			"description": "A persistent, LLM-maintained knowledge base and site.",

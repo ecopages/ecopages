@@ -51,6 +51,7 @@ export const TEMPLATE_SKILL_PACKS: Record<string, TemplateSkillPackId[]> = {
 	'react-postcss': ['ecopages'],
 	'react-shadcn': ['ecopages'],
 	'react-better-auth': ['ecopages'],
+	electrobun: ['ecopages', 'radiant', 'radiant-ui'],
 	'blog-react': ['ecopages'],
 	'lit-jsx': ['ecopages'],
 };

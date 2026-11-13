@@ -43,10 +43,6 @@ function readImportSpecifiers(filePath: string): string[] {
 /**
  * Walks the static imports of the app's own source files from `roots`, never into a file in `stopAt`, and
  * returns each foreign file it reaches with the root that reached it first.
- *
- * @remarks
- * A root that is itself a foreign file counts as reaching itself, so a standalone script entry another
- * Integration owns stays with its owner instead of falling through as a file the scan did not find.
  */
 function collectForeignFiles(
 	roots: Iterable<string>,
@@ -56,9 +52,6 @@ function collectForeignFiles(
 	const foreign = new Map<string, string>();
 	const visited = new Set<string>();
 	const pending = [...roots].map((root) => [root, root] as const);
-	for (const [root] of pending) {
-		if (options.isForeignFile(root)) foreign.set(root, root);
-	}
 	while (pending.length > 0) {
 		const [filePath, root] = pending.pop()!;
 		if (visited.has(filePath)) continue;

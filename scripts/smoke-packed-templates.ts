@@ -16,10 +16,19 @@ type TemplateManifest = {
 };
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
-const defaultTemplateIds = ['html', 'jsx', 'jsx-postcss', 'jsx-css-modules', 'react', 'react-postcss', 'lit-jsx'];
+const defaultTemplateIds = [
+	'html',
+	'jsx',
+	'jsx-postcss',
+	'jsx-css-modules',
+	'react',
+	'react-postcss',
+	'lit-jsx',
+	'electrobun',
+];
 const dependencyBlocks = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
-const previewStopTimeoutMs = 10_000;
-const previewReadyTimeoutMs = 120_000;
+const serverStopTimeoutMs = 10_000;
+const serverReadyTimeoutMs = 120_000;
 
 let failures = 0;
 
@@ -101,7 +110,19 @@ function createProject(templateId: string, projectDir: string, tarballs: Map<str
 	const sourceDir = path.join(repoRoot, 'templates', template.source, template.packageDirectory);
 	cpSync(sourceDir, projectDir, {
 		recursive: true,
-		filter: (source) => !['node_modules', '.eco', 'dist'].includes(path.basename(source)),
+		filter: (source) =>
+			![
+				'node_modules',
+				'.eco',
+				'dist',
+				'.hutch',
+				'.cottontail-tmp',
+				'.desktop-runtime',
+				'.data',
+				'build',
+				'artifacts',
+				'.env',
+			].includes(path.basename(source)),
 	});
 
 	const packageJsonPath = path.join(projectDir, 'package.json');
@@ -169,7 +190,7 @@ function waitForExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
 }
 
 /**
- * Signals the preview's whole process group, because `npx` and the CLI supervisor each start a child.
+ * Signals the server's whole process group, because `npx` and the CLI supervisor each start a child.
  *
  * @remarks
  * `process.kill` throws when the group has already exited, which is the normal case after a clean stop.
@@ -183,12 +204,16 @@ function killGroup(child: ChildProcess, signal: NodeJS.Signals): void {
 }
 
 /**
- * Serves the project with `ecopages preview`, checks `/`, then checks the server stops on SIGTERM.
+ * Checks that the built project serves `/` and stops on SIGTERM.
  */
-async function smokePreview(projectDir: string): Promise<void> {
+async function smokeServing(projectDir: string, mode: 'preview' | 'start'): Promise<void> {
 	const port = await findFreePort();
-	const child = spawn('npx', ['--no-install', 'ecopages', 'preview', '--port', String(port)], {
+	const desktop = mode === 'start';
+	const host = desktop ? '127.0.0.1' : 'localhost';
+	const runtimeArgs = desktop ? ['--runtime', 'bun'] : [];
+	const child = spawn('npx', ['--no-install', 'ecopages', mode, '--port', String(port), ...runtimeArgs], {
 		cwd: projectDir,
+		env: { ...process.env, ECOPAGES_PORT: String(port), WORKSPACE_DATA_DIR: path.join(projectDir, '.data') },
 		detached: true,
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
@@ -200,21 +225,21 @@ async function smokePreview(projectDir: string): Promise<void> {
 
 	try {
 		let response: Response | undefined;
-		const deadline = Date.now() + previewReadyTimeoutMs;
+		const deadline = Date.now() + serverReadyTimeoutMs;
 		while (!response && Date.now() < deadline) {
 			if (child.exitCode !== null)
-				throw new Error(`preview exited with ${child.exitCode} before serving\n${output}`);
-			response = await fetch(`http://localhost:${port}/`).catch(() => undefined);
+				throw new Error(`${mode} exited with ${child.exitCode} before serving\n${output}`);
+			response = await fetch(`http://${host}:${port}/`).catch(() => undefined);
 			if (!response) await new Promise((resolve) => setTimeout(resolve, 500));
 		}
-		if (!response) throw new Error(`preview did not serve / within ${previewReadyTimeoutMs / 1000}s\n${output}`);
+		if (!response) throw new Error(`${mode} did not serve / within ${serverReadyTimeoutMs / 1000}s\n${output}`);
 		const body = await response.text();
 		if (response.status !== 200) throw new Error(`GET / returned ${response.status}`);
 		if (!/<html[\s>]/i.test(body)) throw new Error('GET / did not return an HTML document');
 
 		killGroup(child, 'SIGTERM');
-		if (!(await waitForExit(child, previewStopTimeoutMs))) {
-			throw new Error(`preview did not exit within ${previewStopTimeoutMs / 1000}s of SIGTERM`);
+		if (!(await waitForExit(child, serverStopTimeoutMs))) {
+			throw new Error(`${mode} did not exit within ${serverStopTimeoutMs / 1000}s of SIGTERM`);
 		}
 	} finally {
 		killOnExit();
@@ -226,21 +251,38 @@ async function smokeTemplate(templateId: string, workDir: string, tarballs: Map<
 	const projectDir = path.join(workDir, 'projects', templateId);
 	mkdirSync(projectDir, { recursive: true });
 	const label = (name: string) => `${templateId}: ${name}`;
+	const artifact = templateId === 'electrobun' ? 'dist/server/manifest.json' : 'dist/client/index.html';
 
 	const steps: Array<[string, () => void | Promise<void>]> = [
 		['create project from tarballs', () => createProject(templateId, projectDir, tarballs)],
 		['pnpm install', () => void run('pnpm', ['install', '--no-frozen-lockfile'], projectDir)],
 		['every repository package comes from a tarball', () => assertInstalledFromTarballs(projectDir, tarballs)],
-		['ecopages build', () => void run('npx', ['--no-install', 'ecopages', 'build'], projectDir)],
 		[
-			'dist/client/index.html exists',
+			'ecopages build',
+			() =>
+				void (templateId === 'electrobun'
+					? run('pnpm', ['run', 'build'], projectDir)
+					: run('npx', ['--no-install', 'ecopages', 'build'], projectDir)),
+		],
+		[
+			`${artifact} exists`,
 			() => {
-				if (!existsSync(path.join(projectDir, 'dist/client/index.html')))
-					throw new Error('dist/client/index.html is missing');
+				if (!existsSync(path.join(projectDir, artifact))) throw new Error(`${artifact} is missing`);
 			},
 		],
 	];
-	if (templateId === 'html') steps.push(['ecopages preview serves / and stops', () => smokePreview(projectDir)]);
+	if (templateId === 'html')
+		steps.push(['ecopages preview serves / and stops', () => smokeServing(projectDir, 'preview')]);
+
+	if (templateId === 'electrobun') {
+		steps.push([
+			'ecopages start serves / without source files and stops',
+			() => {
+				rmSync(path.join(projectDir, 'src'), { recursive: true });
+				return smokeServing(projectDir, 'start');
+			},
+		]);
+	}
 
 	for (const [name, action] of steps) {
 		if (!(await step(label(name), action))) return;
@@ -249,7 +291,7 @@ async function smokeTemplate(templateId: string, workDir: string, tarballs: Map<
 
 /**
  * Builds and packs every public package, installs the requested templates from those tarballs, builds
- * them and, for `html`, serves the build with `ecopages preview`. Exits non-zero when any step fails.
+ * them and serves the builds for `html` and `electrobun`. Exits non-zero when any step fails.
  *
  * @remarks
  * This is the slow, network-using release check, run locally or before a release. CI runs it only for

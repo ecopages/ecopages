@@ -1,3 +1,4 @@
 {
-	"*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": ["bun run lint", "bun run format"]
+	"*.{js,ts,cjs,mjs,cts,mts,jsx,tsx}": ["oxlint --fix", "prettier --write"],
+	"*.{json,jsonc,md,css,html,yml,yaml}": "prettier --write"
 }

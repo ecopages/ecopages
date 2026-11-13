@@ -16,7 +16,7 @@ radiant-copy-for-llm {
 	}
 
 	&[data-copy-error='true'] {
-		@apply border-secondary/60 text-secondary;
+		@apply border-error/60 text-error;
 	}
 }
 
@@ -30,4 +30,8 @@ radiant-copy-for-llm {
 
 .docs-copy-for-llm__label {
 	@apply pointer-events-none whitespace-nowrap text-current;
+}
+
+.docs-copy-for-llm__status {
+	@apply sr-only;
 }

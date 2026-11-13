@@ -1,7 +1,7 @@
 .docs-bar {
-	@apply mb-4 flex min-h-8 items-center justify-between gap-4;
+	@apply mb-4 flex min-h-8 flex-wrap items-center justify-between gap-x-4 gap-y-2;
 }
 
 .docs-breadcrumb {
-	@apply min-w-0 flex-1;
+	@apply min-w-0 flex-1 basis-full sm:basis-auto;
 }

@@ -1,6 +1,6 @@
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { expect, test } from 'vitest';
-import { remarkMermaid } from '../../../../../examples/recipes/diagrams/src/lib/remark-mermaid';
+import { remarkMermaid } from './remark-mermaid';
 
 type Node = { type: string; value?: string; children?: Node[] };
 

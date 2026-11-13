@@ -9,7 +9,7 @@ import { DevLayout } from '@/layouts/docs-layout';
 const overview = devEntries.find((entry) => entry.slug === DEV_INDEX_SLUG)!;
 
 export default eco.page<{}, JsxRenderable>({
-	layout: DevLayout,
+	layout: { component: DevLayout, props: () => ({ currentHref: DEV_ROOT }) },
 	metadata: () => ({
 		title: `Developers | ${overview.title}`,
 		description: overview.description,

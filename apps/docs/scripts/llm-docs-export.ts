@@ -58,14 +58,15 @@ export async function exportLlmSectionPages(
 	origin: string,
 	lines: string[],
 ): Promise<void> {
+	const exportedPosts = sectionPosts.filter((page) => page.llms !== false);
+	if (exportedPosts.length === 0) {
+		return;
+	}
+
 	const sectionTitle = DOCS_SECTION_CONFIG[sectionId as keyof typeof DOCS_SECTION_CONFIG]?.title ?? sectionId;
 	lines.push(`## ${sectionTitle}`);
 
-	for (const page of sectionPosts) {
-		if (page.llms === false) {
-			continue;
-		}
-
+	for (const page of exportedPosts) {
 		const pageSlug = page.segments[page.segments.length - 1]!;
 		const body = await scanner.getRawContent(page.slug);
 		const outputPath = join(stagingRoot, sectionId, `${pageSlug}.md`);

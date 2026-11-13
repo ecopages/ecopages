@@ -66,6 +66,7 @@ describe('RadiantCopyForLlm', () => {
 		});
 		expect(button.dataset.copyError).toBe('false');
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith('# Docs page');
+		expect(document.querySelector('.docs-copy-for-llm__status')?.textContent).toBe('Page copied for LLM');
 	});
 
 	it('shows an error state when the fetch fails', async () => {
@@ -82,6 +83,7 @@ describe('RadiantCopyForLlm', () => {
 		});
 		expect(button.dataset.copied).toBe('false');
 		expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+		expect(document.querySelector('.docs-copy-for-llm__status')?.textContent).toBe('Could not copy page');
 	});
 
 	it('resets copied state after navigation swap', async () => {

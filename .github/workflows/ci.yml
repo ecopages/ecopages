@@ -231,7 +231,7 @@ jobs:
               shell: bash
               run: |
                   changed_files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
-                  if printf '%s\n' "$changed_files" | grep -Eq '^(apps/docs/|packages/(core|ecopages|file-system|browser-router)/|packages/integrations/(ecopages-jsx|mdx)/|packages/processors/(content|image|postcss)-processor/|pnpm-lock.yaml$|package.json$|playwright.docs.config.ts$|e2e/fixtures/docs/|e2e/utils/|e2e/playwright/|.github/workflows/ci.yml$)'; then
+                  if printf '%s\n' "$changed_files" | grep -Eq '^(apps/docs/|packages/(core|ecopages|file-system|browser-router)/|packages/integrations/(ecopages-jsx|mdx)/|packages/processors/(content|image|lightningcss)-processor/|pnpm-lock.yaml$|package.json$|playwright.docs.config.ts$|e2e/fixtures/docs/|e2e/utils/|e2e/playwright/|.github/workflows/ci.yml$)'; then
                       echo "docs=true" >> "$GITHUB_OUTPUT"
                   else
                       echo "docs=false" >> "$GITHUB_OUTPUT"

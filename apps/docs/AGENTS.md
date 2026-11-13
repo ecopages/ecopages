@@ -18,7 +18,8 @@
 
 - `src/content/docs/recipes/` is the Recipes section. Each recipe is one page plus a fixture app under `examples/recipes/<name>/` (see its README); CI typechecks it and builds it with `pnpm run smoke:recipes`.
 - Recipe code on a page comes from the fixture: a fence with `file="<path from the repo root>"` and optional `region="<name>"` is filled by `remarkSnippetInclude` (`src/lib/docs/snippet-include.ts`) and by `scripts/llm-docs-export.ts` for `docs-llm`. Leave the fence body empty.
-- `src/lib/docs/mdx-plugin-options.ts` imports the Diagrams fixture's `remarkMermaid` directly, so the docs app runs the recipe it teaches; `src/styles/components/diagram.css` is the docs theme mapping.
+- `src/lib/docs/mdx-plugin-options.ts` builds the MDX plugins with `createDocsMdxPlugins()` (heading ids, pretty-code, copy-button compatibility, Mermaid, snippet includes). `src/lib/docs/remark-mermaid.ts` is a copy of the Diagrams recipe's `examples/recipes/diagrams/src/lib/remark-mermaid.ts`; keep the two in step. `src/styles/components/diagram.css` is the docs theme mapping.
+- The brand palette in `src/styles/theme.css` overrides Radiant's raw tokens (`--background`, `--surface*`, `--primary`, `--secondary`, `--border`) in `:root` and `.dark`. Do not override `--color-*` aliases: Radiant UI components read the raw tokens, and an alias override leaves two palettes on screen.
 
 ## Developer area
 

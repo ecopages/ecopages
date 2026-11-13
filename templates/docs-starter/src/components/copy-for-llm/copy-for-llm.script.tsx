@@ -92,28 +92,40 @@ export class RadiantCopyForLlm extends RadiantElement {
 		}
 	};
 
+	private statusMessage(): string {
+		if (this.copyState === 'copied') {
+			return 'Page copied for LLM';
+		}
+		return this.copyState === 'error' ? 'Could not copy page' : '';
+	}
+
 	override render() {
 		return (
-			<RuiButton
-				type="button"
-				size="sm"
-				variant="outline"
-				class="docs-copy-for-llm"
-				aria-label={this.label}
-				data-testid="copy-for-llm"
-				data-copied={this.copyState === 'copied' ? 'true' : 'false'}
-				data-copy-error={this.copyState === 'error' ? 'true' : 'false'}
-				disabled={this.copying}
-				on:click={this.handleCopy}
-			>
-				<span class="docs-copy-for-llm__icon docs-copy-for-llm__icon--sparkle" aria-hidden="true">
-					{copyForLlmSparkleIcon}
+			<>
+				<RuiButton
+					type="button"
+					size="sm"
+					variant="outline"
+					class="docs-copy-for-llm"
+					aria-label={this.label}
+					data-testid="copy-for-llm"
+					data-copied={this.copyState === 'copied' ? 'true' : 'false'}
+					data-copy-error={this.copyState === 'error' ? 'true' : 'false'}
+					disabled={this.copying}
+					on:click={this.handleCopy}
+				>
+					<span class="docs-copy-for-llm__icon docs-copy-for-llm__icon--sparkle" aria-hidden="true">
+						{copyForLlmSparkleIcon}
+					</span>
+					<span class="docs-copy-for-llm__icon docs-copy-for-llm__icon--check" aria-hidden="true">
+						{copyForLlmCheckIcon}
+					</span>
+					<span class="docs-copy-for-llm__label">{this.label}</span>
+				</RuiButton>
+				<span class="docs-copy-for-llm__status" aria-live="polite">
+					{this.statusMessage()}
 				</span>
-				<span class="docs-copy-for-llm__icon docs-copy-for-llm__icon--check" aria-hidden="true">
-					{copyForLlmCheckIcon}
-				</span>
-				<span class="docs-copy-for-llm__label">{this.label}</span>
-			</RuiButton>
+			</>
 		);
 	}
 }

@@ -22,6 +22,7 @@ export default defineProject({
 			'packages/**/*.test.browser.tsx',
 			'apps/**/*.test.browser.ts',
 			'apps/**/*.test.browser.tsx',
+			'templates/docs-starter/**/*.test.browser.ts',
 		],
 		benchmark: {
 			include: [],

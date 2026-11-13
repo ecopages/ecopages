@@ -1,22 +1,11 @@
-import { eco, mergePageDependencies } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import type { GetMetadata, GetStaticProps } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
-import {
-	RuiBreadcrumb,
-	RuiBreadcrumbItem,
-	RuiBreadcrumbLink,
-	RuiBreadcrumbList,
-	RuiBreadcrumbPage,
-	RuiBreadcrumbSeparator,
-} from '@ecopages/radiant-ui/breadcrumb';
 import { entries } from 'ecopages:content/docs';
 import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
-import { CopyForLlm } from '@/components/copy-for-llm';
 import type { DocsContentEntry } from '@/content/docs';
-import { docsNav } from '@/lib/content-nav';
-import { getDocsLlmUrl } from '@/lib/docs/docs-llm-url';
-import { parseDocsCatchAllSegments } from '@/lib/docs/resolve-from-catch-all';
+import { parseDocsCatchAllSegments, resolveFromCatchAll } from '@/lib/docs/resolve-from-catch-all';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 type DocsCatchAllProps = {
@@ -29,40 +18,6 @@ type DocsCatchAllProps = {
 function asDocsContentEntry(entry: (typeof entries)[number]): DocsContentEntry {
 	return entry as DocsContentEntry;
 }
-
-const DocsBreadcrumb = ({ entry }: { entry: DocsContentEntry }) => {
-	const section = docsNav.sections.find((navSection) => navSection.id === entry.segments[0]);
-	const sectionLink = section?.items[0];
-	const docsIndexLink = docsNav.sections[0]?.items[0];
-
-	return (
-		<div class="unstyled">
-			<RuiBreadcrumb label="Page location">
-				<RuiBreadcrumbList>
-					<RuiBreadcrumbItem>
-						<RuiBreadcrumbLink href="/">Home</RuiBreadcrumbLink>
-					</RuiBreadcrumbItem>
-					<RuiBreadcrumbSeparator />
-					<RuiBreadcrumbItem>
-						<RuiBreadcrumbLink href={docsIndexLink?.href ?? '/docs'}>Docs</RuiBreadcrumbLink>
-					</RuiBreadcrumbItem>
-					{section && sectionLink ? (
-						<>
-							<RuiBreadcrumbSeparator />
-							<RuiBreadcrumbItem>
-								<RuiBreadcrumbLink href={sectionLink.href}>{section.title}</RuiBreadcrumbLink>
-							</RuiBreadcrumbItem>
-						</>
-					) : null}
-					<RuiBreadcrumbSeparator />
-					<RuiBreadcrumbItem>
-						<RuiBreadcrumbPage>{entry.title}</RuiBreadcrumbPage>
-					</RuiBreadcrumbItem>
-				</RuiBreadcrumbList>
-			</RuiBreadcrumb>
-		</div>
-	);
-};
 
 const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { entry } }) => ({
 	title: `Docs | ${entry.title}`,
@@ -87,7 +42,10 @@ const staticProps: GetStaticProps<DocsCatchAllProps> = async ({ pathname }) => {
 };
 
 export default eco.page<DocsCatchAllProps, JsxRenderable>({
-	layout: DocsLayout,
+	layout: {
+		component: DocsLayout,
+		props: ({ params }) => resolveFromCatchAll(params?.slug),
+	},
 	staticPaths: async () => ({
 		paths: entries.map((entry) => ({
 			params: {
@@ -97,22 +55,10 @@ export default eco.page<DocsCatchAllProps, JsxRenderable>({
 	}),
 	staticProps,
 	metadata: getMetadata,
-	dependencies: async ({ props }) =>
-		mergePageDependencies({ components: [CopyForLlm] }, await getEntryDependencies(props.entry.slug)),
+	dependencies: ({ props }) => getEntryDependencies(props.entry.slug),
 	render: async ({ entry }) => {
 		const Content = await getComponent(entry.slug);
-		const section = entry.segments[0];
-		const slug = entry.segments[entry.segments.length - 1];
-		const llmUrl = section && slug ? getDocsLlmUrl(section, slug) : undefined;
 
-		return (
-			<section class="docs-page">
-				<div class="docs-bar unstyled">
-					<DocsBreadcrumb entry={entry} />
-					{llmUrl ? <CopyForLlm llmUrl={llmUrl} /> : null}
-				</div>
-				{await Content({})}
-			</section>
-		);
+		return <section class="docs-page">{await Content({})}</section>;
 	},
 });

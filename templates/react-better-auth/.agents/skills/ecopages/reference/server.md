@@ -157,3 +157,7 @@ When rendering from handlers with `ctx.render()`:
 ## Client-side routing (React)
 
 With `@ecopages/react-router`, anchor tags use SPA navigation by default. Use `data-eco-reload` for full page reloads.
+
+## Client-side routing (browser-router)
+
+With `@ecopages/browser-router`, the body of the next page is morphed into the current one. A custom element that exists on both pages is replaced by the incoming element, which upgrades from its own server markup, so it does not keep the live element's state. Add `data-eco-persist="<id>"` to keep an element and its state. To hand a live object to a custom element on navigation, set a property on it in an `eco:before-swap` listener: `event.detail.newDocument.querySelector('my-host').engine = engine`.

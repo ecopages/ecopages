@@ -11,7 +11,7 @@
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/ecopages-jsx": "workspace:*",
-		"@ecopages/jsx": "^0.8.2",
+		"@ecopages/jsx": "^0.8.4",
 		"@ecopages/mdx": "workspace:*",
 		"ecopages": "workspace:*",
 		"rehype-pretty-code": "^0.14.3",

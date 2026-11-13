@@ -279,5 +279,42 @@ describe('BundleService', () => {
 				rmSync(tempDir, { recursive: true, force: true });
 			}
 		});
+
+		it('compiles a foreign file that is itself a browser entry with its owner runtime', async () => {
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
+			try {
+				const entrypoints = writeSharedApp(tempDir, "import { Card } from './card.tsx'; console.log(Card);");
+				const widget = path.join(tempDir, 'widget.script.tsx');
+				writeFileSync(widget, 'export const Widget = () => <section>widget</section>;');
+				const output = readEntry(
+					await buildSharedEntries(tempDir, { ...entrypoints, widget }),
+					'widget',
+					tempDir,
+				);
+				expect(output).toContain('@ecopages/jsx/jsx-runtime');
+				expect(output).not.toMatch(/react/);
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('fails the build when a React island imports a foreign file that is itself a browser entry', async () => {
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
+			try {
+				const entrypoints = writeSharedApp(
+					tempDir,
+					"import { Widget } from './widget.script.tsx'; console.log(Widget);",
+				);
+				const widget = path.join(tempDir, 'widget.script.tsx');
+				writeFileSync(widget, 'export const Widget = () => <section>widget</section>;');
+				const result = await buildSharedEntries(tempDir, { ...entrypoints, widget });
+				assertBuildFailed(result);
+				const message = result.logs.map((log) => log.message).join('\n');
+				expect(message).toContain(widget);
+				expect(message).toContain('is itself a browser entry');
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
 	});
 });

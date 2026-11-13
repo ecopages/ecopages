@@ -1,4 +1,4 @@
-@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *, .dark, .dark *));
 
 @theme {
 	--font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
@@ -64,40 +64,84 @@
 	--color-navy-blue-900: hsl(214 64% 13%);
 	--color-navy-blue-950: hsl(225 36% 4%);
 
-	--color-background: var(--color-glacier-white-50);
-	--color-on-background: var(--color-glacier-white-900);
-	--color-background-accent: var(--color-glacier-white-100);
-	--color-on-background-accent: var(--color-glacier-white-950);
-	--color-muted: var(--color-glacier-white-200);
-	--color-primary-container: var(--color-night-sky-100);
-	--color-on-primary-container: var(--color-night-sky-900);
-	--color-primary: var(--color-night-sky-500);
-	--color-on-primary: var(--color-glacier-white-50);
-	--color-secondary: var(--color-scarlet-500);
-	--color-on-secondary: var(--color-glacier-white-50);
-	--color-secondary-container: var(--color-scarlet-100);
-	--color-on-secondary-container: var(--color-scarlet-900);
-	--color-border: color-mix(in oklab, var(--color-on-background) 15%, transparent);
-	--color-link: var(--color-navy-blue-700);
-	--color-background-code: var(--color-glacier-white-100);
-	--color-on-background-code: var(--color-laser-lemon-800);
+	--color-background-accent: var(--surface);
+	--color-on-background-accent: var(--on-surface);
+	--color-muted: var(--surface-container-low);
 }
 
-[data-theme='dark'] {
-	--color-background: var(--color-glacier-white-950);
-	--color-on-background: var(--color-glacier-white-50);
-	--color-background-accent: var(--color-glacier-white-900);
-	--color-on-background-accent: var(--color-glacier-white-50);
-	--color-muted: var(--color-glacier-white-800);
-	--color-primary-container: var(--color-night-sky-800);
-	--color-on-primary-container: var(--color-night-sky-50);
-	--color-primary: var(--color-night-sky-400);
-	--color-on-primary: var(--color-glacier-white-950);
-	--color-secondary: var(--color-scarlet-500);
-	--color-on-secondary: var(--color-glacier-white-950);
-	--color-secondary-container: var(--color-scarlet-800);
-	--color-on-secondary-container: var(--color-scarlet-100);
-	--color-link: var(--color-navy-blue-400);
-	--color-background-code: var(--color-glacier-white-900);
-	--color-on-background-code: var(--color-laser-lemon-300);
+/**
+ * Brand palette, applied to Radiant's raw tokens so every Radiant UI component follows it.
+ *
+ * @remarks
+ * Do not redefine the `--color-*` aliases here: Radiant UI's own styles (sidebar hover, focus rings, alerts)
+ * read the raw tokens, so a `--color-*` override recolours only the site CSS and leaves two palettes on screen.
+ * The `.dark` block must come after `:root`; both have the same specificity.
+ */
+:root {
+	--background: var(--color-glacier-white-50);
+	--on-background: var(--color-glacier-white-900);
+	--surface: var(--color-glacier-white-100);
+	--on-surface: var(--color-glacier-white-950);
+	--surface-container-lowest: var(--color-glacier-white-100);
+	--on-surface-container-lowest: var(--color-glacier-white-950);
+	--surface-container-low: var(--color-glacier-white-200);
+	--on-surface-container-low: var(--color-glacier-white-950);
+	--surface-container: var(--color-glacier-white-300);
+	--on-surface-container: var(--color-glacier-white-950);
+	--surface-container-high: var(--color-glacier-white-400);
+	--on-surface-container-high: var(--color-glacier-white-950);
+	--surface-container-highest: var(--color-glacier-white-500);
+	--on-surface-container-highest: var(--color-glacier-white-950);
+	--primary: var(--color-night-sky-500);
+	--on-primary: var(--color-glacier-white-50);
+	--primary-light: var(--color-night-sky-400);
+	--primary-dark: var(--color-night-sky-700);
+	--primary-container: var(--color-night-sky-100);
+	--on-primary-container: var(--color-night-sky-900);
+	--secondary: var(--color-scarlet-500);
+	--on-secondary: var(--color-glacier-white-50);
+	--secondary-light: var(--color-scarlet-400);
+	--secondary-dark: var(--color-scarlet-700);
+	--secondary-container: var(--color-scarlet-100);
+	--on-secondary-container: var(--color-scarlet-900);
+	--border: color-mix(in oklab, var(--on-background) 15%, transparent);
+	--link: var(--color-navy-blue-700);
+	--focus-ring: var(--color-night-sky-500);
+	--on-focus-ring: var(--color-glacier-white-50);
+	--background-code: var(--color-glacier-white-100);
+	--on-background-code: var(--color-laser-lemon-800);
+}
+
+.dark {
+	--background: var(--color-glacier-white-950);
+	--on-background: var(--color-glacier-white-50);
+	--surface: var(--color-glacier-white-900);
+	--on-surface: var(--color-glacier-white-50);
+	--surface-container-lowest: var(--color-glacier-white-900);
+	--on-surface-container-lowest: var(--color-glacier-white-50);
+	--surface-container-low: var(--color-glacier-white-800);
+	--on-surface-container-low: var(--color-glacier-white-50);
+	--surface-container: var(--color-glacier-white-700);
+	--on-surface-container: var(--color-glacier-white-50);
+	--surface-container-high: var(--color-glacier-white-600);
+	--on-surface-container-high: var(--color-glacier-white-950);
+	--surface-container-highest: var(--color-glacier-white-500);
+	--on-surface-container-highest: var(--color-glacier-white-950);
+	--primary: var(--color-night-sky-400);
+	--on-primary: var(--color-glacier-white-950);
+	--primary-light: var(--color-night-sky-300);
+	--primary-dark: var(--color-night-sky-500);
+	--primary-container: var(--color-night-sky-800);
+	--on-primary-container: var(--color-night-sky-50);
+	--secondary: var(--color-scarlet-500);
+	--on-secondary: var(--color-glacier-white-950);
+	--secondary-light: var(--color-scarlet-400);
+	--secondary-dark: var(--color-scarlet-600);
+	--secondary-container: var(--color-scarlet-800);
+	--on-secondary-container: var(--color-scarlet-100);
+	--link: var(--color-navy-blue-400);
+	--focus-ring: var(--color-night-sky-400);
+	--on-focus-ring: var(--color-glacier-white-950);
+	--background-code: var(--color-glacier-white-900);
+	--on-background-code: var(--color-laser-lemon-300);
 }

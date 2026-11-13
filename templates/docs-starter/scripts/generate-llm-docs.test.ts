@@ -67,6 +67,7 @@ test('generateLlmDocs writes llms.txt and markdown exports', async () => {
 		expect(llmsTxt).toContain('Introduction');
 		expect(llmsTxt).toContain('Next steps');
 		expect(llmsTxt).not.toContain('Excluded');
+		expect(llmsTxt).not.toContain('## llms-fixture');
 		expect(llmsTxt).toContain('## When to use this');
 		expect(llmsTxt).toContain('Authoring MDX docs pages under `src/content/docs`');
 		expect(llmsTxt).toContain('## How to read the docs');

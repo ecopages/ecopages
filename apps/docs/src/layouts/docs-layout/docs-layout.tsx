@@ -1,4 +1,5 @@
 import { eco } from '@ecopages/core';
+import type { LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { RuiChip } from '@ecopages/radiant-ui/chip';
@@ -23,15 +24,12 @@ import { docsNav, type DocsNav } from '@/lib/content-nav';
 import { devNav } from '@/lib/dev-nav';
 import { BaseLayout } from '@/layouts/base-layout';
 import { frameworkVersion } from '@/lib/framework-version';
+import { buildDocsCrumbs } from '@/lib/docs/docs-crumbs';
+import { getDocsLlmUrl } from '@/lib/docs/docs-llm-url';
 import { DocsPagination } from './components/docs-pagination';
+import { DocsBar } from './docs-bar';
 
 const ECO_NAVIGATION_EVENTS = 'eco:page-load,eco:after-swap';
-
-function paginationData(nav: DocsNav): string {
-	return JSON.stringify({
-		pages: nav.sections.flatMap((section) => section.items).map(({ href, title }) => ({ href, title })),
-	});
-}
 
 const DocsNavigation = ({ nav }: { nav: DocsNav }) => (
 	<>
@@ -66,13 +64,13 @@ const DocsSiteHeader = ({ sidebarId }: { sidebarId: string }) => (
 	<div class="rui-sidebar-provider__site-header-inner">
 		<div class="rui-sidebar-provider__site-header-start">
 			<RuiSidebarTrigger
-				class="md:hidden rui-sidebar-trigger-placement--header"
+				class="md:hidden"
 				placement="header"
 				controls={sidebarId}
 				triggerLabel="Close documentation navigation"
 			/>
 			<RuiSidebarTrigger
-				class="md:hidden rui-sidebar-trigger-placement--inset"
+				class="md:hidden"
 				placement="inset"
 				controls={sidebarId}
 				triggerLabel="Open documentation navigation"
@@ -107,14 +105,14 @@ type DocsShellProps = {
 	 * a shared id would keep the docs sidebar on developer pages and the reverse.
 	 */
 	sidebarId: string;
+	/** Breadcrumb and Copy for LLM, rendered above the page. */
+	bar?: JsxRenderable;
+	currentHref?: string;
 	children: JsxRenderable;
 };
 
-const DocsShell = ({ nav, sidebarId, children }: DocsShellProps) => (
+const DocsShell = ({ nav, sidebarId, bar, currentHref, children }: DocsShellProps) => (
 	<BaseLayout showHeader={false}>
-		<script type="application/json" id="docs-pagination-data" safe>
-			{paginationData(nav)}
-		</script>
 		<RuiSidebarProvider
 			layout="docs"
 			class="docs-layout"
@@ -140,8 +138,9 @@ const DocsShell = ({ nav, sidebarId, children }: DocsShellProps) => (
 		>
 			<RuiSidebarInset>
 				<div class="docs-layout__content">
+					{bar}
 					<div class="prose">{children}</div>
-					<DocsPagination />
+					<DocsPagination nav={nav} currentHref={currentHref} />
 				</div>
 			</RuiSidebarInset>
 			<RuiToc
@@ -159,23 +158,39 @@ const DocsShell = ({ nav, sidebarId, children }: DocsShellProps) => (
 const docsShellDependencies = {
 	stylesheets: ['./docs-layout.css'],
 	scripts: [{ src: './docs-layout.script.ts', ssr: true }],
-	components: [CodeTabs],
+	components: [DocsBar, CodeTabs],
+};
+
+type DocsLayoutRenderProps = LayoutProps<JsxRenderable> & {
+	section?: string;
+	slug?: string;
 };
 
 export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: docsShellDependencies,
-	render: ({ children }) => (
-		<DocsShell nav={docsNav} sidebarId="docs-sidebar">
-			{children}
-		</DocsShell>
-	),
+	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
+		const llmUrl = section && slug ? getDocsLlmUrl(section, slug) : undefined;
+		const crumbs = buildDocsCrumbs(docsNav, section, slug, { home: { label: 'Home', href: '/' } });
+		const currentHref = section && slug ? `${docsNav.rootDir}/${section}/${slug}` : undefined;
+
+		return (
+			<DocsShell
+				nav={docsNav}
+				sidebarId="docs-sidebar"
+				bar={<DocsBar crumbs={crumbs} llmUrl={llmUrl} />}
+				currentHref={currentHref}
+			>
+				{children}
+			</DocsShell>
+		);
+	},
 });
 
 /** Shell of the developer area: the docs chrome with the developer sidebar in place of the docs one. */
 export const DevLayout = eco.layout<JsxRenderable>({
 	dependencies: docsShellDependencies,
-	render: ({ children }) => (
-		<DocsShell nav={devNav} sidebarId="dev-sidebar">
+	render: ({ children, currentHref }: LayoutProps<JsxRenderable> & { currentHref?: string }) => (
+		<DocsShell nav={devNav} sidebarId="dev-sidebar" currentHref={currentHref}>
 			{children}
 		</DocsShell>
 	),

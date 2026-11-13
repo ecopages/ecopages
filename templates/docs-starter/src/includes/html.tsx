@@ -9,9 +9,6 @@ const HtmlTemplate = eco.html<JsxRenderable>({
 		scripts: [
 			{
 				content: themeScript,
-				attributes: {
-					defer: '',
-				},
 			},
 		],
 	},

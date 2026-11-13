@@ -41,6 +41,7 @@ Index: [`.agents/README.md`](.agents/README.md). Those packs describe the framew
 - `RuiToc` — `h2` / `h3` on the current page
 - `RuiBreadcrumb` — resolved server-side from `docsNav` and passed into the docs layout
 - Cycle theme toggle — system / light / dark, persisted in `localStorage`
+- Code block Copy buttons — handled by `src/layouts/base-layout/code-copy.ts`. The visible text reads Copy, then Copied or Try again for 1.2 s; the accessible name stays "Copy code". The result is announced through the visually hidden `role="status"` region that `BaseLayout` renders at the end of `<body>`, so it is present on every page after browser-router navigation
 - `CopyForLlm` — fetches `/docs-llm/<section>/<slug>.md` for the current page (path-derived; see LLM exports)
 - Previous / next pagination across the flattened docs set, rendered on the server
 

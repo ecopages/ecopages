@@ -34,7 +34,14 @@ async function setUp(processor: DeclaringProcessor): Promise<void> {
 function typeErrors(): string[] {
 	const options = ts.parseJsonConfigFileContent(
 		{
-			compilerOptions: { strict: true, noEmit: true, module: 'esnext', moduleResolution: 'bundler' },
+			compilerOptions: {
+				strict: true,
+				noEmit: true,
+				module: 'esnext',
+				moduleResolution: 'bundler',
+				lib: ['es2022'],
+				skipLibCheck: true,
+			},
 			include: ['src'],
 		},
 		ts.sys,

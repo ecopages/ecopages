@@ -51,6 +51,8 @@ function typeErrors(): string[] {
 				noEmit: true,
 				module: 'esnext',
 				moduleResolution: 'bundler',
+				lib: ['es5'],
+				types: [],
 				rootDirs: ['./src', `./node_modules/@types/${CSS_MODULE_TYPES_MODULE}`],
 				paths: { '@/*': ['./src/*', `./node_modules/@types/${CSS_MODULE_TYPES_MODULE}/*`] },
 			},

@@ -124,16 +124,20 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
+	/**
+	 * @remarks
+	 * The boundary keeps `import './theme.css'`; core's stylesheet module plugin owns its removal
+	 * (see `rolldown-build-adapter.test.ts`).
+	 */
 	it.each([
-		['layouts', 'layout script'],
-		['pages', 'page helper'],
-		['components', 'component control'],
-	])('keeps bare side-effect imports in a module under %s (%s)', async (folder) => {
+		['layouts', 'docs.script.ts'],
+		['components', 'docs.script.ts'],
+	])('keeps bare side-effect imports in a script under %s', async (folder, name) => {
 		await withTempDir(async (tempDir) => {
 			const reactEntrypoint = path.join(tempDir, 'entry.tsx');
 			const dir = path.join(tempDir, 'src', folder);
 			mkdirSync(dir, { recursive: true });
-			const script = path.join(dir, 'docs.script.ts');
+			const script = path.join(dir, name);
 			writeFileSync(reactEntrypoint, 'export default () => null;', 'utf-8');
 			writeFileSync(
 				script,
@@ -148,7 +152,41 @@ describe('createClientGraphBoundaryPlugin', () => {
 			const transformed = (await harness.transformFile(script)) ?? readFileSync(script, 'utf-8');
 
 			expect(transformed).toContain("import 'some-element-package/sidebar'");
+			expect(transformed).toContain('./theme.css');
 			expect(transformed).not.toContain('secret.server');
+		});
+	});
+
+	it('keeps bare side-effect imports in a page module and strips its server parts', async () => {
+		await withTempDir(async (tempDir) => {
+			const dir = path.join(tempDir, 'src', 'pages');
+			mkdirSync(dir, { recursive: true });
+			const page = path.join(dir, 'index.tsx');
+			writeFileSync(
+				page,
+				[
+					"import 'some-element-package/sidebar';",
+					"import './secret.server.ts';",
+					'const eco = { page: (options) => options };',
+					'export default eco.page({',
+					"\tmetadata: () => ({ title: 'x' }),",
+					'\tstaticProps: async () => ({ props: {} }),',
+					'\trender: () => null,',
+					'});',
+				].join('\n'),
+				'utf-8',
+			);
+
+			const harness = createPluginTestHarness(
+				{ absWorkingDir: tempDir, projectRoot: tempDir, entrypointFile: page },
+				{ react: page },
+			);
+			const transformed = (await harness.transformFile(page)) ?? readFileSync(page, 'utf-8');
+
+			expect(transformed).toContain("import 'some-element-package/sidebar'");
+			expect(transformed).not.toContain('secret.server');
+			expect(transformed).not.toContain('staticProps');
+			expect(transformed).not.toContain('metadata');
 		});
 	});
 

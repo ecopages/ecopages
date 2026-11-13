@@ -55,19 +55,29 @@ export default defineConfig({
 
 ## Options
 
-| Option          | Description                                                                                           |
-| :-------------- | :---------------------------------------------------------------------------------------------------- |
-| `targets`       | Browserslist queries, a string or an array. Unset, nothing is lowered.                                |
-| `minify`        | Minify the CSS. On in production, off otherwise.                                                      |
-| `drafts`        | Draft syntax, such as `{ customMedia: true }`.                                                        |
-| `nonStandard`   | Non-standard syntax, such as `{ deepSelectorCombinator: true }`.                                      |
-| `include`       | Names of Lightning CSS `Features` to compile even when `targets` support them, such as `['Nesting']`. |
-| `exclude`       | Names of `Features` to leave as written even when `targets` do not support them.                      |
-| `visitor`       | A Lightning CSS visitor, run over every stylesheet.                                                   |
-| `plugins`       | [Plugins](#plugins) that rewrite the source or visit the rules of every stylesheet, in order.         |
-| `errorRecovery` | Drop a rule Lightning CSS cannot parse with a warning, instead of failing the stylesheet.             |
-| `filter`        | Regex that picks the stylesheets to process. Default `/\.css$/`.                                      |
-| `cssModules`    | `{ pattern }`: how scoped class names are built. Default `'[hash]_[local]'`.                          |
+| Option          | Description                                                                                                                                                           |
+| :-------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `targets`       | Browserslist queries, a string or an array. Unset, the app's [browserslist config](#targets) is used, and nothing is lowered without one. `false` keeps lowering off. |
+| `minify`        | Minify the CSS. On in production, off otherwise.                                                                                                                      |
+| `drafts`        | Draft syntax, such as `{ customMedia: true }`.                                                                                                                        |
+| `nonStandard`   | Non-standard syntax, such as `{ deepSelectorCombinator: true }`.                                                                                                      |
+| `include`       | Names of Lightning CSS `Features` to compile even when `targets` support them, such as `['Nesting']`.                                                                 |
+| `exclude`       | Names of `Features` to leave as written even when `targets` do not support them.                                                                                      |
+| `visitor`       | A Lightning CSS visitor, run over every stylesheet.                                                                                                                   |
+| `plugins`       | [Plugins](#plugins) that rewrite the source or visit the rules of every stylesheet, in order.                                                                         |
+| `errorRecovery` | Drop a rule Lightning CSS cannot parse with a warning, instead of failing the stylesheet.                                                                             |
+| `filter`        | Regex that picks the stylesheets to process. Default `/\.css$/`.                                                                                                      |
+| `cssModules`    | `{ pattern }`: how scoped class names are built. Default `'[hash]_[local]'`.                                                                                          |
+
+### Targets
+
+The CSS is lowered for the browsers in `targets`. Where they come from, first match wins:
+
+1. The `targets` option, when you pass one.
+2. The app's browserslist config, found by browserslist from the app root: `.browserslistrc`, or the `browserslist` field of `package.json`.
+3. Nothing: no lowering and no vendor prefixes.
+
+Pass `targets: false` to keep lowering off even when the app has a config.
 
 ## Plugins
 

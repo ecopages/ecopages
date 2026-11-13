@@ -1035,6 +1035,8 @@ describe('IntegrationRenderer', () => {
 				return '<html><body>Page</body></html>';
 			}
 
+			protected override assertPageModule(): void {}
+
 			protected override async importPageFile(): Promise<EcoPageFile> {
 				return this.PageModule;
 			}
@@ -1106,6 +1108,8 @@ describe('IntegrationRenderer', () => {
 				return '<html><body>Page</body></html>';
 			}
 
+			protected override assertPageModule(): void {}
+
 			protected override async importPageFile(): Promise<EcoPageFile> {
 				return this.PageModule;
 			}
@@ -1155,6 +1159,8 @@ describe('IntegrationRenderer', () => {
 				renderOptions = options;
 				return '<html><body>Page</body></html>';
 			}
+
+			protected override assertPageModule(): void {}
 
 			protected override async importPageFile(): Promise<EcoPageFile> {
 				return this.PageModule;
@@ -1215,6 +1221,8 @@ describe('IntegrationRenderer', () => {
 				renderOptions = options;
 				return '<html><body>Page</body></html>';
 			}
+
+			protected override assertPageModule(): void {}
 
 			protected override async importPageFile(): Promise<EcoPageFile> {
 				return this.PageModule;

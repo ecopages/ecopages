@@ -69,4 +69,5 @@ function collectMdxPageComponents(
 export const MDXRenderer = createIntegrationRenderer<EcoPagesElement>(MDX_PLUGIN_NAME, () => ({
 	collectPageBrowserGraphContribution: async (context) => ({ components: collectMdxPageComponents(context) }),
 	normalizePageModule: normalizeImportedMdxPage,
+	acceptsPageModule: (module) => typeof module.default === 'function',
 }));

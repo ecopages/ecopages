@@ -106,6 +106,13 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		return this.PageModule;
 	}
 
+	/**
+	 * @remarks
+	 * Tests hand this renderer bare function pages that no build gave an identity, so the shape check is off here;
+	 * the check has its own tests on a renderer that keeps it.
+	 */
+	protected override assertPageModule(): void {}
+
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		if (!this.HtmlTemplate) throw new Error('Mock HTML template not set');
 		return this.HtmlTemplate;

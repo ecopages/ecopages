@@ -43,6 +43,7 @@ import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { isEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import { type PreparedComponentGraph, type PreparedComponentGraphNode } from './ownership-graph/component-graph.ts';
 import { collectComponentGraphWatchPaths } from './ownership-graph/component-graph-collectors.ts';
@@ -194,6 +195,15 @@ export type IntegrationRendererHooks = {
 		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	}) => DocumentShellComposeChildrenHook | undefined;
 	normalizePageModule?: <TPageModule extends EcoPageFile>(file: string, module: TPageModule) => TPageModule;
+	/**
+	 * Says whether the default export of a route module, after {@link normalizePageModule}, is a Page this Integration renders.
+	 *
+	 * @remarks
+	 * Without it, a Page is a declared component: an `eco.page()` result the build gave an identity, as an HTML Page
+	 * also has. Override it only for modules that are Pages without one, such as an MDX module. A `false` fails the
+	 * route with the file and the fixes; a function with a `config` the build gave no identity gets the literal-call message.
+	 */
+	acceptsPageModule?: (module: EcoPageFile) => boolean;
 	/**
 	 * Names what one Page adds to its Page Browser Graph.
 	 *
@@ -517,9 +527,52 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * `getStaticPaths` or `getMetadata` fails here with an error that points to the codemod.
 	 */
 	public async loadPageModule(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
+		return this.importRouteModule(file, options);
+	}
+
+	/**
+	 * Imports a route module and fails unless it is a Page this Integration accepts.
+	 *
+	 * @remarks
+	 * The legacy-export check runs first, so a module that still exports `getStaticProps` gets the codemod message.
+	 */
+	protected async importRouteModule(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
 		const pageModule = await this.importPageFile(file, options);
 		this.pageModuleLoaderService.assertNoLegacyPageExports(file, pageModule);
+		this.assertPageModule(file, pageModule);
 		return pageModule;
+	}
+
+	/**
+	 * Fails when the default export of a route module is not a Page this Integration accepts.
+	 *
+	 * @remarks
+	 * The Integration decides through {@link IntegrationRendererHooks.acceptsPageModule}. A function with a `config`
+	 * is an `eco.page()` result, so a missing identity means the build never saw a literal `eco.page(...)` call for it.
+	 * @throws When the module has no default export that is a Page.
+	 */
+	protected assertPageModule(file: string, module: EcoPageFile): void {
+		const page = module.default as unknown;
+		const accepted = this.integrationHooks.acceptsPageModule?.(module) ?? isEcoDeclaredComponent(page);
+		if (accepted) {
+			return;
+		}
+
+		const hasConfig = typeof page === 'function' && typeof (page as EcoComponent).config === 'object';
+		if (hasConfig) {
+			throw new Error(
+				`[ecopages] ${file} default-exports an eco.page() result that has no build-time identity. The build finds eco.page, eco.layout, eco.component and eco.html by their literal call, eco.page(...), so a wrapper function, an alias such as \`const page = eco.page\` or a renamed import is invisible to it: the Page gets no identity, and server options such as staticProps and metadata stay in the browser bundle. Call eco.page(...) directly in the file.`,
+			);
+		}
+
+		const { pagesDir } = this.appConfig.absolutePaths;
+		const inPagesDir = path.resolve(file).startsWith(`${pagesDir}/`);
+		const fixes = inPagesDir
+			? ' If the file is not a Page, prefix its name with "_", give it a role suffix such as .server.ts or .script.ts, or move it out of the pages directory.'
+			: '';
+		throw new Error(
+			`[ecopages] ${file} does not default-export a Page the ${this.name} Integration renders (an eco.page() result).${fixes}`,
+		);
 	}
 
 	public setHmrManager(hmrManager: IHmrManager) {
@@ -1007,7 +1060,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const resolvedPageModule = await this.pageModuleLoaderService.resolvePageModule({
 			file: routeOptions.file,
 			pageModule: routeOptions.pageModule,
-			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
+			importPageFileFn: (targetFile) => this.importRouteModule(targetFile),
 		});
 		const { Page, integrationSpecificProps, module: pageModule } = resolvedPageModule;
 		const HtmlTemplate = await this.getHtmlTemplate();

@@ -64,12 +64,24 @@ A Page authored as a plain `.html` file under `src/pages/`, rendered inside the 
 _Avoid_: Static HTML file, HTML template
 
 **Filesystem Route**:
-A route automatically discovered by scanning the pages directory. Files follow conventions (e.g., `pages/about.tsx` becomes `/about`, `pages/blog/[slug].tsx` becomes `/blog/[slug]`). Its role is `page` for a Page file and `endpoint` for an Endpoint.
+A route automatically discovered by scanning the pages directory. Files follow conventions (e.g., `pages/about.tsx` becomes `/about`, `pages/blog/[slug].tsx` becomes `/blog/[slug]`). Its role is `page` for a Page file and `endpoint` for an Endpoint. A **Role Suffix** (`.server`, `.script`) or a **Private File** is not a Filesystem Route.
 _Avoid_: Automatic route, file-based route
 
 **Endpoint**:
 A Filesystem Route declared by a file under the pages directory ending in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`, whose method handler exports (`GET`, `POST`, ...) answer its requests. It follows the Page pathname rules with the whole `.api.*` ending as the dropped marker (`pages/api/users.api.ts` becomes `/api/users`) and is never a Page: no Layout, no Cache Strategy, no Build-Time Rendering. An `app.get()` handler is an Explicit Route, not an Endpoint.
 _Avoid_: API route, API page, handler file
+
+**Role Suffix**:
+The part of a file name that declares what the file is before the build reads it: `.api.<ext>` (Endpoint), `.server.<ext>` (server-only module), `.script.<ext>` (Browser Script), where `<ext>` is `.ts`, `.tsx`, `.js` or `.jsx`. It is matched before template extensions, never registered by an Integration, and a role segment anywhere else in a file name under the pages directory fails the build.
+_Avoid_: File marker, naming convention
+
+**Private File**:
+A file or folder under the pages directory whose name starts with `_` (`_card.tsx`, `_parts/`). It is never a Filesystem Route, so it can sit next to the Pages that use it.
+_Avoid_: Hidden file, ignored file
+
+**Browser Script**:
+A module a Page or Component attaches through `dependencies.scripts`, conventionally named `<name>.script.<ext>`. The suffix keeps it out of routing and says it is a browser module; the declaration still attaches it, and in development an unattached one warns.
+_Avoid_: Client script, client file
 
 **Explicit Route**:
 A route registered programmatically via the app API (e.g., `app.static(path, view)` for page routes or `app.get(path, handler)` for handlers), bypassing filesystem discovery.

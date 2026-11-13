@@ -452,11 +452,11 @@ describe('finalizeEcoPagesConfig', () => {
 		);
 	});
 
-	test.each([['.api.ts'], ['.api.tsx']])(
-		'rejects an Integration that registers the endpoint marker %p',
+	test.each([['.api.ts'], ['.api.tsx'], ['.server.tsx'], ['.script.ts']])(
+		'rejects an Integration that registers the role suffix %p',
 		async (extension) => {
 			await expect(finalize({ integrations: [createMockIntegration('mine', [extension])] })).rejects.toThrow(
-				`Integration "mine" registers "${extension}", which is reserved for endpoint files: .api.ts, .api.tsx, .api.js, .api.jsx.`,
+				`Integration "mine" registers "${extension}", which is reserved for role files: .api.ts, .api.tsx, .api.js, .api.jsx, .server.ts, .server.tsx, .server.js, .server.jsx, .script.ts, .script.tsx, .script.js, .script.jsx.`,
 			);
 		},
 	);

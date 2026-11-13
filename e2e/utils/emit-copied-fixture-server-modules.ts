@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../packages/core/src/config/internal-types.ts';
 import { loadEcoPagesConfig } from '../../packages/core/src/config/load-eco-config.ts';
 import { emitProductionServerModules } from '../../packages/core/src/build/cache/pages-unified-graph-build.ts';
-import { ENDPOINT_FILE_EXTENSIONS } from '../../packages/core/src/utils/endpoint-file-extensions.ts';
+import { ENDPOINT_FILE_EXTENSIONS } from '../../packages/core/src/utils/file-roles.ts';
 
 /**
  * Emits production server modules for a copied fixture so `NODE_ENV=production`

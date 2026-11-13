@@ -7,7 +7,14 @@ import type { PageParams, PageQuery } from '../../types/contracts.ts';
 import { invariant } from '../../utils/invariant.ts';
 import { isProductionRuntime } from '../../env.ts';
 import { hasKnownStaticExtension } from '../../utils/static-file-extensions.ts';
-import { ENDPOINT_FILE_EXTENSIONS, findEndpointFileExtension } from '../../utils/endpoint-file-extensions.ts';
+import {
+	describeRoleForms,
+	ENDPOINT_FILE_EXTENSIONS,
+	findEndpointFileExtension,
+	findMisplacedRole,
+	getFileRole,
+	isPrivatePath,
+} from '../../utils/file-roles.ts';
 import { normalizePathname } from '../../utils/path-pattern.ts';
 import { parseSearchParams } from './parse-search-params.ts';
 import { findIntegrationForFile, findLongestExtension } from '../../plugins/find-integration-for-file.ts';
@@ -303,6 +310,27 @@ export class RouteRegistry {
 		];
 	}
 
+	/**
+	 * Whether `file`, relative to the pages directory, is a Page or endpoint file.
+	 *
+	 * @remarks
+	 * Private files and `.server.*` and `.script.*` modules are not routes. Any other file with a role
+	 * segment out of place fails the build, naming the file and the expected form.
+	 */
+	private isRouteFile(file: string): boolean {
+		const role = getFileRole(file);
+		if (isPrivatePath(file) || role === 'server' || role === 'script') {
+			return false;
+		}
+
+		const misplacedRole = findMisplacedRole(file);
+		invariant(
+			misplacedRole === undefined,
+			`${path.join(this.pagesDir, file)}: the "${misplacedRole}" role segment must come directly before a script extension, as in ${describeRoleForms()}. Rename the file, or prefix it with "_" to keep it out of routing.`,
+		);
+		return true;
+	}
+
 	private async scanTemplateRoutes(): Promise<TemplateRoute[]> {
 		if (!fileSystem.exists(this.pagesDir)) {
 			return [];
@@ -319,7 +347,7 @@ export class RouteRegistry {
 		const routesByKey = new Map<string, { pathname: string; filePath: string }>();
 
 		for await (const file of scannedFiles) {
-			if (file.includes('.ecopages-node.')) {
+			if (!this.isRouteFile(file)) {
 				continue;
 			}
 

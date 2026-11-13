@@ -1,0 +1,76 @@
+import { expect, test } from 'vitest';
+import {
+	findMisplacedRole,
+	findRoleSuffix,
+	getFileRole,
+	isPrivatePath,
+	isServerOnlyModuleSpecifier,
+} from './file-roles.ts';
+
+test.each([
+	'./db.server.ts',
+	'./db.server',
+	'/app/auth.server.js',
+	'pkg/db.server.mjs',
+	'./db.server?raw',
+	'./db.server#module',
+])('classifies %s as server-only', (specifier) => {
+	expect(isServerOnlyModuleSpecifier(specifier)).toBe(true);
+});
+
+test.each(['./server.ts', './db.serverless.ts', './server/db.ts', './db.client.ts', './db.client?file=auth.server.ts'])(
+	'allows browser module %s',
+	(specifier) => {
+		expect(isServerOnlyModuleSpecifier(specifier)).toBe(false);
+	},
+);
+
+test.each([
+	['users.api.ts', 'api'],
+	['card.server.tsx', 'server'],
+	['counter.script.js', 'script'],
+	['widget.script.jsx', 'script'],
+	['about.tsx', undefined],
+	['server.tsx', undefined],
+	['card.server.kita.tsx', undefined],
+])('reads the role of %s as %s', (file, role) => {
+	expect(getFileRole(file)).toBe(role);
+});
+
+test.each([
+	['card.server.kita.tsx', 'server'],
+	['nav.script.lit.tsx', 'script'],
+	['users.api.html', 'api'],
+	['db.server.test.ts', 'server'],
+	['blog/card.server.kita.tsx', 'server'],
+])('finds the misplaced role segment in %s', (file, role) => {
+	expect(findMisplacedRole(file)).toBe(role);
+});
+
+test.each([
+	'db.server.ts',
+	'counter.script.tsx',
+	'users.api.js',
+	'server.tsx',
+	'api.ts',
+	'v1.2.html',
+	'a.kita.tsx',
+	'dir.server/page.tsx',
+])('finds no misplaced role segment in %s', (file) => {
+	expect(findMisplacedRole(file)).toBeUndefined();
+});
+
+test.each([
+	['_card.tsx', true],
+	['_parts/card.tsx', true],
+	['blog/_card.tsx', true],
+	['blog/card_1.tsx', false],
+	['blog/post.tsx', false],
+])('reads %s as private: %s', (file, expected) => {
+	expect(isPrivatePath(file)).toBe(expected);
+});
+
+test('finds the role suffix an extension ends with', () => {
+	expect(findRoleSuffix('.server.tsx')).toBe('.server.tsx');
+	expect(findRoleSuffix('.kita.tsx')).toBeUndefined();
+});

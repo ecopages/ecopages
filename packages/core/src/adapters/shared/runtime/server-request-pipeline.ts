@@ -3,6 +3,7 @@ import { getServerModuleBuildCacheOutdir } from '../../../build/server/route-mod
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts';
+import { warnUnattachedScripts } from '../../../router/server/unattached-scripts.ts';
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticGenerationRoute } from '../../../router/server/route-registry.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
@@ -190,6 +191,10 @@ export class ServerRequestPipeline {
 		});
 
 		await this.router.init();
+		if (this.watchMode) {
+			await warnUnattachedScripts(this.appConfig);
+			this.router.onReload(() => void warnUnattachedScripts(this.appConfig));
+		}
 		startupTrace.markPhaseEnd('route-registry');
 	}
 

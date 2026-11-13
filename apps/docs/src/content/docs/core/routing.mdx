@@ -25,6 +25,18 @@ Extensions depend on your active integrations:
 
 Each route must come from exactly one file, whatever its parameter names. For example, `about.html` next to `about.tsx`, `about.tsx` next to `about/index.tsx`, or `blog/[slug].tsx` next to `blog/[id].tsx`, is an error. HTML Pages cannot use dynamic segments such as `[slug].html`.
 
+### Files That Are Not Routes
+
+A file under `src/pages` is a page unless its name says otherwise. These names keep a file out of routing, so a module can sit next to the pages that use it:
+
+| Name | Role |
+| --- | --- |
+| `db.server.ts`, `card.server.tsx` | Server-only module. A browser module that reaches it fails the build. |
+| `counter.script.ts`, `widget.script.tsx` | Browser script. List it in `dependencies.scripts` to attach it to a page or component. |
+| `_card.tsx`, `_layout.tsx`, `_parts/row.tsx` | Private. Any file or folder whose name starts with `_` is never a route. |
+
+A role suffix is `.server` or `.script` followed by `.ts`, `.tsx`, `.js` or `.jsx`, and it is matched before the template extensions. The same suffixes mean the same thing outside `src/pages`. A role segment anywhere else fails the build with the expected form, so `card.server.kita.tsx` and `nav.script.lit.tsx` are errors: a Kita or Lit template is already rendered on the server, and a browser script is not a template. In development, a `.script.*` file that no declaration lists in `dependencies.scripts` logs a warning once.
+
 ### Index Routes
 
 - `src/pages/index.tsx` → `/`
@@ -71,7 +83,7 @@ src/pages/blog/[slug]/comments.api.js  ->  /blog/[slug]/comments
 src/pages/users.api.tsx                ->  /users
 ```
 
-The `.api.*` endings are reserved: an Integration cannot register one as a page extension, and the config fails with an error naming the Integration that does. Registering `.tsx` is fine; `users.api.tsx` is still an endpoint file, not a `.tsx` page.
+The `.api.*`, `.server.*` and `.script.*` endings are reserved: an Integration cannot register one as a page extension, and the config fails with an error naming the Integration that does. Registering `.tsx` is fine; `users.api.tsx` is still an endpoint file, not a `.tsx` page.
 
 Endpoint files use brackets (`[id]`, `[...slug]`); `:id` is for `app.ts` routes. A request to `/api/users/5` gives `params.id === '5'`, and a catch-all param is an array. Two files on the same route fail at startup, whatever the parameter names: `users.tsx` beside `users.api.ts`, or `blog/[slug].tsx` beside `blog/[id].api.ts`.
 

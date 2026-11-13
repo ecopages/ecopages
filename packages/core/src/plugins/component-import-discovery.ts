@@ -4,6 +4,7 @@ import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { CSS_MODULE_PROCESSOR_FIX, PLAIN_CSS_KINDS, type StylesheetKinds } from './stylesheet-kinds.ts';
 import { contentHash } from '../utils/content-hash.ts';
 import { findPackageRoot } from '../utils/package-path.ts';
+import { isServerOnlyModuleSpecifier } from '../utils/file-roles.ts';
 import {
 	isBarePackageImportSpecifier,
 	loadTsconfigPathPrefixes,
@@ -69,10 +70,6 @@ export function declaresEcoFactory(program: unknown): boolean {
 		}
 	});
 	return found;
-}
-
-function isServerSpecifier(source: string): boolean {
-	return /\.server(?:\.[cm]?[jt]sx?)?$/.test(source);
 }
 
 function isLocalSpecifier(source: string, pathPrefixes: string[]): boolean {
@@ -675,7 +672,11 @@ function resolveReexport(
 	reexport: { source: string; imported: string } | undefined,
 	state: DiscoveryState,
 ): { file: string; imported: string } | undefined {
-	if (!reexport || isServerSpecifier(reexport.source) || !isLocalSpecifier(reexport.source, state.pathPrefixes)) {
+	if (
+		!reexport ||
+		isServerOnlyModuleSpecifier(reexport.source) ||
+		!isLocalSpecifier(reexport.source, state.pathPrefixes)
+	) {
 		return undefined;
 	}
 	const resolved = resolveProjectModulePath(state.projectRoot, file, reexport.source, { preserveBarrel: true });
@@ -705,7 +706,7 @@ function isFactoryExport(
 	pending.add(visitKey);
 
 	let result = false;
-	if (!file.includes(`/node_modules/`) && !isServerSpecifier(file)) {
+	if (!file.includes(`/node_modules/`) && !isServerOnlyModuleSpecifier(file)) {
 		const { factories, namedReexports } = indexModule(file, state.cache);
 		if (factories.has(exportName)) {
 			result = true;
@@ -828,7 +829,7 @@ function followPackageImport(entry: StaticImport, importer: string, state: Disco
 
 /** Whether `entry` imports a script module for its bindings or its side effects, not a stylesheet or a `.server` module. */
 function isScriptEdge(entry: StaticImport, state: DiscoveryState): boolean {
-	if (entry.attributed || state.stylesheets.isStylesheet(entry.source) || isServerSpecifier(entry.source))
+	if (entry.attributed || state.stylesheets.isStylesheet(entry.source) || isServerOnlyModuleSpecifier(entry.source))
 		return false;
 	return entry.sideEffectOnly || entry.bindings.length > 0;
 }

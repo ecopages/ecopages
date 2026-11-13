@@ -5,7 +5,7 @@ section: rendering
 order: 9
 sources:
   - packages/core/src/router/server/
-  - packages/core/src/utils/endpoint-file-extensions.ts
+  - packages/core/src/utils/file-roles.ts
   - packages/core/src/utils/static-file-extensions.ts
   - packages/core/src/build/production-route-list.ts
   - packages/core/src/adapters/shared/runtime/server-route-handler.ts
@@ -32,14 +32,20 @@ sources:
 
 - A route drops the longest registered extension the file ends with, so `about.kita.tsx` is `/about` and `v1.2.html` is `/v1.2`; `index` is stripped.
 - The kind comes from the path inside the pages directory, so brackets in the project path do not make routes dynamic.
-- `ENDPOINT_FILE_EXTENSIONS` (`.api.ts`, `.api.tsx`, `.api.js`, `.api.jsx`) is the one definition of the endpoint marker, shared with config finalization, which rejects an Integration that registers one. An endpoint drops the whole marker, so `users.api.tsx` is the endpoint `/users` even when `.tsx` is a template extension.
+- `utils/file-roles.ts` is the one definition of file roles: `<name>.<role>.<ext>` with `api`, `server` or `script` as the role and `.ts`, `.tsx`, `.js` or `.jsx` as the extension. `ENDPOINT_FILE_EXTENSIONS` (the `api` suffixes) is shared with config finalization, which rejects an Integration that registers any role suffix. An endpoint drops the whole marker, so `users.api.tsx` is the endpoint `/users` even when `.tsx` is a template extension.
+- The scan skips, before it matches a template extension, every `.server.*` and `.script.*` file and every file with a `_`-prefixed path segment under the pages directory (`isPrivatePath()`). They are never routes, so they can sit beside Pages. The client graph and the Rolldown browser build read the `.server` boundary from the same module (`isServerOnlyModuleSpecifier()`).
 - An endpoint has no Integration owner, Layout, Cache Strategy or `staticPaths`, and its dynamic segments need no `acceptsParams`. Static expansion, the sitemap and the browser-graph prebuild read `page` routes only.
 
 Discovery fails, naming the files, when:
 
 - two files produce the same route, whatever their parameter names: `segmentPathPatternKey()` drops names and syntax, so `blog/[slug].tsx` and `blog/[id].api.ts` collide;
+- a role segment sits anywhere but directly before a script extension (`card.server.kita.tsx`, `nav.script.lit.tsx`, `users.api.html`), because the file would be a server-only module or a Page of that Integration and the build will not pick one (`findMisplacedRole()`); a private file is exempt;
 - an endpoint's pathname ends in a known static file extension (`feed.xml.api.ts`), because the server never sends such a URL to a file route; the error points to `app.ts`;
 - a dynamic Page belongs to an Integration with `acceptsParams: false`, such as `[slug].html`, because HTML Pages have no `staticPaths` source.
+
+## Browser scripts nothing attaches
+
+A `.script.*` name declares a browser module and injects nothing; `dependencies.scripts` still attaches it. In development, after the registry initializes and after each reload, `warnUnattachedScripts()` (`unattached-scripts.ts`) logs one warning per `.script.*` file under the source directory that no other source file quotes by name. Development has no list of every declaration before each Page renders, so a quoted name in `dependencies.scripts`, an import or a `<script src>` counts as attached. A build does not run the check.
 
 ## Matching
 

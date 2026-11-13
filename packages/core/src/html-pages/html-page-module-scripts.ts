@@ -17,6 +17,7 @@ import {
 } from '../plugins/tsconfig-import-resolver.ts';
 import { BrowserBundleService } from '../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import { isPrivatePath } from '../utils/file-roles.ts';
 import { isProductionRuntime } from '../utils/runtime.ts';
 import { compileHtmlPage, compileHtmlShell, type HtmlAssetDeclaration } from './html-page-template.ts';
 
@@ -307,7 +308,7 @@ function listHtmlFiles(appConfig: EcoPagesAppConfig): string[] {
 		? fileSystem
 				.readdir(pagesDir, { recursive: true })
 				.map((entry) => entry.name)
-				.filter((name) => name.endsWith('.html'))
+				.filter((name) => name.endsWith('.html') && !isPrivatePath(name))
 				.map((name) => path.join(pagesDir, name))
 				.sort()
 		: [];

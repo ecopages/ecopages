@@ -20,7 +20,7 @@ export {
 	parseCollectionSpecifier,
 	type ParsedCollectionSpecifier,
 } from './build/contracts/content-virtual-modules.ts';
-export { isServerOnlyModuleSpecifier } from './build/contracts/server-only-specifier.ts';
+export { isServerOnlyModuleSpecifier } from './utils/file-roles.ts';
 export { shouldBuildPagesUnifiedGraph } from './build/cache/pages-unified-graph-build.ts';
 export { BuildQueue } from './build/runtime/build-queue.ts';
 export { buildServerModule } from './build/server-module.ts';

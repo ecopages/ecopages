@@ -10,3 +10,7 @@ html {
 main {
 	@apply max-w-7xl w-full mx-auto;
 }
+
+.code-copy-status {
+	@apply sr-only;
+}

@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { importViewModule } from '../build/server/import-view-module.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';

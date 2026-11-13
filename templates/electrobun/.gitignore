@@ -1,0 +1,12 @@
+/node_modules/
+/.eco/
+/.hutch/
+/.desktop-runtime/
+/.data/
+/build/
+/artifacts/
+/dist/
+.env
+.env.local
+
+/.cottontail-tmp/

@@ -37,9 +37,14 @@ export interface LightningCssPlugin {
 /** The options of the Lightning CSS Processor. */
 export interface LightningCssOptions {
 	/**
-	 * Browserslist queries to lower the CSS for, such as `['chrome >= 90', 'safari >= 15']`. Unset, nothing is lowered.
+	 * Browserslist queries to lower the CSS for, such as `['chrome >= 90', 'safari >= 15']`.
+	 *
+	 * @remarks
+	 * Unset, the queries come from the app's browserslist config (`.browserslistrc` or the `browserslist` field of
+	 * `package.json`, found by browserslist's own lookup from the app root), and nothing is lowered when there is none.
+	 * `false` keeps lowering off even when a config exists.
 	 */
-	targets?: string | readonly string[];
+	targets?: string | readonly string[] | false;
 	/**
 	 * Whether to minify the CSS.
 	 * @default true in production, false otherwise
@@ -119,11 +124,23 @@ export function loadLightningCss(): Promise<typeof import('lightningcss')> {
 	return engine;
 }
 
-/** The Lightning CSS `targets` for browserslist `queries`, or `undefined` to lower nothing. */
-async function resolveTargets(queries: LightningCssOptions['targets']): Promise<TransformOptions<never>['targets']> {
-	if (!queries || queries.length === 0) return undefined;
+/**
+ * The Lightning CSS `targets` for the `targets` option, or `undefined` to lower nothing.
+ *
+ * @remarks
+ * An explicit option, including an empty one, wins over the config; only an unset option reads the browserslist
+ * config of the app at `rootDir`. No default browser set is invented, since Tailwind v4 apps already target modern
+ * browsers.
+ */
+async function resolveTargets(
+	queries: LightningCssOptions['targets'],
+	rootDir: string,
+): Promise<TransformOptions<never>['targets']> {
+	if (queries === false) return undefined;
+	const configured = queries ?? browserslist.loadConfig({ path: rootDir });
+	if (!configured || configured.length === 0) return undefined;
 	const { browserslistToTargets } = await loadLightningCss();
-	return browserslistToTargets(browserslist(typeof queries === 'string' ? queries : [...queries]));
+	return browserslistToTargets(browserslist(typeof configured === 'string' ? configured : [...configured]));
 }
 
 /** Combines feature names into the bit flags Lightning CSS takes. */
@@ -184,7 +201,7 @@ export async function resolveLightningCssOptions(
 			nonStandard: options?.nonStandard,
 			visitor: options?.visitor,
 			errorRecovery: options?.errorRecovery,
-			targets: await resolveTargets(options?.targets),
+			targets: await resolveTargets(options?.targets, rootDir),
 			include: await toFeatureFlags(options?.include),
 			exclude: await toFeatureFlags(options?.exclude),
 		}),

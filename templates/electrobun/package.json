@@ -1,0 +1,40 @@
+{
+	"name": "@ecopages/template-electrobun",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "ecopages dev --runtime bun",
+		"build": "ecopages build --runtime bun",
+		"start": "ecopages start --runtime bun",
+		"desktop:dev": "bun desktop/dev.ts",
+		"desktop:build": "pnpm run build && bun desktop/stage.ts && electrobun build --env=dev",
+		"test": "vitest run --project server",
+		"test:browser": "vitest run --project browser",
+		"typecheck": "ecopages types --runtime bun && tsc --noEmit",
+		"desktop:typecheck": "electrobun prepare --env=dev && tsc -p desktop/tsconfig.json"
+	},
+	"dependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/ecopages-jsx": "workspace:*",
+		"@ecopages/file-system": "workspace:*",
+		"@ecopages/jsx": "^0.9.0",
+		"@ecopages/lightningcss-processor": "workspace:*",
+		"@ecopages/radiant": "^0.9.0",
+		"@ecopages/radiant-themes": "^0.4.0",
+		"@ecopages/radiant-ui": "^0.4.0",
+		"better-auth": "1.7.19",
+		"drizzle-orm": "1.0.0-rc.5",
+		"effect": "^4.1.2",
+		"open": "^11.0.4"
+	},
+	"devDependencies": {
+		"@effect/vitest": "4.1.2",
+		"@types/bun": "1.4.2",
+		"@vitest/browser-playwright": "5.1.0",
+		"ecopages": "workspace:*",
+		"electrobun": "2.0.6",
+		"playwright": "1.62.1",
+		"typescript": "^5.9.3",
+		"vitest": "5.1.0"
+	}
+}

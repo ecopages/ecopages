@@ -1,0 +1,307 @@
+@import '@ecopages/radiant-themes/compiled/zed/compact.css';
+@import '@ecopages/radiant-ui/button/styles.css';
+@import '@ecopages/radiant-ui/input/styles.css';
+
+@import '@ecopages/radiant-ui/headline/styles.css';
+@import '@ecopages/radiant-ui/label/styles.css';
+@import '@ecopages/radiant-ui/sidebar/styles.css';
+
+:root {
+	color: var(--on-surface);
+	background: var(--surface-container-low);
+	font-family: var(--font-sans);
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	font-size: var(--text-control);
+	line-height: 1.45;
+}
+
+.panel-title {
+	margin: 0;
+	font-size: var(--text-body);
+	line-height: 1.4;
+}
+
+a:focus-visible {
+	outline: 2px solid var(--focus-ring);
+	outline-offset: 2px;
+}
+
+.workspace,
+.auth-window {
+	display: flex;
+	flex-direction: column;
+	min-height: 100dvh;
+}
+
+.workspace {
+	height: 100dvh;
+}
+
+.window-header {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--space-2);
+	min-height: calc(var(--size-control-lg) + var(--space-2));
+	padding-inline: var(--space-3);
+	user-select: none;
+}
+
+[data-inset-controls] .window-header {
+	min-height: 34px;
+	padding-inline-start: 80px;
+}
+
+[data-inset-controls] .window-header-controls .rui-button {
+	width: var(--size-control-md);
+	height: var(--size-control-md);
+}
+
+.window-header-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+}
+
+.window-header-controls .rui-button {
+	width: var(--size-control-lg);
+	height: var(--size-control-lg);
+	padding: 0;
+}
+
+.window-actions {
+	margin-inline-start: auto;
+}
+
+.window-actions [data-window-action='close']:hover {
+	color: var(--error);
+}
+
+.window-title {
+	min-width: 0;
+	overflow: hidden;
+	font-weight: var(--weight-medium);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.shell-icon {
+	display: block;
+	width: 1rem;
+	height: 1rem;
+	flex: none;
+}
+
+.workspace-layout.rui-sidebar-provider {
+	--sheet-inset: var(--space-3);
+
+	min-height: 0;
+	flex: 1;
+	align-items: stretch;
+	padding-block: var(--sheet-inset);
+	padding-inline-end: var(--sheet-inset);
+	background: var(--surface-container-low);
+}
+
+.workspace-layout {
+	--panel-padding-block: var(--space-6);
+	--rui-sidebar-background: var(--surface-container-low);
+	--sidebar-row-size: var(--size-control-lg);
+}
+
+.workspace-layout [hidden] {
+	display: none;
+}
+
+.workspace-layout .rui-sidebar__content {
+	padding: 0 var(--space-4) var(--space-3);
+}
+
+.workspace-layout .rui-sidebar[data-collapsible='icon'][data-state='collapsed'] .rui-sidebar__content {
+	padding-inline: var(--space-3);
+}
+
+.workspace-layout .rui-sidebar__menu {
+	gap: var(--space-2);
+}
+
+.workspace-layout .rui-sidebar__menu-button {
+	block-size: var(--sidebar-row-size);
+	align-items: center;
+	padding-block: 0;
+	text-decoration: none;
+	font-size: var(--text-control);
+	line-height: 1.25;
+}
+
+.workspace-layout .rui-sidebar[data-state='expanded'] .rui-sidebar__menu-button {
+	gap: var(--space-3);
+	padding-inline: var(--space-3);
+}
+
+.workspace-layout .panel,
+.sign-in-panel,
+.account-card {
+	border: 1px solid var(--color-zed-border-subtle);
+	background: var(--surface);
+	border-radius: var(--radius-container);
+}
+
+.workspace-layout .panel {
+	display: block;
+	overflow: auto;
+	padding: var(--panel-padding-block) clamp(var(--space-4), 3vw, var(--space-8));
+	border-radius: var(--border-radius-xl);
+}
+
+.workspace-layout .panel-title {
+	display: flex;
+	min-height: var(--sidebar-row-size);
+	align-items: center;
+}
+
+.account-card {
+	margin-top: var(--space-4);
+	max-width: 42rem;
+	background: var(--surface-container-lowest);
+}
+
+.account-details {
+	margin: 0;
+	padding-inline: var(--space-3);
+}
+
+.account-details div {
+	display: grid;
+	grid-template-columns: minmax(70px, 1fr) minmax(0, 2fr);
+	align-items: baseline;
+	gap: var(--space-3);
+	padding-block: var(--space-3);
+}
+
+.account-details div + div,
+.account-actions {
+	border-top: 1px solid var(--color-zed-border-subtle);
+}
+
+.account-details dt {
+	font-weight: 550;
+}
+
+.account-details dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+	text-align: end;
+	color: var(--neutral);
+}
+
+.account-actions {
+	display: flex;
+	justify-content: flex-end;
+	padding: var(--space-2) var(--space-3);
+}
+
+.sign-in {
+	display: grid;
+	flex: 1;
+	place-items: center;
+	padding: var(--space-4);
+}
+
+.sign-in-panel {
+	display: grid;
+	gap: var(--space-4);
+	width: min(100%, 22rem);
+	padding: var(--space-6);
+	background: var(--surface-container-lowest);
+	box-shadow:
+		0 2px 4px rgb(27 31 36 / 5%),
+		0 12px 28px rgb(27 31 36 / 4%);
+}
+
+.sign-in-form,
+.sign-in-form label,
+.social {
+	display: grid;
+	gap: var(--space-3);
+	min-width: 0;
+}
+
+.sign-in-form label {
+	gap: var(--space-1);
+}
+
+.sign-in-form input,
+.sign-in-panel .rui-button {
+	width: 100%;
+	min-height: var(--size-control-md);
+}
+
+.sign-in-panel .rui-button {
+	justify-content: center;
+	font-size: var(--text-control);
+}
+
+.sign-in-panel .github-button {
+	gap: 9px;
+	border-color: #1b1f24;
+	background: #24292f;
+	color: #fff;
+	font-weight: 600;
+}
+
+.sign-in-panel .github-button:hover:not(:disabled) {
+	background: #32383f;
+}
+
+.sign-in-panel .github-button:active:not(:disabled) {
+	background: #1b1f24;
+}
+
+.github-button svg {
+	flex: none;
+}
+
+.divider {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	color: var(--neutral);
+	font-size: 12px;
+}
+
+.divider::before,
+.divider::after {
+	flex: 1;
+	border-top: 1px solid var(--color-zed-border-subtle);
+	content: '';
+}
+
+.form-link {
+	justify-self: center;
+	padding: 2px 4px;
+	color: var(--link);
+	font-size: var(--text-control);
+	font-weight: 550;
+}
+
+.form-error,
+#github-status {
+	margin: 0;
+}
+
+#github-status {
+	color: var(--neutral);
+	font-size: var(--text-control);
+}
+
+.form-error {
+	color: var(--error);
+}

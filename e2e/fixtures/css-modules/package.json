@@ -6,7 +6,7 @@
 		"@ecopages/core": "workspace:*",
 		"@ecopages/e2e-package-css-lib": "workspace:*",
 		"@ecopages/ecopages-jsx": "workspace:*",
-		"@ecopages/jsx": "^0.8.4",
+		"@ecopages/jsx": "^0.9.0",
 		"@ecopages/lightningcss-processor": "workspace:*",
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/react": "workspace:*",

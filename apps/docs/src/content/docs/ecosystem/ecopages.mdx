@@ -166,6 +166,15 @@ Use these when you want a full bootstrap in one command chain.
 	defaultSelectedKey="npm"
 />
 
+**Electrobun template** - Creates a desktop workspace with an empty Dashboard, an Account Page, and Better Auth sign-in. Ecopages serves Filesystem Routes on loopback and Electrobun opens them in a native window. Requires Bun and pnpm. See the [starter README](https://github.com/ecopages/ecopages/tree/main/templates/electrobun) for GitHub OAuth and packaging setup.
+
+```sh
+pnpm dlx ecopages init desktop-app --template electrobun
+cd desktop-app
+pnpm install
+pnpm desktop:dev
+```
+
 **Radiant UI template** - Creates an Ecopages JSX app using Radiant UI components and the docs theme preference control. <a href="https://github.com/ecopages/ecopages/tree/main/templates/radiant" target="_blank">radiant</a>.
 
 <CodeTabs

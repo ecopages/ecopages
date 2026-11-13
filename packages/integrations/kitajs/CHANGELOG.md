@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies []:
+    - @ecopages/core@0.8.0
+
 ## 0.7.1
 
 ### Patch Changes

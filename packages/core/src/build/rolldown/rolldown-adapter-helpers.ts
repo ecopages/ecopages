@@ -35,6 +35,7 @@ import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-reso
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { isServerOnlyModuleSpecifier } from '../../utils/file-roles.ts';
 import { isNodeBuiltinSpecifier, nodeBuiltinSpecifiers } from '../../utils/node-builtin.ts';
+import { createFileRoleGrammarPlugin } from './file-role-grammar-plugin.ts';
 import { createSsrScriptEntriesPlugin } from './ssr-script-entries-plugin.ts';
 import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createStylesheetModulePlugin } from './stylesheet-module-plugin.ts';
@@ -578,6 +579,7 @@ async function buildRolldownInputPlugins(
 					),
 				]
 			: []),
+		createFileRoleGrammarPlugin(),
 		...(rolldownPlatform === 'browser' ? [createBrowserServerOnlyGuardPlugin()] : []),
 		createStylesheetModulePlugin(
 			{ environment: options.environment, root: contextRoot },

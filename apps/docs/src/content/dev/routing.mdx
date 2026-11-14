@@ -6,6 +6,7 @@ order: 9
 sources:
   - packages/core/src/router/server/
   - packages/core/src/utils/file-roles.ts
+  - packages/core/src/build/rolldown/file-role-grammar-plugin.ts
   - packages/core/src/utils/static-file-extensions.ts
   - packages/core/src/build/production-route-list.ts
   - packages/core/src/adapters/shared/runtime/server-route-handler.ts
@@ -39,7 +40,7 @@ sources:
 Discovery fails, naming the files, when:
 
 - two files produce the same route, whatever their parameter names: `segmentPathPatternKey()` drops names and syntax, so `blog/[slug].tsx` and `blog/[id].api.ts` collide;
-- a role segment sits anywhere but directly before a script extension (`card.server.kita.tsx`, `nav.script.lit.tsx`, `users.api.html`), because the file would be a server-only module or a Page of that Integration and the build will not pick one (`findMisplacedRole()`); a private file is exempt;
+- a role segment sits anywhere but directly before a script extension (`card.server.kita.tsx`, `nav.script.lit.tsx`, `users.api.html`), because the file would be a server-only module or a Page of that Integration and the build will not pick one (`findMisplacedRole()`); a private file is exempt; the router checks route files, and every Rolldown build also runs `createFileRoleGrammarPlugin`, which fails any compiled module outside `node_modules` with the same rule, so `src/components/card.server.kita.tsx` fails the server and browser builds and a dev rebuild after a rename succeeds;
 - an endpoint's pathname ends in a known static file extension (`feed.xml.api.ts`), because the server never sends such a URL to a file route; the error points to `app.ts`;
 - a dynamic Page belongs to an Integration with `acceptsParams: false`, such as `[slug].html`, because HTML Pages have no `paths` source.
 

@@ -2,7 +2,7 @@
 '@ecopages/react': minor
 ---
 
-Keep bare side-effect imports (`import 'x'`) in every browser module of a React build. The client graph dropped them from any file under a `pages` or `layouts` folder (a match on any folder of the absolute path) and from every entry, so a layout script such as `import '@scope/pkg/define-element'` shipped no code from the package and its custom elements never upgraded; the same file under `components/` worked. Pages, layouts, entries, components, scripts and helpers now behave alike. Stylesheet imports are still delivered by core, not bundled, and `.server` modules and `node:` specifiers are still removed. An unprefixed built-in (`import 'fs'`) is kept and fails the build with a `[browser-build] Node builtin` error.
+Keep bare side-effect imports (`import 'x'`) in every browser module of a React build. The client graph dropped them from any file under a `pages` or `layouts` folder (a match on any folder of the absolute path) and from every entry, so a layout script such as `import '@scope/pkg/define-element'` shipped no code from the package and its custom elements never upgraded; the same file under `components/` worked. Pages, layouts, entries, components, scripts and helpers now behave alike. Stylesheet imports are still delivered by core, not bundled, and `.server` modules and Node built-ins, with or without the `node:` prefix, are still removed.
 
 Breaking: a bare import that only server code needed, left in a page, layout or `dependencies.scripts` entry and previously dropped, now reaches the browser.
 

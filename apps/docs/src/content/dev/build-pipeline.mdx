@@ -13,6 +13,8 @@ sources:
   - packages/core/src/build/rolldown/stylesheet-module-plugin.ts
   - packages/core/src/build/rolldown/rolldown-adapter-helpers.ts
   - packages/core/src/build/rolldown/ssr-script-entries-plugin.ts
+  - packages/core/src/build/rolldown/file-role-grammar-plugin.ts
+  - packages/core/src/utils/file-roles.ts
   - packages/core/src/adapters/shared/runtime/unattached-scripts.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts
   - packages/core/src/build/server-bundle-deploy-manifest.ts
@@ -26,7 +28,6 @@ sources:
   - packages/core/src/adapters/shared/http/dist-file-handler.ts
   - packages/core/src/plugins/eco-component-meta-plugin.ts
   - packages/core/src/build/server/view-reference.ts
-  - packages/core/src/build/rolldown/rolldown-adapter-helpers.ts
   - packages/core/src/build/rolldown/app-package-declarations.ts
   - packages/core/src/static-site-generator/
 ---
@@ -100,9 +101,30 @@ When externalized packages resolve outside the app root, as in a workspace, the 
 
 Production builds emit server modules unless `ECOPAGES_UNIFIED_PAGES_GRAPH` is `false` or `0` (`shouldBuildPagesUnifiedGraph()`), an opt-out the bench parity suite uses; `ecopages start` still requires the map. `emitProductionServerModules()` collects every server entry once (`collectServerModuleEntries`): Page templates including dynamic ones, the Html shell, `app.static` views, error pages, and each Processor's `listProductionServerModuleEntries()`. It bundles them in one Rolldown server build with `preserveModules`, then records each source in `server-modules.json`. A Layout is not an entry: the Page, view or error page that passes it as `eco.page({ layout })` imports it, so it is bundled once with that module and keeps the exports the renderer reads, whether it is passed by name, through a variable, or from an MDX file's `config`. A Layout no module imports is not built.
 
+```mermaid
+sequenceDiagram
+    participant E as emitProductionServerModules
+    participant R as Rolldown server build
+    participant G as file role grammar plugin
+    participant S as ssr script entries plugin
+    participant U as findUnattachedScripts
+    participant I as Integration compilePageModule
+    E->>E: collectServerModuleEntries
+    E->>R: one build, preserveModules, ssrScriptEntries
+    R->>G: transform each app module
+    G-->>R: fail on a misplaced role segment
+    R->>S: transform a module that lists ssr: true
+    S-->>R: emitFile chunk for each literal src
+    R-->>E: output map and bundled project sources
+    E->>U: those sources
+    U-->>E: warning per unattached .script file
+    E->>I: HTML Page entries, compiled in process
+    E->>E: write server-modules.json
+```
+
 Pages of an Integration that implements `compilePageModule`, such as HTML Pages, stay out of the Rolldown graph. Each compiles in process and is stored as a `-html.json` record that the Integration's `reviveCompiledPageModule` restores at load time.
 
-The `ssr: true` scripts a declaration lists are entries of that same build: `createSsrScriptEntriesPlugin` (server builds with `ssrScriptEntries`) reads each literal `scripts: [{ src, ssr: true }]` in a module it transforms and emits `src`, relative to that module, with `emitFile`. A script therefore shares chunks with the rest of the build and every module is bundled once. A `src` that is not a string literal is not found. After the server build, `findUnattachedScripts` reads the same literal `scripts` declarations (`findDeclaredScripts`) in every project module of the build's closure and warns about each `.script` file under `srcDir` that none names. A script is also attached when an HTML Page or the Html shell loads it, when an attached script imports it (`scanModuleScript`, a static import walk rather than the browser build's module ids, since that build runs later), or when a server-build module imports it. Integrations are activated before the build so their `setup()` installs the process globals the emitted modules may need.
+The `ssr: true` scripts a declaration lists are entries of that same build: `createSsrScriptEntriesPlugin` (server builds with `ssrScriptEntries`) reads each literal `scripts: [{ src, ssr: true }]` in a module it transforms and emits `src`, relative to that module, with `emitFile`. A script therefore shares chunks with the rest of the build and every module is bundled once. A `src` that is not a string literal is not found. The file role grammar plugin (`createFileRoleGrammarPlugin`) runs in every build of project modules and fails one whose name puts a role segment anywhere but directly before a script extension, such as `card.server.kita.tsx`; installed packages are not checked ([Routing](/dev/routing) covers the roles). After the server build, `findUnattachedScripts` reads the same literal `scripts` declarations (`findDeclaredScripts`) in every project module of the build's closure and warns about each `.script` file under `srcDir` that none names. A script is also attached when an HTML Page or the Html shell loads it, when an attached script imports it (`scanModuleScript`, a static import walk rather than the browser build's module ids, since that build runs later), or when a server-build module imports it. Integrations are activated before the build so their `setup()` installs the process globals the emitted modules may need.
 
 In production, `PageModuleImportService.importModule()` imports from this map whenever it exists. A missing key or file throws ``No compiled server module for <source>. Run `ecopages build`.`` Every key is the source path relative to the app root, the form `identity.file` already has.
 
@@ -165,6 +187,21 @@ flowchart LR
 
 The app-wide build sets `BuildOptions.packageChunks` (`minSize` 10 KiB of source), which gives every installed package at least that size one chunk of its own, `vendor-<package>-[hash].js`, through a Rolldown code-splitting group named after the package that owns each module (the last `node_modules` segment of its path). The rule is the same for React, Lit, the router and app dependencies, and it names no package. A package chunk holds that package's modules and the modules they depend on that no other group takes (React DOM carries Scheduler this way), so its name and bytes depend on that package and its own dependencies alone: editing app code, adding a Page or changing another dependency leaves it cached across deploys, and a page loads only the vendor chunks of the packages it imports. Smaller packages stay in the chunks Rolldown shares them in. Why 10 KiB: below it a request costs more than the cache it buys, and React itself falls under 30 KiB.
 
+A scoped package `@scope/name` is named `vendor-scope-name-[hash].js`. Development does not run this build: the transform server compiles each module on request and vendors bare imports through `DevTransformVendorRegistry`, so the same import takes one of two paths.
+
+```mermaid
+flowchart TD
+    I["Browser module imports a bare package specifier"] --> M{"Mode"}
+    M -- "ecopages dev" --> RW["rewriteModuleImports in the dev transform server"]
+    RW --> V["DevTransformVendorRegistry: one prebundled entry per resolved file"]
+    V --> VU["/assets/vendors/specifier.entryhash.js, in memory, no-cache with ETag"]
+    M -- "ecopages build" --> AB["app-wide Rolldown browser build"]
+    AB --> G{"Package at least 10 KiB of source?"}
+    G -- yes --> PC["vendor-package-hash.js, content-hashed, immutable"]
+    G -- no --> SC["Shared chunk Rolldown picks, or the entry chunk"]
+```
+
+
 Only `define`, `minify`, `treeshaking` and plugin exclusions split entries into separate builds. Why: those options apply to a whole build. Plugins and external modules do not split it, because a module has one URL and therefore one compiled form; the build runs every plugin any entry declares, once each. [Plugin pipeline](/dev/plugin-pipeline) covers how those plugins reach Rolldown.
 
 A route that fails to plan is reported, not fatal on its own. A concrete instance becomes a page failure; a route template only warns (a dynamic Page whose `paths` lists entries is planned once per entry with that entry's Params, never as a template), and `ecopages start` then fails the requests that need a dependency only that plan would have recorded.
@@ -178,6 +215,24 @@ The build writes outputs to `dist/client/assets`, gzips each `.js` and `.css` fi
 ## Static HTML
 
 The static-site generator renders through the same route matching, render orchestration and asset processing as a request; build mode adds a loop, not a second rendering stack. The Node adapter calls `prepareExport()` during initialization, before the router reads any Page, and `build()` prepares the export itself only when nothing did. Static export uses the build queue's concurrency limit.
+
+`StaticSiteGenerator.run()` does not wait for an Integration's static export before it plans: the export starts, the browser graph is planned and built meanwhile, and the first Page render is the first thing to wait for the export. Why: the Lit render worker takes time to boot, and nothing consumes it until a Page renders.
+
+```mermaid
+sequenceDiagram
+    participant G as StaticSiteGenerator.run
+    participant X as Integration staticExport
+    participant B as prebuildProductionPageBrowserGraphs
+    G->>G: set up Integrations, list routes, emit server modules
+    G-)X: startStaticExports, not awaited
+    G->>B: plan routes, app-wide browser build
+    B-->>G: ledger written, route preparations
+    X-->>G: staticExportsReady, awaited before the first render
+    G->>G: render Pages, explicit routes, error pages, sitemap
+    G->>X: release in reverse order, also after a failure
+```
+
+The worker restores the ledger on its first render, so it reads what the prebuild wrote. A failed export still fails the build, and cleanup awaits the started exports even when generation failed first.
 
 A Page's output file depends only on its route and its own source file, never on sibling Pages:
 

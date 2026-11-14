@@ -15,6 +15,13 @@ const VIEW_EDITS = [
 		status: 200,
 	},
 	{
+		file: 'src/admin/dashboard.kita.tsx',
+		path: '/dashboard',
+		from: 'Dashboard 1',
+		to: 'Dashboard 2',
+		status: 200,
+	},
+	{
 		file: 'src/views/partial-view.kita.tsx',
 		path: '/partial',
 		from: 'Partial 1',

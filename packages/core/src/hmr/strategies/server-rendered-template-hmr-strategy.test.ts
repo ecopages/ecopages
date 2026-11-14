@@ -1,18 +1,28 @@
+import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
+import { createViewReference } from '../../build/server/view-reference.ts';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { HmrStrategyType } from '../hmr-strategy.ts';
 import { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
 import { ServerRenderedTemplateHmrStrategy } from './server-rendered-template-hmr-strategy.ts';
 
 describe('ServerRenderedTemplateHmrStrategy', () => {
-	it('matches include and explicit server view files', async () => {
+	it('matches include files and the views the server entry imported, wherever they live', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		const invalidationService = new DevelopmentInvalidationService(appConfig);
 		const strategy = new ServerRenderedTemplateHmrStrategy(invalidationService);
+		createViewReference(path.resolve('/test/project/src/admin/dashboard.kita.tsx'), 'kitajs');
 
 		expect(strategy.matches('/test/project/src/includes/seo.kita.tsx')).toBe(true);
-		expect(strategy.matches('/test/project/src/views/explicit-team-view.kita.tsx')).toBe(true);
+		expect(strategy.matches('/test/project/src/admin/dashboard.kita.tsx')).toBe(true);
 		expect(strategy.matches('/test/project/src/components/Button.tsx')).toBe(false);
+	});
+
+	it('does not treat a file in a views folder as a view unless the server entry imported it', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const strategy = new ServerRenderedTemplateHmrStrategy(new DevelopmentInvalidationService(appConfig));
+
+		expect(strategy.matches('/test/project/src/views/never-imported.kita.tsx')).toBe(false);
 	});
 
 	it('outranks integration-owned strategies that also match shared dependencies', async () => {

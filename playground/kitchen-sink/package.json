@@ -41,9 +41,11 @@
 		"@playwright/test": "^1.60.0",
 		"@tailwindcss/node": "^4.3.0",
 		"@tailwindcss/oxide": "^4.3.0",
+		"@types/autocannon": "^7.12.7",
 		"@types/node": "^24.12.4",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
+		"autocannon": "^9.0.0",
 		"ecopages": "workspace:*",
 		"lit": "^3.3.3",
 		"playwright": "^1.60.0",
@@ -51,6 +53,7 @@
 		"react": "^19.2.6",
 		"react-dom": "^19.2.6",
 		"tailwindcss": "^4.3.0",
+		"tsx": "^4.22.3",
 		"zod": "^4.4.3"
 	},
 	"dependencies": {

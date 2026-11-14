@@ -8,6 +8,7 @@
  */
 
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../../../packages/core/src/build/build-adapter';
 import { NodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
 import { NodeRuntimeHost } from '../../../../packages/core/src/adapters/node/runtime-host';
@@ -19,7 +20,7 @@ import { StaticSiteGenerator } from '../../../../packages/core/src/static-site-g
 import { resolveInternalExecutionDir } from '../../../../packages/core/src/utils/resolve-work-dir';
 import type { EcoPagesAppConfig } from '../../../../packages/core/src/config/internal-types';
 import type { EcoPageComponent, EcoPageFile } from '../../../../packages/core/src/types/public-types';
-import { loadKitchenSinkConfig } from './kitchen-sink-fixture';
+import { KITCHEN_SINK_PATHS, loadKitchenSinkConfig } from './kitchen-sink-fixture';
 
 /** Isolated artifact dirs under kitchen-sink; sources remain the full app tree. */
 export const STATIC_BUILD_BENCH_SCOPE = '__bench-static-build__';
@@ -50,16 +51,39 @@ function getBenchConfigKey(appConfig: EcoPagesAppConfig): string {
 }
 
 /** Kitchen-sink config with bench-scoped artifact dirs (full app, isolated output). */
-export async function loadStaticBuildBenchConfig(): Promise<EcoPagesAppConfig> {
+export async function loadStaticBuildBenchConfig(options: { fresh?: boolean } = {}): Promise<EcoPagesAppConfig> {
 	return loadKitchenSinkConfig({
 		distDir: BENCH_DIST_DIR,
 		workDir: BENCH_WORK_DIR,
+		fresh: options.fresh,
 	});
 }
 
+const ROUTE_MODULE_BENCH_SCOPE = '__bench-route-modules__';
+let routeModuleBenchDirsCleared = false;
+
+/**
+ * Kitchen-sink config for the route-module compile and import scenarios, in dirs no `buildStatic` writes to.
+ *
+ * @remarks
+ * Under `NODE_ENV=production` the module loader imports from the server-module map a finished build leaves in
+ * the dist dir, and compiles from source only while no map exists, as during `ecopages build`. These scenarios
+ * time that compile, so their dirs are cleared once per process and never shared with a full build.
+ */
+export async function loadRouteModuleBenchConfig(): Promise<EcoPagesAppConfig> {
+	const distDir = path.join('dist', ROUTE_MODULE_BENCH_SCOPE);
+	const workDir = path.join('.eco', ROUTE_MODULE_BENCH_SCOPE);
+	if (!routeModuleBenchDirsCleared) {
+		fileSystem.remove(path.join(KITCHEN_SINK_PATHS.root, distDir));
+		fileSystem.remove(path.join(KITCHEN_SINK_PATHS.root, workDir));
+		routeModuleBenchDirsCleared = true;
+	}
+	return loadKitchenSinkConfig({ distDir, workDir });
+}
+
 /** Kitchen-sink config with production `dist/` and `.eco/` paths. */
-export async function loadKitchenSinkProductionConfig(): Promise<EcoPagesAppConfig> {
-	return loadKitchenSinkConfig();
+export async function loadKitchenSinkProductionConfig(options: { fresh?: boolean } = {}): Promise<EcoPagesAppConfig> {
+	return loadKitchenSinkConfig({ fresh: options.fresh });
 }
 
 /** Drops the in-process route-module caches and the cached bench stacks so the next run compiles from source. */

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.7.1",
+	"version": "0.8.0",
 	"description": "Core package for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -87,6 +87,11 @@
 			"import": "./src/processor-contract.ts",
 			"types": "./src/processor-contract.ts",
 			"default": "./src/processor-contract.ts"
+		},
+		"./cli": {
+			"import": "./src/cli.ts",
+			"types": "./src/cli.ts",
+			"default": "./src/cli.ts"
 		},
 		"./build": {
 			"import": "./src/build.ts",

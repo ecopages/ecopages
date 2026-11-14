@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0
+
+### Patch Changes
+
+- [#1176](https://github.com/ecopages/ecopages/pull/1176) [`749990e`](https://github.com/ecopages/ecopages/commit/749990ea8f40fdeedcaaf7719dfa6edf69554a32) Thanks [@andeeplus](https://github.com/andeeplus)! - Keep a standalone script entry on its own JSX runtime in a build shared with React. A `.tsx` file another Integration owns, bundled as its own browser entry and imported by no React entry, fell through the foreign-JSX scan as a file it did not find, so React's override compiled it with the React runtime. A Radiant host in such a script then rendered `[object Object]` unless the file carried a `@jsxImportSource` pragma. A foreign entry file now stays with its owner. If a React island also imports such a file, the build now fails with a message that names it, since one module cannot compile two ways.
+- Updated dependencies []:
+    - @ecopages/core@0.8.0
+    - @ecopages/mdx@0.8.0
+    - @ecopages/file-system@0.8.0
+
 ## 0.7.1
 
 ### Patch Changes

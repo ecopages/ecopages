@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0
+
+### Patch Changes
+
+- [#1174](https://github.com/ecopages/ecopages/pull/1174) [`9731ebb`](https://github.com/ecopages/ecopages/commit/9731ebbd393cf11750e468f059ad06b5cfedf1a3) Thanks [@andeeplus](https://github.com/andeeplus)! - The `@ecopages/jsx` and `@ecopages/radiant` peer and dependency ranges move to `^0.8.4` (`@ecopages/signals` `^0.8.4`, `@ecopages/radiant-ui` `^0.3.6` in the templates). Update them in your app with `pnpm add @ecopages/jsx@^0.8.4 @ecopages/radiant@^0.8.4 @ecopages/signals@^0.8.4`.
+
+    Radiant 0.8.4 answers a `context-request` with the context value, as the community context protocol specifies, so a manual `ContextRequestEvent` callback receives the value rather than the provider, and the unused `context-on-mount` and `context-mounted` events are removed. The Radiant agent skill in the templates now covers manual requests and other protocol libraries.
+
+- [#1178](https://github.com/ecopages/ecopages/pull/1178) [`a012ff0`](https://github.com/ecopages/ecopages/commit/a012ff021402c5954e854c3c63551ab28c86d502) Thanks [@andeeplus](https://github.com/andeeplus)! - The `@ecopages/jsx`, `@ecopages/radiant` and `@ecopages/signals` peer and dependency ranges move to `^0.9.0` (`@ecopages/radiant-ui` `^0.4.0` and `@ecopages/radiant-themes` `^0.4.0` in the templates). Update them in your app with `pnpm add @ecopages/jsx@^0.9.0 @ecopages/radiant@^0.9.0 @ecopages/signals@^0.9.0`.
+
 ## 0.7.1
 
 No changes in this release.

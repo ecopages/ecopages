@@ -375,7 +375,7 @@ importers:
         version: 4.2.13
       '@mdx-js/mdx':
         specifier: ^3.1.1
-        version: 3.1.1
+        version: 3.1.1(supports-color@7.2.0)
       lit:
         specifier: ^3.3.3
         version: 3.3.3

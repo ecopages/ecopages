@@ -53,7 +53,7 @@ Read only the modules relevant to the task. Each file is one level deep from thi
 ## Critical rules
 
 1. Component dependencies and CSS imports are auto-discovered in `eco.*` modules (relative and aliased), including named `export { X } from` barrels. Browser scripts remain explicit in `dependencies.scripts`. Author one `eco.component()` per file, and declare `dependencies.components` explicitly for `export *` barrels or external packages. Combine Page-local relative assets with content entries using `mergePageDependencies()`.
-2. Use `eco.page()` for routable pages; use `src/views/` for handler-rendered views.
+2. A route file under `src/pages` default-exports a literal `eco.page(...)` call (or is an HTML Page or MDX module). Handler-rendered views are `eco.page()` defaults the server entry imports; `src/views/` is a convention. Role is declared by name, never by folder: `.api`, `.server` and `.script` suffixes and a `_` prefix keep a file out of routing, and a layout is only what a Page passes as `eco.page({ layout })`.
 3. Match MDX to the owning integration: React MDX via `reactPlugin`, Ecopages JSX MDX via `ecopagesJsxPlugin`, standalone via `mdxPlugin` with explicit `jsxImportSource`.
 4. Register processors with factory functions: `lightningCssProcessorPlugin()`, `imageProcessorPlugin({ options })`.
 5. Processor and Integration build plugins are `EcoBuildPlugin` objects returned from `plugins(app)`.

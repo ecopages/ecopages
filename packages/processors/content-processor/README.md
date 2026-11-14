@@ -172,8 +172,9 @@ import { eco } from '@ecopages/core';
 import { entries, getEntryBySegments } from 'ecopages:content/docs';
 import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
 import type { Entry } from 'ecopages:content/docs';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export default eco.page<{ entry: Entry }>({
+export default eco.page<{ entry: Entry }, JsxRenderable>({
 	paths: async () =>
 		entries.map((post) => ({
 			params: { slug: post.segments },

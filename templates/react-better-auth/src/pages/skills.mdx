@@ -237,7 +237,7 @@ You can use **markdown** syntax and JSX components together.
 - Can use `props` for build-time data fetching
 - Best for: Homepage, blog posts, documentation, static content
 
-**Views (`src/views/`):**
+**Views (`src/views/` by convention):**
 - Default-exported `eco.page()` views rendered from API handlers
 - Must be defined using `eco.page()` with props (e.g., `eco.page<Props>()`)
 - Import it and pass it to `ctx.render(MyView, props)`. An Integration-owned import becomes a view reference: development reloads on save, production reads the built module
@@ -399,8 +399,8 @@ export const adminGroup = defineGroupHandler({
 
 **Important:** When rendering pages from handlers using `ctx.render()`, the component must be:
 - Defined using `eco.page()` (not a plain React component)
-- Located in the `src/views/` directory (not `src/pages/`)
-- The `pages/` directory is for static routes, while `views/` is for dynamically rendered components from handlers
+- Located outside `src/pages/` (`src/views/` is a convention, no folder makes a file a view)
+- `src/pages/` holds Filesystem Routes, while views are rendered from handlers
 
 Register handlers in `app.ts`:
 
@@ -1018,7 +1018,7 @@ export const protectedGroup = defineGroupHandler({
 ```
 
 **Key Points:**
-- Views rendered from handlers must be in `src/views/` directory
+- Views rendered from handlers live outside `src/pages/`, conventionally in `src/views/`
 - Use `eco.page()` to define the view component (accepts props via generic type)
 - Import views dynamically using `await import()` to avoid circular dependencies
 - Pass data from the handler context (e.g., `ctx.locals.session?.user`) as props to the view

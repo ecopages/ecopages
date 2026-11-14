@@ -11,7 +11,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { builtinModules, createRequire } from 'node:module';
+import { createRequire } from 'node:module';
 import { path, type PathApi } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { stripVTControlCharacters } from 'node:util';
@@ -33,6 +33,7 @@ import { isEcopagesEnvEnabled } from '../../env.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { isServerOnlyModuleSpecifier } from '../../utils/file-roles.ts';
+import { isNodeBuiltinSpecifier, nodeBuiltinSpecifiers } from '../../utils/node-builtin.ts';
 import { createSsrScriptEntriesPlugin } from './ssr-script-entries-plugin.ts';
 import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createStylesheetModulePlugin } from './stylesheet-module-plugin.ts';
@@ -52,7 +53,6 @@ import type {
 } from '../build-adapter.ts';
 
 const coreSourceFile = path.fromFileUrl(import.meta.url);
-const nodeBuiltinSpecifiers = new Set(builtinModules);
 const MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES = 120;
 const PRESERVED_MODULE_NAME_HASH_LENGTH = 16;
 
@@ -322,10 +322,6 @@ export function createInstalledPackageExternalPlugin(
 			}
 		},
 	};
-}
-
-function isNodeBuiltinSpecifier(id: string): boolean {
-	return id.startsWith('node:') || nodeBuiltinSpecifiers.has(id);
 }
 
 const nodeBuiltinFilter = new RegExp(

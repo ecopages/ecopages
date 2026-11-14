@@ -95,6 +95,48 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
+	it('treats unprefixed Node built-ins like node: imports', async () => {
+		await withTempDir(async (tempDir) => {
+			const outputs: string[] = [];
+			for (const specifier of ['node:fs', 'fs']) {
+				const entrypoint = path.join(tempDir, `entry-${outputs.length}.tsx`);
+				writeFileSync(
+					entrypoint,
+					`import { readFile } from '${specifier}';\nexport default () => 'ok';`,
+					'utf-8',
+				);
+				const harness = createPluginTestHarness(undefined, { entry: entrypoint });
+				const transformed = (await harness.transformFile(entrypoint)) as string;
+				expect(transformed).not.toMatch(/from ['"](node:)?fs/);
+				outputs.push(transformed);
+			}
+			expect(outputs[1]).toBe(outputs[0]);
+		});
+	});
+
+	it('removes a bare side-effect import of an unprefixed built-in', async () => {
+		await withTempDir(async (tempDir) => {
+			const entrypoint = path.join(tempDir, 'entry.tsx');
+			writeFileSync(entrypoint, "import 'fs';\nexport default () => 'ok';", 'utf-8');
+			const harness = createPluginTestHarness(undefined, { entry: entrypoint });
+			expect(await harness.transformFile(entrypoint)).not.toContain("'fs'");
+		});
+	});
+
+	it('keeps a package named like a built-in subpath', async () => {
+		await withTempDir(async (tempDir) => {
+			const entrypoint = path.join(tempDir, 'entry.tsx');
+			writeFileSync(
+				entrypoint,
+				"import { join } from 'path-browserify';\nexport default () => join('a', 'b');",
+				'utf-8',
+			);
+			const harness = createPluginTestHarness(undefined, { entry: entrypoint });
+			const transformed = await harness.transformFile(entrypoint);
+			expect(transformed ?? 'path-browserify').toContain('path-browserify');
+		});
+	});
+
 	it('preserves side-effect imports in helpers shared with non-React entries', async () => {
 		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const htmlEntrypoint = path.join(tempDir, 'html-entry.ts');

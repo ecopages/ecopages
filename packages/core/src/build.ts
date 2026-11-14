@@ -21,6 +21,7 @@ export {
 	type ParsedCollectionSpecifier,
 } from './build/contracts/content-virtual-modules.ts';
 export { isServerOnlyModuleSpecifier } from './utils/file-roles.ts';
+export { isNodeBuiltinSpecifier } from './utils/node-builtin.ts';
 export { shouldBuildPagesUnifiedGraph } from './build/cache/pages-unified-graph-build.ts';
 export { BuildQueue } from './build/runtime/build-queue.ts';
 export { buildServerModule } from './build/server-module.ts';

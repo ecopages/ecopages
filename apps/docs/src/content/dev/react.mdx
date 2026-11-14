@@ -81,11 +81,11 @@ flowchart TD
 `client-graph/boundary-plugin.ts` runs on every module in a browser build (page, island, lazy entry and shared helpers) and:
 
 1. computes reachability from client roots,
-2. removes disallowed imports (`node:` built-ins, `.server` modules, content `/server` modules, named imports outside declared `pkg{name}` rules).
+2. removes disallowed imports (Node built-ins with or without the `node:` prefix, decided by core's `isNodeBuiltinSpecifier`, `.server` modules, content `/server` modules, named imports outside declared `pkg{name}` rules).
 3. strips server-only `eco.page()` options (`cache`, `middleware`, `dependencies`, `requires`, `metadata`, `props`, `paths`) and declarations only they used,
 4. fails the build, naming binding and `file:line:column`, if needed browser code still uses a removed import.
 
-A bare side-effect import (`import 'x'`) has no binding to test for reachability, so the boundary keeps it in every module it sees, whatever folder the module sits in and whether it is an entry, a page, a layout, a component, a script or a helper. Only `.server` and `node:` specifiers are removed from it. An unprefixed built-in (`import 'fs'`) is kept and then fails the build in core's browser guard (`[browser-build] Node builtin ...`). A stylesheet import is not stripped here: the build's stylesheet module plugin gives it an empty module because core already discovers and delivers the CSS. A server-only bare import therefore reaches the browser unless it sits in a `.server` module. MDX files are compiled by the MDX loader and never pass through the boundary, so their bare imports are kept the same way.
+A bare side-effect import (`import 'x'`) has no binding to test for reachability, so the boundary keeps it in every module it sees, whatever folder the module sits in and whether it is an entry, a page, a layout, a component, a script or a helper. Only `.server` modules and Node built-ins are removed from it. A stylesheet import is not stripped here: the build's stylesheet module plugin gives it an empty module because core already discovers and delivers the CSS. A server-only bare import therefore reaches the browser unless it sits in a `.server` module. MDX files are compiled by the MDX loader and never pass through the boundary, so their bare imports are kept the same way.
 
 Legacy `getMetadata`, `getStaticProps` and `getStaticPaths` exports are never browser roots. Declarations that only removed code used are removed, and an exported name keeps its binding set to `undefined`.
 

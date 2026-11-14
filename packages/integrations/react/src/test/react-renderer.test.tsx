@@ -583,7 +583,6 @@ describe('ReactRenderer', () => {
 			expect(result.html).toContain(
 				'<aside data-slot="true" data-eco-component-id="host_n_1"><span data-child="true">Child</span><button data-testid="deferred-widget">Deferred widget</button></aside>',
 			);
-			expect(result.html).not.toContain('<eco-marker');
 			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
 		});
 
@@ -1198,63 +1197,6 @@ describe('ReactRenderer', () => {
 		expect(buildSerializedPageProps).toHaveBeenCalledTimes(1);
 	});
 
-	it('should preserve unresolved eco-marker artifact html through non-react html templates', async () => {
-		const testRenderer = createRenderer();
-		const MarkerPage = (() =>
-			'<eco-marker data-eco-node-id="n_1" data-eco-integration="lit" data-eco-component-ref="cmp" data-eco-props-ref="p_1"></eco-marker>') as unknown as EcoComponent<object>;
-
-		const body = await testRenderer.render({
-			params: {},
-			query: {},
-			props: {},
-			resolvedDependencies: [],
-			file: pageFilePath,
-			metadata: {
-				title: 'Marker Page',
-				description: 'Marker Description',
-			},
-			dependencies: {
-				scripts: [],
-				stylesheets: [],
-			},
-			Page: MarkerPage,
-			HtmlTemplate: NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps, JSX.Element>,
-		});
-
-		const text = await new Response(body as BodyInit).text();
-		expect(text).toContain('<eco-marker data-eco-node-id="n_1"');
-		expect(text).not.toContain('&lt;eco-marker');
-		expect(text).not.toContain('&amp;lt;eco-marker');
-	});
-
-	it('should preserve unresolved eco-marker artifact html through react html templates', async () => {
-		const testRenderer = createRenderer();
-		const MarkerPage = (() =>
-			'<eco-marker data-eco-node-id="n_1" data-eco-integration="lit" data-eco-component-ref="cmp" data-eco-props-ref="p_1"></eco-marker>') as unknown as EcoComponent<object>;
-
-		const body = await testRenderer.render({
-			params: {},
-			query: {},
-			props: {},
-			resolvedDependencies: [],
-			file: pageFilePath,
-			metadata: {
-				title: 'Marker Page',
-				description: 'Marker Description',
-			},
-			dependencies: {
-				scripts: [],
-				stylesheets: [],
-			},
-			Page: MarkerPage,
-			HtmlTemplate,
-		});
-
-		const text = await new Response(body as BodyInit).text();
-		expect(text).toContain('<eco-marker data-eco-node-id="n_1"');
-		expect(text).not.toContain('&lt;eco-marker');
-	});
-
 	it('should resolve deferred cross-integration layout components in render', async () => {
 		const deferredPlugin = createDeferredIntegrationPlugin();
 		const config = await createTestAppConfig({
@@ -1315,7 +1257,6 @@ describe('ReactRenderer', () => {
 
 		const text = await new Response(body as BodyInit).text();
 		expect(text).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
-		expect(text).not.toContain('<eco-marker');
 	});
 
 	describe('renderExplicitView', () => {
@@ -1432,7 +1373,6 @@ describe('ReactRenderer', () => {
 
 			expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
 			expect(body).toContain('<section>Partial');
-			expect(body).not.toContain('<eco-marker');
 		});
 
 		it('should render full views through explicit component boundaries for non-react layouts', async () => {
@@ -1483,7 +1423,6 @@ describe('ReactRenderer', () => {
 
 			expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
 			expect(body).toContain('<p>With Layout</p>');
-			expect(body).not.toContain('<eco-marker');
 		});
 	});
 

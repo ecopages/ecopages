@@ -76,7 +76,6 @@ export interface ForeignSubtreeExecutionRenderOptions {
 	currentIntegrationName: string;
 	input: InternalComponentRenderInput;
 	renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult>;
-	normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult;
 	hasForeignChildDescendants(
 		component: EcoComponent,
 		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
@@ -419,7 +418,7 @@ export async function executeComponentRender(
 
 	if (!hasForeignChildren) {
 		if (activeRenderContext && activeRenderContext.currentIntegration === options.currentIntegrationName) {
-			return options.normalizeComponentRenderOutput(await options.renderComponent(options.input));
+			return await options.renderComponent(options.input);
 		}
 
 		const sameIntegrationExecution = await runWithComponentRenderContext(
@@ -429,7 +428,7 @@ export async function executeComponentRender(
 			async () => options.renderComponent(options.input),
 		);
 
-		return options.normalizeComponentRenderOutput(sameIntegrationExecution.value);
+		return sameIntegrationExecution.value;
 	}
 
 	const execution = await runWithComponentRenderContext(
@@ -443,7 +442,7 @@ export async function executeComponentRender(
 		async () => options.renderComponent(options.input),
 	);
 
-	return options.normalizeComponentRenderOutput(execution.value);
+	return execution.value;
 }
 
 function getRendererCache(

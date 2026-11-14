@@ -23,7 +23,6 @@ import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../page-cache/html-page-cache-dependency-index.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import type { HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
-import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
 import {
 	createPreparedComponentGraphBuilder,
 	type PreparedComponentGraphNode,
@@ -482,19 +481,8 @@ export class RouteRenderOrchestrator {
 			this.captureHtmlRender(async () => renderer.renderRouteBody(renderOptions)),
 		);
 		const sourceDependencyPaths = this.withHtmlTemplateClosure(renderOptions.sourceDependencyPaths);
-		const unresolvedArtifactInspection = inspectUnresolvedMarkerArtifactHtml(renderedHtml);
 		const htmlFinalization = renderer.getRouteHtmlFinalization(renderOptions);
-		const hasUnresolvedMarkerHtml = unresolvedArtifactInspection.hasUnresolvedMarkerArtifacts;
-
-		if (hasUnresolvedMarkerHtml) {
-			throw new Error(
-				'[ecopages] Route render returned unresolved eco-marker artifact HTML. Full-route unresolved-marker fallback has been removed; resolve mixed foreign children inside renderComponentWithForeignChildren().',
-			);
-		}
-
-		const finalHtml = htmlFinalization.finalizeHtml
-			? htmlFinalization.finalizeHtml(unresolvedArtifactInspection.normalizedHtml)
-			: renderedHtml;
+		const finalHtml = htmlFinalization.finalizeHtml ? htmlFinalization.finalizeHtml(renderedHtml) : renderedHtml;
 
 		const body = await measureRouteRenderPhase(this.requestPipelineMetrics, 'transform-response', () =>
 			renderer.transformRouteHtml(finalHtml, htmlFinalization.htmlContributions, renderOptions),

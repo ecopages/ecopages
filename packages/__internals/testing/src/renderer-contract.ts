@@ -191,7 +191,6 @@ export function describeRendererContract(harness: RendererContractHarness): void
 			expect(result.html).toContain(
 				'<button data-testid="deferred-widget" data-eco-component-id="host_n_1">Deferred widget</button>',
 			);
-			expect(result.html).not.toContain('<eco-marker');
 			expect(result.rootAttributes?.['data-eco-island']).toBeUndefined();
 			expect(renderDeferred).toHaveBeenCalledTimes(1);
 		});
@@ -213,7 +212,6 @@ export function describeRendererContract(harness: RendererContractHarness): void
 
 			expect(explicitHtml).toContain('Route page');
 			expect(explicitHtml).toContain(DEFERRED_WIDGET_HTML);
-			expect(explicitHtml).not.toContain('<eco-marker');
 			expect(htmlDocumentHead(explicitHtml)).toContain('Contract title');
 			expect(htmlDocumentHead(explicitHtml)).toBe(htmlDocumentHead(pageHtml));
 			expect(explicitHtml).toBe(pageHtml);

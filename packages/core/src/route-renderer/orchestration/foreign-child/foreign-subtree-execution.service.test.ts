@@ -425,7 +425,6 @@ describe('executeComponentRender context', () => {
 					integrationName: 'react',
 				};
 			},
-			normalizeComponentRenderOutput: (output) => output,
 			hasForeignChildDescendants: () => false,
 			createForeignChildRuntime: () => {
 				throw new Error('foreign-child runtime should not be created');
@@ -453,7 +452,6 @@ describe('executeComponentRender context', () => {
 						integrationName: 'react',
 					};
 				},
-				normalizeComponentRenderOutput: (output) => output,
 				hasForeignChildDescendants: () => false,
 				createForeignChildRuntime: () => {
 					throw new Error('foreign-child runtime should not be created');

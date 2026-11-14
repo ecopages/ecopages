@@ -29,10 +29,6 @@ export function declaredPage<TModule extends EcoPageFile>(module: TModule, file:
 	return module;
 }
 
-export function createUnresolvedMarkerArtifact(nodeId: string, componentRef: string, propsRef: string): string {
-	return `<eco-marker data-eco-node-id="${nodeId}" data-eco-component-ref="${componentRef}" data-eco-props-ref="${propsRef}"></eco-marker>`;
-}
-
 export function createMockIntegrationPlugin(
 	plugin: { name: string } & Record<string, unknown>,
 ): EcoPagesAppConfig['integrations'][number] {

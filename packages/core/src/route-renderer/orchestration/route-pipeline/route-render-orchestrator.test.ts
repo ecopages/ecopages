@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import type { AssetProcessingService } from '../../../assets/asset-processing-service/index.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type { EcoComponent, IntegrationRendererRenderOptions } from '../../../types/contracts.ts';
-import { createUnresolvedMarkerArtifact } from '../integration-renderer.test-fixtures.ts';
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
 import { createFlowRenderer, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
@@ -118,23 +117,5 @@ describe('RouteRenderOrchestrator', () => {
 		expect(result.cacheStrategy).toEqual({ revalidate: 60 });
 		expect(result.body).toContain('<html data-eco-document-owner="react-router"><body>');
 		expect(result.body).toContain('<main>Resolved</main>');
-	});
-
-	it.each([
-		[
-			'a raw marker nested inside shell html',
-			`<html><body><main><section data-shell="outer">Before${createUnresolvedMarkerArtifact('n_1', 'nested-component', 'props-1')}After</section></main></body></html>`,
-		],
-		[
-			'an entity-escaped marker',
-			'<html><body>&amp;lt;eco-marker data-eco-node-id=&quot;n_2&quot; data-eco-component-ref=&quot;page-component&quot; data-eco-props-ref=&quot;p_2&quot;&amp;gt;&amp;lt;/eco-marker&amp;gt;</body></html>',
-		],
-	])('throws when the route HTML contains %s', async (_name, html) => {
-		await expect(
-			createFlow().execute(
-				createRouteOptions(path.resolve('/app/pages/index.tsx')),
-				createFlowRenderer({ renderRouteBody: async () => html }),
-			),
-		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 	});
 });

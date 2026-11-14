@@ -315,11 +315,9 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		}
 
 		const runtime = this.getReactRuntimeModules();
-		let html = this.normalizeUnresolvedMarkerArtifactHtml(
-			await this.renderReactTree(
-				runtime.react.createElement(runtime.react.Fragment, null, toReactNode(children, this.name)),
-				'queued children',
-			),
+		let html = await this.renderReactTree(
+			runtime.react.createElement(runtime.react.Fragment, null, toReactNode(children, this.name)),
+			'queued children',
 		);
 		html = restoreRuntimeChildHtml(html, runtimeContext);
 
@@ -415,16 +413,14 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			componentInstanceId: input.integrationContext?.componentInstanceId,
 		};
 		const hasResolvedChildHtml = input.children !== undefined;
-		let html = this.normalizeUnresolvedMarkerArtifactHtml(
-			await renderComponentHtml({
-				input,
-				context,
-				runtimeContext,
-				runtime: this.getReactRuntimeModules(),
-				timeoutMs: this.getRuntimeState().renderTimeoutMs,
-				label: getComponentIdentity(input.component)?.file ?? 'component',
-			}),
-		);
+		let html = await renderComponentHtml({
+			input,
+			context,
+			runtimeContext,
+			runtime: this.getReactRuntimeModules(),
+			timeoutMs: this.getRuntimeState().renderTimeoutMs,
+			label: getComponentIdentity(input.component)?.file ?? 'component',
+		});
 		const componentFile = getComponentIdentity(componentConfig)?.file;
 		const isIslandRoot =
 			Boolean(componentFile && context.componentInstanceId && !hasResolvedChildHtml) &&
@@ -568,9 +564,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			},
 		};
 		const runtimeContext = this.getQueuedForeignSubtreeContext<ReactForeignSubtreeResolutionContext>(runtimeInput);
-		const html = this.normalizeUnresolvedMarkerArtifactHtml(
-			await this.renderReactTree(tree, getComponentIdentity(page.component)?.file ?? 'page'),
-		);
+		const html = await this.renderReactTree(tree, getComponentIdentity(page.component)?.file ?? 'page');
 		const layoutWithoutChildren = renderTracker.findLayoutWithoutChildren(page.component);
 		if (layoutWithoutChildren) this.onLayoutChildrenNotRendered(layoutWithoutChildren);
 		return {

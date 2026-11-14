@@ -157,7 +157,7 @@ describe('StringMarkupRenderer', () => {
 		).rejects.toBe(notFound);
 	});
 
-	it('should resolve deferred foreign layout content without unresolved eco-marker artifacts', async () => {
+	it('should resolve deferred foreign layout content', async () => {
 		const deferredPlugin = createDeferredIntegrationPlugin({
 			extensions: ['.deferred.ts'],
 		});
@@ -204,7 +204,6 @@ describe('StringMarkupRenderer', () => {
 		});
 
 		expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
-		expect(body).not.toContain('<eco-marker');
 	});
 
 	it('returns the component render result directly', async () => {

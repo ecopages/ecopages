@@ -17,11 +17,8 @@ Returns the props object of your page component. `render`, `metadata` and `depen
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
 
-export type PageProps = { title: string; content: string };
-
-export default eco.page<PageProps, JsxRenderable>({
+export default eco.page({
     props: async () => {
         // Fetch data from a database, file, or external API
         const data = await fetch('https://api.example.com/page-data').then(res => res.json());
@@ -31,7 +28,7 @@ export default eco.page<PageProps, JsxRenderable>({
             content: data.content,
         };
     },
-    render: ({ title, content }) => (
+    render: ({ title, content }: { title: string; content: string }) => (
         <>
             <h1>{title}</h1>
             <div>{content}</div>

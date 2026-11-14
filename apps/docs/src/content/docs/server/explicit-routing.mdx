@@ -43,7 +43,7 @@ await app.start();
 
 ## Rendering Views
 
-Route handlers render `eco.page` views with `ctx.render(View, props)`. Import the view: the default export of an Integration-owned file becomes a view reference, so development reloads on save and production reads the built module. A file without a default export, such as a file of named plain components, imports as itself. Any default export of an Integration-owned file counts as a view, so import only the default from a view file, and export a component the server entry imports by name.
+Route handlers render `eco.page` views with `ctx.render(View, props)`. Import the view: the default export of an Integration-owned file becomes a view reference, so development reloads on save and production reads the built module. A file without a default export, such as a file of named plain components, imports as itself. Any default export of an Integration-owned file counts as a view, so import only the default from a view file. No folder makes a file a view: the examples use `src/views/`, but a view is any file the server entry imports that has a default export.
 
 ```typescript
 import PostView from './src/views/post-view.kita';
@@ -440,7 +440,7 @@ export default PostView;
 
 ## Views Outside pages/
 
-Define `eco.page` views anywhere in your codebase. Views used with `app.static()` or `ctx.render()` must be the default export:
+Define `eco.page` views anywhere in your codebase. Views used with `app.static()` or `ctx.render()` must be the default export. A view takes its layout from its own `eco.page({ layout })`:
 
 ```typescript
 // src/views/post-view.tsx
@@ -498,7 +498,8 @@ An `app.get()` on an endpoint file's URL answers GET and the file answers its ot
 import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
-import { PostView, PostListView } from './src/views';
+import PostListView from './src/views/post-list.tsx';
+import PostView from './src/views/post-view.tsx';
 import type { ApiHandlerContext, EcoMiddleware } from '@ecopages/core';
 
 const app = await createApp();

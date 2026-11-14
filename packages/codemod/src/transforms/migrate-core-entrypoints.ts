@@ -310,9 +310,13 @@ function rewriteModuleImports(
 	sourceRoot: string | undefined,
 ): boolean {
 	let changed = false;
-	const staticDeclarations = [j.ImportDeclaration, j.ExportNamedDeclaration, j.ExportAllDeclaration];
-	for (const nodeType of staticDeclarations) {
-		root.find(nodeType).forEach((nodePath) => {
+	const staticDeclarations = [
+		root.find(j.ImportDeclaration),
+		root.find(j.ExportNamedDeclaration),
+		root.find(j.ExportAllDeclaration),
+	];
+	for (const collection of staticDeclarations) {
+		collection.forEach((nodePath) => {
 			const declaration = nodePath.node as { source?: unknown };
 			const specifier = literalValue(declaration.source);
 			const entrypoint = specifier ? entrypointFor(specifier) : undefined;

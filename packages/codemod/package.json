@@ -1,21 +1,53 @@
 {
 	"name": "@ecopages/codemod",
-	"version": "0.0.1",
+	"version": "0.9.0-rc.1",
 	"description": "Codemods for migrating ecopages to latest patterns",
+	"license": "MIT",
 	"type": "module",
-	"private": true,
-	"main": "src/transforms/index.ts",
+	"exports": {
+		"./migrate-core-entrypoints": {
+			"import": "./src/transforms/migrate-core-entrypoints.ts",
+			"types": "./src/transforms/migrate-core-entrypoints.ts"
+		},
+		"./migrate-data-hooks": {
+			"import": "./src/transforms/migrate-data-hooks.ts",
+			"types": "./src/transforms/migrate-data-hooks.ts"
+		},
+		"./migrate-to-eco-component": {
+			"import": "./src/transforms/migrate-to-eco-component.ts",
+			"types": "./src/transforms/migrate-to-eco-component.ts"
+		},
+		"./migrate-to-eco-page": {
+			"import": "./src/transforms/migrate-to-eco-page.ts",
+			"types": "./src/transforms/migrate-to-eco-page.ts"
+		}
+	},
+	"bin": {
+		"ecopages-codemod": "./src/cli.js"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"src"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ecopages/ecopages.git",
+		"directory": "packages/codemod"
+	},
 	"scripts": {
 		"transform:data-hooks": "jscodeshift -t src/transforms/migrate-data-hooks.ts --parser tsx",
 		"transform:pages": "jscodeshift -t src/transforms/migrate-to-eco-page.ts --parser tsx",
 		"transform:components": "jscodeshift -t src/transforms/migrate-to-eco-component.ts --parser tsx",
 		"transform:core-entrypoints": "jscodeshift -t src/transforms/migrate-core-entrypoints.ts --parser tsx",
-		"test": "vitest run"
+		"test": "vitest run --root ../.. --project shared-core packages/codemod"
+	},
+	"dependencies": {
+		"jscodeshift": "^17.3.0"
 	},
 	"devDependencies": {
-		"@types/jscodeshift": "^17.3.0",
-		"jscodeshift": "^17.3.0",
-		"vitest": "^4.1.6"
+		"@types/jscodeshift": "^17.3.0"
 	},
 	"peerDependencies": {
 		"typescript": "^5.0.0"

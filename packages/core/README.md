@@ -239,6 +239,6 @@ Use `@ecopages/core/client` for browser navigation and client runtime helpers.
 
 ### Runtime-Loaded Entries
 
-`@ecopages/core/config/write-types`, `@ecopages/core/hmr/client/hmr-runtime`, and `@ecopages/core/view-reference` remain exported because Ecopages loads them by path at runtime. They are implementation entries, not general authoring surfaces. App authors import the view file, not this subpath.
+`@ecopages/core/config/write-types`, `@ecopages/core/hmr/client/hmr-runtime`, and `@ecopages/core/view-reference` remain exported because Ecopages loads them by path at runtime. `@ecopages/core/cli` holds what the `ecopages` CLI reads before it starts the app, so the CLI starts without loading the bundler. They are implementation entries, not general authoring surfaces. App authors import the view file, not the `view-reference` subpath.
 
 `@ecopages/core/errors` remains an alias for the root error exports.

@@ -686,7 +686,6 @@ export class StaticSiteGenerator {
 		this.resetStaticGenerationState(force);
 		requireAppRuntime(this.appConfig).staticGenerationActive = true;
 
-		let releases: StaticExportRelease[] = [];
 		let staticExportsStarted: Promise<StaticExportRelease[]> | undefined;
 		let generationFailed = false;
 		let generationError: unknown;
@@ -746,13 +745,30 @@ export class StaticSiteGenerator {
 		requireAppRuntime(this.appConfig).staticGenerationActive = false;
 		clearProductionAssetLedgerOnFailure(this.appConfig, generationFailed);
 
+		await this.cleanUpStaticGeneration({ staticExportsStarted, generationFailed, generationError });
+	}
+
+	/**
+	 * Releases the static exports, tears down the Integrations, and throws whatever failed.
+	 *
+	 * @remarks
+	 * Static exports start while the generation runs, so they are awaited here even when generation failed; their
+	 * own failure is reported only when it is not the error generation already threw. Every cleanup step runs,
+	 * and a generation error is thrown together with any cleanup errors.
+	 */
+	private async cleanUpStaticGeneration(input: {
+		staticExportsStarted: Promise<StaticExportRelease[]> | undefined;
+		generationFailed: boolean;
+		generationError: unknown;
+	}): Promise<void> {
+		let releases: StaticExportRelease[] = [];
 		const cleanupErrors: unknown[] = [];
 		try {
-			if (staticExportsStarted) {
-				releases = await staticExportsStarted;
+			if (input.staticExportsStarted) {
+				releases = await input.staticExportsStarted;
 			}
 		} catch (error) {
-			if (!generationFailed || error !== generationError) cleanupErrors.push(error);
+			if (!input.generationFailed || error !== input.generationError) cleanupErrors.push(error);
 		}
 		try {
 			await this.releaseStaticExports(releases);
@@ -765,13 +781,17 @@ export class StaticSiteGenerator {
 			cleanupErrors.push(error);
 		}
 
-		if (generationFailed) {
+		if (input.generationFailed) {
 			if (cleanupErrors.length > 0) {
-				throw new AggregateError([generationError, ...cleanupErrors], 'Static generation and cleanup failed', {
-					cause: generationError,
-				});
+				throw new AggregateError(
+					[input.generationError, ...cleanupErrors],
+					'Static generation and cleanup failed',
+					{
+						cause: input.generationError,
+					},
+				);
 			}
-			throw generationError;
+			throw input.generationError;
 		}
 		if (cleanupErrors.length === 1) throw cleanupErrors[0];
 		if (cleanupErrors.length > 1) {

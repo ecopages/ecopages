@@ -271,12 +271,7 @@ describe('IntegrationRenderer', () => {
 
 		const result = await renderer.renderComponentWithForeignChildren({ component: Host, props: {} });
 
-		expect(renderQueuedChildren).toHaveBeenCalledWith(
-			foreignChildValue,
-			expect.any(Object),
-			expect.any(Map),
-			expect.any(Function),
-		);
+		expect(renderQueuedChildren).toHaveBeenCalledWith(foreignChildValue, expect.any(Object), expect.any(Function));
 		expect(renderComponent).toHaveBeenCalledOnce();
 		expect(foreignRender).toHaveBeenCalledWith(
 			expect.objectContaining({ children: '<strong>queued child</strong>' }),

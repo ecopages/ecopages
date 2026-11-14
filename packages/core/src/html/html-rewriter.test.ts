@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	HtmlRewriter,
 	rewriteFirstElement,
+	rewriteLeadingElement,
 	type HtmlRewriterElement,
 	type HtmlRewriterElementHandlers,
 } from './html-rewriter.ts';
@@ -410,20 +411,6 @@ describe('rewriteFirstElement', () => {
 		expect(output).toBe('<!-- <div> --><script>"<div>"</script><div a="x>y" b="2">1<div>2</div></div><p');
 	});
 
-	it('with leadingOnly, rewrites nothing when text or a comment precedes the target', () => {
-		const stamp = (html: string) =>
-			rewriteFirstElement(
-				html,
-				() => true,
-				(element) => void element.setAttribute('b', '2'),
-				{ leadingOnly: true },
-			);
-
-		expect(stamp('  <div>x</div>')).toBe('  <div b="2">x</div>');
-		expect(stamp('<!--c--><div>x</div>')).toBe('<!--c--><div>x</div>');
-		expect(stamp('t<div>x</div>')).toBe('t<div>x</div>');
-	});
-
 	it('returns the input unchanged when nothing matches', () => {
 		const html = '<main><p>x</p></main>';
 		expect(
@@ -433,6 +420,18 @@ describe('rewriteFirstElement', () => {
 				() => {},
 			),
 		).toBe(html);
+	});
+});
+
+describe('rewriteLeadingElement', () => {
+	it('rewrites the leading start tag and nothing when text or a comment precedes it', () => {
+		const stamp = (html: string) => rewriteLeadingElement(html, (element) => void element.setAttribute('b', '2'));
+
+		expect(stamp('  <div a="x>y">x</div><p>')).toBe('  <div a="x>y" b="2">x</div><p>');
+		expect(stamp('<br/>')).toBe('<br b="2" />');
+		expect(stamp('<!--c--><div>x</div>')).toBe('<!--c--><div>x</div>');
+		expect(stamp('t<div>x</div>')).toBe('t<div>x</div>');
+		expect(stamp('</div><div>x</div>')).toBe('</div><div>x</div>');
 	});
 });
 

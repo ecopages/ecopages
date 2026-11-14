@@ -85,11 +85,9 @@ import type {
 	PlannedPageClientBuildEntry,
 } from './page-browser-graph/grouped-graph-build-plan.ts';
 import type { ForeignChildInterceptionInput, ForeignChildRuntime } from '../../eco/component-render-context.ts';
-import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
 import { isMarkupNodeLike } from '../../eco/component-render-output.ts';
 import {
 	getForeignSubtreeResolutionContextKey,
-	getForeignSubtreeTokenPrefix,
 	resolveOwningIntegrationRenderer,
 } from './foreign-child/owning-renderer-resolution.ts';
 import { keepsLastGoodOutput, showAssetFailure } from '../../assets/asset-processing-service/last-good-output.ts';
@@ -120,7 +118,7 @@ import {
 	resolvePageLayoutComponents,
 	resolveDocumentShellLayouts,
 } from './document-shell/layout-shell-props.service.ts';
-import { finalizeIslandComponentRender } from '../../islands/island-host.ts';
+import { stampIslandHost } from '../../islands/island-host.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { prepareAssetDependencies } from '../../assets/asset-processing-service/asset-processing.service.ts';
 import { isBundleableScript } from '../../assets/asset-processing-service/bundleable-script.ts';
@@ -772,13 +770,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.dependencyResolverService = new DependencyResolverService(
 			appConfig,
 			assetProcessingService,
-			() => isProductionRuntime() && this.getActiveHmrManager()?.isEnabled() !== true,
 			assetProcessingIntegration,
 		);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig);
 		this.routeRenderOrchestrator = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
 			ownershipValidationService: new OwnershipValidationService(appConfig),
 			assetProcessingIntegration,
+			reusesShellDependencies: () => isProductionRuntime() && this.getActiveHmrManager()?.isEnabled() !== true,
 		});
 		this.integrationHooks =
 			typeof hooks === 'function'
@@ -1136,9 +1134,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Execution flow:
 	 * 1. Build normalized render options (`prepareRenderOptions`).
 	 * 2. Render the route body once.
-	 * 3. Reject unresolved route-level eco-marker artifacts.
-	 * 4. Optionally apply document attributes for integration-owned document boundaries.
-	 * 5. Run HTML transformer with final dependency set.
+	 * 3. Optionally apply document attributes for integration-owned document boundaries.
+	 * 4. Run HTML transformer with final dependency set.
 	 *
 	 * Stream-safety note: the first render result is normalized to a string once,
 	 * then the pipeline continues with that immutable HTML value to avoid disturbed
@@ -1366,7 +1363,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			currentIntegrationName: this.name,
 			input,
 			renderComponent: (renderInput) => this.renderComponent(renderInput),
-			normalizeComponentRenderOutput: (result) => this.normalizeComponentRenderOutput(result),
 			hasForeignChildDescendants: (component, foreignChildRoots) =>
 				this.hasForeignChildDescendants(component, foreignChildRoots),
 			createForeignChildRuntime: ({ renderInput, rendererCache }) =>
@@ -1430,7 +1426,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Stamps `result` as an Island Host when the component itself declares a client script.
+	 * Stamps `result` as an Island Host when the component itself ships a client script.
 	 *
 	 * @remarks Reads the component's own declarations, excluding Foreign Children: a component without
 	 * scripts that wraps an island is not an island itself. Components without `dependencies` are never stamped.
@@ -1439,32 +1435,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		input: ComponentRenderInput,
 		result: ComponentRenderResult,
 	): ComponentRenderResult {
-		const ownAssets = input.component.config?.dependencies
-			? this.dependencyResolverService.collectOwnComponentDependencies([input.component], this.name)
-			: undefined;
-		return finalizeIslandComponentRender(
+		const shipsScript =
+			input.component.config?.dependencies !== undefined &&
+			this.dependencyResolverService.componentShipsScript(input.component, this.name);
+		return stampIslandHost(
 			input,
 			{
 				...result,
 				html: finalizeComponentRender(input.component, result.html),
 			},
-			ownAssets,
+			shipsScript,
 		);
-	}
-
-	private normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult {
-		const normalizedHtml = this.normalizeUnresolvedMarkerArtifactHtml(result.html);
-
-		return normalizedHtml === result.html
-			? result
-			: {
-					...result,
-					html: normalizedHtml,
-				};
-	}
-
-	protected normalizeUnresolvedMarkerArtifactHtml(html: string): string {
-		return normalizeUnresolvedMarkerArtifactHtml(html);
 	}
 
 	/**
@@ -1692,8 +1673,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const runtime = createQueuedRuntime({
 			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
-			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
-			tokenPrefix: getForeignSubtreeTokenPrefix(this.name),
+			integrationName: this.name,
 		});
 		const normalizeForeignChildProps = this.integrationHooks.normalizeForeignChildProps;
 		if (!normalizeForeignChildProps) {

@@ -39,6 +39,23 @@ describe('DependencyResolverService', () => {
 		);
 	});
 
+	it('finds a script of its own in a component or a same-Integration child, never in a Foreign Child', () => {
+		const service = new DependencyResolverService(appConfig, {} as AssetProcessingService);
+		const component = (id: string, integration: string, dependencies: EcoComponentDependencies): EcoComponent => {
+			const value = (() => '') as EcoComponent;
+			value.config = { identity: { id, file: path.resolve(`/app/${id}.tsx`), integration }, dependencies };
+			return value;
+		};
+		const foreignIsland = component('foreign', 'react', { scripts: ['./foreign.js'] });
+		const wrapper = component('wrapper', 'kita', { components: [foreignIsland] });
+		const ownScriptChild = component('child', 'kita', { modules: ['some-lib'] });
+		const host = component('host', 'kita', { components: [ownScriptChild] });
+
+		expect(service.componentShipsScript(wrapper, 'kita')).toBe(false);
+		expect(service.componentShipsScript(host, 'kita')).toBe(true);
+		expect(service.componentShipsScript(foreignIsland, 'react')).toBe(true);
+	});
+
 	it('processes prepared graph nodes without recursively revisiting nested components', async () => {
 		let capturedDeps: AssetDefinition[] = [];
 		const assetProcessingService = {

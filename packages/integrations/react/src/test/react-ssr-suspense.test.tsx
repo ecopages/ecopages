@@ -232,7 +232,6 @@ describe('React server rendering waits for Suspense', () => {
 				'<button data-testid="deferred-widget">Deferred widget</button>',
 			)}</aside>`,
 		);
-		expect(html).not.toContain('eco-marker');
 		expect(html).not.toContain('__ECO_');
 		expect(html).not.toContain(FALLBACK);
 	});

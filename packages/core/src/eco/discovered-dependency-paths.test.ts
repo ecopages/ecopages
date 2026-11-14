@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { getAssetDependencyKey } from '../assets/asset-processing-service/asset-dependency-keys.ts';
 import type { FileStylesheetAsset } from '../assets/asset-processing-service/assets.types.ts';
 import { collectComponentDependencies } from '../route-renderer/page-loading/component-dependency-collection.ts';
+import { ComponentDeclarationStore } from '../route-renderer/page-loading/component-declarations.ts';
 import { bindComponentIdentity } from './component-identity.ts';
 import { resolveDiscoveredStylesheets, resolveDiscoveredWatchFiles } from './discovered-dependency-paths.ts';
 import { eco } from './eco.ts';
@@ -60,10 +61,11 @@ function collectPackageStylesheet(root: string, component: ReturnType<typeof bad
 	const { dependencies } = collectComponentDependencies({
 		components: [component],
 		integrationName: 'lit',
-		rootDir: root,
-		resolveLazyScripts: (_dir, scripts) => scripts.join(','),
-		createEcopagesJsxLazyEntryName: (_, key) => key,
-		errors: { invalidStylesheetEntry: 'style', invalidScriptEntry: 'script', lazyScriptMissingSrc: 'lazy' },
+		declarations: new ComponentDeclarationStore({
+			rootDir: root,
+			resolveLazyScripts: (_dir, scripts) => scripts.join(','),
+			errors: { invalidStylesheetEntry: 'style', invalidScriptEntry: 'script', lazyScriptMissingSrc: 'lazy' },
+		}),
 	});
 	const stylesheet = dependencies.find(
 		(asset) => asset.kind === 'stylesheet' && 'fromPackage' in asset && asset.fromPackage,
@@ -133,10 +135,11 @@ describe('a dependency at two versions', () => {
 		const { dependencies } = collectComponentDependencies({
 			components: [page],
 			integrationName: 'lit',
-			rootDir: root,
-			resolveLazyScripts: (_dir, scripts) => scripts.join(','),
-			createEcopagesJsxLazyEntryName: (_, key) => key,
-			errors: { invalidStylesheetEntry: 'style', invalidScriptEntry: 'script', lazyScriptMissingSrc: 'lazy' },
+			declarations: new ComponentDeclarationStore({
+				rootDir: root,
+				resolveLazyScripts: (_dir, scripts) => scripts.join(','),
+				errors: { invalidStylesheetEntry: 'style', invalidScriptEntry: 'script', lazyScriptMissingSrc: 'lazy' },
+			}),
 		});
 		const stylesheets = dependencies as FileStylesheetAsset[];
 

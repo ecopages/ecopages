@@ -32,9 +32,7 @@ flowchart TD
   C -- no --> D["Open render session"]
   D --> E["prepareRenderOptions: module, props, graph, Page Package"]
   E --> F["Render Page, Layouts and Html shell"]
-  F --> G{"Unresolved eco-marker left?"}
-  G -- yes --> X["Throw"]
-  G -- no --> H["Stamp document attributes"]
+  F --> H["Stamp document attributes"]
   H --> I["HTML transform injects the Page Package"]
   I --> J["finalizeDocument hook"]
   J --> Z
@@ -50,7 +48,7 @@ flowchart TD
 
 1. `prepareRenderOptions()` loads the Page module and final props, builds and validates the prepared component graph and builds the Page Package. Route params and query take precedence over extra props of the same name. A planned route from static export passes its preparation back in, so its data hooks run once per build.
 2. The renderer renders the Page, Layouts and Html shell. Foreign Children go to their owning renderer.
-3. `executePrepared()` captures the body and throws if an `<eco-marker>` artifact is left: there is no route-level fallback. It then stamps document attributes, runs the HTML transform with the prepared Page Package, and lets the Integration's `finalizeDocument` hook reconcile its own markup.
+3. `executePrepared()` captures the body, stamps document attributes, runs the HTML transform with the prepared Page Package, and lets the Integration's `finalizeDocument` hook reconcile its own markup.
 
 Core wraps whatever the route render throws as `Error rendering page`, with the original error as `cause`, and passes an `HttpError` through unchanged, so a Page that throws `NotFound` still answers 404. A `renderRoute` hook must not catch and re-wrap. A renderer with its own document model, such as the HTML Page renderer, overrides `renderRouteDocument()` rather than `render()`, so its errors are wrapped the same way.
 

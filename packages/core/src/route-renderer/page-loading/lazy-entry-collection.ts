@@ -8,162 +8,112 @@ import {
 import { contentHash } from '../../utils/content-hash.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { getLazyTriggerKey } from './lazy-trigger-planning.ts';
+import { createModuleScriptAttributes, resolveDeclaredPath } from './declared-asset-collection.ts';
 
 type LazyScriptRef = {
 	lazyKey: string;
 	fallbackUrl?: string;
 };
 
-/**
- * Lazy scripts grouped by one trigger declaration.
- */
+/** The lazy scripts of one component that share a trigger. */
 export type LazyGroup = {
 	lazy: DependencyLazyTrigger;
 	scripts: LazyScriptRef[];
 };
 
 /**
- * Callback used to record one normalized lazy-script registration.
+ * One lazy script a component declares.
+ *
+ * @remarks
+ * Its client entry is named for the Integration that owns the component, which collection supplies, so the
+ * entry is created then from `entryHash`.
  */
-export type RegisterLazyScript = (input: {
+export type DeclaredLazyScript = LazyScriptRef & {
 	lazy: DependencyLazyTrigger;
-	lazyKey: string;
-	fallbackUrl?: string;
-}) => void;
+	/** Dedupes the entry within a collection pass. */
+	key: string;
+	entryHash: string;
+	createAsset(entryName: string): AssetDefinition;
+};
 
-type CollectLazyEntriesOptions = {
+type DeclareLazyScriptEntriesOptions = {
 	scriptEntries: Array<string | EcoComponentScriptEntry>;
-	/**
-	 * The app root. Lazy keys and entry names hash paths relative to it, so they match between the build and a
-	 * moved `ecopages start`.
-	 */
 	rootDir: string;
 	componentFile: string;
 	componentDir: string;
-	integrationName: string;
-	dependencies: AssetDefinition[];
-	lazyDependencyKeys: Set<string>;
-	registerLazyScript: RegisterLazyScript;
-	resolveDependencyPath: (componentDir: string, pathUrl: string) => string;
 	resolveLazyScripts: (componentDir: string, scripts: string[]) => string;
-	createModuleScriptAttributes: (attributes?: Record<string, string>) => Record<string, string>;
-	createEcopagesJsxLazyEntryName: (integrationName: string, key: string) => string;
-	pushUniqueDependency: (
-		keys: Set<string>,
-		key: string,
-		dependencies: AssetDefinition[],
-		dependency: AssetDefinition,
-	) => boolean;
-	getLazyScriptMissingSrcMessage: () => string;
+	lazyScriptMissingSrcMessage: string;
 };
 
-function isDependencyEntryObject(entry: string | EcoComponentScriptEntry): entry is EcoComponentScriptEntry {
-	return typeof entry === 'object' && entry !== null;
+function declareContentLazyScript(
+	entry: EcoComponentScriptEntry & { lazy: DependencyLazyTrigger; content: string },
+	index: number,
+	options: DeclareLazyScriptEntriesOptions,
+): DeclaredLazyScript {
+	const { lazy, content, attributes } = entry;
+	const lazyKey = `lazy:${contentHash(`${toRootRelativePath(options.rootDir, options.componentFile)}:entry:${index}:${content}`, 16)}`;
+	const key = `lazy:entry:content:${getLazyTriggerKey(lazy)}:${content}:${JSON.stringify(attributes ?? {})}`;
+	return {
+		lazy,
+		lazyKey,
+		key,
+		entryHash: contentHash(key, 16),
+		createAsset: (entryName) =>
+			AssetFactory.createContentScript({
+				position: 'head',
+				name: entryName,
+				content,
+				excludeFromHtml: true,
+				bundle: true,
+				groupedBundle: { id: APP_BROWSER_CLIENT_BUNDLE_ID, entryName },
+				attributes: { ...createModuleScriptAttributes(attributes), 'data-eco-lazy-key': lazyKey },
+			}),
+	};
 }
 
-function getDependencyEntrySrcOrThrow(entry: EcoComponentScriptEntry, errorMessage: string): string {
-	if (!entry.src) {
-		throw new Error(errorMessage);
-	}
+function declareFileLazyScript(
+	entry: EcoComponentScriptEntry & { lazy: DependencyLazyTrigger },
+	options: DeclareLazyScriptEntriesOptions,
+): DeclaredLazyScript {
+	const { lazy, attributes } = entry;
+	if (!entry.src) throw new Error(options.lazyScriptMissingSrcMessage);
 
-	return entry.src;
+	const importPath = resolveDeclaredPath(options.componentDir, entry.src);
+	const sourceKey = toRootRelativePath(options.rootDir, importPath);
+	const triggerKey = getLazyTriggerKey(lazy);
+	const lazyKey = `lazy:${contentHash(`${sourceKey}:${triggerKey}`, 16)}`;
+	return {
+		lazy,
+		lazyKey,
+		fallbackUrl: options.resolveLazyScripts(options.componentDir, [entry.src]).split(',')[0] ?? '',
+		key: `lazy:entry:file:${triggerKey}:${importPath}:${JSON.stringify(attributes ?? {})}`,
+		entryHash: contentHash(`${sourceKey}:${triggerKey}`, 16),
+		createAsset: (entryName) =>
+			createAppBrowserClientEntry({
+				entryName,
+				importPath,
+				attributes: { ...createModuleScriptAttributes(attributes), 'data-eco-lazy-key': lazyKey },
+			}),
+	};
 }
 
 /**
- * Collects lazy script dependency entries and emits their hidden bundle inputs.
+ * Normalizes a component's lazy script declarations into hidden app browser client entries.
  *
- * This helper also reports the trigger-to-script relationship back to the caller so
- * later stages can build the lazy-trigger manifest without reparsing dependency config.
+ * @remarks
+ * Each entry carries a `data-eco-lazy-key`, from the component file and its content or from the source and its
+ * trigger, so it does not depend on declaration order.
  */
-export function collectLazyScriptEntries(options: CollectLazyEntriesOptions): void {
-	const {
-		scriptEntries,
-		rootDir,
-		componentFile,
-		componentDir,
-		integrationName,
-		dependencies,
-		lazyDependencyKeys,
-		registerLazyScript,
-		resolveDependencyPath,
-		resolveLazyScripts,
-		createModuleScriptAttributes,
-		createEcopagesJsxLazyEntryName,
-		pushUniqueDependency,
-		getLazyScriptMissingSrcMessage,
-	} = options;
-
-	for (const [index, scriptEntry] of scriptEntries.entries()) {
-		if (!isDependencyEntryObject(scriptEntry) || !scriptEntry.lazy) {
-			continue;
-		}
-
-		const lazy = scriptEntry.lazy;
-		const content = scriptEntry.content;
-		const src = scriptEntry.src;
-		const attributes = scriptEntry.attributes;
-
-		if (content) {
-			const lazyKey = `lazy:${contentHash(`${toRootRelativePath(rootDir, componentFile)}:entry:${index}:${content}`, 16)}`;
-			const depKey = `lazy:entry:content:${getLazyTriggerKey(lazy)}:${content}:${JSON.stringify(attributes ?? {})}`;
-			const lazyEntryName = createEcopagesJsxLazyEntryName(integrationName, depKey);
-			pushUniqueDependency(
-				lazyDependencyKeys,
-				depKey,
-				dependencies,
-				AssetFactory.createContentScript({
-					position: 'head',
-					name: lazyEntryName,
-					content,
-					excludeFromHtml: true,
-					bundle: true,
-					groupedBundle: {
-						id: APP_BROWSER_CLIENT_BUNDLE_ID,
-						entryName: lazyEntryName,
-					},
-					attributes: {
-						...createModuleScriptAttributes(attributes),
-						'data-eco-lazy-key': lazyKey,
-					},
-				}),
-			);
-
-			registerLazyScript({
-				lazy,
-				lazyKey,
-			});
-			continue;
-		}
-
-		const script = src ?? getDependencyEntrySrcOrThrow(scriptEntry, getLazyScriptMissingSrcMessage());
-		const resolvedPath = resolveDependencyPath(componentDir, script);
-		const sourceKey = toRootRelativePath(rootDir, resolvedPath);
-		const fallbackUrl = resolveLazyScripts(componentDir, [script]).split(',')[0] ?? '';
-		const lazyKey = `lazy:${contentHash(`${sourceKey}:${getLazyTriggerKey(lazy)}`, 16)}`;
-		const lazyEntryName = createEcopagesJsxLazyEntryName(
-			integrationName,
-			`${sourceKey}:${getLazyTriggerKey(lazy)}`,
+export function declareLazyScriptEntries(options: DeclareLazyScriptEntriesOptions): DeclaredLazyScript[] {
+	const declared: DeclaredLazyScript[] = [];
+	for (const [index, entry] of options.scriptEntries.entries()) {
+		if (typeof entry !== 'object' || entry === null || !entry.lazy) continue;
+		const lazyEntry = entry as EcoComponentScriptEntry & { lazy: DependencyLazyTrigger };
+		declared.push(
+			lazyEntry.content
+				? declareContentLazyScript({ ...lazyEntry, content: lazyEntry.content }, index, options)
+				: declareFileLazyScript(lazyEntry, options),
 		);
-		const depKey = `lazy:entry:file:${getLazyTriggerKey(lazy)}:${resolvedPath}:${JSON.stringify(attributes ?? {})}`;
-
-		pushUniqueDependency(
-			lazyDependencyKeys,
-			depKey,
-			dependencies,
-			createAppBrowserClientEntry({
-				entryName: lazyEntryName,
-				importPath: resolvedPath,
-				attributes: {
-					...createModuleScriptAttributes(attributes),
-					'data-eco-lazy-key': lazyKey,
-				},
-			}),
-		);
-
-		registerLazyScript({
-			lazy,
-			lazyKey,
-			fallbackUrl,
-		});
 	}
+	return declared;
 }

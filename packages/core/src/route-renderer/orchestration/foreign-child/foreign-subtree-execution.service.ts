@@ -1,4 +1,5 @@
 import { applyAttributesToFirstElement } from '../../../html/html-transformer.service.ts';
+import { getForeignSubtreeResolutionContextKey, getForeignSubtreeTokenPrefix } from './owning-renderer-resolution.ts';
 import type {
 	BaseIntegrationContext,
 	ComponentRenderInput,
@@ -54,12 +55,20 @@ export type QueuedForeignSubtreeChildRenderResult = {
 	children?: unknown;
 };
 
-/** Renders the children of one queued foreign subtree inside the host renderer. */
+/** Replaces every queued Foreign Subtree token in `html` with the subtree's markup. */
+export type ResolveForeignSubtreeTokens = (html: string) => Promise<string>;
+
+/**
+ * Renders the children of one queued foreign subtree inside the host renderer.
+ *
+ * @remarks
+ * Serialized children may hold tokens of Foreign Children queued in the same render; pass them through
+ * `resolveTokens`, since core does not scan the returned HTML again.
+ */
 export type RenderQueuedForeignSubtreeChildren<TContext extends QueuedForeignSubtreeResolutionContext> = (
 	children: unknown,
 	runtimeContext: TContext,
-	queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
-	resolveToken: (token: string) => Promise<string>,
+	resolveTokens: ResolveForeignSubtreeTokens,
 ) => Promise<QueuedForeignSubtreeChildRenderResult>;
 
 export interface ForeignSubtreeExecutionOwningRenderer {
@@ -76,7 +85,6 @@ export interface ForeignSubtreeExecutionRenderOptions {
 	currentIntegrationName: string;
 	input: InternalComponentRenderInput;
 	renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult>;
-	normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult;
 	hasForeignChildDescendants(
 		component: EcoComponent,
 		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
@@ -94,8 +102,8 @@ export interface ForeignSubtreeExecutionRenderOptions {
 export interface ForeignSubtreeQueuedRuntimeOptions<TContext extends QueuedForeignSubtreeResolutionContext> {
 	renderInput: ComponentRenderInput;
 	rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>;
-	runtimeContextKey: string;
-	tokenPrefix: string;
+	/** The Integration whose render queues the tokens; it names the token prefix and the runtime context key. */
+	integrationName: string;
 	createRuntimeContext?: (
 		integrationContext: BaseIntegrationContext & Record<string, unknown>,
 		rendererCache: Map<string, unknown>,
@@ -121,7 +129,8 @@ export type ForeignSubtreeStringQueuedHtmlOptions = Omit<
 export interface ResolveQueuedForeignSubtreeTokensOptions<TContext extends QueuedForeignSubtreeResolutionContext> {
 	html: string;
 	runtimeContext?: TContext;
-	queueLabel: string;
+	/** The Integration whose render queued the tokens; it names the token prefix and error messages. */
+	integrationName: string;
 	renderQueuedChildren: RenderQueuedForeignSubtreeChildren<TContext>;
 	resolveForeignSubtree: (
 		input: ComponentRenderInput,
@@ -171,8 +180,7 @@ export function createQueuedRuntime<TContext extends QueuedForeignSubtreeResolut
 	return createQueueRuntime<TContext>({
 		renderInput: options.renderInput,
 		rendererCache: options.rendererCache as Map<string, unknown>,
-		runtimeContextKey: options.runtimeContextKey,
-		tokenPrefix: options.tokenPrefix,
+		integrationName: options.integrationName,
 		shouldQueueForeignChild: (input) => shouldDelegateForeignChild(input),
 		createRuntimeContext: options.createRuntimeContext,
 	});
@@ -181,15 +189,18 @@ export function createQueuedRuntime<TContext extends QueuedForeignSubtreeResolut
 export function createQueueRuntime<TContext extends QueuedForeignSubtreeResolutionContext>(options: {
 	renderInput: ComponentRenderInput;
 	rendererCache: Map<string, unknown>;
-	runtimeContextKey: string;
-	tokenPrefix: string;
+	integrationName: string;
 	shouldQueueForeignChild: (input: QueuedForeignChildDecisionInput) => boolean;
 	createRuntimeContext?: (
 		integrationContext: QueuedForeignSubtreeIntegrationContext,
 		rendererCache: Map<string, unknown>,
 	) => TContext;
 }): ForeignChildRuntime {
-	const runtimeContext = ensureRuntimeContext(options);
+	const runtimeContext = ensureRuntimeContext({
+		...options,
+		runtimeContextKey: getForeignSubtreeResolutionContextKey(options.integrationName),
+	});
+	const tokenPrefix = getForeignSubtreeTokenPrefix(options.integrationName);
 
 	const interceptForeignChild = (input: QueuedForeignChildDecisionInput) => {
 		if (!options.shouldQueueForeignChild(input)) {
@@ -205,7 +216,7 @@ export function createQueueRuntime<TContext extends QueuedForeignSubtreeResoluti
 
 		runtimeContext.nextForeignSubtreeId += 1;
 		const foreignSubtreeId = runtimeContext.nextForeignSubtreeId;
-		const token = createForeignSubtreeToken(options.tokenPrefix, runtimeContext, foreignSubtreeId);
+		const token = createForeignSubtreeToken(tokenPrefix, runtimeContext, foreignSubtreeId);
 		runtimeContext.queuedResolutions.push({
 			token,
 			component: input.component,
@@ -252,7 +263,7 @@ export function getRuntimeContext<TContext extends QueuedForeignSubtreeResolutio
 export async function resolveStringQueuedHtml(options: ForeignSubtreeStringQueuedHtmlOptions): Promise<string> {
 	return resolveQueuedHtml({
 		...options,
-		renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
+		renderQueuedChildren: async (children, _runtimeContext, resolveTokens) => {
 			if (children === undefined) {
 				return {};
 			}
@@ -262,13 +273,7 @@ export async function resolveStringQueuedHtml(options: ForeignSubtreeStringQueue
 				return { children };
 			}
 
-			const html = await resolveQueuedTokens(
-				typeof children === 'string' ? children : (children.outerHTML ?? ''),
-				queuedResolutionsByToken,
-				resolveToken,
-			);
-
-			return { html };
+			return { html: await resolveTokens(typeof children === 'string' ? children : (children.outerHTML ?? '')) };
 		},
 	});
 }
@@ -279,7 +284,7 @@ export async function resolveQueuedHtml<TContext extends QueuedForeignSubtreeRes
 	return resolveQueuedForeignSubtreeTokens({
 		html: options.html,
 		runtimeContext: options.runtimeContext,
-		queueLabel: options.currentIntegrationName,
+		integrationName: options.currentIntegrationName,
 		renderQueuedChildren: options.renderQueuedChildren,
 		resolveForeignSubtree: (input, rendererCache) =>
 			resolveForeignChildInOwningRenderer({
@@ -291,56 +296,60 @@ export async function resolveQueuedHtml<TContext extends QueuedForeignSubtreeRes
 	});
 }
 
+/**
+ * Places the Foreign Subtrees queued during one render over their tokens in `html`.
+ *
+ * @remarks
+ * The HTML is scanned once: each token is rendered by its owning renderer when the scan reaches it, its children
+ * first, and the owner's root attributes are set on the subtree's leading element. The subtree's markup is scanned
+ * the same way, since structured children can carry tokens of this render into the owner's output. A token that
+ * appears twice is rendered once. A subtree that reaches its own token again is a cycle and throws.
+ */
 export async function resolveQueuedForeignSubtreeTokens<TContext extends QueuedForeignSubtreeResolutionContext>(
 	options: ResolveQueuedForeignSubtreeTokensOptions<TContext>,
 ): Promise<string> {
-	if (!options.runtimeContext || options.runtimeContext.queuedResolutions.length === 0) {
+	const runtimeContext = options.runtimeContext;
+	if (!runtimeContext || runtimeContext.queuedResolutions.length === 0) {
 		return options.html;
 	}
 
-	const runtimeContext = options.runtimeContext;
+	const tokenPrefix = getForeignSubtreeTokenPrefix(options.integrationName);
 	const queuedResolutionsByToken = new Map<string, QueuedForeignSubtreeResolution>();
-	const resolvedHtmlByToken = new Map<string, string>();
+	const placedHtmlByToken = new Map<string, string>();
 	const resolvingTokens = new Set<string>();
 
-	const syncQueuedResolutions = () => {
-		for (const resolution of runtimeContext.queuedResolutions) {
-			if (!queuedResolutionsByToken.has(resolution.token)) {
-				queuedResolutionsByToken.set(resolution.token, resolution);
-			}
+	const findResolution = (token: string): QueuedForeignSubtreeResolution | undefined => {
+		const queued = runtimeContext.queuedResolutions;
+		for (let index = queuedResolutionsByToken.size; index < queued.length; index += 1) {
+			queuedResolutionsByToken.set(queued[index].token, queued[index]);
 		}
+		return queuedResolutionsByToken.get(token);
 	};
 
-	const resolveToken = async (token: string): Promise<string> => {
-		syncQueuedResolutions();
-
-		const cachedHtml = resolvedHtmlByToken.get(token);
-		if (cachedHtml) {
-			return cachedHtml;
+	const placeToken = async (token: string): Promise<string | undefined> => {
+		const placedHtml = placedHtmlByToken.get(token);
+		if (placedHtml !== undefined) {
+			return placedHtml;
 		}
 
-		const resolution = queuedResolutionsByToken.get(token);
+		const resolution = findResolution(token);
 		if (!resolution) {
-			return token;
+			return undefined;
 		}
 
 		if (resolvingTokens.has(token)) {
 			throw new Error(
-				`[ecopages] ${options.queueLabel} foreign-subtree queue contains a cycle or unresolved dependency links.`,
+				`[ecopages] ${options.integrationName} foreign-subtree queue contains a cycle or unresolved dependency links.`,
 			);
 		}
 
 		resolvingTokens.add(token);
-
 		try {
 			const renderedChildren = await options.renderQueuedChildren(
 				resolution.props.children,
 				runtimeContext,
-				queuedResolutionsByToken,
-				resolveToken,
+				resolveTokens,
 			);
-			syncQueuedResolutions();
-
 			const foreignSubtreeRender = await options.resolveForeignSubtree(
 				{
 					component: resolution.component,
@@ -356,36 +365,61 @@ export async function resolveQueuedForeignSubtreeTokens<TContext extends QueuedF
 
 			if (!foreignSubtreeRender) {
 				throw new Error(
-					`[ecopages] ${options.queueLabel} queued foreign subtree could not resolve its owning renderer.`,
+					`[ecopages] ${options.integrationName} queued foreign subtree could not resolve its owning renderer.`,
 				);
 			}
 
-			const resolvedHtml =
+			const stampedHtml =
 				foreignSubtreeRender.canAttachAttributes && foreignSubtreeRender.rootAttributes
 					? applyAttributesToFirstElement(foreignSubtreeRender.html, foreignSubtreeRender.rootAttributes)
 					: foreignSubtreeRender.html;
-
-			resolvedHtmlByToken.set(token, resolvedHtml);
-			return resolvedHtml;
+			const html = await resolveTokens(stampedHtml);
+			placedHtmlByToken.set(token, html);
+			return html;
 		} finally {
 			resolvingTokens.delete(token);
 		}
 	};
 
-	let resolvedHtml = options.html;
+	const resolveTokens: ResolveForeignSubtreeTokens = (html) => spliceTokens(html, tokenPrefix, placeToken);
+	return resolveTokens(options.html);
+}
 
-	for (let index = 0; index < runtimeContext.queuedResolutions.length; index += 1) {
-		syncQueuedResolutions();
+/**
+ * Replaces each `tokenPrefix` token in `html` that `place` knows, in one pass.
+ *
+ * @remarks
+ * A token is `<prefix><scope>__<id>__`, and no scope contains `__` (see {@link createForeignSubtreeToken}). Text that
+ * starts like a token but that `place` does not know is kept as written.
+ */
+async function spliceTokens(
+	html: string,
+	tokenPrefix: string,
+	place: (token: string) => Promise<string | undefined>,
+): Promise<string> {
+	let start = html.indexOf(tokenPrefix);
+	if (start === -1) {
+		return html;
+	}
 
-		const resolution = runtimeContext.queuedResolutions[index];
-		if (!resolvedHtml.includes(resolution.token)) {
+	let output = '';
+	let copied = 0;
+	while (start !== -1) {
+		const scopeEnd = html.indexOf('__', start + tokenPrefix.length);
+		const idEnd = scopeEnd === -1 ? -1 : html.indexOf('__', scopeEnd + 2);
+		const end = idEnd === -1 ? -1 : idEnd + 2;
+		const placed = end === -1 ? undefined : await place(html.slice(start, end));
+		if (placed === undefined) {
+			start = html.indexOf(tokenPrefix, start + tokenPrefix.length);
 			continue;
 		}
 
-		resolvedHtml = resolvedHtml.split(resolution.token).join(await resolveToken(resolution.token));
+		output += `${html.slice(copied, start)}${placed}`;
+		copied = end;
+		start = html.indexOf(tokenPrefix, end);
 	}
 
-	return resolvedHtml;
+	return `${output}${html.slice(copied)}`;
 }
 
 /**
@@ -419,7 +453,7 @@ export async function executeComponentRender(
 
 	if (!hasForeignChildren) {
 		if (activeRenderContext && activeRenderContext.currentIntegration === options.currentIntegrationName) {
-			return options.normalizeComponentRenderOutput(await options.renderComponent(options.input));
+			return await options.renderComponent(options.input);
 		}
 
 		const sameIntegrationExecution = await runWithComponentRenderContext(
@@ -429,7 +463,7 @@ export async function executeComponentRender(
 			async () => options.renderComponent(options.input),
 		);
 
-		return options.normalizeComponentRenderOutput(sameIntegrationExecution.value);
+		return sameIntegrationExecution.value;
 	}
 
 	const execution = await runWithComponentRenderContext(
@@ -443,7 +477,7 @@ export async function executeComponentRender(
 		async () => options.renderComponent(options.input),
 	);
 
-	return options.normalizeComponentRenderOutput(execution.value);
+	return execution.value;
 }
 
 function getRendererCache(
@@ -528,24 +562,6 @@ async function runInForeignOwningRenderer<TResult>(options: {
 		...delegatedInputWithCache,
 		children: delegatedChildren,
 	});
-}
-
-export async function resolveQueuedTokens(
-	html: string,
-	queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
-	resolveToken: (token: string) => Promise<string>,
-): Promise<string> {
-	let resolvedHtml = html;
-
-	for (const token of queuedResolutionsByToken.keys()) {
-		if (!resolvedHtml.includes(token)) {
-			continue;
-		}
-
-		resolvedHtml = resolvedHtml.split(token).join(await resolveToken(token));
-	}
-
-	return resolvedHtml;
 }
 
 function createForeignSubtreeToken(

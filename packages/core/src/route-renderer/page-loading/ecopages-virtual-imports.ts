@@ -1,7 +1,6 @@
 import { fileSystem } from '@ecopages/file-system';
 import { isContentServerVirtualModule } from '../../build/contracts/content-virtual-modules.ts';
 import { parseModuleSource } from '../../cache/module-parse-cache.ts';
-import { isProductionRuntime } from '../../utils/runtime.ts';
 
 export type EcopagesVirtualImport = {
 	from: string;
@@ -70,27 +69,11 @@ function recordVirtualImport(found: Map<string, Set<string> | null>, specifier: 
  *
  * Type-only imports are skipped and bare namespace imports are represented by an
  * `undefined` import list so downstream module generation can preserve that shape.
+ *
+ * @remarks
+ * It reads and parses the file on every call; component declarations call it once per component config.
  */
 export function extractEcopagesVirtualImports(file: string): EcopagesVirtualImport[] {
-	if (!isProductionRuntime()) {
-		return readEcopagesVirtualImports(file);
-	}
-
-	let imports = productionVirtualImportsByFile.get(file);
-	if (!imports) {
-		imports = readEcopagesVirtualImports(file);
-		productionVirtualImportsByFile.set(file, imports);
-	}
-	return imports;
-}
-
-/**
- * Results kept for the life of a production process, where component sources do not change, so a
- * request does not read and parse the same component file again.
- */
-const productionVirtualImportsByFile = new Map<string, EcopagesVirtualImport[]>();
-
-function readEcopagesVirtualImports(file: string): EcopagesVirtualImport[] {
 	let source: string;
 	try {
 		source = fileSystem.readFileSync(file);

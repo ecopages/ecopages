@@ -36,7 +36,10 @@ import { getAssetDependencyKey } from '../../assets/asset-processing-service/ass
 import { HtmlTransformerService } from '../../html/html-transformer.service.ts';
 import type { HtmlDocumentContribution } from '../../html/html-transformer.service.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { hasProductionServerModule } from '../../build/server/server-modules-manifest.ts';
+import {
+	hasProductionServerModule,
+	MissingProductionServerModuleError,
+} from '../../build/server/server-modules-manifest.ts';
 import { invariant } from '../../utils/invariant.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { HttpError } from '../../errors/http-error.ts';
@@ -837,6 +840,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return;
 		}
 		if (requireAppRuntime(this.appConfig).staticGenerationActive) {
+			if (error instanceof MissingProductionServerModuleError) {
+				throw new Error(
+					`The ssr script ${scriptPath} is not in the server build. \`ecopages build\` finds ssr scripts from a string literal \`src\` beside \`ssr: true\` in a Component's dependencies; declare its \`src\` as a string literal.`,
+					{ cause: error },
+				);
+			}
 			const cause = error instanceof Error ? error.message : String(error);
 			throw new Error(`Failed to preload the ssr script ${scriptPath}: ${cause}`, { cause: error });
 		}

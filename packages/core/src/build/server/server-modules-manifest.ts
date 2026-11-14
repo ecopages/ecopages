@@ -107,8 +107,19 @@ export function requireProductionServerModules(appConfig: EcoPagesAppConfig): Pr
  * Names the source file and tells the operator to run `ecopages build`. It is
  * never a compile fallback.
  */
-export function missingProductionServerModuleError(sourceKey: string): Error {
-	return new Error(`No compiled server module for ${sourceKey}. Run \`ecopages build\`.`);
+/** The production server build holds no module for a source the app imports. */
+export class MissingProductionServerModuleError extends Error {
+	readonly sourceKey: string;
+
+	constructor(sourceKey: string) {
+		super(`No compiled server module for ${sourceKey}. Run \`ecopages build\`.`);
+		this.name = 'MissingProductionServerModuleError';
+		this.sourceKey = sourceKey;
+	}
+}
+
+export function missingProductionServerModuleError(sourceKey: string): MissingProductionServerModuleError {
+	return new MissingProductionServerModuleError(sourceKey);
 }
 
 function modulePathWithoutQuery(filePath: string): string {

@@ -76,7 +76,7 @@ dependencies: {
 }
 ```
 
-`lazy` controls browser delivery only; `ssr: true` still evaluates the script on the server so `customElements.define` runs before SSR. String-form `scripts: ['./browser-only.ts']` stays browser-only.
+`lazy` controls browser delivery only; `ssr: true` still evaluates the script on the server so `customElements.define` runs before SSR. String-form `scripts: ['./browser-only.ts']` stays browser-only. Write `src` and `ssr: true` as literals in the declaration: `ecopages build` reads them from the source to add the script to the server build, so a `src` computed at runtime fails the build.
 
 ### Bare imports in browser modules
 

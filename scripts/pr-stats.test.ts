@@ -3,12 +3,25 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { onTestFinished, test } from 'vitest';
-import { COMMENT_MARKER, findLargeNewFiles, measureDir, median, renderComparison, type Stats } from './pr-stats.ts';
+import {
+	COMMENT_MARKER,
+	findLargeNewFiles,
+	measureDir,
+	measurePages,
+	median,
+	renderComparison,
+	selectPages,
+	type Stats,
+} from './pr-stats.ts';
 
 function stats(overrides: Partial<Stats> = {}): Stats {
 	return {
 		buildMs: 1000,
-		total: { bytes: 1000, gzip: 400 },
+		total: { bytes: 1000, files: 3 },
+		pages: {
+			'/': { vendor: 10_000, app: 5000, vendorChunks: ['react'] },
+			'/api-lab': { vendor: 0, app: 2000, vendorChunks: [] },
+		},
 		types: {
 			js: { bytes: 600, gzip: 200, files: 1 },
 			css: { bytes: 200, gzip: 100, files: 1 },
@@ -44,13 +57,73 @@ test('measureDir totals by type, skips source maps and precompressed copies, and
 	);
 });
 
-test('render shows deltas and warns only past the growth threshold', () => {
-	const head = stats({ total: { bytes: 1100, gzip: 410 }, buildMs: 900 });
+test('measurePages follows the static import closure once per file and splits vendor from app', () => {
+	const dir = mkdtempSync(path.join(tmpdir(), 'pr-stats-pages-'));
+	onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+	mkdirSync(path.join(dir, 'assets'));
+	mkdirSync(path.join(dir, 'blog'));
+	const chunk = (name: string, body: string) => writeFileSync(path.join(dir, 'assets', name), body);
+	chunk(
+		'entry-AAAAAAAA.js',
+		'import{a as x}from"./shared-BBBBBBBB.js";import"/assets/vendor-react-dom-CCCCCCCC.js";import("./lazy-DDDDDDDD.js");',
+	);
+	chunk('shared-BBBBBBBB.js', 'import{r as y}from"./vendor-react-dom-CCCCCCCC.js";export{y as a};');
+	chunk('vendor-react-dom-CCCCCCCC.js', 'export const r=1;'.repeat(50));
+	chunk('lazy-DDDDDDDD.js', 'export const lazy=1;'.repeat(500));
+	chunk('preloaded-EEEEEEEE.js', 'export const p=1;');
+	writeFileSync(
+		path.join(dir, 'index.html'),
+		'<script type="module" src="/assets/entry-AAAAAAAA.js"></script><link rel="modulepreload" href="/assets/preloaded-EEEEEEEE.js"><script>inline()</script>',
+	);
+	writeFileSync(path.join(dir, 'blog', 'index.html'), '<p>no scripts</p>');
+	writeFileSync(path.join(dir, 'about.html'), '<script src="assets/preloaded-EEEEEEEE.js" type="module"></script>');
+	const pages = measurePages(dir);
+	assert.deepEqual(Object.keys(pages).sort(), ['/', '/about', '/blog']);
+	assert.deepEqual(pages['/blog'], { vendor: 0, app: 0, vendorChunks: [] });
+	assert.deepEqual(pages['/'].vendorChunks, ['react-dom']);
+	assert.ok(pages['/'].vendor > 0);
+	assert.ok(pages['/'].app > pages['/about'].app, 'closure includes entry and shared chunk');
+	assert.ok(pages['/'].app < 300, 'dynamic import is not followed');
+	assert.deepEqual(pages['/about'].vendorChunks, []);
+});
+
+test('selectPages picks smallest, median, largest and the named pages', () => {
+	const head = stats({
+		pages: {
+			'/404': { vendor: 0, app: 0, vendorChunks: [] },
+			'/': { vendor: 10, app: 10, vendorChunks: [] },
+			'/b': { vendor: 0, app: 5, vendorChunks: [] },
+			'/c': { vendor: 0, app: 50, vendorChunks: [] },
+			'/api-lab': { vendor: 0, app: 7, vendorChunks: [] },
+		},
+	});
+	assert.deepEqual(
+		selectPages(head).map((row) => row.route),
+		['/b', '/api-lab', '/c', '/', '/api-lab'],
+	);
+});
+
+test('render leads with context and the per-page table, flagging growth per column', () => {
+	const head = stats({
+		total: { bytes: 1100, files: 3 },
+		buildMs: 900,
+		pages: {
+			'/': { vendor: 10_000, app: 6000, vendorChunks: ['react'] },
+			'/api-lab': { vendor: 0, app: 2000, vendorChunks: [] },
+		},
+	});
 	const output = renderComparison(stats(), head);
 	assert.ok(output.startsWith(COMMENT_MARKER));
-	assert.match(output, /\| Client total \| 1000 B \| 1\.07 kB \| \+100 B \(\+10\.0%\) \| warning \|/);
-	assert.match(output, /\| Client total \(gzip\) \| 400 B \| 410 B \| \+10 B \(\+2\.5%\) \|  \|/);
+	assert.match(output, /## Kitchen-sink build stats/);
+	assert.match(output, /ecopages\.app\/dev\/benchmarks-and-ci/);
+	assert.match(output, /\| Kita \| `\/` \| 9\.77 kB \| 4\.88 kB to 5\.86 kB \(\+1000 B \(\+20\.0%\)\) warning \|/);
+	assert.match(output, /\| Kita, no React \| `\/api-lab` \| 0 B \| 1\.95 kB \|/);
+	assert.match(output, /returning visitor mostly downloads only the app part/);
 	assert.match(output, /-100 ms \(-10\.0%\)/);
+	assert.match(output, /<details><summary>Totals for every page and asset<\/summary>/);
+	assert.match(output, /All files in dist\/client \| 1000 B \| 1\.07 kB/);
+	assert.match(output, /Vendor share of all JS/);
+	assert.doesNotMatch(output, /Client total/);
 });
 
 test('a rehashed JS file is not treated as new', () => {

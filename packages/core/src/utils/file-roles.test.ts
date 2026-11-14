@@ -1,11 +1,5 @@
 import { expect, test } from 'vitest';
-import {
-	findMisplacedRole,
-	findRoleSuffix,
-	getFileRole,
-	isPrivatePath,
-	isServerOnlyModuleSpecifier,
-} from './file-roles.ts';
+import { findMisplacedRole, matchRoleSuffix, isPrivatePath, isServerOnlyModuleSpecifier } from './file-roles.ts';
 
 test.each([
 	'./db.server.ts',
@@ -18,12 +12,16 @@ test.each([
 	expect(isServerOnlyModuleSpecifier(specifier)).toBe(true);
 });
 
-test.each(['./server.ts', './db.serverless.ts', './server/db.ts', './db.client.ts', './db.client?file=auth.server.ts'])(
-	'allows browser module %s',
-	(specifier) => {
-		expect(isServerOnlyModuleSpecifier(specifier)).toBe(false);
-	},
-);
+test.each([
+	'./server.ts',
+	'./db.serverless.ts',
+	'./server/db.ts',
+	'./db.client.ts',
+	'./db.client?file=auth.server.ts',
+	'./card.server.kita.tsx',
+])('allows browser module %s', (specifier) => {
+	expect(isServerOnlyModuleSpecifier(specifier)).toBe(false);
+});
 
 test.each([
 	['users.api.ts', 'api'],
@@ -34,7 +32,7 @@ test.each([
 	['server.tsx', undefined],
 	['card.server.kita.tsx', undefined],
 ])('reads the role of %s as %s', (file, role) => {
-	expect(getFileRole(file)).toBe(role);
+	expect(matchRoleSuffix(file)?.role).toBe(role);
 });
 
 test.each([
@@ -71,6 +69,6 @@ test.each([
 });
 
 test('finds the role suffix an extension ends with', () => {
-	expect(findRoleSuffix('.server.tsx')).toBe('.server.tsx');
-	expect(findRoleSuffix('.kita.tsx')).toBeUndefined();
+	expect(matchRoleSuffix('.server.tsx')?.suffix).toBe('.server.tsx');
+	expect(matchRoleSuffix('.kita.tsx')).toBeUndefined();
 });

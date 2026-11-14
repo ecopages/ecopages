@@ -80,7 +80,7 @@ A file or folder under the pages directory whose name starts with `_` (`_card.ts
 _Avoid_: Hidden file, ignored file
 
 **Browser Script**:
-A module a Page or Component attaches through `dependencies.scripts`, conventionally named `<name>.script.<ext>`. The suffix keeps it out of routing and says it is a browser module; the declaration still attaches it, and in development an unattached one warns.
+A module a Page or Component attaches through `dependencies.scripts`, conventionally named `<name>.script.<ext>`. The suffix keeps it out of routing and says it is a browser module; the declaration still attaches it.
 _Avoid_: Client script, client file
 
 **Explicit Route**:

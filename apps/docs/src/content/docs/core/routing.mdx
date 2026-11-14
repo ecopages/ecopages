@@ -35,7 +35,7 @@ A file under `src/pages` is a page unless its name says otherwise. These names k
 | `counter.script.ts`, `widget.script.tsx` | Browser script. List it in `dependencies.scripts` to attach it to a page or component. |
 | `_card.tsx`, `_layout.tsx`, `_parts/row.tsx` | Private. Any file or folder whose name starts with `_` is never a route. |
 
-A role suffix is `.server` or `.script` followed by `.ts`, `.tsx`, `.js` or `.jsx`, and it is matched before the template extensions. The same suffixes mean the same thing outside `src/pages`. A role segment anywhere else fails the build with the expected form, so `card.server.kita.tsx` and `nav.script.lit.tsx` are errors: a Kita or Lit template is already rendered on the server, and a browser script is not a template. In development, a `.script.*` file that no declaration lists in `dependencies.scripts` logs a warning once.
+A role suffix is `.server` or `.script` followed by `.ts`, `.tsx`, `.js` or `.jsx`, and it is matched before the template extensions. The same suffixes mean the same thing outside `src/pages`. A role segment anywhere else fails the build with the expected form, so `card.server.kita.tsx` and `nav.script.lit.tsx` are errors: a Kita or Lit template is already rendered on the server, and a browser script is not a template.
 
 ### Index Routes
 

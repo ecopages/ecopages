@@ -43,10 +43,6 @@ Discovery fails, naming the files, when:
 - an endpoint's pathname ends in a known static file extension (`feed.xml.api.ts`), because the server never sends such a URL to a file route; the error points to `app.ts`;
 - a dynamic Page belongs to an Integration with `acceptsParams: false`, such as `[slug].html`, because HTML Pages have no `staticPaths` source.
 
-## Browser scripts nothing attaches
-
-A `.script.*` name declares a browser module and injects nothing; `dependencies.scripts` still attaches it. In development, after the registry initializes and after each reload, `warnUnattachedScripts()` (`unattached-scripts.ts`) logs one warning per `.script.*` file under the source directory that no other source file quotes by name. Development has no list of every declaration before each Page renders, so a quoted name in `dependencies.scripts`, an import or a `<script src>` counts as attached. A build does not run the check.
-
 ## Matching
 
 The scan sorts routes once: `exact` first (`/` before the rest), then `dynamic`, then `catch-all`. Within the dynamic routes, and within the catch-alls, segments (a catch-all's prefix) are compared from left to right and an earlier literal wins over a parameter, so `/api/[id]` answers `/api/5` before `/[section]/[slug]`. On a tie the longer pattern wins, then pathname order, so the result does not depend on discovery order. Pages and endpoints share this one order.

@@ -10,9 +10,8 @@ import { hasKnownStaticExtension } from '../../utils/static-file-extensions.ts';
 import {
 	describeRoleForms,
 	ENDPOINT_FILE_EXTENSIONS,
-	findEndpointFileExtension,
 	findMisplacedRole,
-	getFileRole,
+	matchRoleSuffix,
 	isPrivatePath,
 } from '../../utils/file-roles.ts';
 import { normalizePathname } from '../../utils/path-pattern.ts';
@@ -311,16 +310,16 @@ export class RouteRegistry {
 	}
 
 	/**
-	 * Whether `file`, relative to the pages directory, is a Page or endpoint file.
+	 * Classifies `file`, relative to the pages directory, as a Page or an endpoint file, or `undefined` when it is no route.
 	 *
 	 * @remarks
 	 * Private files and `.server.*` and `.script.*` modules are not routes. Any other file with a role
 	 * segment out of place fails the build, naming the file and the expected form.
 	 */
-	private isRouteFile(file: string): boolean {
-		const role = getFileRole(file);
-		if (isPrivatePath(file) || role === 'server' || role === 'script') {
-			return false;
+	private classifyRouteFile(file: string): { role: RouteRole; endpointExtension?: string } | undefined {
+		const match = matchRoleSuffix(file);
+		if (isPrivatePath(file) || match?.role === 'server' || match?.role === 'script') {
+			return undefined;
 		}
 
 		const misplacedRole = findMisplacedRole(file);
@@ -328,7 +327,7 @@ export class RouteRegistry {
 			misplacedRole === undefined,
 			`${path.join(this.pagesDir, file)}: the "${misplacedRole}" role segment must come directly before a script extension, as in ${describeRoleForms()}. Rename the file, or prefix it with "_" to keep it out of routing.`,
 		);
-		return true;
+		return match ? { role: 'endpoint', endpointExtension: match.suffix } : { role: 'page' };
 	}
 
 	private async scanTemplateRoutes(): Promise<TemplateRoute[]> {
@@ -347,12 +346,12 @@ export class RouteRegistry {
 		const routesByKey = new Map<string, { pathname: string; filePath: string }>();
 
 		for await (const file of scannedFiles) {
-			if (!this.isRouteFile(file)) {
+			const classified = this.classifyRouteFile(file);
+			if (!classified) {
 				continue;
 			}
 
-			const endpointExtension = findEndpointFileExtension(file);
-			const role: RouteRole = endpointExtension ? 'endpoint' : 'page';
+			const { role, endpointExtension } = classified;
 			const routePathname = this.getRoutePath(file, endpointExtension);
 			const filePath = path.join(this.pagesDir, file);
 			const kind = this.classifyRouteKind(file);

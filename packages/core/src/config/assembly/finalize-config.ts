@@ -9,7 +9,7 @@ import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import type { AnyIntegrationPlugin } from '../../plugins/integration-plugin.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { invariant } from '../../utils/invariant.ts';
-import { FILE_ROLE_SUFFIXES, findRoleSuffix } from '../../utils/file-roles.ts';
+import { FILE_ROLE_SUFFIXES, matchRoleSuffix } from '../../utils/file-roles.ts';
 import {
 	DEFAULT_ECOPAGES_DIST_DIR,
 	DEFAULT_ECOPAGES_HOSTNAME,
@@ -160,7 +160,7 @@ function collectTemplateExtensions(integrations: AnyIntegrationPlugin[]): string
 	}
 
 	for (const integration of integrations) {
-		const reserved = integration.extensions.find((extension) => findRoleSuffix(extension));
+		const reserved = integration.extensions.find((extension) => matchRoleSuffix(extension));
 		invariant(
 			reserved === undefined,
 			`Integration "${integration.name}" registers "${reserved}", which is reserved for role files: ${FILE_ROLE_SUFFIXES.join(', ')}.`,

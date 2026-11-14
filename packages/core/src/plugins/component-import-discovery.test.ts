@@ -17,7 +17,7 @@ import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 const roots: string[] = [];
 const DISCOVERED_COMPONENT = /components: \(\) => \[\w/;
 function fixture() {
-	const root = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-discovery-')));
+	const root = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-discovery-'))));
 	roots.push(root);
 	writeFileSync(
 		path.join(root, 'tsconfig.json'),
@@ -326,6 +326,31 @@ export const Button = eco.component({ render: () => '' });`,
 
 				expect(code).toContain('linked-kit/button.module.css');
 				expect(hasDiscoveryRecord(root, file)).toBe(true);
+			});
+			it('walks a workspace package linked through node_modules by its real path and attributes its components', () => {
+				const { root, page } = moduleFixture();
+				const workspace = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-workspace-'))));
+				roots.push(workspace);
+				writeFileSync(
+					path.join(workspace, 'package.json'),
+					JSON.stringify({ name: 'linked-ui', type: 'module', exports: { './util': './util.js', './card': './card.tsx' } }),
+				);
+				writeFileSync(path.join(workspace, 'util.js'), `import styles from './util.module.css';\nexport const util = styles.kit;`);
+				writeFileSync(path.join(workspace, 'util.module.css'), '.kit {}');
+				const cardSource = `import { eco } from '@ecopages/core';\nexport const Card = eco.component({ render: () => '' });`;
+				writeFileSync(path.join(workspace, 'card.tsx'), cardSource);
+				mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+				symlinkSync(workspace, path.join(root, 'node_modules/linked-ui'), 'dir');
+
+				page(`import { util } from 'linked-ui/util';\nconsole.log(util);`);
+				const card = attributeComponentIdentity(cardSource, path.join(workspace, 'card.tsx'), {
+					integration: 'lit',
+					projectRoot: root,
+				}).code;
+
+				expect(isReachedByDiscovery(root, path.join(workspace, 'util.js'))).toBe(true);
+				expect(card).toContain('bindComponentIdentity({');
+				expect(card).toContain(`file: "${path.relative(realpathSync(root), path.join(workspace, 'card.tsx'))}"`);
 			});
 			it('follows the package module through the modules of its own package', () => {
 				const { root, page } = moduleFixture();

@@ -380,8 +380,8 @@ export function resolveProjectModulePath(
 		const result = resolver.sync(path.dirname(fromFile), specifier);
 		if (result.path) {
 			return options?.preserveBarrel
-				? fileSystem.realpath(result.path)
-				: resolveAliasedBarrelTarget(fileSystem.realpath(result.path));
+				? result.path
+				: resolveAliasedBarrelTarget(result.path);
 		}
 	}
 
@@ -457,5 +457,5 @@ const packageModuleResolver = new ResolverFactory({
  */
 export function resolvePackageModulePath(fromFile: string, specifier: string): string | undefined {
 	const result = packageModuleResolver.sync(path.dirname(fromFile), specifier);
-	return result.path ? fileSystem.realpath(result.path) : undefined;
+	return result.path || undefined;
 }

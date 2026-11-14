@@ -1,17 +1,17 @@
 import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
-import { IntegrationRenderer, type IntegrationRendererHooks } from './integration-renderer.ts';
+import { eco } from '../../eco/eco.ts';
+import { bindComponentIdentity, getComponentIdentity } from '../../eco/component-identity.ts';
+import { attributeComponentIdentity } from '../../plugins/eco-component-meta-plugin.ts';
+import { IntegrationRenderer } from './integration-renderer.ts';
 import { createMockAppConfig, testAssetService } from './integration-renderer.test-fixtures.ts';
 import type { EcoComponent, EcoPageFile, EcoPagesElement } from '../../types/contracts.ts';
 
 class ShapeRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'shape-renderer';
 
-	constructor(
-		private readonly routeModule: EcoPageFile,
-		hooks?: IntegrationRendererHooks,
-	) {
-		super({ appConfig: createMockAppConfig(), assetProcessingService: testAssetService, hooks });
+	constructor(private readonly routeModule: EcoPageFile) {
+		super({ appConfig: createMockAppConfig(), assetProcessingService: testAssetService });
 	}
 
 	override async render(): Promise<string> {
@@ -62,7 +62,32 @@ describe('a route module that is not a Page', () => {
 		expect(error.message).not.toContain('prefix its name');
 	});
 
-	it('fails for a page the build gave no identity, naming the literal-call rule', async () => {
+	it('fails for a Page made by a wrapper in another file, naming the literal-call rule', async () => {
+		const wrapperFile = path.resolve('/app/pages/_create-page.tsx');
+		const { code } = attributeComponentIdentity(
+			`import { eco } from '@ecopages/core';\nexport const createPage = (options) => eco.page({ ...options });\n`,
+			wrapperFile,
+			{ integration: 'shape-renderer', projectRoot: path.resolve('/app') },
+		);
+		const [, id, file] = code.match(/bindComponentIdentity\(\{ id: "([^"]+)", file: "([^"]+)"/) ?? [];
+		const page = eco.page(
+			bindComponentIdentity({ id: id!, file: file!, integration: 'shape-renderer' }, { render: () => 'page' }),
+		);
+		expect(getComponentIdentity(page)?.file).toBe('pages/_create-page.tsx');
+
+		const error = await new ShapeRenderer({ default: page } as EcoPageFile)
+			.loadPageModule(routeFile)
+			.catch((e) => e);
+
+		expect(error.message).toContain(routeFile);
+		expect(error.message).toContain(
+			'A route file declares its Page with a literal `eco.page(...)` call in that file',
+		);
+		expect(error.message).toContain('re-exported');
+		expect(error.message).toContain('const page = eco.page');
+	});
+
+	it('fails for an eco.page() result with no identity at all', async () => {
 		const wrapped = (() => 'page') as EcoComponent;
 		wrapped.config = { dependencies: {} };
 
@@ -70,19 +95,15 @@ describe('a route module that is not a Page', () => {
 			.loadPageModule(routeFile)
 			.catch((e) => e);
 
-		expect(error.message).toContain(routeFile);
-		expect(error.message).toContain('eco.page, eco.layout, eco.component and eco.html');
-		expect(error.message).toContain('literal call');
-		expect(error.message).toContain('const page = eco.page');
+		expect(error.message).toContain('literal `eco.page(...)` call');
 	});
 
-	it('lets the Integration say what it accepts', async () => {
-		const mdxLike = { default: () => 'content' } as unknown as EcoPageFile;
-		const renderer = new ShapeRenderer(mdxLike, {
-			acceptsPageModule: (module) => typeof module.default === 'function',
-		});
+	it('accepts an identity given as a path relative to the app root', async () => {
+		const page = (() => 'page') as EcoComponent;
+		page.config = { identity: { id: 'about', file: 'pages/about.tsx', integration: 'shape-renderer' } };
+		const module = { default: page } as EcoPageFile;
 
-		await expect(renderer.loadPageModule(routeFile)).resolves.toBe(mdxLike);
+		await expect(new ShapeRenderer(module).loadPageModule(routeFile)).resolves.toBe(module);
 	});
 
 	it('fails a render the same way, before any Page option is read', async () => {

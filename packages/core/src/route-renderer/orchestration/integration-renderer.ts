@@ -43,6 +43,7 @@ import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { isPathInside } from '../../utils/path-containment.ts';
 import { isEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import { type PreparedComponentGraph, type PreparedComponentGraphNode } from './ownership-graph/component-graph.ts';
@@ -195,15 +196,6 @@ export type IntegrationRendererHooks = {
 		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	}) => DocumentShellComposeChildrenHook | undefined;
 	normalizePageModule?: <TPageModule extends EcoPageFile>(file: string, module: TPageModule) => TPageModule;
-	/**
-	 * Says whether the default export of a route module, after {@link normalizePageModule}, is a Page this Integration renders.
-	 *
-	 * @remarks
-	 * Without it, a Page is a declared component: an `eco.page()` result the build gave an identity, as an HTML Page
-	 * also has. Override it only for modules that are Pages without one, such as an MDX module. A `false` fails the
-	 * route with the file and the fixes; a function with a `config` the build gave no identity gets the literal-call message.
-	 */
-	acceptsPageModule?: (module: EcoPageFile) => boolean;
 	/**
 	 * Names what one Page adds to its Page Browser Graph.
 	 *
@@ -544,30 +536,30 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Fails when the default export of a route module is not a Page this Integration accepts.
+	 * Fails when the default export of a route module is not a Page that the file itself declares.
 	 *
 	 * @remarks
-	 * The Integration decides through {@link IntegrationRendererHooks.acceptsPageModule}. A function with a `config`
-	 * is an `eco.page()` result, so a missing identity means the build never saw a literal `eco.page(...)` call for it.
-	 * @throws When the module has no default export that is a Page.
+	 * A Page is a declared component whose build-time identity names this route file: an `eco.page()` result
+	 * (also an HTML Page or an MDX module, which the Integration stamps the same way). The identity transform
+	 * stamps the file that holds the literal `eco.page(...)` call, so a Page made by a wrapper in another file,
+	 * or re-exported from one, names that other file and fails here. A function with a `config` that fails the
+	 * check gets the literal-call message; anything else gets the not-a-Page message with the fixes.
+	 * @throws When the module has no default export that is a Page declared in `file`.
 	 */
-	protected assertPageModule(file: string, module: EcoPageFile): void {
+	private assertPageModule(file: string, module: EcoPageFile): void {
 		const page = module.default as unknown;
-		const accepted = this.integrationHooks.acceptsPageModule?.(module) ?? isEcoDeclaredComponent(page);
-		if (accepted) {
+		const identityFile = isEcoDeclaredComponent(page) ? getComponentIdentity(page)?.file : undefined;
+		if (identityFile !== undefined && path.resolve(this.appConfig.rootDir, identityFile) === path.resolve(file)) {
 			return;
 		}
 
-		const hasConfig = typeof page === 'function' && typeof (page as EcoComponent).config === 'object';
-		if (hasConfig) {
+		if (typeof page === 'function' && typeof (page as EcoComponent).config === 'object') {
 			throw new Error(
-				`[ecopages] ${file} default-exports an eco.page() result that has no build-time identity. The build finds eco.page, eco.layout, eco.component and eco.html by their literal call, eco.page(...), so a wrapper function, an alias such as \`const page = eco.page\` or a renamed import is invisible to it: the Page gets no identity, and server options such as staticProps and metadata stay in the browser bundle. Call eco.page(...) directly in the file.`,
+				`[ecopages] ${file} default-exports an eco.page() result that the build did not attribute to this file. A route file declares its Page with a literal \`eco.page(...)\` call in that file. The build finds eco.page, eco.layout, eco.component and eco.html by their literal call, so a wrapper function, an alias such as \`const page = eco.page\`, a renamed import, or a Page declared in another file and re-exported gives the Page no identity or another file's, and server options such as staticProps and metadata stay in the browser bundle. Call eco.page(...) directly in ${file}.`,
 			);
 		}
 
-		const { pagesDir } = this.appConfig.absolutePaths;
-		const inPagesDir = path.resolve(file).startsWith(`${pagesDir}/`);
-		const fixes = inPagesDir
+		const fixes = isPathInside(path.resolve(file), this.appConfig.absolutePaths.pagesDir)
 			? ' If the file is not a Page, prefix its name with "_", give it a role suffix such as .server.ts or .script.ts, or move it out of the pages directory.'
 			: '';
 		throw new Error(

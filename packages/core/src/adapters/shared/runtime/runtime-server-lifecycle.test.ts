@@ -307,7 +307,7 @@ test('A regeneration in progress when the app stops', async () => {
 			'export default Object.assign(',
 			'	() => `<p>fresh</p>`,',
 			'	{',
-			'		config: { integration: "gated", identity: { id: "gated", file: "index.gated.ts", integration: "gated" } },',
+			'		config: { integration: "gated", identity: { id: "gated", file: "src/pages/index.gated.ts", integration: "gated" } },',
 			'		cache: { revalidate: 60 },',
 			'	},',
 			');',

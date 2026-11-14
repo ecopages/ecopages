@@ -1136,17 +1136,18 @@ describe('ReactRenderer', () => {
 	it('skips hydration assets for pages without declared modules unless forceBrowserGraph is set', async () => {
 		const withoutForce = createRenderer();
 		const withForce = createRenderer({ forceBrowserGraph: true });
-		const pageWithoutModules = {
-			default: Page,
-			config: {},
-		} as EcoPageFile;
+		const createPageModule = (file: string) => {
+			const declared: typeof Page = () => <div>Hello World</div>;
+			declared.config = { identity: { id: file, file, integration: 'react' } };
+			return { default: declared, config: {} } as EcoPageFile;
+		};
 
 		const withoutForceSpy = vi.spyOn(withoutForce.hydrationAssetService, 'createPageBrowserGraphDependencies');
 		const withForceSpy = vi
 			.spyOn(withForce.hydrationAssetService, 'createPageBrowserGraphDependencies')
 			.mockResolvedValue([]);
-		withoutForce.importedPageFileOverride = pageWithoutModules;
-		withForce.importedPageFileOverride = pageWithoutModules;
+		withoutForce.importedPageFileOverride = createPageModule('/app/src/pages/without-force.tsx');
+		withForce.importedPageFileOverride = createPageModule('/app/src/pages/with-force.tsx');
 		withoutForce.declaredModulesOverride = [];
 		withForce.declaredModulesOverride = [];
 

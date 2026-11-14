@@ -88,7 +88,6 @@ import type { ForeignChildInterceptionInput, ForeignChildRuntime } from '../../e
 import { isMarkupNodeLike } from '../../eco/component-render-output.ts';
 import {
 	getForeignSubtreeResolutionContextKey,
-	getForeignSubtreeTokenPrefix,
 	resolveOwningIntegrationRenderer,
 } from './foreign-child/owning-renderer-resolution.ts';
 import { keepsLastGoodOutput, showAssetFailure } from '../../assets/asset-processing-service/last-good-output.ts';
@@ -1674,8 +1673,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const runtime = createQueuedRuntime({
 			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
-			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
-			tokenPrefix: getForeignSubtreeTokenPrefix(this.name),
+			integrationName: this.name,
 		});
 		const normalizeForeignChildProps = this.integrationHooks.normalizeForeignChildProps;
 		if (!normalizeForeignChildProps) {

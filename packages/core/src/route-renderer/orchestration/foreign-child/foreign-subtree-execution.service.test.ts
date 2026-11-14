@@ -58,8 +58,7 @@ describe('queued foreign-subtree resolution', () => {
 		const runtime = createQueueRuntime({
 			renderInput,
 			rendererCache,
-			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
-			tokenPrefix: '__TEST_QUEUE__',
+			integrationName: 'test',
 			shouldQueueForeignChild: () => true,
 		});
 
@@ -73,12 +72,12 @@ describe('queued foreign-subtree resolution', () => {
 
 		expect(interception).toEqual({
 			kind: 'resolved',
-			value: '__TEST_QUEUE__host__1__',
+			value: '__test_foreign_subtree__host__1__',
 		});
 
 		const runtimeContext = getRuntimeContext<QueuedForeignSubtreeResolutionContext>(
 			renderInput,
-			'__testQueuedForeignSubtreeRuntime',
+			'__test_foreign_subtree_runtime__',
 		);
 
 		expect(runtimeContext).toEqual({
@@ -87,7 +86,7 @@ describe('queued foreign-subtree resolution', () => {
 			nextForeignSubtreeId: 1,
 			queuedResolutions: [
 				{
-					token: '__TEST_QUEUE__host__1__',
+					token: '__test_foreign_subtree__host__1__',
 					component: deferredWidget,
 					props: { label: 'deferred' },
 					componentInstanceId: 'host_n_1',
@@ -115,8 +114,7 @@ describe('queued foreign-subtree resolution', () => {
 		const runtime = createQueueRuntime({
 			renderInput,
 			rendererCache: new Map(),
-			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
-			tokenPrefix: '__TEST_QUEUE__',
+			integrationName: 'test',
 			shouldQueueForeignChild: () => true,
 		});
 
@@ -145,8 +143,7 @@ describe('queued foreign-subtree resolution', () => {
 		createQueueRuntime({
 			renderInput,
 			rendererCache,
-			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
-			tokenPrefix: '__TEST_QUEUE__',
+			integrationName: 'test',
 			shouldQueueForeignChild: () => true,
 		});
 
@@ -175,8 +172,7 @@ describe('queued foreign-subtree resolution', () => {
 		const runtime = createQueueRuntime({
 			renderInput,
 			rendererCache,
-			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
-			tokenPrefix: '__TEST_QUEUE__',
+			integrationName: 'test',
 			shouldQueueForeignChild: () => true,
 		});
 
@@ -196,7 +192,7 @@ describe('queued foreign-subtree resolution', () => {
 
 		const runtimeContext = getRuntimeContext<QueuedForeignSubtreeResolutionContext>(
 			renderInput,
-			'__testQueuedForeignSubtreeRuntime',
+			'__test_foreign_subtree_runtime__',
 		);
 		if (!runtimeContext || parentToken?.kind !== 'resolved' || childToken?.kind !== 'resolved') {
 			throw new Error('Failed to initialize queued foreign-subtree test runtime.');
@@ -233,24 +229,9 @@ describe('queued foreign-subtree resolution', () => {
 		const result = await resolveQueuedForeignSubtreeTokens({
 			html: `<article>${parentToken.value}</article>`,
 			runtimeContext,
-			queueLabel: 'Test',
-			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
-				if (children === undefined) {
-					return {};
-				}
-
-				let html = typeof children === 'string' ? children : String(children ?? '');
-
-				for (const token of queuedResolutionsByToken.keys()) {
-					if (!html.includes(token)) {
-						continue;
-					}
-
-					html = html.split(token).join(await resolveToken(token));
-				}
-
-				return { html };
-			},
+			integrationName: 'test',
+			renderQueuedChildren: async (children, _runtimeContext, resolveTokens) =>
+				children === undefined ? {} : { html: await resolveTokens(String(children)) },
 			resolveForeignSubtree,
 		});
 
@@ -269,15 +250,15 @@ describe('queued foreign-subtree resolution', () => {
 			nextForeignSubtreeId: 2,
 			queuedResolutions: [
 				{
-					token: '__TEST_QUEUE__host__1__',
+					token: '__test_foreign_subtree__host__1__',
 					component: foreignSubtreeA,
-					props: { children: '__TEST_QUEUE__host__2__' },
+					props: { children: '__test_foreign_subtree__host__2__' },
 					componentInstanceId: 'host_n_1',
 				},
 				{
-					token: '__TEST_QUEUE__host__2__',
+					token: '__test_foreign_subtree__host__2__',
 					component: foreignSubtreeB,
-					props: { children: '__TEST_QUEUE__host__1__' },
+					props: { children: '__test_foreign_subtree__host__1__' },
 					componentInstanceId: 'host_n_2',
 				},
 			],
@@ -285,26 +266,11 @@ describe('queued foreign-subtree resolution', () => {
 
 		await expect(
 			resolveQueuedForeignSubtreeTokens({
-				html: `<article>__TEST_QUEUE__host__1__</article>`,
+				html: `<article>__test_foreign_subtree__host__1__</article>`,
 				runtimeContext,
-				queueLabel: 'Test',
-				renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
-					if (children === undefined) {
-						return {};
-					}
-
-					let html = typeof children === 'string' ? children : String(children ?? '');
-
-					for (const token of queuedResolutionsByToken.keys()) {
-						if (!html.includes(token)) {
-							continue;
-						}
-
-						html = html.split(token).join(await resolveToken(token));
-					}
-
-					return { html };
-				},
+				integrationName: 'test',
+				renderQueuedChildren: async (children, _runtimeContext, resolveTokens) =>
+					children === undefined ? {} : { html: await resolveTokens(String(children)) },
 				resolveForeignSubtree: async (input) => ({
 					html: `<section>${input.children ?? ''}</section>`,
 					canAttachAttributes: true,
@@ -323,7 +289,7 @@ describe('queued foreign-subtree resolution', () => {
 			nextForeignSubtreeId: 1,
 			queuedResolutions: [
 				{
-					token: '__TEST_QUEUE__host__1__',
+					token: '__test_foreign_subtree__host__1__',
 					component: foreignSubtree,
 					props: { children: structuredChildren },
 					componentInstanceId: 'host_n_1',
@@ -338,9 +304,9 @@ describe('queued foreign-subtree resolution', () => {
 		}));
 
 		const result = await resolveQueuedForeignSubtreeTokens({
-			html: '<article>__TEST_QUEUE__host__1__</article>',
+			html: '<article>__test_foreign_subtree__host__1__</article>',
 			runtimeContext,
-			queueLabel: 'Test',
+			integrationName: 'test',
 			renderQueuedChildren: async (children) => ({ children }),
 			resolveForeignSubtree,
 		});
@@ -363,7 +329,7 @@ describe('queued foreign-subtree resolution', () => {
 			nextForeignSubtreeId: 1,
 			queuedResolutions: [
 				{
-					token: '__TEST_QUEUE__host__1__',
+					token: '__test_foreign_subtree__host__1__',
 					component: parentForeignSubtree,
 					props: {},
 					componentInstanceId: 'host_n_1',
@@ -374,14 +340,14 @@ describe('queued foreign-subtree resolution', () => {
 		const resolveForeignSubtree = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => {
 			if (input.component === parentForeignSubtree) {
 				runtimeContext.queuedResolutions.push({
-					token: '__TEST_QUEUE__host__2__',
+					token: '__test_foreign_subtree__host__2__',
 					component: childForeignSubtree,
 					props: {},
 					componentInstanceId: 'host_n_2',
 				});
 
 				return {
-					html: '<section>__TEST_QUEUE__host__2__</section>',
+					html: '<section>__test_foreign_subtree__host__2__</section>',
 					canAttachAttributes: true,
 					integrationName: 'deferred',
 				};
@@ -395,9 +361,9 @@ describe('queued foreign-subtree resolution', () => {
 		});
 
 		const result = await resolveQueuedForeignSubtreeTokens({
-			html: '<article>__TEST_QUEUE__host__1__</article>',
+			html: '<article>__test_foreign_subtree__host__1__</article>',
 			runtimeContext,
-			queueLabel: 'Test',
+			integrationName: 'test',
 			renderQueuedChildren: async () => ({}),
 			resolveForeignSubtree,
 		});

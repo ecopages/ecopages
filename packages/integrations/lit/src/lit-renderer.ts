@@ -5,7 +5,6 @@
 import type { EcoComponent, EcoFunctionComponent, EcoPagesElement, PageParams } from '@ecopages/core';
 import type { RouteRenderResult, RouteRendererOptions } from '@ecopages/core/integration';
 import { createIntegrationRenderer, type IntegrationRendererHookFactoryOptions } from '@ecopages/core/integration';
-import { resolveQueuedTokens } from '@ecopages/core/integration';
 import { CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES } from '@ecopages/core/integration';
 import { createCustomElementServerModuleImporter } from '@ecopages/core/integration';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
@@ -82,7 +81,7 @@ export function createLitRenderer(
 						integrationName: LIT_PLUGIN_NAME,
 					};
 				},
-				renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
+				renderQueuedChildren: async (children, _runtimeContext, resolveTokens) => {
 					if (children === undefined) {
 						return {};
 					}
@@ -91,7 +90,7 @@ export function createLitRenderer(
 						return { children };
 					}
 
-					return { html: await resolveQueuedTokens(children, queuedResolutionsByToken, resolveToken) };
+					return { html: await resolveTokens(children) };
 				},
 			};
 		},

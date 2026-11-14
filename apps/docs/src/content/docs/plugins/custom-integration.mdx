@@ -208,7 +208,7 @@ export const CustomRenderer = createIntegrationRenderer('custom-integration', {
 
 Return `{ html }` when the hook serialized the children, `{ children }` to pass structured children to the owning renderer, or `{}` when there are no children. The Foreign Child's assets, like every component's, come from its declared Dependencies before the page renders.
 
-When returning serialized `{ html }`, use the supplied `resolveToken` callback for any nested Foreign Child tokens in that markup. Core replaces the queued subtree's outer token with the returned HTML, but it does not scan that HTML to resolve nested tokens automatically.
+When returning serialized `{ html }`, pass that markup through the supplied `resolveTokens` callback, the hook's third argument, which replaces every nested Foreign Child token in it. Core replaces the queued subtree's outer token with the returned HTML, but it does not scan that HTML to resolve nested tokens automatically.
 
 ## Hot Module Replacement (HMR)
 

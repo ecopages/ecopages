@@ -170,7 +170,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 					'const eco = { page: (options) => options };',
 					'export default eco.page({',
 					"\tmetadata: () => ({ title: 'x' }),",
-					'\tstaticProps: async () => ({ props: {} }),',
+					'\tprops: async () => ({}),',
 					'\trender: () => null,',
 					'});',
 				].join('\n'),
@@ -185,7 +185,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 
 			expect(transformed).toContain("import 'some-element-package/sidebar'");
 			expect(transformed).not.toContain('secret.server');
-			expect(transformed).not.toContain('staticProps');
+			expect(transformed).not.toContain('async () => ({})');
 			expect(transformed).not.toContain('metadata');
 		});
 	});

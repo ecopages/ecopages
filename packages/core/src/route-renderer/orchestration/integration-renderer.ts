@@ -555,7 +555,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		if (typeof page === 'function' && typeof (page as EcoComponent).config === 'object') {
 			throw new Error(
-				`[ecopages] ${file} default-exports an eco.page() result that the build did not attribute to this file. A route file declares its Page with a literal \`eco.page(...)\` call in that file. The build finds eco.page, eco.layout, eco.component and eco.html by their literal call, so a wrapper function, an alias such as \`const page = eco.page\`, a renamed import, or a Page declared in another file and re-exported gives the Page no identity or another file's, and server options such as staticProps and metadata stay in the browser bundle. Call eco.page(...) directly in ${file}.`,
+				`[ecopages] ${file} default-exports an eco.page() result that the build did not attribute to this file. A route file declares its Page with a literal \`eco.page(...)\` call in that file. The build finds eco.page, eco.layout, eco.component and eco.html by their literal call, so a wrapper function, an alias such as \`const page = eco.page\`, a renamed import, or a Page declared in another file and re-exported gives the Page no identity or another file's, and server options such as props and metadata stay in the browser bundle. Call eco.page(...) directly in ${file}.`,
 			);
 		}
 

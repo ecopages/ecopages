@@ -532,6 +532,34 @@ describe('StaticSiteGenerator', () => {
 			expect(graphBuildOrder).toEqual(['emitProductionServerModules', 'staticExport']);
 		});
 
+		test('fails the run and releases earlier exports when a later integration static export rejects', async () => {
+			const release = vi.fn(async () => {});
+			const ssg = new StaticSiteGenerator({
+				appConfig: createMockConfig({
+					integrations: [
+						{ name: 'first', extensions: ['.tsx'], staticExport: async () => release },
+						{
+							name: 'second',
+							extensions: ['.lit.tsx'],
+							staticExport: async () => {
+								throw new Error('export boom');
+							},
+						},
+					] as unknown as EcoPagesAppConfig['integrations'],
+				}),
+			});
+
+			await expect(
+				ssg.run({
+					router: {
+						listStaticGenerationRoutes: vi.fn(async () => []),
+					} satisfies StaticGenerationRunnerInput['router'],
+					baseUrl: 'http://localhost:3000',
+				}),
+			).rejects.toThrow('export boom');
+			expect(release).toHaveBeenCalledTimes(1);
+		});
+
 		test('should invoke the integration staticExport hook with the export context', async () => {
 			const staticExport = vi.fn(async () => {});
 			const ssg = new StaticSiteGenerator({

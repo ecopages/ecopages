@@ -416,6 +416,13 @@ export class StaticSiteGenerator {
 		};
 	}
 
+	/**
+	 * Starts every Integration's static export.
+	 *
+	 * @remarks
+	 * The caller runs this concurrently with planning and the browser-graph prebuild and awaits it before the
+	 * first page render, the earliest point an export's output (the Lit render worker) is consumed.
+	 */
 	private async startStaticExports(context: StaticExportContext): Promise<StaticExportRelease[]> {
 		const releases: StaticExportRelease[] = [];
 		try {
@@ -518,6 +525,7 @@ export class StaticSiteGenerator {
 		pageFailures: Error[];
 		activeStaticPathnames: Set<string>;
 		sitemapEligiblePathnames?: Set<string>;
+		staticExportsReady: Promise<unknown>;
 	}): Promise<void> {
 		const explicitStaticRoutes =
 			input.staticRoutes && input.routeRendererFactory
@@ -585,6 +593,8 @@ export class StaticSiteGenerator {
 		} else {
 			await resolveIntegrationDependencies({ appConfig: this.appConfig });
 		}
+
+		await input.staticExportsReady;
 
 		this.generateRobotsTxt();
 		const semanticErrorPathnames = new Set<string>(SEMANTIC_ERROR_PAGE_PATHNAMES);
@@ -677,6 +687,7 @@ export class StaticSiteGenerator {
 		requireAppRuntime(this.appConfig).staticGenerationActive = true;
 
 		let releases: StaticExportRelease[] = [];
+		let staticExportsStarted: Promise<StaticExportRelease[]> | undefined;
 		let generationFailed = false;
 		let generationError: unknown;
 		try {
@@ -699,7 +710,8 @@ export class StaticSiteGenerator {
 				routes: exportRoutes,
 			});
 
-			releases = await this.startStaticExports(staticExportContext);
+			staticExportsStarted = this.startStaticExports(staticExportContext);
+			staticExportsStarted.catch(() => undefined);
 
 			try {
 				await this.executeStaticGenerationBody({
@@ -713,6 +725,7 @@ export class StaticSiteGenerator {
 					pageFailures,
 					activeStaticPathnames,
 					sitemapEligiblePathnames,
+					staticExportsReady: staticExportsStarted,
 				});
 			} catch (error) {
 				if (shouldPrebuildProductionPageBrowserGraphs()) {
@@ -734,6 +747,13 @@ export class StaticSiteGenerator {
 		clearProductionAssetLedgerOnFailure(this.appConfig, generationFailed);
 
 		const cleanupErrors: unknown[] = [];
+		try {
+			if (staticExportsStarted) {
+				releases = await staticExportsStarted;
+			}
+		} catch (error) {
+			if (!generationFailed || error !== generationError) cleanupErrors.push(error);
+		}
 		try {
 			await this.releaseStaticExports(releases);
 		} catch (error) {

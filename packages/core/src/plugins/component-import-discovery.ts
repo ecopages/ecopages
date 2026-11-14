@@ -203,53 +203,6 @@ function collectRenderedNames(program: unknown): Set<string> {
 	return names;
 }
 
-function layoutOptionNames(value: unknown): string[] {
-	const option = node(value);
-	if (option?.type === 'Identifier') return [String(option.name)];
-	if (option?.type === 'ArrayExpression') return nodes(option.elements).flatMap(layoutOptionNames);
-	if (option?.type === 'ObjectExpression') {
-		return nodes(option.properties)
-			.filter((property) => identifierName(property.key) === 'component')
-			.flatMap((property) => layoutOptionNames(property.value));
-	}
-	return [];
-}
-
-/**
- * Lists the modules a file imports and passes as `eco.page({ layout })`.
- *
- * @remarks
- * Reads the literal `eco.page(...)` call and the static import that binds each layout, so it needs no evaluation.
- * A layout declared in the same file, passed through a variable, or imported from a package is not listed.
- */
-export function collectPageLayoutImports(file: string, projectRoot: string): string[] {
-	if (!SCRIPT_FILE.test(file)) return [];
-	const source = fileSystem.readFileSync(file);
-	if (!source.includes('eco.page')) return [];
-
-	const program = parseModuleSource(file, source, { sourceType: 'module' }).program;
-	const importSources = new Map<string, string>();
-	for (const staticImport of collectStaticImports(program)) {
-		for (const binding of staticImport.bindings) importSources.set(binding.local, staticImport.source);
-	}
-
-	const layouts = new Set<string>();
-	walk(program, (current) => {
-		if (current.type !== 'CallExpression' || !isFactoryCallee(node(current.callee), ['page'])) return;
-		const options = node(nodes(current.arguments)[0]);
-		if (options?.type !== 'ObjectExpression') return;
-		for (const property of nodes(options.properties)) {
-			if (identifierName(property.key) !== 'layout') continue;
-			for (const name of layoutOptionNames(property.value)) {
-				const importSource = importSources.get(name);
-				const resolved = importSource && resolveProjectModulePath(projectRoot, file, importSource);
-				if (resolved && !isPackageModule(resolved, projectRoot)) layouts.add(resolved);
-			}
-		}
-	});
-	return [...layouts];
-}
-
 export type ModuleIndex = {
 	hash: string;
 	declaresEcoFactory: boolean;

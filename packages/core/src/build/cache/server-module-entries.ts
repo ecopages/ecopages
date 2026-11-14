@@ -4,7 +4,6 @@ import { findIntegrationForFile } from '../../plugins/find-integration-for-file.
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { ErrorPageLoaders, StaticRoute, ViewLoader } from '../../types/contracts.ts';
 import { getImportedViewPaths } from '../server/imported-view-plugin.ts';
-import { collectPageLayoutImports } from '../../plugins/component-import-discovery.ts';
 
 export type ServerModuleEntryRouteSource = {
 	templateRoutes: readonly { filePath: string }[];
@@ -32,25 +31,15 @@ function addViewLoader(entries: Set<string>, loader: ViewLoader | undefined): vo
 	addExistingPath(entries, loader?.filePath);
 }
 
-function addLayoutsReferencedBy(entries: Set<string>, appConfig: EcoPagesAppConfig): void {
-	for (const filePath of [...entries]) {
-		for (const layoutPath of collectPageLayoutImports(filePath, appConfig.rootDir)) {
-			addExistingPath(entries, layoutPath);
-		}
-	}
-}
-
 /**
- * Collects every production server entry except `ssr: true` scripts, which are
- * discovered from compiled modules after the first graph emit.
+ * Collects every production server entry except `ssr: true` scripts, which the server build
+ * adds from each declaration (`createSsrScriptEntriesPlugin`).
  *
  * @remarks
  * Processor `listProductionServerModuleEntries()` files, such as generated content
  * collection modules, join the same map so production start can import them without
- * calling Processor `setup()`. A Layout is an entry because a Page, view or error page passes it as
- * `eco.page({ layout })`, read from that literal call and its import. It has to be an entry so its exports survive
- * the second emit that adds `ssr: true` scripts, which would otherwise evaluate it twice. Views imported into the
- * server entry (`ctx.render`, `ctx.renderPartial`) are recorded by the imported-view plugin during that bundle.
+ * calling Processor `setup()`. A Layout is not an entry: the Page that passes it as `eco.page({ layout })` uses
+ * it, so it is bundled once with that Page and keeps its exports. Views imported into the server entry (`ctx.render`, `ctx.renderPartial`) are recorded by the imported-view plugin during that bundle.
  */
 export function collectServerModuleEntries(options: {
 	appConfig: EcoPagesAppConfig;
@@ -78,8 +67,6 @@ export function collectServerModuleEntries(options: {
 	for (const filePath of getImportedViewPaths(appConfig)) {
 		addExistingPath(entries, filePath);
 	}
-
-	addLayoutsReferencedBy(entries, appConfig);
 
 	for (const processor of appConfig.processors.values()) {
 		for (const entryPath of processor.listProductionServerModuleEntries?.() ?? []) {

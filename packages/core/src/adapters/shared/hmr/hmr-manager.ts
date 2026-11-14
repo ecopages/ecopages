@@ -173,8 +173,6 @@ export class HmrManager implements IHmrManager {
 			getWatchedFiles: () => this.entrypointRegistry.getWatchedOutputUrls(),
 			getRegisteredEntrypoints: () => this.entrypointRegistry.getRegisteredEntrypoints(),
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
-			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
-			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 			getTemplateExtensions: () => this.appConfig.templatesExt,
 			isStylesheet: (filePath: string) =>
 				(this.stylesheetKinds ??= getStylesheetKinds(this.appConfig)).isStylesheet(filePath),
@@ -415,6 +413,14 @@ export class HmrManager implements IHmrManager {
 		return registered;
 	}
 
+	private isPageFile(filePath: string): boolean {
+		return requireAppRuntime(this.appConfig).router?.isPageFile(filePath) ?? false;
+	}
+
+	private isLayoutFile(filePath: string): boolean {
+		return requireAppRuntime(this.appConfig).layoutFiles.has(path.resolve(filePath));
+	}
+
 	public getWatchedFiles(): Map<string, string> {
 		return this.entrypointRegistry.getWatchedOutputUrls();
 	}
@@ -458,8 +464,8 @@ export class HmrManager implements IHmrManager {
 			getWatchedFiles: () => this.entrypointRegistry.getWatchedOutputUrls(),
 			getRegisteredEntrypoints: () => this.entrypointRegistry.getRegisteredEntrypoints(),
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
-			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
-			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
+			isPageFile: (filePath: string) => this.isPageFile(filePath),
+			isLayoutFile: (filePath: string) => this.isLayoutFile(filePath),
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			importServerModule: async <T>(filePath: string) =>
 				await requireAppRuntime(this.appConfig).moduleLoader.importModule<T>({

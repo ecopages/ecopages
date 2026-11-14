@@ -15,6 +15,20 @@ import type {
 	HtmlTemplateProps,
 } from '../../types/contracts.ts';
 
+/**
+ * Gives a hand-built Page the identity the build attributes to the route file that declares it.
+ *
+ * @remarks
+ * A route module must default-export a Page whose identity names its own file, which the identity transform
+ * stamps in a real app. A Page that already has an identity keeps it.
+ */
+export function declaredPage<TModule extends EcoPageFile>(module: TModule, file: string, integration: string): TModule {
+	const page = module.default as EcoComponent | undefined;
+	if (typeof page !== 'function' || page.config?.identity) return module;
+	page.config = { ...page.config, identity: { id: file, file, integration } };
+	return module;
+}
+
 export function createUnresolvedMarkerArtifact(nodeId: string, componentRef: string, propsRef: string): string {
 	return `<eco-marker data-eco-node-id="${nodeId}" data-eco-component-ref="${componentRef}" data-eco-props-ref="${propsRef}"></eco-marker>`;
 }
@@ -103,7 +117,7 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	protected override async importPageFile(_file: string): Promise<EcoPageFile> {
 		this.ImportedFiles.push(_file);
 		if (!this.PageModule) throw new Error('Mock page module not set');
-		return this.PageModule;
+		return declaredPage(this.PageModule, _file, this.name);
 	}
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {

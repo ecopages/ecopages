@@ -8,7 +8,6 @@
  * @module
  */
 
-import { path } from '@ecopages/file-system/path';
 import {
 	bindComponentIdentity,
 	getComponentIdentity,
@@ -17,7 +16,6 @@ import {
 	type EcoPageFile,
 } from '@ecopages/core';
 import { contentHash } from '@ecopages/core/build';
-import { fileSystem } from '@ecopages/file-system';
 import { someInConfigTree } from '../client-graph/component-config-traversal.ts';
 import { collectPageDeclaredModulesFromModule } from '../client-graph/declared-modules.ts';
 
@@ -25,8 +23,6 @@ import { collectPageDeclaredModulesFromModule } from '../client-graph/declared-m
  * Configuration for the PageModuleService.
  */
 export interface PageModuleServiceConfig {
-	layoutsDir?: string;
-	componentsDir?: string;
 	mdxExtensions: string[];
 	integrationName: string;
 	hasRouterAdapter: boolean;
@@ -51,6 +47,10 @@ export class PageModuleService {
 
 	/**
 	 * Ensures that an EcoComponentConfig has canonical identity attached.
+	 *
+	 * @remarks
+	 * A config the build stamped keeps its identity. One without it was not declared by a literal `eco.*` call, so
+	 * it is bound to the page that reached it and its relative paths resolve against that page.
 	 */
 	ensureConfigFileMetadata(config: EcoComponentConfig, pagePath: string): EcoComponentConfig {
 		const identity = getComponentIdentity(config);
@@ -58,39 +58,14 @@ export class PageModuleService {
 			return config;
 		}
 
-		const buildIdentity = (file: string) => ({
-			id: identity?.id ?? BigInt(`0x${contentHash(file, 16)}`).toString(36),
-			integration: getComponentOwner(config, this.config.integrationName),
-			file,
-		});
-
-		const resolveDependencyValue = (value: string | { src?: string }) =>
-			typeof value === 'string' ? value : value.src;
-
-		const dependencyPaths = [
-			...(config.dependencies?.stylesheets ?? []).map(resolveDependencyValue),
-			...(config.dependencies?.scripts ?? []).map(resolveDependencyValue),
-		]
-			.filter((value): value is string => Boolean(value))
-			.filter((value) => value.startsWith('./') || value.startsWith('../'));
-
-		const candidateDirs = [this.config.layoutsDir, this.config.componentsDir, path.dirname(pagePath)].filter(
-			(value): value is string => typeof value === 'string' && value.length > 0,
+		return bindComponentIdentity(
+			{
+				id: identity?.id ?? BigInt(`0x${contentHash(pagePath, 16)}`).toString(36),
+				integration: getComponentOwner(config, this.config.integrationName),
+				file: pagePath,
+			},
+			config,
 		);
-
-		for (const dependencyPath of dependencyPaths) {
-			for (const candidateDir of candidateDirs) {
-				const resolvedDependency = path.resolve(candidateDir, dependencyPath);
-				if (fileSystem.exists(resolvedDependency)) {
-					return bindComponentIdentity(
-						buildIdentity(path.join(candidateDir, path.basename(pagePath))),
-						config,
-					);
-				}
-			}
-		}
-
-		return bindComponentIdentity(buildIdentity(pagePath), config);
 	}
 
 	hasModulesInConfig(config: EcoComponentConfig | undefined): boolean {

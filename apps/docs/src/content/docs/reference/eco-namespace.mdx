@@ -242,6 +242,19 @@ export default eco.page<BlogPostProps, JsxRenderable>({
 
 A Page declares its data only through the `staticPaths`, `staticProps` and `metadata` options. A page module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata`, or wraps them in `eco.staticPaths()`, `eco.staticProps()` or `eco.metadata()`, fails in `ecopages dev` and `ecopages build` with an error naming the file. The `migrate-to-eco-page` codemod in `@ecopages/codemod` rewrites those pages.
 
+### Call the factories literally
+
+The build reads `eco.page`, `eco.layout`, `eco.component` and `eco.html` from the source, as a call on the identifier `eco`: it attaches each declaration's identity and discovers its dependencies from that call, and the React client build removes server options such as `staticProps` and `metadata` from it. A wrapper function, an alias (`const page = eco.page`) or a renamed import hides the declaration from all of them, so its server options stay in the browser bundle. The identity also names the file that holds the call, so a route file declares its Page with a literal `eco.page(...)` call in that file: a Page made by a wrapper in another file, or re-exported from one, fails `ecopages dev` and `ecopages build` with an error that names the route file and this rule. Call the factory directly, in the route file:
+
+```tsx
+export default eco.page({ render: () => <main>About</main> }); // found by the build
+
+const page = eco.page;
+export default page({ render: () => <main>About</main> }); // invisible: the build fails
+```
+
+A route file's default export must be a Page of its Integration: an `eco.page()` result, an HTML Page or an MDX module. Anything else under `src/pages` fails the build with the file and the fixes: prefix the name with `_`, give it a `.server` or `.script` suffix (see [Routing](/docs/core/routing#files-that-are-not-routes)), or move it out of `src/pages`.
+
 ## API Reference
 
 ### `eco.html()`

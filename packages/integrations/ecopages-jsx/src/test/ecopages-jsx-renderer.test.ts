@@ -137,6 +137,7 @@ async function writeRadiantFixture(options: {
 			'export default function Page() {',
 			'\treturn renderCounterSetupState();',
 			'}',
+			"Page.config = { identity: { id: 'page', file: 'page.mjs', integration: 'ecopages-jsx' } };",
 		].join('\n'),
 	);
 }

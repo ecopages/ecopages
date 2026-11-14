@@ -6,6 +6,7 @@ import { findIntegrationForFile } from '../../plugins/find-integration-for-file.
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { EcoComponent, ErrorPageLoaders, StaticRoute, ViewLoader } from '../../types/contracts.ts';
 import { getImportedViewPaths } from '../server/imported-view-plugin.ts';
+import { collectPageLayoutImports } from '../../plugins/component-import-discovery.ts';
 
 export type ServerModuleEntryRouteSource = {
 	templateRoutes: readonly { filePath: string }[];
@@ -33,18 +34,11 @@ function addViewLoader(entries: Set<string>, loader: ViewLoader | undefined): vo
 	addExistingPath(entries, loader?.filePath);
 }
 
-async function collectLayoutFiles(appConfig: EcoPagesAppConfig, entries: Set<string>): Promise<void> {
-	const layoutsDir = appConfig.absolutePaths.layoutsDir;
-	if (!layoutsDir || !fileSystem.exists(layoutsDir)) {
-		return;
-	}
-
-	const files = await fileSystem.glob(
-		appConfig.templatesExt.map((extension) => `**/*${extension}`),
-		{ cwd: layoutsDir },
-	);
-	for (const file of files) {
-		entries.add(path.resolve(layoutsDir, file));
+function addLayoutsReferencedBy(entries: Set<string>, appConfig: EcoPagesAppConfig): void {
+	for (const filePath of [...entries]) {
+		for (const layoutPath of collectPageLayoutImports(filePath, appConfig.rootDir)) {
+			addExistingPath(entries, layoutPath);
+		}
 	}
 }
 
@@ -55,15 +49,17 @@ async function collectLayoutFiles(appConfig: EcoPagesAppConfig, entries: Set<str
  * @remarks
  * Processor `listProductionServerModuleEntries()` files, such as generated content
  * collection modules, join the same map so production start can import them without
- * calling Processor `setup()`. Views imported into the server entry (`ctx.render`,
- * `ctx.renderPartial`) are recorded by the imported-view plugin during that bundle.
+ * calling Processor `setup()`. A Layout is an entry because a Page, view or error page passes it as
+ * `eco.page({ layout })`, read from that literal call and its import. It has to be an entry so its exports survive
+ * the second emit that adds `ssr: true` scripts, which would otherwise evaluate it twice. Views imported into the
+ * server entry (`ctx.render`, `ctx.renderPartial`) are recorded by the imported-view plugin during that bundle.
  */
-export async function collectServerModuleEntries(options: {
+export function collectServerModuleEntries(options: {
 	appConfig: EcoPagesAppConfig;
 	router: ServerModuleEntryRouteSource;
 	staticRoutes?: readonly StaticRoute[];
 	errorPageLoaders?: ErrorPageLoaders;
-}): Promise<string[]> {
+}): string[] {
 	const entries = new Set<string>();
 	const { appConfig } = options;
 
@@ -72,7 +68,6 @@ export async function collectServerModuleEntries(options: {
 	}
 
 	addExistingPath(entries, appConfig.absolutePaths.htmlTemplatePath);
-	await collectLayoutFiles(appConfig, entries);
 
 	for (const route of options.staticRoutes ?? []) {
 		addViewLoader(entries, route.loader);
@@ -85,6 +80,8 @@ export async function collectServerModuleEntries(options: {
 	for (const filePath of getImportedViewPaths(appConfig)) {
 		addExistingPath(entries, filePath);
 	}
+
+	addLayoutsReferencedBy(entries, appConfig);
 
 	for (const processor of appConfig.processors.values()) {
 		for (const entryPath of processor.listProductionServerModuleEntries?.() ?? []) {

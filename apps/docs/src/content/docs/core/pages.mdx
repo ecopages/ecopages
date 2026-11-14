@@ -63,6 +63,12 @@ export default eco.page({
 
 **Note:** You do not need to repeat the page `layout` in `dependencies.components` — `eco.page()` merges declared layouts into the dependency graph for you. Use explicit `dependencies.components` only when discovery cannot follow the import (`export *` barrels, packages).
 
+## What a route file exports
+
+Every route file under `src/pages` default-exports a Page of its Integration: an `eco.page()` result, an HTML Page (a `.html` file) or an MDX module. A helper, a script or any other module left in `src/pages` fails `ecopages dev` and `ecopages build` with an error naming the file, instead of rendering as a route. To keep such a file there, prefix its name with `_` or give it a `.server` or `.script` suffix ([Routing](/docs/core/routing#files-that-are-not-routes)); otherwise move it out of `src/pages`.
+
+The build recognizes a Page by its literal `eco.page(...)` call, so call it directly and do not wrap or alias it ([eco namespace reference](/docs/reference/eco-namespace#call-the-factories-literally)). In development, fix the file and save; the next request loads the corrected module without a restart.
+
 ## Typing a page from its render
 
 Write no type arguments on `eco.page()`. The props come from `staticProps` when the page has it, and from the annotated `render` parameter when it does not. `metadata`, `render` and `dependencies` all see the same type, and an annotated `render` that disagrees with `staticProps` is an error.

@@ -32,7 +32,7 @@ describe('createApp', () => {
 				'export default Object.assign(',
 				'	({ origin }: { origin: string }) => `<p id="first-origin">${origin}</p>`,',
 				'	{',
-				'		config: { integration: "first-renderer" },',
+				'		config: { integration: "first-renderer", identity: { id: "first", file: "src/pages/index.first.ts", integration: "first-renderer" } },',
 				'		staticProps: async ({ runtimeOrigin }: { runtimeOrigin: string }) => ({',
 				'			props: { origin: runtimeOrigin },',
 				'		}),',

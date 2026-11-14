@@ -1,10 +1,9 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import { path } from '@ecopages/file-system/path';
 import {
 	eco,
-	getComponentIdentity,
 	type EcoComponent,
 	type EcoComponentConfig,
 	type EcoPageFile,
@@ -302,33 +301,6 @@ describeRendererContract({
 
 describe('ReactRenderer', () => {
 	describe('renderComponent', () => {
-		it.each(['layoutsDir', 'componentsDir'] as const)(
-			'resolves a page relative script against the app %s',
-			async (dir) => {
-				const rootDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'react-renderer-app-dirs-')));
-				try {
-					const config = await createTestAppConfig({ rootDir, distDir: testDir });
-					const scriptDir = config.absolutePaths[dir];
-					mkdirSync(scriptDir, { recursive: true });
-					writeFileSync(path.join(scriptDir, 'shell.script.ts'), '');
-					const appRenderer = new ReactRenderer({
-						appConfig: config,
-						assetProcessingService: asAssetProcessingService(createAssetProcessingServiceMock()),
-						resolvedIntegrationDependencies: [],
-					});
-
-					const pageConfig = appRenderer.pageModuleService.ensureConfigFileMetadata(
-						{ dependencies: { scripts: ['./shell.script.ts'] } },
-						path.join(rootDir, 'elsewhere', 'guide.mdx'),
-					);
-
-					expect(getComponentIdentity(pageConfig)?.file).toBe(path.join(scriptDir, 'guide.mdx'));
-				} finally {
-					rmSync(rootDir, { recursive: true, force: true });
-				}
-			},
-		);
-
 		it('should compose React element children without escaping nested markup', async () => {
 			const testRenderer = createRenderer();
 			const Wrapper = (({ children }: { children?: React.ReactNode }) => (
@@ -1136,17 +1108,18 @@ describe('ReactRenderer', () => {
 	it('skips hydration assets for pages without declared modules unless forceBrowserGraph is set', async () => {
 		const withoutForce = createRenderer();
 		const withForce = createRenderer({ forceBrowserGraph: true });
-		const pageWithoutModules = {
-			default: Page,
-			config: {},
-		} as EcoPageFile;
+		const createPageModule = (file: string) => {
+			const declared: typeof Page = () => <div>Hello World</div>;
+			declared.config = { identity: { id: file, file, integration: 'react' } };
+			return { default: declared, config: {} } as EcoPageFile;
+		};
 
 		const withoutForceSpy = vi.spyOn(withoutForce.hydrationAssetService, 'createPageBrowserGraphDependencies');
 		const withForceSpy = vi
 			.spyOn(withForce.hydrationAssetService, 'createPageBrowserGraphDependencies')
 			.mockResolvedValue([]);
-		withoutForce.importedPageFileOverride = pageWithoutModules;
-		withForce.importedPageFileOverride = pageWithoutModules;
+		withoutForce.importedPageFileOverride = createPageModule('/app/src/pages/without-force.tsx');
+		withForce.importedPageFileOverride = createPageModule('/app/src/pages/with-force.tsx');
 		withoutForce.declaredModulesOverride = [];
 		withForce.declaredModulesOverride = [];
 

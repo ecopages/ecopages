@@ -71,7 +71,7 @@ There is no island entry generator here. The two pieces are:
 
 ## HMR
 
-The strategy matches a changed file under the source directory (excluding the includes directory) when it is a Page or Layout file with a JSX template extension, or a file the latest render used. It returns a `layout-update` broadcast, so the navigation runtime refreshes the current Page ([HMR strategies](/dev/hmr-strategies), [Navigation](/dev/navigation)). Registered script entrypoints are skipped; script HMR handles them.
+The strategy matches a changed file under the source directory (excluding the includes directory) when it is a Page or Layout file with a JSX template extension (see [HMR strategies](/dev/hmr-strategies) for how those are known), or a file the latest render used. It returns a `layout-update` broadcast, so the navigation runtime refreshes the current Page ([HMR strategies](/dev/hmr-strategies), [Navigation](/dev/navigation)). Registered script entrypoints are skipped; script HMR handles them.
 
 "Used by the latest render" comes from a module-scoped ownership set recorded by `withEjsxHmrOwnershipScope` / `recordEjsxHmrOwnership`, so the watcher need not walk the component tree. Only the latest top-level render is kept, so a file used only by an earlier-rendered Page does not match until that Page renders again.
 

@@ -32,7 +32,7 @@ import { isPathInside } from '../../utils/path-containment.ts';
 import { isEcopagesEnvEnabled } from '../../env.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
-import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.ts';
+import { isServerOnlyModuleSpecifier } from '../../utils/file-roles.ts';
 import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createStylesheetModulePlugin } from './stylesheet-module-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';

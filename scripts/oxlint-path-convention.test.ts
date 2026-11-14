@@ -28,7 +28,7 @@ type Diagnostic = { code: string; filename: string; labels: Array<{ span: { line
 /** Lints `files` laid out under a copy of the repository's `.oxlintrc.json` and returns `rule@file:line` entries. */
 async function lint(root: string, files: Record<string, string>): Promise<string[]> {
 	const config = JSON.parse(await readFile(path.join(repositoryRoot, '.oxlintrc.json'), 'utf8'));
-	config.jsPlugins = [path.join(repositoryRoot, 'scripts/oxlint-path-convention.ts')];
+	config.jsPlugins = config.jsPlugins.map((plugin: string) => path.join(repositoryRoot, plugin));
 	delete config.$schema;
 	await writeFile(path.join(root, '.oxlintrc.json'), JSON.stringify(config));
 	for (const [file, source] of Object.entries(files)) {

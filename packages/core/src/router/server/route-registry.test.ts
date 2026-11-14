@@ -46,6 +46,15 @@ describe('RouteRegistry', () => {
 		]);
 	});
 
+	test('answers whether a file is a Page by its route, not its folder', async () => {
+		const registry = createRegistry();
+		await registry.init();
+		const [page] = registry.templateRoutes;
+
+		expect(registry.isPageFile(page.filePath)).toBe(true);
+		expect(registry.isPageFile(path.join(pagesDir, '..', 'layouts', 'base-layout.tsx'))).toBe(false);
+	});
+
 	test.each([
 		['/products/[id]', '/products/123', { id: '123' }],
 		['/products/[...id]', '/products/123/456/789', { id: ['123', '456', '789'] }],
@@ -554,6 +563,70 @@ describe('RouteRegistry', () => {
 				params: { slug: 'hello-world' },
 			},
 		]);
+	});
+
+	describe('file roles', () => {
+		let pagesDir: string;
+
+		beforeEach(async () => {
+			pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-roles-'));
+		});
+
+		afterEach(async () => {
+			await fs.rm(pagesDir, { recursive: true, force: true });
+		});
+
+		const writePages = async (files: readonly string[]) => {
+			for (const file of files) {
+				const filePath = path.join(pagesDir, file);
+				await fs.mkdir(path.dirname(filePath), { recursive: true });
+				await fs.writeFile(filePath, '');
+			}
+		};
+
+		test('keeps server modules, browser scripts and private files out of the routes', async () => {
+			await writePages([
+				'foo.tsx',
+				'users.api.ts',
+				'foo.server.tsx',
+				'foo.script.tsx',
+				'bar.script.ts',
+				'baz.server.ts',
+				'_foo.tsx',
+				'_parts/foo.tsx',
+				'blog/_card.tsx',
+				'blog/post.tsx',
+			]);
+			const registry = createRegistry({ pagesDir, templatesExt: ['.tsx', '.ts'] });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.pathname).sort()).toEqual([
+				'/blog/post',
+				'/foo',
+				'/users',
+			]);
+			expect(registry.templateRoutes.map((route) => route.role).sort()).toEqual(['endpoint', 'page', 'page']);
+		});
+
+		test.each(['card.server.kita.tsx', 'nav.script.lit.tsx', 'users.api.html', 'db.server.test.tsx'])(
+			'fails the build for the misplaced role segment in %p, naming the file and the expected form',
+			async (file) => {
+				await writePages([file]);
+				const registry = createRegistry({ pagesDir, templatesExt: ['.tsx', '.kita.tsx', '.lit.tsx', '.html'] });
+
+				await expect(registry.init()).rejects.toThrow(
+					`${path.join(pagesDir, file)}: the "${file.includes('server') ? 'server' : file.includes('script') ? 'script' : 'api'}" role segment must come directly before a script extension, as in <name>.api.<ts|tsx|js|jsx>, <name>.server.<ts|tsx|js|jsx>, <name>.script.<ts|tsx|js|jsx>.`,
+				);
+			},
+		);
+
+		test('lets a private file keep any name', async () => {
+			await writePages(['_card.server.kita.tsx']);
+			const registry = createRegistry({ pagesDir, templatesExt: ['.tsx', '.kita.tsx'] });
+			await registry.init();
+
+			expect(registry.templateRoutes).toEqual([]);
+		});
 	});
 
 	describe('endpoint files', () => {

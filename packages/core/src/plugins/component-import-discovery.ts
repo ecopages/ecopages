@@ -4,6 +4,7 @@ import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { CSS_MODULE_PROCESSOR_FIX, PLAIN_CSS_KINDS, type StylesheetKinds } from './stylesheet-kinds.ts';
 import { contentHash } from '../utils/content-hash.ts';
 import { findPackageRoot } from '../utils/package-path.ts';
+import { isServerOnlyModuleSpecifier } from '../utils/file-roles.ts';
 import {
 	isBarePackageImportSpecifier,
 	loadTsconfigPathPrefixes,
@@ -69,10 +70,6 @@ export function declaresEcoFactory(program: unknown): boolean {
 		}
 	});
 	return found;
-}
-
-function isServerSpecifier(source: string): boolean {
-	return /\.server(?:\.[cm]?[jt]sx?)?$/.test(source);
 }
 
 function isLocalSpecifier(source: string, pathPrefixes: string[]): boolean {
@@ -204,6 +201,53 @@ function collectRenderedNames(program: unknown): Set<string> {
 		}
 	});
 	return names;
+}
+
+function layoutOptionNames(value: unknown): string[] {
+	const option = node(value);
+	if (option?.type === 'Identifier') return [String(option.name)];
+	if (option?.type === 'ArrayExpression') return nodes(option.elements).flatMap(layoutOptionNames);
+	if (option?.type === 'ObjectExpression') {
+		return nodes(option.properties)
+			.filter((property) => identifierName(property.key) === 'component')
+			.flatMap((property) => layoutOptionNames(property.value));
+	}
+	return [];
+}
+
+/**
+ * Lists the modules a file imports and passes as `eco.page({ layout })`.
+ *
+ * @remarks
+ * Reads the literal `eco.page(...)` call and the static import that binds each layout, so it needs no evaluation.
+ * A layout declared in the same file, passed through a variable, or imported from a package is not listed.
+ */
+export function collectPageLayoutImports(file: string, projectRoot: string): string[] {
+	if (!SCRIPT_FILE.test(file)) return [];
+	const source = fileSystem.readFileSync(file);
+	if (!source.includes('eco.page')) return [];
+
+	const program = parseModuleSource(file, source, { sourceType: 'module' }).program;
+	const importSources = new Map<string, string>();
+	for (const staticImport of collectStaticImports(program)) {
+		for (const binding of staticImport.bindings) importSources.set(binding.local, staticImport.source);
+	}
+
+	const layouts = new Set<string>();
+	walk(program, (current) => {
+		if (current.type !== 'CallExpression' || !isFactoryCallee(node(current.callee), ['page'])) return;
+		const options = node(nodes(current.arguments)[0]);
+		if (options?.type !== 'ObjectExpression') return;
+		for (const property of nodes(options.properties)) {
+			if (identifierName(property.key) !== 'layout') continue;
+			for (const name of layoutOptionNames(property.value)) {
+				const importSource = importSources.get(name);
+				const resolved = importSource && resolveProjectModulePath(projectRoot, file, importSource);
+				if (resolved && !isPackageModule(resolved, projectRoot)) layouts.add(resolved);
+			}
+		}
+	});
+	return [...layouts];
 }
 
 export type ModuleIndex = {
@@ -675,7 +719,11 @@ function resolveReexport(
 	reexport: { source: string; imported: string } | undefined,
 	state: DiscoveryState,
 ): { file: string; imported: string } | undefined {
-	if (!reexport || isServerSpecifier(reexport.source) || !isLocalSpecifier(reexport.source, state.pathPrefixes)) {
+	if (
+		!reexport ||
+		isServerOnlyModuleSpecifier(reexport.source) ||
+		!isLocalSpecifier(reexport.source, state.pathPrefixes)
+	) {
 		return undefined;
 	}
 	const resolved = resolveProjectModulePath(state.projectRoot, file, reexport.source, { preserveBarrel: true });
@@ -705,7 +753,7 @@ function isFactoryExport(
 	pending.add(visitKey);
 
 	let result = false;
-	if (!file.includes(`/node_modules/`) && !isServerSpecifier(file)) {
+	if (!file.includes(`/node_modules/`) && !isServerOnlyModuleSpecifier(file)) {
 		const { factories, namedReexports } = indexModule(file, state.cache);
 		if (factories.has(exportName)) {
 			result = true;
@@ -828,7 +876,7 @@ function followPackageImport(entry: StaticImport, importer: string, state: Disco
 
 /** Whether `entry` imports a script module for its bindings or its side effects, not a stylesheet or a `.server` module. */
 function isScriptEdge(entry: StaticImport, state: DiscoveryState): boolean {
-	if (entry.attributed || state.stylesheets.isStylesheet(entry.source) || isServerSpecifier(entry.source))
+	if (entry.attributed || state.stylesheets.isStylesheet(entry.source) || isServerOnlyModuleSpecifier(entry.source))
 		return false;
 	return entry.sideEffectOnly || entry.bindings.length > 0;
 }

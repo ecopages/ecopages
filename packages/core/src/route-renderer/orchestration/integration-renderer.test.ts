@@ -40,6 +40,7 @@ import {
 	TestIntegrationRenderer,
 	createMockAppConfig,
 	createMockIntegrationPlugin,
+	declaredPage,
 	testAppConfig,
 	testAssetService,
 } from './integration-renderer.test-fixtures.ts';
@@ -405,10 +406,7 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		const planning = renderer.planProductionRoutes([
-			{ routeFile },
-			{ routeFile: path.resolve('/app/pages/other.tsx') },
-		]);
+		const planning = renderer.planProductionRoutes([{ routeFile }, { routeFile, params: { slug: 'other' } }]);
 		await staticPropsStarted;
 		const resolvedDependencies = await renderer.processForRender([Card]);
 		for (const release of pendingStaticProps) release();
@@ -767,11 +765,13 @@ describe('IntegrationRenderer', () => {
 		const gate = new Promise<void>((resolve) => {
 			releaseBoth = resolve;
 		});
-		const Page = (() => 'page') as EcoComponent;
-		Page.config = {};
 		const HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
 
 		const renderer = new (class extends TestIntegrationRenderer {
+			protected override async importPageFile(file: string): Promise<EcoPageFile> {
+				return declaredPage({ default: (() => 'page') as EcoComponent }, file, this.name);
+			}
+
 			override async collectPageBrowserGraphContribution(
 				context: PageBrowserGraphContributionContext,
 			): Promise<PageBrowserGraphContribution> {
@@ -791,7 +791,6 @@ describe('IntegrationRenderer', () => {
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
-		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = HtmlTemplate;
 
 		const both = Promise.all([
@@ -1035,8 +1034,8 @@ describe('IntegrationRenderer', () => {
 				return '<html><body>Page</body></html>';
 			}
 
-			protected override async importPageFile(): Promise<EcoPageFile> {
-				return this.PageModule;
+			protected override async importPageFile(file: string): Promise<EcoPageFile> {
+				return declaredPage(this.PageModule, file, this.name);
 			}
 
 			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
@@ -1106,8 +1105,8 @@ describe('IntegrationRenderer', () => {
 				return '<html><body>Page</body></html>';
 			}
 
-			protected override async importPageFile(): Promise<EcoPageFile> {
-				return this.PageModule;
+			protected override async importPageFile(file: string): Promise<EcoPageFile> {
+				return declaredPage(this.PageModule, file, this.name);
 			}
 
 			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
@@ -1156,8 +1155,8 @@ describe('IntegrationRenderer', () => {
 				return '<html><body>Page</body></html>';
 			}
 
-			protected override async importPageFile(): Promise<EcoPageFile> {
-				return this.PageModule;
+			protected override async importPageFile(file: string): Promise<EcoPageFile> {
+				return declaredPage(this.PageModule, file, this.name);
 			}
 
 			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
@@ -1216,8 +1215,8 @@ describe('IntegrationRenderer', () => {
 				return '<html><body>Page</body></html>';
 			}
 
-			protected override async importPageFile(): Promise<EcoPageFile> {
-				return this.PageModule;
+			protected override async importPageFile(file: string): Promise<EcoPageFile> {
+				return declaredPage(this.PageModule, file, this.name);
 			}
 
 			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
@@ -1755,7 +1754,7 @@ describe('IntegrationRenderer', () => {
 				integration: 'test-renderer',
 				identity: {
 					id: 'root-component',
-					file: path.resolve('/app/components/root-component.ts'),
+					file: path.resolve('/app/pages/index.tsx'),
 					integration: 'test-renderer',
 				},
 				dependencies: { components: [Child] },
@@ -1794,7 +1793,7 @@ describe('IntegrationRenderer', () => {
 				integration: 'test-renderer',
 				identity: {
 					id: 'root-component',
-					file: path.resolve('/app/components/root-component.ts'),
+					file: path.resolve('/app/pages/index.tsx'),
 					integration: 'test-renderer',
 				},
 				dependencies: { components: [ForeignChild] },

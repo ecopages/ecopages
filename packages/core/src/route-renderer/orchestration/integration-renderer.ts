@@ -43,6 +43,8 @@ import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { isPathInside } from '../../utils/path-containment.ts';
+import { isEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import { type PreparedComponentGraph, type PreparedComponentGraphNode } from './ownership-graph/component-graph.ts';
 import { collectComponentGraphWatchPaths } from './ownership-graph/component-graph-collectors.ts';
@@ -517,9 +519,52 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * `getStaticPaths` or `getMetadata` fails here with an error that points to the codemod.
 	 */
 	public async loadPageModule(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
+		return this.importRouteModule(file, options);
+	}
+
+	/**
+	 * Imports a route module and fails unless it is a Page this Integration accepts.
+	 *
+	 * @remarks
+	 * The legacy-export check runs first, so a module that still exports `getStaticProps` gets the codemod message.
+	 */
+	protected async importRouteModule(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
 		const pageModule = await this.importPageFile(file, options);
 		this.pageModuleLoaderService.assertNoLegacyPageExports(file, pageModule);
+		this.assertPageModule(file, pageModule);
 		return pageModule;
+	}
+
+	/**
+	 * Fails when the default export of a route module is not a Page that the file itself declares.
+	 *
+	 * @remarks
+	 * A Page is a declared component whose build-time identity names this route file: an `eco.page()` result
+	 * (also an HTML Page or an MDX module, which the Integration stamps the same way). The identity transform
+	 * stamps the file that holds the literal `eco.page(...)` call, so a Page made by a wrapper in another file,
+	 * or re-exported from one, names that other file and fails here. A function with a `config` that fails the
+	 * check gets the literal-call message; anything else gets the not-a-Page message with the fixes.
+	 * @throws When the module has no default export that is a Page declared in `file`.
+	 */
+	private assertPageModule(file: string, module: EcoPageFile): void {
+		const page = module.default as unknown;
+		const identityFile = isEcoDeclaredComponent(page) ? getComponentIdentity(page)?.file : undefined;
+		if (identityFile !== undefined && path.resolve(this.appConfig.rootDir, identityFile) === path.resolve(file)) {
+			return;
+		}
+
+		if (typeof page === 'function' && typeof (page as EcoComponent).config === 'object') {
+			throw new Error(
+				`[ecopages] ${file} default-exports an eco.page() result that the build did not attribute to this file. A route file declares its Page with a literal \`eco.page(...)\` call in that file. The build finds eco.page, eco.layout, eco.component and eco.html by their literal call, so a wrapper function, an alias such as \`const page = eco.page\`, a renamed import, or a Page declared in another file and re-exported gives the Page no identity or another file's, and server options such as staticProps and metadata stay in the browser bundle. Call eco.page(...) directly in ${file}.`,
+			);
+		}
+
+		const fixes = isPathInside(path.resolve(file), this.appConfig.absolutePaths.pagesDir)
+			? ' If the file is not a Page, prefix its name with "_", give it a role suffix such as .server.ts or .script.ts, or move it out of the pages directory.'
+			: '';
+		throw new Error(
+			`[ecopages] ${file} does not default-export a Page the ${this.name} Integration renders (an eco.page() result).${fixes}`,
+		);
 	}
 
 	public setHmrManager(hmrManager: IHmrManager) {
@@ -1007,7 +1052,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const resolvedPageModule = await this.pageModuleLoaderService.resolvePageModule({
 			file: routeOptions.file,
 			pageModule: routeOptions.pageModule,
-			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
+			importPageFileFn: (targetFile) => this.importRouteModule(targetFile),
 		});
 		const { Page, integrationSpecificProps, module: pageModule } = resolvedPageModule;
 		const HtmlTemplate = await this.getHtmlTemplate();

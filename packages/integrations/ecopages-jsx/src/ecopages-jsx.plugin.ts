@@ -185,8 +185,8 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		const strategy = new EcopagesJsxHmrStrategy({
 			getRegisteredEntrypoints: hmrContext.getRegisteredEntrypoints,
 			getSrcDir: hmrContext.getSrcDir,
-			getPagesDir: hmrContext.getPagesDir,
-			getLayoutsDir: hmrContext.getLayoutsDir,
+			isPageFile: hmrContext.isPageFile,
+			isLayoutFile: hmrContext.isLayoutFile,
 			getIncludesDir: () => absolutePaths.includesDir,
 			getTemplateExtensions: () => this.extensions,
 		});

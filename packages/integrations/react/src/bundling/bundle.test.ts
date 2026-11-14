@@ -81,6 +81,20 @@ describe('BundleService', () => {
 		expect(pluginNames(mdxPageOptions)).toEqual(pluginNames(tsxPageOptions));
 	});
 
+	it('gives every entry the same foreign boundary plugin instance, so a merged build runs it once', async () => {
+		const service = new BundleService({ rootDir: '/app', appConfig: testAppConfig, hostIntegrationName: 'react' });
+		const boundaryOf = (options: Record<string, unknown>) =>
+			(options.plugins as Array<{ name: string }>).find(
+				(plugin) => plugin.name === 'ecopages-react-foreign-boundary',
+			);
+
+		const first = await service.createBundleOptions('ecopages-react-first', [], '/app/first.tsx');
+		const second = await service.createBundleOptions('ecopages-react-second', [], '/app/second.tsx');
+
+		expect(boundaryOf(first)).toBeDefined();
+		expect(boundaryOf(second)).toBe(boundaryOf(first));
+	});
+
 	it('enables minify only for production runtimes', async () => {
 		const service = new BundleService({
 			rootDir: '/app',

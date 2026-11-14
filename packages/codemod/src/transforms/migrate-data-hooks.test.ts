@@ -42,6 +42,14 @@ describe('migrate-data-hooks', () => {
 		expect(report).toHaveBeenCalledWith(expect.stringContaining('staticProps'));
 	});
 
+	it('reports a hook rewritten as an awaited member access', async () => {
+		const report = vi.fn();
+		const output = await runTransform(readFixture('computed-return', 'input'), report);
+		expect(output).toContain('(await result).props');
+		expect(report).toHaveBeenCalledTimes(2);
+		expect(report).toHaveBeenCalledWith(expect.stringContaining('(await value).props'));
+	});
+
 	it('leaves a synchronous hook with a computed return unchanged and reports it', async () => {
 		const report = vi.fn();
 		expect(await runTransform(readFixture('sync-unresolvable', 'input'), report)).toBeNull();

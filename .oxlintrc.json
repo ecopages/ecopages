@@ -171,7 +171,7 @@
 		},
 		{
 			"files": [
-				"packages/core/src/router/**",
+				"packages/core/src/router/server/pages-dir.ts",
 				"packages/core/src/utils/file-roles.ts",
 				"packages/**/*.test.*",
 				"packages/**/*.test-helpers.ts",

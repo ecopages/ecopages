@@ -10,7 +10,7 @@ Remove the `layoutsDir` and `componentsDir` config options, and find Layouts, Pa
 - React no longer guesses which folder holds a config's relative script paths; a config the build did not stamp with an identity binds to its page.
 - The project watcher watches `srcDir`, as it did, and no longer lists the two folders.
 
-A repository lint rule (`ecopages-roles/no-folder-role-check`) fails on a `pages`, `layouts`, `components` or `views` path segment in package sources outside the router and the file role module, so the folder checks cannot return.
+A repository lint rule (`ecopages-roles/no-folder-role-check`) fails on a `pages`, `layouts`, `components` or `views` path segment in package sources outside the router's `pages-dir.ts` and the file role module, so the folder checks cannot return.
 
 Breaking: a config that sets `layoutsDir` or `componentsDir` fails when it loads, naming the option, and fails type checking. `absolutePaths.layoutsDir`, `absolutePaths.componentsDir`, `config.layoutsDir`, `config.componentsDir` and `getLayoutsDir()` and `getPagesDir()` on the HMR context are gone; the HMR context has `isPageFile(filePath)` and `isLayoutFile(filePath)` instead. `src/layouts` and `src/components` stay as conventions, and any folder works.
 

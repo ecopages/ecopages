@@ -28,6 +28,9 @@ import { DEFAULT_PAGES_DIR } from '../../router/server/pages-dir.ts';
 
 const finalizedPluginInstances = new WeakSet<object>();
 
+/** Options that named a folder the framework used to treat as a role. */
+const REMOVED_DIRECTORY_OPTIONS = ['layoutsDir', 'componentsDir'] as const;
+
 /**
  * Rejects values that are not a `defineConfig(...)` object.
  *
@@ -36,9 +39,6 @@ const finalizedPluginInstances = new WeakSet<object>();
  * the earlier `{ config, configFilePath }` argument would otherwise be finalized with
  * silent defaults or fail far from the cause.
  */
-/** Options that named a folder the framework used to treat as a role. */
-const REMOVED_DIRECTORY_OPTIONS = ['layoutsDir', 'componentsDir'] as const;
-
 function assertUserConfig(userConfig: EcoPagesUserConfig, configFilePath: string | undefined): void {
 	if (userConfig.processors instanceof Map || 'absolutePaths' in userConfig) {
 		const source = configFilePath ? ` from ${configFilePath}` : '';

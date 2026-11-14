@@ -15,11 +15,11 @@ type Context = { report(descriptor: { node: Node; message: string }): void };
 const ROLE_FOLDERS = ['pages', 'layouts', 'components', 'views'] as const;
 const ROLE_FOLDER_ALTERNATIVES = ROLE_FOLDERS.join('|');
 
-/** A role folder between two slashes or at either end of the string. */
-const FOLDER_SEGMENT = new RegExp(`(^|/)(${ROLE_FOLDER_ALTERNATIVES})(/|$)`);
+/** A role folder between two slashes or backslashes, or at either end of the string. */
+const FOLDER_SEGMENT = new RegExp(`(^|[\\\\/])(${ROLE_FOLDER_ALTERNATIVES})([\\\\/]|$)`);
 
 /** The same in a regular expression source, where a slash may be escaped and a boundary may be an anchor or a group. */
-const REGEX_FOLDER_SEGMENT = new RegExp(`(^|[\\\\/^(|])(${ROLE_FOLDER_ALTERNATIVES})($|[\\\\/$)|])`);
+const REGEX_FOLDER_SEGMENT = new RegExp(`(^|[\\\\/^(|\\]])(${ROLE_FOLDER_ALTERNATIVES})($|[\\\\/$)|\\[])`);
 
 const MESSAGE =
 	'Do not decide a file role from a pages, layouts, components or views folder. Declare it by file name (a role suffix or a `_` prefix), by a reference such as eco.page({ layout }), or ask the Route Registry; see CONTEXT.md.';

@@ -7,16 +7,10 @@ import { copyFixtureApp } from '../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import {
 	emitProductionServerModules,
-	findReEmittedModules,
 	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphPage,
 	shouldBuildPagesUnifiedGraph,
 } from './pages-unified-graph-build.ts';
-import type { BuildChunk } from '../contracts/build-contracts.ts';
-
-function chunk(...modules: string[]): BuildChunk {
-	return { fileName: '', imports: [], dynamicImports: [], isEntry: false, facadeModuleId: null, modules };
-}
 
 describe('production server-module graph', () => {
 	let appDir: string;
@@ -100,39 +94,23 @@ describe('production server-module graph', () => {
 		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
 	});
 
-	it('activates Integrations before importing emitted modules', async () => {
+	it('emits each ssr script a declaration lists as an entry of the same build', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const setupFlag = '__ecoEmitIntegrationSetup';
-		Reflect.deleteProperty(globalThis, setupFlag);
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir, globalScriptResolution: 'browser-build' });
-		for (const integration of appConfig.integrations) {
-			const originalSetup = integration.setup.bind(integration);
-			integration.setup = async (context) => {
-				Object.assign(globalThis, { [setupFlag]: true });
-				await originalSetup(context);
-			};
-		}
-
-		const pagePath = path.join(appDir, 'src/pages/needs-setup.ts');
+		const pagePath = path.join(appDir, 'src/pages/with-script.ts');
+		writeFileSync(path.join(appDir, 'src/pages/counter.script.ts'), `export const counter = 1;\n`);
 		writeFileSync(
 			pagePath,
-			[
-				`if (!globalThis.${setupFlag}) {`,
-				`\tthrow new Error('Integration setup must run before this module is imported');`,
-				'}',
-				`export default () => 'ok';`,
-				'',
-			].join('\n'),
+			`export default { config: { dependencies: { scripts: [{ src: './counter.script.ts', ssr: true }] } } };\n`,
 		);
 
-		try {
-			await emitProductionServerModules({
-				appConfig,
-				router: { templateRoutes: [{ filePath: pagePath }] },
-			});
-		} finally {
-			Reflect.deleteProperty(globalThis, setupFlag);
-		}
+		const manifest = await emitProductionServerModules({
+			appConfig,
+			router: { templateRoutes: [{ filePath: pagePath }] },
+		});
+
+		assert.ok(manifest.modules['src/pages/counter.script.ts']);
+		assert.ok(fileSystem.exists(path.join(manifest.outdir, manifest.modules['src/pages/counter.script.ts'])));
 	});
 
 	it('emits distinct modules for HTML Pages whose sanitized names would collide', async () => {
@@ -157,56 +135,6 @@ describe('production server-module graph', () => {
 		assert.notEqual(
 			fileSystem.readFileSync(path.join(manifest.outdir, hyphenOutput)).toString(),
 			fileSystem.readFileSync(path.join(manifest.outdir, nestedOutput)).toString(),
-		);
-	});
-
-	it('lists the app modules that moved between emits, except entries and packages', () => {
-		const initial = {
-			'/app/dist/page-a.mjs': {
-				...chunk('/app/src/pages/index.tsx'),
-				isEntry: true,
-				facadeModuleId: '/app/src/pages/index.tsx',
-				imports: ['/app/dist/layout-a.mjs', '/app/dist/kept.mjs', '/app/dist/pkg-a.mjs'],
-			},
-			'/app/dist/layout-a.mjs': chunk('/app/src/shells/shell.tsx'),
-			'/app/dist/kept.mjs': chunk('/app/src/lib/kept.ts'),
-			'/app/dist/pkg-a.mjs': chunk('/app/node_modules/pkg/index.js'),
-		};
-		const next = {
-			'/app/dist/page-b.mjs': chunk('/app/src/pages/index.tsx'),
-			'/app/dist/layout-b.mjs': chunk('/app/src/shells/shell.tsx'),
-			'/app/dist/kept.mjs': chunk('/app/src/lib/kept.ts'),
-			'/app/dist/pkg-b.mjs': chunk('/app/node_modules/pkg/index.js'),
-		};
-
-		assert.deepEqual(
-			findReEmittedModules(initial, next, { entryPaths: ['/app/src/pages/index.tsx'], rootDir: '/app' }),
-			[path.resolve('/app/src/shells/shell.tsx')],
-		);
-	});
-
-	it('leaves out moved modules that the entries reach only through a dynamic import', () => {
-		const initial = {
-			'/app/dist/page-a.mjs': {
-				...chunk('/app/src/pages/docs.tsx'),
-				isEntry: true,
-				facadeModuleId: '/app/src/pages/docs.tsx',
-				imports: ['/app/dist/loader-a.mjs'],
-			},
-			'/app/dist/loader-a.mjs': { ...chunk('/app/src/lib/loader.ts'), dynamicImports: ['/app/dist/post-a.mjs'] },
-			'/app/dist/post-a.mjs': { ...chunk('/app/src/content/post.mdx'), imports: ['/app/dist/shared-a.mjs'] },
-			'/app/dist/shared-a.mjs': chunk('/app/src/lib/shared.ts'),
-		};
-		const next = {
-			'/app/dist/page-b.mjs': chunk('/app/src/pages/docs.tsx'),
-			'/app/dist/loader-b.mjs': chunk('/app/src/lib/loader.ts'),
-			'/app/dist/post-b.mjs': chunk('/app/src/content/post.mdx'),
-			'/app/dist/shared-b.mjs': chunk('/app/src/lib/shared.ts'),
-		};
-
-		assert.deepEqual(
-			findReEmittedModules(initial, next, { entryPaths: ['/app/src/pages/docs.tsx'], rootDir: '/app' }),
-			[path.resolve('/app/src/lib/loader.ts')],
 		);
 	});
 });

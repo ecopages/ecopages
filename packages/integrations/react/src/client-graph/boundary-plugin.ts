@@ -527,7 +527,7 @@ export function createForeignBoundaryPlugin(options: {
 				};
 			});
 			build.transform({ filter: /\.(?:[cm]?[jt]sx?|mdx?)$/, exclude: /^\0|\/node_modules\// }, (code, id) => {
-				const filePath = toRealPath(id.replace(/[?#].*$/, ''));
+				const filePath = id.replace(/[?#].*$/, '');
 				if (options.isForeignFile(filePath)) return undefined;
 				const context = build.entrypoints ? buildContexts.get(build.entrypoints) : undefined;
 				const reach =

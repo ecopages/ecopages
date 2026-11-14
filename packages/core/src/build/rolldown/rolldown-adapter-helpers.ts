@@ -15,7 +15,7 @@ import { builtinModules, createRequire } from 'node:module';
 import { path, type PathApi } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { stripVTControlCharacters } from 'node:util';
-import { recordBuildEntryOutput, resolveBuildEntryPath } from '../build-graph.ts';
+import { recordBuildEntryOutput, resolveBuildEntryPath, resolveRequestedBuildEntries } from '../build-graph.ts';
 import type {
 	BundleError,
 	InputOptions,
@@ -33,6 +33,7 @@ import { isEcopagesEnvEnabled } from '../../env.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { isServerOnlyModuleSpecifier } from '../../utils/file-roles.ts';
+import { createSsrScriptEntriesPlugin } from './ssr-script-entries-plugin.ts';
 import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createStylesheetModulePlugin } from './stylesheet-module-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -548,6 +549,7 @@ async function buildRolldownInputPlugins(
 		),
 		...appPlugins,
 		...(options.environment === 'browser' && options.workerEntries !== false ? [createWorkerEntriesPlugin()] : []),
+		...(options.ssrScriptEntries === true ? [createSsrScriptEntriesPlugin()] : []),
 	];
 }
 
@@ -782,6 +784,7 @@ export function buildResultFromRolldownOutput(
 	);
 
 	const entryOutputs: Record<string, string> = {};
+	const requestedEntries = resolveRequestedBuildEntries(entrypoints, contextRoot);
 	for (const chunk of chunks) {
 		if (!chunk.isEntry || !chunk.facadeModuleId) {
 			continue;
@@ -789,8 +792,7 @@ export function buildResultFromRolldownOutput(
 		recordBuildEntryOutput(entryOutputs, normalizeOutputPath(chunk.fileName, outdir), {
 			facadeModuleId: resolveBuildEntryPath(chunk.facadeModuleId, contextRoot),
 			chunkName: chunk.name,
-			entrypoints,
-			root: contextRoot,
+			requestedEntries,
 		});
 	}
 

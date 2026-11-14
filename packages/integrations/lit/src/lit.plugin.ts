@@ -122,6 +122,9 @@ export class LitPlugin extends IntegrationPlugin {
 	 * @remarks
 	 * Serving never starts this session. Static export owns the worker for the duration of the export and
 	 * releases it afterwards, so an in-process export leaves no worker thread running.
+	 *
+	 * The session is published only once its worker has started: the export boots while the browser graph
+	 * prebuild runs, and a render that saw a half-started session would fail instead of rendering in-process.
 	 */
 	override async staticExport(context: StaticExportContext): Promise<StaticExportRelease> {
 		const configModulePath = context.appConfig.absolutePaths.config;
@@ -129,17 +132,21 @@ export class LitPlugin extends IntegrationPlugin {
 			throw new Error('[ecopages][lit] Lit static export requires appConfig.absolutePaths.config');
 		}
 
-		this.renderSession = this.createRenderSession();
-		await this.renderSession.ensureWorker({
-			configModulePath,
-			runtimeOrigin: context.baseUrl,
-			directories: {
-				distDir: path.resolve(context.appConfig.rootDir, context.appConfig.distDir),
-				workDir: context.appConfig.absolutePaths.workDir,
-			},
-		});
-
-		const session = this.renderSession;
+		const session = this.createRenderSession();
+		try {
+			await session.ensureWorker({
+				configModulePath,
+				runtimeOrigin: context.baseUrl,
+				directories: {
+					distDir: path.resolve(context.appConfig.rootDir, context.appConfig.distDir),
+					workDir: context.appConfig.absolutePaths.workDir,
+				},
+			});
+		} catch (error) {
+			await session.dispose();
+			throw error;
+		}
+		this.renderSession = session;
 
 		return async () => {
 			await session.dispose();

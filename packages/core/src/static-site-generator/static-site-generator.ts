@@ -416,6 +416,13 @@ export class StaticSiteGenerator {
 		};
 	}
 
+	/**
+	 * Starts every Integration's static export.
+	 *
+	 * @remarks
+	 * The caller runs this concurrently with planning and the browser-graph prebuild and awaits it before the
+	 * first page render, the earliest point an export's output (the Lit render worker) is consumed.
+	 */
 	private async startStaticExports(context: StaticExportContext): Promise<StaticExportRelease[]> {
 		const releases: StaticExportRelease[] = [];
 		try {
@@ -518,6 +525,7 @@ export class StaticSiteGenerator {
 		pageFailures: Error[];
 		activeStaticPathnames: Set<string>;
 		sitemapEligiblePathnames?: Set<string>;
+		staticExportsReady: Promise<unknown>;
 	}): Promise<void> {
 		const explicitStaticRoutes =
 			input.staticRoutes && input.routeRendererFactory
@@ -585,6 +593,8 @@ export class StaticSiteGenerator {
 		} else {
 			await resolveIntegrationDependencies({ appConfig: this.appConfig });
 		}
+
+		await input.staticExportsReady;
 
 		this.generateRobotsTxt();
 		const semanticErrorPathnames = new Set<string>(SEMANTIC_ERROR_PAGE_PATHNAMES);
@@ -676,7 +686,7 @@ export class StaticSiteGenerator {
 		this.resetStaticGenerationState(force);
 		requireAppRuntime(this.appConfig).staticGenerationActive = true;
 
-		let releases: StaticExportRelease[] = [];
+		let staticExportsStarted: Promise<StaticExportRelease[]> | undefined;
 		let generationFailed = false;
 		let generationError: unknown;
 		try {
@@ -699,7 +709,8 @@ export class StaticSiteGenerator {
 				routes: exportRoutes,
 			});
 
-			releases = await this.startStaticExports(staticExportContext);
+			staticExportsStarted = this.startStaticExports(staticExportContext);
+			staticExportsStarted.catch(() => undefined);
 
 			try {
 				await this.executeStaticGenerationBody({
@@ -713,6 +724,7 @@ export class StaticSiteGenerator {
 					pageFailures,
 					activeStaticPathnames,
 					sitemapEligiblePathnames,
+					staticExportsReady: staticExportsStarted,
 				});
 			} catch (error) {
 				if (shouldPrebuildProductionPageBrowserGraphs()) {
@@ -733,7 +745,31 @@ export class StaticSiteGenerator {
 		requireAppRuntime(this.appConfig).staticGenerationActive = false;
 		clearProductionAssetLedgerOnFailure(this.appConfig, generationFailed);
 
+		await this.cleanUpStaticGeneration({ staticExportsStarted, generationFailed, generationError });
+	}
+
+	/**
+	 * Releases the static exports, tears down the Integrations, and throws whatever failed.
+	 *
+	 * @remarks
+	 * Static exports start while the generation runs, so they are awaited here even when generation failed; their
+	 * own failure is reported only when it is not the error generation already threw. Every cleanup step runs,
+	 * and a generation error is thrown together with any cleanup errors.
+	 */
+	private async cleanUpStaticGeneration(input: {
+		staticExportsStarted: Promise<StaticExportRelease[]> | undefined;
+		generationFailed: boolean;
+		generationError: unknown;
+	}): Promise<void> {
+		let releases: StaticExportRelease[] = [];
 		const cleanupErrors: unknown[] = [];
+		try {
+			if (input.staticExportsStarted) {
+				releases = await input.staticExportsStarted;
+			}
+		} catch (error) {
+			if (!input.generationFailed || error !== input.generationError) cleanupErrors.push(error);
+		}
 		try {
 			await this.releaseStaticExports(releases);
 		} catch (error) {
@@ -745,13 +781,17 @@ export class StaticSiteGenerator {
 			cleanupErrors.push(error);
 		}
 
-		if (generationFailed) {
+		if (input.generationFailed) {
 			if (cleanupErrors.length > 0) {
-				throw new AggregateError([generationError, ...cleanupErrors], 'Static generation and cleanup failed', {
-					cause: generationError,
-				});
+				throw new AggregateError(
+					[input.generationError, ...cleanupErrors],
+					'Static generation and cleanup failed',
+					{
+						cause: input.generationError,
+					},
+				);
 			}
-			throw generationError;
+			throw input.generationError;
 		}
 		if (cleanupErrors.length === 1) throw cleanupErrors[0];
 		if (cleanupErrors.length > 1) {

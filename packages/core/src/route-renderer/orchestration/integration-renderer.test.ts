@@ -36,6 +36,7 @@ import type {
 	IHmrManager,
 } from '../../types/contracts.ts';
 import type { EcoPageComponent } from '../../types/eco-api-types.ts';
+import { MissingProductionServerModuleError } from '../../build/server/server-modules-manifest.ts';
 import {
 	TestIntegrationRenderer,
 	createMockAppConfig,
@@ -2149,7 +2150,11 @@ describe('IntegrationRenderer', () => {
 				vi.unstubAllEnvs();
 			});
 
-			async function renderWithFailingScript(nodeEnv: string, staticGenerationActive = false) {
+			async function renderWithFailingScript(
+				nodeEnv: string,
+				staticGenerationActive = false,
+				failure: Error = new Error('Unexpected token'),
+			) {
 				vi.stubEnv('NODE_ENV', nodeEnv);
 				vi.spyOn(console, 'warn').mockImplementation(() => {});
 				const { imports, renderer, Page, appConfig } = createPreloadingApp('lit');
@@ -2158,7 +2163,7 @@ describe('IntegrationRenderer', () => {
 				const runtime = requireAppRuntime(appConfig);
 				runtime.hmr = hmr as IHmrManager;
 				runtime.staticGenerationActive = staticGenerationActive;
-				imports['ecopages-jsx'].mockRejectedValue(new Error('Unexpected token'));
+				imports['ecopages-jsx'].mockRejectedValue(failure);
 				const html = await render(renderer, Page);
 				return { html, reportBuildError };
 			}
@@ -2184,6 +2189,18 @@ describe('IntegrationRenderer', () => {
 					);
 				},
 			);
+
+			it('tells static generation that an ssr script the build did not find needs a string literal src', async () => {
+				await expect(
+					renderWithFailingScript(
+						'production',
+						true,
+						new MissingProductionServerModuleError('components/counter.script.ts'),
+					),
+				).rejects.toThrow(
+					`The ssr script ${path.resolve('/app/components/counter.script.ts')} is not in the server build. \`ecopages build\` finds ssr scripts from a string literal \`src\``,
+				);
+			});
 
 			it('only warns in production outside static generation, as `ecopages start` does', async () => {
 				const { reportBuildError } = await renderWithFailingScript('production', false);

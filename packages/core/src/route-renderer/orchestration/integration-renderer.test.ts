@@ -1300,7 +1300,10 @@ describe('IntegrationRenderer', () => {
 			identity: { id: 'html', file: path.resolve('/app/html.ts'), integration },
 			render: ({ children }) => `<html><head></head><body>${String(children ?? '')}</body></html>`,
 		});
-		const assetProcessingService = { processDependencies } as unknown as AssetProcessingService;
+		const assetProcessingService = {
+			processDependencies,
+			processDependenciesInDeclarationOrder: processDependencies,
+		} as unknown as AssetProcessingService;
 		const ForeignRenderer = createIntegrationRenderer(foreignIntegration, {});
 		const appConfig = createMockAppConfig({
 			integrations: [

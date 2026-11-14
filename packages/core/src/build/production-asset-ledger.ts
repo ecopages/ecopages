@@ -21,7 +21,7 @@ const LEGACY_BROWSER_CLIENT_MANIFEST_FILENAME = 'browser-client-manifest.json';
  * root-relative source, so the file serves a build moved to another folder or platform.
  */
 export type ProductionAssetLedgerFile = SerializedProcessedAssetLedger & {
-	version: 4;
+	version: 5;
 	buildId: string;
 	htmlPageModuleScriptUrls: Record<string, string>;
 };
@@ -44,7 +44,7 @@ export function writeProductionAssetLedger(
 ): void {
 	const runtime = requireAppRuntime(appConfig);
 	const payload: ProductionAssetLedgerFile = {
-		version: 4,
+		version: 5,
 		buildId: ensureProductionBuildId(appConfig),
 		...runtime.processedAssets.serialize(),
 		htmlPageModuleScriptUrls: Object.fromEntries(
@@ -74,11 +74,13 @@ function isStringArray(value: unknown): value is string[] {
 function isLedgerFile(value: unknown): value is ProductionAssetLedgerFile {
 	return (
 		isRecord(value) &&
-		value.version === 4 &&
+		value.version === 5 &&
 		typeof value.buildId === 'string' &&
 		Array.isArray(value.entries) &&
 		value.entries.every((entry) => isRecord(entry) && typeof entry.key === 'string' && isRecord(entry.asset)) &&
 		(value.browserOutputs === undefined || isStringArray(value.browserOutputs)) &&
+		(value.shells === undefined ||
+			(isRecord(value.shells) && Object.values(value.shells).every((assets) => Array.isArray(assets)))) &&
 		isRecord(value.htmlPageModuleScriptUrls) &&
 		Object.values(value.htmlPageModuleScriptUrls).every((url) => typeof url === 'string')
 	);

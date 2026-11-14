@@ -16,6 +16,8 @@ export type SerializedProcessedAssetLedger = {
 	entries: LedgerEntry[];
 	/** Every file the app-wide browser build emitted, chunks included; absent when no browser build ran. */
 	browserOutputs?: string[];
+	/** The processed shell Dependencies of each route shell, by {@link ProcessedAssetLedger.recordShell} key. */
+	shells?: Record<string, LedgerProcessedAsset[]>;
 };
 
 /**
@@ -30,6 +32,7 @@ export type SerializedProcessedAssetLedger = {
  */
 export class ProcessedAssetLedger {
 	private readonly entries = new Map<string, LedgerProcessedAsset>();
+	private readonly shells = new Map<string, ProcessedAsset[]>();
 	private browserOutputs: Set<string> | undefined;
 	private sealed = false;
 
@@ -70,13 +73,31 @@ export class ProcessedAssetLedger {
 	}
 
 	/**
-	 * Forgets the app-wide browser build, so a retried production build records only its own outputs.
+	 * Records the processed Dependencies of one route shell: its Html template, Layouts and Page.
+	 *
+	 * @remarks
+	 * `key` names the Page and Html template, which fix the shell. The build records each shell the first time it
+	 * prepares a route of that Page, and every later preparation, in the build or in `ecopages start`, reads it.
+	 */
+	recordShell(key: string, assets: ProcessedAsset[]): void {
+		this.shells.set(key, assets);
+	}
+
+	/** Returns the processed Dependencies recorded for one route shell. */
+	lookupShell(key: string): ProcessedAsset[] | undefined {
+		return this.shells.get(key);
+	}
+
+	/**
+	 * Forgets the app-wide browser build and the recorded shells, so a retried production build records only its
+	 * own outputs.
 	 *
 	 * @remarks
 	 * Recorded dependencies stay: the next build records the ones it bundles again under the same keys.
 	 */
-	clearBrowserOutputs(): void {
+	clearBuildOutputs(): void {
 		this.browserOutputs = undefined;
+		this.shells.clear();
 	}
 
 	/** Returns the recorded asset with paths resolved against the current app root. */
@@ -96,13 +117,29 @@ export class ProcessedAssetLedger {
 		const entries = [...this.entries]
 			.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
 			.map(([key, asset]) => ({ key, asset }));
-		return this.browserOutputs ? { entries, browserOutputs: [...this.browserOutputs].sort() } : { entries };
+		const shells = Object.fromEntries(
+			[...this.shells]
+				.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+				.map(([key, assets]) => [key, assets.map((asset) => this.toPortable(asset))]),
+		);
+		return {
+			entries,
+			...(this.browserOutputs ? { browserOutputs: [...this.browserOutputs].sort() } : {}),
+			...(this.shells.size > 0 ? { shells } : {}),
+		};
 	}
 
 	restore(ledger: SerializedProcessedAssetLedger): void {
 		this.entries.clear();
 		for (const { key, asset } of ledger.entries) this.entries.set(key, asset);
 		this.browserOutputs = ledger.browserOutputs ? new Set(ledger.browserOutputs) : undefined;
+		this.shells.clear();
+		for (const [key, assets] of Object.entries(ledger.shells ?? {})) {
+			this.shells.set(
+				key,
+				assets.map((asset) => this.toAbsolute(asset)),
+			);
+		}
 	}
 
 	private relative(filepath: string): string {

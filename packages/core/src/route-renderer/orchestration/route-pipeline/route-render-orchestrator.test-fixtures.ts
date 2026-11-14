@@ -73,6 +73,7 @@ export function createFlowRenderer<C = unknown>(input: FlowRendererInput = {}): 
 				integrationSpecificProps,
 			};
 		},
+		prepareRouteLazyDependencies: () => {},
 		resolveRouteDependencies: async ({ components }) => ({
 			resolvedDependencies: (await input.resolveDependencies?.(components)) ?? [],
 		}),

@@ -47,7 +47,7 @@ export function shouldPrebuildProductionPageBrowserGraphs(): boolean {
 export function clearProductionPageBrowserGraphSession(appConfig: EcoPagesAppConfig): void {
 	const runtime = requireAppRuntime(appConfig);
 	runtime.pageBrowserGraphSession.clearPolicyRecords('production');
-	runtime.processedAssets.clearBrowserOutputs();
+	runtime.processedAssets.clearBuildOutputs();
 	clearProductionAssetLedger(appConfig);
 }
 

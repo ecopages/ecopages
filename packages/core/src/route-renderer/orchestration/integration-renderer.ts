@@ -776,7 +776,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.routeRenderOrchestrator = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
 			ownershipValidationService: new OwnershipValidationService(appConfig),
 			assetProcessingIntegration,
-			reusesShellDependencies: () => isProductionRuntime() && this.getActiveHmrManager()?.isEnabled() !== true,
+			recordsShellDependencies: () => isProductionRuntime() && this.getActiveHmrManager()?.isEnabled() !== true,
 		});
 		this.integrationHooks =
 			typeof hooks === 'function'
@@ -1098,13 +1098,35 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return resolvePageDependenciesFromContext(context, this.name);
 	}
 
-	/** Resolves a route's component assets. */
+	/**
+	 * Resolves a route's component assets.
+	 *
+	 * @remarks `declarationOrder` returns them in the order the asset ledger records them, for a recorded shell.
+	 */
 	async resolveRouteDependencies(input: {
 		components: (EcoComponent | Partial<EcoComponent>)[];
+		declarationOrder?: boolean;
 	}): Promise<{ resolvedDependencies: ProcessedAsset[] }> {
 		return {
-			resolvedDependencies: await this.resolveDependencies(input.components, { preparedGraph: true }),
+			resolvedDependencies: input.declarationOrder
+				? await this.dependencyResolverService.processPreparedComponentDependencies(
+						input.components,
+						this.name,
+						true,
+					)
+				: await this.resolveDependencies(input.components, { preparedGraph: true }),
 		};
+	}
+
+	/**
+	 * Holds the lazy client entries of a route's shell components for the page client build.
+	 *
+	 * @remarks
+	 * Processing the shell holds them as a side effect; a shell read from the asset ledger is not processed, so its
+	 * lazy entries are collected here.
+	 */
+	prepareRouteLazyDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): void {
+		this.dependencyResolverService.prepareLazyClientDependencies(components, this.name);
 	}
 
 	async renderRouteBody(renderOptions: InternalIntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {

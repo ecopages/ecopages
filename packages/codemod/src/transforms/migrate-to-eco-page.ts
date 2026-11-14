@@ -15,7 +15,16 @@
  *   export default eco.page({ layout, dependencies, paths, props, metadata, render })
  */
 
-import type { API, FileInfo, Options, ASTPath, ExportDefaultDeclaration, JSCodeshift, Collection } from 'jscodeshift';
+import type {
+	API,
+	FileInfo,
+	Options,
+	ASTPath,
+	ExportDefaultDeclaration,
+	JSCodeshift,
+	Collection,
+	VariableDeclarator,
+} from 'jscodeshift';
 import migrateDataHooks from './migrate-data-hooks.ts';
 import { printOptions } from './print-options.ts';
 
@@ -44,12 +53,10 @@ function readPagePropsTypeName(
 	return typeRef.typeName.name ?? null;
 }
 
-function extractPagePropsType(declarator: {
-	id?: {
-		typeAnnotation?: { typeAnnotation?: { type?: string; typeParameters?: { params?: unknown[] } } };
-	};
-}): string | null {
-	const typeRef = declarator.id?.typeAnnotation?.typeAnnotation;
+function extractPagePropsType(id: { typeAnnotation?: unknown }): string | null {
+	const typeRef = (
+		id.typeAnnotation as { typeAnnotation?: { type?: string; typeParameters?: { params?: unknown[] } } } | undefined
+	)?.typeAnnotation;
 	if (typeRef?.type !== 'TSTypeReference' || !typeRef.typeParameters?.params?.length) {
 		return null;
 	}
@@ -71,11 +78,7 @@ function extractPagePropsType(declarator: {
 }
 
 function applyComponentDeclaratorToPageInfo(
-	declarator: {
-		type?: string;
-		id?: { type?: string; name?: string; typeAnnotation?: unknown };
-		init?: { type?: string };
-	},
+	declarator: VariableDeclarator,
 	componentName: string,
 	info: ExtractedPageInfo,
 ): void {
@@ -87,7 +90,7 @@ function applyComponentDeclaratorToPageInfo(
 		return;
 	}
 
-	info.propsType = extractPagePropsType(declarator);
+	info.propsType = extractPagePropsType(declarator.id);
 
 	if (declarator.init?.type === 'ArrowFunctionExpression' || declarator.init?.type === 'FunctionExpression') {
 		info.renderBody = declarator.init;
@@ -130,7 +133,7 @@ function unwrapLegacyWrapper(value: unknown): unknown {
 	return value;
 }
 
-function isReferencedByTypeof(j: JSCodeshift, root: Collection<unknown>, name: string): boolean {
+function isReferencedByTypeof(j: JSCodeshift, root: Collection, name: string): boolean {
 	return (
 		root.find(j.TSTypeQuery).filter((path) => {
 			const exprName = path.node.exprName as { type?: string; name?: string };
@@ -159,12 +162,7 @@ function toFunctionExpression(j: JSCodeshift, declaration: Record<string, unknow
  * A declaration that a `typeof getX` type still names, or that the existing `eco.page(...)` call
  * already references, stays in the file unexported. Only the first case also sets the page option.
  */
-function applyDeclaredPageExport(
-	j: JSCodeshift,
-	root: Collection<unknown>,
-	path: ASTPath<unknown>,
-	info: ExtractedPageInfo,
-): boolean {
+function applyDeclaredPageExport(j: JSCodeshift, root: Collection, path: ASTPath, info: ExtractedPageInfo): boolean {
 	const declaration = (path.node as { declaration?: Record<string, any> }).declaration;
 	if (declaration?.type === 'VariableDeclaration') {
 		return applyVariableExport(j, root, path, declaration, info);
@@ -177,8 +175,8 @@ function applyDeclaredPageExport(
 
 function applyVariableExport(
 	j: JSCodeshift,
-	root: Collection<unknown>,
-	path: ASTPath<unknown>,
+	root: Collection,
+	path: ASTPath,
 	declaration: Record<string, any>,
 	info: ExtractedPageInfo,
 ): boolean {
@@ -209,8 +207,8 @@ function applyVariableExport(
 
 function applyFunctionExport(
 	j: JSCodeshift,
-	root: Collection<unknown>,
-	path: ASTPath<unknown>,
+	root: Collection,
+	path: ASTPath,
 	declaration: Record<string, any>,
 	info: ExtractedPageInfo,
 ): boolean {
@@ -232,7 +230,7 @@ function applyFunctionExport(
 	return true;
 }
 
-function findTopLevelDeclarator(root: Collection<unknown>, j: JSCodeshift, name: string): Record<string, any> | null {
+function findTopLevelDeclarator(root: Collection, j: JSCodeshift, name: string): Record<string, any> | null {
 	let found: Record<string, any> | null = null;
 	root.find(j.VariableDeclarator).forEach((path) => {
 		const id = path.node.id as { type?: string; name?: string };
@@ -245,12 +243,7 @@ function findTopLevelDeclarator(root: Collection<unknown>, j: JSCodeshift, name:
 }
 
 /** Moves the `export { local as getX }` specifiers into the page info and drops them from the list. */
-function applyExportListSpecifiers(
-	j: JSCodeshift,
-	root: Collection<unknown>,
-	path: ASTPath<unknown>,
-	info: ExtractedPageInfo,
-): boolean {
+function applyExportListSpecifiers(j: JSCodeshift, root: Collection, path: ASTPath, info: ExtractedPageInfo): boolean {
 	const node = path.node as { source?: unknown; declaration?: unknown; specifiers?: Array<Record<string, any>> };
 	if (node.declaration || node.source || !node.specifiers) {
 		return false;
@@ -281,7 +274,7 @@ function applyExportListSpecifiers(
 	return moved;
 }
 
-function extractNamedPageExports(j: JSCodeshift, root: Collection<unknown>, info: ExtractedPageInfo): boolean {
+function extractNamedPageExports(j: JSCodeshift, root: Collection, info: ExtractedPageInfo): boolean {
 	let hasChanges = false;
 
 	root.find(j.ExportNamedDeclaration).forEach((path) => {
@@ -333,7 +326,7 @@ function readLayoutAndDependenciesFromConfig(configObject: { properties?: unknow
 
 function applyPageConfigAssignment(
 	j: JSCodeshift,
-	root: Collection<unknown>,
+	root: Collection,
 	componentName: string,
 	info: ExtractedPageInfo,
 ): boolean {
@@ -362,7 +355,7 @@ function applyPageConfigAssignment(
 	return hasChanges;
 }
 
-function removeComponentVariableDeclaration(j: JSCodeshift, root: Collection<unknown>, componentName: string): boolean {
+function removeComponentVariableDeclaration(j: JSCodeshift, root: Collection, componentName: string): boolean {
 	let hasChanges = false;
 
 	root.find(j.VariableDeclaration).forEach((path) => {
@@ -430,7 +423,7 @@ function buildEcoPageExport(
 	}
 }
 
-function ensureEcoImport(j: JSCodeshift, root: Collection<unknown>): void {
+function ensureEcoImport(j: JSCodeshift, root: Collection): void {
 	const ecoImports = root.find(j.ImportDeclaration, {
 		source: { value: '@ecopages/core' },
 	});
@@ -464,7 +457,7 @@ function ensureEcoImport(j: JSCodeshift, root: Collection<unknown>): void {
 	}
 }
 
-function pruneLegacyPageTypeImports(j: JSCodeshift, root: Collection<unknown>): void {
+function pruneLegacyPageTypeImports(j: JSCodeshift, root: Collection): void {
 	const ecoImports = root.find(j.ImportDeclaration, {
 		source: { value: '@ecopages/core' },
 	});
@@ -489,7 +482,7 @@ function pruneLegacyPageTypeImports(j: JSCodeshift, root: Collection<unknown>): 
 }
 
 /** Whether `name` is still named anywhere in the file besides its import specifier. */
-function isStillReferenced(j: JSCodeshift, root: Collection<unknown>, name: string): boolean {
+function isStillReferenced(j: JSCodeshift, root: Collection, name: string): boolean {
 	return (
 		root.find(j.Identifier, { name }).filter((path) => {
 			const parentType = (path.parent?.node as { type?: string } | undefined)?.type;
@@ -498,7 +491,7 @@ function isStillReferenced(j: JSCodeshift, root: Collection<unknown>, name: stri
 	);
 }
 
-function pruneUnusedLegacyTypeImports(j: JSCodeshift, root: Collection<unknown>): void {
+function pruneUnusedLegacyTypeImports(j: JSCodeshift, root: Collection): void {
 	root.find(j.ImportDeclaration, { source: { value: '@ecopages/core' } }).forEach((path) => {
 		path.node.specifiers = path.node.specifiers?.filter((spec) => {
 			if (spec.type !== 'ImportSpecifier' || spec.imported.type !== 'Identifier') {
@@ -516,7 +509,7 @@ function pruneUnusedLegacyTypeImports(j: JSCodeshift, root: Collection<unknown>)
 }
 
 /** Adds the extracted data hooks to an existing `eco.page({...})` options object, ahead of `render`. */
-function mergeIntoExistingEcoPage(j: JSCodeshift, ecoPageCall: Collection<unknown>, info: ExtractedPageInfo): boolean {
+function mergeIntoExistingEcoPage(j: JSCodeshift, ecoPageCall: Collection, info: ExtractedPageInfo): boolean {
 	let merged = false;
 	ecoPageCall.forEach((path) => {
 		const options = (path.node as { arguments?: Array<{ type?: string; properties?: Array<Record<string, any>> }> })
@@ -597,7 +590,7 @@ function migratePage(file: FileInfo, api: API): string | null {
 	if (info.componentName) {
 		root.find(j.VariableDeclaration).forEach((path) => {
 			const declarator = path.node.declarations?.[0];
-			if (declarator) {
+			if (declarator?.type === 'VariableDeclarator') {
 				applyComponentDeclaratorToPageInfo(declarator, info.componentName!, info);
 			}
 		});

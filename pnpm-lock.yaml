@@ -621,6 +621,9 @@ importers:
 
   packages/codemod:
     dependencies:
+      jscodeshift:
+        specifier: ^17.3.0
+        version: 17.4.0(supports-color@7.2.0)
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
@@ -628,12 +631,6 @@ importers:
       '@types/jscodeshift':
         specifier: ^17.3.0
         version: 17.3.0
-      jscodeshift:
-        specifier: ^17.3.0
-        version: 17.4.0(supports-color@7.2.0)
-      vitest:
-        specifier: ^4.1.6
-        version: 4.1.11(@types/node@24.13.3)(@vitest/browser-playwright@4.1.11)(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))
 
   packages/core:
     dependencies:

@@ -25,7 +25,7 @@ interface ExtractedComponentInfo {
 	renderBody: unknown;
 	dependencies: unknown | null;
 	exportType: 'named' | 'default';
-	declarationPath: ASTPath<unknown>;
+	declarationPath: ASTPath;
 }
 
 type TsTypeReferenceNode = {
@@ -41,14 +41,15 @@ function identifierFromTypeReference(node: TsTypeReferenceNode): string | null {
 	return node.typeName.name ?? null;
 }
 
-function extractEcoComponentPropsType(declarator: {
-	typeAnnotation?: { typeAnnotation?: { type?: string; typeParameters?: { params?: unknown[] } } };
-}): string | null {
-	if (declarator.typeAnnotation?.typeAnnotation?.type !== 'TSTypeReference') {
+function extractEcoComponentPropsType(declarator: { typeAnnotation?: unknown }): string | null {
+	const typeRef = (
+		declarator.typeAnnotation as
+			{ typeAnnotation?: { type?: string; typeParameters?: { params?: unknown[] } } } | undefined
+	)?.typeAnnotation;
+	if (typeRef?.type !== 'TSTypeReference') {
 		return null;
 	}
 
-	const typeRef = declarator.typeAnnotation.typeAnnotation;
 	const firstParam = typeRef.typeParameters?.params?.[0] as TsTypeReferenceNode | undefined;
 	if (!firstParam) {
 		return null;
@@ -64,7 +65,7 @@ function extractEcoComponentPropsType(declarator: {
 
 function tryExtractComponentFromVariableDeclaration(
 	j: JSCodeshift,
-	varPath: ASTPath<unknown>,
+	varPath: ASTPath,
 	componentName: string,
 	dependencies: unknown | null,
 ): ExtractedComponentInfo | null {
@@ -98,7 +99,7 @@ function tryExtractComponentFromVariableDeclaration(
 		renderBody: declarator.init,
 		dependencies,
 		exportType: isExported ? 'named' : 'default',
-		declarationPath: isExported ? (varPath.parent as ASTPath<unknown>) : varPath,
+		declarationPath: isExported ? (varPath.parent as ASTPath) : varPath,
 	};
 }
 
@@ -145,7 +146,7 @@ function isComponentConfigAssignment(expr: { type?: string; left?: unknown; righ
 	};
 }
 
-function componentAlreadyUsesEco(existingEcoComponent: Collection<unknown>, componentName: string): boolean {
+function componentAlreadyUsesEco(existingEcoComponent: Collection, componentName: string): boolean {
 	let alreadyMigrated = false;
 	existingEcoComponent.forEach((ecoPath) => {
 		const parent = ecoPath.parent?.node as { type?: string; id?: { name?: string } } | undefined;
@@ -156,7 +157,7 @@ function componentAlreadyUsesEco(existingEcoComponent: Collection<unknown>, comp
 	return alreadyMigrated;
 }
 
-function replaceComponentDeclaration(j: JSCodeshift, root: Collection<unknown>, comp: ExtractedComponentInfo): void {
+function replaceComponentDeclaration(j: JSCodeshift, root: Collection, comp: ExtractedComponentInfo): void {
 	const componentProperties: unknown[] = [];
 
 	if (comp.dependencies) {
@@ -185,7 +186,7 @@ function replaceComponentDeclaration(j: JSCodeshift, root: Collection<unknown>, 
 	}
 }
 
-function ensureEcoImport(j: JSCodeshift, root: Collection<unknown>): void {
+function ensureEcoImport(j: JSCodeshift, root: Collection): void {
 	const ecoImports = root.find(j.ImportDeclaration, {
 		source: { value: '@ecopages/core' },
 	});
@@ -219,7 +220,7 @@ function ensureEcoImport(j: JSCodeshift, root: Collection<unknown>): void {
 	}
 }
 
-function pruneUnusedLegacyComponentTypeImports(j: JSCodeshift, root: Collection<unknown>): void {
+function pruneUnusedLegacyComponentTypeImports(j: JSCodeshift, root: Collection): void {
 	const unusedTypeNames = new Set(['EcoComponent', 'PageProps']);
 	const ecoImports = root.find(j.ImportDeclaration, {
 		source: { value: '@ecopages/core' },

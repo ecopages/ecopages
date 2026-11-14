@@ -1,302 +1,304 @@
 {
-	"generatedAt": "2026-06-24T19:18:14.141Z",
-	"runtime": "node v24.15.0",
+	"generatedAt": "2026-11-14T09:48:44.912Z",
+	"runtime": "node v24.22.0",
 	"platform": "darwin",
 	"scenarios": {
-		"React page (.react.tsx)": {
-			"count": 158,
-			"min": 5.905,
-			"max": 32.259,
-			"mean": 9.533,
-			"median": 9.533,
-			"p75": 10.002,
-			"p99": 22.858,
-			"hz": 105
-		},
-		"React server-metadata page (.react.tsx)": {
-			"count": 68,
-			"min": 12.051,
-			"max": 68.114,
-			"mean": 22.205,
-			"median": 22.205,
-			"p75": 23.569,
-			"p99": 68.114,
-			"hz": 45
-		},
-		"React server-files index (.react.tsx)": {
-			"count": 85,
-			"min": 10.875,
-			"max": 169.571,
-			"mean": 17.744,
-			"median": 17.744,
-			"p75": 16.355,
-			"p99": 169.571,
-			"hz": 56
-		},
-		"KitaJS page (.kita.tsx)": {
-			"count": 96,
-			"min": 6.06,
-			"max": 135.342,
-			"mean": 15.836,
-			"median": 15.836,
-			"p75": 16.911,
-			"p99": 135.342,
-			"hz": 63
-		},
-		"KitaJS transitions page (.kita.tsx)": {
-			"count": 110,
-			"min": 7.645,
-			"max": 200.415,
-			"mean": 13.656,
-			"median": 13.656,
-			"p75": 12.176,
-			"p99": 66.172,
-			"hz": 73
-		},
-		"KitaJS postcss page (.kita.tsx)": {
-			"count": 108,
-			"min": 6.164,
-			"max": 78.15,
-			"mean": 13.906,
-			"median": 13.906,
-			"p75": 14.913,
-			"p99": 70.794,
-			"hz": 72
-		},
-		"KitaJS dynamic route catalog/[slug].kita.tsx": {
-			"count": 139,
-			"min": 6.072,
-			"max": 30.784,
-			"mean": 10.901,
-			"median": 10.901,
-			"p75": 11.898,
-			"p99": 24.382,
-			"hz": 92
-		},
-		"Lit page (.lit.tsx)": {
-			"count": 83,
-			"min": 12.998,
-			"max": 39.064,
-			"mean": 18.173,
-			"median": 18.173,
-			"p75": 20.293,
-			"p99": 39.064,
-			"hz": 55
-		},
-		"Ecopages-JSX page (.eco.tsx)": {
-			"count": 71,
-			"min": 14.694,
-			"max": 58.982,
-			"mean": 21.317,
-			"median": 21.317,
-			"p75": 22.623,
-			"p99": 58.982,
-			"hz": 47
-		},
-		"server entry bundle cold (kitchen-sink app.ts)": {
-			"count": 10,
-			"min": 368.332,
-			"max": 858.85,
-			"mean": 522.335,
-			"median": 522.335,
-			"p75": 629.026,
-			"p99": 858.85,
-			"hz": 2
-		},
-		"server entry bundle warm (.eco cache hit)": {
-			"count": 56,
-			"min": 10.616,
-			"max": 51.073,
-			"mean": 17.97,
-			"median": 17.97,
-			"p75": 18.165,
-			"p99": 51.073,
-			"hz": 56
-		},
-		"route-module rolldown cold (fresh loader + outdir)": {
-			"count": 114,
-			"min": 16.145,
-			"max": 103.985,
-			"mean": 26.353,
-			"median": 26.353,
-			"p75": 27.497,
-			"p99": 78.971,
-			"hz": 38
-		},
-		"route-module warm import cache hit (index.kita.tsx)": {
-			"count": 14252,
-			"min": 0.053,
-			"max": 26.789,
-			"mean": 0.105,
-			"median": 0.105,
-			"p75": 0.107,
-			"p99": 0.407,
-			"hz": 9501
-		},
-		"route-module warm import (3 static pages)": {
-			"count": 2523,
-			"min": 0.171,
-			"max": 237.441,
-			"mean": 0.793,
-			"median": 0.793,
-			"p75": 0.534,
-			"p99": 5.558,
-			"hz": 1261
-		},
-		"StaticSiteGenerator.run warm (kitchen-sink SSG)": {
-			"count": 53,
-			"min": 186.729,
-			"max": 588.708,
-			"mean": 229.613,
-			"median": 229.613,
-			"p75": 236.606,
-			"p99": 588.708,
-			"hz": 4
-		},
-		"buildStatic warm (unchanged sources)": {
-			"count": 83,
-			"min": 141.688,
-			"max": 349.483,
-			"mean": 182.434,
-			"median": 182.434,
-			"p75": 182.294,
-			"p99": 349.483,
-			"hz": 5
-		},
-		"buildStatic cold (force, scoped __bench-static-build__)": {
-			"count": 4,
-			"min": 3955.527,
-			"max": 6000.72,
-			"mean": 5369.885,
-			"median": 5369.885,
-			"p75": 5811.884,
-			"p99": 6000.72,
-			"hz": 0
-		},
-		"production single page (minify + treeshake)": {
-			"count": 172,
-			"min": 5.468,
-			"max": 87.716,
-			"mean": 8.731,
-			"median": 8.731,
-			"p75": 8.699,
-			"p99": 20.996,
-			"hz": 115
-		},
-		"production all pages (minify + treeshake + splitting)": {
-			"count": 106,
-			"min": 9.621,
-			"max": 63.574,
-			"mean": 14.247,
-			"median": 14.247,
-			"p75": 14.066,
-			"p99": 30.962,
-			"hz": 70
-		},
-		"warm route-module disk cache hit (index.kita.tsx)": {
-			"min": null,
-			"max": null,
-			"mean": null,
-			"median": null,
-			"p75": null,
-			"p99": null,
-			"hz": null
-		},
-		"warm route-module disk cache hit (5 pages)": {
-			"min": null,
-			"max": null,
-			"mean": null,
-			"median": null,
-			"p75": null,
-			"p99": null,
-			"hz": null
-		},
-		"heavy React page (react + react-dom + ecopages + lit + kitajs + mdx)": {
-			"count": 229,
-			"min": 4.269,
-			"max": 47.27,
-			"mean": 8.779,
-			"median": 8.779,
-			"p75": 8.879,
-			"p99": 37.965,
-			"hz": 114
-		},
 		"React page rebuild (react-lab.react.tsx)": {
-			"count": 88,
-			"min": 6.534,
-			"max": 96.067,
-			"mean": 17.055,
-			"median": 17.055,
-			"p75": 18.092,
-			"p99": 96.067,
-			"hz": 59
+			"count": 107,
+			"min": 5.431,
+			"max": 10.986,
+			"mean": 6.359,
+			"median": 5.945,
+			"p75": 6.239,
+			"p99": 10.001,
+			"hz": 157
 		},
 		"layout rebuild (base-layout.kita.tsx)": {
-			"count": 127,
-			"min": 6.541,
-			"max": 70.09,
-			"mean": 11.888,
-			"median": 11.888,
-			"p75": 12.752,
-			"p99": 42.052,
-			"hz": 84
+			"count": 92,
+			"min": 5.664,
+			"max": 17.186,
+			"mean": 7.139,
+			"median": 6.378,
+			"p75": 7.114,
+			"p99": 13.057,
+			"hz": 140
 		},
 		"shared-component rebuild (react-counter.react.tsx)": {
-			"count": 89,
-			"min": 6.496,
-			"max": 76.06,
-			"mean": 17.043,
-			"median": 17.043,
-			"p75": 16.81,
-			"p99": 76.06,
-			"hz": 59
+			"count": 87,
+			"min": 5.59,
+			"max": 20.008,
+			"mean": 7.415,
+			"median": 6.202,
+			"p75": 6.883,
+			"p99": 18.872,
+			"hz": 135
 		},
 		"concurrent rebuilds (5 parallel)": {
-			"count": 44,
-			"min": 14.676,
-			"max": 104.55,
-			"mean": 34.14,
-			"median": 34.14,
-			"p75": 31.683,
-			"p99": 104.55,
-			"hz": 29
+			"count": 107,
+			"min": 5.551,
+			"max": 11.123,
+			"mean": 6.29,
+			"median": 5.957,
+			"p75": 6.178,
+			"p99": 10.522,
+			"hz": 159
 		},
 		"no-op rebuild (file unchanged)": {
-			"count": 39,
-			"min": 13.114,
-			"max": 204.871,
-			"mean": 40.839,
-			"median": 40.839,
-			"p75": 51.934,
-			"p99": 204.871,
-			"hz": 24
+			"count": 110,
+			"min": 5.586,
+			"max": 11.467,
+			"mean": 6.058,
+			"median": 5.865,
+			"p75": 6.048,
+			"p99": 10.221,
+			"hz": 165
 		},
 		"watch-session warm rebuild loop (10 sequential saves)": {
-			"count": 10,
-			"min": 69.455,
-			"max": 3823.468,
-			"mean": 498.381,
-			"median": 498.381,
-			"p75": 99.46,
-			"p99": 3823.468,
-			"hz": 2
+			"count": 12,
+			"min": 58.638,
+			"max": 94.447,
+			"mean": 75.76,
+			"median": 75.51,
+			"p75": 79.901,
+			"p99": 89.173,
+			"hz": 13
+		},
+		"React page (.react.tsx)": {
+			"count": 103,
+			"min": 5.751,
+			"max": 14.199,
+			"mean": 6.366,
+			"median": 6.087,
+			"p75": 6.254,
+			"p99": 11.451,
+			"hz": 157
+		},
+		"React server-metadata page (.react.tsx)": {
+			"count": 342,
+			"min": 1.566,
+			"max": 6.003,
+			"mean": 2.011,
+			"median": 1.914,
+			"p75": 2.054,
+			"p99": 4.768,
+			"hz": 497
+		},
+		"React server-files index (.react.tsx)": {
+			"count": 286,
+			"min": 1.708,
+			"max": 5.448,
+			"mean": 2.2,
+			"median": 2.026,
+			"p75": 2.325,
+			"p99": 4.971,
+			"hz": 455
+		},
+		"KitaJS page (.kita.tsx)": {
+			"count": 86,
+			"min": 6.525,
+			"max": 12.412,
+			"mean": 7.37,
+			"median": 7.002,
+			"p75": 7.215,
+			"p99": 11.331,
+			"hz": 136
+		},
+		"KitaJS transitions page (.kita.tsx)": {
+			"count": 113,
+			"min": 5.416,
+			"max": 8.767,
+			"mean": 5.946,
+			"median": 5.819,
+			"p75": 6.079,
+			"p99": 8.41,
+			"hz": 168
+		},
+		"KitaJS postcss page (.kita.tsx)": {
+			"count": 99,
+			"min": 6.115,
+			"max": 11.053,
+			"mean": 6.571,
+			"median": 6.429,
+			"p75": 6.569,
+			"p99": 10.483,
+			"hz": 152
+		},
+		"KitaJS dynamic route catalog/[slug].kita.tsx": {
+			"count": 88,
+			"min": 6.662,
+			"max": 14.451,
+			"mean": 7.387,
+			"median": 7.053,
+			"p75": 7.256,
+			"p99": 12.156,
+			"hz": 135
+		},
+		"Lit page (.lit.tsx)": {
+			"count": 63,
+			"min": 9.5,
+			"max": 17.485,
+			"mean": 10.327,
+			"median": 9.76,
+			"p75": 10.088,
+			"p99": 14.232,
+			"hz": 97
+		},
+		"Ecopages-JSX page (.eco.tsx)": {
+			"count": 64,
+			"min": 9.48,
+			"max": 14.511,
+			"mean": 10.155,
+			"median": 9.871,
+			"p75": 10.081,
+			"p99": 14.305,
+			"hz": 98
+		},
+		"heavy React page (react + react-dom + ecopages + lit + kitajs + mdx)": {
+			"count": 25,
+			"min": 24.122,
+			"max": 25.191,
+			"mean": 24.515,
+			"median": 24.453,
+			"p75": 24.731,
+			"p99": 24.933,
+			"hz": 41
 		},
 		"repeated rebuild of a single React page": {
-			"count": 365,
-			"min": 2.717,
-			"max": 96.326,
-			"mean": 5.483,
-			"median": 5.483,
-			"p75": 5.71,
-			"p99": 14.184,
-			"hz": 182
+			"count": 101,
+			"min": 5.933,
+			"max": 12.069,
+			"mean": 6.531,
+			"median": 6.326,
+			"p75": 6.448,
+			"p99": 12.028,
+			"hz": 153
+		},
+		"production single page (minify + treeshake)": {
+			"count": 113,
+			"min": 5.087,
+			"max": 11.884,
+			"mean": 5.912,
+			"median": 5.441,
+			"p75": 5.847,
+			"p99": 9.038,
+			"hz": 169
+		},
+		"production all pages (minify + treeshake + splitting)": {
+			"count": 132,
+			"min": 4.467,
+			"max": 8.526,
+			"mean": 5.032,
+			"median": 4.809,
+			"p75": 4.952,
+			"p99": 8.129,
+			"hz": 199
+		},
+		"kitchen-sink server entry bundle cold (app.ts)": {
+			"count": 25,
+			"min": 21.948,
+			"max": 27.009,
+			"mean": 23.678,
+			"median": 23.246,
+			"p75": 24.034,
+			"p99": 26.863,
+			"hz": 42
+		},
+		"kitchen-sink route-module rolldown cold (index.kita.tsx)": {
+			"count": 60,
+			"min": 9.755,
+			"max": 14.548,
+			"mean": 10.562,
+			"median": 10.146,
+			"p75": 10.512,
+			"p99": 14.341,
+			"hz": 95
+		},
+		"kitchen-sink route-module warm import (index.kita.tsx)": {
+			"count": 12,
+			"min": 0.037,
+			"max": 0.053,
+			"mean": 0.039,
+			"median": 0.038,
+			"p75": 0.038,
+			"p99": 0.04,
+			"hz": 25472
+		},
+		"kitchen-sink route-module warm import (all integrations sample)": {
+			"count": 2387,
+			"min": 0.271,
+			"max": 1.753,
+			"mean": 0.293,
+			"median": 0.281,
+			"p75": 0.285,
+			"p99": 0.512,
+			"hz": 3416
+		},
+		"kitchen-sink buildStatic cold baseline (unified graph off, metrics)": {
+			"count": 12,
+			"min": 1337.323,
+			"max": 1493.246,
+			"mean": 1384.227,
+			"median": 1361.733,
+			"p75": 1407.256,
+			"p99": 1442.173,
+			"hz": 1
+		},
+		"kitchen-sink buildStatic cold unified graph (default on, metrics)": {
+			"count": 12,
+			"min": 1316.771,
+			"max": 1502.291,
+			"mean": 1376.049,
+			"median": 1353.376,
+			"p75": 1383.754,
+			"p99": 1476.15,
+			"hz": 1
+		},
+		"kitchen-sink StaticSiteGenerator.run cold unified graph (default on)": {
+			"count": 12,
+			"min": 811.188,
+			"max": 859.001,
+			"mean": 825.134,
+			"median": 816.378,
+			"p75": 820.742,
+			"p99": 858.942,
+			"hz": 1
+		},
+		"kitchen-sink buildStatic cold (full app, isolated dist)": {
+			"count": 12,
+			"min": 1322.493,
+			"max": 1502.261,
+			"mean": 1366.179,
+			"median": 1350.976,
+			"p75": 1363.714,
+			"p99": 1386.37,
+			"hz": 1
+		},
+		"kitchen-sink warm route-module import (index.kita.tsx)": {
+			"count": 12,
+			"min": 0.039,
+			"max": 0.07,
+			"mean": 0.044,
+			"median": 0.04,
+			"p75": 0.042,
+			"p99": 0.047,
+			"hz": 22916
+		},
+		"kitchen-sink warm route-module import (all integrations sample)": {
+			"count": 2217,
+			"min": 0.282,
+			"max": 3.75,
+			"mean": 0.311,
+			"median": 0.288,
+			"p75": 0.292,
+			"p99": 1.002,
+			"hz": 3216
 		}
 	},
 	"notes": [
-		"Bench uses Vitest native bench() API (tinybench under the hood).",
-		"Each bench runs until `time` ms elapse, then reports min/median/p75/p99/etc.",
+		"Bench uses mitata (https://github.com/evanwashere/mitata).",
+		"Each scenario runs until mitata collects stable samples, then reports min/median/p75/p99.",
 		"Bundle path is fast: single-file rebuilds complete in single-digit ms on the kitchen-sink.",
-		"Heavy library import graph (react + react-dom + lit + kitajs + mdx) added in heavy-bench.bench.ts.",
+		"Heavy library import graph (react + react-dom + lit + kitajs + mdx) in heavy-bench.ts.",
 		"Run `pnpm test:bench:compare` to diff current results against this baseline."
 	]
 }

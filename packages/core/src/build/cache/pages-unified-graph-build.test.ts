@@ -172,7 +172,7 @@ describe('production server-module graph', () => {
 
 		assert.deepEqual(
 			findReEmittedModules(initial, next, { entryPaths: ['/app/src/pages/index.tsx'], rootDir: '/app' }),
-			['/app/src/shells/shell.tsx'],
+			[path.resolve('/app/src/shells/shell.tsx')],
 		);
 	});
 });

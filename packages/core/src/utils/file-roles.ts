@@ -72,10 +72,6 @@ export function describeRoleForms(): string {
 	return FILE_ROLES.map((role) => `<name>.${role}.<ts|tsx|js|jsx>`).join(', ');
 }
 
-const SERVER_MODULE_PATTERN = new RegExp(
-	`(?:^|/)[^/]+\\.server(?:${[...FILE_ROLE_SCRIPT_EXTENSIONS, '.mjs', '.cjs'].map((extension) => extension.replace('.', '\\.')).join('|')})?$`,
-);
-
 /**
  * Whether `specifier` names a `.server` module: `<name>.server`, with or without a script extension.
  *
@@ -87,5 +83,16 @@ const SERVER_MODULE_PATTERN = new RegExp(
  * in the browser.
  */
 export function isServerOnlyModuleSpecifier(specifier: string): boolean {
-	return SERVER_MODULE_PATTERN.test(specifier.replace(/[?#].*$/, ''));
+	const queryStart = specifier.indexOf('?');
+	const fragmentStart = specifier.indexOf('#');
+	const suffixStart = Math.min(
+		queryStart === -1 ? specifier.length : queryStart,
+		fragmentStart === -1 ? specifier.length : fragmentStart,
+	);
+	const path = specifier.slice(0, suffixStart);
+	const name = path.slice(path.lastIndexOf('/') + 1);
+	return [...FILE_ROLE_SCRIPT_EXTENSIONS, '.mjs', '.cjs', ''].some((extension) => {
+		const suffix = `.server${extension}`;
+		return name.length > suffix.length && name.endsWith(suffix);
+	});
 }

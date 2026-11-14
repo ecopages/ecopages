@@ -8,6 +8,11 @@ test.each([
 	'pkg/db.server.mjs',
 	'./db.server?raw',
 	'./db.server#module',
+	'./db.server.ts?raw#x',
+	'./db.server.cjs',
+	'./db.server.tsx?v=1',
+	'./x.server/db.server.ts',
+	'/a/b/c/db.server.jsx',
 ])('classifies %s as server-only', (specifier) => {
 	expect(isServerOnlyModuleSpecifier(specifier)).toBe(true);
 });
@@ -19,6 +24,12 @@ test.each([
 	'./db.client.ts',
 	'./db.client?file=auth.server.ts',
 	'./card.server.kita.tsx',
+	'server.ts',
+	'.server',
+	'./.server.ts',
+	'./x.server/db.ts',
+	'./x.server/',
+	'./db.client?x=y/db.server',
 ])('allows browser module %s', (specifier) => {
 	expect(isServerOnlyModuleSpecifier(specifier)).toBe(false);
 });

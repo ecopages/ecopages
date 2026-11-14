@@ -80,7 +80,7 @@ dependencies: {
 
 ### Bare imports in browser modules
 
-On React sites, a bare side-effect import (`import '@scope/pkg/define-element'`) in a component, page, layout, script or helper stays in the browser bundle, whichever folder the file is in. Only `.server` modules and `node:` specifiers are removed from the browser build (an unprefixed built-in such as `import 'fs'` fails the build with a `[browser-build] Node builtin` error), and stylesheet imports are delivered by Ecopages as CSS. `dependencies.modules` is not needed to keep a bare import.
+On React sites, a bare side-effect import (`import '@scope/pkg/define-element'`) in a component, page, layout, script or helper stays in the browser bundle, whichever folder the file is in. Only `.server` modules and Node built-ins (`node:fs` or `fs`) are removed from the browser build. A server-only package such as `pg` stays, and the build fails with a `[browser-build] Node builtin` error that names your module, the chain of packages to the built-in and the `.server` fix. Stylesheet imports are delivered by Ecopages as CSS. `dependencies.modules` is not needed to keep a bare import.
 
 ### Troubleshooting custom element SSR
 

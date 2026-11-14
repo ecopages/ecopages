@@ -359,6 +359,8 @@ export function resolveRelativeModulePath(fromFile: string, specifier: string): 
  *
  * @remarks
  * A query or hash on the specifier, such as a module variant, is not part of the file and is dropped.
+ * oxc-resolver returns native paths, so a result is converted to forward slashes like every other path core
+ * compares; it is already real, since the resolver follows symbolic links.
  */
 export function resolveProjectModulePath(
 	projectRoot: string,
@@ -379,9 +381,8 @@ export function resolveProjectModulePath(
 	if (resolver) {
 		const result = resolver.sync(path.dirname(fromFile), specifier);
 		if (result.path) {
-			return options?.preserveBarrel
-				? result.path
-				: resolveAliasedBarrelTarget(result.path);
+			const resolved = path.fromNative(result.path);
+			return options?.preserveBarrel ? resolved : resolveAliasedBarrelTarget(resolved);
 		}
 	}
 
@@ -458,5 +459,5 @@ const packageModuleResolver = new ResolverFactory({
  */
 export function resolvePackageModulePath(fromFile: string, specifier: string): string | undefined {
 	const result = packageModuleResolver.sync(path.dirname(fromFile), specifier);
-	return result.path || undefined;
+	return result.path ? path.fromNative(result.path) : undefined;
 }

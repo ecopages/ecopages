@@ -157,31 +157,37 @@ buildStatic cold (full app, isolated dist)         |       1,351 |   1,386
 
 **Static versus per-request.** `ecopages build` pre-renders every page to `dist/client/*.html`, but `ecopages start` does not serve those files for page routes. It renders a page on its first request and answers later requests from an in-memory page cache (`X-Cache: MISS`, then `HIT`). Benchmarking the default config would therefore measure a cache lookup. The bench config `bench/ssr-bench.eco.config.ts` sets `cache: { enabled: false }`, so every request renders its page (`X-Cache: DISABLED`). `--cache` (or `ECOPAGES_BENCH_SSR_CACHE=1`) leaves the cache on and measures the hit path.
 
-| Route name           | Path                                     | Why                                                     |
-| -------------------- | ---------------------------------------- | ------------------------------------------------------- |
-| `kita`               | `/`                                      | Kita page                                               |
-| `kita-dynamic`       | `/patterns/middleware`                   | Kita page with `cache: 'dynamic'` and middleware locals |
-| `kita-explicit-view` | `/latest`                                | Explicit `app.get` route using `ctx.render`             |
-| `react`              | `/react-lab`                             | React page                                              |
-| `lit-ssr`            | `/integration-matrix/lit-entry`          | Lit page with declarative shadow DOM                    |
-| `mdx`                | `/docs`                                  | MDX page (`docs.md`)                                    |
-| `ecopages-jsx`       | `/integration-matrix/ecopages-jsx-entry` | Ecopages-JSX page                                       |
-| `api`                | `/api/v1/ping`                           | API endpoint, no page render                            |
+| Route name            | Path                                     | Why                                                     |
+| --------------------- | ---------------------------------------- | ------------------------------------------------------- |
+| `kita`                | `/`                                      | Kita page                                               |
+| `kita-dynamic`        | `/patterns/middleware`                   | Kita page with `cache: 'dynamic'` and middleware locals |
+| `kita-explicit-view`  | `/latest`                                | Explicit `app.get` route using `ctx.render`             |
+| `react`               | `/react-lab`                             | React page                                              |
+| `lit-ssr`             | `/variant-lit`                           | Small single-integration Lit page                       |
+| `matrix-lit`          | `/integration-matrix/lit-entry`          | Multi-integration matrix page (about 16 islands)        |
+| `mdx`                 | `/docs`                                  | MDX page (`docs.md`)                                    |
+| `ecopages-jsx`        | `/ecopages-jsx-hmr`                      | Small single-integration Ecopages-JSX page              |
+| `matrix-ecopages-jsx` | `/integration-matrix/ecopages-jsx-entry` | Multi-integration matrix page (about 16 islands)        |
+| `api`                 | `/api/v1/ping`                           | API endpoint, no page render                            |
 
-Node 24.22.0 and Bun 1.4.0, Apple M4, cache off, 10 connections, 10 s. Load average (1 min) was 4.0 to 4.5 at the end of each run, which includes the bench's own server and autocannon; a run at load 11 or more showed `lit-ssr` at 212 req/s, so rerun when the machine is busy.
+The `matrix-*` routes render the whole integration matrix, so they measure cross-integration composition, not Lit or JSX on their own; read `lit-ssr` and `ecopages-jsx` for the single-integration cost.
 
-| Route                | Node req/s | Node p50 / p99 (ms) | Bun req/s | Bun p50 / p99 (ms) |
-| -------------------- | ---------: | ------------------: | --------: | -----------------: |
-| `kita`               |      3,203 |               2 / 6 |     3,900 |              1 / 7 |
-| `kita-dynamic`       |      3,518 |               2 / 6 |     4,375 |              1 / 5 |
-| `kita-explicit-view` |      3,926 |               2 / 5 |     4,588 |              1 / 5 |
-| `react`              |      1,339 |              6 / 15 |     1,831 |             4 / 11 |
-| `lit-ssr`            |        726 |             13 / 27 |       743 |            12 / 25 |
-| `mdx`                |      2,261 |               3 / 8 |     3,595 |              2 / 6 |
-| `ecopages-jsx`       |        667 |             14 / 27 |       618 |            15 / 30 |
-| `api`                |     21,560 |               0 / 0 |    26,633 |              0 / 1 |
+Node 24.22.0 and Bun 1.4.0, Apple M4, cache off, 10 connections, 10 s. The machine was shared with other work: load average (1 min) was 7.4 at the end of the Node run and 5.7 at the end of the Bun run, which includes the bench's own server and autocannon. Another Node run at load 8.3 showed `kita-dynamic` at 1,221 req/s and `kita-explicit-view` at 790 req/s against 4.9k and 4.6k here, so rerun when the machine is busy.
 
-Every route reported 0 errors, timeouts and non-2xx responses. Server RSS stayed flat (about 129 MB before and 63 to 129 MB after on Node, 64 MB on Bun). With the page cache on (Node), the page routes serve 10.8k to 15.7k req/s at p99 of 1 ms, except `kita-dynamic` and `kita-explicit-view`, which are never cached.
+| Route                 | Node req/s | Node p50 / p99 (ms) | Bun req/s | Bun p50 / p99 (ms) |
+| --------------------- | ---------: | ------------------: | --------: | -----------------: |
+| `kita`                |      4,296 |               1 / 5 |     2,421 |             2 / 17 |
+| `kita-dynamic`        |      4,926 |               1 / 4 |     3,018 |             2 / 12 |
+| `kita-explicit-view`  |      4,611 |               1 / 9 |     4,693 |              1 / 9 |
+| `react`               |        740 |             10 / 41 |     1,144 |             6 / 27 |
+| `lit-ssr`             |      2,632 |              2 / 16 |     3,884 |             1 / 10 |
+| `matrix-lit`          |        429 |             15 / 83 |       397 |            22 / 57 |
+| `mdx`                 |      1,570 |              5 / 19 |     4,095 |              1 / 8 |
+| `ecopages-jsx`        |      2,773 |              2 / 10 |     5,676 |              1 / 4 |
+| `matrix-ecopages-jsx` |        461 |             19 / 52 |       871 |            10 / 21 |
+| `api`                 |     21,667 |               0 / 0 |    29,463 |              0 / 1 |
+
+Every route reported 0 errors, timeouts and non-2xx responses. Server RSS stayed flat (about 104 MB before and 82 MB after on Node, 33 to 35 MB on Bun). With the page cache on (Node), the page routes served 10.8k to 15.7k req/s at p99 of 1 ms in an earlier run, except `kita-dynamic` and `kita-explicit-view`, which are never cached.
 
 ## Baseline (Phase 1, post PR-1.1 + PR-1.2, 2026-06-06)
 

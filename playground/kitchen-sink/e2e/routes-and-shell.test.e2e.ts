@@ -41,6 +41,30 @@ test.describe('Shell and navigation @content', () => {
 		runtime.assertClean();
 	});
 
+	test('renders the Kita theme toggle without shipping React @content', async ({ page }) => {
+		const runtime = trackRuntimeErrors(page);
+		const scriptUrls: string[] = [];
+		page.on('request', (request) => {
+			if (request.resourceType() === 'script') scriptUrls.push(request.url());
+		});
+
+		await gotoPathSimple(page, '/api-lab');
+
+		const toggle = page.getByTestId('theme-toggle');
+		await expect(toggle).toHaveAttribute('aria-label', 'Toggle theme');
+		await expect(toggle).toHaveAttribute('type', 'button');
+		await expect(page.locator('[data-eco-island-integration="react"]')).toHaveCount(0);
+		expect(scriptUrls.filter((url) => url.includes('react'))).toEqual([]);
+
+		await page.evaluate(() => localStorage.setItem('theme', 'light'));
+		await toggle.click();
+		await expect
+			.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-theme')))
+			.toBe('dark');
+		expect(await page.evaluate(() => localStorage.getItem('theme'))).toBe('dark');
+		runtime.assertClean();
+	});
+
 	test('covers explicit routes, imperative rendering, catalog routes, and the custom 404', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 

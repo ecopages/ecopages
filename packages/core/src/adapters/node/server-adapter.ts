@@ -21,6 +21,7 @@ import { disposeDevResources, prepareRuntimePublicDir } from '../shared/runtime/
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import type { RuntimeHost } from './runtime-host.ts';
+import { compileApiRoutes, type ApiRoutes } from '../shared/http/api-request-pipeline.ts';
 import { serveDistFile } from '../shared/http/dist-file-handler.ts';
 import { applyResponseHeaders } from '../shared/http/response-headers.ts';
 import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
@@ -99,6 +100,7 @@ export class NodeServerAdapter {
 	private phase: ServerAdapterPhase = 'idle';
 	private ready: Promise<void> | undefined;
 	private apiHandlers: ApiHandler[];
+	private readonly apiRoutes: ApiRoutes;
 	private staticRoutes: StaticRoute[];
 	private errorPageLoaders: ErrorPageLoaders;
 	private errorHandler?: ErrorHandler;
@@ -146,6 +148,7 @@ export class NodeServerAdapter {
 		this.allowPortFallback = options.allowPortFallback !== false;
 		this.onDevelopmentRestart = options.onDevelopmentRestart;
 		this.apiHandlers = options.apiHandlers || [];
+		this.apiRoutes = compileApiRoutes(this.apiHandlers);
 		this.staticRoutes = options.staticRoutes || [];
 		this.errorPageLoaders = options.errorPageLoaders ?? {};
 		this.errorHandler = options.errorHandler;
@@ -432,7 +435,7 @@ export class NodeServerAdapter {
 		await this.initialize();
 
 		const context: ServerRequestContext = {
-			apiHandlers: this.apiHandlers,
+			apiRoutes: this.apiRoutes,
 			errorHandler: this.errorHandler,
 			serverInstance: this.serverInstance,
 		};

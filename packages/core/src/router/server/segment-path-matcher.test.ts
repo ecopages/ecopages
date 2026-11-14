@@ -3,7 +3,7 @@ import { HttpError } from '../../errors/http-error.ts';
 import {
 	buildSegmentPath,
 	matchSegmentPath,
-	scoreSegmentPathPattern,
+	compileSegmentPattern,
 	segmentPathPatternKey,
 } from './segment-path-matcher.ts';
 
@@ -71,11 +71,11 @@ describe('matchSegmentPath', () => {
 	});
 
 	it('ranks literal API and WebSocket routes ahead of parameter routes', () => {
-		expect(scoreSegmentPathPattern('/api/posts/latest', 'api')).toBeGreaterThan(
-			scoreSegmentPathPattern('/api/posts/[id]', 'api'),
+		expect(compileSegmentPattern('/api/posts/latest', 'api').score).toBeGreaterThan(
+			compileSegmentPattern('/api/posts/[id]', 'api').score,
 		);
-		expect(scoreSegmentPathPattern('/ws/chat/lobby', 'websocket')).toBeGreaterThan(
-			scoreSegmentPathPattern('/ws/chat/:room', 'websocket'),
+		expect(compileSegmentPattern('/ws/chat/lobby', 'websocket').score).toBeGreaterThan(
+			compileSegmentPattern('/ws/chat/:room', 'websocket').score,
 		);
 	});
 });

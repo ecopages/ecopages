@@ -63,7 +63,7 @@ describe('RouteRegistry', () => {
 		const registry = createRegistry();
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname,
 				kind: pathname.includes('[...') ? 'catch-all' : 'dynamic',
@@ -71,7 +71,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/example.ts',
 				paramNames: [],
 			},
-		];
+		]);
 
 		const result = registry.matchRequest(`http://localhost:3000${requestPathname}`);
 
@@ -131,9 +131,9 @@ describe('RouteRegistry', () => {
 		const registry = createRegistry();
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{ pathname: '/page', kind: 'exact', role: 'page', filePath: '/pages/page.ts', paramNames: [] },
-		];
+		]);
 
 		const result = registry.matchRequest('http://localhost:3000/page?sort=asc&page=2');
 
@@ -147,7 +147,7 @@ describe('RouteRegistry', () => {
 		const registry = createRegistry();
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname: '/blog/latest',
 				kind: 'exact',
@@ -162,7 +162,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/blog/[slug].ts',
 				paramNames: ['slug'],
 			},
-		];
+		]);
 
 		const result = registry.matchRequest('http://localhost:3000/blog/latest');
 
@@ -401,7 +401,7 @@ describe('RouteRegistry', () => {
 		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname: '/blog/[slug]',
 				kind: 'dynamic',
@@ -409,7 +409,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/blog/[slug].ts',
 				paramNames: ['slug'],
 			},
-		];
+		]);
 
 		const expansions = await registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' });
 
@@ -438,7 +438,7 @@ describe('RouteRegistry', () => {
 		};
 		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
 		await registry.init();
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname: '/blog/[slug]',
 				kind: 'dynamic',
@@ -446,7 +446,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/blog/[slug].ts',
 				paramNames: ['slug'],
 			},
-		];
+		]);
 
 		const expansions = await registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' });
 
@@ -459,7 +459,7 @@ describe('RouteRegistry', () => {
 		};
 		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
 		await registry.init();
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname: '/blog/[slug]',
 				kind: 'dynamic',
@@ -467,7 +467,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/blog/[slug].ts',
 				paramNames: ['slug'],
 			},
-		];
+		]);
 
 		await expect(registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' })).rejects.toThrow(
 			'Missing paths in /pages/blog/[slug].ts',
@@ -482,7 +482,7 @@ describe('RouteRegistry', () => {
 		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname: '/admin/posts/[id]',
 				kind: 'dynamic',
@@ -490,7 +490,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/admin/posts/[id].ts',
 				paramNames: ['id'],
 			},
-		];
+		]);
 
 		await expect(registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' })).resolves.toEqual(
 			[],
@@ -511,7 +511,7 @@ describe('RouteRegistry', () => {
 		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname: '/posts/[slug]',
 				kind: 'dynamic',
@@ -519,7 +519,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/posts/[slug].ts',
 				paramNames: ['slug'],
 			},
-		];
+		]);
 
 		await expect(registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' })).resolves.toEqual(
 			[],
@@ -562,7 +562,7 @@ describe('RouteRegistry', () => {
 		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{ pathname: '/', kind: 'exact', role: 'page', filePath: '/pages/index.ts', paramNames: [] },
 			{
 				pathname: '/blog/[slug]',
@@ -571,7 +571,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/blog/[slug].ts',
 				paramNames: ['slug'],
 			},
-		];
+		]);
 
 		const routes = await registry.listStaticGenerationRoutes({ runtimeOrigin: 'http://localhost:3000' });
 

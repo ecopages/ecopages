@@ -5,7 +5,8 @@ import { runMiddlewareChain } from './run-middleware-chain.ts';
 import {
 	matchParsedSegmentPath,
 	parseSegmentPath,
-	scoreSegmentPathPattern,
+	compileSegmentPattern,
+	type SegmentPattern,
 	type ParsedSegmentPath,
 } from '../../../router/server/segment-path-matcher.ts';
 import { appLogger } from '../../../global/app-logger.ts';
@@ -25,6 +26,31 @@ import type { ApiResponseBuilder as ApiResponseBuilderContract } from '../../../
 
 type ParsedRequestBody = { value: unknown } | { response: Response };
 
+/**
+ * API handlers with their patterns parsed and ordered from most to least specific.
+ *
+ * @remarks Build it with {@link compileApiRoutes} when the handlers are known, so a request only walks the
+ * list. Equal scores keep registration order.
+ */
+export type ApiRoutes<TRequest extends Request = Request, TServer = unknown> = ReadonlyArray<{
+	handler: ApiHandler<string, TRequest, TServer>;
+	/** The handler's method, upper-cased; `GET` when the handler names none. */
+	method: string;
+	pattern: SegmentPattern<'api'>;
+}>;
+
+export function compileApiRoutes<TRequest extends Request = Request, TServer = unknown>(
+	handlers: readonly ApiHandler<string, TRequest, TServer>[],
+): ApiRoutes<TRequest, TServer> {
+	return handlers
+		.map((handler) => ({
+			handler,
+			method: (handler.method || 'GET').toUpperCase(),
+			pattern: compileSegmentPattern(handler.path, 'api'),
+		}))
+		.sort((a, b) => b.pattern.score - a.pattern.score);
+}
+
 export type ApiRequestPipelineOptions = {
 	getRenderContext: () => RenderContext;
 	getCacheService: () => CacheInvalidator | null;
@@ -41,26 +67,21 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 
 	match(
 		request: TRequest,
-		apiHandlers: ApiHandler<string, TRequest, TServer>[],
+		apiRoutes: ApiRoutes<TRequest, TServer>,
 		parsedPathSegments?: ParsedSegmentPath,
 	): { routeConfig: ApiHandler<string, TRequest, TServer>; params: PageParams } | null {
 		const pathname = new URL(request.url).pathname;
 		const pathSegments = parsedPathSegments ?? parseSegmentPath(pathname);
 		const method = request.method.toUpperCase();
 
-		const sortedHandlers = [...apiHandlers].sort((a, b) => {
-			return scoreSegmentPathPattern(b.path, 'api') - scoreSegmentPathPattern(a.path, 'api');
-		});
-
-		for (const routeConfig of sortedHandlers) {
-			const routeMethod = (routeConfig.method || 'GET').toUpperCase();
+		for (const { handler, method: routeMethod, pattern } of apiRoutes) {
 			if (routeMethod !== method) {
 				continue;
 			}
 
-			const params = matchParsedSegmentPath(routeConfig.path, pathSegments, 'api');
+			const params = matchParsedSegmentPath(pattern, pathSegments);
 			if (params) {
-				return { routeConfig, params };
+				return { routeConfig: handler, params };
 			}
 		}
 
@@ -69,7 +90,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 
 	async tryHandle(
 		request: TRequest,
-		apiHandlers: ApiHandler<string, TRequest, TServer>[],
+		apiRoutes: ApiRoutes<TRequest, TServer>,
 		serverInstance: TServer | undefined,
 		errorHandler?: ErrorHandler<TRequest, TServer>,
 		parsedPathSegments?: ParsedSegmentPath,
@@ -79,7 +100,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 			params: PageParams;
 		} | null;
 		try {
-			apiMatch = this.match(request, apiHandlers, parsedPathSegments);
+			apiMatch = this.match(request, apiRoutes, parsedPathSegments);
 		} catch (error) {
 			return await this.handleError(error, { request, serverInstance, errorHandler });
 		}

@@ -8,7 +8,7 @@ import { WebSocket } from 'ws';
 import { z } from 'zod';
 import { appLogger } from '../../global/app-logger.ts';
 import type { ApiHandler, RenderContext } from '../../types/contracts.ts';
-import { ApiRequestPipeline } from '../shared/http/api-request-pipeline.ts';
+import { ApiRequestPipeline, compileApiRoutes } from '../shared/http/api-request-pipeline.ts';
 import { defineQuery } from '../shared/http/define-api-handler.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocket-upgrades.ts';
@@ -115,7 +115,8 @@ describe('NodeRuntimeHost', () => {
 			hostname: '127.0.0.1',
 			port: 0,
 			handleRequest: async (request) =>
-				(await pipeline.tryHandle(request, apiHandlers, undefined)) ?? new Response(null, { status: 404 }),
+				(await pipeline.tryHandle(request, compileApiRoutes(apiHandlers), undefined)) ??
+				new Response(null, { status: 404 }),
 		});
 
 		try {

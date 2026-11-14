@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findWebSocketRoute } from './ws-pattern-matcher.ts';
+import { compileWebSocketRoutes, findWebSocketRoute } from './ws-pattern-matcher.ts';
 import type { EcopagesWebSocketHandler } from '../../../types/contracts.ts';
 
 describe('findWebSocketRoute', () => {
@@ -9,7 +9,7 @@ describe('findWebSocketRoute', () => {
 			['/ws/chat/lobby', { onConnect: () => {} }],
 		]);
 
-		const match = findWebSocketRoute(handlers, '/ws/chat/lobby');
+		const match = findWebSocketRoute(compileWebSocketRoutes(handlers), '/ws/chat/lobby');
 		expect(match?.kind).toBe('/ws/chat/lobby');
 	});
 
@@ -21,18 +21,18 @@ describe('findWebSocketRoute', () => {
 			['/ws/:x/:y', second],
 		]);
 
-		const match = findWebSocketRoute(handlers, '/ws/one/two');
+		const match = findWebSocketRoute(compileWebSocketRoutes(handlers), '/ws/one/two');
 		expect(match?.handler).toBe(first);
 	});
 
 	it('returns null when no pattern matches', () => {
 		const handlers = new Map<string, EcopagesWebSocketHandler>([['/ws/chat/:roomId', { onConnect: () => {} }]]);
-		expect(findWebSocketRoute(handlers, '/api/health')).toBeNull();
+		expect(findWebSocketRoute(compileWebSocketRoutes(handlers), '/api/health')).toBeNull();
 	});
 
 	it('decodes route params before the handler receives them', () => {
 		const handler = { onConnect: () => {} };
-		const match = findWebSocketRoute(new Map([['/ws/:room', handler]]), '/ws/caf%C3%A9');
+		const match = findWebSocketRoute(compileWebSocketRoutes(new Map([['/ws/:room', handler]])), '/ws/caf%C3%A9');
 
 		expect(match?.params).toEqual({ room: 'café' });
 	});

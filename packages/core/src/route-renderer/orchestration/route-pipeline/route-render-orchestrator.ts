@@ -89,16 +89,8 @@ export type RouteRenderHost<C> = Pick<
 	| 'getPageSsrScriptIntegrationNames'
 	| 'renderRouteBody'
 	| 'getRouteHtmlFinalization'
-	| 'transformRouteResponse'
+	| 'transformRouteHtml'
 >;
-
-/**
- * Captured route-render output in both replayable body and string HTML forms.
- */
-export interface CapturedHtmlRenderResult {
-	body: RouteRendererBody;
-	html: string;
-}
 
 /**
  * Optional app-scoped collaborators used by the route render orchestrator.
@@ -461,16 +453,11 @@ export class RouteRenderOrchestrator {
 	}
 
 	/**
-	 * Captures one route render body as HTML while preserving a replayable body value.
+	 * Reads one route render body as an HTML string.
 	 */
-	async captureHtmlRender(render: () => Promise<RouteRendererBody>): Promise<CapturedHtmlRenderResult> {
-		const renderedBody = await render();
-		const capturedRender = await this.captureRenderedBody(renderedBody);
-
-		return {
-			body: capturedRender.body,
-			html: capturedRender.html,
-		};
+	async captureHtmlRender(render: () => Promise<RouteRendererBody>): Promise<string> {
+		const body = await render();
+		return typeof body === 'string' ? body : new Response(body as BodyInit).text();
 	}
 
 	/**
@@ -491,11 +478,11 @@ export class RouteRenderOrchestrator {
 		renderOptions: InternalIntegrationRendererRenderOptions<C>,
 		renderer: RouteRenderHost<C>,
 	): Promise<RouteRenderResult> {
-		const renderExecution = await measureRouteRenderPhase(this.requestPipelineMetrics, 'render-body', () =>
+		const renderedHtml = await measureRouteRenderPhase(this.requestPipelineMetrics, 'render-body', () =>
 			this.captureHtmlRender(async () => renderer.renderRouteBody(renderOptions)),
 		);
 		const sourceDependencyPaths = this.withHtmlTemplateClosure(renderOptions.sourceDependencyPaths);
-		const unresolvedArtifactInspection = inspectUnresolvedMarkerArtifactHtml(renderExecution.html);
+		const unresolvedArtifactInspection = inspectUnresolvedMarkerArtifactHtml(renderedHtml);
 		const htmlFinalization = renderer.getRouteHtmlFinalization(renderOptions);
 		const hasUnresolvedMarkerHtml = unresolvedArtifactInspection.hasUnresolvedMarkerArtifacts;
 
@@ -505,44 +492,12 @@ export class RouteRenderOrchestrator {
 			);
 		}
 
-		const canReuseCapturedBody = !hasUnresolvedMarkerHtml && htmlFinalization.finalizeHtml === undefined;
-
-		if (canReuseCapturedBody) {
-			const responseBody = typeof renderExecution.body === 'string' ? renderExecution.body : renderExecution.html;
-			const body = await measureRouteRenderPhase(this.requestPipelineMetrics, 'transform-response', () =>
-				renderer.transformRouteResponse(
-					new Response(responseBody, {
-						headers: {
-							'Content-Type': 'text/html',
-						},
-					}),
-					htmlFinalization.htmlContributions,
-					renderOptions,
-				),
-			);
-
-			return {
-				body,
-				cacheStrategy: renderOptions.cacheStrategy,
-				sourceDependencyPaths,
-				metadata: renderOptions.metadata,
-			};
-		}
-
-		const finalization = htmlFinalization.finalizeHtml
+		const finalHtml = htmlFinalization.finalizeHtml
 			? htmlFinalization.finalizeHtml(unresolvedArtifactInspection.normalizedHtml)
-			: unresolvedArtifactInspection.normalizedHtml;
+			: renderedHtml;
 
 		const body = await measureRouteRenderPhase(this.requestPipelineMetrics, 'transform-response', () =>
-			renderer.transformRouteResponse(
-				new Response(finalization, {
-					headers: {
-						'Content-Type': 'text/html',
-					},
-				}),
-				htmlFinalization.htmlContributions,
-				renderOptions,
-			),
+			renderer.transformRouteHtml(finalHtml, htmlFinalization.htmlContributions, renderOptions),
 		);
 
 		return {
@@ -599,31 +554,6 @@ export class RouteRenderOrchestrator {
 			key: path.resolve(htmlTemplatePath),
 		});
 		return [...new Set([...sourcePaths, ...templateClosure])];
-	}
-
-	private async captureRenderedBody(body: RouteRendererBody): Promise<{ body: RouteRendererBody; html: string }> {
-		const response = new Response(body as BodyInit);
-
-		if (typeof body === 'string') {
-			return {
-				body,
-				html: await response.text(),
-			};
-		}
-
-		if (!response.body) {
-			return {
-				body,
-				html: await response.text(),
-			};
-		}
-
-		const [capturedBody, replayBody] = response.body.tee();
-
-		return {
-			body: replayBody,
-			html: await new Response(capturedBody).text(),
-		};
 	}
 }
 

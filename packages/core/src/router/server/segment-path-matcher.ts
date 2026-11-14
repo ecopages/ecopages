@@ -12,6 +12,11 @@ type PatternSegment =
 	| { kind: 'catch-all'; name: string }
 	| { kind: 'wildcard' };
 
+/** Joined catch-all values make `explicit` and `websocket` params plain strings. */
+type MatchedParams<S extends SegmentPathSyntax> = S extends 'explicit' | 'websocket'
+	? Record<string, string>
+	: SegmentPathParams;
+
 type SegmentPathSyntaxOptions = {
 	bracketParams: boolean;
 	colonParams: boolean;
@@ -111,6 +116,38 @@ function parsePattern(pattern: string, syntax: SegmentPathSyntax): PatternSegmen
 }
 
 /**
+ * A route pattern parsed once, with the specificity score that orders it against other patterns.
+ *
+ * @remarks
+ * Build one with {@link compileSegmentPattern} when the route is registered, so a request only compares
+ * path segments. The score is the `api` ordering for every syntax but `websocket`, which has its own.
+ */
+export type SegmentPattern<S extends SegmentPathSyntax = SegmentPathSyntax> = {
+	readonly syntax: S;
+	readonly segments: readonly PatternSegment[];
+	readonly score: number;
+};
+
+function scorePatternSegments(segments: readonly PatternSegment[], syntax: SegmentPathSyntax): number {
+	if (syntax === 'websocket') {
+		const literals = segments.filter((segment) => segment.kind === 'literal').length;
+		const params = segments.length - literals;
+		return literals * 100 - params * 10 + segments.length;
+	}
+
+	return segments.reduce((score, segment) => {
+		if (segment.kind === 'literal') return score + 100;
+		if (segment.kind === 'parameter') return score + 50;
+		return score + 10;
+	}, 0);
+}
+
+export function compileSegmentPattern<S extends SegmentPathSyntax>(pattern: string, syntax: S): SegmentPattern<S> {
+	const segments = parsePattern(pattern, syntax);
+	return { syntax, segments, score: scorePatternSegments(segments, syntax) };
+}
+
+/**
  * Normalizes and decodes a request pathname once for matching multiple routes.
  *
  * @remarks
@@ -130,39 +167,23 @@ export function parseSegmentPath(pathname: string): ParsedSegmentPath {
 		});
 }
 
-export function matchParsedSegmentPath(
-	pattern: string,
+export function matchParsedSegmentPath<S extends SegmentPathSyntax>(
+	pattern: SegmentPattern<S>,
 	pathSegments: ParsedSegmentPath,
-	syntax: 'filesystem' | 'api',
-): SegmentPathParams | null;
-export function matchParsedSegmentPath(
-	pattern: string,
-	pathSegments: ParsedSegmentPath,
-	syntax: 'explicit' | 'websocket',
-): Record<string, string> | null;
-export function matchParsedSegmentPath(
-	pattern: string,
-	pathSegments: ParsedSegmentPath,
-	syntax: SegmentPathSyntax,
-): SegmentPathParams | null;
-export function matchParsedSegmentPath(
-	pattern: string,
-	pathSegments: ParsedSegmentPath,
-	syntax: SegmentPathSyntax,
-): SegmentPathParams | null {
-	const patternSegments = parsePattern(pattern, syntax);
+): MatchedParams<S> | null {
+	const patternSegments = pattern.segments;
 	const params: SegmentPathParams = {};
-	const { catchAllValue } = syntaxOptions[syntax];
+	const { catchAllValue } = syntaxOptions[pattern.syntax];
 
 	for (const [index, patternSegment] of patternSegments.entries()) {
 		if (patternSegment.kind === 'wildcard') {
-			return params;
+			return params as MatchedParams<S>;
 		}
 
 		if (patternSegment.kind === 'catch-all') {
 			const remainingSegments = pathSegments.slice(index);
 			params[patternSegment.name] = catchAllValue === 'joined' ? remainingSegments.join('/') : remainingSegments;
-			return params;
+			return params as MatchedParams<S>;
 		}
 
 		const pathSegment = pathSegments[index];
@@ -180,7 +201,7 @@ export function matchParsedSegmentPath(
 		}
 	}
 
-	return pathSegments.length === patternSegments.length ? params : null;
+	return pathSegments.length === patternSegments.length ? (params as MatchedParams<S>) : null;
 }
 
 /**
@@ -210,7 +231,7 @@ export function matchSegmentPath(
 	pathname: string,
 	syntax: SegmentPathSyntax,
 ): SegmentPathParams | null {
-	return matchParsedSegmentPath(pattern, parseSegmentPath(pathname), syntax);
+	return matchParsedSegmentPath(compileSegmentPattern(pattern, syntax), parseSegmentPath(pathname));
 }
 
 /**
@@ -260,21 +281,4 @@ export function segmentPathPatternKey(pattern: string, syntax: SegmentPathSyntax
 		return segment.kind === 'parameter' ? '[]' : '[...]';
 	});
 	return `/${segments.join('/')}`;
-}
-
-export function scoreSegmentPathPattern(pattern: string, syntax: 'api'): number;
-export function scoreSegmentPathPattern(pattern: string, syntax: 'websocket'): number;
-export function scoreSegmentPathPattern(pattern: string, syntax: 'api' | 'websocket'): number {
-	const segments = parsePattern(pattern, syntax);
-	if (syntax === 'websocket') {
-		const literals = segments.filter((segment) => segment.kind === 'literal').length;
-		const params = segments.length - literals;
-		return literals * 100 - params * 10 + segments.length;
-	}
-
-	return segments.reduce((score, segment) => {
-		if (segment.kind === 'literal') return score + 100;
-		if (segment.kind === 'parameter') return score + 50;
-		return score + 10;
-	}, 0);
 }

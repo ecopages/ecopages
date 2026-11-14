@@ -10,7 +10,7 @@ import type {
 	IncomingWebSocketMessage,
 	PageQuery,
 } from '../../../types/contracts.ts';
-import { findWebSocketRoute, type WebSocketRouteMatch } from './ws-pattern-matcher.ts';
+import { compileWebSocketRoutes, findWebSocketRoute, type WebSocketRouteMatch } from './ws-pattern-matcher.ts';
 import { createEcopagesSocket, invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 
 export type NodeHttpWebSocketUpgradePreflight = (req: IncomingMessage, socket: Duplex, head: Buffer) => boolean;
@@ -143,6 +143,7 @@ export function attachNodeHttpWebSocketUpgrades(
 	attachedUpgradeServers.add(server);
 
 	const userWss = new WebSocketServer({ noServer: true });
+	const websocketRoutes = compileWebSocketRoutes(options.websocketHandlers);
 
 	server.on('upgrade', (req, socket, head) => {
 		if (options.preflight?.(req, socket, head)) {
@@ -152,7 +153,7 @@ export function attachNodeHttpWebSocketUpgrades(
 		const url = new URL(req.url ?? '/', options.runtimeOrigin);
 		let wsMatch: WebSocketRouteMatch | null;
 		try {
-			wsMatch = findWebSocketRoute(options.websocketHandlers, url.pathname);
+			wsMatch = findWebSocketRoute(websocketRoutes, url.pathname);
 		} catch (error) {
 			if (!HttpError.isHttpError(error) || error.status !== 400) {
 				throw error;

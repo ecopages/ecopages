@@ -19,10 +19,12 @@ import { parseSearchParams } from './parse-search-params.ts';
 import { findIntegrationForFile, findLongestExtension } from '../../plugins/find-integration-for-file.ts';
 import {
 	buildSegmentPath,
+	compileSegmentPattern,
 	matchParsedSegmentPath,
 	parseSegmentPath,
 	segmentPathPatternKey,
 	type ParsedSegmentPath,
+	type SegmentPattern,
 } from './segment-path-matcher.ts';
 
 export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
@@ -109,6 +111,7 @@ export class RouteRegistry {
 	readonly buildMode: boolean;
 	private readonly pageModuleAdapter: RouteRegistryPageModuleAdapter;
 	private templateRouteList: TemplateRoute[] = [];
+	private routeMatchers: Array<{ route: TemplateRoute; pattern: SegmentPattern<'filesystem'> }> = [];
 	private readonly reloadListeners = new Set<() => void>();
 
 	constructor(options: RouteRegistryOptions) {
@@ -144,8 +147,17 @@ export class RouteRegistry {
 
 	async init(): Promise<void> {
 		const productionRoutes = isProductionRuntime() ? loadProductionTemplateRoutes(this.appConfig) : undefined;
-		this.templateRouteList = productionRoutes ?? (await this.scanTemplateRoutes());
+		this.useTemplateRoutes(productionRoutes ?? (await this.scanTemplateRoutes()));
 		appLogger.debug('RouteRegistry initialized', this.templateRouteList);
+	}
+
+	/** Sets the routes in match order, parsing each pattern once instead of per request. */
+	private useTemplateRoutes(routes: TemplateRoute[]): void {
+		this.templateRouteList = routes;
+		this.routeMatchers = routes.map((route) => ({
+			route,
+			pattern: compileSegmentPattern(route.pathname, 'filesystem'),
+		}));
 	}
 
 	async reload(): Promise<void> {
@@ -169,8 +181,8 @@ export class RouteRegistry {
 		const pathSegments = parsedPathSegments ?? parseSegmentPath(requestedPathname);
 		const query = this.getSearchParams(url);
 
-		for (const route of this.templateRouteList) {
-			const params = matchParsedSegmentPath(route.pathname, pathSegments, 'filesystem');
+		for (const { route, pattern } of this.routeMatchers) {
+			const params = matchParsedSegmentPath(pattern, pathSegments);
 			if (params) {
 				return {
 					requestedPathname,

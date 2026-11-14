@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { ApiHandler, RenderContext } from '../../../types/contracts.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from '../../node/http-request-bridge.ts';
-import { ApiRequestPipeline } from './api-request-pipeline.ts';
+import { ApiRequestPipeline, compileApiRoutes } from './api-request-pipeline.ts';
 
 class NodeRequestFixture extends PassThrough {
 	public url = '/api/posts';
@@ -49,7 +49,11 @@ function throwingHandler(error: unknown): ApiHandler[] {
 describe('ApiRequestPipeline', () => {
 	it('returns null from tryHandle when no route matches', async () => {
 		const pipeline = createPipeline();
-		const response = await pipeline.tryHandle(new Request('http://localhost/api/missing'), [], undefined);
+		const response = await pipeline.tryHandle(
+			new Request('http://localhost/api/missing'),
+			compileApiRoutes([]),
+			undefined,
+		);
 		expect(response).toBeNull();
 	});
 
@@ -65,7 +69,7 @@ describe('ApiRequestPipeline', () => {
 
 		const response = await pipeline.tryHandle(
 			new Request('http://localhost/api/posts', { method: 'GET' }),
-			handlers,
+			compileApiRoutes(handlers),
 			undefined,
 		);
 		expect(response).toBeNull();
@@ -83,7 +87,7 @@ describe('ApiRequestPipeline', () => {
 
 		const response = await pipeline.tryHandle(
 			new Request('http://localhost/api/posts/42', { method: 'GET' }),
-			handlers,
+			compileApiRoutes(handlers),
 			undefined,
 		);
 
@@ -95,10 +99,10 @@ describe('ApiRequestPipeline', () => {
 	it('selects the more specific literal route when dynamic and literal routes overlap', async () => {
 		const response = await createPipeline().tryHandle(
 			new Request('http://localhost/api/posts/latest'),
-			[
+			compileApiRoutes([
 				{ path: '/api/posts/[id]', method: 'GET', handler: () => new Response('dynamic') },
 				{ path: '/api/posts/latest', method: 'GET', handler: () => new Response('literal') },
-			],
+			]),
 			undefined,
 		);
 
@@ -118,7 +122,7 @@ describe('ApiRequestPipeline', () => {
 
 		const response = await pipeline.tryHandle(
 			new Request('http://localhost/api/posts/caf%C3%A9'),
-			handlers,
+			compileApiRoutes(handlers),
 			undefined,
 		);
 
@@ -129,13 +133,13 @@ describe('ApiRequestPipeline', () => {
 	it('preserves catch-all params and repeated query keys for API handlers', async () => {
 		const response = await createPipeline().tryHandle(
 			new Request('http://localhost/api/files/a/b?tag=one&tag=two'),
-			[
+			compileApiRoutes([
 				{
 					path: '/api/files/[...path]',
 					method: 'GET',
 					handler: ({ params, query }) => new Response(JSON.stringify({ params, query })),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -149,13 +153,13 @@ describe('ApiRequestPipeline', () => {
 	it('matches repeated trailing slashes after normalizing the pathname', async () => {
 		const response = await createPipeline().tryHandle(
 			new Request('http://localhost/api/posts//'),
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'GET',
 					handler: () => new Response('matched'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -166,13 +170,13 @@ describe('ApiRequestPipeline', () => {
 	it('answers malformed path escapes with HTTP 400', async () => {
 		const response = await createPipeline().tryHandle(
 			new Request('http://localhost/api/posts/%E0%A4%A'),
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts/[slug]',
 					method: 'GET',
 					handler: () => new Response('unreachable'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -190,7 +194,7 @@ describe('ApiRequestPipeline', () => {
 	])('answers malformed paths with HTTP 400 for $scenario', async ({ handlers }) => {
 		const response = await createPipeline().tryHandle(
 			new Request('http://localhost/api/posts/%E0%A4%A'),
-			handlers,
+			compileApiRoutes(handlers),
 			undefined,
 		);
 
@@ -216,7 +220,7 @@ describe('ApiRequestPipeline', () => {
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ title: '' }),
 			}),
-			handlers,
+			compileApiRoutes(handlers),
 			undefined,
 		);
 
@@ -229,14 +233,14 @@ describe('ApiRequestPipeline', () => {
 	it('rejects a missing body when the body schema requires one', async () => {
 		const response = await createPipeline().tryHandle(
 			new Request('http://localhost/api/posts', { method: 'POST' }),
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
 					schema: { body: z.object({ title: z.string() }) },
 					handler: () => new Response('unreachable'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -247,14 +251,14 @@ describe('ApiRequestPipeline', () => {
 	it('accepts a missing body when the body schema is optional', async () => {
 		const response = await createPipeline().tryHandle(
 			new Request('http://localhost/api/posts', { method: 'POST' }),
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
 					schema: { body: z.object({ title: z.string() }).optional() },
 					handler: ({ body }) => new Response(body === undefined ? 'no body' : 'body'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -265,14 +269,14 @@ describe('ApiRequestPipeline', () => {
 	it('accepts a bodyless Node request with JSON content type when the schema is optional', async () => {
 		const response = await createPipeline().tryHandle(
 			createEmptyNodeRequest({ 'content-type': 'application/json' }),
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
 					schema: { body: z.object({ title: z.string() }).optional() },
 					handler: ({ body }) => new Response(body === undefined ? 'no body' : 'body'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -283,14 +287,14 @@ describe('ApiRequestPipeline', () => {
 	it('validates an empty Node request without content type as a missing body', async () => {
 		const response = await createPipeline().tryHandle(
 			createEmptyNodeRequest({}),
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
 					schema: { body: z.object({ title: z.string() }) },
 					handler: () => new Response('unreachable'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -301,14 +305,14 @@ describe('ApiRequestPipeline', () => {
 	it('validates an empty chunked Node request without content type as a missing body', async () => {
 		const response = await createPipeline().tryHandle(
 			createEmptyNodeRequest({ 'transfer-encoding': 'chunked' }),
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
 					schema: { body: z.object({ title: z.string() }) },
 					handler: () => new Response('unreachable'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -327,7 +331,7 @@ describe('ApiRequestPipeline', () => {
 
 		const response = await createPipeline().tryHandle(
 			request,
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
@@ -335,7 +339,7 @@ describe('ApiRequestPipeline', () => {
 					handler: async ({ body, request: handlerRequest }) =>
 						new Response(`${body === undefined ? 'no body' : 'body'}:${await handlerRequest.text()}`),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -352,14 +356,14 @@ describe('ApiRequestPipeline', () => {
 		);
 		const responsePromise = createPipeline().tryHandle(
 			request,
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
 					schema: { body: z.object({ title: z.string() }) },
 					handler: () => new Response('unreachable'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -381,14 +385,14 @@ describe('ApiRequestPipeline', () => {
 		);
 		const responsePromise = createPipeline().tryHandle(
 			request,
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
 					schema: { body: z.object({ title: z.string() }) },
 					handler: () => new Response('unreachable'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -405,14 +409,14 @@ describe('ApiRequestPipeline', () => {
 				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 				body: 'title=post',
 			}),
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
 					schema: { body: z.object({ title: z.string() }) },
 					handler: () => new Response('unreachable'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -431,14 +435,14 @@ describe('ApiRequestPipeline', () => {
 		);
 		const responsePromise = createPipeline().tryHandle(
 			request,
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
 					schema: { body: z.object({ title: z.string() }) },
 					handler: () => new Response('unreachable'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -457,14 +461,14 @@ describe('ApiRequestPipeline', () => {
 				method: 'POST',
 				body: new Uint8Array([1]),
 			}),
-			[
+			compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
 					schema: { body: z.object({ title: z.string() }) },
 					handler: () => new Response('unreachable'),
 				},
-			],
+			]),
 			undefined,
 		);
 
@@ -488,10 +492,14 @@ describe('ApiRequestPipeline', () => {
 
 			const queried = await pipeline.tryHandle(
 				queryRequest({ headers: { 'Content-Type': 'application/json' } }),
-				queryHandlers,
+				compileApiRoutes(queryHandlers),
 				undefined,
 			);
-			const read = await pipeline.tryHandle(new Request('http://localhost/api/search'), queryHandlers, undefined);
+			const read = await pipeline.tryHandle(
+				new Request('http://localhost/api/search'),
+				compileApiRoutes(queryHandlers),
+				undefined,
+			);
 
 			expect(queried?.status).toBe(200);
 			expect(await queried?.json()).toEqual({ term: 'ecopages' });
@@ -501,7 +509,7 @@ describe('ApiRequestPipeline', () => {
 		it('answers HTTP 400 for a body that fails the schema', async () => {
 			const response = await createPipeline().tryHandle(
 				queryRequest({ headers: { 'Content-Type': 'application/json' }, body: '{"term":1}' }),
-				queryHandlers,
+				compileApiRoutes(queryHandlers),
 				undefined,
 			);
 
@@ -511,7 +519,7 @@ describe('ApiRequestPipeline', () => {
 		it('answers HTTP 415 for a body with no content type', async () => {
 			const response = await createPipeline().tryHandle(
 				queryRequest({ body: new Uint8Array([1]) }),
-				queryHandlers,
+				compileApiRoutes(queryHandlers),
 				undefined,
 			);
 
@@ -521,13 +529,13 @@ describe('ApiRequestPipeline', () => {
 		it('leaves the body to the handler when no body schema is declared', async () => {
 			const response = await createPipeline().tryHandle(
 				queryRequest({ headers: { 'Content-Type': 'application/json' } }),
-				[
+				compileApiRoutes([
 					{
 						path: '/api/search',
 						method: 'QUERY',
 						handler: async ({ request }) => new Response(await request.text()),
 					},
-				],
+				]),
 				undefined,
 			);
 
@@ -557,7 +565,7 @@ describe('ApiRequestPipeline', () => {
 
 		const response = await pipeline.tryHandle(
 			new Request('http://localhost/api/secure', { method: 'GET' }),
-			handlers,
+			compileApiRoutes(handlers),
 			undefined,
 		);
 
@@ -571,7 +579,7 @@ describe('ApiRequestPipeline', () => {
 
 		const response = await createPipeline().tryHandle(
 			new Request('http://localhost/api/fail', { method: 'POST' }),
-			throwingHandler(new NodeClientAbortError()),
+			compileApiRoutes(throwingHandler(new NodeClientAbortError())),
 			undefined,
 			errorHandler,
 		);
@@ -596,7 +604,7 @@ describe('ApiRequestPipeline', () => {
 
 		const response = await createPipeline().tryHandle(
 			new Request('http://localhost/api/fail', { method: 'POST' }),
-			throwingHandler(new BundledHttpError(400, 'Invalid post', { field: 'slug' })),
+			compileApiRoutes(throwingHandler(new BundledHttpError(400, 'Invalid post', { field: 'slug' }))),
 			undefined,
 		);
 
@@ -610,7 +618,7 @@ describe('ApiRequestPipeline', () => {
 
 		const response = await createPipeline().tryHandle(
 			new Request('http://localhost/api/fail', { method: 'POST' }),
-			throwingHandler(error),
+			compileApiRoutes(throwingHandler(error)),
 			undefined,
 		);
 

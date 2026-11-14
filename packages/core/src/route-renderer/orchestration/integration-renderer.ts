@@ -1026,16 +1026,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		});
 	}
 
-	async transformRouteResponse(
-		response: Response,
+	async transformRouteHtml(
+		html: string,
 		htmlContributions: HtmlDocumentContribution[] | undefined,
 		renderOptions: InternalIntegrationRendererRenderOptions<C>,
 	): Promise<RouteRendererBody> {
-		const transformedResponse = this.htmlTransformer.transform(response, {
+		const body = this.htmlTransformer.transform(html, {
 			contributions: htmlContributions,
 			pagePackage: renderOptions.pagePackage,
 		});
-		const body = (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
 		return this.finalizeDocument(body, renderOptions);
 	}
 

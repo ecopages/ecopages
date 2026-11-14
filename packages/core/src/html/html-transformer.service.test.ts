@@ -85,7 +85,7 @@ const INJECTION_SCENARIOS: InjectionScenario[] = [
 ];
 
 async function injectPageAssets(html: string, input: PageAssetInjection): Promise<string> {
-	return await new HtmlTransformerService().transform(new Response(html), input).text();
+	return new HtmlTransformerService().transform(html, input);
 }
 
 describe('HtmlTransformerService', () => {
@@ -109,31 +109,6 @@ describe('HtmlTransformerService', () => {
 
 		expect(html).toBe(
 			'<html><head><meta name="first"><meta name="second"><title>Base</title><script>window.headAppend = true;</script></head><body><div id="body-prepend"></div><main>Page</main><div id="body-append"></div></body></html>',
-		);
-	});
-
-	it('streams response bodies through the rewriter', async () => {
-		const transformer = new HtmlTransformerService();
-		const pagePackage = createPagePackage([{ kind: 'script', inline: false, position: 'body', srcUrl: '/app.js' }]);
-		const encoder = new TextEncoder();
-		const response = new Response(
-			new ReadableStream<Uint8Array>({
-				start(controller) {
-					controller.enqueue(encoder.encode('<html><head></head><bo'));
-					controller.enqueue(encoder.encode('dy><main>Streaming</main></bo'));
-					controller.enqueue(encoder.encode('dy></html>'));
-					controller.close();
-				},
-			}),
-			{ status: 203, headers: { 'Content-Type': 'text/html' } },
-		);
-
-		const result = transformer.transform(response, { pagePackage });
-
-		expect(result.status).toBe(203);
-		expect(result.body).toBeInstanceOf(ReadableStream);
-		expect(await result.text()).toBe(
-			'<html><head></head><body><main>Streaming</main><script src="/app.js"></script></body></html>',
 		);
 	});
 

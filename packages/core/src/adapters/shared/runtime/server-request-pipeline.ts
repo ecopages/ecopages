@@ -14,7 +14,7 @@ import { FileSystemServerResponseFactory } from '../http/fs-server-response-fact
 import { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
 import { ServerRouteHandler } from './server-route-handler.ts';
 import { createRenderContext } from './render-context.ts';
-import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
+import { ApiRequestPipeline, type ApiRoutes } from '../http/api-request-pipeline.ts';
 import {
 	EndpointRouteHandler,
 	findExplicitRoutesOnEndpoints,
@@ -43,7 +43,7 @@ type SharedResponseHandlerDependencies = {
 };
 
 export type ServerRequestContext<TServer = unknown> = {
-	apiHandlers: ApiHandler[];
+	apiRoutes: ApiRoutes;
 	errorHandler?: ErrorHandler<Request, TServer>;
 	serverInstance?: TServer;
 };
@@ -353,7 +353,7 @@ export class ServerRequestPipeline {
 	): Promise<Response | null> {
 		return await this.apiRequestPipeline.tryHandle(
 			request,
-			context.apiHandlers,
+			context.apiRoutes,
 			context.serverInstance,
 			context.errorHandler,
 			parsedPathSegments,

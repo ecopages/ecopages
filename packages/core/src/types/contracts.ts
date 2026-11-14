@@ -880,11 +880,9 @@ export type EcoPagesAppConfig = {
 	publicDir: string;
 	pagesDir: string;
 	includesDir: string;
-	layoutsDir: string;
 	distDir: string;
 	workDir: string;
 	templatesExt: string[];
-	componentsDir: string;
 	robotsTxt: { preferences: Record<string, string[]> };
 	sitemap: SitemapConfig;
 	additionalWatchPaths: string[];
@@ -893,11 +891,9 @@ export type EcoPagesAppConfig = {
 	absolutePaths: {
 		config: string;
 		configModuleFiles: string[];
-		componentsDir: string;
 		distDir: string;
 		workDir: string;
 		includesDir: string;
-		layoutsDir: string;
 		pagesDir: string;
 		projectDir: string;
 		publicDir: string;

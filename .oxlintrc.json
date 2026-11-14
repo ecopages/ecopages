@@ -1,7 +1,7 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "react"],
-	"jsPlugins": ["./scripts/oxlint-path-convention.ts"],
+	"jsPlugins": ["./scripts/oxlint-path-convention.ts", "./scripts/oxlint-file-roles.ts"],
 	"ignorePatterns": ["node_modules", "dist", "out", "coverage", ".nyc_output", ".vscode", ".env", ".eco"],
 	"rules": {
 		"no-param-reassign": "error",
@@ -161,6 +161,28 @@
 			"files": ["packages/**/test/fixtures/**"],
 			"rules": {
 				"ecopages-path/no-import-meta-native-path": "off"
+			}
+		},
+		{
+			"files": ["packages/**/src/**"],
+			"rules": {
+				"ecopages-roles/no-folder-role-check": "error"
+			}
+		},
+		{
+			"files": [
+				"packages/core/src/router/**",
+				"packages/core/src/utils/file-roles.ts",
+				"packages/**/*.test.*",
+				"packages/**/*.test-helpers.ts",
+				"packages/**/*.test-fixtures.ts",
+				"packages/**/test/**",
+				"packages/**/__tests__/**",
+				"packages/**/__fixtures__/**",
+				"packages/__internals/**"
+			],
+			"rules": {
+				"ecopages-roles/no-folder-role-check": "off"
 			}
 		},
 		{

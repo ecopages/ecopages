@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, test, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import { path } from '@ecopages/file-system/path';
@@ -264,13 +264,26 @@ describe('finalizeEcoPagesConfig', () => {
 		}
 	});
 
+	test.each(['layoutsDir', 'componentsDir'] as const)(
+		'fails loudly when the config still sets %s',
+		async (option) => {
+			const removed = { [option]: 'custom' } as unknown as EcoPagesUserConfig;
+
+			await expect(finalize(removed)).rejects.toThrow(`The ${option} option was removed`);
+			await expect(finalize(removed)).rejects.toThrow(`Delete ${option} from the config`);
+		},
+	);
+
+	test('layoutsDir and componentsDir are not user config options', () => {
+		expectTypeOf<EcoPagesUserConfig>().not.toHaveProperty('layoutsDir');
+		expectTypeOf<EcoPagesUserConfig>().not.toHaveProperty('componentsDir');
+	});
+
 	test('should set custom directories', async () => {
 		const config = await finalize({
 			srcDir: 'custom-src',
 			pagesDir: 'custom-pages',
 			includesDir: 'custom-includes',
-			componentsDir: 'custom-components',
-			layoutsDir: 'custom-layouts',
 			publicDir: 'custom-public',
 			distDir: 'custom-dist',
 			workDir: 'custom-work',
@@ -279,8 +292,6 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(config.srcDir).toBe('custom-src');
 		expect(config.pagesDir).toBe('custom-pages');
 		expect(config.includesDir).toBe('custom-includes');
-		expect(config.componentsDir).toBe('custom-components');
-		expect(config.layoutsDir).toBe('custom-layouts');
 		expect(config.publicDir).toBe('custom-public');
 		expect(config.distDir).toBe('custom-dist');
 		expect(config.workDir).toBe('custom-work');

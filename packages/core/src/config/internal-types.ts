@@ -59,11 +59,6 @@ export type EcoPagesAppConfig = {
 	 */
 	includesDir: string;
 	/**
-	 * The directory where the layouts are located
-	 * @default "layouts"
-	 */
-	layoutsDir: string;
-	/**
 	 * The directory where the output will be located
 	 * @default "dist"
 	 */
@@ -83,11 +78,6 @@ export type EcoPagesAppConfig = {
 	 * The templates extensions based on the integrations
 	 */
 	templatesExt: string[];
-	/**
-	 * The directory where the components are located
-	 * @default "components"
-	 */
-	componentsDir: string;
 	/**
 	 * The robots.txt configuration
 	 */
@@ -140,12 +130,10 @@ export type EcoPagesAppConfig = {
 		 * restarts on the same set.
 		 */
 		configModuleFiles: string[];
-		componentsDir: string;
 		/** Public output directory served by the runtime (`<distDir>/client`). */
 		distDir: string;
 		workDir: string;
 		includesDir: string;
-		layoutsDir: string;
 		pagesDir: string;
 		projectDir: string;
 		publicDir: string;

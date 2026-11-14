@@ -525,8 +525,8 @@ export class ProjectWatcher {
 		);
 		const srcDir = this.appConfig.absolutePaths.srcDir;
 		const literalPaths = new Set<string>([srcDir]);
-		const { pagesDir, componentsDir, includesDir, layoutsDir, publicDir } = this.appConfig.absolutePaths;
-		for (const sourceDir of [pagesDir, componentsDir, includesDir, layoutsDir, publicDir]) {
+		const { pagesDir, includesDir, publicDir } = this.appConfig.absolutePaths;
+		for (const sourceDir of [pagesDir, includesDir, publicDir]) {
 			if (!isPathInside(sourceDir, srcDir) && fileSystem.exists(sourceDir)) {
 				literalPaths.add(sourceDir);
 			}

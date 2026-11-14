@@ -118,7 +118,7 @@ import {
 	resolvePageLayoutComponents,
 	resolveDocumentShellLayouts,
 } from './document-shell/layout-shell-props.service.ts';
-import { finalizeIslandComponentRender } from '../../islands/island-host.ts';
+import { stampIslandHost } from '../../islands/island-host.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { prepareAssetDependencies } from '../../assets/asset-processing-service/asset-processing.service.ts';
 import { isBundleableScript } from '../../assets/asset-processing-service/bundleable-script.ts';
@@ -1426,7 +1426,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Stamps `result` as an Island Host when the component itself declares a client script.
+	 * Stamps `result` as an Island Host when the component itself ships a client script.
 	 *
 	 * @remarks Reads the component's own declarations, excluding Foreign Children: a component without
 	 * scripts that wraps an island is not an island itself. Components without `dependencies` are never stamped.
@@ -1435,16 +1435,16 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		input: ComponentRenderInput,
 		result: ComponentRenderResult,
 	): ComponentRenderResult {
-		const ownAssets = input.component.config?.dependencies
-			? this.dependencyResolverService.collectOwnComponentDependencies([input.component], this.name)
-			: undefined;
-		return finalizeIslandComponentRender(
+		const shipsScript =
+			input.component.config?.dependencies !== undefined &&
+			this.dependencyResolverService.componentShipsScript(input.component, this.name);
+		return stampIslandHost(
 			input,
 			{
 				...result,
 				html: finalizeComponentRender(input.component, result.html),
 			},
-			ownAssets,
+			shipsScript,
 		);
 	}
 

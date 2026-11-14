@@ -2,7 +2,8 @@ import { normalizeModuleDeclarations } from '../../eco/module-dependencies.ts';
 import { isBrowserEcopagesVirtualImport } from './ecopages-virtual-imports.ts';
 import type { EcopagesVirtualImport } from './ecopages-virtual-imports.ts';
 
-type ModuleDeclarationInput = {
+/** One module a component's browser scripts import, with its named imports or none for the namespace. */
+export type ModuleDeclaration = {
 	from: string;
 	imports?: string[];
 };
@@ -22,9 +23,9 @@ function getDeclaredModules(value: unknown): string[] | undefined {
  * Merges one module declaration into the aggregated map, preserving the wildcard
  * import semantics represented by `null`.
  */
-function mergeModuleDeclaration(
+export function mergeModuleDeclaration(
 	modulesMap: Map<string, Set<string> | null>,
-	declaration: ModuleDeclarationInput,
+	declaration: ModuleDeclaration,
 ): void {
 	const existing = modulesMap.get(declaration.from);
 	if (!declaration.imports || declaration.imports.length === 0) {
@@ -44,21 +45,19 @@ function mergeModuleDeclaration(
 }
 
 /**
- * Combines explicit config module declarations with auto-detected `ecopages:` imports.
+ * Lists the modules a component declares in `modules`, then the `ecopages:` virtual modules its source imports.
+ *
+ * @remarks A server-only `ecopages:` module declared in `modules` is left out.
  */
-export function collectModuleDeclarations(
-	modulesMap: Map<string, Set<string> | null>,
+export function declareModules(
 	declaredModules: unknown,
 	autoVirtualImports: EcopagesVirtualImport[],
-): void {
-	for (const declaration of normalizeModuleDeclarations(getDeclaredModules(declaredModules))) {
-		if (declaration.from.startsWith('ecopages:') && !isBrowserEcopagesVirtualImport(declaration.from)) {
-			continue;
-		}
-		mergeModuleDeclaration(modulesMap, declaration);
-	}
-
-	for (const declaration of autoVirtualImports) {
-		mergeModuleDeclaration(modulesMap, declaration);
-	}
+): ModuleDeclaration[] {
+	return [
+		...normalizeModuleDeclarations(getDeclaredModules(declaredModules)).filter(
+			(declaration) =>
+				!declaration.from.startsWith('ecopages:') || isBrowserEcopagesVirtualImport(declaration.from),
+		),
+		...autoVirtualImports,
+	];
 }

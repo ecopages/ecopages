@@ -294,6 +294,21 @@ function rebindsName(j: JSCodeshift, fn: FunctionNode, name: string): boolean {
 	return inFunctions || inDeclarations;
 }
 
+/**
+ * Replaces the node at `path` inside `fn.body` with `node`.
+ *
+ * @remarks
+ * An expression body that is the read itself (`async ({ pathname }) => pathname.params` once unwrapped) is the
+ * root of `j(fn.body)`, whose path has no parent to replace it in, so the body is reassigned instead.
+ */
+function replaceInBody(j: JSCodeshift, fn: FunctionNode, path: ASTPath, node: ASTNode): void {
+	if (path.node === fn.body) {
+		fn.body = node as never;
+		return;
+	}
+	j(path).replaceWith(node);
+}
+
 const CONTEXT_FIELDS = new Set(['pathname', 'appConfig', 'runtimeOrigin']);
 
 /**
@@ -315,8 +330,8 @@ function rewriteContextIdentifier(j: JSCodeshift, fn: FunctionNode, local: strin
 				return;
 			}
 			if (field !== 'pathname') return;
-			const grand = path.parent.parent.node as Record<string, unknown>;
-			if (grand.object === parent && isMemberNamed(grand, 'params')) {
+			const grand = path.parent.parent?.node as Record<string, unknown> | undefined;
+			if (grand?.object === parent && isMemberNamed(grand, 'params')) {
 				accesses.push(path.parent.parent);
 				return;
 			}
@@ -325,7 +340,7 @@ function rewriteContextIdentifier(j: JSCodeshift, fn: FunctionNode, local: strin
 	if (!safe) return 'unsafe';
 	if (accesses.length === 0) return 'unchanged';
 	for (const access of accesses) {
-		j(access).replaceWith(j.memberExpression(j.identifier(local), j.identifier('params')));
+		replaceInBody(j, fn, access, j.memberExpression(j.identifier(local), j.identifier('params')));
 	}
 	return 'rewritten';
 }
@@ -347,7 +362,7 @@ function flattenPathnameReads(j: JSCodeshift, fn: FunctionNode, local: string): 
 		});
 	if (!safe) return false;
 	for (const read of reads) {
-		j(read).replaceWith(j.identifier('params'));
+		replaceInBody(j, fn, read, j.identifier('params'));
 	}
 	return true;
 }

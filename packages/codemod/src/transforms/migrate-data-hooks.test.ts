@@ -130,6 +130,8 @@ describe('migrate-data-hooks', () => {
 				'async (ctx) => ({ props: { slug: ctx.pathname.params.slug, o: ctx.runtimeOrigin } })',
 				'ctx.params.slug',
 			],
+			['a pathname read as the whole body', 'async ({ pathname }) => ({ props: pathname.params })', '=> params'],
+			['a context read as the whole body', 'async (ctx) => ({ props: ctx.pathname.params })', '=> ctx.params'],
 		])('rewrites %s', async (_name, hook, expected) => {
 			const report = vi.fn();
 			const output = await runTransform(wrap(hook), report);
@@ -152,6 +154,7 @@ describe('migrate-data-hooks', () => {
 		it.each([
 			['a context passed on', 'async (ctx) => ({ props: await load(ctx) })'],
 			['a context spread', 'async (ctx) => ({ props: { ...ctx } })'],
+			['a context pathname as the whole body', 'async (ctx) => ({ props: ctx.pathname })'],
 		])('renames the hook and reports it for %s', async (_name, hook) => {
 			const report = vi.fn();
 			const output = await runTransform(wrap(hook), report);

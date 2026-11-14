@@ -89,12 +89,6 @@ function applySourceEdits(
 	return createMappedSourceTransformResult(contents, filePath, editSource);
 }
 
-/**
- * Matches the text of a side-effect import such as `import 'swiper/css'`, which can name a package stylesheet
- * without a `.css` suffix.
- */
-const SIDE_EFFECT_IMPORT = /(?:^|[;}\s])import\s*['"]/m;
-
 function isAstNode(value: unknown): value is AstNode {
 	return typeof value === 'object' && value !== null;
 }
@@ -377,13 +371,6 @@ function stripPlainModuleStylesheetImports(
 	return edits;
 }
 
-/** A cheap pre-parse check: whether `contents` names a stylesheet extension or has a side-effect import. */
-function mayImportStylesheet(contents: string, stylesheets: StylesheetKinds): boolean {
-	return (
-		stylesheets.extensions.some((extension) => contents.includes(extension)) || SIDE_EFFECT_IMPORT.test(contents)
-	);
-}
-
 /**
  * Attributes real `eco.*()` factory calls with canonical component identity.
  *
@@ -406,7 +393,7 @@ export function attributeComponentIdentity(
 			? createJsxImportSourcePragma(jsxImportSource)
 			: undefined;
 	const mayDeclare = integration !== undefined && contents.includes('eco.');
-	if (!mayDeclare && !mayImportStylesheet(contents, options.stylesheets ?? PLAIN_CSS_KINDS)) {
+	if (!mayDeclare && !contents.includes('import')) {
 		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 

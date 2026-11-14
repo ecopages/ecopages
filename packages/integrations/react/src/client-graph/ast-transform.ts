@@ -49,7 +49,6 @@ export function transformModuleImports(
 	filename: string,
 	globallyAllowed: Map<string, Set<string> | '*'>,
 	requestedExports: RequestedExportRules | undefined,
-	preserveUnreachableSideEffectImports = false,
 	parsed?: ParseResult['program'],
 ): { transformed: string; modified: boolean } {
 	let program = parsed;
@@ -72,7 +71,6 @@ export function transformModuleImports(
 		filename,
 		reachability,
 		allowedMap,
-		preserveUnreachableSideEffectImports,
 		strippedBindings,
 		editedImports,
 	});

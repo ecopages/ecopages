@@ -124,6 +124,89 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
+	/**
+	 * @remarks
+	 * The boundary keeps `import './theme.css'`; core's stylesheet module plugin owns its removal
+	 * (see `rolldown-build-adapter.test.ts`).
+	 */
+	it.each([
+		['layouts', 'docs.script.ts'],
+		['components', 'docs.script.ts'],
+	])('keeps bare side-effect imports in a script under %s', async (folder, name) => {
+		await withTempDir(async (tempDir) => {
+			const reactEntrypoint = path.join(tempDir, 'entry.tsx');
+			const dir = path.join(tempDir, 'src', folder);
+			mkdirSync(dir, { recursive: true });
+			const script = path.join(dir, name);
+			writeFileSync(reactEntrypoint, 'export default () => null;', 'utf-8');
+			writeFileSync(
+				script,
+				"import 'some-element-package/sidebar';\nimport './theme.css';\nimport './secret.server.ts';\nexport const ready = true;",
+				'utf-8',
+			);
+
+			const harness = createPluginTestHarness(
+				{ absWorkingDir: tempDir, projectRoot: tempDir, entrypointFile: reactEntrypoint },
+				{ react: reactEntrypoint },
+			);
+			const transformed = (await harness.transformFile(script)) ?? readFileSync(script, 'utf-8');
+
+			expect(transformed).toContain("import 'some-element-package/sidebar'");
+			expect(transformed).toContain('./theme.css');
+			expect(transformed).not.toContain('secret.server');
+		});
+	});
+
+	it('keeps bare side-effect imports in a page module and strips its server parts', async () => {
+		await withTempDir(async (tempDir) => {
+			const dir = path.join(tempDir, 'src', 'pages');
+			mkdirSync(dir, { recursive: true });
+			const page = path.join(dir, 'index.tsx');
+			writeFileSync(
+				page,
+				[
+					"import 'some-element-package/sidebar';",
+					"import './secret.server.ts';",
+					'const eco = { page: (options) => options };',
+					'export default eco.page({',
+					"\tmetadata: () => ({ title: 'x' }),",
+					'\tstaticProps: async () => ({ props: {} }),',
+					'\trender: () => null,',
+					'});',
+				].join('\n'),
+				'utf-8',
+			);
+
+			const harness = createPluginTestHarness(
+				{ absWorkingDir: tempDir, projectRoot: tempDir, entrypointFile: page },
+				{ react: page },
+			);
+			const transformed = (await harness.transformFile(page)) ?? readFileSync(page, 'utf-8');
+
+			expect(transformed).toContain("import 'some-element-package/sidebar'");
+			expect(transformed).not.toContain('secret.server');
+			expect(transformed).not.toContain('staticProps');
+			expect(transformed).not.toContain('metadata');
+		});
+	});
+
+	it('keeps bare side-effect imports in an entry module', async () => {
+		await withTempDir(async (tempDir) => {
+			const dir = path.join(tempDir, 'src', 'layouts');
+			mkdirSync(dir, { recursive: true });
+			const entry = path.join(dir, 'docs-layout.script.ts');
+			writeFileSync(entry, "import 'some-element-package/sidebar';\nexport const ready = true;", 'utf-8');
+
+			const harness = createPluginTestHarness(
+				{ absWorkingDir: tempDir, projectRoot: tempDir, entrypointFile: entry },
+				{ script: entry },
+			);
+			const transformed = (await harness.transformFile(entry)) ?? readFileSync(entry, 'utf-8');
+
+			expect(transformed).toContain("import 'some-element-package/sidebar'");
+		});
+	});
+
 	it('scopes declared modules to their grouped entry', async () => {
 		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const islandA = path.join(tempDir, 'island-a.tsx');

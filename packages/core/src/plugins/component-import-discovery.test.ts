@@ -497,9 +497,12 @@ export const Button = eco.component({ render: () => '' });`,
 			expect(result).not.toContain(`import 'some-lib/theme'`);
 			expect(result).toContain(`import 'some-lib';`);
 		});
-		it('strips a package stylesheet named without .css from a plain module', () => {
+		it.each([
+			['at the start of a line', `import 'some-lib/theme';\nexport const theme = 1;`],
+			['right after a comment', `/* theme */import 'some-lib/theme';\nexport const theme = 1;`],
+		])('strips a package stylesheet named without .css from a plain module, %s', (_name, source) => {
 			const { root, write } = packageFixture();
-			write('theme.ts', `import 'some-lib/theme';\nexport const theme = 1;`);
+			write('theme.ts', source);
 			const code = attributeComponentIdentity(
 				fileSystem.readFileSync(path.join(root, 'theme.ts')),
 				path.join(root, 'theme.ts'),

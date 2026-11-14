@@ -864,9 +864,9 @@ export type RequestPageContext = {
 export type WithLocals<P> = P & { locals?: RequestLocals };
 
 /**
- * Represents the params for a static path.
+ * One page that `paths` lists at build.
  */
-export type StaticPath = { params: PageParams };
+export type PagePath = { params: PageParams };
 
 export type EcoPagesAppConfig = {
 	baseUrl: string;
@@ -925,7 +925,7 @@ export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T> & Partial<Request
  * @remarks
  * Returns `[{ params }]` directly. The Cache Strategy decides what the build does with each entry.
  */
-export type GetPaths = (context: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }) => Promise<StaticPath[]>;
+export type GetPaths = (context: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }) => Promise<PagePath[]>;
 
 /**
  * The context object for the getMetadata function.
@@ -946,11 +946,11 @@ export type GetMetadata<T = Record<string, unknown>> = (
  * The function that returns the props for a page.
  *
  * @remarks
- * Returns the props object directly. It receives Params from `paths` at build time and from the
- * request at run time.
+ * Returns the props object directly. `paths` lists the Params known at build; `props` receives Params,
+ * from `paths` at build and from the request at run time.
  */
 export type GetProps<T> = (context: {
-	pathname: StaticPath;
+	params: PageParams;
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
 }) => Promise<T>;

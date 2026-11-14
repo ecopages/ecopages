@@ -13,8 +13,8 @@ export default eco.page<AuthorProps>({
 		return getAllAuthorIds();
 	},
 
-	props: async ({ pathname }) => {
-		const id = pathname.params.id as string;
+	props: async ({ params }) => {
+		const id = params.id as string;
 		const author = getAuthor(id);
 		if (!author) throw new Error(`Author with id "${id}" not found`);
 		return {

@@ -19,8 +19,8 @@ const posts = createLazyCollectionComponents(loadComponent);
 export default eco.page<PostPageProps, ReactNode>({
 	layout: BaseLayout,
 	paths: async () => entries.map((entry) => ({ params: { slug: entry.slug } })),
-	props: async ({ pathname }) => ({
-		entry: getEntry(pathname.params.slug as string) as PostEntry,
+	props: async ({ params }) => ({
+		entry: getEntry(params.slug as string) as PostEntry,
 	}),
 	dependencies: async ({ props }) => await getEntryDependencies(props.entry.slug),
 	metadata: ({ props: { entry } }) => ({

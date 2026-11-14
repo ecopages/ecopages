@@ -20,8 +20,8 @@ const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { section, slug, t
 	url: `/docs/${section}/${slug}`,
 });
 
-const getProps: GetProps<DocsCatchAllProps> = async ({ pathname }) => {
-	const segments = parseDocsCatchAllSegments(pathname.params.slug);
+const getProps: GetProps<DocsCatchAllProps> = async ({ params }) => {
+	const segments = parseDocsCatchAllSegments(params.slug);
 	const slug = segments.join('/');
 	const entry = entries.find((candidate) => candidate.slug === slug);
 

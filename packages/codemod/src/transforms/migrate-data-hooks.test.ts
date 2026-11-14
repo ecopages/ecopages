@@ -65,4 +65,82 @@ describe('migrate-data-hooks', () => {
 		expect(once).not.toBeNull();
 		expect(await runTransform(once as string)).toBeNull();
 	});
+	describe('props context', () => {
+		const wrap = (hook: string) =>
+			`import { eco } from '@ecopages/core';\nexport default eco.page({ staticProps: ${hook}, render: () => null });\n`;
+
+		it.each([
+			[
+				'a destructured pathname that reads params',
+				'async ({ pathname }) => ({ props: { slug: pathname.params.slug } })',
+				'({ params })',
+				'params.slug',
+			],
+			[
+				'a nested pathname destructure',
+				'async ({ pathname: { params } }) => ({ props: { slug: params.slug } })',
+				'({ params })',
+				'params.slug',
+			],
+			[
+				'a renamed pathname',
+				'async ({ pathname: path }) => ({ props: { slug: path.params.slug } })',
+				'({ params })',
+				'params.slug',
+			],
+			[
+				'a pathname beside other fields',
+				'async ({ pathname, appConfig }) => ({ props: { slug: pathname.params.slug, appConfig } })',
+				'({ params, appConfig })',
+				'params.slug',
+			],
+			[
+				'a context identifier',
+				'async (ctx) => ({ props: { slug: ctx.pathname.params.slug } })',
+				'(ctx)',
+				'ctx.params.slug',
+			],
+		])('rewrites %s', async (_name, hook, signature, read) => {
+			const report = vi.fn();
+			const output = await runTransform(wrap(hook), report);
+			expect(output).toContain(signature);
+			expect(output).toContain(read);
+			expect(output).not.toContain('pathname');
+			expect(report).not.toHaveBeenCalled();
+		});
+
+		it('renames the StaticPath type imported from an Ecopages package', async () => {
+			const output = await runTransform(
+				"import type { StaticPath } from '@ecopages/core';\nexport const paths: StaticPath[] = [];\n",
+			);
+			expect(output).toContain("import type { PagePath } from '@ecopages/core';");
+			expect(output).toContain('PagePath[]');
+		});
+
+		it.each([
+			['pathname passed on whole', 'async ({ pathname }) => ({ props: { slug: lookup(pathname) } })'],
+			[
+				'pathname read for another field',
+				'async ({ pathname }) => ({ props: { slug: pathname.params.slug, other: pathname.other } })',
+			],
+			[
+				'a context identifier reading pathname whole',
+				'async (ctx) => ({ props: { slug: lookup(ctx.pathname) } })',
+			],
+			[
+				'a params binding that already exists',
+				'async ({ pathname }) => { const params = 1; return { props: { slug: pathname.params.slug, params } }; }',
+			],
+			[
+				'a typed pathname',
+				'async ({ pathname }: { pathname: { params: Record<string, string> } }) => ({ props: { slug: pathname.params.slug } })',
+			],
+		])('renames the hook but keeps pathname and reports it for %s', async (_name, hook) => {
+			const report = vi.fn();
+			const output = await runTransform(wrap(hook), report);
+			expect(output).toContain('props:');
+			expect(output).toContain('pathname');
+			expect(report).toHaveBeenCalledWith(expect.stringContaining('reads pathname'));
+		});
+	});
 });

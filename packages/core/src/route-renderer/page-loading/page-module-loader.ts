@@ -77,7 +77,7 @@ export class PageModuleLoaderService {
 		}
 		try {
 			const props = await getProps({
-				pathname: { params: params ?? {} },
+				params: params ?? {},
 				appConfig: this.appConfig,
 				runtimeOrigin: requireAppRuntime(this.appConfig).origin,
 			});

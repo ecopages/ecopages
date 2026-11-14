@@ -25,8 +25,8 @@ const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { entry } }) => ({
 	url: `/docs/${entry.slug}`,
 });
 
-const getProps: GetProps<DocsCatchAllProps> = async ({ pathname }) => {
-	const segments = parseDocsCatchAllSegments(pathname.params.slug);
+const getProps: GetProps<DocsCatchAllProps> = async ({ params }) => {
+	const segments = parseDocsCatchAllSegments(params.slug);
 	const slug = segments.join('/');
 	const found = entries.find((candidate) => candidate.slug === slug);
 

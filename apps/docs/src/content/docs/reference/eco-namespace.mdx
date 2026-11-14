@@ -48,7 +48,7 @@ import { eco, mergePageDependencies } from '@ecopages/core';
 import { getEntryDependencies } from 'ecopages:content/posts/server';
 
 export default eco.page({
-	props: async ({ pathname }) => ({ slug: String(pathname.params.slug) }),
+	props: async ({ params }) => ({ slug: String(params.slug) }),
 	dependencies: async ({ props }) =>
 		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.slug)),
 	render: () => <article />,
@@ -229,8 +229,8 @@ import type { JsxRenderable } from '@ecopages/jsx';
 export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
 	paths: async () => getAllSlugs(),
-	props: async ({ pathname }) => ({
-		post: await getPost(pathname.params.slug),
+	props: async ({ params }) => ({
+		post: await getPost(params.slug),
 	}),
 	metadata: ({ props: { post } }) => ({
 		title: post.title,
@@ -476,8 +476,8 @@ export default eco.page<BlogPostProps, JsxRenderable>({
 	paths: async () => posts.map((p) => ({ params: { slug: p.slug } })),
 
 	// Fetch data for the Params: at build, and per request when the page is dynamic
-	props: async ({ pathname }) => ({
-		slug: pathname.params.slug as string,
+	props: async ({ params }) => ({
+		slug: params.slug as string,
 		title: post.title,
 		text: post.text,
 	}),
@@ -557,8 +557,8 @@ export default eco.page<BlogPostProps, JsxRenderable>({
 		return getAllBlogPostSlugs();
 	},
 
-	props: async ({ pathname }) => {
-		const slug = pathname.params.slug as string;
+	props: async ({ params }) => {
+		const slug = params.slug as string;
 		const post = getBlogPost(slug);
 		if (!post) throw new Error(`Post not found: ${slug}`);
 		const author = getAuthor(post.authorId);

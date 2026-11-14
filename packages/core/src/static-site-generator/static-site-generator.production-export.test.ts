@@ -72,8 +72,8 @@ describe('StaticSiteGenerator production export', () => {
 		const appConfig = createMockConfig();
 		const routeFile = '/src/pages/blog/[slug].tsx';
 		type PageProps = { slug: string | string[] | undefined };
-		const propsMock = vi.fn(async ({ pathname }: Parameters<GetProps<PageProps>>[0]) => ({
-			slug: pathname.params.slug,
+		const propsMock = vi.fn(async ({ params }: Parameters<GetProps<PageProps>>[0]) => ({
+			slug: params.slug,
 		}));
 		const props: GetProps<PageProps> = propsMock;
 		const metadataMock = vi.fn(async ({ params }: Parameters<GetMetadata>[0]) => {
@@ -156,7 +156,7 @@ describe('StaticSiteGenerator production export', () => {
 		expect(planProductionRoutes.mock.calls[0]?.[1]?.onRouteFailure).toEqual(expect.any(Function));
 		expect(propsMock).toHaveBeenCalledTimes(2);
 		expect(metadataMock).toHaveBeenCalledTimes(2);
-		expect(propsMock.mock.calls.map(([context]) => context.pathname.params.slug)).toEqual(['first', 'second']);
+		expect(propsMock.mock.calls.map(([context]) => context.params.slug)).toEqual(['first', 'second']);
 		expect(writes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ filePath: '/test/project/dist/client/blog/first.html' }),
@@ -175,9 +175,9 @@ describe('StaticSiteGenerator production export', () => {
 		const routeFile = '/src/pages/blog/[slug].tsx';
 		type PageProps = { slug: string | string[] | undefined };
 		const Page = (({ slug }: PageProps) => `<p>${slug}</p>`) as EcoPageComponent<PageProps>;
-		Page.props = async ({ pathname }) => {
-			if (pathname.params.slug === 'broken') throw new Error('broken static props');
-			return { slug: pathname.params.slug };
+		Page.props = async ({ params }) => {
+			if (params.slug === 'broken') throw new Error('broken static props');
+			return { slug: params.slug };
 		};
 		Page.config = {
 			integration: 'test-renderer',
@@ -294,7 +294,7 @@ describe('StaticSiteGenerator production export', () => {
 		const Page = (() => '<p>product</p>') as EcoPageComponent<Record<string, unknown>>;
 		Page.cache = 'dynamic';
 		Page.paths = async () => [{ params: { slug: 'one' } }];
-		Page.props = async ({ pathname }) => ({ slug: pathname.params.slug });
+		Page.props = async ({ params }) => ({ slug: params.slug });
 		const resolveDependencies = vi.fn(async ({ props }: { props: Record<string, unknown> }) => {
 			if (!props.slug) throw new Error('a product needs its slug');
 			return { components: [] };
@@ -351,8 +351,8 @@ describe('StaticSiteGenerator production export', () => {
 		const routeFile = '/src/pages/posts/[slug].tsx';
 		const Page = (() => '<p>post</p>') as EcoPageComponent<Record<string, unknown>>;
 		Page.cache = 'dynamic';
-		Page.props = async ({ pathname }) => {
-			if (pathname.params.slug === 'chart') throw new Error('chart data is unavailable');
+		Page.props = async ({ params }) => {
+			if (params.slug === 'chart') throw new Error('chart data is unavailable');
 			return {};
 		};
 		Page.config = {
@@ -417,7 +417,7 @@ describe('StaticSiteGenerator production export', () => {
 		const Page = (({ slug }: PageProps) => `<p>${slug}</p>`) as EcoPageComponent<PageProps>;
 		Page.cache = 'dynamic';
 		Page.paths = async () => [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }];
-		Page.props = async ({ pathname }) => ({ slug: pathname.params.slug });
+		Page.props = async ({ params }) => ({ slug: params.slug });
 		Page.config = {
 			integration: 'test-renderer',
 			identity: { id: 'dynamic-collection-page', file: routeFile, integration: 'test-renderer' },
@@ -503,8 +503,8 @@ describe('StaticSiteGenerator production export', () => {
 		const routeFile = '/src/views/archive/[slug].tsx';
 		type ViewProps = { slug: string | string[] | undefined };
 		const paths = vi.fn(async () => [{ params: { slug: 'spring' } }]);
-		const props = vi.fn(async ({ pathname }: Parameters<GetProps<ViewProps>>[0]) => ({
-			slug: pathname.params.slug,
+		const props = vi.fn(async ({ params }: Parameters<GetProps<ViewProps>>[0]) => ({
+			slug: params.slug,
 		}));
 		const view = (({ slug }: ViewProps) => `<p>${slug}</p>`) as EcoPageComponent<ViewProps>;
 		view.paths = paths;

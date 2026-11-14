@@ -5,8 +5,8 @@ export default eco.page({
 	async paths() {
 		return (await listPosts()).paths;
 	},
-	props: async ({ pathname }) => {
-		const result = await loadPost(String(pathname.params.slug));
+	props: async ({ params }) => {
+		const result = await loadPost(String(params.slug));
 		return (await result).props;
 	},
 	render: ({ title }) => <h1>{title}</h1>,

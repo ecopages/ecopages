@@ -14,8 +14,8 @@ export const PostView = eco.page<PostViewProps>({
 	paths: async () => {
 		return posts.map((post) => ({ params: { slug: post.slug } }));
 	},
-	props: async ({ pathname }) => {
-		const post = posts.find((p) => p.slug === (pathname.params.slug as string));
+	props: async ({ params }) => {
+		const post = posts.find((p) => p.slug === (params.slug as string));
 		if (!post) throw HttpError.NotFound('Post not found');
 		return post;
 	},

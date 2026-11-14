@@ -5,8 +5,8 @@ type PostProps = { slug: string };
 export default eco.page<PostProps>({
 	paths: async () => [{ params: { slug: 'a' } }],
 
-	props: async ({ pathname }) => ({
-		slug: String(pathname.params.slug),
+	props: async ({ params }) => ({
+		slug: String(params.slug),
 	}),
 
 	metadata: ({ props }) => ({ title: props.slug }),

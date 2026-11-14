@@ -1121,7 +1121,7 @@ describe('StaticSiteGenerator', () => {
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
 			});
 			const executeExplicitView = vi.fn(async () => ({ body: '<html>Post</html>' }));
-			const props = vi.fn(async ({ pathname }) => pathname.params);
+			const props = vi.fn(async ({ params }) => params);
 
 			await ssg.run({
 				router: {
@@ -1150,7 +1150,7 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			expect(props).toHaveBeenCalledWith({
-				pathname: { params: { slug: 'hello-world' } },
+				params: { slug: 'hello-world' },
 				appConfig: expect.any(Object),
 				runtimeOrigin: 'http://localhost:3000',
 			});

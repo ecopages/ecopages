@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from 'vitest';
 import { eco } from './eco.ts';
-import type { GetMetadataContext, HtmlTemplateProps, LayoutProps, StaticPath } from '../types/contracts.ts';
+import type { GetMetadataContext, HtmlTemplateProps, LayoutProps, PageParams } from '../types/contracts.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import {
 	type ForeignChildRuntime,
@@ -507,9 +507,9 @@ describe('eco namespace', () => {
 	test('should attach props when provided (consolidated API)', () => {
 		type Props = { title: string; slug: string };
 
-		const propsFn = async ({ pathname }: { pathname: StaticPath }) => ({
+		const propsFn = async ({ params }: { params: PageParams }) => ({
 			title: 'Test',
-			slug: pathname.params.slug as string,
+			slug: params.slug as string,
 		});
 
 		const Page = eco.page<Props>({
@@ -541,9 +541,9 @@ describe('eco namespace', () => {
 
 		const Page = eco.page<Props>({
 			paths: async () => [{ params: { slug: 'hello' } }],
-			props: async ({ pathname }) => ({
+			props: async ({ params }) => ({
 				title: 'Hello World',
-				slug: pathname.params.slug as string,
+				slug: params.slug as string,
 			}),
 			metadata: ({ props: { title } }) => ({
 				title,
@@ -556,7 +556,7 @@ describe('eco namespace', () => {
 		expect(paths).toHaveLength(1);
 
 		const props = await Page.props!({
-			pathname: { params: { slug: 'hello' } },
+			params: { slug: 'hello' },
 			appConfig: mockAppConfig,
 			runtimeOrigin: '',
 		});

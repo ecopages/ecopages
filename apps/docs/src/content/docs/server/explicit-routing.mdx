@@ -422,8 +422,8 @@ const PostView = eco.page({
 		return posts.map((post) => ({ params: { slug: post.slug } }));
 	},
 
-	props: async ({ pathname }) => {
-		const post = await getPost(String(pathname.params.slug));
+	props: async ({ params }) => {
+		const post = await getPost(String(params.slug));
 		return { title: post.title, content: post.content };
 	},
 

@@ -15,8 +15,8 @@ export default eco.page<
 >({
 	layout: { component: BaseLayout, props: () => ({ prose: true }) },
 	paths: async () => entries.map((entry) => ({ params: { slug: entry.slug } })),
-	props: async ({ pathname }) => {
-		const slug = pathname.params.slug as string;
+	props: async ({ params }) => {
+		const slug = params.slug as string;
 		const entry = getEntry(slug) as PostEntry;
 		return { title: entry.title, description: entry.description, slug, image: entry.image };
 	},

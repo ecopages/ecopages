@@ -68,7 +68,7 @@ export type {
 	StandardSchemaSuccessResult,
 	StandardSchemaV1,
 	StaticPageContext,
-	StaticPath,
+	PagePath,
 	WebSocketCloseInfo,
 	WithLocals,
 } from './contracts.ts';

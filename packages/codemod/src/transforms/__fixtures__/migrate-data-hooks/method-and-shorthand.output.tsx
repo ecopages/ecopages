@@ -6,8 +6,8 @@ const staticPaths: GetPaths = async () => {
 	return posts.map((slug) => ({ params: { slug } }));
 };
 
-async function staticProps({ pathname }: Parameters<GetProps<{ slug: string }>>[0]) {
-	const slug = String(pathname.params.slug);
+async function staticProps({ params }: Parameters<GetProps<{ slug: string }>>[0]) {
+	const slug = String(params.slug);
 	if (!slug) {
 		return { slug: 'none' };
 	}

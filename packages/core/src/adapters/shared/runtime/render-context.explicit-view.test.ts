@@ -104,7 +104,7 @@ describe('explicit views rendered through real renderers', () => {
 
 	it('runs props and metadata once for an explicit static route', async () => {
 		const { plugin, appConfig } = await createPlugin();
-		const props = vi.fn(async ({ pathname }: any) => ({ title: pathname.params.slug }));
+		const props = vi.fn(async ({ params }: any) => ({ title: params.slug }));
 		const metadata = vi.fn(async ({ props }: any) => ({ title: String(props.title), description: 'd' }));
 		const view = createView(({ title }) => `<p>${title}</p>`, { props, metadata });
 		const matcher = new ExplicitStaticRouteMatcher({

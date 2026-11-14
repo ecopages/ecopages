@@ -285,8 +285,8 @@ describe('IntegrationRenderer', () => {
 
 	it('prepares a planned route without running its data hooks again', async () => {
 		const validateGraph = vi.spyOn(OwnershipValidationService.prototype, 'validateGraph');
-		const props = vi.fn(async ({ pathname }: { pathname: { params: Record<string, string> } }) => ({
-			slug: pathname.params.slug,
+		const props = vi.fn(async ({ params }: { params: Record<string, string> }) => ({
+			slug: params.slug,
 		}));
 		const metadata = vi.fn(async ({ props }: { props: Record<string, unknown> }) => ({
 			title: String(props.slug),
@@ -339,8 +339,8 @@ describe('IntegrationRenderer', () => {
 	it('continues grouped production prebuild after a route data hook fails', async () => {
 		const routeFile = path.resolve('/app/pages/[slug].tsx');
 		const failure = new Error('broken static props');
-		const props: GetProps<{ slug: string }> = async ({ pathname }) => {
-			const slug = String(pathname.params.slug);
+		const props: GetProps<{ slug: string }> = async ({ params }) => {
+			const slug = String(params.slug);
 			if (slug === 'broken') throw failure;
 			return { slug };
 		};

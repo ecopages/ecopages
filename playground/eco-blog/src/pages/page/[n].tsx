@@ -15,8 +15,8 @@ const pageParams = z.object({ n: z.coerce.number().int().min(2) });
 export default eco.page<ArchiveProps, JsxRenderable>({
 	layout: SiteLayout,
 	cache: 'dynamic',
-	props: async ({ pathname }) => {
-		const parsed = pageParams.safeParse(pathname.params);
+	props: async ({ params }) => {
+		const parsed = pageParams.safeParse(params);
 		const pageCount = await postsService.countPublishedPages();
 		if (!parsed.success || parsed.data.n > pageCount) throw HttpError.NotFound('Page not found');
 		return { posts: await postsService.listPublished(parsed.data.n), page: parsed.data.n, pageCount };

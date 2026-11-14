@@ -12,8 +12,8 @@ export default eco.page<CatalogPageProps>({
 	paths: async () => {
 		return showcasePatterns.map((pattern) => ({ params: { slug: pattern.slug } }));
 	},
-	props: async ({ pathname }) => {
-		const slug = pathname.params.slug as string;
+	props: async ({ params }) => {
+		const slug = params.slug as string;
 		const pattern = showcasePatterns.find((entry) => entry.slug === slug) ?? null;
 		return {
 			pattern,

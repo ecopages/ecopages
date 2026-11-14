@@ -15,9 +15,9 @@ export default eco.page<PageProps<BlogPostProps>>({
 		return [{ params: { slug: 'blog-post' } }, { params: { slug: 'another-blog-post' } }];
 	},
 
-	props: async ({ pathname }) => {
+	props: async ({ params }) => {
 		return {
-			slug: pathname.params.slug as string,
+			slug: params.slug as string,
 		};
 	},
 

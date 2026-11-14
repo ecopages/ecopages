@@ -690,9 +690,9 @@ Access params in `props`:
 
 ```tsx
 export default eco.page({
-  props: async ({ pathname }) => ({
-    slug: pathname.params.slug,
-    post: await getPost(pathname.params.slug),
+  props: async ({ params }) => ({
+    slug: params.slug,
+    post: await getPost(params.slug),
   }),
   render: ({ slug, post }) => (
     <article>

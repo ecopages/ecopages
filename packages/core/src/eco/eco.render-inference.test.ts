@@ -50,8 +50,8 @@ describe('page props inference from props and render', () => {
 	it('keeps params and query typed beside props', () => {
 		eco.page({
 			paths: async () => [{ params: { slug: 'a' } }],
-			props: async ({ pathname }) => ({
-				slug: String(pathname.params.slug),
+			props: async ({ params }) => ({
+				slug: String(params.slug),
 			}),
 			render: ({ slug, params, query }) => `${slug}${params?.slug}${query?.page}`,
 		});

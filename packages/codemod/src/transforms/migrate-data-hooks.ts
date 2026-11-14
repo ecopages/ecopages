@@ -6,21 +6,26 @@
  * Before:
  *   eco.page({
  *     staticPaths: async () => ({ paths: [{ params: { slug: 'a' } }] }),
- *     staticProps: async ({ pathname }) => ({ props: { title: pathname.params.slug } }),
+ *     staticProps: async ({ pathname: { params } }) => ({ props: { title: params.slug } }),
  *     render: ...
  *   })
  *
  * After:
  *   eco.page({
  *     paths: async () => [{ params: { slug: 'a' } }],
- *     props: async ({ pathname }) => ({ title: pathname.params.slug }),
+ *     props: async ({ params }) => ({ title: params.slug }),
  *     render: ...
  *   })
  *
  * A hook is rewritten only when every value it returns can be unwrapped: an object literal holding just the
  * envelope key, or any expression inside an `async` function, which becomes `(await expr).props`. A hook it
  * cannot rewrite is left unchanged and reported, so the old name still fails loudly with a pointer to the migration docs.
- * The `GetStaticProps` and `GetStaticPaths` types are renamed to `GetProps` and `GetPaths`.
+ * The `GetStaticProps`, `GetStaticPaths` and `StaticPath` types are renamed to `GetProps`, `GetPaths` and `PagePath`.
+ *
+ * The props context passes `params` where it passed `pathname: { params }`, so in the `props` hook the first
+ * parameter is rewritten when it is destructured as `{ pathname: { params } }` or `{ pathname }`, or is a
+ * plain identifier read as `ctx.pathname.params`. A hook that reads `pathname` any other way, or declares a
+ * `params` binding already, keeps its `pathname` and is reported.
  *
  * @remarks
  * This file is deliberately self-contained, with no import beyond `jscodeshift` types, because
@@ -51,6 +56,7 @@ const HOOKS: readonly HookRename[] = [
 const TYPE_RENAMES: Readonly<Record<string, string>> = {
 	GetStaticProps: 'GetProps',
 	GetStaticPaths: 'GetPaths',
+	StaticPath: 'PagePath',
 };
 
 /**
@@ -61,7 +67,7 @@ const TYPE_RENAMES: Readonly<Record<string, string>> = {
  * because the Babel `tsx` parser yields node types (`ObjectProperty`, `ObjectMethod`, `TSSatisfiesExpression`)
  * that the exported unions do not all list.
  */
-type FunctionNode = { type: string; async?: boolean | null; body: unknown };
+type FunctionNode = { type: string; async?: boolean | null; body: unknown; params?: unknown[] };
 
 type NodeLike = { type: string };
 
@@ -221,6 +227,167 @@ function resolveHookFunction(j: JSCodeshift, root: Collection, value: unknown): 
 	return resolved;
 }
 
+function hasPathnameTypeMember(value: unknown): boolean {
+	if (Array.isArray(value)) return value.some(hasPathnameTypeMember);
+	if (!isNode(value)) return false;
+	if (value.type === 'TSPropertySignature') {
+		const key = value.key;
+		if (isNode(key) && key.name === 'pathname') return true;
+	}
+	return Object.values(value).some(hasPathnameTypeMember);
+}
+
+/**
+ * Whether a node is a read of `name`, as opposed to a property name or object key that merely spells it.
+ */
+function isBindingReference(path: ASTPath): boolean {
+	const parent = path.parent?.node as Record<string, unknown> | undefined;
+	if (!parent || !isNode(parent)) return true;
+	if (
+		(parent.type === 'MemberExpression' || parent.type === 'OptionalMemberExpression') &&
+		parent.property === path.node &&
+		!parent.computed
+	) {
+		return false;
+	}
+	if (parent.type === 'ObjectProperty' && parent.key === path.node && !parent.computed && !parent.shorthand) {
+		return false;
+	}
+	return true;
+}
+
+type PathnameRewrite = 'rewritten' | 'unchanged' | 'unsafe';
+
+type PatternProperty = Record<string, unknown> & NodeLike;
+
+function hasIdentifier(j: JSCodeshift, node: unknown, name: string): boolean {
+	return j(node as ASTNode).find(j.Identifier, { name }).length > 0;
+}
+
+/** Whether a function already uses `params` as a binding, in its parameters or as a read in its body. */
+function usesParamsBinding(j: JSCodeshift, fn: FunctionNode): boolean {
+	const inParams = (fn.params ?? []).some((param) => hasIdentifier(j, param, 'params'));
+	const inBody = j(fn.body as ASTNode)
+		.find(j.Identifier, { name: 'params' })
+		.some((path) => isBindingReference(path));
+	return inParams || inBody;
+}
+
+function isMemberNamed(node: unknown, name: string): boolean {
+	const member = node as Record<string, unknown>;
+	return (
+		isNode(member) &&
+		member.type === 'MemberExpression' &&
+		!member.computed &&
+		isNode(member.property) &&
+		member.property.name === name
+	);
+}
+
+/** Rewrites `ctx.pathname.params` reads to `ctx.params` when `ctx` is read no other way. */
+function rewriteContextIdentifier(j: JSCodeshift, fn: FunctionNode, local: string): PathnameRewrite {
+	const accesses: ASTPath[] = [];
+	let found = false;
+	let safe = true;
+	j(fn.body as ASTNode)
+		.find(j.Identifier, { name: local })
+		.forEach((path) => {
+			if (!isBindingReference(path)) return;
+			const parent = path.parent.node as Record<string, unknown>;
+			if (parent.object !== path.node || !isMemberNamed(parent, 'pathname')) return;
+			found = true;
+			const grand = path.parent.parent.node as Record<string, unknown>;
+			if (grand.object === parent && isMemberNamed(grand, 'params')) {
+				accesses.push(path.parent.parent);
+				return;
+			}
+			safe = false;
+		});
+	if (!found) return 'unchanged';
+	if (!safe) return 'unsafe';
+	for (const access of accesses) {
+		j(access).replaceWith(j.memberExpression(j.identifier(local), j.identifier('params')));
+	}
+	return 'rewritten';
+}
+
+/** Rewrites a `pathname` binding named `local` and read as `local.params` into a plain `params` read. */
+function flattenPathnameReads(j: JSCodeshift, fn: FunctionNode, local: string): boolean {
+	const reads: ASTPath[] = [];
+	let safe = true;
+	j(fn.body as ASTNode)
+		.find(j.Identifier, { name: local })
+		.forEach((path) => {
+			if (!isBindingReference(path)) return;
+			const parent = path.parent.node as Record<string, unknown>;
+			if (parent.object === path.node && isMemberNamed(parent, 'params')) {
+				reads.push(path.parent);
+				return;
+			}
+			safe = false;
+		});
+	if (!safe) return false;
+	for (const read of reads) {
+		j(read).replaceWith(j.identifier('params'));
+	}
+	return true;
+}
+
+/** Rewrites the `pathname` entry of a destructured context parameter, at `index` of `properties`. */
+function rewriteContextPattern(
+	j: JSCodeshift,
+	fn: FunctionNode,
+	properties: PatternProperty[],
+	index: number,
+): PathnameRewrite {
+	const value = properties[index].value;
+	const paramsTaken = properties.some((property, at) => at !== index && hasIdentifier(j, property, 'params'));
+
+	if (isNode(value) && value.type === 'ObjectPattern') {
+		const inner = value.properties as PatternProperty[];
+		const [only] = inner;
+		const isParams =
+			only?.type === 'ObjectProperty' && !only.computed && isNode(only.key) && only.key.name === 'params';
+		if (inner.length !== 1 || !isParams || paramsTaken) return 'unsafe';
+		properties[index] = only;
+		return 'rewritten';
+	}
+
+	if (isNode(value) && value.type === 'Identifier') {
+		const local = value.name as string;
+		if (paramsTaken || usesParamsBinding(j, fn) || !flattenPathnameReads(j, fn, local)) return 'unsafe';
+		const replacement = j.objectProperty(j.identifier('params'), j.identifier('params'));
+		replacement.shorthand = true;
+		properties[index] = replacement as never;
+		return 'rewritten';
+	}
+	return 'unsafe';
+}
+
+/**
+ * Rewrites the context parameter of a `props` hook from `pathname: { params }` to `params`.
+ *
+ * @returns `'rewritten'`, `'unchanged'` when the hook never reads `pathname`, or `'unsafe'` when it reads it in a
+ * way that cannot be rewritten and was left as written.
+ */
+function rewritePathnameContext(j: JSCodeshift, fn: FunctionNode): PathnameRewrite {
+	const [first] = fn.params ?? [];
+	if (!isNode(first)) return 'unchanged';
+	if (hasPathnameTypeMember(first.typeAnnotation)) return 'unsafe';
+	if (first.type === 'Identifier') return rewriteContextIdentifier(j, fn, first.name as string);
+	if (first.type !== 'ObjectPattern') return 'unchanged';
+
+	const properties = first.properties as PatternProperty[];
+	const index = properties.findIndex(
+		(property) =>
+			property.type === 'ObjectProperty' &&
+			!property.computed &&
+			isNode(property.key) &&
+			property.key.name === 'pathname',
+	);
+	return index === -1 ? 'unchanged' : rewriteContextPattern(j, fn, properties, index);
+}
+
 function renameKey(property: ObjectProperty | ObjectMethod, to: string): void {
 	const mutable = property as unknown as { shorthand?: boolean; value?: unknown; key: NodeLike & { name?: string } };
 	if (mutable.shorthand) {
@@ -256,6 +423,7 @@ export default function transform(file: FileInfo, api: API, _options: Options): 
 	let changed = false;
 	const skipped: string[] = [];
 	const awaited: string[] = [];
+	const pathnameSkipped: string[] = [];
 
 	root.find(j.CallExpression)
 		.filter((path) => isEcoPageCall(path.node))
@@ -284,6 +452,9 @@ export default function transform(file: FileInfo, api: API, _options: Options): 
 				}
 				if (result === 'awaited') {
 					awaited.push(`${from} in ${file.path}`);
+				}
+				if (to === 'props' && fn && rewritePathnameContext(j, fn) === 'unsafe') {
+					pathnameSkipped.push(`${from} in ${file.path}`);
 				}
 				renameKey(property, to);
 				changed = true;
@@ -319,6 +490,12 @@ export default function transform(file: FileInfo, api: API, _options: Options): 
 	for (const entry of awaited) {
 		api.report(
 			`migrate-data-hooks: ${entry} returns a value this codemod could not unwrap from a literal, so it now reads (await value).props or (await value).paths. Move the unwrap into the helper that builds the value if you want the hook to return it directly.`,
+		);
+	}
+
+	for (const entry of pathnameSkipped) {
+		api.report(
+			`migrate-data-hooks: ${entry} reads pathname in a way this codemod cannot rewrite. The props context passes params where it passed pathname.params, so change pathname.params to params by hand.`,
 		);
 	}
 

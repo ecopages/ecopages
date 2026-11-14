@@ -10,8 +10,8 @@ import './post.css';
 export default eco.page<{ post: PublishedPost }, JsxRenderable>({
 	layout: SiteLayout,
 	cache: 'dynamic',
-	props: async ({ pathname }) => {
-		const post = await postsService.findPublishedBySlug(String(pathname.params.slug));
+	props: async ({ params }) => {
+		const post = await postsService.findPublishedBySlug(String(params.slug));
 		if (!post) throw HttpError.NotFound('Post not found');
 		return { post };
 	},

@@ -45,7 +45,7 @@ const getMetadata: GetMetadata<WikiCatchAllProps> = ({ props: { title, slug } })
 	url: `wiki/${slug}`,
 });
 
-const getProps: GetProps<WikiCatchAllProps> = async ({ pathname }) => wikiPageFromCatchAll(pathname.params.slug);
+const getProps: GetProps<WikiCatchAllProps> = async ({ params }) => wikiPageFromCatchAll(params.slug);
 
 export default eco.page<WikiCatchAllProps, JsxRenderable>({
 	layout: {

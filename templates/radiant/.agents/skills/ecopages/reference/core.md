@@ -127,7 +127,7 @@ Included URLs: successfully exported static pages whose metadata resolves and `r
 
 ## Common patterns
 
-**Dynamic routes:** `src/pages/blog/[slug].tsx` sets `paths` returning `[{ params: { slug } }]` and `props` reading `pathname.params` and returning the props object. A catch-all `[...path]` captures an array.
+**Dynamic routes:** `src/pages/blog/[slug].tsx` sets `paths` returning `[{ params: { slug } }]` and `props` reading `params` and returning the props object. A catch-all `[...path]` captures an array.
 
 **Cache Strategy:** `cache: 'static'` (the default; rendered at build), `cache: 'dynamic'` (rendered per request; Params, Query and Locals arrive as render props, and Page `middleware` / `requires` need it), or `cache: { revalidate: seconds, tags }`.
 

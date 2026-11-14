@@ -11,8 +11,8 @@ export default eco.page<{ post: Post }, JsxRenderable, 'session'>({
 	cache: 'dynamic',
 	middleware: [requireSession],
 	requires: ['session'] as const,
-	props: async ({ pathname }) => {
-		const { id } = postIdParams.parse(pathname.params);
+	props: async ({ params }) => {
+		const { id } = postIdParams.parse(params);
 		const post = await postsService.findById(id);
 		if (!post) throw HttpError.NotFound('Post not found');
 		return { post };

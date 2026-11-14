@@ -19,8 +19,8 @@ const getMetadata: GetMetadata<DevPageProps> = ({ props: { entry } }) => ({
 	robots: DEV_ROBOTS,
 });
 
-const getProps: GetProps<DevPageProps> = async ({ pathname }) => {
-	const slug = pathname.params.slug;
+const getProps: GetProps<DevPageProps> = async ({ params }) => {
+	const slug = params.slug;
 	const entry = devEntries.find((candidate) => candidate.slug === slug && candidate.slug !== DEV_INDEX_SLUG);
 
 	if (!entry) {

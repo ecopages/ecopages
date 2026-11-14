@@ -178,10 +178,10 @@ export default eco.page<{ entry: Entry }>({
 		entries.map((post) => ({
 			params: { slug: post.segments },
 		})),
-	props: async ({ pathname }) => {
-		const segments = Array.isArray(pathname.params.slug)
-			? pathname.params.slug
-			: [pathname.params.slug];
+	props: async ({ params }) => {
+		const segments = Array.isArray(params.slug)
+			? params.slug
+			: [params.slug];
 
 		return { entry: getEntryBySegments(segments) };
 	},
@@ -213,7 +213,7 @@ import { getEntryDependencies } from 'ecopages:content/docs/server';
 const docs = createLazyCollectionComponents(loadComponent);
 
 export default eco.page({
-	props: async ({ pathname }) => ({ entry: getEntry(pathname.params.slug) }),
+	props: async ({ params }) => ({ entry: getEntry(params.slug) }),
 	dependencies: ({ props }) => getEntryDependencies(props.entry.slug),
 	render: ({ entry }) => {
 		const Content = docs.get(entry.slug);

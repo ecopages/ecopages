@@ -18,8 +18,8 @@ export default eco.page<BlogPostProps>({
 		return getAllBlogPostSlugs();
 	},
 
-	props: async ({ pathname }) => {
-		const slug = pathname.params.slug as string;
+	props: async ({ params }) => {
+		const slug = params.slug as string;
 		const post = getBlogPost(slug);
 		if (!post) throw new Error(`Blog post with slug "${slug}" not found`);
 		const author = getAuthor(post.authorId);

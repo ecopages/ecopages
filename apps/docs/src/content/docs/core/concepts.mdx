@@ -194,8 +194,8 @@ export default eco.page({
 		}));
 	},
 
-	props: async ({ pathname }) => {
-		const slug = pathname.params.slug;
+	props: async ({ params }) => {
+		const slug = params.slug;
 		const post = getBlogPost(slug);
 
 		if (!post) {

@@ -36,7 +36,7 @@ pnpm --filter @ecopages/codemod exec jscodeshift \
 
 ### Migrate the Page Data Hooks to `props` and `paths`
 
-Renames the `staticProps` and `staticPaths` options of `eco.page({ ... })` to `props` and `paths`, and drops the envelopes they returned: `props` returns the props object instead of `{ props }`, and `paths` returns `[{ params }]` instead of `{ paths }`. Core fails a page that still declares the old names and points here. The transform also renames the `GetStaticProps` and `GetStaticPaths` types imported from `@ecopages/*` to `GetProps` and `GetPaths`.
+Renames the `staticProps` and `staticPaths` options of `eco.page({ ... })` to `props` and `paths`, and drops the envelopes they returned: `props` returns the props object instead of `{ props }`, and `paths` returns `[{ params }]` instead of `{ paths }`. Core fails a page that still declares the old names and points here. The transform also renames the `GetStaticProps`, `GetStaticPaths` and `StaticPath` types imported from `@ecopages/*` to `GetProps`, `GetPaths` and `PagePath`. The props context passes `params` where it passed `pathname: { params }`, so it rewrites a `props` parameter written as `{ pathname: { params } }`, `{ pathname }` or `ctx.pathname.params` to read `params`. A hook that reads `pathname` any other way, or already has a `params` binding, keeps its `pathname` and is reported.
 
 It unwraps an object literal that holds only the envelope key, in an inline hook or a same-file function the option names. Any other return value in an `async` hook becomes `(await value).props` or `(await value).paths`. A hook it cannot unwrap, such as one imported from another file or a synchronous one with a computed return, is left unchanged and reported, so the old name still fails loudly. Rename those by hand.
 
@@ -108,7 +108,7 @@ export default Page;
 export default eco.page({
   layout: BaseLayout,
   paths: async () => [...],
-  props: async ({ pathname }) => ({...}),
+  props: async ({ params }) => ({...}),
   metadata: ({ props }) => ({ title: '...' }),
   render: () => <h1>...</h1>,
 });

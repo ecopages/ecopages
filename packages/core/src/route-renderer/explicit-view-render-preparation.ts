@@ -69,7 +69,7 @@ export async function prepareExplicitStaticRender(input: {
 
 	const props = input.view.props
 		? await input.view.props({
-				pathname: { params: input.params },
+				params: input.params,
 				appConfig: input.appConfig,
 				runtimeOrigin: input.runtimeOrigin,
 			})

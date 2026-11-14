@@ -638,6 +638,9 @@ function createStylesheetMentionTest(kinds: StylesheetKinds): (code: string) => 
  * discovery has reached it, and it never fails the reach check. A build can transform a
  * plain module before the declaration that imports it, so the check that a declaration reached each
  * module that lost a stylesheet import runs once the whole build is transformed.
+ *
+ * A transform id is the bundler's resolved module path, so symbolic links are already resolved and the app-root
+ * check compares it as it is.
  */
 export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): EcoBuildPlugin {
 	const { integrations, rootDir } = options.config;

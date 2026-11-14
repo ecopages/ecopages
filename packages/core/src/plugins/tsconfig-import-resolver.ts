@@ -386,7 +386,8 @@ export function resolveProjectModulePath(
 	}
 
 	if (isRelative) {
-		return resolveRelativeModulePath(fromFile, specifier);
+		const relativePath = resolveRelativeModulePath(fromFile, specifier);
+		return relativePath && options?.preserveBarrel ? fileSystem.realpath(relativePath) : relativePath;
 	}
 
 	return undefined;

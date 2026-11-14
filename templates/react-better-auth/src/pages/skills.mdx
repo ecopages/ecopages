@@ -380,6 +380,7 @@ For routes that share a prefix and middleware:
 ```typescript
 import { defineGroupHandler } from "@ecopages/core";
 import { authMiddleware } from "./auth";
+import AdminView from "@/views/admin";
 
 export const adminGroup = defineGroupHandler({
   prefix: "/admin",
@@ -389,7 +390,6 @@ export const adminGroup = defineGroupHandler({
       path: "/",
       method: "GET",
       handler: async (ctx) => {
-        const { default: AdminView } = await import("@/views/admin");
         return ctx.render(AdminView, { user: ctx.session.user });
       },
     }),
@@ -399,8 +399,8 @@ export const adminGroup = defineGroupHandler({
 
 **Important:** When rendering pages from handlers using `ctx.render()`, the component must be:
 - Defined using `eco.page()` (not a plain React component)
-- Located outside `src/pages/` (`src/views/` is a convention, no folder makes a file a view)
-- `src/pages/` holds Filesystem Routes, while views are rendered from handlers
+- The default export of a file the server entry imports, statically, as above
+- Kept outside `src/pages/`, since every file there is also a Filesystem Route. `src/views/` is a convention; no folder makes a file a view
 
 Register handlers in `app.ts`:
 
@@ -1000,6 +1000,7 @@ Use `authMiddleware` with `defineGroupHandler`:
 ```typescript
 import { defineGroupHandler } from "@ecopages/core";
 import { authMiddleware } from "./auth.server";
+import DashboardView from "@/views/dashboard";
 
 export const protectedGroup = defineGroupHandler({
   prefix: "/dashboard",
@@ -1009,7 +1010,6 @@ export const protectedGroup = defineGroupHandler({
       path: "/",
       method: "GET",
       handler: async (ctx) => {
-        const { default: DashboardView } = await import("@/views/dashboard");
         return ctx.render(DashboardView, { user: ctx.locals.session?.user });
       },
     }),
@@ -1020,7 +1020,7 @@ export const protectedGroup = defineGroupHandler({
 **Key Points:**
 - Views rendered from handlers live outside `src/pages/`, conventionally in `src/views/`
 - Use `eco.page()` to define the view component (accepts props via generic type)
-- Import views dynamically using `await import()` to avoid circular dependencies
+- Import views statically: the build replaces the import with a view reference, so it cannot form an import cycle
 - Pass data from the handler context (e.g., `ctx.locals.session?.user`) as props to the view
 
 ### Environment Variables

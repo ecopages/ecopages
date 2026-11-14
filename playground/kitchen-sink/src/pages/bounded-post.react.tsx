@@ -38,7 +38,9 @@ class EntryErrorBoundary extends Component<{ children?: ReactNode }, { error?: u
 
 export default eco.page<BoundedPostPageProps, ReactNode>({
 	layout: ReactPlaygroundLayout,
-	staticProps: async () => ({ props: { entry: asPostContentEntry(getEntry('first-post')) } }),
+	props: async () => ({
+		entry: asPostContentEntry(getEntry('first-post')),
+	}),
 	dependencies: async ({ props }) => getEntryDependencies(props.entry.slug),
 	metadata: ({ props: { entry } }) => ({
 		title: `${entry.title} | Bounded | Kitchen Sink`,

@@ -14,23 +14,21 @@ type BlogPostProps = {
 export default eco.page<BlogPostProps>({
 	layout: BaseLayout,
 
-	staticPaths: async () => {
-		return { paths: getAllBlogPostSlugs() };
+	paths: async () => {
+		return getAllBlogPostSlugs();
 	},
 
-	staticProps: async ({ pathname }) => {
-		const slug = pathname.params.slug as string;
+	props: async ({ params }) => {
+		const slug = params.slug as string;
 		const post = getBlogPost(slug);
 		if (!post) throw new Error(`Blog post with slug "${slug}" not found`);
 		const author = getAuthor(post.authorId);
 		return {
-			props: {
-				slug,
-				title: post.title,
-				text: post.text,
-				authorId: post.authorId,
-				authorName: author?.name ?? 'Unknown Author',
-			},
+			slug,
+			title: post.title,
+			text: post.text,
+			authorId: post.authorId,
+			authorName: author?.name ?? 'Unknown Author',
 		};
 	},
 

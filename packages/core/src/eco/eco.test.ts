@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from 'vitest';
 import { eco } from './eco.ts';
-import type { GetMetadataContext, HtmlTemplateProps, LayoutProps, StaticPath } from '../types/contracts.ts';
+import type { GetMetadataContext, HtmlTemplateProps, LayoutProps, PageParams } from '../types/contracts.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import {
 	type ForeignChildRuntime,
@@ -335,7 +335,7 @@ describe('eco namespace', () => {
 	});
 
 	describe('eco.page()', () => {
-		test('should create a page without staticProps', () => {
+		test('should create a page without a props hook', () => {
 			const Page = eco.page({
 				dependencies: {
 					components: [],
@@ -345,7 +345,7 @@ describe('eco namespace', () => {
 
 			expect(typeof Page).toBe('function');
 			expect(Page.config?.dependencies?.components).toEqual([]);
-			expect(Page.staticProps).toBeUndefined();
+			expect(Page.props).toBeUndefined();
 		});
 
 		test('should create a page with typed props', () => {
@@ -493,32 +493,31 @@ describe('eco namespace', () => {
 		});
 	});
 
-	test('should attach staticPaths when provided (consolidated API)', () => {
-		const staticPathsFn = async () => ({
-			paths: [{ params: { slug: 'post-1' } }, { params: { slug: 'post-2' } }],
-		});
+	test('should attach paths when provided (consolidated API)', () => {
+		const pathsFn = async () => [{ params: { slug: 'post-1' } }, { params: { slug: 'post-2' } }];
 
 		const Page = eco.page({
-			staticPaths: staticPathsFn,
+			paths: pathsFn,
 			render: () => '<h1>Page</h1>',
 		});
 
-		expect(Page.staticPaths).toBe(staticPathsFn);
+		expect(Page.paths).toBe(pathsFn);
 	});
 
-	test('should attach staticProps when provided (consolidated API)', () => {
+	test('should attach props when provided (consolidated API)', () => {
 		type Props = { title: string; slug: string };
 
-		const staticPropsFn = async ({ pathname }: { pathname: StaticPath }) => ({
-			props: { title: 'Test', slug: pathname.params.slug as string },
+		const propsFn = async ({ params }: { params: PageParams }) => ({
+			title: 'Test',
+			slug: params.slug as string,
 		});
 
 		const Page = eco.page<Props>({
-			staticProps: staticPropsFn,
+			props: propsFn,
 			render: ({ title }) => `<h1>${title}</h1>`,
 		});
 
-		expect(Page.staticProps).toBe(staticPropsFn);
+		expect(Page.props).toBe(propsFn);
 	});
 
 	test('should attach metadata when provided (consolidated API)', () => {
@@ -541,11 +540,10 @@ describe('eco namespace', () => {
 		type Props = { title: string; slug: string };
 
 		const Page = eco.page<Props>({
-			staticPaths: async () => ({
-				paths: [{ params: { slug: 'hello' } }],
-			}),
-			staticProps: async ({ pathname }) => ({
-				props: { title: 'Hello World', slug: pathname.params.slug as string },
+			paths: async () => [{ params: { slug: 'hello' } }],
+			props: async ({ params }) => ({
+				title: 'Hello World',
+				slug: params.slug as string,
 			}),
 			metadata: ({ props: { title } }) => ({
 				title,
@@ -554,15 +552,15 @@ describe('eco namespace', () => {
 			render: ({ title }) => `<h1>${title}</h1>`,
 		});
 
-		const paths = await Page.staticPaths!({ appConfig: mockAppConfig, runtimeOrigin: '' });
-		expect(paths.paths).toHaveLength(1);
+		const paths = await Page.paths!({ appConfig: mockAppConfig, runtimeOrigin: '' });
+		expect(paths).toHaveLength(1);
 
-		const props = await Page.staticProps!({
-			pathname: { params: { slug: 'hello' } },
+		const props = await Page.props!({
+			params: { slug: 'hello' },
 			appConfig: mockAppConfig,
 			runtimeOrigin: '',
 		});
-		expect(props.props.title).toBe('Hello World');
+		expect(props.title).toBe('Hello World');
 
 		const result = Page({ title: 'Hello World', slug: 'hello' });
 		expect(result).toBe('<h1>Hello World</h1>');
@@ -573,9 +571,25 @@ describe('eco namespace', () => {
 			render: () => '<h1>Simple Page</h1>',
 		});
 
-		expect(Page.staticPaths).toBeUndefined();
-		expect(Page.staticProps).toBeUndefined();
+		expect(Page.paths).toBeUndefined();
+		expect(Page.props).toBeUndefined();
 		expect(Page.metadata).toBeUndefined();
+	});
+
+	test.each([
+		['staticProps', 'props'],
+		['staticPaths', 'paths'],
+	])('should fail a page that still declares %s, naming %s and the migration docs', (oldName, newName) => {
+		expect(() =>
+			eco.page({
+				[oldName]: async () => ({}),
+				render: () => '<h1>Page</h1>',
+			} as never),
+		).toThrow(
+			new RegExp(
+				`no longer accepts ${oldName}.*${oldName} is now ${newName}.*ecopages\\.app/docs/core/data-fetching#migrating-from-staticprops-and-staticpaths`,
+			),
+		);
 	});
 
 	test('should attach cache strategy "static" when provided', () => {

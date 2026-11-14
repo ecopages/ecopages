@@ -12,10 +12,11 @@
  *   export default Page
  *
  * After:
- *   export default eco.page({ layout, dependencies, staticPaths, staticProps, metadata, render })
+ *   export default eco.page({ layout, dependencies, paths, props, metadata, render })
  */
 
 import type { API, FileInfo, Options, ASTPath, ExportDefaultDeclaration, JSCodeshift, Collection } from 'jscodeshift';
+import migrateDataHooks from './migrate-data-hooks.ts';
 import { printOptions } from './print-options.ts';
 
 export const parser = 'tsx';
@@ -537,7 +538,7 @@ function mergeIntoExistingEcoPage(j: JSCodeshift, ecoPageCall: Collection<unknow
 	return merged;
 }
 
-export default function transformer(file: FileInfo, api: API, _options: Options): string | null {
+function migratePage(file: FileInfo, api: API): string | null {
 	const j = api.jscodeshift;
 	const root = j(file.source);
 
@@ -614,4 +615,16 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 	pruneLegacyPageTypeImports(j, root);
 
 	return root.toSource(printOptions(file.source));
+}
+
+/**
+ * Consolidates the legacy exports into `eco.page()`, then renames the data hooks and drops their envelopes
+ * with `migrate-data-hooks`, so a page ends on the current API in one run.
+ */
+export default function transformer(file: FileInfo, api: API, options: Options): string | null {
+	const migrated = migratePage(file, api);
+	if (migrated === null) {
+		return null;
+	}
+	return migrateDataHooks({ ...file, source: migrated }, api, options) ?? migrated;
 }

@@ -8,7 +8,7 @@ describe('browser eco facade', () => {
 			render: ({ children }) => `<main>${children ?? ''}</main>`,
 		});
 
-		const staticPaths = async () => ({ paths: [{ params: { slug: 'intro' } }] });
+		const paths = async () => [{ params: { slug: 'intro' } }];
 		const metadata = async () => ({ title: 'Docs', description: 'Docs page' });
 		const middleware: FileRouteMiddleware[] = [async (_ctx, next) => next()];
 
@@ -18,7 +18,7 @@ describe('browser eco facade', () => {
 				components: [Layout],
 			},
 			cache: 'dynamic',
-			staticPaths,
+			paths,
 			metadata,
 			middleware,
 			render: () => '<article>Docs</article>',
@@ -27,7 +27,7 @@ describe('browser eco facade', () => {
 		expect(Page({})).toBe('<article>Docs</article>');
 		expect(Page.config?.layouts).toEqual([Layout]);
 		expect(Page.config?.dependencies?.components).toEqual([Layout]);
-		expect(Page.staticPaths).toBe(staticPaths);
+		expect(Page.paths).toBe(paths);
 		expect(Page.metadata).toBe(metadata);
 		expect(Page.middleware).toBe(middleware);
 	});

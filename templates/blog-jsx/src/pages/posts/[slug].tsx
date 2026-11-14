@@ -14,11 +14,11 @@ export default eco.page<
 	JsxRenderable
 >({
 	layout: { component: BaseLayout, props: () => ({ prose: true }) },
-	staticPaths: async () => ({ paths: entries.map((entry) => ({ params: { slug: entry.slug } })) }),
-	staticProps: async ({ pathname }) => {
-		const slug = pathname.params.slug as string;
+	paths: async () => entries.map((entry) => ({ params: { slug: entry.slug } })),
+	props: async ({ params }) => {
+		const slug = params.slug as string;
 		const entry = getEntry(slug) as PostEntry;
-		return { props: { title: entry.title, description: entry.description, slug, image: entry.image } };
+		return { title: entry.title, description: entry.description, slug, image: entry.image };
 	},
 	metadata: ({ props }) => ({ title: `${props.title} | Blog`, description: props.description }),
 	dependencies: async ({ props }) => await getEntryDependencies(props.slug),

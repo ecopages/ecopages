@@ -34,6 +34,7 @@ import { isThenable } from './component-render-output.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
 import { getComponentIdentity, getComponentOwner } from './component-identity.ts';
 import { attachDiscoveredDependencies } from './discovered-dependencies.ts';
+import { DATA_HOOKS_MIGRATION_URL } from './migration-docs.ts';
 
 /**
  * Creates a component factory with lazy-trigger support and foreign-child-runtime
@@ -174,6 +175,26 @@ function layout<E = EcoPagesElement, P extends LayoutProps<E> = LayoutProps<E>>(
 	return createComponentFactory(options);
 }
 
+const RENAMED_PAGE_OPTIONS = { staticProps: 'props', staticPaths: 'paths' } as const;
+
+/**
+ * Fails a page that still declares a data hook under its pre-rename option name.
+ *
+ * @remarks
+ * `eco.page()` copies only the options it knows, so an old name would otherwise be dropped silently and the
+ * page would render without its data.
+ */
+function assertNoRenamedPageOptions(options: object): void {
+	const found = Object.keys(RENAMED_PAGE_OPTIONS).filter((name) => name in options);
+	if (found.length === 0) return;
+	const renames = found
+		.map((name) => `${name} is now ${RENAMED_PAGE_OPTIONS[name as keyof typeof RENAMED_PAGE_OPTIONS]}`)
+		.join(', ');
+	throw new Error(
+		`[ecopages] eco.page() no longer accepts ${found.join(', ')}: ${renames}, and the hook returns its value directly instead of a { props } or { paths } envelope. Migration steps: ${DATA_HOOKS_MIGRATION_URL}`,
+	);
+}
+
 /**
  * Creates a page component with typed props and optional static helpers.
  */
@@ -194,12 +215,13 @@ function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals =
 function page<T, E>(
 	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: FileRouteMiddleware[] },
 ): EcoPageComponent<T> {
+	assertNoRenamedPageOptions(options);
 	const {
 		layout,
 		dependencies: dependenciesInput,
 		render,
-		staticPaths,
-		staticProps,
+		paths,
+		props,
 		metadata,
 		cache,
 		requires,
@@ -226,8 +248,8 @@ function page<T, E>(
 		applyPageLayoutConfig(pageComponent.config, layoutEntries);
 	}
 
-	if (staticPaths) pageComponent.staticPaths = staticPaths;
-	if (staticProps) pageComponent.staticProps = staticProps;
+	if (paths) pageComponent.paths = paths;
+	if (props) pageComponent.props = props;
 	if (metadata) pageComponent.metadata = metadata;
 	if (resolveDependencies) pageComponent.resolveDependencies = resolveDependencies;
 	if (cache) pageComponent.cache = cache;

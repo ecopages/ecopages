@@ -170,7 +170,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 					'const eco = { page: (options) => options };',
 					'export default eco.page({',
 					"\tmetadata: () => ({ title: 'x' }),",
-					'\tstaticProps: async () => ({ props: {} }),',
+					'\tprops: async () => ({}),',
 					'\trender: () => null,',
 					'});',
 				].join('\n'),
@@ -185,7 +185,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 
 			expect(transformed).toContain("import 'some-element-package/sidebar'");
 			expect(transformed).not.toContain('secret.server');
-			expect(transformed).not.toContain('staticProps');
+			expect(transformed).not.toContain('async () => ({})');
 			expect(transformed).not.toContain('metadata');
 		});
 	});
@@ -881,7 +881,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
-	it('strips staticProps imports from .server helpers before shipping a page entry to the browser', async () => {
+	it('strips props imports from .server helpers before shipping a page entry to the browser', async () => {
 		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const pagesDir = path.join(tempDir, 'pages');
 		mkdirSync(pagesDir);
@@ -892,7 +892,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 			[
 				"import { buildPagesTreeSnapshot } from './tree.server';",
 				'export default eco.page({',
-				'\tstaticProps: async () => ({ props: await buildPagesTreeSnapshot() }),',
+				'\tprops: async () => await buildPagesTreeSnapshot(),',
 				'\trender: ({ tree }) => <pre>{tree}</pre>,',
 				'});',
 			].join('\n'),
@@ -906,7 +906,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 			expect(transformed).toBeDefined();
 			expect(transformed).not.toContain("import { buildPagesTreeSnapshot } from './tree.server';");
 			expect(transformed).not.toContain('buildPagesTreeSnapshot');
-			expect(transformed).not.toContain('staticProps:');
+			expect(transformed).not.toContain('props:');
 			expect(transformed).toContain('render: ({ tree }) => <pre>{tree}</pre>');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
@@ -1002,7 +1002,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 });
 
 describe('client graph boundary: stripped imports', () => {
-	const ECO_STUB = 'export const eco = { page: (options) => options, staticProps: (fn) => fn };';
+	const ECO_STUB = 'export const eco = { page: (options) => options };';
 
 	/**
 	 * Builds `entry.tsx` from the given files with the boundary plugin and returns the emitted module path.
@@ -1027,23 +1027,23 @@ describe('client graph boundary: stripped imports', () => {
 		return (await import(path.toFileUrl(outputPath).href)) as Record<string, unknown>;
 	}
 
-	it('removes a hoisted staticProps helper that uses a server import', () =>
+	it('removes a hoisted props helper that uses a server import', () =>
 		withTempDir(async (tempDir) => {
 			const outputPath = await buildBrowserModule(tempDir, {
 				'posts.server.ts': 'export const getPost = async () => "server-secret";',
 				'entry.tsx': [
 					"import { eco } from './eco';",
 					"import { getPost } from './posts.server';",
-					'const staticProps = async () => ({ props: { post: await getPost() } });',
-					'export default eco.page({ staticProps, render: () => "Post" });',
+					'const getProps = async () => ({ post: await getPost() });',
+					'export default eco.page({ props: getProps, render: () => "Post" });',
 				].join('\n'),
 			});
 			const output = readFileSync(outputPath, 'utf8');
 			expect(output).not.toContain('getPost');
 			expect(output).not.toContain('server-secret');
-			const page = (await evaluate(outputPath)).default as { render: () => string; staticProps?: unknown };
+			const page = (await evaluate(outputPath)).default as { render: () => string; props?: unknown };
 			expect(page.render()).toBe('Post');
-			expect(page.staticProps).toBeUndefined();
+			expect(page.props).toBeUndefined();
 		}));
 
 	it('drops a helper export that needs a node built-in when the Page renders another export', () =>
@@ -1155,14 +1155,14 @@ describe('client graph boundary: stripped imports', () => {
 			).rejects.toThrow(`'fs' (imported from 'node:fs') is used at ${path.join(tempDir, 'entry.tsx')}:2:25`);
 		}));
 
-	it('removes a content collection server import used only by staticPaths', () =>
+	it('removes a content collection server import used only by paths', () =>
 		withTempDir(async (tempDir) => {
 			const outputPath = await buildBrowserModule(tempDir, {
 				'entry.tsx': [
 					"import { eco } from './eco';",
 					"import { entries } from 'ecopages:content/posts/server';",
-					'const paths = entries.map((entry) => ({ params: { slug: entry.slug } }));',
-					'export default eco.page({ staticPaths: async () => ({ paths }), render: () => "Post" });',
+					'const slugs = entries.map((entry) => ({ params: { slug: entry.slug } }));',
+					'export default eco.page({ paths: async () => slugs, render: () => "Post" });',
 				].join('\n'),
 			});
 			expect(((await evaluate(outputPath)).default as { render: () => string }).render()).toBe('Post');
@@ -1288,7 +1288,7 @@ describe('client graph boundary: one plan per build', () => {
 					"import { load } from './loader';",
 					"import { x } from './helper';",
 					'export default eco.page({',
-					'\tstaticProps: async () => ({ props: { value: await load() } }),',
+					'\tprops: async () => ({ value: await load() }),',
 					'\trender: () => x(),',
 					'});',
 				].join('\n'),

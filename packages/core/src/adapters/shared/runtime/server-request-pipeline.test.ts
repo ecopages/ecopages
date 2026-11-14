@@ -259,7 +259,7 @@ test('RouteRegistry page module adapter loads page modules through integration r
 
 	const loadPageModule = vi.fn(async () => ({
 		default: {
-			staticPaths: async () => ({ paths: [] }),
+			paths: async () => [],
 		},
 	}));
 	const getPageRenderer = vi.fn(() => ({
@@ -278,7 +278,7 @@ test('RouteRegistry page module adapter loads page modules through integration r
 
 	assert.deepEqual(getPageRenderer.mock.calls, [['/pages/blog/[slug].tsx']]);
 	assert.deepEqual(loadPageModule.mock.calls, [['/pages/blog/[slug].tsx']]);
-	assert.equal(typeof (result as { staticPaths?: unknown }).staticPaths, 'function');
+	assert.equal(typeof (result as { paths?: unknown }).paths, 'function');
 });
 
 describe('ServerRequestPipeline endpoint files', () => {

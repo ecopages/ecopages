@@ -19,6 +19,7 @@ Run this from the Ecopages checkout to migrate components, layouts, includes, an
 pnpm --filter @ecopages/codemod exec jscodeshift \
   -t src/transforms/migrate-to-eco-component.ts \
   --parser tsx \
+  --extensions=ts,tsx,js,jsx \
   /path/to/project/src/components \
   /path/to/project/src/layouts \
   /path/to/project/src/includes
@@ -27,17 +28,32 @@ pnpm --filter @ecopages/codemod exec jscodeshift \
 pnpm --filter @ecopages/codemod exec jscodeshift \
   -t src/transforms/migrate-to-eco-page.ts \
   --parser tsx \
+  --extensions=ts,tsx,js,jsx \
   /path/to/project/src/pages
 ```
 
 ## Individual Migrations
 
-### Migrate Pages to `eco.page()`
+### Migrate the Page Data Hooks to `props` and `paths`
 
-Transforms pages from the removed module-level data exports to the `eco.page()` options. Core no longer reads `getStaticPaths`, `getStaticProps` or `getMetadata` exports and fails a page that still has them, so run this on every page before you upgrade. It migrates `export const` and `export function` declarations, `export { local as getStaticProps }` lists, the removed `eco.staticPaths()`, `eco.staticProps()` and `eco.metadata()` wrappers, legacy `Page.config` pages, and pages that already call `eco.page()`. A `typeof getStaticProps` type keeps the declaration in the file, unexported:
+Renames the `staticProps` and `staticPaths` options of `eco.page({ ... })` to `props` and `paths`, and drops the envelopes they returned: `props` returns the props object instead of `{ props }`, and `paths` returns `[{ params }]` instead of `{ paths }`. Core fails a page that still declares the old names and points here. The transform also renames the `GetStaticProps`, `GetStaticPaths` and `StaticPath` types imported from `@ecopages/*` to `GetProps`, `GetPaths` and `PagePath`. The props context passes `params` where it passed `pathname: { params }`, so it rewrites a `props` parameter written as `{ pathname: { params } }`, `{ pathname }` or `ctx.pathname.params` to read `params`. A hook that reads `pathname` any other way, or already has a `params` binding, keeps its `pathname` and is reported.
+
+It unwraps an object literal that holds only the envelope key, in an inline hook or a same-file function the option names. Any other return value in an `async` hook becomes `(await value).props` or `(await value).paths`. A hook it cannot unwrap, such as one imported from another file or a synchronous one with a computed return, is left unchanged and reported, so the old name still fails loudly. Rename those by hand.
+
+This transform is one self-contained file, so a project outside this repository runs it straight from GitHub, with no checkout. Replace `<version>` with the Ecopages version you upgrade to (tags look like `v0.8.0`), and run it from the project root:
 
 ```bash
-pnpm --filter @ecopages/codemod exec jscodeshift -t src/transforms/migrate-to-eco-page.ts --parser tsx /path/to/project/src/pages
+npx jscodeshift@17 --parser tsx --extensions=ts,tsx,js,jsx -t https://raw.githubusercontent.com/ecopages/ecopages/refs/tags/v<version>/packages/codemod/src/transforms/migrate-data-hooks.ts src
+```
+
+The raw output indents rewritten lines with extra tabs, so run your formatter afterwards. Inside this repository, run `pnpm --filter @ecopages/codemod exec jscodeshift -t src/transforms/migrate-data-hooks.ts --parser tsx --extensions=ts,tsx,js,jsx /path/to/project/src`.
+
+### Migrate Pages to `eco.page()`
+
+Transforms pages from the removed module-level data exports to the `eco.page()` options. Core no longer reads `getStaticPaths`, `getStaticProps` or `getMetadata` exports and fails a page that still has them, so run this on every page before you upgrade. It finishes by running the data hooks migration above, so a migrated page declares `props` and `paths`. It migrates `export const` and `export function` declarations, `export { local as getStaticProps }` lists, the removed `eco.staticPaths()`, `eco.staticProps()` and `eco.metadata()` wrappers, legacy `Page.config` pages, and pages that already call `eco.page()`. A `typeof getStaticProps` type keeps the declaration in the file, unexported:
+
+```bash
+pnpm --filter @ecopages/codemod exec jscodeshift -t src/transforms/migrate-to-eco-page.ts --parser tsx --extensions=ts,tsx,js,jsx /path/to/project/src/pages
 ```
 
 ### Migrate Components to `eco.component()`
@@ -45,7 +61,7 @@ pnpm --filter @ecopages/codemod exec jscodeshift -t src/transforms/migrate-to-ec
 Transforms components from the legacy `.config` assignment to the consolidated API:
 
 ```bash
-pnpm --filter @ecopages/codemod exec jscodeshift -t src/transforms/migrate-to-eco-component.ts --parser tsx /path/to/project/src/components
+pnpm --filter @ecopages/codemod exec jscodeshift -t src/transforms/migrate-to-eco-component.ts --parser tsx --extensions=ts,tsx,js,jsx /path/to/project/src/components
 ```
 
 ### Migrate Core Entry Points
@@ -56,6 +72,7 @@ When upgrading to the role-based `@ecopages/core` exports, rewrite static import
 pnpm --filter @ecopages/codemod exec jscodeshift \
   -t src/transforms/migrate-core-entrypoints.ts \
   --parser tsx \
+  --extensions=ts,tsx,js,jsx \
   /path/to/project/src
 ```
 
@@ -90,8 +107,8 @@ export default Page;
 ```tsx
 export default eco.page({
   layout: BaseLayout,
-  staticPaths: async () => ({ paths: [...] }),
-  staticProps: async ({ pathname }) => ({ props: {...} }),
+  paths: async () => [...],
+  props: async ({ params }) => ({...}),
   metadata: ({ props }) => ({ title: '...' }),
   render: () => <h1>...</h1>,
 });

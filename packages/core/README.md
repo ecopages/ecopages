@@ -59,7 +59,7 @@ await app.start();
 
 ### 3. Creating Pages
 
-Use the `eco.page()` factory to define static routes. Place these in `src/pages/`:
+Use the `eco.page()` factory to define a page. A file in `src/pages/` default-exports one:
 
 ```tsx
 import { eco } from '@ecopages/core';

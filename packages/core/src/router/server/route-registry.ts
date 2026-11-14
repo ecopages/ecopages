@@ -65,22 +65,19 @@ export type StaticGenerationRoute = {
 	readonly params: RouteParams;
 };
 
-export type StaticPathsContext = {
+export type PathsContext = {
 	readonly appConfig: EcoPagesAppConfig;
 	readonly runtimeOrigin: string;
 };
 
 export type RouteRegistryPageModule = {
-	readonly staticPaths?: (context: StaticPathsContext) => Promise<{
-		paths: Array<{ params: RouteParams }>;
-	}>;
-	readonly staticProps?: unknown;
+	readonly paths?: (context: PathsContext) => Promise<Array<{ params: RouteParams }>>;
 	/**
 	 * The Page's Cache Strategy.
 	 *
 	 * @remarks
 	 * `'dynamic'` Pages are omitted from Static Path Expansions (no HTML at Build-Time Rendering).
-	 * When they declare `staticPaths`, those Params are still listed for Page Browser Graph planning.
+	 * When they declare `paths`, those Params are still listed for Page Browser Graph planning.
 	 */
 	readonly cache?: unknown;
 };
@@ -226,14 +223,14 @@ export class RouteRegistry {
 
 	private async expandStaticPaths(
 		route: TemplateRoute,
-		staticPaths: NonNullable<RouteRegistryPageModule['staticPaths']>,
+		listParams: NonNullable<RouteRegistryPageModule['paths']>,
 		runtimeOrigin: string,
 	): Promise<StaticPathExpansion[]> {
-		const result = await staticPaths({
+		const result = await listParams({
 			appConfig: this.appConfig,
 			runtimeOrigin,
 		});
-		return result.paths.map(({ params }) => ({
+		return result.map(({ params }) => ({
 			pathname: buildSegmentPath(route.pathname, params, 'filesystem'),
 			templateRoute: route,
 			params,
@@ -244,7 +241,7 @@ export class RouteRegistry {
 		input: { runtimeOrigin: string },
 		options: {
 			include: (pageModule: RouteRegistryPageModule) => boolean;
-			requireStaticHooks: boolean;
+			requirePaths: boolean;
 		},
 	): Promise<readonly PathExpansion[]> {
 		const expansions: PathExpansion[] = [];
@@ -259,18 +256,17 @@ export class RouteRegistry {
 				continue;
 			}
 
-			const staticPaths = pageModule.staticPaths;
+			const listParams = pageModule.paths;
 
-			if (options.requireStaticHooks && this.buildMode) {
-				invariant(staticPaths !== undefined, `[ecopages] Missing staticPaths in ${route.filePath}`);
-				invariant(pageModule.staticProps !== undefined, `[ecopages] Missing staticProps in ${route.filePath}`);
+			if (options.requirePaths && this.buildMode) {
+				invariant(listParams !== undefined, `[ecopages] Missing paths in ${route.filePath}`);
 			}
 
-			if (!staticPaths) {
+			if (!listParams) {
 				continue;
 			}
 
-			expansions.push(...(await this.expandStaticPaths(route, staticPaths, input.runtimeOrigin)));
+			expansions.push(...(await this.expandStaticPaths(route, listParams, input.runtimeOrigin)));
 		}
 
 		return expansions;
@@ -279,22 +275,22 @@ export class RouteRegistry {
 	async listStaticPathExpansions(input: { runtimeOrigin: string }): Promise<readonly StaticPathExpansion[]> {
 		return this.listPathExpansions(input, {
 			include: (pageModule) => pageModule.cache !== 'dynamic',
-			requireStaticHooks: true,
+			requirePaths: true,
 		});
 	}
 
 	/**
-	 * Params of Dynamic Pages that declare `staticPaths`, for Page Browser Graph planning.
+	 * Params of Dynamic Pages that declare `paths`, for Page Browser Graph planning.
 	 *
 	 * @remarks
-	 * The return shape is {@link PathExpansion}, the same records `staticPaths` produces. They are
+	 * The return shape is {@link PathExpansion}, the same records `paths` produces. They are
 	 * not Static Path Expansions: HTML still uses Request-Time Rendering. The build uses them so
 	 * each Params list's graph scripts are in the production asset ledger.
 	 */
 	async listDynamicPagePathExpansions(input: { runtimeOrigin: string }): Promise<readonly PathExpansion[]> {
 		return this.listPathExpansions(input, {
-			include: (pageModule) => pageModule.cache === 'dynamic' && pageModule.staticPaths !== undefined,
-			requireStaticHooks: false,
+			include: (pageModule) => pageModule.cache === 'dynamic' && pageModule.paths !== undefined,
+			requirePaths: false,
 		});
 	}
 
@@ -389,7 +385,7 @@ export class RouteRegistry {
 					: undefined;
 			invariant(
 				owner?.acceptsParams !== false,
-				`${filePath}: ${findLongestExtension(owner?.extensions ?? [], filePath)} Pages cannot receive Params, so they cannot use dynamic route segments. Rename the file, or use an eco.page() Page from an Integration that supports staticPaths.`,
+				`${filePath}: ${findLongestExtension(owner?.extensions ?? [], filePath)} Pages cannot receive Params, so they cannot use dynamic route segments. Rename the file, or use an eco.page() Page from an Integration that supports paths.`,
 			);
 
 			templateRoutes.push({

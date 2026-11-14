@@ -18,25 +18,23 @@ describe('PageModuleLoaderService', () => {
 		},
 	} as unknown as EcoPagesAppConfig;
 
-	it('should resolve static props via getStaticPropsForPage', async () => {
+	it('should resolve props via getPropsForPage', async () => {
 		const service = new PageModuleLoaderService(appConfig);
-		const result = await service.getStaticPropsForPage({
-			getStaticProps: async () => ({
-				props: { title: 'Page title' },
-			}),
+		const result = await service.getPropsForPage({
+			getProps: async () => ({ title: 'Page title' }),
 			params: { slug: 'a' },
 		});
 
 		expect(result.props).toEqual({ title: 'Page title' });
 	});
 
-	it('should preserve HttpError from getStaticProps', async () => {
+	it('should preserve HttpError from the props hook', async () => {
 		const service = new PageModuleLoaderService(appConfig);
 		const notFound = HttpError.NotFound('Unknown docs entry');
 
 		await expect(
-			service.getStaticPropsForPage({
-				getStaticProps: async () => {
+			service.getPropsForPage({
+				getProps: async () => {
 					throw notFound;
 				},
 			}),
@@ -51,24 +49,24 @@ describe('PageModuleLoaderService', () => {
 		});
 
 		await expect(
-			service.getStaticPropsForPage({
-				getStaticProps: async () => {
+			service.getPropsForPage({
+				getProps: async () => {
 					throw foreignNotFound;
 				},
 			}),
 		).rejects.toBe(foreignNotFound);
 	});
 
-	it('should wrap unexpected getStaticProps failures', async () => {
+	it('should wrap unexpected props hook failures', async () => {
 		const service = new PageModuleLoaderService(appConfig);
 
 		await expect(
-			service.getStaticPropsForPage({
-				getStaticProps: async () => {
+			service.getPropsForPage({
+				getProps: async () => {
 					throw new Error('boom');
 				},
 			}),
-		).rejects.toThrow('Error fetching static props: boom');
+		).rejects.toThrow('Error fetching props: boom');
 	});
 
 	it('should merge default and dynamic metadata', async () => {
@@ -99,7 +97,7 @@ describe('PageModuleLoaderService', () => {
 	it('should resolve page module using provided importer and read the data hooks from the Page', async () => {
 		const service = new PageModuleLoaderService(appConfig);
 		const Page = (() => 'ok') as EcoPageComponent<any>;
-		Page.staticProps = async () => ({ props: { from: 'component-static' } });
+		Page.props = async () => ({ from: 'component-static' });
 		Page.metadata = async () => ({
 			title: 'component-metadata',
 			description: 'component-description',
@@ -115,14 +113,14 @@ describe('PageModuleLoaderService', () => {
 			importPageFileFn: async () => module,
 		});
 
-		expect(result.getStaticProps).toBe(Page.staticProps);
+		expect(result.getProps).toBe(Page.props);
 		expect(result.getMetadata).toBe(Page.metadata);
 		expect(result.integrationSpecificProps).toEqual({ extra: 'integration-value' });
 		expect(result.module).toBe(module);
 	});
 
 	it.each(['getStaticProps', 'getStaticPaths', 'getMetadata'])(
-		'rejects a page module that still exports %s, naming the file and the codemod',
+		'rejects a page module that still exports %s, naming the file and the migration docs',
 		async (legacyExport) => {
 			const service = new PageModuleLoaderService(appConfig);
 			const Page = (() => 'ok') as EcoPageComponent<any>;
@@ -131,7 +129,9 @@ describe('PageModuleLoaderService', () => {
 			await expect(
 				service.resolvePageModule({ file: '/app/src/pages/index.tsx', importPageFileFn: async () => module }),
 			).rejects.toThrow(
-				new RegExp(`/app/src/pages/index\\.tsx.*${legacyExport}.*eco\\.page.*migrate-to-eco-page codemod`),
+				new RegExp(
+					`/app/src/pages/index\\.tsx.*${legacyExport}.*eco\\.page.*migrating-from-staticprops-and-staticpaths`,
+				),
 			);
 			expect(() => service.assertNoLegacyPageExports('/app/src/pages/index.tsx', module)).toThrow(legacyExport);
 		},
@@ -161,7 +161,7 @@ describe('PageModuleLoaderService', () => {
 		const service = new PageModuleLoaderService(appConfig);
 		const result = await service.resolvePageData({
 			pageModule: {
-				getStaticProps: async () => ({ props: { title: 'From props' } }),
+				getProps: async () => ({ title: 'From props' }),
 				getMetadata: async ({ props }) => ({
 					title: String(props.title),
 					description: 'From metadata',
@@ -180,11 +180,11 @@ describe('PageModuleLoaderService', () => {
 		});
 	});
 
-	it('should give metadata the props passed with the render over static props', async () => {
+	it('should give metadata the props passed with the render over the hook props', async () => {
 		const service = new PageModuleLoaderService(appConfig);
 		const result = await service.resolvePageData({
 			pageModule: {
-				getStaticProps: async () => ({ props: { title: 'Static', kept: 'static' } }),
+				getProps: async () => ({ title: 'Static', kept: 'static' }),
 				getMetadata: async ({ props }) => ({ title: String(props.title), description: String(props.kept) }),
 			},
 			routeOptions: {
@@ -222,7 +222,7 @@ describe('PageModuleLoaderService', () => {
 		expect(result.metadata.description).toBe('Release');
 	});
 
-	it('keeps metadata active when static props are skipped', async () => {
+	it('keeps metadata active when the props hook is skipped', async () => {
 		const service = new PageModuleLoaderService(appConfig);
 		const getMetadata = async ({ params }: Parameters<GetMetadata>[0]) => ({
 			title: String(params.slug),
@@ -234,7 +234,7 @@ describe('PageModuleLoaderService', () => {
 				file: '/app/pages/products/[slug].tsx',
 				params: { slug: 'new-product' },
 				query: {},
-				skipStaticProps: true,
+				skipPropsHook: true,
 			},
 		});
 

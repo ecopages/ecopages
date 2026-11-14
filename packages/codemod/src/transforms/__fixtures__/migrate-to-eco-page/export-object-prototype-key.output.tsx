@@ -6,6 +6,6 @@ export const toString = () => 'keep-me';
 
 export default eco.page<IndexProps>({
 	layout: 'main',
-	staticPaths: async () => ({ paths: [] }),
+	paths: async () => [],
 	render: () => <h1>Home</h1>,
 });

@@ -306,7 +306,7 @@ export type PlannedRouteInstance = {
 	routeFile: string;
 	params?: RouteRendererOptions['params'];
 	query?: RouteRendererOptions['query'];
-	skipStaticProps?: RouteRendererOptions['skipStaticProps'];
+	skipPropsHook?: RouteRendererOptions['skipPropsHook'];
 	isRouteTemplate?: boolean;
 };
 
@@ -446,7 +446,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			file: routeInstance.routeFile,
 			params: routeInstance.params,
 			query: routeInstance.query,
-			skipStaticProps: routeInstance.skipStaticProps,
+			skipPropsHook: routeInstance.skipPropsHook,
 		};
 		const resolvedInputs = await this.resolveRouteRenderInputs(routeOptions, {
 			skipMetadata: routeInstance.isRouteTemplate,
@@ -555,7 +555,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		if (typeof page === 'function' && typeof (page as EcoComponent).config === 'object') {
 			throw new Error(
-				`[ecopages] ${file} default-exports an eco.page() result that the build did not attribute to this file. A route file declares its Page with a literal \`eco.page(...)\` call in that file. The build finds eco.page, eco.layout, eco.component and eco.html by their literal call, so a wrapper function, an alias such as \`const page = eco.page\`, a renamed import, or a Page declared in another file and re-exported gives the Page no identity or another file's, and server options such as staticProps and metadata stay in the browser bundle. Call eco.page(...) directly in ${file}.`,
+				`[ecopages] ${file} default-exports an eco.page() result that the build did not attribute to this file. A route file declares its Page with a literal \`eco.page(...)\` call in that file. The build finds eco.page, eco.layout, eco.component and eco.html by their literal call, so a wrapper function, an alias such as \`const page = eco.page\`, a renamed import, or a Page declared in another file and re-exported gives the Page no identity or another file's, and server options such as props and metadata stay in the browser bundle. Call eco.page(...) directly in ${file}.`,
 			);
 		}
 
@@ -1212,7 +1212,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * `file` is the view's identity file, or a stable synthetic key when the view has
-	 * none. `props` are the view's final props: its `staticProps` hook is the caller's
+	 * none. `props` are the view's final props: its `props` hook is the caller's
 	 * to run, so it is not run here.
 	 */
 	async executeExplicitView<P>(
@@ -1231,7 +1231,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			query: ctx.query,
 			locals: ctx.locals,
 			props: (props ?? {}) as Record<string, unknown>,
-			skipStaticProps: true,
+			skipPropsHook: true,
 		});
 	}
 

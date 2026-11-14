@@ -9,20 +9,18 @@ export type BlogPostProps = {
 };
 
 export default eco.page<BlogPostProps>({
-	staticPaths: async () => {
-		return { paths: getAllBlogPostSlugs() };
+	paths: async () => {
+		return getAllBlogPostSlugs();
 	},
 
-	staticProps: async ({ pathname }) => {
-		const slug = pathname.params.slug as string;
+	props: async ({ params }) => {
+		const slug = params.slug as string;
 		const blogPost = getBlogPost(slug);
 		if (!blogPost) throw new Error(`Blog post with slug "${slug}" not found`);
 		return {
-			props: {
-				slug,
-				title: blogPost.title,
-				text: blogPost.text,
-			},
+			slug,
+			title: blogPost.title,
+			text: blogPost.text,
 		};
 	},
 

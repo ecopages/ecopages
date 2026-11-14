@@ -15,7 +15,7 @@ The `eco` namespace provides a consistent, type-safe interface for:
 1. **`eco.component()`** - Factory for defining reusable components with dependencies and optional lazy-loading
 2. **`eco.html()`** - Semantic alias for the document shell component (owns `<html>`, `<head>`, `<body>`)
 3. **`eco.layout()`** - Semantic alias for route layout components (page-level wrappers)
-4. **`eco.page()`** - Factory for defining page components with optional inline `staticPaths`, `staticProps`, and `metadata`
+4. **`eco.page()`** - Factory for defining page components with optional inline `paths`, `props`, and `metadata`
 5. **`eco.embed()`** - Explicit render helper for foreign or same-integration components during mixed rendering
 
 
@@ -48,7 +48,7 @@ import { eco, mergePageDependencies } from '@ecopages/core';
 import { getEntryDependencies } from 'ecopages:content/posts/server';
 
 export default eco.page({
-	staticProps: async ({ pathname }) => ({ props: { slug: String(pathname.params.slug) } }),
+	props: async ({ params }) => ({ slug: String(params.slug) }),
 	dependencies: async ({ props }) =>
 		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.slug)),
 	render: () => <article />,
@@ -228,9 +228,9 @@ import type { JsxRenderable } from '@ecopages/jsx';
 
 export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
-	staticPaths: async () => ({ paths: getAllSlugs() }),
-	staticProps: async ({ pathname }) => ({
-		props: { post: await getPost(pathname.params.slug) },
+	paths: async () => getAllSlugs(),
+	props: async ({ params }) => ({
+		post: await getPost(params.slug),
 	}),
 	metadata: ({ props: { post } }) => ({
 		title: post.title,
@@ -240,11 +240,13 @@ export default eco.page<BlogPostProps, JsxRenderable>({
 });
 ```
 
-A Page declares its data only through the `staticPaths`, `staticProps` and `metadata` options. A page module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata`, or wraps them in `eco.staticPaths()`, `eco.staticProps()` or `eco.metadata()`, fails in `ecopages dev` and `ecopages build` with an error naming the file. The `migrate-to-eco-page` codemod in `@ecopages/codemod` rewrites those pages.
+A Page declares its data only through the `paths`, `props` and `metadata` options. `paths` lists the Params known at build; `props` receives Params, from `paths` at build and from the request at run time. Both return their value directly: `paths` an array of `{ params }`, `props` the props object. See [Data Fetching](/docs/core/data-fetching) for what each Cache Strategy does with them.
+
+The pre-1.0 names (`staticProps`, `staticPaths`, `getStaticProps`, `getStaticPaths`, `getMetadata`, `eco.staticProps()`, `eco.staticPaths()`, `eco.metadata()`) fail in `ecopages dev` and `ecopages build` with an error naming the file. See the [migration steps](/docs/core/data-fetching#migrating-from-staticprops-and-staticpaths).
 
 ### Call the factories literally
 
-The build reads `eco.page`, `eco.layout`, `eco.component` and `eco.html` from the source, as a call on the identifier `eco`: it attaches each declaration's identity and discovers its dependencies from that call, and the React client build removes server options such as `staticProps` and `metadata` from it. A wrapper function, an alias (`const page = eco.page`) or a renamed import hides the declaration from all of them, so its server options stay in the browser bundle. The identity also names the file that holds the call, so a route file declares its Page with a literal `eco.page(...)` call in that file: a Page made by a wrapper in another file, or re-exported from one, fails `ecopages dev` and `ecopages build` with an error that names the route file and this rule. Call the factory directly, in the route file:
+The build reads `eco.page`, `eco.layout`, `eco.component` and `eco.html` from the source, as a call on the identifier `eco`: it attaches each declaration's identity and discovers its dependencies from that call, and the React client build removes server options such as `props` and `metadata` from it. A wrapper function, an alias (`const page = eco.page`) or a renamed import hides the declaration from all of them, so its server options stay in the browser bundle. The identity also names the file that holds the call, so a route file declares its Page with a literal `eco.page(...)` call in that file: a Page made by a wrapper in another file, or re-exported from one, fails `ecopages dev` and `ecopages build` with an error that names the route file and this rule. Call the factory directly, in the route file:
 
 ```tsx
 export default eco.page({ render: () => <main>About</main> }); // found by the build
@@ -253,7 +255,7 @@ const page = eco.page;
 export default page({ render: () => <main>About</main> }); // invisible: the build fails
 ```
 
-A route file's default export must be a Page of its Integration: an `eco.page()` result, an HTML Page or an MDX module. Anything else under `src/pages` fails the build with the file and the fixes: prefix the name with `_`, give it a `.server` or `.script` suffix (see [Routing](/docs/core/routing#files-that-are-not-routes)), or move it out of `src/pages`.
+What a route file may export is in [Pages](/docs/core/pages#what-a-route-file-exports).
 
 ## API Reference
 
@@ -471,17 +473,13 @@ export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
 
 	// Generate paths for dynamic routes
-	staticPaths: async () => ({
-		paths: posts.map((p) => ({ params: { slug: p.slug } })),
-	}),
+	paths: async () => posts.map((p) => ({ params: { slug: p.slug } })),
 
-	// Fetch data at build time
-	staticProps: async ({ pathname }) => ({
-		props: {
-			slug: pathname.params.slug as string,
-			title: post.title,
-			text: post.text,
-		},
+	// Fetch data for the Params: at build, and per request when the page is dynamic
+	props: async ({ params }) => ({
+		slug: params.slug as string,
+		title: post.title,
+		text: post.text,
 	}),
 
 	// Generate page metadata
@@ -522,14 +520,7 @@ export default eco.page({
 });
 ```
 
-**With nested layouts:**
-
-```tsx
-export default eco.page({
-	layout: [AppShell, DocsSection],
-	render: () => <h1>Docs home</h1>,
-});
-```
+See [Layouts](/docs/core/layouts#how-layouts-are-assigned) for what makes a module a Layout.
 
 
 
@@ -555,23 +546,21 @@ type BlogPostProps = {
 export default eco.page<BlogPostProps, JsxRenderable>({
 	layout: BaseLayout,
 
-	staticPaths: async () => {
-		return { paths: getAllBlogPostSlugs() };
+	paths: async () => {
+		return getAllBlogPostSlugs();
 	},
 
-	staticProps: async ({ pathname }) => {
-		const slug = pathname.params.slug as string;
+	props: async ({ params }) => {
+		const slug = params.slug as string;
 		const post = getBlogPost(slug);
 		if (!post) throw new Error(`Post not found: ${slug}`);
 		const author = getAuthor(post.authorId);
 		return {
-			props: {
-				slug,
-				title: post.title,
-				text: post.text,
-				authorId: post.authorId,
-				authorName: author?.name ?? 'Unknown',
-			},
+			slug,
+			title: post.title,
+			text: post.text,
+			authorId: post.authorId,
+			authorName: author?.name ?? 'Unknown',
 		};
 	},
 
@@ -644,7 +633,7 @@ The static `Counter` import is discovered automatically. You do not list it agai
 
 ## TypeScript types
 
-The `eco` factories use public types exported by `@ecopages/core`. For page props, static paths, request context, component dependencies, and the type subpaths, see [TypeScript Types](/docs/reference/typescript).
+The `eco` factories use public types exported by `@ecopages/core`. For page props, `PagePath`, request context, component dependencies, and the type subpaths, see [TypeScript Types](/docs/reference/typescript).
 
 ## Benefits
 
@@ -662,7 +651,7 @@ Props flow through the system automatically:
 
 ```tsx
 export default eco.page({
-	staticProps: async () => ({ props: { title: 'Hello' } }),
+	props: async () => ({ title: 'Hello' }),
 	render: ({ title }) => <h1>{title}</h1>, // ✓ TypeScript knows `title` is a string
 });
 ```
@@ -672,10 +661,10 @@ export default eco.page({
 All page configuration in one place:
 
 ```tsx
-export default eco.page<Props>({
+export default eco.page({
   layout: BaseLayout,
-  staticPaths: async () => ...,
-  staticProps: async () => ...,
+  paths: async () => ...,
+  props: async () => ...,
   metadata: () => ...,
   render: () => ...,
 });
@@ -686,9 +675,9 @@ export default eco.page<Props>({
 The renderer reads the data hooks from the Page only:
 
 ```typescript
-const getStaticProps = Page.staticProps;
+const getProps = Page.props;
 const getMetadata = Page.metadata;
 ```
 
-A page module that exports `getStaticProps`, `getStaticPaths` or `getMetadata` fails before it renders. MDX pages are the exception: they cannot call `eco.page()`, so the MDX integrations move their `getMetadata` export onto the Page as `metadata`.
+A page module that still exports `getStaticProps`, `getStaticPaths` or `getMetadata` fails before it renders. MDX pages are the exception: they cannot call `eco.page()`, so the MDX integrations move their `getMetadata` export onto the Page as `metadata`.
 

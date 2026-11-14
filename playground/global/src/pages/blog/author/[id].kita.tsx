@@ -9,20 +9,18 @@ type AuthorProps = {
 };
 
 export default eco.page<AuthorProps>({
-	staticPaths: async () => {
-		return { paths: getAllAuthorIds() };
+	paths: async () => {
+		return getAllAuthorIds();
 	},
 
-	staticProps: async ({ pathname }) => {
-		const id = pathname.params.id as string;
+	props: async ({ params }) => {
+		const id = params.id as string;
 		const author = getAuthor(id);
 		if (!author) throw new Error(`Author with id "${id}" not found`);
 		return {
-			props: {
-				slug: author.slug,
-				name: author.name,
-				bio: author.bio,
-			},
+			slug: author.slug,
+			name: author.name,
+			bio: author.bio,
 		};
 	},
 

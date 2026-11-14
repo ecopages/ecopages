@@ -11,8 +11,8 @@ type SignupPageProps = {
 export default eco.page<SignupPageProps>({
 	layout: BaseLayout,
 	cache: 'dynamic',
-	staticProps: async () => ({
-		props: { githubEnabled: isGithubAuthEnabled },
+	props: async () => ({
+		githubEnabled: isGithubAuthEnabled,
 	}),
 	metadata: ({ props: { githubEnabled } }) => ({
 		title: 'Create account',

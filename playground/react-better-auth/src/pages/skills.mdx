@@ -73,7 +73,7 @@ project/
 Ecopages uses the `eco` namespace to define all architectural blocks. This is **mandatory** for proper build-time optimization and dependency injection.
 
 - **`eco.component()`**: Factory for reusable components. **REQUIRED** if the component has dependencies (CSS, scripts).
-- **`eco.page()`**: Factory for page routes. Handles metadata, layouts, and static props.
+- **`eco.page()`**: Factory for page routes. Handles metadata, layouts, and props.
 
 > **Note:** When using **KitaJS**, components are often just simple functions returning JSX strings. `eco.component` is primarily needed when you need to inject specific assets (CSS/JS) only when that component is used.
 
@@ -227,7 +227,7 @@ You can use **markdown** syntax and JSX components together.
 - Static routes that are automatically discovered by Ecopages
 - Defined using `eco.page()` or MDX files
 - Accessible via file-based routing (e.g., `src/pages/about.tsx` → `/about`)
-- Can use `staticProps` for build-time data fetching
+- Can use `props` for build-time data fetching
 - Best for: Homepage, blog posts, documentation, static content
 
 **Views (`src/views/`):**
@@ -667,15 +667,13 @@ Ecopages automatically handles file-based routing. For dynamic routes:
 
 - `src/pages/blog/[slug].tsx` → `/blog/:slug`
 
-Access params in `staticProps`:
+Access params in `props`:
 
 ```tsx
 export default eco.page({
-  staticProps: async ({ pathname }) => ({
-    props: {
-      slug: pathname.params.slug,
-      post: await getPost(pathname.params.slug),
-    },
+  props: async ({ params }) => ({
+    slug: params.slug,
+    post: await getPost(params.slug),
   }),
   render: ({ slug, post }) => (
     <article>
@@ -688,15 +686,13 @@ export default eco.page({
 
 ### Data Fetching
 
-Use `staticProps` for build-time data:
+Use `props` for build-time data:
 
 ```tsx
 export default eco.page({
-  staticProps: async () => {
+  props: async () => {
     const posts = await getAllPosts();
-    return {
-      props: { posts },
-    };
+    return { posts };
   },
   render: ({ posts }) => (
     <div>

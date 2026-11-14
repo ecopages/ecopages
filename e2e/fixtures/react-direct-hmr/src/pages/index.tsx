@@ -7,7 +7,7 @@ export default eco.page<{ count: number }, ReactNode>({
 		components: [LitCounter],
 	},
 	metadata: () => ({ title: 'Direct HMR', description: 'Direct HMR of a foreign Lit Component' }),
-	staticProps: async () => ({ props: { count: 1 } }),
+	props: async () => ({ count: 1 }),
 	render: ({ count }) => (
 		<main data-testid="page">
 			<h1>Direct HMR</h1>

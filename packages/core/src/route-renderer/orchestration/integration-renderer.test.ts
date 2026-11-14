@@ -25,7 +25,7 @@ import type {
 	EcoPagesElement,
 	EcoPageFile,
 	GetMetadata,
-	GetStaticProps,
+	GetProps,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
 	EcoComponent,
@@ -84,7 +84,7 @@ describe('IntegrationRenderer', () => {
 		} as EcoPageFile;
 
 		await expect(renderer.loadPageModule(path.resolve('/app/src/pages/index.tsx'))).rejects.toThrow(
-			/\/app\/src\/pages\/index\.tsx exports getStaticProps.*migrate-to-eco-page codemod/,
+			/\/app\/src\/pages\/index\.tsx exports getStaticProps.*migrating-from-staticprops-and-staticpaths/,
 		);
 	});
 
@@ -285,15 +285,15 @@ describe('IntegrationRenderer', () => {
 
 	it('prepares a planned route without running its data hooks again', async () => {
 		const validateGraph = vi.spyOn(OwnershipValidationService.prototype, 'validateGraph');
-		const staticProps = vi.fn(async ({ pathname }: { pathname: { params: Record<string, string> } }) => ({
-			props: { slug: pathname.params.slug },
+		const props = vi.fn(async ({ params }: { params: Record<string, string> }) => ({
+			slug: params.slug,
 		}));
 		const metadata = vi.fn(async ({ props }: { props: Record<string, unknown> }) => ({
 			title: String(props.slug),
 			description: 'Page description',
 		}));
 		const Page = Object.assign((() => 'page') as EcoPageComponent<Record<string, unknown>>, {
-			staticProps,
+			props,
 			metadata,
 		});
 		const pageDependency = (() => 'dependency') as EcoComponent;
@@ -328,7 +328,7 @@ describe('IntegrationRenderer', () => {
 		const routesPlan = await renderer.planProductionRoutes([{ routeFile, params }]);
 		await routesPlan?.prepare();
 
-		expect(staticProps).toHaveBeenCalledTimes(1);
+		expect(props).toHaveBeenCalledTimes(1);
 		expect(metadata).toHaveBeenCalledTimes(1);
 		expect(resolveDependencies).toHaveBeenCalledTimes(1);
 		expect(preparedContributionHookCalls).toBe(1);
@@ -339,13 +339,13 @@ describe('IntegrationRenderer', () => {
 	it('continues grouped production prebuild after a route data hook fails', async () => {
 		const routeFile = path.resolve('/app/pages/[slug].tsx');
 		const failure = new Error('broken static props');
-		const staticProps: GetStaticProps<{ slug: string }> = async ({ pathname }) => {
-			const slug = String(pathname.params.slug);
+		const props: GetProps<{ slug: string }> = async ({ params }) => {
+			const slug = String(params.slug);
 			if (slug === 'broken') throw failure;
-			return { props: { slug } };
+			return { slug };
 		};
 		const Page = (({ slug }: { slug: string }) => `<p>${slug}</p>`) as EcoPageComponent<{ slug: string }>;
-		Page.staticProps = staticProps;
+		Page.props = props;
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
@@ -365,7 +365,7 @@ describe('IntegrationRenderer', () => {
 		expect(onRouteFailure).toHaveBeenCalledOnce();
 		expect(onRouteFailure.mock.calls[0]?.[0]).toEqual({ routeFile, params: { slug: 'broken' } });
 		expect(onRouteFailure.mock.calls[0]?.[1]).toMatchObject({
-			message: 'Error fetching static props: broken static props',
+			message: 'Error fetching props: broken static props',
 			cause: failure,
 		});
 		expect(routesPlan?.plan.integrationName).toBe('test-renderer');
@@ -382,17 +382,17 @@ describe('IntegrationRenderer', () => {
 			identity: { id: 'card', file: path.resolve('/app/components/card.tsx'), integration: 'test-renderer' },
 			dependencies: { scripts: ['./card.script.ts'] },
 		};
-		const pendingStaticProps: Array<() => void> = [];
+		const pendingProps: Array<() => void> = [];
 		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
 		Page.config = {
 			identity: { id: 'index', file: routeFile, integration: 'test-renderer' },
 			dependencies: { components: [Card] },
 		};
-		const staticPropsStarted = new Promise<void>((resolveStarted) => {
-			Page.staticProps = async () => {
+		const propsStarted = new Promise<void>((resolveStarted) => {
+			Page.props = async () => {
 				resolveStarted();
-				await new Promise<void>((resolveRelease) => pendingStaticProps.push(resolveRelease));
-				return { props: {} };
+				await new Promise<void>((resolveRelease) => pendingProps.push(resolveRelease));
+				return {};
 			};
 		});
 		const renderer = new (class extends TestIntegrationRenderer {
@@ -407,9 +407,9 @@ describe('IntegrationRenderer', () => {
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
 		const planning = renderer.planProductionRoutes([{ routeFile }, { routeFile, params: { slug: 'other' } }]);
-		await staticPropsStarted;
+		await propsStarted;
 		const resolvedDependencies = await renderer.processForRender([Card]);
-		for (const release of pendingStaticProps) release();
+		for (const release of pendingProps) release();
 		const routesPlan = await planning;
 
 		expect(resolvedDependencies).toEqual([{ kind: 'script', srcUrl: '/assets/script.js' }]);
@@ -647,7 +647,7 @@ describe('IntegrationRenderer', () => {
 		});
 	});
 
-	it('keeps metadata active for route plans that only skip static props', async () => {
+	it('keeps metadata active for route plans that skip the props hook', async () => {
 		const routeFile = path.resolve('/app/pages/products/[slug].tsx');
 		const metadata = vi.fn(async ({ params }: Parameters<GetMetadata>[0]) => ({
 			title: String(params.slug),
@@ -669,9 +669,7 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		await renderer.planProductionRoutes([
-			{ routeFile, params: { slug: 'existing-product' }, skipStaticProps: true },
-		]);
+		await renderer.planProductionRoutes([{ routeFile, params: { slug: 'existing-product' }, skipPropsHook: true }]);
 
 		expect(metadata).toHaveBeenCalledWith(expect.objectContaining({ params: { slug: 'existing-product' } }));
 	});
@@ -1398,14 +1396,14 @@ describe('IntegrationRenderer', () => {
 		expect(result.cacheStrategy).toBeUndefined();
 	});
 
-	it('should resolve static props and metadata correctly', async () => {
+	it('should resolve props and metadata correctly', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
 
 		const PageIdx = (({ title }: { title: string }) => `<main>${title}</main>`) as EcoPageComponent<any>;
-		PageIdx.staticProps = async () => ({ props: { title: 'Dynamic Title' } });
+		PageIdx.props = async () => ({ title: 'Dynamic Title' });
 		PageIdx.metadata = async ({ props }: { props: Record<string, unknown> }) => ({
 			title: props.title as string,
 			description: 'Dynamic Description',

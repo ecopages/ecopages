@@ -389,7 +389,7 @@ export class RouteRenderOrchestrator {
 				routeFile: routeOptions.file,
 				dependencyInstanceKey,
 				integrationName: renderer.name,
-				cacheable: !routeOptions.pageModule && !routeOptions.props && !routeOptions.skipStaticProps,
+				cacheable: !routeOptions.pageModule && !routeOptions.props && !routeOptions.skipPropsHook,
 				collectContribution: async () =>
 					mergePageBrowserGraphContributions(
 						await renderer.collectPageBrowserGraphContribution(contributionContext),

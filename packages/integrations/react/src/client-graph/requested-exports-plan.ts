@@ -83,7 +83,7 @@ function statementSpecifiers(program: ParseResult['program']): Set<string> {
  * A module's pruning depends on the exports its importers request, so computing them while modules load
  * made the result depend on which importer Rolldown loaded first. The plan starts from the build's entries
  * and follows only the imports a module's browser code reaches, after server-only Page options are set
- * aside, as the boundary's own analysis finds them: a module reached only through a stripped `staticProps`
+ * aside, as the boundary's own analysis finds them: a module reached only through a stripped `props`
  * is never loaded, so it requests nothing. A module the boundary does not transform, such as a
  * bootstrap entry, passes every import on and requests nothing. Requested exports flow from importers to
  * imports through a worklist that analyses a module again whenever its requests grow, so a cycle settles on

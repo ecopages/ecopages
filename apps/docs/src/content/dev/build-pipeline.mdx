@@ -136,7 +136,7 @@ A side-effect import that a package module keeps, one under `node_modules` or ou
 Before rendering any HTML, the static-site generator calls `prebuildProductionPageBrowserGraphs()` with every route instance the server could serve:
 
 - each Page the export renders, with its Params
-- each Dynamic Page entry from `staticPaths`, which runs `staticProps` so prop-dependent Dependencies are built
+- each Dynamic Page entry from `paths`, which runs `props` so prop-dependent Dependencies are built
 - a parameter-free instance of every non-exact Page route template that has no entries above, and every view the server entry imports, without data hooks
 - each `app.static` route instance
 
@@ -162,7 +162,7 @@ flowchart LR
 
 Only `define`, `minify`, `treeshaking` and plugin exclusions split entries into separate builds. Why: those options apply to a whole build. Plugins and external modules do not split it, because a module has one URL and therefore one compiled form; the build runs every plugin any entry declares, once each. [Plugin pipeline](/dev/plugin-pipeline) covers how those plugins reach Rolldown.
 
-A route that fails to plan is reported, not fatal on its own. A concrete instance becomes a page failure; a route template only warns (a dynamic Page whose `staticPaths` lists entries is planned once per entry with that entry's Params, never as a template), and `ecopages start` then fails the requests that need a dependency only that plan would have recorded.
+A route that fails to plan is reported, not fatal on its own. A concrete instance becomes a page failure; a route template only warns (a dynamic Page whose `paths` lists entries is planned once per entry with that entry's Params, never as a template), and `ecopages start` then fails the requests that need a dependency only that plan would have recorded.
 
 ## Outputs of the browser build
 

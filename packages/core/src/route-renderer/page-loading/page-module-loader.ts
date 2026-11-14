@@ -3,7 +3,7 @@ import type {
 	EcoPageFile,
 	GetMetadata,
 	GetMetadataContext,
-	GetStaticProps,
+	GetProps,
 	PageMetadataProps,
 	RouteRendererOptions,
 	EcoPageComponent,
@@ -11,6 +11,7 @@ import type {
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
+import { DATA_HOOKS_MIGRATION_URL } from '../../eco/migration-docs.ts';
 import { HttpError } from '../../errors/http-error.ts';
 
 const LEGACY_PAGE_EXPORT_NAMES = ['getStaticPaths', 'getStaticProps', 'getMetadata'] as const;
@@ -57,38 +58,37 @@ export class PageModuleLoaderService {
 	}
 
 	/**
-	 * Executes the page's static-props hook with Ecopages runtime context.
+	 * Executes the page's `props` hook with Ecopages runtime context.
 	 *
 	 * @remarks
-	 * Pages without a static-props hook still return a normalized empty props
+	 * Pages without a `props` hook still return a normalized empty props
 	 * object so downstream render preparation does not branch on hook presence.
 	 */
-	async getStaticPropsForPage(options: {
-		getStaticProps?: GetStaticProps<Record<string, unknown>>;
+	async getPropsForPage(options: {
+		getProps?: GetProps<Record<string, unknown>>;
 		params?: RouteRendererOptions['params'];
 	}): Promise<{
 		props: Record<string, unknown>;
 		metadata?: PageMetadataProps;
 	}> {
-		const { getStaticProps, params } = options;
-		return getStaticProps
-			? await getStaticProps({
-					pathname: { params: params ?? {} },
-					appConfig: this.appConfig,
-					runtimeOrigin: requireAppRuntime(this.appConfig).origin,
-				})
-					.then((data) => data)
-					.catch((err) => {
-						if (HttpError.isHttpError(err) || err instanceof Response) {
-							throw err;
-						}
-						const message = err instanceof Error ? err.message : String(err);
-						throw new Error(`Error fetching static props: ${message}`, { cause: err });
-					})
-			: {
-					props: {},
-					metadata: undefined,
-				};
+		const { getProps, params } = options;
+		if (!getProps) {
+			return { props: {}, metadata: undefined };
+		}
+		try {
+			const props = await getProps({
+				params: params ?? {},
+				appConfig: this.appConfig,
+				runtimeOrigin: requireAppRuntime(this.appConfig).origin,
+			});
+			return { props };
+		} catch (err) {
+			if (HttpError.isHttpError(err) || err instanceof Response) {
+				throw err;
+			}
+			const message = err instanceof Error ? err.message : String(err);
+			throw new Error(`Error fetching props: ${message}`, { cause: err });
+		}
 	}
 
 	/**
@@ -129,7 +129,7 @@ export class PageModuleLoaderService {
 		);
 		if (found.length === 0) return;
 		throw new Error(
-			`[ecopages] ${file} exports ${found.join(', ')}. Pages declare data through the staticPaths, staticProps and metadata options of eco.page({ ... }); module-level exports are no longer read. Run the migrate-to-eco-page codemod from @ecopages/codemod to migrate this file.`,
+			`[ecopages] ${file} exports ${found.join(', ')}. Pages declare data through the paths, props and metadata options of eco.page({ ... }); module-level exports are no longer read. Migration steps: ${DATA_HOOKS_MIGRATION_URL}`,
 		);
 	}
 
@@ -147,7 +147,7 @@ export class PageModuleLoaderService {
 	}): Promise<{
 		module: EcoPageFile;
 		Page: EcoPageFile['default'] | EcoPageComponent<any>;
-		getStaticProps?: GetStaticProps<Record<string, unknown>>;
+		getProps?: GetProps<Record<string, unknown>>;
 		getMetadata?: GetMetadata;
 		integrationSpecificProps: Record<string, unknown>;
 	}> {
@@ -161,7 +161,7 @@ export class PageModuleLoaderService {
 		return {
 			module,
 			Page,
-			getStaticProps: pageComponent.staticProps,
+			getProps: pageComponent.props,
 			getMetadata: pageComponent.metadata,
 			integrationSpecificProps,
 		};
@@ -171,14 +171,13 @@ export class PageModuleLoaderService {
 	 * Resolves the page data needed by the render pipeline.
 	 *
 	 * @remarks
-	 * Static props are resolved first because page metadata may depend on those
-	 * props. This preserves the same ordering whether data hooks are declared as
-	 * component statics or module exports. Props passed with the render win over
-	 * static props and are visible to metadata; `skipStaticProps` drops the hook.
+	 * The `props` hook runs first because page metadata may depend on its result.
+	 * Props passed with the render win over the hook's props and are visible to
+	 * metadata; `skipPropsHook` drops the hook.
 	 */
 	async resolvePageData(options: {
 		pageModule: {
-			getStaticProps?: GetStaticProps<Record<string, unknown>>;
+			getProps?: GetProps<Record<string, unknown>>;
 			getMetadata?: GetMetadata;
 		};
 		routeOptions: RouteRendererOptions;
@@ -187,15 +186,15 @@ export class PageModuleLoaderService {
 		props: Record<string, unknown>;
 		metadata: PageMetadataProps;
 	}> {
-		const staticProps = options.routeOptions.skipStaticProps
+		const hookProps = options.routeOptions.skipPropsHook
 			? {}
 			: (
-					await this.getStaticPropsForPage({
-						getStaticProps: options.pageModule.getStaticProps,
+					await this.getPropsForPage({
+						getProps: options.pageModule.getProps,
 						params: options.routeOptions.params,
 					})
 				).props;
-		const props = { ...staticProps, ...(options.routeOptions.props ?? {}) };
+		const props = { ...hookProps, ...(options.routeOptions.props ?? {}) };
 
 		const metadata = options.skipMetadata
 			? this.appConfig.defaultMetadata

@@ -12,8 +12,8 @@ type LoginPageProps = {
 export default eco.page<LoginPageProps, ReactNode>({
 	layout: BaseLayout,
 	cache: 'dynamic',
-	staticProps: async () => ({
-		props: { githubEnabled: isGithubAuthEnabled },
+	props: async () => ({
+		githubEnabled: isGithubAuthEnabled,
 	}),
 	metadata: ({ props: { githubEnabled } }) => ({
 		title: 'Sign in',

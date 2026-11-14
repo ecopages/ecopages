@@ -51,14 +51,14 @@ export function clearProductionPageBrowserGraphSession(appConfig: EcoPagesAppCon
 	clearProductionAssetLedger(appConfig);
 }
 
-/** Identifies one planned route instance: its file, Params and whether it is a template without static props. */
+/** Identifies one planned route instance: its file, Params and whether it is a template without a `props` run. */
 export function getPlannedRouteKey(instance: PlannedRouteInstance): string {
 	const routeFile = path.resolve(instance.routeFile);
 	const dependencyInstanceKey = createPageDependencyInstanceKey({ params: instance.params });
 	return JSON.stringify([
 		routeFile,
 		dependencyInstanceKey,
-		instance.skipStaticProps ?? false,
+		instance.skipPropsHook ?? false,
 		instance.isRouteTemplate ?? false,
 	]);
 }
@@ -88,7 +88,7 @@ function groupRouteInstancesByRenderer(
  * worker restores it during the export. A route that fails to plan is left out and reported to `onRouteFailure`.
  * Each Integration's global scripts are resolved once, after that build, or on their own when no route is planned.
  *
- * Returns the preparation of every planned instance that runs its static props, by {@link getPlannedRouteKey}, so
+ * Returns the preparation of every planned instance that runs its `props` hook, by {@link getPlannedRouteKey}, so
  * static export renders it without running its data hooks again. The caller owns the map for the build; no
  * renderer keeps it.
  */
@@ -124,7 +124,7 @@ export async function prebuildProductionPageBrowserGraphs(
 	}
 	writeProductionAssetLedger(appConfig, await getPrebuiltHtmlPageModuleScriptUrls(appConfig));
 	for (const { instance, preparation } of routePlans.flatMap((routePlan) => routePlan.preparations)) {
-		if (!instance.skipStaticProps) preparations.set(getPlannedRouteKey(instance), preparation);
+		if (!instance.skipPropsHook) preparations.set(getPlannedRouteKey(instance), preparation);
 	}
 	return preparations;
 }

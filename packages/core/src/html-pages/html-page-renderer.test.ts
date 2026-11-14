@@ -143,8 +143,8 @@ describe('HtmlPageRenderer', () => {
 		} satisfies IntegrationRendererRenderOptions;
 
 		const body = await renderer.renderRouteBody(options);
-		const transformed = await renderer.transformRouteResponse(
-			new Response(body as BodyInit),
+		const transformed = await renderer.transformRouteHtml(
+			body as string,
 			[{ placement: 'head-append', html: '<title>Injected</title>' }],
 			options,
 		);

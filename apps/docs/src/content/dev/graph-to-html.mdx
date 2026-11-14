@@ -66,6 +66,6 @@ The HTML transform appends the remaining assets to `<head>` or `<body>` by posit
 
 ## HTML rewriting
 
-`HtmlTransformerService.transform()` receives the Page Package and the document contributions of one render as arguments and keeps no per-render state, so overlapping renders cannot consume each other's head or body contributions. It escapes generated URLs and attribute values before writing tags.
+`HtmlTransformerService.transform()` takes the rendered HTML string, the Page Package and the document contributions of one render as arguments, and returns the rewritten string, so the document is never wrapped in a `Response` and re-read on its way to the final response. It keeps no per-render state, so overlapping renders cannot consume each other's head or body contributions. It escapes generated URLs and attribute values before writing tags.
 
 It rewrites through core's `HtmlRewriter`, a streaming implementation of the subset of the `HTMLRewriter` element API that core uses; `html-rewriter.test.ts` pins its output against lol-html. The lexical rules live in `html-tokenizer.ts`, shared with `html-source-parser.ts`, the positional parser that HTML Pages use to splice their source markup.

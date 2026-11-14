@@ -66,10 +66,10 @@ export class HtmlTransformerService {
 	}
 
 	/**
-	 * Injects page assets and document contributions into a streaming HTML response.
+	 * Injects page assets and document contributions into rendered HTML.
 	 */
-	transform(res: Response, input: PageAssetInjection = {}): Response {
-		return this.createRewriter(input.contributions ?? [], input.pagePackage).transform(res);
+	transform(html: string, input: PageAssetInjection = {}): string {
+		return this.createRewriter(input.contributions ?? [], input.pagePackage).transform(html);
 	}
 
 	/**

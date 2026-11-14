@@ -2,7 +2,7 @@ import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
 import type { AssetProcessingService } from '../../../assets/asset-processing-service/index.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
-import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererBody } from '../../../types/contracts.ts';
+import type { EcoComponent, IntegrationRendererRenderOptions } from '../../../types/contracts.ts';
 import { createUnresolvedMarkerArtifact } from '../integration-renderer.test-fixtures.ts';
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
@@ -42,12 +42,11 @@ describe('RouteRenderOrchestrator', () => {
 	}) as unknown as EcoComponent;
 
 	it('captures streamed render bodies before final HTML handling', async () => {
-		const result = await createFlow().captureHtmlRender(async () =>
+		const html = await createFlow().captureHtmlRender(async () =>
 			createHtmlStream('<html><body><main>Streamed</main></body></html>'),
 		);
 
-		expect(result.body).toBeInstanceOf(ReadableStream);
-		expect(result.html).toContain('<main>Streamed</main>');
+		expect(html).toContain('<main>Streamed</main>');
 	});
 
 	it('executes prepared route renders and preserves cache strategy', async () => {
@@ -56,13 +55,12 @@ describe('RouteRenderOrchestrator', () => {
 			createFlowRenderer({
 				Page: cachedPage,
 				renderRouteBody: async () => createHtmlStream('<html><body><main>Streamed</main></body></html>'),
-				transformRouteResponse: async (response) => response.body as RouteRendererBody,
+				transformRouteHtml: async (html) => html,
 			}),
 		);
 
 		expect(result.cacheStrategy).toEqual({ revalidate: 60 });
-		expect(result.body).toBeInstanceOf(ReadableStream);
-		expect(await new Response(result.body as BodyInit).text()).toContain('<main>Streamed</main>');
+		expect(result.body).toContain('<main>Streamed</main>');
 	});
 
 	it('adds the HTML template module closure to the cached document inputs', async () => {

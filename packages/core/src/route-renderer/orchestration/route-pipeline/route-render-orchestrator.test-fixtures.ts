@@ -34,7 +34,7 @@ export interface FlowRendererInput {
 	}) => Promise<PageBrowserGraphContribution | undefined>;
 	renderRouteBody?: () => Promise<RouteRendererBody>;
 	getRouteHtmlFinalization?: () => RouteHtmlFinalization;
-	transformRouteResponse?: (response: Response) => Promise<RouteRendererBody>;
+	transformRouteHtml?: (html: string) => Promise<RouteRendererBody>;
 }
 
 /**
@@ -88,7 +88,7 @@ export function createFlowRenderer<C = unknown>(input: FlowRendererInput = {}): 
 		}),
 		renderRouteBody: input.renderRouteBody ?? (async () => ''),
 		getRouteHtmlFinalization: input.getRouteHtmlFinalization ?? (() => ({})),
-		transformRouteResponse: input.transformRouteResponse ?? (async (response) => await response.text()),
+		transformRouteHtml: input.transformRouteHtml ?? (async (html) => html),
 	};
 }
 

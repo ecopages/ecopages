@@ -191,7 +191,7 @@ A stripped import still used by code the browser module needs fails the build wi
 [Ecopages Client Graph] 'authMiddleware' (imported from './auth.server') is used at src/widget.tsx:2:22, but that import is server-only and the browser build removes it. ...
 ```
 
-Move that code into a server-only Page option, into a helper only those options use, or out of the code the browser module reaches.
+Move that code into a server-only Page option, into a helper only those options use, or out of the code the browser module reaches. A server-only import that the render function itself uses fails the build the same way, naming the import, its bindings and the `.server` fix.
 
 ### Hydration Contract for `locals`
 

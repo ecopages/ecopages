@@ -7,6 +7,7 @@ import { copyFixtureApp } from '../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import {
 	emitProductionServerModules,
+	findReEmittedModules,
 	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphPage,
 	shouldBuildPagesUnifiedGraph,
@@ -151,6 +152,27 @@ describe('production server-module graph', () => {
 		assert.notEqual(
 			fileSystem.readFileSync(path.join(manifest.outdir, hyphenOutput)).toString(),
 			fileSystem.readFileSync(path.join(manifest.outdir, nestedOutput)).toString(),
+		);
+	});
+
+	it('lists the app modules that moved between emits, except entries and packages', () => {
+		const chunk = (...modules: string[]) => ({ modules }) as never;
+		const initial = {
+			'/app/dist/page-a.mjs': chunk('/app/src/pages/index.tsx'),
+			'/app/dist/layout-a.mjs': chunk('/app/src/shells/shell.tsx'),
+			'/app/dist/kept.mjs': chunk('/app/src/lib/kept.ts'),
+			'/app/dist/pkg-a.mjs': chunk('/app/node_modules/pkg/index.js'),
+		};
+		const next = {
+			'/app/dist/page-b.mjs': chunk('/app/src/pages/index.tsx'),
+			'/app/dist/layout-b.mjs': chunk('/app/src/shells/shell.tsx'),
+			'/app/dist/kept.mjs': chunk('/app/src/lib/kept.ts'),
+			'/app/dist/pkg-b.mjs': chunk('/app/node_modules/pkg/index.js'),
+		};
+
+		assert.deepEqual(
+			findReEmittedModules(initial, next, { entryPaths: ['/app/src/pages/index.tsx'], rootDir: '/app' }),
+			['/app/src/shells/shell.tsx'],
 		);
 	});
 });

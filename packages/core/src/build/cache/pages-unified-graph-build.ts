@@ -173,6 +173,42 @@ function findEmittedModulePath(outputGraph: BuildSuccess['outputGraph'], sourceP
 	return undefined;
 }
 
+/**
+ * Lists the app modules, other than the entries, that the first emit loaded and the second emit wrote again under
+ * a new output path.
+ *
+ * @remarks
+ * The first emit's modules are imported to find `ssr: true` scripts, so a module that moves is evaluated again from
+ * its new copy. Entries are excluded because the manifest points them at the new copy and Rolldown keeps their
+ * exports; a module that is not an entry loses unused exports in the first emit, so a script that imports one
+ * changes its output.
+ */
+export function findReEmittedModules(
+	initial: BuildSuccess['outputGraph'],
+	next: BuildSuccess['outputGraph'],
+	options: { entryPaths: readonly string[]; rootDir: string },
+): string[] {
+	const entries = new Set(options.entryPaths.map((entryPath) => path.resolve(entryPath)));
+	const moved = new Set<string>();
+	for (const [outputPath, chunk] of Object.entries(initial)) {
+		if (outputPath in next) continue;
+		for (const modulePath of chunk.modules) {
+			const resolved = path.resolve(modulePath);
+			const insideApp = path.isWithin(options.rootDir, resolved) && !resolved.split('/').includes('node_modules');
+			if (insideApp && !entries.has(resolved)) moved.add(resolved);
+		}
+	}
+	return [...moved].sort();
+}
+
+function warnReEmittedModules(appConfig: EcoPagesAppConfig, modulePaths: readonly string[]): void {
+	for (const modulePath of modulePaths) {
+		appLogger.warn(
+			`${toRootRelativePath(appConfig.rootDir, modulePath)} was loaded while the build looked for ssr scripts, then emitted again under a new hash because an ssr script imports it, so it evaluates twice. Pass a Layout literally as eco.page({ layout: X }) with a static import so it is a server entry, or keep the module's state safe to evaluate twice.`,
+		);
+	}
+}
+
 async function importEmittedModules(
 	manifest: ProductionServerModulesManifest,
 	sourceKeys: readonly string[],
@@ -271,6 +307,13 @@ export async function emitProductionServerModules(options: {
 				outdir,
 			);
 			Object.assign(modules, emittedModules.modules);
+			warnReEmittedModules(
+				appConfig,
+				findReEmittedModules(initialEmit.outputGraph, emittedModules.outputGraph, {
+					entryPaths: rolldownEntries,
+					rootDir: appConfig.rootDir,
+				}),
+			);
 		}
 		manifest = { outdir, buildId: ensureProductionBuildId(appConfig), modules };
 		assignProductionServerModules(appConfig, manifest);

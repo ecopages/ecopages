@@ -246,6 +246,7 @@ export class RouteRenderOrchestrator {
 	}
 
 	private recordLayoutFiles(shellGraph: PreparedComponentGraph): void {
+		if (isProductionRuntime()) return;
 		const layoutFiles = requireAppRuntime(this.appConfig).layoutFiles;
 		for (const node of shellGraph.nodes) {
 			if (node.source === 'layout' && node.componentFile) {

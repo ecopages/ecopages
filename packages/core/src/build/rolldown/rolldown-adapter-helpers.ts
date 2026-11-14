@@ -331,7 +331,9 @@ export function createInstalledPackageExternalPlugin(
  * @remarks
  * A package's own modules are not what the author wrote: when a bare `import 'pg'` reaches a built-in, the useful
  * answer is the app module that imported the package. The walk follows each module's first importer until it
- * leaves `node_modules` or reaches an entry, so the chain is the first path the bundler found.
+ * leaves `node_modules` or reaches an entry, so the chain is the first path the bundler found. Rolldown ids are
+ * native paths, so each is converted to forward slashes before the `node_modules` test and kept native for
+ * `getModuleInfo`.
  */
 function describeImportChain(
 	context: Pick<PluginContext, 'getModuleInfo'>,
@@ -342,8 +344,9 @@ function describeImportChain(
 	const seen = new Set<string>();
 	for (let current: string | undefined = importer; current && !seen.has(current);) {
 		seen.add(current);
-		chain.unshift(fromRolldownModuleId(current));
-		if (!current.split('/').includes('node_modules')) break;
+		const id = fromRolldownModuleId(current);
+		chain.unshift(id);
+		if (!id.split('/').includes('node_modules')) break;
 		current = context.getModuleInfo(current)?.importers[0];
 	}
 	return ` (imported from ${[...chain, specifier].join(' > ')})`;

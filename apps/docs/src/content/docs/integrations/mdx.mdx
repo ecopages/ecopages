@@ -85,7 +85,7 @@ export default defineConfig({
 
 ### Layouts
 
-Set `layout` on the `config` object an MDX file exports to wrap its content. Pass one layout, by reference, as any Page does ([How layouts are assigned](/docs/core/layouts#how-layouts-are-assigned)):
+Set `layout` on the `config` object an MDX file exports to wrap its content. `layout` takes the same forms as `eco.page({ layout })`: one Layout, an outer-to-inner array, or `{ component, props }` entries ([How layouts are assigned](/docs/core/layouts#how-layouts-are-assigned)). Pass each by reference:
 
 ```markdown
 import { BaseLayout } from '@/layouts/base-layout';

@@ -47,7 +47,7 @@ import { DependencyResolverService } from '../page-loading/dependency-resolver.t
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
-import { isEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
+import { createLiteralPageDeclarationError, isPageDeclaredIn, isUnattributedPage } from '../page-declaration.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import { type PreparedComponentGraph, type PreparedComponentGraphNode } from './ownership-graph/component-graph.ts';
 import { collectComponentGraphWatchPaths } from './ownership-graph/component-graph-collectors.ts';
@@ -551,16 +551,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	private assertPageModule(file: string, module: EcoPageFile): void {
 		const page = module.default as unknown;
-		const identityFile = isEcoDeclaredComponent(page) ? getComponentIdentity(page)?.file : undefined;
-		if (identityFile !== undefined && path.resolve(this.appConfig.rootDir, identityFile) === path.resolve(file)) {
-			return;
-		}
-
-		if (typeof page === 'function' && typeof (page as EcoComponent).config === 'object') {
-			throw new Error(
-				`[ecopages] ${file} default-exports an eco.page() result that the build did not attribute to this file. A route file declares its Page with a literal \`eco.page(...)\` call in that file. The build finds eco.page, eco.layout, eco.component and eco.html by their literal call, so a wrapper function, an alias such as \`const page = eco.page\`, a renamed import, or a Page declared in another file and re-exported gives the Page no identity or another file's, and server options such as props and metadata stay in the browser bundle. Call eco.page(...) directly in ${file}.`,
-			);
-		}
+		if (isPageDeclaredIn(file, page, this.appConfig.rootDir)) return;
+		if (isUnattributedPage(page)) throw createLiteralPageDeclarationError(file);
 
 		const fixes = isPathInside(path.resolve(file), this.appConfig.absolutePaths.pagesDir)
 			? ' If the file is not a Page, prefix its name with "_", give it a role suffix such as .server.ts or .script.ts, or move it out of the pages directory.'

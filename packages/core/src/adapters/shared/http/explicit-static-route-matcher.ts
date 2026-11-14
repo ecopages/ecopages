@@ -77,6 +77,7 @@ export class ExplicitStaticRouteMatcher {
 			} = await prepareExplicitStaticRender({
 				routePath: route.path,
 				view,
+				viewFile: route.loader.filePath,
 				params,
 				appConfig: this.appConfig,
 				runtimeOrigin: requireAppRuntime(this.appConfig).origin,

@@ -1,3 +1,4 @@
+import { assertViewDeclaredIn } from '../../../route-renderer/page-declaration.ts';
 import type { EcoComponent, RenderContext, RenderOptions } from '../../../types/contracts.ts';
 import { isViewReference, type ViewReference } from '../../../types/view-reference.ts';
 import { getComponentOwner } from '../../../eco/component-identity.ts';
@@ -13,6 +14,8 @@ export interface CreateRenderContextOptions {
 	integrations: AnyIntegrationPlugin[];
 	ensureIntegrationReady?: (integrationName: string) => Promise<void>;
 	importServerModule?: (filePath: string) => Promise<unknown>;
+	/** App root; with it, an imported view must declare its Page with a literal `eco.page()` call in its own file. */
+	rootDir?: string;
 }
 
 /**
@@ -97,6 +100,9 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 		invariant(!!options.importServerModule, 'Imported views need the server-module loader.');
 		const module = (await options.importServerModule(view.filePath)) as { default?: EcoComponent<P> };
 		invariant(!!module.default, `View module ${view.filePath} has no default export.`);
+		if (options.rootDir) {
+			assertViewDeclaredIn(view.filePath, module.default, options.rootDir);
+		}
 		return module.default;
 	};
 

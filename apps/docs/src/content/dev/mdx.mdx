@@ -26,7 +26,7 @@ sources:
 - Defaults are `format: 'detect'`, `outputFormat: 'program'`, `jsxRuntime: 'automatic'`, and `development` from the runtime.
 - `plugins(app)` returns one `mdx-loader` build plugin, with `projectRoot` set to `app.rootDir`.
 
-The renderer uses core's shared route renderer with two hooks: `normalizePageModule` (requires a default function export, resolves layouts from `config`, and keeps the last layout as `layout`) and a Page Browser Graph contribution that adds the layouts' and the Page's `config` as components. See [/dev/pages-layouts-components](/dev/pages-layouts-components).
+The renderer uses core's shared route renderer with two hooks: `normalizePageModule` (requires a default function export, normalizes `config.layout` onto `config.layouts` and `config.layoutEntries` with `ensurePageConfigLayouts`, and returns no `layout` of its own, since core renders the whole `config.layouts` stack outer to inner) and a Page Browser Graph contribution that adds the layouts' and the Page's `config` as components. See [/dev/pages-layouts-components](/dev/pages-layouts-components).
 
 ## Where the options live
 

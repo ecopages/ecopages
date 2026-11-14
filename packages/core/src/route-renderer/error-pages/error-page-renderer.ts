@@ -161,6 +161,7 @@ export class ErrorPageRenderer {
 		} = await prepareExplicitStaticRender({
 			routePath: `__error__/${status}`,
 			view,
+			viewFile: loader.filePath,
 			params: {},
 			appConfig: this.appConfig,
 			runtimeOrigin: this.appConfig.baseUrl,

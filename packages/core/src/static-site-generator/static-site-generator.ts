@@ -823,6 +823,9 @@ export class StaticSiteGenerator {
 				const { renderer } = resolveExplicitViewRenderer({
 					routePath: route.path,
 					view,
+					declaredIn: route.loader.filePath
+						? { file: route.loader.filePath, rootDir: this.appConfig.rootDir }
+						: undefined,
 					routeRendererFactory: input.routeRendererFactory,
 					errors: STATIC_SITE_GENERATOR_ERRORS,
 				});

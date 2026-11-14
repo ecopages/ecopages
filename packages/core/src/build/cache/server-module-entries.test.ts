@@ -82,36 +82,23 @@ describe('collectServerModuleEntries', () => {
 		assert.deepEqual(entries, [path.resolve(viewPath)]);
 	});
 
-	it('includes the layouts a Page passes as eco.page({ layout }), wherever they live, and no other file', () => {
+	it('does not add a Layout a Page passes as eco.page({ layout }) as an entry', () => {
 		const rootDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'server-module-layout-refs-')));
 		roots.push(rootDir);
-		const write = (file: string, source: string) => {
-			const target = path.join(rootDir, file);
-			mkdirSync(path.dirname(target), { recursive: true });
-			writeFileSync(target, source);
-			return target;
-		};
-		const page = write(
-			'src/pages/index.tsx',
-			[
-				"import { eco } from '@ecopages/core';",
-				"import { AppShell } from '../shells/app-shell';",
-				"import { Inner } from '../shells/inner';",
-				"import { Outer } from '../shells/outer.tsx';",
-				'export default eco.page({ layout: [Outer, { component: Inner, props: () => ({}) }], render: () => null });',
-				'void AppShell;',
-			].join('\n'),
+		mkdirSync(path.join(rootDir, 'src/pages'), { recursive: true });
+		mkdirSync(path.join(rootDir, 'src/shells'), { recursive: true });
+		const page = path.join(rootDir, 'src/pages/index.tsx');
+		writeFileSync(
+			page,
+			"import { Outer } from '../shells/outer.tsx';\nexport default eco.page({ layout: Outer, render: () => null });\n",
 		);
-		const outer = write('src/shells/outer.tsx', 'export const Outer = () => null;\n');
-		const inner = write('src/shells/inner.tsx', 'export const Inner = () => null;\n');
-		write('src/shells/app-shell.tsx', 'export const AppShell = () => null;\n');
-		write('src/layouts/utils.tsx', 'export const util = 1;\n');
+		writeFileSync(path.join(rootDir, 'src/shells/outer.tsx'), 'export const Outer = () => null;\n');
 
 		const entries = collectServerModuleEntries({
 			appConfig: { rootDir, absolutePaths: {}, processors: new Map() } as unknown as EcoPagesAppConfig,
 			router: { templateRoutes: [{ filePath: page }] },
 		});
 
-		assert.deepEqual(entries.sort(), [page, outer, inner].map((file) => path.resolve(file)).sort());
+		assert.deepEqual(entries, [path.resolve(page)]);
 	});
 });

@@ -23,20 +23,62 @@ function propertyValue(object: AstNode, name: string): unknown {
 	return undefined;
 }
 
-function findSsrScriptSources(value: unknown, sources: string[]): void {
+/** A script a declaration lists with a literal `src`. */
+export type DeclaredScript = { src: string; ssr: boolean };
+
+function declaredScriptOf(value: unknown): DeclaredScript | undefined {
+	if (isNode(value) && typeof value.value === 'string') return { src: value.value, ssr: false };
+	if (!isNode(value) || value.type !== 'ObjectExpression') return undefined;
+	const src = propertyValue(value, 'src');
+	const ssr = propertyValue(value, 'ssr');
+	if (!isNode(src) || typeof src.value !== 'string') return undefined;
+	return { src: src.value, ssr: isNode(ssr) && ssr.value === true };
+}
+
+function collectDeclaredScripts(value: unknown, scripts: DeclaredScript[]): void {
 	if (Array.isArray(value)) {
-		for (const child of value) findSsrScriptSources(child, sources);
+		for (const child of value) collectDeclaredScripts(child, scripts);
 		return;
 	}
 	if (!isNode(value)) return;
 	if (value.type === 'ObjectExpression') {
-		const src = propertyValue(value, 'src');
-		const ssr = propertyValue(value, 'ssr');
-		if (isNode(src) && typeof src.value === 'string' && isNode(ssr) && ssr.value === true) sources.push(src.value);
+		const listed = propertyValue(value, 'scripts');
+		if (isNode(listed) && listed.type === 'ArrayExpression' && Array.isArray(listed.elements)) {
+			for (const element of listed.elements) {
+				const script = declaredScriptOf(element);
+				if (script) scripts.push(script);
+			}
+		}
+		const own = declaredScriptOf(value);
+		if (own?.ssr) scripts.push(own);
 	}
 	for (const [key, child] of Object.entries(value)) {
-		if (key !== 'type' && typeof child === 'object') findSsrScriptSources(child, sources);
+		if (key !== 'type' && typeof child === 'object') collectDeclaredScripts(child, scripts);
 	}
+}
+
+/**
+ * Lists the scripts a module's declarations name with a literal `src`, relative to that module.
+ *
+ * @remarks
+ * Finds each string or `{ src }` entry of a literal `scripts: [...]` array, and any `{ src, ssr: true }` object.
+ * A `src` that is computed at runtime is not found.
+ */
+export function findDeclaredScripts(
+	file: string,
+	code: string,
+	lang: (typeof PARSER_LANGUAGES)[number],
+): DeclaredScript[] {
+	const scripts: DeclaredScript[] = [];
+	collectDeclaredScripts(parseModuleSource(file, code, { sourceType: 'module', lang }).program, scripts);
+	return scripts;
+}
+
+/**
+ * The parser language for a file name, or `undefined` when it is not a script module.
+ */
+export function scriptModuleLanguage(file: string): (typeof PARSER_LANGUAGES)[number] | undefined {
+	return PARSER_LANGUAGES.find((language) => file.endsWith(`.${language}`));
 }
 
 /**
@@ -57,9 +99,8 @@ export function createSsrScriptEntriesPlugin(): RolldownPlugin {
 			handler(code, id, meta) {
 				const file = fromRolldownModuleId(id);
 				const lang = PARSER_LANGUAGES.find((language) => language === (meta.moduleType as ModuleType)) ?? 'js';
-				const sources: string[] = [];
-				findSsrScriptSources(parseModuleSource(file, code, { sourceType: 'module', lang }).program, sources);
-				for (const src of sources) {
+				for (const { src, ssr } of findDeclaredScripts(file, code, lang)) {
+					if (!ssr) continue;
 					const script = path.resolve(path.dirname(file), src);
 					if (fileSystem.exists(script)) this.emitFile({ type: 'chunk', id: script });
 				}

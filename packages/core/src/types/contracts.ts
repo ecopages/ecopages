@@ -219,16 +219,17 @@ export interface DefaultHmrContext {
 	getSrcDir(): string;
 
 	/**
-	 * Absolute path to the layouts directory.
-	 * Used to detect layout file changes that require full page reloads.
+	 * True when the Route Registry holds `filePath` as a Page.
 	 */
-	getLayoutsDir(): string;
+	isPageFile(filePath: string): boolean;
 
 	/**
-	 * Absolute path to the pages directory.
-	 * Used by plugins to identify page files for transformation.
+	 * True when a Page rendered in this session references `filePath` as a Layout.
+	 *
+	 * @remarks
+	 * Layouts are known after route preparation, so a Layout no Page has rendered yet reports `false`.
 	 */
-	getPagesDir(): string;
+	isLayoutFile(filePath: string): boolean;
 
 	/**
 	 * Server-side module loader owned by the active app/runtime.

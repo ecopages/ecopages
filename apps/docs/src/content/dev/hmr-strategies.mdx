@@ -26,7 +26,7 @@ Strategies extend `HmrStrategy` and are tried in descending `priority` (`type` p
 | Strategy | Owner | Priority | Claims | Sends |
 | --- | --- | --- | --- | --- |
 | `ServerRenderedTemplateHmrStrategy` | core | 150 | files in the includes directory or `src/views` | `layout-update` |
-| `ReactHmrStrategy` | React | 100 | React entrypoints and files React-owned entrypoints import | `update` per module URL, or `layout-update` for a layout |
+| `ReactHmrStrategy` | React | 100 | React entrypoints and files React-owned entrypoints import | `update` per module URL, or `layout-update` for a Layout |
 | `EcopagesJsxHmrStrategy` | Ecopages JSX | 100 | JSX Pages and Layouts, and files rendered under JSX ownership | `layout-update` |
 | `JsHmrStrategy` | core | 25 | JS/TS in the source directory that is a watched entrypoint or that a served module imports | `update` per entrypoint URL, or `reload` |
 | `TemplateSourceHmrStrategy` | core | 0 | any unclaimed template-extension file that is not a registered script entrypoint | `layout-update` |
@@ -44,6 +44,8 @@ flowchart TD
   X -->|yes| L2[layout-update]
   X -->|no| RL[reload]
 ```
+
+Integration strategies ask the HMR context whether a file is a Page or a Layout (`isPageFile`, `isLayoutFile`) and never read a folder. A Page is a file the Route Registry holds as a Page route (`RouteRegistry.isPageFile`, reached through `AppRuntime.router`). A Layout is a module a rendered Page passed as `eco.page({ layout })`: route preparation records the file of every Layout node in `AppRuntime.layoutFiles`. The set only grows within a session and holds the Layouts that were rendered, so a Layout no Page has rendered yet takes the component path until one does, and a plain Layout function, which carries no identity, is known only through the Pages that import it. A file in `src/layouts/` that no Page references is not a Layout.
 
 Design choices in the order:
 

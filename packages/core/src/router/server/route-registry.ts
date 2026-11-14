@@ -131,6 +131,16 @@ export class RouteRegistry {
 		return this.templateRouteList;
 	}
 
+	/**
+	 * True when `filePath` is the source file of a Page route.
+	 */
+	isPageFile(filePath: string): boolean {
+		const resolved = path.resolve(filePath);
+		return this.templateRouteList.some(
+			(route) => route.role === 'page' && path.resolve(route.filePath) === resolved,
+		);
+	}
+
 	private get pageRoutes(): TemplateRoute[] {
 		return this.templateRouteList.filter((route) => route.role === 'page');
 	}

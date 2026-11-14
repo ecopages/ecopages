@@ -83,6 +83,7 @@ function createOrchestrator(
 			buildInputIndex: new BuildInputDependencyIndex(),
 			pageBrowserGraphSession: new SessionPageBrowserGraphCache(),
 			processedAssets: new ProcessedAssetLedger(path.resolve('/app')),
+			layoutFiles: new Set<string>(),
 		} as AppRuntime,
 		...options.appConfig,
 	} as unknown as EcoPagesAppConfig;
@@ -830,5 +831,25 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 
 		expect(resolvedComponents).toEqual([OuterLayout, InnerLayout]);
+	});
+
+	it('records the file of every Layout a Page references, wherever it lives', async () => {
+		const { flow, appConfig } = createOrchestrator({ integrations: [createReactIntegration()] });
+		const Shell = createComponent({
+			integration: 'react',
+			identity: { id: 'shell', file: path.resolve('/app/shells/app-shell.tsx'), integration: 'react' },
+		});
+		const Page = createPage({ layouts: [Shell], layoutEntries: [{ component: Shell }] });
+
+		await flow.prepareRenderOptions(
+			createRouteOptions(path.resolve('/app/pages/index.tsx')),
+			createFlowRenderer({
+				name: 'react',
+				Page,
+				HtmlTemplate: (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
+			}),
+		);
+
+		expect([...requireAppRuntime(appConfig).layoutFiles]).toEqual([path.resolve('/app/shells/app-shell.tsx')]);
 	});
 });

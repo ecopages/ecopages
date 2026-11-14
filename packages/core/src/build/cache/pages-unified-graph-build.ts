@@ -217,7 +217,7 @@ export async function emitProductionServerModules(options: {
 	const outdir = path.resolve(options.outdir ?? getServerBundleOutputPaths(appConfig).serverOutdir);
 	fileSystem.ensureDir(outdir);
 
-	const collected = await collectServerModuleEntries({
+	const collected = collectServerModuleEntries({
 		appConfig,
 		router: options.router,
 		staticRoutes: options.staticRoutes,

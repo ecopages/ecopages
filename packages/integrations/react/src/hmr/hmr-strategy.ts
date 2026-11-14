@@ -139,14 +139,12 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 	/**
 	 * @remarks
-	 * React integration owns plain `.tsx` route templates. Compound extensions in
-	 * pages/layouts are integration-specific route templates and should not be
+	 * React integration owns plain `.tsx` route templates: the Route Registry's Pages and the modules Pages
+	 * reference as Layouts. Compound extensions in them are integration-specific route templates and should not be
 	 * claimed by React HMR strategy.
 	 */
 	private isRouteTemplate(filePath: string): boolean {
-		return (
-			isPathInside(filePath, this.context.getPagesDir()) || isPathInside(filePath, this.context.getLayoutsDir())
-		);
+		return this.context.isPageFile(filePath) || this.context.isLayoutFile(filePath);
 	}
 
 	private resolveTemplateExtension(filePath: string): string | undefined {
@@ -248,11 +246,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	private isLayoutFile(filePath: string): boolean {
-		return isPathInside(filePath, this.context.getLayoutsDir());
+		return this.context.isLayoutFile(filePath);
 	}
 
 	private isPageEntrypoint(filePath: string): boolean {
-		return isPathInside(filePath, this.context.getPagesDir()) && this.isReactEntrypoint(filePath);
+		return this.context.isPageFile(filePath) && this.isReactEntrypoint(filePath);
 	}
 
 	private resolveEntrypointOutputUrl(entrypointPath: string): string | undefined {

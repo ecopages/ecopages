@@ -27,10 +27,6 @@ export interface JsHmrContext extends HmrRegisteredEntrypointsContext {
 
 	getSrcDir(): string;
 
-	getPagesDir(): string;
-
-	getLayoutsDir(): string;
-
 	getTemplateExtensions(): string[];
 
 	/** Whether `filePath` is a stylesheet, which a served module can import as text. */

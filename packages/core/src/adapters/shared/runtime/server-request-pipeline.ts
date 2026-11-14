@@ -190,6 +190,7 @@ export class ServerRequestPipeline {
 		});
 
 		await this.router.init();
+		this.runtime.router = this.router;
 		startupTrace.markPhaseEnd('route-registry');
 	}
 

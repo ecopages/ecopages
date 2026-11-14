@@ -147,11 +147,11 @@ test('render leads with context and the per-page table, flagging growth per colu
 	assert.match(output, /ecopages\.app\/dev\/benchmarks-and-ci/);
 	assert.match(output, /\| Kita \| `\/` \| 9\.77 kB \| 4\.88 kB to 5\.86 kB \(\+1000 B \(\+20\.0%\)\) warning \|/);
 	assert.match(output, /\| Kita, no React \| `\/api-lab` \| 0 B \| 1\.95 kB \|/);
-	assert.match(output, /returning visitor mostly downloads only the app part/);
+	assert.match(output, /Vendor chunks stay cached across deploys/);
 	assert.match(output, /-100 ms \(-10\.0%\)/);
-	assert.match(output, /<details><summary>Totals for every page and asset<\/summary>/);
+	assert.match(output, /<details><summary>Totals<\/summary>/);
 	assert.match(output, /All files in dist\/client \| 1000 B \| 1\.07 kB/);
-	assert.match(output, /Vendor share of all JS/);
+	assert.match(output, /Vendor share of JS/);
 	assert.doesNotMatch(output, /Client total/);
 });
 

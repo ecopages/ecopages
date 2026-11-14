@@ -382,9 +382,9 @@ export function renderComparison(base: Stats, head: Stats): string {
 		COMMENT_MARKER,
 		'## Kitchen-sink build stats',
 		'',
-		`Kitchen-sink is the playground app that exercises every Integration (React, Lit, Kita, Ecopages JSX and MDX), with about ${Object.keys(head.pages).length} pages, islands, images and fonts. Totals sum every page and asset, so they are not what one visitor downloads; the per-page table is. See [Benchmarks and CI](${DOCS_URL}).`,
+		`The [kitchen-sink](${DOCS_URL}) demo app: ${Object.keys(head.pages).length} pages across every Integration.`,
 		'',
-		'### JavaScript loaded per page (gzip)',
+		'### JS per page (gzip)',
 		'',
 		'| Page | Route | Vendor | App | Total | Vendor chunks |',
 		'| --- | --- | --- | --- | --- | --- |',
@@ -398,9 +398,9 @@ export function renderComparison(base: Stats, head: Stats): string {
 	}
 	lines.push(
 		'',
-		`Vendor chunks are libraries the page uses, shared across pages and cached by the browser across deploys, so a returning visitor mostly downloads only the app part. Warning marks a column that grew more than ${GROWTH_THRESHOLD * 100}%.`,
+		`Vendor chunks stay cached across deploys. Warning: grew more than ${GROWTH_THRESHOLD * 100}%.`,
 		'',
-		`Cold build, median of 5, alternating base and head: ${base.buildMs} ms to ${head.buildMs} ms (${delta(base.buildMs, head.buildMs, (n) => `${n} ms`)}). Noisy on a shared runner: informational only.`,
+		`Cold build: ${base.buildMs} ms to ${head.buildMs} ms (${delta(base.buildMs, head.buildMs, (n) => `${n} ms`)}), noisy.`,
 	);
 
 	const flagged = findLargeNewFiles(base, head);
@@ -418,9 +418,9 @@ export function renderComparison(base: Stats, head: Stats): string {
 			.reduce((sum, file) => sum + file.gzip, 0);
 	lines.push(
 		'',
-		'<details><summary>Totals for every page and asset</summary>',
+		'<details><summary>Totals</summary>',
 		'',
-		'Code, raw and gzip:',
+		'Code:',
 		'',
 		'| Type | Base | Head | Change | Base gzip | Head gzip | Change |',
 		'| --- | ---: | ---: | ---: | ---: | ---: | ---: |',
@@ -434,18 +434,18 @@ export function renderComparison(base: Stats, head: Stats): string {
 	}
 	lines.push(
 		'',
-		'Static assets (images, fonts and other files), raw only because they are already compressed:',
+		'Images, fonts and other files:',
 		'',
 		'| | Base | Head | Change |',
 		'| --- | ---: | ---: | ---: |',
 		`| Static assets | ${formatBytes(staticAssets(base))} | ${formatBytes(staticAssets(head))} | ${delta(staticAssets(base), staticAssets(head), formatBytes)} |`,
 		`| All files in dist/client | ${formatBytes(base.total.bytes)} | ${formatBytes(head.total.bytes)} | ${delta(base.total.bytes, head.total.bytes, formatBytes)} |`,
 		'',
-		`Vendor share of all JS (gzip): ${percent(vendorGzip(base), base.types.js.gzip)} in the base, ${percent(vendorGzip(head), head.types.js.gzip)} in the head.`,
+		`Vendor share of JS (gzip): ${percent(vendorGzip(base), base.types.js.gzip)} to ${percent(vendorGzip(head), head.types.js.gzip)}.`,
 		'',
 		'</details>',
 		'',
-		'<details><summary>Largest JS files in the head</summary>',
+		'<details><summary>Largest JS files</summary>',
 		'',
 		'| File | Size | Gzip |',
 		'| --- | ---: | ---: |',

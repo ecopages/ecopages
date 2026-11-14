@@ -1,8 +1,9 @@
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
-import { resolveProjectModulePath } from '@ecopages/core/build';
+import { parseModuleSource, resolveProjectModulePath } from '@ecopages/core/build';
+import { compileSync } from '@mdx-js/mdx';
 
-const IMPORT_SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*)(['"])([^'"\n]+)\1/g;
+const MDX_SOURCE = /\.mdx?$/;
 const SCANNED_SOURCE = /\.(?:[cm]?[jt]sx?|mdx?)$/;
 
 export type ForeignJsxReachOptions = {
@@ -30,14 +31,39 @@ export function toRealPath(filePath: string): string {
 	}
 }
 
+/**
+ * Reads the module specifiers of a file from its parsed module: static imports, `export ... from` and dynamic
+ * `import()` with a literal specifier.
+ *
+ * @remarks
+ * The parser does not read MDX, so an MDX file is compiled first and its output parsed. A file that does not read,
+ * compile or parse has no specifiers.
+ */
 function readImportSpecifiers(filePath: string): string[] {
-	let source: string;
 	try {
-		source = fileSystem.readFileSync(filePath);
+		let source = fileSystem.readFileSync(filePath);
+		let parsePath = filePath;
+		if (MDX_SOURCE.test(filePath)) {
+			source = String(compileSync(source, { format: filePath.endsWith('.md') ? 'md' : 'mdx' }));
+			parsePath = `${filePath}.jsx`;
+		}
+		const { module } = parseModuleSource(parsePath, source);
+		return [
+			...module.staticImports.map((entry) => entry.moduleRequest.value),
+			...module.staticExports.flatMap((entry) => entry.entries.map((exported) => exported.moduleRequest?.value)),
+			...module.dynamicImports.map((entry) => literalSpecifier(source, entry.moduleRequest)),
+		].filter((specifier): specifier is string => typeof specifier === 'string');
 	} catch {
 		return [];
 	}
-	return [...source.matchAll(IMPORT_SPECIFIER)].map((match) => match[2]!);
+}
+
+/** The specifier of a dynamic `import()` when its argument is a plain string literal, otherwise `undefined`. */
+function literalSpecifier(source: string, span: { start: number; end: number }): string | undefined {
+	const text = source.slice(span.start, span.end);
+	const quote = text[0];
+	if ((quote !== "'" && quote !== '"') || text.at(-1) !== quote) return undefined;
+	return text.slice(1, -1);
 }
 
 /**

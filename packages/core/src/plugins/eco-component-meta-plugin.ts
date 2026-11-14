@@ -275,6 +275,7 @@ function serializeDiscoveryArgument(
 			discovered.stylesheets.length === 0 &&
 			discovered.plainModuleStylesheets.length === 0 &&
 			discovered.plainModuleComponents.length === 0 &&
+			discovered.virtualImports.length === 0 &&
 			discovered.watchFiles.length === 0)
 	) {
 		return '';
@@ -298,7 +299,9 @@ function serializeDiscoveryArgument(
 		discovered.watchFiles.length > 0
 			? `, watchFiles: ${JSON.stringify(discovered.watchFiles.map(toSourceKey))}`
 			: '';
-	return `, { components: () => [${components}], stylesheets: ${JSON.stringify(stylesheets)}${plain}${packages}${watchFiles} }`;
+	const virtualImports =
+		discovered.virtualImports.length > 0 ? `, virtualImports: ${JSON.stringify(discovered.virtualImports)}` : '';
+	return `, { components: () => [${components}], stylesheets: ${JSON.stringify(stylesheets)}${plain}${packages}${virtualImports}${watchFiles} }`;
 }
 
 /**

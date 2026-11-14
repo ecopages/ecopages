@@ -125,12 +125,17 @@ export class DependencyResolverService {
 
 	/**
 	 * Processes dependencies from a component list that already came from a prepared graph walk.
+	 *
+	 * @remarks
+	 * With `declarationOrder`, the result follows the order of the collected dependencies, as the asset ledger
+	 * records them (see {@link AssetProcessingService.processDependenciesInDeclarationOrder}).
 	 */
 	async processPreparedComponentDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
+		declarationOrder = false,
 	): Promise<ProcessedAsset[]> {
-		return this.processPreparedDependencies(components, integrationName, true);
+		return this.processPreparedDependencies(components, integrationName, true, declarationOrder);
 	}
 
 	/**
@@ -173,11 +178,19 @@ export class DependencyResolverService {
 		);
 	}
 
-	/** Collects lazy client entries from prepared graph nodes without processing eager assets. */
+	/**
+	 * Collects lazy client entries from prepared graph nodes without processing eager assets.
+	 *
+	 * @remarks Nodes without lazy scripts hold no lazy entries, so a list without any is not collected.
+	 */
 	prepareLazyClientDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 	): AssetDefinition[] {
+		const declaresLazyScripts = components.some(
+			(component) => component?.config && (this.declarations.get(component.config)?.lazyScripts.length ?? 0) > 0,
+		);
+		if (!declaresLazyScripts) return [];
 		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(components, integrationName, true);
 		const lazyDependencies = dependencies.filter(isLazyClientScript);
 		this.storePendingLazyClientDependencies(lazyScriptsByConfig, lazyDependencies);
@@ -188,6 +201,7 @@ export class DependencyResolverService {
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 		skipNestedComponents: boolean,
+		declarationOrder = false,
 	): Promise<ProcessedAsset[]> {
 		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(
 			components,
@@ -201,10 +215,10 @@ export class DependencyResolverService {
 
 		this.storePendingLazyClientDependencies(lazyScriptsByConfig, lazyDeps);
 
-		return this.assetProcessingService.processDependencies(
-			eagerDeps,
-			this.getAssetProcessingIntegration(integrationName),
-		);
+		const integration = this.getAssetProcessingIntegration(integrationName);
+		return declarationOrder
+			? this.assetProcessingService.processDependenciesInDeclarationOrder(eagerDeps, integration)
+			: this.assetProcessingService.processDependencies(eagerDeps, integration);
 	}
 
 	private storePendingLazyClientDependencies(

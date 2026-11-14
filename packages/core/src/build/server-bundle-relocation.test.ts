@@ -301,31 +301,67 @@ test(
 	},
 );
 
-function writeStyledApp(appDir: string): void {
+/** An Integration the styled app is written for, with how its packages install and its modules are named. */
+type StyledAppIntegration = {
+	extension: string;
+	jsxImportSource: string;
+	dependencies: Record<string, string>;
+	configImport: string;
+	pluginCall: string;
+};
+
+const KITAJS_APP: StyledAppIntegration = {
+	extension: '.kita.tsx',
+	jsxImportSource: '@kitajs/html',
+	dependencies: { '@ecopages/kitajs': '*', '@kitajs/html': '*' },
+	configImport: "import { kitajsPlugin } from '@ecopages/kitajs';",
+	pluginCall: 'kitajsPlugin()',
+};
+
+const ECOPAGES_JSX_APP: StyledAppIntegration = {
+	extension: '.eco.tsx',
+	jsxImportSource: '@ecopages/jsx',
+	dependencies: { '@ecopages/ecopages-jsx': '*', '@ecopages/jsx': '*', '@ecopages/radiant': '*' },
+	configImport: "import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';",
+	pluginCall: "ecopagesJsxPlugin({ extensions: ['.eco.tsx'] })",
+};
+
+/**
+ * Writes an app whose Page declares two stylesheets and a script, and renders an Eco Component with a stylesheet
+ * and a plain component module that imports one.
+ */
+function writeStyledApp(appDir: string, integration: StyledAppIntegration): void {
+	const { extension } = integration;
 	mkdirSync(path.join(appDir, 'src/pages'), { recursive: true });
 	mkdirSync(path.join(appDir, 'src/includes'), { recursive: true });
+	mkdirSync(path.join(appDir, 'src/components'), { recursive: true });
 	writeFileSync(
 		path.join(appDir, 'package.json'),
 		JSON.stringify({
 			name: 'relocated-styled-app',
 			private: true,
 			type: 'module',
-			dependencies: { '@ecopages/core': '*', '@ecopages/kitajs': '*', '@kitajs/html': '*' },
+			dependencies: { '@ecopages/core': '*', ...integration.dependencies },
 		}),
 	);
 	writeFileSync(
 		path.join(appDir, 'tsconfig.json'),
 		JSON.stringify({
-			compilerOptions: { jsx: 'react-jsx', jsxImportSource: '@kitajs/html', module: 'ESNext', target: 'ES2024' },
+			compilerOptions: {
+				jsx: 'react-jsx',
+				jsxImportSource: integration.jsxImportSource,
+				module: 'ESNext',
+				target: 'ES2024',
+			},
 		}),
 	);
 	writeFileSync(
 		path.join(appDir, 'eco.config.ts'),
 		[
 			"import { defineConfig } from '@ecopages/core/config';",
-			"import { kitajsPlugin } from '@ecopages/kitajs';",
+			integration.configImport,
 			'',
-			'export default defineConfig({ rootDir: import.meta.dirname, integrations: [kitajsPlugin()] });',
+			`export default defineConfig({ rootDir: import.meta.dirname, integrations: [${integration.pluginCall}] });`,
 			'',
 		].join('\n'),
 	);
@@ -334,7 +370,7 @@ function writeStyledApp(appDir: string): void {
 		"import { createApp } from '@ecopages/core/create-app';\n\nconst app = await createApp();\napp.get('/api/ping', async ({ response }) => response.json({ ok: true }));\nawait app.start();\n",
 	);
 	writeFileSync(
-		path.join(appDir, 'src/includes/html.kita.tsx'),
+		path.join(appDir, `src/includes/html${extension}`),
 		[
 			"import type { HtmlTemplateProps } from '@ecopages/core';",
 			"import { eco } from '@ecopages/core';",
@@ -354,75 +390,132 @@ function writeStyledApp(appDir: string): void {
 		].join('\n'),
 	);
 	writeFileSync(
-		path.join(appDir, 'src/pages/index.kita.tsx'),
+		path.join(appDir, `src/pages/index${extension}`),
 		[
 			"import { eco } from '@ecopages/core';",
+			`import { Badge } from '../components/badge${extension}';`,
+			"import { Card } from '../components/card.tsx';",
 			'',
 			'export default eco.page({',
 			`	metadata: () => ({ title: '${HOME_MARKER}' }),`,
-			"	dependencies: { stylesheets: ['./home.css'], scripts: ['./home.script.ts'] },",
-			`	render: () => <h1>${HOME_MARKER}</h1>,`,
+			"	dependencies: { stylesheets: ['./home.css', './frame.css'], scripts: ['./home.script.ts'] },",
+			`	render: () => <h1>${HOME_MARKER}{Card()}{Badge({})}</h1>,`,
 			'});',
 			'',
 		].join('\n'),
 	);
 	writeFileSync(path.join(appDir, 'src/pages/home.css'), 'h1 { color: rebeccapurple; }\n');
+	writeFileSync(path.join(appDir, 'src/pages/frame.css'), 'main { margin: 0; }\n');
 	writeFileSync(path.join(appDir, 'src/pages/home.script.ts'), "document.documentElement.dataset.home = 'ready';\n");
+	writeFileSync(
+		path.join(appDir, 'src/components/card.tsx'),
+		"import './card.css';\n\nexport function Card(): string {\n\treturn 'card';\n}\n",
+	);
+	writeFileSync(path.join(appDir, 'src/components/card.css'), '.card { color: teal; }\n');
+	writeFileSync(
+		path.join(appDir, `src/components/badge${extension}`),
+		[
+			"import { eco } from '@ecopages/core';",
+			'',
+			"export const Badge = eco.component({ dependencies: { stylesheets: ['./badge.css'] }, render: () => <b>badge</b> });",
+			'',
+		].join('\n'),
+	);
+	writeFileSync(path.join(appDir, 'src/components/badge.css'), 'b { color: olive; }\n');
+}
+
+/**
+ * Builds the styled app for `integration`, moves `dist/` and `node_modules/` to another root, deletes the build
+ * tree, `src/` included, and returns the home page HTML and the CSS of every stylesheet it links.
+ */
+async function serveMovedStyledApp(
+	integration: StyledAppIntegration,
+	packages: Record<string, string>,
+): Promise<{ html: string; stylesheets: string[]; output: string }> {
+	workDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-assets-'))));
+	const buildDir = path.join(workDir, 'build/app');
+	const deployDir = path.join(workDir, 'srv/deploy/app');
+	writeStyledApp(buildDir, integration);
+	installIsolated(buildDir, { '@ecopages/core': path.join(repoRoot, 'packages/core'), ...packages });
+
+	execFileSync(process.execPath, [cliPath, 'build', '--runtime', 'node'], {
+		cwd: buildDir,
+		env: { ...process.env, VITEST: '', NODE_ENV: 'production' },
+		stdio: 'pipe',
+		timeout: 90_000,
+	});
+
+	mkdirSync(deployDir, { recursive: true });
+	for (const entry of ['dist', 'node_modules']) {
+		renameSync(path.join(buildDir, entry), path.join(deployDir, entry));
+	}
+	rmSync(path.join(workDir, 'build'), { recursive: true, force: true });
+
+	let output = '';
+	server = spawn(process.execPath, ['dist/server/app.mjs'], {
+		cwd: deployDir,
+		env: {
+			...process.env,
+			VITEST: '',
+			NODE_ENV: 'production',
+			ECOPAGES_HOSTNAME: '127.0.0.1',
+			ECOPAGES_PORT: '0',
+		},
+		stdio: 'pipe',
+	});
+	server.stdout?.on('data', (chunk: Buffer) => (output += chunk.toString()));
+	server.stderr?.on('data', (chunk: Buffer) => (output += chunk.toString()));
+	const serverUrl = await waitForServerUrl(server, () => output);
+	const get = async (pathname: string) =>
+		await (await fetch(new URL(pathname, serverUrl), { signal: AbortSignal.timeout(15_000) })).text();
+	const html = await get('/');
+	const hrefs = [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+\.css)"/gu)].map((match) => match[1]!);
+	return { html, stylesheets: await Promise.all(hrefs.map(get)), output };
 }
 
 /**
  * @remarks
- * A Page declares a stylesheet and a component script. After the build the
- * deploy layout moves to another root and the build tree, `src/` included,
- * is deleted. Request-time asset processing must still link both from `dist/`.
+ * Request-time rendering must still link every stylesheet and the script from `dist/`, including the stylesheet a
+ * plain component module imports, which reaches the Page through discovery.
  */
 test(
-	'a moved build still links the Page stylesheet and script without the source tree',
+	'a moved build still links the Page stylesheets and script without the source tree',
 	{ timeout: 120_000 },
 	async () => {
-		workDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-relocation-assets-'))));
-		const buildDir = path.join(workDir, 'build/app');
-		const deployDir = path.join(workDir, 'srv/deploy/app');
-		writeStyledApp(buildDir);
 		const kitajsDir = path.join(repoRoot, 'packages/integrations/kitajs');
-		installIsolated(buildDir, {
-			'@ecopages/core': path.join(repoRoot, 'packages/core'),
+		const { html, stylesheets, output } = await serveMovedStyledApp(KITAJS_APP, {
 			'@ecopages/kitajs': kitajsDir,
 			'@kitajs/html': findPackageDir(kitajsDir, '@kitajs/html')!,
 		});
 
-		execFileSync(process.execPath, [cliPath, 'build', '--runtime', 'node'], {
-			cwd: buildDir,
-			env: { ...process.env, VITEST: '', NODE_ENV: 'production' },
-			stdio: 'pipe',
-			timeout: 90_000,
-		});
-
-		mkdirSync(deployDir, { recursive: true });
-		for (const entry of ['dist', 'node_modules']) {
-			renameSync(path.join(buildDir, entry), path.join(deployDir, entry));
-		}
-		rmSync(path.join(workDir, 'build'), { recursive: true, force: true });
-
-		let output = '';
-		server = spawn(process.execPath, ['dist/server/app.mjs'], {
-			cwd: deployDir,
-			env: {
-				...process.env,
-				VITEST: '',
-				NODE_ENV: 'production',
-				ECOPAGES_HOSTNAME: '127.0.0.1',
-				ECOPAGES_PORT: '0',
-			},
-			stdio: 'pipe',
-		});
-		server.stdout?.on('data', (chunk: Buffer) => (output += chunk.toString()));
-		server.stderr?.on('data', (chunk: Buffer) => (output += chunk.toString()));
-		const serverUrl = await waitForServerUrl(server, () => output);
-		const html = await (await fetch(new URL('/', serverUrl), { signal: AbortSignal.timeout(15_000) })).text();
 		expect(html).toContain(HOME_MARKER);
-		expect(html).toMatch(/<link[^>]+rel="stylesheet"[^>]+href="[^"]+\.css"/u);
+		expect(stylesheets.join('\n')).toEqual(expect.stringContaining('teal'));
+		for (const color of ['rebeccapurple', 'olive']) expect(stylesheets.join('\n')).toContain(color);
 		expect(html).toMatch(/<script[^>]+src="[^"]+\.js"/u);
+		expect(output).not.toContain('Skipping missing');
+	},
+);
+
+/**
+ * @remarks
+ * ecopages-jsx bundles a Page's adjacent stylesheets into one, which reads their sources. `ecopages start` serves the
+ * shell the build recorded, so the moved build links the same bundle without `src/`.
+ */
+test(
+	'a moved build links the Page stylesheet bundle the build produced without the source tree',
+	{ timeout: 120_000 },
+	async () => {
+		const jsxDir = path.join(repoRoot, 'packages/integrations/ecopages-jsx');
+		const { html, stylesheets, output } = await serveMovedStyledApp(ECOPAGES_JSX_APP, {
+			'@ecopages/ecopages-jsx': jsxDir,
+			'@ecopages/jsx': findPackageDir(jsxDir, '@ecopages/jsx')!,
+			'@ecopages/radiant': findPackageDir(jsxDir, '@ecopages/radiant')!,
+			'@mdx-js/mdx': findPackageDir(jsxDir, '@mdx-js/mdx')!,
+		});
+
+		expect(html).toContain(HOME_MARKER);
+		expect(stylesheets.some((css) => css.includes('rebeccapurple') && css.includes('margin'))).toBe(true);
+		expect(stylesheets.join('\n')).toContain('teal');
 		expect(output).not.toContain('Skipping missing');
 	},
 );

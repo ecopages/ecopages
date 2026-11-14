@@ -1,12 +1,17 @@
 import { normalizeModuleDeclarations } from '../../eco/module-dependencies.ts';
-import { isBrowserEcopagesVirtualImport } from './ecopages-virtual-imports.ts';
-import type { EcopagesVirtualImport } from './ecopages-virtual-imports.ts';
+import type { EcopagesVirtualImport } from '../../plugins/ecopages-virtual-imports.ts';
+import { isContentServerVirtualModule } from '../../build/contracts/content-virtual-modules.ts';
 
 /** One module a component's browser scripts import, with its named imports or none for the namespace. */
 export type ModuleDeclaration = {
 	from: string;
 	imports?: string[];
 };
+
+/** Whether a browser script can import the `ecopages:` virtual module `specifier`. */
+export function isBrowserEcopagesVirtualImport(specifier: string): boolean {
+	return specifier.startsWith('ecopages:') && !isContentServerVirtualModule(specifier);
+}
 
 /**
  * Narrows arbitrary config input onto the declared module string array shape.
@@ -45,19 +50,19 @@ export function mergeModuleDeclaration(
 }
 
 /**
- * Lists the modules a component declares in `modules`, then the `ecopages:` virtual modules its source imports.
+ * Lists the modules a component declares in `modules`, then the `ecopages:` virtual modules its module imports.
  *
- * @remarks A server-only `ecopages:` module declared in `modules` is left out.
+ * @remarks A server-only `ecopages:` module is left out of both.
  */
 export function declareModules(
 	declaredModules: unknown,
-	autoVirtualImports: EcopagesVirtualImport[],
+	autoVirtualImports: readonly EcopagesVirtualImport[],
 ): ModuleDeclaration[] {
 	return [
 		...normalizeModuleDeclarations(getDeclaredModules(declaredModules)).filter(
 			(declaration) =>
 				!declaration.from.startsWith('ecopages:') || isBrowserEcopagesVirtualImport(declaration.from),
 		),
-		...autoVirtualImports,
+		...autoVirtualImports.filter((declaration) => isBrowserEcopagesVirtualImport(declaration.from)),
 	];
 }

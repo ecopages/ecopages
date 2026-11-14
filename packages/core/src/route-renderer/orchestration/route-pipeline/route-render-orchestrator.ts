@@ -22,6 +22,8 @@ import type {
 import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../page-cache/html-page-cache-dependency-index.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
+import { getComponentIdentity, type ComponentIdentity } from '../../../eco/component-identity.ts';
+import { toRootRelativePath } from '../../../utils/root-relative-path.ts';
 import type { HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
 import {
 	createPreparedComponentGraphBuilder,
@@ -81,6 +83,7 @@ export type RouteRenderHost<C> = Pick<
 	| 'name'
 	| 'resolveRouteRenderInputs'
 	| 'resolveRouteDependencies'
+	| 'prepareRouteLazyDependencies'
 	| 'collectPageBrowserGraphContribution'
 	| 'resolvePageDependenciesForRoute'
 	| 'resolvePageDependencyContribution'
@@ -98,13 +101,13 @@ export interface RouteRenderOrchestratorDependencies {
 	ownershipValidationService?: OwnershipValidationService;
 	assetProcessingIntegration?: AssetProcessingIntegration;
 	/**
-	 * Whether processed assets are final for the life of the process, so a route's shell Dependencies are processed
-	 * once per Page and Html template.
+	 * Whether processed assets are final for the life of the process, so a route's shell Dependencies are recorded in
+	 * the asset ledger once per Page and Html template and read from it afterwards.
 	 *
 	 * @remarks True in production without HMR. In development an edited stylesheet changes its processed output
 	 * without re-importing any module, so the shell Dependencies are processed on every render.
 	 */
-	reusesShellDependencies?: () => boolean;
+	recordsShellDependencies?: () => boolean;
 }
 
 export type PreparedRouteGraphContext = {
@@ -150,18 +153,7 @@ export class RouteRenderOrchestrator {
 	private readonly ownershipValidationService: OwnershipValidationService;
 	private readonly pageBrowserGraphService: PageBrowserGraphService;
 	private readonly requestPipelineMetrics: RequestPipelineMetricsState;
-	private readonly reusesShellDependencies: () => boolean;
-	/**
-	 * The processed shell Dependencies of each Page, with the Html template they were processed with.
-	 *
-	 * @remarks
-	 * A route's shell is its Html template, Layouts and Page, and the Layouts are fixed by the Page, so the pair
-	 * fixes the result. Pages are held weakly, so a dropped module instance takes its entry with it.
-	 */
-	private readonly shellDependenciesByPage = new WeakMap<
-		object,
-		{ htmlTemplate: object; assets: Promise<ProcessedAsset[]> }
-	>();
+	private readonly recordsShellDependencies: () => boolean;
 
 	constructor(
 		appConfig: EcoPagesAppConfig,
@@ -171,7 +163,7 @@ export class RouteRenderOrchestrator {
 		this.appConfig = appConfig;
 		this.requestPipelineMetrics = requireAppRuntime(appConfig).requestPipelineMetrics;
 		this.assetProcessingService = assetProcessingService;
-		this.reusesShellDependencies = dependencies.reusesShellDependencies ?? (() => false);
+		this.recordsShellDependencies = dependencies.recordsShellDependencies ?? (() => false);
 		this.ownershipValidationService =
 			dependencies.ownershipValidationService ?? new OwnershipValidationService(appConfig);
 		this.pageBrowserGraphService = new PageBrowserGraphService(
@@ -470,33 +462,56 @@ export class RouteRenderOrchestrator {
 	}
 
 	/**
-	 * Processes the Dependencies of the route's shell, or reuses them when processed assets are final.
+	 * Reads the Dependencies of the route's shell from the asset ledger, or processes them.
 	 *
-	 * @remarks A failed processing is not kept, so the next render tries again.
+	 * @remarks
+	 * A route's shell is its Html template, Layouts and Page, and the Layouts are fixed by the Page, so the identities
+	 * of the Page and the Html template fix the result. When processed assets are final, the first preparation of a
+	 * Page in `ecopages build` records its shell in the ledger, and every later one reads it there, including those
+	 * of `ecopages start`, which never packages or processes a shell. Packaging the shell reads its stylesheet
+	 * sources, which a deploy may not hold. A read shell still holds its lazy client entries for the page client
+	 * build, which processing would have held.
 	 */
-	private resolveShellDependencies<C>(
+	private async resolveShellDependencies<C>(
 		renderer: RouteRenderHost<C>,
 		resolvedInputs: RouteRenderOrchestratorResolvedInputs,
 		components: EcoComponent[],
 	): Promise<ProcessedAsset[]> {
-		const process = async () => (await renderer.resolveRouteDependencies({ components })).resolvedDependencies;
-		if (!this.reusesShellDependencies()) {
-			return process();
+		const pageIdentity = getComponentIdentity(resolvedInputs.Page);
+		const key =
+			this.recordsShellDependencies() && pageIdentity
+				? `${this.describeIdentity(pageIdentity)}|${this.describeIdentity(getComponentIdentity(resolvedInputs.HtmlTemplate))}`
+				: undefined;
+		const ledger = requireAppRuntime(this.appConfig).processedAssets;
+		const recorded = key ? ledger.lookupShell(key) : undefined;
+		if (recorded) {
+			renderer.prepareRouteLazyDependencies(components);
+			return recorded;
+		}
+		if (key && ledger.isSealed) {
+			throw new Error(
+				`The production build did not record the shell Dependencies of ${this.describeIdentity(pageIdentity)}. Run \`ecopages build\` again.`,
+			);
 		}
 
-		const page = resolvedInputs.Page as object;
-		const htmlTemplate = resolvedInputs.HtmlTemplate as object;
-		const known = this.shellDependenciesByPage.get(page);
-		if (known?.htmlTemplate === htmlTemplate) {
-			return known.assets;
-		}
-
-		const assets = process();
-		this.shellDependenciesByPage.set(page, { htmlTemplate, assets });
-		assets.catch(() => {
-			if (this.shellDependenciesByPage.get(page)?.assets === assets) this.shellDependenciesByPage.delete(page);
+		const { resolvedDependencies } = await renderer.resolveRouteDependencies({
+			components,
+			declarationOrder: key !== undefined,
 		});
-		return assets;
+		if (key) ledger.recordShell(key, resolvedDependencies);
+		return resolvedDependencies;
+	}
+
+	/**
+	 * Names a declaration the same wherever the app runs: its root-relative file and its id.
+	 *
+	 * @remarks
+	 * A runtime identity, such as an HTML Page's, holds an absolute file, and the built-in Html shell has none.
+	 */
+	private describeIdentity(identity: ComponentIdentity | undefined): string {
+		if (!identity) return 'built-in';
+		const { rootDir } = this.appConfig;
+		return `${toRootRelativePath(rootDir, path.resolve(rootDir, identity.file))}#${identity.id}`;
 	}
 
 	/**

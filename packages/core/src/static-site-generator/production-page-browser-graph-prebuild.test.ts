@@ -180,7 +180,7 @@ test('prebuildProductionPageBrowserGraphs writes the ledger once every planned r
 
 	const ledger = readLedgerFile(appConfig);
 	assert.deepEqual(ledgerExistedWhenPrepared, [false]);
-	assert.equal(ledger.version, 4);
+	assert.equal(ledger.version, 5);
 	assert.equal('plannedRoutes' in ledger, false);
 	assert.ok(ledger.entries.some((entry) => entry.asset.filepath === 'dist/client/assets/page.css'));
 });

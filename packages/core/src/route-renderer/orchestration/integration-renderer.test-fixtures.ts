@@ -70,6 +70,7 @@ export const testAppConfig = createMockAppConfig();
 
 export const testAssetService = {
 	processDependencies: vi.fn(() => Promise.resolve([])),
+	processDependenciesInDeclarationOrder: vi.fn(() => Promise.resolve([])),
 } as unknown as AssetProcessingService;
 
 /**

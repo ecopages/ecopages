@@ -16,9 +16,9 @@
 project/
 ├── src/
 │   ├── pages/          # Filesystem Routes: Pages (eco.page, MDX, .html) and Endpoints (*.api.ts)
-│   ├── views/          # Handler-rendered views
-│   ├── layouts/
-│   ├── components/
+│   ├── views/          # Convention: handler-rendered views
+│   ├── layouts/        # Convention: layouts
+│   ├── components/     # Convention: components
 │   ├── handlers/
 │   ├── includes/       # html.* (incl. html.html), head.*, seo.*
 │   ├── lib/
@@ -36,13 +36,15 @@ Semantic discovery: `src/includes/html.*` and the error pages `src/pages/<status
 - `eco.page()` — page routes with metadata, layouts, `paths`, `props`
 - `eco.layout()` / `eco.html()` — semantic aliases for layouts and document shell
 
-Ecopages does not auto-detect script files by name pattern.
+Browser scripts attach only through `dependencies.scripts`. Name them `<name>.script.ts` by convention: the suffix keeps the file out of routing but injects nothing.
 
 ## Pages and views
 
-**Pages (`src/pages/`)** — Filesystem Routes, static by default (see Cache Strategy below). A `*.api.ts` (or `.api.tsx`, `.api.js`, `.api.jsx`) file under `src/pages` is an endpoint file instead; see [server.md](server.md#endpoint-files).
+**Pages (`src/pages/`)** — Filesystem Routes, static by default (see Cache Strategy below). A route file default-exports a literal `eco.page(...)` call (no wrapper or alias), an HTML Page or an MDX module; anything else there fails the build. A file is not a route when its name has a `.server` or `.script` suffix (`.ts`, `.tsx`, `.js`, `.jsx`) or a `_` prefix on any path segment (`_card.tsx`, `_layout.tsx`). A `*.api.ts` (or `.api.tsx`, `.api.js`, `.api.jsx`) file under `src/pages` is an endpoint file instead; see [server.md](server.md#endpoint-files).
 
-**Views (`src/views/`)** — rendered from handlers; see [server.md](server.md#pages-vs-views).
+**Views** — `eco.page()` defaults imported by the server entry and rendered from handlers, in any folder (`src/views/` by convention); see [server.md](server.md#pages-vs-views).
+
+**Layouts** — only what a Page passes as `eco.page({ layout: Base })` or `layout: [Outer, Inner]`; no folder or file name makes a layout. A section layout can sit beside its Pages as `_layout.tsx`.
 
 ```tsx
 export default eco.page({

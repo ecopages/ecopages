@@ -33,8 +33,8 @@ export default eco.page({
 
 Key elements:
 
-1. **`eco.page`**: Factory for a file-based route page.
-2. **`layout`**: A plain function typed with `LayoutProps`, or an `eco.layout()` result. EcoPages wraps `render` output automatically.
+1. **`eco.page`**: Factory for a Page, whether a route file or a view rendered from a handler.
+2. **`layout`**: The Layout that wraps `render` output, passed by reference. See [Creating Layouts](/docs/core/layouts#how-layouts-are-assigned) for what makes a module a Layout.
 3. **`metadata`**: Page title, description, and social metadata.
 4. **`dependencies`**: Page-level scripts and components discovery cannot follow (`export *` barrels, packages). Local component and CSS imports, including those of plain function components, are discovered automatically.
 5. **`render`**: Returns JSX for the page body (inside the layout and document shell).
@@ -61,11 +61,11 @@ export default eco.page({
 });
 ```
 
-**Note:** You do not need to repeat the page `layout` in `dependencies.components` — `eco.page()` merges declared layouts into the dependency graph for you. Use explicit `dependencies.components` only when discovery cannot follow the import (`export *` barrels, packages).
+**Note:** You do not need to repeat the page `layout` in `dependencies.components`: `eco.page()` merges declared layouts into the dependency graph for you.
 
 ## What a route file exports
 
-Every route file under `src/pages` default-exports a Page of its Integration: an `eco.page()` result, an HTML Page (a `.html` file) or an MDX module. A helper, a script or any other module left in `src/pages` fails `ecopages dev` and `ecopages build` with an error naming the file, instead of rendering as a route. To keep such a file there, prefix its name with `_` or give it a `.server` or `.script` suffix ([Routing](/docs/core/routing#files-that-are-not-routes)); otherwise move it out of `src/pages`.
+Every route file under `src/pages` default-exports a Page of its Integration: an `eco.page()` result, an HTML Page (a `.html` file) or an MDX module. A helper, a script or any other module left in `src/pages` fails `ecopages dev` and `ecopages build` with an error naming the file, instead of rendering as a route. To keep such a file there, prefix its name with `_` or give it a `.server` or `.script` suffix ([Files that are not routes](/docs/core/routing#files-that-are-not-routes)); otherwise move it out of `src/pages`.
 
 The build recognizes a Page by its literal `eco.page(...)` call, so call it directly and do not wrap or alias it ([eco namespace reference](/docs/reference/eco-namespace#call-the-factories-literally)). In development, fix the file and save; the next request loads the corrected module without a restart.
 

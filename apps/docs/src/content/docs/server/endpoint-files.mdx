@@ -58,7 +58,7 @@ src/pages/users.api.tsx                ->  /users
 - `[id]` captures one segment as a string, and `[...slug]` captures the rest of the path as an array. A request to `/api/users/5` gives `params.id === '5'`, and `/api/docs/a/b` gives `params.slug` equal to `['a', 'b']`. The `:id` syntax works only in `app.ts`.
 - Endpoint files and Pages share one route table, and the more specific route wins: `api/users/[id].api.ts` answers `/api/users/5` before a `[...slug].tsx` Page does.
 - Each route comes from one file, whatever its parameter names. `users.tsx` beside `users.api.ts`, `users.api.ts` beside `users.api.js`, or `blog/[slug].tsx` beside `blog/[id].api.ts` fails at startup.
-- The `.api.*`, `.server.*` and `.script.*` endings are reserved (see [Files That Are Not Routes](/docs/core/routing#files-that-are-not-routes)). An Integration cannot register one as a page extension; the config fails with an error naming the Integration. Registering `.tsx` is fine: `users.api.tsx` is still an endpoint file, not a `.tsx` Page.
+- `.api` is a role suffix, matched before any template extension, so `users.api.tsx` is an endpoint file even when an Integration owns `.tsx`. The role suffix rules are in [Files That Are Not Routes](/docs/core/routing#files-that-are-not-routes).
 
 ## Method Exports
 

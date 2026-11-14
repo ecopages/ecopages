@@ -163,13 +163,28 @@ export const BaseLayout = eco.layout({
 });
 ```
 
-A bare side-effect import in a layout or in its scripts, such as `import '@scope/pkg/define-element'`, stays in the browser bundle, whichever folder the file is in. Move code that must not reach the browser into a `.server` module.
+Bare side-effect imports in a layout or its scripts follow the [browser module rules](/docs/core/components#bare-imports-in-browser-modules).
 
 Every entry in `dependencies.components` must be a declared eco component, same as on pages. Use explicit `dependencies.components` only when discovery cannot follow the import (`export *` barrels, packages).
 
 ## How layouts are assigned
 
-Assign layouts on `eco.page({ layout })` — one component or an outer→inner array. Import layout modules from `src/layouts/` (or elsewhere) and pass the layout to `layout`; EcoPages does not auto-wrap pages based on layout file paths or route folders.
+A Layout is only what a Page passes to `eco.page({ layout })`: one component or an outer-to-inner array. No file or folder name makes a module a Layout, and Ecopages does not wrap a Page in a `layout.tsx` or `src/layouts/` file it does not reference. A view rendered with `ctx.render()` or `app.static()` takes its layout from its own `eco.page({ layout })`, so it renders the same as a filesystem Page.
+
+Keep the layout where it is easiest to import. `src/layouts/` is the convention for layouts shared across the site. A layout used by one section can sit beside its Pages as a [Private File](/docs/core/routing#files-that-are-not-routes), such as `src/pages/docs/_layout.tsx`, imported by each Page of that section:
+
+```tsx
+// src/pages/docs/getting-started.tsx
+import { eco } from '@ecopages/core';
+import { DocsLayout } from './_layout';
+
+export default eco.page({
+	layout: DocsLayout,
+	render: () => <h1>Getting started</h1>,
+});
+```
+
+The `_` prefix keeps `_layout.tsx` out of routing. The name `_layout` has no other meaning, and a file with another private name works the same way.
 
 ## Related guides
 

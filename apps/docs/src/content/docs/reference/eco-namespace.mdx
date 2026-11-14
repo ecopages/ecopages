@@ -242,7 +242,7 @@ export default eco.page<BlogPostProps, JsxRenderable>({
 
 A Page declares its data only through the `paths`, `props` and `metadata` options. `paths` lists the Params known at build; `props` receives Params, from `paths` at build and from the request at run time. Both return their value directly: `paths` an array of `{ params }`, `props` the props object. See [Data Fetching](/docs/core/data-fetching) for what each Cache Strategy does with them.
 
-A page that still declares `staticPaths` or `staticProps` (or wraps them in an envelope), a module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata`, or a page that wraps them in `eco.staticPaths()`, `eco.staticProps()` or `eco.metadata()`, fails in `ecopages dev` and `ecopages build` with an error naming the file and the codemod. The [migration steps](/docs/core/data-fetching#migrating-from-staticprops-and-staticpaths) give a codemod command that renames the options and drops the envelopes, and the manual fallback.
+The pre-1.0 names (`staticProps`, `staticPaths`, `getStaticProps`, `getStaticPaths`, `getMetadata`, `eco.staticProps()`, `eco.staticPaths()`, `eco.metadata()`) fail in `ecopages dev` and `ecopages build` with an error naming the file. See the [migration steps](/docs/core/data-fetching#migrating-from-staticprops-and-staticpaths).
 
 ### Call the factories literally
 
@@ -255,7 +255,7 @@ const page = eco.page;
 export default page({ render: () => <main>About</main> }); // invisible: the build fails
 ```
 
-A route file's default export must be a Page of its Integration: an `eco.page()` result, an HTML Page or an MDX module. Anything else under `src/pages` fails the build with the file and the fixes: prefix the name with `_`, give it a `.server` or `.script` suffix (see [Routing](/docs/core/routing#files-that-are-not-routes)), or move it out of `src/pages`.
+What a route file may export is in [Pages](/docs/core/pages#what-a-route-file-exports).
 
 ## API Reference
 
@@ -520,14 +520,7 @@ export default eco.page({
 });
 ```
 
-**With nested layouts:**
-
-```tsx
-export default eco.page({
-	layout: [AppShell, DocsSection],
-	render: () => <h1>Docs home</h1>,
-});
-```
+See [Layouts](/docs/core/layouts#how-layouts-are-assigned) for what makes a module a Layout.
 
 
 
@@ -640,7 +633,7 @@ The static `Counter` import is discovered automatically. You do not list it agai
 
 ## TypeScript types
 
-The `eco` factories use public types exported by `@ecopages/core`. For page props, static paths, request context, component dependencies, and the type subpaths, see [TypeScript Types](/docs/reference/typescript).
+The `eco` factories use public types exported by `@ecopages/core`. For page props, `PagePath`, request context, component dependencies, and the type subpaths, see [TypeScript Types](/docs/reference/typescript).
 
 ## Benefits
 
@@ -668,7 +661,7 @@ export default eco.page({
 All page configuration in one place:
 
 ```tsx
-export default eco.page<Props>({
+export default eco.page({
   layout: BaseLayout,
   paths: async () => ...,
   props: async () => ...,
@@ -686,5 +679,5 @@ const getProps = Page.props;
 const getMetadata = Page.metadata;
 ```
 
-A page module that exports `getStaticProps`, `getStaticPaths` or `getMetadata` fails before it renders. MDX pages are the exception: they cannot call `eco.page()`, so the MDX integrations move their `getMetadata` export onto the Page as `metadata`.
+A page module that still exports `getStaticProps`, `getStaticPaths` or `getMetadata` fails before it renders. MDX pages are the exception: they cannot call `eco.page()`, so the MDX integrations move their `getMetadata` export onto the Page as `metadata`.
 

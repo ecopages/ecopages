@@ -85,7 +85,7 @@ export default defineConfig({
 
 ### Layouts
 
-Export a `layout` component from your MDX file to wrap page content:
+Set `layout` on the `config` object an MDX file exports to wrap its content. Pass one layout, by reference, as any Page does ([How layouts are assigned](/docs/core/layouts#how-layouts-are-assigned)):
 
 ```markdown
 import { BaseLayout } from '@/layouts/base-layout';

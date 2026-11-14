@@ -62,6 +62,28 @@ describe('RouteRenderOrchestrator', () => {
 		expect(result.body).toContain('<main>Streamed</main>');
 	});
 
+	it.each([
+		[true, 1],
+		[false, 2],
+	])('processes the shell Dependencies once per Page when reuse is %s', async (reuses, expectedCalls) => {
+		let calls = 0;
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
+			reusesShellDependencies: () => reuses,
+		});
+		const renderer = createFlowRenderer({
+			resolveDependencies: async () => {
+				calls += 1;
+				return [];
+			},
+		});
+		const routeOptions = createRouteOptions(path.resolve('/app/pages/index.tsx'));
+
+		await flow.prepareRenderOptions(routeOptions, renderer);
+		await flow.prepareRenderOptions(routeOptions, renderer);
+
+		expect(calls).toBe(expectedCalls);
+	});
+
 	it('adds the HTML template module closure to the cached document inputs', async () => {
 		const shellConfig = {
 			...appConfig,

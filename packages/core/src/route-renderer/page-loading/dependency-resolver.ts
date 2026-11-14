@@ -10,7 +10,6 @@ import type {
 import { resolveAssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
 import { prepareAssetDependencies } from '../../assets/asset-processing-service/asset-processing.service.ts';
 import { isBundleableScript } from '../../assets/asset-processing-service/bundleable-script.ts';
-import { isProductionRuntime } from '../../utils/runtime.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigger-planning.ts';
 import { collectComponentDependencies } from './component-dependency-collection.ts';
@@ -52,24 +51,6 @@ function resolveLazyScripts(appConfig: EcoPagesAppConfig, componentDir: string, 
 }
 
 const pendingLazyGroupsByConfig = new WeakMap<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>();
-const MAX_PROCESSED_DEPENDENCY_CACHE_ENTRIES = 128;
-
-function copyProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
-	return assets.map((asset) => {
-		const copy: ProcessedAsset = { ...asset };
-		if (asset.attributes) {
-			copy.attributes = { ...asset.attributes };
-		}
-		if (asset.groupedBundle) {
-			copy.groupedBundle = { ...asset.groupedBundle };
-		}
-		if (asset.bundledSourceFilepaths) {
-			copy.bundledSourceFilepaths = [...asset.bundledSourceFilepaths];
-		}
-		return copy;
-	});
-}
-
 function isLazyClientScript(dep: AssetDefinition): boolean {
 	return dep.kind === 'script' && Boolean(dep.attributes?.['data-eco-lazy-key']);
 }
@@ -78,10 +59,6 @@ export class DependencyResolverService {
 	private appConfig: EcoPagesAppConfig;
 	private assetProcessingService: AssetProcessingService;
 	private readonly assetProcessingIntegration?: AssetProcessingIntegration;
-	private readonly shouldCacheProcessedDependencies: () => boolean;
-	private readonly processedDependenciesCache = new Map<string, Promise<ProcessedAsset[]>>();
-	private readonly componentCacheIds = new WeakMap<object, number>();
-	private nextComponentCacheId = 0;
 	private readonly declarations: ComponentDeclarationStore;
 
 	private getAssetProcessingIntegration(name: string): AssetProcessingIntegration | undefined {
@@ -99,12 +76,10 @@ export class DependencyResolverService {
 	constructor(
 		appConfig: EcoPagesAppConfig,
 		assetProcessingService: AssetProcessingService,
-		shouldCacheProcessedDependencies: () => boolean = isProductionRuntime,
 		assetProcessingIntegration?: AssetProcessingIntegration,
 	) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
-		this.shouldCacheProcessedDependencies = shouldCacheProcessedDependencies;
 		this.assetProcessingIntegration = assetProcessingIntegration;
 		this.declarations = new ComponentDeclarationStore({
 			rootDir: appConfig.rootDir,
@@ -226,52 +201,10 @@ export class DependencyResolverService {
 
 		this.storePendingLazyClientDependencies(lazyScriptsByConfig, lazyDeps);
 
-		if (!this.shouldCacheProcessedDependencies()) {
-			return this.assetProcessingService.processDependencies(
-				eagerDeps,
-				this.getAssetProcessingIntegration(integrationName),
-			);
-		}
-
-		const cacheKey = this.getProcessedDependenciesCacheKey(
-			components,
-			integrationName,
-			skipNestedComponents,
-			this.bundlesPageDependencies(integrationName),
+		return this.assetProcessingService.processDependencies(
+			eagerDeps,
+			this.getAssetProcessingIntegration(integrationName),
 		);
-		if (!cacheKey) {
-			return this.assetProcessingService.processDependencies(
-				eagerDeps,
-				this.getAssetProcessingIntegration(integrationName),
-			);
-		}
-
-		let pending = this.processedDependenciesCache.get(cacheKey);
-		if (pending) {
-			this.processedDependenciesCache.delete(cacheKey);
-			this.processedDependenciesCache.set(cacheKey, pending);
-		} else {
-			pending = this.assetProcessingService.processDependencies(
-				eagerDeps,
-				this.getAssetProcessingIntegration(integrationName),
-			);
-			this.processedDependenciesCache.set(cacheKey, pending);
-			if (this.processedDependenciesCache.size > MAX_PROCESSED_DEPENDENCY_CACHE_ENTRIES) {
-				const oldestKey = this.processedDependenciesCache.keys().next().value;
-				if (oldestKey !== undefined) {
-					this.processedDependenciesCache.delete(oldestKey);
-				}
-			}
-		}
-
-		try {
-			return copyProcessedAssets(await pending);
-		} catch (error) {
-			if (this.processedDependenciesCache.get(cacheKey) === pending) {
-				this.processedDependenciesCache.delete(cacheKey);
-			}
-			throw error;
-		}
 	}
 
 	private storePendingLazyClientDependencies(
@@ -292,37 +225,6 @@ export class DependencyResolverService {
 				}),
 			);
 		}
-	}
-
-	private getProcessedDependenciesCacheKey(
-		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
-		integrationName: string,
-		skipNestedComponents: boolean,
-		bundlesPageDependencies: boolean,
-	): string | undefined {
-		const componentIds: number[] = [];
-		for (const component of components) {
-			if (!component) {
-				continue;
-			}
-
-			if (
-				typeof (component as EcoComponent & { resolveDependencies?: unknown }).resolveDependencies ===
-				'function'
-			) {
-				return undefined;
-			}
-
-			const cacheIdentity = component.config ?? component;
-			let componentId = this.componentCacheIds.get(cacheIdentity);
-			if (componentId === undefined) {
-				componentId = ++this.nextComponentCacheId;
-				this.componentCacheIds.set(cacheIdentity, componentId);
-			}
-			componentIds.push(componentId);
-		}
-
-		return JSON.stringify([integrationName, skipNestedComponents, bundlesPageDependencies, componentIds]);
 	}
 
 	/**

@@ -97,6 +97,14 @@ export type RouteRenderHost<C> = Pick<
 export interface RouteRenderOrchestratorDependencies {
 	ownershipValidationService?: OwnershipValidationService;
 	assetProcessingIntegration?: AssetProcessingIntegration;
+	/**
+	 * Whether processed assets are final for the life of the process, so a route's shell Dependencies are processed
+	 * once per Page and Html template.
+	 *
+	 * @remarks True in production without HMR. In development an edited stylesheet changes its processed output
+	 * without re-importing any module, so the shell Dependencies are processed on every render.
+	 */
+	reusesShellDependencies?: () => boolean;
 }
 
 export type PreparedRouteGraphContext = {
@@ -142,6 +150,18 @@ export class RouteRenderOrchestrator {
 	private readonly ownershipValidationService: OwnershipValidationService;
 	private readonly pageBrowserGraphService: PageBrowserGraphService;
 	private readonly requestPipelineMetrics: RequestPipelineMetricsState;
+	private readonly reusesShellDependencies: () => boolean;
+	/**
+	 * The processed shell Dependencies of each Page, with the Html template they were processed with.
+	 *
+	 * @remarks
+	 * A route's shell is its Html template, Layouts and Page, and the Layouts are fixed by the Page, so the pair
+	 * fixes the result. Pages are held weakly, so a dropped module instance takes its entry with it.
+	 */
+	private readonly shellDependenciesByPage = new WeakMap<
+		object,
+		{ htmlTemplate: object; assets: Promise<ProcessedAsset[]> }
+	>();
 
 	constructor(
 		appConfig: EcoPagesAppConfig,
@@ -151,6 +171,7 @@ export class RouteRenderOrchestrator {
 		this.appConfig = appConfig;
 		this.requestPipelineMetrics = requireAppRuntime(appConfig).requestPipelineMetrics;
 		this.assetProcessingService = assetProcessingService;
+		this.reusesShellDependencies = dependencies.reusesShellDependencies ?? (() => false);
 		this.ownershipValidationService =
 			dependencies.ownershipValidationService ?? new OwnershipValidationService(appConfig);
 		this.pageBrowserGraphService = new PageBrowserGraphService(
@@ -367,13 +388,10 @@ export class RouteRenderOrchestrator {
 			shellDependencyComponents,
 			graph: preparedGraph,
 		} = graphContext;
-		const { resolvedDependencies } = await measureRouteRenderPhase(
+		const resolvedDependencies = await measureRouteRenderPhase(
 			this.requestPipelineMetrics,
 			'resolve-dependencies',
-			() =>
-				renderer.resolveRouteDependencies({
-					components: shellDependencyComponents,
-				}),
+			() => this.resolveShellDependencies(renderer, finalResolvedInputs, shellDependencyComponents),
 		);
 		const pageBrowserGraph = await measureRouteRenderPhase(this.requestPipelineMetrics, 'page-browser-graph', () =>
 			this.pageBrowserGraphService.resolvePageBrowserGraph({
@@ -449,6 +467,36 @@ export class RouteRenderOrchestrator {
 			pageClientPlan: clientPlan,
 			preparedGraphComponents: collectPreparedGraphComponents(preparedGraph),
 		};
+	}
+
+	/**
+	 * Processes the Dependencies of the route's shell, or reuses them when processed assets are final.
+	 *
+	 * @remarks A failed processing is not kept, so the next render tries again.
+	 */
+	private resolveShellDependencies<C>(
+		renderer: RouteRenderHost<C>,
+		resolvedInputs: RouteRenderOrchestratorResolvedInputs,
+		components: EcoComponent[],
+	): Promise<ProcessedAsset[]> {
+		const process = async () => (await renderer.resolveRouteDependencies({ components })).resolvedDependencies;
+		if (!this.reusesShellDependencies()) {
+			return process();
+		}
+
+		const page = resolvedInputs.Page as object;
+		const htmlTemplate = resolvedInputs.HtmlTemplate as object;
+		const known = this.shellDependenciesByPage.get(page);
+		if (known?.htmlTemplate === htmlTemplate) {
+			return known.assets;
+		}
+
+		const assets = process();
+		this.shellDependenciesByPage.set(page, { htmlTemplate, assets });
+		assets.catch(() => {
+			if (this.shellDependenciesByPage.get(page)?.assets === assets) this.shellDependenciesByPage.delete(page);
+		});
+		return assets;
 	}
 
 	/**

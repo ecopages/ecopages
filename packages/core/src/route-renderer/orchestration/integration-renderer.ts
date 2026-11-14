@@ -770,13 +770,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.dependencyResolverService = new DependencyResolverService(
 			appConfig,
 			assetProcessingService,
-			() => isProductionRuntime() && this.getActiveHmrManager()?.isEnabled() !== true,
 			assetProcessingIntegration,
 		);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig);
 		this.routeRenderOrchestrator = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
 			ownershipValidationService: new OwnershipValidationService(appConfig),
 			assetProcessingIntegration,
+			reusesShellDependencies: () => isProductionRuntime() && this.getActiveHmrManager()?.isEnabled() !== true,
 		});
 		this.integrationHooks =
 			typeof hooks === 'function'

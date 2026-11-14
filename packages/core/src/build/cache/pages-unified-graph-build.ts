@@ -174,14 +174,38 @@ function findEmittedModulePath(outputGraph: BuildSuccess['outputGraph'], sourceP
 }
 
 /**
+ * Output paths of the entry chunks for `entries` and every chunk they import statically.
+ *
+ * @remarks
+ * Dynamic imports are not followed: importing an entry does not run them, so their chunks stay unloaded until a
+ * render calls them, by which time the manifest points at the second emit.
+ */
+function collectStaticallyLoadedOutputs(outputGraph: BuildSuccess['outputGraph'], entries: Set<string>): Set<string> {
+	const loaded = new Set(
+		Object.entries(outputGraph)
+			.filter(
+				([, chunk]) => chunk.isEntry && chunk.facadeModuleId && entries.has(path.resolve(chunk.facadeModuleId)),
+			)
+			.map(([outputPath]) => outputPath),
+	);
+	for (const outputPath of loaded) {
+		for (const imported of outputGraph[outputPath]?.imports ?? []) {
+			if (imported in outputGraph) loaded.add(imported);
+		}
+	}
+	return loaded;
+}
+
+/**
  * Lists the app modules, other than the entries, that the first emit loaded and the second emit wrote again under
  * a new output path.
  *
  * @remarks
- * The first emit's modules are imported to find `ssr: true` scripts, so a module that moves is evaluated again from
- * its new copy. Entries are excluded because the manifest points them at the new copy and Rolldown keeps their
- * exports; a module that is not an entry loses unused exports in the first emit, so a script that imports one
- * changes its output.
+ * The first emit's entries are imported to find `ssr: true` scripts, which loads them and the chunks they import
+ * statically; a loaded module that moves is evaluated again from its new copy. Entries are excluded because the
+ * manifest points them at the new copy and Rolldown keeps their exports; a module that is not an entry loses unused
+ * exports in the first emit, so a script that imports one changes its output. Modules reached only through a dynamic
+ * import, such as content collection entries, are not loaded by that import, so they evaluate once.
  */
 export function findReEmittedModules(
 	initial: BuildSuccess['outputGraph'],
@@ -190,9 +214,9 @@ export function findReEmittedModules(
 ): string[] {
 	const entries = new Set(options.entryPaths.map((entryPath) => path.resolve(entryPath)));
 	const moved = new Set<string>();
-	for (const [outputPath, chunk] of Object.entries(initial)) {
+	for (const outputPath of collectStaticallyLoadedOutputs(initial, entries)) {
 		if (outputPath in next) continue;
-		for (const modulePath of chunk.modules) {
+		for (const modulePath of initial[outputPath].modules) {
 			const resolved = path.resolve(modulePath);
 			const insideApp = path.isWithin(options.rootDir, resolved) && !resolved.split('/').includes('node_modules');
 			if (insideApp && !entries.has(resolved)) moved.add(resolved);

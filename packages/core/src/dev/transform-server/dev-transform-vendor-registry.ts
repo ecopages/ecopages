@@ -119,38 +119,51 @@ const BROWSER_FIRST_SPECIFIER = new RegExp(`^${escapeRegExp(BROWSER_FIRST_PACKAG
 const PIN_ENTRY_NAME = '__eco_vendor_pin';
 const PIN_SPECIFIER = 'ecopages:vendor-pin';
 const PIN_MODULE_ID = '\0ecopages-vendor-pin';
+const RUNTIME_PIN_ENTRY_NAME = '__eco_vendor_runtime_pin';
+const RUNTIME_PIN_SPECIFIER = 'ecopages:vendor-runtime-pin';
+const RUNTIME_PIN_MODULE_ID = '\0ecopages-vendor-runtime-pin';
 
-/**
- * Adds an entry to each vendor build that keeps the shape of the other entries the same from one build to the next.
- *
- * @remarks
- * A browser that loaded a vendor file keeps its module, so a later build of the graph must not change a file it
- * already served; when it does, the page reloads. Two things would change one as packages arrive. Rolldown puts the
- * helpers its CommonJS interop needs in one shared runtime chunk, keeps only the ones the build uses and names the
- * chunk after its content, so a package that needs one more helper renames it in every entry that imports it. And a
- * CommonJS entry exports its module's `require` function only once another entry imports it, so a package that
- * imports `react/jsx-runtime` adds an export to that entry. The pin re-exports every helper and the namespace of every
- * entry whose file has no `import` or `export` statement, so each runtime helper and each CommonJS `require` export is
- * there from the first build. It leaves ES module entries alone: importing one would move its code into a shared
- * chunk behind the entry. Nothing requests the pin's own output.
- */
 function exactly(value: string): RegExp {
 	return new RegExp(`^${escapeRegExp(value)}$`, 'u');
 }
 
+/**
+ * Adds two entries to each vendor build that keep the shape of the other entries the same from one build to the next.
+ *
+ * @remarks
+ * A browser that loaded a vendor file keeps its module, so a later build of the graph must not change a file it
+ * already served; when it does, the page reloads. Two things would change one as packages arrive.
+ *
+ * Rolldown puts the helpers its CommonJS interop needs in one runtime module. It merges that module into the one
+ * chunk that needs it, and splits it into a `rolldown-runtime-*` chunk once a second chunk needs it, so the first
+ * ES module that needs a helper moves the helpers out of every CommonJS package's chunk and changes that chunk and
+ * its entry. The runtime pin re-exports the module from an entry of its own, so the runtime is always a chunk of
+ * its own, with every helper kept, from the first build; its name and content no longer depend on the packages
+ * that use it.
+ *
+ * A CommonJS entry exports its module's `require` function only once another entry imports it, so a package that
+ * imports `react/jsx-runtime` adds an export to that entry. The pin re-exports the namespace of every entry whose
+ * file has no `import` or `export` statement, so each `require` export is there from the first build. It leaves ES
+ * module entries alone: importing one would move its code into a shared chunk behind the entry. Nothing requests
+ * the output of either pin.
+ */
 function createVendorPinPlugin(entries: readonly VendorEntry[]): EcoBuildPlugin {
-	const contents = [
-		'export * from "\\0rolldown/runtime.js";',
-		...entries
-			.filter((entry) => !hasModuleSyntax(entry.entryPath))
-			.map((entry, index) => `export * as __eco_pin_${index} from ${JSON.stringify(entry.entryPath)};`),
-	].join('\n');
+	const contents = entries
+		.filter((entry) => !hasModuleSyntax(entry.entryPath))
+		.map((entry, index) => `export * as __eco_pin_${index} from ${JSON.stringify(entry.entryPath)};`)
+		.join('\n');
+	const runtimeContents = 'export * from "\\0rolldown/runtime.js";';
 	return {
 		name: 'ecopages-dev-vendor-pin',
-		cacheKey: contents,
+		cacheKey: `${contents}\n${runtimeContents}`,
 		setup(build) {
 			build.onResolve({ filter: exactly(PIN_SPECIFIER) }, () => ({ path: PIN_MODULE_ID }));
 			build.onLoad({ filter: exactly(PIN_MODULE_ID) }, () => ({ contents, loader: 'js' }));
+			build.onResolve({ filter: exactly(RUNTIME_PIN_SPECIFIER) }, () => ({ path: RUNTIME_PIN_MODULE_ID }));
+			build.onLoad({ filter: exactly(RUNTIME_PIN_MODULE_ID) }, () => ({
+				contents: runtimeContents,
+				loader: 'js',
+			}));
 		},
 	};
 }
@@ -668,6 +681,7 @@ export class DevTransformVendorRegistry {
 			entrypoints: {
 				...Object.fromEntries(entries.map((entry) => [path.basename(entry.url, '.js'), entry.entryPath])),
 				[PIN_ENTRY_NAME]: PIN_SPECIFIER,
+				[RUNTIME_PIN_ENTRY_NAME]: RUNTIME_PIN_SPECIFIER,
 			},
 			outdir: this.resolveOutdir(),
 			naming: '[name]',

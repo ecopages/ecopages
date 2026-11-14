@@ -73,7 +73,7 @@ project/
 Ecopages uses the `eco` namespace to define all architectural blocks. This is **mandatory** for proper build-time optimization and dependency injection.
 
 - **`eco.component()`**: Factory for reusable components. Use it when a component needs browser scripts, lazy loading, or mixed-integration ownership.
-- **`eco.page()`**: Factory for page routes. Handles metadata, layouts, and static props.
+- **`eco.page()`**: Factory for page routes. Handles metadata, layouts, and props.
 
 In modules that declare `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, Ecopages discovers:
 

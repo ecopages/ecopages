@@ -34,6 +34,7 @@ import { isThenable } from './component-render-output.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
 import { getComponentIdentity, getComponentOwner } from './component-identity.ts';
 import { attachDiscoveredDependencies } from './discovered-dependencies.ts';
+import { DATA_HOOKS_MIGRATION_URL } from './migration-docs.ts';
 
 /**
  * Creates a component factory with lazy-trigger support and foreign-child-runtime
@@ -190,7 +191,7 @@ function assertNoRenamedPageOptions(options: object): void {
 		.map((name) => `${name} is now ${RENAMED_PAGE_OPTIONS[name as keyof typeof RENAMED_PAGE_OPTIONS]}`)
 		.join(', ');
 	throw new Error(
-		`[ecopages] eco.page() no longer accepts ${found.join(', ')}: ${renames}, and the hook returns its value directly instead of a { props } or { paths } envelope. Run the migrate-data-hooks codemod from @ecopages/codemod to migrate this file.`,
+		`[ecopages] eco.page() no longer accepts ${found.join(', ')}: ${renames}, and the hook returns its value directly instead of a { props } or { paths } envelope. Migration steps: ${DATA_HOOKS_MIGRATION_URL}`,
 	);
 }
 

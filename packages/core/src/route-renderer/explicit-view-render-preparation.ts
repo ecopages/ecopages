@@ -11,7 +11,7 @@ type ExplicitStaticRenderPreparationResult = {
 };
 
 /**
- * Resolves the renderer for one explicit view without reading its static props.
+ * Resolves the renderer for one explicit view without reading its `props` hook.
  *
  * @remarks
  * Static export planning calls this so a dynamic route whose `props`
@@ -43,7 +43,7 @@ export function resolveExplicitViewRenderer(input: {
 }
 
 /**
- * Resolves the renderer and static props needed to render one explicit static
+ * Resolves the renderer and props needed to render one explicit static
  * view at runtime or during static generation.
  */
 export async function prepareExplicitStaticRender(input: {

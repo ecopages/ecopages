@@ -73,7 +73,7 @@ project/
 Ecopages uses the `eco` namespace to define all architectural blocks. This is **mandatory** for proper build-time optimization and dependency injection.
 
 - **`eco.component()`**: Factory for reusable components. **REQUIRED** if the component has dependencies (CSS, scripts).
-- **`eco.page()`**: Factory for page routes. Handles metadata, layouts, and static props.
+- **`eco.page()`**: Factory for page routes. Handles metadata, layouts, and props.
 
 > **Note:** When using **KitaJS**, components are often just simple functions returning JSX strings. `eco.component` is primarily needed when you need to inject specific assets (CSS/JS) only when that component is used.
 

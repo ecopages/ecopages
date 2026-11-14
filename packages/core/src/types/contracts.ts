@@ -527,11 +527,6 @@ type EcoComponentBase = {
 	 * The configuration options for the EcoComponent.
 	 */
 	config?: EcoComponentConfig;
-
-	/**
-	 * Static paths for dynamic routes (consolidated eco.page API).
-	 * Used by the renderer to retrieve static paths from the page component.
-	 */
 };
 
 /**

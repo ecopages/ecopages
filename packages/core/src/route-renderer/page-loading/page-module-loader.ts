@@ -11,6 +11,7 @@ import type {
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
+import { DATA_HOOKS_MIGRATION_URL } from '../../eco/migration-docs.ts';
 import { HttpError } from '../../errors/http-error.ts';
 
 const LEGACY_PAGE_EXPORT_NAMES = ['getStaticPaths', 'getStaticProps', 'getMetadata'] as const;
@@ -128,7 +129,7 @@ export class PageModuleLoaderService {
 		);
 		if (found.length === 0) return;
 		throw new Error(
-			`[ecopages] ${file} exports ${found.join(', ')}. Pages declare data through the paths, props and metadata options of eco.page({ ... }); module-level exports are no longer read. Run the migrate-to-eco-page codemod from @ecopages/codemod to migrate this file.`,
+			`[ecopages] ${file} exports ${found.join(', ')}. Pages declare data through the paths, props and metadata options of eco.page({ ... }); module-level exports are no longer read. Migration steps: ${DATA_HOOKS_MIGRATION_URL}`,
 		);
 	}
 

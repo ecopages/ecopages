@@ -120,7 +120,7 @@ describe('PageModuleLoaderService', () => {
 	});
 
 	it.each(['getStaticProps', 'getStaticPaths', 'getMetadata'])(
-		'rejects a page module that still exports %s, naming the file and the codemod',
+		'rejects a page module that still exports %s, naming the file and the migration docs',
 		async (legacyExport) => {
 			const service = new PageModuleLoaderService(appConfig);
 			const Page = (() => 'ok') as EcoPageComponent<any>;
@@ -129,7 +129,9 @@ describe('PageModuleLoaderService', () => {
 			await expect(
 				service.resolvePageModule({ file: '/app/src/pages/index.tsx', importPageFileFn: async () => module }),
 			).rejects.toThrow(
-				new RegExp(`/app/src/pages/index\\.tsx.*${legacyExport}.*eco\\.page.*migrate-to-eco-page codemod`),
+				new RegExp(
+					`/app/src/pages/index\\.tsx.*${legacyExport}.*eco\\.page.*migrating-from-staticprops-and-staticpaths`,
+				),
 			);
 			expect(() => service.assertNoLegacyPageExports('/app/src/pages/index.tsx', module)).toThrow(legacyExport);
 		},

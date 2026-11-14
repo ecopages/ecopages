@@ -67,8 +67,8 @@ The Cache Strategy decides when the hooks run and what the build does with each 
 
 | Cache Strategy | `paths` | `props` |
 | --- | --- | --- |
-| `'static'` (default) | Each entry is rendered and written as HTML at build. A dynamic route without `paths` fails the build. | Runs once per entry at build. |
-| `{ revalidate, tags }` | Same as `'static'`: each entry is rendered at build. | Runs at build for each entry, then again with the request's Params when the cached page is revalidated. |
+| `'static'` (default) | Each entry is rendered and written as HTML at build. A dynamic route without `paths` fails the build. | Runs at build for the listed Params. |
+| `{ revalidate, tags }` | Same as `'static'`: each entry is rendered at build. | Runs at build for the listed Params, then at run time with the request's Params whenever the page is not cached or is revalidated: the first request after start, after a tag invalidation, or for Params not in `paths`. |
 | `'dynamic'` | Optional. No HTML is written at build; each entry plans one Page Browser Graph, so scripts that depend on props are in the build. Without `paths` the page gets one plan with no Params. | Runs at build only to plan each entry, then on every request with the request's Params. |
 
 Production builds emit the Page Browser Graphs used by browser scripts and component dependencies. If those dependencies vary by route params, return every required route instance from `paths`. `ecopages start` reuses the graphs in the build; a request that needs an unlisted graph fails instead of building it at request time. Development is unchanged.
@@ -77,7 +77,19 @@ The hooks run on the server only. `props` and `paths` are removed from the brows
 
 ### Migrating from `staticProps` and `staticPaths`
 
-`staticProps` is now `props` and `staticPaths` is now `paths`. The old names fail with an error that names the codemod. `props` no longer wraps its result in `{ props }`, and `paths` returns the array without `{ paths }`. The `migrate-data-hooks` codemod in `@ecopages/codemod` applies both changes; see its README.
+`staticProps` is now `props` and `staticPaths` is now `paths`. `props` no longer wraps its result in `{ props }`, and `paths` returns the array without `{ paths }`. A page that still passes the old names fails in `ecopages dev` and `ecopages build` with an error that links here.
+
+1. Run the codemod from your project root. It is one file, so it needs no checkout. Replace `<version>` with the Ecopages version you upgrade to (tags look like `v0.8.0`):
+
+   ```bash
+   npx jscodeshift@17 --parser tsx --extensions=ts,tsx,js,jsx -t https://raw.githubusercontent.com/ecopages/ecopages/refs/tags/v<version>/packages/codemod/src/transforms/migrate-data-hooks.ts src
+   ```
+
+   It renames both options inside `eco.page({ ... })`, unwraps the `{ props }` and `{ paths }` returns, and renames the `GetStaticProps` and `GetStaticPaths` types imported from `@ecopages/*` to `GetProps` and `GetPaths`. A hook it cannot unwrap, such as one imported from another file, is left unchanged and reported. A return value it cannot see through becomes `(await value).props` or `(await value).paths`, and is reported so you can move the unwrap into your helper. Run your formatter afterwards, since the raw output indents rewritten lines with extra tabs.
+2. By hand, for what the codemod reported or missed: search for `staticProps`, `staticPaths`, `GetStaticProps`, `GetStaticPaths` and `skipStaticProps`. Rename each, and return the value directly: `return { title }` from `props`, `return posts.map((post) => ({ params: { slug: post.slug } }))` from `paths`. Update code that reads `Page.staticProps` or `Page.staticPaths`.
+3. Verify: run your type check, which fails on a leftover `GetStaticProps` or `GetStaticPaths`, then `ecopages build`. Open one dynamic route and confirm it renders the same props as before.
+
+A page that exports `getStaticProps`, `getStaticPaths` or `getMetadata` at module level predates `eco.page()` options. Move those into the `eco.page({ ... })` options first, as the [eco namespace reference](/docs/reference/eco-namespace) shows, then follow the steps above. The `migrate-to-eco-page` codemod does both, but it only runs from a checkout of the Ecopages repository.
 
 ---
 

@@ -84,7 +84,7 @@ describe('IntegrationRenderer', () => {
 		} as EcoPageFile;
 
 		await expect(renderer.loadPageModule(path.resolve('/app/src/pages/index.tsx'))).rejects.toThrow(
-			/\/app\/src\/pages\/index\.tsx exports getStaticProps.*migrate-to-eco-page codemod/,
+			/\/app\/src\/pages\/index\.tsx exports getStaticProps.*migrating-from-staticprops-and-staticpaths/,
 		);
 	});
 
@@ -647,7 +647,7 @@ describe('IntegrationRenderer', () => {
 		});
 	});
 
-	it('keeps metadata active for route plans that only skip static props', async () => {
+	it('keeps metadata active for route plans that skip the props hook', async () => {
 		const routeFile = path.resolve('/app/pages/products/[slug].tsx');
 		const metadata = vi.fn(async ({ params }: Parameters<GetMetadata>[0]) => ({
 			title: String(params.slug),
@@ -1396,7 +1396,7 @@ describe('IntegrationRenderer', () => {
 		expect(result.cacheStrategy).toBeUndefined();
 	});
 
-	it('should resolve static props and metadata correctly', async () => {
+	it('should resolve props and metadata correctly', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,

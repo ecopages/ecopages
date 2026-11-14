@@ -579,13 +579,17 @@ describe('eco namespace', () => {
 	test.each([
 		['staticProps', 'props'],
 		['staticPaths', 'paths'],
-	])('should fail a page that still declares %s, naming %s and the codemod', (oldName, newName) => {
+	])('should fail a page that still declares %s, naming %s and the migration docs', (oldName, newName) => {
 		expect(() =>
 			eco.page({
 				[oldName]: async () => ({}),
 				render: () => '<h1>Page</h1>',
 			} as never),
-		).toThrow(new RegExp(`no longer accepts ${oldName}.*${oldName} is now ${newName}.*migrate-data-hooks codemod`));
+		).toThrow(
+			new RegExp(
+				`no longer accepts ${oldName}.*${oldName} is now ${newName}.*ecopages\\.app/docs/core/data-fetching#migrating-from-staticprops-and-staticpaths`,
+			),
+		);
 	});
 
 	test('should attach cache strategy "static" when provided', () => {

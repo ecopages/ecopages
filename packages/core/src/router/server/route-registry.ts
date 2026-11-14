@@ -65,13 +65,13 @@ export type StaticGenerationRoute = {
 	readonly params: RouteParams;
 };
 
-export type StaticPathsContext = {
+export type PathsContext = {
 	readonly appConfig: EcoPagesAppConfig;
 	readonly runtimeOrigin: string;
 };
 
 export type RouteRegistryPageModule = {
-	readonly paths?: (context: StaticPathsContext) => Promise<Array<{ params: RouteParams }>>;
+	readonly paths?: (context: PathsContext) => Promise<Array<{ params: RouteParams }>>;
 	/**
 	 * The Page's Cache Strategy.
 	 *

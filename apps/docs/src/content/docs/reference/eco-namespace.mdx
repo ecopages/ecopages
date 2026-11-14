@@ -242,7 +242,7 @@ export default eco.page<BlogPostProps, JsxRenderable>({
 
 A Page declares its data only through the `paths`, `props` and `metadata` options. `paths` lists the Params known at build; `props` receives Params, from `paths` at build and from the request at run time. Both return their value directly: `paths` an array of `{ params }`, `props` the props object. See [Data Fetching](/docs/core/data-fetching) for what each Cache Strategy does with them.
 
-A page that still declares `staticPaths` or `staticProps` (or wraps them in an envelope), a module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata`, or a page that wraps them in `eco.staticPaths()`, `eco.staticProps()` or `eco.metadata()`, fails in `ecopages dev` and `ecopages build` with an error naming the file and the codemod. The `migrate-data-hooks` codemod in `@ecopages/codemod` renames the options and drops the envelopes; `migrate-to-eco-page` rewrites the older module-level exports and then runs it.
+A page that still declares `staticPaths` or `staticProps` (or wraps them in an envelope), a module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata`, or a page that wraps them in `eco.staticPaths()`, `eco.staticProps()` or `eco.metadata()`, fails in `ecopages dev` and `ecopages build` with an error naming the file and the codemod. The [migration steps](/docs/core/data-fetching#migrating-from-staticprops-and-staticpaths) give a codemod command that renames the options and drops the envelopes, and the manual fallback.
 
 ### Call the factories literally
 

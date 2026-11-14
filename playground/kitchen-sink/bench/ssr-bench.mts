@@ -29,9 +29,11 @@ const ROUTES = [
 	{ name: 'kita-dynamic', path: '/patterns/middleware' },
 	{ name: 'kita-explicit-view', path: '/latest' },
 	{ name: 'react', path: '/react-lab' },
-	{ name: 'lit-ssr', path: '/integration-matrix/lit-entry' },
+	{ name: 'lit-ssr', path: '/variant-lit' },
+	{ name: 'matrix-lit', path: '/integration-matrix/lit-entry' },
 	{ name: 'mdx', path: '/docs' },
-	{ name: 'ecopages-jsx', path: '/integration-matrix/ecopages-jsx-entry' },
+	{ name: 'ecopages-jsx', path: '/ecopages-jsx-hmr' },
+	{ name: 'matrix-ecopages-jsx', path: '/integration-matrix/ecopages-jsx-entry' },
 	{ name: 'api', path: '/api/v1/ping' },
 ] as const;
 

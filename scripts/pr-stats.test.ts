@@ -7,6 +7,7 @@ import {
 	COMMENT_MARKER,
 	findLargeNewFiles,
 	measureDir,
+	listInstalledPackages,
 	measurePages,
 	median,
 	renderComparison,
@@ -27,7 +28,7 @@ function stats(overrides: Partial<Stats> = {}): Stats {
 			css: { bytes: 200, gzip: 100, files: 1 },
 			html: { bytes: 200, gzip: 100, files: 1 },
 		},
-		jsFiles: [{ file: 'a.js', bytes: 600, gzip: 200 }],
+		jsFiles: [{ file: 'a.js', bytes: 600, gzip: 200, vendor: false }],
 		...overrides,
 	};
 }
@@ -77,7 +78,7 @@ test('measurePages follows the static import closure once per file and splits ve
 	);
 	writeFileSync(path.join(dir, 'blog', 'index.html'), '<p>no scripts</p>');
 	writeFileSync(path.join(dir, 'about.html'), '<script src="assets/preloaded-EEEEEEEE.js" type="module"></script>');
-	const pages = measurePages(dir);
+	const pages = measurePages(dir, new Set(['react-dom', 'ecopages-radiant']));
 	assert.deepEqual(Object.keys(pages).sort(), ['/', '/about', '/blog']);
 	assert.deepEqual(pages['/blog'], { vendor: 0, app: 0, vendorChunks: [] });
 	assert.deepEqual(pages['/'].vendorChunks, ['react-dom']);
@@ -85,6 +86,34 @@ test('measurePages follows the static import closure once per file and splits ve
 	assert.ok(pages['/'].app > pages['/about'].app, 'closure includes entry and shared chunk');
 	assert.ok(pages['/'].app < 300, 'dynamic import is not followed');
 	assert.deepEqual(pages['/about'].vendorChunks, []);
+});
+
+test('a page chunk that only looks like vendor is app code, and scoped packages map to scope-name', () => {
+	const dir = mkdtempSync(path.join(tmpdir(), 'pr-stats-vendor-'));
+	onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+	mkdirSync(path.join(dir, 'assets'));
+	const chunk = (name: string) => writeFileSync(path.join(dir, 'assets', name), 'export const a=1;');
+	chunk('vendor-share-BBBBBBBB.js');
+	chunk('vendor-ecopages-radiant-CCCCCCCC.js');
+	writeFileSync(
+		path.join(dir, 'index.html'),
+		'<script type="module" src="/assets/vendor-share-BBBBBBBB.js"></script><script type="module" src="/assets/vendor-ecopages-radiant-CCCCCCCC.js"></script>',
+	);
+	const page = measurePages(dir, new Set(['ecopages-radiant']))['/'];
+	assert.deepEqual(page.vendorChunks, ['ecopages-radiant']);
+	assert.ok(page.vendor > 0 && page.app > 0);
+	assert.equal(measureDir(dir, 0, new Set(['ecopages-radiant'])).jsFiles.filter((file) => file.vendor).length, 1);
+});
+
+test('listInstalledPackages reads node_modules and the pnpm store, joining scoped names', () => {
+	const root = mkdtempSync(path.join(tmpdir(), 'pr-stats-installed-'));
+	onTestFinished(() => rmSync(root, { recursive: true, force: true }));
+	mkdirSync(path.join(root, 'node_modules', 'react'), { recursive: true });
+	mkdirSync(path.join(root, 'node_modules', '@ecopages', 'radiant'), { recursive: true });
+	mkdirSync(path.join(root, 'node_modules', '.pnpm', 'morphdom@2.7.0', 'node_modules', 'morphdom'), {
+		recursive: true,
+	});
+	assert.deepEqual([...listInstalledPackages(root)].sort(), ['ecopages-radiant', 'morphdom', 'react']);
 });
 
 test('selectPages picks smallest, median, largest and the named pages', () => {
@@ -127,14 +156,18 @@ test('render leads with context and the per-page table, flagging growth per colu
 });
 
 test('a rehashed JS file is not treated as new', () => {
-	const base = stats({ jsFiles: [{ file: 'assets/client-Bn3vGHPx.js', bytes: 200_000, gzip: 60 * 1024 }] });
-	const head = stats({ jsFiles: [{ file: 'assets/client-AAAAAAAA.js', bytes: 200_000, gzip: 60 * 1024 }] });
+	const base = stats({
+		jsFiles: [{ file: 'assets/client-Bn3vGHPx.js', bytes: 200_000, gzip: 60 * 1024, vendor: false }],
+	});
+	const head = stats({
+		jsFiles: [{ file: 'assets/client-AAAAAAAA.js', bytes: 200_000, gzip: 60 * 1024, vendor: false }],
+	});
 	assert.deepEqual(findLargeNewFiles(base, head), []);
 });
 
 test('large new JS files are flagged but existing ones are not', () => {
-	const big = { file: 'new.js', bytes: 200_000, gzip: 60 * 1024 };
-	const head = stats({ jsFiles: [{ file: 'a.js', bytes: 600, gzip: 60 * 1024 }, big] });
+	const big = { file: 'new.js', bytes: 200_000, gzip: 60 * 1024, vendor: false };
+	const head = stats({ jsFiles: [{ file: 'a.js', bytes: 600, gzip: 60 * 1024, vendor: false }, big] });
 	assert.deepEqual(findLargeNewFiles(stats(), head), [big]);
 	assert.match(renderComparison(stats(), head), /New JS files over 50 kB gzip:\n\n- `new\.js`/);
 });

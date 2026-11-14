@@ -1,6 +1,6 @@
 import { eco } from '@ecopages/core';
 import type { LayoutProps } from '@ecopages/core';
-import { ThemeToggleReact } from '../../components/theme-toggle.react';
+import { ThemeToggle } from '../../components/theme-toggle.kita';
 import { getPrimaryLinkTestId, kitchenSinkShell, kitchenSinkShellTestId, primaryLinks } from '@/data/primary-links';
 
 export const BaseLayout = eco.layout({
@@ -30,8 +30,7 @@ export const BaseLayout = eco.layout({
 								<span class="badge">Static request context</span>
 							)}
 							<span class="badge">role: {viewerRole ?? 'viewer'}</span>
-							{/* @ts-expect-error - jsx mismatch */}
-							<ThemeToggleReact />
+							<ThemeToggle />
 						</div>
 					</div>
 					<nav

@@ -5,6 +5,7 @@ import { CSS_MODULE_PROCESSOR_FIX, PLAIN_CSS_KINDS, type StylesheetKinds } from 
 import { contentHash } from '../utils/content-hash.ts';
 import { findPackageRoot } from '../utils/package-path.ts';
 import { isServerOnlyModuleSpecifier } from '../utils/file-roles.ts';
+import { collectEcopagesVirtualImports, type EcopagesVirtualImport } from './ecopages-virtual-imports.ts';
 import {
 	isBarePackageImportSpecifier,
 	loadTsconfigPathPrefixes,
@@ -614,6 +615,8 @@ export type DiscoveredImports = {
 	 * `file` is the module the plain module's import resolves to and `imported` the export it names.
 	 */
 	plainModuleComponents: Array<{ file: string; imported: string }>;
+	/** The `ecopages:` virtual modules the declaring module imports itself. */
+	virtualImports: EcopagesVirtualImport[];
 	watchFiles: string[];
 	removals: Array<{ start: number; end: number; replacement: string }>;
 };
@@ -1038,6 +1041,7 @@ export function discoverComponentImports(
 		plainModuleStylesheets: [],
 		packageStylesheets: [],
 		plainModuleComponents: [],
+		virtualImports: [],
 		watchFiles: [],
 		removals: [],
 	};
@@ -1053,6 +1057,7 @@ export function discoverComponentImports(
 		watchFiles: new Set(),
 	};
 	const imports = collectStaticImports(program);
+	result.virtualImports = collectEcopagesVirtualImports(imports);
 	const packageStylesheets = collectOwnStylesheets(imports, ownerFile, state, result);
 	let renderedNames: Set<string> | undefined;
 	const ownComponents = new Set<string>();

@@ -5,7 +5,7 @@ import { resolveDiscoveredStylesheets } from '../../eco/discovered-dependency-pa
 import { declareAssetEntries, resolveDeclaredPath, type DeclaredAsset } from './declared-asset-collection.ts';
 import { declareLazyScriptEntries, type DeclaredLazyScript } from './lazy-entry-collection.ts';
 import { declareModules, type ModuleDeclaration } from './module-declaration-aggregation.ts';
-import { extractEcopagesVirtualImports } from './ecopages-virtual-imports.ts';
+import { getDiscoveredVirtualImports } from '../../eco/discovered-dependencies.ts';
 
 /** An inferred stylesheet and whether only a plain module imports it. */
 export type InferredStyle = { filepath: string; plainModule: boolean };
@@ -23,7 +23,7 @@ export type ComponentDeclarations = {
 	/** Stylesheets, then eager scripts, in declaration order. */
 	assets: ReadonlyArray<DeclaredAsset>;
 	lazyScripts: ReadonlyArray<DeclaredLazyScript>;
-	/** Declared `modules` and the `ecopages:` virtual modules the source imports, in merge order. */
+	/** Declared `modules` and the `ecopages:` virtual modules the declaring module imports, in merge order. */
 	modules: ReadonlyArray<ModuleDeclaration>;
 	explicitStylePaths: ReadonlyArray<string>;
 	inferredStyles: ReadonlyArray<InferredStyle>;
@@ -60,7 +60,7 @@ export function createLazyEntryName(integrationName: string, entryHash: string):
  *
  * @remarks
  * A config is a value of the module that declares it, so its declarations are fixed for the life of that module
- * instance: the file paths, the source's virtual imports and the lazy entry keys never change while the config
+ * instance: the file paths, the virtual imports discovery recorded and the lazy entry keys never change while the config
  * exists. A development edit re-imports the module, and the new config is resolved afresh. Configs are held
  * weakly, so a dropped module instance takes its declarations with it.
  */
@@ -101,7 +101,7 @@ export class ComponentDeclarationStore {
 			resolveLazyScripts: this.options.resolveLazyScripts,
 			lazyScriptMissingSrcMessage: errors.lazyScriptMissingSrc,
 		});
-		const modules = declareModules(config.dependencies?.modules, extractEcopagesVirtualImports(file));
+		const modules = declareModules(config.dependencies?.modules, getDiscoveredVirtualImports(config));
 
 		return {
 			file,

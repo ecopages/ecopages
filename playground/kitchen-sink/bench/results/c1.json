@@ -1,0 +1,118 @@
+{
+	"generatedAt": "2026-11-14T21:33:36.858Z",
+	"runtime": "node",
+	"nodeVersion": "v24.22.0",
+	"cache": false,
+	"durationSeconds": 8,
+	"warmupSeconds": 2,
+	"connections": 10,
+	"loadAverage1m": 8.15,
+	"serverRssMb": {
+		"beforeRun": 106,
+		"afterRun": 49
+	},
+	"routes": [
+		{
+			"name": "kita",
+			"path": "/integration-matrix/kita",
+			"requestsPerSec": 340.63,
+			"latencyMs": {
+				"p50": 26,
+				"p97_5": 59,
+				"p99": 73,
+				"mean": 28.79,
+				"max": 133
+			},
+			"requests": 2725,
+			"errors": 0,
+			"timeouts": 0,
+			"non2xx": 0,
+			"bytesPerSec": 9901824
+		},
+		{
+			"name": "lit",
+			"path": "/integration-matrix/lit-entry",
+			"requestsPerSec": 601,
+			"latencyMs": {
+				"p50": 12,
+				"p97_5": 41,
+				"p99": 49,
+				"mean": 16.08,
+				"max": 184
+			},
+			"requests": 4808,
+			"errors": 0,
+			"timeouts": 0,
+			"non2xx": 0,
+			"bytesPerSec": 17956864
+		},
+		{
+			"name": "jsx",
+			"path": "/integration-matrix/ecopages-jsx-entry",
+			"requestsPerSec": 654.63,
+			"latencyMs": {
+				"p50": 14,
+				"p97_5": 24,
+				"p99": 29,
+				"mean": 14.77,
+				"max": 84
+			},
+			"requests": 5237,
+			"errors": 0,
+			"timeouts": 0,
+			"non2xx": 0,
+			"bytesPerSec": 19302400
+		},
+		{
+			"name": "react-entry",
+			"path": "/integration-matrix/react-entry",
+			"requestsPerSec": 826,
+			"latencyMs": {
+				"p50": 11,
+				"p97_5": 20,
+				"p99": 23,
+				"mean": 11.61,
+				"max": 68
+			},
+			"requests": 6608,
+			"errors": 0,
+			"timeouts": 0,
+			"non2xx": 0,
+			"bytesPerSec": 24027136
+		},
+		{
+			"name": "docs",
+			"path": "/docs",
+			"requestsPerSec": 1284.25,
+			"latencyMs": {
+				"p50": 4,
+				"p97_5": 28,
+				"p99": 37,
+				"mean": 7.28,
+				"max": 265
+			},
+			"requests": 10274,
+			"errors": 0,
+			"timeouts": 0,
+			"non2xx": 0,
+			"bytesPerSec": 10916480
+		},
+		{
+			"name": "react",
+			"path": "/react-lab",
+			"requestsPerSec": 296.13,
+			"latencyMs": {
+				"p50": 25,
+				"p97_5": 125,
+				"p99": 156,
+				"mean": 33.24,
+				"max": 252
+			},
+			"requests": 2369,
+			"errors": 0,
+			"timeouts": 0,
+			"non2xx": 0,
+			"bytesPerSec": 2840576
+		}
+	]
+}

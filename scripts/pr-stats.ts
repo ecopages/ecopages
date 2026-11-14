@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { type Dirent, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 
@@ -12,11 +12,30 @@ export const GROWTH_THRESHOLD = 0.05;
 /** Gzip size above which a JavaScript file that is new in the head is flagged. */
 export const NEW_FILE_GZIP_LIMIT = 50 * 1024;
 
-export type FileStat = { file: string; bytes: number; gzip: number };
+export type FileStat = {
+	file: string;
+	bytes: number;
+	gzip: number;
+	/** Whether the file is a `vendor-<package>` chunk of an installed package. */
+	vendor: boolean;
+};
+
+/** The JavaScript a browser loads for one page, gzip bytes, split between third-party chunks and the rest. */
+export type PageJs = {
+	/** Gzip bytes of `vendor-*` chunks: installed packages, shared across pages. */
+	vendor: number;
+	/** Gzip bytes of every other chunk: the Ecopages runtime and the page's own code. */
+	app: number;
+	/** Names of the vendor chunks, such as `react-dom`, largest first. */
+	vendorChunks: string[];
+};
 
 export type Stats = {
 	buildMs: number;
-	total: { bytes: number; gzip: number };
+	/** Every file of `dist/client` that is counted, maps and precompressed copies aside. */
+	total: { bytes: number; files: number };
+	/** Per page route, such as `/` or `/react-lab`. */
+	pages: Record<string, PageJs>;
 	types: Record<'js' | 'css' | 'html', { bytes: number; gzip: number; files: number }>;
 	/** Every JavaScript file, largest first, so a compare can spot new files. */
 	jsFiles: FileStat[];
@@ -52,10 +71,11 @@ export function median(values: number[]): number {
  * @remarks
  * Source maps are excluded. Files other than js, css and html (images, fonts) count only toward the total.
  */
-export function measureDir(dir: string, buildMs = 0): Stats {
+export function measureDir(dir: string, buildMs = 0, installed: ReadonlySet<string> = new Set()): Stats {
 	const stats: Stats = {
 		buildMs,
-		total: { bytes: 0, gzip: 0 },
+		total: { bytes: 0, files: 0 },
+		pages: {},
 		types: {
 			js: { bytes: 0, gzip: 0, files: 0 },
 			css: { bytes: 0, gzip: 0, files: 0 },
@@ -69,7 +89,7 @@ export function measureDir(dir: string, buildMs = 0): Stats {
 		const bytes = content.length;
 		const gzip = gzipSync(content).length;
 		stats.total.bytes += bytes;
-		stats.total.gzip += gzip;
+		stats.total.files += 1;
 		const ext = path.extname(full).slice(1);
 		const type = ext === 'mjs' ? 'js' : ext;
 		if (!TYPES.includes(type as (typeof TYPES)[number])) continue;
@@ -78,10 +98,154 @@ export function measureDir(dir: string, buildMs = 0): Stats {
 		bucket.gzip += gzip;
 		bucket.files += 1;
 		if (type === 'js')
-			stats.jsFiles.push({ file: path.relative(dir, full).split(path.sep).join('/'), bytes, gzip });
+			stats.jsFiles.push({
+				file: path.relative(dir, full).split(path.sep).join('/'),
+				bytes,
+				gzip,
+				vendor: vendorChunkPackage(path.basename(full), installed) !== undefined,
+			});
 	}
 	stats.jsFiles.sort((a, b) => b.bytes - a.bytes);
+	stats.pages = measurePages(dir, installed);
 	return stats;
+}
+
+/**
+ * Names of the packages installed for the app, spelled the way the build names their chunks.
+ *
+ * @remarks
+ * Mirrors `getInstalledPackageChunkName` in `@ecopages/core`: `@scope/name` becomes `scope-name`. The names come from
+ * the directories of `node_modules` and of the pnpm store (`node_modules/.pnpm/<id>/node_modules`) under each root,
+ * which covers transitive dependencies. A chunk only counts as vendor when its name is in this set, so an app page that
+ * happens to be called `vendor-share` stays app code.
+ */
+export function listInstalledPackages(...roots: string[]): Set<string> {
+	const names = new Set<string>();
+	const addFrom = (modulesDir: string): void => {
+		let entries: Dirent[];
+		try {
+			entries = readdirSync(modulesDir, { withFileTypes: true });
+		} catch {
+			return;
+		}
+		for (const entry of entries) {
+			if (entry.name.startsWith('.')) continue;
+			if (!entry.name.startsWith('@')) {
+				names.add(entry.name);
+				continue;
+			}
+			for (const inner of readdirSync(path.join(modulesDir, entry.name))) {
+				names.add(`${entry.name.slice(1)}-${inner}`);
+			}
+		}
+	};
+	for (const root of roots) {
+		const modulesDir = path.join(root, 'node_modules');
+		addFrom(modulesDir);
+		const store = path.join(modulesDir, '.pnpm');
+		let ids: string[] = [];
+		try {
+			ids = readdirSync(store);
+		} catch {
+			continue;
+		}
+		for (const id of ids) addFrom(path.join(store, id, 'node_modules'));
+	}
+	return names;
+}
+
+/** The package a `vendor-<package>-<hash>.js` chunk holds, or `undefined` for any other file. */
+function vendorChunkPackage(fileName: string, installed: ReadonlySet<string>): string | undefined {
+	const name = /^vendor-(.+)-[A-Za-z0-9_-]{8}\.m?js$/.exec(fileName)?.[1];
+	return name !== undefined && installed.has(name) ? name : undefined;
+}
+
+const MODULE_SCRIPT = /<script\b[^>]*\btype=["']module["'][^>]*>/gi;
+const MODULE_PRELOAD = /<link\b[^>]*\brel=["']modulepreload["'][^>]*>/gi;
+const SRC_OR_HREF = /\b(?:src|href)=["']([^"']+)["']/i;
+const STATIC_IMPORT = /(?:\bfrom|\bimport)\s*["']([^"']+)["']/g;
+
+/** Route of a built HTML file: `index.html` is `/`, `a/index.html` is `/a`, `a.html` is `/a`. */
+function routeOf(htmlFile: string): string {
+	const route = htmlFile.replace(/\.html$/, '').replace(/(^|\/)index$/, '');
+	return `/${route}`;
+}
+
+/** Resolves a specifier found in `from` to a path under `dir`, or `undefined` for bare or external ones. */
+function resolveSpecifier(dir: string, from: string, specifier: string): string | undefined {
+	const clean = specifier.split(/[?#]/)[0];
+	if (/^[a-z][a-z0-9+.-]*:|^\/\//i.test(clean)) return undefined;
+	if (!clean.startsWith('/') && !clean.startsWith('.')) return undefined;
+	const resolved = clean.startsWith('/')
+		? path.join(dir, clean)
+		: path.resolve(path.dirname(path.join(dir, from)), clean);
+	const relative = path.relative(dir, resolved).split(path.sep).join('/');
+	return relative.startsWith('..') ? undefined : relative;
+}
+
+/**
+ * Measures the JavaScript each built page loads.
+ *
+ * @remarks
+ * A page loads its module scripts and modulepreloads plus everything they statically import, so that closure is
+ * followed from every HTML file and each file is counted once. Dynamic `import()` is not followed: those chunks
+ * load on demand, not with the page. Chunks named `vendor-<package>-<hash>` of an installed package count as vendor, everything else as app.
+ */
+export function measurePages(dir: string, installed: ReadonlySet<string> = new Set()): Record<string, PageJs> {
+	const sizes = new Map<string, number>();
+	const imports = new Map<string, string[]>();
+	const load = (file: string): string[] | undefined => {
+		if (imports.has(file)) return imports.get(file);
+		let content: Buffer;
+		try {
+			content = readFileSync(path.join(dir, file));
+		} catch {
+			return undefined;
+		}
+		sizes.set(file, gzipSync(content).length);
+		const found: string[] = [];
+		for (const match of content.toString('utf8').matchAll(STATIC_IMPORT)) {
+			const resolved = resolveSpecifier(dir, file, match[1]);
+			if (resolved) found.push(resolved);
+		}
+		imports.set(file, found);
+		return found;
+	};
+
+	const pages: Record<string, PageJs> = {};
+	for (const full of listFiles(dir)) {
+		if (!full.endsWith('.html')) continue;
+		const htmlFile = path.relative(dir, full).split(path.sep).join('/');
+		const html = readFileSync(full, 'utf8');
+		const queue: string[] = [];
+		for (const tag of [...(html.match(MODULE_SCRIPT) ?? []), ...(html.match(MODULE_PRELOAD) ?? [])]) {
+			const reference = SRC_OR_HREF.exec(tag)?.[1];
+			const resolved = reference ? resolveSpecifier(dir, htmlFile, reference) : undefined;
+			if (resolved) queue.push(resolved);
+		}
+		const seen = new Set<string>();
+		while (queue.length > 0) {
+			const file = queue.pop() as string;
+			if (seen.has(file)) continue;
+			const children = load(file);
+			if (!children) continue;
+			seen.add(file);
+			queue.push(...children);
+		}
+		const page: PageJs = { vendor: 0, app: 0, vendorChunks: [] };
+		const vendorFiles: Array<{ name: string; gzip: number }> = [];
+		for (const file of seen) {
+			const gzip = sizes.get(file) as number;
+			const name = vendorChunkPackage(path.posix.basename(file), installed);
+			if (name !== undefined) {
+				page.vendor += gzip;
+				vendorFiles.push({ name, gzip });
+			} else page.app += gzip;
+		}
+		page.vendorChunks = vendorFiles.sort((a, b) => b.gzip - a.gzip).map((entry) => entry.name);
+		pages[routeOf(htmlFile)] = page;
+	}
+	return pages;
 }
 
 /** A checkout to build: its kitchen-sink app and its CLI. */
@@ -93,6 +257,10 @@ function targetOf(root: string): BuildTarget {
 		appDir: path.join(resolved, 'playground', 'kitchen-sink'),
 		cliPath: path.join(resolved, 'packages', 'ecopages', 'bin', 'cli.js'),
 	};
+}
+
+function installedOf(root: string, target: BuildTarget): Set<string> {
+	return listInstalledPackages(path.resolve(root), target.appDir);
 }
 
 function buildCold(target: BuildTarget): number {
@@ -122,8 +290,16 @@ export function measurePair(baseRoot: string, headRoot: string, runs = 5): { bas
 		for (const side of order) times[side].push(buildCold(targets[side]));
 	}
 	return {
-		base: measureDir(path.join(targets.base.appDir, 'dist', 'client'), Math.round(median(times.base))),
-		head: measureDir(path.join(targets.head.appDir, 'dist', 'client'), Math.round(median(times.head))),
+		base: measureDir(
+			path.join(targets.base.appDir, 'dist', 'client'),
+			Math.round(median(times.base)),
+			installedOf(baseRoot, targets.base),
+		),
+		head: measureDir(
+			path.join(targets.head.appDir, 'dist', 'client'),
+			Math.round(median(times.head)),
+			installedOf(headRoot, targets.head),
+		),
 	};
 }
 
@@ -158,36 +334,73 @@ export function findLargeNewFiles(base: Stats, head: Stats): FileStat[] {
 	return head.jsFiles.filter((file) => !known.has(unhashed(file.file)) && file.gzip > NEW_FILE_GZIP_LIMIT);
 }
 
+/** Pages always shown in the per-page table, when the head has them. */
+const NAMED_PAGES: Array<[string, string]> = [
+	['/', 'Kita'],
+	['/react-lab', 'React'],
+	['/variant-lit', 'Lit'],
+	['/api-lab', 'Kita, no React'],
+];
+
+const DOCS_URL = 'https://ecopages.app/dev/benchmarks-and-ci';
+
+/** Error pages such as `/404` ship no JavaScript, so they say nothing about a typical page. */
+const ERROR_PAGE = /^\/[45]\d\d$/;
+
+const pageTotal = (page: PageJs): number => page.vendor + page.app;
+
+/**
+ * Picks the rows of the per-page table from the head: the smallest, median and largest page by total JS (error pages aside), then the named pages.
+ */
+export function selectPages(head: Stats): Array<{ label: string; route: string }> {
+	const ranked = Object.entries(head.pages)
+		.filter(([route]) => !ERROR_PAGE.test(route))
+		.sort((a, b) => pageTotal(a[1]) - pageTotal(b[1]));
+	const rows: Array<{ label: string; route: string }> = [];
+	if (ranked.length > 0) {
+		rows.push({ label: 'Smallest page', route: ranked[0][0] });
+		rows.push({ label: 'Median page', route: ranked[Math.floor((ranked.length - 1) / 2)][0] });
+		rows.push({ label: 'Largest page', route: ranked[ranked.length - 1][0] });
+	}
+	for (const [route, label] of NAMED_PAGES) if (head.pages[route]) rows.push({ label: `${label}`, route });
+	return rows;
+}
+
+function cell(base: number | undefined, head: number): string {
+	if (base === undefined) return `new: ${formatBytes(head)}`;
+	if (head === base) return formatBytes(head);
+	return `${formatBytes(base)} to ${formatBytes(head)} (${delta(base, head, formatBytes)})${grew(base, head) ? ' warning' : ''}`;
+}
+
+function percent(part: number, whole: number): string {
+	return whole === 0 ? '0%' : `${((part / whole) * 100).toFixed(1)}%`;
+}
+
 /** Renders the sticky comment body comparing `head` against `base`. */
 export function renderComparison(base: Stats, head: Stats): string {
-	const rows: Array<[string, number, number]> = [
-		['Client total', base.total.bytes, head.total.bytes],
-		['Client total (gzip)', base.total.gzip, head.total.gzip],
-		...TYPES.map((type): [string, number, number] => [
-			`${type.toUpperCase()}`,
-			base.types[type].bytes,
-			head.types[type].bytes,
-		]),
-		...TYPES.map((type): [string, number, number] => [
-			`${type.toUpperCase()} (gzip)`,
-			base.types[type].gzip,
-			head.types[type].gzip,
-		]),
-	];
 	const lines = [
 		COMMENT_MARKER,
-		'## Client output and build time',
+		'## Kitchen-sink build stats',
 		'',
-		'| Metric | Base | Head | Change | |',
-		'| --- | ---: | ---: | ---: | :-: |',
+		`The [kitchen-sink](${DOCS_URL}) demo app: ${Object.keys(head.pages).length} pages across every Integration.`,
+		'',
+		'### JS per page (gzip)',
+		'',
+		'| Page | Route | Vendor | App | Total | Vendor chunks |',
+		'| --- | --- | --- | --- | --- | --- |',
 	];
-	for (const [name, b, h] of rows) {
+	for (const { label, route } of selectPages(head)) {
+		const h = head.pages[route];
+		const b = base.pages[route];
 		lines.push(
-			`| ${name} | ${formatBytes(b)} | ${formatBytes(h)} | ${delta(b, h, formatBytes)} | ${grew(b, h) ? 'warning' : ''} |`,
+			`| ${label} | \`${route}\` | ${cell(b?.vendor, h.vendor)} | ${cell(b?.app, h.app)} | ${cell(b && pageTotal(b), pageTotal(h))} | ${h.vendorChunks.join(', ') || 'none'} |`,
 		);
 	}
 	lines.push(
-		`| Cold build (median of 5, alternating, noisy) | ${base.buildMs} ms | ${head.buildMs} ms | ${delta(base.buildMs, head.buildMs, (n) => `${n} ms`)} | |`,
+		'',
+		`Vendor chunks stay cached across deploys. Warning: grew more than ${GROWTH_THRESHOLD * 100}%.`,
+		'',
+		`Cold build: ${base.buildMs} ms to ${head.buildMs} ms (${delta(base.buildMs, head.buildMs, (n) => `${n} ms`)}), noisy.`,
 	);
 
 	const flagged = findLargeNewFiles(base, head);
@@ -196,22 +409,50 @@ export function renderComparison(base: Stats, head: Stats): string {
 		for (const file of flagged)
 			lines.push(`- \`${file.file}\`: ${formatBytes(file.bytes)} (${formatBytes(file.gzip)} gzip)`);
 	}
+
+	const staticAssets = (stats: Stats): number =>
+		stats.total.bytes - TYPES.reduce((sum, type) => sum + stats.types[type].bytes, 0);
+	const vendorGzip = (stats: Stats): number =>
+		stats.jsFiles
+			.filter((file) => path.posix.basename(file.file).startsWith('vendor-'))
+			.reduce((sum, file) => sum + file.gzip, 0);
 	lines.push(
 		'',
-		'<details><summary>Largest JS files in the head</summary>',
+		'<details><summary>Totals</summary>',
+		'',
+		'Code:',
+		'',
+		'| Type | Base | Head | Change | Base gzip | Head gzip | Change |',
+		'| --- | ---: | ---: | ---: | ---: | ---: | ---: |',
+	);
+	for (const type of TYPES) {
+		const b = base.types[type];
+		const h = head.types[type];
+		lines.push(
+			`| ${type.toUpperCase()} | ${formatBytes(b.bytes)} | ${formatBytes(h.bytes)} | ${delta(b.bytes, h.bytes, formatBytes)}${grew(b.bytes, h.bytes) ? ' warning' : ''} | ${formatBytes(b.gzip)} | ${formatBytes(h.gzip)} | ${delta(b.gzip, h.gzip, formatBytes)}${grew(b.gzip, h.gzip) ? ' warning' : ''} |`,
+		);
+	}
+	lines.push(
+		'',
+		'Images, fonts and other files:',
+		'',
+		'| | Base | Head | Change |',
+		'| --- | ---: | ---: | ---: |',
+		`| Static assets | ${formatBytes(staticAssets(base))} | ${formatBytes(staticAssets(head))} | ${delta(staticAssets(base), staticAssets(head), formatBytes)} |`,
+		`| All files in dist/client | ${formatBytes(base.total.bytes)} | ${formatBytes(head.total.bytes)} | ${delta(base.total.bytes, head.total.bytes, formatBytes)} |`,
+		'',
+		`Vendor share of JS (gzip): ${percent(vendorGzip(base), base.types.js.gzip)} to ${percent(vendorGzip(head), head.types.js.gzip)}.`,
+		'',
+		'</details>',
+		'',
+		'<details><summary>Largest JS files</summary>',
 		'',
 		'| File | Size | Gzip |',
 		'| --- | ---: | ---: |',
 	);
 	for (const file of head.jsFiles.slice(0, 5))
 		lines.push(`| \`${file.file}\` | ${formatBytes(file.bytes)} | ${formatBytes(file.gzip)} |`);
-	lines.push(
-		'',
-		'</details>',
-		'',
-		`Warning marks a size that grew more than ${GROWTH_THRESHOLD * 100}%. Build time runs on a shared runner: informational only.`,
-		'',
-	);
+	lines.push('', '</details>', '');
 	return lines.join('\n');
 }
 

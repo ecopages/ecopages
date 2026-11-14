@@ -24,13 +24,15 @@ test('median handles odd and even counts', () => {
 	assert.equal(median([4, 1, 2, 3]), 2.5);
 });
 
-test('measureDir totals by type, skips source maps and sorts JS by size', () => {
+test('measureDir totals by type, skips source maps and precompressed copies, and sorts JS by size', () => {
 	const dir = mkdtempSync(path.join(tmpdir(), 'pr-stats-'));
 	onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
 	mkdirSync(path.join(dir, 'assets'));
 	writeFileSync(path.join(dir, 'assets', 'small.js'), 'a'.repeat(10));
 	writeFileSync(path.join(dir, 'assets', 'big.js'), 'b'.repeat(100));
 	writeFileSync(path.join(dir, 'assets', 'big.js.map'), 'm'.repeat(500));
+	writeFileSync(path.join(dir, 'assets', 'big.js.gz'), 'g'.repeat(50));
+	writeFileSync(path.join(dir, 'assets', 'big.js.br'), 'r'.repeat(40));
 	writeFileSync(path.join(dir, 'index.html'), '<p></p>');
 	const result = measureDir(dir, 5);
 	assert.equal(result.types.js.bytes, 110);

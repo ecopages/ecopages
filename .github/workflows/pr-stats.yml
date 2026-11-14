@@ -48,11 +48,8 @@ jobs:
               working-directory: base
               run: pnpm install --frozen-lockfile
 
-            - name: Measure head
-              run: node head/scripts/pr-stats.ts measure head "$RUNNER_TEMP/head.json"
-
-            - name: Measure base
-              run: node head/scripts/pr-stats.ts measure base "$RUNNER_TEMP/base.json"
+            - name: Measure base and head
+              run: node head/scripts/pr-stats.ts measure base head "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json"
 
             - name: Render comparison
               run: node head/scripts/pr-stats.ts compare "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json" > "$RUNNER_TEMP/comment.md"

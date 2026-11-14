@@ -24,6 +24,15 @@ export type Stats = {
 
 const TYPES = ['js', 'css', 'html'] as const;
 
+/**
+ * Files left out of every total.
+ *
+ * @remarks
+ * Source maps are not served to users, and the build writes `.gz` and `.br` copies next to compressible files,
+ * so counting them would count those files twice.
+ */
+const SKIPPED_EXTENSIONS = ['.map', '.gz', '.br'];
+
 function listFiles(dir: string): string[] {
 	return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
 		const full = path.join(dir, entry.name);
@@ -55,7 +64,7 @@ export function measureDir(dir: string, buildMs = 0): Stats {
 		jsFiles: [],
 	};
 	for (const full of listFiles(dir)) {
-		if (full.endsWith('.map')) continue;
+		if (SKIPPED_EXTENSIONS.some((extension) => full.endsWith(extension))) continue;
 		const content = readFileSync(full);
 		const bytes = content.length;
 		const gzip = gzipSync(content).length;
@@ -75,21 +84,47 @@ export function measureDir(dir: string, buildMs = 0): Stats {
 	return stats;
 }
 
-/** Builds the app cold `runs` times with the Node runtime and measures the last build's `dist/client`. */
-export function measureApp(appDir: string, cliPath: string, runs = 3): Stats {
-	const times: number[] = [];
+/** A checkout to build: its kitchen-sink app and its CLI. */
+type BuildTarget = { appDir: string; cliPath: string };
+
+function targetOf(root: string): BuildTarget {
+	const resolved = path.resolve(root);
+	return {
+		appDir: path.join(resolved, 'playground', 'kitchen-sink'),
+		cliPath: path.join(resolved, 'packages', 'ecopages', 'bin', 'cli.js'),
+	};
+}
+
+function buildCold(target: BuildTarget): number {
+	rmSync(path.join(target.appDir, 'dist'), { recursive: true, force: true });
+	rmSync(path.join(target.appDir, '.eco'), { recursive: true, force: true });
+	const start = performance.now();
+	const result = spawnSync(process.execPath, [target.cliPath, 'build', '--runtime', 'node'], {
+		cwd: target.appDir,
+		stdio: 'inherit',
+	});
+	if (result.status !== 0) throw new Error(`Build failed in ${target.appDir} with exit code ${result.status}`);
+	return performance.now() - start;
+}
+
+/**
+ * Builds the base and the head cold `runs` times each and measures each one's last `dist/client`.
+ *
+ * @remarks
+ * The builds alternate, and each round swaps which side goes first, so a runner that slows down or warms up
+ * during the job moves both medians alike instead of skewing the comparison.
+ */
+export function measurePair(baseRoot: string, headRoot: string, runs = 5): { base: Stats; head: Stats } {
+	const targets = { base: targetOf(baseRoot), head: targetOf(headRoot) };
+	const times: { base: number[]; head: number[] } = { base: [], head: [] };
 	for (let index = 0; index < runs; index++) {
-		rmSync(path.join(appDir, 'dist'), { recursive: true, force: true });
-		rmSync(path.join(appDir, '.eco'), { recursive: true, force: true });
-		const start = performance.now();
-		const result = spawnSync(process.execPath, [cliPath, 'build', '--runtime', 'node'], {
-			cwd: appDir,
-			stdio: 'inherit',
-		});
-		if (result.status !== 0) throw new Error(`Build failed with exit code ${result.status}`);
-		times.push(performance.now() - start);
+		const order: Array<'base' | 'head'> = index % 2 === 0 ? ['base', 'head'] : ['head', 'base'];
+		for (const side of order) times[side].push(buildCold(targets[side]));
 	}
-	return measureDir(path.join(appDir, 'dist', 'client'), Math.round(median(times)));
+	return {
+		base: measureDir(path.join(targets.base.appDir, 'dist', 'client'), Math.round(median(times.base))),
+		head: measureDir(path.join(targets.head.appDir, 'dist', 'client'), Math.round(median(times.head))),
+	};
 }
 
 const KB = 1024;
@@ -152,7 +187,7 @@ export function renderComparison(base: Stats, head: Stats): string {
 		);
 	}
 	lines.push(
-		`| Cold build (median of 3, noisy) | ${base.buildMs} ms | ${head.buildMs} ms | ${delta(base.buildMs, head.buildMs, (n) => `${n} ms`)} | |`,
+		`| Cold build (median of 5, alternating, noisy) | ${base.buildMs} ms | ${head.buildMs} ms | ${delta(base.buildMs, head.buildMs, (n) => `${n} ms`)} | |`,
 	);
 
 	const flagged = findLargeNewFiles(base, head);
@@ -183,21 +218,18 @@ export function renderComparison(base: Stats, head: Stats): string {
 function main(argv: string[]): void {
 	const [command, ...args] = argv;
 	if (command === 'measure') {
-		const root = path.resolve(args[0]);
-		const [, out, runs] = args;
-		const appDir = path.join(root, 'playground', 'kitchen-sink');
-		const stats = measureApp(
-			appDir,
-			path.join(root, 'packages', 'ecopages', 'bin', 'cli.js'),
-			runs ? Number(runs) : 3,
-		);
-		writeFileSync(out, `${JSON.stringify(stats, null, '\t')}\n`);
+		const [baseRoot, headRoot, baseOut, headOut, runs] = args;
+		const { base, head } = measurePair(baseRoot, headRoot, runs ? Number(runs) : 5);
+		writeFileSync(baseOut, `${JSON.stringify(base, null, '\t')}\n`);
+		writeFileSync(headOut, `${JSON.stringify(head, null, '\t')}\n`);
 	} else if (command === 'compare') {
 		const [baseFile, headFile] = args;
 		const read = (file: string): Stats => JSON.parse(readFileSync(file, 'utf8')) as Stats;
 		process.stdout.write(renderComparison(read(baseFile), read(headFile)));
 	} else {
-		console.error('Usage: pr-stats.ts measure <repo-root> <out.json> [runs] | compare <base.json> <head.json>');
+		console.error(
+			'Usage: pr-stats.ts measure <base-root> <head-root> <base.json> <head.json> [runs] | compare <base.json> <head.json>',
+		);
 		process.exitCode = 1;
 	}
 }

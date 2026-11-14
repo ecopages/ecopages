@@ -2,6 +2,7 @@ import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { getComponentOwner } from '../eco/component-identity.ts';
 import { ensureIntegrationRuntimeReady } from '../build/app-build-manifest-runtime.ts';
 import type { EcoFunctionComponent, EcoPageComponent } from '../types/contracts.ts';
+import { assertViewDeclaredIn } from './page-declaration.ts';
 import type { ExplicitViewRenderer, ExplicitViewRendererResolver } from './route-renderer.ts';
 
 type ExplicitStaticRenderPreparationResult = {
@@ -20,12 +21,15 @@ type ExplicitStaticRenderPreparationResult = {
 export function resolveExplicitViewRenderer(input: {
 	routePath: string;
 	view: EcoPageComponent<any>;
+	/** Source file the view was loaded from and the app root, when known; the view must declare its Page there. */
+	declaredIn?: { file: string; rootDir: string };
 	routeRendererFactory: ExplicitViewRendererResolver;
 	errors: {
 		missingIntegration(routePath: string): string;
 		noRendererForIntegration(integrationName: string): string;
 	};
 }): { renderer: ExplicitViewRenderer; view: EcoFunctionComponent<Record<string, unknown>, any> } {
+	if (input.declaredIn) assertViewDeclaredIn(input.declaredIn.file, input.view, input.declaredIn.rootDir);
 	const integrationName = getComponentOwner(input.view);
 	if (!integrationName) {
 		throw new Error(input.errors.missingIntegration(input.routePath));
@@ -49,6 +53,8 @@ export function resolveExplicitViewRenderer(input: {
 export async function prepareExplicitStaticRender(input: {
 	routePath: string;
 	view: EcoPageComponent<any>;
+	/** Source file the view was loaded from, when known. */
+	viewFile?: string;
 	params: Record<string, string | string[]>;
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
@@ -65,7 +71,10 @@ export async function prepareExplicitStaticRender(input: {
 			integrationName,
 		});
 	}
-	const { renderer, view } = resolveExplicitViewRenderer(input);
+	const { renderer, view } = resolveExplicitViewRenderer({
+		...input,
+		declaredIn: input.viewFile ? { file: input.viewFile, rootDir: input.appConfig.rootDir } : undefined,
+	});
 
 	const props = input.view.props
 		? await input.view.props({

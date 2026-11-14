@@ -314,6 +314,7 @@ export class ServerRequestPipeline {
 	protected getRenderContext(): RenderContext {
 		return createRenderContext({
 			integrations: this.appConfig.integrations,
+			rootDir: this.appConfig.rootDir,
 			ensureIntegrationReady: (integrationName) =>
 				ensureIntegrationRuntimeReady({ appConfig: this.appConfig, integrationName }),
 			importServerModule: (filePath) => this.importServerModule(path.resolve(this.appConfig.rootDir, filePath)),

@@ -333,9 +333,16 @@ export const Button = eco.component({ render: () => '' });`,
 				roots.push(workspace);
 				writeFileSync(
 					path.join(workspace, 'package.json'),
-					JSON.stringify({ name: 'linked-ui', type: 'module', exports: { './util': './util.js', './card': './card.tsx' } }),
+					JSON.stringify({
+						name: 'linked-ui',
+						type: 'module',
+						exports: { './util': './util.js', './card': './card.tsx' },
+					}),
 				);
-				writeFileSync(path.join(workspace, 'util.js'), `import styles from './util.module.css';\nexport const util = styles.kit;`);
+				writeFileSync(
+					path.join(workspace, 'util.js'),
+					`import styles from './util.module.css';\nexport const util = styles.kit;`,
+				);
 				writeFileSync(path.join(workspace, 'util.module.css'), '.kit {}');
 				const cardSource = `import { eco } from '@ecopages/core';\nexport const Card = eco.component({ render: () => '' });`;
 				writeFileSync(path.join(workspace, 'card.tsx'), cardSource);
@@ -350,7 +357,9 @@ export const Button = eco.component({ render: () => '' });`,
 
 				expect(isReachedByDiscovery(root, path.join(workspace, 'util.js'))).toBe(true);
 				expect(card).toContain('bindComponentIdentity({');
-				expect(card).toContain(`file: "${path.relative(realpathSync(root), path.join(workspace, 'card.tsx'))}"`);
+				expect(card).toContain(
+					`file: "${path.relative(realpathSync(root), path.join(workspace, 'card.tsx'))}"`,
+				);
 			});
 			it('follows the package module through the modules of its own package', () => {
 				const { root, page } = moduleFixture();

@@ -33,6 +33,7 @@ import { isEcopagesEnvEnabled } from '../../env.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { isServerOnlyModuleSpecifier } from '../../utils/file-roles.ts';
+import { createSsrScriptEntriesPlugin } from './ssr-script-entries-plugin.ts';
 import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createStylesheetModulePlugin } from './stylesheet-module-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -548,6 +549,7 @@ async function buildRolldownInputPlugins(
 		),
 		...appPlugins,
 		...(options.environment === 'browser' && options.workerEntries !== false ? [createWorkerEntriesPlugin()] : []),
+		...(options.ssrScriptEntries === true ? [createSsrScriptEntriesPlugin()] : []),
 	];
 }
 

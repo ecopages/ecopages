@@ -173,6 +173,10 @@ export interface BuildOptions {
 	 * The dev transform server sets `false`: it compiles one module at a time and points the URL at its own module URL.
 	 */
 	workerEntries?: boolean;
+	/**
+	 * Builds each `ssr: true` script a declaration lists as an entry of the same build. Server builds only; defaults to `false`.
+	 */
+	ssrScriptEntries?: boolean;
 }
 
 /**

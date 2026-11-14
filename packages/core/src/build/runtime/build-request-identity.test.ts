@@ -89,6 +89,7 @@ test('createBuildRequestIdentity distinguishes every BuildOptions field', () => 
 		external: [['react'], ['react-dom']],
 		jsx: [{ importSource: 'react' }, { importSource: 'preact' }],
 		workerEntries: [true, false],
+		ssrScriptEntries: [true, false],
 		stylesheets: [
 			{ extensions: ['.css'], compileModule: async () => '' },
 			{ extensions: ['.css', '.scss'], compileModule: async () => '' },

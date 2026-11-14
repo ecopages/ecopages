@@ -1,10 +1,8 @@
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
-import { getComponentIdentity } from '../../eco/component-identity.ts';
-import { isEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
-import type { EcoComponent, ErrorPageLoaders, StaticRoute, ViewLoader } from '../../types/contracts.ts';
+import type { ErrorPageLoaders, StaticRoute, ViewLoader } from '../../types/contracts.ts';
 import { getImportedViewPaths } from '../server/imported-view-plugin.ts';
 import { collectPageLayoutImports } from '../../plugins/component-import-discovery.ts';
 
@@ -90,52 +88,4 @@ export function collectServerModuleEntries(options: {
 	}
 
 	return [...entries];
-}
-
-function addSsrScripts(component: EcoComponent, rootDir: string, scripts: Set<string>): void {
-	const identity = getComponentIdentity(component);
-	const ownerDir = identity?.file ? path.dirname(path.resolve(rootDir, identity.file)) : undefined;
-	if (!ownerDir) {
-		return;
-	}
-	for (const script of component.config?.dependencies?.scripts ?? []) {
-		if (typeof script === 'object' && script.ssr && script.src) {
-			scripts.add(path.resolve(ownerDir, script.src));
-		}
-	}
-}
-
-function collectSsrScriptsFromComponent(
-	component: unknown,
-	rootDir: string,
-	seen: Set<unknown>,
-	scripts: Set<string>,
-): void {
-	if (!component || seen.has(component) || !isEcoDeclaredComponent(component)) {
-		return;
-	}
-	seen.add(component);
-	const ecoComponent = component as EcoComponent;
-	addSsrScripts(ecoComponent, rootDir, scripts);
-	for (const related of ecoComponent.config?.layouts ?? []) {
-		collectSsrScriptsFromComponent(related, rootDir, seen, scripts);
-	}
-	for (const related of ecoComponent.config?.dependencies?.components ?? []) {
-		collectSsrScriptsFromComponent(related, rootDir, seen, scripts);
-	}
-}
-
-/**
- * Walks compiled Page, Layout, and view modules for `ssr: true` script paths.
- */
-export function collectSsrScriptPaths(modules: readonly unknown[], rootDir: string): string[] {
-	const scripts = new Set<string>();
-	const seen = new Set<unknown>();
-	for (const module of modules) {
-		if (!module || typeof module !== 'object') {
-			continue;
-		}
-		collectSsrScriptsFromComponent((module as { default?: unknown }).default, rootDir, seen, scripts);
-	}
-	return [...scripts];
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies [[`9731ebb`](https://github.com/ecopages/ecopages/commit/9731ebbd393cf11750e468f059ad06b5cfedf1a3), [`a012ff0`](https://github.com/ecopages/ecopages/commit/a012ff021402c5954e854c3c63551ab28c86d502)]:
+    - @ecopages/dev-toolbar@0.8.0
+    - @ecopages/file-system@0.8.0
+
 ## 0.7.1
 
 ### Patch Changes

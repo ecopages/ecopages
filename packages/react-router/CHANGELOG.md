@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies [[`749990e`](https://github.com/ecopages/ecopages/commit/749990ea8f40fdeedcaaf7719dfa6edf69554a32)]:
+    - @ecopages/react@0.8.0
+    - @ecopages/core@0.8.0
+
 ## 0.7.1
 
 ### Patch Changes

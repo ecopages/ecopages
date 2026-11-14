@@ -12,11 +12,11 @@ A file-based web framework for building HTML-first multi-page applications, with
 ## Language
 
 **Page**:
-A file-based route entry point that renders content for a specific URL path. Pages declare render logic, optional data-fetching, metadata, and a cache strategy.
+The default export of a route file with role `page`, or a view passed to `app.static()`, `ctx.render()` or an error-page helper. An Integration decides what is valid: an `eco.page()` result, an HTML Page or an MDX module; a route file whose default export is not one fails the build. Pages declare render logic, optional data hooks (`props`, `paths`), metadata, a Layout and a Cache Strategy. A route file declares its Page with a literal `eco.page(...)` call in that file.
 _Avoid_: Route, view
 
 **Layout**:
-A route-level shell that wraps a page's content. Layouts provide structure (headers, navigation, footers) that persists across page navigations. A Layout is a plain function typed with `LayoutProps`, or an `eco.layout()` result when it needs a wrapper, and it must render its `children`.
+A shell that wraps a page's content, providing structure (headers, navigation, footers) that persists across page navigations. A Layout is only what a Page passes as `eco.page({ layout })` (one, or an outer-to-inner array): a plain function typed with `LayoutProps`, or an `eco.layout()` result when it needs a wrapper. It must render its `children`. No folder or file name makes a module a Layout.
 _Avoid_: Template, wrapper
 
 **Component**:
@@ -76,7 +76,7 @@ The part of a file name that declares what the file is before the build reads it
 _Avoid_: File marker, naming convention
 
 **Private File**:
-A file or folder under the pages directory whose name starts with `_` (`_card.tsx`, `_parts/`). It is never a Filesystem Route, so it can sit next to the Pages that use it.
+A file or folder under the pages directory whose name starts with `_` (`_card.tsx`, `_layout.tsx`, `_parts/`). It is never a Filesystem Route, so it can sit next to the Pages that use it.
 _Avoid_: Hidden file, ignored file
 
 **Browser Script**:
@@ -157,7 +157,7 @@ _Avoid_: URL list, crawl map
 ## Relationships
 
 - A **Page** is composed from a **Component** tree, optionally wrapped by a **Layout**, all rendered within an **Html** shell
-- Each **Page** declares one optional **Layout**; an **HTML Page** declares none
+- Each **Page** declares its **Layouts** by reference (none, one, or an outer-to-inner stack); an **HTML Page** declares none
 - An **HTML Page** needs no **Integration** in app config: core appends a built-in **Integration** for `.html` unless a user **Integration** claims the extension. Its **Html** shell is the app's one `html` template (`src/includes/html.html` or another Integration's `html.*`), or a built-in shell when there is none
 - Pages are discovered as **Filesystem Routes** or registered as page-owned **Explicit Routes**
 - **Explicit Routes** may also register non-page handlers such as `app.get()` handlers

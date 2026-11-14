@@ -174,6 +174,7 @@ describe('RouteModuleBuildCache', () => {
 			jsx: [{ importSource: 'react' }, { importSource: 'preact' }],
 			workerEntries: [true, false],
 			ssrScriptEntries: [true, false],
+			packageChunks: [{ minSize: 1 }, { minSize: 2 }],
 			stylesheets: [
 				{ extensions: ['.css'], compileModule: async () => '' },
 				{ extensions: ['.css', '.scss'], compileModule: async () => '' },

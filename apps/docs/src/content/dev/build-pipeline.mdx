@@ -11,6 +11,7 @@ sources:
   - packages/core/src/build/production-build-id.ts
   - packages/core/src/build/production-route-list.ts
   - packages/core/src/build/rolldown/stylesheet-module-plugin.ts
+  - packages/core/src/build/rolldown/rolldown-adapter-helpers.ts
   - packages/core/src/build/rolldown/ssr-script-entries-plugin.ts
   - packages/core/src/adapters/shared/runtime/unattached-scripts.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts
@@ -161,6 +162,8 @@ flowchart LR
 ```
 
 `buildAppBrowserClient()` turns every plan, each Integration's global scripts and the HTML Page module scripts into entries of one Rolldown browser build with code splitting. Integration `setup()` resolves no global script, and neither does activation: a production export runs on an app runtime created with `globalScriptResolution: 'browser-build'`, which finalization picks when the process runs `ecopages build` or `ecopages preview` without `--serve-only` (a test that builds in process passes it to `finalizeEcoPagesConfig()` or `loadEcoPagesConfig()`). Static generation and `emitProductionServerModules()` fail before they activate anything on any other runtime. Static generation calls `resolveIntegrationDependencies()` once, after this build, so each global script resolves to its output instead of being bundled on its own into `dist/client`; when the build plans no route, or the run prebuilds no browser graph, the same call bundles them on their own. Why: a module that several Pages reach, across Integrations, becomes one chunk and is evaluated once. Framework packages such as React and its router are bundled like any other import; [Dev server](/dev/dev-server) covers the development vendor graph.
+
+The app-wide build sets `BuildOptions.packageChunks` (`minSize` 10 KiB of source), which gives every installed package at least that size one chunk of its own, `vendor-<package>-[hash].js`, through a Rolldown code-splitting group named after the package that owns each module (the last `node_modules` segment of its path). The rule is the same for React, Lit, the router and app dependencies, and it names no package. A package chunk holds that package's modules and the modules they depend on that no other group takes (React DOM carries Scheduler this way), so its name and bytes depend on that package and its own dependencies alone: editing app code, adding a Page or changing another dependency leaves it cached across deploys, and a page loads only the vendor chunks of the packages it imports. Smaller packages stay in the chunks Rolldown shares them in. Why 10 KiB: below it a request costs more than the cache it buys, and React itself falls under 30 KiB.
 
 Only `define`, `minify`, `treeshaking` and plugin exclusions split entries into separate builds. Why: those options apply to a whole build. Plugins and external modules do not split it, because a module has one URL and therefore one compiled form; the build runs every plugin any entry declares, once each. [Plugin pipeline](/dev/plugin-pipeline) covers how those plugins reach Rolldown.
 

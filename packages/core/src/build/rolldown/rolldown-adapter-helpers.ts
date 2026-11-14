@@ -691,6 +691,24 @@ function sanitizePreservedModuleName(name: string): string {
 	return name.replace(/^(?:\.\.?\/)+/u, '').replaceAll(/[\0?*:]/gu, '_');
 }
 
+/**
+ * Names the chunk of the installed package a module belongs to, or nothing for app code.
+ *
+ * @remarks
+ * The package is the one at the last `node_modules` segment, so a pnpm store path and a nested install both resolve to
+ * the package that owns the module.
+ */
+export function getInstalledPackageChunkName(moduleId: string): string | null {
+	const marker = 'node_modules/';
+	const normalized = moduleId.replaceAll('\\', '/');
+	const index = normalized.lastIndexOf(marker);
+	if (index === -1) return null;
+	const [first, second] = normalized.slice(index + marker.length).split('/');
+	if (!first) return null;
+	const packageName = first.startsWith('@') && second ? `${first.slice(1)}-${second}` : first;
+	return `vendor-${packageName}`;
+}
+
 function buildRolldownOutputOptions(options: BuildOptions, outdir: string): OutputOptions {
 	const entryFileNames = resolveRolldownEntryFileNames(options);
 	return {
@@ -711,6 +729,18 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 			: {}),
 		sourcemap: mapRolldownSourcemap(options.sourcemap),
 		...(shouldDisableRolldownCodeSplitting(options) ? { codeSplitting: false } : {}),
+		...(options.packageChunks && options.splitting !== false
+			? {
+					codeSplitting: {
+						groups: [
+							{
+								name: getInstalledPackageChunkName,
+								minSize: options.packageChunks.minSize,
+							},
+						],
+					},
+				}
+			: {}),
 	};
 }
 

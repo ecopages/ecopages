@@ -10,6 +10,10 @@ sources:
   - packages/core/src/adapters/
   - packages/file-system/src/path.ts
   - packages/core/src/build/rolldown/rolldown-module-id.ts
+  - packages/core/src/build/build-graph.ts
+  - packages/core/src/plugins/eco-component-meta-plugin.ts
+  - packages/core/src/plugins/component-import-discovery.ts
+  - packages/core/src/plugins/tsconfig-import-resolver.ts
   - scripts/check-portability.ts
   - scripts/core-layering-allowlist.json
 ---
@@ -41,6 +45,8 @@ flowchart TD
 - **Build** does all compiling once and records what it processed. See [Build pipeline](/dev/build-pipeline).
 - **Start** restores those records and compiles nothing. See [Ledger and start](/dev/ledger-and-start).
 
+The `ecopages` command only plans a launch and spawns the app process for each of them; see [CLI](/dev/cli). Build performance is measured by the kitchen-sink benches and the pull request stats comment; see [Benchmarks and CI](/dev/benchmarks-and-ci).
+
 Every path renders a Page the same way: route preparation collects its assets into a Page Package before the first Component renders; see [From graph to HTML](/dev/graph-to-html). How a config becomes the per-app state all three share is in [App runtime](/dev/app-runtime).
 
 ## Packages
@@ -48,7 +54,7 @@ Every path renders a Page the same way: route preparation collects its assets in
 | Package | What it is for |
 | --- | --- |
 | `packages/core` | The framework: config, routing, rendering, asset processing, build, dev server and HMR. Every other package plugs into it. |
-| `packages/ecopages` | The CLI: `dev`, `build`, `start`, `preview` and project templates. |
+| `packages/ecopages` | The CLI: `dev`, `build`, `start`, `preview` and project templates. [CLI](/dev/cli) |
 | `packages/file-system` | The file system access and the path operations every package goes through. See [Paths](#paths). |
 | `packages/browser-router` | Client navigation for server-rendered documents. [Browser router](/dev/browser-router) |
 | `packages/react-router` | Client navigation for React pages. [React router](/dev/react-router) |
@@ -103,5 +109,24 @@ A native path is converted once, where it enters Ecopages:
 | Rolldown module ids in hooks and build output | `fromRolldownModuleId` |
 
 On the way out, `import()` of a file takes `path.toFileUrl(file).href`. A path a resolve hook hands back to Rolldown goes through `toRolldownModuleId`, which returns the native form on Windows: Rolldown keys modules by id, and its own resolver produces native paths, so a forward-slash id for the same file would become a second module. `path.toNative` is for any other consumer that needs backslashes.
+
+### Real paths
+
+Forward slashes are one contract; real paths are another. Rolldown module ids and the resolvers' results are real paths: symbolic links already followed, so one file has one spelling, the way Rolldown keys modules. The oxc resolvers behind `resolvePackageModulePath` and `resolveProjectModulePath` follow links themselves, and a hook receives the id Rolldown resolved. Code that handles such a path compares it as it arrives and canonicalises a path only where it enters from elsewhere, once:
+
+```mermaid
+flowchart TD
+  RES["oxc resolvers: resolvePackageModulePath, resolveProjectModulePath"] --> ID["Real, forward-slash path"]
+  RD["Rolldown module id in a hook, via fromRolldownModuleId"] --> ID
+  ID --> USE["Compared as is: component identity attribution, import discovery, React boundary"]
+  APP["App root, once per build"] --> RP1["realpath in eco-component-meta-plugin"]
+  ENT["Requested build entries, once per build"] --> RP2["resolveRequestedBuildEntries"]
+  EXT["A path from elsewhere: Project Watcher event, config path"] --> RP3["realpath where it enters"]
+  RP1 --> USE
+  RP2 --> OUT["recordBuildEntryOutput matches chunk facades against them"]
+  RP3 --> USE
+```
+
+The sites that used to resolve a real path on every call (`eco-component-meta-plugin`, `component-import-discovery`, `tsconfig-import-resolver`, `build-graph`) now take the real path as given or canonicalise once per build. A path that skips the contract, such as a native backslash id compared to a forward-slash one, or a symlinked spelling beside its real one, makes one file two modules or two cache keys.
 
 A test that needs Windows behaviour on any host mocks `@ecopages/file-system/path` with `createPath('win32')`, as `route-registry.windows-paths.test.ts` does.

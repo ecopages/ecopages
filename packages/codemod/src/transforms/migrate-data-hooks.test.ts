@@ -109,6 +109,56 @@ describe('migrate-data-hooks', () => {
 			expect(report).not.toHaveBeenCalled();
 		});
 
+		it.each([
+			[
+				'a renamed nested params',
+				'async ({ pathname: { params: p } }) => ({ props: { slug: p.slug } })',
+				'({ params: p })',
+			],
+			[
+				'a destructured nested slug',
+				'async ({ pathname: { params: { slug } } }) => ({ props: { slug } })',
+				'({ params: { slug } })',
+			],
+			[
+				'a rest sibling',
+				'async ({ pathname: { params }, ...rest }) => ({ props: { slug: params.slug, rest } })',
+				'({ params, ...rest })',
+			],
+			[
+				'a plain context read',
+				'async (ctx) => ({ props: { slug: ctx.pathname.params.slug, o: ctx.runtimeOrigin } })',
+				'ctx.params.slug',
+			],
+		])('rewrites %s', async (_name, hook, expected) => {
+			const report = vi.fn();
+			const output = await runTransform(wrap(hook), report);
+			expect(output).toContain(expected);
+			expect(output).not.toContain('pathname');
+			expect(report).not.toHaveBeenCalled();
+		});
+
+		it('rewrites an object method hook', async () => {
+			const report = vi.fn();
+			const output = await runTransform(
+				"import { eco } from '@ecopages/core';\nexport default eco.page({ staticProps({ pathname }) { return { props: { slug: pathname.params.slug } }; }, render: () => null });\n",
+				report,
+			);
+			expect(output).toContain('props({ params })');
+			expect(output).not.toContain('pathname');
+			expect(report).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			['a context passed on', 'async (ctx) => ({ props: await load(ctx) })'],
+			['a context spread', 'async (ctx) => ({ props: { ...ctx } })'],
+		])('renames the hook and reports it for %s', async (_name, hook) => {
+			const report = vi.fn();
+			const output = await runTransform(wrap(hook), report);
+			expect(output).toContain('props:');
+			expect(report).toHaveBeenCalledWith(expect.stringContaining('reads pathname'));
+		});
+
 		it('renames the StaticPath type imported from an Ecopages package', async () => {
 			const output = await runTransform(
 				"import type { StaticPath } from '@ecopages/core';\nexport const paths: StaticPath[] = [];\n",
@@ -131,6 +181,20 @@ describe('migrate-data-hooks', () => {
 				'a params binding that already exists',
 				'async ({ pathname }) => { const params = 1; return { props: { slug: pathname.params.slug, params } }; }',
 			],
+			[
+				'a context destructured in the body',
+				'async (ctx) => { const { pathname } = ctx; return { props: { slug: pathname.params.slug } }; }',
+			],
+			[
+				'a nested function that rebinds the context name',
+				'async (ctx) => ({ props: { slug: [1].map((ctx) => ctx.pathname.params)[0] } })',
+			],
+			['a defaulted context identifier', 'async (ctx = {}) => ({ props: { slug: ctx.pathname.params.slug } })'],
+			[
+				'a defaulted destructure',
+				'async ({ pathname: { params } } = defaults) => ({ props: { slug: params.slug } })',
+			],
+			['a string-literal key', "async ({ 'pathname': path }) => ({ props: { slug: path.other } })"],
 			[
 				'a typed pathname',
 				'async ({ pathname }: { pathname: { params: Record<string, string> } }) => ({ props: { slug: pathname.params.slug } })',

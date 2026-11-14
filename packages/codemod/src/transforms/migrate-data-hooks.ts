@@ -284,18 +284,37 @@ function isMemberNamed(node: unknown, name: string): boolean {
 	);
 }
 
-/** Rewrites `ctx.pathname.params` reads to `ctx.params` when `ctx` is read no other way. */
+/** Whether a nested function or declaration in the body binds `name` again, so reads of it are not the parameter's. */
+function rebindsName(j: JSCodeshift, fn: FunctionNode, name: string): boolean {
+	const body = j(fn.body as ASTNode);
+	const inFunctions = body
+		.find(j.Function)
+		.some((path) => (path.node.params as unknown[]).some((param) => hasIdentifier(j, param, name)));
+	const inDeclarations = body.find(j.VariableDeclarator).some((path) => hasIdentifier(j, path.node.id, name));
+	return inFunctions || inDeclarations;
+}
+
+const CONTEXT_FIELDS = new Set(['pathname', 'appConfig', 'runtimeOrigin']);
+
+/**
+ * Rewrites `ctx.pathname.params` reads to `ctx.params`, only when `ctx` is read as nothing but a plain member
+ * of the context (`pathname`, `appConfig` or `runtimeOrigin`), with `ctx.pathname` always followed by `.params`.
+ */
 function rewriteContextIdentifier(j: JSCodeshift, fn: FunctionNode, local: string): PathnameRewrite {
+	if (rebindsName(j, fn, local)) return 'unsafe';
 	const accesses: ASTPath[] = [];
-	let found = false;
 	let safe = true;
 	j(fn.body as ASTNode)
 		.find(j.Identifier, { name: local })
 		.forEach((path) => {
 			if (!isBindingReference(path)) return;
 			const parent = path.parent.node as Record<string, unknown>;
-			if (parent.object !== path.node || !isMemberNamed(parent, 'pathname')) return;
-			found = true;
+			const field = isNode(parent.property) ? (parent.property.name as string) : '';
+			if (parent.object !== path.node || parent.computed || !CONTEXT_FIELDS.has(field)) {
+				safe = false;
+				return;
+			}
+			if (field !== 'pathname') return;
 			const grand = path.parent.parent.node as Record<string, unknown>;
 			if (grand.object === parent && isMemberNamed(grand, 'params')) {
 				accesses.push(path.parent.parent);
@@ -303,8 +322,8 @@ function rewriteContextIdentifier(j: JSCodeshift, fn: FunctionNode, local: strin
 			}
 			safe = false;
 		});
-	if (!found) return 'unchanged';
 	if (!safe) return 'unsafe';
+	if (accesses.length === 0) return 'unchanged';
 	for (const access of accesses) {
 		j(access).replaceWith(j.memberExpression(j.identifier(local), j.identifier('params')));
 	}
@@ -333,6 +352,24 @@ function flattenPathnameReads(j: JSCodeshift, fn: FunctionNode, local: string): 
 	return true;
 }
 
+/** Replaces `pathname: local` with `params` when every read of `local` is `local.params`. */
+function rewriteBoundPathname(
+	j: JSCodeshift,
+	fn: FunctionNode,
+	properties: PatternProperty[],
+	index: number,
+	paramsTaken: boolean,
+): PathnameRewrite {
+	const local = (properties[index].value as { name: string }).name;
+	if (paramsTaken || usesParamsBinding(j, fn) || rebindsName(j, fn, local) || !flattenPathnameReads(j, fn, local)) {
+		return 'unsafe';
+	}
+	const replacement = j.objectProperty(j.identifier('params'), j.identifier('params'));
+	replacement.shorthand = true;
+	properties[index] = replacement as never;
+	return 'rewritten';
+}
+
 /** Rewrites the `pathname` entry of a destructured context parameter, at `index` of `properties`. */
 function rewriteContextPattern(
 	j: JSCodeshift,
@@ -354,12 +391,7 @@ function rewriteContextPattern(
 	}
 
 	if (isNode(value) && value.type === 'Identifier') {
-		const local = value.name as string;
-		if (paramsTaken || usesParamsBinding(j, fn) || !flattenPathnameReads(j, fn, local)) return 'unsafe';
-		const replacement = j.objectProperty(j.identifier('params'), j.identifier('params'));
-		replacement.shorthand = true;
-		properties[index] = replacement as never;
-		return 'rewritten';
+		return rewriteBoundPathname(j, fn, properties, index, paramsTaken);
 	}
 	return 'unsafe';
 }
@@ -374,6 +406,12 @@ function rewritePathnameContext(j: JSCodeshift, fn: FunctionNode): PathnameRewri
 	const [first] = fn.params ?? [];
 	if (!isNode(first)) return 'unchanged';
 	if (hasPathnameTypeMember(first.typeAnnotation)) return 'unsafe';
+	if (first.type === 'AssignmentPattern') {
+		const left = first.left;
+		return isNode(left) && (left.type === 'Identifier' || hasIdentifier(j, left, 'pathname'))
+			? 'unsafe'
+			: 'unchanged';
+	}
 	if (first.type === 'Identifier') return rewriteContextIdentifier(j, fn, first.name as string);
 	if (first.type !== 'ObjectPattern') return 'unchanged';
 
@@ -383,7 +421,7 @@ function rewritePathnameContext(j: JSCodeshift, fn: FunctionNode): PathnameRewri
 			property.type === 'ObjectProperty' &&
 			!property.computed &&
 			isNode(property.key) &&
-			property.key.name === 'pathname',
+			(property.key.name === 'pathname' || property.key.value === 'pathname'),
 	);
 	return index === -1 ? 'unchanged' : rewriteContextPattern(j, fn, properties, index);
 }

@@ -15,7 +15,7 @@ import { builtinModules, createRequire } from 'node:module';
 import { path, type PathApi } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { stripVTControlCharacters } from 'node:util';
-import { recordBuildEntryOutput, resolveBuildEntryPath } from '../build-graph.ts';
+import { recordBuildEntryOutput, resolveBuildEntryPath, resolveRequestedBuildEntries } from '../build-graph.ts';
 import type {
 	BundleError,
 	InputOptions,
@@ -782,6 +782,7 @@ export function buildResultFromRolldownOutput(
 	);
 
 	const entryOutputs: Record<string, string> = {};
+	const requestedEntries = resolveRequestedBuildEntries(entrypoints, contextRoot);
 	for (const chunk of chunks) {
 		if (!chunk.isEntry || !chunk.facadeModuleId) {
 			continue;
@@ -789,8 +790,7 @@ export function buildResultFromRolldownOutput(
 		recordBuildEntryOutput(entryOutputs, normalizeOutputPath(chunk.fileName, outdir), {
 			facadeModuleId: resolveBuildEntryPath(chunk.facadeModuleId, contextRoot),
 			chunkName: chunk.name,
-			entrypoints,
-			root: contextRoot,
+			requestedEntries,
 		});
 	}
 

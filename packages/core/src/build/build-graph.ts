@@ -17,27 +17,39 @@ export function resolveBuildEntryPath(entry: string, root: string): string {
 	return path.resolve(root, entry);
 }
 
-function requestedBuildEntries(
+/**
+ * One requested build entry with its symlink-resolved paths.
+ */
+export type RequestedBuildEntry = {
+	name: string;
+	entry: string;
+	resolved: string;
+	entryReal: string | undefined;
+	resolvedReal: string | undefined;
+};
+
+/**
+ * Resolves every requested entry and its real paths once, for repeated {@link recordBuildEntryOutput} calls.
+ *
+ * @remarks
+ * Real-path lookups touch the filesystem, so recording one build's chunks against freshly resolved entries
+ * would repeat them for every chunk and entry.
+ */
+export function resolveRequestedBuildEntries(
 	entrypoints: BuildOptions['entrypoints'],
 	root: string,
-): Array<{ name: string; entry: string; resolved: string }> {
+): RequestedBuildEntry[] {
 	const pairs = Array.isArray(entrypoints)
 		? entrypoints.map((entry) => [entry, entry] as const)
 		: Object.entries(entrypoints);
-	return pairs.map(([name, entry]) => ({
-		name,
-		entry,
-		resolved: resolveBuildEntryPath(entry, root),
-	}));
+	return pairs.map(([name, entry]) => {
+		const resolved = resolveBuildEntryPath(entry, root);
+		return { name, entry, resolved, entryReal: tryRealpath(entry), resolvedReal: tryRealpath(resolved) };
+	});
 }
 
-function isSameBuildEntry(left: string, right: string): boolean {
-	if (left === right) {
-		return true;
-	}
-	const leftReal = tryRealpath(left);
-	const rightReal = tryRealpath(right);
-	return Boolean(leftReal && rightReal && leftReal === rightReal);
+function isSameBuildEntry(left: string, leftReal: string | undefined, right: string, rightReal: string | undefined) {
+	return left === right || Boolean(leftReal && rightReal && leftReal === rightReal);
 }
 
 /**
@@ -54,8 +66,7 @@ export function recordBuildEntryOutput(
 	options: {
 		facadeModuleId: string;
 		chunkName?: string;
-		entrypoints: BuildOptions['entrypoints'];
-		root: string;
+		requestedEntries: RequestedBuildEntry[];
 	},
 ): void {
 	const facadeModuleId = path.fromNative(options.facadeModuleId);
@@ -64,9 +75,10 @@ export function recordBuildEntryOutput(
 	if (facadeReal) {
 		keys.add(facadeReal);
 	}
-	for (const requested of requestedBuildEntries(options.entrypoints, options.root)) {
+	for (const requested of options.requestedEntries) {
 		const matchesFacade =
-			isSameBuildEntry(facadeModuleId, requested.resolved) || isSameBuildEntry(facadeModuleId, requested.entry);
+			isSameBuildEntry(facadeModuleId, facadeReal, requested.resolved, requested.resolvedReal) ||
+			isSameBuildEntry(facadeModuleId, facadeReal, requested.entry, requested.entryReal);
 		const matchesName = options.chunkName !== undefined && options.chunkName === requested.name;
 		if (!matchesFacade && !matchesName) {
 			continue;
@@ -74,9 +86,8 @@ export function recordBuildEntryOutput(
 		keys.add(requested.entry);
 		keys.add(requested.resolved);
 		keys.add(requested.name);
-		const requestedReal = tryRealpath(requested.resolved);
-		if (requestedReal) {
-			keys.add(requestedReal);
+		if (requested.resolvedReal) {
+			keys.add(requested.resolvedReal);
 		}
 	}
 	for (const key of keys) {

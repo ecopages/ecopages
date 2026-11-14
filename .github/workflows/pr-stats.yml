@@ -1,0 +1,75 @@
+name: PR stats
+
+on:
+    pull_request:
+        branches:
+            - next
+            - main
+
+concurrency:
+    group: pr-stats-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    stats:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            pull-requests: write
+        steps:
+            - name: Checkout head
+              uses: actions/checkout@v6
+              with:
+                  path: head
+
+            - name: Checkout base
+              uses: actions/checkout@v6
+              with:
+                  ref: ${{ github.event.pull_request.base.sha }}
+                  path: base
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v6
+              with:
+                  package_json_file: head/package.json
+
+            - name: Setup Node
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '24.22'
+                  cache: pnpm
+                  cache-dependency-path: head/pnpm-lock.yaml
+
+            - name: Install head
+              working-directory: head
+              run: pnpm install --frozen-lockfile
+
+            - name: Install base
+              working-directory: base
+              run: pnpm install --frozen-lockfile
+
+            - name: Measure head
+              run: node head/scripts/pr-stats.ts measure head "$RUNNER_TEMP/head.json"
+
+            - name: Measure base
+              run: node head/scripts/pr-stats.ts measure base "$RUNNER_TEMP/base.json"
+
+            - name: Render comparison
+              run: node head/scripts/pr-stats.ts compare "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json" > "$RUNNER_TEMP/comment.md"
+
+            - name: Write job summary
+              run: cat "$RUNNER_TEMP/comment.md" >> "$GITHUB_STEP_SUMMARY"
+
+            - name: Post sticky comment
+              if: github.event.pull_request.head.repo.full_name == github.repository
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+              run: |
+                  comment_id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+                    --jq '[.[] | select(.body | contains("<!-- ecopages-pr-stats -->"))][0].id // empty')
+                  if [ -n "$comment_id" ]; then
+                    gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" -F body=@"$RUNNER_TEMP/comment.md"
+                  else
+                    gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/comment.md"
+                  fi

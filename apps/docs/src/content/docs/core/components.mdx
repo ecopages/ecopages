@@ -64,7 +64,7 @@ export default eco.page({
 
 ## Browser scripts
 
-Name a browser script `<name>.script.ts` (or `.tsx`, `.js`, `.jsx`). The suffix declares a browser module and keeps the file out of routing, so it can sit beside the component or in `src/pages`. It attaches nothing by itself: a script reaches a page only when `dependencies.scripts` lists it. See [Files that are not routes](/docs/core/routing#files-that-are-not-routes).
+Name a browser script `<name>.script.ts` (or `.tsx`, `.js`, `.jsx`). The suffix declares a browser module and keeps the file out of routing, so it can sit beside the component or in `src/pages`. It attaches nothing by itself: a script reaches a page only when `dependencies.scripts` lists it, or an HTML Page loads it with `<script src>`. `ecopages build` warns about each `.script` file under `src` that no literal `dependencies.scripts` entry, HTML `<script src>` or attached script's import reaches, which is usually a typo in the path. A `src` computed at runtime, or a declaration in an MDX file, is not read, so its script is reported too. See [Files that are not routes](/docs/core/routing#files-that-are-not-routes).
 
 ## Lazy browser scripts
 

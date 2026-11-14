@@ -47,6 +47,10 @@ fixture. All benches read from the real `src/` tree and use
 # Run the bench (gated by ECOPAGES_BENCH=1; runs from kitchen-sink package root)
 pnpm test:bench
 
+# Run one environment only
+ECOPAGES_BENCH=1 pnpm --filter @ecopages/kitchen-sink exec tsx bench/run.mts --env development
+ECOPAGES_BENCH=1 pnpm --filter @ecopages/kitchen-sink exec tsx bench/run.mts --env production
+
 # Diff against the committed baseline
 pnpm test:bench:compare
 
@@ -60,6 +64,17 @@ pnpm test:bench:startup:compare
 pnpm test:bench:hmr
 ```
 
+Each bench group runs under the `NODE_ENV` it measures, one process per environment:
+
+| Environment   | Groups                                                         | Measures            |
+| ------------- | -------------------------------------------------------------- | ------------------- |
+| `development` | `hmr-bench`, `integration-bench`, `heavy-bench`, `memory-snap` | dev-server rebuilds |
+| `production`  | `build-bench`, `static-build-bench`, `build-speed-bench`       | `ecopages build`    |
+
+`pnpm test:bench` runs the development process, then the production process, and merges their reports. They never share a process: `react` picks its development or production build from `NODE_ENV` on first import, so switching it mid-run would mix the two and break React renders. Scenario names must be unique across environments.
+
+The cold `buildStatic` scenarios create a fresh config, and so a fresh app runtime, for every iteration, as `ecopages build` does in a new process. The route-module compile and import scenarios use their own `dist/__bench-route-modules__` dirs, cleared once per process: under `NODE_ENV=production` the module loader imports from the server-module map a finished build leaves behind, so sharing dirs with `buildStatic` would time a cached import instead of a compile.
+
 Without the gate, `run.mts` exits immediately. The bench never runs in default CI, but `pnpm run typecheck` type-checks the bench sources through `bench/tsconfig.json`, so they keep up with core API changes.
 
 By default, mitata prints its console report (boxplots/tables) and `run.mts` adds a compact
@@ -71,11 +86,12 @@ workers or plugin handles cannot keep the terminal command alive.
 
 ## Output
 
-| File                          | Purpose                                                                                                                                                           |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `results/mitata-bench.json`   | Raw mitata report from the latest run. Gitignored (regenerate freely).                                                                                            |
-| `results/hmr-e2e-bench.json`  | Node HMR edit-to-DOM samples and median/p95 summaries. Gitignored (regenerate freely).                                                                            |
-| `results/bench-baseline.json` | **Versioned** committed baseline. The source of truth for "where the bundle path was before optimization". Regenerate with `pnpm test:bench:baseline` and commit. |
+| File                              | Purpose                                                                                                                                                           |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `results/mitata-bench.json`       | Raw mitata report from the latest run. Gitignored (regenerate freely).                                                                                            |
+| `results/mitata-bench.<env>.json` | Report of one environment's process (`development`, `production`), merged into `mitata-bench.json`. Gitignored.                                                   |
+| `results/hmr-e2e-bench.json`      | Node HMR edit-to-DOM samples and median/p95 summaries. Gitignored (regenerate freely).                                                                            |
+| `results/bench-baseline.json`     | **Versioned** committed baseline. The source of truth for "where the bundle path was before optimization". Regenerate with `pnpm test:bench:baseline` and commit. |
 
 The consolidated baseline diff (`pnpm test:bench:compare`) reads
 `results/bench-baseline.json` and compares it against the latest
@@ -95,6 +111,41 @@ The consolidated baseline diff (`pnpm test:bench:compare`) reads
 4. Mention the deltas in the PR description
 
 This gives a versioned history of bundle-path perf over time.
+
+## Current baseline (per-environment runs, 2026-11-14)
+
+Measured with `pnpm test:bench` on Node 24.22.0, Apple M4, after the bench moved to one process per `NODE_ENV`. `results/bench-baseline.json` holds every scenario; the sections below it are historical and were measured on other hosts, with the development groups running under `NODE_ENV=production`, so they do not compare one to one.
+
+Development groups (`NODE_ENV=development`):
+
+```
+Scenario                                          | median (ms) | p99 (ms)
+--------------------------------------------------|-------------|---------
+React page rebuild                                 |        5.95 |    10.0
+layout rebuild                                     |        6.38 |    13.1
+concurrent rebuilds (5 parallel)                   |        5.96 |    10.5
+no-op rebuild                                      |        5.87 |    10.2
+watch-session loop (10 sequential saves)           |        75.5 |    89.2
+React / React server-metadata / server-files       | 6.09 / 1.91 / 2.03 |
+KitaJS (page, transitions, postcss, dynamic route) | 5.8 - 7.1   |
+Lit                                                |        9.76 |    14.2
+Ecopages-JSX                                       |        9.87 |    14.3
+heavy React page                                   |        24.5 |    24.9
+```
+
+Production groups (`NODE_ENV=production`):
+
+```
+Scenario                                          | median (ms) | p99 (ms)
+--------------------------------------------------|-------------|---------
+production single page (minify + treeshake)        |        5.44 |     9.0
+production all pages (minify + treeshake + split)  |        4.81 |     8.1
+server entry bundle cold (app.ts)                  |        23.2 |    26.9
+route-module rolldown cold (index.kita.tsx)        |        10.1 |    14.3
+route-module warm import (index.kita.tsx)          |       0.038 |   0.040
+StaticSiteGenerator.run cold (unified graph)       |         816 |     859
+buildStatic cold (full app, isolated dist)         |       1,351 |   1,386
+```
 
 ## Baseline (Phase 1, post PR-1.1 + PR-1.2, 2026-06-06)
 
@@ -218,7 +269,7 @@ bench/
 
 ## Files
 
-- `run.mts` — mitata entry point; registers all bench groups, prints console report, writes `mitata-bench.json`.
+- `run.mts` — mitata entry point; runs each environment's bench groups in its own process (or one with `--env`), prints the console report, and merges the per-environment reports into `mitata-bench.json`.
 - `lib/mitata-report.ts` — mitata stats → baseline schema, shared quantile helpers.
 - `lib/kitchen-sink-fixture.ts` — builds the kitchen-sink `EcoPagesAppConfig`
   the same way `createApp()` finalizes `eco.config.ts`.

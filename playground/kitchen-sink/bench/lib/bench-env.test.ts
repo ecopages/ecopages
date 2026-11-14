@@ -1,23 +1,21 @@
-import { describe, expect, it, vi } from 'vitest';
-import { restoreBenchEnv, snapshotBenchEnv, withBenchEnv } from './bench-env';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { withBenchEnv } from './bench-env';
 
 describe('bench-env', () => {
-	it('restores bench env flags after withBenchEnv', async () => {
-		const snapshot = snapshotBenchEnv();
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it('applies bench env flags inside withBenchEnv and restores them after', async () => {
 		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', undefined);
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', undefined);
 
-		await withBenchEnv(
-			{ nodeEnv: 'production', unifiedPagesGraph: 'off', rolldownBuildMetrics: true },
-			async () => {
-				expect(process.env.NODE_ENV).toBe('production');
-				expect(process.env.ECOPAGES_UNIFIED_PAGES_GRAPH).toBe('0');
-				expect(process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS).toBe('1');
-			},
-		);
+		await withBenchEnv({ unifiedPagesGraph: 'off', rolldownBuildMetrics: true }, async () => {
+			expect(process.env.ECOPAGES_UNIFIED_PAGES_GRAPH).toBe('0');
+			expect(process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS).toBe('1');
+		});
 
-		restoreBenchEnv(snapshot);
-		expect(process.env.ECOPAGES_UNIFIED_PAGES_GRAPH).toBe(snapshot.unifiedPagesGraph);
-		expect(process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS).toBe(snapshot.rolldownBuildMetrics);
+		expect(process.env.ECOPAGES_UNIFIED_PAGES_GRAPH).toBeUndefined();
+		expect(process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS).toBeUndefined();
 	});
 });

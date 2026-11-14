@@ -10,6 +10,16 @@ import type { stats } from 'mitata';
 export const BENCH_RESULTS_DIR = fileURLToPath(new URL('../results', import.meta.url));
 export const MITATA_BENCH_JSON = path.join(BENCH_RESULTS_DIR, 'mitata-bench.json');
 
+/** The `NODE_ENV` a bench group runs under, one process per environment. */
+export type BenchEnvironment = 'development' | 'production';
+
+export const BENCH_ENVIRONMENTS: readonly BenchEnvironment[] = ['development', 'production'];
+
+/** Report one environment's process writes before `run.mts` merges them into {@link MITATA_BENCH_JSON}. */
+export function mitataBenchJsonFor(environment: BenchEnvironment): string {
+	return path.join(BENCH_RESULTS_DIR, `mitata-bench.${environment}.json`);
+}
+
 export type BenchStats = {
 	count: number;
 	min: number;
@@ -80,17 +90,38 @@ function getRuntimeLabel(): string {
 	return bun ? `bun ${bun.version}` : `node ${process.version}`;
 }
 
-export function writeMitataBenchReport(benchmarks: MitataTrial[]): MitataBenchReport {
-	const report: MitataBenchReport = {
+export function createMitataBenchReport(scenarios: Record<string, BenchStats>): MitataBenchReport {
+	return {
 		generatedAt: new Date().toISOString(),
 		runtime: getRuntimeLabel(),
 		platform: process.platform,
-		scenarios: scenariosFromMitataTrials(benchmarks),
+		scenarios,
 	};
+}
 
-	mkdirSync(BENCH_RESULTS_DIR, { recursive: true });
-	writeFileSync(MITATA_BENCH_JSON, JSON.stringify(report, null, 2), 'utf-8');
-	return report;
+export function writeMitataBenchReport(report: MitataBenchReport, outputPath: string): void {
+	mkdirSync(path.dirname(outputPath), { recursive: true });
+	writeFileSync(outputPath, JSON.stringify(report, null, 2), 'utf-8');
+}
+
+/**
+ * Combines the per-environment reports into one.
+ *
+ * @remarks
+ * Scenario names must be unique across environments, since the baseline is keyed by name alone.
+ */
+export function mergeMitataBenchReports(reports: MitataBenchReport[]): MitataBenchReport {
+	const scenarios: Record<string, BenchStats> = {};
+	for (const report of reports) {
+		for (const [name, stats] of Object.entries(report.scenarios)) {
+			if (name in scenarios) {
+				throw new Error(`Bench scenario "${name}" is registered in more than one environment.`);
+			}
+			scenarios[name] = stats;
+		}
+	}
+
+	return createMitataBenchReport(scenarios);
 }
 
 function truncateLabel(value: string, maxLength: number): string {

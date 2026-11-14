@@ -47,9 +47,9 @@ The page data types are:
 
 | Type | Contract |
 | --- | --- |
-| `GetPaths` | Receives `{ appConfig, runtimeOrigin }` and returns `PagePath[]`. |
+| `GetPaths` | Receives `{ appConfig, runtimeOrigin }` and returns a promise of `PagePath[]`, so write it `async`. |
 | `PagePath` | One page that `paths` lists at build, represented by `{ params: PageParams }`. |
-| `GetProps<T>` | Receives `{ params, appConfig, runtimeOrigin }` and returns `T`. `params` is a `PageParams`: from `paths` at build and from the request at run time. |
+| `GetProps<T>` | Receives `{ params, appConfig, runtimeOrigin }` and returns a promise of `T`, so write it `async`. `params` is a `PageParams`: from `paths` at build and from the request at run time. |
 | `GetMetadata<T>` | Receives page props, route context, and the resolved app config; returns `PageMetadataProps`. |
 | `PagePropsFor<T>` | Adds optional `params` and `query` to the page's declared props. If `T` is a `GetProps` function, it extracts that function's result props. |
 | `EcoPageComponent<T>` | The component returned by `eco.page()`, including its page data, cache, middleware, and dependency options. |

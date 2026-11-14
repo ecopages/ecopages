@@ -29,8 +29,6 @@ function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext 
 		getRegisteredEntrypoints: () => new Map(),
 		getEntrypointDependencyGraph: () => createDependencyGraph(),
 		getSrcDir: () => srcDir,
-		getPagesDir: () => path.join(srcDir, 'pages'),
-		getLayoutsDir: () => path.join(srcDir, 'layouts'),
 		getTemplateExtensions: () => ['.kita.tsx', '.react.tsx'],
 		isStylesheet: (filePath) => filePath.endsWith('.css'),
 		...overrides,
@@ -194,7 +192,6 @@ describe('JsHmrStrategy', () => {
 			const pagesDir = path.join(srcDir, 'pages');
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(srcDir, 'entry.ts'), devTransformUrl('entry.js')]]),
-				getPagesDir: () => pagesDir,
 				getTemplateExtensions: () => ['.kita.tsx', '.react.tsx'],
 			});
 			const strategy = new JsHmrStrategy(context);

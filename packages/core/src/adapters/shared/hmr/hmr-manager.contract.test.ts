@@ -54,6 +54,21 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		assert.equal(secondUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-lab.js`);
 	});
 
+	test('knows a Layout only from the layouts Pages referenced, wherever its file lives', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-layout-identity');
+		const shell = writeSourceFile(rootDir, 'src/shells/app-shell.tsx', PAGE_SOURCE);
+		const helper = writeSourceFile(rootDir, 'src/layouts/utils.tsx', PAGE_SOURCE);
+		const config = await finalizeEcoPagesConfig({ rootDir });
+		const { manager } = await create(config);
+		requireAppRuntime(config).layoutFiles.add(path.resolve(shell));
+
+		const context = manager.getDefaultContext();
+
+		assert.equal(context.isLayoutFile(shell), true);
+		assert.equal(context.isLayoutFile(helper), false);
+		assert.equal(context.isPageFile(shell), false);
+	});
+
 	test('registers unowned page entrypoints with dev transform URLs', async () => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-transform-url');
 		const entrypointPath = writeSourceFile(rootDir, 'src/pages/react-content.mdx', '# Hello');

@@ -712,8 +712,6 @@ function createReactRendererHookFactory(
 			getMdxLoaderPlugin: reactConfig?.getMdxLoaderPlugin,
 		});
 		const pageModuleService = new PageModuleService({
-			layoutsDir: appConfig.absolutePaths.layoutsDir,
-			componentsDir: appConfig.absolutePaths.componentsDir,
 			mdxExtensions,
 			integrationName: REACT_PLUGIN_NAME,
 			hasRouterAdapter: Boolean(routerAdapter),

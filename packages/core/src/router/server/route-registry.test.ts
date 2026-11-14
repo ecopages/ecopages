@@ -46,6 +46,15 @@ describe('RouteRegistry', () => {
 		]);
 	});
 
+	test('answers whether a file is a Page by its route, not its folder', async () => {
+		const registry = createRegistry();
+		await registry.init();
+		const [page] = registry.templateRoutes;
+
+		expect(registry.isPageFile(page.filePath)).toBe(true);
+		expect(registry.isPageFile(path.join(pagesDir, '..', 'layouts', 'base-layout.tsx'))).toBe(false);
+	});
+
 	test.each([
 		['/products/[id]', '/products/123', { id: '123' }],
 		['/products/[...id]', '/products/123/456/789', { id: ['123', '456', '789'] }],

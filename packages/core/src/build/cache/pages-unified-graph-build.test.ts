@@ -7,10 +7,16 @@ import { copyFixtureApp } from '../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import {
 	emitProductionServerModules,
+	findReEmittedModules,
 	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphPage,
 	shouldBuildPagesUnifiedGraph,
 } from './pages-unified-graph-build.ts';
+import type { BuildChunk } from '../contracts/build-contracts.ts';
+
+function chunk(...modules: string[]): BuildChunk {
+	return { fileName: '', imports: [], dynamicImports: [], isEntry: false, facadeModuleId: null, modules };
+}
 
 describe('production server-module graph', () => {
 	let appDir: string;
@@ -151,6 +157,56 @@ describe('production server-module graph', () => {
 		assert.notEqual(
 			fileSystem.readFileSync(path.join(manifest.outdir, hyphenOutput)).toString(),
 			fileSystem.readFileSync(path.join(manifest.outdir, nestedOutput)).toString(),
+		);
+	});
+
+	it('lists the app modules that moved between emits, except entries and packages', () => {
+		const initial = {
+			'/app/dist/page-a.mjs': {
+				...chunk('/app/src/pages/index.tsx'),
+				isEntry: true,
+				facadeModuleId: '/app/src/pages/index.tsx',
+				imports: ['/app/dist/layout-a.mjs', '/app/dist/kept.mjs', '/app/dist/pkg-a.mjs'],
+			},
+			'/app/dist/layout-a.mjs': chunk('/app/src/shells/shell.tsx'),
+			'/app/dist/kept.mjs': chunk('/app/src/lib/kept.ts'),
+			'/app/dist/pkg-a.mjs': chunk('/app/node_modules/pkg/index.js'),
+		};
+		const next = {
+			'/app/dist/page-b.mjs': chunk('/app/src/pages/index.tsx'),
+			'/app/dist/layout-b.mjs': chunk('/app/src/shells/shell.tsx'),
+			'/app/dist/kept.mjs': chunk('/app/src/lib/kept.ts'),
+			'/app/dist/pkg-b.mjs': chunk('/app/node_modules/pkg/index.js'),
+		};
+
+		assert.deepEqual(
+			findReEmittedModules(initial, next, { entryPaths: ['/app/src/pages/index.tsx'], rootDir: '/app' }),
+			[path.resolve('/app/src/shells/shell.tsx')],
+		);
+	});
+
+	it('leaves out moved modules that the entries reach only through a dynamic import', () => {
+		const initial = {
+			'/app/dist/page-a.mjs': {
+				...chunk('/app/src/pages/docs.tsx'),
+				isEntry: true,
+				facadeModuleId: '/app/src/pages/docs.tsx',
+				imports: ['/app/dist/loader-a.mjs'],
+			},
+			'/app/dist/loader-a.mjs': { ...chunk('/app/src/lib/loader.ts'), dynamicImports: ['/app/dist/post-a.mjs'] },
+			'/app/dist/post-a.mjs': { ...chunk('/app/src/content/post.mdx'), imports: ['/app/dist/shared-a.mjs'] },
+			'/app/dist/shared-a.mjs': chunk('/app/src/lib/shared.ts'),
+		};
+		const next = {
+			'/app/dist/page-b.mjs': chunk('/app/src/pages/docs.tsx'),
+			'/app/dist/loader-b.mjs': chunk('/app/src/lib/loader.ts'),
+			'/app/dist/post-b.mjs': chunk('/app/src/content/post.mdx'),
+			'/app/dist/shared-b.mjs': chunk('/app/src/lib/shared.ts'),
+		};
+
+		assert.deepEqual(
+			findReEmittedModules(initial, next, { entryPaths: ['/app/src/pages/docs.tsx'], rootDir: '/app' }),
+			[path.resolve('/app/src/lib/loader.ts')],
 		);
 	});
 });

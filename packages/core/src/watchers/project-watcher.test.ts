@@ -89,8 +89,8 @@ describe('ProjectWatcher', () => {
 		test.each([
 			['addDir', 'pagesDir', 1],
 			['unlinkDir', 'pagesDir', 1],
-			['addDir', 'componentsDir', 0],
-			['unlinkDir', 'componentsDir', 0],
+			['addDir', 'includesDir', 0],
+			['unlinkDir', 'includesDir', 0],
 		] as const)('a %s event in the %s refreshes routes %i times', async (event, directory, refreshes) => {
 			const { emit } = await subscribe();
 
@@ -267,20 +267,23 @@ describe('ProjectWatcher', () => {
 			},
 			{
 				name: 'a source file with no processors',
-				file: (c) => path.join(c.absolutePaths.componentsDir, 'Button.tsx'),
+				file: (c) => path.join(c.absolutePaths.srcDir, 'components', 'Button.tsx'),
 				expected: delegated,
 			},
 			{
 				name: 'a source file shared by a server route and a browser entrypoint',
-				file: (c) => path.join(c.absolutePaths.componentsDir, 'Shared.tsx'),
+				file: (c) => path.join(c.absolutePaths.srcDir, 'components', 'Shared.tsx'),
 				arrange: ({ config }) => {
-					const sharedFile = path.join(config.absolutePaths.componentsDir, 'Shared.tsx');
+					const sharedFile = path.join(config.absolutePaths.srcDir, 'components', 'Shared.tsx');
 					requireAppRuntime(config).buildInputIndex.register(
 						{ consumer: 'server-route-module', key: path.join(config.absolutePaths.pagesDir, 'index.tsx') },
 						[sharedFile],
 					);
 					requireAppRuntime(config).buildInputIndex.register(
-						{ consumer: 'entrypoint', key: path.join(config.absolutePaths.componentsDir, 'island.tsx') },
+						{
+							consumer: 'entrypoint',
+							key: path.join(config.absolutePaths.srcDir, 'components', 'island.tsx'),
+						},
 						[sharedFile],
 					);
 				},
@@ -288,7 +291,7 @@ describe('ProjectWatcher', () => {
 			},
 			{
 				name: 'a source file that no additionalWatchPaths entry matches',
-				file: (c) => path.join(c.absolutePaths.componentsDir, 'Button.tsx'),
+				file: (c) => path.join(c.absolutePaths.srcDir, 'components', 'Button.tsx'),
 				arrange: ({ config }) => {
 					config.additionalWatchPaths = ['**/*.config.ts'];
 				},
@@ -315,13 +318,13 @@ describe('ProjectWatcher', () => {
 			},
 			{
 				name: 'a source file with a processor that only owns stylesheet assets',
-				file: (c) => path.join(c.absolutePaths.componentsDir, 'Button.tsx'),
+				file: (c) => path.join(c.absolutePaths.srcDir, 'components', 'Button.tsx'),
 				arrange: ({ config, onChanges }) => config.processors.set('css', stylesheetProcessor(onChanges)),
 				expected: { ...delegated, processorNotified: true },
 			},
 			{
 				name: 'a deleted source file',
-				file: (c) => path.join(c.absolutePaths.componentsDir, 'Button.tsx'),
+				file: (c) => path.join(c.absolutePaths.srcDir, 'components', 'Button.tsx'),
 				event: 'unlink',
 				expected: { hmr: { broadcast: false }, reload: true, refreshRoutes: false, processorNotified: false },
 			},
@@ -561,8 +564,8 @@ describe('ProjectWatcher', () => {
 		test('should send every HMR-eligible edit in one batch to HMR strategies', async () => {
 			const onChanges = vi.fn(async () => {});
 			Config.processors.set('css', stylesheetProcessor(onChanges));
-			const firstFilePath = path.join(Config.absolutePaths.componentsDir, 'Button.tsx');
-			const secondFilePath = path.join(Config.absolutePaths.componentsDir, 'Card.tsx');
+			const firstFilePath = path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx');
+			const secondFilePath = path.join(Config.absolutePaths.srcDir, 'components', 'Card.tsx');
 			const { emit } = await subscribe({ changeDebounceMs: 20 });
 
 			await Promise.all([emit('change', firstFilePath), emit('change', secondFilePath)]);
@@ -686,9 +689,7 @@ describe('ProjectWatcher', () => {
 			);
 			for (const sourceDir of [
 				Config.absolutePaths.pagesDir,
-				Config.absolutePaths.componentsDir,
 				Config.absolutePaths.includesDir,
-				Config.absolutePaths.layoutsDir,
 				Config.absolutePaths.publicDir,
 			]) {
 				expect(watchedPaths).not.toContain(sourceDir);

@@ -23,6 +23,7 @@ import type { CustomElementScriptPreloadScopeState } from '../../route-renderer/
 import type { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
 import type { DevelopmentStylesheetService } from '../../dev/stylesheets/development-stylesheet.service.ts';
 import type { PageCacheService } from '../../page-cache/page-cache-service.ts';
+import type { RouteRegistry } from '../../router/server/route-registry.ts';
 import type { IHmrManager } from '../../types/contracts.ts';
 import { getRuntimeArgv } from '../../utils/runtime.ts';
 import { MISSING_APP_RUNTIME } from '../../utils/app-runtime.ts';
@@ -117,6 +118,18 @@ export interface AppRuntime {
 	origin: string;
 	hmr: IHmrManager | null;
 	/**
+	 * The Route Registry of the running server, `null` until the server creates it.
+	 */
+	router: RouteRegistry | null;
+	/**
+	 * Absolute source paths of the modules a rendered Page references as a Layout.
+	 *
+	 * @remarks
+	 * Filled during route preparation, so it only grows within a session and holds the Layouts that were
+	 * rendered. A Layout is whatever a Page passes as `eco.page({ layout })`, never a folder.
+	 */
+	layoutFiles: Set<string>;
+	/**
 	 * Processed and bundled dependencies of the production build, by dependency key, shared by every
 	 * asset-processing service.
 	 *
@@ -186,6 +199,8 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig, options: AppRunti
 		requestPipelineMetrics: createRequestPipelineMetricsState(),
 		origin: appConfig.baseUrl,
 		hmr: null,
+		router: null,
+		layoutFiles: new Set(),
 		processedAssets: new ProcessedAssetLedger(appConfig.rootDir),
 		processedStylesheets: new ProcessedStylesheetCache(),
 		staticGenerationActive: false,

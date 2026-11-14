@@ -37,11 +37,11 @@ describe('collectServerModuleEntries', () => {
 		writeFileSync(existing, 'export const entries = [];\n');
 		mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 
-		const entries = await collectServerModuleEntries({
+		const entries = collectServerModuleEntries({
 			appConfig: {
 				rootDir,
 				templatesExt: ['.tsx'],
-				absolutePaths: { layoutsDir: path.join(rootDir, 'src', 'layouts') },
+				absolutePaths: {},
 				processors: new Map([['extra', new ExtraEntryProcessor([existing, missing])]]),
 			} as unknown as EcoPagesAppConfig,
 			router: { templateRoutes: [] },
@@ -50,7 +50,7 @@ describe('collectServerModuleEntries', () => {
 		assert.deepEqual(entries, [path.resolve(existing)]);
 	});
 
-	it('includes views the server-entry plugin recorded', async () => {
+	it('includes views the server-entry plugin recorded', () => {
 		const rootDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'server-module-imported-views-')));
 		roots.push(rootDir);
 		const viewPath = path.join(rootDir, 'latest-view.kita.tsx');
@@ -61,7 +61,7 @@ describe('collectServerModuleEntries', () => {
 			rootDir,
 			templatesExt: ['.kita.tsx'],
 			integrations: [{ name: 'kitajs', extensions: ['.kita.tsx'] }],
-			absolutePaths: { layoutsDir: path.join(rootDir, 'src', 'layouts') },
+			absolutePaths: {},
 			processors: new Map(),
 		} as unknown as EcoPagesAppConfig;
 
@@ -74,11 +74,44 @@ describe('collectServerModuleEntries', () => {
 		} as never);
 		onLoad?.({ path: viewPath });
 
-		const entries = await collectServerModuleEntries({
+		const entries = collectServerModuleEntries({
 			appConfig,
 			router: { templateRoutes: [] },
 		});
 
 		assert.deepEqual(entries, [path.resolve(viewPath)]);
+	});
+
+	it('includes the layouts a Page passes as eco.page({ layout }), wherever they live, and no other file', () => {
+		const rootDir = path.fromNative(mkdtempSync(path.join(os.tmpdir(), 'server-module-layout-refs-')));
+		roots.push(rootDir);
+		const write = (file: string, source: string) => {
+			const target = path.join(rootDir, file);
+			mkdirSync(path.dirname(target), { recursive: true });
+			writeFileSync(target, source);
+			return target;
+		};
+		const page = write(
+			'src/pages/index.tsx',
+			[
+				"import { eco } from '@ecopages/core';",
+				"import { AppShell } from '../shells/app-shell';",
+				"import { Inner } from '../shells/inner';",
+				"import { Outer } from '../shells/outer.tsx';",
+				'export default eco.page({ layout: [Outer, { component: Inner, props: () => ({}) }], render: () => null });',
+				'void AppShell;',
+			].join('\n'),
+		);
+		const outer = write('src/shells/outer.tsx', 'export const Outer = () => null;\n');
+		const inner = write('src/shells/inner.tsx', 'export const Inner = () => null;\n');
+		write('src/shells/app-shell.tsx', 'export const AppShell = () => null;\n');
+		write('src/layouts/utils.tsx', 'export const util = 1;\n');
+
+		const entries = collectServerModuleEntries({
+			appConfig: { rootDir, absolutePaths: {}, processors: new Map() } as unknown as EcoPagesAppConfig,
+			router: { templateRoutes: [{ filePath: page }] },
+		});
+
+		assert.deepEqual(entries.sort(), [page, outer, inner].map((file) => path.resolve(file)).sort());
 	});
 });

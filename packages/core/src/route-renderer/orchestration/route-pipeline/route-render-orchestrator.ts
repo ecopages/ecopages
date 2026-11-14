@@ -237,11 +237,22 @@ export class RouteRenderOrchestrator {
 		const graphBuilder = createPreparedComponentGraphBuilder(renderer.name);
 		graphBuilder.addRoots(shellRoots);
 		const shellGraph = graphBuilder.getGraph({ updateForeignDescendantFlags: false });
+		this.recordLayoutFiles(shellGraph);
 		const shellDependencyComponents = shellGraph.nodes
 			.filter((node) => node.dependencyCollectionVisible)
 			.map((node) => node.component);
 		await this.validateOwnershipGraph(shellGraph);
 		return { graphBuilder, shellGraph, shellDependencyComponents };
+	}
+
+	private recordLayoutFiles(shellGraph: PreparedComponentGraph): void {
+		if (isProductionRuntime()) return;
+		const layoutFiles = requireAppRuntime(this.appConfig).layoutFiles;
+		for (const node of shellGraph.nodes) {
+			if (node.source === 'layout' && node.componentFile) {
+				layoutFiles.add(path.resolve(this.appConfig.rootDir, node.componentFile));
+			}
+		}
 	}
 
 	private async preparePageDependencyGraph<C>(input: {

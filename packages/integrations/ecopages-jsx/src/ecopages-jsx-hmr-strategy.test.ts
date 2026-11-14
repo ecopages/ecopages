@@ -36,8 +36,8 @@ function makeContext(
 	overrides: Partial<{
 		registeredEntrypoints: Map<string, ResolvedHmrEntrypoint>;
 		srcDir: string;
-		pagesDir: string;
-		layoutsDir: string;
+		pageFiles: string[];
+		layoutFiles: string[];
 		includesDir: string;
 		templateExtensions: string[];
 	}> = {},
@@ -45,8 +45,13 @@ function makeContext(
 	const defaults = {
 		registeredEntrypoints: new Map<string, ResolvedHmrEntrypoint>(),
 		srcDir: SRC_DIR,
-		pagesDir: PAGES_DIR,
-		layoutsDir: LAYOUTS_DIR,
+		pageFiles: [
+			`${PAGES_DIR}/index.tsx`,
+			`${PAGES_DIR}/docs/[...slug]/index.tsx`,
+			`${PAGES_DIR}/about.mdx`,
+			`${PAGES_DIR}/notes.md`,
+		],
+		layoutFiles: [`${LAYOUTS_DIR}/base-layout.tsx`, `${SRC_DIR}/shells/app-shell.tsx`],
 		includesDir: INCLUDES_DIR,
 		templateExtensions: TEMPLATE_EXTENSIONS,
 	};
@@ -54,8 +59,8 @@ function makeContext(
 	return {
 		getRegisteredEntrypoints: () => merged.registeredEntrypoints,
 		getSrcDir: () => merged.srcDir,
-		getPagesDir: () => merged.pagesDir,
-		getLayoutsDir: () => merged.layoutsDir,
+		isPageFile: (filePath: string) => merged.pageFiles.includes(filePath),
+		isLayoutFile: (filePath: string) => merged.layoutFiles.includes(filePath),
 		getIncludesDir: () => merged.includesDir,
 		getTemplateExtensions: () => merged.templateExtensions,
 	};
@@ -95,6 +100,16 @@ describe('EcopagesJsxHmrStrategy', () => {
 		it('matches layout files with a JSX template extension', () => {
 			const strategy = new EcopagesJsxHmrStrategy(makeContext());
 			expect(strategy.matches(`${LAYOUTS_DIR}/base-layout.tsx`)).toBe(true);
+		});
+
+		it('matches a layout a page references outside the layouts folder', () => {
+			const strategy = new EcopagesJsxHmrStrategy(makeContext());
+			expect(strategy.matches(`${SRC_DIR}/shells/app-shell.tsx`)).toBe(true);
+		});
+
+		it('does not match a file in the layouts folder that no page references', () => {
+			const strategy = new EcopagesJsxHmrStrategy(makeContext());
+			expect(strategy.matches(`${LAYOUTS_DIR}/utils.tsx`)).toBe(false);
 		});
 
 		it('does not match page or layout files with non-JSX extensions', () => {

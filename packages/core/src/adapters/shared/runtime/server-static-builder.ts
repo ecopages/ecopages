@@ -21,7 +21,8 @@ import {
 	getServerBundleOutputPaths,
 	writeServerBundleDeployManifest,
 } from '../../../build/server-bundle-deploy-manifest.ts';
-import { bundleEcoConfigModule, EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
+import { bundleEcoConfigModule } from '../../../config/server-config-bundle.ts';
+import { EMITTED_ECO_CONFIG_FILENAME } from '../../../config/resolve-eco-config-path.ts';
 import { CLIENT_OUTPUT_DIR, resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
 import {
 	createServerBundleLoaderSource,

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
-import { EMITTED_ECO_CONFIG_FILENAME } from '../config/server-config-bundle.ts';
+import { EMITTED_ECO_CONFIG_FILENAME } from '../config/resolve-eco-config-path.ts';
 import {
 	assertProductionConfigIdentity,
 	getServerBundleOutputPaths,

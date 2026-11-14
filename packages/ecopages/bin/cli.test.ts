@@ -12,7 +12,7 @@ import {
 	ECOPAGES_DEV_RESTART_REASON_ENV,
 	ENTRY_COMMAND_FLAGS,
 	resolveDevelopmentRecoveryWatch,
-} from '@ecopages/core/build';
+} from '@ecopages/core/cli';
 import { fileSystem, type WatchOptions } from '@ecopages/file-system';
 
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
@@ -39,8 +39,8 @@ vi.mock('@ecopages/file-system', async (importOriginal) => {
 	};
 });
 
-vi.mock('@ecopages/core/build', async (importOriginal) => ({
-	...(await importOriginal<typeof import('@ecopages/core/build')>()),
+vi.mock('@ecopages/core/cli', async (importOriginal) => ({
+	...(await importOriginal<typeof import('@ecopages/core/cli')>()),
 	resolveDevelopmentRecoveryWatch: vi.fn(),
 }));
 

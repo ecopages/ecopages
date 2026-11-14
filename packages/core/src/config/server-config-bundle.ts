@@ -5,8 +5,7 @@ import { createServerBuildRequest } from '../build/runtime/build-request-policy.
 import { buildOrThrow } from '../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { getServerBundleOutputPaths } from '../build/server-bundle-deploy-manifest.ts';
-
-export const EMITTED_ECO_CONFIG_FILENAME = 'eco.config.mjs';
+import { EMITTED_ECO_CONFIG_FILENAME } from './resolve-eco-config-path.ts';
 
 export interface BundleEcoConfigModuleResult {
 	emittedConfigPath: string;

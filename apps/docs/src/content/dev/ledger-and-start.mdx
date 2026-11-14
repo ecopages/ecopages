@@ -60,7 +60,7 @@ After the app-wide build, each planned route runs its preparation, so asset proc
 
 ## What start restores
 
-`ecopages start` does not load `eco.config.ts`. `createLaunchPlan()` finds the one directory with `server/manifest.json` (or the `--dist-dir` given), points the process at the emitted config the deploy manifest names, and runs `dist/server/app.mjs`. That loader records its directory, which marks the start as one from a complete `dist/`.
+`ecopages start` does not load `eco.config.ts`. `createLaunchPlan()` finds the one directory with `server/manifest.json` (or the `--dist-dir` given), points the process at the emitted config the deploy manifest names, and runs `dist/server/app.mjs`. That loader records its directory, which marks the start as one from a complete `dist/`. The CLI process imports only `@ecopages/core/cli` to plan the launch, so it does not load the bundler before it spawns the app.
 
 ```mermaid
 sequenceDiagram

@@ -660,6 +660,28 @@ const webServer = (
 	env: definition.env,
 }));
 
+type TestFilter = string | RegExp | Array<string | RegExp>;
+
+const repositoryRoot = import.meta.dirname.replaceAll('\\', '/');
+
+/**
+ * Prefixes each glob in `filter` with the repository root.
+ *
+ * @remarks
+ * Playwright matches a relative glob anywhere under `testDir` (the repository root), so
+ * `e2e/fixtures/browser-router/...` also matched a copy inside a gitignored folder such as an audit's notes, which
+ * then ran as a test. Playwright does not read `.gitignore`; anchoring the globs keeps each project to its own
+ * folder. Regular expressions are left as they are.
+ */
+function anchorToRoot(filter: TestFilter | undefined): TestFilter | undefined {
+	if (filter === undefined) return undefined;
+	return [filter].flat().map((pattern) => (typeof pattern === 'string' ? `${repositoryRoot}/${pattern}` : pattern));
+}
+
+function anchoredToRoot(project: (typeof projects)[number]): (typeof projects)[number] {
+	return { ...project, testMatch: anchorToRoot(project.testMatch), testIgnore: anchorToRoot(project.testIgnore) };
+}
+
 export default defineConfig<object, { appOptions: AppOptions | undefined }>({
 	testDir: '.',
 	testMatch: '**/*.test.e2e.ts',
@@ -672,6 +694,6 @@ export default defineConfig<object, { appOptions: AppOptions | undefined }>({
 		headless: true,
 		trace: 'on-first-retry',
 	},
-	projects,
+	projects: projects.map(anchoredToRoot),
 	webServer,
 });

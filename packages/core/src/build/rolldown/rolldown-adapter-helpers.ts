@@ -11,7 +11,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { builtinModules, createRequire } from 'node:module';
+import { createRequire } from 'node:module';
 import { path, type PathApi } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { stripVTControlCharacters } from 'node:util';
@@ -25,6 +25,7 @@ import type {
 	RolldownLog,
 	RolldownOutput,
 	RolldownPlugin,
+	PluginContext,
 } from 'rolldown';
 import { id as idFilter, include } from 'rolldown/filter';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
@@ -33,6 +34,7 @@ import { isEcopagesEnvEnabled } from '../../env.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { isServerOnlyModuleSpecifier } from '../../utils/file-roles.ts';
+import { isNodeBuiltinSpecifier, nodeBuiltinSpecifiers } from '../../utils/node-builtin.ts';
 import { createSsrScriptEntriesPlugin } from './ssr-script-entries-plugin.ts';
 import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createStylesheetModulePlugin } from './stylesheet-module-plugin.ts';
@@ -52,7 +54,6 @@ import type {
 } from '../build-adapter.ts';
 
 const coreSourceFile = path.fromFileUrl(import.meta.url);
-const nodeBuiltinSpecifiers = new Set(builtinModules);
 const MAX_FLATTENED_PRESERVED_MODULE_NAME_BYTES = 120;
 const PRESERVED_MODULE_NAME_HASH_LENGTH = 16;
 
@@ -324,8 +325,28 @@ export function createInstalledPackageExternalPlugin(
 	};
 }
 
-function isNodeBuiltinSpecifier(id: string): boolean {
-	return id.startsWith('node:') || nodeBuiltinSpecifiers.has(id);
+/**
+ * Names the import chain from the nearest app module to `specifier`, as ` (imported from <app module> > <package module> > ...)`.
+ *
+ * @remarks
+ * A package's own modules are not what the author wrote: when a bare `import 'pg'` reaches a built-in, the useful
+ * answer is the app module that imported the package. The walk follows each module's first importer until it
+ * leaves `node_modules` or reaches an entry, so the chain is the first path the bundler found.
+ */
+function describeImportChain(
+	context: Pick<PluginContext, 'getModuleInfo'>,
+	importer: string,
+	specifier: string,
+): string {
+	const chain: string[] = [];
+	const seen = new Set<string>();
+	for (let current: string | undefined = importer; current && !seen.has(current);) {
+		seen.add(current);
+		chain.unshift(fromRolldownModuleId(current));
+		if (!current.split('/').includes('node_modules')) break;
+		current = context.getModuleInfo(current)?.importers[0];
+	}
+	return ` (imported from ${[...chain, specifier].join(' > ')})`;
 }
 
 const nodeBuiltinFilter = new RegExp(
@@ -340,6 +361,9 @@ const nodeBuiltinFilter = new RegExp(
  * bare specifiers. This plugin fails the build instead so server-only graphs
  * cannot reach the browser as silent CORS errors.
  *
+ * A built-in is recorded where it resolves and reported at `buildEnd`, because the importer chain through
+ * `node_modules` to the app module is only known once every module is parsed.
+ *
  * The `.server` check reads the resolved ids a module imports once it is parsed,
  * not the specifiers as written, so an alias such as a `package.json` `imports`
  * entry or a tsconfig path is rejected like a relative import. Rolldown has no
@@ -352,6 +376,7 @@ export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 			`[browser-build] server-only module "${fromRolldownModuleId(id)}" cannot be bundled for the browser${from}. Check the browser graph boundary for the importer.`,
 		);
 	};
+	const builtinImports: { id: string; importer: string | undefined }[] = [];
 	return {
 		name: 'ecopages-browser-server-only-guard',
 		resolveId: {
@@ -360,11 +385,20 @@ export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 				if (!isNodeBuiltinSpecifier(id)) {
 					return null;
 				}
-				const from = importer ? ` (imported from ${fromRolldownModuleId(importer)})` : '';
-				throw new Error(
-					`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. Check package "browser" exports and the client-graph boundary for the importer.`,
-				);
+				builtinImports.push({ id, importer });
+				return { id, external: true };
 			},
+		},
+		buildStart() {
+			builtinImports.length = 0;
+		},
+		buildEnd() {
+			const first = builtinImports[0];
+			if (!first) return;
+			const chain = first.importer ? describeImportChain(this, first.importer, first.id) : '';
+			throw new Error(
+				`[browser-build] Node builtin "${first.id}" cannot be bundled for the browser${chain}. Keep server-only code in a ".server" module that only server-side hooks such as props import, or check package "browser" exports and the client-graph boundary.`,
+			);
 		},
 		moduleParsed(info) {
 			if (info.isEntry && isServerOnlyModuleSpecifier(info.id)) {

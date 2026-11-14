@@ -615,6 +615,33 @@ describe('RolldownBuildAdapter', () => {
 		expect(result.logs.map((log) => log.message).join('\n')).toContain(`Node builtin "${specifier}"`);
 	});
 
+	test('a browser build names the app module and the import chain that reached a Node builtin', async () => {
+		const pgDir = path.join(workDir, 'node_modules/pg');
+		mkdirSync(path.join(pgDir, 'lib'), { recursive: true });
+		writeFileSync(
+			path.join(pgDir, 'package.json'),
+			JSON.stringify({ name: 'pg', type: 'module', main: 'index.js' }),
+		);
+		writeFileSync(path.join(pgDir, 'index.js'), "import './lib/client.js';\nexport const pg = 1;\n");
+		writeFileSync(path.join(pgDir, 'lib/client.js'), "import net from 'net';\nexport default net;\n");
+		const entrypoint = writeFixture('page.ts', "import 'pg';\nexport const page = 1;\n");
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+		});
+
+		assertBuildFailed(result);
+		const message = result.logs.map((log) => log.message).join('\n');
+		expect(message).toContain('Node builtin "net"');
+		expect(message).toMatch(/page\.ts\b.*pg\/index\.js.*pg\/lib\/client\.js.*net/s);
+		expect(message).toContain('.server');
+	});
+
 	test.each(['server', 'browser'] as const)(
 		'a %s build turns a side-effect stylesheet import into an empty module and emits no stylesheet',
 		async (environment) => {

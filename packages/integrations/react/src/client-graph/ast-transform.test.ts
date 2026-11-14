@@ -33,6 +33,28 @@ describe('transformModuleImports', () => {
 		);
 	});
 
+	it('fails the build when render calls a binding of a removed node: import, naming the .server fix', () => {
+		const source = [
+			"import { readFile } from 'node:fs';",
+			'export default eco.page({ render: () => readFile("a.txt") });',
+		].join('\n');
+
+		expect(() => transform(source, '/app/src/pages/index.tsx')).toThrow(
+			/Forbidden client import 'node:fs' at \/app\/src\/pages\/index\.tsx:\d+\. .*\('readFile'\).*'\.server' module/,
+		);
+	});
+
+	it('builds a page that uses node:fs only in props', () => {
+		const source = [
+			"import { readFile } from 'node:fs';",
+			'export default eco.page({ props: async () => ({ text: await readFile("a.txt") }), render: () => null });',
+		].join('\n');
+		const { transformed } = transform(source, '/app/src/pages/index.tsx');
+
+		expect(transformed).not.toContain('node:fs');
+		expect(transformed).not.toContain('readFile');
+	});
+
 	it('strips server-only Page options from modules outside pages and layouts', () => {
 		const source = [
 			"import { authMiddleware } from './auth.server';",

@@ -190,7 +190,7 @@ function assertNoStrippedBindingReferences(
 
 	const specifier = input.strippedBindings.get(first.name);
 	throw new Error(
-		`[Ecopages Client Graph] '${first.name}' (imported from '${specifier}') is used at ${input.filename}:${toLineColumn(input.source, first.node.start)}, but that import is server-only and the browser build removes it. Use it only in server-only Page options such as middleware or props, or in code the browser module does not reach.`,
+		`[Ecopages Client Graph] '${first.name}' (imported from '${specifier}') is used at ${input.filename}:${toLineColumn(input.source, first.node.start)}, but that import is server-only and the browser build removes it. Use it only in server-only Page options such as middleware or props, or in code the browser module does not reach. To use server code in the browser's render path, move it into a '.server' module and call it only from those options.`,
 	);
 }
 

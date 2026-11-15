@@ -45,7 +45,7 @@ flowchart TD
 - **Build** does all compiling once and records what it processed. See [Build pipeline](/dev/build-pipeline).
 - **Start** restores those records and compiles nothing. See [Ledger and start](/dev/ledger-and-start).
 
-The `ecopages` command only plans a launch and spawns the app process for each of them; see [CLI](/dev/cli). Build performance is measured by the kitchen-sink benches and the pull request stats comment; see [Benchmarks and CI](/dev/benchmarks-and-ci). The suites that guard all of this, and which of them the commit hook and CI run, are in [Testing](/dev/testing).
+The `ecopages` command only plans a launch and spawns the app process for each of them; see [CLI](/dev/cli). `ecopages init` creates projects from the templates described in [Templates and init](/dev/templates-and-init). Build performance is measured by the kitchen-sink benches and the pull request stats comment; see [Benchmarks and CI](/dev/benchmarks-and-ci). The suites that guard all of this, and which of them the commit hook and CI run, are in [Testing](/dev/testing).
 
 Every path renders a Page the same way: route preparation collects its assets into a Page Package before the first Component renders; see [From graph to HTML](/dev/graph-to-html). How a config becomes the per-app state all three share is in [App runtime](/dev/app-runtime).
 
@@ -54,12 +54,12 @@ Every path renders a Page the same way: route preparation collects its assets in
 | Package | What it is for |
 | --- | --- |
 | `packages/core` | The framework: config, routing, rendering, asset processing, build, dev server and HMR. Every other package plugs into it. |
-| `packages/ecopages` | The CLI: `dev`, `build`, `start`, `preview` and project templates. [CLI](/dev/cli) |
+| `packages/ecopages` | The CLI: `dev`, `build`, `start`, `preview` and project templates. [CLI](/dev/cli), [Templates and init](/dev/templates-and-init) |
 | `packages/file-system` | The file system access and the path operations every package goes through. See [Paths](#paths) and [File system](/dev/file-system). |
 | `packages/browser-router` | Client navigation for server-rendered documents. [Browser router](/dev/browser-router) |
 | `packages/react-router` | Client navigation for React pages. [React router](/dev/react-router) |
-| `packages/dev-toolbar` | The development toolbar. |
-| `packages/codemod` | Codemods for migrating to current patterns. |
+| `packages/dev-toolbar` | The development toolbar client. [Dev toolbar client](/dev/dev-toolbar-client), and core's side in [Dev toolbar](/dev/dev-toolbar) |
+| `packages/codemod` | Codemods for migrating to current patterns. [Codemod](/dev/codemod) |
 | `packages/integrations/react` | [React](/dev/react) |
 | `packages/integrations/lit` | [Lit](/dev/lit) |
 | `packages/integrations/kitajs` | [Kita](/dev/kita) |
@@ -86,7 +86,7 @@ Integrations render files and own a JSX runtime; Processors own asset semantics.
 | Development and HMR | `dev/`, `dev-toolbar/`, `hmr/`, `watchers/` |
 | Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`, `integration.ts`, `processor.ts`, `processor-contract.ts`, `build.ts`, `cli.ts`, `client.ts` |
 
-Foundation code knows nothing of the systems that use it: `types/` holds contracts only, error classes do not depend on what reports them, `client/` browser helpers stay independent of rendering and dev services, and per-app state lives on the `AppRuntime`, not in module globals.
+The error classes and shared utilities of this layer are listed in [Errors and utilities](/dev/errors-and-utilities). Foundation code knows nothing of the systems that use it: `types/` holds contracts only, error classes do not depend on what reports them, `client/` browser helpers stay independent of rendering and dev services, and per-app state lives on the `AppRuntime`, not in module globals.
 
 `pnpm check:portability` (`scripts/check-portability.ts`, also run by `pnpm typecheck`) enforces the order on runtime module references, including `import()`, `require()` and resolver calls. An inline `type` modifier counts, since `verbatimModuleSyntax` keeps the import; `import type` and `export type` are erased and skipped, and so are tests and fixtures. A new source folder or root file fails the check until it is added to the layer map in the script. Existing upward references are listed in `scripts/core-layering-allowlist.json` with the issue that removes each one. The list only shrinks: the check fails for an unlisted upward reference and for an entry whose reference is gone.
 

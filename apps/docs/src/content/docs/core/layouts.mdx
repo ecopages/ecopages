@@ -130,7 +130,9 @@ layout: [
 ],
 ```
 
-`props` receives `LayoutPropsContext`, whose `params`, `query`, and `locals` are all optional. Reading `locals` throws `LocalsAccessError` unless the Page has `cache: 'dynamic'`, so the sample above fits only a Dynamic Page. See [Request Locals](/docs/core/request-locals) for how `locals` reach layout tiers during SSR and hydration.
+`props` receives `LayoutPropsContext`, whose `params`, `query`, and `locals` are all optional. A layout receives request data only through this factory: the component gets what the factory returns and no `locals` prop. The factory runs on the server, and its result is also sent to the browser for hydration, so return only what the browser may see, such as the user and not the whole session.
+
+On a Page that is not `cache: 'dynamic'` there are no `locals`: the factory still runs, with `locals` undefined, so read it with `locals?.` and treat the layout's props as optional. See [Request Locals](/docs/core/request-locals) for how request data reaches layout tiers during SSR and hydration.
 
 ### Shared outer layouts and SPA navigation
 

@@ -4,6 +4,7 @@
 @import './fonts.css';
 @import './components/prose.css';
 @import './vendor/shiki.css';
+@import './components/copy-button.css';
 @import '@ecopages/radiant-ui/styles.css';
 @import 'ecopages/css/view-transitions.css';
 

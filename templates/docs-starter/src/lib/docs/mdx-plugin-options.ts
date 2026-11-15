@@ -1,11 +1,8 @@
 import type { PluggableList } from 'unified';
 import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
-import { transformerCopyButton } from '@rehype-pretty/transformers';
 import remarkGfm from 'remark-gfm';
-import rehypePrettyCode from 'rehype-pretty-code';
 import { rehypeHeadingIds } from './rehype-heading-ids';
-import { rehypePrettyCopyCompatibility } from './rehype-pretty-copy-compatibility';
-import { DOCS_SHIKI_THEMES } from './shiki-themes';
+import { rehypePierreCode } from './rehype-pierre-code';
 
 export type DocsMdxPluginsOptions = {
 	remarkPlugins?: PluggableList;
@@ -17,25 +14,13 @@ export type DocsMdxPluginsOptions = {
  *
  * @remarks
  * The built-in rehype order matters: heading ids first (so fragment links resolve before any script runs),
- * then rehype-pretty-code, then the copy-button compatibility pass. Extra plugins run after them.
- * `defaultLang` gives unlabelled fences a figure, and therefore a copy button.
+ * then the Pierre highlighter, which turns every fence, labelled or not, into a figure with a copy button.
+ * Extra plugins run after them.
  */
 export function createDocsMdxPlugins(options: DocsMdxPluginsOptions = {}) {
 	return withContentMdxPlugins({
 		remarkPlugins: [remarkGfm, ...(options.remarkPlugins ?? [])],
-		rehypePlugins: [
-			rehypeHeadingIds,
-			[
-				rehypePrettyCode,
-				{
-					theme: DOCS_SHIKI_THEMES,
-					defaultLang: { block: 'text' },
-					transformers: [transformerCopyButton()],
-				},
-			],
-			rehypePrettyCopyCompatibility,
-			...(options.rehypePlugins ?? []),
-		],
+		rehypePlugins: [rehypeHeadingIds, rehypePierreCode, ...(options.rehypePlugins ?? [])],
 	});
 }
 

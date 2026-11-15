@@ -94,6 +94,44 @@ describe('RadiantCodeTabs', () => {
 		});
 	});
 
+	it('shows the copy and check icons and sets the copied state on the copied tab, then clears it', async () => {
+		vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+		const codeTabs = createCodeTabs();
+		codeTabs.selectedKey = 'js';
+		document.body.appendChild(codeTabs);
+
+		await vi.waitFor(() => {
+			expect(codeTabs.querySelector('[data-copy-button]')).not.toBeNull();
+		});
+		const button = codeTabs.querySelector<HTMLButtonElement>('[data-copy-button]')!;
+		expect(button.textContent?.trim()).toBe('');
+		expect(
+			[...button.querySelectorAll('[data-copy-icon]')].map((icon) => icon.getAttribute('data-copy-icon')),
+		).toEqual(['copy', 'check']);
+		expect(button.hasAttribute('data-copy-state')).toBe(false);
+
+		await userEvent.click(button);
+
+		await vi.waitFor(() => expect(button.getAttribute('data-copy-state')).toBe('copied'));
+		await vi.waitFor(() => expect(button.hasAttribute('data-copy-state')).toBe(false), { timeout: 4000 });
+	});
+
+	it('sets the error state when the clipboard rejects', async () => {
+		vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(new Error('denied'));
+		const codeTabs = createCodeTabs();
+		codeTabs.selectedKey = 'js';
+		document.body.appendChild(codeTabs);
+
+		await vi.waitFor(() => {
+			expect(codeTabs.querySelector('[data-copy-button]')).not.toBeNull();
+		});
+		await userEvent.click(codeTabs.querySelector<HTMLButtonElement>('[data-copy-button]')!);
+
+		await vi.waitFor(() => {
+			expect(codeTabs.querySelector('[data-copy-button]')?.getAttribute('data-copy-state')).toBe('error');
+		});
+	});
+
 	it('announces a failed copy and clears the status so a repeat is announced again', async () => {
 		vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(new Error('denied'));
 		const codeTabs = createCodeTabs();
@@ -116,7 +154,7 @@ describe('RadiantCodeTabs', () => {
 		);
 	});
 
-	it('renders Shiki markup as HTML and copies its plain-text content', async () => {
+	it('renders highlighted markup as HTML and copies its plain-text content', async () => {
 		const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
 		const codeTabs = document.createElement('radiant-code-tabs') as RadiantCodeTabs;
 		codeTabs.tabs = [

@@ -55,7 +55,7 @@ radiant-code-tabs .rui-tabs__panel {
  * after a click focuses the tabindex=0 `pre`.
  */
 .code-tabs__copy {
-	@apply absolute right-1.5 top-1.5 z-10 rounded-sm border border-border bg-background px-2 text-xs font-medium text-on-background opacity-0 transition-opacity;
+	@apply absolute right-1.5 top-1.5 z-10 rounded-sm border border-border bg-background p-0 text-on-background opacity-0 transition-opacity;
 
 	&:hover,
 	&:focus-visible {

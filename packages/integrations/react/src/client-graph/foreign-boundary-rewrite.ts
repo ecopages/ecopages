@@ -4,9 +4,10 @@
 
 import { fileSystem } from '@ecopages/file-system';
 import type { ComponentIdentity } from '@ecopages/core';
-import { parseModuleSource, resolveProjectModulePath } from '@ecopages/core/build';
+import { parseModuleSource } from '@ecopages/core/build';
 import { FOREIGN_BOUNDARY_PACKAGE } from '../bundling/bootstrap-package-paths.ts';
 import { collectLexicalDeclarations, walkScopedReferences } from './scope-walk.ts';
+import { resolveLocalModulePath } from './foreign-jsx-reach.ts';
 
 const HELPER_BINDING = '__ecoForeignBoundary';
 const NAMESPACE_HELPER_BINDING = '__ecoForeignBoundaryNamespace';
@@ -74,10 +75,11 @@ class ForeignExports {
 
 	/**
 	 * @remarks
-	 * `preserveBarrel` makes {@link resolveProjectModulePath} return the real path, so it is not resolved again.
+	 * An absolute path counts too: the MDX loader's attribution imports the Components of plain modules by
+	 * absolute path before this rewrite runs.
 	 */
 	resolve(importer: string, specifier: string): string | undefined {
-		return resolveProjectModulePath(this.options.projectRoot, importer, specifier, { preserveBarrel: true });
+		return resolveLocalModulePath(this.options.projectRoot, importer, specifier);
 	}
 
 	private getReexports(filePath: string): any[] {

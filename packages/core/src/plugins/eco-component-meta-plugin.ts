@@ -4,6 +4,7 @@ import MagicString from 'magic-string';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { createJsxImportSourcePragma } from './jsx-import-source.utils.ts';
 import type { EcoBuildOnTransformResult, EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import type { BuildEnvironment } from '../build/contracts/build-contracts.ts';
 import { composeSourceMaps, isUsableSourceMap } from '../build/source-maps.ts';
 import { createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
@@ -39,6 +40,15 @@ import type { ComponentIdentity } from '../types/component-identity.ts';
  */
 export interface EcoComponentDirPluginOptions {
 	config: EcoPagesAppConfig;
+	/**
+	 * The environment the build compiles for.
+	 *
+	 * @remarks
+	 * A browser build gets no plain-module Component imports: only server-side collection reads the discovered
+	 * Components, and in the browser such an import would load the Component's module for nothing, including one
+	 * another Integration owns into a React island.
+	 */
+	environment: BuildEnvironment;
 }
 
 type AstNode = {
@@ -356,6 +366,11 @@ export type ComponentIdentityAttributionOptions = {
 	stylesheets?: StylesheetKinds;
 	/** The real path of `projectRoot`, when the caller already resolved it; resolved from `projectRoot` otherwise. */
 	canonicalProjectRoot?: string;
+	/**
+	 * Whether the discovered Components of plain modules are imported into the declaring module so collection can
+	 * read them; defaults to `true`. A browser build turns it off, since nothing there reads them.
+	 */
+	plainModuleComponentImports?: boolean;
 };
 
 /**
@@ -464,7 +479,10 @@ export function attributeComponentIdentity(
 		cache: options.discoveryCache,
 		stylesheets: options.stylesheets,
 	});
-	const plainModuleImports = createPlainModuleComponentImports(discovered);
+	const plainModuleImports =
+		options.plainModuleComponentImports === false
+			? { locals: [], code: '' }
+			: createPlainModuleComponentImports(discovered);
 	const discoveryArgument = serializeDiscoveryArgument(discovered, toCanonicalSourceKey, plainModuleImports.locals);
 	const edits: SourceEdit[] = factoryArguments.map((firstArgument) => ({
 		start: firstArgument.start,
@@ -840,6 +858,7 @@ export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptio
 					integration: integration?.name,
 					projectRoot: rootDir,
 					canonicalProjectRoot: canonicalRoot,
+					plainModuleComponentImports: options.environment !== 'browser',
 					jsxImportSource: integration?.jsxImportSource,
 					integrationOf,
 					stripPlainModuleStylesheets,

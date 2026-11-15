@@ -282,6 +282,23 @@ describe('rewriteForeignImports with component identities', () => {
 		}
 	});
 
+	it('names a Component the MDX attribution imports by absolute path', () => {
+		const root = createProject();
+		try {
+			const counter = path.join(root, 'components/counter.lit.tsx');
+			const output = rewriteWithIdentities(
+				root,
+				`import __ecoPlainModuleComponent0 from ${JSON.stringify(counter)};\nexport const config = { components: () => [__ecoPlainModuleComponent0] };`,
+			)!;
+			expect(output).toContain(
+				`const __ecoPlainModuleComponent0 = __ecoForeignBoundaryReference(${JSON.stringify(identity(counter, 'default'))});`,
+			);
+			expect(output).not.toMatch(/from "[^"]*counter\.lit\.tsx"/);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it('follows a barrel to the declaring file and watches every file it walked', () => {
 		const root = createProject();
 		try {

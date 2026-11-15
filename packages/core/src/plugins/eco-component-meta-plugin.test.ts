@@ -43,7 +43,7 @@ describe('eco-component-meta-plugin', () => {
 		],
 	} as EcoPagesAppConfig;
 
-	const plugin = createEcoComponentMetaPlugin({ config: Config });
+	const plugin = createEcoComponentMetaPlugin({ config: Config, environment: 'server' });
 	const transform = getPluginTransform(plugin);
 
 	async function runPluginOnContent(content: string, filePath: string) {
@@ -96,6 +96,7 @@ describe('eco-component-meta-plugin', () => {
 	it('filters every script module, not only the extensions an Integration owns', () => {
 		const { filter } = getPluginTransform(
 			createEcoComponentMetaPlugin({
+				environment: 'server',
 				config: { rootDir: '/src', integrations: [{ name: 'mdx', extensions: ['.mdx'] }] } as EcoPagesAppConfig,
 			}),
 		);

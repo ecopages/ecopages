@@ -1,16 +1,14 @@
 import { eco } from '@ecopages/core';
 import type { LayoutProps } from '@ecopages/core';
 import { ThemeToggle } from '../../components/theme-toggle.kita';
+import { requestLayoutProps, type RequestLayoutProps } from '../request-layout-props';
 import { getPrimaryLinkTestId, kitchenSinkShell, kitchenSinkShellTestId, primaryLinks } from '@/data/primary-links';
 
 export const BaseLayout = eco.layout({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},
-	render: ({ children, locals }: LayoutProps) => {
-		const requestInfo = locals?.requestInfo;
-		const viewerRole = locals?.viewerRole;
-
+	render: ({ children, requestInfo, viewerRole }: LayoutProps & RequestLayoutProps) => {
 		return (
 			<div class="min-h-dvh flex flex-col bg-background text-on-background" data-testid={kitchenSinkShellTestId}>
 				<header class="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
@@ -57,3 +55,9 @@ export const BaseLayout = eco.layout({
 		);
 	},
 });
+
+/** Layout entry for dynamic pages that run `requestInfoMiddleware`. */
+export const requestInfoBaseLayout = {
+	component: BaseLayout,
+	props: requestLayoutProps,
+};

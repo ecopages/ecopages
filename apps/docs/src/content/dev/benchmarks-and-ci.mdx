@@ -86,4 +86,4 @@ sequenceDiagram
 
 ## CI gate
 
-`ci.yml` runs on every pull request and on pushes to `next` and `main`. The `fast` job runs `pnpm run test:ci:fast` (ignore, template, lint, format, typecheck and unit checks), then builds every template and recipe fixture. The `windows` job typechecks, runs the production smoke start and the unit suites on Windows. Playwright runs in four shards behind one `e2e` job that fails if a shard failed, and docs end-to-end tests run only when docs inputs changed.
+The suites and what each job runs are described in [Testing](/dev/testing). `ci.yml` runs on every pull request and on pushes to `next` and `main`. The `fast` job runs `pnpm run test:ci:fast` (ignore, template, lint, format, typecheck and unit checks), then builds every template and recipe fixture. The `windows` job typechecks, runs the production smoke start and the unit suites on Windows. Playwright runs in four shards behind one `e2e` job that fails if a shard failed, and docs end-to-end tests run only when docs inputs changed.

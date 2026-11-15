@@ -12,6 +12,8 @@ sources:
   - packages/core/src/route-renderer/orchestration/ownership-graph/
   - packages/core/src/route-renderer/orchestration/route-pipeline/route-render-orchestrator.ts
   - packages/core/src/route-renderer/page-loading/component-dependency-collection.ts
+  - packages/core/src/route-renderer/page-loading/component-declarations.ts
+  - packages/core/src/assets/asset-processing-service/processed-asset-ledger.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-processor-pipeline.ts
   - packages/core/src/route-renderer/orchestration/document-shell/document-shell-render.service.ts
 ---
@@ -45,6 +47,17 @@ flowchart TD
 4. Dependency collection, the Page Browser Graph, the page client plan, Integration runtimes and lazy-trigger injectors produce the asset list that becomes the Page Package. The global scripts of every Integration the Page uses come first, in config order (`collectPageIntegrationDependencies`). They all come from each Integration's `getResolvedIntegrationDependencies()`, for the owner and for the Integrations named by the page client plan, merged into that one order. Component Dependencies follow. A global script such as Lit's hydration support therefore runs before any Component script defines a custom element, and the order is the same whichever Integration owns the Page. Each of these scripts carries `data-eco-global-script`, which is how a client navigation tells them from Component scripts and loads them first ([React router](/dev/react-router)).
 
 Only nodes with an identity file, under parents that also have one, take part in dependency collection. Collection merges the `ComponentDeclarations` of each node, which are resolved once per component config ([Pages, layouts and components](/dev/pages-layouts-components#runtime)). The shell's Dependencies (Html template, Layouts and Page) are fixed by the Page and the Html template, so in production without HMR, where processed assets are final, the first preparation of a Page in `ecopages build` records them in the asset ledger under the root-relative file and id of both, in declaration order, and every later preparation reads them there. `ecopages start` restores that record and never packages or processes a shell (it only holds the lazy entries of shell components for the page client build), so a deploy without `src/` serves the Page stylesheet bundle the build made ([Ledger and start](/dev/ledger-and-start#recorded-shells)). In development the shell is processed on every render, since an edited stylesheet changes its output without re-importing a module. The Dependencies a Page's `dependencies` function returns are processed on every render. The Page Package is fixed before render: renders return HTML and root attributes only, and the HTML transform injects the prepared package.
+
+```mermaid
+flowchart TD
+  S["resolveShellDependencies"] --> K{"Page has an identity and processed assets are final?"}
+  K -- "no: development, or no identity" --> P["Process every Dependency of the shell on this render"]
+  K -- yes --> L{"ledger.lookupShell(key)"}
+  L -- recorded --> R["Reuse the recorded assets; keep only lazy entries for the page client build"]
+  L -- missing --> SE{"Ledger sealed (ecopages start)?"}
+  SE -- yes --> ER["Throw: the build did not record the shell"]
+  SE -- no --> PD["Process in declaration order, then ledger.recordShell"]
+```
 
 The graph has a guard. In development, `assertComponentInPreparedGraph` fails a render of a Component with `dependencies` and an identity file that preparation never reached, naming the file and the fix: import it statically from its declaring module (a named re-export is followed, `export *` is not), list it in the parent's `dependencies.components`, or return it from the Page's `dependencies`. A Component declared only under a parent without an identity file gets its own message, since preparation collects nothing below such a parent.
 

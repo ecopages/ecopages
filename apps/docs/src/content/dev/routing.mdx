@@ -52,6 +52,20 @@ The scan sorts routes once: `exact` first (`/` before the rest), then `dynamic`,
 
 The request pathname is normalized once (`normalizePathname` adds a leading slash and drops trailing ones; empty segments between repeated slashes are ignored), split on `/`, then each segment is decoded once, so an encoded slash stays inside its segment. A malformed percent escape throws an HTTP 400 error, subject to `app.onError`, even when no route would match. A catch-all also matches its bare prefix, with an empty array.
 
+```mermaid
+flowchart LR
+  subgraph Once["Once, when routes load"]
+    L["init or reload: production routes.json, or the pages scan"] --> U["useTemplateRoutes"]
+    U --> C["compileSegmentPattern(pathname, 'filesystem') per route"]
+    AR["Server adapter created: compileApiRoutes"]
+  end
+  subgraph Per["Per request"]
+    N["Normalize pathname, split, decode each segment once"] --> MR["matchRequest: compare segments against compiled patterns"]
+    MR --> OUT["Route, Params and query"]
+  end
+  C --> MR
+```
+
 ## One segment grammar
 
 `segment-path-matcher.ts` serves every server route kind. Each syntax sets which parameter forms it reads and how a catch-all is captured:

@@ -45,7 +45,7 @@ flowchart TD
 - **Build** does all compiling once and records what it processed. See [Build pipeline](/dev/build-pipeline).
 - **Start** restores those records and compiles nothing. See [Ledger and start](/dev/ledger-and-start).
 
-The `ecopages` command only plans a launch and spawns the app process for each of them; see [CLI](/dev/cli). Build performance is measured by the kitchen-sink benches and the pull request stats comment; see [Benchmarks and CI](/dev/benchmarks-and-ci).
+The `ecopages` command only plans a launch and spawns the app process for each of them; see [CLI](/dev/cli). Build performance is measured by the kitchen-sink benches and the pull request stats comment; see [Benchmarks and CI](/dev/benchmarks-and-ci). The suites that guard all of this, and which of them the commit hook and CI run, are in [Testing](/dev/testing).
 
 Every path renders a Page the same way: route preparation collects its assets into a Page Package before the first Component renders; see [From graph to HTML](/dev/graph-to-html). How a config becomes the per-app state all three share is in [App runtime](/dev/app-runtime).
 
@@ -55,7 +55,7 @@ Every path renders a Page the same way: route preparation collects its assets in
 | --- | --- |
 | `packages/core` | The framework: config, routing, rendering, asset processing, build, dev server and HMR. Every other package plugs into it. |
 | `packages/ecopages` | The CLI: `dev`, `build`, `start`, `preview` and project templates. [CLI](/dev/cli) |
-| `packages/file-system` | The file system access and the path operations every package goes through. See [Paths](#paths). |
+| `packages/file-system` | The file system access and the path operations every package goes through. See [Paths](#paths) and [File system](/dev/file-system). |
 | `packages/browser-router` | Client navigation for server-rendered documents. [Browser router](/dev/browser-router) |
 | `packages/react-router` | Client navigation for React pages. [React router](/dev/react-router) |
 | `packages/dev-toolbar` | The development toolbar. |

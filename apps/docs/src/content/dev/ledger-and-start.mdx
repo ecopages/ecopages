@@ -63,6 +63,31 @@ After the app-wide build, each planned route runs its preparation, so asset proc
 
 A route's shell is its Html template, Layouts and Page, and its Dependencies are fixed by the Page and the Html template. `RouteRenderOrchestrator` records them with `ProcessedAssetLedger.recordShell()` the first time the build prepares a route of each Page, keyed by the root-relative file and id of the Page and of the Html template (`src/pages/index.tsx#3qjod37nyk6na|src/includes/html.tsx#rt56n6iljz2q`), and writes them under `shells`. It records them through `processDependenciesInDeclarationOrder()`, which returns the recorded outputs in the order a sealed start returns them, so the build and start render one shell the same. Every later preparation, in the build or in `ecopages start`, reads the record. Start therefore never packages or processes a shell, and collects from it only the lazy entries of its components, which the page client build reads: packaging reads stylesheet sources to bundle a Page stylesheet, which a deploy without `src/` does not hold. A Page with no identity is processed on each request through the ledger, like any other Dependency. A shell's outputs are not checked against `dist/` on each request, so the missing-output error below covers the other Dependencies of a Page.
 
+The two commands share records, not code paths. The build reads the sources and writes them down; start reads only `dist/`:
+
+```mermaid
+flowchart LR
+  subgraph Build["ecopages build (reads src/)"]
+    T["Transform of each declaring module: discovery records stylesheets and ecopages: virtual imports on the identity, then emits them in the module"]
+    PP["Route preparation for each planned route"]
+    T --> PP
+    PP --> RS["ledger.recordShell: Page, Layouts and Html Dependencies"]
+    PP --> RD["ledger.record: every other processed Dependency"]
+    RS --> W["writeProductionAssetLedger"]
+    RD --> W
+  end
+  W --> PA[("dist/server/processed-assets.json: outputs, browserOutputs, shells (version 5)")]
+  T --> SM[("dist/server/server-modules.json and the emitted modules")]
+  subgraph Start["ecopages start (reads dist/ only)"]
+    RE["restoreProductionBrowserBuild and seal"]
+    RQ["Request: route preparation"]
+    LK["ledger.lookupShell: read the shell, process nothing"]
+    RE --> RQ --> LK
+  end
+  PA --> RE
+  SM --> RQ
+```
+
 ## What start restores
 
 `ecopages start` does not load `eco.config.ts`. `createLaunchPlan()` finds the one directory with `server/manifest.json` (or the `--dist-dir` given), points the process at the emitted config the deploy manifest names, and runs `dist/server/app.mjs`. That loader records its directory, which marks the start as one from a complete `dist/`. The CLI process imports only `@ecopages/core/cli` to plan the launch, so it does not load the bundler before it spawns the app ([CLI](/dev/cli) covers the launch of every command).

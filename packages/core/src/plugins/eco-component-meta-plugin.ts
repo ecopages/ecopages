@@ -28,6 +28,7 @@ import {
 } from './component-import-discovery.ts';
 import { loadTsconfigPathPrefixes } from './tsconfig-import-resolver.ts';
 import { findIntegrationForFile } from './find-integration-for-file.ts';
+import type { ComponentIdentity } from '../types/component-identity.ts';
 
 /**
  * Options for the plugin that attributes Eco Component identities.
@@ -167,9 +168,12 @@ function createSourceKeyResolver(
  * `file` is the root-relative source key and `id` hashes it, so an emitted module names its source the same
  * wherever the app was built and keeps working after the app folder moves.
  */
-function createIdentityLiteral(identitySource: string, sourceKey: string, integration: string): string {
-	const id = BigInt(`0x${contentHash(identitySource, 16)}`).toString(36);
-	return `{ id: ${JSON.stringify(id)}, file: ${JSON.stringify(sourceKey)}, integration: ${JSON.stringify(integration)} }`;
+function createIdentity(identitySource: string, sourceKey: string, integration: string): ComponentIdentity {
+	return { id: BigInt(`0x${contentHash(identitySource, 16)}`).toString(36), file: sourceKey, integration };
+}
+
+function createIdentityLiteral({ id, file, integration }: ComponentIdentity): string {
+	return `{ id: ${JSON.stringify(id)}, file: ${JSON.stringify(file)}, integration: ${JSON.stringify(integration)} }`;
 }
 
 function createNamedImportEdit(
@@ -382,6 +386,26 @@ function stripPlainModuleStylesheetImports(
 	return edits;
 }
 
+/** The first argument of each `eco.*()` call not yet bound, with the identity literal to bind it to. */
+function collectFactoryArguments(
+	program: AstNode,
+	sourceKey: string,
+	integration: string,
+): Array<{ start: number; end: number; identityLiteral: string }> {
+	const factoryArguments: Array<{ start: number; end: number; identityLiteral: string }> = [];
+	for (const [call, identity] of collectCallIdentities(program, sourceKey, integration)) {
+		const firstArgument = Array.isArray(call.arguments) ? call.arguments[0] : undefined;
+		if (!isAstNode(firstArgument) || isIdentityBinding(firstArgument)) continue;
+		if (typeof firstArgument.start !== 'number' || typeof firstArgument.end !== 'number') continue;
+		factoryArguments.push({
+			start: firstArgument.start,
+			end: firstArgument.end,
+			identityLiteral: createIdentityLiteral(identity),
+		});
+	}
+	return factoryArguments;
+}
+
 /**
  * Attributes real `eco.*()` factory calls with canonical component identity.
  *
@@ -428,21 +452,7 @@ export function attributeComponentIdentity(
 
 	const { toCanonicalSourceKey } = createSourceKeyResolver(projectRoot, options.canonicalProjectRoot);
 	const sourceKey = toCanonicalSourceKey(filePath);
-	const factoryArguments: Array<{ start: number; end: number; identityLiteral: string }> = [];
-	const bindingOccurrences = new Map<string, number>();
-	walkEcoFactoryCalls(program, '', (node, binding) => {
-		const occurrence = bindingOccurrences.get(binding) ?? 0;
-		bindingOccurrences.set(binding, occurrence + 1);
-		if (!Array.isArray(node.arguments)) return;
-		const firstArgument = node.arguments[0];
-		if (!isAstNode(firstArgument) || isIdentityBinding(firstArgument)) return;
-		if (typeof firstArgument.start !== 'number' || typeof firstArgument.end !== 'number') return;
-		factoryArguments.push({
-			start: firstArgument.start,
-			end: firstArgument.end,
-			identityLiteral: createIdentityLiteral(`${sourceKey}:${binding}:${occurrence}`, sourceKey, integration),
-		});
-	});
+	const factoryArguments = collectFactoryArguments(program, sourceKey, integration);
 
 	if (factoryArguments.length === 0) {
 		return applySourceEdits(contents, [], filePath, { prepend: pragma });
@@ -529,6 +539,163 @@ function buildMdxIdentityAppend(options: {
 	return appended;
 }
 
+/** The expression under TypeScript `as`, `satisfies` and non-null wrappers, and parentheses. */
+function unwrapExpression(value: unknown): AstNode | undefined {
+	let current = node(value);
+	while (
+		current &&
+		(current.type === 'TSAsExpression' ||
+			current.type === 'TSSatisfiesExpression' ||
+			current.type === 'TSNonNullExpression' ||
+			current.type === 'ParenthesizedExpression')
+	) {
+		current = node(current.expression);
+	}
+	return current;
+}
+
+/**
+ * Reads, without transforming the module, the identity of each export whose value is an `eco.*()` call.
+ *
+ * @remarks
+ * The identities are the ones {@link attributeComponentIdentity} binds when it builds the same source, so a
+ * browser graph can name a Component another Integration owns without importing its module. An export counts only
+ * when its value is the call itself: `export const X = eco.component(...)`, `export default eco.component(...)`, or
+ * a top-level `const` holding the call that an `export { local as name }` or `export default local` names. A value
+ * a function returns, or any other expression, has no entry, and so does a module that does not parse. A call whose
+ * options are not an object literal, or set `integration` or spread another object, has no entry either, since its
+ * Component may belong to another Integration than the file.
+ * `filePath` is compared as given, so pass the real path the bundler reports.
+ */
+export function readExportedComponentIdentities(
+	contents: string,
+	filePath: string,
+	options: { integration: string; projectRoot: string },
+): Map<string, ComponentIdentity> {
+	if (!contents.includes('eco.')) return new Map();
+	let program: AstNode;
+	try {
+		program = parseModuleSource(filePath, contents, { sourceType: 'module' }).program as unknown as AstNode;
+	} catch {
+		return new Map();
+	}
+	const sourceKey = createSourceKeyResolver(options.projectRoot).toCanonicalSourceKey(filePath);
+	const callIdentities = collectCallIdentities(program, sourceKey, options.integration);
+	if (callIdentities.size === 0) return new Map();
+	const identityOf = (value: unknown) => {
+		const expression = unwrapExpression(value);
+		return expression && ownedByFile(expression) ? callIdentities.get(expression) : undefined;
+	};
+	const statements = nodes(program.body);
+	return collectExportIdentities(statements, identityOf, collectConstIdentities(statements, identityOf));
+}
+
+/**
+ * The identity each `eco.*()` call gets, in source order.
+ *
+ * @remarks
+ * The one place calls are numbered: {@link attributeComponentIdentity} binds these identities and
+ * {@link readExportedComponentIdentities} reads them, so the two cannot disagree.
+ */
+function collectCallIdentities(
+	program: AstNode,
+	sourceKey: string,
+	integration: string,
+): Map<AstNode, ComponentIdentity> {
+	const identities = new Map<AstNode, ComponentIdentity>();
+	const bindingOccurrences = new Map<string, number>();
+	walkEcoFactoryCalls(program, '', (call, binding) => {
+		const occurrence = bindingOccurrences.get(binding) ?? 0;
+		bindingOccurrences.set(binding, occurrence + 1);
+		identities.set(call, createIdentity(`${sourceKey}:${binding}:${occurrence}`, sourceKey, integration));
+	});
+	return identities;
+}
+
+/**
+ * Whether an `eco.*()` call's Component belongs to the Integration that owns its file: its options are an object
+ * literal with neither an `integration` property nor a spread that could carry one.
+ */
+function ownedByFile(call: AstNode): boolean {
+	const options = Array.isArray(call.arguments) ? node(call.arguments[0]) : undefined;
+	if (options?.type !== 'ObjectExpression') return false;
+	return !nodes(options.properties).some((property) => {
+		if ((property.type !== 'Property' && property.type !== 'ObjectProperty') || property.computed) return true;
+		const key = node(property.key);
+		return key !== undefined && (key.name ?? key.value) === 'integration';
+	});
+}
+
+/** The identity of each top-level `const`, exported or not, whose initializer is an `eco.*()` call. */
+function collectConstIdentities(
+	statements: AstNode[],
+	identityOf: (value: unknown) => ComponentIdentity | undefined,
+): Map<string, ComponentIdentity> {
+	const identities = new Map<string, ComponentIdentity>();
+	for (const statement of statements) {
+		const declaration = statement.type === 'ExportNamedDeclaration' ? node(statement.declaration) : statement;
+		if (declaration?.type !== 'VariableDeclaration' || declaration.kind !== 'const') continue;
+		for (const declarator of nodes(declaration.declarations)) {
+			const id = node(declarator.id);
+			const identity = identityOf(declarator.init);
+			if (id?.type === 'Identifier' && identity) identities.set(String(id.name), identity);
+		}
+	}
+	return identities;
+}
+
+function exportedName(value: unknown): string | undefined {
+	const exported = node(value);
+	if (!exported) return undefined;
+	return exported.type === 'Identifier' ? String(exported.name) : String(exported.value);
+}
+
+/** The names a local `export` statement gives a top-level `const`, with the const's name. */
+function localExportNames(statement: AstNode): Array<[exported: string, local: string]> {
+	const names: Array<[string, string]> = [];
+	const declaration = node(statement.declaration);
+	if (declaration?.type === 'VariableDeclaration') {
+		for (const declarator of nodes(declaration.declarations)) {
+			const id = node(declarator.id);
+			if (id?.type === 'Identifier') names.push([String(id.name), String(id.name)]);
+		}
+	}
+	for (const specifier of nodes(statement.specifiers)) {
+		const local = node(specifier.local);
+		const exported = exportedName(specifier.exported);
+		if (specifier.exportKind !== 'type' && local?.type === 'Identifier' && exported) {
+			names.push([exported, String(local.name)]);
+		}
+	}
+	return names;
+}
+
+/** The identity of each export whose value is an `eco.*()` call, directly or through a top-level `const`. */
+function collectExportIdentities(
+	statements: AstNode[],
+	identityOf: (value: unknown) => ComponentIdentity | undefined,
+	constIdentities: Map<string, ComponentIdentity>,
+): Map<string, ComponentIdentity> {
+	const identities = new Map<string, ComponentIdentity>();
+	for (const statement of statements) {
+		if (statement.type === 'ExportDefaultDeclaration') {
+			const declaration = node(statement.declaration);
+			const local =
+				declaration?.type === 'Identifier' ? constIdentities.get(String(declaration.name)) : undefined;
+			const identity = identityOf(declaration) ?? local;
+			if (identity) identities.set('default', identity);
+			continue;
+		}
+		if (statement.type !== 'ExportNamedDeclaration' || statement.source || statement.exportKind === 'type')
+			continue;
+		for (const [exported, local] of localExportNames(statement)) {
+			const identity = constIdentities.get(local);
+			if (identity) identities.set(exported, identity);
+		}
+	}
+	return identities;
+}
+
 /**
  * Attributes a compiled MDX module with canonical component identity and discovered dependencies.
  *
@@ -568,7 +735,7 @@ export function attributeMdxComponentIdentity(
 	const discovered = discoverComponentImports(program, filePath, projectRoot, { stylesheets });
 	const { toSourceKey } = createSourceKeyResolver(projectRoot);
 	const sourceKey = toSourceKey(filePath);
-	const identityLiteral = createIdentityLiteral(sourceKey, sourceKey, integration);
+	const identityLiteral = createIdentityLiteral(createIdentity(sourceKey, sourceKey, integration));
 	const plainModuleImports = createPlainModuleComponentImports(discovered);
 	const discoveryArgument = serializeDiscoveryArgument(discovered, toSourceKey, plainModuleImports.locals);
 

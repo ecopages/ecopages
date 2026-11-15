@@ -5,6 +5,7 @@ import {
 	attributeComponentIdentity,
 	attributeMdxComponentIdentity,
 	createEcoComponentMetaPlugin,
+	readExportedComponentIdentities,
 } from './eco-component-meta-plugin';
 import { getPluginTransform } from '../__fixtures__/build/transform-plugin';
 import type { EcoPagesAppConfig } from '../config/internal-types';
@@ -432,6 +433,53 @@ register(eco.component({ render: () => '<b />' }));
 `);
 
 			expect(new Set(ids).size).toBe(3);
+		});
+	});
+
+	describe('readExportedComponentIdentities', () => {
+		const filePath = '/path/to/components.tsx';
+		const read = (source: string) =>
+			readExportedComponentIdentities(source, filePath, { integration: 'ecopages-jsx', projectRoot: '/path/to' });
+		const attributedIds = (source: string): string[] =>
+			[
+				...attributeComponentIdentity(source, filePath, {
+					integration: 'ecopages-jsx',
+					projectRoot: '/path/to',
+				}).code.matchAll(/bindComponentIdentity\(\{ id: "([a-z0-9]+)"/g),
+			].map((match) => match[1]!);
+
+		it('reads the ids the attribution binds for each form of exported call', () => {
+			const source = `
+import { eco } from '@ecopages/core';
+const helper = () => eco.component({ render: () => '<i />' });
+export const Card = eco.component({ render: () => '<article />' });
+const Local = eco.component({ render: () => '<b />' }) satisfies object;
+export { Local as Aliased };
+export default eco.component({ render: () => '<main />' });
+`;
+			const [helperId, cardId, localId, defaultId] = attributedIds(source);
+			const identities = read(source);
+
+			expect(identities.get('Card')).toEqual({ id: cardId, file: 'components.tsx', integration: 'ecopages-jsx' });
+			expect(identities.get('Aliased')?.id).toBe(localId);
+			expect(identities.get('default')?.id).toBe(defaultId);
+			expect([...identities.values()].map((identity) => identity.id)).not.toContain(helperId);
+			expect(identities.has('helper')).toBe(false);
+		});
+
+		it('has no entry for an export whose value is not the call itself', () => {
+			const identities = read(`
+import { eco } from '@ecopages/core';
+export const make = () => eco.component({ render: () => '<i />' });
+export const wrapped = wrap(eco.component({ render: () => '<b />' }));
+export let mutable = eco.component({ render: () => '<u />' });
+export const Owned = eco.component({ integration: 'react', render: () => '<s />' });
+export const Spread = eco.component({ ...base, render: () => '<q />' });
+const options = { render: () => '<p />' };
+export const Indirect = eco.component(options);
+`);
+
+			expect([...identities.keys()]).toEqual([]);
 		});
 	});
 

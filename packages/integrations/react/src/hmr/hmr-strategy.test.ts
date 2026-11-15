@@ -83,6 +83,7 @@ function createRegisteredScriptStrategy(options: {
 		options;
 
 	return new ReactHmrStrategy({
+		integrationOf: () => undefined,
 		context: createMockContext({
 			getWatchedFiles: () => watchedFiles ?? new Map(),
 			getRegisteredEntrypoints: () => registeredScriptEntrypoints([{ sourcePath: scriptPath, outputUrl }]),
@@ -103,6 +104,7 @@ describe('ReactHmrStrategy', () => {
 	it('claims owned React entrypoints for dev transform plugin selection', () => {
 		const pagePath = path.resolve('/tmp/src/pages/index.tsx');
 		const strategy = new ReactHmrStrategy({
+			integrationOf: () => undefined,
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
@@ -115,6 +117,7 @@ describe('ReactHmrStrategy', () => {
 	it('claims page entrypoints for dev transform even before SSR marks them owned', () => {
 		const pagePath = path.resolve('/tmp/src/pages/dashboard.tsx');
 		const strategy = new ReactHmrStrategy({
+			integrationOf: () => undefined,
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache(),
 		});
@@ -147,6 +150,7 @@ describe('ReactHmrStrategy', () => {
 	it('claims a module requested in the React boundary variant, whatever its extension', () => {
 		const sharedPath = path.resolve('/tmp/src/lib/shared.ts');
 		const strategy = new ReactHmrStrategy({
+			integrationOf: () => undefined,
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache(),
 		});
@@ -158,6 +162,7 @@ describe('ReactHmrStrategy', () => {
 	it('process returns none when no entrypoints are registered yet', async () => {
 		const pagePath = path.resolve('/tmp/src/pages/index.tsx');
 		const strategy = new ReactHmrStrategy({
+			integrationOf: () => undefined,
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
@@ -172,6 +177,7 @@ describe('ReactHmrStrategy', () => {
 			[path.resolve('/tmp/src/pages/react-lab.tsx'), '/assets/__eco_dev__/pages/react-lab.js'],
 		]);
 		const strategy = new ReactHmrStrategy({
+			integrationOf: () => undefined,
 			context: createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
@@ -201,6 +207,7 @@ describe('ReactHmrStrategy', () => {
 			const pageMetadataCache = new HmrPageMetadataCache();
 			pageMetadataCache.markOwnedEntrypoint(pageEntrypoint);
 			return new ReactHmrStrategy({
+				integrationOf: () => undefined,
 				context: createMockContext({
 					getWatchedFiles: () => new Map([[pageEntrypoint, devTransformPageUrl('index.js')]]),
 					isPageFile: (filePath) => filePath === pageEntrypoint,
@@ -265,6 +272,7 @@ describe('ReactHmrStrategy', () => {
 			},
 		});
 		const strategy = new ReactHmrStrategy({
+			integrationOf: () => undefined,
 			context: createMockContext({
 				importServerModule,
 			}),
@@ -285,6 +293,7 @@ describe('ReactHmrStrategy', () => {
 		]);
 
 		const strategy = new ReactHmrStrategy({
+			integrationOf: () => undefined,
 			context: createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
@@ -321,6 +330,7 @@ describe('ReactHmrStrategy', () => {
 		]);
 
 		const strategy = new ReactHmrStrategy({
+			integrationOf: () => undefined,
 			context: createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
@@ -358,6 +368,7 @@ describe('ReactHmrStrategy', () => {
 		const watchedFiles = new Map<string, string>([[changedEntrypoint, devTransformPageUrl('index.js')]]);
 
 		const strategy = new ReactHmrStrategy({
+			integrationOf: () => undefined,
 			context: createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
@@ -388,6 +399,7 @@ describe('ReactHmrStrategy', () => {
 		const watchedFiles = new Map<string, string>([[changedEntrypoint, devTransformUrl]]);
 
 		const strategy = new ReactHmrStrategy({
+			integrationOf: () => undefined,
 			context: createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
@@ -421,6 +433,7 @@ describe('ReactHmrStrategy', () => {
 		]);
 
 		const strategy = new ReactHmrStrategy({
+			integrationOf: () => undefined,
 			context: createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
@@ -456,6 +469,7 @@ describe('ReactHmrStrategy', () => {
 			]);
 			const changedComponent = path.resolve('/tmp/src/components/button.tsx');
 			const strategy = new ReactHmrStrategy({
+				integrationOf: () => undefined,
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
@@ -483,6 +497,7 @@ describe('ReactHmrStrategy', () => {
 			]);
 			const changedComponent = path.resolve('/tmp/src/components/button.tsx');
 			const strategy = new ReactHmrStrategy({
+				integrationOf: () => undefined,
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
@@ -514,6 +529,7 @@ describe('ReactHmrStrategy', () => {
 			]);
 
 			const strategy = new ReactHmrStrategy({
+				integrationOf: () => undefined,
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
@@ -553,6 +569,7 @@ describe('ReactHmrStrategy', () => {
 			const watchedFiles = new Map<string, string>([[entrypointA, '/assets/__eco_dev__/pages/page-a.js']]);
 
 			const strategy = new ReactHmrStrategy({
+				integrationOf: () => undefined,
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
@@ -586,6 +603,7 @@ describe('ReactHmrStrategy', () => {
 			]);
 
 			const strategy = new ReactHmrStrategy({
+				integrationOf: () => undefined,
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
@@ -629,6 +647,7 @@ describe('ReactHmrStrategy', () => {
 			]);
 
 			const strategy = new ReactHmrStrategy({
+				integrationOf: () => undefined,
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
@@ -677,6 +696,7 @@ describe('ReactHmrStrategy', () => {
 			]);
 
 			const strategy = new ReactHmrStrategy({
+				integrationOf: () => undefined,
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
@@ -717,6 +737,7 @@ describe('ReactHmrStrategy', () => {
 			const entrypointA = path.resolve('/tmp/src/pages/page-a.tsx');
 			const watchedFiles = new Map<string, string>([[entrypointA, '/assets/__eco_dev__/pages/page-a.js']]);
 			const strategy = new ReactHmrStrategy({
+				integrationOf: () => undefined,
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({
@@ -745,6 +766,7 @@ describe('ReactHmrStrategy', () => {
 			]);
 
 			const strategy = new ReactHmrStrategy({
+				integrationOf: () => undefined,
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
 					getEntrypointDependencyGraph: () => ({

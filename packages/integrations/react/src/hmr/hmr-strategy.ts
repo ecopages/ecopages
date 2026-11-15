@@ -18,11 +18,12 @@ import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core/integration';
 import { createClientGraphBoundaryPlugin, createForeignBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
 import { REACT_BOUNDARY_VARIANT } from '../client-graph/foreign-boundary-rewrite.ts';
+import { createComponentIdentityReader } from '../client-graph/component-identity-reader.ts';
 import { getReactClientGraphAllowSpecifiers } from '../bundling/bundle.ts';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { getReactBrowserPackages } from '../bundling/bootstrap-package-paths.ts';
 import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
-import type { EcoComponentConfig } from '@ecopages/core';
+import type { ComponentIdentity, EcoComponentConfig } from '@ecopages/core';
 import {
 	buildReactDevTransformPlugins,
 	resolveReactDeclaredModulesForEntrypoint,
@@ -47,6 +48,8 @@ export interface ReactHmrStrategyOptions {
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	ownedTemplateExtensions?: string[];
 	allTemplateExtensions?: string[];
+	/** The Integration that owns a file, so React names a foreign Eco Component by its identity. */
+	integrationOf: (filePath: string) => string | undefined;
 }
 
 type ImportedReactPageModule = {
@@ -66,6 +69,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private readonly context: DefaultHmrContext;
 	private readonly pageMetadataCache: HmrPageMetadataCache;
 	private readonly routerAdapter?: ReactRouterAdapter;
+	private readonly componentIdentityOf: (filePath: string, exportName: string) => ComponentIdentity | undefined;
 
 	private async importNodePageModule(entrypointPath: string): Promise<ImportedReactPageModule> {
 		return await this.context.importServerModule(entrypointPath);
@@ -91,6 +95,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 		this.allTemplateExtensions = [...(options.allTemplateExtensions ?? ['.tsx'])].sort(
 			(a, b) => b.length - a.length,
 		);
+		this.componentIdentityOf = createComponentIdentityReader({
+			rootDir: this.projectRoot,
+			integrationOf: options.integrationOf,
+		});
 	}
 
 	private getBuildPlugins(declaredModules?: readonly string[]): EcoBuildPlugin[] {
@@ -108,6 +116,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 					return templateExtension !== undefined && !this.ownedTemplateExtensions.has(templateExtension);
 				},
 				isSharedFile: (filePath) => !this.isReactEntrypoint(filePath),
+				componentIdentityOf: this.componentIdentityOf,
 			}),
 		];
 	}

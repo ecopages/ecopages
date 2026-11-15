@@ -6,6 +6,7 @@ import { ReactHmrStrategy } from '../hmr/hmr-strategy.ts';
 
 function createStrategy(): ReactHmrStrategy {
 	return new ReactHmrStrategy({
+		integrationOf: () => undefined,
 		context: {
 			getWatchedFiles: () => new Map(),
 			getRegisteredEntrypoints: () => new Map(),

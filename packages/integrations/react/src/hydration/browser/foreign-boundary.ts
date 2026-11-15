@@ -11,7 +11,7 @@
  */
 
 import { createElement, useState, type ComponentType } from 'react';
-import { isProductionRuntime, type EcoComponent } from '@ecopages/core';
+import { isProductionRuntime, type ComponentIdentity, type EcoComponent } from '@ecopages/core';
 import { REACT_PLUGIN_NAME } from '../../plugin/react.constants.ts';
 import {
 	FOREIGN_SUBTREE_DISPLAY,
@@ -133,6 +133,26 @@ export function foreignBoundary<T>(value: T): T {
 		boundaries.set(value, boundary);
 	}
 	return boundary as T;
+}
+
+const references = new Map<string, ComponentType<Record<string, unknown>>>();
+
+/**
+ * Returns the boundary of the Eco Component another Integration owns that `identity` names, without its module.
+ *
+ * @remarks
+ * The React client graph emits this in place of an import when the export is statically an `eco.*()` call, so
+ * the Component's module and its imports stay out of React's bundle; the boundary only needs the identity to find
+ * the server HTML. One boundary type per identity keeps React from re-mounting it on a parent render.
+ */
+export function foreignBoundaryReference(identity: ComponentIdentity): ComponentType<Record<string, unknown>> {
+	let boundary = references.get(identity.id);
+	if (!boundary) {
+		const component: EcoComponent = Object.assign(() => null, { config: { identity } });
+		boundary = foreignBoundary(component) as ComponentType<Record<string, unknown>>;
+		references.set(identity.id, boundary);
+	}
+	return boundary;
 }
 
 /**

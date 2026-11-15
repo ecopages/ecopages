@@ -230,6 +230,77 @@ describe('rewriteForeignImports', () => {
 	});
 });
 
+describe('rewriteForeignImports with component identities', () => {
+	const identity = (file: string, name: string) => ({
+		id: `${path.basename(file)}:${name}`,
+		file,
+		integration: 'lit',
+	});
+	const statics = new Set(['default']);
+	const rewriteWithIdentities = (root: string, code: string, watched: string[] = []) =>
+		rewriteForeignImports(code, path.join(root, 'island.tsx'), {
+			projectRoot: root,
+			isForeignFile,
+			componentIdentityOf: (file, name) => (statics.has(name) ? identity(file, name) : undefined),
+			watchFile: (file) => watched.push(file),
+		});
+
+	it('names a static Component by identity and drops its import with the unread foreign bindings', () => {
+		const root = createProject();
+		try {
+			const watched: string[] = [];
+			const output = rewriteWithIdentities(
+				root,
+				"import Counter, { Named } from './components/counter.lit.tsx';\nexport default () => Counter;",
+				watched,
+			)!;
+			const counter = path.join(root, 'components/counter.lit.tsx');
+			expect(output).toContain(
+				`const Counter = __ecoForeignBoundaryReference(${JSON.stringify(identity(counter, 'default'))});`,
+			);
+			expect(output).not.toMatch(/from ["']\.\/components\/counter\.lit\.tsx["']/);
+			expect(watched).toEqual([counter]);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('keeps the import of a foreign binding that has no identity', () => {
+		const root = createProject();
+		try {
+			const output = rewriteWithIdentities(
+				root,
+				"import Counter, { Named } from './components/counter.lit.tsx';\nexport default () => [Counter, Named];",
+			)!;
+			expect(output).toContain('__ecoForeignBoundaryReference(');
+			expect(output).toMatch(
+				/import \{ "Named" as (__eco_foreign_\d+) \} from "\.\/components\/counter\.lit\.tsx";/,
+			);
+			expect(output).toContain('const Named = __ecoForeignBoundary(');
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('follows a barrel to the declaring file and watches every file it walked', () => {
+		const root = createProject();
+		try {
+			const watched: string[] = [];
+			const output = rewriteWithIdentities(
+				root,
+				"import { Counter } from './components/index.ts';\nexport default () => Counter;",
+				watched,
+			)!;
+			const counter = path.join(root, 'components/counter.lit.tsx');
+			expect(output).toContain(JSON.stringify(identity(counter, 'default')));
+			expect(output).not.toContain('index.ts');
+			expect(watched).toEqual([path.join(root, 'components/index.ts'), counter]);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('rewriteForeignImports module variants', () => {
 	const shared = (root: string) => (file: string) => file.startsWith(path.join(root, 'lib'));
 

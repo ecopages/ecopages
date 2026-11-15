@@ -19,7 +19,11 @@ import { classifyClientGraphModule } from './module-classification.ts';
 import { transformClientGraphModule } from './boundary-plugin-transform.ts';
 import { inlineReadFileSyncCalls } from './boundary-plugin-read-file-inline.ts';
 import { resolveLocalModulePath, scanForeignJsxReach, toRealPath, type ForeignJsxReach } from './foreign-jsx-reach.ts';
-import { isReactBoundaryVariant, rewriteForeignImports } from './foreign-boundary-rewrite.ts';
+import {
+	isReactBoundaryVariant,
+	rewriteForeignImports,
+	type ForeignBoundaryRewriteOptions,
+} from './foreign-boundary-rewrite.ts';
 import {
 	createRequestedExportsPlan,
 	type PlannedModule,
@@ -347,6 +351,7 @@ function getForeignJsxReach(
 	context: ClientGraphBoundaryBuildContext,
 	projectRoot: string,
 	isForeignFile: (filePath: string) => boolean,
+	reactModuleSource: ReactModuleSource | undefined,
 ): ForeignJsxReach {
 	if (!context.foreignJsxReach) {
 		const reactEntryFiles = new Set([...getReactEntrypointFiles(context)].map(toRealPath));
@@ -355,9 +360,37 @@ function getForeignJsxReach(
 			reactEntryFiles,
 			otherEntryFiles: [...context.entrypointFiles].map(toRealPath).filter((file) => !reactEntryFiles.has(file)),
 			isForeignFile,
+			reactModuleSource,
 		});
 	}
 	return context.foreignJsxReach;
+}
+
+/** The source of a module as React's graph compiles it, or `undefined` when React keeps it as it is. */
+export type ReactModuleSource = (filePath: string, source: string) => string | undefined;
+
+/**
+ * The foreign boundary rewrite as the reach scans apply it: to React's own modules, with the identity stubs.
+ *
+ * @remarks
+ * Without `componentIdentityOf` the rewrite only wraps bindings and keeps every import, so the scans read the
+ * original source.
+ */
+export function createReactModuleSource(options: {
+	projectRoot: string;
+	isForeignFile: (filePath: string) => boolean;
+	componentIdentityOf?: ForeignBoundaryRewriteOptions['componentIdentityOf'];
+}): ReactModuleSource | undefined {
+	const { componentIdentityOf } = options;
+	if (!componentIdentityOf) return undefined;
+	return (filePath, source) =>
+		options.isForeignFile(filePath)
+			? undefined
+			: rewriteForeignImports(source, filePath, {
+					projectRoot: options.projectRoot,
+					isForeignFile: options.isForeignFile,
+					componentIdentityOf,
+				});
 }
 
 /**
@@ -389,13 +422,15 @@ export function createForeignJsxScope(options: {
 	hostIntegrationName: string;
 	/** Name of the other JSX Integration that owns `filePath`; `undefined` when the file is not foreign. */
 	findForeignOwner: (filePath: string) => string | undefined;
+	/** How React's graph compiles a module, so the reach scan sees the imports React keeps. */
+	reactModuleSource?: ReactModuleSource;
 }): (build: EcoBuildPluginBuilder) => (sourcePath: string) => boolean {
 	const isForeignFile = (filePath: string) => options.findForeignOwner(filePath) !== undefined;
 	return (build) => (sourcePath) => {
 		const context = build.entrypoints ? buildContexts.get(build.entrypoints) : undefined;
 		const owner = options.findForeignOwner(sourcePath);
 		if (!context || context.configs.length === 0 || owner === undefined) return true;
-		const reach = getForeignJsxReach(context, options.projectRoot, isForeignFile);
+		const reach = getForeignJsxReach(context, options.projectRoot, isForeignFile, options.reactModuleSource);
 		const filePath = toRealPath(sourcePath);
 		const otherEntry = reach.others.get(filePath) ?? findForeignEntry(context, filePath);
 		if (otherEntry === undefined) return true;
@@ -468,7 +503,11 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 }
 
 /** The files React entries reach and the files other entries reach, by a static scan of the build's entries. */
-function getEntryReach(context: ClientGraphBoundaryBuildContext, projectRoot: string): AnyFileReach {
+function getEntryReach(
+	context: ClientGraphBoundaryBuildContext,
+	projectRoot: string,
+	reactModuleSource: ReactModuleSource | undefined,
+): AnyFileReach {
 	if (!context.entryReach) {
 		const reactEntryFiles = new Set([...getReactEntrypointFiles(context)].map(toRealPath));
 		const otherEntryFiles = [...context.entrypointFiles]
@@ -479,6 +518,7 @@ function getEntryReach(context: ClientGraphBoundaryBuildContext, projectRoot: st
 			reactEntryFiles,
 			otherEntryFiles,
 			isForeignFile: () => true,
+			reactModuleSource,
 		});
 		context.entryReach = {
 			reactEntryFiles,
@@ -509,7 +549,10 @@ export function createForeignBoundaryPlugin(options: {
 	isForeignFile: (filePath: string) => boolean;
 	/** Whether another module graph uses `filePath`, in a build whose entries cannot say. */
 	isSharedFile?: (filePath: string) => boolean;
+	/** See {@link ForeignBoundaryRewriteOptions.componentIdentityOf}. */
+	componentIdentityOf?: ForeignBoundaryRewriteOptions['componentIdentityOf'];
 }): EcoBuildPlugin {
+	const reactModuleSource = createReactModuleSource(options);
 	return {
 		name: 'ecopages-react-foreign-boundary',
 		environments: ['browser'],
@@ -527,7 +570,9 @@ export function createForeignBoundaryPlugin(options: {
 				if (options.isForeignFile(filePath)) return undefined;
 				const context = build.entrypoints ? buildContexts.get(build.entrypoints) : undefined;
 				const reach =
-					context && context.configs.length > 0 ? getEntryReach(context, options.projectRoot) : undefined;
+					context && context.configs.length > 0
+						? getEntryReach(context, options.projectRoot, reactModuleSource)
+						: undefined;
 				const inReactGraph =
 					!reach ||
 					isReactBoundaryVariant(id) ||
@@ -537,6 +582,8 @@ export function createForeignBoundaryPlugin(options: {
 				return rewriteForeignImports(code, filePath, {
 					projectRoot: options.projectRoot,
 					isForeignFile: options.isForeignFile,
+					componentIdentityOf: options.componentIdentityOf,
+					watchFile: (file) => build.addWatchFile(file),
 					isSharedFile: reach
 						? (file) => reach.others.has(file) && reach.react.has(file)
 						: options.isSharedFile,

@@ -1467,7 +1467,7 @@ describe('IntegrationRenderer', () => {
 		);
 	});
 
-	it('passes request locals to dynamic pages and layouts', async () => {
+	it('passes request locals to a dynamic page, and to a layout only through its props factory', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
@@ -1478,13 +1478,30 @@ describe('IntegrationRenderer', () => {
 			`<p data-page-user="${locals?.session?.userId ?? 'missing'}">Page</p>`) as EcoPageComponent<
 			Record<string, unknown>
 		>;
-		const Layout = (({ children, locals }: { children?: unknown; locals?: { session?: { userId?: string } } }) =>
-			`<main data-layout-user="${locals?.session?.userId ?? 'missing'}">${String(children ?? '')}</main>`) as EcoComponent<{
+		const Layout = (({
+			children,
+			locals,
+			user,
+		}: {
 			children?: unknown;
 			locals?: { session?: { userId?: string } };
+			user?: string;
+		}) =>
+			`<main data-layout-locals="${locals?.session?.userId ?? 'missing'}" data-layout-user="${user ?? 'missing'}">${String(children ?? '')}</main>`) as EcoComponent<{
+			children?: unknown;
+			locals?: { session?: { userId?: string } };
+			user?: string;
 		}>;
 		PageIdx.cache = 'dynamic';
-		PageIdx.config = { layouts: [Layout] };
+		PageIdx.config = {
+			layouts: [Layout],
+			layoutEntries: [
+				{
+					component: Layout,
+					props: ({ locals }) => ({ user: (locals?.session as { userId?: string } | undefined)?.userId }),
+				},
+			],
+		};
 
 		renderer.PageModule = {
 			default: PageIdx,
@@ -1500,7 +1517,9 @@ describe('IntegrationRenderer', () => {
 		});
 		const html = await new Response(result.body as BodyInit).text();
 
-		expect(html).toContain('<main data-layout-user="u-1"><p data-page-user="u-1">Page</p></main>');
+		expect(html).toContain(
+			'<main data-layout-locals="missing" data-layout-user="u-1"><p data-page-user="u-1">Page</p></main>',
+		);
 	});
 
 	describe('renderExplicitView', () => {

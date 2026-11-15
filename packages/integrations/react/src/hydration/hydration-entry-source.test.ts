@@ -112,4 +112,36 @@ describe('createPageEntrySource', () => {
 
 		expect(readHydrateCount()).toBe(1);
 	});
+
+	describe('server-resolved layout tier props', () => {
+		const base = {
+			importPath: '/page.tsx',
+			pageModuleUrlExpression: '"/assets/page.js"',
+			scriptId: 'page',
+			hmrEnabled: false,
+			isMdx: false,
+		};
+
+		it('passes the tiers to the layout composition of a page without a router', () => {
+			const source = createPageEntrySource(base);
+
+			expect(source).toContain(
+				'const createTree = (Page, props, tiers) => composeLayoutPageTree(Page, props, tiers ? { tierProps: tiers } : undefined);',
+			);
+		});
+
+		it('hands the tiers to the router next to the adapter props', () => {
+			const source = createPageEntrySource({
+				...base,
+				routerImportPath: '@ecopages/react-router',
+				routerComponents: { router: 'EcoRouter', pageContent: 'PageContent' },
+				routerPropsExpression: '{ page: Page, pageProps: props }',
+			});
+
+			expect(source).toContain('const createTree = (Page, props, tiers) => {');
+			expect(source).toContain(
+				'createElement(EcoRouter, { ...({ page: Page, pageProps: props }), tierProps: tiers }, pageContent)',
+			);
+		});
+	});
 });

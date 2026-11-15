@@ -43,4 +43,29 @@ describe('page-data-reader', () => {
 
 		expect(readPageDataDocument(fetched)).toEqual({ props: { slug: 'fetched' } });
 	});
+
+	it('should return the tiers of a v1 envelope and of a flat payload without leaking the key into props', () => {
+		installPageDataScript(
+			JSON.stringify({
+				schemaVersion: 1,
+				navigationOwner: 'react-router',
+				moduleUrl: '/assets/page.js',
+				props: { slug: 'intro' },
+				tiers: [{ user: 'Ada' }],
+			}),
+		);
+		expect(readPageDataDocument()).toEqual({
+			moduleUrl: '/assets/page.js',
+			props: { slug: 'intro' },
+			tiers: [{ user: 'Ada' }],
+		});
+
+		installPageDataScript(JSON.stringify({ slug: 'legacy', __ecoTiers: [{ user: 'Ada' }] }));
+		expect(readPageDataDocument()).toEqual({ props: { slug: 'legacy' }, tiers: [{ user: 'Ada' }] });
+	});
+
+	it('should omit tiers when the document carries none or invalid ones', () => {
+		installPageDataScript(JSON.stringify({ slug: 'legacy', __ecoTiers: 'nope' }));
+		expect(readPageDataDocument()).toEqual({ props: { slug: 'legacy' } });
+	});
 });

@@ -116,7 +116,7 @@ import {
 import {
 	resolveInnermostPageLayout,
 	resolvePageLayoutComponents,
-	resolveDocumentShellLayouts,
+	resolveRenderLayouts,
 } from './document-shell/layout-shell-props.service.ts';
 import { stampIslandHost } from '../../islands/island-host.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
@@ -1344,7 +1344,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					locals: options.pageLocals,
 				},
 			},
-			layouts: resolveDocumentShellLayouts({
+			layouts: resolveRenderLayouts(options, {
 				layout: options.Layout,
 				layoutEntries: options.layoutEntries,
 				params: options.params,

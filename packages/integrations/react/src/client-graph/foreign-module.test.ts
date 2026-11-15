@@ -67,11 +67,12 @@ describe('createForeignModuleReader', () => {
 
 describe('stub specifiers and source', () => {
 	it('round-trips a file inside and outside the app root', () => {
-		for (const file of ['/app/src/card.tsx', '/shared/ui/card.tsx']) {
-			const specifier = toForeignStubSpecifier('/app', file);
-			expect(fromForeignStubSpecifier('/app', specifier)).toBe(file);
+		const root = path.resolve('/app');
+		for (const file of [path.resolve('/app/src/card.tsx'), path.resolve('/shared/ui/card.tsx')]) {
+			const specifier = toForeignStubSpecifier(root, file);
+			expect(fromForeignStubSpecifier(root, specifier)).toBe(file);
 		}
-		expect(toForeignStubSpecifier('/app', '/shared/ui/card.tsx')).toBe(
+		expect(toForeignStubSpecifier(root, path.resolve('/shared/ui/card.tsx'))).toBe(
 			'ecopages-react-foreign-stub:../shared/ui/card.tsx',
 		);
 	});

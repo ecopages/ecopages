@@ -1,15 +1,17 @@
 import {
 	type EcoPageDataDocumentPayload,
 	type EcoPageDataProps,
-	createEcoPageDataManifestV1,
+	resolvePageDataDocumentPayload,
 } from './page-data-manifest.ts';
 
 export {
 	ECO_PAGE_DATA_SCHEMA_VERSION,
+	ECO_PAGE_DATA_TIERS_KEY,
 	createEcoPageDataManifestV1,
 	isEcoPageDataManifestV1,
 	resolveEcoPageDataModuleUrl,
 	resolveEcoPageDataProps,
+	resolveEcoPageDataTiers,
 	resolvePageDataDocumentPayload,
 	type EcoPageDataDocumentPayload,
 	type EcoPageDataManifestV1,
@@ -39,10 +41,10 @@ export function serializePageDataScript(pageProps: EcoPageDataDocumentPayload | 
  * Emits a versioned page-data envelope for React router documents.
  *
  * @remarks
- * Canonical HTML serializer for router-enabled pages. SPA commit paths that
- * build a React element instead of an HTML string use
- * {@link resolvePageDataDocumentPayload} with the same envelope shape.
+ * Canonical HTML serializer for router-enabled pages. It builds the envelope through
+ * {@link resolvePageDataDocumentPayload}, as `EcoPropsScript` does, so the reserved tiers key in `props` becomes the
+ * envelope's `tiers` and never stays in the page props.
  */
 export function serializePageDataManifestScript(input: { moduleUrl: string; props: EcoPageDataProps }): string {
-	return serializePageDataScript(createEcoPageDataManifestV1(input));
+	return serializePageDataScript(resolvePageDataDocumentPayload(input.props, { moduleUrl: input.moduleUrl }));
 }

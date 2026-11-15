@@ -5,6 +5,7 @@ import type { IntegrationRendererRenderOptions } from '@ecopages/core/integratio
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { path } from '@ecopages/file-system/path';
 import type { ReactNode } from 'react';
+import { ECO_PAGE_DATA_TIERS_KEY } from '../hydration/page-data-manifest.ts';
 import { ReactRenderer } from './react-renderer.ts';
 
 class TestReactRenderer extends ReactRenderer {
@@ -74,6 +75,56 @@ describe('ReactRenderer locals split', () => {
 
 		expect(pageRenderMock.mock.calls[0]?.[0]?.locals).toBe(guardedPageLocals);
 		expect(layoutRenderMock.mock.calls[0]?.[0]?.locals).toBeUndefined();
+	});
+
+	it('runs each layout factory once, renders the layout from its result and puts exactly that in the hydration payload', async () => {
+		const renderer = new TestReactRenderer({
+			appConfig,
+			assetProcessingService: assetService,
+		});
+		const layoutRenderMock = vi.fn((props: { children: ReactNode; user?: string; locals?: unknown }) => {
+			return props.children as unknown as ReactNode;
+		});
+		const Layout = layoutRenderMock as unknown as IntegrationRendererRenderOptions<ReactNode>['Layout'];
+		let evaluations = 0;
+		const factory = vi.fn(({ locals }: { locals?: Record<string, unknown> }) => {
+			const session = locals?.session as { userId: string };
+			evaluations += 1;
+			return { user: `${session.userId}#${evaluations}` };
+		});
+		const Page = Object.assign(
+			vi.fn(() => 'page' as unknown as ReactNode),
+			{ config: { layouts: [Layout], layoutEntries: [{ component: Layout, props: factory }] } as never },
+		) as unknown as IntegrationRendererRenderOptions<ReactNode>['Page'];
+		const htmlTemplateMock = vi.fn(({ children }: HtmlTemplateProps) => children as ReactNode);
+		const locals = { session: { userId: 'u-1' }, csrfSecret: 'server-only-secret' } as unknown as Record<
+			string,
+			unknown
+		>;
+
+		await renderer.render({
+			file: '/tmp/pages/test.tsx',
+			params: {},
+			query: {},
+			props: {},
+			locals,
+			pageLocals: locals,
+			metadata: appConfig.defaultMetadata,
+			Page,
+			Layout,
+			layoutEntries: [{ component: Layout as never, props: factory as never }],
+			HtmlTemplate: htmlTemplateMock as IntegrationRendererRenderOptions<ReactNode>['HtmlTemplate'],
+			resolvedDependencies: [],
+			pageProps: {},
+		});
+
+		const pageProps = htmlTemplateMock.mock.calls[0]?.[0]?.pageProps as Record<string, unknown>;
+		expect(factory).toHaveBeenCalledTimes(1);
+		expect(layoutRenderMock.mock.calls[0]?.[0]).toMatchObject({ user: 'u-1#1' });
+		expect(layoutRenderMock.mock.calls[0]?.[0]).not.toHaveProperty('locals');
+		expect(pageProps[ECO_PAGE_DATA_TIERS_KEY]).toEqual([{ user: 'u-1#1' }]);
+		expect(pageProps).not.toHaveProperty('locals');
+		expect(JSON.stringify(pageProps)).not.toContain('server-only-secret');
 	});
 
 	it('serializes only locals declared in requires for hydration payloads', async () => {

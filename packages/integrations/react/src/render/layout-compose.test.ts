@@ -6,7 +6,6 @@ import {
 	composeLayoutPageTreeFromShell,
 	normalizePageLayoutComponents,
 	resolveLayoutEntryProps,
-	resolveLayoutContextFromShell,
 	type ComposablePage,
 } from './layout-compose.ts';
 
@@ -109,21 +108,20 @@ describe('layout-compose', () => {
 		expect(tree.key).toBe('layout-key');
 	});
 
-	it('should derive layout locals from shell props instead of pageProps.locals', () => {
-		const Layout = ({ locals, children }: LayoutProps<ReactNode>) =>
-			createElement('section', null, (locals as { role?: string } | undefined)?.role, children);
+	it('should give a layout request locals only through its props factory', () => {
+		const Layout = ({ children }: LayoutProps<ReactNode>) => createElement('section', null, children);
 		const Page = eco.page<{}, ReactNode>({
-			layout: Layout,
+			layout: [{ component: Layout, props: ({ locals }) => ({ role: (locals as { role?: string })?.role }) }],
 			render: () => 'page',
 		});
-		const routeLocals = { role: 'admin' };
-		const pageLocals = { role: 'guarded' };
 
-		const context = resolveLayoutContextFromShell({ locals: pageLocals }, [
-			{ component: Layout, props: { locals: routeLocals } },
-		]);
-		const tree = composeLayoutPageTree(pageComponent(Page), { locals: pageLocals }, { context });
+		const withLocals = composeLayoutPageTree(pageComponent(Page), {}, { context: { locals: { role: 'admin' } } });
+		const withoutFactory = composeLayoutPageTree(
+			pageComponent(eco.page<{}, ReactNode>({ layout: Layout, render: () => 'page' })),
+			{ locals: { role: 'guarded' } },
+		);
 
-		expect(tree.props).toEqual({ locals: routeLocals, children: expect.any(Object) });
+		expect(withLocals.props).toEqual({ role: 'admin', children: expect.any(Object) });
+		expect(withoutFactory.props).toEqual({ children: expect.any(Object) });
 	});
 });

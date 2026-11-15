@@ -15,6 +15,8 @@ type EcoIslandRuntime = {
 type EcoPageData = {
 	module: string;
 	props: Record<string, unknown>;
+	/** The props each layout tier renders with, resolved on the server; absent when the document carries none. */
+	tiers?: readonly Record<string, unknown>[];
 	/** Set by a react-router navigation to the document it fetched; absent otherwise. */
 	document?: Document;
 };

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/codemod",
-	"version": "0.9.0-rc.1",
+	"version": "0.9.0",
 	"description": "Codemods for migrating ecopages to latest patterns",
 	"license": "MIT",
 	"type": "module",

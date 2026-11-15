@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.9.0
+
+### Minor Changes
+
+- [#1195](https://github.com/ecopages/ecopages/pull/1195) [`04c44ea`](https://github.com/ecopages/ecopages/commit/04c44ea1bb59e3c68d75cc333c502f632886d94f) Thanks [@andeeplus](https://github.com/andeeplus)! - Keep bare side-effect imports (`import 'x'`) in every browser module of a React build. The client graph dropped them from any file under a `pages` or `layouts` folder (a match on any folder of the absolute path) and from every entry, so a layout script such as `import '@scope/pkg/define-element'` shipped no code from the package and its custom elements never upgraded; the same file under `components/` worked. Pages, layouts, entries, components, scripts and helpers now behave alike. Stylesheet imports are still delivered by core, not bundled, and `.server` modules and Node built-ins, with or without the `node:` prefix, are still removed.
+
+    Breaking: a bare import that only server code needed, left in a page, layout or `dependencies.scripts` entry and previously dropped, now reaches the browser.
+
+    Migration:
+
+    1. Find bare imports in browser-bound modules: search `src` for lines that match `^import ['"]` (an import with no binding), mainly in files under `pages/` and `layouts/` and in scripts listed in `dependencies.scripts`.
+    2. For each one the browser does not need (server setup, database or logging registration), move it into a module named `*.server.ts` and import that from server code only. A `.server` module referenced from browser code fails the build with the file and binding.
+    3. After upgrading, a `[browser-build] Node builtin "<x>" cannot be bundled for the browser (imported from .../node_modules/<pkg>/...)` error means a bare import of `<pkg>` in a page, layout or script now reaches the browser. Move it to a `.server` module (step 2). A pure-JS server package such as `dotenv/config` now bundles silently, so search for those too.
+    4. Files you moved out of `layouts/` or `pages/` only to keep their bare imports can move back.
+    5. Verify: run `ecopages build`, then check that the browser output under `dist/client/assets` contains the code of each package you meant to keep, and that no server-only package (for example a database driver) appears in it.
+
+- [#1198](https://github.com/ecopages/ecopages/pull/1198) [`3163124`](https://github.com/ecopages/ecopages/commit/3163124422c410cce2815374cdf70e44137d9f53) Thanks [@andeeplus](https://github.com/andeeplus)! - Rename the `eco.page()` data hooks `staticProps` and `staticPaths` to `props` and `paths`, and drop the envelopes they returned. `staticProps` also runs for dynamic and revalidating pages, and `staticPaths` also plans Page Browser Graphs for Dynamic Pages, so the Cache Strategy, not the name, decides when they run. `paths` lists the Params known at build; `props` receives Params, from `paths` at build and from the request at run time. A table in the Data Fetching docs shows what each Cache Strategy does with them.
+
+    Breaking:
+
+    - `staticProps` is `props` and returns the props object, not `{ props }`. `staticPaths` is `paths` and returns `[{ params }]`, not `{ paths }`.
+    - `eco.page()` throws on a page that still passes `staticProps` or `staticPaths`, naming the `migrate-data-hooks` codemod, instead of dropping the option.
+    - `GetStaticProps<T>` is `GetProps<T>` and resolves to `T`. `GetStaticPaths` is `GetPaths` and resolves to `PagePath[]`.
+    - `StaticPath` is `PagePath`, one page that `paths` lists at build.
+    - The `props` context passes `params` where it passed `pathname: { params }`, so write `props: async ({ params }) => ...` and read `params.slug`, not `pathname.params.slug`.
+    - `RouteRendererOptions.skipStaticProps` is `skipPropsHook`.
+    - `@ecopages/react` strips `props` and `paths` from browser code, where it stripped `staticProps` and `staticPaths`.
+
+    A static dynamic route no longer needs a `props` hook: a page with `paths` only builds, and its render receives `params`. `paths` is still required there.
+
+    ### Migration
+    1. Run the codemod from your project root: `npx @ecopages/codemod migrate-data-hooks src` (add `--dry --print` to preview). It renames both options inside `eco.page({ ... })`, unwraps the `{ props }` and `{ paths }` returns, and renames the `GetStaticProps`, `GetStaticPaths` and `StaticPath` imports from `@ecopages/*`, and rewrites `{ pathname: { params } }`, `{ pathname }` and `ctx.pathname.params` in `props` to `params`. A hook it cannot unwrap, such as one imported from another file, is left unchanged and reported; a return value it cannot see through becomes `(await value).props` or `(await value).paths` and is reported too. Then run your formatter, since the raw output indents rewritten lines with extra tabs.
+    2. By hand, for what it reported or missed: search the project for `staticProps`, `staticPaths`, `GetStaticProps`, `GetStaticPaths`, `StaticPath`, `pathname.params` and `skipStaticProps`, in `.ts`, `.tsx`, `.md` and `.mdx` files. Rename each, read `params` where `props` read `pathname.params`, and return the value directly: `return { title }` for `props`, `return posts.map((post) => ({ params: { slug: post.slug } }))` for `paths`. Update code that reads `Page.staticProps` or `Page.staticPaths`, and prose or `.agents` skill files that name them.
+    3. Verify. Run your type check, which fails on any leftover `GetStaticProps`, `GetStaticPaths`, `StaticPath` or `pathname` in typed TypeScript hooks (JavaScript pages are not checked, so read the codemod's report for them), then `ecopages build`. A page that still declares an old option fails with a message that links to the migration steps in the Data Fetching docs. Open one dynamic route and confirm it renders the same props as before.
+
+- [#1229](https://github.com/ecopages/ecopages/pull/1229) [`1f026d9`](https://github.com/ecopages/ecopages/commit/1f026d9b58d4186f558bceae4e799802a460fd51) Thanks [@andeeplus](https://github.com/andeeplus)! - Render pages that mix Integrations faster. Each component's declared assets are resolved once instead of on every render, a route's shell assets are processed once per page in production, and Foreign Subtrees are placed in one pass over the host HTML. The rendered HTML is unchanged.
+
+    Breaking, for custom Integrations only: the `renderQueuedChildren` Integration hook now receives a single `resolveTokens(html)` callback as its third argument, in place of the token map and the per-token `resolveToken` callback. `resolveQueuedTokens` is no longer exported from `@ecopages/core/integration`; call `resolveTokens` instead.
+
+    Migration: in a custom Integration's `renderQueuedChildren`, replace the per-token lookup and `resolveQueuedTokens(...)` with one call to the `resolveTokens(html)` argument on the HTML that holds the queued tokens. First-party Integrations are already updated.
+
+### Patch Changes
+
+- [#1213](https://github.com/ecopages/ecopages/pull/1213) [`a73a4a7`](https://github.com/ecopages/ecopages/commit/a73a4a7d53ee83fa35229bf83cb976ee4227ab69) Thanks [@andeeplus](https://github.com/andeeplus)! - Make `ecopages build` and browser bundling faster. The build resolves each module's real path once instead of on every comparison, and starts Integration static exports, such as the Lit render worker, while the browser graph prebuild runs. The built pages are unchanged.
+
+    `ecopages build` now finds `ssr: true` scripts in the first server build, from the literal `src` beside `ssr: true` in a Component's `dependencies.scripts`, instead of importing the built modules and building again. A `src` that is not a string literal fails the build with a message that says so.
+
+- [#1219](https://github.com/ecopages/ecopages/pull/1219) [`0aa8a2a`](https://github.com/ecopages/ecopages/commit/0aa8a2a7370c896bf25c5c7cf0cec26ce94ef5dc) Thanks [@andeeplus](https://github.com/andeeplus)! - Run the React foreign-boundary build plugin once per production browser build instead of once per React page. The build output is unchanged.
+
+- [#1220](https://github.com/ecopages/ecopages/pull/1220) [`85641c0`](https://github.com/ecopages/ecopages/commit/85641c049ff104026fff6bbbe3b7148b1802f88b) Thanks [@andeeplus](https://github.com/andeeplus)! - Node built-ins written without the `node:` prefix (`fs`, `fs/promises`) are now removed from React browser modules like `node:fs`. A React module whose browser code still uses a removed server-only import fails the build naming the module, the binding and the `.server` fix, and the browser guard reports the import chain from the app module to the Node built-in it rejects. The foreign JSX scan reads imports from the parsed module, so specifiers inside comments and strings are no longer followed.
+- Updated dependencies [[`fb32d97`](https://github.com/ecopages/ecopages/commit/fb32d97ff2be69bee94fa06ada9e42d8b5e6f553), [`71c7dc6`](https://github.com/ecopages/ecopages/commit/71c7dc6939f3c2e21d90f9e63727a4802f115026), [`57371af`](https://github.com/ecopages/ecopages/commit/57371af9e22874988af90faa066d9bf779586e9d), [`62b92c8`](https://github.com/ecopages/ecopages/commit/62b92c827af1a97c4c9fad2ad990fd2b07128430), [`a73a4a7`](https://github.com/ecopages/ecopages/commit/a73a4a7d53ee83fa35229bf83cb976ee4227ab69), [`be4c717`](https://github.com/ecopages/ecopages/commit/be4c7175d57740d4d9747d9756805c928af37e33), [`3163124`](https://github.com/ecopages/ecopages/commit/3163124422c410cce2815374cdf70e44137d9f53), [`3eae52c`](https://github.com/ecopages/ecopages/commit/3eae52ce2220641d3fc1766c0e7ea6ba46aee483), [`85641c0`](https://github.com/ecopages/ecopages/commit/85641c049ff104026fff6bbbe3b7148b1802f88b), [`38f33f8`](https://github.com/ecopages/ecopages/commit/38f33f8bfa1aef3a80a3dec765eb47e53dd90e9e), [`a5dbfb8`](https://github.com/ecopages/ecopages/commit/a5dbfb8f66cfc69421284d78999e36db74a4c82e), [`1f026d9`](https://github.com/ecopages/ecopages/commit/1f026d9b58d4186f558bceae4e799802a460fd51), [`3add6c6`](https://github.com/ecopages/ecopages/commit/3add6c62678d8234ee1ca00542e93ce7630a236c), [`d4cf50d`](https://github.com/ecopages/ecopages/commit/d4cf50dd72245369834793313aefea9ae1b3a9b4)]:
+    - @ecopages/core@0.9.0
+    - @ecopages/mdx@0.9.0
+    - @ecopages/file-system@0.9.0
+
 ## 0.8.0
 
 ### Patch Changes

@@ -1,5 +1,112 @@
 # Changelog
 
+## 0.9.0
+
+### Minor Changes
+
+- [#1196](https://github.com/ecopages/ecopages/pull/1196) [`57371af`](https://github.com/ecopages/ecopages/commit/57371af9e22874988af90faa066d9bf779586e9d) Thanks [@andeeplus](https://github.com/andeeplus)! - Declare a file's role by its name, and keep server modules, browser scripts and private files out of routing. `<name>.server.<ext>` is a server-only module, `<name>.script.<ext>` is a browser script, and `<name>.api.<ext>` is still an endpoint, where `<ext>` is `.ts`, `.tsx`, `.js` or `.jsx`. The suffix is matched before template extensions, and a file or folder under `src/pages` whose name starts with `_` is private. The router used to skip only `.ecopages-node.` files (a leftover with no producer, now removed), so with React's `.tsx` a `db.server.tsx` routed to `/db.server` and `counter.script.tsx` to `/counter.script`; none of these is a route now, and they can sit next to the pages that use them. The client graph and the browser build read the `.server` boundary from the same module as the router.
+
+    A role segment anywhere else in a file name under `src/pages` fails the build with the file and the expected form: `card.server.kita.tsx` and `nav.script.lit.tsx` are errors, since a Kita or Lit template is already rendered on the server and a browser script is not a template. An Integration that registers an extension ending in a role suffix (`.server.tsx`, `.script.ts`) is rejected at config assembly, as `.api.*` already was.
+
+    Breaking: a file under `src/pages` that ends in `.server.<ts|tsx|js|jsx>` or `.script.<ts|tsx|js|jsx>`, or has a path segment starting with `_`, stops being a route. A file with a role segment in another position (`x.server.kita.tsx`) fails the build instead of routing. An Integration extension ending in a role suffix fails config assembly.
+
+    Migration:
+
+    1. Find files under `src/pages` that stop being routes: `find src/pages \( -name '*.server.*' -o -name '*.script.*' -o -name '_*' \)` (also look for `_`-prefixed folders). If one was an intentional page, rename it so it has no role suffix and no leading `_`, and update links to its URL.
+    2. Find files that now fail the build: search `src/pages` for names with `.server.`, `.script.` or `.api.` followed by anything other than `ts`, `tsx`, `js` or `jsx` (for example `card.server.kita.tsx`, `nav.script.lit.tsx`). Rename a server-only module to `<name>.server.ts(x)`, a browser script to `<name>.script.ts(x)`, and a page to a name without the role segment.
+    3. If a custom Integration registers an extension ending in `.api.*`, `.server.*` or `.script.*`, rename the extension.
+    4. Optional: move modules that only support pages (components, helpers, tests) next to them and prefix them with `_`, or give them a `.server`/`.script` suffix, instead of keeping them outside `src/pages`.
+    5. Verify: run `ecopages build` and compare the generated routes (`dist/server/routes.json`) with your expected URLs.
+
+- [#1196](https://github.com/ecopages/ecopages/pull/1196) [`62b92c8`](https://github.com/ecopages/ecopages/commit/62b92c827af1a97c4c9fad2ad990fd2b07128430) Thanks [@andeeplus](https://github.com/andeeplus)! - Fail the build when a route file does not default-export a Page. Core rendered whatever a file under `src/pages` default-exported, so a helper or script left there became a route that rendered garbage or failed with an unrelated error. After a route module loads, its Integration now says whether the default export is a Page it accepts: an `eco.page()` result the build attributed to that route file, an HTML Page or an MDX module. Anything else fails `ecopages dev` and `ecopages build` with an error that names the file and the fixes: prefix the name with `_`, give it a `.server` or `.script` role suffix, or move it out of `src/pages`. In development the next request after a fix loads the corrected module, with no restart.
+
+    A route file declares its Page with a literal `eco.page(...)` call in that file, and one that does not fails with a message naming the rule. The build reads `eco.page`, `eco.layout`, `eco.component` and `eco.html` from the source as a call on the identifier `eco`, and stamps each call's identity with the file that holds it. A Page made by a wrapper in another file (`_create-page.tsx`), re-exported from another file, or made through an alias (`const page = eco.page`) or a renamed import therefore has no identity or another file's, and server options such as `staticProps` and `metadata` stayed in the React browser bundle with no warning. The pages docs and the eco namespace reference state both rules.
+
+    Breaking: a route file that does not default-export a Page, or whose Page was not declared by a literal `eco.page(...)` call in that file, now fails the build instead of rendering.
+
+    Migration:
+
+    1. Find route files that fail: run `ecopages build` (or request each route in `ecopages dev`). Each error names the file, and either says it does not default-export a Page or names the literal-call rule.
+    2. For "does not default-export a Page": if the file is a helper, component, script or test, keep it out of routing: rename it with a `_` prefix (`_card.tsx`), or with a `.server` or `.script` suffix (`db.server.ts`, `counter.script.ts`), or move it out of `src/pages`, and fix its imports. If it should be a page, make its default export an `eco.page({ ... })` result (an MDX file needs a default-exported function; an HTML Page is a `.html` file).
+    3. For the literal-call error: write the `eco.page({ ... })` call in the route file itself and export its result as the default. A wrapper such as `export const createPage = (options) => eco.page({ ...options })` in another file, `const page = eco.page`, a renamed import, and `export { default } from './other-page'` all fail. Move what the wrapper shared into a plain options object or a helper that returns options (a `layout`, a `metadata` function), and import that into each route file's own `eco.page({ ...shared, render })`. `eco.layout`, `eco.component` and `eco.html` must be called literally too, in the file that declares them.
+    4. To find every wrapper or alias up front, search `src` for `= eco.page`, `= eco.layout`, `= eco.component`, `= eco.html`, for `import { eco as`, and for route files with `export { default }` or `export default` of an imported value.
+    5. Verify: `ecopages build` completes, and the generated routes (`dist/server/routes.json`) match the pages you expect.
+
+- [#1199](https://github.com/ecopages/ecopages/pull/1199) [`be4c717`](https://github.com/ecopages/ecopages/commit/be4c7175d57740d4d9747d9756805c928af37e33) Thanks [@andeeplus](https://github.com/andeeplus)! - Remove the `layoutsDir` and `componentsDir` config options, and find Layouts, Pages and explicit views from what references them instead of from a folder. A Layout is what a Page passes as `eco.page({ layout })`, and a view is a file the server entry imports; the folder names carried no meaning in the docs, yet three places read them.
+
+    - Production server modules: a Layout is bundled with the Page, view or error page that imports it, wherever it lives, and is not a server entry of its own, so a file in `src/layouts` that no Page uses is not built and a Layout passed through a variable or declared in a package works the same.
+    - Development HMR: React and Ecopages JSX ask the Route Registry whether a changed file is a Page, and whether a rendered Page referenced it as a Layout. A Layout outside `src/layouts` now takes the layout update path, and a helper inside it does not. A Layout no Page has rendered yet takes the component path until one does.
+    - Explicit views: saving a file the server entry imports for `ctx.render()`, `ctx.renderPartial()` or `app.static()` takes the server re-render path in any folder, and a file in `src/views` the server entry does not import no longer does.
+    - React no longer guesses which folder holds a config's relative script paths; a config the build did not stamp with an identity binds to its page.
+    - The project watcher watches `srcDir`, as it did, and no longer lists the two folders.
+
+    A repository lint rule (`ecopages-roles/no-folder-role-check`) fails on a `pages`, `layouts`, `components` or `views` path segment in package sources outside the router's `pages-dir.ts` and the file role module, so the folder checks cannot return.
+
+    Breaking: a config that sets `layoutsDir` or `componentsDir` fails when it loads, naming the option, and fails type checking. `absolutePaths.layoutsDir`, `absolutePaths.componentsDir`, `config.layoutsDir`, `config.componentsDir` and `getLayoutsDir()` and `getPagesDir()` on the HMR context are gone; the HMR context has `isPageFile(filePath)` and `isLayoutFile(filePath)` instead. `src/layouts` and `src/components` stay as conventions, and any folder works.
+
+    Migration:
+
+    1. Find the options: search your `eco.config.ts` (and any file that builds the config) for `layoutsDir` and `componentsDir`. Search the rest of the project, plugins included, for `absolutePaths.layoutsDir`, `absolutePaths.componentsDir`, `getLayoutsDir` and `getPagesDir`.
+    2. Delete both options from the config. A project that used the defaults needs nothing else. A project that set a custom folder keeps its files where they are: nothing reads the folder name any more, so no file has to move.
+    3. Replace each plugin use: for "is this file a Page", ask `isPageFile(filePath)` on the HMR context; for "is this a Layout", ask `isLayoutFile(filePath)`. For a path inside your own source tree, join `absolutePaths.srcDir` with the folder you mean.
+    4. Verify: run `ecopages build` and `ecopages dev`. The config loads without the removed-option error, every Page renders with its Layouts, and editing a Layout in `ecopages dev` refreshes the open page without a restart.
+
+- [#1198](https://github.com/ecopages/ecopages/pull/1198) [`3163124`](https://github.com/ecopages/ecopages/commit/3163124422c410cce2815374cdf70e44137d9f53) Thanks [@andeeplus](https://github.com/andeeplus)! - Rename the `eco.page()` data hooks `staticProps` and `staticPaths` to `props` and `paths`, and drop the envelopes they returned. `staticProps` also runs for dynamic and revalidating pages, and `staticPaths` also plans Page Browser Graphs for Dynamic Pages, so the Cache Strategy, not the name, decides when they run. `paths` lists the Params known at build; `props` receives Params, from `paths` at build and from the request at run time. A table in the Data Fetching docs shows what each Cache Strategy does with them.
+
+    Breaking:
+
+    - `staticProps` is `props` and returns the props object, not `{ props }`. `staticPaths` is `paths` and returns `[{ params }]`, not `{ paths }`.
+    - `eco.page()` throws on a page that still passes `staticProps` or `staticPaths`, naming the `migrate-data-hooks` codemod, instead of dropping the option.
+    - `GetStaticProps<T>` is `GetProps<T>` and resolves to `T`. `GetStaticPaths` is `GetPaths` and resolves to `PagePath[]`.
+    - `StaticPath` is `PagePath`, one page that `paths` lists at build.
+    - The `props` context passes `params` where it passed `pathname: { params }`, so write `props: async ({ params }) => ...` and read `params.slug`, not `pathname.params.slug`.
+    - `RouteRendererOptions.skipStaticProps` is `skipPropsHook`.
+    - `@ecopages/react` strips `props` and `paths` from browser code, where it stripped `staticProps` and `staticPaths`.
+
+    A static dynamic route no longer needs a `props` hook: a page with `paths` only builds, and its render receives `params`. `paths` is still required there.
+
+    ### Migration
+    1. Run the codemod from your project root: `npx @ecopages/codemod migrate-data-hooks src` (add `--dry --print` to preview). It renames both options inside `eco.page({ ... })`, unwraps the `{ props }` and `{ paths }` returns, and renames the `GetStaticProps`, `GetStaticPaths` and `StaticPath` imports from `@ecopages/*`, and rewrites `{ pathname: { params } }`, `{ pathname }` and `ctx.pathname.params` in `props` to `params`. A hook it cannot unwrap, such as one imported from another file, is left unchanged and reported; a return value it cannot see through becomes `(await value).props` or `(await value).paths` and is reported too. Then run your formatter, since the raw output indents rewritten lines with extra tabs.
+    2. By hand, for what it reported or missed: search the project for `staticProps`, `staticPaths`, `GetStaticProps`, `GetStaticPaths`, `StaticPath`, `pathname.params` and `skipStaticProps`, in `.ts`, `.tsx`, `.md` and `.mdx` files. Rename each, read `params` where `props` read `pathname.params`, and return the value directly: `return { title }` for `props`, `return posts.map((post) => ({ params: { slug: post.slug } }))` for `paths`. Update code that reads `Page.staticProps` or `Page.staticPaths`, and prose or `.agents` skill files that name them.
+    3. Verify. Run your type check, which fails on any leftover `GetStaticProps`, `GetStaticPaths`, `StaticPath` or `pathname` in typed TypeScript hooks (JavaScript pages are not checked, so read the codemod's report for them), then `ecopages build`. A page that still declares an old option fails with a message that links to the migration steps in the Data Fetching docs. Open one dynamic route and confirm it renders the same props as before.
+
+- [#1229](https://github.com/ecopages/ecopages/pull/1229) [`1f026d9`](https://github.com/ecopages/ecopages/commit/1f026d9b58d4186f558bceae4e799802a460fd51) Thanks [@andeeplus](https://github.com/andeeplus)! - Render pages that mix Integrations faster. Each component's declared assets are resolved once instead of on every render, a route's shell assets are processed once per page in production, and Foreign Subtrees are placed in one pass over the host HTML. The rendered HTML is unchanged.
+
+    Breaking, for custom Integrations only: the `renderQueuedChildren` Integration hook now receives a single `resolveTokens(html)` callback as its third argument, in place of the token map and the per-token `resolveToken` callback. `resolveQueuedTokens` is no longer exported from `@ecopages/core/integration`; call `resolveTokens` instead.
+
+    Migration: in a custom Integration's `renderQueuedChildren`, replace the per-token lookup and `resolveQueuedTokens(...)` with one call to the `resolveTokens(html)` argument on the HTML that holds the queued tokens. First-party Integrations are already updated.
+
+### Patch Changes
+
+- [#1214](https://github.com/ecopages/ecopages/pull/1214) [`fb32d97`](https://github.com/ecopages/ecopages/commit/fb32d97ff2be69bee94fa06ada9e42d8b5e6f553) Thanks [@andeeplus](https://github.com/andeeplus)! - Start `ecopages` commands faster. The CLI reads what it needs to plan the launch from a new `@ecopages/core/cli` entry instead of the `build` and `config` entries, so it no longer loads the bundler before it starts the app.
+
+- [#1222](https://github.com/ecopages/ecopages/pull/1222) [`71c7dc6`](https://github.com/ecopages/ecopages/commit/71c7dc6939f3c2e21d90f9e63727a4802f115026) Thanks [@andeeplus](https://github.com/andeeplus)! - The build now checks the declarations it reads from source.
+
+    - `ecopages build` warns about each `.script` file under `src` that no literal `dependencies.scripts` entry, HTML `<script src>` or attached script's import reaches, which is usually a typo in the declaration's path. A `src` computed at runtime, or a declaration in an MDX file, is not read, so its script is reported too.
+    - A view passed to `app.static()`, an error-page helper or `ctx.render()` must now declare its Page with a literal `eco.page(...)` call in its own file, as a route file must. A view made by a wrapper function, an alias or a re-export previously rendered and now fails with the literal-call error. Call `eco.page(...)` directly in the view's file.
+    - A role segment anywhere but directly before a script extension, such as `src/components/card.server.kita.tsx`, now fails every build that compiles the file, and `ecopages dev` reports it and builds again after you rename it. Previously only files under `src/pages` were checked. Rename the file to `<name>.<api|server|script>.<ts|tsx|js|jsx>`, or drop the role segment.
+    - Layouts are no longer built as separate server entries and no longer appear in `server-modules.json`; they are bundled once with the module that imports them, so a layout passed through a variable or from an MDX page is covered too.
+    - An MDX page's `config.layout` accepts the same forms as `eco.page({ layout })`, and the page module no longer carries a `layout` value of its own.
+
+- [#1213](https://github.com/ecopages/ecopages/pull/1213) [`a73a4a7`](https://github.com/ecopages/ecopages/commit/a73a4a7d53ee83fa35229bf83cb976ee4227ab69) Thanks [@andeeplus](https://github.com/andeeplus)! - Make `ecopages build` and browser bundling faster. The build resolves each module's real path once instead of on every comparison, and starts Integration static exports, such as the Lit render worker, while the browser graph prebuild runs. The built pages are unchanged.
+
+    `ecopages build` now finds `ssr: true` scripts in the first server build, from the literal `src` beside `ssr: true` in a Component's `dependencies.scripts`, instead of importing the built modules and building again. A `src` that is not a string literal fails the build with a message that says so.
+
+- [#1218](https://github.com/ecopages/ecopages/pull/1218) [`3eae52c`](https://github.com/ecopages/ecopages/commit/3eae52ce2220641d3fc1766c0e7ea6ba46aee483) Thanks [@andeeplus](https://github.com/andeeplus)! - Use Rolldown 1.3. Dev vendor files a browser has already loaded stay unchanged when a later package needs another Rolldown runtime helper.
+
+- [#1220](https://github.com/ecopages/ecopages/pull/1220) [`85641c0`](https://github.com/ecopages/ecopages/commit/85641c049ff104026fff6bbbe3b7148b1802f88b) Thanks [@andeeplus](https://github.com/andeeplus)! - Node built-ins written without the `node:` prefix (`fs`, `fs/promises`) are now removed from React browser modules like `node:fs`. A React module whose browser code still uses a removed server-only import fails the build naming the module, the binding and the `.server` fix, and the browser guard reports the import chain from the app module to the Node built-in it rejects. The foreign JSX scan reads imports from the parsed module, so specifiers inside comments and strings are no longer followed.
+
+- [#1226](https://github.com/ecopages/ecopages/pull/1226) [`38f33f8`](https://github.com/ecopages/ecopages/commit/38f33f8bfa1aef3a80a3dec765eb47e53dd90e9e) Thanks [@andeeplus](https://github.com/andeeplus)! - Serve pages with less work per request. Route, API and WebSocket patterns are parsed and ordered once when they are registered instead of on every request, and a rendered page is rewritten as a string instead of being wrapped in a `Response` and read back several times.
+
+- [#1230](https://github.com/ecopages/ecopages/pull/1230) [`a5dbfb8`](https://github.com/ecopages/ecopages/commit/a5dbfb8f66cfc69421284d78999e36db74a4c82e) Thanks [@andeeplus](https://github.com/andeeplus)! - Serve a moved production build without its source tree the same as the build rendered it. `ecopages build` now records each Page's shell Dependencies (Html template, Layouts and Page) in `dist/server/processed-assets.json`, and `ecopages start` reads them instead of collecting them again, so a Page stylesheet bundle no longer falls apart or fails when `src/` is gone. The build also records the `ecopages:` virtual modules a component imports, so their module scripts no longer go missing without the sources. The asset ledger moves to version 5: run `ecopages build` again before `ecopages start`.
+
+- [#1195](https://github.com/ecopages/ecopages/pull/1195) [`3add6c6`](https://github.com/ecopages/ecopages/commit/3add6c62678d8234ee1ca00542e93ce7630a236c) Thanks [@andeeplus](https://github.com/andeeplus)! - Strip a package stylesheet import from a module with no `eco.*()` declaration when a comment sits right before `import`, as in `/* theme */import 'some-lib/theme'`. The check that decides whether to parse a module no longer misses that form.
+
+- [#1223](https://github.com/ecopages/ecopages/pull/1223) [`d4cf50d`](https://github.com/ecopages/ecopages/commit/d4cf50dd72245369834793313aefea9ae1b3a9b4) Thanks [@andeeplus](https://github.com/andeeplus)! - Give each installed package of the production browser build a chunk of its own, `vendor-<package>-[hash].js`, whose name and bytes depend only on that package. React, React DOM, Lit, the router and app dependencies stay cached across deploys when app code changes, and a page loads only the vendor chunks of the packages it imports. Development already serves every bare import from the vendor graph.
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.9.0
+    - @ecopages/file-system@0.9.0
+
 ## 0.8.0
 
 ### Patch Changes

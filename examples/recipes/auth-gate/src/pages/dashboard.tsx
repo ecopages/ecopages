@@ -1,9 +1,9 @@
 import { eco } from '@ecopages/core';
-import { AuthGate } from '../layouts/auth-gate';
+import { authGateLayout } from '../layouts/auth-gate';
 import { loadSession } from '../lib/session.server';
 
 export default eco.page({
-	layout: AuthGate,
+	layout: authGateLayout,
 	cache: 'dynamic',
 	middleware: [loadSession],
 	metadata: () => ({ title: 'Dashboard', description: 'Visible to signed-in visitors.' }),

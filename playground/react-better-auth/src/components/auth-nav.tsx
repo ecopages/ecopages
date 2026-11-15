@@ -5,8 +5,11 @@ import type { ReactNode } from 'react';
 import type { Session } from '@/handlers/auth.server';
 import './auth-nav.css';
 
+/** The part of the server session the nav needs: whether a user is signed in. */
+export type AuthNavSession = Pick<Session, 'user'>;
+
 type AuthNavProps = {
-	initialSession?: Session | null;
+	initialSession?: AuthNavSession | null;
 };
 
 export function AuthNav({ initialSession }: AuthNavProps): ReactNode {

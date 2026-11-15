@@ -1,4 +1,4 @@
-import { eco, type LayoutProps } from '@ecopages/core';
+import { eco, type EcoPageLayoutEntrySpec, type LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiSidebarTrigger } from '@ecopages/radiant-ui/sidebar';
 import { ShellIcon } from './shell-icon';
@@ -8,10 +8,11 @@ import './shell-layout.css';
 
 interface ShellLayoutProps extends LayoutProps<JsxRenderable> {
 	workspace?: WorkspaceRoute;
+	sidebarOpen?: boolean;
 }
 
 export const ShellLayout = eco.layout<JsxRenderable, ShellLayoutProps>({
-	render: ({ children, locals, workspace }) => (
+	render: ({ children, workspace, sidebarOpen }) => (
 		<body>
 			<div class={workspace ? 'workspace' : 'auth-window'}>
 				<WindowHeader>
@@ -22,7 +23,7 @@ export const ShellLayout = eco.layout<JsxRenderable, ShellLayoutProps>({
 					)}
 				</WindowHeader>
 				{workspace ? (
-					<WorkspacePanel {...workspace} sidebarOpen={locals?.workspace?.sidebarOpen ?? true}>
+					<WorkspacePanel {...workspace} sidebarOpen={sidebarOpen ?? true}>
 						{children}
 					</WorkspacePanel>
 				) : (
@@ -32,3 +33,16 @@ export const ShellLayout = eco.layout<JsxRenderable, ShellLayoutProps>({
 		</body>
 	),
 });
+
+/**
+ * Layout entry for a workspace page: the shell with its sidebar for `route`.
+ *
+ * @remarks
+ * The sidebar state comes from `locals`, which the session middleware sets, and reaches the layout as a prop.
+ */
+export function workspaceLayout(route: WorkspaceRoute): EcoPageLayoutEntrySpec<JsxRenderable> {
+	return {
+		component: ShellLayout,
+		props: ({ locals }) => ({ workspace: route, sidebarOpen: locals?.workspace?.sidebarOpen }),
+	};
+}

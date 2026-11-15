@@ -1,5 +1,5 @@
 import { eco } from '@ecopages/core';
-import { BaseLayout } from '@/layouts/base-layout';
+import { requestInfoBaseLayout } from '@/layouts/base-layout';
 import { requestInfoMiddleware } from '@/handlers/demo-middleware';
 import { getPageTestId } from '@/data/primary-links';
 
@@ -7,13 +7,14 @@ export default eco.page({
 	dependencies: {
 		stylesheets: ['./middleware.css'],
 	},
-	layout: BaseLayout,
+	layout: requestInfoBaseLayout,
 	cache: 'dynamic',
 	middleware: [requestInfoMiddleware],
 	requires: ['featureFlags', 'requestInfo', 'viewerRole'] as const,
 	metadata: () => ({
 		title: 'Middleware locals',
-		description: 'Request middleware populates locals that are consumed by both the page and the layout.',
+		description:
+			'Request middleware populates locals that the page reads and a layout props factory hands to the layout.',
 	}),
 	render: ({ locals }) => {
 		return (
@@ -25,7 +26,8 @@ export default eco.page({
 					</h1>
 					<p class="mt-4 text-base leading-8 text-muted">
 						The middleware for this route attaches a request id, feature flags, and viewer role before
-						rendering the page. The same locals also appear in the layout header.
+						rendering the page. The layout entry's props factory passes the request id and role to the
+						layout header.
 					</p>
 					<div class="mt-6 flex flex-wrap gap-2">
 						{locals?.featureFlags?.map((flag) => (

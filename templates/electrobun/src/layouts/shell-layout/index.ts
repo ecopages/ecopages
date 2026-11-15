@@ -1,1 +1,1 @@
-export { ShellLayout } from './shell-layout';
+export { ShellLayout, workspaceLayout } from './shell-layout';

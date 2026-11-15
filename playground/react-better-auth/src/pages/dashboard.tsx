@@ -1,10 +1,10 @@
 import { eco } from '@ecopages/core';
-import { BaseLayout } from '@/layouts/base-layout';
+import { authenticatedLayout } from '@/layouts/base-layout';
 import { DashboardContent } from '@/components/dashboard-content';
 import { authMiddleware } from '@/handlers/auth.server';
 
 export default eco.page({
-	layout: BaseLayout,
+	layout: authenticatedLayout,
 	cache: 'dynamic',
 	middleware: [authMiddleware],
 	requires: ['session'] as const,

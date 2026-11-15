@@ -14,7 +14,7 @@ describe('inferTabLang', () => {
 });
 
 describe('highlightCodeTab', () => {
-	it('emits dual-theme Shiki markup, keeps every line and copies the exact source', () => {
+	it('emits dual-theme markup, keeps every line and copies the exact source', () => {
 		const code = 'export default {\n\tprocessors: [],\n};';
 		const tab = highlightCodeTab({ id: 'a', label: 'A', code });
 

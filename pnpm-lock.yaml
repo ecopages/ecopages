@@ -104,9 +104,9 @@ importers:
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1(supports-color@7.2.0)
-      '@rehype-pretty/transformers':
-        specifier: ^0.13.2
-        version: 0.13.2
+      '@pierre/highlights':
+        specifier: ^0.5.1
+        version: 0.5.1
       '@tailwindcss/node':
         specifier: ^4.3.0
         version: 4.3.3
@@ -140,18 +140,12 @@ importers:
       rehype:
         specifier: ^13.0.2
         version: 13.0.2
-      rehype-pretty-code:
-        specifier: ^0.14.3
-        version: 0.14.5(shiki@3.23.0)
       rehype-raw:
         specifier: ^7.0.0
         version: 7.0.0
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1(supports-color@7.2.0)
-      shiki:
-        specifier: ^3.23.0
-        version: 3.23.0
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.3
@@ -1845,9 +1839,9 @@ importers:
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1(supports-color@7.2.0)
-      '@rehype-pretty/transformers':
-        specifier: ^0.13.2
-        version: 0.13.2
+      '@pierre/highlights':
+        specifier: ^0.5.1
+        version: 0.5.1
       '@tailwindcss/node':
         specifier: ^4.0.0
         version: 4.3.3
@@ -1869,15 +1863,9 @@ importers:
       pele:
         specifier: 1.13.0
         version: 1.13.0
-      rehype-pretty-code:
-        specifier: ^0.14.3
-        version: 0.14.5(shiki@3.23.0)
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1(supports-color@7.2.0)
-      shiki:
-        specifier: ^3.23.0
-        version: 3.23.0
       tailwindcss:
         specifier: ^4.0.0
         version: 4.3.3
@@ -4278,6 +4266,9 @@ packages:
   '@parse5/tools@0.3.0':
     resolution: {integrity: sha512-zxRyTHkqb7WQMV8kTNBKWb1BeOFUKXBXTBWuxg9H9hfvQB3IwP6Iw2U75Ia5eyRxPNltmY7E8YAlz6zWwUnjKg==}
 
+  '@pierre/highlights@0.5.1':
+    resolution: {integrity: sha512-c2WF6sgwgKdxXU6FpWDLWUYHRca/cJy+3QJkWAqYqEAFxqlPf8eSH0ehHcFFjKBmT+9KBl9H7q6z7HMRU7+m6g==}
+
   '@playwright/test@1.62.1':
     resolution: {integrity: sha512-DTcUc8qii+cpHvtOwggMtBRMjKZHXYWdw8syRYu2vtzuq4Wxphqq4NfCs5Zt44L6mA8rfDfj+PHnxFc/FeK6mQ==}
     engines: {node: '>=20'}
@@ -4294,10 +4285,6 @@ packages:
     resolution: {integrity: sha512-AzsuD9OfxTOZMMvTRhlN3oHBwOmFN7tDh27LzqmHt4+uOgPhJT7ZM7/kVs/8/o0WxayMUIk3hBmCFRHv1FUoag==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-
-  '@rehype-pretty/transformers@0.13.2':
-    resolution: {integrity: sha512-p2ciQSwqy5Ip8aNUa9q6rdS/hJZXrxHYYfDVOHvKOsBu3t9HDmQ65YX6r9Qbl19vi160OAxmGF7MIoCRDJrRhg==}
-    engines: {node: '>=18'}
 
   '@rolldown/binding-android-arm-eabi@1.2.7':
     resolution: {integrity: sha512-EypzgnYCwyVY4NDHKzGmNJT5b+XaQEBniHxsMdeIQLB/tcCzZnhqrzHpZFbX9iaxx+5RiB8caATBtfvZP7zVxQ==}
@@ -10151,6 +10138,8 @@ snapshots:
     dependencies:
       parse5: 7.3.0
 
+  '@pierre/highlights@0.5.1': {}
+
   '@playwright/test@1.62.1':
     dependencies:
       playwright: 1.62.1
@@ -10162,8 +10151,6 @@ snapshots:
   '@react-types/shared@3.36.1(react@19.2.8)':
     dependencies:
       react: 19.2.8
-
-  '@rehype-pretty/transformers@0.13.2': {}
 
   '@rolldown/binding-android-arm-eabi@1.2.7':
     optional: true

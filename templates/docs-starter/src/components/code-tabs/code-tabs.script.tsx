@@ -3,6 +3,7 @@ import { unsafeHtml } from '@ecopages/jsx/jsx-runtime';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { RuiTab, RuiTabList, RuiTabPanel, RuiTabPanels, RuiTabs } from '@ecopages/radiant-ui/tabs';
 import { RadiantElement, customElement, onEvent, prop, state } from '@ecopages/radiant';
+import { COPY_ICON_ATTRIBUTES, COPY_ICON_SHAPES } from '@/lib/docs/copy-icons';
 import { renderTabLabel } from './code-tab-icons';
 
 /**
@@ -15,7 +16,7 @@ export type RadiantCodeTabItem =
 			id: string;
 			label: string;
 			code: string;
-			/** Shiki language of `code`. Inferred from the label and the source when omitted. */
+			/** Pierre language of `code`. Inferred from the label and the source when omitted. */
 			lang?: string;
 	  }
 	| {
@@ -36,6 +37,20 @@ export type RadiantCodeTabsProps = {
 
 /** How long a copy result stays in the live region before it is cleared, so a repeated copy is announced again. */
 const COPY_STATUS_TIMEOUT_MS = 2000;
+
+function CopyIcons() {
+	return (
+		<>
+			{(Object.keys(COPY_ICON_SHAPES) as (keyof typeof COPY_ICON_SHAPES)[]).map((kind) => (
+				<svg {...COPY_ICON_ATTRIBUTES} data-copy-icon={kind}>
+					{COPY_ICON_SHAPES[kind].map((shape) =>
+						shape.tag === 'rect' ? <rect {...shape.attributes} /> : <path {...shape.attributes} />,
+					)}
+				</svg>
+			))}
+		</>
+	);
+}
 
 function isRichTab(tab: RadiantCodeTabItem): tab is Extract<RadiantCodeTabItem, { html: string; content: string }> {
 	return 'html' in tab;
@@ -58,6 +73,8 @@ export class RadiantCodeTabs extends RadiantElement {
 	@prop({ type: String }) defaultSelectedKey = '';
 	@prop({ type: String, reflect: true }) selectedKey = '';
 	@state copyStatus = '';
+	@state copyState: '' | 'copied' | 'error' = '';
+	@state copyTab = '';
 
 	private copyStatusTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -82,20 +99,36 @@ export class RadiantCodeTabs extends RadiantElement {
 		}
 	}
 
-	private announce(message: string): void {
+	/**
+	 * Shows the result on the tab's copy button and in the live region until the timeout clears both.
+	 *
+	 * @remarks
+	 * A repeated result for the same tab clears the state, waits for that render and forces a reflow before setting
+	 * it again, so the one-shot animation in `copy-button.css` runs again.
+	 */
+	private async announce(message: string, tab: string, state: 'copied' | 'error'): Promise<void> {
 		clearTimeout(this.copyStatusTimer);
+		if (this.copyState === state && this.copyTab === tab) {
+			this.copyState = '';
+			await this.updateComplete;
+			void this.offsetWidth;
+		}
 		this.copyStatus = message;
+		this.copyTab = tab;
+		this.copyState = state;
 		this.copyStatusTimer = setTimeout(() => {
 			this.copyStatus = '';
+			this.copyState = '';
+			this.copyTab = '';
 		}, COPY_STATUS_TIMEOUT_MS);
 	}
 
 	private handleCopy = async (tab: RadiantCodeTabItem): Promise<void> => {
 		try {
 			await navigator.clipboard.writeText(tabClipboardText(tab));
-			this.announce(`${tab.label} copied to clipboard`);
+			await this.announce(`${tab.label} copied to clipboard`, tab.id, 'copied');
 		} catch {
-			this.announce(`Failed to copy ${tab.label}`);
+			await this.announce(`Failed to copy ${tab.label}`, tab.id, 'error');
 		}
 	};
 
@@ -169,9 +202,11 @@ export class RadiantCodeTabs extends RadiantElement {
 									variant="ghost"
 									class="code-tabs__copy"
 									aria-label={`${this.copyLabel}: ${tab.label}`}
+									data-copy-button=""
+									data-copy-state={tab.id === this.copyTab ? this.copyState || undefined : undefined}
 									on:click={() => void this.handleCopy(tab)}
 								>
-									<span aria-hidden="true">Copy</span>
+									<CopyIcons />
 								</RuiButton>
 							</div>
 						</RuiTabPanel>

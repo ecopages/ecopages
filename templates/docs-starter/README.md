@@ -1,6 +1,6 @@
 # Docs starter template
 
-An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MDX, and a catch-all docs Page. Chrome uses `@ecopages/radiant-ui` (sidebar, TOC, breadcrumb, cycle theme toggle, alerts). Fenced MDX code blocks are highlighted with `rehype-pretty-code` and include a Copy button; headings get ids at build time so `#fragment` links resolve before any script runs.
+An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MDX, and a catch-all docs Page. Chrome uses `@ecopages/radiant-ui` (sidebar, TOC, breadcrumb, cycle theme toggle, alerts). Fenced MDX code blocks are highlighted at build time with `@pierre/highlights` (see [Syntax highlighting](#syntax-highlighting)) and include a Copy button; headings get ids at build time so `#fragment` links resolve before any script runs.
 
 ## Agent skills
 
@@ -17,13 +17,13 @@ Index: [`.agents/README.md`](.agents/README.md). Those packs describe the framew
 - `src/content/docs/**` — MDX with YAML frontmatter (`title`, `description`, `order`, optional `llms`)
 - `src/content/docs.ts` — frontmatter schema, section order, icons, and sort helpers
 - `src/content-nav.ts` — sidebar navigation from `ecopages:content/docs`
-- `src/lib/docs/` — MDX plugin options (`createDocsMdxPlugins`), heading ids, copy-button compatibility, catch-all slug helpers, breadcrumb and previous/next helpers, and LLM URL generation
+- `src/lib/docs/` — MDX plugin options (`createDocsMdxPlugins`), heading ids, the Pierre highlighter and its rehype plugin, copy icons, catch-all slug helpers, breadcrumb and previous/next helpers, and LLM URL generation
 - `src/components/code-tabs/` — `CodeTabs`, a tabbed, highlighted block with its own Copy button (see [Code tabs](#code-tabs))
 - `src/layouts/docs-layout/` — sidebar, mobile trigger, table of contents, docs bar, pagination
 - `src/pages/index.tsx` — homepage with links into the docs set
 - `src/pages/docs/[...slug]/index.tsx` — catch-all route using `entries` and `getComponent`
 - `src/styles/components/prose.css` — markdown typography (skips `.unstyled`; tables scroll with `overflow-x: auto`)
-- `src/styles/vendor/shiki.css` — pretty-code figure chrome and copy-button layout
+- `src/styles/vendor/shiki.css` — code figure chrome, line-number gutter and copy-button placement; `src/styles/components/copy-button.css` draws the copy and copied states
 - `src/styles/fonts.css` and `scripts/copy-font-assets.mjs` — IBM Plex, copied from the Fontsource packages into `src/public/assets/fonts` before `dev`, `build` and `preview`
 - `.agents/skills` — Ecopages, Radiant, and Radiant UI skill packs
 
@@ -47,7 +47,7 @@ Index: [`.agents/README.md`](.agents/README.md). Those packs describe the framew
 
 ### Code tabs
 
-`CodeTabs` (`src/components/code-tabs`) renders tabs of highlighted code with a Copy button. Pass inline `{ id, label, code }` tabs from a Page or an MDX file; the server highlights them with the same Shiki themes as fenced blocks (`src/lib/docs/shiki-themes.ts`).
+`CodeTabs` (`src/components/code-tabs`) renders tabs of highlighted code with a Copy button. Pass inline `{ id, label, code }` tabs from a Page or an MDX file; the server highlights them with the same themes as fenced blocks (`src/lib/docs/pierre-highlight.ts`).
 
 ### Diagrams (optional)
 
@@ -100,3 +100,12 @@ Open `/` for the homepage and `/docs/getting-started/introduction` for the first
 ## Full docs app
 
 See `apps/docs` for the production docs app: more sections and code tabs.
+
+## Syntax highlighting
+
+Highlighting happens at build time, in Node, with [`@pierre/highlights`](https://www.npmjs.com/package/@pierre/highlights): a WebAssembly highlighter with the VS Code Light+ and Dark+ themes. It runs in any Node with WebAssembly support (the package declares no `engines`) and no highlighter reaches the browser.
+
+- `src/lib/docs/rehype-pierre-code.ts` is the one rehype plugin. Each fence becomes `figure[data-rehype-pretty-code-figure] > pre > code > span[data-line]` plus a sibling Copy button whose `data-rehype-pretty-copy` holds the exact source and which carries two inline SVG icons (`src/lib/docs/copy-icons.ts`, shared with `CodeTabs`). A fence with an unknown language, or none, renders as plain text.
+- Add `showLineNumbers` to a fence's opening line to draw a line-number gutter. The numbers are a CSS counter, so selecting or copying code never includes them.
+- `src/layouts/base-layout/code-copy.ts` is one delegated click handler. It sets `data-copy-state` (`copied` or `error`) on the button for 1.2 s and writes the result into the polite live region that `BaseLayout` renders. The animation in `copy-button.css` is off under `prefers-reduced-motion`.
+- Colors are the `--shiki-light` and `--shiki-dark` custom properties that `src/styles/vendor/shiki.css` selects; change the themes in `src/lib/docs/pierre-highlight.ts`.

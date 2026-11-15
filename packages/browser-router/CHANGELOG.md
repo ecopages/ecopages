@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0
+
+### Patch Changes
+
+- Updated dependencies [[`fb32d97`](https://github.com/ecopages/ecopages/commit/fb32d97ff2be69bee94fa06ada9e42d8b5e6f553), [`71c7dc6`](https://github.com/ecopages/ecopages/commit/71c7dc6939f3c2e21d90f9e63727a4802f115026), [`57371af`](https://github.com/ecopages/ecopages/commit/57371af9e22874988af90faa066d9bf779586e9d), [`62b92c8`](https://github.com/ecopages/ecopages/commit/62b92c827af1a97c4c9fad2ad990fd2b07128430), [`a73a4a7`](https://github.com/ecopages/ecopages/commit/a73a4a7d53ee83fa35229bf83cb976ee4227ab69), [`be4c717`](https://github.com/ecopages/ecopages/commit/be4c7175d57740d4d9747d9756805c928af37e33), [`3163124`](https://github.com/ecopages/ecopages/commit/3163124422c410cce2815374cdf70e44137d9f53), [`3eae52c`](https://github.com/ecopages/ecopages/commit/3eae52ce2220641d3fc1766c0e7ea6ba46aee483), [`85641c0`](https://github.com/ecopages/ecopages/commit/85641c049ff104026fff6bbbe3b7148b1802f88b), [`38f33f8`](https://github.com/ecopages/ecopages/commit/38f33f8bfa1aef3a80a3dec765eb47e53dd90e9e), [`a5dbfb8`](https://github.com/ecopages/ecopages/commit/a5dbfb8f66cfc69421284d78999e36db74a4c82e), [`1f026d9`](https://github.com/ecopages/ecopages/commit/1f026d9b58d4186f558bceae4e799802a460fd51), [`3add6c6`](https://github.com/ecopages/ecopages/commit/3add6c62678d8234ee1ca00542e93ce7630a236c), [`d4cf50d`](https://github.com/ecopages/ecopages/commit/d4cf50dd72245369834793313aefea9ae1b3a9b4)]:
+    - @ecopages/core@0.9.0
+
 ## 0.8.0
 
 ### Patch Changes

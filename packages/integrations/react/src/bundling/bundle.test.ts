@@ -170,12 +170,17 @@ describe('BundleService', () => {
 		const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-foreign-jsx-'))));
 
 		try {
-			const entrypoint = writeForeignJsxIsland(tempDir, [
-				'export default eco.page({',
-				'middleware: [authMiddleware],',
-				'render: () => <div>Widget</div>,',
-				'});',
-			]);
+			const entrypoint = writeForeignJsxIsland(
+				tempDir,
+				[
+					"export const label = 'Widget';",
+					'export default eco.page({',
+					'middleware: [authMiddleware],',
+					'render: () => <div>{label}</div>,',
+					'});',
+				],
+				"import Widget, { label } from './widget.kita.tsx';\nexport default [Widget, label];",
+			);
 			const outputPath = await buildReactIsland(tempDir, entrypoint);
 			const output = readFileSync(outputPath, 'utf8');
 			expect(output).toContain('Widget');
@@ -420,6 +425,67 @@ describe('BundleService', () => {
 					);
 					expect(output).not.toContain('MY_EL_CONTROLLER');
 					expect(output).not.toContain('my-el');
+				} finally {
+					rmSync(tempDir, { recursive: true, force: true });
+				}
+			});
+
+			it('keeps the Component module out when the island imports it through a mixed barrel', async () => {
+				const tempDir = path.fromNative(
+					realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))),
+				);
+				try {
+					const island = writeComponentApp(tempDir, componentCard);
+					writeFileSync(
+						path.join(tempDir, 'button.react.tsx'),
+						'export const Button = () => <button>react-button</button>;',
+					);
+					writeFileSync(
+						path.join(tempDir, 'components.ts'),
+						"export { Card } from './card.tsx';\nexport * from './button.react.tsx';",
+					);
+					writeFileSync(
+						island,
+						"import { Card, Button } from './components.ts';\nexport default function Island() { return <div><Card /><Button /></div>; }",
+					);
+					const output = readEntry(await buildSharedEntries(tempDir, { island }), 'island', tempDir);
+					expect(output).toContain('react-button');
+					expect(output).toContain('foreignBoundaryReference');
+					expect(output).not.toContain('MY_EL_CONTROLLER');
+				} finally {
+					rmSync(tempDir, { recursive: true, force: true });
+				}
+			});
+
+			it('gives a barrel that an island and a grouped script share a React form without the Component module', async () => {
+				const tempDir = path.fromNative(
+					realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))),
+				);
+				try {
+					const entrypoints = writeSharedApp(tempDir, '');
+					const island = writeComponentApp(tempDir, componentCard);
+					writeFileSync(path.join(tempDir, 'components.ts'), "export { Card } from './card.tsx';");
+					writeFileSync(
+						island,
+						"import { Card } from './components.ts';\nexport default function Island() { return <div><Card /></div>; }",
+					);
+					mkdirSync(path.join(tempDir, 'content-script-entries'));
+					const grouped = path.join(tempDir, 'content-script-entries', 'grouped.js');
+					writeFileSync(
+						grouped,
+						`import { Card } from ${JSON.stringify(path.join(tempDir, 'components.ts'))};\nconsole.log(Card);\nimport ${JSON.stringify(entrypoints.radiant)};`,
+					);
+					const result = await buildSharedEntries(tempDir, { island, grouped });
+					assertBuildSucceeded(result, 'Build failed');
+					expect(readEntry(result, 'island', tempDir)).not.toContain('MY_EL_CONTROLLER');
+					expect(result.dependencyGraph.entrypoints[island]).not.toContain(path.join(tempDir, 'my-el.tsx'));
+					expect(result.dependencyGraph.entrypoints[grouped]).toContain(path.join(tempDir, 'my-el.tsx'));
+					const all = result.outputs
+						.filter((item) => item.path.endsWith('.js'))
+						.map((item) => readFileSync(item.path, 'utf8'))
+						.join('\n');
+					expect(all).toContain('MY_EL_CONTROLLER');
+					expect(all).not.toMatch(/@jsxImportSource react \*\/\s*var MyEl/);
 				} finally {
 					rmSync(tempDir, { recursive: true, force: true });
 				}

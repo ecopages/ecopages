@@ -13,7 +13,7 @@ import {
 	createForeignJsxScope,
 	createReactModuleSource,
 } from '../client-graph/boundary-plugin.ts';
-import { createComponentIdentityReader } from '../client-graph/component-identity-reader.ts';
+import { createForeignModuleReader } from '../client-graph/foreign-module.ts';
 import {
 	findIntegrationForFile,
 	findJsxExtensionOwner,
@@ -67,11 +67,11 @@ export class BundleService {
 			const owner = findIntegrationForFile(integrations, filePath);
 			return owner !== undefined && owner.name !== config.hostIntegrationName;
 		};
-		const componentIdentityOf = createComponentIdentityReader({
+		const foreignModuleOf = createForeignModuleReader({
 			rootDir: config.appConfig?.rootDir ?? config.rootDir,
 			integrationOf: (filePath) => findIntegrationForFile(integrations, filePath)?.name,
 		});
-		const reactModuleSource = createReactModuleSource({ projectRoot, isForeignFile, componentIdentityOf });
+		const reactModuleSource = createReactModuleSource({ projectRoot, isForeignFile, foreignModuleOf });
 		[this.foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(
 			config.appConfig,
 			config.hostIntegrationName,
@@ -88,7 +88,7 @@ export class BundleService {
 				}),
 			},
 		);
-		this.foreignBoundaryPlugin = createForeignBoundaryPlugin({ projectRoot, isForeignFile, componentIdentityOf });
+		this.foreignBoundaryPlugin = createForeignBoundaryPlugin({ projectRoot, isForeignFile, foreignModuleOf });
 	}
 
 	/**

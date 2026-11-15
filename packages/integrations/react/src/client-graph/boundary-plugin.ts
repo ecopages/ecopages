@@ -25,6 +25,13 @@ import {
 	type ForeignBoundaryRewriteOptions,
 } from './foreign-boundary-rewrite.ts';
 import {
+	createForeignStubSource,
+	FOREIGN_STUB_ID_PREFIX,
+	FOREIGN_STUB_SCHEME,
+	fromForeignStubSpecifier,
+} from './foreign-module.ts';
+import { FOREIGN_BOUNDARY_PACKAGE } from '../bundling/bootstrap-package-paths.ts';
+import {
 	createRequestedExportsPlan,
 	type PlannedModule,
 	type RequestedExportsPlan,
@@ -366,6 +373,10 @@ function getForeignJsxReach(
 	return context.foreignJsxReach;
 }
 
+/** The stub scheme and its `\0` prefix hold no regular expression syntax, so they match as written. */
+const FOREIGN_STUB_SPECIFIER = new RegExp(`^${FOREIGN_STUB_SCHEME}`);
+const FOREIGN_STUB_ID = new RegExp(`^${FOREIGN_STUB_ID_PREFIX}`);
+
 /** The source of a module as React's graph compiles it, or `undefined` when React keeps it as it is. */
 export type ReactModuleSource = (filePath: string, source: string) => string | undefined;
 
@@ -373,23 +384,23 @@ export type ReactModuleSource = (filePath: string, source: string) => string | u
  * The foreign boundary rewrite as the reach scans apply it: to React's own modules, with the identity stubs.
  *
  * @remarks
- * Without `componentIdentityOf` the rewrite only wraps bindings and keeps every import, so the scans read the
+ * Without `foreignModuleOf` the rewrite only wraps bindings and keeps every import, so the scans read the
  * original source.
  */
 export function createReactModuleSource(options: {
 	projectRoot: string;
 	isForeignFile: (filePath: string) => boolean;
-	componentIdentityOf?: ForeignBoundaryRewriteOptions['componentIdentityOf'];
+	foreignModuleOf?: ForeignBoundaryRewriteOptions['foreignModuleOf'];
 }): ReactModuleSource | undefined {
-	const { componentIdentityOf } = options;
-	if (!componentIdentityOf) return undefined;
+	const { foreignModuleOf } = options;
+	if (!foreignModuleOf) return undefined;
 	return (filePath, source) =>
 		options.isForeignFile(filePath)
 			? undefined
 			: rewriteForeignImports(source, filePath, {
 					projectRoot: options.projectRoot,
 					isForeignFile: options.isForeignFile,
-					componentIdentityOf,
+					foreignModuleOf,
 				});
 }
 
@@ -549,14 +560,26 @@ export function createForeignBoundaryPlugin(options: {
 	isForeignFile: (filePath: string) => boolean;
 	/** Whether another module graph uses `filePath`, in a build whose entries cannot say. */
 	isSharedFile?: (filePath: string) => boolean;
-	/** See {@link ForeignBoundaryRewriteOptions.componentIdentityOf}. */
-	componentIdentityOf?: ForeignBoundaryRewriteOptions['componentIdentityOf'];
+	/** See {@link ForeignBoundaryRewriteOptions.foreignModuleOf}. */
+	foreignModuleOf?: ForeignBoundaryRewriteOptions['foreignModuleOf'];
 }): EcoBuildPlugin {
 	const reactModuleSource = createReactModuleSource(options);
+	const { foreignModuleOf } = options;
 	return {
 		name: 'ecopages-react-foreign-boundary',
 		environments: ['browser'],
 		setup(build) {
+			if (foreignModuleOf) {
+				build.onResolve({ filter: FOREIGN_STUB_SPECIFIER }, (args) => ({ path: `\0${args.path}` }));
+				build.onLoad({ filter: FOREIGN_STUB_ID }, (loaded) => {
+					const filePath = fromForeignStubSpecifier(options.projectRoot, loaded.path.slice(1));
+					build.addWatchFile(filePath);
+					const module = foreignModuleOf(filePath);
+					if (!module)
+						throw new Error(`[ecopages] ${filePath} is no longer a module React can name by identity.`);
+					return { contents: createForeignStubSource(module, FOREIGN_BOUNDARY_PACKAGE), loader: 'js' };
+				});
+			}
 			build.onLoad({ filter: /\?eco-variant=[\w-]+$/, exclude: /^\0|\/node_modules\// }, (loaded) => {
 				const filePath = stripVariant(loaded).path;
 				build.addWatchFile(filePath);
@@ -582,7 +605,7 @@ export function createForeignBoundaryPlugin(options: {
 				return rewriteForeignImports(code, filePath, {
 					projectRoot: options.projectRoot,
 					isForeignFile: options.isForeignFile,
-					componentIdentityOf: options.componentIdentityOf,
+					foreignModuleOf,
 					watchFile: (file) => build.addWatchFile(file),
 					isSharedFile: reach
 						? (file) => reach.others.has(file) && reach.react.has(file)

@@ -1,0 +1,52 @@
+---
+title: "File system"
+description: "The @ecopages/file-system package: the shared file system, its Node adapter, the recursive file watcher, the install hook and recording wrapper used in tests, and the path module."
+section: packages
+order: 40
+sources:
+  - packages/file-system/src/index.ts
+  - packages/file-system/src/types.ts
+  - packages/file-system/src/install.ts
+  - packages/file-system/src/recording-file-system.ts
+  - packages/file-system/src/adapters/node.ts
+  - packages/file-system/src/adapters/recursive-file-watcher.ts
+  - packages/file-system/src/utils/common.ts
+  - packages/file-system/src/path.ts
+---
+
+# File system
+
+Every package reaches the disk through `@ecopages/file-system`. It gives one `FileSystem` interface, one process-wide instance, and a watcher whose behavior does not depend on the host. The path half of the package, `@ecopages/file-system/path`, is covered in [Paths](/dev#paths); this page covers the rest.
+
+```mermaid
+flowchart TD
+  C["Package code: fileSystem.readFile, glob, watch"] --> FS["fileSystem: forwards each call to the current target"]
+  FS --> T{"Installed target"}
+  T -- default --> N["nodeFs: NodeFileSystem"]
+  T -- "installFileSystem(next)" --> R["Test double, or createRecordingFileSystem(nodeFs)"]
+  R -- "records each path, then forwards" --> N
+  N --> B["BaseFileSystem: shared synchronous operations"]
+  N --> W["watch: RecursiveFileWatcher"]
+```
+
+## The shared instance
+
+`fileSystem` implements `FileSystem` by forwarding each method to a current target, which starts as `nodeFs`. The adapter is Node's on every runtime, including Bun, so a path or a glob behaves the same under `ecopages dev --runtime bun`. `BaseFileSystem` holds the operations that share one implementation, such as `exists`, `verifyFileExists`, directory copying and gzip; `NodeFileSystem` adds the asynchronous, glob, hash and watch members. `stat`, `lstat`, `readdir`, `readlink`, `mkdtemp` and `rename` throw Node's error unchanged, so a caller can branch on its `code`. Paths that leave the package, from `realpath`, `glob`, `readdir`, `readlink`, `mkdtemp`, `tempDir` and watcher events, are converted to forward slashes inside it.
+
+Package code never imports `node:fs` or calls `Bun.write` and `Bun.file`; `check:portability` fails the second ([Testing](/dev/testing#smoke-scripts)). When a capability is missing, the package is extended rather than bypassed.
+
+## Install and recording
+
+`installFileSystem(next)` replaces the target until the function it returns runs, which tests use to swap in a fake. `createRecordingFileSystem(inner)` wraps any `FileSystem`, records every path argument of every method, and forwards the call; `recordedPaths` lists them. A glob records its `cwd`, not its patterns; a copy or rename records both paths; a watch records every path it is given, including those added later. The `production-server-modules` e2e fixture installs a recording wrapper, starts the app from a moved `dist/`, and asserts that no recorded path lies outside the deploy folders, which is how [Ledger and start](/dev/ledger-and-start) proves that `ecopages start` reads no source.
+
+## The recursive watcher
+
+`fileSystem.watch(paths, { onChange, onError, ignored })` returns a `FileWatcher` with `ready`, `add(paths)` and `close()`. `NodeFileSystem` builds a `RecursiveFileWatcher` over native `fs.watch`, which [Watcher and invalidation](/dev/hmr-watcher-invalidation) consumes.
+
+- **Roots.** Each watched directory becomes a recursive root, with nested ones merged. A watched file, or a path that does not exist yet, gets a non-recursive watch on its parent or nearest existing ancestor, and each created ancestor is followed in turn until the target appears.
+- **Indexing.** Before `ready` resolves the watcher indexes the existing entries so a later rename can be told apart as an add, a replacement or a directory removal. Indexing reports nothing; events that arrive while it runs are replayed afterwards.
+- **Ignoring.** `ignored(path, stats?)` is tested before a directory is read. A stats-free answer is also passed to Node as the recursive watch's `ignore`, so a tree such as `node_modules` costs no kernel watches on releases that support the option.
+- **Coalescing.** Native events for a path are held for 50 ms and flushed once. A new directory is flushed before the entries it holds, since Windows reports the file first. An event with no file name triggers a reconcile of its root, which reports `rescan` after comparing what is on disk with what was indexed.
+- **Changes.** `add`, `change`, `unlink`, `addDir`, `unlinkDir` and `rescan` carry the path as the caller requested it, not the resolved real path.
+
+`add()` calls queue behind each other, and a failed registration rejects that call without stopping later ones. `close()` clears every timer and native watcher and is safe to call twice. A watch failure, such as a permission or watch-limit error, goes to `onError`.

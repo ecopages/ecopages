@@ -120,6 +120,27 @@ A stylesheet in a linked workspace package is a watch path, and any edit in that
 
 At runtime, `attachDiscoveredDependencies` turns `config.dependencies.components` into a getter that merges explicit Components, first, with discovered ones in import order, removing duplicates and keeping only declared Components. The getter reads the import bindings when the graph is traversed, after every module has initialized. Inferred stylesheets stay on the identity, not in the public bag, so copying or merging `dependencies` cannot turn one into an explicit stylesheet; collection prefers explicit declarations by resolved path.
 
+```mermaid
+flowchart TD
+  subgraph Build["Build: transform of the declaring module"]
+    D["Discovery walks the module and the plain modules it imports"] --> I["Identity: file, id, owner"]
+    D --> DS["Side-effect stylesheets, package stylesheets, watch files, ecopages: virtual imports"]
+    D --> DC["Imported declared Components"]
+    I --> REG["registerDiscoveredDependencies on the identity"]
+    DS --> REG
+    DC --> ATT["attachDiscoveredDependencies: components getter"]
+  end
+  subgraph Runtime["Runtime: per config"]
+    CFG["eco.page, eco.layout, eco.component or eco.html config"] --> ST["ComponentDeclarationStore.get(config)"]
+    REG --> ST
+    ATT --> WALK
+    ST --> CD["ComponentDeclarations: assets, lazy scripts, modules, stylesheets, declaresScript"]
+    CD --> WALK["Collection walks the graph and merges declarations in order"]
+  end
+  PLAIN["Plain component: no config"] -. "its imports are found by discovery, attributed to the nearest declared owner" .-> D
+  WALK --> OUT["Dependencies of the Page Package"]
+```
+
 Collection reads each config through its `ComponentDeclarations` (`page-loading/component-declarations.ts`): the config's stylesheets and eager scripts as asset definitions with their dedupe keys, its lazy scripts, its `modules` plus the `ecopages:` virtual modules its declaring module imports (discovery records them beside the inferred stylesheets when the build transforms the module, so no source is read at render), its explicit and inferred stylesheet paths, and whether it ships a browser script of its own. A config is a value of the module that declares it, so these never change while it exists; each renderer's `DependencyResolverService` resolves them the first time it reaches the config and keeps them, weakly, for that config. A development edit re-imports the module, and the new config is resolved afresh. Collection then only walks the graph and merges the declarations it reaches, in order, deduped by key; the one thing it adds per render is a lazy script's entry name, which names the Integration that owns the component.
 
 Component factories render through a context in `eco/component-render-context.ts`. The route renderer opens one per render with `runWithComponentRenderContext`, supplying the foreign-child runtime that hands off Components another Integration owns ([Integrations and foreign children](/dev/integrations-foreign-children)). The context lives in `AsyncLocalStorage`, so nested and concurrent renders keep their own across async work, and the storage is attached to `process` rather than module state, so duplicate module instances in development share it.

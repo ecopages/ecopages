@@ -77,7 +77,7 @@ const dependencies: EcoComponentDependencies = {
 
 Script entries can declare `ssr` and one lazy-loading trigger. `components` accepts results from `eco.component()`, `eco.layout()`, or `eco.html()`. For dependency discovery and lazy loading, see the [Eco namespace reference](/docs/reference/eco-namespace).
 
-`LayoutProps<E>` adds `children` to optional request context. A layout prop factory receives `LayoutPropsContext`, which contains optional `params`, `query`, and `locals`.
+`LayoutProps<E>` carries `children`. A layout receives request data only through the `props` factory of its layout entry, which receives `LayoutPropsContext`, which contains optional `params`, `query`, and `locals`.
 
 ## Request context
 

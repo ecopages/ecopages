@@ -94,7 +94,7 @@ interface HMRPayload {
 				getHandlers: () => window.__ECO_PAGES__?.hmrHandlers,
 				getActivePageModule: () => window.__ECO_PAGES__?.page?.module,
 				reloadCurrentPage: async (request) => Boolean(await navigationRuntime.reloadCurrentPage(request)),
-				importModule: (url) => import(url),
+				importModule: (url) => import(/* @vite-ignore */ url),
 				waitForSettled: async () => waitForNavigationToSettle(navigationRuntime),
 				reloadPage,
 			},

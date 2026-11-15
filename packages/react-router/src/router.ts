@@ -80,6 +80,8 @@ export interface EcoRouterProps {
 	page: ComponentType<unknown>;
 	/** Props passed to the page component */
 	pageProps: Record<string, unknown>;
+	/** The props each layout tier renders with, outer to inner, as the server resolved them */
+	tierProps?: readonly Record<string, unknown>[];
 	/** Router configuration */
 	options?: EcoRouterOptions;
 	/** Children (should contain {@link PageContent}) */
@@ -112,13 +114,13 @@ export const PageContent: FC = () => {
 		return null;
 	}
 
-	const { Component: Page, props } = pageContext;
+	const { Component: Page, props, tierProps } = pageContext;
 
 	if (typeof Page !== 'function') {
 		return null;
 	}
 
-	const tree = composeLayoutPageTree(assertComposablePage(Page), props);
+	const tree = composeLayoutPageTree(assertComposablePage(Page), props, tierProps ? { tierProps } : undefined);
 	return persistLayouts ? tree : createElement(Fragment, { key: getPageMountKey(Page) }, tree);
 };
 
@@ -246,11 +248,18 @@ function useNavigationCoordinator(
  * <img data-view-transition={`hero-${id}`} src={src} />
  * ```
  */
-export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOptions, children }: EcoRouterProps) => {
+export const EcoRouter: FC<EcoRouterProps> = ({
+	page,
+	pageProps,
+	tierProps,
+	options: userOptions,
+	children,
+}: EcoRouterProps) => {
 	const options = useMemo(() => ({ ...DEFAULT_OPTIONS, ...userOptions }), [userOptions]);
 	const [currentPage, setCurrentPage] = useState<PageState>({
 		Component: page,
 		props: pageProps,
+		tierProps,
 	});
 	const [isNavigating, setIsNavigating] = useState(false);
 	const pendingRenderRef = useRef<PendingRender | null>(null);
@@ -274,17 +283,17 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		if (isInitialPagePropSyncRef.current) {
 			isInitialPagePropSyncRef.current = false;
 			setCurrentPage((current) => {
-				if (current.Component === page && current.props === pageProps) {
+				if (current.Component === page && current.props === pageProps && current.tierProps === tierProps) {
 					return current;
 				}
 
-				return { Component: page, props: pageProps };
+				return { Component: page, props: pageProps, tierProps };
 			});
 			return;
 		}
 
-		setCurrentPage({ Component: page, props: pageProps });
-	}, [page, pageProps]);
+		setCurrentPage({ Component: page, props: pageProps, tierProps });
+	}, [page, pageProps, tierProps]);
 
 	useEffect(() => {
 		if (options.viewTransitions) {

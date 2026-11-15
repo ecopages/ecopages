@@ -18,6 +18,14 @@ export type LayoutComposeOptions = {
 	resolvePersistedTier?: (layout: EcoComponent, index: number) => { layout: EcoComponent; key?: string };
 	/** Records which tiers render, so a server render can tell a layout that drops its children. */
 	renderTracker?: LayoutRenderTracker;
+	/**
+	 * The props each layout tier renders with, outer to inner, already resolved on the server.
+	 *
+	 * @remarks
+	 * When given, composition renders tier `i` with `tierProps[i]` and never calls a layout props factory or
+	 * reads `pageProps.locals`, so the browser needs no request code to reproduce what the server rendered.
+	 */
+	tierProps?: readonly Record<string, unknown>[];
 };
 
 function resolveReact(options?: LayoutComposeOptions): ReactRuntime {
@@ -140,7 +148,9 @@ export function composeLayoutPageTree<P extends Record<string, unknown>>(
 	if (layoutEntries && layoutEntries.length > 0) {
 		return [...layoutEntries].reverse().reduce<ReactElement>((children, entry, reverseIndex) => {
 			const index = layoutEntries.length - 1 - reverseIndex;
-			const layoutProps = resolveLayoutEntryProps(entry, context);
+			const layoutProps = options?.tierProps
+				? (options.tierProps[index] ?? {})
+				: resolveLayoutEntryProps(entry, context);
 			const tier = resolvePersistedTier?.(entry.component, index);
 			const Layout = toTrackedReactComponent(tier?.layout ?? entry.component, index, tracker);
 			const elementProps = tier?.key ? { key: tier.key, ...layoutProps } : layoutProps;
@@ -150,9 +160,10 @@ export function composeLayoutPageTree<P extends Record<string, unknown>>(
 
 	const layouts = Page.config?.layouts;
 	if (layouts && layouts.length > 0) {
-		const layoutProps = context.locals ? { locals: context.locals } : {};
+		const sharedLayoutProps = context.locals ? { locals: context.locals } : {};
 		return [...layouts].reverse().reduce<ReactElement>((children, Layout, reverseIndex) => {
 			const index = layouts.length - 1 - reverseIndex;
+			const layoutProps = options?.tierProps ? (options.tierProps[index] ?? {}) : sharedLayoutProps;
 			const tier = resolvePersistedTier?.(Layout, index);
 			const ResolvedLayout = toTrackedReactComponent(tier?.layout ?? Layout, index, tracker);
 			const elementProps = tier?.key ? { key: tier.key, ...layoutProps } : layoutProps;

@@ -13,6 +13,15 @@ export type ForeignJsxReachOptions = {
 	/** Every other entry file of the build. */
 	otherEntryFiles: Iterable<string>;
 	isForeignFile: (filePath: string) => boolean;
+	/**
+	 * The source of a module as React's graph compiles it, or `undefined` to keep it; applied on the walks from
+	 * React entry files only.
+	 *
+	 * @remarks
+	 * React's rewrite drops the import of a foreign Eco Component it can name by identity, so a walk that read the
+	 * original source would count that Component's module and its imports as reached by React.
+	 */
+	reactModuleSource?: (filePath: string, source: string) => string | undefined;
 };
 
 export type ForeignJsxReach = {
@@ -39,7 +48,10 @@ export function toRealPath(filePath: string): string {
  * The parser does not read MDX, so an MDX file is compiled first and its output parsed. A file that does not read,
  * compile or parse has no specifiers.
  */
-function readImportSpecifiers(filePath: string): string[] {
+function readImportSpecifiers(
+	filePath: string,
+	moduleSource?: (filePath: string, source: string) => string | undefined,
+): string[] {
 	try {
 		let source = fileSystem.readFileSync(filePath);
 		let parsePath = filePath;
@@ -47,6 +59,7 @@ function readImportSpecifiers(filePath: string): string[] {
 			source = String(compileSync(source, { format: filePath.endsWith('.md') ? 'md' : 'mdx' }));
 			parsePath = `${filePath}.jsx`;
 		}
+		source = moduleSource?.(filePath, source) ?? source;
 		const { module } = parseModuleSource(parsePath, source);
 		return [
 			...module.staticImports.map((entry) => entry.moduleRequest.value),
@@ -88,6 +101,7 @@ function collectForeignFiles(
 	roots: Iterable<string>,
 	stopAt: ReadonlySet<string>,
 	options: ForeignJsxReachOptions,
+	moduleSource?: (filePath: string, source: string) => string | undefined,
 ): Map<string, string> {
 	const foreign = new Map<string, string>();
 	const visited = new Set<string>();
@@ -96,7 +110,7 @@ function collectForeignFiles(
 		const [filePath, root] = pending.pop()!;
 		if (visited.has(filePath)) continue;
 		visited.add(filePath);
-		for (const specifier of readImportSpecifiers(filePath)) {
+		for (const specifier of readImportSpecifiers(filePath, moduleSource)) {
 			const resolved = resolveLocalModulePath(options.projectRoot, filePath, specifier);
 			if (!resolved || resolved.split('/').includes('node_modules')) continue;
 			const target = toRealPath(resolved);
@@ -118,7 +132,9 @@ function collectForeignFiles(
  */
 export function scanForeignJsxReach(options: ForeignJsxReachOptions): ForeignJsxReach {
 	return {
-		react: new Set(collectForeignFiles(options.reactEntryFiles, new Set(), options).keys()),
+		react: new Set(
+			collectForeignFiles(options.reactEntryFiles, new Set(), options, options.reactModuleSource).keys(),
+		),
 		others: collectForeignFiles(options.otherEntryFiles, options.reactEntryFiles, options),
 	};
 }

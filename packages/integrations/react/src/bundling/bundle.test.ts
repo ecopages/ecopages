@@ -8,6 +8,7 @@ import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
 import { getBuildEntryOutput } from '../../../../core/src/build/build-graph.ts';
 import { assertBuildFailed } from '../../../../core/src/__fixtures__/build/build-result.ts';
 import { getJsxOwnershipPlugins } from '../../../../core/src/build/browser/jsx-ownership-plugins.ts';
+import { attributeComponentIdentity } from '../../../../core/src/plugins/eco-component-meta-plugin.ts';
 import { BundleService } from './bundle.ts';
 
 const withNodeEnv = async <T>(nodeEnv: string | undefined, run: () => Promise<T>): Promise<T> => {
@@ -375,6 +376,94 @@ describe('BundleService', () => {
 			} finally {
 				rmSync(tempDir, { recursive: true, force: true });
 			}
+		});
+
+		describe('foreign Eco Components a React island renders', () => {
+			const writeComponentApp = (tempDir: string, cardSource: string) => {
+				writeFileSync(path.join(tempDir, 'eco.ts'), 'export const eco = { component: (config) => config };');
+				writeFileSync(
+					path.join(tempDir, 'my-el.tsx'),
+					"export class MyEl extends HTMLElement { connectedCallback() { console.log('MY_EL_CONTROLLER'); } }\ncustomElements.define('my-el', MyEl);\nexport const Icon = () => <svg />;",
+				);
+				writeFileSync(path.join(tempDir, 'card.tsx'), cardSource);
+				const island = path.join(tempDir, 'island.react.tsx');
+				writeFileSync(
+					island,
+					"import { Card } from './card.tsx';\nexport default function Island() { return <div><Card /></div>; }",
+				);
+				return island;
+			};
+			const componentCard = [
+				"import { eco } from './eco.ts';",
+				"import { MyEl } from './my-el.tsx';",
+				"export const Card = eco.component({ dependencies: { scripts: ['./my-el.tsx'] }, render: () => <MyEl /> });",
+			].join('\n');
+
+			it('names the Component by identity and ships neither its module nor what it imports', async () => {
+				const tempDir = path.fromNative(
+					realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))),
+				);
+				try {
+					const island = writeComponentApp(tempDir, componentCard);
+					const output = readEntry(await buildSharedEntries(tempDir, { island }), 'island', tempDir);
+					const serverId = /bindComponentIdentity\(\{ id: "([a-z0-9]+)"/.exec(
+						attributeComponentIdentity(componentCard, path.join(tempDir, 'card.tsx'), {
+							integration: 'ecopages-jsx',
+							projectRoot: tempDir,
+						}).code,
+					)?.[1];
+					expect(serverId).toBeDefined();
+					expect(output).toMatch(
+						new RegExp(
+							`foreignBoundaryReference\\(\\{\\s*"id": "${serverId}",\\s*"file": "card\\.tsx",\\s*"integration": "ecopages-jsx"`,
+						),
+					);
+					expect(output).not.toContain('MY_EL_CONTROLLER');
+					expect(output).not.toContain('my-el');
+				} finally {
+					rmSync(tempDir, { recursive: true, force: true });
+				}
+			});
+
+			it('keeps the import of a foreign export that is not statically a Component', async () => {
+				const tempDir = path.fromNative(
+					realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))),
+				);
+				try {
+					const island = writeComponentApp(
+						tempDir,
+						"import { eco } from './eco.ts';\nconst make = () => eco.component({ render: () => <article>made</article> });\nexport const Card = make();",
+					);
+					const output = readEntry(await buildSharedEntries(tempDir, { island }), 'island', tempDir);
+					expect(output).not.toContain('foreignBoundaryReference(');
+					expect(output).toContain('made');
+				} finally {
+					rmSync(tempDir, { recursive: true, force: true });
+				}
+			});
+
+			it('lets a grouped script entry own a controller that a Component in a React island imports', async () => {
+				const tempDir = path.fromNative(
+					realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))),
+				);
+				try {
+					const entrypoints = writeSharedApp(tempDir, '');
+					const island = writeComponentApp(tempDir, componentCard);
+					mkdirSync(path.join(tempDir, 'content-script-entries'));
+					const grouped = path.join(tempDir, 'content-script-entries', 'grouped.js');
+					writeFileSync(
+						grouped,
+						`import ${JSON.stringify(path.join(tempDir, 'my-el.tsx'))};\nimport ${JSON.stringify(entrypoints.radiant)};`,
+					);
+					const result = await buildSharedEntries(tempDir, { island, grouped });
+					const output = readEntry(result, 'grouped', tempDir);
+					expect(output).toContain('MY_EL_CONTROLLER');
+					expect(output).toContain('@ecopages/jsx/jsx-runtime');
+					expect(output).not.toMatch(/react/);
+				} finally {
+					rmSync(tempDir, { recursive: true, force: true });
+				}
+			});
 		});
 	});
 });

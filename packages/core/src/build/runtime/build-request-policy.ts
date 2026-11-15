@@ -87,7 +87,10 @@ export function resolveBuildPluginOrder(
 	const excluded = new Set(options.excludeAppBuildPlugins);
 	const appPlugins = resolveAppBuildPlugins(appConfig, environment).filter((plugin) => !excluded.has(plugin.name));
 	const plugins = mergeCallerBuildPlugins(appPlugins, options.callerPlugins, environment);
-	const coreTransforms = [createEcoComponentMetaPlugin({ config: appConfig }), ...(options.coreTransforms ?? [])];
+	const coreTransforms = [
+		createEcoComponentMetaPlugin({ config: appConfig, environment }),
+		...(options.coreTransforms ?? []),
+	];
 
 	const names = new Set(plugins.map((plugin) => plugin.name));
 	for (const transform of coreTransforms) {

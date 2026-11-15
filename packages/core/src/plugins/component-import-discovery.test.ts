@@ -702,6 +702,7 @@ export const Button = eco.component({ render: () => '' });`,
 			const build = () =>
 				getPluginTransform(
 					createEcoComponentMetaPlugin({
+						environment: 'server',
 						config: {
 							rootDir: root,
 							integrations: [{ name: 'lit', extensions: ['.ts'] }],
@@ -732,6 +733,7 @@ export const Button = eco.component({ render: () => '' });`,
 			file('button.ts', `import styles from './button.module.css';\nexport const Button = () => styles.primary;`);
 			const run = getPluginTransform(
 				createEcoComponentMetaPlugin({
+					environment: 'server',
 					config: {
 						rootDir: root,
 						integrations: [{ name: 'lit', extensions: ['.ts'] }],
@@ -749,6 +751,7 @@ export const Button = eco.component({ render: () => '' });`,
 		it('forgets a plain module once the only declaration importing it drops the import', async () => {
 			const { root, file } = plainFixture();
 			const plugin = createEcoComponentMetaPlugin({
+				environment: 'server',
 				config: { rootDir: root, integrations: [{ name: 'lit', extensions: ['.ts'] }] } as EcoPagesAppConfig,
 			});
 			const read = (name: string) => fileSystem.readFileSync(path.join(root, name));
@@ -777,6 +780,7 @@ export const Button = eco.component({ render: () => '' });`,
 			);
 			const run = getPluginTransform(
 				createEcoComponentMetaPlugin({
+					environment: 'server',
 					config: {
 						rootDir: root,
 						integrations: [{ name: 'lit', extensions: ['.ts'] }],
@@ -877,6 +881,28 @@ export const Button = eco.component({ render: () => '' });`,
 			const deduplicated = attribute('badge.ts');
 			expect(deduplicated).toContain('components: () => [Glyph, __ecoPlainModuleComponent0]');
 			expect(deduplicated).toContain(`import __ecoPlainModuleComponent0 from "${real('icon.ts')}";`);
+		});
+		it('imports no plain module Component into a browser build, where nothing reads it', () => {
+			const { root, file } = plainFixture();
+			file(
+				'icon.ts',
+				`import { eco } from '@ecopages/core';\nexport const Icon = eco.component({ render: () => '' });`,
+			);
+			file(
+				'card.ts',
+				`import './card.css';\nimport { Icon } from './icon';\nexport function Card() { return Icon({}); }`,
+			);
+			const config = { rootDir: root, integrations: [{ name: 'lit', extensions: ['.ts'] }] } as EcoPagesAppConfig;
+			const badge = (environment: 'server' | 'browser') => {
+				const result = getPluginTransform(createEcoComponentMetaPlugin({ config, environment })).transform(
+					fileSystem.readFileSync(path.join(root, 'badge.ts')),
+					path.join(root, 'badge.ts'),
+				);
+				return typeof result === 'string' ? result : (result?.code ?? '');
+			};
+			expect(badge('server')).toContain('__ecoPlainModuleComponent0');
+			expect(badge('browser')).not.toContain('__ecoPlainModuleComponent');
+			expect(badge('browser')).toContain('components: () => []');
 		});
 		it('fails when a plain component of another Integration is rendered, suggesting eco.component()', () => {
 			const { file, attribute } = plainFixture();

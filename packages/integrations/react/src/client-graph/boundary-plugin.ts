@@ -13,12 +13,12 @@ import type {
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
 } from '@ecopages/core/integration';
-import { parseModuleSource, resolveProjectModulePath } from '@ecopages/core/build';
+import { parseModuleSource } from '@ecopages/core/build';
 import { parseDeclaredModules, toModuleBaseSpecifier } from './specifier-classification.ts';
 import { classifyClientGraphModule } from './module-classification.ts';
 import { transformClientGraphModule } from './boundary-plugin-transform.ts';
 import { inlineReadFileSyncCalls } from './boundary-plugin-read-file-inline.ts';
-import { scanForeignJsxReach, toRealPath, type ForeignJsxReach } from './foreign-jsx-reach.ts';
+import { resolveLocalModulePath, scanForeignJsxReach, toRealPath, type ForeignJsxReach } from './foreign-jsx-reach.ts';
 import { isReactBoundaryVariant, rewriteForeignImports } from './foreign-boundary-rewrite.ts';
 import {
 	createRequestedExportsPlan,
@@ -168,11 +168,7 @@ async function resolveScanImport(
 	} catch {
 		return { kind: 'skip' };
 	}
-	const local = path.isAbsolute(specifier)
-		? fileSystem.exists(specifier)
-			? specifier
-			: undefined
-		: resolveProjectModulePath(projectRoot, importer, specifier, { preserveBarrel: true });
+	const local = resolveLocalModulePath(projectRoot, importer, specifier);
 	const id = resolved ? (resolved.external ? undefined : resolved.id) : local;
 	if (!resolved && !local) return { kind: 'unresolved' };
 	if (!id || id.startsWith('\0') || id.split('/').includes('node_modules')) return { kind: 'skip' };

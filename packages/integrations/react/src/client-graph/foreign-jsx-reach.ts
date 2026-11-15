@@ -67,6 +67,20 @@ function literalSpecifier(source: string, span: { start: number; end: number }):
 }
 
 /**
+ * Resolves a specifier to a local file: a relative or tsconfig path import of the app's own files, or an absolute
+ * file path that exists.
+ *
+ * @remarks
+ * Core's grouped content-script entries import each script by its absolute path, so without the absolute case a
+ * script reached only through such an entry would be absent from the scan.
+ */
+export function resolveLocalModulePath(projectRoot: string, fromFile: string, specifier: string): string | undefined {
+	const filePath = specifier.replace(/[?#].*$/, '');
+	if (path.isAbsolute(filePath)) return fileSystem.exists(filePath) ? filePath : undefined;
+	return resolveProjectModulePath(projectRoot, fromFile, specifier, { preserveBarrel: true });
+}
+
+/**
  * Walks the static imports of the app's own source files from `roots`, never into a file in `stopAt`, and
  * returns each foreign file it reaches with the root that reached it first.
  */
@@ -83,9 +97,7 @@ function collectForeignFiles(
 		if (visited.has(filePath)) continue;
 		visited.add(filePath);
 		for (const specifier of readImportSpecifiers(filePath)) {
-			const resolved = resolveProjectModulePath(options.projectRoot, filePath, specifier, {
-				preserveBarrel: true,
-			});
+			const resolved = resolveLocalModulePath(options.projectRoot, filePath, specifier);
 			if (!resolved || resolved.split('/').includes('node_modules')) continue;
 			const target = toRealPath(resolved);
 			if (stopAt.has(target)) continue;
@@ -100,8 +112,8 @@ function collectForeignFiles(
  * Finds which foreign JSX files React entry files reach and which other entries reach, from static imports.
  *
  * @remarks
- * It runs before any module loads, so the answer does not depend on load order. Only relative and tsconfig path
- * imports of the app's own files are followed; packages are never scanned. A walk from another entry stops at a
+ * It runs before any module loads, so the answer does not depend on load order. Only relative, tsconfig path
+ * and absolute path imports of the app's own files are followed; packages are never scanned. A walk from another entry stops at a
  * React entry file, since React's bootstrap entries import their Page or island module.
  */
 export function scanForeignJsxReach(options: ForeignJsxReachOptions): ForeignJsxReach {

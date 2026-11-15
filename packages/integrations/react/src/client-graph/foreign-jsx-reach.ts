@@ -2,6 +2,7 @@ import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource, resolveProjectModulePath } from '@ecopages/core/build';
 import { compileSync } from '@mdx-js/mdx';
+import { FOREIGN_STUB_SCHEME } from './foreign-module.ts';
 
 const MDX_SOURCE = /\.mdx?$/;
 const SCANNED_SOURCE = /\.(?:[cm]?[jt]sx?|mdx?)$/;
@@ -18,8 +19,9 @@ export type ForeignJsxReachOptions = {
 	 * React entry files only.
 	 *
 	 * @remarks
-	 * React's rewrite drops the import of a foreign Eco Component it can name by identity, so a walk that read the
-	 * original source would count that Component's module and its imports as reached by React.
+	 * React's rewrite points an import of a foreign file's static Components at the file's stub module, which this
+	 * walk does not follow, so a walk that read the original source would count that file and its imports as reached
+	 * by React.
 	 */
 	reactModuleSource?: (filePath: string, source: string) => string | undefined;
 };
@@ -111,6 +113,7 @@ function collectForeignFiles(
 		if (visited.has(filePath)) continue;
 		visited.add(filePath);
 		for (const specifier of readImportSpecifiers(filePath, moduleSource)) {
+			if (specifier.startsWith(FOREIGN_STUB_SCHEME)) continue;
 			const resolved = resolveLocalModulePath(options.projectRoot, filePath, specifier);
 			if (!resolved || resolved.split('/').includes('node_modules')) continue;
 			const target = toRealPath(resolved);

@@ -230,49 +230,57 @@ describe('rewriteForeignImports', () => {
 	});
 });
 
-describe('rewriteForeignImports with component identities', () => {
-	const identity = (file: string, name: string) => ({
-		id: `${path.basename(file)}:${name}`,
-		file,
-		integration: 'lit',
+describe('rewriteForeignImports with stub modules', () => {
+	const stub = '"ecopages-react-foreign-stub:components/counter.lit.tsx"';
+	const counterModule = (root: string, values: string[] = ['Named'], star = false) => ({
+		identities: new Map([
+			['default', { id: 'counter', file: 'components/counter.lit.tsx', integration: 'lit' }],
+			['Card', { id: 'card', file: 'components/counter.lit.tsx', integration: 'lit' }],
+		]),
+		values: new Set(values),
+		star,
 	});
-	const statics = new Set(['default']);
-	const rewriteWithIdentities = (root: string, code: string, watched: string[] = []) =>
-		rewriteForeignImports(code, path.join(root, 'island.tsx'), {
+	const rewriteWithStubs = (
+		root: string,
+		code: string,
+		file = 'island.tsx',
+		options: { values?: string[]; star?: boolean; watched?: string[] } = {},
+	) =>
+		rewriteForeignImports(code, path.join(root, file), {
 			projectRoot: root,
 			isForeignFile,
-			componentIdentityOf: (file, name) => (statics.has(name) ? identity(file, name) : undefined),
-			watchFile: (file) => watched.push(file),
+			foreignModuleOf: (filePath) =>
+				filePath === path.join(root, 'components/counter.lit.tsx')
+					? counterModule(root, options.values, options.star)
+					: undefined,
+			watchFile: (watchedFile) => options.watched?.push(watchedFile),
 		});
 
-	it('names a static Component by identity and drops its import with the unread foreign bindings', () => {
+	it('imports the static Components of a foreign file from its stub module and drops unread values', () => {
 		const root = createProject();
 		try {
 			const watched: string[] = [];
-			const output = rewriteWithIdentities(
+			const output = rewriteWithStubs(
 				root,
 				"import Counter, { Named } from './components/counter.lit.tsx';\nexport default () => Counter;",
-				watched,
-			)!;
-			const counter = path.join(root, 'components/counter.lit.tsx');
-			expect(output).toContain(
-				`const Counter = __ecoForeignBoundaryReference(${JSON.stringify(identity(counter, 'default'))});`,
+				'island.tsx',
+				{ watched },
 			);
-			expect(output).not.toMatch(/from ["']\.\/components\/counter\.lit\.tsx["']/);
-			expect(watched).toEqual([counter]);
+			expect(output).toBe(`import { "default" as Counter } from ${stub};\nexport default () => Counter;`);
+			expect(watched).toContain(path.join(root, 'components/counter.lit.tsx'));
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}
 	});
 
-	it('keeps the import of a foreign binding that has no identity', () => {
+	it('imports a read value that is not a static Component from the file, behind the runtime boundary', () => {
 		const root = createProject();
 		try {
-			const output = rewriteWithIdentities(
+			const output = rewriteWithStubs(
 				root,
 				"import Counter, { Named } from './components/counter.lit.tsx';\nexport default () => [Counter, Named];",
 			)!;
-			expect(output).toContain('__ecoForeignBoundaryReference(');
+			expect(output).toContain(`import { "default" as Counter } from ${stub};`);
 			expect(output).toMatch(
 				/import \{ "Named" as (__eco_foreign_\d+) \} from "\.\/components\/counter\.lit\.tsx";/,
 			);
@@ -282,36 +290,85 @@ describe('rewriteForeignImports with component identities', () => {
 		}
 	});
 
-	it('names a Component the MDX attribution imports by absolute path', () => {
+	it('imports a namespace from the stub module when the file exports static Components alone', () => {
 		const root = createProject();
 		try {
-			const counter = path.join(root, 'components/counter.lit.tsx');
-			const output = rewriteWithIdentities(
-				root,
-				`import __ecoPlainModuleComponent0 from ${JSON.stringify(counter)};\nexport const config = { components: () => [__ecoPlainModuleComponent0] };`,
-			)!;
-			expect(output).toContain(
-				`const __ecoPlainModuleComponent0 = __ecoForeignBoundaryReference(${JSON.stringify(identity(counter, 'default'))});`,
+			const code = "import * as Lit from './components/counter.lit.tsx';\nexport default () => Lit;";
+			expect(rewriteWithStubs(root, code, 'island.tsx', { values: [] })).toBe(
+				`import * as Lit from ${stub};\nexport default () => Lit;`,
 			);
-			expect(output).not.toMatch(/from "[^"]*counter\.lit\.tsx"/);
+			expect(rewriteWithStubs(root, code)).toContain('const Lit = __ecoForeignBoundaryNamespace(');
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}
 	});
 
-	it('follows a barrel to the declaring file and watches every file it walked', () => {
+	it('points the re-exports of a barrel at the stub module and leaves its other re-exports alone', () => {
 		const root = createProject();
 		try {
-			const watched: string[] = [];
-			const output = rewriteWithIdentities(
+			writeFileSync(
+				path.join(root, 'components/mixed.ts'),
+				"export { default as Counter, Named } from './counter.lit.tsx';\nexport { default as Button } from './button.tsx';",
+			);
+			const barrel = rewriteWithStubs(
 				root,
-				"import { Counter } from './components/index.ts';\nexport default () => Counter;",
-				watched,
+				readFileSync(path.join(root, 'components/mixed.ts'), 'utf8'),
+				'components/mixed.ts',
+			);
+			expect(barrel).toBe(
+				`export { default as Counter } from ${stub}; export { Named as Named } from "./counter.lit.tsx";\nexport { default as Button } from './button.tsx';`,
+			);
+			const importer = rewriteWithStubs(
+				root,
+				"import { Counter, Button } from './components/mixed.ts';\nexport default [Counter, Button];",
 			)!;
+			expect(importer).toMatch(
+				/import \{ "Counter" as (__eco_foreign_\d+), "Button" as Button \} from "\.\/components\/mixed\.ts";/,
+			);
+			expect(importer).not.toContain('counter.lit.tsx');
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("splits export * of a foreign file into the stub module and the file's other values", () => {
+		const root = createProject();
+		try {
+			writeFileSync(path.join(root, 'components/star.ts'), "export * from './counter.lit.tsx';");
+			const read = () => readFileSync(path.join(root, 'components/star.ts'), 'utf8');
+			expect(rewriteWithStubs(root, read(), 'components/star.ts')).toBe(
+				`export { Card } from ${stub}; export { Named } from "./counter.lit.tsx";`,
+			);
+			expect(rewriteWithStubs(root, read(), 'components/star.ts', { values: [] })).toBe(
+				`export { Card } from ${stub};`,
+			);
+			expect(rewriteWithStubs(root, read(), 'components/star.ts', { values: [], star: true })).toBe(
+				`export { Card } from ${stub}; export * from "./counter.lit.tsx";`,
+			);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('does not rewrite a module that already imports a stub module', () => {
+		const root = createProject();
+		try {
+			const once = rewriteWithStubs(root, "export * from './components/counter.lit.tsx';", 'components/star.ts')!;
+			expect(rewriteWithStubs(root, once, 'components/star.ts')).toBeUndefined();
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('imports a Component the MDX attribution imports by absolute path from the stub module', () => {
+		const root = createProject();
+		try {
 			const counter = path.join(root, 'components/counter.lit.tsx');
-			expect(output).toContain(JSON.stringify(identity(counter, 'default')));
-			expect(output).not.toContain('index.ts');
-			expect(watched).toEqual([path.join(root, 'components/index.ts'), counter]);
+			const output = rewriteWithStubs(
+				root,
+				`import __ecoPlainModuleComponent0 from ${JSON.stringify(counter)};\nexport const config = { components: () => [__ecoPlainModuleComponent0] };`,
+			);
+			expect(output).toContain(`import { "default" as __ecoPlainModuleComponent0 } from ${stub};`);
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}

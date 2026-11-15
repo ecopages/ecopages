@@ -3,15 +3,19 @@
  */
 
 import { fileSystem } from '@ecopages/file-system';
-import type { ComponentIdentity } from '@ecopages/core';
 import { parseModuleSource } from '@ecopages/core/build';
 import { FOREIGN_BOUNDARY_PACKAGE } from '../bundling/bootstrap-package-paths.ts';
 import { collectLexicalDeclarations, walkScopedReferences } from './scope-walk.ts';
 import { resolveLocalModulePath } from './foreign-jsx-reach.ts';
+import {
+	exportSpecifierName,
+	FOREIGN_STUB_SCHEME,
+	toForeignStubSpecifier,
+	type ForeignModule,
+} from './foreign-module.ts';
 
 const HELPER_BINDING = '__ecoForeignBoundary';
 const NAMESPACE_HELPER_BINDING = '__ecoForeignBoundaryNamespace';
-const REFERENCE_HELPER_BINDING = '__ecoForeignBoundaryReference';
 
 /** The module variant a React graph imports of a module that another graph also uses and that imports a foreign Component. */
 export const REACT_BOUNDARY_VARIANT = 'react-boundary';
@@ -35,16 +39,17 @@ export type ForeignBoundaryRewriteOptions = {
 	 */
 	isSharedFile?: (filePath: string) => boolean;
 	/**
-	 * The identity of the export `exportName` of the foreign file `filePath` when it is statically an `eco.*()`
-	 * call, otherwise `undefined`.
+	 * The exports of the foreign file `filePath`, split into static Components and other values.
 	 *
 	 * @remarks
-	 * With it, a binding that resolves to such an export becomes a boundary built from the identity, and the import
-	 * of that binding is dropped, so the Component's module and everything it imports stay out of React's graph.
-	 * Without it, or for any other export, the binding keeps its import and is wrapped at runtime.
+	 * With it, React's graph never loads a foreign file for its static Components: an import or re-export of them
+	 * points at the file's stub module, which holds one boundary per Component and imports nothing of the app, so
+	 * the module and everything it imports stay out of the graph whatever path reaches it. Other values still come
+	 * from the module itself, behind the runtime boundary. Without it, every binding keeps its import and is
+	 * wrapped at runtime.
 	 */
-	componentIdentityOf?: (filePath: string, exportName: string) => ComponentIdentity | undefined;
-	/** Receives each foreign file whose identity a rewrite used, so a change to it transforms the importer again. */
+	foreignModuleOf?: (filePath: string) => ForeignModule | undefined;
+	/** Receives each file whose exports a rewrite read, so a change to it transforms the importer again. */
 	watchFile?: (filePath: string) => void;
 };
 
@@ -62,8 +67,7 @@ const SOURCE_FILE = /\.(?:[cm]?[jt]sx?)$/;
  * an export, so a barrel that re-exports a foreign Component counts as foreign for that name.
  *
  * @remarks
- * The barrel itself is never rewritten: it may be shared with an entry that needs the Component, and each React
- * import site decides for its own bindings. A file without a re-export is not parsed.
+ * A file without a re-export is not parsed.
  */
 class ForeignExports {
 	private readonly options: ForeignBoundaryRewriteOptions;
@@ -71,6 +75,10 @@ class ForeignExports {
 
 	constructor(options: ForeignBoundaryRewriteOptions) {
 		this.options = options;
+	}
+
+	get projectRoot(): string {
+		return this.options.projectRoot;
 	}
 
 	/**
@@ -143,7 +151,7 @@ class ForeignExports {
 		for (const node of this.getImports(filePath)) {
 			const target = this.resolve(filePath, node.source.value as string);
 			if (!target) continue;
-			if (node.type === 'ImportDeclaration' && this.valueImportOf(node, target)) {
+			if (node.type === 'ImportDeclaration' ? this.valueImportOf(node, target) : this.staticModule(target)) {
 				result = true;
 				break;
 			}
@@ -282,66 +290,21 @@ class ForeignExports {
 		);
 	}
 
-	/**
-	 * The foreign file that declares the export `name` of `filePath`, with the name it has there, following
-	 * `export { a as b } from` and `export * from`; `undefined` when no foreign file declares it.
-	 */
-	foreignDeclaration(
-		filePath: string,
-		name: string,
-		seen = new Set<string>(),
-	): { filePath: string; name: string } | undefined {
-		if (this.options.isForeignFile(filePath)) return { filePath, name };
-		if (seen.has(filePath)) return undefined;
-		seen.add(filePath);
-		const explicit = this.getDeclaredExports(filePath)?.names.has(name) === true;
-		for (const node of this.getReexports(filePath)) {
-			const target = this.resolve(filePath, node.source.value as string);
-			const found = target ? this.reexportDeclaration(node, target, name, explicit, seen) : undefined;
-			if (found) return found;
-		}
-		return undefined;
-	}
-
-	/** {@link foreignDeclaration} through one re-export statement of a barrel. */
-	private reexportDeclaration(
-		node: any,
-		target: string,
-		name: string,
-		explicit: boolean,
-		seen: Set<string>,
-	): { filePath: string; name: string } | undefined {
-		if (node.type === 'ExportAllDeclaration') {
-			if (node.exported || explicit || name === 'default') return undefined;
-			if (this.options.isForeignFile(target) && !this.declaresExport(target, name)) return undefined;
-			return this.foreignDeclaration(target, name, seen);
-		}
-		for (const specifier of node.specifiers) {
-			if (specifier.exportKind === 'type' || moduleName(specifier.exported) !== name) continue;
-			const found = this.foreignDeclaration(target, moduleName(specifier.local), seen);
-			if (found) return found;
-		}
-		return undefined;
+	/** The exports of `filePath` when it is a foreign file with static Components, whose stub React can load. */
+	private staticModule(filePath: string): ForeignModule | undefined {
+		if (!this.options.foreignModuleOf || !this.options.isForeignFile(filePath)) return undefined;
+		const module = this.options.foreignModuleOf(filePath);
+		return module && module.identities.size > 0 ? module : undefined;
 	}
 
 	/**
-	 * The identity of the foreign Eco Component the export `name` of `filePath` resolves to, when it is static.
-	 *
-	 * @remarks
-	 * A stub replaces the import, so the importer no longer depends on the barrels it walked through or on the
-	 * declaring file. Each of them is reported to `watchFile`, so retargeting a re-export or renaming the
-	 * declaration transforms the importer again.
+	 * {@link staticModule} for a rewrite that uses it: the file is reported to `watchFile`, since a change to its
+	 * exports changes the rewrite.
 	 */
-	componentIdentity(filePath: string, name: string): ComponentIdentity | undefined {
-		if (!this.options.componentIdentityOf) return undefined;
-		const visited = new Set<string>();
-		const declaration = this.foreignDeclaration(filePath, name, visited);
-		if (!declaration) return undefined;
-		const identity = this.options.componentIdentityOf(declaration.filePath, declaration.name);
-		if (!identity) return undefined;
-		for (const file of visited) this.options.watchFile?.(file);
-		this.options.watchFile?.(declaration.filePath);
-		return identity;
+	stubbedModule(filePath: string): ForeignModule | undefined {
+		const module = this.staticModule(filePath);
+		if (module) this.options.watchFile?.(filePath);
+		return module;
 	}
 
 	/** Whether the export `name` of `filePath` is declared by a foreign file; `undefined` asks about any export. */
@@ -366,7 +329,13 @@ function importSourceOf(node: any, target: string, foreignExports: ForeignExport
 		: specifier;
 }
 
-/** The helper that wraps the export `imported` of `target`, or `undefined` when it is not foreign. */
+/**
+ * The helper that wraps the export `imported` of `target`, or `undefined` when it is not foreign.
+ *
+ * @remarks
+ * A static Component a barrel re-exports from a stub module is already a boundary; wrapping it again returns it
+ * unchanged, since a boundary carries no identity.
+ */
 function boundaryHelperOf(foreignExports: ForeignExports, target: string, imported: string): string | undefined {
 	if (foreignExports.isForeign(target, imported)) return HELPER_BINDING;
 	return foreignExports.isForeignNamespace(target, imported) ? NAMESPACE_HELPER_BINDING : undefined;
@@ -376,12 +345,10 @@ type ImportRewrite = {
 	imports: string[];
 	extra: string[];
 	bindings: string[];
-	unread: Array<{ local: string; imported: string }>;
 	foreign: boolean;
-	referenced: boolean;
 };
 
-/** Adds one named or default specifier of a rewritten import: a stub by identity, a wrapped binding, or kept. */
+/** Adds one named or default specifier of a rewritten import: wrapped when it needs the boundary, kept otherwise. */
 function rewriteNamedSpecifier(
 	specifier: any,
 	target: string,
@@ -394,16 +361,10 @@ function rewriteNamedSpecifier(
 	const imported = specifier.type === 'ImportDefaultSpecifier' ? 'default' : moduleName(specifier.imported);
 	const wrapper = valueReads.has(local) ? boundaryHelperOf(foreignExports, target, imported) : undefined;
 	if (!wrapper) {
-		rewrite.unread.push({ local, imported });
+		rewrite.imports.push(`${JSON.stringify(imported)} as ${local}`);
 		return;
 	}
 	rewrite.foreign = true;
-	const identity = wrapper === HELPER_BINDING ? foreignExports.componentIdentity(target, imported) : undefined;
-	if (identity) {
-		rewrite.referenced = true;
-		rewrite.bindings.push(`const ${local} = ${REFERENCE_HELPER_BINDING}(${JSON.stringify(identity)});`);
-		return;
-	}
 	const temporary = `__eco_foreign_${uid()}`;
 	rewrite.imports.push(`${JSON.stringify(imported)} as ${temporary}`);
 	rewrite.bindings.push(`const ${local} = ${wrapper}(${temporary});`);
@@ -429,15 +390,68 @@ function rewriteNamespaceSpecifier(
 	rewrite.bindings.push(`const ${local} = ${NAMESPACE_HELPER_BINDING}(${temporary});`);
 }
 
+/** Whether a module's namespace is all static Components, so the stub module can stand for it whole. */
+function isAllStatic(module: ForeignModule): boolean {
+	return module.values.size === 0 && !module.star;
+}
+
+/**
+ * Rewrites an import of a foreign file with static Components: those come from its stub module, every other value
+ * from the file behind the runtime boundary.
+ *
+ * @remarks
+ * A binding that is not a static Component and that the module never reads as a value is dropped with its type
+ * specifiers, so an import of Components alone never loads the file. A namespace import takes the stub when the
+ * file exports only static Components, and the file with the namespace proxy otherwise.
+ */
+function rewriteForeignFileImport(
+	node: any,
+	module: ForeignModule,
+	stubFrom: string,
+	uid: () => string,
+	valueReads: ReadonlySet<string>,
+): string {
+	const realFrom = JSON.stringify(node.source.value);
+	const stubbed: string[] = [];
+	const real: string[] = [];
+	const lines: string[] = [];
+	const bindings: string[] = [];
+	for (const specifier of node.specifiers) {
+		if (specifier.importKind === 'type') continue;
+		const local = specifier.local.name as string;
+		if (specifier.type === 'ImportNamespaceSpecifier') {
+			if (isAllStatic(module)) {
+				lines.push(`import * as ${local} from ${stubFrom};`);
+			} else if (valueReads.has(local)) {
+				const temporary = `__eco_foreign_${uid()}`;
+				lines.push(`import * as ${temporary} from ${realFrom};`);
+				bindings.push(`const ${local} = ${NAMESPACE_HELPER_BINDING}(${temporary});`);
+			}
+			continue;
+		}
+		const imported = specifier.type === 'ImportDefaultSpecifier' ? 'default' : moduleName(specifier.imported);
+		if (module.identities.has(imported)) {
+			stubbed.push(`${JSON.stringify(imported)} as ${local}`);
+		} else if (valueReads.has(local)) {
+			const temporary = `__eco_foreign_${uid()}`;
+			real.push(`${JSON.stringify(imported)} as ${temporary}`);
+			bindings.push(`const ${local} = ${HELPER_BINDING}(${temporary});`);
+		}
+	}
+	if (stubbed.length > 0) lines.unshift(`import { ${stubbed.join(', ')} } from ${stubFrom};`);
+	if (real.length > 0) lines.push(`import { ${real.join(', ')} } from ${realFrom};`);
+	return [...lines, ...bindings].join(' ');
+}
+
 /**
  * Rewrites an import declaration so each binding that resolves to a foreign Component goes through the boundary.
  *
  * @remarks
- * The declaration keeps its line: the replacement holds no newline, so positions after it stay valid. Only a
- * binding the module reads as a value is wrapped; a type or an unused binding keeps its plain import, so the
- * bundler drops it as it would without the rewrite. A binding named by identity has no import, and once one
- * does, the unread bindings of the same foreign module lose theirs too, so the import does not keep the module
- * in the graph.
+ * The declaration keeps its line: the replacement holds no newline, so positions after it stay valid. An import of
+ * a foreign file with static Components takes them from its stub module (see {@link rewriteForeignFileImport}).
+ * Otherwise only a binding the module reads as a value, and that is not a static Component a barrel already
+ * re-exports as a boundary, is wrapped; a type or an unused binding keeps its plain import, so the bundler drops
+ * it as it would without the rewrite.
  */
 function rewriteImport(
 	node: any,
@@ -448,17 +462,16 @@ function rewriteImport(
 	valueReads: ReadonlySet<string>,
 ): string | undefined {
 	if (node.importKind === 'type' || !node.specifiers?.length) return undefined;
-	const target = foreignExports.resolve(filePath, node.source.value as string);
+	const specifier = node.source.value as string;
+	const target = foreignExports.resolve(filePath, specifier);
 	if (!target) return undefined;
+	const module = specifier.includes('?') ? undefined : foreignExports.stubbedModule(target);
+	if (module) {
+		const stubFrom = JSON.stringify(toForeignStubSpecifier(foreignExports.projectRoot, target));
+		return rewriteForeignFileImport(node, module, stubFrom, uid, valueReads);
+	}
 	const from = JSON.stringify(importSourceOf(node, target, foreignExports));
-	const rewrite: ImportRewrite = {
-		imports: [],
-		extra: [],
-		bindings: [],
-		unread: [],
-		foreign: false,
-		referenced: false,
-	};
+	const rewrite: ImportRewrite = { imports: [], extra: [], bindings: [], foreign: false };
 	for (const specifier of node.specifiers) {
 		if (specifier.importKind === 'type') {
 			rewrite.imports.push(source.slice(specifier.start, specifier.end));
@@ -469,15 +482,65 @@ function rewriteImport(
 		}
 	}
 	if (!rewrite.foreign) return undefined;
-	for (const { local, imported } of rewrite.unread) {
-		if (rewrite.referenced && foreignExports.isForeign(target, imported)) continue;
-		rewrite.imports.push(`${JSON.stringify(imported)} as ${local}`);
-	}
 	const named = rewrite.imports.length > 0 ? `import { ${rewrite.imports.join(', ')} } from ${from};` : '';
 	return [named, ...rewrite.extra, ...rewrite.bindings].filter(Boolean).join(' ');
 }
 
-/** The edit one top-level node needs: wrapped bindings, or the variant id for a shared module that reaches a foreign Component. */
+/** {@link rewriteReexport} for `export * from` and `export * as ns from`. */
+function rewriteStarReexport(node: any, module: ForeignModule, stubFrom: string, realFrom: string): string | undefined {
+	if (node.exported) {
+		return isAllStatic(module)
+			? `export * as ${exportSpecifierName(moduleName(node.exported))} from ${stubFrom};`
+			: undefined;
+	}
+	const components = [...module.identities.keys()].filter((name) => name !== 'default');
+	if (components.length === 0) return undefined;
+	const values = [...module.values].filter((name) => name !== 'default');
+	return [
+		`export { ${components.map(exportSpecifierName).join(', ')} } from ${stubFrom};`,
+		...(values.length > 0 ? [`export { ${values.map(exportSpecifierName).join(', ')} } from ${realFrom};`] : []),
+		...(module.star ? [`export * from ${realFrom};`] : []),
+	].join(' ');
+}
+
+/**
+ * Rewrites a re-export of a foreign file with static Components, so a barrel never loads the file for them: the
+ * Components come from its stub module, every other value from the file.
+ *
+ * @remarks
+ * `export * from` re-exports the stub's Components by name, plus the file's other value names, and the file's own
+ * `export *` when it has one, whose names are unknown here: an explicit name wins over a star-exported one, so the
+ * file's star does not clash with the stub. `default` is never part of `export *`. `export * as ns from` takes the
+ * stub only when the file exports static Components alone. Type-only names are dropped, since the build erases
+ * them. A re-export of no static Component, or of a specifier with a query, is left as written.
+ */
+function rewriteReexport(node: any, filePath: string, foreignExports: ForeignExports): string | undefined {
+	const specifier = node.source.value as string;
+	const target = specifier.includes('?') ? undefined : foreignExports.resolve(filePath, specifier);
+	const module = target ? foreignExports.stubbedModule(target) : undefined;
+	if (!target || !module) return undefined;
+	const stubFrom = JSON.stringify(toForeignStubSpecifier(foreignExports.projectRoot, target));
+	const realFrom = JSON.stringify(specifier);
+	if (node.type === 'ExportAllDeclaration') return rewriteStarReexport(node, module, stubFrom, realFrom);
+	const stubbed: string[] = [];
+	const real: string[] = [];
+	for (const exported of node.specifiers) {
+		if (exported.exportKind === 'type') continue;
+		const local = moduleName(exported.local);
+		const text = `${exportSpecifierName(local)} as ${exportSpecifierName(moduleName(exported.exported))}`;
+		(module.identities.has(local) ? stubbed : real).push(text);
+	}
+	if (stubbed.length === 0) return undefined;
+	return [
+		`export { ${stubbed.join(', ')} } from ${stubFrom};`,
+		...(real.length > 0 ? [`export { ${real.join(', ')} } from ${realFrom};`] : []),
+	].join(' ');
+}
+
+/**
+ * The edit one top-level node needs: a rewritten import or re-export, or the variant id for a shared module that
+ * reaches a foreign Component.
+ */
 function planEdit(
 	node: any,
 	code: string,
@@ -490,7 +553,7 @@ function planEdit(
 	const replacement =
 		node.type === 'ImportDeclaration'
 			? rewriteImport(node, code, filePath, foreignExports, uid, valueReads)
-			: undefined;
+			: rewriteReexport(node, filePath, foreignExports);
 	if (replacement !== undefined) return { start: node.start, end: node.end, replacement };
 	const specifier = node.source.value as string;
 	if (specifier.includes('?')) return undefined;
@@ -509,9 +572,10 @@ function planEdit(
  *
  * @remarks
  * A module without such an import is not touched: the caller gets `undefined`, so a React-only module compiles
- * to the same output as before and ships no boundary code. A module already rewritten is returned as `undefined`
- * too, since a build can hold more than one instance of the plugin. A namespace import is wrapped in a proxy.
- * Dynamic `import()` of a foreign module is left as it is.
+ * to the same output as before and ships no boundary code. A module already rewritten, one that imports the
+ * boundary package or a stub module, is returned as `undefined` too, since a build can hold more than one
+ * instance of the plugin and a second pass would duplicate re-exports. Dynamic `import()` of a foreign module is
+ * left as it is.
  */
 export function rewriteForeignImports(
 	code: string,
@@ -519,6 +583,7 @@ export function rewriteForeignImports(
 	options: ForeignBoundaryRewriteOptions,
 ): string | undefined {
 	if (!/\bimport\b|\bexport\b/.test(code) || code.includes(FOREIGN_BOUNDARY_PACKAGE)) return undefined;
+	if (code.includes(FOREIGN_STUB_SCHEME)) return undefined;
 	const lang = /\.(?:mdx?)$/.test(filePath) ? 'jsx' : undefined;
 	const { program } = parseModuleSource(filePath, code, lang ? { lang } : {});
 	let counter = 0;
@@ -539,8 +604,7 @@ export function rewriteForeignImports(
 	}
 	if (!rewritten.includes(HELPER_BINDING)) return rewritten;
 	const helpers =
-		`import { foreignBoundary as ${HELPER_BINDING}, foreignBoundaryNamespace as ${NAMESPACE_HELPER_BINDING}, ` +
-		`foreignBoundaryReference as ${REFERENCE_HELPER_BINDING} } ` +
+		`import { foreignBoundary as ${HELPER_BINDING}, foreignBoundaryNamespace as ${NAMESPACE_HELPER_BINDING} } ` +
 		`from ${JSON.stringify(FOREIGN_BOUNDARY_PACKAGE)};`;
 	return `${helpers}${rewritten}`;
 }

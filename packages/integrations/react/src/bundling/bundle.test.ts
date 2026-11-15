@@ -312,6 +312,52 @@ describe('BundleService', () => {
 			}
 		});
 
+		it('compiles a foreign script a grouped script entry imports by absolute path with its owner runtime', async () => {
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
+			try {
+				const entrypoints = writeSharedApp(tempDir, "import { Card } from './card.tsx'; console.log(Card);");
+				const widget = path.join(tempDir, 'widget.script.tsx');
+				writeFileSync(widget, 'export const Widget = () => <section>widget</section>;\nconsole.log(Widget);');
+				mkdirSync(path.join(tempDir, 'content-script-entries'));
+				const grouped = path.join(tempDir, 'content-script-entries', 'grouped.js');
+				writeFileSync(
+					grouped,
+					`import ${JSON.stringify(widget)};\nimport ${JSON.stringify(entrypoints.radiant)};`,
+				);
+				const output = readEntry(
+					await buildSharedEntries(tempDir, { island: entrypoints.island, grouped }),
+					'grouped',
+					tempDir,
+				);
+				expect(output).toContain('@ecopages/jsx/jsx-runtime');
+				expect(output).not.toMatch(/react/);
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('fails the build when a React island and a grouped script entry reach one foreign file', async () => {
+			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
+			try {
+				const entrypoints = writeSharedApp(tempDir, "import { Card } from './card.tsx'; console.log(Card);");
+				const widget = path.join(tempDir, 'widget.script.tsx');
+				writeFileSync(widget, "import { Card } from './card.tsx';\nconsole.log(Card);");
+				mkdirSync(path.join(tempDir, 'content-script-entries'));
+				const grouped = path.join(tempDir, 'content-script-entries', 'grouped.js');
+				writeFileSync(
+					grouped,
+					`import ${JSON.stringify(widget)};\nimport ${JSON.stringify(entrypoints.radiant)};`,
+				);
+				const result = await buildSharedEntries(tempDir, { island: entrypoints.island, grouped });
+				assertBuildFailed(result);
+				const message = result.logs.map((log) => log.message).join('\n');
+				expect(message).toContain(path.join(tempDir, 'card.tsx'));
+				expect(message).toContain(`another browser entry (${grouped})`);
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
 		it('fails the build when a React island imports a foreign file that is itself a browser entry', async () => {
 			const tempDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-react-shared-jsx-'))));
 			try {

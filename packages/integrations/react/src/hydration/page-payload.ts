@@ -10,12 +10,15 @@ import type { ProcessedAsset } from '@ecopages/core/integration';
 import type { HtmlDocumentContribution } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
 import { isReactManagedComponent } from '../render/component-ownership.ts';
+import { ECO_PAGE_DATA_TIERS_KEY } from './page-data-manifest.ts';
 
 type PagePayloadOptions = {
 	pageProps?: HtmlTemplateProps['pageProps'];
 	params: IntegrationRendererRenderOptions<ReactNode>['params'];
 	query: IntegrationRendererRenderOptions<ReactNode>['query'];
 	safeLocals?: RequestLocals;
+	/** The props each layout tier renders with, outer to inner, as the server resolved them. */
+	layoutTiers?: readonly Record<string, unknown>[];
 };
 
 type PagePackage = IntegrationRendererRenderOptions<ReactNode>['pagePackage'];
@@ -104,6 +107,7 @@ export class PagePayloadService {
 			params: options.params,
 			query: options.query,
 			...(options.safeLocals && { locals: options.safeLocals }),
+			...(options.layoutTiers && { [ECO_PAGE_DATA_TIERS_KEY]: options.layoutTiers }),
 		};
 	}
 

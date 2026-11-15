@@ -1,8 +1,14 @@
-import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps, type EcoPageDataProps } from './page-data-manifest.ts';
+import {
+	resolveEcoPageDataModuleUrl,
+	resolveEcoPageDataProps,
+	resolveEcoPageDataTiers,
+	type EcoPageDataProps,
+} from './page-data-manifest.ts';
 
 export type ReadPageDataDocumentResult = {
 	moduleUrl?: string;
 	props: EcoPageDataProps;
+	tiers?: readonly EcoPageDataProps[];
 };
 
 /**
@@ -10,7 +16,7 @@ export type ReadPageDataDocumentResult = {
  *
  * @remarks
  * Always returns unwrapped `props`. `moduleUrl` is set only when the document
- * carries a valid v1 envelope. `source` defaults to the live document; a direct HMR update passes the document it
+ * carries a valid v1 envelope. `tiers` is set only when the document carries valid server-resolved layout tier props. `source` defaults to the live document; a direct HMR update passes the document it
  * fetched, whose data is the newer.
  */
 export function readPageDataDocument(source: Pick<Document, 'getElementById'> = document): ReadPageDataDocumentResult {
@@ -22,9 +28,11 @@ export function readPageDataDocument(source: Pick<Document, 'getElementById'> = 
 	try {
 		const parsed: unknown = JSON.parse(element.textContent);
 		const moduleUrl = resolveEcoPageDataModuleUrl(parsed) ?? undefined;
+		const tiers = resolveEcoPageDataTiers(parsed);
 		return {
 			...(moduleUrl && { moduleUrl }),
 			props: resolveEcoPageDataProps(parsed),
+			...(tiers && { tiers }),
 		};
 	} catch {
 		return { props: {} };

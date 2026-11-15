@@ -27,27 +27,25 @@ export function createMockPageComponent(name: string) {
 }
 
 export function createLayoutAwarePage(name: string) {
-	const Layout = ({
-		children,
-		locals,
-	}: {
-		children: ReactNode;
-		locals?: { session?: { user?: { name?: string } } };
-	}) =>
-		createElement(
-			'div',
-			{ 'data-testid': `${name}-layout` },
-			`${locals?.session?.user?.name ?? 'anonymous'}`,
-			children,
-		);
+	type Session = { user?: { name?: string } };
+	const Layout = ({ children, session }: { children: ReactNode; session?: Session }) =>
+		createElement('div', { 'data-testid': `${name}-layout` }, `${session?.user?.name ?? 'anonymous'}`, children);
 
-	const Page = ((_props: { locals?: { session?: { user?: { name?: string } } } }) =>
+	const Page = ((_props: { locals?: { session?: Session } }) =>
 		createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<typeof createMockPageComponent> & {
-		config?: { layout?: typeof Layout };
+		config?: { layouts: [typeof Layout]; layoutEntries: unknown[] };
 	};
 
 	Page.displayName = name;
-	Page.config = { layouts: [Layout] };
+	Page.config = {
+		layouts: [Layout],
+		layoutEntries: [
+			{
+				component: Layout,
+				props: ({ locals }: { locals?: { session?: Session } }) => ({ session: locals?.session }),
+			},
+		],
+	};
 	return Page;
 }
 
@@ -105,13 +103,18 @@ export function createMultiLinkPage(name: string, links: Array<{ href: string; l
 	return Component;
 }
 
-export function createNavigablePageHtml(moduleUrl: string, props: Record<string, unknown> = {}) {
+export function createNavigablePageHtml(
+	moduleUrl: string,
+	props: Record<string, unknown> = {},
+	tiers?: Record<string, unknown>[],
+) {
 	return `<html data-eco-document-owner="react-router"><body>
 		<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({
 			schemaVersion: 1,
 			navigationOwner: 'react-router',
 			moduleUrl,
 			props,
+			...(tiers && { tiers }),
 		})}</script>
 	</body></html>`;
 }

@@ -16,8 +16,15 @@
  *   empty props and no module URL from the manifest
  * - HMR: `moduleUrlOverride` still bypasses document discovery
  * - legacy flat props may include a string `schemaVersion` field without being treated as an envelope
+ * - `tiers` (the props each layout tier renders with, outer to inner) is optional on the same schema version:
+ *   new client / old document finds none and runs layout factories as before; old client / new document ignores
+ *   it; a legacy flat payload carries it under {@link ECO_PAGE_DATA_TIERS_KEY}, which never reaches page props;
+ *   an invalid `tiers` is ignored without rejecting the envelope
  */
 export const ECO_PAGE_DATA_SCHEMA_VERSION = 1 as const;
+
+/** Reserved key carrying `tiers` inside a legacy flat payload. */
+export const ECO_PAGE_DATA_TIERS_KEY = '__ecoTiers';
 
 export type EcoPageDataProps = Record<string, unknown>;
 
@@ -26,6 +33,8 @@ export type EcoPageDataManifestV1 = {
 	navigationOwner: 'react-router';
 	moduleUrl: string;
 	props: EcoPageDataProps;
+	/** The props each layout tier renders with, outer to inner, resolved on the server. */
+	tiers?: readonly EcoPageDataProps[];
 };
 
 export type EcoPageDataDocumentPayload = EcoPageDataManifestV1 | EcoPageDataProps;
@@ -74,10 +83,38 @@ export function resolveEcoPageDataProps(payload: unknown): EcoPageDataProps {
 			return {};
 		}
 
-		return payload as EcoPageDataProps;
+		const { [ECO_PAGE_DATA_TIERS_KEY]: _tiers, ...props } = payload as EcoPageDataProps;
+		return props;
 	}
 
 	return {};
+}
+
+function isPlainObject(value: unknown): value is EcoPageDataProps {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function toTiers(value: unknown): readonly EcoPageDataProps[] | undefined {
+	return Array.isArray(value) && value.every(isPlainObject) ? (value as EcoPageDataProps[]) : undefined;
+}
+
+/**
+ * Extracts the server-resolved layout tier props from a v1 envelope or a legacy flat payload.
+ *
+ * @remarks
+ * Returns `undefined` unless the value is an array of plain objects, so a malformed value falls back to layout
+ * factories instead of rendering a layout with garbage props.
+ */
+export function resolveEcoPageDataTiers(payload: unknown): readonly EcoPageDataProps[] | undefined {
+	if (isEcoPageDataManifestV1(payload)) {
+		return toTiers(payload.tiers);
+	}
+
+	if (isPlainObject(payload) && !isMalformedPageDataEnvelope(payload)) {
+		return toTiers(payload[ECO_PAGE_DATA_TIERS_KEY]);
+	}
+
+	return undefined;
 }
 
 /**
@@ -93,12 +130,14 @@ export function resolveEcoPageDataModuleUrl(payload: unknown): string | null {
 export function createEcoPageDataManifestV1(input: {
 	moduleUrl: string;
 	props: EcoPageDataProps;
+	tiers?: readonly EcoPageDataProps[];
 }): EcoPageDataManifestV1 {
 	return {
 		schemaVersion: ECO_PAGE_DATA_SCHEMA_VERSION,
 		navigationOwner: 'react-router',
 		moduleUrl: input.moduleUrl,
 		props: input.props,
+		...(input.tiers && { tiers: input.tiers }),
 	};
 }
 
@@ -108,7 +147,8 @@ export function createEcoPageDataManifestV1(input: {
  * @remarks
  * Shared by server serializers and `EcoPropsScript` so envelope rules stay in one place.
  * A valid v1 envelope is returned as-is; `options.moduleUrl` is ignored in that case.
- * Flat props wrap into a v1 envelope only when `options.moduleUrl` is provided.
+ * Flat props wrap into a v1 envelope only when `options.moduleUrl` is provided; the reserved
+ * {@link ECO_PAGE_DATA_TIERS_KEY} is then lifted into the envelope's `tiers`, and otherwise stays in the flat object.
  */
 export function resolvePageDataDocumentPayload(
 	data: EcoPageDataDocumentPayload,
@@ -125,5 +165,6 @@ export function resolvePageDataDocumentPayload(
 		return props;
 	}
 
-	return createEcoPageDataManifestV1({ moduleUrl, props });
+	const { [ECO_PAGE_DATA_TIERS_KEY]: rawTiers, ...pageProps } = props;
+	return createEcoPageDataManifestV1({ moduleUrl, props: pageProps, tiers: toTiers(rawTiers) });
 }

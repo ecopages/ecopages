@@ -32,7 +32,7 @@ import {
 } from '@ecopages/core/integration';
 import type { ProcessedAsset } from '@ecopages/core/integration';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
-import { ensurePageConfigLayouts, moveMdxMetadataOntoPage } from '@ecopages/core/integration';
+import { ensurePageConfigLayouts, moveMdxMetadataOntoPage, resolveRenderLayouts } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
 import { hasSingleRootElement } from './html-boundary.ts';
 import { toRootRelativePath } from '@ecopages/core/build';
@@ -72,7 +72,7 @@ import {
 	type ReactRuntimeModules,
 } from './react-runtime.ts';
 import { composeReactLayoutPageTree, shouldUseUnifiedReactLayoutComposition } from './unified-layout-composition.ts';
-import { assertComposablePage, resolveLayoutContextFromShell } from './layout-compose.ts';
+import { assertComposablePage } from './layout-compose.ts';
 import { LayoutRenderTracker } from './layout-render-tracker.ts';
 
 export type { ReactRendererConfig } from '../plugin/react.types.ts';
@@ -321,28 +321,34 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		return await resolveTokens(html);
 	}
 
-	private buildPagePayload<C>(options: {
-		Page: IntegrationRendererRenderOptions<C>['Page'];
-		pageProps?: IntegrationRendererRenderOptions<C>['pageProps'];
-		params: IntegrationRendererRenderOptions<C>['params'];
-		query: IntegrationRendererRenderOptions<C>['query'];
-		locals: IntegrationRendererRenderOptions<C>['locals'];
-		pagePackage?: IntegrationRendererRenderOptions<C>['pagePackage'];
-	}): { pageModuleUrl: string | undefined; pageProps: Record<string, unknown> } {
+	private buildPagePayload<C>(renderOptions: IntegrationRendererRenderOptions<C>): {
+		pageModuleUrl: string | undefined;
+		pageProps: Record<string, unknown>;
+	} {
 		const safeLocals = this.pagePayloadService.getSerializableLocals(
-			options.locals,
-			getComponentRequires(options.Page),
+			renderOptions.locals,
+			getComponentRequires(renderOptions.Page),
 		);
+		const layoutTiers = renderOptions.layoutEntries?.length
+			? resolveRenderLayouts(renderOptions, {
+					layout: renderOptions.Layout,
+					layoutEntries: renderOptions.layoutEntries,
+					params: renderOptions.params,
+					query: renderOptions.query,
+					locals: renderOptions.locals,
+				}).map((layout) => layout.props ?? {})
+			: undefined;
 
 		return {
-			pageModuleUrl: this.pagePayloadService.resolvePageModuleUrl(options.pagePackage, {
+			pageModuleUrl: this.pagePayloadService.resolvePageModuleUrl(renderOptions.pagePackage, {
 				routerEnabled: Boolean(this.routerAdapter),
 			}),
 			pageProps: this.pagePayloadService.buildSerializedPageProps({
-				pageProps: options.pageProps,
-				params: options.params,
-				query: options.query,
+				pageProps: renderOptions.pageProps,
+				params: renderOptions.params,
+				query: renderOptions.query,
 				safeLocals,
+				layoutTiers,
 			}),
 		};
 	}
@@ -547,9 +553,9 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		const runtime = this.getReactRuntimeModules();
 		const renderTracker = new LayoutRenderTracker();
 		const tree = composeReactLayoutPageTree(pageComponent, page.props, shellEntries, {
-			context: resolveLayoutContextFromShell(page.props, shellEntries),
 			react: runtime.react,
 			renderTracker,
+			tierProps: shellEntries.map((entry) => entry.props ?? {}),
 		});
 		const runtimeInput: ComponentRenderInput = {
 			component: page.component,
@@ -601,14 +607,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		pageProps: Record<string, unknown>;
 		documentProps?: Record<string, unknown>;
 	} {
-		const pagePayload = this.buildPagePayload({
-			Page: options.Page,
-			pageProps: options.pageProps,
-			params: options.params,
-			query: options.query,
-			locals: options.locals,
-			pagePackage: options.pagePackage,
-		});
+		const pagePayload = this.buildPagePayload(options);
 
 		return {
 			pageProps: pagePayload.pageProps,
@@ -624,14 +623,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		if (!this.routerAdapter) return this.buildRouterlessPageDataContributions(renderOptions);
 		if (isReactManagedComponent(renderOptions.HtmlTemplate, this.name)) return undefined;
 
-		const pagePayload = this.buildPagePayload({
-			Page: renderOptions.Page,
-			pageProps: renderOptions.pageProps,
-			params: renderOptions.params,
-			query: renderOptions.query,
-			locals: renderOptions.locals,
-			pagePackage: renderOptions.pagePackage,
-		});
+		const pagePayload = this.buildPagePayload(renderOptions);
 
 		return this.pagePayloadService.buildNonReactDocumentContributions({
 			htmlTemplate: renderOptions.HtmlTemplate,
@@ -654,14 +646,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		renderOptions: IntegrationRendererRenderOptions<C>,
 	): HtmlDocumentContribution[] | undefined {
 		if (!this.hydratesPageTree(renderOptions.Page)) return undefined;
-		const pagePayload = this.buildPagePayload({
-			Page: renderOptions.Page,
-			pageProps: renderOptions.pageProps,
-			params: renderOptions.params,
-			query: renderOptions.query,
-			locals: renderOptions.locals,
-			pagePackage: renderOptions.pagePackage,
-		});
+		const pagePayload = this.buildPagePayload(renderOptions);
 		return [
 			{
 				placement: 'head-append',

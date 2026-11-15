@@ -1,8 +1,9 @@
 import type { EcopagesWebSocketHandler } from '../../../types/contracts.ts';
 import {
+	compileSegmentPattern,
 	matchParsedSegmentPath,
 	parseSegmentPath,
-	scoreSegmentPathPattern,
+	type SegmentPattern,
 } from '../../../router/server/segment-path-matcher.ts';
 
 export type WebSocketRouteMatch = {
@@ -11,25 +12,37 @@ export type WebSocketRouteMatch = {
 	kind: string;
 };
 
-export function findWebSocketRoute(
-	handlers: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>>,
-	pathname: string,
-): WebSocketRouteMatch | null {
+/**
+ * WebSocket handlers with their patterns parsed, in registration order.
+ *
+ * @remarks Build it with {@link compileWebSocketRoutes} once the handlers are known, so an upgrade only
+ * compares path segments.
+ */
+export type CompiledWebSocketRoutes = ReadonlyArray<{
+	pattern: string;
+	compiled: SegmentPattern<'websocket'>;
+	handler: EcopagesWebSocketHandler<unknown, Record<string, string>>;
+}>;
+
+export function compileWebSocketRoutes(
+	handlers: ReadonlyMap<string, EcopagesWebSocketHandler<unknown, Record<string, string>>>,
+): CompiledWebSocketRoutes {
+	return [...handlers].map(([pattern, handler]) => ({
+		pattern,
+		compiled: compileSegmentPattern(pattern, 'websocket'),
+		handler,
+	}));
+}
+
+export function findWebSocketRoute(routes: CompiledWebSocketRoutes, pathname: string): WebSocketRouteMatch | null {
 	const pathSegments = parseSegmentPath(pathname);
-	let best: { score: number; match: WebSocketRouteMatch; index: number } | null = null;
-	let index = 0;
-	for (const [pattern, handler] of handlers) {
-		const params = matchParsedSegmentPath(pattern, pathSegments, 'websocket');
-		if (params === null) {
-			index += 1;
-			continue;
+	let best: { score: number; match: WebSocketRouteMatch } | null = null;
+	for (const { pattern, compiled, handler } of routes) {
+		const params = matchParsedSegmentPath(compiled, pathSegments);
+		if (params === null) continue;
+		if (best === null || compiled.score > best.score) {
+			best = { score: compiled.score, match: { handler, params, kind: pattern } };
 		}
-		const score = scoreSegmentPathPattern(pattern, 'websocket');
-		const match: WebSocketRouteMatch = { handler, params, kind: pattern };
-		if (best === null || score > best.score || (score === best.score && index < best.index)) {
-			best = { score, match, index };
-		}
-		index += 1;
 	}
 	return best?.match ?? null;
 }

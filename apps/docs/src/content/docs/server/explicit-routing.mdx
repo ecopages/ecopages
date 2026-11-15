@@ -43,7 +43,7 @@ await app.start();
 
 ## Rendering Views
 
-Route handlers render `eco.page` views with `ctx.render(View, props)`. Import the view: the default export of an Integration-owned file becomes a view reference, so development reloads on save and production reads the built module. A file without a default export, such as a file of named plain components, imports as itself. Any default export of an Integration-owned file counts as a view, so import only the default from a view file, and export a component the server entry imports by name.
+Route handlers render `eco.page` views with `ctx.render(View, props)`. Import the view: the default export of an Integration-owned file becomes a view reference, so development reloads on save and production reads the built module. A file without a default export, such as a file of named plain components, imports as itself. Any default export of an Integration-owned file counts as a view, so import only the default from a view file. No folder makes a file a view: the examples use `src/views/`, but a view is any file the server entry imports that has a default export.
 
 ```typescript
 import PostView from './src/views/post-view.kita';
@@ -410,23 +410,21 @@ app.static('/posts', PostListView);
 app.static('/posts/:slug', PostView);
 ```
 
-Import the view and pass it to `app.static()`. Development reloads it through the app module loader; production reads the built module. A full explicit view uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's own page client plan. The props passed to the render are available to the view's `metadata`, and the render does not run the view's `staticProps`. Handler renders (`ctx.render`) also pass the request's locals, route params and query to the view. Planning a dynamic explicit route resolves the renderer without calling `staticProps`; `staticProps` runs once with the slug's params before the view renders. Views must be the default export and define `staticPaths` and `staticProps`:
+Import the view and pass it to `app.static()`. Development reloads it through the app module loader; production reads the built module. A full explicit view uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's own page client plan. The props passed to the render are available to the view's `metadata`, and the render does not run the view's `props`. Handler renders (`ctx.render`) also pass the request's locals, route params and query to the view. Planning a dynamic explicit route resolves the renderer without calling `props`; `props` runs once with the slug's params before the view renders. Views must be the default export and define `paths` and `props`:
 
 ```typescript
 // src/views/post-view.tsx
 import { eco } from '@ecopages/core';
 
 const PostView = eco.page({
-	staticPaths: async () => {
+	paths: async () => {
 		const posts = await getPosts();
-		return {
-			paths: posts.map((post) => ({ params: { slug: post.slug } })),
-		};
+		return posts.map((post) => ({ params: { slug: post.slug } }));
 	},
 
-	staticProps: async ({ pathname }) => {
-		const post = await getPost(String(pathname.params.slug));
-		return { props: { title: post.title, content: post.content } };
+	props: async ({ params }) => {
+		const post = await getPost(String(params.slug));
+		return { title: post.title, content: post.content };
 	},
 
 	render: ({ title, content }) => (
@@ -442,7 +440,7 @@ export default PostView;
 
 ## Views Outside pages/
 
-Define `eco.page` views anywhere in your codebase. Views used with `app.static()` or `ctx.render()` must be the default export:
+Define `eco.page` views anywhere in your codebase. Views used with `app.static()` or `ctx.render()` must be the default export. A view takes its layout from its own `eco.page({ layout })`:
 
 ```typescript
 // src/views/post-view.tsx
@@ -500,7 +498,8 @@ An `app.get()` on an endpoint file's URL answers GET and the file answers its ot
 import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
-import { PostView, PostListView } from './src/views';
+import PostListView from './src/views/post-list.tsx';
+import PostView from './src/views/post-view.tsx';
 import type { ApiHandlerContext, EcoMiddleware } from '@ecopages/core';
 
 const app = await createApp();

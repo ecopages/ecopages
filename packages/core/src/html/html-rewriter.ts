@@ -112,7 +112,7 @@ export class HtmlRewriter {
 	}
 }
 
-/** Attribute access on the element passed to {@link rewriteFirstElement}. */
+/** Attribute access on the element passed to {@link rewriteFirstElement} and {@link rewriteLeadingElement}. */
 export type HtmlRewriterAttributeTarget = Pick<
 	HtmlRewriterElement,
 	'tagName' | 'attributes' | 'getAttribute' | 'hasAttribute' | 'setAttribute' | 'removeAttribute'
@@ -128,34 +128,51 @@ export type HtmlRewriterAttributeTarget = Pick<
  * is rewritten, so the cost grows with the markup before the target rather than
  * with the whole document. Only attribute changes are offered: content placed
  * with `append` or `after` needs the element's end tag, which is never reached.
- *
- * With `leadingOnly`, the target must directly follow the previous start tag
- * (or the start of `html`), whitespace aside. When text, a comment or an end tag
- * comes first, scanning stops and nothing is rewritten.
  */
 export function rewriteFirstElement(
 	html: string,
 	isTarget: (element: HtmlRewriterAttributeTarget) => boolean,
 	rewrite: (element: HtmlRewriterAttributeTarget) => void,
-	options: { leadingOnly?: boolean } = {},
 ): string {
-	const leadingOnly = options.leadingOnly ?? false;
-	const session: RewriteSession = new RewriteSession(
-		[
-			{
-				tagName: '*',
-				handlers: {
-					element(element) {
-						if (!isTarget(element)) return;
-						if (!leadingOnly || !session.contentBeforeStartTag) rewrite(element);
-						session.stop();
-					},
+	const session: RewriteSession = new RewriteSession([
+		{
+			tagName: '*',
+			handlers: {
+				element(element) {
+					if (!isTarget(element)) return;
+					rewrite(element);
+					session.stop();
 				},
 			},
-		],
-		{ trackLeadingText: leadingOnly },
-	);
+		},
+	]);
 	return `${session.write(html)}${session.end()}`;
+}
+
+/**
+ * Rewrites the attributes of the element `html` starts with, whitespace aside.
+ *
+ * @remarks
+ * Only the leading start tag is read. When text, a comment or an end tag comes first, `html` is returned unchanged,
+ * so a Lit render that opens with `<!--lit-part-->` keeps its markup.
+ */
+export function rewriteLeadingElement(html: string, rewrite: (element: HtmlRewriterAttributeTarget) => void): string {
+	let index = 0;
+	while (index < html.length && isWhitespaceCode(html.charCodeAt(index))) index += 1;
+	if (html[index] !== '<' || !isAsciiAlpha(html[index + 1] ?? '')) return html;
+
+	const tag = scanTag(html, index);
+	if (!tag) return html;
+
+	const end = tag.end + 1;
+	const element = new RewriterElement(
+		html.slice(index, end),
+		readTagName(html, index + 1).toLowerCase(),
+		tag.selfClosing,
+		false,
+	);
+	rewrite(element);
+	return `${html.slice(0, index)}${element.renderStart()}${html.slice(end)}`;
 }
 
 type SelectorHandlers = { tagName: string; handlers: HtmlRewriterElementHandlers };
@@ -239,31 +256,15 @@ class RewriteSession {
 	private rawTextTag: string | null = null;
 	private scriptState: 'data' | 'escaped' | 'double-escaped' = 'data';
 	private stopped = false;
-	private markupSinceStartTag = false;
 	private readonly openElements: OpenElement[] = [];
 	private readonly handlers: SelectorHandlers[];
 	private readonly handledTags: ReadonlySet<string>;
 	private readonly handlesAnyTag: boolean;
-	private readonly trackLeadingText: boolean;
 
-	/**
-	 * @param options.trackLeadingText Also count non-whitespace text in
-	 * {@link contentBeforeStartTag}. Off by default because it scans every text run.
-	 */
-	constructor(handlers: SelectorHandlers[], options: { trackLeadingText?: boolean } = {}) {
+	constructor(handlers: SelectorHandlers[]) {
 		this.handlers = handlers;
 		this.handledTags = new Set(handlers.map((entry) => entry.tagName));
 		this.handlesAnyTag = this.handledTags.has('*');
-		this.trackLeadingText = options.trackLeadingText ?? false;
-	}
-
-	/**
-	 * Whether a comment, end tag or other non-start-tag markup (and, when tracked,
-	 * non-whitespace text) appeared between the previous start tag and the one
-	 * whose handlers are running.
-	 */
-	get contentBeforeStartTag(): boolean {
-		return this.markupSinceStartTag;
 	}
 
 	write(chunk: string): string {
@@ -307,10 +308,6 @@ class RewriteSession {
 			}
 
 			const lt = source.indexOf('<', index);
-			const textEnd = lt === -1 ? source.length : lt;
-			if (this.trackLeadingText && !this.markupSinceStartTag && hasNonWhitespace(source, index, textEnd)) {
-				this.markupSinceStartTag = true;
-			}
 			if (lt === -1) {
 				index = source.length;
 				break;
@@ -345,9 +342,7 @@ class RewriteSession {
 			return { end: tag.end + 1, replacement: this.openElement(source, index, tag.end + 1, tag.selfClosing) };
 		}
 
-		const token = this.readNonStartTag(source, index, next, final);
-		if (token) this.markupSinceStartTag = true;
-		return token;
+		return this.readNonStartTag(source, index, next, final);
 	}
 
 	/** Reads a comment, declaration, processing instruction, end tag or a stray `<`. */
@@ -412,7 +407,6 @@ class RewriteSession {
 			openElement.after = element.renderAfter();
 			if (isVoid) replacement += openElement.after;
 		}
-		this.markupSinceStartTag = false;
 
 		if (!isVoid) {
 			this.openElements.push(openElement);
@@ -692,11 +686,4 @@ function matchLiteral(source: string, index: number, literal: string, final: boo
 function toMarkup(content: string, options?: HtmlContentOptions): string {
 	if (options?.html) return content;
 	return content.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-}
-
-function hasNonWhitespace(source: string, start: number, end: number): boolean {
-	for (let position = start; position < end; position++) {
-		if (!isWhitespaceCode(source.charCodeAt(position))) return true;
-	}
-	return false;
 }

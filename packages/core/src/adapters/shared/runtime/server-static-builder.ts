@@ -21,7 +21,8 @@ import {
 	getServerBundleOutputPaths,
 	writeServerBundleDeployManifest,
 } from '../../../build/server-bundle-deploy-manifest.ts';
-import { bundleEcoConfigModule, EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
+import { bundleEcoConfigModule } from '../../../config/server-config-bundle.ts';
+import { EMITTED_ECO_CONFIG_FILENAME } from '../../../config/resolve-eco-config-path.ts';
 import { CLIENT_OUTPUT_DIR, resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
 import {
 	createServerBundleLoaderSource,
@@ -35,6 +36,7 @@ import type { StaticSiteGenerator } from '../../../static-site-generator/static-
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 import { readEndpointHandlers, type EndpointRouteHandlerOptions } from '../http/endpoint-route-handler.ts';
+import { warnAboutUnattachedScripts } from './unattached-scripts.ts';
 import {
 	emitProductionServerModules,
 	shouldBuildPagesUnifiedGraph,
@@ -303,6 +305,7 @@ export class ServerStaticBuilder {
 				router: dependencies.router,
 				staticRoutes: dependencies.staticRoutes,
 				errorPageLoaders: dependencies.errorPageLoaders,
+				onServerSources: (sources) => warnAboutUnattachedScripts(this.appConfig, sources),
 			});
 		}
 

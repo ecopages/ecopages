@@ -1,5 +1,5 @@
 import { eco } from '@ecopages/core';
-import type { GetMetadata, GetStaticProps, PageParams } from '@ecopages/core';
+import type { GetMetadata, GetProps, PageParams } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { entries } from 'ecopages:content/wiki';
@@ -45,23 +45,20 @@ const getMetadata: GetMetadata<WikiCatchAllProps> = ({ props: { title, slug } })
 	url: `wiki/${slug}`,
 });
 
-const staticProps: GetStaticProps<WikiCatchAllProps> = async ({ pathname }) => ({
-	props: wikiPageFromCatchAll(pathname.params.slug),
-});
+const getProps: GetProps<WikiCatchAllProps> = async ({ params }) => wikiPageFromCatchAll(params.slug);
 
 export default eco.page<WikiCatchAllProps, JsxRenderable>({
 	layout: {
 		component: DocsLayout,
 		props: ({ params }) => wikiPageFromCatchAll(params?.slug),
 	},
-	staticPaths: async () => ({
-		paths: entries.map((entry) => ({
+	paths: async () =>
+		entries.map((entry) => ({
 			params: {
 				slug: entry.segments,
 			},
 		})),
-	}),
-	staticProps,
+	props: getProps,
 	metadata: getMetadata,
 	dependencies: async ({ props }) => getEntryDependencies(props.slug),
 	render: async ({ slug }) => {

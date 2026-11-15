@@ -55,7 +55,7 @@ HTML pages advertise `<link rel="alternate" type="text/markdown">`. `/api/search
 
 ## Layout data
 
-The wiki Page uses the existing `layout.props` factory to resolve DocsLayout data from route params. Its static props and layout factory share the same entry lookup. Core and integrations retain their existing explicit layout-props contract.
+The wiki Page uses the existing `layout.props` factory to resolve DocsLayout data from route params. Its `props` hook and layout factory share the same entry lookup. Core and integrations retain their existing explicit layout-props contract.
 
 Catalog generation preserves pages with duplicate titles. Wiki graph lint resolves inline and reference links while ignoring code examples and images. The Obsidian mirror uses explicit TypeScript import extensions so Node can run it directly.
 

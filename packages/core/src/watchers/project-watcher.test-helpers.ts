@@ -29,8 +29,8 @@ export const createMockHmrManager = (): IHmrManager =>
 			getWatchedFiles: () => new Map(),
 			getRegisteredEntrypoints: () => new Map(),
 			getSrcDir: () => '',
-			getLayoutsDir: () => '',
-			getPagesDir: () => '',
+			isPageFile: () => false,
+			isLayoutFile: () => false,
 			importServerModule: vi.fn(async () => ({})),
 		})),
 	}) as unknown as IHmrManager;

@@ -13,8 +13,8 @@ import type {
 	EcoPageComponent,
 	FileRouteMiddleware,
 	GetMetadata,
-	GetStaticPaths,
-	GetStaticProps,
+	GetPaths,
+	GetProps,
 	HtmlTemplateProps,
 	LayoutProps,
 	RequestLocals,
@@ -140,28 +140,33 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 	integration?: string;
 	/**
 	 * Declares browser dependencies for the page, or resolves them per render after
-	 * `staticProps` are available.
+	 * `props` are available.
 	 */
 	dependencies?: PageDependenciesInput<T>;
 	layout?: EcoPageLayouts<E>;
 
 	/**
-	 * Define static paths for dynamic routes (e.g., [slug].tsx).
-	 * Returns all possible paths that should be pre-rendered at build time.
+	 * Lists the Params a dynamic route (e.g. `[slug].tsx`) is known for at build time, as `[{ params }]`.
+	 *
+	 * @remarks
+	 * The Cache Strategy decides what the build does with each entry: `'static'` and `{ revalidate }` Pages render
+	 * and write HTML for it, `'dynamic'` Pages plan a Page Browser Graph for it.
 	 */
-	staticPaths?: GetStaticPaths;
+	paths?: GetPaths;
 
 	/**
-	 * Fetch data for the page at build time.
-	 * Props returned here are passed to both render() and metadata().
+	 * Returns the page's props object. Props are passed to both render() and metadata().
+	 *
+	 * @remarks
+	 * Receives Params from `paths` at build time and from the request at run time.
 	 */
-	staticProps?: GetStaticProps<T>;
+	props?: GetProps<T>;
 
 	/**
 	 * Generate page metadata (title, description, etc.).
 	 *
 	 * @remarks
-	 * Props come from `staticProps`. Props passed into the render are overlaid
+	 * Props come from `props`. Props passed into the render are overlaid
 	 * and win when both set the same key. `metadata` sees the merged props.
 	 */
 	metadata?: GetMetadata<T>;
@@ -209,7 +214,7 @@ interface PageOptionsWithMiddleware<T, E = EcoPagesElement> extends PageOptionsB
 /**
  * Options for creating a page with eco.page()
  *
- * Define staticPaths, staticProps, and metadata inline. When using
+ * Define paths, props, and metadata inline. When using
  * `middleware`, `cache` must be set to `'dynamic'` because middleware
  * runs on every request and caching would bypass middleware effects.
  *
@@ -267,8 +272,8 @@ export interface Eco {
 	) => EcoComponent<P, E>;
 
 	/**
-	 * Create a page component with type-safe props from `staticProps`.
-	 * Returns an EcoPageComponent with attached staticPaths, staticProps, and metadata.
+	 * Create a page component with type-safe props from `props`.
+	 * Returns an EcoPageComponent with attached paths, props, and metadata.
 	 *
 	 * If `requires` is provided, the `render` callback receives `locals` as required and non-null for the required keys.
 	 */

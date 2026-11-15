@@ -32,7 +32,6 @@ import {
 } from '@ecopages/core/integration';
 import type { ProcessedAsset } from '@ecopages/core/integration';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
-import { resolveQueuedTokens } from '@ecopages/core/integration';
 import { ensurePageConfigLayouts, moveMdxMetadataOntoPage } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
 import { hasSingleRootElement } from './html-boundary.ts';
@@ -52,7 +51,7 @@ import {
 	type DocumentShellComposeChildrenResult,
 	type DocumentShellLayoutInput,
 } from '@ecopages/core/integration';
-import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/integration';
+import type { QueuedForeignSubtreeResolutionContext, ResolveForeignSubtreeTokens } from '@ecopages/core/integration';
 import { asNonReactShellComponent, getComponentRequires, isReactManagedComponent } from './component-ownership.ts';
 import {
 	buildHydrationProps,
@@ -152,8 +151,8 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		this.hookTargets.collectAppBrowserClientBuildEntries = (plan) =>
 			this.collectAppBrowserClientBuildEntriesHook(plan);
 		this.hookTargets.renderComponent = (input) => this.renderComponentHook(input);
-		this.hookTargets.renderQueuedChildren = (children, runtimeContext, queuedResolutionsByToken, resolveToken) =>
-			this.renderQueuedChildrenHook(children, runtimeContext, queuedResolutionsByToken, resolveToken);
+		this.hookTargets.renderQueuedChildren = (children, runtimeContext, resolveTokens) =>
+			this.renderQueuedChildrenHook(children, runtimeContext, resolveTokens);
 		this.hookTargets.normalizePageModule = (file, module) => this.normalizeImportedPageFileHook(file, module);
 		this.hookTargets.collectPageBrowserGraphContribution = (context) =>
 			this.collectPageBrowserGraphContributionHook(context);
@@ -292,12 +291,11 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		return this.resolveQueuedForeignSubtrees(
 			hydrates ? wrapForeignSubtreeTokens(html, runtimeContext) : html,
 			runtimeContext,
-			async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => ({
+			async (children, currentRuntimeContext, resolveTokens) => ({
 				html: await this.renderQueuedChildrenToHtml({
 					children,
 					runtimeContext: currentRuntimeContext,
-					queuedResolutionsByToken,
-					resolveToken,
+					resolveTokens,
 				}),
 			}),
 		);
@@ -306,24 +304,21 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 	private async renderQueuedChildrenToHtml(options: {
 		children: unknown;
 		runtimeContext: ReactForeignSubtreeResolutionContext;
-		queuedResolutionsByToken: Map<string, ReactForeignSubtreeResolutionContext['queuedResolutions'][number]>;
-		resolveToken: (token: string) => Promise<string>;
+		resolveTokens: ResolveForeignSubtreeTokens;
 	}): Promise<string | undefined> {
-		const { children, runtimeContext, queuedResolutionsByToken, resolveToken } = options;
+		const { children, runtimeContext, resolveTokens } = options;
 		if (children === undefined) {
 			return undefined;
 		}
 
 		const runtime = this.getReactRuntimeModules();
-		let html = this.normalizeUnresolvedMarkerArtifactHtml(
-			await this.renderReactTree(
-				runtime.react.createElement(runtime.react.Fragment, null, toReactNode(children, this.name)),
-				'queued children',
-			),
+		let html = await this.renderReactTree(
+			runtime.react.createElement(runtime.react.Fragment, null, toReactNode(children, this.name)),
+			'queued children',
 		);
 		html = restoreRuntimeChildHtml(html, runtimeContext);
 
-		return await resolveQueuedTokens(html, queuedResolutionsByToken, resolveToken);
+		return await resolveTokens(html);
 	}
 
 	private buildPagePayload<C>(options: {
@@ -415,16 +410,14 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			componentInstanceId: input.integrationContext?.componentInstanceId,
 		};
 		const hasResolvedChildHtml = input.children !== undefined;
-		let html = this.normalizeUnresolvedMarkerArtifactHtml(
-			await renderComponentHtml({
-				input,
-				context,
-				runtimeContext,
-				runtime: this.getReactRuntimeModules(),
-				timeoutMs: this.getRuntimeState().renderTimeoutMs,
-				label: getComponentIdentity(input.component)?.file ?? 'component',
-			}),
-		);
+		let html = await renderComponentHtml({
+			input,
+			context,
+			runtimeContext,
+			runtime: this.getReactRuntimeModules(),
+			timeoutMs: this.getRuntimeState().renderTimeoutMs,
+			label: getComponentIdentity(input.component)?.file ?? 'component',
+		});
 		const componentFile = getComponentIdentity(componentConfig)?.file;
 		const isIslandRoot =
 			Boolean(componentFile && context.componentInstanceId && !hasResolvedChildHtml) &&
@@ -463,8 +456,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 	private async renderQueuedChildrenHook(
 		children: unknown,
 		runtimeContext: QueuedForeignSubtreeResolutionContext,
-		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolutionContext['queuedResolutions'][number]>,
-		resolveToken: (token: string) => Promise<string>,
+		resolveTokens: ResolveForeignSubtreeTokens,
 	): Promise<{ html?: string }> {
 		if (children === undefined) {
 			return {};
@@ -473,8 +465,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		const html = await this.renderQueuedChildrenToHtml({
 			children,
 			runtimeContext: runtimeContext as ReactForeignSubtreeResolutionContext,
-			queuedResolutionsByToken,
-			resolveToken,
+			resolveTokens,
 		});
 		return html === undefined ? {} : { html };
 	}
@@ -568,9 +559,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			},
 		};
 		const runtimeContext = this.getQueuedForeignSubtreeContext<ReactForeignSubtreeResolutionContext>(runtimeInput);
-		const html = this.normalizeUnresolvedMarkerArtifactHtml(
-			await this.renderReactTree(tree, getComponentIdentity(page.component)?.file ?? 'page'),
-		);
+		const html = await this.renderReactTree(tree, getComponentIdentity(page.component)?.file ?? 'page');
 		const layoutWithoutChildren = renderTracker.findLayoutWithoutChildren(page.component);
 		if (layoutWithoutChildren) this.onLayoutChildrenNotRendered(layoutWithoutChildren);
 		return {
@@ -712,8 +701,6 @@ function createReactRendererHookFactory(
 			getMdxLoaderPlugin: reactConfig?.getMdxLoaderPlugin,
 		});
 		const pageModuleService = new PageModuleService({
-			layoutsDir: appConfig.absolutePaths.layoutsDir,
-			componentsDir: appConfig.absolutePaths.componentsDir,
 			mdxExtensions,
 			integrationName: REACT_PLUGIN_NAME,
 			hasRouterAdapter: Boolean(routerAdapter),
@@ -752,12 +739,11 @@ function createReactRendererHookFactory(
 			collectAppBrowserClientBuildEntries: (plan) =>
 				requireReactRendererHookTarget(hookTargets, 'collectAppBrowserClientBuildEntries')(plan),
 			renderComponent: (input) => requireReactRendererHookTarget(hookTargets, 'renderComponent')(input),
-			renderQueuedChildren: (children, runtimeContext, queuedResolutionsByToken, resolveToken) =>
+			renderQueuedChildren: (children, runtimeContext, resolveTokens) =>
 				requireReactRendererHookTarget(hookTargets, 'renderQueuedChildren')(
 					children,
 					runtimeContext,
-					queuedResolutionsByToken,
-					resolveToken,
+					resolveTokens,
 				),
 			normalizePageModule: (file, module) =>
 				requireReactRendererHookTarget(hookTargets, 'normalizePageModule')(file, module),

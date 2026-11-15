@@ -219,16 +219,17 @@ export interface DefaultHmrContext {
 	getSrcDir(): string;
 
 	/**
-	 * Absolute path to the layouts directory.
-	 * Used to detect layout file changes that require full page reloads.
+	 * True when the Route Registry holds `filePath` as a Page.
 	 */
-	getLayoutsDir(): string;
+	isPageFile(filePath: string): boolean;
 
 	/**
-	 * Absolute path to the pages directory.
-	 * Used by plugins to identify page files for transformation.
+	 * True when a Page rendered in this session references `filePath` as a Layout.
+	 *
+	 * @remarks
+	 * Layouts are known after route preparation, so a Layout no Page has rendered yet reports `false`.
 	 */
-	getPagesDir(): string;
+	isLayoutFile(filePath: string): boolean;
 
 	/**
 	 * Server-side module loader owned by the active app/runtime.
@@ -526,11 +527,6 @@ type EcoComponentBase = {
 	 * The configuration options for the EcoComponent.
 	 */
 	config?: EcoComponentConfig;
-
-	/**
-	 * Static paths for dynamic routes (consolidated eco.page API).
-	 * Used by the renderer to retrieve static paths from the page component.
-	 */
 };
 
 /**
@@ -868,9 +864,9 @@ export type RequestPageContext = {
 export type WithLocals<P> = P & { locals?: RequestLocals };
 
 /**
- * Represents the params for a static path.
+ * One page that `paths` lists at build.
  */
-export type StaticPath = { params: PageParams };
+export type PagePath = { params: PageParams };
 
 export type EcoPagesAppConfig = {
 	baseUrl: string;
@@ -879,11 +875,9 @@ export type EcoPagesAppConfig = {
 	publicDir: string;
 	pagesDir: string;
 	includesDir: string;
-	layoutsDir: string;
 	distDir: string;
 	workDir: string;
 	templatesExt: string[];
-	componentsDir: string;
 	robotsTxt: { preferences: Record<string, string[]> };
 	sitemap: SitemapConfig;
 	additionalWatchPaths: string[];
@@ -892,11 +886,9 @@ export type EcoPagesAppConfig = {
 	absolutePaths: {
 		config: string;
 		configModuleFiles: string[];
-		componentsDir: string;
 		distDir: string;
 		workDir: string;
 		includesDir: string;
-		layoutsDir: string;
 		pagesDir: string;
 		projectDir: string;
 		publicDir: string;
@@ -913,13 +905,13 @@ export type EcoPagesAppConfig = {
 };
 
 export type PagePropsFor<T> =
-	T extends GetStaticProps<infer P>
+	T extends GetProps<infer P>
 		? P & { params?: PageParams; query?: PageQuery }
 		: T & { params?: PageParams; query?: PageQuery };
 
 export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T> & Partial<RequestPageContext>> & {
-	staticPaths?: GetStaticPaths;
-	staticProps?: GetStaticProps<T>;
+	paths?: GetPaths;
+	props?: GetProps<T>;
 	metadata?: GetMetadata<T>;
 	resolveDependencies?: GetPageDependencies<T>;
 	cache?: CacheStrategy;
@@ -928,11 +920,12 @@ export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T> & Partial<Request
 };
 
 /**
- * The function that returns the static paths for a page.
+ * The function that lists the Params a page is known for at build time.
+ *
+ * @remarks
+ * Returns `[{ params }]` directly. The Cache Strategy decides what the build does with each entry.
  */
-export type GetStaticPaths = (context: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }) => Promise<{
-	paths: StaticPath[];
-}>;
+export type GetPaths = (context: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }) => Promise<PagePath[]>;
 
 /**
  * The context object for the getMetadata function.
@@ -950,15 +943,17 @@ export type GetMetadata<T = Record<string, unknown>> = (
 ) => PageMetadataProps | Promise<PageMetadataProps>;
 
 /**
- * The function that returns the static props for a page.
+ * The function that returns the props for a page.
+ *
+ * @remarks
+ * Returns the props object directly. `paths` lists the Params known at build; `props` receives Params,
+ * from `paths` at build and from the request at run time.
  */
-export type GetStaticProps<T> = (context: {
-	pathname: StaticPath;
+export type GetProps<T> = (context: {
+	params: PageParams;
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
-}) => Promise<{
-	props: T;
-}>;
+}) => Promise<T>;
 
 /**
  * Represents a page file in EcoPages.
@@ -992,12 +987,12 @@ export type RouteRendererOptions = {
 	 */
 	props?: Record<string, unknown>;
 	/**
-	 * Skips the page's `staticProps` hook for this render.
+	 * Skips the page's `props` hook for this render.
 	 * @remarks Set when the caller already holds the final props, as the caller of an
 	 * explicit view does. `props` then replaces the hook's result instead of being
 	 * merged into it, and metadata sees the same props.
 	 */
-	skipStaticProps?: boolean;
+	skipPropsHook?: boolean;
 };
 
 /**

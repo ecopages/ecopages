@@ -8,9 +8,11 @@
 		"@ecopages/jsx": "^0.9.0",
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/lit": "workspace:*",
+		"@ecopages/mdx": "workspace:*",
 		"@ecopages/radiant": "^0.9.0",
 		"@ecopages/react": "workspace:*",
 		"@kitajs/html": "^4.2.13",
+		"@mdx-js/mdx": "^3.1.1",
 		"lit": "^3.3.3",
 		"react": "^19.2.6",
 		"react-dom": "^19.2.6"

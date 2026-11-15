@@ -136,7 +136,7 @@ The client bundle keeps:
 The client bundle removes or excludes:
 
 - Server-only imports that are not reachable from the hydrated render path.
-- Server-only `eco.page(...)` options such as `cache`, `middleware`, `metadata`, `staticProps`, and `staticPaths`.
+- Server-only `eco.page(...)` options such as `cache`, `middleware`, `metadata`, `props`, and `paths`.
 - Request-time configuration that has no meaning in the browser.
 
 Important:
@@ -172,18 +172,18 @@ Consider a page like this:
 import { authMiddleware } from './auth.server';
 import { getPost } from './posts.server';
 
-const staticProps = async () => ({ props: { post: await getPost() } });
+const getProps = async () => ({ post: await getPost() });
 
 export default eco.page({
 	cache: 'dynamic',
 	middleware: [authMiddleware],
 	requires: ['session'] as const,
-	staticProps,
+	props: getProps,
 	render: () => <div>Dashboard</div>,
 });
 ```
 
-If the client transform removed the `auth.server` import but left `middleware: [authMiddleware]` in place, the browser bundle would contain a dangling identifier and throw a `ReferenceError` when it loads. The boundary therefore strips the server-only options, then the `staticProps` helper they alone used, while keeping `render` intact.
+If the client transform removed the `auth.server` import but left `middleware: [authMiddleware]` in place, the browser bundle would contain a dangling identifier and throw a `ReferenceError` when it loads. The boundary therefore strips the server-only options, then the `getProps` helper they alone used, while keeping `render` intact.
 
 A stripped import still used by code the browser module needs fails the build with its `file:line:column`:
 
@@ -191,7 +191,7 @@ A stripped import still used by code the browser module needs fails the build wi
 [Ecopages Client Graph] 'authMiddleware' (imported from './auth.server') is used at src/widget.tsx:2:22, but that import is server-only and the browser build removes it. ...
 ```
 
-Move that code into a server-only Page option, into a helper only those options use, or out of the code the browser module reaches.
+Move that code into a server-only Page option, into a helper only those options use, or out of the code the browser module reaches. A server-only import that the render function itself uses fails the build the same way, naming the import, its bindings and the `.server` fix.
 
 ### Hydration Contract for `locals`
 

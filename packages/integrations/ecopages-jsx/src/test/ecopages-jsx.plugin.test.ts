@@ -76,8 +76,8 @@ function createHmrManagerStub(): IHmrManager {
 			getWatchedFiles: () => new Map(),
 			getRegisteredEntrypoints: () => new Map(),
 			getSrcDir: () => '/test/project/src',
-			getPagesDir: () => '/test/project/src/pages',
-			getLayoutsDir: () => '/test/project/src/layouts',
+			isPageFile: () => false,
+			isLayoutFile: () => false,
 			getEntrypointDependencyGraph: () => ({
 				supportsSelectiveInvalidation: () => false,
 				getDependencyEntrypoints: () => new Set(),

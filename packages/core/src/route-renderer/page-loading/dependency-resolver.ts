@@ -10,11 +10,11 @@ import type {
 import { resolveAssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
 import { prepareAssetDependencies } from '../../assets/asset-processing-service/asset-processing.service.ts';
 import { isBundleableScript } from '../../assets/asset-processing-service/bundleable-script.ts';
-import { contentHash } from '../../utils/content-hash.ts';
-import { isProductionRuntime } from '../../utils/runtime.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigger-planning.ts';
 import { collectComponentDependencies } from './component-dependency-collection.ts';
+import { ComponentDeclarationStore } from './component-declarations.ts';
+import { getComponentOwner } from '../../eco/component-identity.ts';
 import { packagePageDependencies } from './page-dependency-bundling.ts';
 import { getStylesheetKinds } from '../../plugins/stylesheet-kinds.ts';
 import type { LazyGroup } from './lazy-entry-collection.ts';
@@ -51,40 +51,15 @@ function resolveLazyScripts(appConfig: EcoPagesAppConfig, componentDir: string, 
 }
 
 const pendingLazyGroupsByConfig = new WeakMap<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>();
-const MAX_PROCESSED_DEPENDENCY_CACHE_ENTRIES = 128;
-
-function copyProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
-	return assets.map((asset) => {
-		const copy: ProcessedAsset = { ...asset };
-		if (asset.attributes) {
-			copy.attributes = { ...asset.attributes };
-		}
-		if (asset.groupedBundle) {
-			copy.groupedBundle = { ...asset.groupedBundle };
-		}
-		if (asset.bundledSourceFilepaths) {
-			copy.bundledSourceFilepaths = [...asset.bundledSourceFilepaths];
-		}
-		return copy;
-	});
-}
-
 function isLazyClientScript(dep: AssetDefinition): boolean {
 	return dep.kind === 'script' && Boolean(dep.attributes?.['data-eco-lazy-key']);
-}
-
-function createEcopagesJsxLazyEntryName(integrationName: string, key: string): string {
-	return `ecopages-${integrationName}-lazy-${contentHash(key, 16)}`;
 }
 
 export class DependencyResolverService {
 	private appConfig: EcoPagesAppConfig;
 	private assetProcessingService: AssetProcessingService;
 	private readonly assetProcessingIntegration?: AssetProcessingIntegration;
-	private readonly shouldCacheProcessedDependencies: () => boolean;
-	private readonly processedDependenciesCache = new Map<string, Promise<ProcessedAsset[]>>();
-	private readonly componentCacheIds = new WeakMap<object, number>();
-	private nextComponentCacheId = 0;
+	private readonly declarations: ComponentDeclarationStore;
 
 	private getAssetProcessingIntegration(name: string): AssetProcessingIntegration | undefined {
 		return resolveAssetProcessingIntegration(name, this.assetProcessingIntegration, this.appConfig.integrations);
@@ -101,13 +76,20 @@ export class DependencyResolverService {
 	constructor(
 		appConfig: EcoPagesAppConfig,
 		assetProcessingService: AssetProcessingService,
-		shouldCacheProcessedDependencies: () => boolean = isProductionRuntime,
 		assetProcessingIntegration?: AssetProcessingIntegration,
 	) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
-		this.shouldCacheProcessedDependencies = shouldCacheProcessedDependencies;
 		this.assetProcessingIntegration = assetProcessingIntegration;
+		this.declarations = new ComponentDeclarationStore({
+			rootDir: appConfig.rootDir,
+			resolveLazyScripts: (componentDir, scripts) => this.resolveLazyScripts(componentDir, scripts),
+			errors: {
+				invalidStylesheetEntry: DEPENDENCY_ERRORS.INVALID_STYLESHEET_ENTRY,
+				invalidScriptEntry: DEPENDENCY_ERRORS.INVALID_SCRIPT_ENTRY,
+				lazyScriptMissingSrc: DEPENDENCY_ERRORS.LAZY_SCRIPT_MISSING_SRC,
+			},
+		});
 	}
 
 	/**
@@ -143,12 +125,17 @@ export class DependencyResolverService {
 
 	/**
 	 * Processes dependencies from a component list that already came from a prepared graph walk.
+	 *
+	 * @remarks
+	 * With `declarationOrder`, the result follows the order of the collected dependencies, as the asset ledger
+	 * records them (see {@link AssetProcessingService.processDependenciesInDeclarationOrder}).
 	 */
 	async processPreparedComponentDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
+		declarationOrder = false,
 	): Promise<ProcessedAsset[]> {
-		return this.processPreparedDependencies(components, integrationName, true);
+		return this.processPreparedDependencies(components, integrationName, true, declarationOrder);
 	}
 
 	/**
@@ -163,7 +150,7 @@ export class DependencyResolverService {
 		integrationName: string,
 		skipNestedComponents: boolean,
 	): AssetDefinition[] {
-		const { dependencies } = this.collectDependencies(components, integrationName, false, skipNestedComponents);
+		const { dependencies } = this.collectDependencies(components, integrationName, skipNestedComponents);
 		const eagerDeps = this.packageDependencies(dependencies, integrationName).filter(
 			(dep) => !isLazyClientScript(dep),
 		);
@@ -191,17 +178,20 @@ export class DependencyResolverService {
 		);
 	}
 
-	/** Collects lazy client entries from prepared graph nodes without processing eager assets. */
+	/**
+	 * Collects lazy client entries from prepared graph nodes without processing eager assets.
+	 *
+	 * @remarks Nodes without lazy scripts hold no lazy entries, so a list without any is not collected.
+	 */
 	prepareLazyClientDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 	): AssetDefinition[] {
-		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(
-			components,
-			integrationName,
-			false,
-			true,
+		const declaresLazyScripts = components.some(
+			(component) => component?.config && (this.declarations.get(component.config)?.lazyScripts.length ?? 0) > 0,
 		);
+		if (!declaresLazyScripts) return [];
+		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(components, integrationName, true);
 		const lazyDependencies = dependencies.filter(isLazyClientScript);
 		this.storePendingLazyClientDependencies(lazyScriptsByConfig, lazyDependencies);
 		return lazyDependencies;
@@ -211,11 +201,11 @@ export class DependencyResolverService {
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 		skipNestedComponents: boolean,
+		declarationOrder = false,
 	): Promise<ProcessedAsset[]> {
 		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(
 			components,
 			integrationName,
-			false,
 			skipNestedComponents,
 		);
 
@@ -225,52 +215,10 @@ export class DependencyResolverService {
 
 		this.storePendingLazyClientDependencies(lazyScriptsByConfig, lazyDeps);
 
-		if (!this.shouldCacheProcessedDependencies()) {
-			return this.assetProcessingService.processDependencies(
-				eagerDeps,
-				this.getAssetProcessingIntegration(integrationName),
-			);
-		}
-
-		const cacheKey = this.getProcessedDependenciesCacheKey(
-			components,
-			integrationName,
-			skipNestedComponents,
-			this.bundlesPageDependencies(integrationName),
-		);
-		if (!cacheKey) {
-			return this.assetProcessingService.processDependencies(
-				eagerDeps,
-				this.getAssetProcessingIntegration(integrationName),
-			);
-		}
-
-		let pending = this.processedDependenciesCache.get(cacheKey);
-		if (pending) {
-			this.processedDependenciesCache.delete(cacheKey);
-			this.processedDependenciesCache.set(cacheKey, pending);
-		} else {
-			pending = this.assetProcessingService.processDependencies(
-				eagerDeps,
-				this.getAssetProcessingIntegration(integrationName),
-			);
-			this.processedDependenciesCache.set(cacheKey, pending);
-			if (this.processedDependenciesCache.size > MAX_PROCESSED_DEPENDENCY_CACHE_ENTRIES) {
-				const oldestKey = this.processedDependenciesCache.keys().next().value;
-				if (oldestKey !== undefined) {
-					this.processedDependenciesCache.delete(oldestKey);
-				}
-			}
-		}
-
-		try {
-			return copyProcessedAssets(await pending);
-		} catch (error) {
-			if (this.processedDependenciesCache.get(cacheKey) === pending) {
-				this.processedDependenciesCache.delete(cacheKey);
-			}
-			throw error;
-		}
+		const integration = this.getAssetProcessingIntegration(integrationName);
+		return declarationOrder
+			? this.assetProcessingService.processDependenciesInDeclarationOrder(eagerDeps, integration)
+			: this.assetProcessingService.processDependencies(eagerDeps, integration);
 	}
 
 	private storePendingLazyClientDependencies(
@@ -291,37 +239,6 @@ export class DependencyResolverService {
 				}),
 			);
 		}
-	}
-
-	private getProcessedDependenciesCacheKey(
-		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
-		integrationName: string,
-		skipNestedComponents: boolean,
-		bundlesPageDependencies: boolean,
-	): string | undefined {
-		const componentIds: number[] = [];
-		for (const component of components) {
-			if (!component) {
-				continue;
-			}
-
-			if (
-				typeof (component as EcoComponent & { resolveDependencies?: unknown }).resolveDependencies ===
-				'function'
-			) {
-				return undefined;
-			}
-
-			const cacheIdentity = component.config ?? component;
-			let componentId = this.componentCacheIds.get(cacheIdentity);
-			if (componentId === undefined) {
-				componentId = ++this.nextComponentCacheId;
-				this.componentCacheIds.set(cacheIdentity, componentId);
-			}
-			componentIds.push(componentId);
-		}
-
-		return JSON.stringify([integrationName, skipNestedComponents, bundlesPageDependencies, componentIds]);
 	}
 
 	/**
@@ -386,34 +303,38 @@ export class DependencyResolverService {
 	}
 
 	/**
-	 * Collects the unprocessed asset declarations of `components`, excluding Foreign Children and their descendants.
+	 * Whether `component` ships a browser script of its own, which makes its render an Island Host.
+	 *
+	 * @remarks
+	 * It reads the declarations of the component and of its nested components of the same Integration, excluding
+	 * Foreign Children: a component without scripts that wraps an island is not an island itself.
 	 */
-	collectOwnComponentDependencies(
-		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
-		integrationName: string,
-	): AssetDefinition[] {
-		return this.collectDependencies(components, integrationName, true).dependencies;
+	componentShipsScript(component: EcoComponent | Partial<EcoComponent>, integrationName: string): boolean {
+		const visited = new Set<EcoComponentConfig>();
+		const shipsScript = (config: EcoComponentConfig | undefined, isRoot: boolean): boolean => {
+			if (!config || visited.has(config)) return false;
+			visited.add(config);
+			if (!isRoot && getComponentOwner(config, integrationName) !== integrationName) return false;
+			const declarations = this.declarations.get(config);
+			if (!declarations) return false;
+			return (
+				declarations.declaresScript ||
+				(config.dependencies?.components ?? []).some((child) => shipsScript(child?.config, false))
+			);
+		};
+		return shipsScript(component.config, true);
 	}
 
 	private collectDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
-		excludeForeignChildren: boolean,
 		skipNestedComponents = false,
 	) {
 		return collectComponentDependencies({
 			components,
 			integrationName,
-			rootDir: this.appConfig.rootDir,
-			excludeForeignChildren,
+			declarations: this.declarations,
 			skipNestedComponents,
-			resolveLazyScripts: (componentDir, scripts) => this.resolveLazyScripts(componentDir, scripts),
-			createEcopagesJsxLazyEntryName,
-			errors: {
-				invalidStylesheetEntry: DEPENDENCY_ERRORS.INVALID_STYLESHEET_ENTRY,
-				invalidScriptEntry: DEPENDENCY_ERRORS.INVALID_SCRIPT_ENTRY,
-				lazyScriptMissingSrc: DEPENDENCY_ERRORS.LAZY_SCRIPT_MISSING_SRC,
-			},
 		});
 	}
 }

@@ -1,5 +1,6 @@
 import type { EcoComponentDependencies, EcoComponentConfig, EcoComponent } from '../types/contracts.ts';
 import type { ComponentIdentity } from './component-identity.ts';
+import type { EcopagesVirtualImport } from '../plugins/ecopages-virtual-imports.ts';
 
 /**
  * What the component meta transform discovered for one declaration.
@@ -17,6 +18,8 @@ export type DiscoveredDependencies = {
 	plainModuleStylesheets?: string[];
 	/** The entries of `stylesheets` and `plainModuleStylesheets` whose import named a package: package paths. */
 	packageStylesheets?: string[];
+	/** The `ecopages:` virtual modules the declaring module imports. */
+	virtualImports?: EcopagesVirtualImport[];
 	watchFiles?: string[];
 };
 
@@ -25,12 +28,14 @@ const INFERRED_STYLESHEETS = Symbol.for('ecopages.identity.inferredStylesheets')
 const PLAIN_MODULE_STYLESHEETS = Symbol.for('ecopages.identity.plainModuleStylesheets');
 const PACKAGE_STYLESHEETS = Symbol.for('ecopages.identity.packageStylesheets');
 const DISCOVERED_WATCH_FILES = Symbol.for('ecopages.identity.watchFiles');
+const VIRTUAL_IMPORTS = Symbol.for('ecopages.identity.virtualImports');
 
 type IdentityDiscoveryRecord = {
 	[INFERRED_STYLESHEETS]?: readonly string[];
 	[PLAIN_MODULE_STYLESHEETS]?: readonly string[];
 	[PACKAGE_STYLESHEETS]?: readonly string[];
 	[DISCOVERED_WATCH_FILES]?: readonly string[];
+	[VIRTUAL_IMPORTS]?: readonly EcopagesVirtualImport[];
 };
 
 function discoveryRecord(identity: ComponentIdentity): IdentityDiscoveryRecord {
@@ -52,6 +57,7 @@ export function registerDiscoveredDependencies(identity: ComponentIdentity, disc
 	record[PLAIN_MODULE_STYLESHEETS] = discovered.plainModuleStylesheets;
 	record[PACKAGE_STYLESHEETS] = discovered.packageStylesheets;
 	record[DISCOVERED_WATCH_FILES] = discovered.watchFiles;
+	record[VIRTUAL_IMPORTS] = discovered.virtualImports;
 }
 
 /**
@@ -93,6 +99,13 @@ export function getDiscoveredWatchFiles(config: EcoComponentConfig | undefined):
 	const identity = config?.identity;
 	if (!identity) return [];
 	return discoveryRecord(identity)[DISCOVERED_WATCH_FILES] ?? discoveries.get(identity)?.watchFiles ?? [];
+}
+
+/** The `ecopages:` virtual modules discovery recorded for this component identity. */
+export function getDiscoveredVirtualImports(config: EcoComponentConfig | undefined): readonly EcopagesVirtualImport[] {
+	const identity = config?.identity;
+	if (!identity) return [];
+	return discoveryRecord(identity)[VIRTUAL_IMPORTS] ?? discoveries.get(identity)?.virtualImports ?? [];
 }
 
 function isDeclared(value: unknown): value is EcoComponent {

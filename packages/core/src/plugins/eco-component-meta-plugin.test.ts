@@ -252,6 +252,18 @@ describe('eco-component-meta-plugin', () => {
 		expect(result.contents).toContain('eco.component' + '<CounterProps>(bindComponentIdentity(');
 	});
 
+	it('records the ecopages virtual imports of the declaring module in its discovery', async () => {
+		const content = `
+            import { eco } from '@ecopages/core';
+            import { hero } from 'ecopages:images';
+            export default eco.page({ render: () => hero.src });
+        `;
+
+		const result = await runPluginOnContent(content, '/path/to/gallery.tsx');
+
+		expect(result.contents).toContain('virtualImports: [{"from":"ecopages:images","imports":["hero"]}]');
+	});
+
 	it('binds identity into eco.page call', async () => {
 		const content = `
             import { eco } from '@ecopages/core';
@@ -345,7 +357,7 @@ export const Head = eco.component({ render: () => <head /> });`;
 import { eco } from '@ecopages/core';
 
 export default eco.page<{ title: string; callback: (arg: string) => void }>({
-	staticProps: async () => ({ props: { title: 'Hello', callback: () => {} } }),
+	props: async () => ({ title: 'Hello', callback: () => {} }),
 	render: (props) => '<div>' + props.title + '</div>' });
 `;
 

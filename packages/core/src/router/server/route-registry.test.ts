@@ -46,6 +46,15 @@ describe('RouteRegistry', () => {
 		]);
 	});
 
+	test('answers whether a file is a Page by its route, not its folder', async () => {
+		const registry = createRegistry();
+		await registry.init();
+		const [page] = registry.templateRoutes;
+
+		expect(registry.isPageFile(page.filePath)).toBe(true);
+		expect(registry.isPageFile(path.join(pagesDir, '..', 'layouts', 'base-layout.tsx'))).toBe(false);
+	});
+
 	test.each([
 		['/products/[id]', '/products/123', { id: '123' }],
 		['/products/[...id]', '/products/123/456/789', { id: ['123', '456', '789'] }],
@@ -54,7 +63,7 @@ describe('RouteRegistry', () => {
 		const registry = createRegistry();
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname,
 				kind: pathname.includes('[...') ? 'catch-all' : 'dynamic',
@@ -62,7 +71,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/example.ts',
 				paramNames: [],
 			},
-		];
+		]);
 
 		const result = registry.matchRequest(`http://localhost:3000${requestPathname}`);
 
@@ -122,9 +131,9 @@ describe('RouteRegistry', () => {
 		const registry = createRegistry();
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{ pathname: '/page', kind: 'exact', role: 'page', filePath: '/pages/page.ts', paramNames: [] },
-		];
+		]);
 
 		const result = registry.matchRequest('http://localhost:3000/page?sort=asc&page=2');
 
@@ -138,7 +147,7 @@ describe('RouteRegistry', () => {
 		const registry = createRegistry();
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname: '/blog/latest',
 				kind: 'exact',
@@ -153,7 +162,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/blog/[slug].ts',
 				paramNames: ['slug'],
 			},
-		];
+		]);
 
 		const result = registry.matchRequest('http://localhost:3000/blog/latest');
 
@@ -385,15 +394,14 @@ describe('RouteRegistry', () => {
 	test('lists static path expansions lazily through the page module adapter', async () => {
 		const pageModuleAdapter: RouteRegistryPageModuleAdapter = {
 			loadPageModule: vi.fn(async () => ({
-				staticProps: {},
-				staticPaths: async () => ({ paths: [{ params: { slug: 'hello-world' } }] }),
+				paths: async () => [{ params: { slug: 'hello-world' } }],
 			})),
 		};
 
 		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname: '/blog/[slug]',
 				kind: 'dynamic',
@@ -401,7 +409,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/blog/[slug].ts',
 				paramNames: ['slug'],
 			},
-		];
+		]);
 
 		const expansions = await registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' });
 
@@ -424,7 +432,49 @@ describe('RouteRegistry', () => {
 		).resolves.toEqual([]);
 	});
 
-	test('builds a dynamic-route Page with cache dynamic without staticPaths', async () => {
+	test('expands a static dynamic route that has paths and no props hook', async () => {
+		const pageModuleAdapter: RouteRegistryPageModuleAdapter = {
+			loadPageModule: vi.fn(async () => ({ paths: async () => [{ params: { slug: 'hello-world' } }] })),
+		};
+		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
+		await registry.init();
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
+			{
+				pathname: '/blog/[slug]',
+				kind: 'dynamic',
+				role: 'page',
+				filePath: '/pages/blog/[slug].ts',
+				paramNames: ['slug'],
+			},
+		]);
+
+		const expansions = await registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' });
+
+		expect(expansions.map((expansion) => expansion.pathname)).toEqual(['/blog/hello-world']);
+	});
+
+	test('fails a build when a static dynamic route has no paths', async () => {
+		const pageModuleAdapter: RouteRegistryPageModuleAdapter = {
+			loadPageModule: vi.fn(async () => ({})),
+		};
+		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
+		await registry.init();
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
+			{
+				pathname: '/blog/[slug]',
+				kind: 'dynamic',
+				role: 'page',
+				filePath: '/pages/blog/[slug].ts',
+				paramNames: ['slug'],
+			},
+		]);
+
+		await expect(registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' })).rejects.toThrow(
+			'Missing paths in /pages/blog/[slug].ts',
+		);
+	});
+
+	test('builds a dynamic-route Page with cache dynamic without paths', async () => {
 		const pageModuleAdapter: RouteRegistryPageModuleAdapter = {
 			loadPageModule: vi.fn(async () => ({ cache: 'dynamic' })),
 		};
@@ -432,7 +482,7 @@ describe('RouteRegistry', () => {
 		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname: '/admin/posts/[id]',
 				kind: 'dynamic',
@@ -440,7 +490,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/admin/posts/[id].ts',
 				paramNames: ['id'],
 			},
-		];
+		]);
 
 		await expect(registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' })).resolves.toEqual(
 			[],
@@ -450,20 +500,18 @@ describe('RouteRegistry', () => {
 		).resolves.toEqual([]);
 	});
 
-	test('lists Dynamic Page staticPaths for browser graph planning without treating them as Static Path Expansions', async () => {
+	test('lists Dynamic Page paths for browser graph planning without treating them as Static Path Expansions', async () => {
 		const pageModuleAdapter: RouteRegistryPageModuleAdapter = {
 			loadPageModule: vi.fn(async () => ({
 				cache: 'dynamic',
-				staticPaths: async () => ({
-					paths: [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }],
-				}),
+				paths: async () => [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }],
 			})),
 		};
 
 		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{
 				pathname: '/posts/[slug]',
 				kind: 'dynamic',
@@ -471,7 +519,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/posts/[slug].ts',
 				paramNames: ['slug'],
 			},
-		];
+		]);
 
 		await expect(registry.listStaticPathExpansions({ runtimeOrigin: 'http://localhost:3000' })).resolves.toEqual(
 			[],
@@ -507,15 +555,14 @@ describe('RouteRegistry', () => {
 	test('lists static-generation routes through one registry seam', async () => {
 		const pageModuleAdapter: RouteRegistryPageModuleAdapter = {
 			loadPageModule: vi.fn(async () => ({
-				staticProps: {},
-				staticPaths: async () => ({ paths: [{ params: { slug: 'hello-world' } }] }),
+				paths: async () => [{ params: { slug: 'hello-world' } }],
 			})),
 		};
 
 		const registry = createRegistry({ pageModuleAdapter, buildMode: true });
 		await registry.init();
 
-		(registry as unknown as { templateRouteList: TemplateRoute[] }).templateRouteList = [
+		(registry as unknown as { useTemplateRoutes(routes: TemplateRoute[]): void }).useTemplateRoutes([
 			{ pathname: '/', kind: 'exact', role: 'page', filePath: '/pages/index.ts', paramNames: [] },
 			{
 				pathname: '/blog/[slug]',
@@ -524,7 +571,7 @@ describe('RouteRegistry', () => {
 				filePath: '/pages/blog/[slug].ts',
 				paramNames: ['slug'],
 			},
-		];
+		]);
 
 		const routes = await registry.listStaticGenerationRoutes({ runtimeOrigin: 'http://localhost:3000' });
 
@@ -554,6 +601,70 @@ describe('RouteRegistry', () => {
 				params: { slug: 'hello-world' },
 			},
 		]);
+	});
+
+	describe('file roles', () => {
+		let pagesDir: string;
+
+		beforeEach(async () => {
+			pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-roles-'));
+		});
+
+		afterEach(async () => {
+			await fs.rm(pagesDir, { recursive: true, force: true });
+		});
+
+		const writePages = async (files: readonly string[]) => {
+			for (const file of files) {
+				const filePath = path.join(pagesDir, file);
+				await fs.mkdir(path.dirname(filePath), { recursive: true });
+				await fs.writeFile(filePath, '');
+			}
+		};
+
+		test('keeps server modules, browser scripts and private files out of the routes', async () => {
+			await writePages([
+				'foo.tsx',
+				'users.api.ts',
+				'foo.server.tsx',
+				'foo.script.tsx',
+				'bar.script.ts',
+				'baz.server.ts',
+				'_foo.tsx',
+				'_parts/foo.tsx',
+				'blog/_card.tsx',
+				'blog/post.tsx',
+			]);
+			const registry = createRegistry({ pagesDir, templatesExt: ['.tsx', '.ts'] });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.pathname).sort()).toEqual([
+				'/blog/post',
+				'/foo',
+				'/users',
+			]);
+			expect(registry.templateRoutes.map((route) => route.role).sort()).toEqual(['endpoint', 'page', 'page']);
+		});
+
+		test.each(['card.server.kita.tsx', 'nav.script.lit.tsx', 'users.api.html', 'db.server.test.tsx'])(
+			'fails the build for the misplaced role segment in %p, naming the file and the expected form',
+			async (file) => {
+				await writePages([file]);
+				const registry = createRegistry({ pagesDir, templatesExt: ['.tsx', '.kita.tsx', '.lit.tsx', '.html'] });
+
+				await expect(registry.init()).rejects.toThrow(
+					`${path.join(pagesDir, file)}: the "${file.includes('server') ? 'server' : file.includes('script') ? 'script' : 'api'}" role segment must come directly before a script extension, as in <name>.api.<ts|tsx|js|jsx>, <name>.server.<ts|tsx|js|jsx>, <name>.script.<ts|tsx|js|jsx>.`,
+				);
+			},
+		);
+
+		test('lets a private file keep any name', async () => {
+			await writePages(['_card.server.kita.tsx']);
+			const registry = createRegistry({ pagesDir, templatesExt: ['.tsx', '.kita.tsx'] });
+			await registry.init();
+
+			expect(registry.templateRoutes).toEqual([]);
+		});
 	});
 
 	describe('endpoint files', () => {
@@ -720,8 +831,7 @@ describe('RouteRegistry', () => {
 		test('keeps endpoint routes out of static generation without loading their modules', async () => {
 			await writePages(['index.ts', 'blog/[slug].ts', 'api/users/[id].api.ts', 'api/health.api.ts']);
 			const loadPageModule = vi.fn(async () => ({
-				staticProps: {},
-				staticPaths: async () => ({ paths: [{ params: { slug: 'hello' } }] }),
+				paths: async () => [{ params: { slug: 'hello' } }],
 			}));
 			const registry = createRegistry({
 				pagesDir,

@@ -143,6 +143,18 @@ export function createViewReference<P = Record<string, unknown>>(
 }
 
 /**
+ * True when `filePath` is a view the server entry imported, so a View Reference exists for it.
+ *
+ * @remarks
+ * The registry is the module-level set `createViewReference` fills, in development by the preload and in
+ * production by the imported-view plugin. The preload names a view by its absolute path, which is what this
+ * checks, so it answers for the development server; a production bundle names views relative to the app root.
+ */
+export function isViewReferencePath(filePath: string): boolean {
+	return viewReferences.has(path.resolve(filePath));
+}
+
+/**
  * Synthetic ESM source the CLI hook and server-entry plugin evaluate instead of the view.
  *
  * @remarks

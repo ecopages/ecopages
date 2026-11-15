@@ -13,7 +13,9 @@ export default eco.page<{ posts: Post[] }, JsxRenderable, 'session'>({
 	middleware: [requireSession],
 	requires: ['session'] as const,
 	dependencies: { scripts: ['./admin-posts.script.ts'] },
-	staticProps: async () => ({ props: { posts: await postsService.listAll() } }),
+	props: async () => ({
+		posts: await postsService.listAll(),
+	}),
 	metadata: () => ({ title: 'Posts | EcoBlog author', description: 'Manage blog posts.' }),
 	render: ({ posts, locals }) => (
 		<AdminShell current="posts" userName={locals.session.user.name}>

@@ -7,9 +7,11 @@ import type { StaticRoute } from '../../../types/contracts.ts';
 import type { ExplicitViewRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { prepareExplicitStaticRender } from '../../../route-renderer/explicit-view-render-preparation.ts';
 import {
+	compileSegmentPattern,
 	matchParsedSegmentPath,
 	parseSegmentPath,
 	type ParsedSegmentPath,
+	type SegmentPattern,
 } from '../../../router/server/segment-path-matcher.ts';
 
 export const EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS = {
@@ -35,12 +37,15 @@ export interface ExplicitRouteMatch {
 export class ExplicitStaticRouteMatcher {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly routeRendererFactory: ExplicitViewRendererResolver;
-	private readonly staticRoutes: StaticRoute[];
+	private readonly staticRoutes: ReadonlyArray<{ route: StaticRoute; pattern: SegmentPattern<'explicit'> }>;
 
 	constructor({ appConfig, routeRendererFactory, staticRoutes }: ExplicitStaticRouteMatcherOptions) {
 		this.appConfig = appConfig;
 		this.routeRendererFactory = routeRendererFactory;
-		this.staticRoutes = staticRoutes;
+		this.staticRoutes = staticRoutes.map((route) => ({
+			route,
+			pattern: compileSegmentPattern(route.path, 'explicit'),
+		}));
 	}
 
 	/**
@@ -50,8 +55,8 @@ export class ExplicitStaticRouteMatcher {
 	match(url: string, parsedPathSegments?: ParsedSegmentPath): ExplicitRouteMatch | null {
 		const pathSegments = parsedPathSegments ?? parseSegmentPath(new URL(url).pathname);
 
-		for (const route of this.staticRoutes) {
-			const params = matchParsedSegmentPath(route.path, pathSegments, 'explicit');
+		for (const { route, pattern } of this.staticRoutes) {
+			const params = matchParsedSegmentPath(pattern, pathSegments);
 			if (params !== null) {
 				return { route, params };
 			}
@@ -77,6 +82,7 @@ export class ExplicitStaticRouteMatcher {
 			} = await prepareExplicitStaticRender({
 				routePath: route.path,
 				view,
+				viewFile: route.loader.filePath,
 				params,
 				appConfig: this.appConfig,
 				runtimeOrigin: requireAppRuntime(this.appConfig).origin,

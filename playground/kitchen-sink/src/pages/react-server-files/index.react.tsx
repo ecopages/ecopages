@@ -18,10 +18,8 @@ export default eco.page<ReactServerFilesPageProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['../docs.css'],
 	},
-	staticProps: async ({ appConfig }) => {
-		return {
-			props: await buildPagesTreeSnapshot(join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir)),
-		};
+	props: async ({ appConfig }) => {
+		return await buildPagesTreeSnapshot(join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir));
 	},
 	metadata: () => ({
 		title: 'React Server Files',

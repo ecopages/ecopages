@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from '../../app-fixture';
 
@@ -44,6 +44,34 @@ test.describe('HMR E2E', () => {
 			await expect.poll(async () => readMainTitleColor(page), { timeout: 10000 }).toBe('rgb(255, 0, 0)');
 		} finally {
 			await writeFile(testCssFile, originalCss, { flush: true });
+		}
+	});
+
+	test('should fail a route file that exports no Page, and serve it once the file is fixed without a restart', async ({
+		app,
+		request,
+	}) => {
+		const routeFile = path.join(app.dir, 'src/pages/not-a-page.ts');
+
+		try {
+			await writeFile(routeFile, `export default function helper() {\n\treturn 'not a page';\n}\n`, {
+				flush: true,
+			});
+
+			await expect.poll(async () => (await request.get('/not-a-page')).status(), { timeout: 15_000 }).toBe(500);
+
+			expect(await (await request.get('/not-a-page')).text()).toContain('does not default-export a Page');
+
+			await writeFile(
+				routeFile,
+				`import { eco } from '@ecopages/core';\n\nexport default eco.page({ render: () => '<main id="fixed">fixed</main>' });\n`,
+				{ flush: true },
+			);
+
+			await expect.poll(async () => (await request.get('/not-a-page')).status(), { timeout: 15_000 }).toBe(200);
+			expect(await (await request.get('/not-a-page')).text()).toContain('id="fixed"');
+		} finally {
+			await rm(routeFile, { force: true });
 		}
 	});
 });

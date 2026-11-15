@@ -173,6 +173,19 @@ export interface BuildOptions {
 	 * The dev transform server sets `false`: it compiles one module at a time and points the URL at its own module URL.
 	 */
 	workerEntries?: boolean;
+	/**
+	 * Builds each `ssr: true` script a declaration lists as an entry of the same build. Server builds only; defaults to `false`.
+	 */
+	ssrScriptEntries?: boolean;
+	/**
+	 * Gives each installed package with at least `minSize` bytes of source in the build a chunk of its own, named
+	 * `vendor-<package>-[hash]`. Browser builds with code splitting only; off when unset.
+	 *
+	 * @remarks
+	 * A package's chunk holds that package's modules and their own dependencies, so its name and bytes do not change when app code does. A
+	 * smaller package stays with whatever shares it, as the bundler would place it.
+	 */
+	packageChunks?: { minSize: number };
 }
 
 /**

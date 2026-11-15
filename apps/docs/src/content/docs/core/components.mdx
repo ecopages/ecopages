@@ -62,6 +62,10 @@ export default eco.page({
 });
 ```
 
+## Browser scripts
+
+Name a browser script `<name>.script.ts` (or `.tsx`, `.js`, `.jsx`). The suffix declares a browser module and keeps the file out of routing, so it can sit beside the component or in `src/pages`. It attaches nothing by itself: a script reaches a page only when `dependencies.scripts` lists it, or an HTML Page loads it with `<script src>`. `ecopages build` warns about each `.script` file under `src` that no literal `dependencies.scripts` entry, HTML `<script src>` or attached script's import reaches, which is usually a typo in the path. A `src` computed at runtime, or a declaration in an MDX file, is not read, so its script is reported too. See [Files that are not routes](/docs/core/routing#files-that-are-not-routes).
+
 ## Lazy browser scripts
 
 Use a lazy declaration when a script should wait for an interaction or visibility trigger. Add `ssr: true` when the script registers a custom element that must render on the server (Radiant hosts and Lit elements).
@@ -72,7 +76,11 @@ dependencies: {
 }
 ```
 
-`lazy` controls browser delivery only; `ssr: true` still evaluates the script on the server so `customElements.define` runs before SSR. String-form `scripts: ['./browser-only.ts']` stays browser-only.
+`lazy` controls browser delivery only; `ssr: true` still evaluates the script on the server so `customElements.define` runs before SSR. String-form `scripts: ['./browser-only.ts']` stays browser-only. Write `src` and `ssr: true` as literals in the declaration: `ecopages build` reads them from the source to add the script to the server build, so a `src` computed at runtime fails the build.
+
+### Bare imports in browser modules
+
+On React sites, a bare side-effect import (`import '@scope/pkg/define-element'`) in a component, page, layout, script or helper stays in the browser bundle, whichever folder the file is in. Only `.server` modules and Node built-ins (`node:fs` or `fs`) are removed from the browser build. A server-only package such as `pg` stays, and the build fails with a `[browser-build] Node builtin` error that names your module, the chain of packages to the built-in and the `.server` fix. Stylesheet imports are delivered by Ecopages as CSS. `dependencies.modules` is not needed to keep a bare import.
 
 ### Troubleshooting custom element SSR
 

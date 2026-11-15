@@ -12,8 +12,8 @@ export const PostListView = eco.page<PostListViewProps>({
 		title: 'Posts | Explicit Routes',
 		description: 'List of all posts',
 	}),
-	staticProps: async () => {
-		return { props: { posts } };
+	props: async () => {
+		return { posts };
 	},
 	render: ({ posts }) => {
 		return (

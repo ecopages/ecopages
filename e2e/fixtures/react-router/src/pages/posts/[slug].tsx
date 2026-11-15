@@ -11,11 +11,9 @@ export default eco.page<{}, ReactNode>({
 		stylesheets: ['./slug.css'],
 	},
 
-	staticPaths: async () => ({
-		paths: [{ params: { slug: 'test-post' } }, { params: { slug: 'another-post' } }],
-	}),
+	paths: async () => [{ params: { slug: 'test-post' } }, { params: { slug: 'another-post' } }],
 
-	staticProps: async () => ({ props: {} }),
+	props: async () => ({}),
 
 	render: ({ params }) => {
 		const slug = params?.slug as string;

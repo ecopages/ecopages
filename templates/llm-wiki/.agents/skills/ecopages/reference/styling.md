@@ -46,4 +46,4 @@ import styles from './styles.css';
 
 - `src/includes/html.*` — document shell (`HtmlTemplateProps` with `children`, `metadata`, `pageProps`)
 - `src/includes/head.*` — head assets and metadata wiring
-- `src/layouts/` — page wrappers via `eco.page({ layout: BaseLayout })`
+- `src/layouts/` — a convention for layouts; a Page attaches one via `eco.page({ layout: BaseLayout })`

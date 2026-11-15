@@ -2,6 +2,7 @@ import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
+import { mdxPlugin } from '@ecopages/mdx';
 import { reactPlugin } from '@ecopages/react';
 
 export default defineConfig(() => ({
@@ -10,6 +11,7 @@ export default defineConfig(() => ({
 		kitajsPlugin(),
 		ecopagesJsxPlugin({ extensions: ['.eco.tsx'] }),
 		litPlugin(),
+		mdxPlugin({ compilerOptions: { jsxImportSource: '@kitajs/html' } }),
 		reactPlugin({ extensions: ['.react.tsx'] }),
 	],
 }));

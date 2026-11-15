@@ -7,16 +7,24 @@ import type { PageParams, PageQuery } from '../../types/contracts.ts';
 import { invariant } from '../../utils/invariant.ts';
 import { isProductionRuntime } from '../../env.ts';
 import { hasKnownStaticExtension } from '../../utils/static-file-extensions.ts';
-import { ENDPOINT_FILE_EXTENSIONS, findEndpointFileExtension } from '../../utils/endpoint-file-extensions.ts';
+import {
+	describeRoleForms,
+	ENDPOINT_FILE_EXTENSIONS,
+	findMisplacedRole,
+	matchRoleSuffix,
+	isPrivatePath,
+} from '../../utils/file-roles.ts';
 import { normalizePathname } from '../../utils/path-pattern.ts';
 import { parseSearchParams } from './parse-search-params.ts';
 import { findIntegrationForFile, findLongestExtension } from '../../plugins/find-integration-for-file.ts';
 import {
 	buildSegmentPath,
+	compileSegmentPattern,
 	matchParsedSegmentPath,
 	parseSegmentPath,
 	segmentPathPatternKey,
 	type ParsedSegmentPath,
+	type SegmentPattern,
 } from './segment-path-matcher.ts';
 
 export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
@@ -59,22 +67,19 @@ export type StaticGenerationRoute = {
 	readonly params: RouteParams;
 };
 
-export type StaticPathsContext = {
+export type PathsContext = {
 	readonly appConfig: EcoPagesAppConfig;
 	readonly runtimeOrigin: string;
 };
 
 export type RouteRegistryPageModule = {
-	readonly staticPaths?: (context: StaticPathsContext) => Promise<{
-		paths: Array<{ params: RouteParams }>;
-	}>;
-	readonly staticProps?: unknown;
+	readonly paths?: (context: PathsContext) => Promise<Array<{ params: RouteParams }>>;
 	/**
 	 * The Page's Cache Strategy.
 	 *
 	 * @remarks
 	 * `'dynamic'` Pages are omitted from Static Path Expansions (no HTML at Build-Time Rendering).
-	 * When they declare `staticPaths`, those Params are still listed for Page Browser Graph planning.
+	 * When they declare `paths`, those Params are still listed for Page Browser Graph planning.
 	 */
 	readonly cache?: unknown;
 };
@@ -106,6 +111,7 @@ export class RouteRegistry {
 	readonly buildMode: boolean;
 	private readonly pageModuleAdapter: RouteRegistryPageModuleAdapter;
 	private templateRouteList: TemplateRoute[] = [];
+	private routeMatchers: Array<{ route: TemplateRoute; pattern: SegmentPattern<'filesystem'> }> = [];
 	private readonly reloadListeners = new Set<() => void>();
 
 	constructor(options: RouteRegistryOptions) {
@@ -125,14 +131,33 @@ export class RouteRegistry {
 		return this.templateRouteList;
 	}
 
+	/**
+	 * True when `filePath` is the source file of a Page route.
+	 */
+	isPageFile(filePath: string): boolean {
+		const resolved = path.resolve(filePath);
+		return this.templateRouteList.some(
+			(route) => route.role === 'page' && path.resolve(route.filePath) === resolved,
+		);
+	}
+
 	private get pageRoutes(): TemplateRoute[] {
 		return this.templateRouteList.filter((route) => route.role === 'page');
 	}
 
 	async init(): Promise<void> {
 		const productionRoutes = isProductionRuntime() ? loadProductionTemplateRoutes(this.appConfig) : undefined;
-		this.templateRouteList = productionRoutes ?? (await this.scanTemplateRoutes());
+		this.useTemplateRoutes(productionRoutes ?? (await this.scanTemplateRoutes()));
 		appLogger.debug('RouteRegistry initialized', this.templateRouteList);
+	}
+
+	/** Sets the routes in match order, parsing each pattern once instead of per request. */
+	private useTemplateRoutes(routes: TemplateRoute[]): void {
+		this.templateRouteList = routes;
+		this.routeMatchers = routes.map((route) => ({
+			route,
+			pattern: compileSegmentPattern(route.pathname, 'filesystem'),
+		}));
 	}
 
 	async reload(): Promise<void> {
@@ -156,8 +181,8 @@ export class RouteRegistry {
 		const pathSegments = parsedPathSegments ?? parseSegmentPath(requestedPathname);
 		const query = this.getSearchParams(url);
 
-		for (const route of this.templateRouteList) {
-			const params = matchParsedSegmentPath(route.pathname, pathSegments, 'filesystem');
+		for (const { route, pattern } of this.routeMatchers) {
+			const params = matchParsedSegmentPath(pattern, pathSegments);
 			if (params) {
 				return {
 					requestedPathname,
@@ -210,14 +235,14 @@ export class RouteRegistry {
 
 	private async expandStaticPaths(
 		route: TemplateRoute,
-		staticPaths: NonNullable<RouteRegistryPageModule['staticPaths']>,
+		listParams: NonNullable<RouteRegistryPageModule['paths']>,
 		runtimeOrigin: string,
 	): Promise<StaticPathExpansion[]> {
-		const result = await staticPaths({
+		const result = await listParams({
 			appConfig: this.appConfig,
 			runtimeOrigin,
 		});
-		return result.paths.map(({ params }) => ({
+		return result.map(({ params }) => ({
 			pathname: buildSegmentPath(route.pathname, params, 'filesystem'),
 			templateRoute: route,
 			params,
@@ -228,7 +253,7 @@ export class RouteRegistry {
 		input: { runtimeOrigin: string },
 		options: {
 			include: (pageModule: RouteRegistryPageModule) => boolean;
-			requireStaticHooks: boolean;
+			requirePaths: boolean;
 		},
 	): Promise<readonly PathExpansion[]> {
 		const expansions: PathExpansion[] = [];
@@ -243,18 +268,17 @@ export class RouteRegistry {
 				continue;
 			}
 
-			const staticPaths = pageModule.staticPaths;
+			const listParams = pageModule.paths;
 
-			if (options.requireStaticHooks && this.buildMode) {
-				invariant(staticPaths !== undefined, `[ecopages] Missing staticPaths in ${route.filePath}`);
-				invariant(pageModule.staticProps !== undefined, `[ecopages] Missing staticProps in ${route.filePath}`);
+			if (options.requirePaths && this.buildMode) {
+				invariant(listParams !== undefined, `[ecopages] Missing paths in ${route.filePath}`);
 			}
 
-			if (!staticPaths) {
+			if (!listParams) {
 				continue;
 			}
 
-			expansions.push(...(await this.expandStaticPaths(route, staticPaths, input.runtimeOrigin)));
+			expansions.push(...(await this.expandStaticPaths(route, listParams, input.runtimeOrigin)));
 		}
 
 		return expansions;
@@ -263,22 +287,22 @@ export class RouteRegistry {
 	async listStaticPathExpansions(input: { runtimeOrigin: string }): Promise<readonly StaticPathExpansion[]> {
 		return this.listPathExpansions(input, {
 			include: (pageModule) => pageModule.cache !== 'dynamic',
-			requireStaticHooks: true,
+			requirePaths: true,
 		});
 	}
 
 	/**
-	 * Params of Dynamic Pages that declare `staticPaths`, for Page Browser Graph planning.
+	 * Params of Dynamic Pages that declare `paths`, for Page Browser Graph planning.
 	 *
 	 * @remarks
-	 * The return shape is {@link PathExpansion}, the same records `staticPaths` produces. They are
+	 * The return shape is {@link PathExpansion}, the same records `paths` produces. They are
 	 * not Static Path Expansions: HTML still uses Request-Time Rendering. The build uses them so
 	 * each Params list's graph scripts are in the production asset ledger.
 	 */
 	async listDynamicPagePathExpansions(input: { runtimeOrigin: string }): Promise<readonly PathExpansion[]> {
 		return this.listPathExpansions(input, {
-			include: (pageModule) => pageModule.cache === 'dynamic' && pageModule.staticPaths !== undefined,
-			requireStaticHooks: false,
+			include: (pageModule) => pageModule.cache === 'dynamic' && pageModule.paths !== undefined,
+			requirePaths: false,
 		});
 	}
 
@@ -303,6 +327,27 @@ export class RouteRegistry {
 		];
 	}
 
+	/**
+	 * Classifies `file`, relative to the pages directory, as a Page or an endpoint file, or `undefined` when it is no route.
+	 *
+	 * @remarks
+	 * Private files and `.server.*` and `.script.*` modules are not routes. Any other file with a role
+	 * segment out of place fails the build, naming the file and the expected form.
+	 */
+	private classifyRouteFile(file: string): { role: RouteRole; endpointExtension?: string } | undefined {
+		const match = matchRoleSuffix(file);
+		if (isPrivatePath(file) || match?.role === 'server' || match?.role === 'script') {
+			return undefined;
+		}
+
+		const misplacedRole = findMisplacedRole(file);
+		invariant(
+			misplacedRole === undefined,
+			`${path.join(this.pagesDir, file)}: the "${misplacedRole}" role segment must come directly before a script extension, as in ${describeRoleForms()}. Rename the file, or prefix it with "_" to keep it out of routing.`,
+		);
+		return match ? { role: 'endpoint', endpointExtension: match.suffix } : { role: 'page' };
+	}
+
 	private async scanTemplateRoutes(): Promise<TemplateRoute[]> {
 		if (!fileSystem.exists(this.pagesDir)) {
 			return [];
@@ -319,12 +364,12 @@ export class RouteRegistry {
 		const routesByKey = new Map<string, { pathname: string; filePath: string }>();
 
 		for await (const file of scannedFiles) {
-			if (file.includes('.ecopages-node.')) {
+			const classified = this.classifyRouteFile(file);
+			if (!classified) {
 				continue;
 			}
 
-			const endpointExtension = findEndpointFileExtension(file);
-			const role: RouteRole = endpointExtension ? 'endpoint' : 'page';
+			const { role, endpointExtension } = classified;
 			const routePathname = this.getRoutePath(file, endpointExtension);
 			const filePath = path.join(this.pagesDir, file);
 			const kind = this.classifyRouteKind(file);
@@ -352,7 +397,7 @@ export class RouteRegistry {
 					: undefined;
 			invariant(
 				owner?.acceptsParams !== false,
-				`${filePath}: ${findLongestExtension(owner?.extensions ?? [], filePath)} Pages cannot receive Params, so they cannot use dynamic route segments. Rename the file, or use an eco.page() Page from an Integration that supports staticPaths.`,
+				`${filePath}: ${findLongestExtension(owner?.extensions ?? [], filePath)} Pages cannot receive Params, so they cannot use dynamic route segments. Rename the file, or use an eco.page() Page from an Integration that supports paths.`,
 			);
 
 			templateRoutes.push({

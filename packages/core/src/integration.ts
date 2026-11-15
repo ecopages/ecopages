@@ -87,7 +87,7 @@ export {
 } from './route-renderer/orchestration/document-shell/document-shell-render.service.ts';
 export {
 	type QueuedForeignSubtreeResolutionContext,
-	resolveQueuedTokens,
+	type ResolveForeignSubtreeTokens,
 } from './route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts';
 export {
 	createIntegrationRenderer,

@@ -419,13 +419,6 @@ export class DevelopmentInvalidationService {
 		return isPathInside(resolvedPath, this.appConfig.absolutePaths.includesDir) && this.isSourceFile(resolvedPath);
 	}
 
-	/** Returns whether a file is an explicit server-rendered view module. */
-	isExplicitServerViewFile(filePath: string): boolean {
-		const resolvedPath = path.resolve(filePath);
-		const viewsDir = path.join(this.appConfig.absolutePaths.srcDir, 'views');
-		return isPathInside(resolvedPath, viewsDir) && this.isSourceFile(resolvedPath);
-	}
-
 	/** Returns whether a file under the source directory has an integration template extension. */
 	isTemplateSourceFile(filePath: string): boolean {
 		const resolvedPath = path.resolve(filePath);
@@ -448,11 +441,7 @@ export class DevelopmentInvalidationService {
 	 */
 	isServerModuleSourceFile(filePath: string): boolean {
 		const resolvedPath = path.resolve(filePath);
-		const sourceRoots = [
-			this.appConfig.absolutePaths.srcDir,
-			this.appConfig.absolutePaths.includesDir,
-			path.join(this.appConfig.absolutePaths.srcDir, 'views'),
-		];
+		const sourceRoots = [this.appConfig.absolutePaths.srcDir, this.appConfig.absolutePaths.includesDir];
 		return sourceRoots.some((root) => isPathInside(resolvedPath, root)) && this.isSourceFile(resolvedPath);
 	}
 

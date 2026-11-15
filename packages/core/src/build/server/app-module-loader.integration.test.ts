@@ -81,9 +81,7 @@ describe('app server module transpiler runtime state', () => {
 			rootDir,
 			absolutePaths: {
 				srcDir: path.join(rootDir, 'src'),
-				componentsDir,
 				includesDir: path.join(rootDir, 'src', 'includes'),
-				layoutsDir: path.join(rootDir, 'src', 'layouts'),
 				pagesDir,
 			},
 			integrations: [
@@ -145,9 +143,7 @@ describe('app server module transpiler runtime state', () => {
 			rootDir,
 			absolutePaths: {
 				srcDir: path.join(rootDir, 'src'),
-				componentsDir: path.join(rootDir, 'src', 'components'),
 				includesDir: path.join(rootDir, 'src', 'includes'),
-				layoutsDir: path.join(rootDir, 'src', 'layouts'),
 				pagesDir,
 			},
 			integrations: [],
@@ -209,9 +205,7 @@ describe('app server module transpiler runtime state', () => {
 			absolutePaths: {
 				projectDir: rootDir,
 				srcDir: path.join(rootDir, 'src'),
-				componentsDir: path.join(rootDir, 'src', 'components'),
 				includesDir: path.join(rootDir, 'src', 'includes'),
-				layoutsDir: path.join(rootDir, 'src', 'layouts'),
 				pagesDir,
 			},
 			integrations: [],
@@ -256,9 +250,7 @@ describe('app server module transpiler runtime state', () => {
 			rootDir,
 			absolutePaths: {
 				srcDir: path.join(rootDir, 'src'),
-				componentsDir: path.join(rootDir, 'src', 'components'),
 				includesDir: path.join(rootDir, 'src', 'includes'),
-				layoutsDir: path.join(rootDir, 'src', 'layouts'),
 				pagesDir,
 			},
 			integrations: [],

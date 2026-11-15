@@ -1,25 +1,27 @@
 import type { EcoComponentScriptEntry, EcoComponentStylesheetEntry } from '../../types/contracts.ts';
 import type { AssetDefinition } from '../../assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
+import { path } from '@ecopages/file-system/path';
 
-type CollectDeclaredAssetEntriesOptions = {
+/** One declared stylesheet or eager script, with the key that dedupes it within a collection pass. */
+export type DeclaredAsset = { kind: 'stylesheet' | 'script'; key: string; asset: AssetDefinition };
+
+type DeclareAssetEntriesOptions = {
 	stylesheetEntries: Array<string | EcoComponentStylesheetEntry>;
 	scriptEntries: Array<string | EcoComponentScriptEntry>;
 	componentDir: string;
-	dependencies: AssetDefinition[];
-	stylesheetDependencyKeys: Set<string>;
-	scriptDependencyKeys: Set<string>;
-	resolveDependencyPath: (componentDir: string, pathUrl: string) => string;
-	createModuleScriptAttributes: (attributes?: Record<string, string>) => Record<string, string>;
-	pushUniqueDependency: (
-		keys: Set<string>,
-		key: string,
-		dependencies: AssetDefinition[],
-		dependency: AssetDefinition,
-	) => boolean;
-	getInvalidStylesheetEntryMessage: () => string;
-	getInvalidScriptEntryMessage: () => string;
+	errors: { invalidStylesheetEntry: string; invalidScriptEntry: string };
 };
+
+/** Resolves a declared asset path against the directory of the component that declares it. */
+export function resolveDeclaredPath(componentDir: string, pathUrl: string): string {
+	return path.isAbsolute(pathUrl) ? pathUrl : path.join(componentDir, pathUrl);
+}
+
+/** Script attributes a declared module script gets unless it overrides them. */
+export function createModuleScriptAttributes(attributes?: Record<string, string>): Record<string, string> {
+	return { type: 'module', defer: '', ...attributes };
+}
 
 function isDependencyEntryObject(
 	entry: string | EcoComponentScriptEntry | EcoComponentStylesheetEntry,
@@ -27,127 +29,84 @@ function isDependencyEntryObject(
 	return typeof entry === 'object' && entry !== null;
 }
 
-function getDependencyEntrySrc(
-	entry: string | EcoComponentScriptEntry | EcoComponentStylesheetEntry,
-): string | undefined {
-	return isDependencyEntryObject(entry) ? entry.src : entry;
+function readEntry(entry: string | EcoComponentScriptEntry | EcoComponentStylesheetEntry): {
+	src?: string;
+	content?: string;
+	attributes?: Record<string, string>;
+} {
+	return isDependencyEntryObject(entry)
+		? { src: entry.src, content: entry.content, attributes: entry.attributes }
+		: { src: entry };
 }
 
-function getDependencyEntryContent(
-	entry: string | EcoComponentScriptEntry | EcoComponentStylesheetEntry,
-): string | undefined {
-	return isDependencyEntryObject(entry) ? entry.content : undefined;
+function declareStylesheet(
+	style: string | EcoComponentStylesheetEntry,
+	componentDir: string,
+	invalidEntry: string,
+): DeclaredAsset {
+	const { src, content, attributes } = readEntry(style);
+	if (content) {
+		return {
+			kind: 'stylesheet',
+			key: `style:content:${content}:${JSON.stringify(attributes ?? {})}`,
+			asset: AssetFactory.createContentStylesheet({ content, position: 'head', attributes }),
+		};
+	}
+	if (!src) throw new Error(invalidEntry);
+
+	const filepath = resolveDeclaredPath(componentDir, src);
+	return {
+		kind: 'stylesheet',
+		key: `style:file:${filepath}:${JSON.stringify(attributes ?? {})}`,
+		asset: AssetFactory.createFileStylesheet({
+			filepath,
+			position: 'head',
+			attributes: { rel: 'stylesheet', ...attributes },
+		}),
+	};
 }
 
-function getDependencyEntryAttributes(
-	entry: string | EcoComponentScriptEntry | EcoComponentStylesheetEntry,
-): Record<string, string> | undefined {
-	return isDependencyEntryObject(entry) ? entry.attributes : undefined;
+function declareScript(
+	script: string | EcoComponentScriptEntry,
+	componentDir: string,
+	invalidEntry: string,
+): DeclaredAsset {
+	const { src, content, attributes } = readEntry(script);
+	if (content) {
+		return {
+			kind: 'script',
+			key: `script:content:${content}:${JSON.stringify(attributes ?? {})}`,
+			asset: AssetFactory.createInlineContentScript({ position: 'head', content, bundle: false, attributes }),
+		};
+	}
+	if (!src) throw new Error(invalidEntry);
+
+	const filepath = resolveDeclaredPath(componentDir, src);
+	return {
+		kind: 'script',
+		key: `script:file:${filepath}:${JSON.stringify(attributes ?? {})}`,
+		asset: AssetFactory.createFileScript({
+			filepath,
+			position: 'head',
+			attributes: createModuleScriptAttributes(attributes),
+		}),
+	};
 }
 
 /**
- * Normalizes non-lazy stylesheet and script declarations into asset definitions.
+ * Normalizes a component's stylesheet and non-lazy script declarations into asset definitions, stylesheets first.
  *
- * Duplicate declarations are filtered through the provided key sets so callers can
- * compose this helper into larger recursive collection passes without re-emitting
- * the same asset multiple times.
+ * @remarks
+ * Each carries the key collection dedupes it by, so the same declaration from two components is emitted once.
  */
-export function collectDeclaredAssetEntries(options: CollectDeclaredAssetEntriesOptions): void {
-	const {
-		stylesheetEntries,
-		scriptEntries,
-		componentDir,
-		dependencies,
-		stylesheetDependencyKeys,
-		scriptDependencyKeys,
-		resolveDependencyPath,
-		createModuleScriptAttributes,
-		pushUniqueDependency,
-		getInvalidStylesheetEntryMessage,
-		getInvalidScriptEntryMessage,
-	} = options;
-
-	for (const style of stylesheetEntries) {
-		const content = getDependencyEntryContent(style);
-		const src = getDependencyEntrySrc(style);
-		const attributes = getDependencyEntryAttributes(style);
-
-		if (content) {
-			const depKey = `style:content:${content}:${JSON.stringify(attributes ?? {})}`;
-			pushUniqueDependency(
-				stylesheetDependencyKeys,
-				depKey,
-				dependencies,
-				AssetFactory.createContentStylesheet({
-					content,
-					position: 'head',
-					attributes,
-				}),
-			);
-			continue;
-		}
-
-		if (!src) {
-			throw new Error(getInvalidStylesheetEntryMessage());
-		}
-
-		const resolvedPath = resolveDependencyPath(componentDir, src);
-		const depKey = `style:file:${resolvedPath}:${JSON.stringify(attributes ?? {})}`;
-		pushUniqueDependency(
-			stylesheetDependencyKeys,
-			depKey,
-			dependencies,
-			AssetFactory.createFileStylesheet({
-				filepath: resolvedPath,
-				position: 'head',
-				attributes: {
-					rel: 'stylesheet',
-					...attributes,
-				},
-			}),
-		);
-	}
-
-	for (const script of scriptEntries) {
-		if (isDependencyEntryObject(script) && 'lazy' in script && script.lazy) {
-			continue;
-		}
-
-		const content = getDependencyEntryContent(script);
-		const src = getDependencyEntrySrc(script);
-		const attributes = getDependencyEntryAttributes(script);
-
-		if (content) {
-			const depKey = `script:content:${content}:${JSON.stringify(attributes ?? {})}`;
-			pushUniqueDependency(
-				scriptDependencyKeys,
-				depKey,
-				dependencies,
-				AssetFactory.createInlineContentScript({
-					position: 'head',
-					content,
-					bundle: false,
-					attributes,
-				}),
-			);
-			continue;
-		}
-
-		if (!src) {
-			throw new Error(getInvalidScriptEntryMessage());
-		}
-
-		const resolvedPath = resolveDependencyPath(componentDir, src);
-		const depKey = `script:file:${resolvedPath}:${JSON.stringify(attributes ?? {})}`;
-		pushUniqueDependency(
-			scriptDependencyKeys,
-			depKey,
-			dependencies,
-			AssetFactory.createFileScript({
-				filepath: resolvedPath,
-				position: 'head',
-				attributes: createModuleScriptAttributes(attributes),
-			}),
-		);
-	}
+export function declareAssetEntries(options: DeclareAssetEntriesOptions): DeclaredAsset[] {
+	const { componentDir, errors } = options;
+	return [
+		...options.stylesheetEntries.map((style) =>
+			declareStylesheet(style, componentDir, errors.invalidStylesheetEntry),
+		),
+		...options.scriptEntries
+			.filter((script) => !(isDependencyEntryObject(script) && 'lazy' in script && script.lazy))
+			.map((script) => declareScript(script, componentDir, errors.invalidScriptEntry)),
+	];
 }

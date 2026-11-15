@@ -97,36 +97,44 @@ describe('render-based type inference (React)', () => {
 });
 
 describe('render-based type inference for pages, layouts and html (React)', () => {
-	it('infers page props from staticProps and the element type from render', () => {
+	it('infers page props from props and the element type from render', () => {
 		const Page = eco.page({
-			staticProps: async () => ({ props: { title: 'x' } }),
+			props: async () => ({
+				title: 'x',
+			}),
 			metadata: ({ props }) => ({ title: props.title, description: 'd' }),
 			render: ({ title }) => <h1>{title}</h1>,
 		});
-		expectTypeOf(Page.staticProps).not.toBeAny();
+		expectTypeOf(Page.props).not.toBeAny();
 		expectTypeOf(Page).parameter(0).toMatchObjectType<{ title: string }>();
 	});
 
-	it('checks an annotated page render against staticProps', () => {
+	it('checks an annotated page render against props', () => {
 		eco.page({
-			staticProps: async () => ({ props: { title: 'x' } }),
-			// @ts-expect-error render props disagree with the staticProps return
+			props: async () => ({
+				title: 'x',
+			}),
+			// @ts-expect-error render props disagree with the props return
 			render: ({ title }: { title: number }) => <h1>{title}</h1>,
 		});
 	});
 
-	it('gives route params to a page without staticProps', () => {
+	it('gives route params to a page without props', () => {
 		eco.page({ render: async ({ params }) => <h1>{params?.slug}</h1> });
 	});
 
 	it('loses element inference with one explicit page type argument', () => {
 		eco.page<{ title: string }>({
-			staticProps: async () => ({ props: { title: 'x' } }),
+			props: async () => ({
+				title: 'x',
+			}),
 			// @ts-expect-error E falls back to EcoPagesElement, so a JSX render does not fit
 			render: ({ title }) => <h1>{title}</h1>,
 		});
 		eco.page<{ title: string }, ReactNode>({
-			staticProps: async () => ({ props: { title: 'x' } }),
+			props: async () => ({
+				title: 'x',
+			}),
 			render: ({ title }) => <h1>{title}</h1>,
 		});
 	});

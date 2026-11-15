@@ -39,12 +39,12 @@ async function readDevTransformModule(manager: HmrManager, entrypointPath: strin
 }
 
 describe('JsHmrStrategy integration', () => {
-	it('rebuilds a registered integration-suffixed script entrypoint on source change', async () => {
+	it('rebuilds a registered script entrypoint on source change', async () => {
 		const rootDir = createTempRoot('js-hmr-integration');
 		const componentsDir = path.join(rootDir, 'src', 'components', 'script-hmr');
 		fs.mkdirSync(componentsDir, { recursive: true });
 
-		const entrypointPath = path.join(componentsDir, 'widget.script.eco.tsx');
+		const entrypointPath = path.join(componentsDir, 'widget.script.tsx');
 		const writeMarker = (marker: string) => {
 			fs.writeFileSync(
 				entrypointPath,
@@ -75,7 +75,7 @@ describe('JsHmrStrategy integration', () => {
 
 		expect(manager.getWatchedFiles().has(path.resolve(entrypointPath))).toBe(true);
 		expect(manager.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl).toBe(
-			`${DEV_TRANSFORM_URL_PREFIX}/components/script-hmr/widget.script.eco.js`,
+			`${DEV_TRANSFORM_URL_PREFIX}/components/script-hmr/widget.script.js`,
 		);
 
 		const legacyOutputPath = path.join(
@@ -84,7 +84,7 @@ describe('JsHmrStrategy integration', () => {
 			HMR_RUNTIME_WORK_DIR_SEGMENT,
 			'components',
 			'script-hmr',
-			'widget.script.eco.js',
+			'widget.script.js',
 		);
 		expect(fs.existsSync(legacyOutputPath)).toBe(false);
 

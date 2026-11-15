@@ -10,6 +10,7 @@ import {
 	resetBenchBuildState,
 	importRouteModuleDiskCold,
 	loadKitchenSinkProductionConfig,
+	loadRouteModuleBenchConfig,
 	loadStaticBuildBenchConfig,
 	runBuildStatic,
 	runStaticSiteGeneration,
@@ -20,8 +21,6 @@ import {
 	resetRolldownBuildInvocationCounts,
 } from '../../../packages/core/src/build/rolldown/rolldown-build-invocation-metrics';
 import { withBenchEnv } from './lib/bench-env';
-
-process.env.NODE_ENV = 'production';
 
 const SERVER_ENTRY = path.join(KITCHEN_SINK_PATHS.root, 'app.ts');
 const REPRESENTATIVE_PAGES = Object.values(KITCHEN_SINK_REPRESENTATIVE_PAGES);
@@ -34,7 +33,7 @@ function resetBenchSessionState(): void {
 
 async function getBenchConfig(): Promise<Awaited<ReturnType<typeof loadStaticBuildBenchConfig>>> {
 	benchConfigPromise ??= (async () => {
-		const config = await loadStaticBuildBenchConfig();
+		const config = await loadRouteModuleBenchConfig();
 		for (const page of REPRESENTATIVE_PAGES) {
 			await importStaticPageWarm(config, page);
 		}
@@ -94,60 +93,51 @@ export function registerStaticBuildBench(): void {
 		});
 
 		bench('kitchen-sink buildStatic cold baseline (unified graph off, metrics)', async () => {
-			await withBenchEnv(
-				{ nodeEnv: 'production', unifiedPagesGraph: 'off', rolldownBuildMetrics: true },
-				async () => {
-					resetBenchSessionState();
-					const config = await loadStaticBuildBenchConfig();
-					resetBenchBuildState(config);
-					resetRolldownBuildInvocationCounts();
-					await runBuildStatic(config, { force: true });
-					if (getTotalRolldownBuildInvocations() === 0) {
-						throw new Error('Expected Rolldown build metrics to be recorded');
-					}
-				},
-			);
+			await withBenchEnv({ unifiedPagesGraph: 'off', rolldownBuildMetrics: true }, async () => {
+				resetBenchSessionState();
+				const config = await loadStaticBuildBenchConfig({ fresh: true });
+				resetBenchBuildState(config);
+				resetRolldownBuildInvocationCounts();
+				await runBuildStatic(config, { force: true });
+				if (getTotalRolldownBuildInvocations() === 0) {
+					throw new Error('Expected Rolldown build metrics to be recorded');
+				}
+			});
 		});
 
 		bench('kitchen-sink buildStatic cold unified graph (default on, metrics)', async () => {
-			await withBenchEnv(
-				{ nodeEnv: 'production', unifiedPagesGraph: 'default', rolldownBuildMetrics: true },
-				async () => {
-					resetBenchSessionState();
-					const config = await loadStaticBuildBenchConfig();
-					resetBenchBuildState(config);
-					resetRolldownBuildInvocationCounts();
-					await runBuildStatic(config, { force: true });
-					if (getPageModuleRolldownBuildInvocations() > 0) {
-						throw new Error(
-							`Expected zero per-page route-module Rolldown invocations, got ${getPageModuleRolldownBuildInvocations()}`,
-						);
-					}
-				},
-			);
+			await withBenchEnv({ unifiedPagesGraph: 'default', rolldownBuildMetrics: true }, async () => {
+				resetBenchSessionState();
+				const config = await loadStaticBuildBenchConfig({ fresh: true });
+				resetBenchBuildState(config);
+				resetRolldownBuildInvocationCounts();
+				await runBuildStatic(config, { force: true });
+				if (getPageModuleRolldownBuildInvocations() > 0) {
+					throw new Error(
+						`Expected zero per-page route-module Rolldown invocations, got ${getPageModuleRolldownBuildInvocations()}`,
+					);
+				}
+			});
 		});
 
 		bench('kitchen-sink StaticSiteGenerator.run cold unified graph (default on)', async () => {
-			await withBenchEnv(
-				{ nodeEnv: 'production', unifiedPagesGraph: 'default', rolldownBuildMetrics: true },
-				async () => {
-					resetBenchSessionState();
-					const config = await loadStaticBuildBenchConfig();
-					resetBenchBuildState(config);
-					resetRolldownBuildInvocationCounts();
-					await runStaticSiteGeneration(config, { force: true });
-					if (getPageModuleRolldownBuildInvocations() > 0) {
-						throw new Error(
-							`Expected zero per-page route-module Rolldown invocations during SSG, got ${getPageModuleRolldownBuildInvocations()}`,
-						);
-					}
-				},
-			);
+			await withBenchEnv({ unifiedPagesGraph: 'default', rolldownBuildMetrics: true }, async () => {
+				resetBenchSessionState();
+				const config = await loadStaticBuildBenchConfig({ fresh: true });
+				resetBenchBuildState(config);
+				resetRolldownBuildInvocationCounts();
+				await runStaticSiteGeneration(config, { force: true });
+				if (getPageModuleRolldownBuildInvocations() > 0) {
+					throw new Error(
+						`Expected zero per-page route-module Rolldown invocations during SSG, got ${getPageModuleRolldownBuildInvocations()}`,
+					);
+				}
+			});
 		});
 
 		bench('kitchen-sink buildStatic cold (full app, isolated dist)', async () => {
 			resetBenchSessionState();
-			const config = await loadStaticBuildBenchConfig();
+			const config = await loadStaticBuildBenchConfig({ fresh: true });
 			resetBenchBuildState(config);
 			await runBuildStatic(config, { force: true });
 		});
@@ -156,7 +146,7 @@ export function registerStaticBuildBench(): void {
 	if (process.env.ECOPAGES_BENCH_PRODUCTION_DIST === '1') {
 		group('static-build-bench production dist', () => {
 			bench('kitchen-sink buildStatic cold (full app, production dist/)', async () => {
-				const config = await loadKitchenSinkProductionConfig();
+				const config = await loadKitchenSinkProductionConfig({ fresh: true });
 				resetBenchBuildState(config);
 				await runBuildStatic(config, { force: true });
 			});

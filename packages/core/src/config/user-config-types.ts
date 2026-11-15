@@ -81,13 +81,6 @@ export type EcoPagesUserConfig = {
 	includesDir?: string;
 
 	/**
-	 * Directory containing layout components, relative to `srcDir`.
-	 *
-	 * @default 'layouts'
-	 */
-	layoutsDir?: string;
-
-	/**
 	 * Output root for the production build, relative to `rootDir`. Public files are written to `client/` and private server output to `server/` beneath it.
 	 *
 	 * @default 'dist'
@@ -100,13 +93,6 @@ export type EcoPagesUserConfig = {
 	 * @default '.eco'
 	 */
 	workDir?: string;
-
-	/**
-	 * Directory containing island and client components, relative to `srcDir`.
-	 *
-	 * @default 'components'
-	 */
-	componentsDir?: string;
 
 	/**
 	 * Configuration for automatic `robots.txt` generation.

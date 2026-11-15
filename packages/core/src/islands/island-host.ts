@@ -62,6 +62,12 @@ export function componentRenderHasIslandBootstrap(assets: Array<{ kind: string }
 	return (assets ?? []).some((asset) => asset.kind === 'script');
 }
 
+type IslandHostRenderResult = {
+	canAttachAttributes: boolean;
+	integrationName: string;
+	rootAttributes?: Record<string, string>;
+};
+
 /**
  * Stamps the render result's root as an Island Host when the component ships its own client script.
  *
@@ -69,19 +75,25 @@ export function componentRenderHasIslandBootstrap(assets: Array<{ kind: string }
  * and the Foreign Subtrees rendered inside it.
  * @remarks A component without scripts that wraps an island is not an island itself.
  */
-export function finalizeIslandComponentRender<
-	T extends {
-		canAttachAttributes: boolean;
-		integrationName: string;
-		rootAttributes?: Record<string, string>;
-	},
->(
+export function finalizeIslandComponentRender<T extends IslandHostRenderResult>(
 	input: { integrationContext?: { componentInstanceId?: string } },
 	result: T,
 	ownAssets: Array<{ kind: string }> | undefined,
 ): T {
+	return stampIslandHost(input, result, componentRenderHasIslandBootstrap(ownAssets));
+}
+
+/**
+ * Stamps the render result's root as an Island Host when `shipsScript` says the component ships its own client
+ * script and the render carries a component instance id.
+ */
+export function stampIslandHost<T extends IslandHostRenderResult>(
+	input: { integrationContext?: { componentInstanceId?: string } },
+	result: T,
+	shipsScript: boolean,
+): T {
 	const componentInstanceId = input.integrationContext?.componentInstanceId;
-	if (!componentInstanceId || !result.canAttachAttributes || !componentRenderHasIslandBootstrap(ownAssets)) {
+	if (!componentInstanceId || !result.canAttachAttributes || !shipsScript) {
 		return result;
 	}
 

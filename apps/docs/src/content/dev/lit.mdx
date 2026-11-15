@@ -95,7 +95,7 @@ sequenceDiagram
 - `ECOPAGES_LIT_STATIC_RENDER_WORKER=true` makes the worker skip processor `.setup()`; the main thread already prepared artifacts. Integration setup still runs in the worker.
 - Teardown disposes the session; the release returned by `staticExport()` does the same so no worker outlives the export.
 
-`staticExport()` throws without `appConfig.absolutePaths.config`, and passes the export's output and work directories with `context.baseUrl`. That triple is the worker's identity: a later start with the same identity reuses the worker, a different one disposes it and starts another. The `init` message carries the directories, so the worker reads the ledger of the build it exports even when the configured `distDir` holds an earlier build. Renders run one at a time, and a render that finds the module loader's development generation changed restarts the worker first.
+`staticExport()` throws without `appConfig.absolutePaths.config`, and passes the export's output and work directories with `context.baseUrl`. That triple is the worker's identity: a later start with the same identity reuses the worker, a different one disposes it and starts another. The `init` message carries the directories, so the worker reads the ledger of the build it exports even when the configured `distDir` holds an earlier build. The generator starts the export without awaiting it and waits for it only before the first Page render, so the worker boots while the browser graph is planned and built; a failed export still fails the build. Renders run one at a time, and a render that finds the module loader's development generation changed restarts the worker first.
 
 | Message | Direction | Purpose |
 | --- | --- | --- |

@@ -2,6 +2,7 @@ import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { getComponentOwner } from '../eco/component-identity.ts';
 import { ensureIntegrationRuntimeReady } from '../build/app-build-manifest-runtime.ts';
 import type { EcoFunctionComponent, EcoPageComponent } from '../types/contracts.ts';
+import { assertViewDeclaredIn } from './page-declaration.ts';
 import type { ExplicitViewRenderer, ExplicitViewRendererResolver } from './route-renderer.ts';
 
 type ExplicitStaticRenderPreparationResult = {
@@ -11,21 +12,24 @@ type ExplicitStaticRenderPreparationResult = {
 };
 
 /**
- * Resolves the renderer for one explicit view without reading its static props.
+ * Resolves the renderer for one explicit view without reading its `props` hook.
  *
  * @remarks
- * Static export planning calls this so a dynamic route whose `staticProps`
+ * Static export planning calls this so a dynamic route whose `props`
  * reads params is not invoked before a slug exists.
  */
 export function resolveExplicitViewRenderer(input: {
 	routePath: string;
 	view: EcoPageComponent<any>;
+	/** Source file the view was loaded from and the app root, when known; the view must declare its Page there. */
+	declaredIn?: { file: string; rootDir: string };
 	routeRendererFactory: ExplicitViewRendererResolver;
 	errors: {
 		missingIntegration(routePath: string): string;
 		noRendererForIntegration(integrationName: string): string;
 	};
 }): { renderer: ExplicitViewRenderer; view: EcoFunctionComponent<Record<string, unknown>, any> } {
+	if (input.declaredIn) assertViewDeclaredIn(input.declaredIn.file, input.view, input.declaredIn.rootDir);
 	const integrationName = getComponentOwner(input.view);
 	if (!integrationName) {
 		throw new Error(input.errors.missingIntegration(input.routePath));
@@ -43,12 +47,14 @@ export function resolveExplicitViewRenderer(input: {
 }
 
 /**
- * Resolves the renderer and static props needed to render one explicit static
+ * Resolves the renderer and props needed to render one explicit static
  * view at runtime or during static generation.
  */
 export async function prepareExplicitStaticRender(input: {
 	routePath: string;
 	view: EcoPageComponent<any>;
+	/** Source file the view was loaded from, when known. */
+	viewFile?: string;
 	params: Record<string, string | string[]>;
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
@@ -65,16 +71,17 @@ export async function prepareExplicitStaticRender(input: {
 			integrationName,
 		});
 	}
-	const { renderer, view } = resolveExplicitViewRenderer(input);
+	const { renderer, view } = resolveExplicitViewRenderer({
+		...input,
+		declaredIn: input.viewFile ? { file: input.viewFile, rootDir: input.appConfig.rootDir } : undefined,
+	});
 
-	const props = input.view.staticProps
-		? (
-				await input.view.staticProps({
-					pathname: { params: input.params },
-					appConfig: input.appConfig,
-					runtimeOrigin: input.runtimeOrigin,
-				})
-			).props
+	const props = input.view.props
+		? await input.view.props({
+				params: input.params,
+				appConfig: input.appConfig,
+				runtimeOrigin: input.runtimeOrigin,
+			})
 		: {};
 
 	return {

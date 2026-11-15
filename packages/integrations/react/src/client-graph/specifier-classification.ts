@@ -4,7 +4,7 @@
 
 import { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from '@ecopages/core/build';
 import { toPackageRootSpecifier } from '@ecopages/core/build';
-import { isContentServerVirtualModule } from '@ecopages/core/build';
+import { isContentServerVirtualModule, isNodeBuiltinSpecifier } from '@ecopages/core/build';
 import { isServerOnlyModuleSpecifier } from '@ecopages/core/build/contracts';
 import { path } from '@ecopages/file-system/path';
 
@@ -40,7 +40,7 @@ export function isProjectAliasSpecifier(specifier: string, projectRoot?: string)
  * @returns True when the import must never become client-reachable.
  */
 export function isServerOnlySpecifier(specifier: string): boolean {
-	if (specifier.startsWith('node:')) return true;
+	if (isNodeBuiltinSpecifier(specifier)) return true;
 	if (isContentServerVirtualModule(specifier)) return true;
 	return isServerOnlyModuleSpecifier(specifier);
 }

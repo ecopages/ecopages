@@ -53,7 +53,7 @@ describe('explicit views rendered through real renderers', () => {
 
 	function createView(
 		render: (props: Record<string, any>) => string,
-		hooks: Partial<Pick<EcoPageComponent<any>, 'staticProps' | 'metadata'>> = {},
+		hooks: Partial<Pick<EcoPageComponent<any>, 'props' | 'metadata'>> = {},
 	): EcoPageComponent<any> & EcoFunctionComponent<any, any> {
 		const view = ((props: Record<string, any>) => render(props)) as EcoPageComponent<any> &
 			EcoFunctionComponent<any, any>;
@@ -80,14 +80,14 @@ describe('explicit views rendered through real renderers', () => {
 		expect(html).toContain('<p>ada|intro|2</p>');
 	});
 
-	it('runs the view metadata with the render props, params and no static props', async () => {
+	it('runs the view metadata with the render props, params and no hook props', async () => {
 		const { plugin } = await createPlugin();
-		const staticProps = vi.fn(async () => ({ props: { fromHook: true } }));
+		const props = vi.fn(async () => ({ fromHook: true }));
 		const metadata = vi.fn(async ({ props, params }: any) => ({
 			title: `${props.title}-${params.slug}`,
 			description: 'd',
 		}));
-		const view = createView(() => '<p>view</p>', { staticProps, metadata });
+		const view = createView(() => '<p>view</p>', { props, metadata });
 		const handler = {
 			...createRenderContext({ integrations: [plugin] }),
 			params: { slug: 'intro' },
@@ -95,18 +95,18 @@ describe('explicit views rendered through real renderers', () => {
 
 		await handler.render(view, { title: 'Explicit' });
 
-		expect(staticProps).not.toHaveBeenCalled();
+		expect(props).not.toHaveBeenCalled();
 		expect(metadata).toHaveBeenCalledTimes(1);
 		expect(metadata).toHaveBeenCalledWith(
 			expect.objectContaining({ props: { title: 'Explicit' }, params: { slug: 'intro' } }),
 		);
 	});
 
-	it('runs staticProps and metadata once for an explicit static route', async () => {
+	it('runs props and metadata once for an explicit static route', async () => {
 		const { plugin, appConfig } = await createPlugin();
-		const staticProps = vi.fn(async ({ pathname }: any) => ({ props: { title: pathname.params.slug } }));
+		const props = vi.fn(async ({ params }: any) => ({ title: params.slug }));
 		const metadata = vi.fn(async ({ props }: any) => ({ title: String(props.title), description: 'd' }));
-		const view = createView(({ title }) => `<p>${title}</p>`, { staticProps, metadata });
+		const view = createView(({ title }) => `<p>${title}</p>`, { props, metadata });
 		const matcher = new ExplicitStaticRouteMatcher({
 			appConfig,
 			routeRendererFactory: { getExplicitViewRenderer: () => plugin.getRenderer() as never },
@@ -117,7 +117,7 @@ describe('explicit views rendered through real renderers', () => {
 		const html = await (await matcher.handleMatch(match!)).text();
 
 		expect(html).toContain('<p>intro</p>');
-		expect(staticProps).toHaveBeenCalledTimes(1);
+		expect(props).toHaveBeenCalledTimes(1);
 		expect(metadata).toHaveBeenCalledTimes(1);
 	});
 

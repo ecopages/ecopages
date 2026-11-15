@@ -11,15 +11,13 @@ export const PostView = eco.page<PostViewProps>({
 		title: `${props.title} | Explicit Routes`,
 		description: 'A dedicated post page',
 	}),
-	staticPaths: async () => {
-		return {
-			paths: posts.map((post) => ({ params: { slug: post.slug } })),
-		};
+	paths: async () => {
+		return posts.map((post) => ({ params: { slug: post.slug } }));
 	},
-	staticProps: async ({ pathname }) => {
-		const post = posts.find((p) => p.slug === (pathname.params.slug as string));
+	props: async ({ params }) => {
+		const post = posts.find((p) => p.slug === (params.slug as string));
 		if (!post) throw HttpError.NotFound('Post not found');
-		return { props: post };
+		return post;
 	},
 	render: ({ title, content }) => (
 		<article class="prose lg:prose-xl">

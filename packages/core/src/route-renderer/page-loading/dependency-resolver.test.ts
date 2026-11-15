@@ -18,6 +18,7 @@ import { collectPageClientPlan } from '../orchestration/ownership-graph/page-cli
 import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
 import { packagePageDependencies } from './page-dependency-bundling.ts';
 import { deduplicateAssetDependencies } from '../../assets/asset-processing-service/asset-dependency-keys.ts';
+import { bindComponentIdentity } from '../../eco/component-identity.ts';
 
 describe('DependencyResolverService', () => {
 	const appConfig = {
@@ -37,6 +38,23 @@ describe('DependencyResolverService', () => {
 		expect(service.resolveLazyScripts(path.resolve('/app/components/card'), ['./client.ts', './widget.tsx'])).toBe(
 			'/assets/components/card/client.js,/assets/components/card/widget.js',
 		);
+	});
+
+	it('finds a script of its own in a component or a same-Integration child, never in a Foreign Child', () => {
+		const service = new DependencyResolverService(appConfig, {} as AssetProcessingService);
+		const component = (id: string, integration: string, dependencies: EcoComponentDependencies): EcoComponent => {
+			const value = (() => '') as EcoComponent;
+			value.config = { identity: { id, file: path.resolve(`/app/${id}.tsx`), integration }, dependencies };
+			return value;
+		};
+		const foreignIsland = component('foreign', 'react', { scripts: ['./foreign.js'] });
+		const wrapper = component('wrapper', 'kita', { components: [foreignIsland] });
+		const ownScriptChild = component('child', 'kita', { modules: ['some-lib'] });
+		const host = component('host', 'kita', { components: [ownScriptChild] });
+
+		expect(service.componentShipsScript(wrapper, 'kita')).toBe(false);
+		expect(service.componentShipsScript(host, 'kita')).toBe(true);
+		expect(service.componentShipsScript(foreignIsland, 'react')).toBe(true);
 	});
 
 	it('processes prepared graph nodes without recursively revisiting nested components', async () => {
@@ -314,16 +332,7 @@ describe('DependencyResolverService', () => {
 		expect(secondContent).toBe(firstContent);
 	});
 
-	it('should detect ecopages virtual imports via parser', async () => {
-		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'ecopages-dependency-resolver-')));
-		const componentFile = path.join(tempDir, 'component.tsx');
-
-		writeFileSync(
-			componentFile,
-			"import { heroImage as imageAsset } from 'ecopages:images';\nexport const ok = imageAsset.src;\n",
-			'utf-8',
-		);
-
+	it('emits a module script for each browser ecopages virtual import discovery recorded, without reading the source', async () => {
 		let capturedDeps: AssetDefinition[] = [];
 		const assetProcessingService = {
 			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
@@ -333,25 +342,27 @@ describe('DependencyResolverService', () => {
 		} as unknown as AssetProcessingService;
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
-		component.config = {
-			identity: {
-				id: 'component',
-				integration: 'react',
-				file: componentFile,
+		component.config = bindComponentIdentity(
+			{ id: 'component', integration: 'react', file: 'src/missing/component.tsx' },
+			{},
+			{
+				components: () => [],
+				stylesheets: [],
+				virtualImports: [
+					{ from: 'ecopages:images', imports: ['heroImage'] },
+					{ from: 'ecopages:content/docs/server', imports: ['getComponent'] },
+				],
 			},
-		};
+		);
 
-		try {
-			await service.processComponentDependencies([component], 'react');
+		await service.processComponentDependencies([component], 'react');
 
-			const contentScripts = capturedDeps.filter(
-				(dep): dep is ContentScriptAsset => dep.kind === 'script' && dep.source === 'content',
-			);
-
-			expect(contentScripts.some((script) => script.content.includes("from 'ecopages:images';"))).toBe(true);
-		} finally {
-			rmSync(tempDir, { recursive: true, force: true });
-		}
+		const contentScripts = capturedDeps.filter(
+			(dep): dep is ContentScriptAsset => dep.kind === 'script' && dep.source === 'content',
+		);
+		expect(contentScripts.map((script) => script.content)).toEqual([
+			"export { heroImage } from 'ecopages:images';",
+		]);
 	});
 
 	it('holds lazy client entries for the page client build instead of processing them with eager scripts', async () => {

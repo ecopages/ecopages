@@ -19,7 +19,6 @@ import { findIntegrationForFile } from '../../plugins/find-integration-for-file.
 import { buildOrThrow } from '../runtime/build-queue.ts';
 import { createServerBuildRequest } from '../runtime/build-request-policy.ts';
 import { getBuildEntryOutput } from '../build-graph.ts';
-import type { BuildSuccess } from '../build-adapter.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { ErrorPageLoaders, StaticRoute } from '../../types/contracts.ts';
 import { contentHash } from '../../utils/content-hash.ts';
@@ -33,7 +32,6 @@ import { getServerBundleOutputPaths } from '../server-bundle-deploy-manifest.ts'
 import { ensureProductionBuildId } from '../production-build-id.ts';
 import {
 	collectServerModuleEntries,
-	collectSsrScriptPaths,
 	isRolldownServerModuleEntry,
 	type ServerModuleEntryRouteSource,
 } from './server-module-entries.ts';
@@ -129,9 +127,9 @@ async function emitRolldownServerModules(
 	appConfig: EcoPagesAppConfig,
 	entryPaths: readonly string[],
 	outdir: string,
-): Promise<{ modules: Record<string, string>; outputGraph: BuildSuccess['outputGraph'] }> {
+): Promise<{ modules: Record<string, string>; sources: string[] }> {
 	if (entryPaths.length === 0) {
-		return { modules: {}, outputGraph: {} };
+		return { modules: {}, sources: [] };
 	}
 
 	const entryRecord: Record<string, string> = {};
@@ -147,6 +145,7 @@ async function emitRolldownServerModules(
 		preserveModules: true,
 		preserveModulesRoot: appConfig.rootDir,
 		naming: '[name]-[hash].[ext]',
+		ssrScriptEntries: true,
 	});
 	const buildResult = await buildOrThrow(appConfig, buildOptions, 'Pages unified graph build failed').finally(() =>
 		appLogger.debugTimeEnd('pagesUnifiedGraphBuild'),
@@ -160,32 +159,16 @@ async function emitRolldownServerModules(
 		}
 		modules[toRootRelativePath(appConfig.rootDir, entryPath)] = toRootRelativePath(outdir, compiledOutput);
 	}
-	return { modules, outputGraph: buildResult.outputGraph };
-}
-
-function findEmittedModulePath(outputGraph: BuildSuccess['outputGraph'], sourcePath: string): string | undefined {
-	const resolvedSource = path.resolve(sourcePath);
-	for (const [outputPath, chunk] of Object.entries(outputGraph)) {
-		if (chunk.modules.includes(resolvedSource)) {
-			return outputPath;
+	for (const [outputPath, chunk] of Object.entries(buildResult.outputGraph)) {
+		if (chunk.isEntry && chunk.facadeModuleId) {
+			modules[toRootRelativePath(appConfig.rootDir, chunk.facadeModuleId)] ??= toRootRelativePath(
+				outdir,
+				outputPath,
+			);
 		}
 	}
-	return undefined;
-}
-
-async function importEmittedModules(
-	manifest: ProductionServerModulesManifest,
-	sourceKeys: readonly string[],
-): Promise<unknown[]> {
-	const modules: unknown[] = [];
-	for (const sourceKey of sourceKeys) {
-		const relativePath = manifest.modules[sourceKey];
-		if (!relativePath) {
-			continue;
-		}
-		modules.push(await import(/* @vite-ignore */ path.toFileUrl(path.join(manifest.outdir, relativePath)).href));
-	}
-	return modules;
+	const sources = [...new Set(Object.values(buildResult.dependencyGraph.entrypoints).flat())];
+	return { modules, sources };
 }
 
 function assignProductionServerModules(appConfig: EcoPagesAppConfig, manifest: ProductionServerModulesManifest): void {
@@ -197,12 +180,8 @@ function assignProductionServerModules(appConfig: EcoPagesAppConfig, manifest: P
  * Emits every production server entry into `outdir` and writes `server-modules.json`.
  *
  * @remarks
- * Imports the emitted Rolldown modules to discover extra `ssr: true` scripts, so
- * Integrations are activated first; Core installs the configured server DOM
- * before their `setup()`. A discovered script already bundled into the first
- * emit maps to that output. Otherwise a second emit adds the scripts; preserved
- * modules keep their output path across both emits, so a module imported after
- * the first emit is not evaluated again from a second copy.
+ * The `ssr: true` scripts that declarations list are entries of the same build (see
+ * `createSsrScriptEntriesPlugin`), so every module is bundled once and none is evaluated from two copies.
  */
 export async function emitProductionServerModules(options: {
 	appConfig: EcoPagesAppConfig;
@@ -210,6 +189,8 @@ export async function emitProductionServerModules(options: {
 	staticRoutes?: readonly StaticRoute[];
 	errorPageLoaders?: ErrorPageLoaders;
 	outdir?: string;
+	/** Receives the project and package source files the server build bundled, after it succeeds. */
+	onServerSources?: (sources: readonly string[]) => void | Promise<void>;
 }): Promise<ProductionServerModulesManifest> {
 	const appConfig = options.appConfig;
 	requireBrowserBuildGlobalScriptResolution(appConfig);
@@ -217,7 +198,7 @@ export async function emitProductionServerModules(options: {
 	const outdir = path.resolve(options.outdir ?? getServerBundleOutputPaths(appConfig).serverOutdir);
 	fileSystem.ensureDir(outdir);
 
-	const collected = await collectServerModuleEntries({
+	const collected = collectServerModuleEntries({
 		appConfig,
 		router: options.router,
 		staticRoutes: options.staticRoutes,
@@ -227,55 +208,20 @@ export async function emitProductionServerModules(options: {
 	const rolldownEntries = collected.filter((entryPath) => isRolldownServerModuleEntry(entryPath, appConfig));
 	const htmlEntries = collected.filter((entryPath) => !isRolldownServerModuleEntry(entryPath, appConfig));
 
-	const modules: Record<string, string> = {};
-	const initialEmit = await emitRolldownServerModules(appConfig, uniqueEntryPaths(rolldownEntries), outdir);
-	Object.assign(modules, initialEmit.modules);
+	const { modules, sources } = await emitRolldownServerModules(appConfig, uniqueEntryPaths(rolldownEntries), outdir);
+	await options.onServerSources?.(sources);
 
 	for (const htmlEntry of uniqueEntryPaths(htmlEntries)) {
 		const emitted = await emitCompiledPageModule(appConfig, htmlEntry, outdir);
 		modules[emitted.sourceKey] = emitted.relativePath;
 	}
 
-	let manifest: ProductionServerModulesManifest = {
+	const manifest: ProductionServerModulesManifest = {
 		outdir,
 		buildId: ensureProductionBuildId(appConfig),
 		modules,
 	};
 	assignProductionServerModules(appConfig, manifest);
-
-	const discoveredScripts = collectSsrScriptPaths(
-		await importEmittedModules(
-			manifest,
-			rolldownEntries.map((entryPath) => toRootRelativePath(appConfig.rootDir, entryPath)),
-		),
-		appConfig.rootDir,
-	).filter(
-		(scriptPath) =>
-			fileSystem.exists(scriptPath) && !(toRootRelativePath(appConfig.rootDir, scriptPath) in modules),
-	);
-
-	if (discoveredScripts.length > 0) {
-		const scriptsToEmit: string[] = [];
-		for (const scriptPath of discoveredScripts) {
-			const existingOutput = findEmittedModulePath(initialEmit.outputGraph, scriptPath);
-			if (existingOutput) {
-				modules[toRootRelativePath(appConfig.rootDir, scriptPath)] = toRootRelativePath(outdir, existingOutput);
-			} else {
-				scriptsToEmit.push(scriptPath);
-			}
-		}
-		if (scriptsToEmit.length > 0) {
-			const emittedModules = await emitRolldownServerModules(
-				appConfig,
-				uniqueEntryPaths([...rolldownEntries, ...scriptsToEmit]),
-				outdir,
-			);
-			Object.assign(modules, emittedModules.modules);
-		}
-		manifest = { outdir, buildId: ensureProductionBuildId(appConfig), modules };
-		assignProductionServerModules(appConfig, manifest);
-	}
-
 	writeProductionServerModulesManifest(manifest);
 
 	appLogger.debug(`Emitted ${Object.keys(modules).length} production server modules`);

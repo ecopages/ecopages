@@ -124,7 +124,7 @@ describe('DevelopmentInvalidationService', () => {
 				},
 			},
 			{
-				filePath: path.join(appConfig.absolutePaths.componentsDir, 'Button.tsx'),
+				filePath: path.join(appConfig.absolutePaths.srcDir, 'components', 'Button.tsx'),
 				expected: {
 					category: 'source',
 					invalidateServerModules: true,

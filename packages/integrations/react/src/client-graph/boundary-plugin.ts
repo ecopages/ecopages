@@ -229,7 +229,6 @@ async function loadClientGraphBoundaryModule(
 	options: NormalizedClientGraphBoundaryOptions,
 	state: PlanState,
 	transforms: () => (filePath: string) => boolean,
-	isEntrypoint = options.entrypointFile === path.resolve(options.absWorkingDir, args.path),
 ) {
 	const sourcePath = path.resolve(options.absWorkingDir, args.path);
 	if (
@@ -263,7 +262,6 @@ async function loadClientGraphBoundaryModule(
 		category,
 		globallyDeclaredSources,
 		requestedExports: plan?.requestedExports(sourcePath),
-		preserveUnreachableSideEffectImports: !isEntrypoint,
 	});
 }
 
@@ -458,14 +456,7 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 				const transforms = () => (filePath: string) =>
 					isTransformedSource(filePath, normalizedOptions.projectRoot);
 				build.onLoad(SOURCE_FILES, (loaded) =>
-					loadClientGraphBoundaryModule(
-						build,
-						stripVariant(loaded),
-						normalizedOptions,
-						state,
-						transforms,
-						entrypointFiles.has(path.resolve(normalizedOptions.absWorkingDir, stripVariant(loaded).path)),
-					),
+					loadClientGraphBoundaryModule(build, stripVariant(loaded), normalizedOptions, state, transforms),
 				);
 				return;
 			}
@@ -536,7 +527,7 @@ export function createForeignBoundaryPlugin(options: {
 				};
 			});
 			build.transform({ filter: /\.(?:[cm]?[jt]sx?|mdx?)$/, exclude: /^\0|\/node_modules\// }, (code, id) => {
-				const filePath = toRealPath(id.replace(/[?#].*$/, ''));
+				const filePath = id.replace(/[?#].*$/, '');
 				if (options.isForeignFile(filePath)) return undefined;
 				const context = build.entrypoints ? buildContexts.get(build.entrypoints) : undefined;
 				const reach =

@@ -6,8 +6,8 @@ import { getEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
 
 export type EcopagesJsxHmrStrategyContext = HmrRegisteredEntrypointsContext & {
 	getSrcDir(): string;
-	getPagesDir(): string;
-	getLayoutsDir(): string;
+	isPageFile(filePath: string): boolean;
+	isLayoutFile(filePath: string): boolean;
 	getIncludesDir(): string;
 	getTemplateExtensions(): ReadonlyArray<string>;
 };
@@ -74,18 +74,7 @@ export class EcopagesJsxHmrStrategy extends HmrStrategy {
 	}
 
 	private isPageOrLayoutSource(resolvedPath: string): boolean {
-		const pagesDir = path.resolve(this.context.getPagesDir());
-		const layoutsDir = path.resolve(this.context.getLayoutsDir());
-
-		if (pagesDir && (resolvedPath === pagesDir || resolvedPath.startsWith(`${pagesDir}/`))) {
-			return true;
-		}
-
-		if (layoutsDir && (resolvedPath === layoutsDir || resolvedPath.startsWith(`${layoutsDir}/`))) {
-			return true;
-		}
-
-		return false;
+		return this.context.isPageFile(resolvedPath) || this.context.isLayoutFile(resolvedPath);
 	}
 
 	private hasJsxTemplateExtension(resolvedPath: string): boolean {

@@ -18,6 +18,9 @@ import { getAssetDependencyKey, getDeclaredDependencyKey } from './asset-process
 import type { AssetDefinition, ProcessedAsset, ScriptAsset } from './asset-processing-service/assets.types.ts';
 import { isBundleableScript } from './asset-processing-service/bundleable-script.ts';
 
+/** Source bytes from which an installed package gets a chunk of its own in the app-wide build. */
+const PACKAGE_CHUNK_MIN_SIZE = 10 * 1024;
+
 type BundledScript = Extract<AssetDefinition, { kind: 'script' }>;
 
 type BuildEntry = {
@@ -262,6 +265,7 @@ async function executeAppBrowserBuild(
 			splitting: true,
 			naming: '[name]-[hash].[ext]',
 			minify: group.options.minify ?? true,
+			packageChunks: { minSize: PACKAGE_CHUNK_MIN_SIZE },
 		});
 		assertBuildSucceeded(result, '[ecopages] Could not build the app browser client');
 		for (const { path: output } of result.outputs) {

@@ -11,8 +11,7 @@ import {
 	getServerBundleOutputPaths,
 	resolveProductionServerEntry,
 } from '../../../build/server-bundle-deploy-manifest.ts';
-import { resolveEcoConfigPath } from '../../../config/resolve-eco-config-path.ts';
-import { EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
+import { EMITTED_ECO_CONFIG_FILENAME, resolveEcoConfigPath } from '../../../config/resolve-eco-config-path.ts';
 import { loadEcoPagesConfig } from '../../../config/load-eco-config.ts';
 import { SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
 import { ServerStaticBuilder } from './server-static-builder.ts';

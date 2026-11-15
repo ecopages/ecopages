@@ -5,7 +5,8 @@ section: rendering
 order: 9
 sources:
   - packages/core/src/router/server/
-  - packages/core/src/utils/endpoint-file-extensions.ts
+  - packages/core/src/utils/file-roles.ts
+  - packages/core/src/build/rolldown/file-role-grammar-plugin.ts
   - packages/core/src/utils/static-file-extensions.ts
   - packages/core/src/build/production-route-list.ts
   - packages/core/src/adapters/shared/runtime/server-route-handler.ts
@@ -32,22 +33,38 @@ sources:
 
 - A route drops the longest registered extension the file ends with, so `about.kita.tsx` is `/about` and `v1.2.html` is `/v1.2`; `index` is stripped.
 - The kind comes from the path inside the pages directory, so brackets in the project path do not make routes dynamic.
-- `ENDPOINT_FILE_EXTENSIONS` (`.api.ts`, `.api.tsx`, `.api.js`, `.api.jsx`) is the one definition of the endpoint marker, shared with config finalization, which rejects an Integration that registers one. An endpoint drops the whole marker, so `users.api.tsx` is the endpoint `/users` even when `.tsx` is a template extension.
-- An endpoint has no Integration owner, Layout, Cache Strategy or `staticPaths`, and its dynamic segments need no `acceptsParams`. Static expansion, the sitemap and the browser-graph prebuild read `page` routes only.
+- `utils/file-roles.ts` is the one definition of file roles: `<name>.<role>.<ext>` with `api`, `server` or `script` as the role and `.ts`, `.tsx`, `.js` or `.jsx` as the extension. `ENDPOINT_FILE_EXTENSIONS` (the `api` suffixes) is shared with config finalization, which rejects an Integration that registers any role suffix. An endpoint drops the whole marker, so `users.api.tsx` is the endpoint `/users` even when `.tsx` is a template extension.
+- The scan skips, before it matches a template extension, every `.server.*` and `.script.*` file and every file with a `_`-prefixed path segment under the pages directory (`isPrivatePath()`). They are never routes, so they can sit beside Pages. The client graph and the Rolldown browser build read the `.server` boundary from the same module (`isServerOnlyModuleSpecifier()`).
+- An endpoint has no Integration owner, Layout, Cache Strategy or `paths`, and its dynamic segments need no `acceptsParams`. Static expansion, the sitemap and the browser-graph prebuild read `page` routes only.
 
 Discovery fails, naming the files, when:
 
 - two files produce the same route, whatever their parameter names: `segmentPathPatternKey()` drops names and syntax, so `blog/[slug].tsx` and `blog/[id].api.ts` collide;
+- a role segment sits anywhere but directly before a script extension (`card.server.kita.tsx`, `nav.script.lit.tsx`, `users.api.html`), because the file would be a server-only module or a Page of that Integration and the build will not pick one (`findMisplacedRole()`); a private file is exempt; the router checks route files, and every Rolldown build also runs `createFileRoleGrammarPlugin`, which fails any compiled module outside `node_modules` with the same rule, so `src/components/card.server.kita.tsx` fails the server and browser builds and a dev rebuild after a rename succeeds;
 - an endpoint's pathname ends in a known static file extension (`feed.xml.api.ts`), because the server never sends such a URL to a file route; the error points to `app.ts`;
-- a dynamic Page belongs to an Integration with `acceptsParams: false`, such as `[slug].html`, because HTML Pages have no `staticPaths` source.
+- a dynamic Page belongs to an Integration with `acceptsParams: false`, such as `[slug].html`, because HTML Pages have no `paths` source.
 
 ## Matching
 
 The scan sorts routes once: `exact` first (`/` before the rest), then `dynamic`, then `catch-all`. Within the dynamic routes, and within the catch-alls, segments (a catch-all's prefix) are compared from left to right and an earlier literal wins over a parameter, so `/api/[id]` answers `/api/5` before `/[section]/[slug]`. On a tie the longer pattern wins, then pathname order, so the result does not depend on discovery order. Pages and endpoints share this one order.
 
-`matchRequest()` returns the first route that matches, with the requested pathname, Params and query. Nothing is precompiled: each pattern is parsed against the request on every call. The server skips the registry for a pathname that ends in a known static extension (`hasKnownStaticExtension()`).
+`matchRequest()` returns the first route that matches, with the requested pathname, Params and query. Each pattern is compiled once when the registry loads its routes (`compileSegmentPattern()`), so a request only compares segments. The server skips the registry for a pathname that ends in a known static extension (`hasKnownStaticExtension()`).
 
 The request pathname is normalized once (`normalizePathname` adds a leading slash and drops trailing ones; empty segments between repeated slashes are ignored), split on `/`, then each segment is decoded once, so an encoded slash stays inside its segment. A malformed percent escape throws an HTTP 400 error, subject to `app.onError`, even when no route would match. A catch-all also matches its bare prefix, with an empty array.
+
+```mermaid
+flowchart LR
+  subgraph Once["Once, when routes load"]
+    L["init or reload: production routes.json, or the pages scan"] --> U["useTemplateRoutes"]
+    U --> C["compileSegmentPattern(pathname, 'filesystem') per route"]
+    AR["Server adapter created: compileApiRoutes"]
+  end
+  subgraph Per["Per request"]
+    N["Normalize pathname, split, decode each segment once"] --> MR["matchRequest: compare segments against compiled patterns"]
+    MR --> OUT["Route, Params and query"]
+  end
+  C --> MR
+```
 
 ## One segment grammar
 
@@ -60,14 +77,14 @@ The request pathname is normalized once (`normalizePathname` adds a leading slas
 | `explicit` | `app.static` routes | `:name`, `[name]` | `:...name`, `[...name]` | segments joined with `/` |
 | `websocket` | `app.websocket` routes | `:name` | none | none |
 
-API handlers and WebSocket routes are tried by a specificity score (`scoreSegmentPathPattern`); `app.static` routes keep declaration order. `buildSegmentPath()` is the inverse: it fills a pattern from Params one segment at a time, so a param `id` never rewrites `:idx` and a catch-all array becomes one segment per value. Static export and the registry share it. `parseSearchParams()` gives every route kind the same query shape: a repeated key becomes an array in order, a single value stays a string.
+API handlers and WebSocket routes are compiled once, when the server adapter is created and when the WebSocket upgrade handler is attached, and ordered by the specificity score of their compiled pattern; `app.static` routes keep declaration order. `buildSegmentPath()` is the inverse: it fills a pattern from Params one segment at a time, so a param `id` never rewrites `:idx` and a catch-all array becomes one segment per value. Static export and the registry share it. `parseSearchParams()` gives every route kind the same query shape: a repeated key becomes an array in order, a single value stays a string.
 
 ## Static expansion
 
-The registry runs no `staticPaths()` during discovery. The static generator asks for expansions later, and the registry loads Page modules through an injected adapter:
+The registry runs no `paths()` during discovery. The static generator asks for expansions later, and the registry loads Page modules through an injected adapter:
 
-- `listStaticPathExpansions()` expands dynamic `page` routes whose `cache` is not `'dynamic'`. In a build, such a route must export both `staticPaths` and `staticProps`.
-- `listDynamicPagePathExpansions()` returns the `staticPaths` Params of Dynamic Pages (`cache: 'dynamic'`). They are not Static Path Expansions, since the HTML still renders per request; the build plans one Page Browser Graph per Params list so its scripts are in the asset ledger. A Dynamic Page without `staticPaths` gets the parameter-free template plan.
+- `listStaticPathExpansions()` expands dynamic `page` routes whose `cache` is not `'dynamic'`. In a build, such a route must declare `paths`; `props` is optional, since the render always receives the route's `params`. `paths` lists the Params known at build and `props` receives them, from `paths` at build and from the request at run time.
+- `listDynamicPagePathExpansions()` returns the `paths` Params of Dynamic Pages (`cache: 'dynamic'`). They are not Static Path Expansions, since the HTML still renders per request; the build plans one Page Browser Graph per Params list so its scripts are in the asset ledger. A Dynamic Page without `paths` gets the parameter-free template plan.
 - `listStaticGenerationRoutes()` returns the exact `page` routes and the static path expansions, each with its request URL.
 
 ## Endpoint files at request time

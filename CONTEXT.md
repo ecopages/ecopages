@@ -12,11 +12,11 @@ A file-based web framework for building HTML-first multi-page applications, with
 ## Language
 
 **Page**:
-A file-based route entry point that renders content for a specific URL path. Pages declare render logic, optional data-fetching, metadata, and a cache strategy.
+The default export of a route file with role `page`, or a view passed to `app.static()`, `ctx.render()` or an error-page helper. An Integration decides what is valid: an `eco.page()` result, an HTML Page or an MDX module; a route file whose default export is not one fails the build. Pages declare render logic, optional data hooks (`props`, `paths`), metadata, a Layout and a Cache Strategy. A route file declares its Page with a literal `eco.page(...)` call in that file.
 _Avoid_: Route, view
 
 **Layout**:
-A route-level shell that wraps a page's content. Layouts provide structure (headers, navigation, footers) that persists across page navigations. A Layout is a plain function typed with `LayoutProps`, or an `eco.layout()` result when it needs a wrapper, and it must render its `children`.
+A shell that wraps a page's content, providing structure (headers, navigation, footers) that persists across page navigations. A Layout is only what a Page passes as `eco.page({ layout })` (one, or an outer-to-inner array): a plain function typed with `LayoutProps`, or an `eco.layout()` result when it needs a wrapper. It must render its `children`. No folder or file name makes a module a Layout.
 _Avoid_: Template, wrapper
 
 **Component**:
@@ -64,12 +64,24 @@ A Page authored as a plain `.html` file under `src/pages/`, rendered inside the 
 _Avoid_: Static HTML file, HTML template
 
 **Filesystem Route**:
-A route automatically discovered by scanning the pages directory. Files follow conventions (e.g., `pages/about.tsx` becomes `/about`, `pages/blog/[slug].tsx` becomes `/blog/[slug]`). Its role is `page` for a Page file and `endpoint` for an Endpoint.
+A route automatically discovered by scanning the pages directory. Files follow conventions (e.g., `pages/about.tsx` becomes `/about`, `pages/blog/[slug].tsx` becomes `/blog/[slug]`). Its role is `page` for a Page file and `endpoint` for an Endpoint. A **Role Suffix** (`.server`, `.script`) or a **Private File** is not a Filesystem Route.
 _Avoid_: Automatic route, file-based route
 
 **Endpoint**:
 A Filesystem Route declared by a file under the pages directory ending in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`, whose method handler exports (`GET`, `POST`, ...) answer its requests. It follows the Page pathname rules with the whole `.api.*` ending as the dropped marker (`pages/api/users.api.ts` becomes `/api/users`) and is never a Page: no Layout, no Cache Strategy, no Build-Time Rendering. An `app.get()` handler is an Explicit Route, not an Endpoint.
 _Avoid_: API route, API page, handler file
+
+**Role Suffix**:
+The part of a file name that declares what the file is before the build reads it: `.api.<ext>` (Endpoint), `.server.<ext>` (server-only module), `.script.<ext>` (Browser Script), where `<ext>` is `.ts`, `.tsx`, `.js` or `.jsx`. It is matched before template extensions, never registered by an Integration, and a role segment anywhere else in a file name under the pages directory fails the build.
+_Avoid_: File marker, naming convention
+
+**Private File**:
+A file or folder under the pages directory whose name starts with `_` (`_card.tsx`, `_layout.tsx`, `_parts/`). It is never a Filesystem Route, so it can sit next to the Pages that use it.
+_Avoid_: Hidden file, ignored file
+
+**Browser Script**:
+A module a Page or Component attaches through `dependencies.scripts`, conventionally named `<name>.script.<ext>`. The suffix keeps it out of routing and says it is a browser module; the declaration still attaches it.
+_Avoid_: Client script, client file
 
 **Explicit Route**:
 A route registered programmatically via the app API (e.g., `app.static(path, view)` for page routes or `app.get(path, handler)` for handlers), bypassing filesystem discovery.
@@ -88,11 +100,11 @@ The canonical route pattern declared by a Page or Endpoint file, before any dyna
 _Avoid_: Route path, abstract route
 
 **Static Path Expansion**:
-One concrete URL path derived from a dynamic Template Route via `staticPaths`. For example, `/blog/hello-world` is a Static Path Expansion of `/blog/[slug]`.
+One concrete URL path derived from a dynamic Template Route via the Page's `paths` hook. For example, `/blog/hello-world` is a Static Path Expansion of `/blog/[slug]`.
 _Avoid_: Concrete route, generated route
 
 **Params**:
-Dynamic segments captured from a route's URL path; a catch-all captures an array. For example, in `/blog/[slug]`, the `slug` param captures the actual value (e.g., `{ slug: 'my-post' }`), and `/docs/[...path]` captures `{ path: ['a', 'b'] }` for `/docs/a/b`.
+Dynamic segments captured from a route's URL path; a catch-all captures an array. For example, in `/blog/[slug]`, the `slug` param captures the actual value (e.g., `{ slug: 'my-post' }`), and `/docs/[...path]` captures `{ path: ['a', 'b'] }` for `/docs/a/b`. A Page's `paths` hook lists the Params known at build; its `props` hook receives Params, from `paths` at build and from the request at run time.
 _Avoid_: Path params, route params, URL segments
 
 **Query**:
@@ -145,7 +157,7 @@ _Avoid_: URL list, crawl map
 ## Relationships
 
 - A **Page** is composed from a **Component** tree, optionally wrapped by a **Layout**, all rendered within an **Html** shell
-- Each **Page** declares one optional **Layout**; an **HTML Page** declares none
+- Each **Page** declares its **Layouts** by reference (none, one, or an outer-to-inner stack); an **HTML Page** declares none
 - An **HTML Page** needs no **Integration** in app config: core appends a built-in **Integration** for `.html` unless a user **Integration** claims the extension. Its **Html** shell is the app's one `html` template (`src/includes/html.html` or another Integration's `html.*`), or a built-in shell when there is none
 - Pages are discovered as **Filesystem Routes** or registered as page-owned **Explicit Routes**
 - **Explicit Routes** may also register non-page handlers such as `app.get()` handlers

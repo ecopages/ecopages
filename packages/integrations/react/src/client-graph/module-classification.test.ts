@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyClientGraphModule, isPageOrLayoutEntry } from './module-classification.ts';
+import { classifyClientGraphModule } from './module-classification.ts';
 
 describe('classifyClientGraphModule', () => {
 	it('classifies package modules on POSIX and Windows drive paths', () => {
@@ -16,15 +16,5 @@ describe('classifyClientGraphModule', () => {
 
 	it('classifies app modules under project root', () => {
 		expect(classifyClientGraphModule('/app/src/pages/index.tsx', '/app')).toBe('app');
-	});
-});
-
-describe('isPageOrLayoutEntry', () => {
-	it('detects pages and layouts on POSIX and Windows drive paths', () => {
-		expect(isPageOrLayoutEntry('/app/src/pages/index.tsx')).toBe(true);
-		expect(isPageOrLayoutEntry('C:/app/src/pages/index.tsx')).toBe(true);
-		expect(isPageOrLayoutEntry('/app/src/layouts/main.tsx')).toBe(true);
-		expect(isPageOrLayoutEntry('C:/app/src/layouts/main.tsx')).toBe(true);
-		expect(isPageOrLayoutEntry('/app/src/components/button.tsx')).toBe(false);
 	});
 });

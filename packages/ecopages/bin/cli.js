@@ -13,7 +13,7 @@ import {
 	getEntryCommandFlagNames,
 	isEcopagesEnvEnabled,
 	resolveDevelopmentRecoveryWatch,
-} from '@ecopages/core/build';
+} from '@ecopages/core/cli';
 import { fileSystem } from '@ecopages/file-system';
 import { withBrandBanner } from './brand.js';
 import { getUnsupportedNodeMessage } from './node-version.js';

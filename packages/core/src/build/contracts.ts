@@ -9,4 +9,4 @@ export {
 	parseCollectionSpecifier,
 	type ParsedCollectionSpecifier,
 } from './contracts/content-virtual-modules.ts';
-export { isServerOnlyModuleSpecifier } from './contracts/server-only-specifier.ts';
+export { isServerOnlyModuleSpecifier } from '../utils/file-roles.ts';

@@ -9,7 +9,7 @@ import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import type { AnyIntegrationPlugin } from '../../plugins/integration-plugin.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { invariant } from '../../utils/invariant.ts';
-import { ENDPOINT_FILE_EXTENSIONS, findEndpointFileExtension } from '../../utils/endpoint-file-extensions.ts';
+import { FILE_ROLE_SUFFIXES, matchRoleSuffix } from '../../utils/file-roles.ts';
 import {
 	DEFAULT_ECOPAGES_DIST_DIR,
 	DEFAULT_ECOPAGES_HOSTNAME,
@@ -24,8 +24,12 @@ import { listProductionServerModuleKeysFromDist } from '../../build/server/serve
 import { findStylesheetProcessor } from '../../plugins/stylesheet-kinds.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { CLIENT_OUTPUT_DIR, SERVER_BUNDLE_DIR } from '../../utils/resolve-entry-file.ts';
+import { DEFAULT_PAGES_DIR } from '../../router/server/pages-dir.ts';
 
 const finalizedPluginInstances = new WeakSet<object>();
+
+/** Options that named a folder the framework used to treat as a role. */
+const REMOVED_DIRECTORY_OPTIONS = ['layoutsDir', 'componentsDir'] as const;
 
 /**
  * Rejects values that are not a `defineConfig(...)` object.
@@ -41,6 +45,15 @@ function assertUserConfig(userConfig: EcoPagesUserConfig, configFilePath: string
 		throw new Error(
 			`Expected a defineConfig(...) object but received an already finalized app config${source}. Export defineConfig(...) from eco.config.ts and let createApp() finalize it.`,
 		);
+	}
+
+	for (const option of REMOVED_DIRECTORY_OPTIONS) {
+		if (option in userConfig) {
+			const source = configFilePath ? ` in ${configFilePath}` : '';
+			throw new Error(
+				`The ${option} option${source} was removed. Layouts and components are found from the files that reference them, so no folder carries meaning. Delete ${option} from the config; src/layouts and src/components stay as conventions, and any folder works.`,
+			);
+		}
 	}
 
 	if ('configFilePath' in userConfig) {
@@ -91,10 +104,8 @@ function resolveEmittedConfigRootDir(
 function resolveDirectories(userConfig: EcoPagesUserConfig) {
 	return {
 		srcDir: userConfig.srcDir || 'src',
-		pagesDir: userConfig.pagesDir || 'pages',
+		pagesDir: userConfig.pagesDir || DEFAULT_PAGES_DIR,
 		includesDir: userConfig.includesDir || 'includes',
-		componentsDir: userConfig.componentsDir || 'components',
-		layoutsDir: userConfig.layoutsDir || 'layouts',
 		publicDir: userConfig.publicDir || 'public',
 		distDir: userConfig.distDir || DEFAULT_ECOPAGES_DIST_DIR,
 		workDir: userConfig.workDir || DEFAULT_ECOPAGES_WORK_DIR,
@@ -160,10 +171,10 @@ function collectTemplateExtensions(integrations: AnyIntegrationPlugin[]): string
 	}
 
 	for (const integration of integrations) {
-		const reserved = integration.extensions.find((extension) => findEndpointFileExtension(extension));
+		const reserved = integration.extensions.find((extension) => matchRoleSuffix(extension));
 		invariant(
 			reserved === undefined,
-			`Integration "${integration.name}" registers "${reserved}", which is reserved for endpoint files: ${ENDPOINT_FILE_EXTENSIONS.join(', ')}.`,
+			`Integration "${integration.name}" registers "${reserved}", which is reserved for role files: ${FILE_ROLE_SUFFIXES.join(', ')}.`,
 		);
 	}
 
@@ -287,9 +298,7 @@ function createAbsolutePaths(
 		srcDir,
 		distDir: path.resolve(config.rootDir, config.distDir, CLIENT_OUTPUT_DIR),
 		workDir: path.resolve(config.rootDir, config.workDir),
-		componentsDir: path.join(srcDir, config.componentsDir),
 		includesDir,
-		layoutsDir: path.join(srcDir, config.layoutsDir),
 		pagesDir,
 		publicDir: path.join(srcDir, config.publicDir),
 		htmlTemplatePath: resolveSemanticTemplatePath(

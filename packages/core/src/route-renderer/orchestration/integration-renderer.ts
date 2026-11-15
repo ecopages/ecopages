@@ -36,13 +36,18 @@ import { getAssetDependencyKey } from '../../assets/asset-processing-service/ass
 import { HtmlTransformerService } from '../../html/html-transformer.service.ts';
 import type { HtmlDocumentContribution } from '../../html/html-transformer.service.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { hasProductionServerModule } from '../../build/server/server-modules-manifest.ts';
+import {
+	hasProductionServerModule,
+	MissingProductionServerModuleError,
+} from '../../build/server/server-modules-manifest.ts';
 import { invariant } from '../../utils/invariant.ts';
 import { toRootRelativePath } from '../../utils/root-relative-path.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { isPathInside } from '../../utils/path-containment.ts';
+import { createLiteralPageDeclarationError, isPageDeclaredIn, isUnattributedPage } from '../page-declaration.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import { type PreparedComponentGraph, type PreparedComponentGraphNode } from './ownership-graph/component-graph.ts';
 import { collectComponentGraphWatchPaths } from './ownership-graph/component-graph-collectors.ts';
@@ -80,11 +85,9 @@ import type {
 	PlannedPageClientBuildEntry,
 } from './page-browser-graph/grouped-graph-build-plan.ts';
 import type { ForeignChildInterceptionInput, ForeignChildRuntime } from '../../eco/component-render-context.ts';
-import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
 import { isMarkupNodeLike } from '../../eco/component-render-output.ts';
 import {
 	getForeignSubtreeResolutionContextKey,
-	getForeignSubtreeTokenPrefix,
 	resolveOwningIntegrationRenderer,
 } from './foreign-child/owning-renderer-resolution.ts';
 import { keepsLastGoodOutput, showAssetFailure } from '../../assets/asset-processing-service/last-good-output.ts';
@@ -115,7 +118,7 @@ import {
 	resolvePageLayoutComponents,
 	resolveDocumentShellLayouts,
 } from './document-shell/layout-shell-props.service.ts';
-import { finalizeIslandComponentRender } from '../../islands/island-host.ts';
+import { stampIslandHost } from '../../islands/island-host.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { prepareAssetDependencies } from '../../assets/asset-processing-service/asset-processing.service.ts';
 import { isBundleableScript } from '../../assets/asset-processing-service/bundleable-script.ts';
@@ -304,7 +307,7 @@ export type PlannedRouteInstance = {
 	routeFile: string;
 	params?: RouteRendererOptions['params'];
 	query?: RouteRendererOptions['query'];
-	skipStaticProps?: RouteRendererOptions['skipStaticProps'];
+	skipPropsHook?: RouteRendererOptions['skipPropsHook'];
 	isRouteTemplate?: boolean;
 };
 
@@ -444,7 +447,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			file: routeInstance.routeFile,
 			params: routeInstance.params,
 			query: routeInstance.query,
-			skipStaticProps: routeInstance.skipStaticProps,
+			skipPropsHook: routeInstance.skipPropsHook,
 		};
 		const resolvedInputs = await this.resolveRouteRenderInputs(routeOptions, {
 			skipMetadata: routeInstance.isRouteTemplate,
@@ -517,9 +520,44 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * `getStaticPaths` or `getMetadata` fails here with an error that points to the codemod.
 	 */
 	public async loadPageModule(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
+		return this.importRouteModule(file, options);
+	}
+
+	/**
+	 * Imports a route module and fails unless it is a Page this Integration accepts.
+	 *
+	 * @remarks
+	 * The legacy-export check runs first, so a module that still exports `getStaticProps` gets the codemod message.
+	 */
+	protected async importRouteModule(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
 		const pageModule = await this.importPageFile(file, options);
 		this.pageModuleLoaderService.assertNoLegacyPageExports(file, pageModule);
+		this.assertPageModule(file, pageModule);
 		return pageModule;
+	}
+
+	/**
+	 * Fails when the default export of a route module is not a Page that the file itself declares.
+	 *
+	 * @remarks
+	 * A Page is a declared component whose build-time identity names this route file: an `eco.page()` result
+	 * (also an HTML Page or an MDX module, which the Integration stamps the same way). The identity transform
+	 * stamps the file that holds the literal `eco.page(...)` call, so a Page made by a wrapper in another file,
+	 * or re-exported from one, names that other file and fails here. A function with a `config` that fails the
+	 * check gets the literal-call message; anything else gets the not-a-Page message with the fixes.
+	 * @throws When the module has no default export that is a Page declared in `file`.
+	 */
+	private assertPageModule(file: string, module: EcoPageFile): void {
+		const page = module.default as unknown;
+		if (isPageDeclaredIn(file, page, this.appConfig.rootDir)) return;
+		if (isUnattributedPage(page)) throw createLiteralPageDeclarationError(file);
+
+		const fixes = isPathInside(path.resolve(file), this.appConfig.absolutePaths.pagesDir)
+			? ' If the file is not a Page, prefix its name with "_", give it a role suffix such as .server.ts or .script.ts, or move it out of the pages directory.'
+			: '';
+		throw new Error(
+			`[ecopages] ${file} does not default-export a Page the ${this.name} Integration renders (an eco.page() result).${fixes}`,
+		);
 	}
 
 	public setHmrManager(hmrManager: IHmrManager) {
@@ -732,13 +770,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.dependencyResolverService = new DependencyResolverService(
 			appConfig,
 			assetProcessingService,
-			() => isProductionRuntime() && this.getActiveHmrManager()?.isEnabled() !== true,
 			assetProcessingIntegration,
 		);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig);
 		this.routeRenderOrchestrator = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
 			ownershipValidationService: new OwnershipValidationService(appConfig),
 			assetProcessingIntegration,
+			recordsShellDependencies: () => isProductionRuntime() && this.getActiveHmrManager()?.isEnabled() !== true,
 		});
 		this.integrationHooks =
 			typeof hooks === 'function'
@@ -792,6 +830,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return;
 		}
 		if (requireAppRuntime(this.appConfig).staticGenerationActive) {
+			if (error instanceof MissingProductionServerModuleError) {
+				throw new Error(
+					`The ssr script ${scriptPath} is not in the server build. \`ecopages build\` finds ssr scripts from a string literal \`src\` beside \`ssr: true\` in a Component's dependencies; declare its \`src\` as a string literal.`,
+					{ cause: error },
+				);
+			}
 			const cause = error instanceof Error ? error.message : String(error);
 			throw new Error(`Failed to preload the ssr script ${scriptPath}: ${cause}`, { cause: error });
 		}
@@ -980,16 +1024,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		});
 	}
 
-	async transformRouteResponse(
-		response: Response,
+	async transformRouteHtml(
+		html: string,
 		htmlContributions: HtmlDocumentContribution[] | undefined,
 		renderOptions: InternalIntegrationRendererRenderOptions<C>,
 	): Promise<RouteRendererBody> {
-		const transformedResponse = this.htmlTransformer.transform(response, {
+		const body = this.htmlTransformer.transform(html, {
 			contributions: htmlContributions,
 			pagePackage: renderOptions.pagePackage,
 		});
-		const body = (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
 		return this.finalizeDocument(body, renderOptions);
 	}
 
@@ -1007,7 +1050,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const resolvedPageModule = await this.pageModuleLoaderService.resolvePageModule({
 			file: routeOptions.file,
 			pageModule: routeOptions.pageModule,
-			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
+			importPageFileFn: (targetFile) => this.importRouteModule(targetFile),
 		});
 		const { Page, integrationSpecificProps, module: pageModule } = resolvedPageModule;
 		const HtmlTemplate = await this.getHtmlTemplate();
@@ -1055,13 +1098,35 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return resolvePageDependenciesFromContext(context, this.name);
 	}
 
-	/** Resolves a route's component assets. */
+	/**
+	 * Resolves a route's component assets.
+	 *
+	 * @remarks `declarationOrder` returns them in the order the asset ledger records them, for a recorded shell.
+	 */
 	async resolveRouteDependencies(input: {
 		components: (EcoComponent | Partial<EcoComponent>)[];
+		declarationOrder?: boolean;
 	}): Promise<{ resolvedDependencies: ProcessedAsset[] }> {
 		return {
-			resolvedDependencies: await this.resolveDependencies(input.components, { preparedGraph: true }),
+			resolvedDependencies: input.declarationOrder
+				? await this.dependencyResolverService.processPreparedComponentDependencies(
+						input.components,
+						this.name,
+						true,
+					)
+				: await this.resolveDependencies(input.components, { preparedGraph: true }),
 		};
+	}
+
+	/**
+	 * Holds the lazy client entries of a route's shell components for the page client build.
+	 *
+	 * @remarks
+	 * Processing the shell holds them as a side effect; a shell read from the asset ledger is not processed, so its
+	 * lazy entries are collected here.
+	 */
+	prepareRouteLazyDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): void {
+		this.dependencyResolverService.prepareLazyClientDependencies(components, this.name);
 	}
 
 	async renderRouteBody(renderOptions: InternalIntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
@@ -1091,9 +1156,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Execution flow:
 	 * 1. Build normalized render options (`prepareRenderOptions`).
 	 * 2. Render the route body once.
-	 * 3. Reject unresolved route-level eco-marker artifacts.
-	 * 4. Optionally apply document attributes for integration-owned document boundaries.
-	 * 5. Run HTML transformer with final dependency set.
+	 * 3. Optionally apply document attributes for integration-owned document boundaries.
+	 * 4. Run HTML transformer with final dependency set.
 	 *
 	 * Stream-safety note: the first render result is normalized to a string once,
 	 * then the pipeline continues with that immutable HTML value to avoid disturbed
@@ -1167,7 +1231,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * `file` is the view's identity file, or a stable synthetic key when the view has
-	 * none. `props` are the view's final props: its `staticProps` hook is the caller's
+	 * none. `props` are the view's final props: its `props` hook is the caller's
 	 * to run, so it is not run here.
 	 */
 	async executeExplicitView<P>(
@@ -1186,7 +1250,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			query: ctx.query,
 			locals: ctx.locals,
 			props: (props ?? {}) as Record<string, unknown>,
-			skipStaticProps: true,
+			skipPropsHook: true,
 		});
 	}
 
@@ -1321,7 +1385,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			currentIntegrationName: this.name,
 			input,
 			renderComponent: (renderInput) => this.renderComponent(renderInput),
-			normalizeComponentRenderOutput: (result) => this.normalizeComponentRenderOutput(result),
 			hasForeignChildDescendants: (component, foreignChildRoots) =>
 				this.hasForeignChildDescendants(component, foreignChildRoots),
 			createForeignChildRuntime: ({ renderInput, rendererCache }) =>
@@ -1385,7 +1448,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Stamps `result` as an Island Host when the component itself declares a client script.
+	 * Stamps `result` as an Island Host when the component itself ships a client script.
 	 *
 	 * @remarks Reads the component's own declarations, excluding Foreign Children: a component without
 	 * scripts that wraps an island is not an island itself. Components without `dependencies` are never stamped.
@@ -1394,32 +1457,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		input: ComponentRenderInput,
 		result: ComponentRenderResult,
 	): ComponentRenderResult {
-		const ownAssets = input.component.config?.dependencies
-			? this.dependencyResolverService.collectOwnComponentDependencies([input.component], this.name)
-			: undefined;
-		return finalizeIslandComponentRender(
+		const shipsScript =
+			input.component.config?.dependencies !== undefined &&
+			this.dependencyResolverService.componentShipsScript(input.component, this.name);
+		return stampIslandHost(
 			input,
 			{
 				...result,
 				html: finalizeComponentRender(input.component, result.html),
 			},
-			ownAssets,
+			shipsScript,
 		);
-	}
-
-	private normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult {
-		const normalizedHtml = this.normalizeUnresolvedMarkerArtifactHtml(result.html);
-
-		return normalizedHtml === result.html
-			? result
-			: {
-					...result,
-					html: normalizedHtml,
-				};
-	}
-
-	protected normalizeUnresolvedMarkerArtifactHtml(html: string): string {
-		return normalizeUnresolvedMarkerArtifactHtml(html);
 	}
 
 	/**
@@ -1647,8 +1695,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const runtime = createQueuedRuntime({
 			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
-			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
-			tokenPrefix: getForeignSubtreeTokenPrefix(this.name),
+			integrationName: this.name,
 		});
 		const normalizeForeignChildProps = this.integrationHooks.normalizeForeignChildProps;
 		if (!normalizeForeignChildProps) {

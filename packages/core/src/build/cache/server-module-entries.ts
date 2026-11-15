@@ -1,10 +1,8 @@
 import { path } from '@ecopages/file-system/path';
 import { fileSystem } from '@ecopages/file-system';
-import { getComponentIdentity } from '../../eco/component-identity.ts';
-import { isEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
-import type { EcoComponent, ErrorPageLoaders, StaticRoute, ViewLoader } from '../../types/contracts.ts';
+import type { ErrorPageLoaders, StaticRoute, ViewLoader } from '../../types/contracts.ts';
 import { getImportedViewPaths } from '../server/imported-view-plugin.ts';
 
 export type ServerModuleEntryRouteSource = {
@@ -33,37 +31,22 @@ function addViewLoader(entries: Set<string>, loader: ViewLoader | undefined): vo
 	addExistingPath(entries, loader?.filePath);
 }
 
-async function collectLayoutFiles(appConfig: EcoPagesAppConfig, entries: Set<string>): Promise<void> {
-	const layoutsDir = appConfig.absolutePaths.layoutsDir;
-	if (!layoutsDir || !fileSystem.exists(layoutsDir)) {
-		return;
-	}
-
-	const files = await fileSystem.glob(
-		appConfig.templatesExt.map((extension) => `**/*${extension}`),
-		{ cwd: layoutsDir },
-	);
-	for (const file of files) {
-		entries.add(path.resolve(layoutsDir, file));
-	}
-}
-
 /**
- * Collects every production server entry except `ssr: true` scripts, which are
- * discovered from compiled modules after the first graph emit.
+ * Collects every production server entry except `ssr: true` scripts, which the server build
+ * adds from each declaration (`createSsrScriptEntriesPlugin`).
  *
  * @remarks
  * Processor `listProductionServerModuleEntries()` files, such as generated content
  * collection modules, join the same map so production start can import them without
- * calling Processor `setup()`. Views imported into the server entry (`ctx.render`,
- * `ctx.renderPartial`) are recorded by the imported-view plugin during that bundle.
+ * calling Processor `setup()`. A Layout is not an entry: the Page that passes it as `eco.page({ layout })` uses
+ * it, so it is bundled once with that Page and keeps its exports. Views imported into the server entry (`ctx.render`, `ctx.renderPartial`) are recorded by the imported-view plugin during that bundle.
  */
-export async function collectServerModuleEntries(options: {
+export function collectServerModuleEntries(options: {
 	appConfig: EcoPagesAppConfig;
 	router: ServerModuleEntryRouteSource;
 	staticRoutes?: readonly StaticRoute[];
 	errorPageLoaders?: ErrorPageLoaders;
-}): Promise<string[]> {
+}): string[] {
 	const entries = new Set<string>();
 	const { appConfig } = options;
 
@@ -72,7 +55,6 @@ export async function collectServerModuleEntries(options: {
 	}
 
 	addExistingPath(entries, appConfig.absolutePaths.htmlTemplatePath);
-	await collectLayoutFiles(appConfig, entries);
 
 	for (const route of options.staticRoutes ?? []) {
 		addViewLoader(entries, route.loader);
@@ -93,52 +75,4 @@ export async function collectServerModuleEntries(options: {
 	}
 
 	return [...entries];
-}
-
-function addSsrScripts(component: EcoComponent, rootDir: string, scripts: Set<string>): void {
-	const identity = getComponentIdentity(component);
-	const ownerDir = identity?.file ? path.dirname(path.resolve(rootDir, identity.file)) : undefined;
-	if (!ownerDir) {
-		return;
-	}
-	for (const script of component.config?.dependencies?.scripts ?? []) {
-		if (typeof script === 'object' && script.ssr && script.src) {
-			scripts.add(path.resolve(ownerDir, script.src));
-		}
-	}
-}
-
-function collectSsrScriptsFromComponent(
-	component: unknown,
-	rootDir: string,
-	seen: Set<unknown>,
-	scripts: Set<string>,
-): void {
-	if (!component || seen.has(component) || !isEcoDeclaredComponent(component)) {
-		return;
-	}
-	seen.add(component);
-	const ecoComponent = component as EcoComponent;
-	addSsrScripts(ecoComponent, rootDir, scripts);
-	for (const related of ecoComponent.config?.layouts ?? []) {
-		collectSsrScriptsFromComponent(related, rootDir, seen, scripts);
-	}
-	for (const related of ecoComponent.config?.dependencies?.components ?? []) {
-		collectSsrScriptsFromComponent(related, rootDir, seen, scripts);
-	}
-}
-
-/**
- * Walks compiled Page, Layout, and view modules for `ssr: true` script paths.
- */
-export function collectSsrScriptPaths(modules: readonly unknown[], rootDir: string): string[] {
-	const scripts = new Set<string>();
-	const seen = new Set<unknown>();
-	for (const module of modules) {
-		if (!module || typeof module !== 'object') {
-			continue;
-		}
-		collectSsrScriptsFromComponent((module as { default?: unknown }).default, rootDir, seen, scripts);
-	}
-	return [...scripts];
 }

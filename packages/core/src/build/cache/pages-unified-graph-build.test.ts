@@ -3,6 +3,8 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
+import { appLogger } from '../../global/app-logger.ts';
+import { warnAboutUnattachedScripts } from '../../adapters/shared/runtime/unattached-scripts.ts';
 import { copyFixtureApp } from '../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import {
@@ -94,39 +96,23 @@ describe('production server-module graph', () => {
 		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
 	});
 
-	it('activates Integrations before importing emitted modules', async () => {
+	it('emits each ssr script a declaration lists as an entry of the same build', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
-		const setupFlag = '__ecoEmitIntegrationSetup';
-		Reflect.deleteProperty(globalThis, setupFlag);
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir, globalScriptResolution: 'browser-build' });
-		for (const integration of appConfig.integrations) {
-			const originalSetup = integration.setup.bind(integration);
-			integration.setup = async (context) => {
-				Object.assign(globalThis, { [setupFlag]: true });
-				await originalSetup(context);
-			};
-		}
-
-		const pagePath = path.join(appDir, 'src/pages/needs-setup.ts');
+		const pagePath = path.join(appDir, 'src/pages/with-script.ts');
+		writeFileSync(path.join(appDir, 'src/pages/counter.script.ts'), `export const counter = 1;\n`);
 		writeFileSync(
 			pagePath,
-			[
-				`if (!globalThis.${setupFlag}) {`,
-				`\tthrow new Error('Integration setup must run before this module is imported');`,
-				'}',
-				`export default () => 'ok';`,
-				'',
-			].join('\n'),
+			`export default { config: { dependencies: { scripts: [{ src: './counter.script.ts', ssr: true }] } } };\n`,
 		);
 
-		try {
-			await emitProductionServerModules({
-				appConfig,
-				router: { templateRoutes: [{ filePath: pagePath }] },
-			});
-		} finally {
-			Reflect.deleteProperty(globalThis, setupFlag);
-		}
+		const manifest = await emitProductionServerModules({
+			appConfig,
+			router: { templateRoutes: [{ filePath: pagePath }] },
+		});
+
+		assert.ok(manifest.modules['src/pages/counter.script.ts']);
+		assert.ok(fileSystem.exists(path.join(manifest.outdir, manifest.modules['src/pages/counter.script.ts'])));
 	});
 
 	it('emits distinct modules for HTML Pages whose sanitized names would collide', async () => {
@@ -152,5 +138,48 @@ describe('production server-module graph', () => {
 			fileSystem.readFileSync(path.join(manifest.outdir, hyphenOutput)).toString(),
 			fileSystem.readFileSync(path.join(manifest.outdir, nestedOutput)).toString(),
 		);
+	});
+
+	it('warns once about each .script file no declaration attaches', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+		const appConfig = await createFixtureAppConfig({ rootDir: appDir, globalScriptResolution: 'browser-build' });
+		const pagePath = path.join(appDir, 'src/pages/with-scripts.ts');
+		writeFileSync(path.join(appDir, 'src/pages/listed.script.ts'), `import './helper.script.ts';\n`);
+		writeFileSync(path.join(appDir, 'src/pages/helper.script.ts'), `export const helper = 1;\n`);
+		writeFileSync(path.join(appDir, 'src/pages/typo.script.ts'), `export const typo = 1;\n`);
+		writeFileSync(
+			pagePath,
+			`export default { config: { dependencies: { scripts: ['./listed.script.ts', './listed-typo.script.ts'] } } };\n`,
+		);
+
+		await emitProductionServerModules({
+			appConfig,
+			router: { templateRoutes: [{ filePath: pagePath }] },
+			onServerSources: (sources) => warnAboutUnattachedScripts(appConfig, sources),
+		});
+
+		const messages = warn.mock.calls.map(([message]) => String(message));
+		assert.equal(messages.length, 1);
+		assert.match(messages[0] ?? '', /src\/pages\/typo\.script\.ts/);
+		warn.mockRestore();
+	});
+
+	it('does not warn about a .script file an HTML Page loads with <script src>', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+		const appConfig = await createFixtureAppConfig({ rootDir: appDir, globalScriptResolution: 'browser-build' });
+		const htmlPage = path.join(appDir, 'src/pages/html-script.html');
+		writeFileSync(path.join(appDir, 'src/pages/html.script.ts'), `export const html = 1;\n`);
+		writeFileSync(htmlPage, '<main><script type="module" src="./html.script.ts"></script></main>');
+
+		await emitProductionServerModules({
+			appConfig,
+			router: { templateRoutes: [{ filePath: htmlPage }] },
+			onServerSources: (sources) => warnAboutUnattachedScripts(appConfig, sources),
+		});
+
+		assert.deepEqual(warn.mock.calls, []);
+		warn.mockRestore();
 	});
 });

@@ -14,7 +14,6 @@ export type WalkImportsContext = {
 	reachability: ReachabilityResult;
 	edits: SourceEdit[];
 	allowedMap: Map<string, Set<string> | '*'>;
-	preserveUnreachableSideEffectImports: boolean;
 	/** Receives the local name of each removed value binding, mapped to its import specifier. */
 	strippedBindings: Map<string, string>;
 	/** Receives each import declaration that gets an edit. */
@@ -36,11 +35,13 @@ function pruneForbiddenSpecifier(
 	specifier: string,
 	message: string,
 	replacement: string,
+	bindings: readonly string[] = [],
 ): void {
 	const reachableRules = ctx.reachability.reachableImports.get(specifier);
 	if (reachableRules && !ctx.reachability.isFallbackRoots) {
+		const used = bindings.length > 0 ? ` (${bindings.map((name) => `'${name}'`).join(', ')})` : '';
 		throw new Error(
-			`[Ecopages Client Reachability] ${message} at ${ctx.filename}:${node.start}. This import is explicitly reachable from the React render function.`,
+			`[Ecopages Client Reachability] ${message} at ${ctx.filename}:${node.start}. This server-only import${used} is reachable from the React render function, which runs in the browser. Move the code that uses it into a '.server' module and call it only from server-only Page options such as props.`,
 		);
 	}
 	ctx.edits.push({ start: node.start, end: node.end, replacement });
@@ -62,11 +63,11 @@ function recordStrippedBindings(
 
 function handleImportDeclaration(node: any, ctx: WalkImportsContext): boolean {
 	const specifier = node.source.value as string;
-	const reachableRules = ctx.reachability.reachableImports.get(specifier);
 	const { allowed, rules } = processSpecifier(specifier, ctx.allowedMap);
 
 	if (!allowed) {
-		pruneForbiddenSpecifier(node, ctx, specifier, `Forbidden client import '${specifier}'`, '');
+		const bindings = (node.specifiers ?? []).map((specifierNode: any) => specifierNode.local.name as string);
+		pruneForbiddenSpecifier(node, ctx, specifier, `Forbidden client import '${specifier}'`, '', bindings);
 		recordStrippedBindings(node, specifier, ctx);
 		ctx.editedImports.add(node);
 		return true;
@@ -82,15 +83,6 @@ function handleImportDeclaration(node: any, ctx: WalkImportsContext): boolean {
 			ctx.editedImports.add(node);
 		}
 		return true;
-	}
-
-	if (
-		!ctx.preserveUnreachableSideEffectImports &&
-		!reachableRules &&
-		(!node.specifiers || node.specifiers.length === 0)
-	) {
-		ctx.edits.push({ start: node.start, end: node.end, replacement: '' });
-		ctx.editedImports.add(node);
 	}
 
 	return true;

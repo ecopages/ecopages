@@ -95,6 +95,48 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
+	it('treats unprefixed Node built-ins like node: imports', async () => {
+		await withTempDir(async (tempDir) => {
+			const outputs: string[] = [];
+			for (const specifier of ['node:fs', 'fs']) {
+				const entrypoint = path.join(tempDir, `entry-${outputs.length}.tsx`);
+				writeFileSync(
+					entrypoint,
+					`import { readFile } from '${specifier}';\nexport default () => 'ok';`,
+					'utf-8',
+				);
+				const harness = createPluginTestHarness(undefined, { entry: entrypoint });
+				const transformed = (await harness.transformFile(entrypoint)) as string;
+				expect(transformed).not.toMatch(/from ['"](node:)?fs/);
+				outputs.push(transformed);
+			}
+			expect(outputs[1]).toBe(outputs[0]);
+		});
+	});
+
+	it('removes a bare side-effect import of an unprefixed built-in', async () => {
+		await withTempDir(async (tempDir) => {
+			const entrypoint = path.join(tempDir, 'entry.tsx');
+			writeFileSync(entrypoint, "import 'fs';\nexport default () => 'ok';", 'utf-8');
+			const harness = createPluginTestHarness(undefined, { entry: entrypoint });
+			expect(await harness.transformFile(entrypoint)).not.toContain("'fs'");
+		});
+	});
+
+	it('keeps a package named like a built-in subpath', async () => {
+		await withTempDir(async (tempDir) => {
+			const entrypoint = path.join(tempDir, 'entry.tsx');
+			writeFileSync(
+				entrypoint,
+				"import { join } from 'path-browserify';\nexport default () => join('a', 'b');",
+				'utf-8',
+			);
+			const harness = createPluginTestHarness(undefined, { entry: entrypoint });
+			const transformed = await harness.transformFile(entrypoint);
+			expect(transformed ?? 'path-browserify').toContain('path-browserify');
+		});
+	});
+
 	it('preserves side-effect imports in helpers shared with non-React entries', async () => {
 		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const htmlEntrypoint = path.join(tempDir, 'html-entry.ts');
@@ -122,6 +164,89 @@ describe('createClientGraphBoundaryPlugin', () => {
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
+	});
+
+	/**
+	 * @remarks
+	 * The boundary keeps `import './theme.css'`; core's stylesheet module plugin owns its removal
+	 * (see `rolldown-build-adapter.test.ts`).
+	 */
+	it.each([
+		['layouts', 'docs.script.ts'],
+		['components', 'docs.script.ts'],
+	])('keeps bare side-effect imports in a script under %s', async (folder, name) => {
+		await withTempDir(async (tempDir) => {
+			const reactEntrypoint = path.join(tempDir, 'entry.tsx');
+			const dir = path.join(tempDir, 'src', folder);
+			mkdirSync(dir, { recursive: true });
+			const script = path.join(dir, name);
+			writeFileSync(reactEntrypoint, 'export default () => null;', 'utf-8');
+			writeFileSync(
+				script,
+				"import 'some-element-package/sidebar';\nimport './theme.css';\nimport './secret.server.ts';\nexport const ready = true;",
+				'utf-8',
+			);
+
+			const harness = createPluginTestHarness(
+				{ absWorkingDir: tempDir, projectRoot: tempDir, entrypointFile: reactEntrypoint },
+				{ react: reactEntrypoint },
+			);
+			const transformed = (await harness.transformFile(script)) ?? readFileSync(script, 'utf-8');
+
+			expect(transformed).toContain("import 'some-element-package/sidebar'");
+			expect(transformed).toContain('./theme.css');
+			expect(transformed).not.toContain('secret.server');
+		});
+	});
+
+	it('keeps bare side-effect imports in a page module and strips its server parts', async () => {
+		await withTempDir(async (tempDir) => {
+			const dir = path.join(tempDir, 'src', 'pages');
+			mkdirSync(dir, { recursive: true });
+			const page = path.join(dir, 'index.tsx');
+			writeFileSync(
+				page,
+				[
+					"import 'some-element-package/sidebar';",
+					"import './secret.server.ts';",
+					'const eco = { page: (options) => options };',
+					'export default eco.page({',
+					"\tmetadata: () => ({ title: 'x' }),",
+					'\tprops: async () => ({}),',
+					'\trender: () => null,',
+					'});',
+				].join('\n'),
+				'utf-8',
+			);
+
+			const harness = createPluginTestHarness(
+				{ absWorkingDir: tempDir, projectRoot: tempDir, entrypointFile: page },
+				{ react: page },
+			);
+			const transformed = (await harness.transformFile(page)) ?? readFileSync(page, 'utf-8');
+
+			expect(transformed).toContain("import 'some-element-package/sidebar'");
+			expect(transformed).not.toContain('secret.server');
+			expect(transformed).not.toContain('async () => ({})');
+			expect(transformed).not.toContain('metadata');
+		});
+	});
+
+	it('keeps bare side-effect imports in an entry module', async () => {
+		await withTempDir(async (tempDir) => {
+			const dir = path.join(tempDir, 'src', 'layouts');
+			mkdirSync(dir, { recursive: true });
+			const entry = path.join(dir, 'docs-layout.script.ts');
+			writeFileSync(entry, "import 'some-element-package/sidebar';\nexport const ready = true;", 'utf-8');
+
+			const harness = createPluginTestHarness(
+				{ absWorkingDir: tempDir, projectRoot: tempDir, entrypointFile: entry },
+				{ script: entry },
+			);
+			const transformed = (await harness.transformFile(entry)) ?? readFileSync(entry, 'utf-8');
+
+			expect(transformed).toContain("import 'some-element-package/sidebar'");
+		});
 	});
 
 	it('scopes declared modules to their grouped entry', async () => {
@@ -798,7 +923,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
-	it('strips staticProps imports from .server helpers before shipping a page entry to the browser', async () => {
+	it('strips props imports from .server helpers before shipping a page entry to the browser', async () => {
 		const tempDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-client-graph-')));
 		const pagesDir = path.join(tempDir, 'pages');
 		mkdirSync(pagesDir);
@@ -809,7 +934,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 			[
 				"import { buildPagesTreeSnapshot } from './tree.server';",
 				'export default eco.page({',
-				'\tstaticProps: async () => ({ props: await buildPagesTreeSnapshot() }),',
+				'\tprops: async () => await buildPagesTreeSnapshot(),',
 				'\trender: ({ tree }) => <pre>{tree}</pre>,',
 				'});',
 			].join('\n'),
@@ -823,7 +948,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 			expect(transformed).toBeDefined();
 			expect(transformed).not.toContain("import { buildPagesTreeSnapshot } from './tree.server';");
 			expect(transformed).not.toContain('buildPagesTreeSnapshot');
-			expect(transformed).not.toContain('staticProps:');
+			expect(transformed).not.toContain('props:');
 			expect(transformed).toContain('render: ({ tree }) => <pre>{tree}</pre>');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
@@ -919,7 +1044,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 });
 
 describe('client graph boundary: stripped imports', () => {
-	const ECO_STUB = 'export const eco = { page: (options) => options, staticProps: (fn) => fn };';
+	const ECO_STUB = 'export const eco = { page: (options) => options };';
 
 	/**
 	 * Builds `entry.tsx` from the given files with the boundary plugin and returns the emitted module path.
@@ -944,23 +1069,23 @@ describe('client graph boundary: stripped imports', () => {
 		return (await import(path.toFileUrl(outputPath).href)) as Record<string, unknown>;
 	}
 
-	it('removes a hoisted staticProps helper that uses a server import', () =>
+	it('removes a hoisted props helper that uses a server import', () =>
 		withTempDir(async (tempDir) => {
 			const outputPath = await buildBrowserModule(tempDir, {
 				'posts.server.ts': 'export const getPost = async () => "server-secret";',
 				'entry.tsx': [
 					"import { eco } from './eco';",
 					"import { getPost } from './posts.server';",
-					'const staticProps = async () => ({ props: { post: await getPost() } });',
-					'export default eco.page({ staticProps, render: () => "Post" });',
+					'const getProps = async () => ({ post: await getPost() });',
+					'export default eco.page({ props: getProps, render: () => "Post" });',
 				].join('\n'),
 			});
 			const output = readFileSync(outputPath, 'utf8');
 			expect(output).not.toContain('getPost');
 			expect(output).not.toContain('server-secret');
-			const page = (await evaluate(outputPath)).default as { render: () => string; staticProps?: unknown };
+			const page = (await evaluate(outputPath)).default as { render: () => string; props?: unknown };
 			expect(page.render()).toBe('Post');
-			expect(page.staticProps).toBeUndefined();
+			expect(page.props).toBeUndefined();
 		}));
 
 	it('drops a helper export that needs a node built-in when the Page renders another export', () =>
@@ -1072,14 +1197,14 @@ describe('client graph boundary: stripped imports', () => {
 			).rejects.toThrow(`'fs' (imported from 'node:fs') is used at ${path.join(tempDir, 'entry.tsx')}:2:25`);
 		}));
 
-	it('removes a content collection server import used only by staticPaths', () =>
+	it('removes a content collection server import used only by paths', () =>
 		withTempDir(async (tempDir) => {
 			const outputPath = await buildBrowserModule(tempDir, {
 				'entry.tsx': [
 					"import { eco } from './eco';",
 					"import { entries } from 'ecopages:content/posts/server';",
-					'const paths = entries.map((entry) => ({ params: { slug: entry.slug } }));',
-					'export default eco.page({ staticPaths: async () => ({ paths }), render: () => "Post" });',
+					'const slugs = entries.map((entry) => ({ params: { slug: entry.slug } }));',
+					'export default eco.page({ paths: async () => slugs, render: () => "Post" });',
 				].join('\n'),
 			});
 			expect(((await evaluate(outputPath)).default as { render: () => string }).render()).toBe('Post');
@@ -1205,7 +1330,7 @@ describe('client graph boundary: one plan per build', () => {
 					"import { load } from './loader';",
 					"import { x } from './helper';",
 					'export default eco.page({',
-					'\tstaticProps: async () => ({ props: { value: await load() } }),',
+					'\tprops: async () => ({ value: await load() }),',
 					'\trender: () => x(),',
 					'});',
 				].join('\n'),

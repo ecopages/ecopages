@@ -11,8 +11,8 @@ const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set([
 	'dependencies',
 	'requires',
 	'metadata',
-	'staticProps',
-	'staticPaths',
+	'props',
+	'paths',
 ]);
 
 type SourceRange = { start: number; end: number };

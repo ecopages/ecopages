@@ -4,6 +4,8 @@ import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { CSS_MODULE_PROCESSOR_FIX, PLAIN_CSS_KINDS, type StylesheetKinds } from './stylesheet-kinds.ts';
 import { contentHash } from '../utils/content-hash.ts';
 import { findPackageRoot } from '../utils/package-path.ts';
+import { isServerOnlyModuleSpecifier } from '../utils/file-roles.ts';
+import { collectEcopagesVirtualImports, type EcopagesVirtualImport } from './ecopages-virtual-imports.ts';
 import {
 	isBarePackageImportSpecifier,
 	loadTsconfigPathPrefixes,
@@ -69,10 +71,6 @@ export function declaresEcoFactory(program: unknown): boolean {
 		}
 	});
 	return found;
-}
-
-function isServerSpecifier(source: string): boolean {
-	return /\.server(?:\.[cm]?[jt]sx?)?$/.test(source);
 }
 
 function isLocalSpecifier(source: string, pathPrefixes: string[]): boolean {
@@ -356,8 +354,18 @@ function reachIn(projectRoot: string) {
  * plugin for a module that no longer declares anything.
  */
 export function forgetDiscoveryOwner(projectRoot: string, ownerFile: string): void {
+	forgetCanonicalDiscoveryOwner(projectRoot, canonicalFile(ownerFile));
+}
+
+/**
+ * Drops what discovery from the declaration in `owner`, a real path, recorded as reached.
+ *
+ * @remarks
+ * The build plugin calls this with the module id the bundler reports, which is already a real path, so no
+ * path is resolved again.
+ */
+export function forgetCanonicalDiscoveryOwner(projectRoot: string, owner: string): void {
 	const reach = reachIn(projectRoot);
-	const owner = canonicalFile(ownerFile);
 	for (const module of reach.byOwner.get(owner) ?? []) {
 		const owners = reach.byModule.get(module);
 		owners?.delete(owner);
@@ -366,10 +374,9 @@ export function forgetDiscoveryOwner(projectRoot: string, ownerFile: string): vo
 	reach.byOwner.delete(owner);
 }
 
-function recordDiscoveryOwner(projectRoot: string, ownerFile: string, modules: Iterable<string>): void {
-	forgetDiscoveryOwner(projectRoot, ownerFile);
+function recordDiscoveryOwner(projectRoot: string, owner: string, modules: Iterable<string>): void {
+	forgetCanonicalDiscoveryOwner(projectRoot, owner);
 	const reach = reachIn(projectRoot);
-	const owner = canonicalFile(ownerFile);
 	const reached = new Set(modules);
 	reach.byOwner.set(owner, reached);
 	for (const module of reached) {
@@ -387,7 +394,7 @@ function recordDiscoveryOwner(projectRoot: string, ownerFile: string, modules: I
  * again once its build is transformed, so a plain module reached from a declaration is recorded in time.
  */
 export function isReachedByDiscovery(projectRoot: string, file: string): boolean {
-	return reachIn(projectRoot).byModule.has(canonicalFile(file));
+	return reachIn(projectRoot).byModule.has(file);
 }
 
 /**
@@ -608,6 +615,8 @@ export type DiscoveredImports = {
 	 * `file` is the module the plain module's import resolves to and `imported` the export it names.
 	 */
 	plainModuleComponents: Array<{ file: string; imported: string }>;
+	/** The `ecopages:` virtual modules the declaring module imports itself. */
+	virtualImports: EcopagesVirtualImport[];
 	watchFiles: string[];
 	removals: Array<{ start: number; end: number; replacement: string }>;
 };
@@ -652,10 +661,15 @@ type PlainModuleWalk = {
  * Files do not change during a build, so each declaration reuses what an earlier one read and walked.
  * Create one per build; across builds the content-keyed module index is the only cache.
  */
-export type DiscoveryCache = { indexes: Map<string, ModuleIndex>; walks: Map<string, PlainModuleWalk> };
+export type DiscoveryCache = {
+	indexes: Map<string, ModuleIndex>;
+	walks: Map<string, PlainModuleWalk>;
+	/** The module a bare import resolves to from a folder, or `null` when discovery does not follow it. */
+	packageModules: Map<string, string | null>;
+};
 
 export function createDiscoveryCache(): DiscoveryCache {
-	return { indexes: new Map(), walks: new Map() };
+	return { indexes: new Map(), walks: new Map(), packageModules: new Map() };
 }
 
 type DiscoveryState = {
@@ -675,7 +689,11 @@ function resolveReexport(
 	reexport: { source: string; imported: string } | undefined,
 	state: DiscoveryState,
 ): { file: string; imported: string } | undefined {
-	if (!reexport || isServerSpecifier(reexport.source) || !isLocalSpecifier(reexport.source, state.pathPrefixes)) {
+	if (
+		!reexport ||
+		isServerOnlyModuleSpecifier(reexport.source) ||
+		!isLocalSpecifier(reexport.source, state.pathPrefixes)
+	) {
 		return undefined;
 	}
 	const resolved = resolveProjectModulePath(state.projectRoot, file, reexport.source, { preserveBarrel: true });
@@ -705,7 +723,7 @@ function isFactoryExport(
 	pending.add(visitKey);
 
 	let result = false;
-	if (!file.includes(`/node_modules/`) && !isServerSpecifier(file)) {
+	if (!file.includes(`/node_modules/`) && !isServerOnlyModuleSpecifier(file)) {
 		const { factories, namedReexports } = indexModule(file, state.cache);
 		if (factories.has(exportName)) {
 			result = true;
@@ -823,12 +841,20 @@ function assertSameIntegration(
  */
 function followPackageImport(entry: StaticImport, importer: string, state: DiscoveryState): string | undefined {
 	if (!isInNodeModules(importer) && !isBarePackageImportSpecifier(entry.source, state.projectRoot)) return undefined;
-	return resolvePackageModule(importer, entry.source, state.stylesheets);
+	const cache = state.cache?.packageModules;
+	if (!cache) return resolvePackageModule(importer, entry.source, state.stylesheets);
+	const key = `${path.dirname(importer)}\0${entry.source}`;
+	let module = cache.get(key);
+	if (module === undefined) {
+		module = resolvePackageModule(importer, entry.source, state.stylesheets) ?? null;
+		cache.set(key, module);
+	}
+	return module ?? undefined;
 }
 
 /** Whether `entry` imports a script module for its bindings or its side effects, not a stylesheet or a `.server` module. */
 function isScriptEdge(entry: StaticImport, state: DiscoveryState): boolean {
-	if (entry.attributed || state.stylesheets.isStylesheet(entry.source) || isServerSpecifier(entry.source))
+	if (entry.attributed || state.stylesheets.isStylesheet(entry.source) || isServerOnlyModuleSpecifier(entry.source))
 		return false;
 	return entry.sideEffectOnly || entry.bindings.length > 0;
 }
@@ -929,7 +955,7 @@ function walkPlainModule(
 
 	inProgress.add(file);
 	const local: DiscoveryState = { ...state, resolved: new Map(), watchFiles: walk.watchFiles };
-	walk.modules.add(canonicalFile(file));
+	walk.modules.add(file);
 	walk.watchFiles.add(file);
 	collectWalkStylesheets(file, index.imports, local, walk);
 	const children = collectModuleEdges(
@@ -1001,7 +1027,7 @@ function collectOwnStylesheets(
  * every walked plain module are recorded in `watchFiles` so their edits invalidate caches. Each stylesheet is
  * listed once by real path, and `packageStylesheets` marks those a package import named.
  * `export *`, dynamic imports, namespace imports, packages that ship no CSS Module, and `.server` modules are not
- * followed.
+ * followed. `ownerFile` is a real path, as a bundler reports a module id, and every path discovery returns is one.
  */
 export function discoverComponentImports(
 	program: unknown,
@@ -1015,6 +1041,7 @@ export function discoverComponentImports(
 		plainModuleStylesheets: [],
 		packageStylesheets: [],
 		plainModuleComponents: [],
+		virtualImports: [],
 		watchFiles: [],
 		removals: [],
 	};
@@ -1030,6 +1057,7 @@ export function discoverComponentImports(
 		watchFiles: new Set(),
 	};
 	const imports = collectStaticImports(program);
+	result.virtualImports = collectEcopagesVirtualImports(imports);
 	const packageStylesheets = collectOwnStylesheets(imports, ownerFile, state, result);
 	let renderedNames: Set<string> | undefined;
 	const ownComponents = new Set<string>();
@@ -1051,7 +1079,7 @@ export function discoverComponentImports(
 		modules: new Set(),
 		watchFiles: new Set(),
 	};
-	const inProgress = new Set([canonicalFile(ownerFile)]);
+	const inProgress = new Set([ownerFile]);
 	for (const file of plainModules) {
 		const { walk } = walkPlainModule(file, state, inProgress);
 		if (walk) mergePlainModuleWalk(plain, walk);

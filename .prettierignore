@@ -10,3 +10,6 @@ templates/llm-wiki/app/src/public/search-index.json
 # Vendored and synced agent skill packs (canonical sources: apps/docs and scripts/agent-skills).
 scripts/agent-skills
 **/.agents
+# Template build output (such as an Electrobun desktop build), gitignored by each template's own .gitignore, which
+# Prettier does not read. Not **/build: packages/core/src/build is source.
+templates/*/build/

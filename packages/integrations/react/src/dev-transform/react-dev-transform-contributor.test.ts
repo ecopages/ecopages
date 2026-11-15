@@ -10,8 +10,8 @@ function createStrategy(): ReactHmrStrategy {
 			getWatchedFiles: () => new Map(),
 			getRegisteredEntrypoints: () => new Map(),
 			getSrcDir: () => '/tmp/src',
-			getLayoutsDir: () => '/tmp/src/layouts',
-			getPagesDir: () => '/tmp/src/pages',
+			isPageFile: () => false,
+			isLayoutFile: () => false,
 			getEntrypointDependencyGraph: () => ({
 				supportsSelectiveInvalidation: () => true,
 				getDependencyEntrypoints: () => new Set(),

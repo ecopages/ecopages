@@ -25,7 +25,7 @@ import type {
 	EcoPagesElement,
 	EcoPageFile,
 	GetMetadata,
-	GetStaticProps,
+	GetProps,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
 	EcoComponent,
@@ -36,10 +36,12 @@ import type {
 	IHmrManager,
 } from '../../types/contracts.ts';
 import type { EcoPageComponent } from '../../types/eco-api-types.ts';
+import { MissingProductionServerModuleError } from '../../build/server/server-modules-manifest.ts';
 import {
 	TestIntegrationRenderer,
 	createMockAppConfig,
 	createMockIntegrationPlugin,
+	declaredPage,
 	testAppConfig,
 	testAssetService,
 } from './integration-renderer.test-fixtures.ts';
@@ -83,7 +85,7 @@ describe('IntegrationRenderer', () => {
 		} as EcoPageFile;
 
 		await expect(renderer.loadPageModule(path.resolve('/app/src/pages/index.tsx'))).rejects.toThrow(
-			/\/app\/src\/pages\/index\.tsx exports getStaticProps.*migrate-to-eco-page codemod/,
+			/\/app\/src\/pages\/index\.tsx exports getStaticProps.*migrating-from-staticprops-and-staticpaths/,
 		);
 	});
 
@@ -269,12 +271,7 @@ describe('IntegrationRenderer', () => {
 
 		const result = await renderer.renderComponentWithForeignChildren({ component: Host, props: {} });
 
-		expect(renderQueuedChildren).toHaveBeenCalledWith(
-			foreignChildValue,
-			expect.any(Object),
-			expect.any(Map),
-			expect.any(Function),
-		);
+		expect(renderQueuedChildren).toHaveBeenCalledWith(foreignChildValue, expect.any(Object), expect.any(Function));
 		expect(renderComponent).toHaveBeenCalledOnce();
 		expect(foreignRender).toHaveBeenCalledWith(
 			expect.objectContaining({ children: '<strong>queued child</strong>' }),
@@ -284,15 +281,15 @@ describe('IntegrationRenderer', () => {
 
 	it('prepares a planned route without running its data hooks again', async () => {
 		const validateGraph = vi.spyOn(OwnershipValidationService.prototype, 'validateGraph');
-		const staticProps = vi.fn(async ({ pathname }: { pathname: { params: Record<string, string> } }) => ({
-			props: { slug: pathname.params.slug },
+		const props = vi.fn(async ({ params }: { params: Record<string, string> }) => ({
+			slug: params.slug,
 		}));
 		const metadata = vi.fn(async ({ props }: { props: Record<string, unknown> }) => ({
 			title: String(props.slug),
 			description: 'Page description',
 		}));
 		const Page = Object.assign((() => 'page') as EcoPageComponent<Record<string, unknown>>, {
-			staticProps,
+			props,
 			metadata,
 		});
 		const pageDependency = (() => 'dependency') as EcoComponent;
@@ -327,7 +324,7 @@ describe('IntegrationRenderer', () => {
 		const routesPlan = await renderer.planProductionRoutes([{ routeFile, params }]);
 		await routesPlan?.prepare();
 
-		expect(staticProps).toHaveBeenCalledTimes(1);
+		expect(props).toHaveBeenCalledTimes(1);
 		expect(metadata).toHaveBeenCalledTimes(1);
 		expect(resolveDependencies).toHaveBeenCalledTimes(1);
 		expect(preparedContributionHookCalls).toBe(1);
@@ -338,13 +335,13 @@ describe('IntegrationRenderer', () => {
 	it('continues grouped production prebuild after a route data hook fails', async () => {
 		const routeFile = path.resolve('/app/pages/[slug].tsx');
 		const failure = new Error('broken static props');
-		const staticProps: GetStaticProps<{ slug: string }> = async ({ pathname }) => {
-			const slug = String(pathname.params.slug);
+		const props: GetProps<{ slug: string }> = async ({ params }) => {
+			const slug = String(params.slug);
 			if (slug === 'broken') throw failure;
-			return { props: { slug } };
+			return { slug };
 		};
 		const Page = (({ slug }: { slug: string }) => `<p>${slug}</p>`) as EcoPageComponent<{ slug: string }>;
-		Page.staticProps = staticProps;
+		Page.props = props;
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
@@ -364,7 +361,7 @@ describe('IntegrationRenderer', () => {
 		expect(onRouteFailure).toHaveBeenCalledOnce();
 		expect(onRouteFailure.mock.calls[0]?.[0]).toEqual({ routeFile, params: { slug: 'broken' } });
 		expect(onRouteFailure.mock.calls[0]?.[1]).toMatchObject({
-			message: 'Error fetching static props: broken static props',
+			message: 'Error fetching props: broken static props',
 			cause: failure,
 		});
 		expect(routesPlan?.plan.integrationName).toBe('test-renderer');
@@ -381,17 +378,17 @@ describe('IntegrationRenderer', () => {
 			identity: { id: 'card', file: path.resolve('/app/components/card.tsx'), integration: 'test-renderer' },
 			dependencies: { scripts: ['./card.script.ts'] },
 		};
-		const pendingStaticProps: Array<() => void> = [];
+		const pendingProps: Array<() => void> = [];
 		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
 		Page.config = {
 			identity: { id: 'index', file: routeFile, integration: 'test-renderer' },
 			dependencies: { components: [Card] },
 		};
-		const staticPropsStarted = new Promise<void>((resolveStarted) => {
-			Page.staticProps = async () => {
+		const propsStarted = new Promise<void>((resolveStarted) => {
+			Page.props = async () => {
 				resolveStarted();
-				await new Promise<void>((resolveRelease) => pendingStaticProps.push(resolveRelease));
-				return { props: {} };
+				await new Promise<void>((resolveRelease) => pendingProps.push(resolveRelease));
+				return {};
 			};
 		});
 		const renderer = new (class extends TestIntegrationRenderer {
@@ -405,13 +402,10 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		const planning = renderer.planProductionRoutes([
-			{ routeFile },
-			{ routeFile: path.resolve('/app/pages/other.tsx') },
-		]);
-		await staticPropsStarted;
+		const planning = renderer.planProductionRoutes([{ routeFile }, { routeFile, params: { slug: 'other' } }]);
+		await propsStarted;
 		const resolvedDependencies = await renderer.processForRender([Card]);
-		for (const release of pendingStaticProps) release();
+		for (const release of pendingProps) release();
 		const routesPlan = await planning;
 
 		expect(resolvedDependencies).toEqual([{ kind: 'script', srcUrl: '/assets/script.js' }]);
@@ -649,7 +643,7 @@ describe('IntegrationRenderer', () => {
 		});
 	});
 
-	it('keeps metadata active for route plans that only skip static props', async () => {
+	it('keeps metadata active for route plans that skip the props hook', async () => {
 		const routeFile = path.resolve('/app/pages/products/[slug].tsx');
 		const metadata = vi.fn(async ({ params }: Parameters<GetMetadata>[0]) => ({
 			title: String(params.slug),
@@ -671,9 +665,7 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		await renderer.planProductionRoutes([
-			{ routeFile, params: { slug: 'existing-product' }, skipStaticProps: true },
-		]);
+		await renderer.planProductionRoutes([{ routeFile, params: { slug: 'existing-product' }, skipPropsHook: true }]);
 
 		expect(metadata).toHaveBeenCalledWith(expect.objectContaining({ params: { slug: 'existing-product' } }));
 	});
@@ -767,11 +759,13 @@ describe('IntegrationRenderer', () => {
 		const gate = new Promise<void>((resolve) => {
 			releaseBoth = resolve;
 		});
-		const Page = (() => 'page') as EcoComponent;
-		Page.config = {};
 		const HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
 
 		const renderer = new (class extends TestIntegrationRenderer {
+			protected override async importPageFile(file: string): Promise<EcoPageFile> {
+				return declaredPage({ default: (() => 'page') as EcoComponent }, file, this.name);
+			}
+
 			override async collectPageBrowserGraphContribution(
 				context: PageBrowserGraphContributionContext,
 			): Promise<PageBrowserGraphContribution> {
@@ -791,7 +785,6 @@ describe('IntegrationRenderer', () => {
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
-		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = HtmlTemplate;
 
 		const both = Promise.all([
@@ -1035,8 +1028,8 @@ describe('IntegrationRenderer', () => {
 				return '<html><body>Page</body></html>';
 			}
 
-			protected override async importPageFile(): Promise<EcoPageFile> {
-				return this.PageModule;
+			protected override async importPageFile(file: string): Promise<EcoPageFile> {
+				return declaredPage(this.PageModule, file, this.name);
 			}
 
 			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
@@ -1106,8 +1099,8 @@ describe('IntegrationRenderer', () => {
 				return '<html><body>Page</body></html>';
 			}
 
-			protected override async importPageFile(): Promise<EcoPageFile> {
-				return this.PageModule;
+			protected override async importPageFile(file: string): Promise<EcoPageFile> {
+				return declaredPage(this.PageModule, file, this.name);
 			}
 
 			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
@@ -1156,8 +1149,8 @@ describe('IntegrationRenderer', () => {
 				return '<html><body>Page</body></html>';
 			}
 
-			protected override async importPageFile(): Promise<EcoPageFile> {
-				return this.PageModule;
+			protected override async importPageFile(file: string): Promise<EcoPageFile> {
+				return declaredPage(this.PageModule, file, this.name);
 			}
 
 			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
@@ -1216,8 +1209,8 @@ describe('IntegrationRenderer', () => {
 				return '<html><body>Page</body></html>';
 			}
 
-			protected override async importPageFile(): Promise<EcoPageFile> {
-				return this.PageModule;
+			protected override async importPageFile(file: string): Promise<EcoPageFile> {
+				return declaredPage(this.PageModule, file, this.name);
 			}
 
 			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
@@ -1307,7 +1300,10 @@ describe('IntegrationRenderer', () => {
 			identity: { id: 'html', file: path.resolve('/app/html.ts'), integration },
 			render: ({ children }) => `<html><head></head><body>${String(children ?? '')}</body></html>`,
 		});
-		const assetProcessingService = { processDependencies } as unknown as AssetProcessingService;
+		const assetProcessingService = {
+			processDependencies,
+			processDependenciesInDeclarationOrder: processDependencies,
+		} as unknown as AssetProcessingService;
 		const ForeignRenderer = createIntegrationRenderer(foreignIntegration, {});
 		const appConfig = createMockAppConfig({
 			integrations: [
@@ -1399,14 +1395,14 @@ describe('IntegrationRenderer', () => {
 		expect(result.cacheStrategy).toBeUndefined();
 	});
 
-	it('should resolve static props and metadata correctly', async () => {
+	it('should resolve props and metadata correctly', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
 
 		const PageIdx = (({ title }: { title: string }) => `<main>${title}</main>`) as EcoPageComponent<any>;
-		PageIdx.staticProps = async () => ({ props: { title: 'Dynamic Title' } });
+		PageIdx.props = async () => ({ title: 'Dynamic Title' });
 		PageIdx.metadata = async ({ props }: { props: Record<string, unknown> }) => ({
 			title: props.title as string,
 			description: 'Dynamic Description',
@@ -1755,7 +1751,7 @@ describe('IntegrationRenderer', () => {
 				integration: 'test-renderer',
 				identity: {
 					id: 'root-component',
-					file: path.resolve('/app/components/root-component.ts'),
+					file: path.resolve('/app/pages/index.tsx'),
 					integration: 'test-renderer',
 				},
 				dependencies: { components: [Child] },
@@ -1794,7 +1790,7 @@ describe('IntegrationRenderer', () => {
 				integration: 'test-renderer',
 				identity: {
 					id: 'root-component',
-					file: path.resolve('/app/components/root-component.ts'),
+					file: path.resolve('/app/pages/index.tsx'),
 					integration: 'test-renderer',
 				},
 				dependencies: { components: [ForeignChild] },
@@ -2152,7 +2148,11 @@ describe('IntegrationRenderer', () => {
 				vi.unstubAllEnvs();
 			});
 
-			async function renderWithFailingScript(nodeEnv: string, staticGenerationActive = false) {
+			async function renderWithFailingScript(
+				nodeEnv: string,
+				staticGenerationActive = false,
+				failure: Error = new Error('Unexpected token'),
+			) {
 				vi.stubEnv('NODE_ENV', nodeEnv);
 				vi.spyOn(console, 'warn').mockImplementation(() => {});
 				const { imports, renderer, Page, appConfig } = createPreloadingApp('lit');
@@ -2161,7 +2161,7 @@ describe('IntegrationRenderer', () => {
 				const runtime = requireAppRuntime(appConfig);
 				runtime.hmr = hmr as IHmrManager;
 				runtime.staticGenerationActive = staticGenerationActive;
-				imports['ecopages-jsx'].mockRejectedValue(new Error('Unexpected token'));
+				imports['ecopages-jsx'].mockRejectedValue(failure);
 				const html = await render(renderer, Page);
 				return { html, reportBuildError };
 			}
@@ -2187,6 +2187,18 @@ describe('IntegrationRenderer', () => {
 					);
 				},
 			);
+
+			it('tells static generation that an ssr script the build did not find needs a string literal src', async () => {
+				await expect(
+					renderWithFailingScript(
+						'production',
+						true,
+						new MissingProductionServerModuleError('components/counter.script.ts'),
+					),
+				).rejects.toThrow(
+					`The ssr script ${path.resolve('/app/components/counter.script.ts')} is not in the server build. \`ecopages build\` finds ssr scripts from a string literal \`src\``,
+				);
+			});
 
 			it('only warns in production outside static generation, as `ecopages start` does', async () => {
 				const { reportBuildError } = await renderWithFailingScript('production', false);

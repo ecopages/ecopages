@@ -1,3 +1,4 @@
+import { compileApiRoutes } from '../http/api-request-pipeline.ts';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -76,7 +77,7 @@ class TestServerRequestPipeline extends ServerRequestPipeline {
 	public async handleRequest(request: Request): Promise<Response> {
 		this.runtime.hmr = createHmrAssetManager('');
 		return await this.handleSharedRequest(request, {
-			apiHandlers: [],
+			apiRoutes: compileApiRoutes([]),
 		});
 	}
 
@@ -87,7 +88,7 @@ class TestServerRequestPipeline extends ServerRequestPipeline {
 	): Promise<Response> {
 		this.runtime.hmr = hmrManager ?? null;
 		return await this.handleSharedRequest(request, {
-			apiHandlers,
+			apiRoutes: compileApiRoutes(apiHandlers),
 		});
 	}
 
@@ -102,7 +103,10 @@ class TestServerRequestPipeline extends ServerRequestPipeline {
 		request: Request,
 		errorHandler: ErrorHandler,
 	): Promise<Response> {
-		return await this.handleUnexpectedRequestError(error, request, { apiHandlers: [], errorHandler });
+		return await this.handleUnexpectedRequestError(error, request, {
+			apiRoutes: compileApiRoutes([]),
+			errorHandler,
+		});
 	}
 
 	public setWatchModeForTest(watch: boolean): void {
@@ -259,7 +263,7 @@ test('RouteRegistry page module adapter loads page modules through integration r
 
 	const loadPageModule = vi.fn(async () => ({
 		default: {
-			staticPaths: async () => ({ paths: [] }),
+			paths: async () => [],
 		},
 	}));
 	const getPageRenderer = vi.fn(() => ({
@@ -278,7 +282,7 @@ test('RouteRegistry page module adapter loads page modules through integration r
 
 	assert.deepEqual(getPageRenderer.mock.calls, [['/pages/blog/[slug].tsx']]);
 	assert.deepEqual(loadPageModule.mock.calls, [['/pages/blog/[slug].tsx']]);
-	assert.equal(typeof (result as { staticPaths?: unknown }).staticPaths, 'function');
+	assert.equal(typeof (result as { paths?: unknown }).paths, 'function');
 });
 
 describe('ServerRequestPipeline endpoint files', () => {
@@ -330,7 +334,7 @@ describe('ServerRequestPipeline endpoint files', () => {
 			initialize,
 			fetch: (url: string, init?: RequestInit) =>
 				pipeline.handleSharedRequest(new Request(`http://localhost${url}`, init), {
-					apiHandlers,
+					apiRoutes: compileApiRoutes(apiHandlers),
 					errorHandler: options.errorHandler,
 				}),
 		};

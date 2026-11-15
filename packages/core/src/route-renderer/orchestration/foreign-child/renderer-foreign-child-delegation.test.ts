@@ -188,41 +188,6 @@ describe('renderer foreign-child delegation', () => {
 		expect(result.html).toBe('<aside>Local renderer</aside>');
 	});
 
-	it('should not recursively resolve unresolved eco-marker artifacts that were only passed through resolved child html', async () => {
-		const renderer = new TestIntegrationRenderer({
-			appConfig: testAppConfig,
-			assetProcessingService: testAssetService,
-		});
-
-		renderer.MockComponentRenderResult = {
-			html: '<section><eco-marker data-eco-node-id="n_2" data-eco-component-ref="nested-component" data-eco-props-ref="p_2"></eco-marker></section>',
-			canAttachAttributes: true,
-			integrationName: 'test-renderer',
-		};
-
-		const Component = (() => '<section />') as EcoComponent<Record<string, unknown>>;
-		Component.config = {
-			integration: 'test-renderer',
-			identity: {
-				id: 'component',
-				file: '/app/components/component.ts',
-				integration: 'test-renderer',
-			},
-		};
-
-		await expect(
-			renderer.renderComponentWithForeignChildren({
-				component: Component,
-				props: {},
-				children: '<aside>already resolved child html</aside>',
-			}),
-		).resolves.toEqual(
-			expect.objectContaining({
-				html: '<section><eco-marker data-eco-node-id="n_2" data-eco-component-ref="nested-component" data-eco-props-ref="p_2"></eco-marker></section>',
-			}),
-		);
-	});
-
 	it('renders same-integration leaf components under their own integration context', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
@@ -246,7 +211,6 @@ describe('renderer foreign-child delegation', () => {
 		);
 
 		expect(result.value.html).toBe('<section>Leaf Render</section>');
-		expect(result.value.html).not.toContain('<eco-marker');
 		expect(renderer.ForeignChildRuntimeCreationCount).toBe(0);
 	});
 

@@ -77,8 +77,8 @@ function page<T, E>(
 		layout: pageLayout,
 		dependencies: dependenciesInput,
 		render,
-		staticPaths,
-		staticProps,
+		paths,
+		props,
 		metadata,
 		cache,
 		requires,
@@ -103,12 +103,12 @@ function page<T, E>(
 		applyPageLayoutConfig(pageComponent.config, layoutEntries);
 	}
 
-	if (staticPaths) {
-		pageComponent.staticPaths = staticPaths;
+	if (paths) {
+		pageComponent.paths = paths;
 	}
 
-	if (staticProps) {
-		pageComponent.staticProps = staticProps;
+	if (props) {
+		pageComponent.props = props;
 	}
 
 	if (metadata) {

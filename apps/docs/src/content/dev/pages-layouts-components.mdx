@@ -7,6 +7,7 @@ sources:
   - packages/core/src/plugins/component-import-discovery.ts
   - packages/core/src/plugins/eco-component-meta-plugin.ts
   - packages/core/src/eco/eco.ts
+  - packages/core/src/eco/migration-docs.ts
   - packages/core/src/types/eco-api-types.ts
   - packages/core/src/eco/component-identity.ts
   - packages/core/src/eco/discovered-dependencies.ts
@@ -17,6 +18,10 @@ sources:
   - packages/core/src/eco/mdx-page-metadata.ts
   - packages/core/src/route-renderer/page-loading/page-module-loader.ts
   - packages/core/src/route-renderer/page-loading/component-dependency-collection.ts
+  - packages/core/src/route-renderer/page-loading/component-declarations.ts
+  - packages/core/src/route-renderer/page-loading/declared-asset-collection.ts
+  - packages/core/src/route-renderer/page-loading/module-declaration-aggregation.ts
+  - packages/core/src/plugins/ecopages-virtual-imports.ts
   - packages/core/src/route-renderer/orchestration/document-shell/document-shell-render.service.ts
   - packages/core/src/route-renderer/orchestration/document-shell/layout-children-not-rendered-error.ts
   - packages/react-router/src/router.ts
@@ -115,13 +120,36 @@ A stylesheet in a linked workspace package is a watch path, and any edit in that
 
 At runtime, `attachDiscoveredDependencies` turns `config.dependencies.components` into a getter that merges explicit Components, first, with discovered ones in import order, removing duplicates and keeping only declared Components. The getter reads the import bindings when the graph is traversed, after every module has initialized. Inferred stylesheets stay on the identity, not in the public bag, so copying or merging `dependencies` cannot turn one into an explicit stylesheet; collection prefers explicit declarations by resolved path.
 
+```mermaid
+flowchart TD
+  subgraph Build["Build: transform of the declaring module"]
+    D["Discovery walks the module and the plain modules it imports"] --> I["Identity: file, id, owner"]
+    D --> DS["Side-effect stylesheets, package stylesheets, watch files, ecopages: virtual imports"]
+    D --> DC["Imported declared Components"]
+    I --> REG["registerDiscoveredDependencies on the identity"]
+    DS --> REG
+    DC --> ATT["attachDiscoveredDependencies: components getter"]
+  end
+  subgraph Runtime["Runtime: per config"]
+    CFG["eco.page, eco.layout, eco.component or eco.html config"] --> ST["ComponentDeclarationStore.get(config)"]
+    REG --> ST
+    ATT --> WALK
+    ST --> CD["ComponentDeclarations: assets, lazy scripts, modules, stylesheets, declaresScript"]
+    CD --> WALK["Collection walks the graph and merges declarations in order"]
+  end
+  PLAIN["Plain component: no config"] -. "its imports are found by discovery, attributed to the nearest declared owner" .-> D
+  WALK --> OUT["Dependencies of the Page Package"]
+```
+
+Collection reads each config through its `ComponentDeclarations` (`page-loading/component-declarations.ts`): the config's stylesheets and eager scripts as asset definitions with their dedupe keys, its lazy scripts, its `modules` plus the `ecopages:` virtual modules its declaring module imports (discovery records them beside the inferred stylesheets when the build transforms the module, so no source is read at render), its explicit and inferred stylesheet paths, and whether it ships a browser script of its own. A config is a value of the module that declares it, so these never change while it exists; each renderer's `DependencyResolverService` resolves them the first time it reaches the config and keeps them, weakly, for that config. A development edit re-imports the module, and the new config is resolved afresh. Collection then only walks the graph and merges the declarations it reaches, in order, deduped by key; the one thing it adds per render is a lazy script's entry name, which names the Integration that owns the component.
+
 Component factories render through a context in `eco/component-render-context.ts`. The route renderer opens one per render with `runWithComponentRenderContext`, supplying the foreign-child runtime that hands off Components another Integration owns ([Integrations and foreign children](/dev/integrations-foreign-children)). The context lives in `AsyncLocalStorage`, so nested and concurrent renders keep their own across async work, and the storage is attached to `process` rather than module state, so duplicate module instances in development share it.
 
-A Page declares its data only through the `staticPaths`, `staticProps` and `metadata` options of `eco.page()`, one options object that keeps the Page's concerns together and lets its props type flow to every hook. `PageModuleLoaderService.assertNoLegacyPageExports` fails a module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata`, naming the `migrate-to-eco-page` codemod. MDX cannot call `eco.page()`, so the MDX-capable Integrations move its `getMetadata` export onto the Page with `moveMdxMetadataOntoPage` before core sees the module. The authoring API is in the [eco namespace reference](/docs/reference/eco-namespace).
+A Page declares its data only through the `paths`, `props` and `metadata` options of `eco.page()`, one options object that keeps the Page's concerns together and lets its props type flow to every hook. `PageModuleLoaderService.assertNoLegacyPageExports` fails a module that still exports `getStaticPaths`, `getStaticProps` or `getMetadata`, naming the `migrate-to-eco-page` codemod. `eco.page()` fails a page that still passes `staticProps` or `staticPaths`, since it would otherwise drop them silently, and names the `migrate-data-hooks` codemod. The hooks return their value directly: `paths` a list of `{ params }` (`PagePath`), `props` the props object. `props` receives `{ params, appConfig, runtimeOrigin }`, with `params` from `paths` at build and from the request at run time. MDX cannot call `eco.page()`, so the MDX-capable Integrations move its `getMetadata` export onto the Page with `moveMdxMetadataOntoPage` before core sees the module. The authoring API is in the [eco namespace reference](/docs/reference/eco-namespace).
 
 ## Render-based type inference
 
-`eco.component`, `eco.layout`, `eco.html` and `eco.page` are generic over the props and the element type (`E`). With no type arguments TypeScript infers `P` and `E` from `render`, and `eco.page` infers its props `T` from `staticProps` or the annotated `render`. The behavior is pinned per Integration by `render-type-inference.test.ts(x)` in each Integration package (typechecked, since `@ts-expect-error` and `expectTypeOf` only run under `tsc`) and by `eco.render-inference.test.ts` in core.
+`eco.component`, `eco.layout`, `eco.html` and `eco.page` are generic over the props and the element type (`E`). With no type arguments TypeScript infers `P` and `E` from `render`, and `eco.page` infers its props `T` from `props` or the annotated `render`. The behavior is pinned per Integration by `render-type-inference.test.ts(x)` in each Integration package (typechecked, since `@ts-expect-error` and `expectTypeOf` only run under `tsc`) and by `eco.render-inference.test.ts` in core.
 
 Three limits come from TypeScript, not from the typing:
 
@@ -133,7 +161,7 @@ Three limits come from TypeScript, not from the typing:
 
 ## Layouts
 
-`eco.page({ layout })` normalizes one Layout or an outer-to-inner array, where an entry may be `{ component, props }`, into `config.layouts` and `config.layoutEntries` at factory time (`normalizePageLayouts`). Layouts are never inferred from `src/layouts/` or route folders. `mergeLayoutDependencies` adds only `eco.layout()` results to `dependencies.components`; a plain Layout function carries no config, so it is composed but not a graph node, and its imports reach the Page through plain-module discovery. Use `eco.layout()` only when a Layout needs browser scripts, `modules`, stylesheet attributes, an `integration` override or rendering by another Integration.
+`eco.page({ layout })` normalizes one Layout or an outer-to-inner array, where an entry may be `{ component, props }`, into `config.layouts` and `config.layoutEntries` at factory time (`normalizePageLayouts`). Layouts are never inferred from `src/layouts/` or route folders, and there is no `layoutsDir` or `componentsDir` option: config that sets either fails when it loads. HMR and React page identity each read the Layout from a reference (`AppRuntime.layoutFiles`, the build-time identity), and the lint rule `ecopages-roles/no-folder-role-check` (`scripts/oxlint-file-roles.ts`) fails on a `pages`, `layouts`, `components` or `views` path segment in `packages/**/src`, outside the router's `pages-dir.ts` and `file-roles.ts`. `mergeLayoutDependencies` adds only `eco.layout()` results to `dependencies.components`; a plain Layout function carries no config, so it is composed but not a graph node, and its imports reach the Page through plain-module discovery. Use `eco.layout()` only when a Layout needs browser scripts, `modules`, stylesheet attributes, an `integration` override or rendering by another Integration.
 
 Layouts persist by reference. A Layout module has one URL in the browser, so every Page that imports it gets the same function. With react-router's `persistLayouts` (on by default), a layout tier stays mounted while consecutive Pages pass the same function, and React keeps its state; with it off, each Page's tree is keyed so its layouts remount.
 

@@ -244,6 +244,28 @@ export class AssetProcessingService {
 	}
 
 	/**
+	 * Processes `deps`, then returns the outputs the asset ledger records for them in declaration order.
+	 *
+	 * @remarks
+	 * This is the order a sealed `ecopages start` returns, so an output recorded from it renders the same in the
+	 * build and in start. A dependency processing skipped, such as a missing file, is left out until start, where
+	 * it is an error.
+	 */
+	async processDependenciesInDeclarationOrder(
+		deps: AssetDefinition[],
+		integration: AssetProcessingIntegration | undefined,
+	): Promise<ProcessedAsset[]> {
+		const processed = await this.processDependencies(deps, integration);
+		if (requireAppRuntime(this.config).processedAssets.isSealed) return processed;
+		return prepareAssetDependencies(deps, integration, this.config.rootDir).flatMap((dep) => {
+			const recorded = this.lookupRecordedAsset(dep);
+			return recorded
+				? [finalizeProcessedAsset(recorded, (asset) => this.resolveProcessedAssetSrcUrl(asset))]
+				: [];
+		});
+	}
+
+	/**
 	 * Returns the emitted form of `dep` the production build recorded, if any.
 	 *
 	 * @remarks

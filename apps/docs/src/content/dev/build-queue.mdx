@@ -16,6 +16,10 @@ sources:
   - packages/core/src/build/rolldown/entry-module-closures.ts
   - packages/core/src/build/rolldown/stylesheet-module-plugin.ts
   - packages/core/src/build/rolldown/worker-entries-plugin.ts
+  - packages/core/src/build/rolldown/file-role-grammar-plugin.ts
+  - packages/core/src/build/rolldown/ssr-script-entries-plugin.ts
+  - packages/core/src/build/rolldown/rolldown-module-id.ts
+  - packages/core/src/utils/node-builtin.ts
   - packages/core/src/build/worker-urls.ts
   - packages/core/src/assets/browser-bundle.service.ts
   - packages/core/src/cache/
@@ -63,9 +67,36 @@ A request identical to a queued or running one shares that build, whichever lane
 
 Around the bridge's plugins the adapter adds a few native ones:
 
-- **Server-only guard**, on browser-platform builds. It rejects Node builtins at resolution and any import of a `.server` module (extensionless `./db.server` included). The check reads the resolved id, so an alias through a `package.json` `imports` entry or a tsconfig path fails like a relative import; a query or fragment does not change the result. Server builds allow `.server` imports. An Integration may prune server-only imports before resolution, as React does when it strips server-only Page options. No `server-only` package marker is read.
+- **Server-only guard**, on browser-platform builds. It rejects any import of a Node builtin, with or without the `node:` prefix, and any import of a `.server` module (extensionless `./db.server` included). The check reads the resolved id, so an alias through a `package.json` `imports` entry or a tsconfig path fails like a relative import; a query or fragment does not change the result. A builtin is recorded where it resolves and reported when the build ends, once every module is parsed, so the error names the import chain from the app module through each `node_modules` module to the builtin, and the `.server` fix. Server builds allow `.server` imports. An Integration may prune server-only imports before resolution, as React does when it strips server-only Page options. No `server-only` package marker is read.
 - **Stylesheet modules**, on every build: a binding import of a stylesheet becomes the module `BuildOptions.stylesheets.compileModule` returns, and a side-effect import an empty module, except a package module's own import in a browser build, which fails it; see [Stylesheet imports](/dev/build-pipeline#stylesheet-imports).
 - **Installed-package externalizer**, with `externalPackages`; see [Portable paths](/dev/build-pipeline#portable-paths).
+- **File role grammar**, on every build: fails a module whose name puts a role segment anywhere but directly before a script extension; see [Build pipeline](/dev/build-pipeline#server-modules).
+- **ssr script entries**, on server builds that set `ssrScriptEntries`; see [Build pipeline](/dev/build-pipeline#server-modules).
+- **Worker entries**, on browser builds; see [Worker entries](#worker-entries).
+
+`buildRolldownInputPlugins()` places them in the order listed in [Plugin pipeline](/dev/plugin-pipeline#the-rolldown-bridge).
+
+### Server-only code in a browser build
+
+`isNodeBuiltinSpecifier(specifier)` (`utils/node-builtin.ts`, exported from `@ecopages/core/build`) is the one answer to whether a specifier is a Node builtin: it starts with `node:`, or `node:module` lists it, subpaths such as `fs/promises` included. Why one owner: a package named like a builtin subpath (`path-browserify`) is not one, and the guard and the React client graph must not disagree. Two layers use it:
+
+```mermaid
+flowchart TD
+  S["Browser module imports a specifier"] --> L1{"React client graph: server-only specifier?"}
+  L1 -- "yes: builtin, .server, content /server" --> RC{"Reachable from the render function?"}
+  RC -- yes --> E0["Build fails: reachability error, names the import and the .server fix"]
+  RC -- no --> RM["Import removed, its bindings recorded as stripped"]
+  RM --> U{"Kept top-level code still uses a stripped binding?"}
+  U -- yes --> E1["Build fails: stripped-binding error, names binding, file:line:column, the .server fix"]
+  U -- no --> OK["Module compiles without it"]
+  L1 -- no --> G{"Server-only guard"}
+  G -- ".server module" --> E2["Fails in moduleParsed, names the importer"]
+  G -- "builtin" --> R["Recorded in resolveId, left external"]
+  R --> BE["buildEnd: fails with the chain app module > package modules > builtin"]
+  G -- neither --> OK2["Bundled"]
+```
+
+The first layer is an Integration's: React's client-graph boundary removes server-only imports before resolution, fails when the render function reaches one, and fails with the stripped-binding error when kept browser code still uses one ([React](/dev/react#client-graph-boundary)). The guard is the backstop for every other path into the browser graph, a package that imports a builtin included. A package's own modules are not what the author wrote, so the chain walks each module's first importer until it leaves `node_modules`: `imported from src/app.ts > node_modules/pg/lib/x.js > fs`. Rolldown ids are native paths on Windows, so each link is converted with `fromRolldownModuleId` before the `node_modules` test.
 
 Core's own hooks declare native filters, so Rolldown calls them only for the modules they handle: by id, or by code for the stylesheet module plugin's `transform`. The adapter enables `experimental.nativeMagicString` and closes its Rolldown bundle in a `finally`.
 
@@ -77,7 +108,7 @@ Core's own hooks declare native filters, so Rolldown calls them only for the mod
 - A `BuildSuccess` carries `outputs`, `warnings`, `dependencyGraph`, `entryOutputs` and `outputGraph`.
   - `dependencyGraph.entrypoints` maps each entry to its source-module closure, inlined and tree-shaken imports included, plus the files plugins declared with `addWatchFile` for a module in it. Cache owners bind exactly those paths in the build-input index, so a file one entry's plugin read never ties another entry's cache to it.
   - `dependencyGraph.commonJsEntrypoints` lists entries whose own module Rolldown read as CommonJS; their output has `module.exports` as its default export and no named exports, which the dev vendor graph relies on.
-  - `entryOutputs` is keyed by the path or grouped name the caller passed, plus Rolldown's facade path when that spelling differs, so a symlinked root or a different Windows drive case still finds the chunk. Look entries up with `getBuildEntryOutput`, never by filename prefix.
+  - `entryOutputs` is keyed by the path or grouped name the caller passed, plus Rolldown's facade path when that spelling differs, so a symlinked root or a different Windows drive case still finds the chunk. The adapter resolves each requested entry and its real path once per build (`resolveRequestedBuildEntries`) and matches every chunk's facade against that list, instead of resolving real paths again for each chunk. Look entries up with `getBuildEntryOutput`, never by filename prefix.
   - `outputGraph` gives static and dynamic chunk reachability without parsing emitted JavaScript.
   - Each `BuildOutput` records `contentHashed` when Rolldown named it by content. `BrowserBundleService` writes those paths to `.ecopages-hashed-assets` beside the outputs, and file serving applies `immutable` from that record, not from a filename guess.
 

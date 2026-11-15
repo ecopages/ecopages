@@ -21,6 +21,15 @@ export interface KitchenSinkBenchConfigOptions {
 	distDir?: string;
 	/** Override work dir relative to kitchen-sink root (default: `.eco`). */
 	workDir?: string;
+	/**
+	 * Create a new config instead of returning the cached one for these dirs.
+	 *
+	 * @remarks
+	 * A config owns its app runtime, which records the assets each build emitted. A cold build needs a fresh one,
+	 * as `ecopages build` gets in a new process: a reused runtime still holds the previous build's records, whose
+	 * files the forced rebuild deletes.
+	 */
+	fresh?: boolean;
 }
 
 /**
@@ -34,7 +43,7 @@ export async function loadKitchenSinkConfig(options: KitchenSinkBenchConfigOptio
 	const distDir = options.distDir ?? 'dist';
 	const workDir = options.workDir ?? '.eco';
 	const cacheKey = `${distDir}::${workDir}`;
-	const cached = configCache.get(cacheKey);
+	const cached = options.fresh ? undefined : configCache.get(cacheKey);
 	if (cached) {
 		return cached;
 	}
@@ -45,7 +54,9 @@ export async function loadKitchenSinkConfig(options: KitchenSinkBenchConfigOptio
 		workDir,
 	});
 
-	configCache.set(cacheKey, config);
+	if (!options.fresh) {
+		configCache.set(cacheKey, config);
+	}
 	return config;
 }
 

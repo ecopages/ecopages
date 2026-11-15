@@ -1,50 +1,33 @@
-import { path } from '@ecopages/file-system/path';
-import type { DependencyLazyTrigger, EcoComponent, EcoComponentDependencies } from '../../types/contracts.ts';
+import type { EcoComponent, EcoComponentDependencies } from '../../types/contracts.ts';
 import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';
-import { resolveDiscoveredStylesheets } from '../../eco/discovered-dependency-paths.ts';
 import type { AssetDefinition } from '../../assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
-import { extractEcopagesVirtualImports } from './ecopages-virtual-imports.ts';
-import { collectDeclaredAssetEntries } from './declared-asset-collection.ts';
 import { getLazyTriggerKey } from './lazy-trigger-planning.ts';
-import { collectLazyScriptEntries, type LazyGroup } from './lazy-entry-collection.ts';
+import type { LazyGroup } from './lazy-entry-collection.ts';
 import {
 	createModuleScriptName,
 	createNamedImportModuleSource,
 	createNamespaceImportModuleSource,
 } from './module-declaration-scripts.ts';
-import { collectModuleDeclarations } from './module-declaration-aggregation.ts';
-
-const MODULE_SCRIPT_ATTRIBUTES = {
-	type: 'module',
-	defer: '',
-} as const;
-
-function createModuleScriptAttributes(attributes?: Record<string, string>): Record<string, string> {
-	return {
-		...MODULE_SCRIPT_ATTRIBUTES,
-		...attributes,
-	};
-}
+import { mergeModuleDeclaration } from './module-declaration-aggregation.ts';
+import { createModuleScriptAttributes } from './declared-asset-collection.ts';
+import {
+	createLazyEntryName,
+	type ComponentDeclarations,
+	type ComponentDeclarationStore,
+	type InferredStyle,
+} from './component-declarations.ts';
 
 function pushUniqueDependency(
 	keys: Set<string>,
 	key: string,
 	dependencies: AssetDefinition[],
 	dependency: AssetDefinition,
-): boolean {
-	if (keys.has(key)) {
-		return false;
-	}
-
+): void {
+	if (keys.has(key)) return;
 	keys.add(key);
 	dependencies.push(dependency);
-	return true;
-}
-
-function resolveDependencyPath(componentDir: string, pathUrl: string): string {
-	return path.isAbsolute(pathUrl) ? pathUrl : path.join(componentDir, pathUrl);
 }
 
 /**
@@ -64,35 +47,18 @@ export type CollectedComponentDependencies = {
 type CollectComponentDependenciesOptions = {
 	components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>;
 	integrationName: string;
-	/** The app root that root-relative identity files and discovered stylesheets resolve against. */
-	rootDir: string;
-	/**
-	 * Skips nested components owned by another Integration, and their descendants.
-	 *
-	 * @remarks Those are Foreign Children: their owning Integration renders them and emits their assets.
-	 */
-	excludeForeignChildren?: boolean;
+	/** The declarations of each component config the walk reaches. */
+	declarations: ComponentDeclarationStore;
 	/**
 	 * Treats each supplied component as an already flattened graph node.
 	 */
 	skipNestedComponents?: boolean;
-	resolveLazyScripts: (componentDir: string, scripts: string[]) => string;
-	createEcopagesJsxLazyEntryName: (integrationName: string, key: string) => string;
-	errors: {
-		invalidStylesheetEntry: string;
-		invalidScriptEntry: string;
-		lazyScriptMissingSrc: string;
-	};
 };
 
 type ComponentDependencyCollectionContext = {
 	integrationName: string;
-	rootDir: string;
-	excludeForeignChildren: boolean;
+	declarations: ComponentDeclarationStore;
 	skipNestedComponents: boolean;
-	resolveLazyScripts: CollectComponentDependenciesOptions['resolveLazyScripts'];
-	createEcopagesJsxLazyEntryName: CollectComponentDependenciesOptions['createEcopagesJsxLazyEntryName'];
-	errors: CollectComponentDependenciesOptions['errors'];
 	dependencies: AssetDefinition[];
 	lazyScriptsByConfig: Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>;
 	lazyDependencyKeys: Set<string>;
@@ -105,55 +71,44 @@ type ComponentDependencyCollectionContext = {
 	modulesMap: Map<string, Set<string> | null>;
 };
 
-function createLazyScriptRegistrar(
+/** Adds one config's declarations to the pass, skipping assets an earlier config already added. */
+function mergeComponentDeclarations(
 	config: NonNullable<EcoComponent['config']>,
-	lazyScriptsByConfig: Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>,
-) {
-	return ({ lazy, lazyKey, fallbackUrl }: { lazy: DependencyLazyTrigger; lazyKey: string; fallbackUrl?: string }) => {
-		let grouped = lazyScriptsByConfig.get(config);
-		if (!grouped) {
-			grouped = new Map<string, LazyGroup>();
-			lazyScriptsByConfig.set(config, grouped);
-		}
-
-		const triggerKey = getLazyTriggerKey(lazy);
-		const existing = grouped.get(triggerKey) ?? { lazy, scripts: [] };
-		existing.scripts.push({ lazyKey, fallbackUrl });
-		grouped.set(triggerKey, existing);
-	};
-}
-
-function recordExplicitAndInferredStyles(
-	config: NonNullable<EcoComponent['config']>,
-	dir: string,
-	context: Pick<
-		ComponentDependencyCollectionContext,
-		'explicitStylePaths' | 'inferredStyles' | 'packageStylePaths' | 'rootDir'
-	>,
-): NonNullable<EcoComponentDependencies['stylesheets']> {
-	const dependenciesConfig = config.dependencies;
-	const explicitStyles = dependenciesConfig?.stylesheets ?? [];
-
-	for (const style of explicitStyles) {
-		const src = typeof style === 'string' ? style : style.src;
-		if (src) context.explicitStylePaths.add(resolveDependencyPath(dir, src));
-	}
-
-	const discovered = resolveDiscoveredStylesheets(config, context.rootDir);
-	for (const filepath of discovered.imported) {
-		context.inferredStyles.push({ filepath, plainModule: false });
-	}
-	for (const filepath of discovered.plainModules) {
-		context.inferredStyles.push({ filepath, plainModule: true });
-	}
-	for (const [filepath, packagePath] of discovered.packagePaths) {
+	declarations: ComponentDeclarations,
+	context: ComponentDependencyCollectionContext,
+): void {
+	for (const filepath of declarations.explicitStylePaths) context.explicitStylePaths.add(filepath);
+	context.inferredStyles.push(...declarations.inferredStyles);
+	for (const [filepath, packagePath] of declarations.packageStylePaths)
 		context.packageStylePaths.set(filepath, packagePath);
+
+	for (const { kind, key, asset } of declarations.assets) {
+		const keys = kind === 'stylesheet' ? context.stylesheetDependencyKeys : context.scriptDependencyKeys;
+		pushUniqueDependency(keys, key, context.dependencies, asset);
 	}
 
-	return explicitStyles;
-}
+	for (const declaration of declarations.modules) mergeModuleDeclaration(context.modulesMap, declaration);
 
-type InferredStyle = { filepath: string; plainModule: boolean };
+	if (declarations.lazyScripts.length === 0) return;
+	const owner = getComponentOwner(config, context.integrationName);
+	let groups = context.lazyScriptsByConfig.get(config);
+	if (!groups) {
+		groups = new Map<string, LazyGroup>();
+		context.lazyScriptsByConfig.set(config, groups);
+	}
+	for (const script of declarations.lazyScripts) {
+		pushUniqueDependency(
+			context.lazyDependencyKeys,
+			script.key,
+			context.dependencies,
+			script.createAsset(createLazyEntryName(owner, script.entryHash)),
+		);
+		const triggerKey = getLazyTriggerKey(script.lazy);
+		const group = groups.get(triggerKey) ?? { lazy: script.lazy, scripts: [] };
+		group.scripts.push({ lazyKey: script.lazyKey, fallbackUrl: script.fallbackUrl });
+		groups.set(triggerKey, group);
+	}
+}
 
 /**
  * Orders inferred stylesheets once each, leaving out paths with an explicit entry.
@@ -177,13 +132,6 @@ function orderInferredStylesheets(styles: InferredStyle[], explicitStylePaths: R
 }
 
 /**
- * @remarks A nested component without an Integration inherits its parent's, so it is not a Foreign Child.
- */
-function isForeignChild(component: EcoComponent, integrationName: string): boolean {
-	return getComponentOwner(component, integrationName) !== integrationName;
-}
-
-/**
  * Recursively visits one component config and its declared child dependencies.
  */
 function collectComponentConfigDependencies(
@@ -193,48 +141,10 @@ function collectComponentConfigDependencies(
 	if (!config || context.visited.has(config)) return;
 	context.visited.add(config);
 
-	const identityFile = getComponentIdentity(config)?.file;
-	if (!identityFile) return;
-	const file = path.resolve(context.rootDir, identityFile);
-	const dir = path.dirname(file);
-	const explicitStyles = recordExplicitAndInferredStyles(config, dir, context);
-	const dependenciesConfig = config.dependencies;
-	const registerLazyScript = createLazyScriptRegistrar(config, context.lazyScriptsByConfig);
-
-	collectDeclaredAssetEntries({
-		stylesheetEntries: explicitStyles,
-		scriptEntries: dependenciesConfig?.scripts ?? [],
-		componentDir: dir,
-		dependencies: context.dependencies,
-		stylesheetDependencyKeys: context.stylesheetDependencyKeys,
-		scriptDependencyKeys: context.scriptDependencyKeys,
-		resolveDependencyPath,
-		createModuleScriptAttributes,
-		pushUniqueDependency,
-		getInvalidStylesheetEntryMessage: () => context.errors.invalidStylesheetEntry,
-		getInvalidScriptEntryMessage: () => context.errors.invalidScriptEntry,
-	});
-
-	collectModuleDeclarations(context.modulesMap, dependenciesConfig?.modules, extractEcopagesVirtualImports(file));
-
-	collectLazyScriptEntries({
-		scriptEntries: dependenciesConfig?.scripts ?? [],
-		rootDir: context.rootDir,
-		componentFile: file,
-		componentDir: dir,
-		integrationName: getComponentOwner(config, context.integrationName),
-		dependencies: context.dependencies,
-		lazyDependencyKeys: context.lazyDependencyKeys,
-		registerLazyScript,
-		resolveDependencyPath,
-		resolveLazyScripts: context.resolveLazyScripts,
-		createModuleScriptAttributes,
-		createEcopagesJsxLazyEntryName: context.createEcopagesJsxLazyEntryName,
-		pushUniqueDependency,
-		getLazyScriptMissingSrcMessage: () => context.errors.lazyScriptMissingSrc,
-	});
-
-	collectNestedComponentDependencies(dependenciesConfig?.components ?? [], file, context);
+	const declarations = context.declarations.get(config);
+	if (!declarations) return;
+	mergeComponentDeclarations(config, declarations, context);
+	collectNestedComponentDependencies(config.dependencies?.components ?? [], declarations.file, context);
 }
 
 function collectNestedComponentDependencies(
@@ -249,9 +159,6 @@ function collectNestedComponentDependencies(
 
 		assertEcoDeclaredComponent(nestedComponent, { parentComponentFile });
 		if (context.skipNestedComponents) {
-			continue;
-		}
-		if (context.excludeForeignChildren && isForeignChild(nestedComponent, context.integrationName)) {
 			continue;
 		}
 		collectComponentConfigDependencies(nestedComponent.config, context);
@@ -273,16 +180,7 @@ function collectNestedComponentDependencies(
 export function collectComponentDependencies(
 	options: CollectComponentDependenciesOptions,
 ): CollectedComponentDependencies {
-	const {
-		components,
-		integrationName,
-		rootDir,
-		excludeForeignChildren = false,
-		skipNestedComponents = false,
-		resolveLazyScripts,
-		createEcopagesJsxLazyEntryName,
-		errors,
-	} = options;
+	const { components, integrationName, declarations, skipNestedComponents = false } = options;
 	const dependencies: AssetDefinition[] = [];
 	const lazyScriptsByConfig = new Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>();
 	const lazyDependencyKeys = new Set<string>();
@@ -302,12 +200,8 @@ export function collectComponentDependencies(
 
 		const collectionContext: ComponentDependencyCollectionContext = {
 			integrationName,
-			rootDir,
-			excludeForeignChildren,
+			declarations,
 			skipNestedComponents,
-			resolveLazyScripts,
-			createEcopagesJsxLazyEntryName,
-			errors,
 			dependencies,
 			lazyScriptsByConfig,
 			lazyDependencyKeys,

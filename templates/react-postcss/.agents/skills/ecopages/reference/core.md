@@ -16,9 +16,9 @@
 project/
 ├── src/
 │   ├── pages/          # Filesystem Routes: Pages (eco.page, MDX, .html) and Endpoints (*.api.ts)
-│   ├── views/          # Handler-rendered views
-│   ├── layouts/
-│   ├── components/
+│   ├── views/          # Convention: handler-rendered views
+│   ├── layouts/        # Convention: layouts
+│   ├── components/     # Convention: components
 │   ├── handlers/
 │   ├── includes/       # html.* (incl. html.html), head.*, seo.*
 │   ├── lib/
@@ -33,16 +33,18 @@ Semantic discovery: `src/includes/html.*` and the error pages `src/pages/<status
 ## The eco namespace
 
 - `eco.component()` — reusable components; **required** when declaring dependencies (scripts, stylesheets, child components)
-- `eco.page()` — page routes with metadata, layouts, `staticPaths`, `staticProps`
+- `eco.page()` — page routes with metadata, layouts, `paths`, `props`
 - `eco.layout()` / `eco.html()` — semantic aliases for layouts and document shell
 
-Ecopages does not auto-detect script files by name pattern.
+Browser scripts attach only through `dependencies.scripts`. Name them `<name>.script.ts` by convention: the suffix keeps the file out of routing but injects nothing.
 
 ## Pages and views
 
-**Pages (`src/pages/`)** — Filesystem Routes, static by default (see Cache Strategy below). A `*.api.ts` (or `.api.tsx`, `.api.js`, `.api.jsx`) file under `src/pages` is an endpoint file instead; see [server.md](server.md#endpoint-files).
+**Pages (`src/pages/`)** — Filesystem Routes, static by default (see Cache Strategy below). A route file default-exports a literal `eco.page(...)` call (no wrapper or alias), an HTML Page or an MDX module; anything else there fails the build. A file is not a route when its name has a `.server` or `.script` suffix (`.ts`, `.tsx`, `.js`, `.jsx`) or a `_` prefix on any path segment (`_card.tsx`, `_layout.tsx`). A `*.api.ts` (or `.api.tsx`, `.api.js`, `.api.jsx`) file under `src/pages` is an endpoint file instead; see [server.md](server.md#endpoint-files).
 
-**Views (`src/views/`)** — rendered from handlers; see [server.md](server.md#pages-vs-views).
+**Views** — `eco.page()` defaults imported by the server entry and rendered from handlers, in any folder (`src/views/` by convention); see [server.md](server.md#pages-vs-views).
+
+**Layouts** — only what a Page passes as `eco.page({ layout: Base })` or `layout: [Outer, Inner]`; no folder or file name makes a layout. A section layout can sit beside its Pages as `_layout.tsx`.
 
 ```tsx
 export default eco.page({
@@ -127,11 +129,11 @@ Included URLs: successfully exported static pages whose metadata resolves and `r
 
 ## Common patterns
 
-**Dynamic routes:** `src/pages/blog/[slug].tsx` exports `staticPaths` returning `{ paths: [{ params: { slug } }] }` and `staticProps` reading `pathname.params` and returning `{ props }`. A catch-all `[...path]` captures an array.
+**Dynamic routes:** `src/pages/blog/[slug].tsx` sets `paths` returning `[{ params: { slug } }]` and `props` reading `params` and returning the props object. A catch-all `[...path]` captures an array.
 
 **Cache Strategy:** `cache: 'static'` (the default; rendered at build), `cache: 'dynamic'` (rendered per request; Params, Query and Locals arrive as render props, and Page `middleware` / `requires` need it), or `cache: { revalidate: seconds, tags }`.
 
-**Data fetching:** Prefer direct function calls in `staticPaths` / `staticProps` over HTTP to your own API during static generation.
+**Data fetching:** Prefer direct function calls in `paths` / `props` over HTTP to your own API during static generation.
 
 **Type checking:** `ecopages:images` and `ecopages:content/*` get their types only when the processors set up, so a fresh checkout has none. Run `ecopages types && tsc --noEmit` (the templates' `typecheck` script) instead of bare `tsc`.
 

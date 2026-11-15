@@ -164,18 +164,18 @@ my-project/
 
 ```
 
-- `src/components/`: Stores reusable components (Recommended)
+- `src/components/`: Stores reusable components (Convention)
 - `src/pages/`: Contains your page files (e.g., `.tsx`, `.mdx`, `.kita.tsx`, `.lit.tsx`, or plain `.html` [HTML Pages](/docs/core/pages#html-pages)) (**Default**)
-- `src/layouts/`: Holds layout components (Recommended)
+- `src/layouts/`: Holds layout components (Convention)
 - `src/includes/`: Contains include templates (e.g., `head.tsx`, `html.tsx`, or integration-specific suffixes) (**Default**)
 - `src/public/`: Static assets copied to the build directory as written (Default)
 - `eco.config.ts`: Ecopages configuration file (**Mandatory**)
 
-This structure helps Ecopages efficiently process and build your site. While Ecopages provides these sensible defaults, every directory path is fully customizable via your `eco.config.ts`.
+Only `src/pages/` and `src/includes/` carry meaning for Ecopages: `pages` is the URL space and `includes` holds the document shell. `src/components/` and `src/layouts/` are conventions that no config option reads, so a file is a Layout because a Page passes it to `eco.page({ layout })`, not because of its folder ([Layouts](/docs/core/layouts#how-layouts-are-assigned)). `srcDir`, `pagesDir`, `includesDir` and `publicDir` can be changed in `eco.config.ts`.
 
 ## Runtime Origin and API Requests
 
-When fetching data in `staticPaths` or `staticProps`, Ecopages provides different approaches. **For most cases, calling your data functions directly is recommended** for better performance and reliability.
+When fetching data in `paths` or `props`, Ecopages provides different approaches. **For most cases, calling your data functions directly is recommended** for better performance and reliability.
 
 ### Direct Function Calls (Recommended)
 
@@ -186,25 +186,23 @@ import { eco } from '@ecopages/core';
 import { getAllBlogPosts, getBlogPost } from '@/data/blog';
 
 export default eco.page({
-	staticPaths: async () => {
+	paths: async () => {
 		const posts = getAllBlogPosts();
 
-		return {
-			paths: posts.map((post) => ({
-				params: { slug: post.slug },
-			})),
-		};
+		return posts.map((post) => ({
+			params: { slug: post.slug },
+		}));
 	},
 
-	staticProps: async ({ pathname }) => {
-		const slug = pathname.params.slug;
+	props: async ({ params }) => {
+		const slug = params.slug;
 		const post = getBlogPost(slug);
 
 		if (!post) {
 			throw new Error(`Post not found: ${slug}`);
 		}
 
-		return { props: { post } };
+		return { post };
 	},
 
 	render: ({ post }) => <article>{post.title}</article>,

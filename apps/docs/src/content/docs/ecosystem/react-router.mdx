@@ -62,7 +62,7 @@ That's it, all pages now have SPA navigation enabled.
 
 ### 2. Use Layouts (Optional)
 
-For persistent UI across navigations (headers, sidebars), assign a layout on `eco.page()`: a plain function typed with `LayoutProps`, or an `eco.layout()` result when it needs browser scripts.
+For persistent UI across navigations (headers, sidebars), assign a layout on `eco.page({ layout })` ([Layout components](/docs/core/layouts#layout-components)).
 
 ```tsx
 // src/layouts/base-layout.tsx

@@ -1,7 +1,7 @@
 import type { AssetPosition, ProcessedAsset, ScriptAsset } from '../assets/asset-processing-service/assets.types.ts';
 import type { PagePackageResult } from '../types/contracts.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
-import { HtmlRewriter, rewriteFirstElement, type HtmlRewriterAttributeTarget } from './html-rewriter.ts';
+import { HtmlRewriter, rewriteFirstElement, rewriteLeadingElement } from './html-rewriter.ts';
 import { buildProcessedAssetDedupeKey, dedupeProcessedAssets } from '../assets/processed-asset-dedupe.ts';
 
 export type HtmlDocumentContributionPlacement = 'head-prepend' | 'head-append' | 'body-prepend' | 'body-append';
@@ -62,14 +62,22 @@ export class HtmlTransformerService {
 	 * Sets attributes on the first `<html>` start tag.
 	 */
 	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string {
-		return stampAttributes(html, attributes, (element) => element.tagName === 'html');
+		const entries = stampableEntries(attributes);
+		if (entries.length === 0) return html;
+		return rewriteFirstElement(
+			html,
+			(element) => element.tagName === 'html',
+			(element) => {
+				for (const [name, value] of entries) element.setAttribute(name, value);
+			},
+		);
 	}
 
 	/**
-	 * Injects page assets and document contributions into a streaming HTML response.
+	 * Injects page assets and document contributions into rendered HTML.
 	 */
-	transform(res: Response, input: PageAssetInjection = {}): Response {
-		return this.createRewriter(input.contributions ?? [], input.pagePackage).transform(res);
+	transform(html: string, input: PageAssetInjection = {}): string {
+		return this.createRewriter(input.contributions ?? [], input.pagePackage).transform(html);
 	}
 
 	/**
@@ -158,32 +166,21 @@ export class HtmlTransformerService {
  * so a Lit render that opens with `<!--lit-part-->` keeps its markup.
  */
 export function applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string {
-	return stampAttributes(html, attributes, () => true, { leadingOnly: true });
+	const entries = stampableEntries(attributes);
+	if (entries.length === 0) return html;
+	return rewriteLeadingElement(html, (element) => {
+		for (const [name, value] of entries) element.setAttribute(name, value);
+	});
 }
 
 /**
- * Sets `attributes` on the first element that `isTarget` accepts.
+ * The attributes to stamp.
  *
  * @remarks
  * Entries with an empty name are skipped. An empty value is kept and rendered as
  * `name=""`, so presence markers such as `data-eco-island` survive. An attribute
  * the element already has is replaced rather than duplicated.
  */
-function stampAttributes(
-	html: string,
-	attributes: Record<string, string>,
-	isTarget: (element: HtmlRewriterAttributeTarget) => boolean,
-	options?: { leadingOnly?: boolean },
-): string {
-	const entries = Object.entries(attributes).filter(([name]) => name.length > 0);
-	if (entries.length === 0) return html;
-
-	return rewriteFirstElement(
-		html,
-		isTarget,
-		(element) => {
-			for (const [name, value] of entries) element.setAttribute(name, value);
-		},
-		options,
-	);
+function stampableEntries(attributes: Record<string, string>): Array<[string, string]> {
+	return Object.entries(attributes).filter(([name]) => name.length > 0);
 }

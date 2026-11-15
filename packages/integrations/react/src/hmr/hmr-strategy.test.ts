@@ -41,8 +41,8 @@ function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultH
 		getWatchedFiles: () => new Map(),
 		getRegisteredEntrypoints: () => new Map(),
 		getSrcDir: () => path.resolve('/tmp/src'),
-		getLayoutsDir: () => path.resolve('/tmp/src/layouts'),
-		getPagesDir: () => path.resolve('/tmp/src/pages'),
+		isPageFile: (filePath) => filePath.startsWith(`${path.resolve('/tmp/src/pages')}/`),
+		isLayoutFile: (filePath) => filePath.startsWith(`${path.resolve('/tmp/src/layouts')}/`),
 		getEntrypointDependencyGraph: () => ({
 			supportsSelectiveInvalidation: () => true,
 			getDependencyEntrypoints: () => new Set(),
@@ -191,51 +191,41 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.matches(path.resolve('/tmp/src/views/explicit-team-view.kita.tsx'))).toBe(false);
 	});
 
-	describe('folders that share the pages or layouts folder name prefix', () => {
-		it('does not treat a pages sibling folder as route templates', () => {
-			const strategy = new ReactHmrStrategy({
-				context: createMockContext(),
-				pageMetadataCache: new HmrPageMetadataCache(),
-				ownedTemplateExtensions: ['.react.tsx'],
-				allTemplateExtensions: ['.tsx', '.react.tsx'],
-			});
+	describe('Page and Layout identity', () => {
+		const shell = path.resolve('/tmp/src/shells/app-shell.tsx');
+		const unreferenced = path.resolve('/tmp/src/layouts/utils.tsx');
+		const layoutUpdate = { type: 'broadcast', events: [{ type: 'layout-update' }] };
 
-			expect(strategy.matches(path.resolve('/tmp/src/pages/a.tsx'))).toBe(false);
-			expect(strategy.matches(path.resolve('/tmp/src/pages-old/a.tsx'))).toBe(true);
+		const createStrategy = (overrides: Partial<DefaultHmrContext>) => {
+			const pageEntrypoint = path.resolve('/tmp/src/pages/index.tsx');
+			const pageMetadataCache = new HmrPageMetadataCache();
+			pageMetadataCache.markOwnedEntrypoint(pageEntrypoint);
+			return new ReactHmrStrategy({
+				context: createMockContext({
+					getWatchedFiles: () => new Map([[pageEntrypoint, devTransformPageUrl('index.js')]]),
+					isPageFile: (filePath) => filePath === pageEntrypoint,
+					isLayoutFile: (filePath) => filePath === shell,
+					...overrides,
+				}),
+				pageMetadataCache,
+			});
+		};
+
+		it('takes the layout path for a module a Page references as a Layout, wherever it lives', async () => {
+			await expect(createStrategy({}).process(shell)).resolves.toEqual(layoutUpdate);
 		});
 
-		it('does not treat a pages sibling folder file as a Page entrypoint', async () => {
-			const importServerModule = createImportServerModuleMock({ config: {} });
-			const strategy = new ReactHmrStrategy({
-				context: createMockContext({ importServerModule }),
-				pageMetadataCache: new HmrPageMetadataCache(),
-			});
+		it('does not take the layout path for a file in a layouts folder that no Page references', async () => {
+			await expect(createStrategy({}).process(unreferenced)).resolves.not.toEqual(layoutUpdate);
+		});
 
-			await strategy.createDevTransformPlugins(path.resolve('/tmp/src/pages-old/a.tsx'));
+		it('does not treat a file in a pages folder as a Page unless the Route Registry holds it', async () => {
+			const importServerModule = createImportServerModuleMock({ config: {} });
+			const strategy = createStrategy({ importServerModule });
+
+			await strategy.createDevTransformPlugins(path.resolve('/tmp/src/pages/_card.tsx'));
 
 			expect(importServerModule).not.toHaveBeenCalled();
-		});
-
-		it('does not treat a layouts sibling folder file as a layout', async () => {
-			const pageEntrypoint = path.resolve('/tmp/src/pages/index.tsx');
-			const createStrategy = () => {
-				const pageMetadataCache = new HmrPageMetadataCache();
-				pageMetadataCache.markOwnedEntrypoint(pageEntrypoint);
-				return new ReactHmrStrategy({
-					context: createMockContext({
-						getWatchedFiles: () => new Map([[pageEntrypoint, devTransformPageUrl('index.js')]]),
-					}),
-					pageMetadataCache,
-				});
-			};
-			const layoutUpdate = { type: 'broadcast', events: [{ type: 'layout-update' }] };
-
-			await expect(createStrategy().process(path.resolve('/tmp/src/layouts/a.tsx'))).resolves.toEqual(
-				layoutUpdate,
-			);
-			await expect(createStrategy().process(path.resolve('/tmp/src/layouts-v2/a.tsx'))).resolves.not.toEqual(
-				layoutUpdate,
-			);
 		});
 	});
 

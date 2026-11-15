@@ -1,11 +1,17 @@
 import { normalizeModuleDeclarations } from '../../eco/module-dependencies.ts';
-import { isBrowserEcopagesVirtualImport } from './ecopages-virtual-imports.ts';
-import type { EcopagesVirtualImport } from './ecopages-virtual-imports.ts';
+import type { EcopagesVirtualImport } from '../../plugins/ecopages-virtual-imports.ts';
+import { isContentServerVirtualModule } from '../../build/contracts/content-virtual-modules.ts';
 
-type ModuleDeclarationInput = {
+/** One module a component's browser scripts import, with its named imports or none for the namespace. */
+export type ModuleDeclaration = {
 	from: string;
 	imports?: string[];
 };
+
+/** Whether a browser script can import the `ecopages:` virtual module `specifier`. */
+export function isBrowserEcopagesVirtualImport(specifier: string): boolean {
+	return specifier.startsWith('ecopages:') && !isContentServerVirtualModule(specifier);
+}
 
 /**
  * Narrows arbitrary config input onto the declared module string array shape.
@@ -22,9 +28,9 @@ function getDeclaredModules(value: unknown): string[] | undefined {
  * Merges one module declaration into the aggregated map, preserving the wildcard
  * import semantics represented by `null`.
  */
-function mergeModuleDeclaration(
+export function mergeModuleDeclaration(
 	modulesMap: Map<string, Set<string> | null>,
-	declaration: ModuleDeclarationInput,
+	declaration: ModuleDeclaration,
 ): void {
 	const existing = modulesMap.get(declaration.from);
 	if (!declaration.imports || declaration.imports.length === 0) {
@@ -44,21 +50,19 @@ function mergeModuleDeclaration(
 }
 
 /**
- * Combines explicit config module declarations with auto-detected `ecopages:` imports.
+ * Lists the modules a component declares in `modules`, then the `ecopages:` virtual modules its module imports.
+ *
+ * @remarks A server-only `ecopages:` module is left out of both.
  */
-export function collectModuleDeclarations(
-	modulesMap: Map<string, Set<string> | null>,
+export function declareModules(
 	declaredModules: unknown,
-	autoVirtualImports: EcopagesVirtualImport[],
-): void {
-	for (const declaration of normalizeModuleDeclarations(getDeclaredModules(declaredModules))) {
-		if (declaration.from.startsWith('ecopages:') && !isBrowserEcopagesVirtualImport(declaration.from)) {
-			continue;
-		}
-		mergeModuleDeclaration(modulesMap, declaration);
-	}
-
-	for (const declaration of autoVirtualImports) {
-		mergeModuleDeclaration(modulesMap, declaration);
-	}
+	autoVirtualImports: readonly EcopagesVirtualImport[],
+): ModuleDeclaration[] {
+	return [
+		...normalizeModuleDeclarations(getDeclaredModules(declaredModules)).filter(
+			(declaration) =>
+				!declaration.from.startsWith('ecopages:') || isBrowserEcopagesVirtualImport(declaration.from),
+		),
+		...autoVirtualImports.filter((declaration) => isBrowserEcopagesVirtualImport(declaration.from)),
+	];
 }

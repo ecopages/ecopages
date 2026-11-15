@@ -32,6 +32,8 @@ Config finalization creates one `AppModuleLoader` per `AppRuntime`, bound to tha
 
 The server entry (`app.ts`) imports view files directly, but they cannot load as ordinary modules there: they need their Integration's compilation, and in production the emitted copy. An import of a file an Integration owns therefore becomes a View Reference, a stand-in that the app module loader resolves at render time. In development the CLI's `view-reference-preload.js` rewrites those imports; in production `createImportedViewPlugin()` does it while bundling the server entry, and records the paths so the views join the server-modules map.
 
+The registry of those references (`createViewReference` in `view-reference.ts`) is the one source of which files are views, in both modes; HMR reads it through `isViewReferencePath`, so a view can live in any folder and a file under `src/views/` that the server entry does not import is not one. In development the preload and the HMR manager share one instance of it, on Node and on Bun, because both load the same `@ecopages/core` source file.
+
 A file becomes a View Reference only when it is a view: a script module with a default export (`isViewModule`). A file without one, such as a file of plain components, imports as itself. The reference replaces the whole module, so a named import from a view file fails. Files that are not script modules, such as `.html`, are always views; core claims `.html` for its HTML Pages Integration unless another Integration does.
 
 ## Production

@@ -6,6 +6,7 @@
 		[
 			"ecopages",
 			"@ecopages/browser-router",
+			"@ecopages/codemod",
 			"@ecopages/content-processor",
 			"@ecopages/core",
 			"@ecopages/dev-toolbar",

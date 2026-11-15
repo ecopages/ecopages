@@ -25,15 +25,11 @@ function normalizeImportedMdxPage<TPageModule extends EcoPageFile>(
 
 		ensurePageConfigLayouts(config);
 
-		const layouts = config?.layouts;
-		const resolvedLayout = layouts?.[layouts.length - 1];
-
 		if (config) Page.config = config;
 
 		return {
 			...moveMdxMetadataOntoPage(pageModule),
 			default: Page,
-			layout: resolvedLayout,
 		} as unknown as TPageModule;
 	} catch (error) {
 		throw new Error(`[ecopages] Error importing MDX file: ${error}`);

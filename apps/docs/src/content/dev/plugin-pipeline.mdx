@@ -25,6 +25,12 @@ sources:
   - packages/core/src/build/rolldown/rolldown-plugin-bridge.ts
   - packages/core/src/build/rolldown/rolldown-adapter-helpers.ts
   - packages/core/src/build/rolldown/stylesheet-module-plugin.ts
+  - packages/core/src/build/rolldown/file-role-grammar-plugin.ts
+  - packages/core/src/build/rolldown/ssr-script-entries-plugin.ts
+  - packages/core/src/build/rolldown/rolldown-module-id.ts
+  - packages/core/src/plugins/alias-resolver-plugin.ts
+  - packages/core/src/assets/app-browser-client-build.ts
+  - packages/integrations/react/src/bundling/bundle.ts
 ---
 
 # Plugin pipeline
@@ -147,12 +153,37 @@ What the bridge adds on top of the hook mapping:
 
 - **Virtual modules.** `module(specifier)` resolves the exact specifier to `\0<specifier>` and loads that id. `transform` handlers never see a `\0` id, so a virtual module stays as its plugin wrote it. An id with a query, even one holding a `:`, is a normal id: transform filters are tested with the query and hash stripped.
 - **Watch files.** `addWatchFile(path)` calls Rolldown's `addWatchFile` and records the file under the module the running callback is for. The adapter adds those files to the closure of every entry whose graph holds the module, which is what caches and the Project Watcher bind to. The React client-graph boundary declares each file it inlines this way. [Watcher and invalidation](/dev/hmr-watcher-invalidation) covers how closures drive invalidation.
+- **Real-path ids.** A module id a handler receives is Rolldown's resolved path, with symbolic links already followed. `resolvePackageModulePath` returns real paths, and so does `resolveProjectModulePath` with `preserveBarrel`, which component discovery uses. Core handlers compare ids as they arrive and resolve a real path only for paths from elsewhere, such as the app root once per build or a file the Project Watcher reports.
 - **Source maps.** Rolldown chains the maps of transforms in order. A transform that changes code without a usable map returns empty `mappings`, so debug locations never point at stale positions; `map: null` declares that the transform moves no code and keeps the incoming map.
 - **Error attribution.** Each Rolldown plugin carries its `EcoBuildPlugin` name, so Rolldown reports that name as the error's `plugin` and `BuildLog.plugin` shows it. The bridge throws a copy of a callback's error with the module id it failed on, because Rolldown sets no `id` and writes onto the thrown value; the copy keeps that value as `cause` unchanged, so a plugin can share or freeze it. A `setup` error, thrown before Rolldown runs, gets the plugin name from the bridge.
 
 One Rolldown plugin per handler leaves first-wins `resolveId` and `load`, ordered `transform` with chained source maps, native filters and plugin names in errors to Rolldown, so the bridge only translates between the two contracts.
 
-Around the bridge, the adapter places a few native Rolldown plugins that are not part of the contract: the installed-package externalizer when packages are external, a server-only import guard on browser platform builds, the stylesheet module plugin on every build (see [Stylesheet kinds](#stylesheet-kinds)), and, after the bridge, the Worker entries plugin on browser builds.
+Around the bridge, the adapter places native Rolldown plugins that are not part of the contract. `buildRolldownInputPlugins()` assembles the final list in this order:
+
+```mermaid
+flowchart LR
+  X["Installed-package externalizer, with externalPackages"] --> F["File role grammar"]
+  F --> G["Server-only guard, browser platform"]
+  G --> SM["Stylesheet module plugin"]
+  SM --> BR["Bridge plugins: ordered EcoBuildPlugins"]
+  BR --> W["Worker entries, browser environment"]
+  W --> SS["ssr script entries, server builds that ask for them"]
+```
+
+The file role grammar plugin fails a module whose name puts a role segment anywhere but before a script extension, and the ssr script entries plugin emits the `ssr: true` scripts a declaration lists as entries ([Build pipeline](/dev/build-pipeline#server-modules)). The server-only guard is covered in [Build queue and adapter](/dev/build-queue), and the stylesheet module plugin in [Stylesheet kinds](#stylesheet-kinds).
+
+## Plugins in a merged build
+
+The app-wide browser build merges the entries of every Page, island and global script into as few builds as it can, so one plugin list serves many entries. `groupBuildEntriesByOptions()` in `assets/app-browser-client-build.ts` groups entries whose build-wide options match (`minify`, `treeshaking`, `define`, `excludeAppBuildPlugins`) and merges each group's `plugins` and `external` lists with a `Set`, which keeps one entry per plugin object, not per plugin name. An Integration that builds its plugin list per entry therefore has to hand back the same instance for plugins whose options do not depend on the entry; a fresh instance per entry registers its hooks once per entry and runs each transform that many times for every module. React keeps one foreign-JSX override, one foreign boundary and one MDX loader per `BundleService` (`bundling/bundle.ts`) for this reason ([React](/dev/react#client-graph-boundary)); its graph boundary instances share their options through the build's `entrypoints` and only the first registers a handler.
+
+```mermaid
+flowchart TD
+  E1["Entry A: plugins [override, boundary, mdx]"] --> M["groupBuildEntriesByOptions"]
+  E2["Entry B: plugins [override, boundary, mdx]"] --> M
+  M --> S["new Set over all entries' plugins: same instance once"]
+  S --> B["One Rolldown build, each plugin's hooks registered once"]
+```
 
 ## CSS Modules
 

@@ -1,5 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { printMitataBenchReport, quantile, summarize } from './mitata-report';
+import { mergeMitataBenchReports, printMitataBenchReport, quantile, summarize, type BenchStats } from './mitata-report';
+
+const STATS: BenchStats = { count: 1, min: 1, max: 1, mean: 1, median: 1, p75: 1, p99: 1, hz: 1000 };
+
+function reportWith(...names: string[]) {
+	return {
+		generatedAt: '2026-11-14T00:00:00.000Z',
+		runtime: 'node v24',
+		platform: 'darwin',
+		scenarios: Object.fromEntries(names.map((name) => [name, STATS])),
+	};
+}
 
 describe('mitata-report', () => {
 	afterEach(() => {
@@ -50,5 +61,16 @@ describe('mitata-report', () => {
 
 		expect(output.some((line) => line.includes('…'))).toBe(true);
 		expect(output.some((line) => line.includes('1.234 ms') && line.includes('2.345 ms'))).toBe(true);
+	});
+
+	it('merges the per-environment reports into one', () => {
+		const merged = mergeMitataBenchReports([reportWith('dev rebuild'), reportWith('static build')]);
+		expect(Object.keys(merged.scenarios)).toEqual(['dev rebuild', 'static build']);
+	});
+
+	it('rejects a scenario registered in more than one environment', () => {
+		expect(() => mergeMitataBenchReports([reportWith('page build'), reportWith('page build')])).toThrow(
+			'Bench scenario "page build" is registered in more than one environment.',
+		);
 	});
 });

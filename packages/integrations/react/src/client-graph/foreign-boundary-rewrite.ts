@@ -5,7 +5,6 @@
 import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource, resolveProjectModulePath } from '@ecopages/core/build';
 import { FOREIGN_BOUNDARY_PACKAGE } from '../bundling/bootstrap-package-paths.ts';
-import { toRealPath } from './foreign-jsx-reach.ts';
 import { collectLexicalDeclarations, walkScopedReferences } from './scope-walk.ts';
 
 const HELPER_BINDING = '__ecoForeignBoundary';
@@ -59,11 +58,12 @@ class ForeignExports {
 		this.options = options;
 	}
 
+	/**
+	 * @remarks
+	 * `preserveBarrel` makes {@link resolveProjectModulePath} return the real path, so it is not resolved again.
+	 */
 	resolve(importer: string, specifier: string): string | undefined {
-		const resolved = resolveProjectModulePath(this.options.projectRoot, importer, specifier, {
-			preserveBarrel: true,
-		});
-		return resolved ? toRealPath(resolved) : undefined;
+		return resolveProjectModulePath(this.options.projectRoot, importer, specifier, { preserveBarrel: true });
 	}
 
 	private getReexports(filePath: string): any[] {

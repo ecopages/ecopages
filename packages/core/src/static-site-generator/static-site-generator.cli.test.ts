@@ -37,7 +37,7 @@ test('ecopages build finishes healthy exports after a Page data hook failure', {
 		path.join(appDir, 'src/pages/broken.tsx'),
 		[
 			"import { eco } from '@ecopages/core';",
-			"export default eco.page({ staticProps: () => { throw new Error('static props failed intentionally'); }, render: () => 'broken' });",
+			"export default eco.page({ props: () => { throw new Error('static props failed intentionally'); }, render: () => 'broken' });",
 		].join('\n'),
 	);
 	writeFileSync(

@@ -134,7 +134,6 @@ describe('analyzeReachability', () => {
 
 		expect(result.analyzed).toBe(true);
 		expect(result.isFallbackRoots).toBe(false);
-		expect(result.unreachableSideEffectImports).toHaveLength(1);
 	});
 
 	it('identifies reachable side-effect imports', () => {
@@ -159,7 +158,6 @@ describe('analyzeReachability', () => {
 		expect(result.isFallbackRoots).toBe(true);
 
 		/** With fallback roots and NO exports, it remains empty in reachability. */
-		expect(result.unreachableSideEffectImports).toHaveLength(1);
 	});
 
 	it('marks export * from source as fully reachable when eco.page roots are present', () => {

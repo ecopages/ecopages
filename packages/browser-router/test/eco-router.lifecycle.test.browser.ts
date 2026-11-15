@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE, getEcoNavigationRuntime } from '@ecopages/core/client';
 import { createRouter } from '../src/client/eco-router';
-import { htmlFetchResponse, installEcoRouterTestHooks, type EcoRouterTestFixtures } from './eco-router.harness';
+import {
+	htmlFetchResponse,
+	installEcoRouterTestHooks,
+	nextFrame,
+	type EcoRouterTestFixtures,
+} from './eco-router.harness';
 
 describe('EcoRouter', () => {
 	const fixtures: EcoRouterTestFixtures = {
@@ -224,6 +229,7 @@ describe('EcoRouter', () => {
 		it('should hard-navigate when before-swap requests reload', async () => {
 			const reloadDocument = vi.fn();
 			fixtures.router = createRouter({ reloadDocument });
+			await nextFrame();
 			const afterSwapSpy = vi.fn();
 			const pageLoadSpy = vi.fn();
 			const handler = (e: Event) => {

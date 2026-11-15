@@ -74,10 +74,6 @@ In development, adding, changing, or removing `eco.config.ts` or a supported pro
 	The directory for include templates, relative to the src directory.
 </ApiField>
 
-<ApiField name="layoutsDir" type="string" defaultValue="layouts">
-	The directory for layout components, relative to the src directory.
-</ApiField>
-
 Ecopages now discovers the document shell and error pages semantically:
 
 - `src/includes/html.*` resolves the HTML template by basename and integration extension.
@@ -93,10 +89,6 @@ Ecopages now discovers the document shell and error pages semantically:
 <ApiField name="workDir" type="string" defaultValue=".eco">
 	The internal workspace used for development and runtime-only artifacts. This directory is not intended for
 	deployment.
-</ApiField>
-
-<ApiField name="componentsDir" type="string" defaultValue="components">
-	The directory containing your reusable components.
 </ApiField>
 
 <ApiField name="additionalWatchPaths" type="string[]" defaultValue="[]">

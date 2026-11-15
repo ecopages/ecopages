@@ -6,6 +6,7 @@ order: 10
 sources:
   - packages/core/src/route-renderer/route-renderer.ts
   - packages/core/src/route-renderer/explicit-view-render-preparation.ts
+  - packages/core/src/route-renderer/page-declaration.ts
   - packages/core/src/route-renderer/orchestration/integration-renderer.ts
   - packages/core/src/route-renderer/orchestration/string-markup-renderer.ts
   - packages/core/src/route-renderer/orchestration/route-pipeline/
@@ -16,6 +17,7 @@ sources:
   - packages/core/src/errors/http-error-page-contract.ts
   - packages/core/src/eco/component-render-context.ts
   - packages/core/src/page-cache/
+  - packages/core/src/adapters/shared/http/fs-server-response-matcher.ts
   - packages/core/src/adapters/shared/runtime/runtime-server-lifecycle.ts
 ---
 
@@ -31,13 +33,37 @@ flowchart TD
   C -- no --> D["Open render session"]
   D --> E["prepareRenderOptions: module, props, graph, Page Package"]
   E --> F["Render Page, Layouts and Html shell"]
-  F --> G{"Unresolved eco-marker left?"}
-  G -- yes --> X["Throw"]
-  G -- no --> H["Stamp document attributes"]
+  F --> H["Stamp document attributes"]
   H --> I["HTML transform injects the Page Package"]
   I --> J["finalizeDocument hook"]
   J --> Z
 ```
+
+## From request to response
+
+A filesystem Page request crosses these steps. The middle of the diagram is `execute()`; the sections below cover each part.
+
+```mermaid
+flowchart TD
+  Q["Request"] --> M["RouteRegistry.matchRequest: compiled patterns"]
+  M --> MW["File route middleware"]
+  MW --> PC{"PageRequestCacheCoordinator: cached HTML for the key?"}
+  PC -- hit --> RESP
+  PC -- miss --> X["IntegrationRenderer.execute"]
+  X --> PR["prepareRenderOptions"]
+  PR --> G["Shell graph, ownership check, Page dependencies"]
+  G --> SH{"Shell Dependencies"}
+  SH -- "ecopages start: read from the ledger" --> PK
+  SH -- "ecopages build: process once, record" --> PK
+  SH -- "development: process on every render" --> PK
+  PK["Page Browser Graph, client plan, Page Package"] --> RB["renderRouteBody: HTML stays a string"]
+  RB --> FA["Stamp document attributes"]
+  FA --> TR["transformRouteHtml: inject the Page Package, then finalizeDocument"]
+  TR --> ST["Store under the cache strategy"]
+  ST --> RESP["Response"]
+```
+
+`captureHtmlRender` reads the body once, as a string; a streamed body is the only case that reads a `Response`. The transform takes that string and returns one, so nothing wraps the document in a `Response` between the renderer and the page cache. In production without HMR the shell branch is a ledger read, so `ecopages start` never packages a stylesheet ([Ledger and start](/dev/ledger-and-start#recorded-shells)).
 
 ## Choosing the renderer
 
@@ -49,9 +75,13 @@ flowchart TD
 
 1. `prepareRenderOptions()` loads the Page module and final props, builds and validates the prepared component graph and builds the Page Package. Route params and query take precedence over extra props of the same name. A planned route from static export passes its preparation back in, so its data hooks run once per build.
 2. The renderer renders the Page, Layouts and Html shell. Foreign Children go to their owning renderer.
-3. `executePrepared()` captures the body and throws if an `<eco-marker>` artifact is left: there is no route-level fallback. It then stamps document attributes, runs the HTML transform with the prepared Page Package, and lets the Integration's `finalizeDocument` hook reconcile its own markup.
+3. `executePrepared()` captures the body, stamps document attributes, runs the HTML transform with the prepared Page Package, and lets the Integration's `finalizeDocument` hook reconcile its own markup.
 
 Core wraps whatever the route render throws as `Error rendering page`, with the original error as `cause`, and passes an `HttpError` through unchanged, so a Page that throws `NotFound` still answers 404. A `renderRoute` hook must not catch and re-wrap. A renderer with its own document model, such as the HTML Page renderer, overrides `renderRouteDocument()` rather than `render()`, so its errors are wrapped the same way.
+
+### Page shape
+
+A route module is imported through `importRouteModule()`, which the `loadPageModule()` entry point and `prepareRenderOptions()` share, so a route whose default export is not a Page fails before any Page option is read. The legacy-export check runs first, then `assertPageModule()` requires a declared component (an `eco.page()` result; HTML Pages and MDX modules carry an identity too) whose `config.identity.file`, resolved against `rootDir`, is the route file. The identity transform stamps the file that holds the literal `eco.page(...)` call, so a Page made by a wrapper in another file, or re-exported from one, names that other file and fails. A rejected module fails with the file and the fixes: a `_` prefix, a role suffix, or moving it out of the pages directory (the last two are left out for a file outside it). A function that has a `config` but is not attributed to the route file gets the literal-call message instead: the build finds `eco.page`, `eco.layout`, `eco.component` and `eco.html` by their literal call, so a wrapper, an alias or a re-export hides the declaration. The check keeps no state, so in development the next request after a fix imports the corrected module. The same literal-call check (`page-declaration.ts`) runs on a view that is loaded from a file, with that file in place of the route file: `resolveExplicitViewRenderer()` checks the loader's `filePath` for `app.static()`, error-page loaders and static generation, and `ctx.render` checks a View Reference's `filePath` after importing it. Only the literal-call failure applies to views, since a view need not be a Page. A component passed directly, with no source file known, is not checked.
 
 ### Render sessions and context
 
@@ -65,8 +95,8 @@ Each `execute()` opens a session that holds the render's cache of owning rendere
 
 An explicit view is an `eco.page()` value passed to `ctx.render`, `app.static()` or an error-page helper rather than found on disk.
 
-- `resolveExplicitViewRenderer` finds the view's renderer without reading `staticProps`, so static export can plan a dynamic route before any slug exists. `prepareExplicitStaticRender` then runs `staticProps` with the route's Params.
-- A full render goes through `executeExplicitView` (route result with metadata, used by static export for sitemap eligibility) or `renderExplicitView` (a response). Both call `execute` with the view as the Page module and `skipStaticProps`, so the view gets the same Layouts, metadata and client plan as a filesystem Page, and the call's props, Params, query and locals reach the view and its `metadata`.
+- `resolveExplicitViewRenderer` finds the view's renderer without reading `props`, so static export can plan a dynamic route before any slug exists. `prepareExplicitStaticRender` then runs `props` with the route's Params.
+- A full render goes through `executeExplicitView` (route result with metadata, used by static export for sitemap eligibility) or `renderExplicitView` (a response). Both call `execute` with the view as the Page module and `skipPropsHook`, so the view gets the same Layouts, metadata and client plan as a filesystem Page, and the call's props, Params, query and locals reach the view and its `metadata`.
 - A partial render (`ctx.renderPartial`) stays on the component path: it opens its own session, builds no browser assets and is not checked against a prepared graph.
 
 ## Error pages
@@ -77,7 +107,7 @@ An explicit view is an `eco.page()` value passed to `ctx.render`, `app.static()`
 2. a view registered with `app.notFound()` and similar, prepared with `prepareExplicitStaticRender`;
 3. the built-in document.
 
-A failing custom page propagates its error; the request adapter then calls `renderBuiltIn()`, which never re-enters a custom source. Built-in pages show diagnostics only for a 5xx in development, with the stack of every wrapped `cause`, and show the message on its own only when the stack does not open with it; production pages never include a stack. During static export, `SemanticErrorPageExporter` writes one file per semantic status pathname (`/404`, …) unless a generated route already owns it. Adapters classify route failures and build the HTTP response; the renderer only chooses and renders the source.
+A failing custom page propagates its error; the request adapter then calls `renderBuiltIn()`, which never re-enters a custom source. Built-in pages show diagnostics only for a 5xx in development, with the stack of every wrapped `cause`, and show the message on its own only when the stack does not open with it; production pages never include a stack. During static export, `SemanticErrorPageExporter` writes one file per semantic status pathname (`/404`, …) unless a generated route already owns it. Adapters classify route failures and build the HTTP response; the renderer only chooses and renders the source. The classification and the error classes are in [Errors and utilities](/dev/errors-and-utilities).
 
 ## Page cache
 

@@ -49,6 +49,12 @@ export function getReactClientGraphAllowSpecifiers(routerAdapter?: ReactRouterAd
 export class BundleService {
 	private readonly config: BundleServiceConfig;
 	private readonly foreignJsxOverridePlugin: EcoBuildPlugin | undefined;
+	/**
+	 * @remarks
+	 * One instance for every entry: its options do not depend on the entry, and core merges the entries of a
+	 * build by plugin identity, so a fresh instance per entry would run its transform once per React page.
+	 */
+	private readonly foreignBoundaryPlugin: EcoBuildPlugin;
 	private mdxLoaderPlugin: EcoBuildPlugin | null | undefined;
 
 	constructor(config: BundleServiceConfig) {
@@ -68,6 +74,13 @@ export class BundleService {
 				}),
 			},
 		);
+		this.foreignBoundaryPlugin = createForeignBoundaryPlugin({
+			projectRoot: config.appConfig?.absolutePaths?.projectDir ?? config.rootDir,
+			isForeignFile: (filePath) => {
+				const owner = findIntegrationForFile(config.appConfig?.integrations ?? [], filePath);
+				return owner !== undefined && owner.name !== config.hostIntegrationName;
+			},
+		});
 	}
 
 	/**
@@ -124,13 +137,7 @@ export class BundleService {
 		return [
 			...(this.foreignJsxOverridePlugin ? [this.foreignJsxOverridePlugin] : []),
 			graphBoundaryPlugin,
-			createForeignBoundaryPlugin({
-				projectRoot: this.config.appConfig?.absolutePaths?.projectDir ?? this.config.rootDir,
-				isForeignFile: (filePath) => {
-					const owner = findIntegrationForFile(this.config.appConfig?.integrations ?? [], filePath);
-					return owner !== undefined && owner.name !== this.config.hostIntegrationName;
-				},
-			}),
+			this.foreignBoundaryPlugin,
 			...(mdxPlugin ? [mdxPlugin] : []),
 		];
 	}

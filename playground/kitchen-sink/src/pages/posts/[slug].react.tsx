@@ -23,10 +23,10 @@ function asPostContentEntry(entry: (typeof entries)[number]): PostContentEntry {
 
 export default eco.page<PostPageProps, ReactNode>({
 	layout: ReactPlaygroundLayout,
-	staticPaths: async () => ({ paths: entries.map((entry) => ({ params: { slug: entry.slug } })) }),
-	staticProps: async ({ pathname }) => {
-		const slug = String(pathname.params.slug);
-		return { props: { entry: asPostContentEntry(getEntry(slug)) } };
+	paths: async () => entries.map((entry) => ({ params: { slug: entry.slug } })),
+	props: async ({ params }) => {
+		const slug = String(params.slug);
+		return { entry: asPostContentEntry(getEntry(slug)) };
 	},
 	dependencies: async ({ props }) => getEntryDependencies(props.entry.slug),
 	metadata: ({ props: { entry } }) => ({

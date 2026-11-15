@@ -3,11 +3,13 @@ import { getEcopagesEnv } from '../env.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { SERVER_BUNDLE_DIR } from '../utils/resolve-entry-file.ts';
 import { getProductionServerBundleDir } from '../utils/server-bundle-context.ts';
-import { EMITTED_ECO_CONFIG_FILENAME } from './server-config-bundle.ts';
 
 export const DEFAULT_ECO_CONFIG_FILENAME = 'eco.config.ts';
 
 export const ECOPAGES_CONFIG_FILE_ENV = 'ECOPAGES_CONFIG_FILE';
+
+/** The file name of the config module `ecopages build` emits into the server bundle. */
+export const EMITTED_ECO_CONFIG_FILENAME = 'eco.config.mjs';
 
 /**
  * Resolves the project root used when `EcoPagesUserConfig.rootDir` is omitted.

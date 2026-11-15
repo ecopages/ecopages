@@ -147,7 +147,7 @@ Full rules: [/docs-llm/server/endpoint-files.md](/docs-llm/server/endpoint-files
 When rendering from handlers with `ctx.render()`:
 
 - Component must be the default export, built with `eco.page()` (not a plain framework component)
-- File lives in `src/views/`, not `src/pages/`
+- File lives outside `src/pages/`; `src/views/` is only a convention, and any folder works
 - Import it and pass it to `ctx.render(Dashboard, props)`. The default export of an Integration-owned file becomes a view reference: development reloads on save, production reads the built module. A file without a default export, such as a file of named plain components, imports as itself
 - Handler renders pass the request's Locals, Params and Query to the view as props. Call `ctx.render(...)` on the context; destructuring `render` loses Locals
 - A full render uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's page client plan. Props passed to the render are available to the view's `metadata`

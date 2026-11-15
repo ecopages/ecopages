@@ -93,11 +93,47 @@ describe('MDXRenderer', () => {
 					title: 'Hello',
 					description: 'Hello',
 				}),
-			} as never) as EcoPageFile & { layout?: unknown };
+			} as never) as EcoPageFile;
 
 			expect(result.default).toBe(Page);
-			expect(result.layout).toBe(Layout);
+			expect(result).not.toHaveProperty('layout');
 			expect((result.default as typeof Page).config).toBe(config);
+		});
+	});
+
+	describe('layout stack', () => {
+		it('renders every layout of a config.layout array, outer around inner', async () => {
+			const testRenderer = new TestMdxRenderer({
+				appConfig: Config,
+				assetProcessingService: createTestAssetProcessingService(Config),
+				resolvedIntegrationDependencies: [],
+			});
+			const Outer = (async ({ children }: { children: EcoPagesElement }) =>
+				`<div data-layout="outer">${children}</div>`) as unknown as EcoComponent<{ children: EcoPagesElement }>;
+			const Inner = (async ({ children }: { children: EcoPagesElement }) =>
+				`<div data-layout="inner">${children}</div>`) as unknown as EcoComponent<{ children: EcoPagesElement }>;
+			const Page = (async () => '<article>content</article>') as unknown as EcoComponent;
+			const normalized = new ImportTestMdxRenderer({
+				appConfig: Config,
+				assetProcessingService: createTestAssetProcessingService(Config),
+				resolvedIntegrationDependencies: [],
+			}).normalizeForTest({
+				default: Page,
+				config: { layout: [Outer, Inner] },
+				getMetadata: async () => ({ title: 'Hello', description: 'Hello' }),
+			} as never);
+
+			const result = await testRenderer.execute({
+				file: '/app/pages/post.mdx',
+				pageModule: normalized,
+				params: {},
+				query: {},
+			} as never);
+
+			const html = await new Response(result.body as BodyInit).text();
+			expect(html).toContain(
+				'<div data-layout="outer"><div data-layout="inner"><article>content</article></div></div>',
+			);
 		});
 	});
 

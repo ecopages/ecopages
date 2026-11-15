@@ -14,7 +14,7 @@ import { FileSystemServerResponseFactory } from '../http/fs-server-response-fact
 import { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
 import { ServerRouteHandler } from './server-route-handler.ts';
 import { createRenderContext } from './render-context.ts';
-import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
+import { ApiRequestPipeline, type ApiRoutes } from '../http/api-request-pipeline.ts';
 import {
 	EndpointRouteHandler,
 	findExplicitRoutesOnEndpoints,
@@ -43,7 +43,7 @@ type SharedResponseHandlerDependencies = {
 };
 
 export type ServerRequestContext<TServer = unknown> = {
-	apiHandlers: ApiHandler[];
+	apiRoutes: ApiRoutes;
 	errorHandler?: ErrorHandler<Request, TServer>;
 	serverInstance?: TServer;
 };
@@ -190,6 +190,7 @@ export class ServerRequestPipeline {
 		});
 
 		await this.router.init();
+		this.runtime.router = this.router;
 		startupTrace.markPhaseEnd('route-registry');
 	}
 
@@ -206,8 +207,7 @@ export class ServerRequestPipeline {
 				const pageComponent = page as EcoPageComponent<any> | undefined;
 
 				return {
-					staticPaths: pageComponent?.staticPaths,
-					staticProps: pageComponent?.staticProps,
+					paths: pageComponent?.paths,
 					cache: pageComponent?.cache,
 				};
 			},
@@ -314,6 +314,7 @@ export class ServerRequestPipeline {
 	protected getRenderContext(): RenderContext {
 		return createRenderContext({
 			integrations: this.appConfig.integrations,
+			rootDir: this.appConfig.rootDir,
 			ensureIntegrationReady: (integrationName) =>
 				ensureIntegrationRuntimeReady({ appConfig: this.appConfig, integrationName }),
 			importServerModule: (filePath) => this.importServerModule(path.resolve(this.appConfig.rootDir, filePath)),
@@ -352,7 +353,7 @@ export class ServerRequestPipeline {
 	): Promise<Response | null> {
 		return await this.apiRequestPipeline.tryHandle(
 			request,
-			context.apiHandlers,
+			context.apiRoutes,
 			context.serverInstance,
 			context.errorHandler,
 			parsedPathSegments,

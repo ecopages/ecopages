@@ -12,6 +12,7 @@ describe('@ecopages/core package exports', () => {
 				'.',
 				'./build',
 				'./build/contracts',
+				'./cli',
 				'./client',
 				'./config',
 				'./config/write-types',

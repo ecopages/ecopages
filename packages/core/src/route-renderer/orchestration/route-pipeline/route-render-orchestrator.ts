@@ -22,8 +22,9 @@ import type {
 import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../page-cache/html-page-cache-dependency-index.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
+import { getComponentIdentity, type ComponentIdentity } from '../../../eco/component-identity.ts';
+import { toRootRelativePath } from '../../../utils/root-relative-path.ts';
 import type { HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
-import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
 import {
 	createPreparedComponentGraphBuilder,
 	type PreparedComponentGraphNode,
@@ -82,6 +83,7 @@ export type RouteRenderHost<C> = Pick<
 	| 'name'
 	| 'resolveRouteRenderInputs'
 	| 'resolveRouteDependencies'
+	| 'prepareRouteLazyDependencies'
 	| 'collectPageBrowserGraphContribution'
 	| 'resolvePageDependenciesForRoute'
 	| 'resolvePageDependencyContribution'
@@ -89,16 +91,8 @@ export type RouteRenderHost<C> = Pick<
 	| 'getPageSsrScriptIntegrationNames'
 	| 'renderRouteBody'
 	| 'getRouteHtmlFinalization'
-	| 'transformRouteResponse'
+	| 'transformRouteHtml'
 >;
-
-/**
- * Captured route-render output in both replayable body and string HTML forms.
- */
-export interface CapturedHtmlRenderResult {
-	body: RouteRendererBody;
-	html: string;
-}
 
 /**
  * Optional app-scoped collaborators used by the route render orchestrator.
@@ -106,6 +100,14 @@ export interface CapturedHtmlRenderResult {
 export interface RouteRenderOrchestratorDependencies {
 	ownershipValidationService?: OwnershipValidationService;
 	assetProcessingIntegration?: AssetProcessingIntegration;
+	/**
+	 * Whether processed assets are final for the life of the process, so a route's shell Dependencies are recorded in
+	 * the asset ledger once per Page and Html template and read from it afterwards.
+	 *
+	 * @remarks True in production without HMR. In development an edited stylesheet changes its processed output
+	 * without re-importing any module, so the shell Dependencies are processed on every render.
+	 */
+	recordsShellDependencies?: () => boolean;
 }
 
 export type PreparedRouteGraphContext = {
@@ -151,6 +153,7 @@ export class RouteRenderOrchestrator {
 	private readonly ownershipValidationService: OwnershipValidationService;
 	private readonly pageBrowserGraphService: PageBrowserGraphService;
 	private readonly requestPipelineMetrics: RequestPipelineMetricsState;
+	private readonly recordsShellDependencies: () => boolean;
 
 	constructor(
 		appConfig: EcoPagesAppConfig,
@@ -160,6 +163,7 @@ export class RouteRenderOrchestrator {
 		this.appConfig = appConfig;
 		this.requestPipelineMetrics = requireAppRuntime(appConfig).requestPipelineMetrics;
 		this.assetProcessingService = assetProcessingService;
+		this.recordsShellDependencies = dependencies.recordsShellDependencies ?? (() => false);
 		this.ownershipValidationService =
 			dependencies.ownershipValidationService ?? new OwnershipValidationService(appConfig);
 		this.pageBrowserGraphService = new PageBrowserGraphService(
@@ -237,11 +241,22 @@ export class RouteRenderOrchestrator {
 		const graphBuilder = createPreparedComponentGraphBuilder(renderer.name);
 		graphBuilder.addRoots(shellRoots);
 		const shellGraph = graphBuilder.getGraph({ updateForeignDescendantFlags: false });
+		this.recordLayoutFiles(shellGraph);
 		const shellDependencyComponents = shellGraph.nodes
 			.filter((node) => node.dependencyCollectionVisible)
 			.map((node) => node.component);
 		await this.validateOwnershipGraph(shellGraph);
 		return { graphBuilder, shellGraph, shellDependencyComponents };
+	}
+
+	private recordLayoutFiles(shellGraph: PreparedComponentGraph): void {
+		if (isProductionRuntime()) return;
+		const layoutFiles = requireAppRuntime(this.appConfig).layoutFiles;
+		for (const node of shellGraph.nodes) {
+			if (node.source === 'layout' && node.componentFile) {
+				layoutFiles.add(path.resolve(this.appConfig.rootDir, node.componentFile));
+			}
+		}
 	}
 
 	private async preparePageDependencyGraph<C>(input: {
@@ -365,20 +380,17 @@ export class RouteRenderOrchestrator {
 			shellDependencyComponents,
 			graph: preparedGraph,
 		} = graphContext;
-		const { resolvedDependencies } = await measureRouteRenderPhase(
+		const resolvedDependencies = await measureRouteRenderPhase(
 			this.requestPipelineMetrics,
 			'resolve-dependencies',
-			() =>
-				renderer.resolveRouteDependencies({
-					components: shellDependencyComponents,
-				}),
+			() => this.resolveShellDependencies(renderer, finalResolvedInputs, shellDependencyComponents),
 		);
 		const pageBrowserGraph = await measureRouteRenderPhase(this.requestPipelineMetrics, 'page-browser-graph', () =>
 			this.pageBrowserGraphService.resolvePageBrowserGraph({
 				routeFile: routeOptions.file,
 				dependencyInstanceKey,
 				integrationName: renderer.name,
-				cacheable: !routeOptions.pageModule && !routeOptions.props && !routeOptions.skipStaticProps,
+				cacheable: !routeOptions.pageModule && !routeOptions.props && !routeOptions.skipPropsHook,
 				collectContribution: async () =>
 					mergePageBrowserGraphContributions(
 						await renderer.collectPageBrowserGraphContribution(contributionContext),
@@ -450,16 +462,64 @@ export class RouteRenderOrchestrator {
 	}
 
 	/**
-	 * Captures one route render body as HTML while preserving a replayable body value.
+	 * Reads the Dependencies of the route's shell from the asset ledger, or processes them.
+	 *
+	 * @remarks
+	 * A route's shell is its Html template, Layouts and Page, and the Layouts are fixed by the Page, so the identities
+	 * of the Page and the Html template fix the result. When processed assets are final, the first preparation of a
+	 * Page in `ecopages build` records its shell in the ledger, and every later one reads it there, including those
+	 * of `ecopages start`, which never packages or processes a shell. Packaging the shell reads its stylesheet
+	 * sources, which a deploy may not hold. A read shell still holds its lazy client entries for the page client
+	 * build, which processing would have held.
 	 */
-	async captureHtmlRender(render: () => Promise<RouteRendererBody>): Promise<CapturedHtmlRenderResult> {
-		const renderedBody = await render();
-		const capturedRender = await this.captureRenderedBody(renderedBody);
+	private async resolveShellDependencies<C>(
+		renderer: RouteRenderHost<C>,
+		resolvedInputs: RouteRenderOrchestratorResolvedInputs,
+		components: EcoComponent[],
+	): Promise<ProcessedAsset[]> {
+		const pageIdentity = getComponentIdentity(resolvedInputs.Page);
+		const key =
+			this.recordsShellDependencies() && pageIdentity
+				? `${this.describeIdentity(pageIdentity)}|${this.describeIdentity(getComponentIdentity(resolvedInputs.HtmlTemplate))}`
+				: undefined;
+		const ledger = requireAppRuntime(this.appConfig).processedAssets;
+		const recorded = key ? ledger.lookupShell(key) : undefined;
+		if (recorded) {
+			renderer.prepareRouteLazyDependencies(components);
+			return recorded;
+		}
+		if (key && ledger.isSealed) {
+			throw new Error(
+				`The production build did not record the shell Dependencies of ${this.describeIdentity(pageIdentity)}. Run \`ecopages build\` again.`,
+			);
+		}
 
-		return {
-			body: capturedRender.body,
-			html: capturedRender.html,
-		};
+		const { resolvedDependencies } = await renderer.resolveRouteDependencies({
+			components,
+			declarationOrder: key !== undefined,
+		});
+		if (key) ledger.recordShell(key, resolvedDependencies);
+		return resolvedDependencies;
+	}
+
+	/**
+	 * Names a declaration the same wherever the app runs: its root-relative file and its id.
+	 *
+	 * @remarks
+	 * A runtime identity, such as an HTML Page's, holds an absolute file, and the built-in Html shell has none.
+	 */
+	private describeIdentity(identity: ComponentIdentity | undefined): string {
+		if (!identity) return 'built-in';
+		const { rootDir } = this.appConfig;
+		return `${toRootRelativePath(rootDir, path.resolve(rootDir, identity.file))}#${identity.id}`;
+	}
+
+	/**
+	 * Reads one route render body as an HTML string.
+	 */
+	async captureHtmlRender(render: () => Promise<RouteRendererBody>): Promise<string> {
+		const body = await render();
+		return typeof body === 'string' ? body : new Response(body as BodyInit).text();
 	}
 
 	/**
@@ -480,58 +540,15 @@ export class RouteRenderOrchestrator {
 		renderOptions: InternalIntegrationRendererRenderOptions<C>,
 		renderer: RouteRenderHost<C>,
 	): Promise<RouteRenderResult> {
-		const renderExecution = await measureRouteRenderPhase(this.requestPipelineMetrics, 'render-body', () =>
+		const renderedHtml = await measureRouteRenderPhase(this.requestPipelineMetrics, 'render-body', () =>
 			this.captureHtmlRender(async () => renderer.renderRouteBody(renderOptions)),
 		);
 		const sourceDependencyPaths = this.withHtmlTemplateClosure(renderOptions.sourceDependencyPaths);
-		const unresolvedArtifactInspection = inspectUnresolvedMarkerArtifactHtml(renderExecution.html);
 		const htmlFinalization = renderer.getRouteHtmlFinalization(renderOptions);
-		const hasUnresolvedMarkerHtml = unresolvedArtifactInspection.hasUnresolvedMarkerArtifacts;
-
-		if (hasUnresolvedMarkerHtml) {
-			throw new Error(
-				'[ecopages] Route render returned unresolved eco-marker artifact HTML. Full-route unresolved-marker fallback has been removed; resolve mixed foreign children inside renderComponentWithForeignChildren().',
-			);
-		}
-
-		const canReuseCapturedBody = !hasUnresolvedMarkerHtml && htmlFinalization.finalizeHtml === undefined;
-
-		if (canReuseCapturedBody) {
-			const responseBody = typeof renderExecution.body === 'string' ? renderExecution.body : renderExecution.html;
-			const body = await measureRouteRenderPhase(this.requestPipelineMetrics, 'transform-response', () =>
-				renderer.transformRouteResponse(
-					new Response(responseBody, {
-						headers: {
-							'Content-Type': 'text/html',
-						},
-					}),
-					htmlFinalization.htmlContributions,
-					renderOptions,
-				),
-			);
-
-			return {
-				body,
-				cacheStrategy: renderOptions.cacheStrategy,
-				sourceDependencyPaths,
-				metadata: renderOptions.metadata,
-			};
-		}
-
-		const finalization = htmlFinalization.finalizeHtml
-			? htmlFinalization.finalizeHtml(unresolvedArtifactInspection.normalizedHtml)
-			: unresolvedArtifactInspection.normalizedHtml;
+		const finalHtml = htmlFinalization.finalizeHtml ? htmlFinalization.finalizeHtml(renderedHtml) : renderedHtml;
 
 		const body = await measureRouteRenderPhase(this.requestPipelineMetrics, 'transform-response', () =>
-			renderer.transformRouteResponse(
-				new Response(finalization, {
-					headers: {
-						'Content-Type': 'text/html',
-					},
-				}),
-				htmlFinalization.htmlContributions,
-				renderOptions,
-			),
+			renderer.transformRouteHtml(finalHtml, htmlFinalization.htmlContributions, renderOptions),
 		);
 
 		return {
@@ -588,31 +605,6 @@ export class RouteRenderOrchestrator {
 			key: path.resolve(htmlTemplatePath),
 		});
 		return [...new Set([...sourcePaths, ...templateClosure])];
-	}
-
-	private async captureRenderedBody(body: RouteRendererBody): Promise<{ body: RouteRendererBody; html: string }> {
-		const response = new Response(body as BodyInit);
-
-		if (typeof body === 'string') {
-			return {
-				body,
-				html: await response.text(),
-			};
-		}
-
-		if (!response.body) {
-			return {
-				body,
-				html: await response.text(),
-			};
-		}
-
-		const [capturedBody, replayBody] = response.body.tee();
-
-		return {
-			body: replayBody,
-			html: await new Response(capturedBody).text(),
-		};
 	}
 }
 

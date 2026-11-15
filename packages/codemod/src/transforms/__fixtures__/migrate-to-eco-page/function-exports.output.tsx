@@ -1,12 +1,12 @@
 import { eco } from '@ecopages/core';
 
 export default eco.page({
-	staticPaths: async function () {
-		return { paths: [] };
+	paths: async function () {
+		return [];
 	},
 
-	staticProps: async function () {
-		return { props: { title: 'Home' } };
+	props: async function () {
+		return { title: 'Home' };
 	},
 
 	metadata: function () {

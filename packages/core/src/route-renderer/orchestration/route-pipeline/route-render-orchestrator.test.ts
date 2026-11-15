@@ -1,9 +1,9 @@
 import { path } from '@ecopages/file-system/path';
 import { describe, expect, it } from 'vitest';
-import type { AssetProcessingService } from '../../../assets/asset-processing-service/index.ts';
+import type { AssetProcessingService, ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
+import { ProcessedAssetLedger } from '../../../assets/asset-processing-service/processed-asset-ledger.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
-import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererBody } from '../../../types/contracts.ts';
-import { createUnresolvedMarkerArtifact } from '../integration-renderer.test-fixtures.ts';
+import type { EcoComponent, IntegrationRendererRenderOptions } from '../../../types/contracts.ts';
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
 import { createFlowRenderer, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
@@ -42,12 +42,11 @@ describe('RouteRenderOrchestrator', () => {
 	}) as unknown as EcoComponent;
 
 	it('captures streamed render bodies before final HTML handling', async () => {
-		const result = await createFlow().captureHtmlRender(async () =>
+		const html = await createFlow().captureHtmlRender(async () =>
 			createHtmlStream('<html><body><main>Streamed</main></body></html>'),
 		);
 
-		expect(result.body).toBeInstanceOf(ReadableStream);
-		expect(result.html).toContain('<main>Streamed</main>');
+		expect(html).toContain('<main>Streamed</main>');
 	});
 
 	it('executes prepared route renders and preserves cache strategy', async () => {
@@ -56,13 +55,92 @@ describe('RouteRenderOrchestrator', () => {
 			createFlowRenderer({
 				Page: cachedPage,
 				renderRouteBody: async () => createHtmlStream('<html><body><main>Streamed</main></body></html>'),
-				transformRouteResponse: async (response) => response.body as RouteRendererBody,
+				transformRouteHtml: async (html) => html,
 			}),
 		);
 
 		expect(result.cacheStrategy).toEqual({ revalidate: 60 });
-		expect(result.body).toBeInstanceOf(ReadableStream);
-		expect(await new Response(result.body as BodyInit).text()).toContain('<main>Streamed</main>');
+		expect(result.body).toContain('<main>Streamed</main>');
+	});
+
+	describe('shell Dependencies', () => {
+		const stylesheet = { kind: 'stylesheet', inline: false, srcUrl: '/assets/page.css' } as ProcessedAsset;
+		const shellConfig = (ledger: ProcessedAssetLedger) =>
+			({
+				...appConfig,
+				rootDir: path.resolve('/app'),
+				appRuntime: { ...appConfig.appRuntime, processedAssets: ledger } as AppRuntime,
+			}) as EcoPagesAppConfig;
+		const identified = <T extends object>(value: T, id: string, file: string) =>
+			Object.assign(value, { config: { identity: { id, file, integration: 'string' } } });
+		const Page = identified(() => '<main>Page</main>', 'page', 'src/pages/index.tsx') as unknown as EcoComponent;
+		const HtmlTemplate = identified(() => '<html></html>', 'html', 'src/includes/html.tsx') as EcoComponent<never>;
+		const routeOptions = createRouteOptions(path.resolve('/app/src/pages/index.tsx'));
+		const countingRenderer = () => {
+			const counter = { calls: 0 };
+			const renderer = createFlowRenderer({
+				Page,
+				HtmlTemplate,
+				resolveDependencies: async () => {
+					counter.calls += 1;
+					return [stylesheet];
+				},
+			});
+			return { counter, renderer };
+		};
+
+		it.each([
+			[true, 1],
+			[false, 2],
+		])('processes them once per Page when recording is %s', async (records, expectedCalls) => {
+			const ledger = new ProcessedAssetLedger('/app');
+			const flow = new RouteRenderOrchestrator(shellConfig(ledger), assetProcessingService, {
+				recordsShellDependencies: () => records,
+			});
+			const { counter, renderer } = countingRenderer();
+
+			await flow.prepareRenderOptions(routeOptions, renderer);
+			const prepared = await flow.prepareRenderOptions(routeOptions, renderer);
+
+			expect(counter.calls).toBe(expectedCalls);
+			expect(prepared.resolvedDependencies).toEqual([stylesheet]);
+			expect(Object.keys(ledger.serialize().shells ?? {})).toHaveLength(records ? 1 : 0);
+		});
+
+		it('reads the shell a build recorded once start sealed the ledger, holding only its lazy entries', async () => {
+			const built = new ProcessedAssetLedger('/build');
+			const build = new RouteRenderOrchestrator(shellConfig(built), assetProcessingService, {
+				recordsShellDependencies: () => true,
+			});
+			await build.prepareRenderOptions(routeOptions, countingRenderer().renderer);
+			const started = new ProcessedAssetLedger('/srv');
+			started.restore(JSON.parse(JSON.stringify(built.serialize())));
+			started.seal();
+			const start = new RouteRenderOrchestrator(shellConfig(started), assetProcessingService, {
+				recordsShellDependencies: () => true,
+			});
+			const { counter, renderer } = countingRenderer();
+			const lazyPreparations: unknown[] = [];
+			renderer.prepareRouteLazyDependencies = (components) => lazyPreparations.push(components);
+
+			const prepared = await start.prepareRenderOptions(routeOptions, renderer);
+
+			expect(counter.calls).toBe(0);
+			expect(prepared.resolvedDependencies).toEqual([stylesheet]);
+			expect(lazyPreparations).toHaveLength(1);
+		});
+
+		it('fails a sealed start for a Page whose shell the build did not record', async () => {
+			const ledger = new ProcessedAssetLedger('/srv');
+			ledger.seal();
+			const flow = new RouteRenderOrchestrator(shellConfig(ledger), assetProcessingService, {
+				recordsShellDependencies: () => true,
+			});
+
+			await expect(flow.prepareRenderOptions(routeOptions, countingRenderer().renderer)).rejects.toThrow(
+				'The production build did not record the shell Dependencies of src/pages/index.tsx#page.',
+			);
+		});
 	});
 
 	it('adds the HTML template module closure to the cached document inputs', async () => {
@@ -120,23 +198,5 @@ describe('RouteRenderOrchestrator', () => {
 		expect(result.cacheStrategy).toEqual({ revalidate: 60 });
 		expect(result.body).toContain('<html data-eco-document-owner="react-router"><body>');
 		expect(result.body).toContain('<main>Resolved</main>');
-	});
-
-	it.each([
-		[
-			'a raw marker nested inside shell html',
-			`<html><body><main><section data-shell="outer">Before${createUnresolvedMarkerArtifact('n_1', 'nested-component', 'props-1')}After</section></main></body></html>`,
-		],
-		[
-			'an entity-escaped marker',
-			'<html><body>&amp;lt;eco-marker data-eco-node-id=&quot;n_2&quot; data-eco-component-ref=&quot;page-component&quot; data-eco-props-ref=&quot;p_2&quot;&amp;gt;&amp;lt;/eco-marker&amp;gt;</body></html>',
-		],
-	])('throws when the route HTML contains %s', async (_name, html) => {
-		await expect(
-			createFlow().execute(
-				createRouteOptions(path.resolve('/app/pages/index.tsx')),
-				createFlowRenderer({ renderRouteBody: async () => html }),
-			),
-		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 	});
 });

@@ -19,7 +19,6 @@ import type { ExplicitlyRequestedExports } from './reachability-export-names.ts'
 export type ReachabilityResult = {
 	reachableImports: Map<string, Set<string> | '*'>;
 	reachableDeclarations: Set<unknown>;
-	unreachableSideEffectImports: unknown[];
 	isFallbackRoots: boolean;
 	analyzed: boolean;
 };
@@ -28,7 +27,6 @@ function emptyReachabilityResult(isFallbackRoots: boolean): ReachabilityResult {
 	return {
 		reachableImports: new Map(),
 		reachableDeclarations: new Set(),
-		unreachableSideEffectImports: [],
 		isFallbackRoots,
 		analyzed: false,
 	};
@@ -72,14 +70,9 @@ export function analyzeReachability(
 		explicitlyRequestedExports,
 	);
 
-	const unreachableSideEffectImports = index.topLevelImports
-		.filter((imp) => imp.isSideEffect && !reachableImports.has(imp.specifier))
-		.map((imp) => imp.node);
-
 	return {
 		reachableImports,
 		reachableDeclarations,
-		unreachableSideEffectImports,
 		isFallbackRoots,
 		analyzed: true,
 	};

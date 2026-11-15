@@ -3,6 +3,7 @@ import { path } from '@ecopages/file-system/path';
 import { eco } from './eco.ts';
 import { bindComponentIdentity } from './component-identity.ts';
 import { collectComponentDependencies } from '../route-renderer/page-loading/component-dependency-collection.ts';
+import { ComponentDeclarationStore } from '../route-renderer/page-loading/component-declarations.ts';
 import {
 	collectDependencyWatchPaths,
 	collectFileScopedDependencyComponents,
@@ -15,10 +16,11 @@ function collect(components: EcoComponent[]) {
 	return collectComponentDependencies({
 		components,
 		integrationName: 'lit',
-		rootDir: path.resolve('/app'),
-		resolveLazyScripts: (_dir, scripts) => scripts.join(','),
-		createEcopagesJsxLazyEntryName: (_, key) => key,
-		errors: { invalidStylesheetEntry: 'style', invalidScriptEntry: 'script', lazyScriptMissingSrc: 'lazy' },
+		declarations: new ComponentDeclarationStore({
+			rootDir: path.resolve('/app'),
+			resolveLazyScripts: (_dir, scripts) => scripts.join(','),
+			errors: { invalidStylesheetEntry: 'style', invalidScriptEntry: 'script', lazyScriptMissingSrc: 'lazy' },
+		}),
 	});
 }
 const identity = (file: string) => ({ id: file, file, integration: 'lit' });

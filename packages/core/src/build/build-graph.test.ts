@@ -4,7 +4,13 @@ import { path } from '@ecopages/file-system/path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildOptions } from './build-adapter.ts';
-import { collectBuildEntryInputPaths, collectBuildOutputImports, getBuildEntryOutput } from './build-graph.ts';
+import {
+	collectBuildEntryInputPaths,
+	collectBuildOutputImports,
+	getBuildEntryOutput,
+	recordBuildEntryOutput,
+	resolveRequestedBuildEntries,
+} from './build-graph.ts';
 import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
 import { RouteModuleBuildCache } from './server/route-module-build-cache.store.ts';
 import { resolveRouteModuleDependencyPaths } from './server/route-module-dependency-hasher.ts';
@@ -197,4 +203,42 @@ test('collects the layouts of an entry reached through a symlink root', async ()
 	} finally {
 		rmSync(parent, { recursive: true, force: true });
 	}
+});
+
+test('records every spelling of a symlinked entry and a named entry from precomputed requested entries', () => {
+	mkdirSync(path.join(root, 'real'), { recursive: true });
+	writeFileSync(path.join(root, 'real/page.ts'), 'export {};');
+	symlinkSync(path.join(root, 'real'), path.join(root, 'linked'));
+	const linked = path.join(root, 'linked/page.ts');
+	const real = path.join(root, 'real/page.ts');
+	const requestedEntries = resolveRequestedBuildEntries({ group: linked }, root);
+	const entryOutputs: Record<string, string> = {};
+
+	recordBuildEntryOutput(entryOutputs, 'a.js', { facadeModuleId: real, chunkName: 'other', requestedEntries });
+	recordBuildEntryOutput(entryOutputs, 'b.js', {
+		facadeModuleId: '/nowhere.ts',
+		chunkName: 'group',
+		requestedEntries,
+	});
+
+	expect(entryOutputs[linked]).toBe('b.js');
+	expect(entryOutputs.group).toBe('b.js');
+	expect(entryOutputs[real]).toBe('b.js');
+	expect(entryOutputs['/nowhere.ts']).toBe('b.js');
+});
+
+test('a symlinked requested entry matches its real facade by real path', () => {
+	mkdirSync(path.join(root, 'real'), { recursive: true });
+	writeFileSync(path.join(root, 'real/page.ts'), 'export {};');
+	symlinkSync(path.join(root, 'real'), path.join(root, 'linked'));
+	const linked = path.join(root, 'linked/page.ts');
+	const real = path.join(root, 'real/page.ts');
+	const entryOutputs: Record<string, string> = {};
+
+	recordBuildEntryOutput(entryOutputs, 'a.js', {
+		facadeModuleId: real,
+		requestedEntries: resolveRequestedBuildEntries({ page: linked }, root),
+	});
+
+	expect(entryOutputs).toEqual({ [real]: 'a.js', [linked]: 'a.js', page: 'a.js' });
 });

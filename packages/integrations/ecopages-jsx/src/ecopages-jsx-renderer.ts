@@ -5,7 +5,6 @@ import {
 	type IntegrationRendererHookFactory,
 	type IntegrationRendererHookFactoryOptions,
 } from '@ecopages/core/integration';
-import { resolveQueuedTokens } from '@ecopages/core/integration';
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
 import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx/server';
 import {
@@ -121,13 +120,13 @@ export function createEcopagesJsxRendererHookFactory(
 					};
 				});
 			},
-			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
+			renderQueuedChildren: async (children, _runtimeContext, resolveTokens) => {
 				if (children === undefined) {
 					return {};
 				}
 
 				const html = typeof children === 'string' ? children : await renderJsx(children as JsxRenderable);
-				return { html: await resolveQueuedTokens(html, queuedResolutionsByToken, resolveToken) };
+				return { html: await resolveTokens(html) };
 			},
 			normalizeForeignChildProps: (input) => normalizeForeignChildProps(input),
 			renderRoute: async (options, render): Promise<RouteRendererBody> =>

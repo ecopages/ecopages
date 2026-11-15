@@ -50,12 +50,12 @@ test.describe('A React Page without a router and a foreign Lit Component, in dev
 		expect(hasServerShadowRoot).toBe(true);
 	});
 
-	test('shows the new staticProps of the Page, in React and in the foreign Lit Component, after an edit', async ({
+	test('shows the new props of the Page, in React and in the foreign Lit Component, after an edit', async ({
 		page,
 	}) => {
 		await openHydratedPage(page);
 
-		fs.writeFileSync(pageFile, original.replace('props: { count: 1 }', 'props: { count: 5 }'), 'utf-8');
+		fs.writeFileSync(pageFile, original.replace('({ count: 1 })', '({ count: 5 })'), 'utf-8');
 
 		await expect(page.getByTestId('static-count')).toHaveText('5', { timeout: HMR_TIMEOUT_MS });
 		const litCounter = page.locator('[data-testid="static"] lit-counter');

@@ -66,7 +66,7 @@ It types up to four stages; nest compositions beyond that.
 - A list typed as a plain array, such as `Middleware[]`, provides no reliable locals. Write the list inline or as a constant tuple.
 - An entry typed `AnyEcoMiddleware` may provide anything, so no key before it in the list is typed afterwards; a later entry types its own keys again. A middleware cannot be widened to `EcoMiddleware` or built as a plain object: only `createMiddleware` and `composeMiddleware` make one.
 - `next()` provides nothing and `next(locals)` provides `locals`. A value that may be `undefined` does not type-check: call `next()` on that path instead.
-- A plain `(ctx, next) => ...` function still works in a list and provides nothing.
+- A plain `(ctx, next) => ...` function still works in a list and provides nothing. In the `options` of `app.get()` and its siblings, which come after the handler, declare it as a constant: written inline, it leaves the handler with no locals.
 - List `middleware` before `handler`, so TypeScript infers the list first.
 
 ## Declare locals for layouts

@@ -60,7 +60,7 @@ It types up to four stages; nest compositions beyond that.
 
 - A stage may call `next` only once. A second call throws.
 - A stage may call `next` only before it returns. A call from a timer or callback after the stage returned or threw throws, and the rest of the chain does not run.
-- A stage that called `next` must return the response `next` resolved with, awaited or not. It may edit that response's headers first. Returning a different response throws, even when the stage did not await `next`. When the rest of the chain throws, the stage may catch the error and return its own response.
+- A stage answers with what it returns: the response `next` resolved with, edited, or another response that wraps or replaces it, such as `new Response(response.body, response)` to add headers to an immutable `Response.redirect()`. A stage that returns or throws before the rest of the chain settles waits for it first. When the rest of the chain throws, a stage that awaited, returned or caught the promise `next` returned may answer with its own response, as in `try { await next() } catch { return fallback }`. A stage that called `next()` and never looked at its promise has dropped the error, so it propagates.
 - A later entry in a `middleware` list overrides an earlier one that provides the same key, in the types and at runtime.
 - The same stage twice in one list or composition is rejected when the route or Page is defined. Declare a shared guard once, in the composition that owns it.
 - A list typed as a plain array, such as `Middleware[]`, provides no reliable locals. Write the list inline or as a constant tuple.

@@ -204,7 +204,7 @@ describe('PageModuleLoaderService', () => {
 		expect(result.module).toBe(module);
 	});
 
-	it.each(['getStaticProps', 'getStaticPaths', 'getMetadata'])(
+	it.each(['getStaticProps', 'getStaticPaths', 'getMetadata', 'cache'])(
 		'rejects a page module that still exports %s, naming the file and the migration docs',
 		async (legacyExport) => {
 			const service = new PageModuleLoaderService(appConfig);

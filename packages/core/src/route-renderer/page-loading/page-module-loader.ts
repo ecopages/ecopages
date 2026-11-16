@@ -19,7 +19,7 @@ import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { DATA_HOOKS_MIGRATION_URL } from '../../eco/migration-docs.ts';
 import { HttpError } from '../../errors/http-error.ts';
 
-const LEGACY_PAGE_EXPORT_NAMES = ['getStaticPaths', 'getStaticProps', 'getMetadata'] as const;
+const LEGACY_PAGE_EXPORT_NAMES = ['getStaticPaths', 'getStaticProps', 'getMetadata', 'cache'] as const;
 
 /**
  * A Page's `props` hook with the context its Cache Strategy gives it: the request context for a Dynamic Page, the
@@ -165,7 +165,7 @@ export class PageModuleLoaderService {
 	}
 
 	/**
-	 * Fails when a page module still declares data through the removed module-level exports.
+	 * Fails when a page module still declares data or its Cache Strategy through the removed module-level exports.
 	 *
 	 * @remarks
 	 * Integrations that cannot call `eco.page(...)`, such as MDX, move their metadata export onto the
@@ -177,7 +177,7 @@ export class PageModuleLoaderService {
 		);
 		if (found.length === 0) return;
 		throw new Error(
-			`[ecopages] ${file} exports ${found.join(', ')}. Pages declare data through the paths, props and metadata options of eco.page({ ... }); module-level exports are no longer read. Migration steps: ${DATA_HOOKS_MIGRATION_URL}`,
+			`[ecopages] ${file} exports ${found.join(', ')}. Pages declare data and caching through the paths, props, metadata and cache options of eco.page({ ... }); module-level exports are no longer read. Migration steps: ${DATA_HOOKS_MIGRATION_URL}`,
 		);
 	}
 

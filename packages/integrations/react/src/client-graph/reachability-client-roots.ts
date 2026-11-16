@@ -1,4 +1,4 @@
-import { getInlineLayoutEntries, isPropertyNamed } from './ast-transform-eco-page.ts';
+import { getInlineLayoutEntries, getLayoutTiers, isPropertyNamed } from './ast-transform-eco-page.ts';
 
 /**
  * Adds the layout tiers of a `layout` option as roots: every tier except the `props` factory of an inline entry.
@@ -11,8 +11,7 @@ import { getInlineLayoutEntries, isPropertyNamed } from './ast-transform-eco-pag
  */
 function collectLayoutRoots(layout: any, roots: unknown[]): void {
 	const inlineEntries = new Set(getInlineLayoutEntries(layout));
-	const tiers = layout?.type === 'ArrayExpression' ? layout.elements : [layout];
-	for (const tier of tiers) {
+	for (const tier of getLayoutTiers(layout)) {
 		if (!tier) continue;
 		if (!inlineEntries.has(tier)) {
 			roots.push(tier);

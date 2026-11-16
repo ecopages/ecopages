@@ -1144,44 +1144,53 @@ describe('StaticSiteGenerator', () => {
 			expect(writeMock).not.toHaveBeenCalledWith(expect.stringContaining('dashboard'), expect.anything());
 		});
 
-		test('fails the build for an explicit static route whose view declares middleware, naming the route', async () => {
-			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const guardedView = Object.assign(() => null, {
-				cache: 'dynamic',
-				middleware: [async (_ctx: unknown, next: () => Promise<Response>) => next()],
-			}) as any;
+		test.each([
+			{
+				declares: 'middleware',
+				statics: { middleware: [async (_ctx: unknown, next: () => Promise<Response>) => next()] },
+				reason: 'so it cannot declare middleware',
+			},
+			{
+				declares: 'props',
+				statics: { props: async () => ({}) },
+				reason: "so a view with cache: 'dynamic' cannot declare props",
+			},
+		])(
+			'fails the build for a dynamic explicit static route whose view declares $declares',
+			async ({ statics, reason }) => {
+				const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+				const guardedView = Object.assign(() => null, { cache: 'dynamic', ...statics }) as any;
 
-			const failure = await ssg
-				.run({
-					router: {
-						listStaticGenerationRoutes: vi.fn(async () => []),
-					} satisfies StaticGenerationRunnerInput['router'],
-					baseUrl: 'http://localhost:3000',
-					routeRendererFactory: {
-						getPageRenderer: vi.fn(),
-						getExplicitViewRenderer: vi.fn(),
-					} satisfies StaticGenerationRendererFactory,
-					staticRoutes: [
-						{
-							path: '/dashboard',
-							loader: async () => ({ default: guardedView }),
-						},
-					],
-				})
-				.then(
-					() => undefined,
-					(error: unknown) => error,
-				);
+				const failure = await ssg
+					.run({
+						router: {
+							listStaticGenerationRoutes: vi.fn(async () => []),
+						} satisfies StaticGenerationRunnerInput['router'],
+						baseUrl: 'http://localhost:3000',
+						routeRendererFactory: {
+							getPageRenderer: vi.fn(),
+							getExplicitViewRenderer: vi.fn(),
+						} satisfies StaticGenerationRendererFactory,
+						staticRoutes: [
+							{
+								path: '/dashboard',
+								loader: async () => ({ default: guardedView }),
+							},
+						],
+					})
+					.then(
+						() => undefined,
+						(error: unknown) => error,
+					);
 
-			expect(failure).toBeInstanceOf(AggregateError);
-			const [pageError] = failure instanceof AggregateError ? failure.errors : [];
-			expect(pageError).toBeInstanceOf(Error);
-			expect(pageError.message).toBe('Failed to generate explicit static page for /dashboard');
-			expect(String(pageError.cause)).toContain(
-				'/dashboard renders its view without a request, so it cannot declare middleware',
-			);
-			expect(writeMock).not.toHaveBeenCalledWith(expect.stringContaining('dashboard'), expect.anything());
-		});
+				expect(failure).toBeInstanceOf(AggregateError);
+				const [pageError] = failure instanceof AggregateError ? failure.errors : [];
+				expect(pageError).toBeInstanceOf(Error);
+				expect(pageError.message).toBe('Failed to generate explicit static page for /dashboard');
+				expect(String(pageError.cause)).toContain(`/dashboard renders its view without a request, ${reason}`);
+				expect(writeMock).not.toHaveBeenCalledWith(expect.stringContaining('dashboard'), expect.anything());
+			},
+		);
 
 		test('should render dynamic explicit static routes from paths', async () => {
 			const ssg = new StaticSiteGenerator({

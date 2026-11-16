@@ -1,4 +1,5 @@
 import type {
+	DynamicEcoPageComponent,
 	DynamicPageStatics,
 	EcoComponent,
 	EcoPageComponent,
@@ -43,8 +44,12 @@ function createStaticStatics<T, E>(options: StaticPageOptions<T, E>): StaticPage
 }
 
 /**
- * Whether a loaded Page declares `cache: 'dynamic'`, read from an untyped module export.
+ * Whether a loaded Page declares `cache: 'dynamic'`, read from an untyped module export or a typed Page.
+ *
+ * @remarks
+ * It narrows to the Dynamic Page member of {@link EcoPageComponent}, so code that holds a loaded module calls it
+ * instead of reading `cache` itself.
  */
-export function isDynamicPage(page: unknown): boolean {
+export function isDynamicPage(page: unknown): page is DynamicEcoPageComponent<any> {
 	return typeof page === 'function' && 'cache' in page && page.cache === 'dynamic';
 }

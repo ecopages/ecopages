@@ -1,6 +1,10 @@
 /**
  * Finds the server-only `eco.page(...)` options of browser-bound modules, and the `props` factories of the layout
  * entries written inline in its `layout` option.
+ *
+ * @remarks
+ * Nodes are typed `any`, as in `walkAstNodes`: they come from the parser as untyped ESTree objects, and each helper
+ * checks `type` before reading a field.
  */
 
 import { walkAstNodes } from './ast-walk.ts';
@@ -56,13 +60,34 @@ export function isPropertyNamed(property: any, name: string): boolean {
 	return property?.type === 'Property' && !property.computed && getObjectPropertyKeyName(property.key) === name;
 }
 
+const TRANSPARENT_EXPRESSION_TYPES = new Set([
+	'ParenthesizedExpression',
+	'TSAsExpression',
+	'TSSatisfiesExpression',
+	'TSNonNullExpression',
+	'TSTypeAssertion',
+]);
+
+/** Returns the expression inside parentheses and type-only wrappers such as `as const` and `satisfies`. */
+function unwrapExpression(node: any): any {
+	let current = node;
+	while (current && TRANSPARENT_EXPRESSION_TYPES.has(current.type)) current = current.expression;
+	return current;
+}
+
 /**
- * Returns the layout entries written as object literals in a `layout` option: the value itself, or the elements
- * of an array.
+ * Returns the tiers of a `layout` option, each unwrapped from type-only wrappers: the value itself, or the elements
+ * of an array. A hole stays `null`.
  */
+export function getLayoutTiers(layout: any): any[] {
+	const value = unwrapExpression(layout);
+	const tiers = value?.type === 'ArrayExpression' ? value.elements : [value];
+	return tiers.map(unwrapExpression);
+}
+
+/** Returns the layout entries written as object literals in a `layout` option. */
 export function getInlineLayoutEntries(layout: any): any[] {
-	const tiers = layout?.type === 'ArrayExpression' ? layout.elements : [layout];
-	return tiers.filter((tier: any) => tier?.type === 'ObjectExpression');
+	return getLayoutTiers(layout).filter((tier: any) => tier?.type === 'ObjectExpression');
 }
 
 /**

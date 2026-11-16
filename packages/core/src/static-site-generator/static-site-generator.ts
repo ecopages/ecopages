@@ -4,8 +4,6 @@ import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { resolveBuildParallelism } from '../build/build-parallelism.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type {
-	DynamicEcoPageComponent,
-	EcoPageComponent,
 	StaticEcoPageComponent,
 	EcoPageFile,
 	EcopagesRouteInfo,
@@ -24,7 +22,7 @@ import type { PathExpansion, StaticGenerationRoute, TemplateRoute } from '../rou
 import { fileSystem } from '@ecopages/file-system';
 import { CLIENT_OUTPUT_DIR } from '../utils/resolve-entry-file.ts';
 import {
-	assertViewWithoutMiddleware,
+	assertViewRendersWithoutRequest,
 	prepareExplicitStaticRender,
 	resolveExplicitViewRenderer,
 } from '../route-renderer/explicit-view-render-preparation.ts';
@@ -193,16 +191,6 @@ export class StaticSiteGenerator {
 	): Promise<boolean> {
 		const pageModule: EcoPageFile = await routeRendererFactory.getPageRenderer(filePath).loadPageModule(filePath);
 		return isDynamicPage(pageModule.default);
-	}
-
-	/**
-	 * @remarks
-	 * `view` comes from a View loader, which erases its props type to `EcoPageComponent<any>`; that member of the
-	 * union is not assignable to `EcoPageComponent<unknown>` or any narrower props type, so `any` is what lets this
-	 * guard accept a loaded view and narrow it for the generation that follows.
-	 */
-	private shouldSkipStaticView(view: EcoPageComponent<any>): view is DynamicEcoPageComponent<any> {
-		return view.cache === 'dynamic';
 	}
 
 	/**
@@ -827,8 +815,8 @@ export class StaticSiteGenerator {
 		for (const route of input.staticRoutes) {
 			try {
 				const view = (await route.loader()).default;
-				assertViewWithoutMiddleware(route.path, view);
-				if (this.shouldSkipStaticView(view)) {
+				assertViewRendersWithoutRequest(route.path, view);
+				if (isDynamicPage(view)) {
 					input.skipped.push(route.path);
 					continue;
 				}

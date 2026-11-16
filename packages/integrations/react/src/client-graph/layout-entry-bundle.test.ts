@@ -136,6 +136,35 @@ describe('browser bundle of a page whose layout entry reads request data', () =>
 		expect(output).not.toContain('server-secret');
 	});
 
+	it.each([
+		['as const', '[{ component: Shell, props: () => ({ user: readUser() }) }] as const'],
+		['satisfies', '[{ component: Shell, props: () => ({ user: readUser() }) }] satisfies unknown[]'],
+		['parentheses', '([{ component: Shell, props: () => ({ user: readUser() }) } as const])'],
+	])(
+		'removes the factory of an inline entry wrapped in %s, with the plain module only it uses',
+		async (_wrapper, layout) => {
+			const output = await buildOutput({
+				'eco.ts': eco,
+				'shell.ts': shell,
+				'db.ts': "export const readUser = () => 'db-secret';",
+				'entry.ts': [
+					"import { eco } from './eco';",
+					"import { Shell } from './shell';",
+					"import { readUser } from './db';",
+					'export default eco.page({',
+					"  cache: 'dynamic',",
+					`  layout: ${layout},`,
+					"  render: () => 'Dashboard',",
+					'});',
+				].join('\n'),
+			});
+
+			expect(output).toContain('shell-layout');
+			expect(output).not.toContain('readUser');
+			expect(output).not.toContain('db-secret');
+		},
+	);
+
 	it('fails the browser build when a shared entry imported from another module uses a server module', async () => {
 		const message = await buildError({
 			'eco.ts': eco,

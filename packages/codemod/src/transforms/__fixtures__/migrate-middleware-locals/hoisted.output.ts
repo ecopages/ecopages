@@ -10,8 +10,8 @@ export const reassigned = createMiddleware(async (ctx, next) => {
 });
 
 export const awaited = createMiddleware(async (ctx, next) => {
+	await log('loading user');
 	const user = await getUser();
-	await log('user loaded');
 	return next({
 		user,
 	});

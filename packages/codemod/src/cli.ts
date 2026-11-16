@@ -122,7 +122,7 @@ export function formatMigrationBrief(reports: readonly MiddlewareReport[]): stri
 				.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
 				.map((report) => `  ${report.file}:${report.line} ${report.reason}`)
 				.join('\n')
-		: '  Nothing: every middleware was migrated.';
+		: '  Nothing reported. The codemod rewrites only what it can prove safe, so review the diff and run the type check.';
 	const found = CATEGORIES.filter(({ kind }) => reports.some((report) => report.kind === kind)).map(
 		({ title }) => title,
 	);
@@ -130,7 +130,9 @@ export function formatMigrationBrief(reports: readonly MiddlewareReport[]): stri
 	return [
 		'MIGRATION BRIEF: middleware locals',
 		'',
-		'What changed in the API: middleware now provides typed locals through next({ ... }) and reads them through ctx.locals. A stage calls next once and must return its response. Listing the same stage twice in a middleware list is an error. EcoMiddleware<Context> and ctx.require are removed. A page is typed from its middleware list, and its locals are exactly what that list provides: the global RequestLocals interface is removed, so a RequestLocals augmentation of @ecopages/core types nothing. requires is removed and render no longer receives locals: a dynamic page reads them in props and render reads what props returned, which is also sent to the browser: return only the values render needs, never a whole session.',
+		'What changed in the API: middleware now provides typed locals through next({ ... }) and reads them through ctx.locals. A stage calls next once, and a plain function that overwrites a local an earlier stage provided throws. Listing the same stage twice in a middleware list is an error. EcoMiddleware<Context> and ctx.require are removed. A page is typed from its middleware list, and its locals are exactly what that list provides: the global RequestLocals interface is removed, so a RequestLocals augmentation of @ecopages/core types nothing. requires is removed and render no longer receives locals: a dynamic page reads them in props and render reads what props returned, which is also sent to the browser: return only the values render needs, never a whole session.',
+		'',
+		'A migrated middleware is a createMiddleware result, not a function: code in other files that calls it directly, such as a test, has to run it through a middleware list instead.',
 		'',
 		'A page that read locals in render:',
 		"  Before: eco.page({ cache: 'dynamic', middleware: [auth], requires: ['session'], render: ({ locals }) => <h1>{locals.session.user.name}</h1> })",

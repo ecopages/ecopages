@@ -19,38 +19,43 @@
  *     return next({ session });
  *   });
  *
- * Only a declaration annotated `FileRouteMiddleware` or `Middleware` (imported from `@ecopages/core`) is rewritten, and only
- * when its assignments are top-level statements before the single `return next()` of the body, and the body uses `ctx`
- * only to read its fields other than `ctx.locals`, `ctx.query`, `ctx.render` and `ctx.renderPartial`. Code that receives
- * `ctx` itself could read a local that `next()` now provides later, so it blocks the move. A value that could read
- * differently by the time `next()` runs (anything but a literal or a `const` declared before it) is bound to a new `const`
- * where the assignment was, so it is evaluated in the same order. Anything else is left unchanged and reported with its
- * file and line, as is every `EcoMiddleware<Context>` annotation (the removed context-extension form).
+ * Only a declaration annotated `FileRouteMiddleware` or `Middleware` (imported from `@ecopages/core`, without type
+ * arguments, on its name or with `satisfies`) is rewritten, and only when its assignments are top-level statements before
+ * the single `return next()` of the body, nothing between the first assignment and `next()` awaits, returns or throws (an
+ * outer stage could then have read the local the stage had already set), and the body uses `ctx` only to read its fields
+ * other than `ctx.locals`, `ctx.query`, `ctx.render` and `ctx.renderPartial`. Code that receives `ctx` itself could read a
+ * local that `next()` now provides later, so it blocks the move. The file may reference the middleware only in a
+ * `middleware` list, a `composeMiddleware` call or an export, since the result is no longer a function. A value that
+ * could read differently by the time `next()` runs (anything but a literal or a `const` declared before it) is bound to
+ * a new `const` where the assignment was, so it is evaluated in the same order. Anything else is left unchanged and
+ * reported with its file and line, as is every `EcoMiddleware<Context>` annotation (the removed context-extension form)
+ * and every other function that writes a `locals` object.
  *
  * `render` no longer receives `locals` and `requires` is removed, so an `eco.page()` whose `render` reads them moves the
  * read into `props`:
  *
  * Before:
- *   eco.page({ cache: 'dynamic', requires: ['session'], render: ({ locals }) => <p>{locals.session.user}</p> });
+ *   eco.page({ cache: 'dynamic', middleware: [auth], requires: ['session'], render: ({ locals }) => <p>{locals.session.user}</p> });
  *
  * After:
- *   eco.page({ cache: 'dynamic', props: ({ locals }) => ({ sessionUser: locals.session.user }), render: ({ sessionUser }) => <p>{sessionUser}</p> });
+ *   eco.page({ cache: 'dynamic', middleware: [auth], props: ({ locals }) => ({ sessionUser: locals.session.user }), render: ({ sessionUser }) => <p>{sessionUser}</p> });
  *
  * What `props` returns reaches the browser, so each member chain `render` reads becomes one prop named after its segments
- * and holding only that value, never the object it was read from. Only a literal `cache: 'dynamic'` page without `props`
- * is rewritten, when `render` destructures `locals` without a type annotation and reads it only as member chains used as
- * values (not called, indexed, spread, written or destructured), no chain starts with `params` or `query` (render
- * receives those from the route, after the props), and no prop name clashes with another or with a name in `render`.
- * Any other page that declares `requires` or reads `locals` in `render` is left unchanged and reported.
+ * and holding only that value, never the object it was read from. Only a literal `cache: 'dynamic'` page with a
+ * `middleware` list and without `props` is rewritten, when `render` destructures `locals` without a type annotation and
+ * reads it only as member chains used as values (not called, indexed, spread, written or destructured), outside any
+ * condition, loop, `try`, `await` or nested function (`props` reads every chain on every request), no chain is a prefix of
+ * another, no chain starts with `params` or `query` (render receives those from the route, after the props), and no
+ * prop name is a reserved word or clashes with another or with a name in `render`. Any other page that declares
+ * `requires` or reads `locals` in `render` is left unchanged and reported.
  *
  * The global `RequestLocals` interface is removed, so a `declare module '@ecopages/core'` block that augments it is
  * reported and left in place: deleting it is only safe once the middleware types each local it declared.
  *
  * @remarks
- * This file is deliberately self-contained, with no import beyond `jscodeshift` types and Node built-ins, because
- * `@ecopages/codemod` is not published: users run it from its raw GitHub URL with `npx jscodeshift`. Transforms
- * run in worker processes, so reports are appended as JSON lines to the file named by `ECOPAGES_CODEMOD_REPORT` when
- * it is set; the CLI reads that file once jscodeshift exits and prints the migration brief.
+ * jscodeshift runs transforms in worker processes, so reports are appended as JSON lines to the file named by
+ * `ECOPAGES_CODEMOD_REPORT` when it is set; the CLI reads that file once jscodeshift exits and prints the migration
+ * brief.
  *
  * A `createMiddleware` stage is typed with the page context, so an API `Middleware` that reads `ctx.query`, `ctx.render`
  * or `ctx.renderPartial` is reported instead of rewritten: a union context would make every stage narrow before reading
@@ -59,6 +64,7 @@
 
 import { appendFileSync } from 'node:fs';
 import type { API, ASTNode, ASTPath, FileInfo, JSCodeshift, Options, VariableDeclarator } from 'jscodeshift';
+import { printOptions } from './print-options.ts';
 
 export const parser = 'tsx';
 
@@ -78,15 +84,6 @@ type NodeLike = { type: string } & Record<string, unknown>;
 const CORE = '@ecopages/core';
 const OLD_TYPES = new Set(['FileRouteMiddleware', 'Middleware']);
 const FUNCTION_TYPES = new Set(['ArrowFunctionExpression', 'FunctionExpression']);
-
-function printOptions(source: string) {
-	return {
-		quote: 'single',
-		tabWidth: 2,
-		useTabs: true,
-		lineTerminator: source.includes('\r\n') ? '\r\n' : '\n',
-	} as const;
-}
 
 function isNode(value: unknown): value is NodeLike {
 	return typeof value === 'object' && value !== null && typeof (value as NodeLike).type === 'string';
@@ -110,12 +107,69 @@ function unwrapExpression(node: unknown): unknown {
 	return current;
 }
 
-/** Reads the identifier name an annotation `TSTypeReference` points at, or null for any other type. */
-function annotationName(id: unknown): string | null {
-	if (!isNode(id) || !isNode(id.typeAnnotation)) return null;
-	const type = (id.typeAnnotation as NodeLike).typeAnnotation;
+/**
+ * The type a declarator is annotated with, on its name or as `satisfies` or `as` on its value, when that type is a
+ * reference to a plain identifier.
+ */
+function middlewareAnnotation(declarator: VariableDeclarator): { name: string; hasTypeArguments: boolean } | null {
+	const id = declarator.id as unknown as NodeLike;
+	const init = declarator.init as unknown;
+	const type = isNode(id.typeAnnotation)
+		? id.typeAnnotation.typeAnnotation
+		: isNode(init) && (init.type === 'TSSatisfiesExpression' || init.type === 'TSAsExpression')
+			? init.typeAnnotation
+			: null;
 	if (!isNode(type) || type.type !== 'TSTypeReference' || !isNode(type.typeName)) return null;
-	return type.typeName.type === 'Identifier' ? (type.typeName.name as string) : null;
+	if (type.typeName.type !== 'Identifier') return null;
+	return {
+		name: type.typeName.name as string,
+		hasTypeArguments: isNode(type.typeParameters) || isNode(type.typeArguments),
+	};
+}
+
+/** Whether a node is `locals` itself or a non-computed `x.locals` member. */
+function isLocalsObject(node: unknown): boolean {
+	if (!isNode(node)) return false;
+	if (node.type === 'Identifier') return node.name === 'locals';
+	return isMemberNode(node) && !node.computed && isNode(node.property) && node.property.name === 'locals';
+}
+
+function writesMember(target: unknown): boolean {
+	return isNode(target) && isMemberNode(target) && isLocalsObject(target.object);
+}
+
+/**
+ * The first write to a `locals` object under a node: an assignment, update or `delete` of one of its keys, or an
+ * `Object.assign` into it. Null when there is none.
+ */
+function firstLocalsWrite(j: JSCodeshift, node: unknown): NodeLike | null {
+	const found = j(node as ASTNode)
+		.find(j.Node)
+		.filter((path) => {
+			const candidate = path.node as unknown as NodeLike;
+			switch (candidate.type) {
+				case 'AssignmentExpression':
+					return writesMember(candidate.left);
+				case 'UpdateExpression':
+					return writesMember(candidate.argument);
+				case 'UnaryExpression':
+					return candidate.operator === 'delete' && writesMember(candidate.argument);
+				case 'CallExpression': {
+					const callee = candidate.callee as NodeLike;
+					const isAssign =
+						isMemberNode(callee) &&
+						isNode(callee.object) &&
+						callee.object.name === 'Object' &&
+						isNode(callee.property) &&
+						callee.property.name === 'assign';
+					return isAssign && isLocalsObject((candidate.arguments as unknown[])[0]);
+				}
+				default:
+					return false;
+			}
+		})
+		.nodes();
+	return (found[0] as unknown as NodeLike | undefined) ?? null;
 }
 
 /** Names imported from `@ecopages/core`, mapped by their local name to the imported one. */
@@ -124,7 +178,7 @@ function coreImports(j: JSCodeshift, root: ReturnType<JSCodeshift>): Map<string,
 	root.find(j.ImportDeclaration, { source: { value: CORE } }).forEach((path) => {
 		for (const specifier of path.node.specifiers ?? []) {
 			if (specifier.type !== 'ImportSpecifier') continue;
-			names.set(specifier.local?.name ?? String(specifier.imported.name), String(specifier.imported.name));
+			names.set(String(specifier.local?.name ?? specifier.imported.name), String(specifier.imported.name));
 		}
 	});
 	return names;
@@ -266,9 +320,17 @@ function isStableValue(value: NodeLike, constNames: ReadonlySet<string>): boolea
 	return value.type === 'Identifier' && constNames.has(value.name as string);
 }
 
+/** Words a binding cannot take in a strict-mode module, though an object key can. */
+const RESERVED_WORDS = new Set(
+	`arguments await break case catch class const continue debugger default delete do else enum eval export extends
+	false finally for function if implements import in instanceof interface let new null package private protected
+	public return static super switch this throw true try typeof var void while with yield`.split(/\s+/),
+);
+
 function freshName(key: string, taken: Set<string>): string {
-	let name = key;
-	for (let suffix = 2; taken.has(name); suffix++) name = `${key}${suffix}`;
+	const base = RESERVED_WORDS.has(key) ? `${key}Local` : key;
+	let name = base;
+	for (let suffix = 2; taken.has(name); suffix++) name = `${base}${suffix}`;
 	taken.add(name);
 	return name;
 }
@@ -291,6 +353,32 @@ function planMoves(j: JSCodeshift, fn: NodeLike, statements: NodeLike[], ctx: st
 		if (keys.lastIndexOf(key) !== index) return { statement, key, value, hoistAs: null, evaluate: !stable };
 		return { statement, key, value, hoistAs: stable ? null : freshName(key, taken), evaluate: false };
 	});
+}
+
+const EARLY_EXIT_TYPES = ['ReturnStatement', 'ThrowStatement', 'AwaitExpression', 'YieldExpression'];
+const NESTED_FUNCTION_TYPES = new Set([...FUNCTION_TYPES, 'FunctionDeclaration', 'ObjectMethod', 'ClassMethod']);
+
+/**
+ * Whether a statement can end the stage, or settle with an error, while it runs.
+ *
+ * @remarks
+ * Before the move a local assigned earlier was already set when such a statement left the stage, and an outer stage
+ * could read it after its own `next()` or in a `catch`; after the move it is never set. Code inside a nested function
+ * does not run here, so it does not count. A synchronous call that throws has the same effect and is not detected.
+ */
+function mayLeaveEarly(j: JSCodeshift, statement: NodeLike): boolean {
+	if (EARLY_EXIT_TYPES.includes(statement.type)) return true;
+	return j(statement as unknown as ASTNode)
+		.find(j.Node)
+		.filter((path) => EARLY_EXIT_TYPES.includes((path.node as NodeLike).type))
+		.paths()
+		.some((path) => {
+			for (let current = path.parent as ASTPath | null; current; current = current.parent as ASTPath | null) {
+				if (current.node === statement) return true;
+				if (NESTED_FUNCTION_TYPES.has(current.node.type)) return false;
+			}
+			return true;
+		});
 }
 
 /**
@@ -324,6 +412,11 @@ function planMove(
 
 	const blocked = blockingCtxUse(j, body, ctx, topLevel);
 	if (blocked) return blocked;
+
+	const first = Math.min(...moved);
+	if (statements.slice(first + 1, returnIndex).some((statement) => mayLeaveEarly(j, statement))) {
+		return 'awaits, returns or throws between a ctx.locals assignment and next(), where the local would no longer be set';
+	}
 
 	return { moves: planMoves(j, fn, statements, ctx, topLevel), nextReturn: call };
 }
@@ -375,7 +468,7 @@ function dropUnusedCoreTypes(j: JSCodeshift, root: ReturnType<JSCodeshift>): voi
 			(specifier) =>
 				specifier.type !== 'ImportSpecifier' ||
 				!OLD_TYPES.has(String(specifier.imported.name)) ||
-				stillUsed(j, root, specifier.local?.name ?? String(specifier.imported.name)),
+				stillUsed(j, root, String(specifier.local?.name ?? specifier.imported.name)),
 		);
 		if (kept.length === specifiers.length) return;
 		if (kept.length === 0) {
@@ -386,16 +479,35 @@ function dropUnusedCoreTypes(j: JSCodeshift, root: ReturnType<JSCodeshift>): voi
 	});
 }
 
+/**
+ * The name the file calls `createMiddleware` from `@ecopages/core` by, or null when another binding owns that name.
+ *
+ * @remarks
+ * An existing value import is reused under its local alias; without one, the name must be free so the import this
+ * transform adds does not collide with a declaration or another package's `createMiddleware`.
+ */
+function createMiddlewareBinding(
+	j: JSCodeshift,
+	root: ReturnType<JSCodeshift>,
+): { name: string; imported: boolean } | null {
+	const existing = root
+		.find(j.ImportDeclaration, { source: { value: CORE } })
+		.filter((path) => path.node.importKind !== 'type')
+		.find(j.ImportSpecifier, { imported: { name: 'createMiddleware' } })
+		.filter((path) => (path.node as { importKind?: string }).importKind !== 'type')
+		.nodes();
+	if (existing.length > 0) return { name: String(existing[0].local?.name ?? 'createMiddleware'), imported: true };
+	const taken = root.find(j.Identifier, { name: 'createMiddleware' }).filter((path) => !isNameOnly(path)).length > 0;
+	return taken ? null : { name: 'createMiddleware', imported: false };
+}
+
 function addCreateMiddlewareImport(j: JSCodeshift, root: ReturnType<JSCodeshift>): void {
 	const imports = root.find(j.ImportDeclaration, { source: { value: CORE } });
 	const valueImport = imports.filter((path) => path.node.importKind !== 'type');
 	const specifier = j.importSpecifier(j.identifier('createMiddleware'));
 	if (valueImport.length > 0) {
 		const target = valueImport.paths()[0].node;
-		const present = (target.specifiers ?? []).some(
-			(candidate) => candidate.type === 'ImportSpecifier' && candidate.imported.name === 'createMiddleware',
-		);
-		if (!present) target.specifiers = [...(target.specifiers ?? []), specifier];
+		target.specifiers = [...(target.specifiers ?? []), specifier];
 		return;
 	}
 	const declaration = j.importDeclaration([specifier], j.literal(CORE));
@@ -409,7 +521,7 @@ function addCreateMiddlewareImport(j: JSCodeshift, root: ReturnType<JSCodeshift>
 type PageOptions = { argument: NodeLike & { properties: NodeLike[] } };
 
 function pageOptions(call: ASTPath): PageOptions | null {
-	const [argument] = call.node.arguments as unknown[];
+	const [argument] = (call.node as { arguments: unknown[] }).arguments;
 	if (!isNode(argument) || argument.type !== 'ObjectExpression') return null;
 	return { argument: argument as PageOptions['argument'] };
 }
@@ -470,8 +582,8 @@ function isPropertyName(path: ASTPath): boolean {
 	return isMemberNode(parent) && parent.property === path.node && !parent.computed;
 }
 
-/** Keys `render` receives from the route after the props, which a prop of the same name would never reach. */
-const ROUTE_KEYS = new Set(['params', 'query', 'locals']);
+/** Keys `render` receives from the route, which a Page's `props` hook may not return. */
+const ROUTE_KEYS = new Set(['params', 'query']);
 
 /** One `locals.a.b` read of `render`: the outermost member and the prop it becomes. */
 type LocalsRead = { path: ASTPath; chain: string; name: string; first: string };
@@ -544,25 +656,66 @@ function readChain(reference: ASTPath): LocalsRead | null {
 function localsReads(j: JSCodeshift, fn: NodeLike, entry: NodeLike): LocalsRead[] | string | null {
 	const references = j(fn as unknown as ASTNode)
 		.find(j.Identifier, { name: 'locals' })
-		.filter((path) => path.parent.node !== entry)
+		.filter((path) => path.parent.node !== entry && !isPropertyName(path))
 		.paths();
 	if (references.length === 0) return null;
 	const reads = references.map(readChain);
 	if (reads.some((read) => read === null)) {
-		return 'reads locals other than as the value of a member chain (it passes, calls, indexes, spreads, writes or destructures it)';
+		return 'render reads locals other than as the value of a member chain (it passes, calls, indexes, spreads, writes or destructures it)';
 	}
-	return reads.filter((read) => read !== null);
+	const chains = reads.filter((read) => read !== null);
+	if (chains.some((read) => isGuarded(read.path, fn))) {
+		return 'render reads locals inside a condition, loop, try, await or nested function, which props would read on every request';
+	}
+	const plain = chains.map((read) => read.chain.replaceAll('?.', '.'));
+	if (plain.some((outer) => plain.some((inner) => inner.startsWith(`${outer}.`)))) {
+		return 'render reads both a locals value and a member of it, so props would return the whole value';
+	}
+	return chains;
+}
+
+/** Node types under which a read may not run on every render, or may run after it could have thrown. */
+const GUARD_TYPES = new Set([
+	'ConditionalExpression',
+	'LogicalExpression',
+	'IfStatement',
+	'SwitchStatement',
+	'ForStatement',
+	'ForInStatement',
+	'ForOfStatement',
+	'WhileStatement',
+	'DoWhileStatement',
+	'TryStatement',
+	'AwaitExpression',
+	...NESTED_FUNCTION_TYPES,
+]);
+
+/**
+ * Whether a read in `render` sits under a node that decides whether it runs.
+ *
+ * @remarks
+ * `props` evaluates every moved chain unconditionally, so a chain `render` only read behind a check such as
+ * `locals.session ? locals.session.user : null` would throw, or return the guarded object, on every request.
+ */
+function isGuarded(read: ASTPath, render: NodeLike): boolean {
+	for (let current = read.parent as ASTPath | null; current && current.node !== render; current = current.parent) {
+		if (GUARD_TYPES.has(current.node.type)) return true;
+	}
+	return false;
 }
 
 /** Why the props named after these reads would not reach `render` as written, or null when they would. */
 function readNamesConflict(j: JSCodeshift, fn: NodeLike, reads: LocalsRead[]): string | null {
 	if (reads.some((read) => ROUTE_KEYS.has(read.first) || ROUTE_KEYS.has(read.name))) {
-		return 'reads locals.params, locals.query or locals.locals, which render receives from the route instead';
+		return 'render reads locals.params or locals.query, which render receives from the route instead';
+	}
+	if (reads.some((read) => RESERVED_WORDS.has(read.name))) {
+		return 'render reads a local whose prop name is a reserved word, which render could not destructure';
 	}
 	const chainsByName = new Map<string, Set<string>>();
 	for (const read of reads) chainsByName.set(read.name, (chainsByName.get(read.name) ?? new Set()).add(read.chain));
 	const clash = [...chainsByName].some(([name, chains]) => chains.size > 1 || nameInUse(j, fn, name));
-	return clash ? 'reads locals under a name that another read or render already uses' : null;
+	return clash ? 'render reads locals under a name that another read or render already uses' : null;
 }
 
 /** Whether a name appears in `render` other than as a member property, so a new binding could shadow it. */
@@ -582,18 +735,27 @@ type PagePlan = {
 /**
  * Decides whether a page's `render` read of `locals` can move into a new `props` hook.
  *
- * @returns The plan, a reason it cannot move, or null when the page is not one this rewrite applies to.
+ * @returns The plan, or the reason it cannot move.
  */
-function planPage(j: JSCodeshift, options: PageOptions): PagePlan | string | null {
+function planPage(j: JSCodeshift, options: PageOptions): PagePlan | string {
 	const cache = pageProperty(options, 'cache');
 	const isDynamic = isNode(cache?.value) && cache.value.type === 'StringLiteral' && cache.value.value === 'dynamic';
-	if (!isDynamic || pageProperty(options, 'props')) return null;
+	if (!isDynamic) {
+		return "the page is not cache: 'dynamic', and only a dynamic page's props receives locals: make it cache: 'dynamic', list the middleware that provides them, and read them in props";
+	}
+	if (pageProperty(options, 'props')) return 'the page already has props: read the locals there';
 	const fn = renderFunction(pageProperty(options, 'render'));
 	const binding = fn ? localsBinding(fn) : null;
-	if (!fn || !binding) return null;
+	if (!fn || !binding) return 'render does not destructure { locals } from an unannotated first parameter';
 	const reads = localsReads(j, fn, binding.entry);
-	if (reads === null || typeof reads === 'string') return reads;
-	return readNamesConflict(j, fn, reads) ?? { binding, reads };
+	if (reads === null) return 'render does not read locals: delete requires';
+	if (typeof reads === 'string') return reads;
+	const conflict = readNamesConflict(j, fn, reads);
+	if (conflict) return conflict;
+	if (!pageProperty(options, 'middleware')) {
+		return 'the page lists no middleware, so props would see no typed locals: list the middleware that provides them';
+	}
+	return { binding, reads };
 }
 
 function shorthand(j: JSCodeshift, name: string, value: Parameters<typeof j.objectProperty>[1]) {
@@ -649,18 +811,17 @@ function migratePage(j: JSCodeshift, call: ASTPath, filePath: string, reports: M
 	const options = pageOptions(call);
 	if (!options) return false;
 	const plan = planPage(j, options);
-	if (plan !== null && typeof plan !== 'string') {
+	if (typeof plan !== 'string') {
 		applyPagePlan(j, options, plan);
 		return true;
 	}
 	const line = pageLocalsLine(j, options);
 	if (line !== null) {
-		const detail = plan ? `; not rewritten because render ${plan}` : '';
 		reports.push({
 			kind: 'page-requires',
 			file: filePath,
 			line,
-			reason: `requires is removed and render no longer receives locals${detail}: read them in props and return only what render needs, never a whole session or user object`,
+			reason: `requires is removed and render no longer receives locals; not rewritten because ${plan}. Return from props only what render needs, never a whole session or user object`,
 		});
 	}
 	return false;
@@ -727,25 +888,94 @@ function middlewareFunction(init: unknown): { fn: NodeLike; ctx: string; next: s
 }
 
 /**
+ * Whether a reference to a middleware binding keeps working once the binding is a `createMiddleware` result: an entry
+ * of a `middleware: [...]` list, an argument of `composeMiddleware`, an export specifier or a `typeof` query.
+ */
+function acceptsMadeMiddleware(path: ASTPath): boolean {
+	const parent = path.parent.node as NodeLike;
+	if (parent.type === 'ExportSpecifier' || parent.type === 'TSTypeQuery') return true;
+	if (parent.type === 'CallExpression') {
+		return isNode(parent.callee) && parent.callee.name === 'composeMiddleware' && parent.callee !== path.node;
+	}
+	if (parent.type !== 'ArrayExpression') return false;
+	const holder = path.parent.parent.node as NodeLike;
+	return holder.type === 'ObjectProperty' && isNode(holder.key) && holder.key.name === 'middleware';
+}
+
+/** Why a binding cannot become a `createMiddleware` result, judged by how this file references it. */
+function bindingUseReason(
+	j: JSCodeshift,
+	root: ReturnType<JSCodeshift>,
+	path: ASTPath<VariableDeclarator>,
+): string | null {
+	const id = path.node.id;
+	if (id.type !== 'Identifier') return null;
+	const misused = root
+		.find(j.Identifier, { name: id.name })
+		.filter((reference) => reference.node !== id && !isNameOnly(reference) && !acceptsMadeMiddleware(reference));
+	if (misused.length === 0) return null;
+	return `is referenced on line ${lineOf(misused.nodes()[0])} other than in a middleware list, where a createMiddleware result is not a function`;
+}
+
+type FileContext = {
+	j: JSCodeshift;
+	root: ReturnType<JSCodeshift>;
+	filePath: string;
+	imported: Map<string, string>;
+	/** The local name of `createMiddleware`, or null when another binding owns the name. */
+	createName: string | null;
+	reports: MiddlewareReport[];
+	/** Functions already migrated or reported, which the pass over the rest of the file skips. */
+	handled: Set<unknown>;
+};
+
+function reportAssignments(context: FileContext, nodes: unknown[], why: string): void {
+	for (const node of nodes) {
+		context.reports.push({
+			kind: 'locals-assignment',
+			file: context.filePath,
+			line: lineOf(node),
+			reason: `ctx.locals assignment not moved: the middleware ${why}`,
+		});
+	}
+}
+
+/** Why an annotated middleware with these assignments cannot be rewritten, or its plan. */
+function declaratorPlan(
+	context: FileContext,
+	path: ASTPath<VariableDeclarator>,
+	target: NonNullable<ReturnType<typeof middlewareFunction>>,
+	assignments: ASTPath[],
+	annotation: NonNullable<ReturnType<typeof middlewareAnnotation>>,
+): Plan | string {
+	if (annotation.hasTypeArguments) {
+		return `is annotated ${annotation.name}<...>, and a createMiddleware stage does not take its request type`;
+	}
+	const plan = planMove(context.j, target.fn, target.ctx, target.next, assignments);
+	if (typeof plan === 'string') return plan;
+	if (context.createName === null) {
+		return 'is in a file where createMiddleware already names something other than the @ecopages/core export';
+	}
+	return bindingUseReason(context.j, context.root, path) ?? plan;
+}
+
+/**
  * Migrates one annotated middleware declaration, or reports why it was left alone.
  *
  * @returns Whether the declaration was rewritten.
  */
-function migrateDeclarator(
-	j: JSCodeshift,
-	path: ASTPath<VariableDeclarator>,
-	filePath: string,
-	imported: Map<string, string>,
-	reports: MiddlewareReport[],
-): boolean {
-	const name = annotationName(path.node.id);
-	if (!name || !imported.has(name)) return false;
-	const original = imported.get(name);
+function migrateDeclarator(context: FileContext, path: ASTPath<VariableDeclarator>): boolean {
+	const { j, imported } = context;
+	const annotation = middlewareAnnotation(path.node);
+	if (!annotation || !imported.has(annotation.name)) return false;
+	const original = imported.get(annotation.name);
+	const init = unwrapExpression(path.node.init);
 
 	if (original === 'EcoMiddleware') {
-		reports.push({
+		context.handled.add(init);
+		context.reports.push({
 			kind: 'eco-middleware',
-			file: filePath,
+			file: context.filePath,
 			line: lineOf(path.node),
 			reason: 'EcoMiddleware<Context> is removed; pass the value with next({ field }) and read it from ctx.locals',
 		});
@@ -753,64 +983,104 @@ function migrateDeclarator(
 	}
 	if (!original || !OLD_TYPES.has(original)) return false;
 
-	const target = middlewareFunction(path.node.init);
-	if (!target) return false;
-	const { fn, ctx, next } = target;
+	const write = firstLocalsWrite(j, init);
+	if (!write) return false;
+	context.handled.add(init);
 
-	const assignments = j(fn as unknown as ASTNode)
+	const target = middlewareFunction(init);
+	if (!target) {
+		reportAssignments(
+			context,
+			[write],
+			'is not a block-bodied function whose first parameter is a plain identifier (it destructures the context or returns an expression)',
+		);
+		return false;
+	}
+	const assignments = j(target.fn as unknown as ASTNode)
 		.find(j.AssignmentExpression)
-		.filter((candidate) => isLocalsAssignment(candidate.node, ctx))
+		.filter((candidate) => isLocalsAssignment(candidate.node, target.ctx))
 		.paths();
-	if (assignments.length === 0) return false;
+	if (assignments.length === 0) {
+		reportAssignments(context, [write], 'writes ctx.locals only through a computed key, Object.assign or delete');
+		return false;
+	}
 
-	const plan = planMove(j, fn, ctx, next, assignments);
+	const plan = declaratorPlan(context, path, target, assignments, annotation);
 	if (typeof plan === 'string') {
-		for (const assignment of assignments) {
-			reports.push({
-				kind: 'locals-assignment',
-				file: filePath,
-				line: lineOf(assignment.node),
-				reason: `ctx.locals assignment not moved: the middleware ${plan}`,
-			});
-		}
+		reportAssignments(
+			context,
+			assignments.map((assignment) => assignment.node),
+			plan,
+		);
 		return false;
 	}
 
 	(plan.nextReturn.node as { arguments: unknown[] }).arguments = [buildLocalsObject(j, plan.moves)];
-	applyMoves(j, (fn.body as { body: unknown[] }).body, plan.moves);
+	applyMoves(j, (target.fn.body as { body: unknown[] }).body, plan.moves);
 	(path.node.id as { typeAnnotation?: unknown }).typeAnnotation = null;
-	path.node.init = j.callExpression(j.identifier('createMiddleware'), [fn as never]);
+	path.node.init = j.callExpression(j.identifier(context.createName as string), [target.fn as never]);
 	return true;
+}
+
+/**
+ * Reports each function left in the file that writes a `locals` object, such as a middleware without a
+ * `FileRouteMiddleware` or `Middleware` annotation, whose writes no later stage or page sees in its types.
+ */
+function reportUnannotatedWrites(context: FileContext): void {
+	const { j, root } = context;
+	root.find(j.Function).forEach((path) => {
+		for (let current = path as unknown as ASTPath | null; current; current = current.parent as ASTPath | null) {
+			if (context.handled.has(current.node)) return;
+		}
+		const write = firstLocalsWrite(j, path.node);
+		if (!write) return;
+		context.handled.add(path.node);
+		context.reports.push({
+			kind: 'locals-assignment',
+			file: context.filePath,
+			line: lineOf(write),
+			reason: 'ctx.locals written by a function not annotated FileRouteMiddleware or Middleware from @ecopages/core, so it was not rewritten and no later stage, page or handler sees the value in its types: make it a createMiddleware stage that passes the value to next({ ... })',
+		});
+	});
 }
 
 export default function transform(file: FileInfo, api: API, _options: Options): string | null {
 	const j = api.jscodeshift;
 	const root = j(file.source);
-	const imported = coreImports(j, root);
-	const reports: MiddlewareReport[] = [];
+	const binding = createMiddlewareBinding(j, root);
+	const context: FileContext = {
+		j,
+		root,
+		filePath: file.path,
+		imported: coreImports(j, root),
+		createName: binding?.name ?? null,
+		reports: [],
+		handled: new Set(),
+	};
 	let changed = false;
 
 	root.find(j.VariableDeclarator).forEach((path) => {
-		if (migrateDeclarator(j, path, file.path, imported, reports)) changed = true;
+		if (migrateDeclarator(context, path)) changed = true;
 	});
 
 	if (changed) {
 		dropUnusedCoreTypes(j, root);
-		addCreateMiddlewareImport(j, root);
+		if (!binding?.imported) addCreateMiddlewareImport(j, root);
 	}
 
 	root.find(j.CallExpression)
 		.filter((path) => isEcoPageCall(path.node))
 		.forEach((path) => {
-			if (migratePage(j, path, file.path, reports)) changed = true;
+			if (migratePage(j, path, file.path, context.reports)) changed = true;
 		});
 
-	reportRequestLocalsAugmentations(j, root, file.path, reports);
+	reportUnannotatedWrites(context);
+	reportRequestLocalsAugmentations(j, root, file.path, context.reports);
 
-	for (const report of reports) {
+	for (const report of context.reports) {
 		api.report(`migrate-middleware-locals: ${report.file}:${report.line} ${report.reason}`);
 	}
-	writeReports(reports);
+	writeReports(context.reports);
 
 	return changed ? root.toSource(printOptions(file.source)) : null;
 }

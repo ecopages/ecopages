@@ -8,7 +8,7 @@ export const reassigned: Middleware = async (ctx, next) => {
 };
 
 export const awaited: Middleware = async (ctx, next) => {
+	await log('loading user');
 	ctx.locals.user = await getUser();
-	await log('user loaded');
 	return next();
 };

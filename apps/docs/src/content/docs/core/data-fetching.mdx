@@ -13,7 +13,7 @@ Ecopages provides built-in functions for fetching data at build time (for static
 An `eco.page` declares its data with two hooks. **`paths` lists the Params known at build. On a `'static'` or `{ revalidate }` page, `props` receives those Params at build; on a `'dynamic'` page, `props` is the request handler and runs on every request.** Both return their value directly, without an envelope.
 
 ### `props`
-Returns the props object of your page component. `render`, `metadata` and `dependencies` all see it.
+Returns the props object of your page component. `render`, `metadata` and `dependencies` all see it. `render` also receives the route's `params` and `query`, so `props` cannot return a key of either name: the hook does not type-check, and a hook that escapes the type check, such as one that returns `any` or a page written in JavaScript, fails when it runs.
 
 ```tsx
 import { eco } from '@ecopages/core';

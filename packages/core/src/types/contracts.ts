@@ -1047,12 +1047,34 @@ export type PageRequestContext<TLocals = RequestLocals> = PageBuildContext & {
  * @remarks
  * Returns the props object directly. `paths` lists the Params known at build, and the hook receives each of them.
  */
-export type GetProps<T> = (context: PageBuildContext) => T | Promise<T>;
+export type GetProps<T> = ((context: PageBuildContext) => T | Promise<T>) &
+	((context: PageBuildContext) => WithoutRouteProps<T> | Promise<WithoutRouteProps<T>>);
+
+/**
+ * Keys a Page's `props` hook may not return.
+ *
+ * @remarks
+ * The route sets them on what `render` receives, after the props, so a prop of the same name would never reach
+ * `render` while `metadata` read it.
+ */
+export type NoRouteProps = { params?: never; query?: never };
+
+/**
+ * `T` with every object member barred from {@link NoRouteProps} keys.
+ *
+ * @remarks
+ * The props hook types pair it with a plain `T | Promise<T>` signature that infers `T`: inferring through this
+ * conditional would take one branch of a union return, and `null` or `undefined` returns pass unchanged. The
+ * conditional stays deferred for a type parameter, so a hook that returns a caller's generic `T` does not type-check
+ * against it; such a wrapper passes a concrete props type.
+ */
+type WithoutRouteProps<T> = T extends object ? T & NoRouteProps : T;
 
 /**
  * The `props` hook of a Dynamic Page: the Page's request handler, run on every request and never by the build.
  */
-export type GetRequestProps<T, TLocals = RequestLocals> = (context: PageRequestContext<TLocals>) => T | Promise<T>;
+export type GetRequestProps<T, TLocals = RequestLocals> = ((context: PageRequestContext<TLocals>) => T | Promise<T>) &
+	((context: PageRequestContext<TLocals>) => WithoutRouteProps<T> | Promise<WithoutRouteProps<T>>);
 
 /**
  * Represents a page file in EcoPages.

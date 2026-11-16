@@ -1,6 +1,6 @@
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { getComponentOwner } from '../eco/component-identity.ts';
-import { isDynamicPage } from '../eco/page-data-hooks.ts';
+import { assertNoRouteProps, isDynamicPage } from '../eco/page-data-hooks.ts';
 import { ensureIntegrationRuntimeReady } from '../build/app-build-manifest-runtime.ts';
 import type { EcoFunctionComponent, EcoPageComponent } from '../types/contracts.ts';
 import { assertViewDeclaredIn } from './page-declaration.ts';
@@ -87,17 +87,24 @@ export function resolveExplicitViewRenderer(input: {
  * assignable to `EcoPageComponent<unknown>` or `EcoPageComponent<Record<string, unknown>>`, so a narrower type
  * would reject every loaded view. The hook's result is returned as the props the renderer passes back to it.
  */
-function readViewPropsWithoutRequest(input: {
+async function readViewPropsWithoutRequest(input: {
+	routePath: string;
 	view: EcoPageComponent<any>;
 	params: Record<string, string | string[]>;
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
-}): Record<string, unknown> | Promise<Record<string, unknown>> {
+}): Promise<Record<string, unknown>> {
 	const { view } = input;
 	if (isDynamicPage(view) || !view.props) {
 		return {};
 	}
-	return view.props({ params: input.params, appConfig: input.appConfig, runtimeOrigin: input.runtimeOrigin });
+	const props = await view.props({
+		params: input.params,
+		appConfig: input.appConfig,
+		runtimeOrigin: input.runtimeOrigin,
+	});
+	assertNoRouteProps(props, view.config?.identity?.file ?? input.routePath);
+	return props;
 }
 
 /**

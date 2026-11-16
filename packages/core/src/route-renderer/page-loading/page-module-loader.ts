@@ -17,6 +17,7 @@ import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { DATA_HOOKS_MIGRATION_URL } from '../../eco/migration-docs.ts';
+import { assertNoRouteProps } from '../../eco/page-data-hooks.ts';
 import { HttpError } from '../../errors/http-error.ts';
 
 const LEGACY_PAGE_EXPORT_NAMES = ['getStaticPaths', 'getStaticProps', 'getMetadata', 'cache'] as const;
@@ -93,6 +94,8 @@ export class PageModuleLoaderService {
 		options: PropsHookRequest & {
 			getProps?: PagePropsHook;
 			params?: RouteRendererOptions['params'];
+			/** The Page file, named when the hook returns a key the route sets. */
+			file?: string;
 		},
 	): Promise<{
 		props: Record<string, unknown>;
@@ -103,9 +106,9 @@ export class PageModuleLoaderService {
 			return { props: {}, metadata: undefined };
 		}
 		const callHook = this.bindPropsHook(getProps, options);
+		let props: Record<string, unknown>;
 		try {
-			const props = await callHook();
-			return { props };
+			props = await callHook();
 		} catch (err) {
 			if (HttpError.isHttpError(err) || err instanceof Response) {
 				throw err;
@@ -113,6 +116,8 @@ export class PageModuleLoaderService {
 			const message = err instanceof Error ? err.message : String(err);
 			throw new Error(`Error fetching props: ${message}`, { cause: err });
 		}
+		assertNoRouteProps(props, options.file ?? 'a Page');
+		return { props };
 	}
 
 	private bindPropsHook(
@@ -241,6 +246,7 @@ export class PageModuleLoaderService {
 			: (
 					await this.getPropsForPage({
 						getProps: options.pageModule.getProps,
+						file: routeOptions.file,
 						params: routeOptions.params,
 						request: routeOptions.request,
 						query: routeOptions.query,

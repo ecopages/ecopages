@@ -3,6 +3,7 @@ import type {
 	DynamicPageStatics,
 	EcoComponent,
 	EcoPageComponent,
+	NoRouteProps,
 	PagePropsFor,
 	RequestPageContext,
 	StaticPageStatics,
@@ -52,4 +53,26 @@ function createStaticStatics<T, E>(options: StaticPageOptions<T, E>): StaticPage
  */
 export function isDynamicPage(page: unknown): page is DynamicEcoPageComponent<any> {
 	return typeof page === 'function' && 'cache' in page && page.cache === 'dynamic';
+}
+
+/** The keys of {@link NoRouteProps}, listed once so the type and this check cannot drift apart. */
+const ROUTE_PROPS: Record<keyof NoRouteProps, true> = { params: true, query: true };
+
+/**
+ * Throws when a Page's `props` hook returned a key that {@link NoRouteProps} bars.
+ *
+ * @remarks
+ * The hook's type rejects those keys; this catches a hook whose types do not, such as one that returns `any` or a
+ * Page written in JavaScript. A `null` or `undefined` result passes, and so does a barred key set to `undefined`, which
+ * the type allows and the route overwrites.
+ */
+export function assertNoRouteProps(props: unknown, source: string): void {
+	if (typeof props !== 'object' || props === null) return;
+	for (const key of Object.keys(ROUTE_PROPS)) {
+		if (Object.hasOwn(props, key) && Reflect.get(props, key) !== undefined) {
+			throw new Error(
+				`[ecopages] The props hook of ${source} returned "${key}", a key render receives from the route. Rename the prop.`,
+			);
+		}
+	}
 }

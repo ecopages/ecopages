@@ -154,6 +154,35 @@ describe('PageModuleLoaderService', () => {
 		).rejects.toThrow('Error fetching props: boom');
 	});
 
+	it.each(['params', 'query'])('should reject a props hook that returns %s, which the route sets', async (key) => {
+		const service = new PageModuleLoaderService(appConfig);
+
+		await expect(
+			service.getPropsForPage({
+				getProps: { context: 'build', run: async () => ({ [key]: {} }) },
+				file: 'pages/post.tsx',
+			}),
+		).rejects.toThrow(`The props hook of pages/post.tsx returned "${key}", a key render receives from the route.`);
+	});
+
+	it('should pass a props hook that sets a route key to undefined, which the route overwrites', async () => {
+		const service = new PageModuleLoaderService(appConfig);
+
+		await expect(
+			service.getPropsForPage({
+				getProps: { context: 'build', run: async () => ({ title: 'a', query: undefined }) },
+			}),
+		).resolves.toEqual({ props: { title: 'a', query: undefined } });
+	});
+
+	it('should pass a props hook that returns null through unchanged', async () => {
+		const service = new PageModuleLoaderService(appConfig);
+
+		await expect(
+			service.getPropsForPage({ getProps: { context: 'build', run: async () => null as never } }),
+		).resolves.toEqual({ props: null });
+	});
+
 	it('should merge default and dynamic metadata', async () => {
 		const service = new PageModuleLoaderService({
 			...appConfig,

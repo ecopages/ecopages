@@ -339,6 +339,23 @@ describe('ExplicitStaticRouteMatcher', () => {
 			);
 		});
 
+		test('rejects a view whose props hook returns params, which render receives from the route', async () => {
+			const view = createMockView('string');
+			view.props = vi.fn(async () => ({ params: {} })) as any;
+			const renderExplicitView = vi.fn(() => new Response('<html>Test</html>'));
+			const matcher = new ExplicitStaticRouteMatcher({
+				appConfig: createMockAppConfig(),
+				routeRendererFactory: { getExplicitViewRenderer: vi.fn(() => ({ renderExplicitView })) } as any,
+				staticRoutes: [createMockRoute('/blog/:slug', view)],
+			});
+
+			const match = matcher.match('http://localhost:3000/blog/hello-world');
+			await expect(matcher.handleMatch(match!)).rejects.toThrow(
+				'returned "params", a key render receives from the route',
+			);
+			expect(renderExplicitView).not.toHaveBeenCalled();
+		});
+
 		test('rejects a view with middleware, which a render without a request would never run, naming the view', async () => {
 			const view = createMockView('string');
 			Object.assign(view, {

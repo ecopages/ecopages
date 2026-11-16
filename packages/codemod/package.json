@@ -24,6 +24,10 @@
 		"./migrate-to-eco-page": {
 			"import": "./src/transforms/migrate-to-eco-page.ts",
 			"types": "./src/transforms/migrate-to-eco-page.ts"
+		},
+		"./migrate-radiant-bindings": {
+			"import": "./src/transforms/migrate-radiant-bindings.ts",
+			"types": "./src/transforms/migrate-radiant-bindings.ts"
 		}
 	},
 	"bin": {
@@ -46,6 +50,7 @@
 		"transform:components": "jscodeshift -t src/transforms/migrate-to-eco-component.ts --parser tsx",
 		"transform:middleware-locals": "jscodeshift -t src/transforms/migrate-middleware-locals.ts --parser tsx",
 		"transform:core-entrypoints": "jscodeshift -t src/transforms/migrate-core-entrypoints.ts --parser tsx",
+		"transform:radiant-bindings": "jscodeshift -t src/transforms/migrate-radiant-bindings.ts --parser tsx",
 		"test": "vitest run --root ../.. --project shared-core packages/codemod"
 	},
 	"dependencies": {

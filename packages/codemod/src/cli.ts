@@ -18,6 +18,7 @@ export const TRANSFORMS = {
 	'migrate-to-eco-component': 'Component.config assignments to eco.component()',
 	'migrate-core-entrypoints': '@ecopages/core imports to the role-based entry points',
 	'migrate-middleware-locals': 'ctx.locals assignments of middleware to createMiddleware and next({ ... })',
+	'migrate-radiant-bindings': 'Radiant $name companion bindings and the bind option to this.$',
 } as const;
 
 const USAGE = `Usage: ecopages-codemod <transform> [paths...] [jscodeshift options]

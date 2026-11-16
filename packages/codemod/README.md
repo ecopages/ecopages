@@ -18,6 +18,7 @@ Paths default to `src`. Extra flags pass through to jscodeshift, so `--dry --pri
 
 | Transform                   | Added in | Migrates                                                                                                                                                        |
 | --------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `migrate-radiant-bindings`  | 0.10.0   | `@ecopages/radiant` `$name` companion bindings and the `bind` option to `this.$` (Radiant 0.10.0)                                                               |
 | `migrate-data-hooks`        | 0.9.0    | `staticProps` and `staticPaths` of `eco.page()` to `props` and `paths`                                                                                          |
 | `migrate-to-eco-page`       | 0.3.0    | Module-level data exports and `Page.config` to `eco.page()`; runs the one above                                                                                 |
 | `migrate-to-eco-component`  | 0.3.0    | `Component.config` assignments to `eco.component()`                                                                                                             |
@@ -31,3 +32,21 @@ A transform leaves code it cannot rewrite safely unchanged and reports it, so th
 It also moves the `locals` a page reads in `render` into a new `props` hook and drops `requires`, since `render` no longer receives `locals`. It does so only for a literal `cache: 'dynamic'` page with a `middleware` list and without `props`, whose `render` destructures `locals` and reads it as member chain values outside any condition, loop, `try`, `await` or nested function, since `props` reads every chain on every request. What `props` returns is sent to the browser, so each chain becomes one prop holding only that value (`locals.session.user` becomes `sessionUser`), never a whole session or user object. A page is reported when it passes, calls, indexes or spreads `locals`, reads both a value and a member of it, reads `locals.params` or `locals.query`, or would need a reserved word as a prop name. It leaves `EcoMiddleware<Context>` annotations, assignments in branches, and every other page that declares `requires` or reads `locals` in `render` unchanged. Recast prints new code one key per line, so run your formatter afterwards. It also reports each `interface RequestLocals` declared in a `declare module '@ecopages/core'` block, since the global interface is removed and the augmentation types nothing; pass the declaration file as a path when it sits outside `src` (`npx @ecopages/codemod migrate-middleware-locals src modules.d.ts`). To finish one, make sure a `createMiddleware` stage provides each local it declared, list that middleware on every page or route that reads them, annotate the locals a shared layout entry reads on its factory parameter, then delete the declaration. When the run ends, the CLI prints a migration brief listing each of those as `file:line`, the docs to read, and a prompt to hand to a coding agent.
 
 The release notes of each core version name the transform that goes with its breaking changes.
+
+### `migrate-radiant-bindings`
+
+Radiant 0.10.0 removed the `$name` companion of each reactive member and the `bind` option that named it. Run it when you upgrade `@ecopages/radiant` to 0.10.0; it does not need Radiant installed:
+
+```bash
+npx @ecopages/codemod migrate-radiant-bindings src
+```
+
+It rewrites, on classes that extend `RadiantElement`, `RadiantController` or `FormAssociatedElement`:
+
+- `this.$count` to `this.$.count`, in JSX and in plain code, for a `@prop`, `@state`, `@attr` or `@signal` field or a `createReactiveProp` or `createReactiveField` member that had a companion;
+- a read of the name a `bind: 'name'` string gave to `this.$.<field>`;
+- `bind: true`, `bind: false` and `bind: 'name'` out of the options, with an options object left empty when the option is optional (`@attr()`, `@signal()`);
+- a `declare $count` that typed a companion out of the class;
+- the binding shape into the type argument of `extends RadiantElement` or `extends RadiantController`, as `RadiantElement<{ count: number }>`, typed from the field's annotation or literal initializer. A type argument already there is extended, or intersected when it is a named type.
+
+It leaves the code as written and prints the file and line for the rest: `ReactiveBindingOption` imports, `defineReactiveBinding` and `shouldAutoBindReactiveMembers`, computed `this[...]` access to a `$` name, a companion written, destructured or read outside its class, a `bind` or options value that is not a literal, a member type it cannot tell, and `$name` reads in a class whose base is in another file. It edits only the text it changes, so the rest of the file keeps its formatting.

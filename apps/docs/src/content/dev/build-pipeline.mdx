@@ -161,11 +161,13 @@ A side-effect import that a package module keeps, one under `node_modules` or ou
 Before rendering any HTML, the static-site generator calls `prebuildProductionPageBrowserGraphs()` with every route instance the server could serve:
 
 - each Page the export renders, with its Params
-- each Dynamic Page entry from `paths`, which runs `props` so prop-dependent Dependencies are built
+- each Dynamic Page entry from `paths`, planned without `props`, so its `dependencies` resolver decides the Dependencies built for those Params
 - a parameter-free instance of every non-exact Page route template that has no entries above, and every view the server entry imports, without data hooks
 - each `app.static` route instance
 
 Each Integration renderer plans its instances with `planProductionRoutes()`. Planning processes nothing: it lists the bundleable scripts of the Page Browser Graph and the island and lazy entries, each prepared as asset processing prepares it.
+
+The build never runs a Dynamic Page's `props`. That hook is the Page's request handler and reads the request, its Query and its Locals, none of which exist at build. `planRouteInstance()` reads the Page's `cache` and plans every Dynamic Page with `skipPropsHook`, an exact Page included, so a `/dashboard` whose `props` reads `locals` builds. Its `dependencies` resolver receives `{ params, query }` and no `props`, and the graph context carries no props, because the Page Browser Graph is cached by Params and Query alone (`createPageDependencyInstanceKey`) and request data must not decide it.
 
 ```mermaid
 flowchart LR
@@ -204,7 +206,7 @@ flowchart TD
 
 Only `define`, `minify`, `treeshaking` and plugin exclusions split entries into separate builds. Why: those options apply to a whole build. Plugins and external modules do not split it, because a module has one URL and therefore one compiled form; the build runs every plugin any entry declares, once each. [Plugin pipeline](/dev/plugin-pipeline) covers how those plugins reach Rolldown.
 
-A route that fails to plan is reported, not fatal on its own. A concrete instance becomes a page failure; a route template only warns (a dynamic Page whose `paths` lists entries is planned once per entry with that entry's Params, never as a template), and `ecopages start` then fails the requests that need a dependency only that plan would have recorded.
+A route that fails to plan is reported, not fatal on its own. A concrete instance becomes a page failure; a route template only warns (a dynamic Page whose `paths` lists entries is planned once per entry with that entry's Params, its `dependencies` resolver reading them, never as a template), and `ecopages start` then fails the requests that need a dependency only that plan would have recorded.
 
 ## Outputs of the browser build
 

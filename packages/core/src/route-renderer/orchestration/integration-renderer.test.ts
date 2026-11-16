@@ -643,31 +643,58 @@ describe('IntegrationRenderer', () => {
 		});
 	});
 
-	it('keeps metadata active for route plans that skip the props hook', async () => {
-		const routeFile = path.resolve('/app/pages/products/[slug].tsx');
-		const metadata = vi.fn(async ({ params }: Parameters<GetMetadata>[0]) => ({
-			title: String(params.slug),
-			description: 'Route metadata',
-		}));
-		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-		Page.metadata = metadata;
-		Page.config = {
-			integration: 'lit',
-			identity: { id: 'route-plan-metadata', file: routeFile, integration: 'lit' },
-		};
-		const renderer = new TestIntegrationRenderer({
-			appConfig: {
-				...testAppConfig,
-				integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
-			} as EcoPagesAppConfig,
-			assetProcessingService: testAssetService,
+	describe('route plans that skip the props hook', () => {
+		const routeFile = path.resolve('/app/pages/posts/[slug].tsx');
+
+		function plannerFor(Page: EcoPageComponent<Record<string, unknown>>) {
+			Page.config = {
+				integration: 'lit',
+				identity: { id: 'route-plan-metadata', file: routeFile, integration: 'lit' },
+			};
+			const renderer = new TestIntegrationRenderer({
+				appConfig: {
+					...testAppConfig,
+					integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
+				} as EcoPagesAppConfig,
+				assetProcessingService: testAssetService,
+			});
+			renderer.PageModule = { default: Page };
+			renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+			return renderer;
+		}
+
+		function pageWithPropsMetadata(cache?: 'dynamic') {
+			const metadata = vi.fn(async ({ props }: Parameters<GetMetadata>[0]) => ({
+				title: (props as { post: { title: string } }).post.title,
+				description: 'Post',
+			}));
+			const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+			Page.metadata = metadata;
+			if (cache) Object.assign(Page, { cache });
+			return { Page, metadata };
+		}
+
+		it('plans a Dynamic Page from paths without running metadata that reads props', async () => {
+			const { Page, metadata } = pageWithPropsMetadata('dynamic');
+			const renderer = plannerFor(Page);
+
+			const plan = await renderer.planProductionRoutes([{ routeFile, params: { slug: 'hello' } }]);
+
+			expect(plan).toBeDefined();
+			expect(metadata).not.toHaveBeenCalled();
 		});
-		renderer.PageModule = { default: Page };
-		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		await renderer.planProductionRoutes([{ routeFile, params: { slug: 'existing-product' }, skipPropsHook: true }]);
+		it('does not run metadata when the caller skips the props hook', async () => {
+			const { Page, metadata } = pageWithPropsMetadata();
+			const renderer = plannerFor(Page);
 
-		expect(metadata).toHaveBeenCalledWith(expect.objectContaining({ params: { slug: 'existing-product' } }));
+			const plan = await renderer.planProductionRoutes([
+				{ routeFile, params: { slug: 'hello' }, skipPropsHook: true },
+			]);
+
+			expect(plan).toBeDefined();
+			expect(metadata).not.toHaveBeenCalled();
+		});
 	});
 
 	it('resolves the page dependencies of each render from its own props', async () => {

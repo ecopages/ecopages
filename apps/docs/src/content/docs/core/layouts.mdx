@@ -115,24 +115,37 @@ EcoPages normalizes the stack to:
 
 ### Per-tier layout props
 
-When a tier needs route context, use a layout entry object:
+When a tier needs route or request data, use a layout entry object. Its `props` factory returns the props of that layout:
 
 ```tsx
 layout: [
 	AppShell,
 	{
 		component: DocsSection,
-		props: ({ params, locals }) => ({
-			activeSlug: params?.slug,
-			viewer: locals?.session?.user.email,
-		}),
+		props: ({ params }) => ({ activeSlug: params?.slug }),
 	},
 ],
 ```
 
-`props` receives `LayoutPropsContext`, whose `params`, `query`, and `locals` are all optional. A layout receives request data only through this factory: the component gets what the factory returns and no `locals` prop. The factory runs on the server, and its result is also sent to the browser for hydration, so return only what the browser may see, such as the user and not the whole session.
+A layout receives request data only through this factory: the component gets what the factory returns and no `locals` prop. The factory runs on the server, and its result is also sent to the browser for hydration, so return only what the browser may see, such as the user and not the whole session.
 
-On a Page that is not `cache: 'dynamic'` there are no `locals`: the factory still runs, with `locals` undefined, so read it with `locals?.` and treat the layout's props as optional. See [Request Locals](/docs/core/request-locals) for how request data reaches layout tiers during SSR and hydration.
+What the factory receives follows the Page's cache strategy:
+
+- On a `cache: 'dynamic'` Page it receives `params`, `query` and `locals`. Written inline, `locals` is typed from the Page's `middleware` list and `requires`, like the Page's `props` hook.
+- On a static or revalidating Page it receives `params` and `query`. There is no request, so reading `locals` is a type error.
+
+```tsx
+export default eco.page({
+	cache: 'dynamic',
+	middleware: [authMiddleware],
+	layout: [AppShell, { component: DocsSection, props: ({ locals }) => ({ viewer: locals.session.user.email }) }],
+	render: () => <h1>Documentation</h1>,
+});
+```
+
+A layout entry shared by many Pages annotates the locals it reads once, on the factory parameter, such as `({ locals }: { locals: { session: Session } })`. A Page whose middleware does not provide them, or a static Page, is a compile error.
+
+The factory never runs in the browser: the browser build removes the factory of an entry written inline in `eco.page()`, together with the `.server` imports only it uses. A shared entry imported from another module keeps its factory in the browser bundle, so the browser build fails if that factory imports a `.server` module. See [Request Locals](/docs/core/request-locals#layouts) for how request data reaches layout tiers during SSR and hydration.
 
 ### Shared outer layouts and SPA navigation
 

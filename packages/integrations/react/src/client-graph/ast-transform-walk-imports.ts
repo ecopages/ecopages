@@ -41,7 +41,7 @@ function pruneForbiddenSpecifier(
 	if (reachableRules && !ctx.reachability.isFallbackRoots) {
 		const used = bindings.length > 0 ? ` (${bindings.map((name) => `'${name}'`).join(', ')})` : '';
 		throw new Error(
-			`[Ecopages Client Reachability] ${message} at ${ctx.filename}:${node.start}. This server-only import${used} is reachable from the React render function, which runs in the browser. Move the code that uses it into a '.server' module and call it only from server-only Page options such as props.`,
+			`[Ecopages Client Reachability] ${message} at ${ctx.filename}:${node.start}. This server-only import${used} is reachable from the React render function, which runs in the browser. Move the code that uses it into a '.server' module and call it only from server-only Page options such as props. A layout entry's props factory is server-only only when the entry is written inline in eco.page({ layout }), not when it is declared in a variable.`,
 		);
 	}
 	ctx.edits.push({ start: node.start, end: node.end, replacement });

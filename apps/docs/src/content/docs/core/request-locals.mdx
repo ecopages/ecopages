@@ -69,9 +69,9 @@ It types up to four stages; nest compositions beyond that.
 - A plain `(ctx, next) => ...` function still works in a list and provides nothing. In the `options` of `app.get()` and its siblings, which come after the handler, declare it as a constant: written inline, it leaves the handler with no locals.
 - List `middleware` before `handler`, so TypeScript infers the list first.
 
-## Declare locals for layouts
+## Declare global locals
 
-Layouts read locals through the global `RequestLocals` interface, not a `middleware` list. Augment it in a declaration file such as `src/modules.d.ts` for the values a Layout reads:
+Without a typed `middleware` list, a Page reads locals through the global `RequestLocals` interface. Augment it in a declaration file such as `src/modules.d.ts`:
 
 ```typescript
 import '@ecopages/core';
@@ -118,23 +118,41 @@ export default eco.page({
 
 ## Layouts
 
-A Layout does not receive `locals`. It receives request data only through the `props` factory of its layout entry on the Page. The factory runs on the server with `locals`, `params` and `query`, the Layout renders with what it returns, and the same result is sent to the browser for hydration. Return only what the browser may see: narrow the session to the user instead of passing a token.
+A Layout does not receive `locals`. A layout entry declares the request data it reads in its `props` factory: the factory runs on the server with `params`, `query` and `locals`, the Layout renders with what it returns, and the same result is sent to the browser for hydration. Return only what the browser may see: narrow the session to the user instead of passing a token.
+
+Written inline on a Page, the factory's `locals` is typed from that Page's `middleware` list and `requires`, like its `props` hook:
 
 ```tsx
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
+import { authMiddleware } from '@/middleware/auth';
 
 export default eco.page({
+	cache: 'dynamic',
+	middleware: [authMiddleware],
 	layout: {
 		component: BaseLayout,
-		props: ({ locals }) => ({ user: locals?.session?.user }),
+		props: ({ locals }) => ({ user: locals.session.user }),
 	},
-	cache: 'dynamic',
 	render: () => <h1>Dashboard</h1>,
 });
 ```
 
-The Layout declares `user` as an optional prop. On a static or revalidating Page there are no `locals`: the factory still runs with `locals` undefined, so read it with `locals?.`, and the Layout renders without `user`, so keep a fallback for it.
+A layout entry shared by many Pages annotates the locals it reads once, on the factory parameter. A Page whose middleware does not provide them is a compile error:
+
+```tsx
+import type { Session } from '@/lib/auth';
+import { BaseLayout } from '@/layouts/base-layout';
+
+export const sessionLayout = {
+	component: BaseLayout,
+	props: ({ locals }: { locals: { session: Session } }) => ({ user: locals.session.user }),
+};
+```
+
+A static or revalidating Page renders without a request, so its layout factories receive no `locals`, and an entry that reads them does not compile there. An entry annotated with `LayoutPropsContext`, whose `locals` is optional, works on any Page and finds no locals on a static one.
+
+The factory never runs in the browser. The browser build removes the factory of an entry written inline in `eco.page()`, with the `.server` imports only it uses. A shared entry's module reaches the browser bundle with its factory, so if that factory imports a `.server` module the browser build fails: call server code from an inline entry or from the Page's `props` hook instead.
 
 ## Cache behavior
 

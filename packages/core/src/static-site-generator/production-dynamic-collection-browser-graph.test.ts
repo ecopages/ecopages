@@ -128,9 +128,9 @@ describe('ecopages start from a complete production build', () => {
 				'		globalThis.__ecoDynamicCollectionPropsRuns = (globalThis.__ecoDynamicCollectionPropsRuns ?? 0) + 1;',
 				'		return { slug: String(params.slug) };',
 				'	},',
-				'	dependencies: async ({ props }) => ({',
-				'		components: [BaseLayout, props.slug === "chart" || props.slug === "unlisted" ? Chart : Plain],',
-				"		scripts: [{ src: props.slug === 'chart' || props.slug === 'unlisted' ? '../../components/chart.script.ts' : '../../components/plain.script.ts', lazy: { 'on:visible': true } }],",
+				'	dependencies: async ({ params }) => ({',
+				'		components: [BaseLayout, params?.slug === "chart" || params?.slug === "unlisted" ? Chart : Plain],',
+				"		scripts: [{ src: params?.slug === 'chart' || params?.slug === 'unlisted' ? '../../components/chart.script.ts' : '../../components/plain.script.ts', lazy: { 'on:visible': true } }],",
 				'	}),',
 				'	metadata: ({ props }) => ({',
 				'		title: props.slug,',
@@ -178,6 +178,7 @@ describe('ecopages start from a complete production build', () => {
 
 	it('serves every Dynamic collection Page entry the ledger records, and fails one it does not, without compiling or writing', async () => {
 		const appDir = await buildDynamicCollectionApp();
+		expect(globalThis.__ecoDynamicCollectionPropsRuns).toBeUndefined();
 		const ledgerPath = path.join(appDir, 'dist/server/processed-assets.json');
 		const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8')) as {
 			entries: Array<{ key: string; asset: { bundledSourceFilepaths?: string[] } }>;
@@ -204,6 +205,7 @@ describe('ecopages start from a complete production build', () => {
 			expect(chart.status).toBe(500);
 			expect(unlisted.status).toBe(500);
 			expect(await plain.text()).toContain('data-testid="entry-plain"');
+			expect(globalThis.__ecoDynamicCollectionPropsRuns).toBeGreaterThan(0);
 			const loggedErrors = errorSpy.mock.calls.flat().map(String).join('\n');
 			expect(loggedErrors).toContain('The production build did not record the script');
 			expect(loggedErrors).toContain('Run `ecopages build` again.');

@@ -22,7 +22,7 @@ describe('FileRouteMiddlewarePipeline', () => {
 		expect(() =>
 			service.assertValidConfiguration({
 				middleware: [async (_ctx, next) => next()],
-				pageCacheStrategy: 'static',
+				isDynamicPage: false,
 				filePath: '/app/pages/index.tsx',
 			}),
 		).toThrowError(

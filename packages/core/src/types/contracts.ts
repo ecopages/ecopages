@@ -63,6 +63,21 @@ export type GetPageDependencies<T = Record<string, unknown>> = (
 export type PageDependenciesInput<T = Record<string, unknown>> = EcoComponentDependencies | GetPageDependencies<T>;
 
 /**
+ * What a Dynamic Page's dependency resolver receives.
+ *
+ * @remarks
+ * It has no `props`: the build plans a Dynamic Page without running its `props` hook, and the Page Browser Graph
+ * is cached by Params and Query alone, so request data must not decide its dependencies.
+ */
+export type GetDynamicPageDependenciesContext = Omit<GetPageDependenciesContext, 'props'>;
+
+export type GetDynamicPageDependencies = (
+	context: GetDynamicPageDependenciesContext,
+) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
+
+export type DynamicPageDependenciesInput = EcoComponentDependencies | GetDynamicPageDependencies;
+
+/**
  * Runtime-agnostic incoming WebSocket frame.
  *
  * Node `ws` delivers text and binary frames; this discriminated
@@ -734,7 +749,12 @@ export interface HtmlTemplateProps<T = EcoPagesElement> extends PageHeadProps<T>
 }
 
 /**
- * Request-scoped context available to layout prop factories on `eco.page`.
+ * A layout factory context whose `params`, `query` and `locals` are all optional.
+ *
+ * @remarks
+ * A shared layout entry whose factory takes it is accepted on any Page; on a Static or revalidating Page its
+ * `locals` is empty. A factory written in `eco.page({ layout })` is typed with {@link LayoutRequestContext} or
+ * {@link LayoutBuildContext} instead, from the Page's Cache Strategy and middleware list.
  */
 export type LayoutPropsContext = {
 	params?: PageParams;
@@ -743,19 +763,38 @@ export type LayoutPropsContext = {
 };
 
 /**
+ * What a layout entry's `props` factory receives on a Static or revalidating Page: no request exists, so it has no
+ * `locals`.
+ */
+export type LayoutBuildContext = Omit<LayoutPropsContext, 'locals'>;
+
+/**
+ * What a layout entry's `props` factory receives on a Dynamic Page.
+ *
+ * @typeParam TLocals - The Locals the Page's middleware provided, typed from its `middleware` list and `requires`.
+ */
+export type LayoutRequestContext<TLocals = RequestLocals> = LayoutBuildContext & {
+	readonly locals: Readonly<TLocals>;
+};
+
+/**
  * One normalized layout tier in a page layout stack (outer→inner), as stored on page config.
  */
 export type EcoPageLayoutEntry = {
 	component: EcoComponent;
-	props?: (context: LayoutPropsContext) => Record<string, unknown>;
+	props?: (context: LayoutRequestContext) => Record<string, unknown>;
 };
 
 /**
  * A layout tier with a props factory, as written in `eco.page({ layout })`.
+ *
+ * @typeParam TContext - What the factory receives. `eco.page()` sets it from the Page, so a factory written inline
+ * reads the Page's typed `locals`; an entry shared by many Pages annotates the `locals` it reads on the factory
+ * parameter, and a Page whose middleware does not provide them does not compile.
  */
-export type EcoPageLayoutEntrySpec<E = EcoPagesElement> = {
+export type EcoPageLayoutEntrySpec<E = EcoPagesElement, TContext = LayoutPropsContext> = {
 	component: EcoLayoutComponent<E>;
-	props?: (context: LayoutPropsContext) => Record<string, unknown>;
+	props?: (context: TContext) => Record<string, unknown>;
 };
 
 /**
@@ -767,7 +806,8 @@ export type EcoPageLayoutEntrySpec<E = EcoPagesElement> = {
  * still assignable, so the type cannot prove that a layout renders `children`; layout composition checks that
  * when it renders the page.
  */
-export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoLayoutComponent<E> | EcoPageLayoutEntrySpec<E>;
+export type EcoPageLayoutSpec<E = EcoPagesElement, TContext = LayoutPropsContext> =
+	EcoLayoutComponent<E> | EcoPageLayoutEntrySpec<E, TContext>;
 
 /**
  * One or more layout tiers for `eco.page({ layout })`.
@@ -776,7 +816,8 @@ export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoLayoutComponent<E> | Eco
  * When an array, order is **outer → inner** (outermost layout wraps all inner tiers).
  * Normalized at factory time to `config.layouts` and `config.layoutEntries`.
  */
-export type EcoPageLayouts<E = EcoPagesElement> = EcoPageLayoutSpec<E> | EcoPageLayoutSpec<E>[];
+export type EcoPageLayouts<E = EcoPagesElement, TContext = LayoutPropsContext> =
+	EcoPageLayoutSpec<E, TContext> | EcoPageLayoutSpec<E, TContext>[];
 
 /**
  * A layout component: an `eco.layout()` result or a plain function that takes {@link LayoutProps}.
@@ -910,15 +951,51 @@ export type PagePropsFor<T> =
 		? P & { params?: PageParams; query?: PageQuery }
 		: T & { params?: PageParams; query?: PageQuery };
 
-export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T> & Partial<RequestPageContext>> & {
+type PageRenderComponent<T> = EcoComponent<PagePropsFor<T> & Partial<RequestPageContext>>;
+
+type PageStaticsBase<T> = {
 	paths?: GetPaths;
-	props?: GetProps<T>;
 	metadata?: GetMetadata<T>;
-	resolveDependencies?: GetPageDependencies<T>;
-	cache?: CacheStrategy;
 	requires?: PageRequires;
 	middleware?: readonly PageMiddlewareEntry[];
 };
+
+/**
+ * A Cache Strategy that stores the rendered HTML, so no request exists when the `props` hook runs.
+ */
+export type StaticCacheStrategy = Exclude<CacheStrategy, 'dynamic'>;
+
+/**
+ * What `eco.page()` keeps on a Static or revalidating Page: its `props` hook receives the build context.
+ */
+export type StaticPageStatics<T> = PageStaticsBase<T> & {
+	cache?: StaticCacheStrategy;
+	props?: GetProps<T>;
+	resolveDependencies?: GetPageDependencies<T>;
+};
+
+/**
+ * What `eco.page()` keeps on a Dynamic Page: its `props` hook is the request handler and receives the request
+ * context.
+ */
+export type DynamicPageStatics<T> = PageStaticsBase<T> & {
+	cache: 'dynamic';
+	props?: GetRequestProps<T>;
+	resolveDependencies?: GetDynamicPageDependencies;
+};
+
+export type StaticEcoPageComponent<T> = PageRenderComponent<T> & StaticPageStatics<T>;
+
+export type DynamicEcoPageComponent<T> = PageRenderComponent<T> & DynamicPageStatics<T>;
+
+/**
+ * A Page as `eco.page()` returns it.
+ *
+ * @remarks
+ * A union on `cache`, so a caller branches on it before calling the `props` or dependency hook, which receive
+ * different contexts.
+ */
+export type EcoPageComponent<T> = StaticEcoPageComponent<T> | DynamicEcoPageComponent<T>;
 
 /**
  * The function that lists the Params a page is known for at build time.
@@ -944,25 +1021,70 @@ export type GetMetadata<T = Record<string, unknown>> = (
 ) => PageMetadataProps | Promise<PageMetadataProps>;
 
 /**
- * The function that returns the props for a page.
- *
- * @remarks
- * Returns the props object directly. `paths` lists the Params known at build; `props` receives Params,
- * from `paths` at build and from the request at run time.
+ * What the `props` hook of a Static or revalidating Page receives. No request exists when it runs: at build, and
+ * when a revalidating Page regenerates.
  */
-export type GetProps<T> = (context: {
+export type PageBuildContext = {
 	params: PageParams;
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
-}) => Promise<T>;
+};
+
+/**
+ * What the `props` hook of a Dynamic Page receives on each request.
+ *
+ * @typeParam TLocals - The Locals the Page's middleware provided, typed from its `middleware` list.
+ */
+export type PageRequestContext<TLocals = RequestLocals> = PageBuildContext & {
+	request: Request;
+	query: PageQuery;
+	readonly locals: Readonly<TLocals>;
+};
+
+/**
+ * The `props` hook of a Static or revalidating Page.
+ *
+ * @remarks
+ * Returns the props object directly. `paths` lists the Params known at build, and the hook receives each of them.
+ */
+export type GetProps<T> = ((context: PageBuildContext) => T | Promise<T>) &
+	((context: PageBuildContext) => WithoutRouteProps<T> | Promise<WithoutRouteProps<T>>);
+
+/**
+ * Keys a Page's `props` hook may not return.
+ *
+ * @remarks
+ * The route sets them on what `render` receives, after the props, so a prop of the same name would never reach
+ * `render` while `metadata` read it.
+ */
+export type NoRouteProps = { params?: never; query?: never };
+
+/**
+ * `T` with every object member barred from {@link NoRouteProps} keys.
+ *
+ * @remarks
+ * The props hook types pair it with a plain `T | Promise<T>` signature that infers `T`: inferring through this
+ * conditional would take one branch of a union return, and `null` or `undefined` returns pass unchanged. The
+ * conditional stays deferred for a type parameter, so a hook that returns a caller's generic `T` does not type-check
+ * against it; such a wrapper passes a concrete props type.
+ */
+type WithoutRouteProps<T> = T extends object ? T & NoRouteProps : T;
+
+/**
+ * The `props` hook of a Dynamic Page: the Page's request handler, run on every request and never by the build.
+ */
+export type GetRequestProps<T, TLocals = RequestLocals> = ((context: PageRequestContext<TLocals>) => T | Promise<T>) &
+	((context: PageRequestContext<TLocals>) => WithoutRouteProps<T> | Promise<WithoutRouteProps<T>>);
 
 /**
  * Represents a page file in EcoPages.
+ *
+ * @remarks
+ * The Page declares its Cache Strategy on its default export; a module that still exports `cache` fails to load.
  * @template T - The type of the page props.
  */
 export type EcoPageFile<T = unknown> = T & {
 	default: EcoComponent<any, any>;
-	cache?: CacheStrategy;
 };
 
 /**
@@ -973,6 +1095,13 @@ export type RouteRendererOptions = {
 	params?: PageParams;
 	query?: PageQuery;
 	locals?: RequestLocals;
+	/**
+	 * The incoming request, set only for a request-time render of a Dynamic Page.
+	 *
+	 * @remarks
+	 * A Dynamic Page's `props` hook receives it with `query` and `locals`, and cannot run without it.
+	 */
+	request?: Request;
 	/**
 	 * Preloaded page module from request-time inspection.
 	 *

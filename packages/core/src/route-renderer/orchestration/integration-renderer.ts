@@ -46,6 +46,7 @@ import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { isDynamicPage } from '../../eco/page-data-hooks.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { createLiteralPageDeclarationError, isPageDeclaredIn, isUnattributedPage } from '../page-declaration.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
@@ -440,17 +441,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @remarks
 	 * The scripts the route's render would bundle, from the shell, the page Dependencies, the Page Browser Graph
 	 * dependencies and the components and scripts its contribution names, go to `bundledScripts`, prepared as asset
-	 * processing prepares them.
+	 * processing prepares them. A Dynamic Page is planned without its `props` hook, which is its request handler: the
+	 * build has no request to give it. A plan without the `props` hook also skips `metadata`, which would read props
+	 * that were never resolved. Planning does not read metadata, and static export never renders from such a plan.
 	 */
 	private async planRouteInstance(routeInstance: PlannedRouteInstance): Promise<PlannedRoute> {
+		const pageModule = await this.loadPageModule(routeInstance.routeFile);
+		const skipPropsHook = routeInstance.skipPropsHook || isDynamicPage(pageModule.default);
 		const routeOptions: RouteRendererOptions = {
 			file: routeInstance.routeFile,
 			params: routeInstance.params,
 			query: routeInstance.query,
-			skipPropsHook: routeInstance.skipPropsHook,
+			skipPropsHook,
 		};
 		const resolvedInputs = await this.resolveRouteRenderInputs(routeOptions, {
-			skipMetadata: routeInstance.isRouteTemplate,
+			skipMetadata: routeInstance.isRouteTemplate || skipPropsHook,
 		});
 		const graphContext = await this.routeRenderOrchestrator.prepareRouteGraphContext({
 			routeOptions,

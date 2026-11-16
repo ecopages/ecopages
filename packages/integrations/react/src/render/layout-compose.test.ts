@@ -111,7 +111,10 @@ describe('layout-compose', () => {
 	it('should give a layout request locals only through its props factory', () => {
 		const Layout = ({ children }: LayoutProps<ReactNode>) => createElement('section', null, children);
 		const Page = eco.page<{}, ReactNode>({
-			layout: [{ component: Layout, props: ({ locals }) => ({ role: (locals as { role?: string })?.role }) }],
+			cache: 'dynamic',
+			layout: [
+				{ component: Layout, props: ({ locals }: { locals: { role?: string } }) => ({ role: locals.role }) },
+			],
 			render: () => 'page',
 		});
 

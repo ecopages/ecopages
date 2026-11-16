@@ -174,8 +174,8 @@ eco.page({
 });
 
 // Type error test: middleware requires cache: 'dynamic'
-// @ts-expect-error middleware without cache: 'dynamic' should error
 eco.page({
+	// @ts-expect-error middleware without cache: 'dynamic' should error
 	middleware: [
 		async (ctx: FileRouteMiddlewareContext, next: () => Promise<Response>) => {
 			return next();
@@ -184,9 +184,9 @@ eco.page({
 	render: () => '',
 });
 
-// @ts-expect-error middleware with cache: 'static' should error
 eco.page({
 	cache: 'static',
+	// @ts-expect-error middleware with cache: 'static' should error
 	middleware: [
 		async (ctx: FileRouteMiddlewareContext, next: () => Promise<Response>) => {
 			return next();

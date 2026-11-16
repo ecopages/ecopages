@@ -1,4 +1,9 @@
-import type { EcoComponent, EcoPageLayoutEntry, LayoutPropsContext } from '../../../types/contracts.ts';
+import type {
+	EcoComponent,
+	EcoPageLayoutEntry,
+	LayoutPropsContext,
+	LayoutRequestContext,
+} from '../../../types/contracts.ts';
 import type { DocumentShellLayoutInput } from './document-shell-render.service.ts';
 
 export type LayoutShellPropsContext = LayoutPropsContext & {
@@ -15,7 +20,8 @@ export type DocumentShellLayoutResolutionInput = LayoutShellPropsContext & {
  *
  * @remarks
  * A layout receives request data only through its factory, so the server and the browser render the tier from
- * the same props. The factory sees `locals`; the layout itself does not.
+ * the same props. The factory sees `locals`; the layout itself does not. A Static Page renders without a request,
+ * so its factories receive empty `locals`; their type has no `locals` to read.
  */
 export function resolveLayoutEntryProps(
 	entry: EcoPageLayoutEntry,
@@ -25,10 +31,10 @@ export function resolveLayoutEntryProps(
 		return {};
 	}
 
-	const layoutPropsContext: LayoutPropsContext = {
+	const layoutPropsContext: LayoutRequestContext = {
 		params: context.params,
 		query: context.query,
-		locals: context.locals,
+		locals: context.locals ?? {},
 	};
 
 	return entry.props(layoutPropsContext);

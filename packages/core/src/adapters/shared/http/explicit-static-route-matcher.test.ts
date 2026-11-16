@@ -338,5 +338,60 @@ describe('ExplicitStaticRouteMatcher', () => {
 				}),
 			);
 		});
+
+		test('rejects a view whose props hook returns params, which render receives from the route', async () => {
+			const view = createMockView('string');
+			view.props = vi.fn(async () => ({ params: {} })) as any;
+			const renderExplicitView = vi.fn(() => new Response('<html>Test</html>'));
+			const matcher = new ExplicitStaticRouteMatcher({
+				appConfig: createMockAppConfig(),
+				routeRendererFactory: { getExplicitViewRenderer: vi.fn(() => ({ renderExplicitView })) } as any,
+				staticRoutes: [createMockRoute('/blog/:slug', view)],
+			});
+
+			const match = matcher.match('http://localhost:3000/blog/hello-world');
+			await expect(matcher.handleMatch(match!)).rejects.toThrow(
+				'returned "params", a key render receives from the route',
+			);
+			expect(renderExplicitView).not.toHaveBeenCalled();
+		});
+
+		test('rejects a view with middleware, which a render without a request would never run, naming the view', async () => {
+			const view = createMockView('string');
+			Object.assign(view, {
+				cache: 'dynamic',
+				middleware: [async (_ctx: unknown, next: () => Promise<Response>) => next()],
+			});
+			const renderExplicitView = vi.fn(() => new Response('<html>Unguarded</html>'));
+			const matcher = new ExplicitStaticRouteMatcher({
+				appConfig: createMockAppConfig(),
+				routeRendererFactory: { getExplicitViewRenderer: vi.fn(() => ({ renderExplicitView })) } as any,
+				staticRoutes: [createMockRoute('/dashboard', view)],
+			});
+
+			const match = matcher.match('http://localhost:3000/dashboard');
+
+			await expect(matcher.handleMatch(match!)).rejects.toThrow(
+				/\/dashboard renders \/test\/-view\.ts without a request, so it cannot declare middleware/,
+			);
+			expect(renderExplicitView).not.toHaveBeenCalled();
+		});
+
+		test('still renders a dynamic view without props or middleware per request', async () => {
+			const view = createMockView('string');
+			Object.assign(view, { cache: 'dynamic' });
+			const mockResponse = new Response('<html>Now</html>');
+			const matcher = new ExplicitStaticRouteMatcher({
+				appConfig: createMockAppConfig(),
+				routeRendererFactory: {
+					getExplicitViewRenderer: vi.fn(() => ({ renderExplicitView: vi.fn(() => mockResponse) })),
+				} as any,
+				staticRoutes: [createMockRoute('/now', view)],
+			});
+
+			const match = matcher.match('http://localhost:3000/now');
+
+			expect(await matcher.handleMatch(match!)).toBe(mockResponse);
+		});
 	});
 });

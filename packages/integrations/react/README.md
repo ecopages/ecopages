@@ -252,7 +252,7 @@ A server render tracks which tiers and the page it reached (`LayoutRenderTracker
 
 During SSR, `ReactRenderer` passes the app-resolved React runtime into `composeLayoutPageTree` via `options.react` so layout trees are built with the same module instance the server renders them with. App code should import hooks and context from `react` normally; keep a single React version in the app dependency graph (avoid duplicate `react` copies in monorepos).
 
-Layout prop factories receive `LayoutPropsContext` (`params`, `query`, `locals`). Route-scoped `locals` are passed to layout tiers via document-shell props during SSR; serialized `pageProps.locals` follow `Page.requires` and are intended for the page component.
+Layout prop factories run on the server only and receive `params`, `query` and, on a dynamic Page, `locals` typed from the Page's `middleware` list. The browser renders each tier from the props the server shipped as `tiers`, and the browser build removes the factory of an entry written inline in `eco.page({ layout })`; serialized `pageProps.locals` follow `Page.requires` and are intended for the page component.
 
 - [src/render/layout-compose.ts](src/render/layout-compose.ts): shared client/SSR tree builder.
 - [src/test/react-ssr-hydration-parity.test.tsx](src/test/react-ssr-hydration-parity.test.tsx): nested tier order parity between SSR and `composeLayoutPageTree`.

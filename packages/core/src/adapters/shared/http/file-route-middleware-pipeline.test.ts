@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FileRouteMiddleware } from '../../../types/contracts.ts';
+import { createMiddleware } from '../../../middleware/create-middleware.ts';
+import { flattenMiddleware } from '../../../middleware/create-middleware.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import {
 	FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS,
@@ -95,5 +97,50 @@ describe('FileRouteMiddlewarePipeline', () => {
 
 		expect(await response.text()).toBe('done');
 		expect(events).toEqual(['first:before', 'second', 'render', 'first:after']);
+	});
+
+	it('puts what a made middleware provides on locals before the render', async () => {
+		const service = new FileRouteMiddlewarePipeline(null);
+		const context = service.createContext({
+			request: new Request('http://localhost:3000/hello'),
+			params: {},
+			locals: {},
+		});
+		const auth = createMiddleware((_ctx, next) => next({ user: 'ada' }));
+		let seen: string | undefined;
+
+		await service.run({
+			middleware: flattenMiddleware([auth]),
+			context,
+			renderResponse: async () => {
+				seen = context.locals.user;
+				return new Response('done');
+			},
+		});
+
+		expect(seen).toBe('ada');
+	});
+
+	it('does not render when a made middleware answers', async () => {
+		const service = new FileRouteMiddlewarePipeline(null);
+		const context = service.createContext({
+			request: new Request('http://localhost:3000/hello'),
+			params: {},
+			locals: {},
+		});
+		const guard = createMiddleware(() => Response.redirect('http://localhost:3000/login', 302));
+		let rendered = false;
+
+		const response = await service.run({
+			middleware: flattenMiddleware([guard]),
+			context,
+			renderResponse: async () => {
+				rendered = true;
+				return new Response('done');
+			},
+		});
+
+		expect(response.status).toBe(302);
+		expect(rendered).toBe(false);
 	});
 });

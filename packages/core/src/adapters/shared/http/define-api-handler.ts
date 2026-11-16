@@ -1,7 +1,7 @@
 import type {
 	ApiHandler,
 	ApiHandlerContext,
-	MiddlewareContext,
+	WithMiddlewareLocals,
 	MiddlewareList,
 	RenderOptions,
 	RouteHandlerContext,
@@ -15,10 +15,10 @@ type DefineApiHandlerInput<
 	TPath extends string,
 	TSchema extends RouteSchema,
 	TContext extends UniversalContext,
-	TMiddleware extends MiddlewareList<Request, unknown>,
+	TMiddleware extends MiddlewareList,
 > = Omit<ApiHandler<TPath, Request, unknown>, 'handler' | 'middleware' | 'schema' | 'method' | 'path'> & {
 	handler: (
-		context: RouteHandlerContext<TSchema, TContext & MiddlewareContext<TMiddleware>>,
+		context: RouteHandlerContext<TSchema, WithMiddlewareLocals<TContext, TMiddleware>>,
 	) => Promise<Response> | Response;
 	middleware?: TMiddleware;
 	schema?: TSchema;
@@ -37,7 +37,7 @@ type DefineApiMethod<TContext extends UniversalContext, TPathOptional extends bo
 	const TPath extends string = '',
 	TSchema extends RouteSchema = RouteSchema,
 	THandlerContext extends TContext = TContext,
-	const TMiddleware extends MiddlewareList<Request, unknown> = MiddlewareList<Request, unknown>,
+	const TMiddleware extends MiddlewareList = MiddlewareList,
 >(
 	handler: DefineApiHandlerInput<TPath, TSchema, THandlerContext, TMiddleware> &
 		(TPathOptional extends true ? { path?: TPath } : { path: TPath }),
@@ -52,7 +52,7 @@ export function defineApiHandler<
 	TPath extends string,
 	TSchema extends RouteSchema = RouteSchema,
 	TContext extends UniversalContext = UniversalContext,
-	const TMiddleware extends MiddlewareList<Request, unknown> = MiddlewareList<Request, unknown>,
+	const TMiddleware extends MiddlewareList = MiddlewareList,
 >(
 	handler: DefineApiHandlerInput<TPath, TSchema, TContext, TMiddleware> & {
 		path: TPath;
@@ -108,7 +108,7 @@ export function redirect(url: string, status = 302): Response {
 
 export interface GroupHandler<TPrefix extends string = string> {
 	prefix: TPrefix;
-	middleware?: MiddlewareList<Request, unknown>;
+	middleware?: MiddlewareList;
 	routes: readonly ApiHandler<string, Request, unknown>[];
 }
 
@@ -116,7 +116,7 @@ type GroupDefineHandler<TContext extends UniversalContext> = {
 	<
 		const TPath extends string,
 		TSchema extends RouteSchema = RouteSchema,
-		const TMiddleware extends MiddlewareList<Request, unknown> = MiddlewareList<Request, unknown>,
+		const TMiddleware extends MiddlewareList = MiddlewareList,
 	>(
 		handler: DefineApiHandlerInput<TPath, TSchema, TContext, TMiddleware> & {
 			path: TPath;
@@ -141,8 +141,8 @@ function createGroupApi<TContext extends UniversalContext>(): GroupDefineHandler
 
 export function defineGroupHandler<
 	TPrefix extends string,
-	const TMiddleware extends MiddlewareList<Request, unknown> = MiddlewareList<Request, unknown>,
-	TContext extends UniversalContext = UniversalContext & MiddlewareContext<TMiddleware>,
+	const TMiddleware extends MiddlewareList = MiddlewareList,
+	TContext extends UniversalContext = WithMiddlewareLocals<UniversalContext, TMiddleware>,
 >(config: {
 	prefix: TPrefix;
 	middleware?: TMiddleware;

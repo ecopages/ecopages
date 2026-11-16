@@ -4,9 +4,9 @@ import type {
 	LayoutProps,
 	EcoPagesElement,
 	EcoPageComponent,
-	FileRouteMiddleware,
 	RequestPageContext,
 } from '../types/contracts.ts';
+import type { PageMiddlewareEntry } from '../types/middleware-types.ts';
 import type { CacheStrategy } from '../page-cache/cache.types.ts';
 import type {
 	ComponentOptions,
@@ -71,7 +71,7 @@ function layout<E = EcoPagesElement, P extends LayoutProps<E> = LayoutProps<E>>(
 }
 
 function page<T, E>(
-	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: FileRouteMiddleware[] },
+	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: readonly PageMiddlewareEntry[] },
 ): EcoPageComponent<T> {
 	const {
 		layout: pageLayout,

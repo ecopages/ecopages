@@ -11,7 +11,6 @@ import type {
 	EcoPageLayouts,
 	EcoPagesElement,
 	EcoPageComponent,
-	FileRouteMiddleware,
 	GetMetadata,
 	GetPaths,
 	GetProps,
@@ -24,6 +23,7 @@ import type {
 	PageDependenciesInput,
 } from './contracts.ts';
 import type { CacheStrategy } from './cache-types.ts';
+import type { ListLocals, MergeLocals, PageMiddlewareEntry } from './middleware-types.ts';
 import type { ComponentIdentity } from './component-identity.ts';
 
 export type {
@@ -208,8 +208,32 @@ interface PageOptionsWithMiddleware<T, E = EcoPagesElement> extends PageOptionsB
 	 * Request-time middleware for file-based routes.
 	 * Runs before rendering and can short-circuit by returning a Response.
 	 */
-	middleware: FileRouteMiddleware[];
+	middleware: readonly PageMiddlewareEntry[];
 }
+
+/**
+ * Page options with a `middleware` list whose locals type `locals` in `render`.
+ *
+ * @remarks
+ * `locals` starts from the global `RequestLocals`, narrows the keys the page lists in `requires` to non-null, and
+ * then takes what the list provides on top, a later entry overriding an earlier one. `requires` also keeps its
+ * meaning of which locals reach the browser for hydration.
+ */
+export type PageOptionsWithTypedLocals<
+	T,
+	E,
+	M extends readonly PageMiddlewareEntry[],
+	K extends RequiresKeys = never,
+> = Omit<PageOptionsWithMiddleware<T, E>, 'render' | 'middleware' | 'requires'> & {
+	requires?: PageRequires<K>;
+	middleware: M;
+	render: (
+		props: PagePropsFor<T> &
+			Omit<Partial<RequestPageContext>, 'locals'> & {
+				locals: MergeLocals<WithRequiredLocals<K>, ListLocals<M>>;
+			},
+	) => E | Promise<E>;
+};
 
 /**
  * Options for creating a page with eco.page()
@@ -278,6 +302,14 @@ export interface Eco {
 	 * If `requires` is provided, the `render` callback receives `locals` as required and non-null for the required keys.
 	 */
 	page: {
+		<
+			T = {},
+			E = EcoPagesElement,
+			const M extends readonly PageMiddlewareEntry[] = readonly PageMiddlewareEntry[],
+			const K extends RequiresKeys = never,
+		>(
+			options: PageOptionsWithTypedLocals<T, E, M, K>,
+		): EcoPageComponent<T>;
 		<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
 		<T = {}, E = EcoPagesElement, const K extends RequiresKeys = never>(
 			options: Omit<PageOptions<T, E>, 'render' | 'requires'> & {

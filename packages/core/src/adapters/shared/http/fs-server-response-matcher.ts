@@ -8,8 +8,10 @@ import type { CacheStrategy, RenderResult } from '../../../page-cache/cache.type
 import type { EcoPageComponent } from '../../../types/eco-api-types.ts';
 import type { EcoPageFile } from '../../../types/contracts.ts';
 import { PageRequestCacheCoordinator } from '../../../page-cache/page-request-cache-coordinator.service.ts';
-import type { FileRouteMiddleware, RequestLocals } from '../../../types/contracts.ts';
+import type { FileRouteMiddlewareContext, RequestLocals } from '../../../types/contracts.ts';
+import { flattenMiddleware } from '../../../middleware/create-middleware.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
+import type { MiddlewareHandler } from './run-middleware-chain.ts';
 import { classifyPageFailure, type PageFailureClassification } from '../../../errors/http-error-page-contract.ts';
 import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
 import { formatErrorChain } from '../../../utils/format-error-chain.ts';
@@ -26,7 +28,7 @@ type FileRouteExecutionPlan = {
 	request: Request;
 	pageFilePath: string;
 	pageModule: EcoPageFile;
-	pageMiddleware: FileRouteMiddleware[];
+	pageMiddleware: readonly MiddlewareHandler<FileRouteMiddlewareContext>[];
 	pageCacheStrategy: CacheStrategy;
 	localsStore: RequestLocals;
 	localsForRender: RequestLocals | undefined;
@@ -280,7 +282,10 @@ export class FileSystemResponseMatcher {
 		const pageFilePath = match.templateRoute.filePath;
 		const pageModule = await this.importPageModule(pageFilePath);
 		const pageComponent = pageModule.default as EcoPageComponent<unknown>;
-		const pageMiddleware = pageComponent.middleware ?? [];
+		const pageMiddleware = flattenMiddleware<FileRouteMiddlewareContext>(
+			pageComponent.middleware,
+			`page ${pageFilePath}`,
+		);
 		const pageCacheStrategy =
 			pageModule.cache ?? pageComponent.cache ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
 

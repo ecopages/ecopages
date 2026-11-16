@@ -1,5 +1,6 @@
 import type { Readable } from 'node:stream';
 import type { ComponentIdentity } from './component-identity.ts';
+import type { ApiMiddlewareEntry, ListLocals, MergeLocals, PageMiddlewareEntry } from './middleware-types.ts';
 import type { ViewReference } from './view-reference.ts';
 import type { ApiResponseBuilder } from './api-response.ts';
 import type { AssetDefinition, ProcessedAsset } from './asset-types.ts';
@@ -916,7 +917,7 @@ export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T> & Partial<Request
 	resolveDependencies?: GetPageDependencies<T>;
 	cache?: CacheStrategy;
 	requires?: PageRequires;
-	middleware?: FileRouteMiddleware[];
+	middleware?: readonly PageMiddlewareEntry[];
 };
 
 /**
@@ -1450,77 +1451,42 @@ export interface FileRouteMiddlewareContext<TRequest extends Request = Request, 
 > {}
 
 /**
- * Next function for middleware chain.
- * Call to continue to the next middleware or final handler.
+ * The `next` of a plain middleware function. Call it to continue to the next middleware or the handler.
+ *
+ * @remarks
+ * A plain function provides no locals. To provide typed locals to later stages and the handler, make the
+ * middleware with `createMiddleware`.
  */
 export type MiddlewareNext = () => Promise<Response>;
 
 /**
- * Middleware function signature.
+ * A plain middleware function for API routes.
  * Receives the request context and a next function to continue the chain.
  * Can short-circuit by returning a Response directly without calling next().
  *
  * @typeParam TRequest - Request type
  * @typeParam TServer - Server type
- * @typeParam TContext - Extended context type, defaults to base ApiHandlerContext
  *
- * @example Basic middleware (no context extension)
+ * @example
  * ```typescript
  * const loggingMiddleware: Middleware = async (ctx, next) => {
  *   console.log(`${ctx.request.method} ${ctx.request.url}`);
  *   return next();
  * };
  * ```
- *
- * @example Middleware with extended context (use EcoMiddleware helper)
- * ```typescript
- * type AuthContext = ApiHandlerContext<Request, unknown> & { user: User };
- *
- * const authMiddleware: EcoMiddleware<AuthContext> = async (ctx, next) => {
- *   const user = await authenticate(ctx.request);
- *   if (!user) return ctx.response.status(401).json({ error: 'Unauthorized' });
- *   ctx.user = user;
- *   return next();
- * };
- * ```
  */
-export type Middleware<
-	TRequest extends Request = Request,
-	TServer = any,
-	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
-> = (context: TContext, next: MiddlewareNext) => Promise<Response> | Response;
+export type Middleware<TRequest extends Request = Request, TServer = any> = (
+	context: ApiHandlerContext<TRequest, TServer>,
+	next: MiddlewareNext,
+) => Promise<Response> | Response;
 
 /**
- * Middleware contract for file-based page routes.
+ * A plain middleware function for file-based page routes.
  */
-export type FileRouteMiddleware<
-	TRequest extends Request = Request,
-	TServer = any,
-	TContext extends FileRouteMiddlewareContext<TRequest, TServer> = FileRouteMiddlewareContext<TRequest, TServer>,
-> = (context: TContext, next: MiddlewareNext) => Promise<Response> | Response;
-
-/**
- * Helper type for defining middleware with extended context.
- * Automatically infers TRequest and TServer from the provided context type.
- *
- * @typeParam TContext - The extended context type that includes TRequest and TServer
- *
- * @example
- * ```typescript
- * type AuthContext = ApiHandlerContext<Request, unknown> & {
- *   session: { user: User };
- * };
- *
- * const authMiddleware: EcoMiddleware<AuthContext> = async (ctx, next) => {
- *   const session = await authenticate(ctx.request);
- *   if (!session) return Response.redirect('/login');
- *   ctx.session = session;
- *   return next();
- * };
- * ```
- */
-export type EcoMiddleware<TContext extends ApiHandlerContext<any, any>> =
-	TContext extends ApiHandlerContext<infer TRequest, infer TServer> ? Middleware<TRequest, TServer, TContext> : never;
+export type FileRouteMiddleware<TRequest extends Request = Request, TServer = any> = (
+	context: FileRouteMiddlewareContext<TRequest, TServer>,
+	next: MiddlewareNext,
+) => Promise<Response> | Response;
 
 /**
  * The request methods an `ApiHandler` answers, in the order an endpoint's `Allow` header lists them.
@@ -1598,7 +1564,7 @@ export interface ApiHandler<TPath extends string = string, TRequest extends Requ
 	method: ApiHandlerMethod;
 	handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
 	/** Optional middleware chain executed before the handler */
-	middleware?: MiddlewareList<TRequest, TServer>;
+	middleware?: MiddlewareList;
 	/** Optional validation schemas for request body, query parameters, and headers */
 	schema?: {
 		body?: StandardSchema;
@@ -1625,44 +1591,32 @@ export type ErrorHandler<TRequest extends Request = Request, TServer = any> = (
  * @typeParam TSchema - The route's schema; each field it declares types the matching context field
  */
 export interface RouteOptions<
-	TRequest extends Request = Request,
-	TServer = any,
 	TSchema extends RouteSchema = RouteSchema,
-	TMiddleware extends MiddlewareList<TRequest, TServer> = MiddlewareList<TRequest, TServer>,
+	TMiddleware extends MiddlewareList = MiddlewareList,
 > {
 	middleware?: TMiddleware;
 	schema?: TSchema;
 }
 
 /**
- * A middleware list, whatever context each middleware declares.
+ * A middleware list: middleware made by `createMiddleware` or `composeMiddleware`, and plain functions.
  *
  * @remarks
- * Each element is a method signature, so its context parameter is checked bivariantly: a middleware typed with
- * the wider context it adds, such as `EcoMiddleware<AuthContext>`, still fits. An inline middleware function in
- * the list is typed with the base context, also inside a group; type it as `EcoMiddleware` to read what the
- * group middleware adds. A list holding an unannotated inline function is inferred only after the arguments before it, so a handler
- * written before the list (`app.get(path, handler, options)`, or `handler` before `middleware` in a define call)
- * sees none of the list's contexts. Put `middleware` first, or declare the inline function as a `Middleware` constant.
+ * Declare it as a literal list or a `const` tuple, so each entry's locals are read in order. A list typed as a
+ * plain array provides no locals. Put `middleware` before the handler so its locals type the handler.
  */
-export type MiddlewareList<TRequest extends Request = Request, TServer = any> = readonly {
-	middleware(context: ApiHandlerContext<TRequest, TServer>, next: MiddlewareNext): Promise<Response> | Response;
-}['middleware'][];
+export type MiddlewareList = readonly ApiMiddlewareEntry[];
 
 /**
- * The context a list of middleware adds: the intersection of the context each one declares.
+ * A context with the locals a middleware list provides, as seen by a handler or a group.
  *
  * @remarks
- * Inferring one parameter from the union of the middleware types, a contravariant position, yields the
- * intersection of their contexts. An empty list adds nothing.
+ * Later entries override earlier ones, and a route continues the locals of its group.
  */
-export type MiddlewareContext<TMiddleware extends readonly unknown[]> = [TMiddleware[number]] extends [
-	(context: infer TAdded, next: never) => unknown,
-]
-	? [TAdded] extends [never]
-		? unknown
-		: TAdded
-	: unknown;
+export type WithMiddlewareLocals<TContext extends { readonly locals: object }, TList extends readonly unknown[]> = Omit<
+	TContext,
+	'locals'
+> & { readonly locals: MergeLocals<TContext['locals'], ListLocals<TList>> };
 
 export interface RouteSchema {
 	body?: StandardSchema;
@@ -1714,13 +1668,13 @@ export type RouteMethod<
 > = <
 	TSchema extends RouteSchema = RouteSchema,
 	TRouteContext extends TContext = TContext,
-	const TMiddleware extends MiddlewareList<TRequest, TServer> = MiddlewareList<TRequest, TServer>,
+	const TMiddleware extends MiddlewareList = MiddlewareList,
 >(
 	path: string,
 	handler: (
-		context: RouteHandlerContext<TSchema, TRouteContext & MiddlewareContext<TMiddleware>>,
+		context: RouteHandlerContext<TSchema, WithMiddlewareLocals<TRouteContext, TMiddleware>>,
 	) => Promise<Response> | Response,
-	options?: RouteOptions<TRequest, TServer, TSchema, TMiddleware>,
+	options?: RouteOptions<TSchema, TMiddleware>,
 ) => TReturn;
 
 /**

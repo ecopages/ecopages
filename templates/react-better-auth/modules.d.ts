@@ -8,5 +8,6 @@ import type { Session } from './src/handlers/auth.server';
 declare module '@ecopages/core' {
 	interface RequestLocals {
 		session?: Session | null;
+		user?: Session['user'];
 	}
 }

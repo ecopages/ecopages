@@ -5,6 +5,8 @@ import { z } from 'zod';
 import type { ApiHandler, RenderContext } from '../../../types/contracts.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from '../../node/http-request-bridge.ts';
+import { defineGet } from './define-api-handler.ts';
+import { createMiddleware } from '../../../middleware/create-middleware.ts';
 import { ApiRequestPipeline, compileApiRoutes } from './api-request-pipeline.ts';
 
 class NodeRequestFixture extends PassThrough {
@@ -94,6 +96,62 @@ describe('ApiRequestPipeline', () => {
 		expect(response).not.toBeNull();
 		expect(response!.status).toBe(200);
 		expect(await response!.text()).toBe('id:42');
+	});
+
+	it('gives the handler the locals its middleware list provides, in order', async () => {
+		const pipeline = createPipeline();
+		const session = createMiddleware((_ctx, next) => next({ session: 'u1', theme: 'dark' }));
+		const retheme = createMiddleware((_ctx, next) => next({ theme: 'blue' }));
+		const handlers: ApiHandler[] = [
+			defineGet({
+				path: '/api/me',
+				middleware: [session, retheme],
+				handler: ({ locals }) => new Response(`${locals.session}:${locals.theme}`),
+			}),
+		];
+
+		const response = await pipeline.tryHandle(
+			new Request('http://localhost/api/me'),
+			compileApiRoutes(handlers),
+			undefined,
+		);
+
+		expect(await response!.text()).toBe('u1:blue');
+	});
+
+	it('rejects a route that lists the same middleware stage twice when the routes are compiled', () => {
+		const session = createMiddleware((_ctx, next) => next({ session: 'u1' }));
+		const handlers: ApiHandler[] = [
+			defineGet({ path: '/api/me', middleware: [session, session], handler: () => new Response('x') }),
+		];
+
+		expect(() => compileApiRoutes(handlers)).toThrow(/route GET \/api\/me runs the same middleware stage twice/);
+	});
+
+	it('does not run the handler when a middleware guard answers', async () => {
+		const pipeline = createPipeline();
+		let handled = 0;
+		const guard = createMiddleware(() => new Response('denied', { status: 403 }));
+		const handlers: ApiHandler[] = [
+			{
+				path: '/api/secret',
+				method: 'GET',
+				middleware: [guard],
+				handler: () => {
+					handled += 1;
+					return new Response('secret');
+				},
+			},
+		];
+
+		const response = await pipeline.tryHandle(
+			new Request('http://localhost/api/secret'),
+			compileApiRoutes(handlers),
+			undefined,
+		);
+
+		expect(response!.status).toBe(403);
+		expect(handled).toBe(0);
 	});
 
 	it('selects the more specific literal route when dynamic and literal routes overlap', async () => {

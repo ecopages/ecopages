@@ -7,13 +7,13 @@ export default eco.page({
 	layout: authenticatedLayout,
 	cache: 'dynamic',
 	middleware: [authMiddleware],
-	requires: ['session'] as const,
+	requires: ['user'] as const,
 	metadata: () => ({
 		title: 'Dashboard',
 		description: 'Your account dashboard.',
 	}),
 	render: ({ locals }) => {
-		const user = locals?.session?.user;
+		const user = locals?.user;
 		if (!user) {
 			return (
 				<>

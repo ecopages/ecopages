@@ -220,7 +220,7 @@ app.post('/api/posts', createPost, {
 });
 ```
 
-In `app.get()` and its siblings the handler comes before `options`, and the handler still reads the locals the list provides. A plain `(ctx, next)` function in the list works and provides nothing, but declare it as a constant: written inline in `options`, its untyped parameters make TypeScript type the handler before it reads the list, so the handler sees no locals at all.
+In `app.get()` and its siblings the handler comes before `options`, and the handler still reads the locals the list provides. A plain `(ctx, next)` function in the list works and provides nothing, but declare it as a constant typed `Middleware`: written inline in `options`, its untyped parameters make TypeScript type the handler before it reads the list, so the handler sees no locals at all.
 
 ```typescript
 import type { Middleware } from '@ecopages/core';
@@ -240,6 +240,8 @@ app.get('/me', (ctx) => ctx.json(ctx.locals.session), {
 `defineGet` and the other handler factories take `middleware` before `handler` and have no such limit, so an inline function is fine there:
 
 ```typescript
+import { defineGet } from '@ecopages/core';
+
 app.add(
 	defineGet({
 		path: '/me',
@@ -249,7 +251,7 @@ app.add(
 );
 ```
 
-A list typed as a plain array provides no reliable locals, so write it inline or as a constant tuple.
+A list typed as a plain array provides no reliable locals, so write the list inline in `middleware`, or declare it as a constant tuple.
 
 ## Request Validation
 

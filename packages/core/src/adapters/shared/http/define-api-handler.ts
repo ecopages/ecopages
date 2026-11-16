@@ -3,6 +3,7 @@ import type {
 	ApiHandlerContext,
 	WithMiddlewareLocals,
 	MiddlewareList,
+	NoMiddlewareList,
 	RenderOptions,
 	RouteHandlerContext,
 	RouteSchema,
@@ -37,7 +38,7 @@ type DefineApiMethod<TContext extends UniversalContext, TPathOptional extends bo
 	const TPath extends string = '',
 	TSchema extends RouteSchema = RouteSchema,
 	THandlerContext extends TContext = TContext,
-	const TMiddleware extends MiddlewareList = MiddlewareList,
+	const TMiddleware extends MiddlewareList = NoMiddlewareList,
 >(
 	handler: DefineApiHandlerInput<TPath, TSchema, THandlerContext, TMiddleware> &
 		(TPathOptional extends true ? { path?: TPath } : { path: TPath }),
@@ -52,7 +53,7 @@ export function defineApiHandler<
 	TPath extends string,
 	TSchema extends RouteSchema = RouteSchema,
 	TContext extends UniversalContext = UniversalContext,
-	const TMiddleware extends MiddlewareList = MiddlewareList,
+	const TMiddleware extends MiddlewareList = NoMiddlewareList,
 >(
 	handler: DefineApiHandlerInput<TPath, TSchema, TContext, TMiddleware> & {
 		path: TPath;
@@ -116,7 +117,7 @@ type GroupDefineHandler<TContext extends UniversalContext> = {
 	<
 		const TPath extends string,
 		TSchema extends RouteSchema = RouteSchema,
-		const TMiddleware extends MiddlewareList = MiddlewareList,
+		const TMiddleware extends MiddlewareList = NoMiddlewareList,
 	>(
 		handler: DefineApiHandlerInput<TPath, TSchema, TContext, TMiddleware> & {
 			path: TPath;
@@ -141,7 +142,7 @@ function createGroupApi<TContext extends UniversalContext>(): GroupDefineHandler
 
 export function defineGroupHandler<
 	TPrefix extends string,
-	const TMiddleware extends MiddlewareList = MiddlewareList,
+	const TMiddleware extends MiddlewareList = NoMiddlewareList,
 	TContext extends UniversalContext = WithMiddlewareLocals<UniversalContext, TMiddleware>,
 >(config: {
 	prefix: TPrefix;

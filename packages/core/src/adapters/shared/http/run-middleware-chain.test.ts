@@ -251,6 +251,38 @@ describe('runMiddlewareChain', () => {
 		expect(await response.text()).toBe('recovered');
 	});
 
+	it.each([
+		['overwrites', (locals: Record<string, unknown>) => (locals.session = 42)],
+		['deletes', (locals: Record<string, unknown>) => delete locals.session],
+	])('rejects a stage that %s a local an earlier stage provided before it continues', async (_change, change) => {
+		const ctx = context();
+		const provide: MiddlewareHandler<TestContext> = (_c, next) => next({ session: { userId: 'u1' } });
+		const clobber: MiddlewareHandler<TestContext> = (c, next) => {
+			change(c.locals);
+			return next();
+		};
+
+		await expect(runMiddlewareChain([provide, clobber], ctx, terminalFor(ctx))).rejects.toThrow(
+			/stage 1 changed the local "session" that an earlier stage provided/,
+		);
+		expect(ctx.trail).toEqual([]);
+	});
+
+	it('lets a stage write a new local and a later stage provide a key again', async () => {
+		const ctx = context();
+		const provide: MiddlewareHandler<TestContext> = (_c, next) => next({ session: 'a' });
+		const plain: MiddlewareHandler<TestContext> = (c, next) => {
+			c.locals.locale = 'en';
+			return next();
+		};
+		const reprovide: MiddlewareHandler<TestContext> = (_c, next) => next({ session: 'b' });
+
+		await runMiddlewareChain([provide, plain, reprovide], ctx, terminalFor(ctx));
+
+		expect(ctx.locals).toEqual({ session: 'b', locale: 'en' });
+		expect(ctx.trail).toEqual(['terminal']);
+	});
+
 	describe('when the rest of the chain fails', () => {
 		const failingHandler = async (): Promise<Response> => {
 			throw new Error('handler failed');

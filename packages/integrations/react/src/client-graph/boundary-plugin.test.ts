@@ -579,7 +579,6 @@ describe('createClientGraphBoundaryPlugin', () => {
 				'export default eco.page({',
 				'middleware: [authMiddleware],',
 				"cache: 'dynamic',",
-				"requires: ['session'],",
 				'render: () => "Dashboard",',
 				'});',
 			].join('\n'),
@@ -601,7 +600,6 @@ describe('createClientGraphBoundaryPlugin', () => {
 			expect(output).not.toContain('server-secret');
 			expect(output).not.toContain('authMiddleware');
 			expect(output).not.toContain('middleware');
-			expect(output).not.toContain('requires');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -898,7 +896,6 @@ describe('createClientGraphBoundaryPlugin', () => {
 				'export default eco.page({',
 				"\tcache: 'dynamic',",
 				'\tmiddleware: [authMiddleware],',
-				"\trequires: ['session'],",
 				"\tmetadata: () => ({ title: 'Dashboard' }),",
 				'\trender: () => <div>Dashboard</div>,',
 				'});',
@@ -915,7 +912,6 @@ describe('createClientGraphBoundaryPlugin', () => {
 			expect(transformed).not.toContain('authMiddleware');
 			expect(transformed).not.toContain('cache:');
 			expect(transformed).not.toContain('middleware:');
-			expect(transformed).not.toContain('requires:');
 			expect(transformed).not.toContain('metadata:');
 			expect(transformed).toContain('render: () => <div>Dashboard</div>');
 		} finally {

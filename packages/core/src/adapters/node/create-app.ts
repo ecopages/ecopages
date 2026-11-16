@@ -7,6 +7,7 @@ import type {
 	ErrorHandler,
 	WithMiddlewareLocals,
 	MiddlewareList,
+	NoMiddlewareList,
 	RouteGroupBuilder,
 	RouteMethod,
 	RouteOptions,
@@ -171,7 +172,7 @@ export class EcopagesApp implements AsyncDisposable {
 	route<
 		TSchema extends RouteSchema = RouteSchema,
 		TRouteContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>,
-		const TMiddleware extends MiddlewareList = MiddlewareList,
+		const TMiddleware extends MiddlewareList = NoMiddlewareList,
 	>(
 		path: string,
 		method: ApiHandler['method'],
@@ -225,7 +226,7 @@ export class EcopagesApp implements AsyncDisposable {
 
 	group<
 		TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>,
-		const TMiddleware extends MiddlewareList = MiddlewareList,
+		const TMiddleware extends MiddlewareList = NoMiddlewareList,
 	>(
 		prefixOrGroup: string | RouteGroupDefinition<Request, unknown>,
 		callback?: (builder: RouteGroupBuilder<Request, unknown, WithMiddlewareLocals<TContext, TMiddleware>>) => void,

@@ -2,6 +2,7 @@ import { createMiddleware } from '../src/middleware/create-middleware.ts';
 import { defineGet, defineGroupHandler } from '../src/adapters/shared/http/define-api-handler.ts';
 import { eco } from '../src/eco/eco.ts';
 import type { AnyEcoMiddleware, EcoMiddleware, ListLocals } from '../src/types/middleware-types.ts';
+import type { MiddlewareList } from '../src/types/contracts.ts';
 
 type Session = { userId: string };
 declare const cond: boolean;
@@ -66,6 +67,24 @@ defineGroupHandler({
 			middleware: [unknownEntry],
 			handler: (ctx) => {
 				// @ts-expect-error the route's entry of unknown locals may overwrite the group's session
+				const userId: string = ctx.locals.session.userId;
+				return ctx.response.json({ userId });
+			},
+		}),
+	],
+});
+
+// a route list annotated MiddlewareList by hand may overwrite the group's keys, so it keeps none proven
+const annotatedList: MiddlewareList = [clear];
+defineGroupHandler({
+	prefix: '/annotated',
+	middleware: [provideSession],
+	routes: (api) => [
+		api.get({
+			path: '/cleared',
+			middleware: annotatedList,
+			handler: (ctx) => {
+				// @ts-expect-error the annotated list may have cleared the group's session
 				const userId: string = ctx.locals.session.userId;
 				return ctx.response.json({ userId });
 			},

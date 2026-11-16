@@ -82,7 +82,7 @@ It types up to four stages; nest compositions beyond that.
 
 Locals are typed by the middleware that provides them, and nothing else. There is no global declaration: core exports no `RequestLocals` interface to augment, and an `interface RequestLocals` declared in `modules.d.ts` types nothing. A Page's `locals` are exactly what its `middleware` list provides, so a Dynamic Page without a list has no locals keys. A handler's `ctx.locals` are what its group's list and its own provide.
 
-A plain `(ctx, next) => ...` function may still assign `ctx.locals.key = value`, and later stages and the handler see the value at runtime. Its `ctx.locals` is an untyped `Record<string, unknown>` store, so no later stage, Page or handler sees the key in its types. Make it with `createMiddleware` and pass the value to `next` to type it.
+A plain `(ctx, next) => ...` function may still assign a new `ctx.locals.key = value`, and later stages and the handler see the value at runtime. Its `ctx.locals` is an untyped `Record<string, unknown>` store, so no later stage, Page or handler sees the key in its types. Make it with `createMiddleware` and pass the value to `next` to type it. A key an earlier stage provided with `next` is typed for everything after it, so a stage that overwrites or deletes one throws when it calls `next`.
 
 A local that some visitors do not have is still provided on every request, as `null` when it is missing, so the key is always typed:
 

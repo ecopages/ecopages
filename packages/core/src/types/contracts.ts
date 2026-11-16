@@ -1529,8 +1529,9 @@ export interface ApiMiddlewareContext<TRequest extends Request = Request, TServe
 	 * The request's locals store.
 	 *
 	 * @remarks
-	 * A plain function may write any key here and the later stages and the handler see it at runtime, but no type
-	 * carries what it writes: they read only what a `createMiddleware` stage provides.
+	 * A plain function may write a new key here and the later stages and the handler see it at runtime, but no type
+	 * carries what it writes: they read only what a `createMiddleware` stage provides. Overwriting or deleting a key
+	 * a stage provided with `next` makes this function's `next` throw, since readers are typed for that value.
 	 */
 	locals: Record<string, unknown>;
 }
@@ -1704,26 +1705,34 @@ export interface RouteOptions<
  */
 export type MiddlewareList = readonly ApiMiddlewareEntry[];
 
+declare const noMiddlewareList: unique symbol;
+
+/**
+ * The list a route, group or handler infers when it declares no `middleware`.
+ *
+ * @remarks
+ * It must stay a supertype of an inline list, so the `(ctx, next) => ...` entries of one take their parameter
+ * types from it, and it must differ from `MiddlewareList`, so a list annotated `MiddlewareList` by hand folds as a
+ * plain array of unknown locals instead of keeping the group's keys. The optional brand gives both: every list is
+ * assignable to it, and only this type is identical to it.
+ */
+export type NoMiddlewareList = MiddlewareList & { readonly [noMiddlewareList]?: true };
+
 /**
  * A context with the locals a middleware list provides, as seen by a handler or a group.
  *
  * @remarks
  * Later entries override earlier ones, and a route continues the locals of its group: the route's list folds onto
- * them, so a route entry of unknown locals leaves no group key proven either. A list typed exactly
- * `MiddlewareList` is read as no list: it is the default every inferred list falls back to when a route declares
- * none, and that default must stay a supertype of an inline list so its `(ctx, next) => ...` entries take their
- * parameter types from it. A list annotated `MiddlewareList` by hand therefore keeps the group's keys.
+ * them, so a route entry of unknown locals leaves no group key proven either. A route that declares no list
+ * infers {@link NoMiddlewareList} and keeps its group's locals.
  */
 export type WithMiddlewareLocals<TContext extends { readonly locals: object }, TList extends readonly unknown[]> = Omit<
 	TContext,
 	'locals'
-> & { readonly locals: IsDefaultList<TList> extends true ? TContext['locals'] : ListLocals<TList, TContext['locals']> };
+> & { readonly locals: IsNoList<TList> extends true ? TContext['locals'] : ListLocals<TList, TContext['locals']> };
 
-type IsDefaultList<TList> = [TList] extends [MiddlewareList]
-	? [MiddlewareList] extends [TList]
-		? true
-		: false
-	: false;
+type IsNoList<TList> =
+	(<T>() => T extends TList ? 1 : 2) extends <T>() => T extends NoMiddlewareList ? 1 : 2 ? true : false;
 
 export interface RouteSchema {
 	body?: StandardSchema;
@@ -1775,7 +1784,7 @@ export type RouteMethod<
 > = <
 	TSchema extends RouteSchema = RouteSchema,
 	TRouteContext extends TContext = TContext,
-	const TMiddleware extends MiddlewareList = MiddlewareList,
+	const TMiddleware extends MiddlewareList = NoMiddlewareList,
 >(
 	path: string,
 	handler: (

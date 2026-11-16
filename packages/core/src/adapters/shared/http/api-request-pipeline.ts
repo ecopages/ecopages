@@ -40,7 +40,9 @@ export type ApiRoutes<TRequest extends Request = Request, TServer = unknown> = R
 	pattern: SegmentPattern<'api'>;
 }>;
 
-function validatedMiddleware<THandler extends ApiHandler<string, any, any>>(handler: THandler): THandler {
+function validatedMiddleware<TRequest extends Request, TServer>(
+	handler: ApiHandler<string, TRequest, TServer>,
+): ApiHandler<string, TRequest, TServer> {
 	flattenMiddleware(handler.middleware, `route ${handler.method} ${handler.path}`);
 	return handler;
 }

@@ -64,8 +64,24 @@ export function composeMiddleware(...stages: readonly (AnyEcoMiddleware | Runtim
 	return brand(assertNoDuplicateStages(collectStages(stages), 'composition'));
 }
 
+/**
+ * The key of the stages each made middleware holds.
+ *
+ * @remarks
+ * The stages are a non-enumerable property, so a copy such as `{ ...auth }` carries the brand but no stages and is
+ * rejected when listed, instead of proving locals it never provides. The key is registered with `Symbol.for`, so a
+ * Page module that loads its own copy of the package still lists middleware the server's copy can run.
+ */
+const stagesKey = Symbol.for('ecopages.middlewareStages');
+
 function brand<TLocals extends object>(stages: readonly RuntimeMiddlewareStage[]): EcoMiddleware<TLocals> {
-	return { [localsBrand]: (locals: TLocals) => locals, stages };
+	const made: EcoMiddleware<TLocals> = { [localsBrand]: (locals: TLocals) => locals };
+	Object.defineProperty(made, stagesKey, { value: stages });
+	return made;
+}
+
+function stagesOf(entry: AnyEcoMiddleware): readonly RuntimeMiddlewareStage[] | undefined {
+	return Object.getOwnPropertyDescriptor(entry, stagesKey)?.value;
 }
 
 /**
@@ -78,7 +94,8 @@ function brand<TLocals extends object>(stages: readonly RuntimeMiddlewareStage[]
  * behind. Declare a shared guard once, in the composition that owns it. A stage is typed for the context it reads,
  * so the pipeline that runs it names that context as `TContext`; this is the one place the two are joined.
  *
- * @throws When one stage appears twice, naming both positions and `label`.
+ * @throws When one stage appears twice, naming both positions and `label`, or when an entry is an object neither
+ * factory made.
  */
 export function flattenMiddleware<TContext extends { readonly locals: object }>(
 	entries: readonly (AnyEcoMiddleware | RuntimeMiddlewareStage)[] | undefined,
@@ -88,7 +105,18 @@ export function flattenMiddleware<TContext extends { readonly locals: object }>(
 }
 
 function collectStages(entries: readonly (AnyEcoMiddleware | RuntimeMiddlewareStage)[]): RuntimeMiddlewareStage[] {
-	return entries.flatMap((entry) => (typeof entry === 'function' ? [entry] : [...entry.stages]));
+	return entries.flatMap((entry) => {
+		if (typeof entry === 'function') {
+			return [entry];
+		}
+		const stages = stagesOf(entry);
+		if (!stages) {
+			throw new Error(
+				'[ecopages] A middleware list holds an object that createMiddleware or composeMiddleware did not make. List the middleware itself, not a copy of it.',
+			);
+		}
+		return [...stages];
+	});
 }
 
 function assertNoDuplicateStages(stages: RuntimeMiddlewareStage[], label: string): RuntimeMiddlewareStage[] {

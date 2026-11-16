@@ -64,7 +64,7 @@ void upcastToAny;
 
 // a proof cannot be forged without createMiddleware or composeMiddleware
 // @ts-expect-error only createMiddleware and composeMiddleware make a middleware
-const fake: EcoMiddleware<{ session: Session }> = { stages: [] };
+const fake: EcoMiddleware<{ session: Session }> = {};
 void fake;
 
 // a plain list of made middleware still type-checks and provides no reliable locals

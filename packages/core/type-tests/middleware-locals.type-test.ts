@@ -3,7 +3,8 @@ import type { ListLocals } from '../src/types/middleware-types.ts';
 
 type Session = { user: { id: string; role: 'admin' | 'user' }; token: string };
 declare function getSession(request: Request): Promise<Session | null>;
-declare function expectType<T>(value: T): void;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+function assert<T extends true>(): T | void {}
 
 const requireSession = createMiddleware(async (ctx, next) => {
 	const session = await getSession(ctx.request);
@@ -16,10 +17,10 @@ const logger = createMiddleware((_ctx, next) => next());
 type Locals<T extends readonly unknown[]> = ListLocals<T>;
 
 // a bare Response return and next(...) together keep what was provided
-expectType<{ session: Session }>({} as Locals<[typeof requireSession]>);
+assert<Equal<Locals<[typeof requireSession]>, { session: Session }>>();
 // @ts-expect-error requireSession provides no theme
-expectType<{ theme: 'dark' }>({} as Locals<[typeof requireSession]>);
-expectType<{ session: Session; theme: 'dark' }>({} as Locals<[typeof requireSession, typeof theme, typeof logger]>);
+assert<Equal<Locals<[typeof requireSession]>, { theme: 'dark' }>>();
+assert<Equal<Locals<[typeof requireSession, typeof theme, typeof logger]>, { session: Session; theme: 'dark' }>>();
 
 // a stage composed after others reads what they provided, without an annotation
 const adminOnly = composeMiddleware(
@@ -30,7 +31,7 @@ const adminOnly = composeMiddleware(
 			: new Response('no', { status: 403 }),
 	(ctx, next) => next({ label: `${ctx.locals.session.user.id}-${ctx.locals.role}` }),
 );
-expectType<{ session: Session; role: 'admin'; label: string }>({} as Locals<[typeof adminOnly]>);
+assert<Equal<Locals<[typeof adminOnly]>, { session: Session; role: 'admin'; label: string }>>();
 
 // the first stage sees nothing
 composeMiddleware((ctx, next) => {
@@ -41,14 +42,14 @@ composeMiddleware((ctx, next) => {
 
 // a composition is itself a middleware: it can be composed again and listed with others
 const bigger = composeMiddleware(adminOnly, (ctx, next) => next({ seen: ctx.locals.label }));
-expectType<{ session: Session; role: 'admin'; label: string; seen: string }>({} as Locals<[typeof bigger]>);
-expectType<{ session: Session; role: 'admin'; label: string; theme: 'dark' }>(
-	{} as Locals<[typeof adminOnly, typeof theme]>,
-);
+assert<Equal<Locals<[typeof bigger]>, { session: Session; role: 'admin'; label: string; seen: string }>>();
+assert<
+	Equal<Locals<[typeof adminOnly, typeof theme]>, { session: Session; role: 'admin'; label: string; theme: 'dark' }>
+>();
 
 // the later stage wins on a shared key
 const darker = createMiddleware((_ctx, next) => next({ theme: 'blue' as const }));
-expectType<{ theme: 'blue' }>({} as Locals<[typeof theme, typeof darker]>);
+assert<Equal<Locals<[typeof theme, typeof darker]>, { theme: 'blue' }>>();
 
 // paths that provide different keys give a union, so a reader must narrow
 const maybe = createMiddleware(async (ctx, next) => {
@@ -60,12 +61,12 @@ type AfterMaybe = Locals<[typeof afterMaybe]>;
 declare const afterMaybeLocals: AfterMaybe;
 // @ts-expect-error session exists on one path only
 void afterMaybeLocals.session;
-expectType<'dark'>(afterMaybeLocals.theme);
-if ('session' in afterMaybeLocals) expectType<Session>(afterMaybeLocals.session);
+assert<Equal<typeof afterMaybeLocals.theme, 'dark'>>();
+if ('session' in afterMaybeLocals) assert<Equal<typeof afterMaybeLocals.session, Session>>();
 
 // a stage that always stops provides nothing
 const alwaysStops = createMiddleware(() => new Response('closed', { status: 503 }));
-expectType<{}>({} as Locals<[typeof alwaysStops]>);
+assert<Equal<Locals<[typeof alwaysStops]>, {}>>();
 
 // post-processing after next stays possible
 createMiddleware(async (_ctx, next) => {
@@ -80,7 +81,7 @@ createMiddleware(() => 'nope');
 
 // a plain function in a list provides nothing
 const plain = (_ctx: unknown, next: () => Promise<Response>) => next();
-expectType<{ session: Session }>({} as Locals<[typeof plain, typeof requireSession]>);
+assert<Equal<Locals<[typeof plain, typeof requireSession]>, { session: Session }>>();
 
 // a stage that provides on one path and nothing on another keeps both: the reader must narrow
 const optionalProvide = createMiddleware(async (ctx, next) => {
@@ -91,16 +92,16 @@ const optionalProvide = createMiddleware(async (ctx, next) => {
 declare const optionalLocals: Locals<[typeof optionalProvide]>;
 // @ts-expect-error session exists on one path only
 void optionalLocals.session;
-if ('session' in optionalLocals) expectType<Session>(optionalLocals.session);
+if ('session' in optionalLocals) assert<Equal<typeof optionalLocals.session, Session>>();
 
-// a list typed as a plain array provides nothing
+// a list typed as a plain array may run each entry any number of times, so its keys may be missing
 declare const widened: (typeof requireSession)[];
-expectType<{}>({} as Locals<typeof widened>);
+assert<Equal<Locals<typeof widened>, { session: Session | undefined }>>();
 
 // a middleware needing earlier locals lives in a composition that supplies them
 const group = composeMiddleware(requireSession, (ctx, next) => next({ id: ctx.locals.session.user.id }));
 const routeOnTop = composeMiddleware(group, (ctx, next) => next({ upper: ctx.locals.id.toUpperCase() }));
-expectType<{ session: Session; id: string; upper: string }>({} as Locals<[typeof routeOnTop]>);
+assert<Equal<Locals<[typeof routeOnTop]>, { session: Session; id: string; upper: string }>>();
 
 // beyond four stages, nest: a composition is a middleware
 const first4 = composeMiddleware(
@@ -114,4 +115,4 @@ const nested = composeMiddleware(
 	(ctx, next) => next({ d: ctx.locals.c + 1 }),
 	(ctx, next) => next({ e: ctx.locals.d + 1 }),
 );
-expectType<{ session: Session; a: string; b: number; c: number; d: number; e: number }>({} as Locals<[typeof nested]>);
+assert<Equal<Locals<[typeof nested]>, { session: Session; a: string; b: number; c: number; d: number; e: number }>>();

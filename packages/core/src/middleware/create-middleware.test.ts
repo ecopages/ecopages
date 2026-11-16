@@ -59,6 +59,12 @@ describe('createMiddleware and composeMiddleware', () => {
 		);
 	});
 
+	it('rejects a copy of a middleware, which carries the brand but no stages', () => {
+		const requireSession = createMiddleware((_ctx, next) => next({ session: 'u1' }));
+
+		expect(() => flattenMiddleware([{ ...requireSession }])).toThrow(/did not make/);
+	});
+
 	it('rejects a duplicate inside a composition', () => {
 		const requireSession = createMiddleware((_ctx, next) => next({ session: 'u1' }));
 
@@ -67,13 +73,13 @@ describe('createMiddleware and composeMiddleware', () => {
 		);
 	});
 
-	it('rejects a stage that called next and returned another response', async () => {
+	it('answers with a response that replaces the one next resolved with', async () => {
 		const replace = createMiddleware(async (_ctx, next) => {
 			await next();
 			return new Response('replacement');
 		});
 
-		await expect(run([replace], context())).rejects.toThrow(/returned a different response/);
+		expect(await (await run([replace], context())).text()).toBe('replacement');
 	});
 
 	it('rejects a second call to next from one stage', async () => {

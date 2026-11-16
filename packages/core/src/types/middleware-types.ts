@@ -72,7 +72,6 @@ export type MiddlewareStage<
  */
 export interface EcoMiddleware<TLocals extends object = {}> {
 	readonly [localsBrand]: (locals: TLocals) => TLocals;
-	readonly stages: readonly RuntimeMiddlewareStage[];
 }
 
 /**

@@ -107,22 +107,68 @@ describe('runMiddlewareChain', () => {
 		expect(ctx.trail.filter((entry) => entry === 'terminal')).toEqual(['terminal']);
 	});
 
-	it('rejects a stage that calls next without awaiting it and returns another response', async () => {
+	it('answers with the response a stage returns after the rest of the chain it started settles', async () => {
 		const ctx = context();
 		const replace: MiddlewareHandler<TestContext> = async (_c, next) => {
 			void next();
 			return new Response('replacement');
 		};
 		const guard: MiddlewareHandler<TestContext> = async (c) => {
+			await new Promise((resolve) => setTimeout(resolve, 5));
 			c.trail.push('guard');
 			return new Response('forbidden', { status: 403 });
 		};
 
-		await expect(runMiddlewareChain([replace, guard], ctx, terminalFor(ctx))).rejects.toThrow(
-			/returned a different response/,
-		);
+		const response = await runMiddlewareChain([replace, guard], ctx, terminalFor(ctx));
 
+		expect(await response.text()).toBe('replacement');
 		expect(ctx.trail).toEqual(['guard']);
+	});
+
+	it('lets an outer stage wrap an immutable redirect to add headers', async () => {
+		const ctx = context();
+		const tagResponse: MiddlewareHandler<TestContext> = async (_c, next) => {
+			const response = await next();
+			const tagged = new Response(response.body, response);
+			tagged.headers.set('x-request-id', 'r1');
+			return tagged;
+		};
+		const guard: MiddlewareHandler<TestContext> = async () => Response.redirect('https://example.com/login', 302);
+
+		const response = await runMiddlewareChain([tagResponse, guard], ctx, terminalFor(ctx));
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get('location')).toBe('https://example.com/login');
+		expect(response.headers.get('x-request-id')).toBe('r1');
+	});
+
+	it('rejects a nested call to next from the stage it started', async () => {
+		const ctx = context();
+		let again: (() => Promise<Response>) | undefined;
+		const outer: MiddlewareHandler<TestContext> = (_c, next) => {
+			again = () => next();
+			return next();
+		};
+		const inner: MiddlewareHandler<TestContext> = (_c, next) => {
+			again?.();
+			return next();
+		};
+
+		await expect(runMiddlewareChain([outer, inner], ctx, terminalFor(ctx))).rejects.toThrow(/more than once/);
+
+		expect(ctx.trail).toEqual([]);
+	});
+
+	it('keeps a provided __proto__ key as a plain local', async () => {
+		const ctx = context();
+		const provide: MiddlewareHandler<TestContext> = (_c, next) =>
+			next(JSON.parse('{"__proto__":{"isAdmin":true},"user":"u1"}') as Record<string, unknown>);
+
+		await runMiddlewareChain([provide], ctx, terminalFor(ctx));
+
+		expect(Object.getPrototypeOf(ctx.locals)).toBe(Object.prototype);
+		expect(ctx.locals.isAdmin).toBeUndefined();
+		expect(ctx.locals.user).toBe('u1');
 	});
 
 	it('waits for the rest of the chain when a stage returns the unawaited next result', async () => {

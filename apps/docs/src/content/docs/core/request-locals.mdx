@@ -6,11 +6,72 @@ order: 7
 
 # Request Locals
 
-Request locals are values attached to one HTTP request. Middleware can write them to `ctx.locals`, and request-time Pages, layouts, and API handlers can read them. Ecopages does not persist them between requests.
+Request locals are values attached to one HTTP request. Middleware provides them with `createMiddleware`, and request-time Pages, layouts, and API handlers can read them. Ecopages does not persist them between requests.
 
-## Declare the shape
+## Provide locals in middleware
 
-Augment the `RequestLocals` interface in a TypeScript declaration file such as `src/modules.d.ts`:
+`createMiddleware` makes a middleware that provides typed locals. The stage continues with `next(locals)`, and what it passes becomes `ctx.locals` for every later stage and for the handler or Page. The type is read from the `next` call, with no declaration:
+
+```typescript
+import { createMiddleware } from '@ecopages/core';
+
+export const authMiddleware = createMiddleware(async (ctx, next) => {
+	const session = await authService.validateRequest(ctx.request);
+	if (!session) {
+		return Response.redirect(new URL('/login', ctx.request.url));
+	}
+	return next({ session, requestId: crypto.randomUUID() });
+});
+```
+
+A guard answers by returning a `Response` without calling `next`. Page middleware runs on every request, so the Page must use `cache: 'dynamic'`. The Page reads the provided values from `locals` in `render`, typed from its `middleware` list:
+
+```tsx
+import { eco } from '@ecopages/core';
+import { authMiddleware } from '@/middleware/auth';
+
+export default eco.page({
+	cache: 'dynamic',
+	middleware: [authMiddleware],
+	render: ({ locals }) => <Dashboard user={locals.session.user} />,
+});
+```
+
+API handlers read the same values from `ctx.locals`. See [Define Handlers](/docs/server/define-handlers#middleware).
+
+## Compose stages
+
+`composeMiddleware` joins middleware and inline stages in order. A later stage reads what the earlier ones provided from `ctx.locals`, typed, and the result is itself a middleware you can list or compose again:
+
+```typescript
+import { composeMiddleware } from '@ecopages/core';
+
+export const adminMiddleware = composeMiddleware(authMiddleware, (ctx, next) => {
+	if (ctx.locals.session.user.role !== 'admin') {
+		return new Response('Forbidden', { status: 403 });
+	}
+	return next({ isAdmin: true });
+});
+```
+
+It types up to four stages; nest compositions beyond that.
+
+## Rules
+
+- A stage may call `next` only once. A second call throws.
+- A stage may call `next` only before it returns. A call from a timer or callback after the stage returned or threw throws, and the rest of the chain does not run.
+- A stage answers with what it returns: the response `next` resolved with, edited, or another response that wraps or replaces it, such as `new Response(response.body, response)` to add headers to an immutable `Response.redirect()`. A stage that returns or throws before the rest of the chain settles waits for it first. When the rest of the chain throws, a stage that awaited, returned or caught the promise `next` returned may answer with its own response, as in `try { await next() } catch { return fallback }`. A stage that called `next()` and never looked at its promise has dropped the error, so it propagates.
+- A later entry in a `middleware` list overrides an earlier one that provides the same key, in the types and at runtime.
+- The same stage twice in one list or composition is rejected when the route or Page is defined. Declare a shared guard once, in the composition that owns it.
+- A list typed as a plain array, such as `Middleware[]`, provides no reliable locals. Write the list inline or as a constant tuple.
+- An entry typed `AnyEcoMiddleware` may provide anything, so no key before it in the list is typed afterwards; a later entry types its own keys again. A middleware cannot be widened to `EcoMiddleware` or built as a plain object: only `createMiddleware` and `composeMiddleware` make one.
+- `next()` provides nothing and `next(locals)` provides `locals`. A value that may be `undefined` does not type-check: call `next()` on that path instead.
+- A plain `(ctx, next) => ...` function still works in a list and provides nothing. In the `options` of `app.get()` and its siblings, which come after the handler, declare it as a constant: written inline, it leaves the handler with no locals.
+- List `middleware` before `handler`, so TypeScript infers the list first.
+
+## Declare locals for layouts
+
+Layouts read locals through the global `RequestLocals` interface, not a `middleware` list. Augment it in a declaration file such as `src/modules.d.ts` for the values a Layout reads:
 
 ```typescript
 import '@ecopages/core';
@@ -21,57 +82,27 @@ declare module '@ecopages/core' {
 			user: { id: string; email: string; role: 'admin' | 'user' };
 		} | null;
 		requestId?: string;
-		theme?: 'light' | 'dark';
 	}
 }
 ```
 
-The fields are optional unless you declare them otherwise. Keep fields optional when middleware may not set them for every route.
+Keep the fields optional, since middleware may not set them for every route.
 
-## Set locals in middleware
-
-Use Page middleware to authenticate the request, set locals, and stop the request when authentication fails:
-
-```typescript
-import type { FileRouteMiddleware } from '@ecopages/core';
-
-export const authMiddleware: FileRouteMiddleware = async (ctx, next) => {
-	const session = await authService.validateRequest(ctx.request);
-	if (!session) {
-		return Response.redirect(new URL('/login', ctx.request.url));
-	}
-
-	ctx.locals.session = session;
-	ctx.locals.requestId = crypto.randomUUID();
-	return next();
-};
-```
-
-Page middleware runs on every request, so the Page must use `cache: 'dynamic'`:
+A Page with a typed `middleware` list gets its `locals` from the list. `requires` still narrows a `RequestLocals` field to non-null for a Page without a typed list, and on any Page it decides which locals reach the browser:
 
 ```tsx
-import { eco } from '@ecopages/core';
-import { authMiddleware } from '@/middleware/auth';
-
 export default eco.page({
 	cache: 'dynamic',
-	middleware: [authMiddleware],
 	requires: ['session'],
 	render: ({ locals }) => <Dashboard user={locals.session.user} />,
 });
 ```
 
-## Type requirements
+`requires` is a type-only contract. Ecopages does not check at runtime that middleware populated those locals, so do not use it as an authentication check. For React Pages, `requires` also decides which locals are sent to the browser. See [TypeScript Types](/docs/reference/typescript) for the public type definitions.
 
-A Page's `requires` option narrows the named locals in its `render` callback. For `requires: ['session']`, TypeScript treats `locals.session` as present and non-null.
+API handlers also receive `ctx.require('session', onMissing)`, which checks at runtime that a local is present and non-null, then returns its narrowed value. If it is missing, the helper terminates the request with the `Response` returned by `onMissing`.
 
-TypeScript cannot infer the keys when you write only some type arguments. If you write type arguments with `requires`, write all three: `eco.page<Props, Element, 'session'>({ requires: ['session'], ... })`. Writing only `Props` and `Element` is a type error.
-
-`requires` is a type-only contract. Ecopages does not check at runtime that middleware populated those locals. Make the middleware enforce the requirement, and do not use `requires` as an authentication or authorization check. See [TypeScript Types](/docs/reference/typescript) for the public type definitions.
-
-API handlers also receive `ctx.locals`. Their `ctx.require('session', onMissing)` helper checks that a local is present and non-null at runtime, then returns its narrowed value; if it is missing, the helper terminates the request with the `Response` returned by `onMissing`.
-
-Without `requires`, check optional locals before using them:
+Without a typed list or `requires`, check optional locals before using them:
 
 ```tsx
 export default eco.page({
@@ -115,4 +146,4 @@ Request locals are available only during request-time rendering for Pages with `
 | `static` | Unavailable; access throws `LocalsAccessError` |
 | `{ revalidate: seconds }` | Unavailable; access throws `LocalsAccessError` |
 
-Semantic error-page renders bypass the normal Page middleware pipeline and receive an empty `pageLocals` object. Do not rely on Page middleware or `requires` to provide locals there. See [Routing](/docs/core/routing) for error-page behavior.
+Semantic error-page renders bypass the normal Page middleware pipeline and receive an empty `pageLocals` object. Do not rely on Page middleware to provide locals there. See [Routing](/docs/core/routing) for error-page behavior.

@@ -1,4 +1,4 @@
-import type { FileRouteMiddleware } from '@ecopages/core';
+import { createMiddleware } from '@ecopages/core';
 
 export const SESSION_COOKIE = 'session';
 
@@ -18,18 +18,14 @@ export function readSession(request: Request): { user: string } | null {
 	return user ? { user: decodeURIComponent(user) } : null;
 }
 
-/** Puts the session on `locals` and always continues, so the layout decides what to show. */
-export const loadSession: FileRouteMiddleware = (ctx, next) => {
-	ctx.locals.session = readSession(ctx.request);
-	return next();
-};
+/** Provides the session, or `null`, and always continues, so the layout decides what to show. */
+export const loadSession = createMiddleware((ctx, next) => next({ session: readSession(ctx.request) }));
 
-/** Redirects a request without a session to the sign-in page. */
-export const requireSession: FileRouteMiddleware = (ctx, next) => {
+/** Redirects a request without a session to the sign-in page, and provides the session to the page otherwise. */
+export const requireSession = createMiddleware((ctx, next) => {
 	const session = readSession(ctx.request);
 	if (!session) {
 		return ctx.response.redirect('/sign-in');
 	}
-	ctx.locals.session = session;
-	return next();
-};
+	return next({ session });
+});

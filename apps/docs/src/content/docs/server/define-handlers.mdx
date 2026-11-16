@@ -171,7 +171,7 @@ When a route declares `schema.body`, core parses `application/json` and `text/pl
 
 ### With Middleware
 
-Attach route-specific middleware that extends the handler context:
+Attach route-specific middleware that provides typed locals:
 
 ```typescript
 import { defineApiHandler } from '@ecopages/core';
@@ -181,14 +181,14 @@ export const sensitiveEndpoint = defineApiHandler({
   path: '/api/sensitive',
   method: 'POST',
   middleware: [rateLimitMiddleware],
-  handler: async ({ response, rateLimitRemaining }) => {
-    // rateLimitRemaining is typed from the middleware
-    return response.json({ remaining: rateLimitRemaining });
+  handler: async ({ response, locals }) => {
+    // locals.rateLimitRemaining is typed from the middleware
+    return response.json({ remaining: locals.rateLimitRemaining });
   },
 });
 ```
 
-List `middleware` before `handler`. TypeScript infers a list that holds an inline middleware function only after the arguments before it, so a handler written before such a list sees none of the list's contexts, constants included. A list of `EcoMiddleware` constants works in either order.
+List `middleware` before `handler`, so TypeScript infers the list before the handler reads its locals.
 
 ## defineGroupHandler
 
@@ -208,7 +208,7 @@ export const adminGroup = defineGroupHandler({
     api.get({
       path: '/',
       handler: async (ctx) => {
-        return ctx.response.json({ user: ctx.session.user });
+        return ctx.response.json({ user: ctx.locals.session.user });
       },
     }),
     api.get({
@@ -229,7 +229,7 @@ export const adminGroup = defineGroupHandler({
 });
 ```
 
-Every route in the group, `api.get` and its siblings included, receives the context the group middleware adds, so `ctx.session` above is typed.
+Every route in the group, `api.get` and its siblings included, reads what the group middleware provides, so `ctx.locals.session` above is typed.
 
 The `routes` callback also accepts the callable form `api({ path, method, handler })` when you need an uncommon method shape. Prefer `api.get` and `api.post` for standard verbs.
 
@@ -277,7 +277,7 @@ export const adminGroup = defineGroupHandler({
       path: '/posts',
       schema: createPostSchema,
       handler: async (ctx) => {
-        const post = await createPost(ctx.body, ctx.session.user.id);
+        const post = await createPost(ctx.body, ctx.locals.session.user.id);
         return ctx.response.status(201).json(post);
       },
     }),
@@ -336,32 +336,27 @@ defineApiHandler({
 
 Params that fail the schema get a 400 response before the handler runs. A field the `schema` omits keeps its untyped shape: with only `schema.body`, `params` is still `PageParams` and `query` is still a record of strings and string arrays.
 
-### Middleware Context
+### Middleware Locals
 
-Middleware can extend the handler context with additional properties:
+`createMiddleware` makes a middleware that provides typed locals with `next(locals)`. A guard answers by returning a `Response` without calling `next`:
 
 ```typescript
 // middleware/auth.ts
-import type { ApiHandlerContext, EcoMiddleware } from '@ecopages/core';
+import { createMiddleware } from '@ecopages/core';
 
-export type AuthenticatedContext = ApiHandlerContext & {
-  session: { user: User; token: string };
-};
-
-export const authMiddleware: EcoMiddleware<AuthenticatedContext> = async (ctx, next) => {
+export const authMiddleware = createMiddleware(async (ctx, next) => {
   const token = ctx.request.headers.get('Authorization') ?? '';
   const user = await validateToken(token);
-  
+
   if (!user) {
     return ctx.response.status(401).json({ error: 'Unauthorized' });
   }
-  
-  ctx.session = { user, token };
-  return next();
-};
+
+  return next({ session: { user, token } });
+});
 ```
 
-When used with `defineGroupHandler`, all routes receive the extended context automatically.
+Handlers read the value from `ctx.locals.session`, typed from the route's or group's `middleware` list; a later entry overrides an earlier key. With `defineGroupHandler`, all routes read the group's locals automatically. Use `composeMiddleware(a, b, (ctx, next) => ...)` to chain stages, where a later stage reads `ctx.locals` provided by earlier ones; see [Request Locals](/docs/core/request-locals#compose-stages) for composition and the rules a stage follows.
 
 ## Complete Example
 
@@ -413,7 +408,7 @@ export const protectedGroup = defineGroupHandler({
       path: '/',
       schema: createPostSchema,
       handler: async (ctx) => {
-        const post = await createPost(ctx.body, ctx.session.user.id);
+        const post = await createPost(ctx.body, ctx.locals.session.user.id);
         return ctx.response.status(201).json(post);
       },
     }),
@@ -421,14 +416,14 @@ export const protectedGroup = defineGroupHandler({
       path: '/:id',
       schema: updatePostSchema,
       handler: async (ctx) => {
-        const post = await updatePost(ctx.params.id, ctx.body, ctx.session.user.id);
+        const post = await updatePost(ctx.params.id, ctx.body, ctx.locals.session.user.id);
         return ctx.response.json(post);
       },
     }),
     api.delete({
       path: '/:id',
       handler: async (ctx) => {
-        await deletePost(ctx.params.id, ctx.session.user.id);
+        await deletePost(ctx.params.id, ctx.locals.session.user.id);
         return ctx.response.status(204).text('');
       },
     }),

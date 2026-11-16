@@ -26,7 +26,7 @@ export const adminGroup = defineGroupHandler({
 			handler: async ({ locals, response }) => {
 				return response.json({
 					announcements: liveAnnouncements,
-					requestId: locals.requestInfo?.requestId,
+					requestId: locals.requestInfo.requestId,
 				});
 			},
 		}),
@@ -42,7 +42,7 @@ export const adminGroup = defineGroupHandler({
 
 				const announcement = {
 					createdAt: new Date().toISOString(),
-					createdBy: locals.viewerRole ?? 'admin',
+					createdBy: locals.viewerRole,
 					id: crypto.randomUUID().slice(0, 8),
 					message,
 					title,

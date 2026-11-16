@@ -6,7 +6,6 @@ export default eco.page({
 	cache: 'dynamic',
 	middleware: [requireSession],
 	metadata: () => ({ title: 'Dashboard', description: 'Your workspace dashboard.' }),
-	requires: ['workspace'] as const,
 	layout: workspaceLayout({ current: '/dashboard', title: 'Dashboard' }),
 	render: () => null,
 });

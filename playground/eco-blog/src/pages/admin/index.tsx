@@ -1,17 +1,15 @@
 import { eco } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiBadge } from '@ecopages/radiant-ui/badge';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { AdminShell } from '@/layouts/admin-shell/admin-shell';
 import { formatDate } from '@/lib/format';
-import { postsService, type Post } from '@/lib/posts.server';
+import { postsService } from '@/lib/posts.server';
 import { requireSession } from '@/lib/require-session.server';
 import './admin-posts.css';
 
-export default eco.page<{ posts: Post[] }, JsxRenderable, 'session'>({
+export default eco.page({
 	cache: 'dynamic',
 	middleware: [requireSession],
-	requires: ['session'] as const,
 	dependencies: { scripts: ['./admin-posts.script.ts'] },
 	props: async () => ({
 		posts: await postsService.listAll(),

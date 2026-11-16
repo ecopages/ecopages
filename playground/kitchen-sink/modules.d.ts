@@ -11,7 +11,6 @@ declare module 'lit/static-html.js' {
 
 declare module '@ecopages/core' {
 	interface RequestLocals {
-		featureFlags?: string[];
 		requestInfo?: {
 			method: string;
 			pathname: string;

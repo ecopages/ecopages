@@ -15,7 +15,10 @@ export type MiddlewareHandler<TContext> = (
  *
  * A stage continues with `next(locals)`. The chain defines each own key it provides on `context.locals` before the
  * next stage runs, so a later stage and the handler read it, and a later key overrides an earlier one. Keys are
- * defined, not assigned, so a `__proto__` key is a plain local and cannot replace the prototype of the store.
+ * defined, not assigned, so a `__proto__` key is a plain local and cannot replace the prototype of the store. A
+ * provided key is typed for everything after it, so when a stage continues, every key an earlier stage provided
+ * must still hold its value: a plain function that wrote or deleted one would leave readers with a value their
+ * types do not describe, so its `next` throws instead.
  *
  * A stage answers with whatever it returns: the response `next` resolved with, edited, or another response that
  * wraps or replaces it, as an outer stage adding headers to an immutable redirect must. A stage that returns before
@@ -33,6 +36,7 @@ export async function runMiddlewareChain<TContext extends { readonly locals: obj
 	context: TContext,
 	terminal: () => Promise<Response>,
 ): Promise<Response> {
+	const provided = new Map<string, unknown>();
 	const runFrom = async (position: number): Promise<Response> => {
 		if (position >= middleware.length) {
 			return terminal();
@@ -43,7 +47,7 @@ export async function runMiddlewareChain<TContext extends { readonly locals: obj
 		let continuation: ContinuationPromise | undefined;
 		let restSettled: Promise<void> | undefined;
 		let restFailure: { readonly error: unknown } | undefined;
-		const next = (provided?: Record<string, unknown>): Promise<Response> => {
+		const next = (locals?: Record<string, unknown>): Promise<Response> => {
 			if (finished) {
 				throw new Error(
 					`[ecopages] Middleware stage ${position} called next() after it returned. Call next() before the stage returns, and return the response it resolves with.`,
@@ -55,8 +59,10 @@ export async function runMiddlewareChain<TContext extends { readonly locals: obj
 				);
 			}
 			started = true;
-			if (provided) {
-				defineLocals(context.locals, provided);
+			assertProvidedLocalsKept(context.locals, provided, position);
+			if (locals) {
+				defineLocals(context.locals, locals);
+				for (const [key, value] of Object.entries(locals)) provided.set(key, value);
 			}
 			const rest = runFrom(position + 1);
 			restSettled = rest.then(
@@ -118,6 +124,16 @@ class ContinuationPromise extends Promise<Response> {
 	): Promise<TResult1 | TResult2> {
 		this.#observed = true;
 		return super.then(onfulfilled, onrejected);
+	}
+}
+
+function assertProvidedLocalsKept(locals: object, provided: ReadonlyMap<string, unknown>, position: number): void {
+	for (const [key, value] of provided) {
+		if (!Object.is(Object.getOwnPropertyDescriptor(locals, key)?.value, value)) {
+			throw new Error(
+				`[ecopages] Middleware stage ${position} changed the local "${key}" that an earlier stage provided with next(). Make the stage with createMiddleware and pass the new value to next({ ${key} }) instead of writing ctx.locals.`,
+			);
+		}
 	}
 }
 

@@ -13,14 +13,15 @@ import {
 describe('EcoRouter layouts', () => {
 	const ctx = useRouterTestEnvironment();
 
-	it('gives a layout request data through its entry factory when persistLayouts is disabled', async () => {
+	it('renders a layout with the props the server resolved for its tier when persistLayouts is disabled', async () => {
 		const Page = createLayoutAwarePage('PageWithLocals');
 
 		ctx.root = createRoot(ctx.container);
 		ctx.root.render(
 			createElement(EcoRouter, {
 				page: Page,
-				pageProps: { locals: { session: { user: { name: 'Andee' } } } },
+				pageProps: {},
+				tierProps: [{ session: { user: { name: 'Andee' } } }],
 				options: { persistLayouts: false },
 				// oxlint-disable-next-line no-children-prop
 				children: createElement(PageContent),
@@ -30,14 +31,15 @@ describe('EcoRouter layouts', () => {
 		await expect.element(ctx.container).toHaveTextContent('Andee');
 	});
 
-	it('gives a layout request data through its entry factory when persistLayouts is enabled', async () => {
+	it('renders a layout with the props the server resolved for its tier when persistLayouts is enabled', async () => {
 		const Page = createLayoutAwarePage('PageWithPersistentLocals');
 
 		ctx.root = createRoot(ctx.container);
 		ctx.root.render(
 			createElement(EcoRouter, {
 				page: Page,
-				pageProps: { locals: { session: { user: { name: 'Andee' } } } },
+				pageProps: {},
+				tierProps: [{ session: { user: { name: 'Andee' } } }],
 				options: { persistLayouts: true },
 				// oxlint-disable-next-line no-children-prop
 				children: createElement(PageContent),

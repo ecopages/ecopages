@@ -96,9 +96,7 @@ describe('layout composition from serialized tier props', () => {
 	it('keeps the existing behavior when no tier props are given', () => {
 		const { Page, shellFactory } = build();
 
-		const html = renderToString(
-			composeLayoutPageTree(Page, { id: '7', locals: serverContext.locals }, { context: serverContext }),
-		);
+		const html = renderToString(composeLayoutPageTree(Page, { id: '7' }, { context: serverContext }));
 
 		expect(html).toContain('Ada');
 		expect(shellFactory).toHaveBeenCalled();

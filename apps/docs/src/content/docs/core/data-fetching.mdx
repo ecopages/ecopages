@@ -45,7 +45,7 @@ props: async ({ params }) => ({ post: await getPost(String(params.slug)) }),
 
 On a `'static'` or `{ revalidate }` page, `props` receives `{ params, appConfig, runtimeOrigin }`. No request exists when it runs: at build, and when a revalidating page regenerates.
 
-On a `cache: 'dynamic'` page, `props` is the page's request handler. It runs on every request, and the build never runs it. It also receives the `request`, its `query` and the read-only `locals` the page's middleware provided, typed from the `middleware` list (see [Request Locals](/docs/core/request-locals)):
+On a `cache: 'dynamic'` page, `props` is the page's request handler. It runs on every request, and the build never runs it. It also receives the `request`, its `query` and the read-only `locals` the page's middleware provided, typed from the `middleware` list, and it is the only part of the page that reads them: `render` receives what it returns (see [Request Locals](/docs/core/request-locals)):
 
 ```tsx
 export default eco.page({

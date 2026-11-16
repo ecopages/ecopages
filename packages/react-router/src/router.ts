@@ -93,8 +93,8 @@ export interface EcoRouterProps {
  *
  * Must be a child of {@link EcoRouter}. When `persistLayouts` is enabled, a layout tier stays mounted while
  * consecutive pages pass the same layout function: a layout module has one URL, so every page that imports it
- * gets the same function, and React keeps its state. When the server serialized request `locals` for
- * hydration, the same `locals` object is passed to the layout on the client so the hydrated tree matches SSR.
+ * gets the same function, and React keeps its state. Each tier renders with the props the server resolved for it
+ * (`tierProps`), so the hydrated tree matches SSR without running a layout props factory in the browser.
  *
  * @example
  * ```tsx

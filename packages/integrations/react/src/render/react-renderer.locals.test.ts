@@ -26,44 +26,34 @@ const appConfig = await finalizeEcoPagesConfig({
 	},
 });
 
-describe('ReactRenderer locals split', () => {
+describe('ReactRenderer request locals', () => {
 	const assetService = {
 		processDependencies: vi.fn(() => Promise.resolve([])),
 		getHmrManager: vi.fn(() => undefined),
 	} as unknown as AssetProcessingService;
 
-	it('uses pageLocals for Page and locals for Layout', async () => {
+	it('gives neither the Page nor its Layout the request locals', async () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
 		});
 
-		const pageRenderMock = vi.fn((_props: { locals?: unknown }) => {
+		const pageRenderMock = vi.fn((_props: Record<string, unknown>) => {
 			return 'page' as unknown as ReactNode;
 		});
 		const Page = pageRenderMock as unknown as IntegrationRendererRenderOptions<ReactNode>['Page'];
 
-		const layoutRenderMock = vi.fn((props: { children: ReactNode; locals?: unknown }) => {
+		const layoutRenderMock = vi.fn((props: { children: ReactNode }) => {
 			return props.children as unknown as ReactNode;
 		});
 		const Layout = layoutRenderMock as unknown as IntegrationRendererRenderOptions<ReactNode>['Layout'];
-
-		const guardedPageLocals = new Proxy(
-			{},
-			{
-				get: () => {
-					throw new Error('guarded proxy');
-				},
-			},
-		) as Record<string, unknown>;
 
 		await renderer.render({
 			file: '/tmp/pages/test.tsx',
 			params: {},
 			query: {},
-			props: {},
-			locals: undefined,
-			pageLocals: guardedPageLocals,
+			props: { title: 'Hello' },
+			locals: { session: { userId: 'u-1' } },
 			metadata: appConfig.defaultMetadata,
 			Page,
 			Layout,
@@ -73,8 +63,8 @@ describe('ReactRenderer locals split', () => {
 			pageProps: {},
 		});
 
-		expect(pageRenderMock.mock.calls[0]?.[0]?.locals).toBe(guardedPageLocals);
-		expect(layoutRenderMock.mock.calls[0]?.[0]?.locals).toBeUndefined();
+		expect(pageRenderMock.mock.calls[0]?.[0]).toEqual({ title: 'Hello', params: {}, query: {} });
+		expect(layoutRenderMock.mock.calls[0]?.[0]).not.toHaveProperty('locals');
 	});
 
 	it('runs each layout factory once, renders the layout from its result and puts exactly that in the hydration payload', async () => {
@@ -108,7 +98,6 @@ describe('ReactRenderer locals split', () => {
 			query: {},
 			props: {},
 			locals,
-			pageLocals: locals,
 			metadata: appConfig.defaultMetadata,
 			Page,
 			Layout,
@@ -127,47 +116,7 @@ describe('ReactRenderer locals split', () => {
 		expect(JSON.stringify(pageProps)).not.toContain('server-only-secret');
 	});
 
-	it('serializes only locals declared in requires for hydration payloads', async () => {
-		const renderer = new TestReactRenderer({
-			appConfig,
-			assetProcessingService: assetService,
-		});
-
-		const Page = Object.assign(
-			vi.fn(() => 'page' as unknown as ReactNode),
-			{ requires: ['session'] as const },
-		) as unknown as IntegrationRendererRenderOptions<ReactNode>['Page'];
-
-		const htmlTemplateMock = vi.fn(({ children }: HtmlTemplateProps) => children as ReactNode);
-
-		await renderer.render({
-			file: '/tmp/pages/test.tsx',
-			params: {},
-			query: {},
-			props: {},
-			locals: {
-				session: { userId: 'u-1' },
-				csrfSecret: 'server-only-secret',
-			} as Record<string, unknown>,
-			pageLocals: {
-				session: { userId: 'u-1' },
-				csrfSecret: 'server-only-secret',
-			} as Record<string, unknown>,
-			metadata: appConfig.defaultMetadata,
-			Page,
-			Layout: undefined,
-			HtmlTemplate: htmlTemplateMock as IntegrationRendererRenderOptions<ReactNode>['HtmlTemplate'],
-			resolvedDependencies: [],
-			pageProps: {},
-		});
-
-		expect(htmlTemplateMock.mock.calls[0]?.[0]?.pageProps?.locals).toEqual({
-			session: { userId: 'u-1' },
-		});
-		expect(htmlTemplateMock.mock.calls[0]?.[0]?.pageProps?.locals).not.toHaveProperty('csrfSecret');
-	});
-
-	it('does not serialize locals when requires is not declared', async () => {
+	it('serializes the page props, Params and Query, never the request locals', async () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
@@ -180,19 +129,20 @@ describe('ReactRenderer locals split', () => {
 
 		await renderer.render({
 			file: '/tmp/pages/test.tsx',
-			params: {},
-			query: {},
-			props: {},
-			locals: { session: { userId: 'u-1' } } as Record<string, unknown>,
-			pageLocals: { session: { userId: 'u-1' } } as Record<string, unknown>,
+			params: { slug: 'a' },
+			query: { tab: 'x' },
+			props: { user: 'Ada' },
+			locals: { session: { userId: 'u-1', token: 'server-only-secret' } },
 			metadata: appConfig.defaultMetadata,
 			Page,
 			Layout: undefined,
 			HtmlTemplate: htmlTemplateMock as IntegrationRendererRenderOptions<ReactNode>['HtmlTemplate'],
 			resolvedDependencies: [],
-			pageProps: {},
+			pageProps: { user: 'Ada', params: { slug: 'a' }, query: { tab: 'x' } },
 		});
 
-		expect(htmlTemplateMock.mock.calls[0]?.[0]?.pageProps?.locals).toBeUndefined();
+		const pageProps = htmlTemplateMock.mock.calls[0]?.[0]?.pageProps;
+		expect(pageProps).toEqual({ user: 'Ada', params: { slug: 'a' }, query: { tab: 'x' } });
+		expect(JSON.stringify(pageProps)).not.toContain('server-only-secret');
 	});
 });

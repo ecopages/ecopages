@@ -1,5 +1,4 @@
-import { createRequire } from '../../../utils/locals-utils.ts';
-import type { FileRouteMiddlewareContext, RequestLocals } from '../../../types/contracts.ts';
+import type { FileRouteMiddlewareContext } from '../../../types/contracts.ts';
 import type { PageCacheService } from '../../../page-cache/page-cache-service.ts';
 import { ApiResponseBuilder } from './api-response.ts';
 import { runMiddlewareChain, type MiddlewareHandler } from './run-middleware-chain.ts';
@@ -59,7 +58,7 @@ export class FileRouteMiddlewarePipeline {
 	createContext(input: {
 		request: Request;
 		params: Record<string, string>;
-		locals: RequestLocals;
+		locals: Record<string, unknown>;
 	}): FileRouteMiddlewareContext {
 		const context: FileRouteMiddlewareContext = {
 			request: input.request,
@@ -70,7 +69,6 @@ export class FileRouteMiddlewarePipeline {
 				cache: this.cacheService,
 			},
 			locals: input.locals,
-			require: createRequire(() => context.locals as unknown as Record<string, unknown>),
 			json: (data, options) => {
 				if (options?.status) context.response.status(options.status);
 				if (options?.headers) context.response.headers(options.headers);

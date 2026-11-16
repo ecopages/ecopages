@@ -31,8 +31,9 @@ export function createLayoutAwarePage(name: string) {
 	const Layout = ({ children, session }: { children: ReactNode; session?: Session }) =>
 		createElement('div', { 'data-testid': `${name}-layout` }, `${session?.user?.name ?? 'anonymous'}`, children);
 
-	const Page = ((_props: { locals?: { session?: Session } }) =>
-		createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<typeof createMockPageComponent> & {
+	const Page = (() => createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<
+		typeof createMockPageComponent
+	> & {
 		config?: { layouts: [typeof Layout]; layoutEntries: unknown[] };
 	};
 

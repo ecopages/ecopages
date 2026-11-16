@@ -22,24 +22,6 @@ eco.page({
 	render: ({ userId, slug }) => `${userId}${slug}`,
 });
 
-// requires narrows the locals props reads, with or without a middleware list
-eco.page({
-	cache: 'dynamic',
-	middleware: [tag],
-	requires: ['session'] as const,
-	props: ({ locals }) => {
-		assert<Equal<typeof locals.session, { userId: string }>>();
-		return {};
-	},
-	render: () => '',
-});
-eco.page({
-	cache: 'dynamic',
-	requires: 'session',
-	props: ({ locals }) => ({ userId: locals.session.userId }),
-	render: ({ userId }) => userId,
-});
-
 // props cannot write locals
 eco.page({
 	cache: 'dynamic',

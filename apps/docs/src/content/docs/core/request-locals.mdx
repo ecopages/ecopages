@@ -6,7 +6,7 @@ order: 7
 
 # Request Locals
 
-Request locals are values attached to one HTTP request. Middleware provides them with `createMiddleware`, and request-time Pages, layouts, and API handlers can read them. Ecopages does not persist them between requests.
+Request locals are values attached to one HTTP request. Middleware provides them, and three places read them: a Dynamic Page's `props` hook, a layout entry's `props` factory, and an API handler's `ctx.locals`. Nothing else sees them: a Page's `render` and its Layouts receive only what those hooks returned, and the browser receives only that. Ecopages does not persist locals between requests.
 
 ## Provide locals in middleware
 
@@ -24,7 +24,13 @@ export const authMiddleware = createMiddleware(async (ctx, next) => {
 });
 ```
 
-A guard answers by returning a `Response` without calling `next`. Page middleware runs on every request, so the Page must use `cache: 'dynamic'`. The Page reads the provided values from `locals` in `render`, typed from its `middleware` list:
+A guard answers by returning a `Response` without calling `next`. Page middleware runs on every request, so the Page must use `cache: 'dynamic'`.
+
+API handlers read the same values from `ctx.locals`. See [Define Handlers](/docs/server/define-handlers#middleware).
+
+## Read locals in `props`
+
+A Dynamic Page is a handler: its `props` hook receives the request, Params, Query and `locals`, typed from the Page's `middleware` list, and returns the props `render` receives. `render` has no `locals`; it reads the returned value:
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -33,11 +39,14 @@ import { authMiddleware } from '@/middleware/auth';
 export default eco.page({
 	cache: 'dynamic',
 	middleware: [authMiddleware],
-	render: ({ locals }) => <Dashboard user={locals.session.user} />,
+	props: ({ locals }) => ({ user: locals.session.user }),
+	render: ({ user }) => <Dashboard user={user} />,
 });
 ```
 
-API handlers read the same values from `ctx.locals`. See [Define Handlers](/docs/server/define-handlers#middleware).
+Reading `locals` in `render` is a compile error. A Page that did so, with or without `requires`, moves the read into `props` and returns what `render` needs; `requires` is removed.
+
+What `props` returns reaches the browser when the Page hydrates, so return only what the browser may see. Return the user, not the session that holds its token.
 
 ## Compose stages
 
@@ -64,63 +73,32 @@ It types up to four stages; nest compositions beyond that.
 - A later entry in a `middleware` list overrides an earlier one that provides the same key, in the types and at runtime.
 - The same stage twice in one list or composition is rejected when the route or Page is defined. Declare a shared guard once, in the composition that owns it.
 - A list typed as a plain array, such as `Middleware[]`, provides no reliable locals. Write the list inline or as a constant tuple.
-- An entry typed `AnyEcoMiddleware` may provide anything, so no key before it in the list is typed afterwards; a later entry types its own keys again. A middleware cannot be widened to `EcoMiddleware` or built as a plain object: only `createMiddleware` and `composeMiddleware` make one.
+- An entry typed `AnyEcoMiddleware` may provide anything, so no key before it in the list, or in its group, is typed afterwards; a later entry types its own keys again. A middleware cannot be widened to `EcoMiddleware` or built as a plain object: only `createMiddleware` and `composeMiddleware` make one.
 - `next()` provides nothing and `next(locals)` provides `locals`. A value that may be `undefined` does not type-check: call `next()` on that path instead.
 - A plain `(ctx, next) => ...` function still works in a list and provides nothing. In the `options` of `app.get()` and its siblings, which come after the handler, declare it as a constant: written inline, it leaves the handler with no locals.
 - List `middleware` before `handler`, so TypeScript infers the list first.
 
-## Declare global locals
+## Where the types come from
 
-Without a typed `middleware` list, a Page reads locals through the global `RequestLocals` interface. Augment it in a declaration file such as `src/modules.d.ts`:
+Locals are typed by the middleware that provides them, and nothing else. There is no global declaration: core exports no `RequestLocals` interface to augment, and an `interface RequestLocals` declared in `modules.d.ts` types nothing. A Page's `locals` are exactly what its `middleware` list provides, so a Dynamic Page without a list has no locals keys. A handler's `ctx.locals` are what its group's list and its own provide.
+
+A plain `(ctx, next) => ...` function may still assign a new `ctx.locals.key = value`, and later stages and the handler see the value at runtime. Its `ctx.locals` is an untyped `Record<string, unknown>` store, so no later stage, Page or handler sees the key in its types. Make it with `createMiddleware` and pass the value to `next` to type it. A key an earlier stage provided with `next` is typed for everything after it, so a stage that overwrites or deletes one throws when it calls `next`.
+
+A local that some visitors do not have is still provided on every request, as `null` when it is missing, so the key is always typed:
 
 ```typescript
-import '@ecopages/core';
-
-declare module '@ecopages/core' {
-	interface RequestLocals {
-		session?: {
-			user: { id: string; email: string; role: 'admin' | 'user' };
-		} | null;
-		requestId?: string;
-	}
-}
+export const loadSession = createMiddleware(async (ctx, next) => next({ session: await readSession(ctx.request) }));
 ```
 
-Keep the fields optional, since middleware may not set them for every route.
+A Page that lists `loadSession` reads `locals.session` as the session or `null` and checks it before use.
 
-A Page with a typed `middleware` list gets its `locals` from the list. `requires` still narrows a `RequestLocals` field to non-null for a Page without a typed list, and on any Page it decides which locals reach the browser:
-
-```tsx
-export default eco.page({
-	cache: 'dynamic',
-	requires: ['session'],
-	render: ({ locals }) => <Dashboard user={locals.session.user} />,
-});
-```
-
-`requires` is a type-only contract. Ecopages does not check at runtime that middleware populated those locals, so do not use it as an authentication check. For React Pages, `requires` also decides which locals are sent to the browser. See [TypeScript Types](/docs/reference/typescript) for the public type definitions.
-
-API handlers also receive `ctx.require('session', onMissing)`, which checks at runtime that a local is present and non-null, then returns its narrowed value. If it is missing, the helper terminates the request with the `Response` returned by `onMissing`.
-
-Without a typed list or `requires`, check optional locals before using them:
-
-```tsx
-export default eco.page({
-	cache: 'dynamic',
-	render: ({ locals }) => {
-		if (!locals?.session) {
-			return <GuestView />;
-		}
-		return <UserView user={locals.session.user} />;
-	},
-});
-```
+A middleware that needs a value an earlier stage provided reads it from `ctx.locals` inside a `composeMiddleware` call, typed, or checks it and returns a response when it is missing. The `ctx.require` helper is removed.
 
 ## Layouts
 
 A Layout does not receive `locals`. A layout entry declares the request data it reads in its `props` factory: the factory runs on the server with `params`, `query` and `locals`, the Layout renders with what it returns, and the same result is sent to the browser for hydration. Return only what the browser may see: narrow the session to the user instead of passing a token.
 
-Written inline on a Page, the factory's `locals` is typed from that Page's `middleware` list and `requires`, like its `props` hook:
+Written inline on a Page, the factory's `locals` is typed from that Page's `middleware` list, like its `props` hook:
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -150,18 +128,22 @@ export const sessionLayout = {
 };
 ```
 
-A static or revalidating Page renders without a request, so its layout factories receive no `locals`, and an entry that reads them does not compile there. An entry annotated with `LayoutPropsContext`, whose `locals` is optional, works on any Page and finds no locals on a static one.
+A static or revalidating Page renders without a request, so its layout factories receive no `locals`, and an entry that reads them does not compile there. An entry annotated with `LayoutPropsContext` reads only `params` and `query`, since its `locals` has no keys, and works on any Page.
 
 The factory never runs in the browser. The browser build removes the factory of an entry written inline in `eco.page()`, with the `.server` imports only it uses. A shared entry's module reaches the browser bundle with its factory, so if that factory imports a `.server` module the browser build fails: call server code from an inline entry or from the Page's `props` hook instead.
 
+## What reaches the browser
+
+A hydrated React Page serializes what its `props` hook returned, with its Params and Query, and the props each layout entry's factory returned. Locals are never serialized. Neither are they passed to `render`, to a Layout, or to a component, so a value reaches the browser only when a hook returns it.
+
 ## Cache behavior
 
-Request locals are available only during request-time rendering for Pages with `cache: 'dynamic'`. A static Page or a Page with a revalidation cache cannot use request locals. Reading locals while such a Page renders throws `LocalsAccessError`. Page middleware also requires `cache: 'dynamic'`.
+Request locals exist only during request-time rendering of a Page with `cache: 'dynamic'`. A static Page or a Page with a revalidation cache renders without a request: its `props` hook receives the build context, which has no `locals`, and its layout factories receive none. Page middleware also requires `cache: 'dynamic'`; a non-dynamic Page with middleware fails with `LocalsAccessError`.
 
 | Page cache | Request locals |
 | --- | --- |
-| `dynamic` | Available during each request |
-| `static` | Unavailable; access throws `LocalsAccessError` |
-| `{ revalidate: seconds }` | Unavailable; access throws `LocalsAccessError` |
+| `dynamic` | In `props` and layout factories, on each request |
+| `static` | None; `props` and layout factories have no `locals` |
+| `{ revalidate: seconds }` | None; `props` and layout factories have no `locals` |
 
-Semantic error-page renders bypass the normal Page middleware pipeline and receive an empty `pageLocals` object. Do not rely on Page middleware to provide locals there. See [Routing](/docs/core/routing) for error-page behavior.
+Semantic error-page renders bypass the normal Page middleware pipeline; their layout factories receive empty `locals`. Do not rely on Page middleware to provide locals there. See [Routing](/docs/core/routing) for error-page behavior.

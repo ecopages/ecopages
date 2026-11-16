@@ -58,7 +58,6 @@ describe('ReactRenderer unified SSR layout composition', () => {
 			query: {},
 			props: {},
 			locals: undefined,
-			pageLocals: undefined,
 			metadata: appConfig.defaultMetadata,
 			Page: Page as IntegrationRendererRenderOptions<ReactNode>['Page'],
 			Layout: Layout as IntegrationRendererRenderOptions<ReactNode>['Layout'],
@@ -93,7 +92,6 @@ describe('ReactRenderer unified SSR layout composition', () => {
 			query: {},
 			props: {},
 			locals: undefined,
-			pageLocals: undefined,
 			metadata: appConfig.defaultMetadata,
 			Page: Page as IntegrationRendererRenderOptions<ReactNode>['Page'],
 			HtmlTemplate: (({ children }: HtmlTemplateProps) =>
@@ -123,7 +121,6 @@ describe('ReactRenderer unified SSR layout composition', () => {
 				query: {},
 				props: {},
 				locals: undefined,
-				pageLocals: undefined,
 				metadata: appConfig.defaultMetadata,
 				Page: Page as IntegrationRendererRenderOptions<ReactNode>['Page'],
 				HtmlTemplate: (({ children }: HtmlTemplateProps) =>

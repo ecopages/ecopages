@@ -10,15 +10,7 @@
 import { walkAstNodes } from './ast-walk.ts';
 import type { SourceEdit } from './ast-transform-import-edits.ts';
 
-const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set([
-	'cache',
-	'middleware',
-	'dependencies',
-	'requires',
-	'metadata',
-	'props',
-	'paths',
-]);
+const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set(['cache', 'middleware', 'dependencies', 'metadata', 'props', 'paths']);
 
 type SourceRange = { start: number; end: number };
 

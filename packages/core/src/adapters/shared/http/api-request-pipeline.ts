@@ -1,4 +1,3 @@
-import { createRequire } from '../../../utils/locals-utils.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { ApiResponseBuilder } from './api-response.ts';
 import { flattenMiddleware } from '../../../middleware/create-middleware.ts';
@@ -185,15 +184,13 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		params: PageParams,
 		serverInstance: TServer | undefined,
 	): ApiHandlerContext<TRequest, TServer> {
-		const locals: Record<string, unknown> = {};
 		return {
 			request,
 			params,
 			query: parseSearchParams(new URL(request.url).searchParams),
 			response: new ApiResponseBuilder(),
 			server: serverInstance as TServer,
-			locals,
-			require: createRequire((): Record<string, unknown> => locals),
+			locals: {},
 			services: {
 				cache: this.getCacheService(),
 			},

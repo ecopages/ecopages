@@ -34,15 +34,20 @@ export const ShellLayout = eco.layout<JsxRenderable, ShellLayoutProps>({
 	),
 });
 
+type WorkspaceLocals = { workspace: { sidebarOpen: boolean } };
+
 /**
  * Layout entry for a workspace page: the shell with its sidebar for `route`.
  *
  * @remarks
- * The sidebar state comes from `locals`, which the session middleware sets, and reaches the layout as a prop.
+ * The sidebar state comes from `locals`, which `requireSession` provides, and reaches the layout as a prop. A Page
+ * must list `requireSession` to use the entry.
  */
-export function workspaceLayout(route: WorkspaceRoute): EcoPageLayoutEntrySpec<JsxRenderable> {
+export function workspaceLayout(
+	route: WorkspaceRoute,
+): EcoPageLayoutEntrySpec<JsxRenderable, { locals: WorkspaceLocals }> {
 	return {
 		component: ShellLayout,
-		props: ({ locals }) => ({ workspace: route, sidebarOpen: locals?.workspace?.sidebarOpen }),
+		props: ({ locals }) => ({ workspace: route, sidebarOpen: locals.workspace.sidebarOpen }),
 	};
 }

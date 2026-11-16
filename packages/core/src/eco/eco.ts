@@ -9,8 +9,6 @@ import type {
 	LayoutProps,
 	EcoPagesElement,
 	EcoPageComponent,
-	RequestLocals,
-	RequestPageContext,
 } from '../types/contracts.ts';
 import type { PageMiddlewareEntry } from '../types/middleware-types.ts';
 import type {
@@ -19,12 +17,10 @@ import type {
 	HtmlOptions,
 	LayoutOptions,
 	DynamicPageOptions,
-	DynamicPageOptionsWithRequires,
 	PageOptions,
 	PageOptionsWithTypedLocals,
 	PagePropsFor,
 	StaticPageOptions,
-	StaticPageOptionsWithRequires,
 } from '../types/eco-api-types.ts';
 import {
 	finalizeComponentRender,
@@ -206,18 +202,8 @@ function page<
 	E = EcoPagesElement,
 	const M extends readonly PageMiddlewareEntry[] = readonly PageMiddlewareEntry[],
 >(options: PageOptionsWithTypedLocals<T, E, M>): EcoPageComponent<T>;
-function page<T = {}, E = EcoPagesElement>(
-	options: StaticPageOptions<T, E> & { requires?: undefined },
-): EcoPageComponent<T>;
-function page<T = {}, E = EcoPagesElement>(
-	options: DynamicPageOptions<T, E> & { requires?: undefined },
-): EcoPageComponent<T>;
-function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals = never>(
-	options: DynamicPageOptionsWithRequires<T, E, K>,
-): EcoPageComponent<T>;
-function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals = never>(
-	options: StaticPageOptionsWithRequires<T, E, K>,
-): EcoPageComponent<T>;
+function page<T = {}, E = EcoPagesElement>(options: StaticPageOptions<T, E>): EcoPageComponent<T>;
+function page<T = {}, E = EcoPagesElement>(options: DynamicPageOptions<T, E>): EcoPageComponent<T>;
 
 /**
  * Creates a page component and attaches optional static APIs.
@@ -235,7 +221,7 @@ function page<T, E>(options: PageOptions<T, E>): EcoPageComponent<T> {
 			? mergeLayoutDependencies(undefined, layoutEntries)
 			: mergeLayoutDependencies(dependenciesInput, layoutEntries);
 
-	const componentOptions: ComponentOptions<PagePropsFor<T> & Partial<RequestPageContext>, E> = {
+	const componentOptions: ComponentOptions<PagePropsFor<T>, E> = {
 		identity: options.identity,
 		integration: options.integration,
 		dependencies: staticDependencies,

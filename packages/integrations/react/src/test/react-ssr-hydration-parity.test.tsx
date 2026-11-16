@@ -67,7 +67,6 @@ describe('React SSR and hydration layout parity', () => {
 				query: {},
 				props: {},
 				locals: undefined,
-				pageLocals: undefined,
 				metadata: appConfig.defaultMetadata,
 				Page: Page as IntegrationRendererRenderOptions<ReactNode>['Page'],
 				HtmlTemplate: (({ children }: HtmlTemplateProps) =>

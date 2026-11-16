@@ -1137,6 +1137,7 @@ describe('FileSystemResponseMatcher', () => {
 		const recorded = globalThis as typeof globalThis & {
 			__ecoRequestPropsContexts?: RecordedContext[];
 			__ecoStaticPropsContexts?: string[][];
+			__ecoRenderPropKeys?: string[][];
 		};
 		const requestPropsFile = path.join(appDir, 'src/pages/request-props/[slug].ts');
 		const staticPropsFile = path.join(appDir, 'src/pages/static-props.ts');
@@ -1146,7 +1147,7 @@ describe('FileSystemResponseMatcher', () => {
 			[
 				"import { createMiddleware, eco } from '@ecopages/core';",
 				'',
-				"const session = createMiddleware((_ctx, next) => next({ session: { userId: 'u1' } }));",
+				"const session = createMiddleware((_ctx, next) => next({ session: { userId: 'u1', token: 'tok-secret' } }));",
 				'',
 				'export default eco.page({',
 				"	cache: 'dynamic',",
@@ -1160,7 +1161,10 @@ describe('FileSystemResponseMatcher', () => {
 				'		});',
 				'		return { userId: locals.session.userId, slug: String(params.slug) };',
 				'	},',
-				'	render: ({ userId, slug }) => `<p data-user="${userId}">${slug}</p>`,',
+				'	render: (props) => {',
+				'		(globalThis.__ecoRenderPropKeys ??= []).push(Object.keys(props).sort());',
+				'		return `<p data-user="${props.userId}">${props.slug}</p>`;',
+				'	},',
 				'});',
 				'',
 			].join('\n'),
@@ -1175,14 +1179,18 @@ describe('FileSystemResponseMatcher', () => {
 				'		(globalThis.__ecoStaticPropsContexts ??= []).push(Object.keys(context).sort());',
 				"		return { label: 'static' };",
 				'	},',
-				'	render: ({ label }) => `<p>${label}</p>`,',
+				'	render: (props) => {',
+				'		(globalThis.__ecoRenderPropKeys ??= []).push(Object.keys(props).sort());',
+				'		return `<p>${props.label}</p>`;',
+				'	},',
 				'});',
 				'',
 			].join('\n'),
 		);
 
-		it("gives a Dynamic Page's props the request, Params, Query and the Locals its middleware provided", async () => {
+		it("gives a Dynamic Page's props the request, Params, Query and Locals, and render only what props returned", async () => {
 			recorded.__ecoRequestPropsContexts = [];
+			recorded.__ecoRenderPropKeys = [];
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
 				assetPrefix: appConfig.absolutePaths.distDir,
@@ -1207,8 +1215,11 @@ describe('FileSystemResponseMatcher', () => {
 				new Request('http://localhost:3000/request-props/a?tab=x'),
 			);
 
+			const html = await response.text();
 			expect(response.status).toBe(200);
-			expect(await response.text()).toContain('<p data-user="u1">a</p>');
+			expect(html).toContain('<p data-user="u1">a</p>');
+			expect(html).not.toContain('tok-secret');
+			expect(recorded.__ecoRenderPropKeys).toEqual([['params', 'query', 'slug', 'userId']]);
 			expect(recorded.__ecoRequestPropsContexts).toEqual([
 				{
 					url: 'http://localhost:3000/request-props/a?tab=x',
@@ -1219,8 +1230,9 @@ describe('FileSystemResponseMatcher', () => {
 			]);
 		});
 
-		it("gives a Static Page's props the build context only and does not run it on a cache hit", async () => {
+		it("gives a Static Page's props the build context only, render no locals, and does not run props on a cache hit", async () => {
 			recorded.__ecoStaticPropsContexts = [];
+			recorded.__ecoRenderPropKeys = [];
 			const matcher = new FileSystemResponseMatcher({
 				appConfig,
 				assetPrefix: appConfig.absolutePaths.distDir,
@@ -1244,6 +1256,7 @@ describe('FileSystemResponseMatcher', () => {
 			expect(second.headers.get('X-Cache')).toBe('HIT');
 			expect(await second.text()).toContain('<p>static</p>');
 			expect(recorded.__ecoStaticPropsContexts).toEqual([['appConfig', 'params', 'runtimeOrigin']]);
+			expect(recorded.__ecoRenderPropKeys).toEqual([['label', 'params', 'query']]);
 		});
 	});
 

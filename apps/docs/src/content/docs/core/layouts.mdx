@@ -131,7 +131,7 @@ A layout receives request data only through this factory: the component gets wha
 
 What the factory receives follows the Page's cache strategy:
 
-- On a `cache: 'dynamic'` Page it receives `params`, `query` and `locals`. Written inline, `locals` is typed from the Page's `middleware` list and `requires`, like the Page's `props` hook.
+- On a `cache: 'dynamic'` Page it receives `params`, `query` and `locals`. Written inline, `locals` is typed from the Page's `middleware` list, like the Page's `props` hook.
 - On a static or revalidating Page it receives `params` and `query`. There is no request, so reading `locals` is a type error.
 
 ```tsx

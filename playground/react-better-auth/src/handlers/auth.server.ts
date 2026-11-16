@@ -7,8 +7,8 @@ export type Session = (typeof auth)['$Infer']['Session'];
  * Redirects a request without a session to the login page.
  *
  * @remarks
- * Provides the full session for server code and the user alone as `locals.user`. A page lists only `user` in
- * `requires`, because that list decides what the browser receives for hydration and the session holds the token.
+ * Provides the full session as `locals.session`, token included. A page's `props` returns only the user, because
+ * what `props` returns reaches the browser for hydration.
  */
 export const authMiddleware = createMiddleware(async (ctx, next) => {
 	const session = await auth.api.getSession({
@@ -17,7 +17,7 @@ export const authMiddleware = createMiddleware(async (ctx, next) => {
 	if (!session) {
 		return Response.redirect(new URL('/login', ctx.request.url));
 	}
-	return next({ session, user: session.user });
+	return next({ session });
 });
 
 export const authHandler = async (ctx: ApiHandlerContext) => {

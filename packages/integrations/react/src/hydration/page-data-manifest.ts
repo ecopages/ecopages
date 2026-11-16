@@ -20,6 +20,9 @@
  *   new client / old document finds none and runs layout factories as before; old client / new document ignores
  *   it; a legacy flat payload carries it under {@link ECO_PAGE_DATA_TIERS_KEY}, which never reaches page props;
  *   an invalid `tiers` is ignored without rejecting the envelope
+ * - `props` carries what the Page's `props` hook returned plus its Params and Query, never request `locals`; an old
+ *   document that still serialized `props.locals` hands it to the Page as an ordinary prop, so the schema version
+ *   is unchanged
  */
 export const ECO_PAGE_DATA_SCHEMA_VERSION = 1 as const;
 

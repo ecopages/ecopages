@@ -5,5 +5,6 @@ export default eco.page({
 	cache: 'dynamic',
 	middleware: [requireSession],
 	metadata: () => ({ title: 'Account', description: 'Redirects visitors who are not signed in.' }),
-	render: ({ locals }) => <h1>Account of {locals.session.user}</h1>,
+	props: ({ locals }) => ({ user: locals.session.user }),
+	render: ({ user }) => <h1>Account of {user}</h1>,
 });

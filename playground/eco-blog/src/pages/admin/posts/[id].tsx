@@ -9,18 +9,18 @@ import { requireSession } from '@/lib/require-session.server';
 export default eco.page({
 	cache: 'dynamic',
 	middleware: [requireSession],
-	props: async ({ params }) => {
+	props: async ({ params, locals }) => {
 		const { id } = postIdParams.parse(params);
 		const post = await postsService.findById(id);
 		if (!post) throw HttpError.NotFound('Post not found');
-		return { post };
+		return { post, userName: locals.session.user.name };
 	},
 	metadata: ({ props }) => ({
 		title: `Edit: ${props.post.title} | EcoBlog author`,
 		description: 'Edit a blog post.',
 	}),
-	render: ({ post, locals }) => (
-		<AdminShell current="posts" userName={locals.session.user.name}>
+	render: ({ post, userName }) => (
+		<AdminShell current="posts" userName={userName}>
 			<PostEditor post={post} />
 		</AdminShell>
 	),

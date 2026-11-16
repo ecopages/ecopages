@@ -87,7 +87,19 @@ eco.page({ cache: 'dynamic', middleware: [tag], layout: sessionLayout, render: (
 // @ts-expect-error a Dynamic Page without middleware provides no `session`
 eco.page({ cache: 'dynamic', layout: sessionLayout, render: () => '' });
 
-// a shared entry that reads an optional local works on any Dynamic Page
+// a shared entry that reads a nullable local takes it from a middleware that always provides the key
+const readSession = (): Session | null => null;
+const loadSession = createMiddleware((_ctx, next) => next({ session: readSession() }));
+const nullableSessionLayout = {
+	component: Shell,
+	props: ({ locals }: { locals: { session: Session | null } }) => ({ user: locals.session?.userId }),
+};
+eco.page({ cache: 'dynamic', middleware: [loadSession], layout: nullableSessionLayout, render: () => '' });
+eco.page({ cache: 'dynamic', middleware: [session], layout: nullableSessionLayout, render: () => '' });
+// @ts-expect-error a Page whose list does not provide the key does not compile
+eco.page({ cache: 'dynamic', middleware: [tag], layout: nullableSessionLayout, render: () => '' });
+
+// a shared entry that reads an optional local works on any Dynamic Page, and finds it only where a middleware provides it
 const optionalSessionLayout = {
 	component: Shell,
 	props: ({ locals }: { locals: { session?: Session | null } }) => ({ user: locals.session?.userId }),
@@ -95,44 +107,29 @@ const optionalSessionLayout = {
 eco.page({ cache: 'dynamic', middleware: [tag], layout: optionalSessionLayout, render: () => '' });
 eco.page({ cache: 'dynamic', middleware: [session], layout: optionalSessionLayout, render: () => '' });
 
-// a shared entry typed with the exported names keeps working
+// a shared entry typed with the exported names works on any Page and reads no locals
 const satisfiedLayout = {
 	component: Shell,
-	props: ({ locals }: LayoutPropsContext) => ({ user: locals?.session?.userId }),
+	props: ({ params }: LayoutPropsContext) => ({ label: String(params?.slug) }),
 } satisfies EcoPageLayoutEntrySpec<string>;
 eco.page({ cache: 'dynamic', middleware: [session], layout: satisfiedLayout, render: () => '' });
 eco.page({ layout: satisfiedLayout, render: () => '' });
+const readsUntypedLocals = {
+	component: Shell,
+	// @ts-expect-error `LayoutPropsContext` carries no locals keys
+	props: ({ locals }: LayoutPropsContext) => ({ user: locals?.session }),
+};
+void readsUntypedLocals;
 
-// (c) requires narrows the locals a layout factory reads, with or without a middleware list
-eco.page({
-	cache: 'dynamic',
-	middleware: [tag],
-	requires: ['session'] as const,
-	layout: {
-		component: Shell,
-		props: ({ locals }) => {
-			assert<Equal<typeof locals.session, { userId: string }>>();
-			return { user: locals.session.userId, label: locals.tag };
-		},
-	},
-	render: () => '',
-});
-eco.page({
-	cache: 'dynamic',
-	requires: 'session',
-	layout: { component: Shell, props: ({ locals }) => ({ user: locals.session.userId }) },
-	render: () => '',
-});
-eco.page({ cache: 'dynamic', middleware: [tag], requires: 'session', layout: sessionLayout, render: () => '' });
-
-// without requires or a list, a Dynamic Page's factory reads the global locals, which may be missing
+// without a list, a Dynamic Page's factory has no locals keys
 eco.page({
 	cache: 'dynamic',
 	layout: {
 		component: Shell,
 		props: ({ locals }) => {
-			assert<Equal<typeof locals.session, { userId: string } | null | undefined>>();
-			return { user: locals.session?.userId };
+			assert<Equal<typeof locals, Readonly<{}>>>();
+			// @ts-expect-error no middleware provides `session`
+			return { user: locals.session };
 		},
 	},
 	render: () => '',
@@ -194,21 +191,10 @@ eco.page({
 	layout: sessionLayout,
 	render: () => '',
 });
+// @ts-expect-error a Static Page provides no locals, even optional ones
 eco.page({
 	cache: 'static',
-	// @ts-expect-error a Static Page provides no locals, even optional ones
 	layout: [Plain, optionalSessionLayout],
-	render: () => '',
-});
-
-// (d) a Static Page that declares requires still renders its layouts without locals
-eco.page({
-	requires: 'session',
-	layout: {
-		component: Shell,
-		// @ts-expect-error requires types what render reads, and no layout factory receives locals at build
-		props: ({ locals }) => ({ user: locals.session.userId }),
-	},
 	render: () => '',
 });
 

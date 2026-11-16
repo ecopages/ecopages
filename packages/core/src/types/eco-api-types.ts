@@ -19,15 +19,12 @@ import type {
 	LayoutBuildContext,
 	LayoutProps,
 	LayoutRequestContext,
-	RequestLocals,
-	RequestPageContext,
 	PagePropsFor,
-	PageRequires,
 	PageDependenciesInput,
 	DynamicPageDependenciesInput,
 	StaticCacheStrategy,
 } from './contracts.ts';
-import type { ListLocals, MergeLocals, PageMiddlewareEntry } from './middleware-types.ts';
+import type { ListLocals, PageMiddlewareEntry } from './middleware-types.ts';
 import type { ComponentIdentity } from './component-identity.ts';
 
 export type {
@@ -38,10 +35,7 @@ export type {
 	PageDependenciesInput,
 	PageDependenciesResult,
 	PagePropsFor,
-	PageRequires,
 } from './contracts.ts';
-
-type RequiresKeys = keyof RequestLocals;
 
 /**
  * Extracts the props type from one eco component.
@@ -101,10 +95,6 @@ export type EcoEmbedProps<TComponent extends EcoComponent> = {
 	children?: unknown;
 };
 
-type WithRequiredLocals<K extends keyof RequestLocals> = Omit<RequestLocals, K> & {
-	[P in K]-?: Exclude<RequestLocals[P], null | undefined>;
-};
-
 /**
  * Lazy trigger options map directly to scripts-injector attributes.
  * Only one trigger type can be active at a time.
@@ -162,13 +152,12 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 	metadata?: GetMetadata<T>;
 
 	/**
-	 * Declares which `locals` keys must be present for this page.
+	 * Renders the Page from what `props` returned, with the route's Params and Query.
 	 *
-	 * This is a typing and documentation feature; runtime enforcement must be done via handler/page middleware.
+	 * @remarks
+	 * It receives no `locals`: a Dynamic Page reads them in `props` and returns what `render` needs.
 	 */
-	requires?: PageRequires;
-
-	render: (props: PagePropsFor<T> & Partial<RequestPageContext>) => E | Promise<E>;
+	render: (props: PagePropsFor<T>) => E | Promise<E>;
 }
 
 /**
@@ -208,9 +197,9 @@ export interface StaticPageOptions<T, E = EcoPagesElement> extends PageOptionsBa
 /**
  * Options of a Dynamic Page, rendered on every request.
  *
- * @typeParam TLocals - The Locals its `props` hook reads.
+ * @typeParam TLocals - The Locals its `props` hook reads. Without a `middleware` list it has no keys.
  */
-export interface DynamicPageOptions<T, E = EcoPagesElement, TLocals = RequestLocals> extends PageOptionsBase<T, E> {
+export interface DynamicPageOptions<T, E = EcoPagesElement, TLocals = {}> extends PageOptionsBase<T, E> {
 	/**
 	 * No caching: render on every request. Middleware requires it, since caching would bypass middleware effects.
 	 */
@@ -246,33 +235,17 @@ export interface DynamicPageOptions<T, E = EcoPagesElement, TLocals = RequestLoc
 	dependencies?: DynamicPageDependenciesInput;
 }
 
-type TypedLocals<M extends readonly PageMiddlewareEntry[], K extends RequiresKeys> = MergeLocals<
-	WithRequiredLocals<K>,
-	ListLocals<M>
->;
-
 /**
- * Page options with a `middleware` list whose locals type `locals` in `props` and `render`.
+ * Page options with a `middleware` list whose locals type `locals` in `props` and in the layout entries.
  *
  * @remarks
- * `locals` starts from the global `RequestLocals`, narrows the keys the page lists in `requires` to non-null, and
- * then takes what the list provides on top, a later entry overriding an earlier one. `requires` also keeps its
- * meaning of which locals reach the browser for hydration.
+ * `locals` is exactly what the list provides, a later entry overriding an earlier one.
  */
-export type PageOptionsWithTypedLocals<
-	T,
-	E,
-	M extends readonly PageMiddlewareEntry[],
-	K extends RequiresKeys = never,
-> = Omit<DynamicPageOptions<T, E, TypedLocals<M, K>>, 'render' | 'middleware' | 'requires'> & {
-	requires?: PageRequires<K>;
+export type PageOptionsWithTypedLocals<T, E, M extends readonly PageMiddlewareEntry[]> = Omit<
+	DynamicPageOptions<T, E, ListLocals<M>>,
+	'middleware'
+> & {
 	middleware: M;
-	render: (
-		props: PagePropsFor<T> &
-			Omit<Partial<RequestPageContext>, 'locals'> & {
-				locals: TypedLocals<M, K>;
-			},
-	) => E | Promise<E>;
 };
 
 /**
@@ -288,39 +261,6 @@ export type PageOptionsWithTypedLocals<
  * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
  */
 export type PageOptions<T, E = EcoPagesElement> = StaticPageOptions<T, E> | DynamicPageOptions<T, E>;
-
-type WithRequiresRender<O, T, E, K extends RequiresKeys> = Omit<O, 'render' | 'requires'> & {
-	requires: PageRequires<K>;
-	render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;
-};
-
-/**
- * Options of a Static or revalidating Page that declares `requires`, whose `render` reads the required keys as
- * non-null.
- */
-export type StaticPageOptionsWithRequires<T, E, K extends RequiresKeys> = WithRequiresRender<
-	StaticPageOptions<T, E>,
-	T,
-	E,
-	K
->;
-
-/**
- * Options of a Dynamic Page that declares `requires`, whose `props` and `render` read the required keys as non-null.
- */
-export type DynamicPageOptionsWithRequires<T, E, K extends RequiresKeys> = WithRequiresRender<
-	DynamicPageOptions<T, E, WithRequiredLocals<K>>,
-	T,
-	E,
-	K
->;
-
-export type PagePropsForWithLocals<T, K extends keyof RequestLocals | never = never> = PagePropsFor<T> &
-	(K extends never
-		? Partial<RequestPageContext>
-		: Omit<Partial<RequestPageContext>, 'locals'> & {
-				locals: WithRequiredLocals<Extract<K, keyof RequestLocals>>;
-			});
 
 /**
  * The eco namespace interface
@@ -366,27 +306,12 @@ export interface Eco {
 	/**
 	 * Create a page component with type-safe props from `props`.
 	 * Returns an EcoPageComponent with attached paths, props, and metadata.
-	 *
-	 * If `requires` is provided, the `render` callback receives `locals` as required and non-null for the required keys.
 	 */
 	page: {
-		<
-			T = {},
-			E = EcoPagesElement,
-			const M extends readonly PageMiddlewareEntry[] = readonly PageMiddlewareEntry[],
-			const K extends RequiresKeys = never,
-		>(
-			options: PageOptionsWithTypedLocals<T, E, M, K>,
+		<T = {}, E = EcoPagesElement, const M extends readonly PageMiddlewareEntry[] = readonly PageMiddlewareEntry[]>(
+			options: PageOptionsWithTypedLocals<T, E, M>,
 		): EcoPageComponent<T>;
-		<T = {}, E = EcoPagesElement>(options: StaticPageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
-		<T = {}, E = EcoPagesElement>(
-			options: DynamicPageOptions<T, E> & { requires?: undefined },
-		): EcoPageComponent<T>;
-		<T = {}, E = EcoPagesElement, const K extends RequiresKeys = never>(
-			options: DynamicPageOptionsWithRequires<T, E, K>,
-		): EcoPageComponent<T>;
-		<T = {}, E = EcoPagesElement, const K extends RequiresKeys = never>(
-			options: StaticPageOptionsWithRequires<T, E, K>,
-		): EcoPageComponent<T>;
+		<T = {}, E = EcoPagesElement>(options: StaticPageOptions<T, E>): EcoPageComponent<T>;
+		<T = {}, E = EcoPagesElement>(options: DynamicPageOptions<T, E>): EcoPageComponent<T>;
 	};
 }

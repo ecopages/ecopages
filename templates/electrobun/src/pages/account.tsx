@@ -8,8 +8,11 @@ export default eco.page({
 	middleware: [requireSession],
 	metadata: () => ({ title: 'Account', description: 'Your account information.' }),
 	layout: workspaceLayout({ current: '/account', title: 'Account' }),
-	render: ({ locals }) => {
-		const user = locals.workspace.session.user;
+	props: ({ locals }) => {
+		const { name, email } = locals.workspace.session.user;
+		return { user: { name, email } };
+	},
+	render: ({ user }) => {
 		return (
 			<div class="account-card">
 				<dl class="account-details">

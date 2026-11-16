@@ -19,27 +19,12 @@ export interface CreateRenderContextOptions {
 }
 
 /**
- * Merges request locals into component props as a dedicated 'locals' property.
- * This prevents naming conflicts and maintains type safety by keeping locals
- * separate from other props.
- *
- * @param props - The original component props
- * @param locals - Optional request-scoped locals from middleware
- * @returns Props with locals merged in, or original props if no locals provided
- */
-function mergePropsWithLocals<P>(props: P, locals: Record<string, unknown> | undefined): P {
-	if (!locals || typeof props !== 'object' || props === null) {
-		return props;
-	}
-	return { ...(props as Record<string, unknown>), locals } as P;
-}
-
-/**
  * Request data the handler context carries into an explicit view render.
  *
  * @remarks
  * The render methods are spread onto the handler context, so `this` holds the request, its route
- * params, and its locals.
+ * params, and its locals. The view receives only the props the handler passes; `locals` reach its layout entries'
+ * `props` factories alone.
  */
 type HandlerRequestScope = {
 	locals?: Record<string, unknown>;
@@ -56,7 +41,7 @@ function createExplicitViewContext(
 		partial,
 		status: renderOptions?.status,
 		headers: renderOptions?.headers,
-		locals: scope?.locals as ExplicitViewRenderContext['locals'],
+		locals: scope?.locals,
 		params: scope?.params,
 		query: scope?.request ? Object.fromEntries(new URL(scope.request.url).searchParams) : undefined,
 	};
@@ -113,14 +98,12 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 			props?: P,
 			renderOptions?: RenderOptions,
 		): Promise<Response> {
-			const locals = this?.locals;
-			const mergedProps = mergePropsWithLocals<P>(props ?? ({} as P), locals);
 			const resolvedView = await resolveView(view);
 
 			const renderer = await getRendererForView(resolvedView);
 			return renderer.renderExplicitView(
 				resolvedView,
-				mergedProps,
+				props ?? ({} as P),
 				createExplicitViewContext(this, renderOptions, false),
 			);
 		},
@@ -131,14 +114,12 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 			props: P,
 			renderOptions?: RenderOptions,
 		): Promise<Response> {
-			const locals = this?.locals;
-			const mergedProps = mergePropsWithLocals<P>(props, locals);
 			const resolvedView = await resolveView(view);
 
 			const renderer = await getRendererForView(resolvedView);
 			return renderer.renderExplicitView(
 				resolvedView,
-				mergedProps,
+				props,
 				createExplicitViewContext(this, renderOptions, true),
 			);
 		},

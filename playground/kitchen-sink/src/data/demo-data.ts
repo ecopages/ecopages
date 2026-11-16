@@ -44,7 +44,7 @@ export const showcasePatterns: ShowcasePattern[] = [
 		title: 'Page middleware and request locals',
 		summary:
 			'Request data is attached once and read by the page and handed to the layout through its props factory.',
-		highlights: ['cache: dynamic', 'requires', 'layout props'],
+		highlights: ['cache: dynamic', 'props reads locals', 'layout props'],
 		stage: 'stable',
 		release: 'Runtime flow',
 	},

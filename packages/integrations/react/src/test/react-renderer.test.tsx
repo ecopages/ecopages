@@ -3,11 +3,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import { path } from '@ecopages/file-system/path';
 import {
+	createMiddleware,
 	eco,
 	type EcoComponent,
 	type EcoComponentConfig,
 	type EcoPageFile,
 	type HtmlTemplateProps,
+	type LayoutProps,
 } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type {
@@ -26,6 +28,7 @@ import { ReactRenderer, type ReactRendererConfig } from '../render/react-rendere
 import type { ReactRuntimeModules } from '../render/react-runtime.ts';
 import { toRootRelativePath } from '@ecopages/core/build';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
+import { ECO_PAGE_DATA_TIERS_KEY } from '../hydration/page-data-manifest.ts';
 import { getForeignSubtreeKey, renderForeignSubtreeBoundary } from '../hydration/foreign-subtree.ts';
 import { Page } from './fixture/test-page';
 
@@ -487,11 +490,10 @@ describe('ReactRenderer', () => {
 			expect(assetProcessingService.processDependencies).not.toHaveBeenCalled();
 		});
 
-		it('should omit guarded locals from hydrated component props', async () => {
+		it('serializes exactly the props an island was given', async () => {
 			const { testRenderer } = createRendererWithAssets();
 			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
 				title: string;
-				locals?: unknown;
 			}>;
 			Component.config = {
 				identity: {
@@ -501,18 +503,9 @@ describe('ReactRenderer', () => {
 				},
 			};
 
-			const guardedLocals = new Proxy(
-				{},
-				{
-					ownKeys: () => {
-						throw new Error('guarded locals');
-					},
-				},
-			);
-
 			const result = await testRenderer.renderComponent({
 				component: Component,
-				props: { title: 'Island', locals: guardedLocals },
+				props: { title: 'Island' },
 				integrationContext: { componentInstanceId: 'island-1' },
 			});
 
@@ -1166,6 +1159,84 @@ describe('ReactRenderer', () => {
 		const text = await new Response(result.body as BodyInit).text();
 		expect(text).toContain('<script id="__ECO_PAGE_DATA__" type="application/json">');
 		expect(text).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
+	});
+
+	describe('page data from a Dynamic Page whose middleware provides a secret', () => {
+		const SECRET_TOKEN = 'tok-never-in-the-browser';
+		const session = createMiddleware((_ctx, next) =>
+			next({ session: { token: SECRET_TOKEN, user: { id: 'u1', name: 'Ada' } } }),
+		);
+		const Shell = eco.layout<JSX.Element, LayoutProps<JSX.Element> & { name?: string }>({
+			integration: 'react',
+			identity: { id: 'dashboard-shell', file: pageFilePath, integration: 'react' },
+			render: ({ children, name }) => <main data-name={name}>{children}</main>,
+		});
+		const Dashboard = eco.page({
+			integration: 'react',
+			identity: { id: 'dashboard', file: pageFilePath, integration: 'react' },
+			cache: 'dynamic',
+			middleware: [session],
+			layout: { component: Shell, props: ({ locals }) => ({ name: locals.session.user.name }) },
+			props: ({ locals }) => ({ user: locals.session.user }),
+			render: ({ user }) => <h1>{user.name}</h1>,
+		});
+		const renderDashboard = async (testRenderer: TestReactRenderer) => {
+			testRenderer.importedPageFileOverride = { default: Dashboard } as EcoPageFile;
+			const result = await testRenderer.execute({
+				file: pageFilePath,
+				params: {},
+				query: {},
+				request: new Request('http://localhost/dashboard'),
+				locals: { session: { token: SECRET_TOKEN, user: { id: 'u1', name: 'Ada' } } },
+			});
+			return await new Response(result.body as BodyInit).text();
+		};
+		const readPageData = (html: string): Record<string, unknown> => {
+			const json = html.match(
+				/<script id="__ECO_PAGE_DATA__" type="application\/json">([\s\S]*?)<\/script>/,
+			)?.[1];
+			expect(json).toBeDefined();
+			return JSON.parse(json ?? '{}');
+		};
+
+		it('puts only props, Params, Query and tiers in the router envelope, never locals', async () => {
+			const testRenderer = createRenderer({ routerAdapter: mockRouterAdapter });
+			testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+			vi.spyOn(testRenderer.pagePayloadService, 'resolvePageModuleUrl').mockReturnValue('/assets/dashboard.js');
+
+			const html = await renderDashboard(testRenderer);
+			const envelope = readPageData(html);
+
+			expect(html).toContain('<h1>Ada</h1>');
+			expect(html).not.toContain(SECRET_TOKEN);
+			expect(Object.keys(envelope).sort()).toEqual([
+				'moduleUrl',
+				'navigationOwner',
+				'props',
+				'schemaVersion',
+				'tiers',
+			]);
+			expect(envelope.props).toEqual({ user: { id: 'u1', name: 'Ada' }, params: {}, query: {} });
+			expect(envelope.tiers).toEqual([{ name: 'Ada' }]);
+		});
+
+		it('puts only props, Params, Query and tiers in the flat payload, never locals', async () => {
+			const testRenderer = createRenderer({ forceBrowserGraph: true });
+			vi.spyOn(testRenderer.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
+			testRenderer.declaredModulesOverride = [];
+
+			const html = await renderDashboard(testRenderer);
+			const payload = readPageData(html);
+
+			expect(html).toContain('<h1>Ada</h1>');
+			expect(html).not.toContain(SECRET_TOKEN);
+			expect(payload).toEqual({
+				user: { id: 'u1', name: 'Ada' },
+				params: {},
+				query: {},
+				[ECO_PAGE_DATA_TIERS_KEY]: [{ name: 'Ada' }],
+			});
+		});
 	});
 
 	it.each([

@@ -6,9 +6,10 @@ import { requireSession } from '@/lib/require-session.server';
 export default eco.page({
 	cache: 'dynamic',
 	middleware: [requireSession],
+	props: ({ locals }) => ({ userName: locals.session.user.name }),
 	metadata: () => ({ title: 'New post | EcoBlog author', description: 'Write a new blog post.' }),
-	render: ({ locals }) => (
-		<AdminShell current="new" userName={locals.session.user.name}>
+	render: ({ userName }) => (
+		<AdminShell current="new" userName={userName}>
 			<PostEditor />
 		</AdminShell>
 	),

@@ -8,7 +8,11 @@
 import { getEcoDocumentOwner } from '@ecopages/core/client';
 import { isProductionRuntime } from '@ecopages/core';
 import type { EcoComponentConfig } from '@ecopages/core';
-import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps } from '@ecopages/react/serialize-page-data-script';
+import {
+	resolveEcoPageDataModuleUrl,
+	resolveEcoPageDataProps,
+	resolveEcoPageDataTiers,
+} from '@ecopages/react/serialize-page-data-script';
 import type { ComponentType } from 'react';
 import { adaptPageModule } from './page-module-adapter.ts';
 
@@ -37,6 +41,8 @@ export type LoadedPageModule = {
 	Component: NavigablePageComponent;
 	config?: EcoComponentConfig;
 	props: PageProps;
+	/** Server-resolved layout tier props of the document; absent when it carries none. */
+	tierProps?: readonly PageProps[];
 	doc: Document;
 	finalPath: string;
 	moduleUrl: string;
@@ -96,6 +102,20 @@ export function extractProps(doc: Document): PageProps {
 	}
 
 	return resolveEcoPageDataProps(parsePageDataPayload(doc));
+}
+
+/**
+ * Extracts the server-resolved layout tier props the same way {@link extractProps} reads props.
+ *
+ * @remarks
+ * `undefined` means the document carries none, so layouts render through their props factories.
+ */
+export function extractTierProps(doc: Document): readonly PageProps[] | undefined {
+	if (doc === document && window.__ECO_PAGES__?.page?.props) {
+		return window.__ECO_PAGES__.page.tiers;
+	}
+
+	return resolveEcoPageDataTiers(parsePageDataPayload(doc));
 }
 
 function isReactRouteDocument(doc: Document): boolean {
@@ -159,6 +179,7 @@ export async function loadPageModuleFromDocument(
 	options: LoadPageModuleFromDocumentOptions = {},
 ): Promise<LoadedPageModule | null> {
 	const props = extractProps(doc);
+	const tierProps = extractTierProps(doc);
 	const componentUrl = options.moduleUrlOverride ?? extractComponentUrl(doc);
 
 	if (!componentUrl) {
@@ -180,6 +201,7 @@ export async function loadPageModuleFromDocument(
 		Component: adapted.Component,
 		config: adapted.config,
 		props,
+		...(tierProps && { tierProps }),
 		doc,
 		finalPath,
 		moduleUrl: componentUrl,

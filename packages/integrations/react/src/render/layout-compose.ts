@@ -71,47 +71,17 @@ export function resolveLayoutContext(pageProps: Record<string, unknown>): Layout
 }
 
 /**
- * Builds layout prop factory context from document-shell layout entries.
+ * Resolves props for one layout entry: what its `props` factory returns, or nothing.
  *
  * @remarks
- * Route-scoped `locals` come from shell layout props, not `pageProps.locals` (pageLocals).
- */
-export function resolveLayoutContextFromShell(
-	pageProps: Record<string, unknown>,
-	shellLayouts: LayoutShellEntry[],
-): LayoutComposeContext {
-	const context: LayoutComposeContext = {};
-	if (pageProps.params !== undefined) {
-		context.params = pageProps.params as Record<string, string>;
-	}
-	if (pageProps.query !== undefined) {
-		context.query = pageProps.query as Record<string, string>;
-	}
-	for (const entry of shellLayouts) {
-		if (entry.props !== undefined && Object.prototype.hasOwnProperty.call(entry.props, 'locals')) {
-			context.locals = entry.props.locals as RequestLocals;
-			break;
-		}
-	}
-	return context;
-}
-
-/**
- * Resolves props for one layout entry, merging shell locals with an optional factory.
+ * A layout receives request data only through its factory, so server and browser render a tier from the same
+ * props. The factory sees `context.locals`; the layout does not.
  */
 export function resolveLayoutEntryProps(
 	entry: EcoPageLayoutEntry,
 	context: LayoutComposeContext,
 ): Record<string, unknown> {
-	const shellProps = context.locals ? { locals: context.locals } : {};
-	if (!entry.props) {
-		return shellProps;
-	}
-
-	return {
-		...shellProps,
-		...entry.props(context),
-	};
+	return entry.props ? entry.props(context) : {};
 }
 
 /**
@@ -160,10 +130,9 @@ export function composeLayoutPageTree<P extends Record<string, unknown>>(
 
 	const layouts = Page.config?.layouts;
 	if (layouts && layouts.length > 0) {
-		const sharedLayoutProps = context.locals ? { locals: context.locals } : {};
 		return [...layouts].reverse().reduce<ReactElement>((children, Layout, reverseIndex) => {
 			const index = layouts.length - 1 - reverseIndex;
-			const layoutProps = options?.tierProps ? (options.tierProps[index] ?? {}) : sharedLayoutProps;
+			const layoutProps = options?.tierProps?.[index] ?? {};
 			const tier = resolvePersistedTier?.(Layout, index);
 			const ResolvedLayout = toTrackedReactComponent(tier?.layout ?? Layout, index, tracker);
 			const elementProps = tier?.key ? { key: tier.key, ...layoutProps } : layoutProps;

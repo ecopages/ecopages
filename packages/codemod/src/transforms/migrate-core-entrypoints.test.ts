@@ -54,14 +54,14 @@ describe('migrate-core-entrypoints', () => {
 	it('maps known client and Integration helpers only when the role entry exports them', () => {
 		const source = [
 			"import { defineDevTool } from '@ecopages/core/dev-toolbar/define-dev-tool';",
-			"import { resolveLayoutShellProps } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';",
+			"import { resolveLayoutEntryProps } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';",
 		].join('\n');
 		const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
 		expect(runTransform(source)).toBe(
 			[
 				"import { defineDevTool } from '@ecopages/core/client';",
-				"import { resolveLayoutShellProps } from '@ecopages/core/integration';",
+				"import { resolveLayoutEntryProps } from '@ecopages/core/integration';",
 			].join('\n'),
 		);
 		expect(warning).not.toHaveBeenCalled();

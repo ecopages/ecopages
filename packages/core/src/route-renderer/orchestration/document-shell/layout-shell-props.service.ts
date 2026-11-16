@@ -11,22 +11,18 @@ export type DocumentShellLayoutResolutionInput = LayoutShellPropsContext & {
 };
 
 /**
- * Resolves the default shell props passed to a layout tier during route render.
- */
-export function resolveLayoutShellProps(context: LayoutShellPropsContext): Record<string, unknown> {
-	return context.locals ? { locals: context.locals } : {};
-}
-
-/**
- * Resolves props for one layout entry, merging shell props with an optional factory.
+ * Resolves the props one layout tier renders with: what its `props` factory returns, or nothing.
+ *
+ * @remarks
+ * A layout receives request data only through its factory, so the server and the browser render the tier from
+ * the same props. The factory sees `locals`; the layout itself does not.
  */
 export function resolveLayoutEntryProps(
 	entry: EcoPageLayoutEntry,
 	context: LayoutShellPropsContext,
 ): Record<string, unknown> {
-	const shellProps = resolveLayoutShellProps(context);
 	if (!entry.props) {
-		return shellProps;
+		return {};
 	}
 
 	const layoutPropsContext: LayoutPropsContext = {
@@ -35,10 +31,7 @@ export function resolveLayoutEntryProps(
 		locals: context.locals,
 	};
 
-	return {
-		...shellProps,
-		...entry.props(layoutPropsContext),
-	};
+	return entry.props(layoutPropsContext);
 }
 
 /**
@@ -55,7 +48,29 @@ export function resolveDocumentShellLayouts(input: DocumentShellLayoutResolution
 		}));
 	}
 
-	return input.layout ? [{ component: input.layout, props: resolveLayoutShellProps(input) }] : [];
+	return input.layout ? [{ component: input.layout, props: {} }] : [];
+}
+
+const layoutsByRender = new WeakMap<object, DocumentShellLayoutInput[]>();
+
+/**
+ * Resolves the layouts of one render, once per `render` object, the render options both callers hold.
+ *
+ * @remarks
+ * The document shell renders each tier from these props and an integration writes the same props into its page
+ * payload. Resolving them for each would run every layout factory twice per request, and a factory that is not
+ * deterministic, such as one reading the clock, would give the HTML and the payload different values.
+ */
+export function resolveRenderLayouts(
+	render: object,
+	input: DocumentShellLayoutResolutionInput,
+): DocumentShellLayoutInput[] {
+	let layouts = layoutsByRender.get(render);
+	if (!layouts) {
+		layouts = resolveDocumentShellLayouts(input);
+		layoutsByRender.set(render, layouts);
+	}
+	return layouts;
 }
 
 /**

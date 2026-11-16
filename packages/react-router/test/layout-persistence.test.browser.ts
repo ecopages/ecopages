@@ -13,7 +13,7 @@ import {
 describe('EcoRouter layouts', () => {
 	const ctx = useRouterTestEnvironment();
 
-	it('passes locals to layouts when persistLayouts is disabled', async () => {
+	it('gives a layout request data through its entry factory when persistLayouts is disabled', async () => {
 		const Page = createLayoutAwarePage('PageWithLocals');
 
 		ctx.root = createRoot(ctx.container);
@@ -30,7 +30,7 @@ describe('EcoRouter layouts', () => {
 		await expect.element(ctx.container).toHaveTextContent('Andee');
 	});
 
-	it('passes locals to layouts when persistLayouts is enabled', async () => {
+	it('gives a layout request data through its entry factory when persistLayouts is enabled', async () => {
 		const Page = createLayoutAwarePage('PageWithPersistentLocals');
 
 		ctx.root = createRoot(ctx.container);

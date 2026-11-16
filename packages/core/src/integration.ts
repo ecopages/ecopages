@@ -33,7 +33,7 @@ export {
 	resolveDocumentShellLayouts,
 	resolveInnermostPageLayout,
 	resolveLayoutEntryProps,
-	resolveLayoutShellProps,
+	resolveRenderLayouts,
 	resolvePageLayoutComponents,
 	type DocumentShellLayoutResolutionInput,
 	type LayoutShellPropsContext,

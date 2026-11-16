@@ -48,11 +48,11 @@ function buildRouterImports(options: PageEntrySourceOptions): string {
 
 function buildRouterTree(options: PageEntrySourceOptions): string {
 	if (!options.routerComponents) {
-		return 'const createTree = (Page, props) => composeLayoutPageTree(Page, props);';
+		return 'const createTree = (Page, props, tiers) => composeLayoutPageTree(Page, props, tiers ? { tierProps: tiers } : undefined);';
 	}
-	return `const createTree = (Page, props) => {
+	return `const createTree = (Page, props, tiers) => {
   const pageContent = createElement(${options.routerComponents!.pageContent});
-  return createElement(${options.routerComponents!.router}, ${options.routerPropsExpression}, pageContent);
+  return createElement(${options.routerComponents!.router}, { ...(${options.routerPropsExpression}), tierProps: tiers }, pageContent);
 };`;
 }
 

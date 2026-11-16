@@ -112,7 +112,7 @@ async function writeRadiantFixture(options: {
 			'\t\treturn `<button data-testid="radiant-counter">${this.$.count}</button>`;',
 			'\t}',
 			'}',
-			"signal({ bind: true, hydrate: true, initial: 1 })(TopLevelRadiantCounterBase.prototype, 'count');",
+			"signal({ hydrate: true, initial: 1 })(TopLevelRadiantCounterBase.prototype, 'count');",
 			"const TopLevelRadiantCounter = customElement('top-level-radiant-counter')(TopLevelRadiantCounterBase);",
 			'export { TopLevelRadiantCounter };',
 		].join('\n'),

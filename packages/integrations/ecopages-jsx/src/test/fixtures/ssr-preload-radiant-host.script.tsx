@@ -16,5 +16,5 @@ class SsrPreloadRadiantHost extends RadiantElement<{ label: number }> {
 	}
 }
 
-signal({ bind: true, hydrate: Number, initial: 1 })(SsrPreloadRadiantHost.prototype, 'label');
+signal({ hydrate: Number, initial: 1 })(SsrPreloadRadiantHost.prototype, 'label');
 customElement('ecopages-jsx-ssr-preload-radiant-host')(SsrPreloadRadiantHost);

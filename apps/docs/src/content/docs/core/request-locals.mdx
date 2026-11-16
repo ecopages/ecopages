@@ -44,7 +44,7 @@ export default eco.page({
 });
 ```
 
-Reading `locals` in `render` is a compile error. A Page that did so, with or without `requires`, moves the read into `props` and returns what `render` needs; `requires` is removed.
+Reading `locals` in `render` is a compile error. A Page that did so, with or without `requires`, moves the read into `props` and returns what `render` needs; `requires` is removed. The `migrate-middleware-locals` codemod does the simple cases.
 
 What `props` returns reaches the browser when the Page hydrates, so return only what the browser may see. Return the user, not the session that holds its token.
 

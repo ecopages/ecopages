@@ -13,6 +13,10 @@
 			"import": "./src/transforms/migrate-data-hooks.ts",
 			"types": "./src/transforms/migrate-data-hooks.ts"
 		},
+		"./migrate-middleware-locals": {
+			"import": "./src/transforms/migrate-middleware-locals.ts",
+			"types": "./src/transforms/migrate-middleware-locals.ts"
+		},
 		"./migrate-to-eco-component": {
 			"import": "./src/transforms/migrate-to-eco-component.ts",
 			"types": "./src/transforms/migrate-to-eco-component.ts"
@@ -40,6 +44,7 @@
 		"transform:data-hooks": "jscodeshift -t src/transforms/migrate-data-hooks.ts --parser tsx",
 		"transform:pages": "jscodeshift -t src/transforms/migrate-to-eco-page.ts --parser tsx",
 		"transform:components": "jscodeshift -t src/transforms/migrate-to-eco-component.ts --parser tsx",
+		"transform:middleware-locals": "jscodeshift -t src/transforms/migrate-middleware-locals.ts --parser tsx",
 		"transform:core-entrypoints": "jscodeshift -t src/transforms/migrate-core-entrypoints.ts --parser tsx",
 		"test": "vitest run --root ../.. --project shared-core packages/codemod"
 	},

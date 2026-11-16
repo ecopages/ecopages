@@ -34,7 +34,10 @@ describe('ErrorPageRenderer', () => {
 		const renderer = new ErrorPageRenderer({
 			appConfig,
 			routeRendererFactory: {
-				getPageRenderer: vi.fn(() => ({ execute, loadPageModule: vi.fn() })),
+				getPageRenderer: vi.fn(() => ({
+					execute,
+					loadPageModule: vi.fn(async () => ({ default: createView() })),
+				})),
 				getExplicitViewRenderer: vi.fn(),
 			},
 			errorPageLoaders: { notFound: loader },
@@ -95,7 +98,10 @@ describe('ErrorPageRenderer', () => {
 				},
 			} as unknown as EcoPagesAppConfig,
 			routeRendererFactory: {
-				getPageRenderer: vi.fn(() => ({ execute, loadPageModule: vi.fn() })),
+				getPageRenderer: vi.fn(() => ({
+					execute,
+					loadPageModule: vi.fn(async () => ({ default: createView() })),
+				})),
 				getExplicitViewRenderer: vi.fn(),
 			},
 		});

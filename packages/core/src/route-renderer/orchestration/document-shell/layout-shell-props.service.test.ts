@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { eco } from '../../../eco/eco.ts';
-import type { LayoutPropsContext } from '../../../types/contracts.ts';
+import type { LayoutPropsContext, LayoutRequestContext } from '../../../types/contracts.ts';
 import {
 	resolveDocumentShellLayouts,
 	resolveLayoutEntryProps,
@@ -29,6 +29,32 @@ describe('layout-shell-props.service', () => {
 				locals: { user: 'Ada' },
 			}),
 		).toEqual({ section: 'admin' });
+	});
+
+	it("should give a factory the request's locals on a Dynamic Page", () => {
+		const locals = { user: 'Ada' };
+		const Page = eco.page({
+			cache: 'dynamic',
+			layout: { component: Layout, props: (context) => ({ same: context.locals === locals }) },
+			render: () => '',
+		});
+
+		expect(resolveLayoutEntryProps(Page.config!.layoutEntries![0]!, { locals })).toEqual({ same: true });
+	});
+
+	it('should give a factory empty locals when the render has none, as a Static Page renders', () => {
+		let received: unknown;
+		const entry = {
+			component: Layout,
+			props: (context: LayoutRequestContext) => {
+				received = context.locals;
+				return {};
+			},
+		};
+
+		resolveLayoutEntryProps(entry, { params: { slug: 'intro' } });
+
+		expect(received).toEqual({});
 	});
 
 	it('should give a layout entry without a factory no props', () => {

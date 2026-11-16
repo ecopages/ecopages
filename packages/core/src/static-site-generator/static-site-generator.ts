@@ -4,7 +4,9 @@ import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { resolveBuildParallelism } from '../build/build-parallelism.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type {
+	DynamicEcoPageComponent,
 	EcoPageComponent,
+	StaticEcoPageComponent,
 	EcoPageFile,
 	EcopagesRouteInfo,
 	PageMetadataProps,
@@ -22,6 +24,7 @@ import type { PathExpansion, StaticGenerationRoute, TemplateRoute } from '../rou
 import { fileSystem } from '@ecopages/file-system';
 import { CLIENT_OUTPUT_DIR } from '../utils/resolve-entry-file.ts';
 import {
+	assertViewWithoutMiddleware,
 	prepareExplicitStaticRender,
 	resolveExplicitViewRenderer,
 } from '../route-renderer/explicit-view-render-preparation.ts';
@@ -49,6 +52,7 @@ import { toEcopagesRouteInfo } from '../utils/ecopages-route-info.ts';
 import { buildSegmentPath } from '../router/server/segment-path-matcher.ts';
 import { normalizePathname } from '../utils/path-pattern.ts';
 import { ErrorPageRenderer } from '../route-renderer/error-pages/error-page-renderer.ts';
+import { isDynamicPage } from '../eco/page-data-hooks.ts';
 import {
 	SemanticErrorPageExporter,
 	SEMANTIC_ERROR_PAGE_PATHNAMES,
@@ -84,7 +88,7 @@ type StaticGenerationRendererFactory = StaticGenerationRendererResolver;
  * Static generation stores pages with route-specific props before the renderer prepares each route. The props type is
  * intentionally erased here; rendering remains responsible for interpreting that page's props.
  */
-type StaticGenerationPage = EcoPageComponent<any>;
+type StaticGenerationPage = StaticEcoPageComponent<any>;
 
 type ExplicitStaticRouteEntry = {
 	pathname: string;
@@ -188,10 +192,16 @@ export class StaticSiteGenerator {
 		routeRendererFactory: StaticPageRouteRendererFactory,
 	): Promise<boolean> {
 		const pageModule: EcoPageFile = await routeRendererFactory.getPageRenderer(filePath).loadPageModule(filePath);
-		return (pageModule.default as StaticGenerationPage).cache === 'dynamic';
+		return isDynamicPage(pageModule.default);
 	}
 
-	private shouldSkipStaticView(_routePath: string, view: StaticGenerationPage): boolean {
+	/**
+	 * @remarks
+	 * `view` comes from a View loader, which erases its props type to `EcoPageComponent<any>`; that member of the
+	 * union is not assignable to `EcoPageComponent<unknown>` or any narrower props type, so `any` is what lets this
+	 * guard accept a loaded view and narrow it for the generation that follows.
+	 */
+	private shouldSkipStaticView(view: EcoPageComponent<any>): view is DynamicEcoPageComponent<any> {
 		return view.cache === 'dynamic';
 	}
 
@@ -573,6 +583,7 @@ export class StaticSiteGenerator {
 					...dynamicPageEntries.map((route) => ({
 						routeFile: route.templateRoute.filePath,
 						params: route.params,
+						skipPropsHook: true,
 					})),
 					...dynamicRouteTemplates,
 					...importedViews,
@@ -816,7 +827,8 @@ export class StaticSiteGenerator {
 		for (const route of input.staticRoutes) {
 			try {
 				const view = (await route.loader()).default;
-				if (this.shouldSkipStaticView(route.path, view)) {
+				assertViewWithoutMiddleware(route.path, view);
+				if (this.shouldSkipStaticView(view)) {
 					input.skipped.push(route.path);
 					continue;
 				}

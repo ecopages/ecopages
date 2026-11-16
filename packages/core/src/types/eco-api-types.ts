@@ -14,15 +14,19 @@ import type {
 	GetMetadata,
 	GetPaths,
 	GetProps,
+	GetRequestProps,
 	HtmlTemplateProps,
+	LayoutBuildContext,
 	LayoutProps,
+	LayoutRequestContext,
 	RequestLocals,
 	RequestPageContext,
 	PagePropsFor,
 	PageRequires,
 	PageDependenciesInput,
+	DynamicPageDependenciesInput,
+	StaticCacheStrategy,
 } from './contracts.ts';
-import type { CacheStrategy } from './cache-types.ts';
 import type { ListLocals, MergeLocals, PageMiddlewareEntry } from './middleware-types.ts';
 import type { ComponentIdentity } from './component-identity.ts';
 
@@ -138,12 +142,6 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 	/** Bound by the component identity attribution transform. */
 	identity?: ComponentIdentity;
 	integration?: string;
-	/**
-	 * Declares browser dependencies for the page, or resolves them per render after
-	 * `props` are available.
-	 */
-	dependencies?: PageDependenciesInput<T>;
-	layout?: EcoPageLayouts<E>;
 
 	/**
 	 * Lists the Params a dynamic route (e.g. `[slug].tsx`) is known for at build time, as `[{ params }]`.
@@ -153,14 +151,6 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 	 * and write HTML for it, `'dynamic'` Pages plan a Page Browser Graph for it.
 	 */
 	paths?: GetPaths;
-
-	/**
-	 * Returns the page's props object. Props are passed to both render() and metadata().
-	 *
-	 * @remarks
-	 * Receives Params from `paths` at build time and from the request at run time.
-	 */
-	props?: GetProps<T>;
 
 	/**
 	 * Generate page metadata (title, description, etc.).
@@ -182,37 +172,87 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 }
 
 /**
- * Page options without middleware - allows any cache strategy
+ * Options of a Static or revalidating Page. No request exists when its `props` hook runs, so the hook receives the
+ * build context and the Page takes no middleware.
  */
-interface PageOptionsWithoutMiddleware<T, E = EcoPagesElement> extends PageOptionsBase<T, E> {
+export interface StaticPageOptions<T, E = EcoPagesElement> extends PageOptionsBase<T, E> {
 	/**
 	 * Cache configuration for ISR (Incremental Static Regeneration).
 	 * - `'static'`: Reuse until the next deploy (default); HTML is revalidated with ETag
-	 * - `'dynamic'`: No caching, render on every request
 	 * - `{ revalidate: number, tags?: string[] }`: Cache with time-based revalidation
 	 */
-	cache?: CacheStrategy;
+	cache?: StaticCacheStrategy;
 	middleware?: undefined;
+	/**
+	 * The layout tiers that wrap the Page, outer to inner.
+	 *
+	 * @remarks
+	 * An entry's `props` factory receives the Params and no `locals`: no request exists when a Static or revalidating
+	 * Page renders.
+	 */
+	layout?: EcoPageLayouts<E, LayoutBuildContext>;
+	/**
+	 * Returns the page's props object. Props are passed to both render() and metadata().
+	 *
+	 * @remarks
+	 * Receives each Params entry of `paths` at build, and the Params of the page again when a revalidating Page
+	 * regenerates.
+	 */
+	props?: GetProps<T>;
+	/**
+	 * Declares browser dependencies for the page, or resolves them per render after `props` are available.
+	 */
+	dependencies?: PageDependenciesInput<T>;
 }
 
 /**
- * Page options with middleware - requires cache: 'dynamic'
+ * Options of a Dynamic Page, rendered on every request.
+ *
+ * @typeParam TLocals - The Locals its `props` hook reads.
  */
-interface PageOptionsWithMiddleware<T, E = EcoPagesElement> extends PageOptionsBase<T, E> {
+export interface DynamicPageOptions<T, E = EcoPagesElement, TLocals = RequestLocals> extends PageOptionsBase<T, E> {
 	/**
-	 * Cache must be 'dynamic' when using middleware.
-	 * Middleware runs on every request, so caching would bypass middleware effects.
+	 * No caching: render on every request. Middleware requires it, since caching would bypass middleware effects.
 	 */
 	cache: 'dynamic';
+	/**
+	 * The layout tiers that wrap the Page, outer to inner.
+	 *
+	 * @remarks
+	 * An entry's `props` factory runs on the server for each request and reads the same `locals` as the `props`
+	 * hook. What it returns reaches the browser for hydration.
+	 */
+	layout?: EcoPageLayouts<E, LayoutRequestContext<TLocals>>;
 	/**
 	 * Request-time middleware for file-based routes.
 	 * Runs before rendering and can short-circuit by returning a Response.
 	 */
-	middleware: readonly PageMiddlewareEntry[];
+	middleware?: readonly PageMiddlewareEntry[];
+	/**
+	 * The Page's request handler: it receives the request, its Params and Query, and the Locals its middleware
+	 * provided, and returns the props `render` and `metadata` receive.
+	 *
+	 * @remarks
+	 * It runs on every request and never at build. For a hydrated Page what it returns reaches the browser, so it
+	 * returns only what the browser may see.
+	 */
+	props?: GetRequestProps<T, TLocals>;
+	/**
+	 * Declares browser dependencies for the page, or resolves them from Params and Query.
+	 *
+	 * @remarks
+	 * The resolver receives no `props`: the build plans the Page once per `paths` entry without running `props`.
+	 */
+	dependencies?: DynamicPageDependenciesInput;
 }
 
+type TypedLocals<M extends readonly PageMiddlewareEntry[], K extends RequiresKeys> = MergeLocals<
+	WithRequiredLocals<K>,
+	ListLocals<M>
+>;
+
 /**
- * Page options with a `middleware` list whose locals type `locals` in `render`.
+ * Page options with a `middleware` list whose locals type `locals` in `props` and `render`.
  *
  * @remarks
  * `locals` starts from the global `RequestLocals`, narrows the keys the page lists in `requires` to non-null, and
@@ -224,13 +264,13 @@ export type PageOptionsWithTypedLocals<
 	E,
 	M extends readonly PageMiddlewareEntry[],
 	K extends RequiresKeys = never,
-> = Omit<PageOptionsWithMiddleware<T, E>, 'render' | 'middleware' | 'requires'> & {
+> = Omit<DynamicPageOptions<T, E, TypedLocals<M, K>>, 'render' | 'middleware' | 'requires'> & {
 	requires?: PageRequires<K>;
 	middleware: M;
 	render: (
 		props: PagePropsFor<T> &
 			Omit<Partial<RequestPageContext>, 'locals'> & {
-				locals: MergeLocals<WithRequiredLocals<K>, ListLocals<M>>;
+				locals: TypedLocals<M, K>;
 			},
 	) => E | Promise<E>;
 };
@@ -241,11 +281,39 @@ export type PageOptionsWithTypedLocals<
  * Define paths, props, and metadata inline. When using
  * `middleware`, `cache` must be set to `'dynamic'` because middleware
  * runs on every request and caching would bypass middleware effects.
+ * A Dynamic Page's `props` receives the request; a Static or revalidating Page's `props` receives only the build
+ * context.
  *
  * @template T - The props type for the page
  * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
  */
-export type PageOptions<T, E = EcoPagesElement> = PageOptionsWithoutMiddleware<T, E> | PageOptionsWithMiddleware<T, E>;
+export type PageOptions<T, E = EcoPagesElement> = StaticPageOptions<T, E> | DynamicPageOptions<T, E>;
+
+type WithRequiresRender<O, T, E, K extends RequiresKeys> = Omit<O, 'render' | 'requires'> & {
+	requires: PageRequires<K>;
+	render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;
+};
+
+/**
+ * Options of a Static or revalidating Page that declares `requires`, whose `render` reads the required keys as
+ * non-null.
+ */
+export type StaticPageOptionsWithRequires<T, E, K extends RequiresKeys> = WithRequiresRender<
+	StaticPageOptions<T, E>,
+	T,
+	E,
+	K
+>;
+
+/**
+ * Options of a Dynamic Page that declares `requires`, whose `props` and `render` read the required keys as non-null.
+ */
+export type DynamicPageOptionsWithRequires<T, E, K extends RequiresKeys> = WithRequiresRender<
+	DynamicPageOptions<T, E, WithRequiredLocals<K>>,
+	T,
+	E,
+	K
+>;
 
 export type PagePropsForWithLocals<T, K extends keyof RequestLocals | never = never> = PagePropsFor<T> &
 	(K extends never
@@ -310,12 +378,15 @@ export interface Eco {
 		>(
 			options: PageOptionsWithTypedLocals<T, E, M, K>,
 		): EcoPageComponent<T>;
-		<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
+		<T = {}, E = EcoPagesElement>(options: StaticPageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
+		<T = {}, E = EcoPagesElement>(
+			options: DynamicPageOptions<T, E> & { requires?: undefined },
+		): EcoPageComponent<T>;
 		<T = {}, E = EcoPagesElement, const K extends RequiresKeys = never>(
-			options: Omit<PageOptions<T, E>, 'render' | 'requires'> & {
-				requires: PageRequires<K>;
-				render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;
-			},
+			options: DynamicPageOptionsWithRequires<T, E, K>,
+		): EcoPageComponent<T>;
+		<T = {}, E = EcoPagesElement, const K extends RequiresKeys = never>(
+			options: StaticPageOptionsWithRequires<T, E, K>,
 		): EcoPageComponent<T>;
 	};
 }

@@ -29,17 +29,18 @@ export class FileRouteMiddlewarePipeline {
 	 * Enforces the current middleware contract for file-routed pages.
 	 *
 	 * Middleware depends on request-scoped locals and therefore must not run when
-	 * the page is treated as statically cacheable.
+	 * the page is treated as statically cacheable. The Page itself must declare
+	 * `cache: 'dynamic'`: an app default of `'dynamic'` does not give its `props`
+	 * hook or layout factories the request.
 	 *
-	 * @param input Middleware list, effective cache strategy, and page path.
-	 * @throws LocalsAccessError When middleware is configured for a non-dynamic page.
+	 * @throws LocalsAccessError When middleware is configured for a Page that is not a Dynamic Page.
 	 */
 	assertValidConfiguration(input: {
 		middleware: readonly MiddlewareHandler<FileRouteMiddlewareContext>[];
-		pageCacheStrategy: 'static' | 'dynamic' | { revalidate: number; tags?: string[] };
+		isDynamicPage: boolean;
 		filePath: string;
 	}): void {
-		if (input.middleware.length > 0 && input.pageCacheStrategy !== 'dynamic') {
+		if (input.middleware.length > 0 && !input.isDynamicPage) {
 			throw new LocalsAccessError(
 				FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS.middlewareRequiresDynamic(input.filePath),
 			);

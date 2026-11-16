@@ -37,11 +37,12 @@ defineGet({
 eco.page({
 	cache: 'dynamic',
 	middleware: [provideSession, ...tail],
-	render: ({ locals }) => {
+	props: ({ locals }) => {
 		// @ts-expect-error a tail of unknown locals may overwrite session
 		const userId: string = locals.session.userId;
-		return userId;
+		return { userId };
 	},
+	render: () => '',
 });
 
 // an entry of unknown locals in a fixed tuple proves nothing before it; a later entry proves its keys again

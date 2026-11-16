@@ -1,5 +1,6 @@
 import type {
 	EcoComponent,
+	GetDynamicPageDependencies,
 	PageBrowserGraphContribution,
 	PageBrowserGraphContributionContext,
 } from '../../types/contracts.ts';
@@ -19,6 +20,23 @@ export type ResolvePageDependenciesContribution = (
 ) => Promise<PageBrowserGraphContribution | undefined>;
 
 /**
+ * Calls the Page's dependency resolver, with the props only when the Page is not a Dynamic Page.
+ *
+ * @remarks
+ * A Dynamic Page's props come from the request, while its Page Browser Graph is planned at build and cached by
+ * Params and Query, so its resolver reads Params and Query only.
+ */
+function callDependencyResolver(
+	page: EcoPageComponent<Record<string, unknown>>,
+	context: PageBrowserGraphContributionContext,
+): ReturnType<GetDynamicPageDependencies> {
+	if (page.cache === 'dynamic') {
+		return page.resolveDependencies?.({ params: context.params, query: context.query });
+	}
+	return page.resolveDependencies?.({ props: context.props ?? {}, params: context.params, query: context.query });
+}
+
+/**
  * Resolves `eco.page().dependencies()` once for one graph contribution context.
  */
 export async function resolvePageDependenciesFromContext(
@@ -26,17 +44,8 @@ export async function resolvePageDependenciesFromContext(
 	integrationName: string,
 	materializeContribution?: ResolvePageDependenciesContribution,
 ): Promise<ResolvedPageDependencies | undefined> {
-	const pageComponent = context.pageModule.default as EcoPageComponent<unknown>;
-	const resolveDependencies = pageComponent.resolveDependencies;
-	if (!resolveDependencies) {
-		return undefined;
-	}
-
-	const dependenciesResult = await resolveDependencies({
-		props: (context.props ?? {}) as Record<string, unknown>,
-		params: context.params,
-		query: context.query,
-	});
+	const pageComponent = context.pageModule.default as EcoPageComponent<Record<string, unknown>>;
+	const dependenciesResult = await callDependencyResolver(pageComponent, context);
 
 	if (!dependenciesResult) {
 		return undefined;

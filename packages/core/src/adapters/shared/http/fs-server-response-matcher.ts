@@ -22,6 +22,7 @@ import { serveDistFile } from './dist-file-handler.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
 import { findIntegrationForFile } from '../../../plugins/find-integration-for-file.ts';
+import { isDynamicPage } from '../../../eco/page-data-hooks.ts';
 
 type FileRouteExecutionPlan = {
 	cacheKey: string;
@@ -29,9 +30,20 @@ type FileRouteExecutionPlan = {
 	pageFilePath: string;
 	pageModule: EcoPageFile;
 	pageMiddleware: readonly MiddlewareHandler<FileRouteMiddlewareContext>[];
+	/**
+	 * Whether the Page declares `cache: 'dynamic'`, read by {@link isDynamicPage} as everywhere else.
+	 *
+	 * @remarks
+	 * Neither a module-level `cache` export nor the app's default Cache Strategy makes a Page dynamic: its types,
+	 * its `props` hook and its layout factories follow its own declaration, so the request and locals do too.
+	 */
+	isDynamic: boolean;
+	/** The strategy the page cache applies: the Page's own, or the app default when it declares none. */
 	pageCacheStrategy: CacheStrategy;
 	localsStore: RequestLocals;
 	localsForRender: RequestLocals | undefined;
+	/** The request a Dynamic Page's `props` hook receives; a cached render runs without one. */
+	requestForRender: Request | undefined;
 };
 
 export interface FileSystemResponseMatcherOptions {
@@ -134,7 +146,7 @@ export class FileSystemResponseMatcher {
 
 			this.fileRouteMiddlewarePipeline.assertValidConfiguration({
 				middleware: executionPlan.pageMiddleware,
-				pageCacheStrategy: executionPlan.pageCacheStrategy,
+				isDynamicPage: executionPlan.isDynamic,
 				filePath: executionPlan.pageFilePath,
 			});
 
@@ -152,6 +164,7 @@ export class FileSystemResponseMatcher {
 					params: match.params,
 					query: match.query,
 					locals: executionPlan.localsForRender,
+					request: executionPlan.requestForRender,
 				});
 				const html = await this.pageRequestCacheCoordinator.bodyToString(result.body);
 				const strategy = result.cacheStrategy ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
@@ -286,8 +299,10 @@ export class FileSystemResponseMatcher {
 			pageComponent.middleware,
 			`page ${pageFilePath}`,
 		);
-		const pageCacheStrategy =
-			pageModule.cache ?? pageComponent.cache ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
+		const isDynamic = isDynamicPage(pageComponent);
+		const pageCacheStrategy = isDynamic
+			? 'dynamic'
+			: (pageComponent.cache ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy());
 
 		return {
 			cacheKey,
@@ -295,9 +310,11 @@ export class FileSystemResponseMatcher {
 			pageFilePath,
 			pageModule,
 			pageMiddleware,
+			isDynamic,
 			pageCacheStrategy,
 			localsStore,
-			localsForRender: pageCacheStrategy === 'dynamic' ? localsStore : undefined,
+			localsForRender: isDynamic ? localsStore : undefined,
+			requestForRender: isDynamic ? resolvedRequest : undefined,
 		};
 	}
 

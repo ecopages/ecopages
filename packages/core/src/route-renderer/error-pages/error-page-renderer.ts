@@ -6,6 +6,7 @@ import { findIntegrationForFile } from '../../plugins/find-integration-for-file.
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { ErrorPageLoaders, RouteRendererBody, ViewLoader } from '../../types/contracts.ts';
 import { prepareExplicitStaticRender } from '../explicit-view-render-preparation.ts';
+import { isDynamicPage } from '../../eco/page-data-hooks.ts';
 import type { StaticGenerationRendererResolver } from '../route-renderer.ts';
 import { ERROR_PAGE_STATUS_BY_KIND, kindForStatus, type ErrorPageKind } from '../../errors/http-error-page-contract.ts';
 import {
@@ -43,6 +44,34 @@ function resolveRenderTarget(input: ErrorPageRenderInput): { status: number; kin
 		status,
 		kind: input.kind ?? kindForStatus(status),
 	};
+}
+
+/**
+ * Fails for an error page that needs the request pipeline it does not get.
+ *
+ * @remarks
+ * An error page renders outside the failed request's pipeline, with no request and no middleware, so a Dynamic
+ * Page's `props` hook, which is a request handler, cannot run and a `middleware` list would never guard it. Without
+ * this check the hook fails deep in render preparation with a message that names no file.
+ * @throws When the page is a Dynamic Page that declares `props`, or declares `middleware`.
+ */
+function assertErrorPageRendersWithoutRequest(status: number, source: string, page: unknown): void {
+	if (isDynamicPage(page) && hasDeclared(page, 'props')) {
+		throw new Error(
+			`[ecopages] The ${status} error page ${source} has cache: 'dynamic' and props, but an error page renders without a request, so its props hook cannot run. Remove props and render from the error page props (status, message), or drop cache: 'dynamic'.`,
+		);
+	}
+	if (hasDeclared(page, 'middleware')) {
+		throw new Error(
+			`[ecopages] The ${status} error page ${source} declares middleware, but an error page renders without a request, so no middleware would run. Remove the middleware from the error page.`,
+		);
+	}
+}
+
+function hasDeclared(page: unknown, option: 'props' | 'middleware'): boolean {
+	if (typeof page !== 'function' || !(option in page)) return false;
+	const value: unknown = Reflect.get(page, option);
+	return Array.isArray(value) ? value.length > 0 : value !== undefined;
 }
 
 /**
@@ -137,7 +166,10 @@ export class ErrorPageRenderer {
 				integrationName: integration.name,
 			});
 		}
-		const result = await this.routeRendererFactory.getPageRenderer(templatePath).execute({
+		const renderer = this.routeRendererFactory.getPageRenderer(templatePath);
+		const pageModule = await renderer.loadPageModule(templatePath);
+		assertErrorPageRendersWithoutRequest(props.status, templatePath, pageModule.default);
+		const result = await renderer.execute({
 			file: templatePath,
 			props,
 			locals: {},
@@ -154,6 +186,7 @@ export class ErrorPageRenderer {
 			throw new Error(`No route renderer available for __error__/${status}`);
 		}
 		const view = (await loader()).default;
+		assertErrorPageRendersWithoutRequest(status, loader.filePath ?? `__error__/${status}`, view);
 		const {
 			renderer,
 			props: hookProps,

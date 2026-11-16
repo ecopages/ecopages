@@ -468,6 +468,8 @@ const PostView = eco.page({
 export default PostView;
 ```
 
+`app.static()` renders without a request, so a view it serves cannot declare `middleware`: the request fails with an error naming the route and the view file, and `ecopages build` fails the route. Put a guarded view in the pages directory, or render it with `ctx.render` from a handler that lists the middleware. A view with `cache: 'dynamic'` and neither `props` nor `middleware` still renders on every request.
+
 ## Views Outside pages/
 
 Define `eco.page` views anywhere in your codebase. Views used with `app.static()` or `ctx.render()` must be the default export. A view takes its layout from its own `eco.page({ layout })`:

@@ -75,13 +75,13 @@ export function resolveLayoutContext(pageProps: Record<string, unknown>): Layout
  *
  * @remarks
  * A layout receives request data only through its factory, so server and browser render a tier from the same
- * props. The factory sees `context.locals`; the layout does not.
+ * props. The factory sees `context.locals`, or empty `locals` when the context has none; the layout does not.
  */
 export function resolveLayoutEntryProps(
 	entry: EcoPageLayoutEntry,
 	context: LayoutComposeContext,
 ): Record<string, unknown> {
-	return entry.props ? entry.props(context) : {};
+	return entry.props ? entry.props({ ...context, locals: context.locals ?? {} }) : {};
 }
 
 /**

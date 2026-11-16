@@ -1,9 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PageModuleLoaderService } from './page-module-loader.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
-import type { EcoPageFile, GetMetadata } from '../../types/contracts.ts';
+import type {
+	EcoPageFile,
+	GetMetadata,
+	PageBuildContext,
+	PageRequestContext,
+	StaticEcoPageComponent,
+} from '../../types/contracts.ts';
 import type { EcoPageComponent } from '../../types/eco-api-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
+import { eco } from '../../eco/eco.ts';
 import type { AppModuleLoaderContract } from '../../build/server/app-module-loader.service.ts';
 
 describe('PageModuleLoaderService', () => {
@@ -21,11 +28,80 @@ describe('PageModuleLoaderService', () => {
 	it('should resolve props via getPropsForPage', async () => {
 		const service = new PageModuleLoaderService(appConfig);
 		const result = await service.getPropsForPage({
-			getProps: async () => ({ title: 'Page title' }),
+			getProps: { context: 'build', run: async () => ({ title: 'Page title' }) },
 			params: { slug: 'a' },
 		});
 
 		expect(result.props).toEqual({ title: 'Page title' });
+	});
+
+	it("gives a Static Page's props hook the build context only", async () => {
+		const service = new PageModuleLoaderService(appConfig);
+		const run = vi.fn(async (_context: PageBuildContext) => ({}));
+
+		await service.getPropsForPage({
+			getProps: { context: 'build', run },
+			params: { slug: 'a' },
+			request: new Request('http://localhost:3000/a'),
+			query: { tab: 'x' },
+			locals: { session: { userId: 'ignored' } },
+		});
+
+		expect(run).toHaveBeenCalledWith({
+			params: { slug: 'a' },
+			appConfig,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+	});
+
+	it("gives a Dynamic Page's props hook the request, Params, Query and Locals", async () => {
+		const service = new PageModuleLoaderService(appConfig);
+		const request = new Request('http://localhost:3000/a?tab=x');
+		const run = vi.fn(async (context: PageRequestContext) => ({ url: context.request.url }));
+
+		const result = await service.getPropsForPage({
+			getProps: { context: 'request', run },
+			params: { slug: 'a' },
+			request,
+			query: { tab: 'x' },
+			locals: { session: { userId: 'u1' } },
+		});
+
+		expect(run).toHaveBeenCalledWith({
+			params: { slug: 'a' },
+			appConfig,
+			runtimeOrigin: 'http://localhost:3000',
+			request,
+			query: { tab: 'x' },
+			locals: { session: { userId: 'u1' } },
+		});
+		expect(result.props).toEqual({ url: 'http://localhost:3000/a?tab=x' });
+	});
+
+	it("fails a Dynamic Page's props hook without a request instead of running it", async () => {
+		const service = new PageModuleLoaderService(appConfig);
+		const run = vi.fn(async () => ({}));
+
+		await expect(service.getPropsForPage({ getProps: { context: 'request', run } })).rejects.toThrow(
+			"A Dynamic Page's props hook runs only for a request",
+		);
+		expect(run).not.toHaveBeenCalled();
+	});
+
+	it("reads a Dynamic Page's props hook as a request hook", async () => {
+		const service = new PageModuleLoaderService(appConfig);
+		const Page = eco.page({
+			cache: 'dynamic',
+			props: async ({ locals }) => ({ locals }),
+			render: () => 'ok',
+		});
+
+		const result = await service.resolvePageModule({
+			file: '/app/pages/index.tsx',
+			importPageFileFn: async () => ({ default: Page }),
+		});
+
+		expect(result.getProps).toEqual({ context: 'request', run: Page.props });
 	});
 
 	it('should preserve HttpError from the props hook', async () => {
@@ -34,8 +110,11 @@ describe('PageModuleLoaderService', () => {
 
 		await expect(
 			service.getPropsForPage({
-				getProps: async () => {
-					throw notFound;
+				getProps: {
+					context: 'build',
+					run: async () => {
+						throw notFound;
+					},
 				},
 			}),
 		).rejects.toBe(notFound);
@@ -50,8 +129,11 @@ describe('PageModuleLoaderService', () => {
 
 		await expect(
 			service.getPropsForPage({
-				getProps: async () => {
-					throw foreignNotFound;
+				getProps: {
+					context: 'build',
+					run: async () => {
+						throw foreignNotFound;
+					},
 				},
 			}),
 		).rejects.toBe(foreignNotFound);
@@ -62,8 +144,11 @@ describe('PageModuleLoaderService', () => {
 
 		await expect(
 			service.getPropsForPage({
-				getProps: async () => {
-					throw new Error('boom');
+				getProps: {
+					context: 'build',
+					run: async () => {
+						throw new Error('boom');
+					},
 				},
 			}),
 		).rejects.toThrow('Error fetching props: boom');
@@ -96,7 +181,7 @@ describe('PageModuleLoaderService', () => {
 
 	it('should resolve page module using provided importer and read the data hooks from the Page', async () => {
 		const service = new PageModuleLoaderService(appConfig);
-		const Page = (() => 'ok') as EcoPageComponent<any>;
+		const Page = (() => 'ok') as StaticEcoPageComponent<Record<string, unknown>>;
 		Page.props = async () => ({ from: 'component-static' });
 		Page.metadata = async () => ({
 			title: 'component-metadata',
@@ -113,7 +198,7 @@ describe('PageModuleLoaderService', () => {
 			importPageFileFn: async () => module,
 		});
 
-		expect(result.getProps).toBe(Page.props);
+		expect(result.getProps).toEqual({ context: 'build', run: Page.props });
 		expect(result.getMetadata).toBe(Page.metadata);
 		expect(result.integrationSpecificProps).toEqual({ extra: 'integration-value' });
 		expect(result.module).toBe(module);
@@ -161,7 +246,7 @@ describe('PageModuleLoaderService', () => {
 		const service = new PageModuleLoaderService(appConfig);
 		const result = await service.resolvePageData({
 			pageModule: {
-				getProps: async () => ({ title: 'From props' }),
+				getProps: { context: 'build', run: async () => ({ title: 'From props' }) },
 				getMetadata: async ({ props }) => ({
 					title: String(props.title),
 					description: 'From metadata',
@@ -184,7 +269,7 @@ describe('PageModuleLoaderService', () => {
 		const service = new PageModuleLoaderService(appConfig);
 		const result = await service.resolvePageData({
 			pageModule: {
-				getProps: async () => ({ title: 'Static', kept: 'static' }),
+				getProps: { context: 'build', run: async () => ({ title: 'Static', kept: 'static' }) },
 				getMetadata: async ({ props }) => ({ title: String(props.title), description: String(props.kept) }),
 			},
 			routeOptions: {

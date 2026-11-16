@@ -555,6 +555,7 @@ describe('eco namespace', () => {
 		const paths = await Page.paths!({ appConfig: mockAppConfig, runtimeOrigin: '' });
 		expect(paths).toHaveLength(1);
 
+		if (Page.cache === 'dynamic') throw new Error('expected a Static Page');
 		const props = await Page.props!({
 			params: { slug: 'hello' },
 			appConfig: mockAppConfig,

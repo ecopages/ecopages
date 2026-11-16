@@ -20,7 +20,7 @@ The root `@ecopages/core` entry point exports the main app contracts. This table
 
 | Area | Public types |
 | --- | --- |
-| Components | `EcoComponent`, `EcoComponentConfig`, `EcoComponentDependencies`, `EcoPageComponent`, `EcoPageFile`, `EcoPageLayouts`, `EcoPageLayoutSpec`, `EcoPageLayoutEntrySpec`, `EcoPageLayoutEntry`, `EcoHtmlComponent`, `EcoLayoutComponent`, `ComponentOptions`, `HtmlOptions`, `LayoutOptions` |
+| Components | `EcoComponent`, `EcoComponentConfig`, `EcoComponentDependencies`, `EcoPageComponent`, `EcoPageFile`, `EcoPageLayouts`, `EcoPageLayoutSpec`, `EcoPageLayoutEntrySpec`, `EcoPageLayoutEntry`, `LayoutPropsContext`, `LayoutRequestContext`, `LayoutBuildContext`, `EcoHtmlComponent`, `EcoLayoutComponent`, `ComponentOptions`, `HtmlOptions`, `LayoutOptions` |
 | Pages and data | `PageOptions`, `PageOptionsBase`, `PageProps`, `PagePropsFor`, `PageRequires`, `GetPaths`, `GetProps`, `GetMetadata`, `GetPageDependencies`, `PageDependenciesInput`, `PageDependenciesResult`, `PagePath`, `PageParams`, `PageQuery`, `CacheStrategy` |
 | Request and routes | `createMiddleware`, `composeMiddleware`, `RequestLocals`, `RequestPageContext`, `StaticPageContext`, `ApiHandler`, `ApiHandlerContext`, `EcoMiddleware`, `FileRouteMiddleware`, `FileRouteMiddlewareContext`, `RouteOptions`, `RouteSchema`, `RouteHandlerContext`, `RouteMethod`, `ErrorHandler` |
 | Metadata, validation, and sockets | `PageMetadataProps`, `PageHeadProps`, `PageRobotsMetadata`, `SitemapConfig`, `StandardSchema`, `StandardSchemaV1`, `StandardSchemaResult`, `EcopagesSocket`, `EcopagesRouteInfo`, `IncomingWebSocketMessage`, `OutgoingWebSocketMessage`, `WebSocketCloseInfo` |
@@ -77,7 +77,7 @@ const dependencies: EcoComponentDependencies = {
 
 Script entries can declare `ssr` and one lazy-loading trigger. `components` accepts results from `eco.component()`, `eco.layout()`, or `eco.html()`. For dependency discovery and lazy loading, see the [Eco namespace reference](/docs/reference/eco-namespace).
 
-`LayoutProps<E>` carries `children`. A layout receives request data only through the `props` factory of its layout entry, which receives `LayoutPropsContext`, which contains optional `params`, `query`, and `locals`.
+`LayoutProps<E>` carries `children`. A layout receives request data only through the `props` factory of its layout entry. On a dynamic Page the factory receives `LayoutRequestContext<TLocals>`, whose `locals` are typed from the Page's `middleware` list and `requires`; on a static or revalidating Page it receives `LayoutBuildContext`, with optional `params` and `query` and no `locals`. `LayoutPropsContext`, with optional `params`, `query`, and `locals`, types a shared entry that works on any Page.
 
 ## Request context
 

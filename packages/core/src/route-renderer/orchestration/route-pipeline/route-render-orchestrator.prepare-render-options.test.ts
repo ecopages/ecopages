@@ -26,6 +26,8 @@ import type { GroupedScriptBundle } from '../../../assets/asset-processing-servi
 import type { OwnershipValidationService } from '../ownership-graph/ownership-validation.service.ts';
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
 import { createFlowRenderer, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
+import { eco } from '../../../eco/eco.ts';
+import { resolvePageDependenciesFromContext } from '../../page-loading/resolved-page-dependencies.ts';
 
 declare module '../../../types/contracts.ts' {
 	interface RequestLocals {
@@ -228,7 +230,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 
 		expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith(
-			expect.objectContaining({ props: { title: 'Overridden title' } }),
+			expect.objectContaining({ params: { slug: 'hello' }, query: { preview: '1' }, props: undefined }),
 		);
 		expect(result.locals).toEqual({ user: 'andee' });
 		expect(result.pageLocals).toEqual({ user: 'andee' });
@@ -251,6 +253,45 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				},
 			}),
 		);
+	});
+
+	it("keeps a Dynamic Page's request-derived props out of its Page Browser Graph, which is cached by Params and Query", async () => {
+		const { flow } = createOrchestrator();
+		const dependencies = vi.fn(async () => ({ components: [] }));
+		const Page = eco.page({
+			cache: 'dynamic',
+			props: async ({ locals }) => ({ user: locals.user }),
+			dependencies,
+			render: () => '<main>Account</main>',
+		});
+		const collectPageBrowserGraphContribution = vi.fn(async (_context: PageBrowserGraphContributionContext) => ({
+			assets: [],
+		}));
+		const routeOptions = createRouteOptions(path.resolve('/app/pages/account.tsx'), {
+			params: { id: '7' },
+			query: { tab: 'billing' },
+		});
+
+		for (const user of ['ada', 'grace']) {
+			await flow.prepareRenderOptions(
+				routeOptions,
+				createFlowRenderer({
+					Page,
+					pageData: { props: { user }, metadata: { title: 'Account', description: 'Account' } },
+					collectPageBrowserGraphContribution,
+					resolvePageDependencies: (context) => resolvePageDependenciesFromContext(context, 'string'),
+				}),
+			);
+		}
+
+		expect(dependencies.mock.calls).toEqual([
+			[{ params: { id: '7' }, query: { tab: 'billing' } }],
+			[{ params: { id: '7' }, query: { tab: 'billing' } }],
+		]);
+		expect(collectPageBrowserGraphContribution).toHaveBeenCalled();
+		for (const [context] of collectPageBrowserGraphContribution.mock.calls) {
+			expect(context.props).toBeUndefined();
+		}
 	});
 
 	describe('source dependency paths', () => {

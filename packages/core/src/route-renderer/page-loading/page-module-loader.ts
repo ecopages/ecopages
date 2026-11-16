@@ -1,10 +1,15 @@
 import { invariant } from '../../utils/invariant.ts';
 import type {
+	DynamicPageStatics,
 	EcoPageFile,
+	StaticPageStatics,
 	GetMetadata,
 	GetMetadataContext,
 	GetProps,
+	GetRequestProps,
+	PageBuildContext,
 	PageMetadataProps,
+	PageRequestContext,
 	RouteRendererOptions,
 	EcoPageComponent,
 } from '../../types/contracts.ts';
@@ -15,6 +20,24 @@ import { DATA_HOOKS_MIGRATION_URL } from '../../eco/migration-docs.ts';
 import { HttpError } from '../../errors/http-error.ts';
 
 const LEGACY_PAGE_EXPORT_NAMES = ['getStaticPaths', 'getStaticProps', 'getMetadata'] as const;
+
+/**
+ * A Page's `props` hook with the context its Cache Strategy gives it: the request context for a Dynamic Page, the
+ * build context for any other.
+ */
+export type PagePropsHook =
+	| { context: 'request'; run: GetRequestProps<Record<string, unknown>> }
+	| { context: 'build'; run: GetProps<Record<string, unknown>> };
+
+/** The request a Dynamic Page's `props` hook reads, absent outside a request-time render. */
+type PropsHookRequest = Pick<RouteRendererOptions, 'request' | 'query' | 'locals'>;
+
+function readPropsHook(
+	page: StaticPageStatics<Record<string, unknown>> | DynamicPageStatics<Record<string, unknown>>,
+): PagePropsHook | undefined {
+	if (!page.props) return undefined;
+	return page.cache === 'dynamic' ? { context: 'request', run: page.props } : { context: 'build', run: page.props };
+}
 
 /**
  * Loads route page modules and normalizes their data hooks for rendering.
@@ -63,24 +86,25 @@ export class PageModuleLoaderService {
 	 * @remarks
 	 * Pages without a `props` hook still return a normalized empty props
 	 * object so downstream render preparation does not branch on hook presence.
+	 * A Static or revalidating Page's hook receives the build context. A Dynamic
+	 * Page's hook receives the request context and fails without a `request`.
 	 */
-	async getPropsForPage(options: {
-		getProps?: GetProps<Record<string, unknown>>;
-		params?: RouteRendererOptions['params'];
-	}): Promise<{
+	async getPropsForPage(
+		options: PropsHookRequest & {
+			getProps?: PagePropsHook;
+			params?: RouteRendererOptions['params'];
+		},
+	): Promise<{
 		props: Record<string, unknown>;
 		metadata?: PageMetadataProps;
 	}> {
-		const { getProps, params } = options;
+		const { getProps } = options;
 		if (!getProps) {
 			return { props: {}, metadata: undefined };
 		}
+		const callHook = this.bindPropsHook(getProps, options);
 		try {
-			const props = await getProps({
-				params: params ?? {},
-				appConfig: this.appConfig,
-				runtimeOrigin: requireAppRuntime(this.appConfig).origin,
-			});
+			const props = await callHook();
 			return { props };
 		} catch (err) {
 			if (HttpError.isHttpError(err) || err instanceof Response) {
@@ -89,6 +113,30 @@ export class PageModuleLoaderService {
 			const message = err instanceof Error ? err.message : String(err);
 			throw new Error(`Error fetching props: ${message}`, { cause: err });
 		}
+	}
+
+	private bindPropsHook(
+		hook: PagePropsHook,
+		options: PropsHookRequest & { params?: RouteRendererOptions['params'] },
+	): () => Record<string, unknown> | Promise<Record<string, unknown>> {
+		const buildContext: PageBuildContext = {
+			params: options.params ?? {},
+			appConfig: this.appConfig,
+			runtimeOrigin: requireAppRuntime(this.appConfig).origin,
+		};
+		if (hook.context === 'build') return () => hook.run(buildContext);
+		const { request, query, locals } = options;
+		invariant(
+			request !== undefined,
+			"A Dynamic Page's props hook runs only for a request, and this render has none. Render the Page through a request, or give it another Cache Strategy.",
+		);
+		const requestContext: PageRequestContext = {
+			...buildContext,
+			request,
+			query: query ?? {},
+			locals: locals ?? {},
+		};
+		return () => hook.run(requestContext);
 	}
 
 	/**
@@ -147,7 +195,7 @@ export class PageModuleLoaderService {
 	}): Promise<{
 		module: EcoPageFile;
 		Page: EcoPageFile['default'] | EcoPageComponent<any>;
-		getProps?: GetProps<Record<string, unknown>>;
+		getProps?: PagePropsHook;
 		getMetadata?: GetMetadata;
 		integrationSpecificProps: Record<string, unknown>;
 	}> {
@@ -161,7 +209,7 @@ export class PageModuleLoaderService {
 		return {
 			module,
 			Page,
-			getProps: pageComponent.props,
+			getProps: readPropsHook(pageComponent),
 			getMetadata: pageComponent.metadata,
 			integrationSpecificProps,
 		};
@@ -173,11 +221,12 @@ export class PageModuleLoaderService {
 	 * @remarks
 	 * The `props` hook runs first because page metadata may depend on its result.
 	 * Props passed with the render win over the hook's props and are visible to
-	 * metadata; `skipPropsHook` drops the hook.
+	 * metadata; `skipPropsHook` drops the hook. A request-time render of a Dynamic
+	 * Page passes its `request`, which the hook receives with `query` and `locals`.
 	 */
 	async resolvePageData(options: {
 		pageModule: {
-			getProps?: GetProps<Record<string, unknown>>;
+			getProps?: PagePropsHook;
 			getMetadata?: GetMetadata;
 		};
 		routeOptions: RouteRendererOptions;
@@ -186,15 +235,19 @@ export class PageModuleLoaderService {
 		props: Record<string, unknown>;
 		metadata: PageMetadataProps;
 	}> {
-		const hookProps = options.routeOptions.skipPropsHook
+		const { routeOptions } = options;
+		const hookProps = routeOptions.skipPropsHook
 			? {}
 			: (
 					await this.getPropsForPage({
 						getProps: options.pageModule.getProps,
-						params: options.routeOptions.params,
+						params: routeOptions.params,
+						request: routeOptions.request,
+						query: routeOptions.query,
+						locals: routeOptions.locals,
 					})
 				).props;
-		const props = { ...hookProps, ...(options.routeOptions.props ?? {}) };
+		const props = { ...hookProps, ...(routeOptions.props ?? {}) };
 
 		const metadata = options.skipMetadata
 			? this.appConfig.defaultMetadata

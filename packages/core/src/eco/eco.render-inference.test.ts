@@ -83,9 +83,9 @@ describe('page props inference from props and render', () => {
 			}),
 			render: ({ title }) => title,
 		});
-		// @ts-expect-error middleware requires a dynamic cache
 		eco.page({
 			cache: 'static',
+			// @ts-expect-error middleware requires a dynamic cache
 			middleware: [],
 			render: () => '',
 		});

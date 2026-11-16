@@ -13,18 +13,18 @@ import type {
 	RequestPageContext,
 } from '../types/contracts.ts';
 import type { PageMiddlewareEntry } from '../types/middleware-types.ts';
-import type { CacheStrategy } from '../page-cache/cache.types.ts';
 import type {
 	ComponentOptions,
 	Eco,
 	HtmlOptions,
 	LayoutOptions,
+	DynamicPageOptions,
+	DynamicPageOptionsWithRequires,
 	PageOptions,
-	PageOptionsBase,
 	PageOptionsWithTypedLocals,
 	PagePropsFor,
-	PagePropsForWithLocals,
-	PageRequires,
+	StaticPageOptions,
+	StaticPageOptionsWithRequires,
 } from '../types/eco-api-types.ts';
 import {
 	finalizeComponentRender,
@@ -37,6 +37,7 @@ import { getComponentIdentity, getComponentOwner } from './component-identity.ts
 import { attachDiscoveredDependencies } from './discovered-dependencies.ts';
 import { DATA_HOOKS_MIGRATION_URL } from './migration-docs.ts';
 import { flattenMiddleware } from '../middleware/create-middleware.ts';
+import { attachPageOptions } from './page-data-hooks.ts';
 
 /**
  * Creates a component factory with lazy-trigger support and foreign-child-runtime
@@ -205,12 +206,17 @@ function page<
 	E = EcoPagesElement,
 	const M extends readonly PageMiddlewareEntry[] = readonly PageMiddlewareEntry[],
 >(options: PageOptionsWithTypedLocals<T, E, M>): EcoPageComponent<T>;
-function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
+function page<T = {}, E = EcoPagesElement>(
+	options: StaticPageOptions<T, E> & { requires?: undefined },
+): EcoPageComponent<T>;
+function page<T = {}, E = EcoPagesElement>(
+	options: DynamicPageOptions<T, E> & { requires?: undefined },
+): EcoPageComponent<T>;
 function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals = never>(
-	options: Omit<PageOptions<T, E>, 'render' | 'requires'> & {
-		requires: PageRequires<K>;
-		render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;
-	},
+	options: DynamicPageOptionsWithRequires<T, E, K>,
+): EcoPageComponent<T>;
+function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals = never>(
+	options: StaticPageOptionsWithRequires<T, E, K>,
 ): EcoPageComponent<T>;
 
 /**
@@ -219,24 +225,11 @@ function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals =
  * @param options Page options.
  * @returns Eco page component.
  */
-function page<T, E>(
-	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: readonly PageMiddlewareEntry[] },
-): EcoPageComponent<T> {
+function page<T, E>(options: PageOptions<T, E>): EcoPageComponent<T> {
 	assertNoRenamedPageOptions(options);
-	const {
-		layout,
-		dependencies: dependenciesInput,
-		render,
-		paths,
-		props,
-		metadata,
-		cache,
-		requires,
-		middleware,
-	} = options;
+	const { layout, dependencies: dependenciesInput, render, middleware } = options;
 
 	const layoutEntries = normalizePageLayouts(layout);
-	const resolveDependencies = typeof dependenciesInput === 'function' ? dependenciesInput : undefined;
 	const staticDependencies =
 		typeof dependenciesInput === 'function'
 			? mergeLayoutDependencies(undefined, layoutEntries)
@@ -249,24 +242,15 @@ function page<T, E>(
 		render,
 	};
 
-	const pageComponent = createComponentFactory(componentOptions) as EcoPageComponent<T>;
+	const pageComponent = createComponentFactory(componentOptions);
 
 	if (pageComponent.config) {
 		applyPageLayoutConfig(pageComponent.config, layoutEntries);
 	}
 
-	if (paths) pageComponent.paths = paths;
-	if (props) pageComponent.props = props;
-	if (metadata) pageComponent.metadata = metadata;
-	if (resolveDependencies) pageComponent.resolveDependencies = resolveDependencies;
-	if (cache) pageComponent.cache = cache;
-	if (requires) pageComponent.requires = requires;
-	if (middleware) {
-		flattenMiddleware(middleware, 'page middleware');
-		pageComponent.middleware = middleware;
-	}
+	if (middleware) flattenMiddleware(middleware, 'page middleware');
 
-	return pageComponent;
+	return attachPageOptions(pageComponent, options);
 }
 
 /**

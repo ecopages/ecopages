@@ -36,8 +36,8 @@ describe('eco.page requires narrowing', () => {
 	});
 
 	test('rejects requires when only Props and Element are written instead of silently losing narrowing', () => {
-		// @ts-expect-error requires needs the key type argument once Props and Element are written
 		eco.page<{}, Element>({
+			// @ts-expect-error requires needs the key type argument once Props and Element are written
 			requires: ['requiresA'],
 			render: () => '',
 		});

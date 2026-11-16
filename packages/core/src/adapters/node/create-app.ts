@@ -5,8 +5,7 @@ import type {
 	ApiHandler,
 	ApiHandlerContext,
 	ErrorHandler,
-	Middleware,
-	MiddlewareContext,
+	WithMiddlewareLocals,
 	MiddlewareList,
 	RouteGroupBuilder,
 	RouteMethod,
@@ -72,7 +71,7 @@ export type EcopagesAppDependencies = {
 
 export type RouteGroupDefinition<TRequest extends Request = Request, TServer = unknown> = {
 	prefix: string;
-	middleware?: MiddlewareList<TRequest, TServer>;
+	middleware?: MiddlewareList;
 	routes: readonly ApiHandler<string, TRequest, TServer>[];
 };
 
@@ -172,14 +171,14 @@ export class EcopagesApp implements AsyncDisposable {
 	route<
 		TSchema extends RouteSchema = RouteSchema,
 		TRouteContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>,
-		const TMiddleware extends MiddlewareList<Request, unknown> = MiddlewareList<Request, unknown>,
+		const TMiddleware extends MiddlewareList = MiddlewareList,
 	>(
 		path: string,
 		method: ApiHandler['method'],
 		handler: (
-			context: RouteHandlerContext<TSchema, TRouteContext & MiddlewareContext<TMiddleware>>,
+			context: RouteHandlerContext<TSchema, WithMiddlewareLocals<TRouteContext, TMiddleware>>,
 		) => Promise<Response> | Response,
-		options?: RouteOptions<Request, unknown, TSchema, TMiddleware>,
+		options?: RouteOptions<TSchema, TMiddleware>,
 	): this {
 		return this.method(method)(path, handler, options);
 	}
@@ -201,7 +200,7 @@ export class EcopagesApp implements AsyncDisposable {
 		path: string,
 		method: ApiHandler['method'],
 		handler: (context: never) => Promise<Response> | Response,
-		middleware?: readonly Middleware<Request, unknown, never>[],
+		middleware?: MiddlewareList,
 		schema?: ApiHandler['schema'],
 	): this {
 		invariant(
@@ -226,10 +225,10 @@ export class EcopagesApp implements AsyncDisposable {
 
 	group<
 		TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>,
-		const TMiddleware extends MiddlewareList<Request, unknown> = MiddlewareList<Request, unknown>,
+		const TMiddleware extends MiddlewareList = MiddlewareList,
 	>(
 		prefixOrGroup: string | RouteGroupDefinition<Request, unknown>,
-		callback?: (builder: RouteGroupBuilder<Request, unknown, TContext & MiddlewareContext<TMiddleware>>) => void,
+		callback?: (builder: RouteGroupBuilder<Request, unknown, WithMiddlewareLocals<TContext, TMiddleware>>) => void,
 		options?: { middleware?: TMiddleware },
 	): this {
 		if (typeof prefixOrGroup === 'object') {
@@ -243,10 +242,10 @@ export class EcopagesApp implements AsyncDisposable {
 			(
 				method: ApiHandler['method'],
 			): RouteMethod<
-				RouteGroupBuilder<Request, unknown, TContext & MiddlewareContext<TMiddleware>>,
+				RouteGroupBuilder<Request, unknown, WithMiddlewareLocals<TContext, TMiddleware>>,
 				Request,
 				unknown,
-				TContext & MiddlewareContext<TMiddleware>
+				WithMiddlewareLocals<TContext, TMiddleware>
 			> =>
 			(path, handler, routeOptions) => {
 				const combinedMiddleware = [...groupMiddleware, ...(routeOptions?.middleware ?? [])];
@@ -261,7 +260,7 @@ export class EcopagesApp implements AsyncDisposable {
 				return builder;
 			};
 
-		const builder: RouteGroupBuilder<Request, unknown, TContext & MiddlewareContext<TMiddleware>> = {
+		const builder: RouteGroupBuilder<Request, unknown, WithMiddlewareLocals<TContext, TMiddleware>> = {
 			get: createHandler('GET'),
 			post: createHandler('POST'),
 			put: createHandler('PUT'),

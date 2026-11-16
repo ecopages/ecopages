@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { runMiddlewareChain, type MiddlewareHandler } from './run-middleware-chain.ts';
 
-type TestContext = { readonly trail: string[] };
+type TestContext = { readonly trail: string[]; readonly locals: Record<string, unknown> };
 
 function context(): TestContext {
-	return { trail: [] };
+	return { trail: [], locals: {} };
 }
 
 function terminalFor(ctx: TestContext) {
@@ -105,6 +105,104 @@ describe('runMiddlewareChain', () => {
 		await expect(runMiddlewareChain([concurrent], ctx, terminalFor(ctx))).rejects.toThrow(/more than once/);
 
 		expect(ctx.trail.filter((entry) => entry === 'terminal')).toEqual(['terminal']);
+	});
+
+	it('rejects a stage that calls next without awaiting it and returns another response', async () => {
+		const ctx = context();
+		const replace: MiddlewareHandler<TestContext> = async (_c, next) => {
+			void next();
+			return new Response('replacement');
+		};
+		const guard: MiddlewareHandler<TestContext> = async (c) => {
+			c.trail.push('guard');
+			return new Response('forbidden', { status: 403 });
+		};
+
+		await expect(runMiddlewareChain([replace, guard], ctx, terminalFor(ctx))).rejects.toThrow(
+			/returned a different response/,
+		);
+
+		expect(ctx.trail).toEqual(['guard']);
+	});
+
+	it('waits for the rest of the chain when a stage returns the unawaited next result', async () => {
+		const ctx = context();
+		const forward: MiddlewareHandler<TestContext> = (_c, next) => next();
+		const slow: MiddlewareHandler<TestContext> = async (c, next) => {
+			await new Promise((resolve) => setTimeout(resolve, 5));
+			c.trail.push('slow');
+			return next();
+		};
+
+		const response = await runMiddlewareChain([forward, slow], ctx, terminalFor(ctx));
+
+		expect(await response.text()).toBe('terminal');
+		expect(ctx.trail).toEqual(['slow', 'terminal']);
+	});
+
+	it('does not let a stage that answered call next later', async () => {
+		const ctx = context();
+		let late: (() => Promise<Response>) | undefined;
+		const deny: MiddlewareHandler<TestContext> = async (_c, next) => {
+			late = () => next();
+			return new Response('forbidden', { status: 403 });
+		};
+
+		const response = await runMiddlewareChain([deny], ctx, terminalFor(ctx));
+
+		expect(response.status).toBe(403);
+		expect(() => late?.()).toThrow(/called next\(\) after it returned/);
+		expect(ctx.trail).toEqual([]);
+	});
+
+	it('does not let a stage that threw call next later', async () => {
+		const ctx = context();
+		let late: (() => Promise<Response>) | undefined;
+		const failing: MiddlewareHandler<TestContext> = async (_c, next) => {
+			late = () => next();
+			throw new Error('stage failed');
+		};
+
+		await expect(runMiddlewareChain([failing], ctx, terminalFor(ctx))).rejects.toThrow('stage failed');
+
+		expect(() => late?.()).toThrow(/after it returned/);
+		expect(ctx.trail).toEqual([]);
+	});
+
+	it('waits for an unawaited next before rethrowing what the stage threw', async () => {
+		const ctx = context();
+		const failing: MiddlewareHandler<TestContext> = async (_c, next) => {
+			void next();
+			throw new Error('stage failed');
+		};
+		const slow: MiddlewareHandler<TestContext> = async (c, next) => {
+			await new Promise((resolve) => setTimeout(resolve, 5));
+			c.trail.push('slow');
+			return next();
+		};
+
+		await expect(runMiddlewareChain([failing, slow], ctx, terminalFor(ctx))).rejects.toThrow('stage failed');
+
+		expect(ctx.trail).toEqual(['slow', 'terminal']);
+	});
+
+	it('lets a stage answer with its own response when the rest of the chain throws', async () => {
+		const ctx = context();
+		const recover: MiddlewareHandler<TestContext> = async (_c, next) => {
+			try {
+				return await next();
+			} catch {
+				return new Response('recovered', { status: 500 });
+			}
+		};
+		const failing: MiddlewareHandler<TestContext> = async () => {
+			throw new Error('handler failed');
+		};
+
+		const response = await runMiddlewareChain([recover, failing], ctx, terminalFor(ctx));
+
+		expect(response.status).toBe(500);
+		expect(await response.text()).toBe('recovered');
 	});
 
 	it('lets each stage call its own next once, so a long chain still completes', async () => {

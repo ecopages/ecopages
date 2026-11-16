@@ -18,7 +18,6 @@ export type {
 	EcoPageLayouts,
 	EcoHtmlComponent,
 	EcoLayoutComponent,
-	EcoMiddleware,
 	ErrorHandler,
 	ErrorPageTemplateProps,
 	EcopagesRouteInfo,
@@ -38,6 +37,7 @@ export type {
 	LayoutPropsContext,
 	Middleware,
 	MiddlewareList,
+	WithMiddlewareLocals,
 	MiddlewareNext,
 	OutgoingWebSocketMessage,
 	IncomingWebSocketMessage,
@@ -90,3 +90,16 @@ export type {
 	PropsOf,
 	ResultOf,
 } from './eco-api-types.ts';
+
+export type {
+	AnyEcoMiddleware,
+	EcoMiddleware,
+	ListLocals,
+	MergeLocals,
+	MiddlewareContext,
+	MiddlewareEntry,
+	MiddlewareStage,
+	ProvideNext,
+	Provided,
+	StageResult,
+} from './middleware-types.ts';

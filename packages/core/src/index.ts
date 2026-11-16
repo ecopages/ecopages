@@ -1,5 +1,6 @@
 export type * from './types/public-types.ts';
 export { eco } from './eco/eco.ts';
+export { composeMiddleware, createMiddleware } from './middleware/create-middleware.ts';
 export {
 	defineApiHandler,
 	defineGroupHandler,

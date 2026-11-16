@@ -9,10 +9,10 @@ import type {
 	LayoutProps,
 	EcoPagesElement,
 	EcoPageComponent,
-	FileRouteMiddleware,
 	RequestLocals,
 	RequestPageContext,
 } from '../types/contracts.ts';
+import type { PageMiddlewareEntry } from '../types/middleware-types.ts';
 import type { CacheStrategy } from '../page-cache/cache.types.ts';
 import type {
 	ComponentOptions,
@@ -21,6 +21,7 @@ import type {
 	LayoutOptions,
 	PageOptions,
 	PageOptionsBase,
+	PageOptionsWithTypedLocals,
 	PagePropsFor,
 	PagePropsForWithLocals,
 	PageRequires,
@@ -35,6 +36,7 @@ import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } 
 import { getComponentIdentity, getComponentOwner } from './component-identity.ts';
 import { attachDiscoveredDependencies } from './discovered-dependencies.ts';
 import { DATA_HOOKS_MIGRATION_URL } from './migration-docs.ts';
+import { flattenMiddleware } from '../middleware/create-middleware.ts';
 
 /**
  * Creates a component factory with lazy-trigger support and foreign-child-runtime
@@ -198,6 +200,11 @@ function assertNoRenamedPageOptions(options: object): void {
 /**
  * Creates a page component with typed props and optional static helpers.
  */
+function page<
+	T = {},
+	E = EcoPagesElement,
+	const M extends readonly PageMiddlewareEntry[] = readonly PageMiddlewareEntry[],
+>(options: PageOptionsWithTypedLocals<T, E, M>): EcoPageComponent<T>;
 function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
 function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals = never>(
 	options: Omit<PageOptions<T, E>, 'render' | 'requires'> & {
@@ -213,7 +220,7 @@ function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals =
  * @returns Eco page component.
  */
 function page<T, E>(
-	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: FileRouteMiddleware[] },
+	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: readonly PageMiddlewareEntry[] },
 ): EcoPageComponent<T> {
 	assertNoRenamedPageOptions(options);
 	const {
@@ -254,7 +261,10 @@ function page<T, E>(
 	if (resolveDependencies) pageComponent.resolveDependencies = resolveDependencies;
 	if (cache) pageComponent.cache = cache;
 	if (requires) pageComponent.requires = requires;
-	if (middleware) pageComponent.middleware = middleware;
+	if (middleware) {
+		flattenMiddleware(middleware, 'page middleware');
+		pageComponent.middleware = middleware;
+	}
 
 	return pageComponent;
 }

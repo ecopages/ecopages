@@ -1,8 +1,8 @@
 import { createRequire } from '../../../utils/locals-utils.ts';
-import type { FileRouteMiddleware, FileRouteMiddlewareContext, RequestLocals } from '../../../types/contracts.ts';
+import type { FileRouteMiddlewareContext, RequestLocals } from '../../../types/contracts.ts';
 import type { PageCacheService } from '../../../page-cache/page-cache-service.ts';
 import { ApiResponseBuilder } from './api-response.ts';
-import { runMiddlewareChain } from './run-middleware-chain.ts';
+import { runMiddlewareChain, type MiddlewareHandler } from './run-middleware-chain.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 
 export const FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS = {
@@ -35,7 +35,7 @@ export class FileRouteMiddlewarePipeline {
 	 * @throws LocalsAccessError When middleware is configured for a non-dynamic page.
 	 */
 	assertValidConfiguration(input: {
-		middleware: FileRouteMiddleware[];
+		middleware: readonly MiddlewareHandler<FileRouteMiddlewareContext>[];
 		pageCacheStrategy: 'static' | 'dynamic' | { revalidate: number; tags?: string[] };
 		filePath: string;
 	}): void {
@@ -95,7 +95,7 @@ export class FileRouteMiddlewarePipeline {
 	 * @returns Response from middleware or final render stage.
 	 */
 	async run(input: {
-		middleware: FileRouteMiddleware[];
+		middleware: readonly MiddlewareHandler<FileRouteMiddlewareContext>[];
 		context: FileRouteMiddlewareContext;
 		renderResponse: () => Promise<Response>;
 	}): Promise<Response> {

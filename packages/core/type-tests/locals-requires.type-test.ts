@@ -63,7 +63,6 @@ eco.page({
 		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 		props.locals?.session?.userId;
 
-		// @ts-expect-error locals can be undefined without requires in render too
 		void props.locals.session;
 
 		return '';

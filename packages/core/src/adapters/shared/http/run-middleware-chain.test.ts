@@ -251,6 +251,131 @@ describe('runMiddlewareChain', () => {
 		expect(await response.text()).toBe('recovered');
 	});
 
+	describe('when the rest of the chain fails', () => {
+		const failingHandler = async (): Promise<Response> => {
+			throw new Error('handler failed');
+		};
+
+		it('rethrows the failure of a next call the stage never looked at', async () => {
+			const ignore: MiddlewareHandler<TestContext> = (_c, next) => {
+				next();
+				return new Response('ok');
+			};
+
+			await expect(runMiddlewareChain([ignore], context(), failingHandler)).rejects.toThrow('handler failed');
+		});
+
+		it('rethrows the failure when the stage discards next with void', async () => {
+			const discard: MiddlewareHandler<TestContext> = async (_c, next) => {
+				void next();
+				return new Response('ok');
+			};
+
+			await expect(runMiddlewareChain([discard], context(), failingHandler)).rejects.toThrow('handler failed');
+		});
+
+		it('rethrows a failure that comes after the stage answered', async () => {
+			const ignore: MiddlewareHandler<TestContext> = (_c, next) => {
+				next();
+				return new Response('ok');
+			};
+			const slowFailure = async (): Promise<Response> => {
+				await new Promise((resolve) => setTimeout(resolve, 5));
+				throw new Error('late failure');
+			};
+
+			await expect(runMiddlewareChain([ignore], context(), slowFailure)).rejects.toThrow('late failure');
+		});
+
+		it('rethrows the failure past an outer stage that awaits the inner one', async () => {
+			const outer: MiddlewareHandler<TestContext> = async (_c, next) => next();
+			const ignore: MiddlewareHandler<TestContext> = (_c, next) => {
+				next();
+				return new Response('ok');
+			};
+
+			await expect(runMiddlewareChain([outer, ignore], context(), failingHandler)).rejects.toThrow(
+				'handler failed',
+			);
+		});
+
+		it('keeps the fallback of a stage that awaits next in try and catch', async () => {
+			const recover: MiddlewareHandler<TestContext> = async (_c, next) => {
+				try {
+					await next();
+				} catch {
+					return new Response('fallback', { status: 500 });
+				}
+				return new Response('unreachable');
+			};
+
+			const response = await runMiddlewareChain([recover], context(), failingHandler);
+
+			expect(await response.text()).toBe('fallback');
+		});
+
+		it('keeps the response of a stage that catches next with catch', async () => {
+			const recover: MiddlewareHandler<TestContext> = async (_c, next) => {
+				next().catch(() => undefined);
+				return new Response('own');
+			};
+
+			const response = await runMiddlewareChain([recover], context(), failingHandler);
+
+			expect(await response.text()).toBe('own');
+		});
+
+		it('keeps the response of a stage that passes next to Promise.allSettled', async () => {
+			const settle: MiddlewareHandler<TestContext> = async (_c, next) => {
+				await Promise.allSettled([next()]);
+				return new Response('own');
+			};
+
+			const response = await runMiddlewareChain([settle], context(), failingHandler);
+
+			expect(await response.text()).toBe('own');
+		});
+
+		it('propagates the failure through a stage that returns next from an async function', async () => {
+			const forward: MiddlewareHandler<TestContext> = async (_c, next) => {
+				return next();
+			};
+			const recover: MiddlewareHandler<TestContext> = async (_c, next) => {
+				try {
+					return await next();
+				} catch (error) {
+					return new Response(error instanceof Error ? error.message : 'unknown', { status: 500 });
+				}
+			};
+
+			await expect(runMiddlewareChain([forward], context(), failingHandler)).rejects.toThrow('handler failed');
+			const response = await runMiddlewareChain([recover, forward], context(), failingHandler);
+			expect(await response.text()).toBe('handler failed');
+		});
+
+		it('rethrows the error of a stage that throws rather than the failure it dropped', async () => {
+			const failing: MiddlewareHandler<TestContext> = (_c, next) => {
+				next();
+				throw new Error('stage failed');
+			};
+
+			await expect(runMiddlewareChain([failing], context(), failingHandler)).rejects.toThrow('stage failed');
+		});
+	});
+
+	it('answers with the response of a stage that never looked at next when the rest succeeds', async () => {
+		const ctx = context();
+		const ignore: MiddlewareHandler<TestContext> = (_c, next) => {
+			next();
+			return new Response('own');
+		};
+
+		const response = await runMiddlewareChain([ignore], ctx, terminalFor(ctx));
+
+		expect(await response.text()).toBe('own');
+		expect(ctx.trail).toEqual(['terminal']);
+	});
+
 	it('lets each stage call its own next once, so a long chain still completes', async () => {
 		const ctx = context();
 		const stage: MiddlewareHandler<TestContext> = async (c, next) => {

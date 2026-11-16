@@ -16,7 +16,7 @@ This page stays on the standalone Kita MDX pipeline so the kitchen sink exercise
 - `.md` files are rendered by the standalone MDX integration with `@kitajs/html`.
 - `.mdx` files are rendered by the React integration and can participate in React Router navigation.
 - The HTML shell and route layout are still shared with the rest of the kitchen sink.
-- Request middleware continues to populate `locals` for dynamic pages and handlers.
+- Request middleware made with `createMiddleware` provides typed `locals` for dynamic pages and handlers.
 
 ```ts
 export const config = {

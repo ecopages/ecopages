@@ -22,7 +22,7 @@ The root `@ecopages/core` entry point exports the main app contracts. This table
 | --- | --- |
 | Components | `EcoComponent`, `EcoComponentConfig`, `EcoComponentDependencies`, `EcoPageComponent`, `EcoPageFile`, `EcoPageLayouts`, `EcoPageLayoutSpec`, `EcoPageLayoutEntrySpec`, `EcoPageLayoutEntry`, `EcoHtmlComponent`, `EcoLayoutComponent`, `ComponentOptions`, `HtmlOptions`, `LayoutOptions` |
 | Pages and data | `PageOptions`, `PageOptionsBase`, `PageProps`, `PagePropsFor`, `PageRequires`, `GetPaths`, `GetProps`, `GetMetadata`, `GetPageDependencies`, `PageDependenciesInput`, `PageDependenciesResult`, `PagePath`, `PageParams`, `PageQuery`, `CacheStrategy` |
-| Request and routes | `RequestLocals`, `RequestPageContext`, `StaticPageContext`, `ApiHandler`, `ApiHandlerContext`, `EcoMiddleware`, `FileRouteMiddleware`, `FileRouteMiddlewareContext`, `RouteOptions`, `RouteSchema`, `RouteHandlerContext`, `RouteMethod`, `ErrorHandler` |
+| Request and routes | `createMiddleware`, `composeMiddleware`, `RequestLocals`, `RequestPageContext`, `StaticPageContext`, `ApiHandler`, `ApiHandlerContext`, `EcoMiddleware`, `FileRouteMiddleware`, `FileRouteMiddlewareContext`, `RouteOptions`, `RouteSchema`, `RouteHandlerContext`, `RouteMethod`, `ErrorHandler` |
 | Metadata, validation, and sockets | `PageMetadataProps`, `PageHeadProps`, `PageRobotsMetadata`, `SitemapConfig`, `StandardSchema`, `StandardSchemaV1`, `StandardSchemaResult`, `EcopagesSocket`, `EcopagesRouteInfo`, `IncomingWebSocketMessage`, `OutgoingWebSocketMessage`, `WebSocketCloseInfo` |
 
 ## Pages and data
@@ -56,7 +56,7 @@ The page data types are:
 
 The TypeScript shape for request values is intentionally broad: `PageParams` and `PageQuery` are records whose values are strings or string arrays. Catch-all route params and repeated query keys can contain arrays. See [Data Fetching](/docs/core/data-fetching) for build-time behavior and [Request Locals](/docs/core/request-locals) for request-scoped values.
 
-When a Page has `middleware`, set `cache: 'dynamic'`; `PageOptions` rejects middleware with a different cache strategy. `requires` narrows the named locals in the Page render callback at compile time. It does not check that middleware supplied those locals at runtime.
+When a Page has `middleware`, set `cache: 'dynamic'`; `PageOptions` rejects middleware with a different cache strategy. The render callback's `locals` are typed from the `middleware` list. `requires` narrows the named `RequestLocals` fields at compile time for a Page without a typed list, and on a React Page selects the locals sent to the browser. Neither checks at runtime that middleware supplied the locals.
 
 ## Components and layouts
 
@@ -95,11 +95,11 @@ declare module '@ecopages/core' {
 }
 ```
 
-Use `requires` on `eco.page()` when the render callback needs a local to be non-null. This is a typing contract only; enforce authentication and populate the value in route or Page middleware. A non-dynamic Page that reads request locals throws `LocalsAccessError`.
+A Page's `locals` are typed from its `middleware` list, built with `createMiddleware` and `composeMiddleware`. Use `requires` on `eco.page()` only for a Page without a typed list, when the render callback needs a `RequestLocals` field to be non-null. This is a typing contract only; enforce authentication and populate the value in route or Page middleware. A non-dynamic Page that reads request locals throws `LocalsAccessError`.
 
 ## Route handlers
 
-`ApiHandlerContext` is the request context for explicit handlers and endpoint files. `ApiHandler`, `EcoMiddleware`, `RouteOptions`, `RouteSchema`, and `RouteHandlerContext` describe handlers, middleware, and validated route input. See [Server API](/docs/server/server-api), [Define Handlers](/docs/server/define-handlers), and [Endpoint Files](/docs/server/endpoint-files) for their usage.
+`ApiHandlerContext` is the request context for explicit handlers and endpoint files. `ApiHandler`, `RouteOptions`, `RouteSchema`, and `RouteHandlerContext` describe handlers and validated route input. `EcoMiddleware<TLocals>` is the brand type of what `createMiddleware` and `composeMiddleware` return, and `TLocals` is what the middleware provides to later stages and to the handler or Page. The two functions are exported from `@ecopages/core` as values. See [Server API](/docs/server/server-api), [Define Handlers](/docs/server/define-handlers), and [Endpoint Files](/docs/server/endpoint-files) for their usage.
 
 ## Configuration and extensions
 

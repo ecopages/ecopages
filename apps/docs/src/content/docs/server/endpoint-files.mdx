@@ -146,20 +146,17 @@ See [Validating Route Params](/docs/server/api-handlers#validating-route-params-
 
 ## Middleware
 
-Each method export takes its own `middleware` list. The handler receives the context every middleware in the list adds:
+Each method export takes its own `middleware` list. The handler reads what every middleware in the list provides from `ctx.locals`, typed:
 
 ```typescript
 // src/middleware/require-user.ts
-import type { ApiHandlerContext, EcoMiddleware } from '@ecopages/core';
+import { createMiddleware } from '@ecopages/core';
 
-export type UserContext = ApiHandlerContext & { user: { id: string } };
-
-export const requireUser: EcoMiddleware<UserContext> = async (ctx, next) => {
+export const requireUser = createMiddleware((ctx, next) => {
 	const id = ctx.request.headers.get('x-user-id');
 	if (!id) return ctx.response.status(401).json({ error: 'Unauthorized' });
-	ctx.user = { id };
-	return next();
-};
+	return next({ user: { id } });
+});
 ```
 
 ```typescript
@@ -169,11 +166,12 @@ import { requireUser } from '../../middleware/require-user';
 
 export const GET = defineGet({
 	middleware: [requireUser],
-	handler: async ({ user, response }) => response.json(user),
+	handler: async ({ locals, response }) => response.json(locals.user),
 });
 ```
 
-- List `middleware` before `handler`. A handler written before a list that holds an inline, unannotated middleware function sees none of the list's contexts. A list of `EcoMiddleware` constants works in either order.
+- List `middleware` before `handler`, so TypeScript infers the list before the handler. A list typed as a plain array provides no reliable locals.
+- A stage calls `next` once and returns the response it resolved with; a guard answers by returning a `Response` without calling `next`. See [Request Locals](/docs/core/request-locals#rules).
 - There is no folder-level middleware file. To protect several endpoint files, import the same list in each method export.
 
 ## Errors

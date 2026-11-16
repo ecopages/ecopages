@@ -6,7 +6,6 @@ import { requireSession } from '../lib/auth.server';
 export default eco.page({
 	cache: 'dynamic',
 	middleware: [requireSession],
-	requires: ['workspace'] as const,
 	metadata: () => ({ title: 'Account', description: 'Your account information.' }),
 	layout: workspaceLayout({ current: '/account', title: 'Account' }),
 	render: ({ locals }) => {

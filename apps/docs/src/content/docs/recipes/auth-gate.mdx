@@ -15,12 +15,12 @@ Two patterns, both in the fixture:
 
 ## Read the session
 
-The middleware turns the request into a `locals.session` value. The cookie check below is a stand-in: replace `readSession` with your library's call, such as validating a signed token or looking the session up in your store.
+The middleware turns the request into a `locals.session` value, provided with `createMiddleware`. The cookie check below is a stand-in: replace `readSession` with your library's call, such as validating a signed token or looking the session up in your store.
 
 ```ts file="examples/recipes/auth-gate/src/lib/session.server.ts"
 ```
 
-Declare the shape of `locals.session` once, so pages and layouts are typed:
+A page reads the value typed from its `middleware` list. The layout is not tied to a list, so declare the shape of `locals.session` once for it:
 
 ```ts file="examples/recipes/auth-gate/modules.d.ts" region="locals"
 ```
@@ -58,6 +58,6 @@ The fixture's end-to-end test runs against `ecopages dev` and `ecopages start`. 
 - **A layout that drops `children` is allowed, and reported.** The gate renders without its page on purpose. In `ecopages build` that would fail, as `Layout <name> (<file>) did not render its children`, but a dynamic page is not built. A development request logs the message as a warning, and a production request returns the HTML silently. See [Layouts](/docs/core/layouts#layout-components).
 - **The page still renders.** The layout only chooses whether to include its output. The page's `render` runs for a signed-out visitor too, so load private data in the middleware after the session check, not in `render`. The redirect pattern never reaches `render` without a session.
 - **The gate answers `200`.** If a signed-out visitor should get `401`, or a crawler should not index the sign-in screen, return that response from the middleware instead.
-- **`requires` is a type, not a check.** `requires: ['session']` narrows `locals.session` in `render` and does not verify it. The middleware must enforce it, as `requireSession` does.
+- **The list decides the type, the middleware decides the behavior.** `account.tsx` reads `locals.session` as non-null because `requireSession` is in its `middleware` list and every path of it either provides a session or answers with a redirect. A page with a typed list does not need `requires` for the type.
 - **Do not cache the response.** Dynamic pages are rendered per request. Keep the page `dynamic`; a cached or static page would show one visitor's version to everyone.
 - **The cookie is a demo.** Use `HttpOnly`, `Secure` and `SameSite` attributes and a value your server can verify.

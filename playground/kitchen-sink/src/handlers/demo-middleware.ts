@@ -1,33 +1,31 @@
 import crypto from 'node:crypto';
-import type { FileRouteMiddleware, Middleware } from '@ecopages/core';
+import { createMiddleware } from '@ecopages/core';
 
 const defaultFlags = ['semantic-shells', 'explicit-routes', 'request-locals'];
 
-export const requestInfoMiddleware: FileRouteMiddleware = async (ctx, next) => {
+export const requestInfoMiddleware = createMiddleware(async (ctx, next) => {
 	const url = new URL(ctx.request.url);
-	const featureFlags = url.searchParams.getAll('flag').filter(Boolean);
+	const flags = url.searchParams.getAll('flag').filter(Boolean);
 
-	ctx.locals.requestInfo = {
-		method: ctx.request.method,
-		pathname: url.pathname,
-		receivedAt: new Date().toISOString(),
-		requestId: crypto.randomUUID().slice(0, 8),
-	};
-	ctx.locals.featureFlags = featureFlags.length > 0 ? featureFlags : defaultFlags;
-	ctx.locals.viewerRole = ctx.request.headers.get('x-kitchen-role') === 'admin' ? 'admin' : 'viewer';
+	return next({
+		requestInfo: {
+			method: ctx.request.method,
+			pathname: url.pathname,
+			receivedAt: new Date().toISOString(),
+			requestId: crypto.randomUUID().slice(0, 8),
+		},
+		featureFlags: flags.length > 0 ? flags : defaultFlags,
+		viewerRole: ctx.request.headers.get('x-kitchen-role') === 'admin' ? ('admin' as const) : ('viewer' as const),
+	});
+});
 
-	return next();
-};
-
-export const adminOnlyMiddleware: Middleware = async (ctx, next) => {
-	ctx.locals.viewerRole = ctx.request.headers.get('x-kitchen-role') === 'admin' ? 'admin' : 'viewer';
-
-	if (ctx.locals.viewerRole !== 'admin') {
+export const adminOnlyMiddleware = createMiddleware(async (ctx, next) => {
+	if (ctx.request.headers.get('x-kitchen-role') !== 'admin') {
 		return ctx.response.status(403).json({
 			error: 'Admin access required',
 			hint: 'Send the x-kitchen-role: admin header to access this grouped handler.',
 		});
 	}
 
-	return next();
-};
+	return next({ viewerRole: 'admin' as const });
+});

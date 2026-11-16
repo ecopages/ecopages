@@ -10,7 +10,7 @@ export const POST = definePost({
 		await postsService.create({
 			...fields,
 			published_at: publishDateFor(intent),
-			authorId: locals.session!.user.id,
+			authorId: locals.session.user.id,
 		});
 		await services.cache?.invalidateByTags(['posts']);
 		return Response.redirect(new URL('/admin', request.url), 303);

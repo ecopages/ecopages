@@ -13,17 +13,7 @@ export default eco.page({
 		description: 'Your account dashboard.',
 	}),
 	render: ({ locals }) => {
-		const user = locals?.user;
-		if (!user) {
-			return (
-				<>
-					<h1 className="text-3xl font-bold tracking-tight text-(--color-on-background)">Dashboard</h1>
-					<p className="mt-2 text-(--color-muted)">
-						No active session. <a href="/login">Sign in</a>
-					</p>
-				</>
-			);
-		}
+		const user = locals.user;
 		return (
 			<>
 				<h1 className="text-3xl font-bold tracking-tight text-(--color-on-background)">Dashboard</h1>

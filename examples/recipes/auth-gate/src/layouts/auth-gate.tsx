@@ -1,5 +1,6 @@
 import type { EcoPageLayoutEntrySpec, LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import type { Session } from '../lib/session.server';
 
 type AuthGateProps = LayoutProps<JsxRenderable> & {
 	user?: string;
@@ -26,8 +27,16 @@ export function AuthGate({ children, user }: AuthGateProps) {
 	);
 }
 
-/** Layout entry that hands the gate the signed-in user from `locals.session`. */
+type SessionLocals = { session: Session | null };
+
+/**
+ * Layout entry that hands the gate the signed-in user from `locals.session`.
+ *
+ * @remarks
+ * The factory annotates the local it reads, so only a Page whose `middleware` list provides `session` accepts the
+ * entry. `loadSession` always provides it, as `null` for a signed-out visitor.
+ */
 export const authGateLayout = {
 	component: AuthGate,
-	props: ({ locals }) => ({ user: locals?.session?.user }),
-} satisfies EcoPageLayoutEntrySpec<JsxRenderable>;
+	props: ({ locals }: { locals: SessionLocals }) => ({ user: locals.session?.user }),
+} satisfies EcoPageLayoutEntrySpec<JsxRenderable, { locals: SessionLocals }>;

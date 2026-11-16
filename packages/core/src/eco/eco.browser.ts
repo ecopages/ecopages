@@ -4,7 +4,6 @@ import type {
 	LayoutProps,
 	EcoPagesElement,
 	EcoPageComponent,
-	RequestPageContext,
 } from '../types/contracts.ts';
 import type {
 	ComponentOptions,
@@ -78,7 +77,7 @@ function page<T, E>(options: PageOptions<T, E>): EcoPageComponent<T> {
 			? mergeLayoutDependencies(undefined, layoutEntries)
 			: mergeLayoutDependencies(dependenciesInput, layoutEntries);
 
-	const componentOptions: ComponentOptions<PagePropsFor<T> & Partial<RequestPageContext>, E> = {
+	const componentOptions: ComponentOptions<PagePropsFor<T>, E> = {
 		identity: options.identity,
 		integration: options.integration,
 		dependencies: staticDependencies,

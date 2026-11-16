@@ -341,20 +341,20 @@ describe('LitRenderer', () => {
 			expect(text).toContain('<div>Hello World</div>');
 		});
 
-		it('passes the static locals guard through the route pipeline', async () => {
+		it('renders a static page through the route pipeline without request locals', async () => {
 			const testRenderer = createRenderer();
 			const Page = ((props: Record<string, unknown>) => {
-				return `<p>${String((props.locals as { user: string }).user)}</p>`;
+				return `<p data-locals="${'locals' in props ? 'present' : 'absent'}"></p>`;
 			}) as EcoComponent<Record<string, unknown>>;
 
-			await expect(
-				testRenderer.execute({
-					file: '/app/pages/index.lit.tsx',
-					params: {},
-					query: {},
-					pageModule: { default: Page },
-				}),
-			).rejects.toThrow(/Request locals are only available during request-time rendering/);
+			const result = await testRenderer.execute({
+				file: '/app/pages/index.lit.tsx',
+				params: {},
+				query: {},
+				pageModule: { default: Page },
+			});
+
+			expect(await new Response(result.body as BodyInit).text()).toContain('<p data-locals="absent"></p>');
 		});
 
 		it('forwards resolved page props to the document shell', async () => {

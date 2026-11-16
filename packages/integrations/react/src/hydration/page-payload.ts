@@ -1,10 +1,9 @@
-import { LocalsAccessError } from '@ecopages/core/errors';
 import {
 	serializePageDataManifestScript,
 	serializePageDataScript,
 	type EcoPageDataProps,
 } from './serialize-page-data-script.ts';
-import type { EcoComponentConfig, HtmlTemplateProps, RequestLocals } from '@ecopages/core';
+import type { EcoComponentConfig, HtmlTemplateProps } from '@ecopages/core';
 import type { IntegrationRendererRenderOptions } from '@ecopages/core/integration';
 import type { ProcessedAsset } from '@ecopages/core/integration';
 import type { HtmlDocumentContribution } from '@ecopages/core/integration';
@@ -16,7 +15,6 @@ type PagePayloadOptions = {
 	pageProps?: HtmlTemplateProps['pageProps'];
 	params: IntegrationRendererRenderOptions<ReactNode>['params'];
 	query: IntegrationRendererRenderOptions<ReactNode>['query'];
-	safeLocals?: RequestLocals;
 	/** The props each layout tier renders with, outer to inner, as the server resolved them. */
 	layoutTiers?: readonly Record<string, unknown>[];
 };
@@ -97,65 +95,16 @@ export class PagePayloadService {
 	 * Builds the browser-safe page-props object embedded into the final HTML.
 	 *
 	 * @remarks
-	 * Narrower than the full server render input: only routing data, public page
-	 * props, and explicitly allowed locals. Page module identity is threaded via
-	 * `HtmlTemplateProps.pageModuleUrl`, not serialized page props.
+	 * Carries what the Page's `props` hook returned, its Params and Query, and the layout tier props. Request
+	 * `locals` never reach it: a Page that needs a value from them returns it from `props`. Page module identity is
+	 * threaded via `HtmlTemplateProps.pageModuleUrl`, not serialized page props.
 	 */
 	buildSerializedPageProps(options: PagePayloadOptions): HtmlTemplateProps['pageProps'] {
 		return {
 			...options.pageProps,
 			params: options.params,
 			query: options.query,
-			...(options.safeLocals && { locals: options.safeLocals }),
 			...(options.layoutTiers && { [ECO_PAGE_DATA_TIERS_KEY]: options.layoutTiers }),
 		};
-	}
-
-	/**
-	 * Extracts the declared subset of locals for client-side hydration.
-	 *
-	 * @remarks
-	 * On dynamic pages with `cache: 'dynamic'`, middleware populates `locals` with
-	 * request-scoped data. Only keys declared via `Page.requires` are serialized.
-	 * On static pages, `locals` is a Proxy that throws `LocalsAccessError`; this
-	 * method returns `undefined` instead of throwing.
-	 */
-	getSerializableLocals(
-		locals: RequestLocals | undefined,
-		requiredLocals?: string | readonly string[],
-	): RequestLocals | undefined {
-		try {
-			if (!locals) {
-				return undefined;
-			}
-
-			const requiredKeys = requiredLocals
-				? Array.isArray(requiredLocals)
-					? requiredLocals
-					: [requiredLocals]
-				: [];
-
-			if (requiredKeys.length === 0) {
-				return undefined;
-			}
-
-			const serializedLocals = Object.fromEntries(
-				requiredKeys
-					.filter((key) => Object.prototype.hasOwnProperty.call(locals, key))
-					.map((key) => [key, locals[key as keyof RequestLocals]]),
-			) as RequestLocals;
-
-			if (Object.keys(serializedLocals).length > 0) {
-				return serializedLocals;
-			}
-
-			return undefined;
-		} catch (error) {
-			if (error instanceof LocalsAccessError) {
-				return undefined;
-			}
-
-			throw error;
-		}
 	}
 }

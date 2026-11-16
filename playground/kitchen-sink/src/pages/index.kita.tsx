@@ -150,7 +150,8 @@ export default eco.page({
 								>
 									/patterns/middleware?flag=locals&flag=dynamic
 								</a>{' '}
-								to watch request locals flow into the page and, through a props factory, the layout.
+								to watch request locals flow into the page's props hook and, through a props factory,
+								the layout.
 							</p>
 							<p>
 								Open{' '}

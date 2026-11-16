@@ -1,6 +1,6 @@
 import * as bundledReact from 'react';
 import type { FunctionComponent, ReactElement } from 'react';
-import type { EcoComponent, EcoPageLayoutEntry, LayoutPropsContext, RequestLocals } from '@ecopages/core';
+import type { EcoComponent, EcoPageLayoutEntry, LayoutPropsContext } from '@ecopages/core';
 import type { EcoComponentConfig } from '@ecopages/core';
 import type { LayoutRenderTracker } from './layout-render-tracker.ts';
 
@@ -22,8 +22,8 @@ export type LayoutComposeOptions = {
 	 * The props each layout tier renders with, outer to inner, already resolved on the server.
 	 *
 	 * @remarks
-	 * When given, composition renders tier `i` with `tierProps[i]` and never calls a layout props factory or
-	 * reads `pageProps.locals`, so the browser needs no request code to reproduce what the server rendered.
+	 * When given, composition renders tier `i` with `tierProps[i]` and never calls a layout props factory, so the
+	 * browser needs no request code to reproduce what the server rendered.
 	 */
 	tierProps?: readonly Record<string, unknown>[];
 };
@@ -54,7 +54,10 @@ function toReactComponent(component: EcoComponent): FunctionComponent<Record<str
 }
 
 /**
- * Reads request-scoped layout context from serialized page props.
+ * Reads the Params and Query of a layout context from serialized page props.
+ *
+ * @remarks
+ * Serialized page props never carry `locals`; a server render passes them in `options.context`.
  */
 export function resolveLayoutContext(pageProps: Record<string, unknown>): LayoutComposeContext {
 	const context: LayoutComposeContext = {};
@@ -63,9 +66,6 @@ export function resolveLayoutContext(pageProps: Record<string, unknown>): Layout
 	}
 	if (pageProps.query !== undefined) {
 		context.query = pageProps.query as Record<string, string>;
-	}
-	if (pageProps.locals !== undefined) {
-		context.locals = pageProps.locals as RequestLocals;
 	}
 	return context;
 }
@@ -156,7 +156,7 @@ function toTrackedReactComponent(
  * Builds a layout tree from explicit document-shell layout entries.
  *
  * @remarks
- * Use when the route renderer passes per-tier props (e.g. route `locals` on the layout tier).
+ * Use when the route renderer passes per-tier props, which the server resolved from each entry's `props` factory.
  * Shell `entry.props` are authoritative; page config normalization is not required.
  */
 export function composeLayoutPageTreeFromShell<P extends Record<string, unknown>>(

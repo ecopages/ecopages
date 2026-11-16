@@ -36,6 +36,7 @@ import type {
 	IHmrManager,
 } from '../../types/contracts.ts';
 import type { EcoPageComponent } from '../../types/eco-api-types.ts';
+import type { DynamicEcoPageComponent } from '../../types/contracts.ts';
 import { MissingProductionServerModuleError } from '../../build/server/server-modules-manifest.ts';
 import {
 	TestIntegrationRenderer,
@@ -1453,25 +1454,20 @@ describe('IntegrationRenderer', () => {
 		expect(html).toContain('<main>Dynamic Title</main>');
 	});
 
-	it('keeps request locals off static layouts and guards static page access', async () => {
+	it('keeps request locals off a static page and its layouts', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
 		renderer.UseDocumentShellRender = true;
 
-		const PageIdx = (({ locals }: { locals?: object }) => {
-			try {
-				Reflect.get(locals as object, 'session');
-				return '<p>request locals were available</p>';
-			} catch (error) {
-				return `<p>${error instanceof Error ? error.message : String(error)}</p>`;
-			}
-		}) as EcoPageComponent<Record<string, unknown>>;
-		const Layout = (({ children, locals }: { children?: unknown; locals?: object }) =>
-			`<main data-layout-locals="${locals === undefined ? 'absent' : 'present'}">${String(children ?? '')}</main>`) as EcoComponent<{
+		const PageIdx = ((props: Record<string, unknown>) =>
+			`<p data-page-locals="${'locals' in props ? 'present' : 'absent'}">Page</p>`) as EcoPageComponent<
+			Record<string, unknown>
+		>;
+		const Layout = ((props: { children?: unknown }) =>
+			`<main data-layout-locals="${'locals' in props ? 'present' : 'absent'}">${String(props.children ?? '')}</main>`) as EcoComponent<{
 			children?: unknown;
-			locals?: object;
 		}>;
 		PageIdx.config = { layouts: [Layout] };
 
@@ -1488,46 +1484,36 @@ describe('IntegrationRenderer', () => {
 		});
 		const html = await new Response(result.body as BodyInit).text();
 
-		expect(html).toContain('data-layout-locals="absent"');
-		expect(html).toContain(
-			`[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: ${path.resolve('/app/pages/static-page.ts')}`,
-		);
+		expect(html).toContain('<main data-layout-locals="absent"><p data-page-locals="absent">Page</p></main>');
 	});
 
-	it('passes request locals to a dynamic page, and to a layout only through its props factory', async () => {
+	it('gives a dynamic page its locals only through what props returned, and a layout only through its factory', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
 		renderer.UseDocumentShellRender = true;
 
-		const PageIdx = (({ locals }: { locals?: { session?: { userId?: string } } }) =>
-			`<p data-page-user="${locals?.session?.userId ?? 'missing'}">Page</p>`) as EcoPageComponent<
+		const PageIdx = ((props: Record<string, unknown>) =>
+			`<p data-page-user="${String(props.user ?? 'missing')}" data-page-locals="${'locals' in props ? 'present' : 'absent'}">Page</p>`) as DynamicEcoPageComponent<
 			Record<string, unknown>
 		>;
-		const Layout = (({
-			children,
-			locals,
-			user,
-		}: {
+		const Layout = ((props: { children?: unknown; user?: string }) =>
+			`<main data-layout-locals="${'locals' in props ? 'present' : 'absent'}" data-layout-user="${props.user ?? 'missing'}">${String(props.children ?? '')}</main>`) as EcoComponent<{
 			children?: unknown;
-			locals?: { session?: { userId?: string } };
-			user?: string;
-		}) =>
-			`<main data-layout-locals="${locals?.session?.userId ?? 'missing'}" data-layout-user="${user ?? 'missing'}">${String(children ?? '')}</main>`) as EcoComponent<{
-			children?: unknown;
-			locals?: { session?: { userId?: string } };
 			user?: string;
 		}>;
 		PageIdx.cache = 'dynamic';
+		const readUserId = (locals: object): string | undefined => {
+			const session: unknown = Reflect.get(locals, 'session');
+			return typeof session === 'object' && session !== null && 'userId' in session
+				? String(session.userId)
+				: undefined;
+		};
+		PageIdx.props = ({ locals }) => ({ user: readUserId(locals) });
 		PageIdx.config = {
 			layouts: [Layout],
-			layoutEntries: [
-				{
-					component: Layout,
-					props: ({ locals }) => ({ user: (locals?.session as { userId?: string } | undefined)?.userId }),
-				},
-			],
+			layoutEntries: [{ component: Layout, props: ({ locals }) => ({ user: readUserId(locals) }) }],
 		};
 
 		renderer.PageModule = {
@@ -1540,12 +1526,13 @@ describe('IntegrationRenderer', () => {
 			file: path.resolve('/app/pages/dynamic-page.ts'),
 			params: {},
 			query: {},
+			request: new Request('http://localhost/dynamic-page'),
 			locals: { session: { userId: 'u-1' } },
 		});
 		const html = await new Response(result.body as BodyInit).text();
 
 		expect(html).toContain(
-			'<main data-layout-locals="missing" data-layout-user="u-1"><p data-page-user="u-1">Page</p></main>',
+			'<main data-layout-locals="absent" data-layout-user="u-1"><p data-page-user="u-1" data-page-locals="absent">Page</p></main>',
 		);
 	});
 

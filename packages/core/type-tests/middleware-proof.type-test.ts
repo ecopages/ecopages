@@ -1,5 +1,5 @@
 import { createMiddleware } from '../src/middleware/create-middleware.ts';
-import { defineGet } from '../src/adapters/shared/http/define-api-handler.ts';
+import { defineGet, defineGroupHandler } from '../src/adapters/shared/http/define-api-handler.ts';
 import { eco } from '../src/eco/eco.ts';
 import type { AnyEcoMiddleware, EcoMiddleware, ListLocals } from '../src/types/middleware-types.ts';
 
@@ -54,6 +54,24 @@ void unprovenSession;
 declare const afterUnknown: ListLocals<[typeof unknownEntry, typeof provideSession]>;
 const reprovenSession: Session = afterUnknown.session;
 void reprovenSession;
+
+// a route entry of unknown locals leaves no key of its group proven
+defineGroupHandler({
+	prefix: '/group',
+	middleware: [provideSession],
+	routes: (api) => [
+		api.get({ path: '/known', handler: (ctx) => ctx.response.json({ userId: ctx.locals.session.userId }) }),
+		api.get({
+			path: '/unknown',
+			middleware: [unknownEntry],
+			handler: (ctx) => {
+				// @ts-expect-error the route's entry of unknown locals may overwrite the group's session
+				const userId: string = ctx.locals.session.userId;
+				return ctx.response.json({ userId });
+			},
+		}),
+	],
+});
 
 // a middleware cannot be upcast to one that provides less, so a fixed tuple keeps an honest fold
 // @ts-expect-error the brand is invariant in its locals

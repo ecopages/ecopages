@@ -11,12 +11,13 @@ export default eco.page({
 	cache: 'dynamic',
 	middleware: [requireSession],
 	dependencies: { scripts: ['./admin-posts.script.ts'] },
-	props: async () => ({
+	props: async ({ locals }) => ({
 		posts: await postsService.listAll(),
+		userName: locals.session.user.name,
 	}),
 	metadata: () => ({ title: 'Posts | EcoBlog author', description: 'Manage blog posts.' }),
-	render: ({ posts, locals }) => (
-		<AdminShell current="posts" userName={locals.session.user.name}>
+	render: ({ posts, userName }) => (
+		<AdminShell current="posts" userName={userName}>
 			<div class="admin-posts">
 				<header class="admin-posts__header">
 					<h1>Posts</h1>

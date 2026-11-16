@@ -29,15 +29,6 @@ export type ReactForeignSubtreeResolutionContext = {
 	rawChildrenHtml?: string;
 };
 
-export function buildHydrationProps(props: SerializableProps | undefined): SerializableProps {
-	if (!props || !Object.prototype.hasOwnProperty.call(props, 'locals')) {
-		return props ?? {};
-	}
-
-	const { locals: _locals, ...hydrationProps } = props;
-	return hydrationProps;
-}
-
 /**
  * Renders a non-React layout or HTML template and enforces that mixed shells
  * return serialized HTML.

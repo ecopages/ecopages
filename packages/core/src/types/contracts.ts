@@ -1,6 +1,6 @@
 import type { Readable } from 'node:stream';
 import type { ComponentIdentity } from './component-identity.ts';
-import type { ApiMiddlewareEntry, ListLocals, MergeLocals, PageMiddlewareEntry } from './middleware-types.ts';
+import type { ApiMiddlewareEntry, ListLocals, PageMiddlewareEntry } from './middleware-types.ts';
 import type { ViewReference } from './view-reference.ts';
 import type { ApiResponseBuilder } from './api-response.ts';
 import type { AssetDefinition, ProcessedAsset } from './asset-types.ts';
@@ -37,10 +37,6 @@ export type HmrStrategyContract = {
 	ownsDevTransformEntrypoint(sourcePath: string, variant?: string): boolean;
 	process(filePath: string): Promise<HmrAction>;
 };
-
-type RequiresKeys = keyof RequestLocals;
-
-export type PageRequires<K extends RequiresKeys = RequiresKeys> = K | readonly K[];
 
 export type GetPageDependenciesContext<T = Record<string, unknown>> = {
 	props: PagePropsFor<T>;
@@ -115,7 +111,7 @@ interface WebSocketContextFactoryInput<TParams extends Record<string, string> = 
 	readonly kind: string;
 	readonly params: TParams;
 	readonly search: Readonly<PageQuery>;
-	readonly locals?: RequestLocals;
+	readonly locals?: Record<string, unknown>;
 }
 
 /**
@@ -641,7 +637,7 @@ export interface BrowserForeignChildHost {
 /**
  * Represents a page in EcoPages.
  */
-export type PageProps<T = unknown> = T & StaticPageContext & { locals?: RequestLocals };
+export type PageProps<T = unknown> = T & StaticPageContext;
 
 /**
  * Page-level robots directives for the document head and sitemap filtering.
@@ -725,7 +721,7 @@ export interface PageHeadProps<T = EcoPagesElement> {
 /**
  * Represents the props for a route layout.
  */
-export interface LayoutProps<T = EcoPagesElement> extends Partial<RequestPageContext> {
+export interface LayoutProps<T = EcoPagesElement> {
 	children: T;
 }
 
@@ -749,17 +745,18 @@ export interface HtmlTemplateProps<T = EcoPagesElement> extends PageHeadProps<T>
 }
 
 /**
- * A layout factory context whose `params`, `query` and `locals` are all optional.
+ * A layout factory context whose `params`, `query` and `locals` are all optional, and whose `locals` has no keys.
  *
  * @remarks
- * A shared layout entry whose factory takes it is accepted on any Page; on a Static or revalidating Page its
- * `locals` is empty. A factory written in `eco.page({ layout })` is typed with {@link LayoutRequestContext} or
- * {@link LayoutBuildContext} instead, from the Page's Cache Strategy and middleware list.
+ * A shared layout entry whose factory takes it is accepted on any Page. An entry that reads locals annotates the
+ * ones it reads on its factory parameter instead, so only a Page whose middleware provides them accepts it. A
+ * factory written in `eco.page({ layout })` is typed with {@link LayoutRequestContext} or {@link LayoutBuildContext},
+ * from the Page's Cache Strategy and middleware list.
  */
 export type LayoutPropsContext = {
 	params?: PageParams;
 	query?: PageQuery;
-	locals?: RequestLocals;
+	locals?: {};
 };
 
 /**
@@ -771,9 +768,9 @@ export type LayoutBuildContext = Omit<LayoutPropsContext, 'locals'>;
 /**
  * What a layout entry's `props` factory receives on a Dynamic Page.
  *
- * @typeParam TLocals - The Locals the Page's middleware provided, typed from its `middleware` list and `requires`.
+ * @typeParam TLocals - The Locals the Page's middleware provided, typed from its `middleware` list.
  */
-export type LayoutRequestContext<TLocals = RequestLocals> = LayoutBuildContext & {
+export type LayoutRequestContext<TLocals = {}> = LayoutBuildContext & {
 	readonly locals: Readonly<TLocals>;
 };
 
@@ -835,8 +832,8 @@ export type EcoHtmlComponent<T = EcoPagesElement> = EcoComponent<HtmlTemplatePro
  * @remarks
  * `status` is the HTTP status being rendered. `message` is the public `HttpError`
  * text for 4xx page-pipeline failures; unmatched URLs omit it. `stack` is only
- * passed for 5xx pages in development. Semantic error pages receive safe empty
- * `pageLocals` rather than request-scoped locals.
+ * passed for 5xx pages in development. Semantic error pages render outside the page middleware pipeline, so their
+ * layout factories receive empty `locals`.
  */
 export interface ErrorPageTemplateProps extends Omit<HtmlTemplateProps, 'children'> {
 	status: number;
@@ -864,46 +861,12 @@ export type PageParams = Record<string, string | string[]>;
 export type PageQuery = Record<string, string | string[]>;
 
 /**
- * Request-scoped data that is only available during request-time rendering.
- *
- * Apps should augment this interface via module augmentation:
- *
- * declare module '@ecopages/core' {
- *   interface RequestLocals { session?: Session | null }
- * }
- */
-export interface RequestLocals {}
-
-/**
  * Represents the context object for a static page.
  */
 export type StaticPageContext = {
 	params?: PageParams;
 	query?: PageQuery;
 };
-
-/**
- * Request-time page context.
- *
- * This is only populated during SSR. Static generation must not access locals.
- */
-export type RequestPageContext = {
-	locals: RequestLocals;
-};
-
-/**
- * Adds optional `locals` to a props type.
- * Primarily used for layouts that may receive request-scoped data from middleware.
- *
- * @template P - The base props type
- *
- * @example
- * ```ts
- * type MyLayoutProps = WithLocals<{ children: ReactNode }>;
- * // { children: ReactNode; locals?: RequestLocals }
- * ```
- */
-export type WithLocals<P> = P & { locals?: RequestLocals };
 
 /**
  * One page that `paths` lists at build.
@@ -951,12 +914,11 @@ export type PagePropsFor<T> =
 		? P & { params?: PageParams; query?: PageQuery }
 		: T & { params?: PageParams; query?: PageQuery };
 
-type PageRenderComponent<T> = EcoComponent<PagePropsFor<T> & Partial<RequestPageContext>>;
+type PageRenderComponent<T> = EcoComponent<PagePropsFor<T>>;
 
 type PageStaticsBase<T> = {
 	paths?: GetPaths;
 	metadata?: GetMetadata<T>;
-	requires?: PageRequires;
 	middleware?: readonly PageMiddlewareEntry[];
 };
 
@@ -1035,7 +997,7 @@ export type PageBuildContext = {
  *
  * @typeParam TLocals - The Locals the Page's middleware provided, typed from its `middleware` list.
  */
-export type PageRequestContext<TLocals = RequestLocals> = PageBuildContext & {
+export type PageRequestContext<TLocals = {}> = PageBuildContext & {
 	request: Request;
 	query: PageQuery;
 	readonly locals: Readonly<TLocals>;
@@ -1073,7 +1035,7 @@ type WithoutRouteProps<T> = T extends object ? T & NoRouteProps : T;
 /**
  * The `props` hook of a Dynamic Page: the Page's request handler, run on every request and never by the build.
  */
-export type GetRequestProps<T, TLocals = RequestLocals> = ((context: PageRequestContext<TLocals>) => T | Promise<T>) &
+export type GetRequestProps<T, TLocals = {}> = ((context: PageRequestContext<TLocals>) => T | Promise<T>) &
 	((context: PageRequestContext<TLocals>) => WithoutRouteProps<T> | Promise<WithoutRouteProps<T>>);
 
 /**
@@ -1094,7 +1056,8 @@ export type RouteRendererOptions = {
 	file: string;
 	params?: PageParams;
 	query?: PageQuery;
-	locals?: RequestLocals;
+	/** The request's locals store, as the Page's middleware left it. */
+	locals?: Record<string, unknown>;
 	/**
 	 * The incoming request, set only for a request-time render of a Dynamic Page.
 	 *
@@ -1186,7 +1149,6 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	pagePackage?: PagePackageResult;
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
-	pageLocals?: RequestLocals;
 };
 
 export type InternalIntegrationRendererRenderOptions<C = EcoPagesElement> = IntegrationRendererRenderOptions<C> & {
@@ -1419,20 +1381,9 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 	response: ApiResponseBuilder;
 	server: TServer;
 	/**
-	 * Request-scoped data store.
-	 * Only valid during request-time handling (SSR/API). Must not be used for static generation.
+	 * The locals the route's middleware provided, typed from its `middleware` list. Without one it has no keys.
 	 */
-	locals: RequestLocals;
-	/**
-	 * Require one or more locals keys. If missing, executes `onMissing` to produce a terminating Response.
-	 */
-	require: {
-		<K extends keyof RequestLocals>(key: K, onMissing: () => Response): Exclude<RequestLocals[K], null | undefined>;
-		<K extends keyof RequestLocals>(
-			keys: readonly K[],
-			onMissing: () => Response,
-		): { [P in K]-?: Exclude<RequestLocals[P], null | undefined> };
-	};
+	locals: {};
 	/**
 	 * Services available to the API handler.
 	 */
@@ -1568,6 +1519,23 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 }
 
 /**
+ * The context a plain API middleware function receives.
+ */
+export interface ApiMiddlewareContext<TRequest extends Request = Request, TServer = any> extends Omit<
+	ApiHandlerContext<TRequest, TServer>,
+	'locals'
+> {
+	/**
+	 * The request's locals store.
+	 *
+	 * @remarks
+	 * A plain function may write any key here and the later stages and the handler see it at runtime, but no type
+	 * carries what it writes: they read only what a `createMiddleware` stage provides.
+	 */
+	locals: Record<string, unknown>;
+}
+
+/**
  * Context available to file-route page middleware.
  *
  * Page middleware can mutate locals, short-circuit the request, and use the
@@ -1575,7 +1543,7 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
  * execution path. The query string is not parsed for page middleware; read it from `request.url`.
  */
 export interface FileRouteMiddlewareContext<TRequest extends Request = Request, TServer = any> extends Omit<
-	ApiHandlerContext<TRequest, TServer>,
+	ApiMiddlewareContext<TRequest, TServer>,
 	'render' | 'renderPartial' | 'query'
 > {}
 
@@ -1605,7 +1573,7 @@ export type MiddlewareNext = () => Promise<Response>;
  * ```
  */
 export type Middleware<TRequest extends Request = Request, TServer = any> = (
-	context: ApiHandlerContext<TRequest, TServer>,
+	context: ApiMiddlewareContext<TRequest, TServer>,
 	next: MiddlewareNext,
 ) => Promise<Response> | Response;
 
@@ -1740,12 +1708,22 @@ export type MiddlewareList = readonly ApiMiddlewareEntry[];
  * A context with the locals a middleware list provides, as seen by a handler or a group.
  *
  * @remarks
- * Later entries override earlier ones, and a route continues the locals of its group.
+ * Later entries override earlier ones, and a route continues the locals of its group: the route's list folds onto
+ * them, so a route entry of unknown locals leaves no group key proven either. A list typed exactly
+ * `MiddlewareList` is read as no list: it is the default every inferred list falls back to when a route declares
+ * none, and that default must stay a supertype of an inline list so its `(ctx, next) => ...` entries take their
+ * parameter types from it. A list annotated `MiddlewareList` by hand therefore keeps the group's keys.
  */
 export type WithMiddlewareLocals<TContext extends { readonly locals: object }, TList extends readonly unknown[]> = Omit<
 	TContext,
 	'locals'
-> & { readonly locals: MergeLocals<TContext['locals'], ListLocals<TList>> };
+> & { readonly locals: IsDefaultList<TList> extends true ? TContext['locals'] : ListLocals<TList, TContext['locals']> };
+
+type IsDefaultList<TList> = [TList] extends [MiddlewareList]
+	? [MiddlewareList] extends [TList]
+		? true
+		: false
+	: false;
 
 export interface RouteSchema {
 	body?: StandardSchema;

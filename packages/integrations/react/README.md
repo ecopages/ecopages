@@ -120,7 +120,7 @@ The client-graph boundary analyzes project modules during each browser build and
 
 `reactPlugin({ explicitGraph: true })` forces the page browser graph (hydration assets) to emit for every React page, even when the page does not declare `dependencies.modules` and no router is configured.
 
-It does **not** disable the client-graph AST boundary. Server-only `eco.page(...)` options such as `middleware` and `requires` are still stripped from browser bundles. With a router adapter, page hydration is already always on, so the option is redundant for SPA apps.
+It does **not** disable the client-graph AST boundary. Server-only `eco.page(...)` options such as `middleware` and `props` are still stripped from browser bundles. With a router adapter, page hydration is already always on, so the option is redundant for SPA apps.
 
 The option name is historical — it forces hydration asset emission, it does not mean “skip graph transforms.”
 
@@ -141,8 +141,7 @@ The client bundle removes or excludes:
 
 Important:
 
-- `render` must stay in the client bundle, because hydration needs it to reconstruct the page tree.
-- `requires` does **not** stay in the browser page config. It is used on the server to decide which `locals` keys may be serialized into the hydration payload.
+- `render` must stay in the client bundle, because hydration needs it to reconstruct the page tree. It receives no `locals`, only what `props` returned, so it needs no request code in the browser.
 
 ### AST Pipeline Order
 
@@ -177,7 +176,6 @@ const getProps = async () => ({ post: await getPost() });
 export default eco.page({
 	cache: 'dynamic',
 	middleware: [authMiddleware],
-	requires: ['session'] as const,
 	props: getProps,
 	render: () => <div>Dashboard</div>,
 });
@@ -195,26 +193,18 @@ Move that code into a server-only Page option, into a helper only those options 
 
 ### Hydration Contract for `locals`
 
-The browser must not receive arbitrary request-scoped data.
-
-The React renderer in [src/render/react-renderer.ts](src/render/react-renderer.ts) serializes only the top-level `locals` keys explicitly declared by `Page.requires`. If a page does not declare `requires`, no `locals` are serialized for hydration.
-
-Example:
+The browser never receives request locals. `render` does not get them: a dynamic Page reads them in `props` and returns what `render` needs, and the hydration payload carries exactly that return value, with the Params, Query and each layout tier's props.
 
 ```tsx
 export default eco.page({
-	requires: ['session'] as const,
-	render: ({ locals }) => <Dashboard user={locals?.session?.user} />,
+	cache: 'dynamic',
+	middleware: [authMiddleware],
+	props: ({ locals }) => ({ user: locals.session.user }),
+	render: ({ user }) => <Dashboard user={user} />,
 });
 ```
 
-In this case, the hydration payload may include `locals.session`, but it will exclude unrelated request-only keys.
-
-Important:
-
-- This filtering is currently top-level only.
-- If `locals.session` itself contains sensitive nested fields, those fields will still be serialized.
-- Middleware should therefore expose a client-safe shape for any key declared in `requires`.
+Whatever `props` returns is serialized, nested fields included, so return a client-safe shape: the user, not the session that holds its token.
 
 ### Layout Hydration Invariant
 
@@ -225,17 +215,17 @@ That applies to both:
 - page hydration lifecycle in [src/hydration/browser/page-hydration.ts](src/hydration/browser/page-hydration.ts)
 - router-backed hydration in [../../react-router/src/router.ts](../../react-router/src/router.ts)
 
-If the page render receives `locals` on the server and the layout also depends on those values, the client must pass the same serialized `locals` into the layout during hydration. Otherwise React will detect a mismatch.
+The server resolves each layout tier's props once from its entry's `props` factory and ships them as `tiers`; the browser renders each tier from those props without running a factory, so a layout cannot differ between server and browser.
 
 ### Tests That Guard This Contract
 
 The main regression coverage lives in:
 
 - [src/client-graph/boundary-plugin.test.ts](src/client-graph/boundary-plugin.test.ts): verifies server-only `eco.page(...)` options are stripped from browser bundles.
-- [src/render/react-renderer.locals.test.ts](src/render/react-renderer.locals.test.ts): verifies only declared `requires` keys are serialized into hydration payloads.
+- [src/render/react-renderer.locals.test.ts](src/render/react-renderer.locals.test.ts) and [src/test/react-renderer.test.tsx](src/test/react-renderer.test.tsx): the hydration payload holds the page props, Params, Query and tiers, never `locals`, even when middleware provided a secret.
 - [src/hydration/hydration-entry-source.test.ts](src/hydration/hydration-entry-source.test.ts): a generated island entry registers, and a generated Page entry hydrates, through the bootstrap module it imports.
 - [../../../e2e/fixtures/react-production-start/react-production-start.test.e2e.ts](../../../e2e/fixtures/react-production-start/react-production-start.test.e2e.ts): a built app serves a static and a dynamic Page under `ecopages start`, and their React island hydrates.
-- [../../react-router/test/layout-persistence.test.browser.ts](../../react-router/test/layout-persistence.test.browser.ts): verifies router-backed layout hydration receives `locals` with `persistLayouts` both enabled and disabled.
+- [../../react-router/test/layout-persistence.test.browser.ts](../../react-router/test/layout-persistence.test.browser.ts): verifies router-backed layouts render from the server-resolved tier props with `persistLayouts` both enabled and disabled.
 - [src/hydration/hydration-lifecycle.test.browser.ts](src/hydration/hydration-lifecycle.test.browser.ts): an uncaught `React.lazy` rejection during first hydration restores the server HTML, keeps body nodes added after mount, drops the page root and makes the next HMR update reload; a Page-level error boundary around the entry still shows its fallback.
 - [../../../playground/kitchen-sink/e2e/content-lazy.test.e2e.ts](../../../playground/kitchen-sink/e2e/content-lazy.test.e2e.ts): a collection chunk that fails during first hydration restores the server HTML (including the playground shell) and is not retried. A Page-level error boundary around the entry keeps the rest of the Page and shows the boundary fallback.
 - [../../../e2e/fixtures/react-lazy-first-load/lazy-first-load.test.e2e.ts](../../../e2e/fixtures/react-lazy-first-load/lazy-first-load.test.e2e.ts): the same first-hydration outcomes for a React Page without the router.
@@ -252,7 +242,7 @@ A server render tracks which tiers and the page it reached (`LayoutRenderTracker
 
 During SSR, `ReactRenderer` passes the app-resolved React runtime into `composeLayoutPageTree` via `options.react` so layout trees are built with the same module instance the server renders them with. App code should import hooks and context from `react` normally; keep a single React version in the app dependency graph (avoid duplicate `react` copies in monorepos).
 
-Layout prop factories run on the server only and receive `params`, `query` and, on a dynamic Page, `locals` typed from the Page's `middleware` list. The browser renders each tier from the props the server shipped as `tiers`, and the browser build removes the factory of an entry written inline in `eco.page({ layout })`; serialized `pageProps.locals` follow `Page.requires` and are intended for the page component.
+Layout prop factories run on the server only and receive `params`, `query` and, on a dynamic Page, `locals` typed from the Page's `middleware` list. The browser renders each tier from the props the server shipped as `tiers`, and the browser build removes the factory of an entry written inline in `eco.page({ layout })`. Serialized page props never carry `locals`.
 
 - [src/render/layout-compose.ts](src/render/layout-compose.ts): shared client/SSR tree builder.
 - [src/test/react-ssr-hydration-parity.test.tsx](src/test/react-ssr-hydration-parity.test.tsx): nested tier order parity between SSR and `composeLayoutPageTree`.

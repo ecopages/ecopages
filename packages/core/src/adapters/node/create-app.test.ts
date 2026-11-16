@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { ECOPAGES_DEV_RESTART_EXIT_CODE } from '../../dev/development-restart.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type {
-	ApiHandlerContext,
+	ApiMiddlewareContext,
 	ErrorPageTemplateProps,
 	Middleware,
 	PageParams,
@@ -297,7 +297,7 @@ describe('EcopagesApp route registration', () => {
 		app.get('/me', (ctx) => ctx.json({}), {
 			middleware: [
 				async (ctx, next) => {
-					expectTypeOf(ctx).toEqualTypeOf<ApiHandlerContext<Request, unknown>>();
+					expectTypeOf(ctx).toEqualTypeOf<ApiMiddlewareContext<Request, unknown>>();
 					return next();
 				},
 			],
@@ -317,7 +317,7 @@ describe('EcopagesApp route registration', () => {
 				routes.get('/me', (ctx) => ctx.json({}), {
 					middleware: [
 						async (ctx, next) => {
-							expectTypeOf(ctx).toEqualTypeOf<ApiHandlerContext<Request, unknown>>();
+							expectTypeOf(ctx).toEqualTypeOf<ApiMiddlewareContext<Request, unknown>>();
 							return next();
 						},
 					],

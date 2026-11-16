@@ -81,9 +81,22 @@ export default eco.page({
 });
 ```
 
-The element type is inferred from what `render` returns, and `layout` must use the same element type. `params` and `query` are always typed, `locals` is typed from the page's `middleware` list while the props still come from `props` (see [Request Locals](/docs/core/request-locals)), and `cache` and `middleware` do not change inference.
+The element type is inferred from what `render` returns, and `layout` must use the same element type. `render` receives what `props` returned plus `params` and `query`, always typed; `cache` and `middleware` do not change inference.
 
 `cache` does decide what `props` receives. On a `'static'` or `{ revalidate }` page it receives `{ params, appConfig, runtimeOrigin }` and runs without a request. On a `cache: 'dynamic'` page it is the page's request handler: it runs on every request, the build never runs it, and it also receives `request`, `query` and the `locals` typed from the `middleware` list. See [Data Fetching](/docs/core/data-fetching#props).
+
+`render` does not receive `locals`, and `requires` is removed. A page that read `locals` in `render` reads them in `props` instead and returns what `render` needs:
+
+```tsx
+export default eco.page({
+	cache: 'dynamic',
+	middleware: [authMiddleware],
+	props: ({ locals }) => ({ user: locals.session.user }),
+	render: ({ user }) => <h1>Hello {user.name}</h1>,
+});
+```
+
+What `props` returns is also what a hydrated page sends to the browser, so return the user, not the session. See [Request Locals](/docs/core/request-locals#read-locals-in-props).
 
 The catch is the same as for components: `eco.page<Props>` with one type argument loses the element type, so a JSX or Lit render fails to compile until you write `eco.page<Props, JsxRenderable>`. KitaJS is the exception, since its elements are strings. The table of Integrations is in [Typing a component from its render](/docs/core/components#typing-a-component-from-its-render).
 

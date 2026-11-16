@@ -2,7 +2,7 @@
  * Ownership helpers for deciding whether a component stays in the React render lane.
  */
 
-import type { EcoComponent, EcoComponentConfig, EcoPagesElement } from '@ecopages/core';
+import type { EcoComponentConfig, EcoPagesElement } from '@ecopages/core';
 import { getComponentOwner } from '@ecopages/core';
 import type { FunctionComponent } from 'react';
 
@@ -10,11 +10,6 @@ export type SerializableProps = Record<string, unknown>;
 
 export type ReactRenderableComponent<P extends SerializableProps = SerializableProps> = FunctionComponent<P> & {
 	config?: EcoComponentConfig;
-	requires?: string | readonly string[];
-};
-
-export type RequiresAwareComponent = {
-	requires?: string | readonly string[];
 };
 
 /**
@@ -42,10 +37,6 @@ export function isReactManagedComponent(
 ): boolean {
 	const integration = getComponentIntegration(component);
 	return integration === undefined || integration === reactIntegrationName;
-}
-
-export function getComponentRequires(component?: (EcoComponent & RequiresAwareComponent) | null) {
-	return component?.requires;
 }
 
 /**

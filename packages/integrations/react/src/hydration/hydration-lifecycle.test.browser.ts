@@ -110,7 +110,7 @@ function createPageOptions(
 		pageModuleUrl: '/assets/page.js',
 		Page,
 		pageDataReader: {
-			readPageDataDocument: () => ({ props: { title: 'Hello React', locals: { theme: 'dark' } } }),
+			readPageDataDocument: () => ({ props: { title: 'Hello React' } }),
 		},
 		runtime: reactRuntime,
 		createTree: (Component, props) => ({ Component, props }),
@@ -328,7 +328,7 @@ describe('React page lifecycle', () => {
 
 		expect(options.Page).not.toBe(initialPage);
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__!.renderCalls).toEqual([
-			{ Component: options.Page, props: { title: 'Hello React', locals: { theme: 'dark' } } },
+			{ Component: options.Page, props: { title: 'Hello React' } },
 		]);
 	});
 });

@@ -8,13 +8,6 @@ import {
 	FileRouteMiddlewarePipeline,
 } from './file-route-middleware-pipeline.ts';
 
-declare module '../../../types/contracts.ts' {
-	interface RequestLocals {
-		user?: string;
-		first?: boolean;
-	}
-}
-
 describe('FileRouteMiddlewarePipeline', () => {
 	it('should reject middleware on non-dynamic pages', () => {
 		const service = new FileRouteMiddlewarePipeline(null);
@@ -42,8 +35,9 @@ describe('FileRouteMiddlewarePipeline', () => {
 
 		expect('render' in context).toBe(false);
 		expect('renderPartial' in context).toBe(false);
+		expect('require' in context).toBe(false);
 
-		expect(context.require('user', () => new Response('missing', { status: 500 }))).toBe('andee');
+		expect(context.locals).toEqual({ user: 'andee' });
 		expect(await context.html('<p>ok</p>').text()).toContain('<p>ok</p>');
 		expect(await context.json({ ok: true }).text()).toContain('{"ok":true}');
 	});
@@ -107,7 +101,7 @@ describe('FileRouteMiddlewarePipeline', () => {
 			locals: {},
 		});
 		const auth = createMiddleware((_ctx, next) => next({ user: 'ada' }));
-		let seen: string | undefined;
+		let seen: unknown;
 
 		await service.run({
 			middleware: flattenMiddleware([auth]),

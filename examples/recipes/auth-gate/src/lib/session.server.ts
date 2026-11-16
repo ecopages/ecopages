@@ -2,6 +2,8 @@ import { createMiddleware } from '@ecopages/core';
 
 export const SESSION_COOKIE = 'session';
 
+export type Session = { user: string };
+
 /**
  * Reads the signed-in user from the request cookie.
  *
@@ -9,7 +11,7 @@ export const SESSION_COOKIE = 'session';
  * A stand-in for your auth library: any non-empty cookie counts as a session. Replace the body with a real
  * check, such as validating a signed token or looking the session up in your store.
  */
-export function readSession(request: Request): { user: string } | null {
+export function readSession(request: Request): Session | null {
 	const cookie = request.headers.get('cookie') ?? '';
 	const user = cookie
 		.split(';')

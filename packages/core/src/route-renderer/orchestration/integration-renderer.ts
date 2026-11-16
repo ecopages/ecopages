@@ -1346,7 +1346,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					...options.props,
 					params: options.params ?? {},
 					query: options.query ?? {},
-					locals: options.pageLocals,
 				},
 			},
 			layouts: resolveRenderLayouts(options, {

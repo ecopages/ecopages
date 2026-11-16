@@ -9,7 +9,6 @@ sources:
   - packages/core/src/eco/eco-declared-component.ts
   - packages/core/src/adapters/shared/http/fs-server-response-matcher.ts
   - packages/core/src/adapters/shared/http/file-route-middleware-pipeline.ts
-  - packages/core/src/route-renderer/orchestration/route-pipeline/route-prepared-options.utils.ts
 ---
 
 # Errors and utilities
@@ -21,7 +20,7 @@ sources:
 | Class | Thrown when | What the user sees |
 | --- | --- | --- |
 | `HttpError` | A Page, endpoint handler or middleware throws one, usually through a factory: `BadRequest` (400), `Unauthorized` (401), `Forbidden` (403), `NotFound` (404), `Conflict` (409), `InternalServerError` (500). | An endpoint answers `{ error, status, details? }` as JSON with that status. A Page renders the semantic error page for the status (see below). |
-| `LocalsAccessError` | Page code reads or writes `locals` on a page that is not `cache: 'dynamic'` (the locals object is a Proxy that throws on every trap), or a Page has file route middleware but is not dynamic. | The message names the Page and says to set `cache: 'dynamic'`; the page fails like any render error. The React hydration payload catches it and omits locals instead. |
+| `LocalsAccessError` | A Page has file route middleware but is not `cache: 'dynamic'` (`FileRouteMiddlewarePipeline.assertValidConfiguration`). No code reads `locals` on a non-dynamic Page any more: `render` never receives them, and a static Page's `props` and layout factories have none in their types. | The message names the Page and says to set `cache: 'dynamic'`; the request fails like any render error. |
 | `UndeclaredComponentDependencyError` | A `dependencies.components` entry is not an `eco.component()`, `eco.layout()` or `eco.html()` result, so it has no component identity. | The message says the entry must be one of those, names the declaring file when known, and fails that Page. |
 
 `HttpError.isHttpError` matches by `name` and a numeric `status` as well as `instanceof`, because a Page bundle can carry its own copy of the class. Code that catches errors from pages uses it and `HttpError.responseFor`, which rebuilds the response from the error's fields, instead of relying on identity.
@@ -91,6 +90,6 @@ Most modules in `utils/` are small and named for what they do. These carry behav
 | `deep-merge`, `regex-escaping` | Recursive merge of two objects or arrays into a new value, and a regex escape. |
 | `format-error-chain` | Joins an error's stack with each `cause` as `Caused by:` lines, stopping at a repeated error, because the logger prints only `stack`. |
 | `invariant` | Throws a prefixed `Error` when the condition is false and forwards `ErrorOptions`, so a caller can keep the original failure as `cause`. |
-| `locals-utils`, `ecopages-route-info` | `createRequire` builds the `require` of an endpoint context, which throws the `onMissing` response when a local is `undefined` or `null`; `toEcopagesRouteInfo` and `resolveAppStartRoutes` map static routes to the slim route shape. |
+| `ecopages-route-info` | `toEcopagesRouteInfo` and `resolveAppStartRoutes` map static routes to the slim route shape. |
 
 Everything else in the folder is a constant or a one-line helper. A new utility belongs here only if more than one layer needs it; a helper used by one system lives with that system, because Foundation code must not know about the code that calls it.

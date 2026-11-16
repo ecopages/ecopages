@@ -121,7 +121,8 @@ describe('layout-compose', () => {
 		const withLocals = composeLayoutPageTree(pageComponent(Page), {}, { context: { locals: { role: 'admin' } } });
 		const withoutFactory = composeLayoutPageTree(
 			pageComponent(eco.page<{}, ReactNode>({ layout: Layout, render: () => 'page' })),
-			{ locals: { role: 'guarded' } },
+			{},
+			{ context: { locals: { role: 'guarded' } } },
 		);
 
 		expect(withLocals.props).toEqual({ role: 'admin', children: expect.any(Object) });

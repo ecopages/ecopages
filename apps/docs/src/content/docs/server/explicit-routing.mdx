@@ -440,7 +440,7 @@ app.static('/posts', PostListView);
 app.static('/posts/:slug', PostView);
 ```
 
-Import the view and pass it to `app.static()`. Development reloads it through the app module loader; production reads the built module. A full explicit view uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's own page client plan. The props passed to the render are available to the view's `metadata`, and the render does not run the view's `props`. Handler renders (`ctx.render`) also pass the request's locals, route params and query to the view. Planning a dynamic explicit route resolves the renderer without calling `props`; `props` runs once with the slug's params before the view renders. Views must be the default export and define `paths` and `props`:
+Import the view and pass it to `app.static()`. Development reloads it through the app module loader; production reads the built module. A full explicit view uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's own page client plan. The props passed to the render are available to the view's `metadata`, and the render does not run the view's `props`. Handler renders (`ctx.render`) also pass the route params and query to the view. The view receives the props the handler passed and never `ctx.locals`; the locals reach only its layout entries' `props` factories. Planning a dynamic explicit route resolves the renderer without calling `props`; `props` runs once with the slug's params before the view renders. Views must be the default export and define `paths` and `props`:
 
 ```typescript
 // src/views/post-view.tsx

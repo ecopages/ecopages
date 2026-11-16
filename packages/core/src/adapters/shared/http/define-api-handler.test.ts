@@ -1,7 +1,7 @@
 import { createMiddleware } from '../../../middleware/create-middleware.ts';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
-import type { ApiHandler, ApiHandlerContext, PageParams, PageQuery } from '../../../types/contracts.ts';
+import type { ApiHandler, ApiMiddlewareContext, PageParams, PageQuery } from '../../../types/contracts.ts';
 import { defineGet, definePost, defineGroupHandler, defineQuery, json, html, redirect } from './define-api-handler.ts';
 
 describe('defineGet / definePost', () => {
@@ -283,7 +283,7 @@ describe('middleware context', () => {
 			middleware: [
 				withSession,
 				async (ctx, next) => {
-					expectTypeOf(ctx).toEqualTypeOf<ApiHandlerContext<Request, unknown>>();
+					expectTypeOf(ctx).toEqualTypeOf<ApiMiddlewareContext<Request, unknown>>();
 					return next();
 				},
 			],

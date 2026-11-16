@@ -52,9 +52,8 @@ import {
 	type DocumentShellLayoutInput,
 } from '@ecopages/core/integration';
 import type { QueuedForeignSubtreeResolutionContext, ResolveForeignSubtreeTokens } from '@ecopages/core/integration';
-import { asNonReactShellComponent, getComponentRequires, isReactManagedComponent } from './component-ownership.ts';
+import { asNonReactShellComponent, isReactManagedComponent } from './component-ownership.ts';
 import {
-	buildHydrationProps,
 	renderComponentHtml,
 	renderNonReactShellComponent,
 	restoreRuntimeChildHtml,
@@ -325,10 +324,6 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		pageModuleUrl: string | undefined;
 		pageProps: Record<string, unknown>;
 	} {
-		const safeLocals = this.pagePayloadService.getSerializableLocals(
-			renderOptions.locals,
-			getComponentRequires(renderOptions.Page),
-		);
 		const layoutTiers = renderOptions.layoutEntries?.length
 			? resolveRenderLayouts(renderOptions, {
 					layout: renderOptions.Layout,
@@ -347,7 +342,6 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 				pageProps: renderOptions.pageProps,
 				params: renderOptions.params,
 				query: renderOptions.query,
-				safeLocals,
 				layoutTiers,
 			}),
 		};
@@ -446,7 +440,7 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 					toRootRelativePath(this.appConfig.rootDir, componentFile),
 					componentConfig,
 				),
-				props: buildHydrationProps(input.props),
+				props: input.props,
 			});
 			html = `<eco-island style="display:contents">${html}</eco-island>`;
 		}

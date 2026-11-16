@@ -8,7 +8,7 @@ import type { CacheStrategy, RenderResult } from '../../../page-cache/cache.type
 import type { EcoPageComponent } from '../../../types/eco-api-types.ts';
 import type { EcoPageFile } from '../../../types/contracts.ts';
 import { PageRequestCacheCoordinator } from '../../../page-cache/page-request-cache-coordinator.service.ts';
-import type { FileRouteMiddlewareContext, RequestLocals } from '../../../types/contracts.ts';
+import type { FileRouteMiddlewareContext } from '../../../types/contracts.ts';
 import { flattenMiddleware } from '../../../middleware/create-middleware.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
 import type { MiddlewareHandler } from './run-middleware-chain.ts';
@@ -40,8 +40,8 @@ type FileRouteExecutionPlan = {
 	isDynamic: boolean;
 	/** The strategy the page cache applies: the Page's own, or the app default when it declares none. */
 	pageCacheStrategy: CacheStrategy;
-	localsStore: RequestLocals;
-	localsForRender: RequestLocals | undefined;
+	localsStore: Record<string, unknown>;
+	localsForRender: Record<string, unknown> | undefined;
 	/** The request a Dynamic Page's `props` hook receives; a cached render runs without one. */
 	requestForRender: Request | undefined;
 };
@@ -291,7 +291,7 @@ export class FileSystemResponseMatcher {
 			new Request(new URL(cacheKey, this.router.origin).toString(), {
 				method: 'GET',
 			});
-		const localsStore: RequestLocals = {};
+		const localsStore: Record<string, unknown> = {};
 		const pageFilePath = match.templateRoute.filePath;
 		const pageModule = await this.importPageModule(pageFilePath);
 		const pageComponent = pageModule.default as EcoPageComponent<unknown>;

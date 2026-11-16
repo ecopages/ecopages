@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type {
 	EcoComponent,
@@ -38,7 +37,6 @@ describe('buildPreparedRenderOptions semantic error templates', () => {
 		});
 
 		expect(result.locals).toEqual({});
-		expect(result.pageLocals).toEqual({});
-		expect(() => Reflect.get(result.pageLocals as object, 'sessionUser')).not.toThrow(LocalsAccessError);
+		expect(result.pageProps).not.toHaveProperty('locals');
 	});
 });

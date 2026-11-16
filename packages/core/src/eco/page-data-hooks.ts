@@ -5,7 +5,6 @@ import type {
 	EcoPageComponent,
 	NoRouteProps,
 	PagePropsFor,
-	RequestPageContext,
 	StaticPageStatics,
 } from '../types/contracts.ts';
 import type { DynamicPageOptions, PageOptions, StaticPageOptions } from '../types/eco-api-types.ts';
@@ -18,13 +17,12 @@ import type { DynamicPageOptions, PageOptions, StaticPageOptions } from '../type
  * {@link EcoPageComponent}: a Dynamic Page's hooks take the request context, any other Page's the build context.
  */
 export function attachPageOptions<T, E>(
-	component: EcoComponent<PagePropsFor<T> & Partial<RequestPageContext>>,
+	component: EcoComponent<PagePropsFor<T>>,
 	options: PageOptions<T, E>,
 ): EcoPageComponent<T> {
 	const statics = options.cache === 'dynamic' ? createDynamicStatics(options) : createStaticStatics(options);
 	if (options.paths) statics.paths = options.paths;
 	if (options.metadata) statics.metadata = options.metadata;
-	if (options.requires) statics.requires = options.requires;
 	if (options.middleware) statics.middleware = options.middleware;
 	return Object.assign(component, statics);
 }

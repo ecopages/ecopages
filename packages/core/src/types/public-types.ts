@@ -1,6 +1,7 @@
 export type {
 	ApiHandler,
 	ApiHandlerContext,
+	ApiMiddlewareContext,
 	BrowserForeignChildHost,
 	EcoComponent,
 	EcoComponentConfig,
@@ -58,10 +59,7 @@ export type {
 	PageDependenciesResult,
 	PageProps,
 	PagePropsFor,
-	PageRequires,
 	PageRobotsMetadata,
-	RequestLocals,
-	RequestPageContext,
 	RenderContext,
 	RenderOptions,
 	RouteGroupBuilder,
@@ -81,7 +79,6 @@ export type {
 	StaticPageContext,
 	PagePath,
 	WebSocketCloseInfo,
-	WithLocals,
 } from './contracts.ts';
 export type { ViewReference } from './view-reference.ts';
 export type { CacheConfig, CacheStrategy } from './cache-types.ts';
@@ -98,7 +95,6 @@ export type {
 	DynamicPageOptions,
 	PageOptions,
 	PageOptionsBase,
-	PagePropsForWithLocals,
 	StaticPageOptions,
 	PropsOf,
 	ResultOf,

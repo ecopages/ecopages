@@ -28,7 +28,7 @@ Open http://localhost:3000 and sign in at `/login` as `admin@test.com` / `passwo
 | `POST /api/upload`                                             | `src/pages/api/upload.api.ts`        | Endpoint: editor image upload                       |
 | `/feed.xml`                                                    | `app.ts`                             | Explicit Route: RSS 2.0 feed of the 20 latest posts |
 
-- `requireSession` (`src/lib/require-session.server.ts`) puts the session on `locals.session` or redirects to `/login`. Admin Pages declare `requires: ['session']`; the endpoints use the same middleware.
+- `requireSession` (`src/lib/require-session.server.ts`) puts the session on `locals.session` or redirects to `/login`. Admin Pages read the author's name from it in `props`; the endpoints use the same middleware.
 - Every write invalidates the `posts` cache tag, so the home page shows the change on the next request in production.
 - Modules that hold secrets or the database end in `.server.ts`, which keeps them out of browser bundles.
 - `app.ts` registers one Explicit Route, `/feed.xml`: a URL that ends in a static file extension cannot be a file route. Every other URL comes from `src/pages`.

@@ -41,36 +41,27 @@ defineGet({
 	},
 });
 
-// a page reads the locals of its middleware list in render
+// a page reads the locals of its middleware list in props
 eco.page({
 	cache: 'dynamic',
 	middleware: [session, tag],
-	render: ({ locals }) => {
+	props: ({ locals }) => {
 		assert<Equal<typeof locals.session, { userId: string }>>();
 		assert<Equal<typeof locals.tag, string>>();
-		return '';
+		return {};
 	},
+	render: () => '',
 });
 
 // a page whose list ends in an overwrite sees the overwrite
 eco.page({
 	cache: 'dynamic',
 	middleware: [session, clear],
-	render: ({ locals }) => {
+	props: ({ locals }) => {
 		assert<Equal<typeof locals.session, null>>();
-		return '';
+		return {};
 	},
-});
-
-// requires only selects what reaches the browser: locals still come from the list, non-null where it provides them
-eco.page({
-	cache: 'dynamic',
-	middleware: [session],
-	requires: ['session'] as const,
-	render: ({ locals }) => {
-		assert<Equal<typeof locals.session, { userId: string }>>();
-		return '';
-	},
+	render: () => '',
 });
 
 // inline plain middleware keeps typed parameters on a page and on an API route

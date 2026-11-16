@@ -1058,7 +1058,7 @@ export type GetRequestProps<T, TLocals = RequestLocals> = (context: PageRequestC
  * Represents a page file in EcoPages.
  *
  * @remarks
- * The Page declares its Cache Strategy on its default export; a module-level `cache` export is not read.
+ * The Page declares its Cache Strategy on its default export; a module that still exports `cache` fails to load.
  * @template T - The type of the page props.
  */
 export type EcoPageFile<T = unknown> = T & {

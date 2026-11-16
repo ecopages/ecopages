@@ -1,9 +1,13 @@
-import type { LayoutProps } from '@ecopages/core';
+import type { EcoPageLayoutEntrySpec, LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 
+type AuthGateProps = LayoutProps<JsxRenderable> & {
+	user?: string;
+};
+
 /** Renders the page for a signed-in visitor and a sign-in form, without the page, for everyone else. */
-export function AuthGate({ children, locals }: LayoutProps<JsxRenderable>) {
-	if (!locals?.session) {
+export function AuthGate({ children, user }: AuthGateProps) {
+	if (!user) {
 		return (
 			<main data-gate="sign-in">
 				<h1>Sign in to continue</h1>
@@ -16,8 +20,14 @@ export function AuthGate({ children, locals }: LayoutProps<JsxRenderable>) {
 
 	return (
 		<main data-gate="page">
-			<p>Signed in as {locals.session.user}</p>
+			<p>Signed in as {user}</p>
 			{children}
 		</main>
 	);
 }
+
+/** Layout entry that hands the gate the signed-in user from `locals.session`. */
+export const authGateLayout = {
+	component: AuthGate,
+	props: ({ locals }) => ({ user: locals?.session?.user }),
+} satisfies EcoPageLayoutEntrySpec<JsxRenderable>;

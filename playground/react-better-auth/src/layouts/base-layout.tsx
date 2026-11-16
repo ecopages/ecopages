@@ -2,10 +2,29 @@ import type { ReactNode } from 'react';
 import { AuthNav } from '@/components/auth-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { AnnouncementBar } from '@/components/announcement-bar';
-import type { LayoutProps } from '@ecopages/core';
+import type { EcoPageLayoutEntrySpec, LayoutProps, LayoutPropsContext } from '@ecopages/core';
+import type { AuthNavSession } from '@/components/auth-nav';
 import './base-layout.css';
 
-export function BaseLayout({ children, locals }: LayoutProps<ReactNode>) {
+type BaseLayoutProps = LayoutProps<ReactNode> & {
+	session?: AuthNavSession | null;
+};
+
+/**
+ * Layout entry for dynamic pages behind the auth middleware.
+ *
+ * @remarks
+ * The factory runs on the server and its result is also sent to the browser for hydration, so it returns only
+ * the user, never the session token.
+ */
+export const authenticatedLayout = {
+	component: BaseLayout,
+	props: ({ locals }: LayoutPropsContext) => ({
+		session: locals?.session?.user ? { user: locals.session.user } : null,
+	}),
+} satisfies EcoPageLayoutEntrySpec<ReactNode>;
+
+export function BaseLayout({ children, session }: BaseLayoutProps) {
 	return (
 		<div className="layout">
 			<AnnouncementBar slideDown />
@@ -15,7 +34,7 @@ export function BaseLayout({ children, locals }: LayoutProps<ReactNode>) {
 						Ecopages
 					</a>
 					<div className="layout__nav-items">
-						<AuthNav initialSession={locals?.session} />
+						<AuthNav initialSession={session} />
 						<ThemeToggle />
 					</div>
 				</nav>

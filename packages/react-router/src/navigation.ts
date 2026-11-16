@@ -21,6 +21,8 @@ type NavigablePageComponent = ComponentType<PageProps> & { config?: EcoComponent
 export type PageState = {
 	Component: NavigablePageComponent;
 	props: PageProps;
+	/** The props each layout tier renders with, resolved on the server; when present, no layout factory runs in the browser. */
+	tierProps?: readonly PageProps[];
 };
 
 /**

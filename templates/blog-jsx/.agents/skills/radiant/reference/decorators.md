@@ -48,13 +48,13 @@ Under standard decorators the declared field type is the source of truth. Option
 - A library that exports a shared decorator (`export const count = prop({ type: Number })`) can emit declarations: `ValueFieldDecorator`, `BoundedFieldDecorator` and the host types they name are exported from `@ecopages/radiant`, and `ContextHostLike` from `@ecopages/radiant/context`.
 
 ```ts
-import { RadiantElement, customElement, prop, query } from '@ecopages/radiant';
+import { RadiantElement, customElement, prop, ref, refAll } from '@ecopages/radiant';
 
 @customElement('search-box')
 export class SearchBox extends RadiantElement {
 	@prop({ type: Number }) limit = 10;
-	@query({ ref: 'input' }) input!: HTMLInputElement | null;
-	@query({ ref: 'hint', all: true }) hints!: HTMLElement[];
+	@ref() input!: HTMLInputElement | null;
+	@refAll('hint') hints!: HTMLElement[];
 
 	focusInput(): void {
 		this.input?.focus();
@@ -75,9 +75,10 @@ Avoid updating the same watched property inside its own `@onUpdated(...)` unless
 
 ## DOM queries
 
-- `@query(...)` — rendered descendants by `data-ref` or selector, on a `RadiantElement` or a `RadiantController`
+- `@ref(name?)`, `@refAll(name?)` — the `data-ref` parts this host owns. Without a name the part name is the field name as an attribute name (`menubarRoot` finds `data-ref="menubar-root"`). A part inside a nested host belongs to that host.
+- `@query(selector)`, `@queryAll(selector)` — descendants matching a CSS selector, nested hosts included.
 
-`@query` options: `ref` or `selector`; `all` for `T[]`; `cache` (default `false`: each read queries the DOM). Prefer `ref` over broad selectors. Field types and null-safe use: see [Field types](#field-types).
+All four work on a `RadiantElement` or a `RadiantController` and query the DOM on every read: `@ref` and `@query` give `T | null`, `@refAll` and `@queryAll` give `T[]`. Prefer `@ref` over broad selectors, and use `@query('[data-ref="x"]')` to reach a nested host's part. Field types and null-safe use: see [Field types](#field-types).
 
 Use `@query` for a live element handle (focus, observers, third-party APIs). If a `@query` exists only so you can copy a field into `.textContent` / `.setAttribute` / `toggleAttribute`, use `@bindTo` instead. If the host owns `render()` and the node is a leaf in that view, use `this.$`.
 

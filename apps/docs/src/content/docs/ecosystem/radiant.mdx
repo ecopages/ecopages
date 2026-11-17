@@ -59,9 +59,9 @@ Defines a reactive public property. It is also an attribute, named after the keb
 
 Declaratively attaches an event listener, with `type` and one target: `selector` or `ref` for delegation on the host, or `window`, `document`, or `mediaQuery`. Delegated listeners need an event that bubbles.
 
-### `@query(options)`
+### `@ref(name?)` and `@query(selector)`
 
-Reads a single element by `selector` or `ref` each time the field is accessed. The field type is `T | null`, or `T[]` with `all: true`, so guard each use.
+`@ref` reads the `data-ref` part the host owns, named after the field name in kebab case unless you pass a name, and `@refAll` reads every such part. A part inside a nested host belongs to that host. `@query` reads the first element matching a CSS selector, nested hosts included, and `@queryAll` every match. Each read queries the DOM again. The field type is `T | null` for `@ref` and `@query`, and `T[]` for `@refAll` and `@queryAll`, so guard each use.
 
 See the [Radiant docs](https://radiant.ecopages.app/) for `@state`, `@signal`, `@attr`, `@bindTo`, and the rest of the decorator set.
 

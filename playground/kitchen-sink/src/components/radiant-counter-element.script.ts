@@ -1,6 +1,6 @@
 /** @jsxImportSource @ecopages/jsx */
 import '@ecopages/radiant/client/install-hydrator';
-import { RadiantElement, query, onEvent, onUpdated } from '@ecopages/radiant';
+import { RadiantElement, onEvent, onUpdated, ref } from '@ecopages/radiant';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { prop } from '@ecopages/radiant/decorators/prop';
 
@@ -11,7 +11,7 @@ export type RadiantCounterProps = {
 @customElement('radiant-counter')
 export class RadiantCounterElement extends RadiantElement {
 	@prop({ type: Number, reflect: true, defaultValue: 0 }) declare value: number;
-	@query({ ref: 'count' }) countText!: HTMLElement;
+	@ref('count') countText!: HTMLElement;
 
 	@onEvent({ ref: 'increment', type: 'click' })
 	increment() {

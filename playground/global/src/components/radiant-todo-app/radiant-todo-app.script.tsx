@@ -5,7 +5,7 @@ import {
 	createContext,
 	provideContext,
 } from '@ecopages/radiant/context';
-import { customElement, onEvent, query, RadiantElement, state } from '@ecopages/radiant';
+import { customElement, onEvent, query, RadiantElement, state, ref } from '@ecopages/radiant';
 
 import { NoCompletedTodosMessage, NoTodosMessage, TodoList } from './radiant-todo.templates';
 
@@ -34,8 +34,8 @@ class Logger {
 
 @customElement('radiant-todo-item')
 export class RadiantTodoItem extends RadiantElement {
-	@query({ selector: 'input[type="checkbox"]' }) checkbox!: HTMLInputElement;
-	@query({ selector: 'button' }) removeButton!: HTMLButtonElement;
+	@query('input[type="checkbox"]') checkbox!: HTMLInputElement;
+	@query('button') removeButton!: HTMLButtonElement;
 	@state({ type: Boolean, reflect: true, defaultValue: false }) declare complete: boolean;
 	@consumeContext(todoContext) context!: ContextProvider<typeof todoContext>;
 
@@ -75,10 +75,10 @@ export class RadiantTodoItem extends RadiantElement {
 
 @customElement('radiant-todo-app')
 export class RadiantTodoApp extends RadiantElement {
-	@query({ ref: 'list-complete' }) listComplete!: HTMLElement;
-	@query({ ref: 'list-incomplete' }) listIncomplete!: HTMLElement;
-	@query({ ref: 'count-complete' }) countComplete!: HTMLElement;
-	@query({ ref: 'count-incomplete' }) countIncomplete!: HTMLElement;
+	@ref() listComplete!: HTMLElement;
+	@ref() listIncomplete!: HTMLElement;
+	@ref() countComplete!: HTMLElement;
+	@ref() countIncomplete!: HTMLElement;
 
 	@provideContext<typeof todoContext>({
 		context: todoContext,

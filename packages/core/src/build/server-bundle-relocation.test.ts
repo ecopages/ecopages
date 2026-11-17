@@ -321,7 +321,12 @@ const KITAJS_APP: StyledAppIntegration = {
 const ECOPAGES_JSX_APP: StyledAppIntegration = {
 	extension: '.eco.tsx',
 	jsxImportSource: '@ecopages/jsx',
-	dependencies: { '@ecopages/ecopages-jsx': '*', '@ecopages/jsx': '*', '@ecopages/radiant': '*' },
+	dependencies: {
+		'@ecopages/ecopages-jsx': '*',
+		'@ecopages/jsx': '*',
+		'@ecopages/radiant': '*',
+		'@ecopages/signals': '*',
+	},
 	configImport: "import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';",
 	pluginCall: "ecopagesJsxPlugin({ extensions: ['.eco.tsx'] })",
 };
@@ -506,10 +511,12 @@ test(
 	{ timeout: 120_000 },
 	async () => {
 		const jsxDir = path.join(repoRoot, 'packages/integrations/ecopages-jsx');
+		const jsxRuntimeDir = findPackageDir(jsxDir, '@ecopages/jsx')!;
 		const { html, stylesheets, output } = await serveMovedStyledApp(ECOPAGES_JSX_APP, {
 			'@ecopages/ecopages-jsx': jsxDir,
-			'@ecopages/jsx': findPackageDir(jsxDir, '@ecopages/jsx')!,
+			'@ecopages/jsx': jsxRuntimeDir,
 			'@ecopages/radiant': findPackageDir(jsxDir, '@ecopages/radiant')!,
+			'@ecopages/signals': findPackageDir(jsxRuntimeDir, '@ecopages/signals')!,
 			'@mdx-js/mdx': findPackageDir(jsxDir, '@mdx-js/mdx')!,
 		});
 

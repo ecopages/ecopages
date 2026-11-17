@@ -1,6 +1,6 @@
 import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
-import { query } from '@ecopages/radiant/decorators/query';
+import { ref } from '@ecopages/radiant/decorators/ref';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown, type MarkdownStorage } from 'tiptap-markdown';
@@ -13,10 +13,10 @@ export type RadiantEditorProps = {
 
 @customElement('radiant-editor')
 export class RadiantEditor extends RadiantElement {
-	@query({ ref: 'editor' }) editorContainer!: HTMLElement;
-	@query({ ref: 'toolbar' }) toolbarContainer!: HTMLElement;
-	@query({ ref: 'content-input' }) contentInput!: HTMLInputElement;
-	@query({ ref: 'status' }) statusRegion!: HTMLElement;
+	@ref('editor') editorContainer!: HTMLElement;
+	@ref('toolbar') toolbarContainer!: HTMLElement;
+	@ref() contentInput!: HTMLInputElement;
+	@ref('status') statusRegion!: HTMLElement;
 
 	private editor!: Editor;
 

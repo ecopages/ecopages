@@ -1,24 +1,23 @@
 import { eco } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiBadge } from '@ecopages/radiant-ui/badge';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { AdminShell } from '@/layouts/admin-shell/admin-shell';
 import { formatDate } from '@/lib/format';
-import { postsService, type Post } from '@/lib/posts.server';
+import { postsService } from '@/lib/posts.server';
 import { requireSession } from '@/lib/require-session.server';
 import './admin-posts.css';
 
-export default eco.page<{ posts: Post[] }, JsxRenderable, 'session'>({
+export default eco.page({
 	cache: 'dynamic',
 	middleware: [requireSession],
-	requires: ['session'] as const,
 	dependencies: { scripts: ['./admin-posts.script.ts'] },
-	props: async () => ({
+	props: async ({ locals }) => ({
 		posts: await postsService.listAll(),
+		userName: locals.session.user.name,
 	}),
 	metadata: () => ({ title: 'Posts | EcoBlog author', description: 'Manage blog posts.' }),
-	render: ({ posts, locals }) => (
-		<AdminShell current="posts" userName={locals.session.user.name}>
+	render: ({ posts, userName }) => (
+		<AdminShell current="posts" userName={userName}>
 			<div class="admin-posts">
 				<header class="admin-posts__header">
 					<h1>Posts</h1>

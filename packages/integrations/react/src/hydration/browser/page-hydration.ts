@@ -26,6 +26,7 @@ export type PageReactRuntime = {
 export type PageData = {
 	moduleUrl?: string;
 	props: Record<string, unknown>;
+	tiers?: readonly Record<string, unknown>[];
 };
 
 export { resolvePageComponent } from './page-hydration-module.ts';
@@ -41,7 +42,7 @@ export type PageHydrationOptions = {
 		readPageDataDocument: (source?: Pick<Document, 'getElementById'>) => PageData;
 	};
 	runtime: PageReactRuntime;
-	createTree: (Page: unknown, props: Record<string, unknown>) => unknown;
+	createTree: (Page: unknown, props: Record<string, unknown>, tiers?: readonly Record<string, unknown>[]) => unknown;
 	hasRouter: boolean;
 	isMdx: boolean;
 	normalizePageConfig?: (config: unknown) => void;
@@ -67,7 +68,7 @@ type PageWindowRuntime = {
 		pageRoot?: PageRoot | null;
 		mountGeneration?: number;
 	};
-	page?: { module: string; props: Record<string, unknown> };
+	page?: { module: string; props: Record<string, unknown>; tiers?: readonly Record<string, unknown>[] };
 	rerunScripts?: Record<string, () => unknown>;
 };
 
@@ -103,6 +104,7 @@ function setPageState(options: PageHydrationOptions, pageData: PageData): void {
 	runtime.page = {
 		module: pageData.moduleUrl || options.pageModuleUrl,
 		props: pageData.props,
+		...(pageData.tiers && { tiers: pageData.tiers }),
 	};
 }
 
@@ -255,7 +257,7 @@ function mount(options: PageHydrationOptions): void {
 
 	if (runtime.react?.pageRoot) {
 		if (!options.hasRouter) {
-			runtime.react.pageRoot.render(options.createTree(options.Page, pageData.props));
+			runtime.react.pageRoot.render(options.createTree(options.Page, pageData.props, pageData.tiers));
 		}
 		return;
 	}
@@ -277,7 +279,7 @@ function mount(options: PageHydrationOptions): void {
 		restoreChildNodes(target, serverNodes, serverClones, addedNodes);
 	};
 
-	root = options.runtime.hydrateRoot(target, options.createTree(options.Page, pageData.props), {
+	root = options.runtime.hydrateRoot(target, options.createTree(options.Page, pageData.props, pageData.tiers), {
 		onRecoverableError: (error) => console.warn('[ecopages] Hydration error:', error),
 		onUncaughtError: (error, errorInfo) => {
 			reportError(error);

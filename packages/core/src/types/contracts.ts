@@ -1,5 +1,6 @@
 import type { Readable } from 'node:stream';
 import type { ComponentIdentity } from './component-identity.ts';
+import type { ApiMiddlewareEntry, ListLocals, PageMiddlewareEntry } from './middleware-types.ts';
 import type { ViewReference } from './view-reference.ts';
 import type { ApiResponseBuilder } from './api-response.ts';
 import type { AssetDefinition, ProcessedAsset } from './asset-types.ts';
@@ -37,10 +38,6 @@ export type HmrStrategyContract = {
 	process(filePath: string): Promise<HmrAction>;
 };
 
-type RequiresKeys = keyof RequestLocals;
-
-export type PageRequires<K extends RequiresKeys = RequiresKeys> = K | readonly K[];
-
 export type GetPageDependenciesContext<T = Record<string, unknown>> = {
 	props: PagePropsFor<T>;
 	params?: PageParams;
@@ -60,6 +57,21 @@ export type GetPageDependencies<T = Record<string, unknown>> = (
 ) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
 
 export type PageDependenciesInput<T = Record<string, unknown>> = EcoComponentDependencies | GetPageDependencies<T>;
+
+/**
+ * What a Dynamic Page's dependency resolver receives.
+ *
+ * @remarks
+ * It has no `props`: the build plans a Dynamic Page without running its `props` hook, and the Page Browser Graph
+ * is cached by Params and Query alone, so request data must not decide its dependencies.
+ */
+export type GetDynamicPageDependenciesContext = Omit<GetPageDependenciesContext, 'props'>;
+
+export type GetDynamicPageDependencies = (
+	context: GetDynamicPageDependenciesContext,
+) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
+
+export type DynamicPageDependenciesInput = EcoComponentDependencies | GetDynamicPageDependencies;
 
 /**
  * Runtime-agnostic incoming WebSocket frame.
@@ -99,7 +111,7 @@ interface WebSocketContextFactoryInput<TParams extends Record<string, string> = 
 	readonly kind: string;
 	readonly params: TParams;
 	readonly search: Readonly<PageQuery>;
-	readonly locals?: RequestLocals;
+	readonly locals?: Record<string, unknown>;
 }
 
 /**
@@ -625,7 +637,7 @@ export interface BrowserForeignChildHost {
 /**
  * Represents a page in EcoPages.
  */
-export type PageProps<T = unknown> = T & StaticPageContext & { locals?: RequestLocals };
+export type PageProps<T = unknown> = T & StaticPageContext;
 
 /**
  * Page-level robots directives for the document head and sitemap filtering.
@@ -709,7 +721,7 @@ export interface PageHeadProps<T = EcoPagesElement> {
 /**
  * Represents the props for a route layout.
  */
-export interface LayoutProps<T = EcoPagesElement> extends Partial<RequestPageContext> {
+export interface LayoutProps<T = EcoPagesElement> {
 	children: T;
 }
 
@@ -733,12 +745,33 @@ export interface HtmlTemplateProps<T = EcoPagesElement> extends PageHeadProps<T>
 }
 
 /**
- * Request-scoped context available to layout prop factories on `eco.page`.
+ * A layout factory context whose `params`, `query` and `locals` are all optional, and whose `locals` has no keys.
+ *
+ * @remarks
+ * A shared layout entry whose factory takes it is accepted on any Page. An entry that reads locals annotates the
+ * ones it reads on its factory parameter instead, so only a Page whose middleware provides them accepts it. A
+ * factory written in `eco.page({ layout })` is typed with {@link LayoutRequestContext} or {@link LayoutBuildContext},
+ * from the Page's Cache Strategy and middleware list.
  */
 export type LayoutPropsContext = {
 	params?: PageParams;
 	query?: PageQuery;
-	locals?: RequestLocals;
+	locals?: {};
+};
+
+/**
+ * What a layout entry's `props` factory receives on a Static or revalidating Page: no request exists, so it has no
+ * `locals`.
+ */
+export type LayoutBuildContext = Omit<LayoutPropsContext, 'locals'>;
+
+/**
+ * What a layout entry's `props` factory receives on a Dynamic Page.
+ *
+ * @typeParam TLocals - The Locals the Page's middleware provided, typed from its `middleware` list.
+ */
+export type LayoutRequestContext<TLocals = {}> = LayoutBuildContext & {
+	readonly locals: Readonly<TLocals>;
 };
 
 /**
@@ -746,15 +779,19 @@ export type LayoutPropsContext = {
  */
 export type EcoPageLayoutEntry = {
 	component: EcoComponent;
-	props?: (context: LayoutPropsContext) => Record<string, unknown>;
+	props?: (context: LayoutRequestContext) => Record<string, unknown>;
 };
 
 /**
  * A layout tier with a props factory, as written in `eco.page({ layout })`.
+ *
+ * @typeParam TContext - What the factory receives. `eco.page()` sets it from the Page, so a factory written inline
+ * reads the Page's typed `locals`; an entry shared by many Pages annotates the `locals` it reads on the factory
+ * parameter, and a Page whose middleware does not provide them does not compile.
  */
-export type EcoPageLayoutEntrySpec<E = EcoPagesElement> = {
+export type EcoPageLayoutEntrySpec<E = EcoPagesElement, TContext = LayoutPropsContext> = {
 	component: EcoLayoutComponent<E>;
-	props?: (context: LayoutPropsContext) => Record<string, unknown>;
+	props?: (context: TContext) => Record<string, unknown>;
 };
 
 /**
@@ -766,7 +803,8 @@ export type EcoPageLayoutEntrySpec<E = EcoPagesElement> = {
  * still assignable, so the type cannot prove that a layout renders `children`; layout composition checks that
  * when it renders the page.
  */
-export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoLayoutComponent<E> | EcoPageLayoutEntrySpec<E>;
+export type EcoPageLayoutSpec<E = EcoPagesElement, TContext = LayoutPropsContext> =
+	EcoLayoutComponent<E> | EcoPageLayoutEntrySpec<E, TContext>;
 
 /**
  * One or more layout tiers for `eco.page({ layout })`.
@@ -775,7 +813,8 @@ export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoLayoutComponent<E> | Eco
  * When an array, order is **outer → inner** (outermost layout wraps all inner tiers).
  * Normalized at factory time to `config.layouts` and `config.layoutEntries`.
  */
-export type EcoPageLayouts<E = EcoPagesElement> = EcoPageLayoutSpec<E> | EcoPageLayoutSpec<E>[];
+export type EcoPageLayouts<E = EcoPagesElement, TContext = LayoutPropsContext> =
+	EcoPageLayoutSpec<E, TContext> | EcoPageLayoutSpec<E, TContext>[];
 
 /**
  * A layout component: an `eco.layout()` result or a plain function that takes {@link LayoutProps}.
@@ -793,8 +832,8 @@ export type EcoHtmlComponent<T = EcoPagesElement> = EcoComponent<HtmlTemplatePro
  * @remarks
  * `status` is the HTTP status being rendered. `message` is the public `HttpError`
  * text for 4xx page-pipeline failures; unmatched URLs omit it. `stack` is only
- * passed for 5xx pages in development. Semantic error pages receive safe empty
- * `pageLocals` rather than request-scoped locals.
+ * passed for 5xx pages in development. Semantic error pages render outside the page middleware pipeline, so their
+ * layout factories receive empty `locals`.
  */
 export interface ErrorPageTemplateProps extends Omit<HtmlTemplateProps, 'children'> {
 	status: number;
@@ -822,46 +861,12 @@ export type PageParams = Record<string, string | string[]>;
 export type PageQuery = Record<string, string | string[]>;
 
 /**
- * Request-scoped data that is only available during request-time rendering.
- *
- * Apps should augment this interface via module augmentation:
- *
- * declare module '@ecopages/core' {
- *   interface RequestLocals { session?: Session | null }
- * }
- */
-export interface RequestLocals {}
-
-/**
  * Represents the context object for a static page.
  */
 export type StaticPageContext = {
 	params?: PageParams;
 	query?: PageQuery;
 };
-
-/**
- * Request-time page context.
- *
- * This is only populated during SSR. Static generation must not access locals.
- */
-export type RequestPageContext = {
-	locals: RequestLocals;
-};
-
-/**
- * Adds optional `locals` to a props type.
- * Primarily used for layouts that may receive request-scoped data from middleware.
- *
- * @template P - The base props type
- *
- * @example
- * ```ts
- * type MyLayoutProps = WithLocals<{ children: ReactNode }>;
- * // { children: ReactNode; locals?: RequestLocals }
- * ```
- */
-export type WithLocals<P> = P & { locals?: RequestLocals };
 
 /**
  * One page that `paths` lists at build.
@@ -909,15 +914,50 @@ export type PagePropsFor<T> =
 		? P & { params?: PageParams; query?: PageQuery }
 		: T & { params?: PageParams; query?: PageQuery };
 
-export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T> & Partial<RequestPageContext>> & {
+type PageRenderComponent<T> = EcoComponent<PagePropsFor<T>>;
+
+type PageStaticsBase<T> = {
 	paths?: GetPaths;
-	props?: GetProps<T>;
 	metadata?: GetMetadata<T>;
-	resolveDependencies?: GetPageDependencies<T>;
-	cache?: CacheStrategy;
-	requires?: PageRequires;
-	middleware?: FileRouteMiddleware[];
+	middleware?: readonly PageMiddlewareEntry[];
 };
+
+/**
+ * A Cache Strategy that stores the rendered HTML, so no request exists when the `props` hook runs.
+ */
+export type StaticCacheStrategy = Exclude<CacheStrategy, 'dynamic'>;
+
+/**
+ * What `eco.page()` keeps on a Static or revalidating Page: its `props` hook receives the build context.
+ */
+export type StaticPageStatics<T> = PageStaticsBase<T> & {
+	cache?: StaticCacheStrategy;
+	props?: GetProps<T>;
+	resolveDependencies?: GetPageDependencies<T>;
+};
+
+/**
+ * What `eco.page()` keeps on a Dynamic Page: its `props` hook is the request handler and receives the request
+ * context.
+ */
+export type DynamicPageStatics<T> = PageStaticsBase<T> & {
+	cache: 'dynamic';
+	props?: GetRequestProps<T>;
+	resolveDependencies?: GetDynamicPageDependencies;
+};
+
+export type StaticEcoPageComponent<T> = PageRenderComponent<T> & StaticPageStatics<T>;
+
+export type DynamicEcoPageComponent<T> = PageRenderComponent<T> & DynamicPageStatics<T>;
+
+/**
+ * A Page as `eco.page()` returns it.
+ *
+ * @remarks
+ * A union on `cache`, so a caller branches on it before calling the `props` or dependency hook, which receive
+ * different contexts.
+ */
+export type EcoPageComponent<T> = StaticEcoPageComponent<T> | DynamicEcoPageComponent<T>;
 
 /**
  * The function that lists the Params a page is known for at build time.
@@ -943,25 +983,70 @@ export type GetMetadata<T = Record<string, unknown>> = (
 ) => PageMetadataProps | Promise<PageMetadataProps>;
 
 /**
- * The function that returns the props for a page.
- *
- * @remarks
- * Returns the props object directly. `paths` lists the Params known at build; `props` receives Params,
- * from `paths` at build and from the request at run time.
+ * What the `props` hook of a Static or revalidating Page receives. No request exists when it runs: at build, and
+ * when a revalidating Page regenerates.
  */
-export type GetProps<T> = (context: {
+export type PageBuildContext = {
 	params: PageParams;
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
-}) => Promise<T>;
+};
+
+/**
+ * What the `props` hook of a Dynamic Page receives on each request.
+ *
+ * @typeParam TLocals - The Locals the Page's middleware provided, typed from its `middleware` list.
+ */
+export type PageRequestContext<TLocals = {}> = PageBuildContext & {
+	request: Request;
+	query: PageQuery;
+	readonly locals: Readonly<TLocals>;
+};
+
+/**
+ * The `props` hook of a Static or revalidating Page.
+ *
+ * @remarks
+ * Returns the props object directly. `paths` lists the Params known at build, and the hook receives each of them.
+ */
+export type GetProps<T> = ((context: PageBuildContext) => T | Promise<T>) &
+	((context: PageBuildContext) => WithoutRouteProps<T> | Promise<WithoutRouteProps<T>>);
+
+/**
+ * Keys a Page's `props` hook may not return.
+ *
+ * @remarks
+ * The route sets them on what `render` receives, after the props, so a prop of the same name would never reach
+ * `render` while `metadata` read it.
+ */
+export type NoRouteProps = { params?: never; query?: never };
+
+/**
+ * `T` with every object member barred from {@link NoRouteProps} keys.
+ *
+ * @remarks
+ * The props hook types pair it with a plain `T | Promise<T>` signature that infers `T`: inferring through this
+ * conditional would take one branch of a union return, and `null` or `undefined` returns pass unchanged. The
+ * conditional stays deferred for a type parameter, so a hook that returns a caller's generic `T` does not type-check
+ * against it; such a wrapper passes a concrete props type.
+ */
+type WithoutRouteProps<T> = T extends object ? T & NoRouteProps : T;
+
+/**
+ * The `props` hook of a Dynamic Page: the Page's request handler, run on every request and never by the build.
+ */
+export type GetRequestProps<T, TLocals = {}> = ((context: PageRequestContext<TLocals>) => T | Promise<T>) &
+	((context: PageRequestContext<TLocals>) => WithoutRouteProps<T> | Promise<WithoutRouteProps<T>>);
 
 /**
  * Represents a page file in EcoPages.
+ *
+ * @remarks
+ * The Page declares its Cache Strategy on its default export; a module that still exports `cache` fails to load.
  * @template T - The type of the page props.
  */
 export type EcoPageFile<T = unknown> = T & {
 	default: EcoComponent<any, any>;
-	cache?: CacheStrategy;
 };
 
 /**
@@ -971,7 +1056,15 @@ export type RouteRendererOptions = {
 	file: string;
 	params?: PageParams;
 	query?: PageQuery;
-	locals?: RequestLocals;
+	/** The request's locals store, as the Page's middleware left it. */
+	locals?: Record<string, unknown>;
+	/**
+	 * The incoming request, set only for a request-time render of a Dynamic Page.
+	 *
+	 * @remarks
+	 * A Dynamic Page's `props` hook receives it with `query` and `locals`, and cannot run without it.
+	 */
+	request?: Request;
 	/**
 	 * Preloaded page module from request-time inspection.
 	 *
@@ -1056,7 +1149,6 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	pagePackage?: PagePackageResult;
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
-	pageLocals?: RequestLocals;
 };
 
 export type InternalIntegrationRendererRenderOptions<C = EcoPagesElement> = IntegrationRendererRenderOptions<C> & {
@@ -1289,20 +1381,9 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 	response: ApiResponseBuilder;
 	server: TServer;
 	/**
-	 * Request-scoped data store.
-	 * Only valid during request-time handling (SSR/API). Must not be used for static generation.
+	 * The locals the route's middleware provided, typed from its `middleware` list. Without one it has no keys.
 	 */
-	locals: RequestLocals;
-	/**
-	 * Require one or more locals keys. If missing, executes `onMissing` to produce a terminating Response.
-	 */
-	require: {
-		<K extends keyof RequestLocals>(key: K, onMissing: () => Response): Exclude<RequestLocals[K], null | undefined>;
-		<K extends keyof RequestLocals>(
-			keys: readonly K[],
-			onMissing: () => Response,
-		): { [P in K]-?: Exclude<RequestLocals[P], null | undefined> };
-	};
+	locals: {};
 	/**
 	 * Services available to the API handler.
 	 */
@@ -1438,6 +1519,24 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 }
 
 /**
+ * The context a plain API middleware function receives.
+ */
+export interface ApiMiddlewareContext<TRequest extends Request = Request, TServer = any> extends Omit<
+	ApiHandlerContext<TRequest, TServer>,
+	'locals'
+> {
+	/**
+	 * The request's locals store.
+	 *
+	 * @remarks
+	 * A plain function may write a new key here and the later stages and the handler see it at runtime, but no type
+	 * carries what it writes: they read only what a `createMiddleware` stage provides. Overwriting or deleting a key
+	 * a stage provided with `next` makes this function's `next` throw, since readers are typed for that value.
+	 */
+	locals: Record<string, unknown>;
+}
+
+/**
  * Context available to file-route page middleware.
  *
  * Page middleware can mutate locals, short-circuit the request, and use the
@@ -1445,82 +1544,47 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
  * execution path. The query string is not parsed for page middleware; read it from `request.url`.
  */
 export interface FileRouteMiddlewareContext<TRequest extends Request = Request, TServer = any> extends Omit<
-	ApiHandlerContext<TRequest, TServer>,
+	ApiMiddlewareContext<TRequest, TServer>,
 	'render' | 'renderPartial' | 'query'
 > {}
 
 /**
- * Next function for middleware chain.
- * Call to continue to the next middleware or final handler.
+ * The `next` of a plain middleware function. Call it to continue to the next middleware or the handler.
+ *
+ * @remarks
+ * A plain function provides no locals. To provide typed locals to later stages and the handler, make the
+ * middleware with `createMiddleware`.
  */
 export type MiddlewareNext = () => Promise<Response>;
 
 /**
- * Middleware function signature.
+ * A plain middleware function for API routes.
  * Receives the request context and a next function to continue the chain.
  * Can short-circuit by returning a Response directly without calling next().
  *
  * @typeParam TRequest - Request type
  * @typeParam TServer - Server type
- * @typeParam TContext - Extended context type, defaults to base ApiHandlerContext
  *
- * @example Basic middleware (no context extension)
+ * @example
  * ```typescript
  * const loggingMiddleware: Middleware = async (ctx, next) => {
  *   console.log(`${ctx.request.method} ${ctx.request.url}`);
  *   return next();
  * };
  * ```
- *
- * @example Middleware with extended context (use EcoMiddleware helper)
- * ```typescript
- * type AuthContext = ApiHandlerContext<Request, unknown> & { user: User };
- *
- * const authMiddleware: EcoMiddleware<AuthContext> = async (ctx, next) => {
- *   const user = await authenticate(ctx.request);
- *   if (!user) return ctx.response.status(401).json({ error: 'Unauthorized' });
- *   ctx.user = user;
- *   return next();
- * };
- * ```
  */
-export type Middleware<
-	TRequest extends Request = Request,
-	TServer = any,
-	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
-> = (context: TContext, next: MiddlewareNext) => Promise<Response> | Response;
+export type Middleware<TRequest extends Request = Request, TServer = any> = (
+	context: ApiMiddlewareContext<TRequest, TServer>,
+	next: MiddlewareNext,
+) => Promise<Response> | Response;
 
 /**
- * Middleware contract for file-based page routes.
+ * A plain middleware function for file-based page routes.
  */
-export type FileRouteMiddleware<
-	TRequest extends Request = Request,
-	TServer = any,
-	TContext extends FileRouteMiddlewareContext<TRequest, TServer> = FileRouteMiddlewareContext<TRequest, TServer>,
-> = (context: TContext, next: MiddlewareNext) => Promise<Response> | Response;
-
-/**
- * Helper type for defining middleware with extended context.
- * Automatically infers TRequest and TServer from the provided context type.
- *
- * @typeParam TContext - The extended context type that includes TRequest and TServer
- *
- * @example
- * ```typescript
- * type AuthContext = ApiHandlerContext<Request, unknown> & {
- *   session: { user: User };
- * };
- *
- * const authMiddleware: EcoMiddleware<AuthContext> = async (ctx, next) => {
- *   const session = await authenticate(ctx.request);
- *   if (!session) return Response.redirect('/login');
- *   ctx.session = session;
- *   return next();
- * };
- * ```
- */
-export type EcoMiddleware<TContext extends ApiHandlerContext<any, any>> =
-	TContext extends ApiHandlerContext<infer TRequest, infer TServer> ? Middleware<TRequest, TServer, TContext> : never;
+export type FileRouteMiddleware<TRequest extends Request = Request, TServer = any> = (
+	context: FileRouteMiddlewareContext<TRequest, TServer>,
+	next: MiddlewareNext,
+) => Promise<Response> | Response;
 
 /**
  * The request methods an `ApiHandler` answers, in the order an endpoint's `Allow` header lists them.
@@ -1598,7 +1662,7 @@ export interface ApiHandler<TPath extends string = string, TRequest extends Requ
 	method: ApiHandlerMethod;
 	handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
 	/** Optional middleware chain executed before the handler */
-	middleware?: MiddlewareList<TRequest, TServer>;
+	middleware?: MiddlewareList;
 	/** Optional validation schemas for request body, query parameters, and headers */
 	schema?: {
 		body?: StandardSchema;
@@ -1625,44 +1689,50 @@ export type ErrorHandler<TRequest extends Request = Request, TServer = any> = (
  * @typeParam TSchema - The route's schema; each field it declares types the matching context field
  */
 export interface RouteOptions<
-	TRequest extends Request = Request,
-	TServer = any,
 	TSchema extends RouteSchema = RouteSchema,
-	TMiddleware extends MiddlewareList<TRequest, TServer> = MiddlewareList<TRequest, TServer>,
+	TMiddleware extends MiddlewareList = MiddlewareList,
 > {
 	middleware?: TMiddleware;
 	schema?: TSchema;
 }
 
 /**
- * A middleware list, whatever context each middleware declares.
+ * A middleware list: middleware made by `createMiddleware` or `composeMiddleware`, and plain functions.
  *
  * @remarks
- * Each element is a method signature, so its context parameter is checked bivariantly: a middleware typed with
- * the wider context it adds, such as `EcoMiddleware<AuthContext>`, still fits. An inline middleware function in
- * the list is typed with the base context, also inside a group; type it as `EcoMiddleware` to read what the
- * group middleware adds. A list holding an unannotated inline function is inferred only after the arguments before it, so a handler
- * written before the list (`app.get(path, handler, options)`, or `handler` before `middleware` in a define call)
- * sees none of the list's contexts. Put `middleware` first, or declare the inline function as a `Middleware` constant.
+ * Declare it as a literal list or a `const` tuple, so each entry's locals are read in order. A list typed as a
+ * plain array provides no locals. Put `middleware` before the handler so its locals type the handler.
  */
-export type MiddlewareList<TRequest extends Request = Request, TServer = any> = readonly {
-	middleware(context: ApiHandlerContext<TRequest, TServer>, next: MiddlewareNext): Promise<Response> | Response;
-}['middleware'][];
+export type MiddlewareList = readonly ApiMiddlewareEntry[];
+
+declare const noMiddlewareList: unique symbol;
 
 /**
- * The context a list of middleware adds: the intersection of the context each one declares.
+ * The list a route, group or handler infers when it declares no `middleware`.
  *
  * @remarks
- * Inferring one parameter from the union of the middleware types, a contravariant position, yields the
- * intersection of their contexts. An empty list adds nothing.
+ * It must stay a supertype of an inline list, so the `(ctx, next) => ...` entries of one take their parameter
+ * types from it, and it must differ from `MiddlewareList`, so a list annotated `MiddlewareList` by hand folds as a
+ * plain array of unknown locals instead of keeping the group's keys. The optional brand gives both: every list is
+ * assignable to it, and only this type is identical to it.
  */
-export type MiddlewareContext<TMiddleware extends readonly unknown[]> = [TMiddleware[number]] extends [
-	(context: infer TAdded, next: never) => unknown,
-]
-	? [TAdded] extends [never]
-		? unknown
-		: TAdded
-	: unknown;
+export type NoMiddlewareList = MiddlewareList & { readonly [noMiddlewareList]?: true };
+
+/**
+ * A context with the locals a middleware list provides, as seen by a handler or a group.
+ *
+ * @remarks
+ * Later entries override earlier ones, and a route continues the locals of its group: the route's list folds onto
+ * them, so a route entry of unknown locals leaves no group key proven either. A route that declares no list
+ * infers {@link NoMiddlewareList} and keeps its group's locals.
+ */
+export type WithMiddlewareLocals<TContext extends { readonly locals: object }, TList extends readonly unknown[]> = Omit<
+	TContext,
+	'locals'
+> & { readonly locals: IsNoList<TList> extends true ? TContext['locals'] : ListLocals<TList, TContext['locals']> };
+
+type IsNoList<TList> =
+	(<T>() => T extends TList ? 1 : 2) extends <T>() => T extends NoMiddlewareList ? 1 : 2 ? true : false;
 
 export interface RouteSchema {
 	body?: StandardSchema;
@@ -1714,13 +1784,13 @@ export type RouteMethod<
 > = <
 	TSchema extends RouteSchema = RouteSchema,
 	TRouteContext extends TContext = TContext,
-	const TMiddleware extends MiddlewareList<TRequest, TServer> = MiddlewareList<TRequest, TServer>,
+	const TMiddleware extends MiddlewareList = NoMiddlewareList,
 >(
 	path: string,
 	handler: (
-		context: RouteHandlerContext<TSchema, TRouteContext & MiddlewareContext<TMiddleware>>,
+		context: RouteHandlerContext<TSchema, WithMiddlewareLocals<TRouteContext, TMiddleware>>,
 	) => Promise<Response> | Response,
-	options?: RouteOptions<TRequest, TServer, TSchema, TMiddleware>,
+	options?: RouteOptions<TSchema, TMiddleware>,
 ) => TReturn;
 
 /**

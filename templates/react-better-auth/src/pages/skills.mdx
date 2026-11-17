@@ -457,10 +457,24 @@ import type { ReactNode } from "react";
 import { AuthNav } from "@/components/auth-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AnnouncementBar } from "@/components/announcement-bar";
-import type { LayoutProps } from "@ecopages/core";
+import type { EcoPageLayoutEntrySpec, LayoutProps } from "@ecopages/core";
+import type { AuthNavSession } from "@/components/auth-nav";
+import type { Session } from "@/handlers/auth.server";
 import "./base-layout.css";
 
-export function BaseLayout({ children, locals }: LayoutProps<ReactNode>) {
+type BaseLayoutProps = LayoutProps<ReactNode> & {
+	session?: AuthNavSession | null;
+};
+
+type SessionLocals = { session: Session };
+
+/** Layout entry for dynamic pages that list `authMiddleware`; returns the user, never the token. */
+export const authenticatedLayout = {
+	component: BaseLayout,
+	props: ({ locals }: { locals: SessionLocals }) => ({ session: { user: locals.session.user } }),
+} satisfies EcoPageLayoutEntrySpec<ReactNode, { locals: SessionLocals }>;
+
+export function BaseLayout({ children, session }: BaseLayoutProps) {
   return (
     <div className="layout">
       <AnnouncementBar slideDown />
@@ -470,7 +484,7 @@ export function BaseLayout({ children, locals }: LayoutProps<ReactNode>) {
             Ecopages
           </a>
           <div className="layout__nav-items">
-            <AuthNav initialSession={locals?.session} />
+            <AuthNav initialSession={session} />
             <ThemeToggle />
           </div>
         </nav>
@@ -892,24 +906,20 @@ export const auth = betterAuth({
 Create `src/handlers/auth.server.ts`:
 
 ```typescript
-import type { ApiHandlerContext, Middleware } from "@ecopages/core";
+import { createMiddleware, type ApiHandlerContext } from "@ecopages/core";
 import { auth } from "@/lib/auth.server";
 
 export type Session = (typeof auth)["$Infer"]["Session"];
 
-export const authMiddleware: Middleware = async (
-  ctx,
-  next
-) => {
+export const authMiddleware = createMiddleware(async (ctx, next) => {
   const session = await auth.api.getSession({
     headers: ctx.request.headers,
   });
   if (!session) {
     return Response.redirect(new URL("/login", ctx.request.url));
   }
-  ctx.locals.session = session;
-  return next();
-};
+  return next({ session });
+});
 
 export const authHandler = async (ctx: ApiHandlerContext) => {
   return auth.handler(ctx.request);
@@ -1010,7 +1020,7 @@ export const protectedGroup = defineGroupHandler({
       path: "/",
       method: "GET",
       handler: async (ctx) => {
-        return ctx.render(DashboardView, { user: ctx.locals.session?.user });
+        return ctx.render(DashboardView, { user: ctx.locals.session.user });
       },
     }),
   ],
@@ -1021,7 +1031,7 @@ export const protectedGroup = defineGroupHandler({
 - Views rendered from handlers live outside `src/pages/`, conventionally in `src/views/`
 - Use `eco.page()` to define the view component (accepts props via generic type)
 - Import views statically: the build replaces the import with a view reference, so it cannot form an import cycle
-- Pass data from the handler context (e.g., `ctx.locals.session?.user`) as props to the view
+- Pass data from the handler context (e.g., `ctx.locals.session.user`, typed from the group's `middleware`) as props to the view
 
 ### Environment Variables
 

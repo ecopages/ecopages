@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+	ECO_PAGE_DATA_TIERS_KEY,
+	createEcoPageDataManifestV1,
 	escapePageDataJson,
+	isEcoPageDataManifestV1,
 	resolveEcoPageDataModuleUrl,
 	resolveEcoPageDataProps,
+	resolveEcoPageDataTiers,
 	resolvePageDataDocumentPayload,
 	serializePageDataManifestScript,
 	serializePageDataScript,
@@ -19,6 +23,18 @@ describe('serialize-page-data-script', () => {
 		expect(serializePageDataScript({ count: 1 })).toBe(
 			'<script id="__ECO_PAGE_DATA__" type="application/json">{"count":1}</script>',
 		);
+	});
+
+	it('should lift the reserved tiers key into the envelope when serializing a router document', () => {
+		const html = serializePageDataManifestScript({
+			moduleUrl: '/assets/page.js',
+			props: { id: '1', [ECO_PAGE_DATA_TIERS_KEY]: [{ user: 'Ada' }] },
+		});
+		const payload = JSON.parse(/>(.*)<\/script>/s.exec(html)![1]!) as Record<string, unknown>;
+
+		expect(payload.tiers).toEqual([{ user: 'Ada' }]);
+		expect(payload.props).toEqual({ id: '1' });
+		expect(JSON.stringify(payload.props)).not.toContain(ECO_PAGE_DATA_TIERS_KEY);
 	});
 
 	it('should emit a versioned manifest with module identity and props', () => {
@@ -63,6 +79,71 @@ describe('serialize-page-data-script', () => {
 			navigationOwner: 'react-router',
 			moduleUrl: '/assets/page.js',
 			props: { slug: 'intro' },
+		});
+	});
+
+	describe('layout tier props', () => {
+		const envelope = { schemaVersion: 1, navigationOwner: 'react-router', moduleUrl: '/p.js', props: { a: 1 } };
+
+		it('should carry tiers on the envelope only when given', () => {
+			expect(createEcoPageDataManifestV1({ moduleUrl: '/p.js', props: {} })).not.toHaveProperty('tiers');
+			expect(
+				createEcoPageDataManifestV1({ moduleUrl: '/p.js', props: {}, tiers: [{ user: 'Ada' }] }),
+			).toMatchObject({
+				schemaVersion: 1,
+				tiers: [{ user: 'Ada' }],
+			});
+		});
+
+		it('should resolve tiers from an envelope and from the reserved flat key', () => {
+			expect(resolveEcoPageDataTiers({ ...envelope, tiers: [{ user: 'Ada' }, {}] })).toEqual([
+				{ user: 'Ada' },
+				{},
+			]);
+			expect(resolveEcoPageDataTiers({ a: 1, [ECO_PAGE_DATA_TIERS_KEY]: [{ user: 'Ada' }] })).toEqual([
+				{ user: 'Ada' },
+			]);
+			expect(resolveEcoPageDataTiers(envelope)).toBeUndefined();
+			expect(resolveEcoPageDataTiers({ a: 1 })).toBeUndefined();
+			expect(resolveEcoPageDataTiers(null)).toBeUndefined();
+		});
+
+		it.each([
+			['a string', 'x'],
+			['an object', {}],
+			['an entry that is an array', [[]]],
+			['a null entry', [null]],
+			['a scalar entry', [1]],
+		])('should ignore tiers that are %s without rejecting the envelope', (_name, tiers) => {
+			const payload = { ...envelope, tiers };
+			expect(isEcoPageDataManifestV1(payload)).toBe(true);
+			expect(resolveEcoPageDataTiers(payload)).toBeUndefined();
+			expect(resolveEcoPageDataTiers({ a: 1, [ECO_PAGE_DATA_TIERS_KEY]: tiers })).toBeUndefined();
+			expect(resolveEcoPageDataProps(payload)).toEqual({ a: 1 });
+		});
+
+		it('should never return the reserved key as page props', () => {
+			expect(resolveEcoPageDataProps({ a: 1, [ECO_PAGE_DATA_TIERS_KEY]: [{ user: 'Ada' }] })).toEqual({ a: 1 });
+			expect(resolveEcoPageDataProps({ ...envelope, tiers: [{}] })).toEqual({ a: 1 });
+		});
+
+		it('should lift the reserved key into the envelope when wrapping', () => {
+			expect(
+				resolvePageDataDocumentPayload(
+					{ a: 1, [ECO_PAGE_DATA_TIERS_KEY]: [{ user: 'Ada' }] },
+					{ moduleUrl: '/p.js' },
+				),
+			).toEqual({ ...envelope, tiers: [{ user: 'Ada' }] });
+		});
+
+		it('should drop an invalid reserved key when wrapping and keep it flat when not wrapping', () => {
+			expect(
+				resolvePageDataDocumentPayload({ a: 1, [ECO_PAGE_DATA_TIERS_KEY]: 'x' }, { moduleUrl: '/p.js' }),
+			).toEqual(envelope);
+			expect(resolvePageDataDocumentPayload({ a: 1, [ECO_PAGE_DATA_TIERS_KEY]: [{ u: 1 }] })).toEqual({
+				a: 1,
+				[ECO_PAGE_DATA_TIERS_KEY]: [{ u: 1 }],
+			});
 		});
 	});
 });

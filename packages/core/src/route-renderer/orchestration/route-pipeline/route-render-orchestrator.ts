@@ -47,6 +47,7 @@ import { PageBrowserGraphService } from '../page-browser-graph/page-browser-grap
 import type { ResolvedPageDependencies } from '../../page-loading/resolved-page-dependencies.ts';
 import type { IntegrationRenderer } from '../integration-renderer.ts';
 import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
+import { isDynamicPage } from '../../../eco/page-data-hooks.ts';
 import { buildPreparedRenderOptions } from './route-prepared-options.builder.ts';
 import { measureRouteRenderPhase } from '../../../diagnostics/request-pipeline-metrics.ts';
 import type { RequestPipelineMetricsState } from '../../../diagnostics/request-pipeline-metrics.ts';
@@ -183,6 +184,10 @@ export class RouteRenderOrchestrator {
 	/**
 	 * Shares route graph preparation with the production grouped prebuild.
 	 *
+	 * @remarks
+	 * The graph context of a Dynamic Page carries no props: they come from the request, while its Page Browser Graph
+	 * is planned at build and cached by Params and Query alone.
+	 *
 	 * @internal
 	 */
 	async prepareRouteGraphContext<C>(input: {
@@ -202,7 +207,7 @@ export class RouteRenderOrchestrator {
 		const graphContext: PageBrowserGraphContributionContext = {
 			file: routeOptions.file,
 			pageModule: resolvedInputs.pageModule,
-			props,
+			props: isDynamicPage(resolvedInputs.pageModule.default) ? undefined : props,
 			params: routeOptions.params,
 			query: routeOptions.query,
 			dependencyInstanceKey,

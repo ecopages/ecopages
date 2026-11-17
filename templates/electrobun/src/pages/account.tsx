@@ -1,16 +1,18 @@
 import { eco } from '@ecopages/core';
 import { RuiButton } from '@ecopages/radiant-ui/button';
-import { ShellLayout } from '../layouts/shell-layout';
+import { workspaceLayout } from '../layouts/shell-layout';
 import { requireSession } from '../lib/auth.server';
 
 export default eco.page({
 	cache: 'dynamic',
 	middleware: [requireSession],
-	requires: ['workspace'] as const,
 	metadata: () => ({ title: 'Account', description: 'Your account information.' }),
-	layout: { component: ShellLayout, props: () => ({ workspace: { current: '/account', title: 'Account' } }) },
-	render: ({ locals }) => {
-		const user = locals.workspace.session.user;
+	layout: workspaceLayout({ current: '/account', title: 'Account' }),
+	props: ({ locals }) => {
+		const { name, email } = locals.workspace.session.user;
+		return { user: { name, email } };
+	},
+	render: ({ user }) => {
 		return (
 			<div class="account-card">
 				<dl class="account-details">

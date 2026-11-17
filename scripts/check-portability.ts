@@ -78,6 +78,7 @@ const coreFolderLayers = new Map<string, string>([
 	['validation', 'foundation'],
 	['plugins', 'contracts'],
 	['eco', 'contracts'],
+	['middleware', 'contracts'],
 	['build', 'build'],
 	['assets', 'build'],
 	['cache', 'build'],

@@ -10,10 +10,10 @@ Ecopages provides built-in functions for fetching data at build time (for static
 
 ## Page Data Hooks
 
-An `eco.page` declares its data with two hooks. **`paths` lists the Params known at build; `props` receives Params, from `paths` at build and from the request at run time.** Both return their value directly, without an envelope.
+An `eco.page` declares its data with two hooks. **`paths` lists the Params known at build. On a `'static'` or `{ revalidate }` page, `props` receives those Params at build; on a `'dynamic'` page, `props` is the request handler and runs on every request.** Both return their value directly, without an envelope.
 
 ### `props`
-Returns the props object of your page component. `render`, `metadata` and `dependencies` all see it.
+Returns the props object of your page component. `render`, `metadata` and `dependencies` all see it. `render` also receives the route's `params` and `query`, so `props` cannot return a key of either name: the hook does not type-check, and a hook that escapes the type check, such as one that returns `any` or a page written in JavaScript, fails when it runs.
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -43,6 +43,23 @@ A dynamic route reads the Params from `params`:
 props: async ({ params }) => ({ post: await getPost(String(params.slug)) }),
 ```
 
+On a `'static'` or `{ revalidate }` page, `props` receives `{ params, appConfig, runtimeOrigin }`. No request exists when it runs: at build, and when a revalidating page regenerates.
+
+On a `cache: 'dynamic'` page, `props` is the page's request handler. It runs on every request, and the build never runs it. It also receives the `request`, its `query` and the read-only `locals` the page's middleware provided, typed from the `middleware` list, and it is the only part of the page that reads them: `render` receives what it returns (see [Request Locals](/docs/core/request-locals)):
+
+```tsx
+export default eco.page({
+    cache: 'dynamic',
+    middleware: [requireSession],
+    props: async ({ locals, query }) => ({
+        orders: await listOrders(locals.session.user.id, { page: Number(query.page ?? 1) }),
+    }),
+    render: ({ orders }) => <OrderList orders={orders} />,
+});
+```
+
+Return only what the page renders: for a hydrated page, what `props` returns reaches the browser.
+
 ### `paths`
 Required for a dynamic route (`[param]`) whose Cache Strategy is `'static'` or `{ revalidate }`. It returns `[{ params }]`, one entry per page to render at build. `props` is optional there: a page that only needs `params` can leave it out.
 
@@ -66,9 +83,21 @@ The Cache Strategy decides when the hooks run and what the build does with each 
 | --- | --- | --- |
 | `'static'` (default) | Each entry is rendered and written as HTML at build. A dynamic route without `paths` fails the build. | Runs at build for the listed Params. |
 | `{ revalidate, tags }` | Same as `'static'`: each entry is rendered at build. | Runs at build for the listed Params, then at run time with the request's Params whenever the page is not cached or is revalidated: the first request after start, after a tag invalidation, or for Params not in `paths`. |
-| `'dynamic'` | Optional. No HTML is written at build; each entry plans one Page Browser Graph, so scripts that depend on props are in the build. Without `paths` the page gets one plan with no Params. | Runs at build only to plan each entry, then on every request with the request's Params. |
+| `'dynamic'` | Optional. No HTML is written at build; each entry plans one Page Browser Graph, so scripts that depend on its Params are in the build. Without `paths` the page gets one plan with no Params. | Never runs at build. Runs on every request, with the request, its Params, Query and Locals. |
 
-Production builds emit the Page Browser Graphs used by browser scripts and component dependencies. If those dependencies vary by route params, return every required route instance from `paths`. `ecopages start` reuses the graphs in the build; a request that needs an unlisted graph fails instead of building it at request time. Development is unchanged.
+Production builds emit the Page Browser Graphs used by browser scripts and component dependencies. If those dependencies vary by route params, return every required route instance from `paths`. On a `'dynamic'` page, a function-form `dependencies` receives `{ params, query }` and no props, since props come from the request and the build plans each entry without them:
+
+```tsx
+export default eco.page({
+    cache: 'dynamic',
+    paths: async () => [{ params: { slug: 'chart' } }, { params: { slug: 'plain' } }],
+    dependencies: ({ params }) => ({ components: [params?.slug === 'chart' ? Chart : Plain] }),
+    props: async ({ params, locals }) => ({ post: await getPost(String(params.slug), locals.session) }),
+    render: ({ post }) => <Post post={post} />,
+});
+```
+
+On a `'static'` or `{ revalidate }` page, a function-form `dependencies` also receives the page's props. `ecopages start` reuses the graphs in the build; a request that needs an unlisted graph fails instead of building it at request time. Development is unchanged.
 
 The hooks run on the server only. `props` and `paths` are removed from the browser bundle of the page.
 

@@ -54,6 +54,14 @@ describe('scanForeignJsxReach', () => {
 		}
 	});
 
+	it('follows an import of an absolute file path', () => {
+		const { file, reach } = setup({
+			'card.kitchen.tsx': 'export const Card = () => null;',
+		});
+		writeFileSync(file('page.tsx'), `import ${JSON.stringify(file('card.kitchen.tsx'))};`, 'utf-8');
+		expect([...reach('page.tsx')]).toEqual([file('card.kitchen.tsx')]);
+	});
+
 	it('follows the imports of an MDX file', () => {
 		const { file, reach } = setup({
 			'page.tsx': "import Doc from './doc.mdx';\nexport default Doc;",

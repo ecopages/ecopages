@@ -1,5 +1,5 @@
 /**
- * Pretty-code figures own their chrome. Background, border, and padding live on
+ * Code figures own their chrome. Background, border, and padding live on
  * the same box so prose `pre` padding cannot show the page color around `code`.
  * The copy control is a sibling of `pre` so horizontal scroll of the source does
  * not move it. It reveals on hover or keyboard focus within the figure, and
@@ -17,11 +17,11 @@ figure[data-rehype-pretty-code-figure] pre {
 }
 
 figure[data-rehype-pretty-code-figure]:has(> [data-rehype-pretty-copy]) > :is(pre, [data-rehype-pretty-code-title]) {
-	@apply pr-16;
+	@apply pr-12;
 }
 
 figure[data-rehype-pretty-code-figure] > [data-rehype-pretty-copy] {
-	@apply absolute top-2 right-2 z-10 cursor-pointer rounded-sm border border-border px-2 py-0.5 font-sans text-xs font-medium text-on-background opacity-0 transition-opacity;
+	@apply absolute top-2 right-2 z-10 rounded-sm border border-border text-on-background opacity-0 transition-opacity;
 	background-color: var(--shiki-light-bg, var(--color-background));
 
 	&:focus-visible {
@@ -43,10 +43,6 @@ figure[data-rehype-pretty-code-figure]:has(:focus-visible) > [data-rehype-pretty
 	@apply opacity-100;
 }
 
-figure[data-rehype-pretty-code-figure] [data-rehype-pretty-copy][data-copy-error='true'] {
-	@apply border-error/60 text-error;
-}
-
 figure[data-rehype-pretty-code-figure] pre > code {
 	display: grid;
 	@apply rounded-none border-none bg-transparent p-0 font-mono text-[0.875em] leading-relaxed;
@@ -54,6 +50,31 @@ figure[data-rehype-pretty-code-figure] pre > code {
 
 figure[data-rehype-pretty-code-figure] pre > code > :is(.line, [data-line]) {
 	min-height: 1lh;
+}
+
+/**
+ * A figure opts into line numbers with `data-line-numbers`. The numbers are a CSS counter drawn before each line, so
+ * they are not part of the text: selecting or copying code never includes them, and a figure without the flag lays
+ * out exactly as before. The gutter is as wide as the largest number: the figure carries its digit count in
+ * `--line-digits`, and the block's own left padding is trimmed because the gutter already insets the code.
+ */
+figure[data-line-numbers] pre {
+	padding-inline-start: 0.75rem;
+}
+
+figure[data-line-numbers] pre > code {
+	counter-reset: line;
+}
+
+figure[data-line-numbers] pre > code > :is(.line, [data-line])::before {
+	counter-increment: line;
+	content: counter(line) / '';
+	display: inline-block;
+	width: calc(var(--line-digits, 3) * 1ch);
+	margin-right: 1.5ch;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	opacity: 0.45;
 }
 
 figure[data-rehype-pretty-code-figure] pre > code,

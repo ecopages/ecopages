@@ -1,6 +1,7 @@
+import { createMiddleware } from '../../../middleware/create-middleware.ts';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
-import type { ApiHandler, ApiHandlerContext, EcoMiddleware, PageParams, PageQuery } from '../../../types/contracts.ts';
+import type { ApiHandler, ApiMiddlewareContext, PageParams, PageQuery } from '../../../types/contracts.ts';
 import { defineGet, definePost, defineGroupHandler, defineQuery, json, html, redirect } from './define-api-handler.ts';
 
 describe('defineGet / definePost', () => {
@@ -101,12 +102,11 @@ describe('method helpers without path', () => {
 	});
 
 	it('types the context extended by middleware', () => {
-		type AuthContext = ApiHandlerContext<Request, unknown> & { user: string };
-		const auth: EcoMiddleware<AuthContext> = async (_context, next) => next();
+		const auth = createMiddleware((_context, next) => next({ user: 'ada' }));
 
 		defineGet({
 			middleware: [auth],
-			handler: async ({ user, response }) => {
+			handler: async ({ locals: { user }, response }) => {
 				expectTypeOf(user).toEqualTypeOf<string>();
 				return response.json({ user });
 			},
@@ -201,11 +201,7 @@ describe('defineGroupHandler', () => {
 	});
 
 	it('gives the method helpers the context the group middleware adds', () => {
-		type SessionContext = ApiHandlerContext<Request, unknown> & { session: { userId: string } };
-		const withSession: EcoMiddleware<SessionContext> = async (ctx, next) => {
-			ctx.session = { userId: 'u1' };
-			return next();
-		};
+		const withSession = createMiddleware((_ctx, next) => next({ session: { userId: 'u1' } }));
 
 		defineGroupHandler({
 			prefix: '/account',
@@ -214,15 +210,15 @@ describe('defineGroupHandler', () => {
 				api.get({
 					path: '/me',
 					handler: (ctx) => {
-						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
-						return json(ctx.session);
+						expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
+						return json(ctx.locals.session);
 					},
 				}),
 				api.post({
 					path: '/:id',
 					schema: { body: z.object({ name: z.string() }) },
 					handler: (ctx) => {
-						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+						expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
 						expectTypeOf(ctx.body).toEqualTypeOf<{ name: string }>();
 						expectTypeOf(ctx.params).toEqualTypeOf<PageParams>();
 						return json({});
@@ -234,18 +230,16 @@ describe('defineGroupHandler', () => {
 });
 
 describe('middleware context', () => {
-	type SessionContext = ApiHandlerContext<Request, unknown> & { session: { userId: string } };
-	type LocaleContext = ApiHandlerContext<Request, unknown> & { locale: string };
-	const withSession: EcoMiddleware<SessionContext> = async (ctx, next) => next();
-	const withLocale: EcoMiddleware<LocaleContext> = async (ctx, next) => next();
+	const withSession = createMiddleware((_ctx, next) => next({ session: { userId: 'u1' } }));
+	const withLocale = createMiddleware((_ctx, next) => next({ locale: 'en' }));
 
 	it('types the handler with the context every one of its middleware adds', () => {
 		defineGet({
 			path: '/me',
 			middleware: [withSession, withLocale],
 			handler: (ctx) => {
-				expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
-				expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+				expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
+				expectTypeOf(ctx.locals.locale).toEqualTypeOf<string>();
 				return json({});
 			},
 		});
@@ -259,8 +253,8 @@ describe('middleware context', () => {
 				api.get({
 					path: '/me',
 					handler: (ctx) => {
-						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
-						expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+						expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
+						expectTypeOf(ctx.locals.locale).toEqualTypeOf<string>();
 						return json({});
 					},
 				}),
@@ -274,8 +268,8 @@ describe('middleware context', () => {
 					path: '/me',
 					middleware: [withLocale],
 					handler: (ctx) => {
-						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
-						expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+						expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
+						expectTypeOf(ctx.locals.locale).toEqualTypeOf<string>();
 						return json({});
 					},
 				}),
@@ -289,7 +283,7 @@ describe('middleware context', () => {
 			middleware: [
 				withSession,
 				async (ctx, next) => {
-					expectTypeOf(ctx).toEqualTypeOf<ApiHandlerContext<Request, unknown>>();
+					expectTypeOf(ctx).toEqualTypeOf<ApiMiddlewareContext<Request, unknown>>();
 					return next();
 				},
 			],
@@ -297,8 +291,8 @@ describe('middleware context', () => {
 				api.get({
 					path: '/me',
 					handler: (ctx) => {
-						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
-						return json(ctx.session);
+						expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
+						return json(ctx.locals.session);
 					},
 				}),
 			],

@@ -1,17 +1,16 @@
 /** @jsxImportSource react */
 import { eco } from '@ecopages/core';
+import type { LayoutProps } from '@ecopages/core';
 import { ThemeToggleReact } from '@/components/theme-toggle.react';
 import { getPrimaryLinkTestId, kitchenSinkShell, kitchenSinkShellTestId, primaryLinks } from '@/data/primary-links';
 import type { ReactNode } from 'react';
+import type { RequestLayoutProps } from './request-layout-props';
 
 export const ReactPlaygroundLayout = eco.layout<ReactNode>({
 	dependencies: {
 		scripts: ['./base-layout/base-layout.script.ts'],
 	},
-	render: ({ children, locals }) => {
-		const requestInfo = locals?.requestInfo;
-		const viewerRole = locals?.viewerRole;
-
+	render: ({ children, requestInfo, viewerRole }: LayoutProps<ReactNode> & RequestLayoutProps) => {
 		return (
 			<div
 				className="min-h-dvh flex flex-col bg-background text-on-background"

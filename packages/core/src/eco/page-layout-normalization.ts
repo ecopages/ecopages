@@ -5,16 +5,19 @@ import type {
 	EcoPageLayoutEntrySpec,
 	EcoPageLayoutSpec,
 	EcoPageLayouts,
+	LayoutRequestContext,
 } from '../types/contracts.ts';
 
-function isLayoutSpecObject<E>(spec: EcoPageLayoutSpec<E>): spec is EcoPageLayoutEntrySpec<E> {
+function isLayoutSpecObject<E>(
+	spec: EcoPageLayoutSpec<E, LayoutRequestContext>,
+): spec is EcoPageLayoutEntrySpec<E, LayoutRequestContext> {
 	return typeof spec === 'object' && spec !== null && 'component' in spec;
 }
 
 /**
  * Normalizes `layout` page options to an outer→inner stack of layout entries.
  */
-export function normalizePageLayouts<E>(layout?: EcoPageLayouts<E>): EcoPageLayoutEntry[] {
+export function normalizePageLayouts<E>(layout?: EcoPageLayouts<E, LayoutRequestContext>): EcoPageLayoutEntry[] {
 	if (!layout) {
 		return [];
 	}

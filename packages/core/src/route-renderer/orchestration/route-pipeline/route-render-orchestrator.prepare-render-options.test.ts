@@ -16,7 +16,6 @@ import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { SessionPageBrowserGraphCache } from '../page-browser-graph/page-browser-graph-session.ts';
 import { ProcessedAssetLedger } from '../../../assets/asset-processing-service/processed-asset-ledger.ts';
-import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
@@ -26,13 +25,9 @@ import type { GroupedScriptBundle } from '../../../assets/asset-processing-servi
 import type { OwnershipValidationService } from '../ownership-graph/ownership-validation.service.ts';
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
 import { createFlowRenderer, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
-
-declare module '../../../types/contracts.ts' {
-	interface RequestLocals {
-		user?: string;
-		guarded?: boolean;
-	}
-}
+import { eco } from '../../../eco/eco.ts';
+import { createMiddleware } from '../../../middleware/create-middleware.ts';
+import { resolvePageDependenciesFromContext } from '../../page-loading/resolved-page-dependencies.ts';
 
 type PageConfig = EcoPageComponent<Record<string, unknown>>['config'];
 type GroupedContentScript = Extract<AssetDefinition, { kind: 'script'; source: 'content' }>;
@@ -228,10 +223,9 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 
 		expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith(
-			expect.objectContaining({ props: { title: 'Overridden title' } }),
+			expect.objectContaining({ params: { slug: 'hello' }, query: { preview: '1' }, props: undefined }),
 		);
 		expect(result.locals).toEqual({ user: 'andee' });
-		expect(result.pageLocals).toEqual({ user: 'andee' });
 		expect(result.pageProps).toEqual({
 			title: 'Overridden title',
 			params: { slug: 'hello' },
@@ -251,6 +245,47 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				},
 			}),
 		);
+	});
+
+	it("keeps a Dynamic Page's request-derived props out of its Page Browser Graph, which is cached by Params and Query", async () => {
+		const { flow } = createOrchestrator();
+		const dependencies = vi.fn(async () => ({ components: [] }));
+		const withUser = createMiddleware((_ctx, next) => next({ user: 'ada' }));
+		const Page = eco.page({
+			cache: 'dynamic',
+			middleware: [withUser],
+			props: async ({ locals }) => ({ user: locals.user }),
+			dependencies,
+			render: () => '<main>Account</main>',
+		});
+		const collectPageBrowserGraphContribution = vi.fn(async (_context: PageBrowserGraphContributionContext) => ({
+			assets: [],
+		}));
+		const routeOptions = createRouteOptions(path.resolve('/app/pages/account.tsx'), {
+			params: { id: '7' },
+			query: { tab: 'billing' },
+		});
+
+		for (const user of ['ada', 'grace']) {
+			await flow.prepareRenderOptions(
+				routeOptions,
+				createFlowRenderer({
+					Page,
+					pageData: { props: { user }, metadata: { title: 'Account', description: 'Account' } },
+					collectPageBrowserGraphContribution,
+					resolvePageDependencies: (context) => resolvePageDependenciesFromContext(context, 'string'),
+				}),
+			);
+		}
+
+		expect(dependencies.mock.calls).toEqual([
+			[{ params: { id: '7' }, query: { tab: 'billing' } }],
+			[{ params: { id: '7' }, query: { tab: 'billing' } }],
+		]);
+		expect(collectPageBrowserGraphContribution).toHaveBeenCalled();
+		for (const [context] of collectPageBrowserGraphContribution.mock.calls) {
+			expect(context.props).toBeUndefined();
+		}
 	});
 
 	describe('source dependency paths', () => {
@@ -581,7 +616,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		});
 	});
 
-	it('should guard page locals for static pages', async () => {
+	it('gives a static page no locals', async () => {
 		const { flow } = createOrchestrator();
 
 		const result = await flow.prepareRenderOptions(
@@ -590,7 +625,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 
 		expect(result.locals).toBeUndefined();
-		expect(() => Reflect.get(result.pageLocals as object, 'guarded')).toThrow(LocalsAccessError);
+		expect(result.pageProps).not.toHaveProperty('locals');
 	});
 
 	it('skips undefined component entries while collecting integration dependencies and triggers', async () => {

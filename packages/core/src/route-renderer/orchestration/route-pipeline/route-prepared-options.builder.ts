@@ -13,7 +13,6 @@ import type {
 } from '../../../types/contracts.ts';
 import { createPagePackage, type ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import { dedupeProcessedAssets } from '../../../assets/processed-asset-dedupe.ts';
-import { createPageLocalsProxy } from './route-prepared-options.utils.ts';
 
 type PreparedRenderInputs = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
@@ -58,8 +57,6 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 		query: routeOptions.query || {},
 	};
 	const cacheStrategy = (Page as EcoPageComponent<any>).cache;
-	const pageLocals =
-		routeOptions.locals ?? (createPageLocalsProxy(routeOptions.file) as RouteRendererOptions['locals']);
 	const locals = routeOptions.locals;
 	const preparedOptions: InternalIntegrationRendererRenderOptions<C> = {
 		...routeOptions,
@@ -77,7 +74,6 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 		query: routeOptions.query || {},
 		pageProps,
 		locals,
-		pageLocals,
 		cacheStrategy,
 	};
 

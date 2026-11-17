@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import type { Server as NodeHttpServer } from 'node:http';
+import { createMiddleware } from '../../middleware/create-middleware.ts';
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { z } from 'zod';
 import { ECOPAGES_DEV_RESTART_EXIT_CODE } from '../../dev/development-restart.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type {
-	ApiHandlerContext,
-	EcoMiddleware,
+	ApiMiddlewareContext,
 	ErrorPageTemplateProps,
 	Middleware,
 	PageParams,
@@ -107,16 +107,9 @@ describe('EcopagesApp route registration', () => {
 
 	it('forwards registered handlers, schemas, and middleware to the server adapter', async () => {
 		const handler = (_context: unknown) => new Response('ok');
-		const middleware: Middleware<Request, unknown, ApiHandlerContext<Request, unknown>> = async (_context, next) =>
-			await next();
-		const groupMiddleware: Middleware<Request, unknown, ApiHandlerContext<Request, unknown>> = async (
-			_context,
-			next,
-		) => await next();
-		const routeMiddleware: Middleware<Request, unknown, ApiHandlerContext<Request, unknown>> = async (
-			_context,
-			next,
-		) => await next();
+		const middleware: Middleware<Request, unknown> = async (_context, next) => await next();
+		const groupMiddleware: Middleware<Request, unknown> = async (_context, next) => await next();
+		const routeMiddleware: Middleware<Request, unknown> = async (_context, next) => await next();
 		const schema: RouteSchema = {};
 		let receivedHandlers: NodeServerAdapterParams['apiHandlers'];
 		const { app } = createTestApp(async (params) => {
@@ -224,42 +217,39 @@ describe('EcopagesApp route registration', () => {
 	});
 
 	it('types inline handlers with the context route middleware adds', () => {
-		type SessionContext = ApiHandlerContext<Request, unknown> & { session: { userId: string } };
-		const withSession: EcoMiddleware<SessionContext> = async (ctx, next) => next();
+		const withSession = createMiddleware((_ctx, next) => next({ session: { userId: 'u1' } }));
 		const { app } = createTestApp();
 
 		app.get(
 			'/me',
 			(ctx) => {
-				expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
-				return ctx.json(ctx.session);
+				expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
+				return ctx.json(ctx.locals.session);
 			},
 			{ middleware: [withSession], schema: { query: z.object({ q: z.string() }) } },
 		);
-		app.group<SessionContext>(
+		app.group(
 			'/account',
 			(routes) =>
 				routes.get('/me', (ctx) => {
-					expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+					expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
 					expectTypeOf(ctx.params).toEqualTypeOf<PageParams>();
-					return ctx.json(ctx.session);
+					return ctx.json(ctx.locals.session);
 				}),
 			{ middleware: [withSession] },
 		);
 	});
 
 	it('types the handler with the context every one of its middleware adds', () => {
-		type SessionContext = ApiHandlerContext<Request, unknown> & { session: { userId: string } };
-		type LocaleContext = ApiHandlerContext<Request, unknown> & { locale: string };
-		const withSession: EcoMiddleware<SessionContext> = async (ctx, next) => next();
-		const withLocale: EcoMiddleware<LocaleContext> = async (ctx, next) => next();
+		const withSession = createMiddleware((_ctx, next) => next({ session: { userId: 'u1' } }));
+		const withLocale = createMiddleware((_ctx, next) => next({ locale: 'en' }));
 		const { app } = createTestApp();
 
 		app.get(
 			'/me',
 			(ctx) => {
-				expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
-				expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+				expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
+				expectTypeOf(ctx.locals.locale).toEqualTypeOf<string>();
 				return ctx.json({});
 			},
 			{ middleware: [withSession, withLocale] },
@@ -268,8 +258,8 @@ describe('EcopagesApp route registration', () => {
 			'/me',
 			'GET',
 			(ctx) => {
-				expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
-				expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+				expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
+				expectTypeOf(ctx.locals.locale).toEqualTypeOf<string>();
 				return ctx.json({});
 			},
 			{ middleware: [withSession, withLocale] },
@@ -280,8 +270,8 @@ describe('EcopagesApp route registration', () => {
 				routes.post(
 					'/me',
 					(ctx) => {
-						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
-						expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+						expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
+						expectTypeOf(ctx.locals.locale).toEqualTypeOf<string>();
 						expectTypeOf(ctx.body).toEqualTypeOf<{ name: string }>();
 						return ctx.json({});
 					},
@@ -289,11 +279,11 @@ describe('EcopagesApp route registration', () => {
 				),
 			{ middleware: [withSession, withLocale] },
 		);
-		app.get<RouteSchema, SessionContext & LocaleContext>(
+		app.get(
 			'/explicit',
 			(ctx) => {
-				expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
-				expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+				expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
+				expectTypeOf(ctx.locals.locale).toEqualTypeOf<string>();
 				return ctx.json({});
 			},
 			{ middleware: [withSession, withLocale] },
@@ -301,24 +291,22 @@ describe('EcopagesApp route registration', () => {
 	});
 
 	it('types inline middleware functions with the base context', () => {
-		type SessionContext = ApiHandlerContext<Request, unknown> & { session: { userId: string } };
-		const withSession: EcoMiddleware<SessionContext> = async (ctx, next) => next();
+		const withSession = createMiddleware((_ctx, next) => next({ session: { userId: 'u1' } }));
 		const { app } = createTestApp();
 
 		app.get('/me', (ctx) => ctx.json({}), {
 			middleware: [
 				async (ctx, next) => {
-					expectTypeOf(ctx).toEqualTypeOf<ApiHandlerContext<Request, unknown>>();
+					expectTypeOf(ctx).toEqualTypeOf<ApiMiddlewareContext<Request, unknown>>();
 					return next();
 				},
 			],
 		});
-		const logRequest: Middleware<Request, unknown, ApiHandlerContext<Request, unknown>> = async (ctx, next) =>
-			next();
+		const logRequest: Middleware<Request, unknown> = async (ctx, next) => next();
 		app.get(
 			'/me',
 			(ctx) => {
-				expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+				expectTypeOf(ctx.locals.session).toEqualTypeOf<{ userId: string }>();
 				return ctx.json({});
 			},
 			{ middleware: [withSession, logRequest] },
@@ -329,7 +317,7 @@ describe('EcopagesApp route registration', () => {
 				routes.get('/me', (ctx) => ctx.json({}), {
 					middleware: [
 						async (ctx, next) => {
-							expectTypeOf(ctx).toEqualTypeOf<ApiHandlerContext<Request, unknown>>();
+							expectTypeOf(ctx).toEqualTypeOf<ApiMiddlewareContext<Request, unknown>>();
 							return next();
 						},
 					],

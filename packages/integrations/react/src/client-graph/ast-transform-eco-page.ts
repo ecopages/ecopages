@@ -1,19 +1,16 @@
 /**
- * Finds the server-only `eco.page(...)` options of browser-bound modules.
+ * Finds the server-only `eco.page(...)` options of browser-bound modules, and the `props` factories of the layout
+ * entries written inline in its `layout` option.
+ *
+ * @remarks
+ * Nodes are typed `any`, as in `walkAstNodes`: they come from the parser as untyped ESTree objects, and each helper
+ * checks `type` before reading a field.
  */
 
 import { walkAstNodes } from './ast-walk.ts';
 import type { SourceEdit } from './ast-transform-import-edits.ts';
 
-const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set([
-	'cache',
-	'middleware',
-	'dependencies',
-	'requires',
-	'metadata',
-	'props',
-	'paths',
-]);
+const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set(['cache', 'middleware', 'dependencies', 'metadata', 'props', 'paths']);
 
 type SourceRange = { start: number; end: number };
 
@@ -51,6 +48,40 @@ function isServerOnlyOption(property: any): boolean {
 	return keyName !== undefined && SERVER_ONLY_ECO_PAGE_OPTION_KEYS.has(keyName);
 }
 
+export function isPropertyNamed(property: any, name: string): boolean {
+	return property?.type === 'Property' && !property.computed && getObjectPropertyKeyName(property.key) === name;
+}
+
+const TRANSPARENT_EXPRESSION_TYPES = new Set([
+	'ParenthesizedExpression',
+	'TSAsExpression',
+	'TSSatisfiesExpression',
+	'TSNonNullExpression',
+	'TSTypeAssertion',
+]);
+
+/** Returns the expression inside parentheses and type-only wrappers such as `as const` and `satisfies`. */
+function unwrapExpression(node: any): any {
+	let current = node;
+	while (current && TRANSPARENT_EXPRESSION_TYPES.has(current.type)) current = current.expression;
+	return current;
+}
+
+/**
+ * Returns the tiers of a `layout` option, each unwrapped from type-only wrappers: the value itself, or the elements
+ * of an array. A hole stays `null`.
+ */
+export function getLayoutTiers(layout: any): any[] {
+	const value = unwrapExpression(layout);
+	const tiers = value?.type === 'ArrayExpression' ? value.elements : [value];
+	return tiers.map(unwrapExpression);
+}
+
+/** Returns the layout entries written as object literals in a `layout` option. */
+export function getInlineLayoutEntries(layout: any): any[] {
+	return getLayoutTiers(layout).filter((tier: any) => tier?.type === 'ObjectExpression');
+}
+
 /**
  * Returns the range that removes one property and its separating comma.
  *
@@ -81,15 +112,40 @@ function mergeRanges(ranges: SourceRange[]): SourceRange[] {
 	return merged;
 }
 
-function collectPageOptionEdits(node: any, code: ServerOnlyPageCode): void {
-	const objectExpression = node.arguments[0];
+function collectPropertyEdits(
+	objectExpression: any,
+	isStripped: (property: any) => boolean,
+	code: ServerOnlyPageCode,
+): void {
 	const ranges: SourceRange[] = [];
 	objectExpression.properties.forEach((property: any, index: number) => {
-		if (!isServerOnlyOption(property)) return;
+		if (!isStripped(property)) return;
 		code.strippedNodes.add(property);
 		ranges.push(getPropertyRemovalRange(objectExpression, index));
 	});
 	for (const range of mergeRanges(ranges)) code.edits.push({ ...range, replacement: '' });
+}
+
+/**
+ * Removes the `props` factory of each layout entry written inline in the `layout` option.
+ *
+ * @remarks
+ * The factory runs only on the server: the browser renders each tier from the props the server resolved and
+ * shipped as `tiers`. An entry imported from another module cannot be edited here; its module reaches the
+ * browser whole, so a server import its factory uses fails the browser build.
+ */
+function collectLayoutEntryEdits(objectExpression: any, code: ServerOnlyPageCode): void {
+	const layout = objectExpression.properties.find((property: any) => isPropertyNamed(property, 'layout'));
+	if (!layout) return;
+	for (const entry of getInlineLayoutEntries(layout.value)) {
+		collectPropertyEdits(entry, (property) => isPropertyNamed(property, 'props'), code);
+	}
+}
+
+function collectPageOptionEdits(node: any, code: ServerOnlyPageCode): void {
+	const objectExpression = node.arguments[0];
+	collectPropertyEdits(objectExpression, isServerOnlyOption, code);
+	collectLayoutEntryEdits(objectExpression, code);
 }
 
 /**

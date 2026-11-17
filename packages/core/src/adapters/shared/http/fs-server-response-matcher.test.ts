@@ -1132,6 +1132,182 @@ describe('FileSystemResponseMatcher', () => {
 		});
 	});
 
+	describe('props hook', () => {
+		type RecordedContext = Record<string, unknown>;
+		const recorded = globalThis as typeof globalThis & {
+			__ecoRequestPropsContexts?: RecordedContext[];
+			__ecoStaticPropsContexts?: string[][];
+			__ecoRenderPropKeys?: string[][];
+		};
+		const requestPropsFile = path.join(appDir, 'src/pages/request-props/[slug].ts');
+		const staticPropsFile = path.join(appDir, 'src/pages/static-props.ts');
+		mkdirSync(path.dirname(requestPropsFile), { recursive: true });
+		writeFileSync(
+			requestPropsFile,
+			[
+				"import { createMiddleware, eco } from '@ecopages/core';",
+				'',
+				"const session = createMiddleware((_ctx, next) => next({ session: { userId: 'u1', token: 'tok-secret' } }));",
+				'',
+				'export default eco.page({',
+				"	cache: 'dynamic',",
+				'	middleware: [session],',
+				'	props: async ({ request, params, query, locals }) => {',
+				'		(globalThis.__ecoRequestPropsContexts ??= []).push({',
+				'			url: request.url,',
+				'			params,',
+				'			query,',
+				'			userId: locals.session.userId,',
+				'		});',
+				'		return { userId: locals.session.userId, slug: String(params.slug) };',
+				'	},',
+				'	render: (props) => {',
+				'		(globalThis.__ecoRenderPropKeys ??= []).push(Object.keys(props).sort());',
+				'		return `<p data-user="${props.userId}">${props.slug}</p>`;',
+				'	},',
+				'});',
+				'',
+			].join('\n'),
+		);
+		writeFileSync(
+			staticPropsFile,
+			[
+				"import { eco } from '@ecopages/core';",
+				'',
+				'export default eco.page({',
+				'	props: async (context) => {',
+				'		(globalThis.__ecoStaticPropsContexts ??= []).push(Object.keys(context).sort());',
+				"		return { label: 'static' };",
+				'	},',
+				'	render: (props) => {',
+				'		(globalThis.__ecoRenderPropKeys ??= []).push(Object.keys(props).sort());',
+				'		return `<p>${props.label}</p>`;',
+				'	},',
+				'});',
+				'',
+			].join('\n'),
+		);
+
+		it("gives a Dynamic Page's props the request, Params, Query and Locals, and render only what props returned", async () => {
+			recorded.__ecoRequestPropsContexts = [];
+			recorded.__ecoRenderPropKeys = [];
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: appConfig.absolutePaths.distDir,
+				router,
+				routeRendererFactory,
+				fileSystemResponseFactory,
+			});
+			const match: RouteMatch = {
+				requestedPathname: '/request-props/a',
+				templateRoute: {
+					role: 'page',
+					kind: 'dynamic',
+					pathname: '/request-props/[slug]',
+					filePath: requestPropsFile,
+				},
+				params: { slug: 'a' },
+				query: { tab: 'x' },
+			};
+
+			const response = await matcher.handleMatch(
+				match,
+				new Request('http://localhost:3000/request-props/a?tab=x'),
+			);
+
+			const html = await response.text();
+			expect(response.status).toBe(200);
+			expect(html).toContain('<p data-user="u1">a</p>');
+			expect(html).not.toContain('tok-secret');
+			expect(recorded.__ecoRenderPropKeys).toEqual([['params', 'query', 'slug', 'userId']]);
+			expect(recorded.__ecoRequestPropsContexts).toEqual([
+				{
+					url: 'http://localhost:3000/request-props/a?tab=x',
+					params: { slug: 'a' },
+					query: { tab: 'x' },
+					userId: 'u1',
+				},
+			]);
+		});
+
+		it("gives a Static Page's props the build context only, render no locals, and does not run props on a cache hit", async () => {
+			recorded.__ecoStaticPropsContexts = [];
+			recorded.__ecoRenderPropKeys = [];
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: appConfig.absolutePaths.distDir,
+				router,
+				routeRendererFactory,
+				fileSystemResponseFactory,
+				cacheService: new PageCacheService({ store: new MemoryCacheStore(), enabled: true }),
+				defaultCacheStrategy: 'static',
+			});
+			const match: RouteMatch = {
+				requestedPathname: '/static-props',
+				templateRoute: { role: 'page', kind: 'exact', pathname: '/static-props', filePath: staticPropsFile },
+				params: {},
+				query: {},
+			};
+
+			const first = await matcher.handleMatch(match, new Request('http://localhost:3000/static-props'));
+			const second = await matcher.handleMatch(match, new Request('http://localhost:3000/static-props'));
+
+			expect(first.headers.get('X-Cache')).toBe('MISS');
+			expect(second.headers.get('X-Cache')).toBe('HIT');
+			expect(await second.text()).toContain('<p>static</p>');
+			expect(recorded.__ecoStaticPropsContexts).toEqual([['appConfig', 'params', 'runtimeOrigin']]);
+			expect(recorded.__ecoRenderPropKeys).toEqual([['label', 'params', 'query']]);
+		});
+	});
+
+	describe('error page that is a Dynamic Page with props', () => {
+		const dynamic404File = path.join(appDir, 'src/pages/404.dynamic-props.ts');
+		mkdirSync(path.dirname(dynamic404File), { recursive: true });
+		writeFileSync(
+			dynamic404File,
+			[
+				"import { eco } from '@ecopages/core';",
+				'',
+				'export default eco.page({',
+				"	cache: 'dynamic',",
+				'	props: async ({ request }) => ({ path: new URL(request.url).pathname }),',
+				'	render: (props) => `<h1>custom 404 ${props.path}</h1>`,',
+				'});',
+				'',
+			].join('\n'),
+		);
+
+		it('fails the page with an error naming it, then answers with the server-error page once, without recursion', async () => {
+			const configWithDynamic404 = withErrorPageTemplatePaths(appConfig, {
+				404: dynamic404File,
+				500: path.join(appDir, 'missing-500.ts'),
+			});
+			const matcher = new FileSystemResponseMatcher({
+				appConfig: configWithDynamic404,
+				assetPrefix: appConfig.absolutePaths.distDir,
+				router,
+				routeRendererFactory,
+				fileSystemResponseFactory,
+			});
+			const errors = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
+
+			try {
+				const response = await matcher.handleNoMatch('/missing-page');
+				const body = await response.text();
+
+				expect(response.status).toBe(500);
+				expect(body).toContain('eco-error-page__title">Something went wrong</h1>');
+				expect(body).not.toContain('custom 404');
+				const logged = errors.mock.calls.map((call) => call.map(String).join(' ')).join('\n');
+				expect(logged).toContain('404.dynamic-props.ts');
+				expect(logged).toContain('The 404 error page');
+				expect(logged).toContain("has cache: 'dynamic' and props");
+			} finally {
+				errors.mockRestore();
+			}
+		});
+	});
+
 	describe('internal transpile output', () => {
 		it('should inspect page modules through the owning route renderer', async () => {
 			const matcher = new FileSystemResponseMatcher({
@@ -1196,6 +1372,68 @@ describe('FileSystemResponseMatcher', () => {
 
 			expect(loadPageModule).toHaveBeenCalledTimes(1);
 			expect(execute).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe('Dynamic Page decision', () => {
+		const match: RouteMatch = {
+			requestedPathname: APP_TEST_ROUTES.index,
+			templateRoute: {
+				role: 'page',
+				kind: 'exact',
+				pathname: APP_TEST_ROUTES.index,
+				filePath: INDEX_TEMPLATE_FILE,
+			},
+			params: {},
+			query: {},
+		};
+
+		function renderWith(pageModule: Record<string, unknown>, defaultCacheStrategy?: 'static' | 'dynamic') {
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: appConfig.absolutePaths.distDir,
+				router,
+				routeRendererFactory,
+				fileSystemResponseFactory,
+				cacheService: new PageCacheService({ store: new MemoryCacheStore(), enabled: true }),
+				defaultCacheStrategy,
+			});
+			const execute = vi.fn(async (_options: { locals?: unknown; request?: unknown }) => ({
+				body: '<html></html>',
+				metadata: { title: 'Page', description: 'Page description' },
+			}));
+			(matcher as any).routeRendererFactory = {
+				getPageRenderer: vi.fn(() => ({ loadPageModule: vi.fn(async () => pageModule), execute })),
+			};
+			return {
+				execute,
+				response: matcher.handleMatch(match, new Request(`http://localhost:3000${match.requestedPathname}`)),
+			};
+		}
+
+		it('reads only the Page component, not a module-level cache export, to give the request and locals', async () => {
+			const staticPage = Object.assign(() => null, {});
+			const { execute, response } = renderWith({ cache: 'dynamic', default: staticPage });
+
+			expect((await response).status).toBe(200);
+			expect(execute.mock.calls[0]?.[0]).toMatchObject({ locals: undefined, request: undefined });
+		});
+
+		it('gives a Page that declares cache dynamic its request whatever the module exports', async () => {
+			const dynamicPage = Object.assign(() => null, { cache: 'dynamic' as const });
+			const { execute, response } = renderWith({ cache: 'static', default: dynamicPage });
+
+			expect((await response).status).toBe(200);
+			expect(execute.mock.calls[0]?.[0].request).toBeInstanceOf(Request);
+			expect(execute.mock.calls[0]?.[0].locals).toEqual({});
+		});
+
+		it("keeps the request and locals off a Page that declares no cache under a 'dynamic' app default, without caching it", async () => {
+			const staticPage = Object.assign(() => null, {});
+			const { execute, response } = renderWith({ default: staticPage }, 'dynamic');
+
+			expect((await response).headers.get('X-Cache')).toBe('DISABLED');
+			expect(execute.mock.calls[0]?.[0]).toMatchObject({ locals: undefined, request: undefined });
 		});
 	});
 });

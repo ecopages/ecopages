@@ -1,7 +1,7 @@
 const codeCopySelector = '[data-rehype-pretty-copy]';
 const codeCopyStatusSelector = '[data-code-copy-status]';
 
-/** How long the button shows Copied or Try again, and how long the live region keeps the result. */
+/** How long the button holds its `data-copy-state` and how long the live region keeps the result. */
 export const CODE_COPY_FEEDBACK_MS = 1200;
 
 /**
@@ -72,26 +72,23 @@ function announce(message: string): void {
 
 /**
  * @remarks
- * The button keeps its accessible name ("Copy code"); only the visible text changes. The result is
- * announced through the live region instead.
+ * The button keeps its accessible name ("Copy code") and its icons; the result is `data-copy-state` for the
+ * stylesheet and the live region for assistive technology. A repeated result removes the state and forces a reflow
+ * before setting it again, so the one-shot animation runs again instead of continuing.
  */
 function showCodeCopyFeedback(button: HTMLButtonElement, isError: boolean): void {
 	window.clearTimeout(buttonResetTimers.get(button));
 
-	if (isError) {
-		button.dataset.copyError = 'true';
-	} else {
-		button.removeAttribute('data-copy-error');
-	}
-	button.textContent = isError ? 'Try again' : 'Copied';
+	button.removeAttribute('data-copy-state');
+	void button.offsetWidth;
+	button.dataset.copyState = isError ? 'error' : 'copied';
 	announce(isError ? 'Could not copy code' : 'Code copied to clipboard');
 
 	buttonResetTimers.set(
 		button,
 		window.setTimeout(() => {
 			buttonResetTimers.delete(button);
-			button.removeAttribute('data-copy-error');
-			button.textContent = 'Copy';
+			button.removeAttribute('data-copy-state');
 		}, CODE_COPY_FEEDBACK_MS),
 	);
 }

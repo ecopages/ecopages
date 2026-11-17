@@ -16,13 +16,65 @@ Paths default to `src`. Extra flags pass through to jscodeshift, so `--dry --pri
 
 ## Transforms
 
-| Transform                  | Added in | Migrates                                                                        |
-| -------------------------- | -------- | ------------------------------------------------------------------------------- |
-| `migrate-data-hooks`       | 0.9.0    | `staticProps` and `staticPaths` of `eco.page()` to `props` and `paths`          |
-| `migrate-to-eco-page`      | 0.3.0    | Module-level data exports and `Page.config` to `eco.page()`; runs the one above |
-| `migrate-to-eco-component` | 0.3.0    | `Component.config` assignments to `eco.component()`                             |
-| `migrate-core-entrypoints` | 0.3.0    | Imports from `@ecopages/core` to the role-based entry points                    |
+| Transform                   | Added in | Migrates                                                                                                                                                        |
+| --------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `migrate-radiant-refs`      | 0.10.0   | `@ecopages/radiant` `@query` options and `createQuery` options to `@ref`, `@refAll`, `@query(selector)` and `@queryAll(selector)` (Radiant 0.11.0)              |
+| `migrate-radiant-bindings`  | 0.10.0   | `@ecopages/radiant` `$name` companion bindings and the `bind` option to `this.$` (Radiant 0.10.0)                                                               |
+| `migrate-data-hooks`        | 0.9.0    | `staticProps` and `staticPaths` of `eco.page()` to `props` and `paths`                                                                                          |
+| `migrate-to-eco-page`       | 0.3.0    | Module-level data exports and `Page.config` to `eco.page()`; runs the one above                                                                                 |
+| `migrate-to-eco-component`  | 0.3.0    | `Component.config` assignments to `eco.component()`                                                                                                             |
+| `migrate-core-entrypoints`  | 0.3.0    | Imports from `@ecopages/core` to the role-based entry points                                                                                                    |
+| `migrate-middleware-locals` | 0.10.0   | `ctx.locals` assignments of `FileRouteMiddleware` and `Middleware` to `createMiddleware` and `next({ ... })`, and `locals` read in a page's `render` to `props` |
 
 A transform leaves code it cannot rewrite safely unchanged and reports it, so the old API still fails loudly. Rename those by hand. Transforms leave already-migrated code unchanged, so running one twice is safe.
 
+`migrate-middleware-locals` rewrites a middleware annotated `FileRouteMiddleware` or `Middleware`, on its name or with `satisfies`. It moves only unconditional top-level assignments before a single `return next()`, and only when the body uses `ctx` just to read its fields: code that receives `ctx` itself (a helper called with it, a destructured `locals`) could look for a local that `next()` now provides later. It also refuses when anything between the first assignment and `next()` awaits, returns or throws, since an outer stage could read a local the stage had already set before it left. A synchronous call that throws there is not detected. A value that could change before `next()` runs is bound to a `const` where the assignment was, so it keeps its value and evaluation order. The rewritten middleware is a `createMiddleware` result, not a function, so a middleware the same file calls or stores other than in a `middleware` list is reported, and code in other files that calls it directly, such as a test, needs updating by hand. An annotation with type arguments, an API `Middleware` that reads `ctx.query`, `ctx.render` or `ctx.renderPartial` (a `createMiddleware` stage is typed with the page context, which has none of them), and a file where `createMiddleware` already names something else are reported. Any other function that writes `ctx.locals` is reported too.
+
+It also moves the `locals` a page reads in `render` into a new `props` hook and drops `requires`, since `render` no longer receives `locals`. It does so only for a literal `cache: 'dynamic'` page with a `middleware` list and without `props`, whose `render` destructures `locals` and reads it as member chain values outside any condition, loop, `try`, `await` or nested function, since `props` reads every chain on every request. What `props` returns is sent to the browser, so each chain becomes one prop holding only that value (`locals.session.user` becomes `sessionUser`), never a whole session or user object. A page is reported when it passes, calls, indexes or spreads `locals`, reads both a value and a member of it, reads `locals.params` or `locals.query`, or would need a reserved word as a prop name. It leaves `EcoMiddleware<Context>` annotations, assignments in branches, and every other page that declares `requires` or reads `locals` in `render` unchanged. Recast prints new code one key per line, so run your formatter afterwards. It also reports each `interface RequestLocals` declared in a `declare module '@ecopages/core'` block, since the global interface is removed and the augmentation types nothing; pass the declaration file as a path when it sits outside `src` (`npx @ecopages/codemod migrate-middleware-locals src modules.d.ts`). To finish one, make sure a `createMiddleware` stage provides each local it declared, list that middleware on every page or route that reads them, annotate the locals a shared layout entry reads on its factory parameter, then delete the declaration. When the run ends, the CLI prints a migration brief listing each of those as `file:line`, the docs to read, and a prompt to hand to a coding agent.
+
 The release notes of each core version name the transform that goes with its breaking changes.
+
+### `migrate-radiant-bindings`
+
+Radiant 0.10.0 removed the `$name` companion of each reactive member and the `bind` option that named it. Run it when you upgrade `@ecopages/radiant` to 0.10.0; it does not need Radiant installed:
+
+```bash
+npx @ecopages/codemod migrate-radiant-bindings src
+```
+
+It rewrites, on classes that extend `RadiantElement`, `RadiantController` or `FormAssociatedElement`:
+
+- `this.$count` to `this.$.count`, in JSX and in plain code, for a `@prop`, `@state`, `@attr` or `@signal` field or a `createReactiveProp` or `createReactiveField` member that had a companion;
+- a read of the name a `bind: 'name'` string gave to `this.$.<field>`;
+- `bind: true`, `bind: false` and `bind: 'name'` out of the options, with an options object left empty when the option is optional (`@attr()`, `@signal()`);
+- a `declare $count` that typed a companion out of the class;
+- the binding shape into the type argument of `extends RadiantElement` or `extends RadiantController`, as `RadiantElement<{ count: number }>`, typed from the field's annotation or literal initializer. A type argument already there is extended, or intersected when it is a named type.
+
+It leaves the code as written and prints the file and line for the rest: `ReactiveBindingOption` imports, `defineReactiveBinding` and `shouldAutoBindReactiveMembers`, computed `this[...]` access to a `$` name, a companion written, destructured or read outside its class, a `bind` or options value that is not a literal, a member type it cannot tell, and `$name` reads in a class whose base is in another file. It edits only the text it changes, so the rest of the file keeps its formatting.
+
+### `migrate-radiant-refs`
+
+For the ref/query split of `@ecopages/radiant` 0.11.0, which removes the `@query` options object, its `cache` option, the options form of `createQuery`, and the `QueryConfig` type. Run it when you upgrade to 0.11.0; it does not need Radiant installed:
+
+```bash
+npx @ecopages/codemod migrate-radiant-refs src
+```
+
+It rewrites each `@query` decorator, whether applied with `@` or called on `Class.prototype`, and each `createQuery` call, without renaming fields:
+
+| Before                                            | After                                                                                 |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `@query({ ref: 'menubar-root' }) menubarRoot`     | `@ref() menubarRoot`                                                                  |
+| `@query({ ref: 'root' }) rootTarget`              | `@ref('root') rootTarget`                                                             |
+| `@query({ ref: 'item', all: true }) items`        | `@refAll('item') items`                                                               |
+| `@query({ selector: 's' }) f`                     | `@query('s') f`                                                                       |
+| `@query({ selector: 's', all: true }) fs`         | `@queryAll('s') fs`                                                                   |
+| `createQuery(host, { selector: 's', all: true })` | `createQueryAll(host, 's')`                                                           |
+| `createQuery(host, { ref: 'x' })`                 | `createQuery(host, '[data-ref="x"]')`                                                 |
+| `cache: true` or `cache: false`                   | removed; `cache: true` is reported, since the field now reads the DOM on every access |
+
+`@ref` and `@refAll` take no name when the `ref` equals the field name as an attribute name, as Radiant derives it (`menubarRoot` finds `menubar-root`, `listboxID` finds `listbox-id`), and keep the name as written otherwise: `@query({ ref: 'rangeTrack' }) rangeTrack` becomes `@ref('rangeTrack')`, since a nameless `@ref` would look for `range-track`. `createQuery(host, { ref })` becomes the selector the options form built, which still reaches into nested hosts; use `getRef(name)` on the host instead if you want only the parts the host owns. The imports gain `ref`, `refAll`, `queryAll` and `createQueryAll` from the module that exports them (`@ecopages/radiant`, `@ecopages/radiant/decorators/ref`, `@ecopages/radiant/decorators/query` or `@ecopages/radiant/helpers/create-query`), and lose `query` and `createQuery` once nothing reads them.
+
+It leaves the code as written and prints the file and line for: `QueryConfig` imports; options it cannot read (a spread, a non-literal `all`, an options object held in a constant, both or neither of `selector` and `ref`, a `createQuery` ref that is not a plain string); `getReactiveMember(...).set(...)`, which is now read-only; a `@controller`, `registerController` or `replaceController` identifier with `:`, which now throws; a string `ref` attribute in JSX, which is now a type error and probably meant `data-ref`; and, in a file that registers controllers, a `data-hydration-key` without `:`, since a controller's hydration script is now keyed `id:field`.
+
+Two changes cannot be seen in the source, and the CLI prints them after the run. `@ref`, `@refAll`, `getRef`, `@onEvent({ ref })` and `@bindTo({ ref })` now see only the parts their own host owns, so an outer host no longer reads a nested host's part of the same name; reach into a nested host with `@query('[data-ref="name"]')`, `@onEvent({ selector })`, `@bindTo({ selector })` or `host.querySelector(...)`. `@onEvent({ ref })` no longer fires for a `data-ref` on the host element itself.

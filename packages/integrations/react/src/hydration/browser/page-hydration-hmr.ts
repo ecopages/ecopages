@@ -7,10 +7,15 @@ type PageWindowRuntime = {
 		reloadCurrentPage?: (options: Record<string, unknown>) => Promise<void> | void;
 	};
 	react?: { pageRoot?: { render: (tree: unknown) => void } | null; mountGeneration?: number };
-	page?: { module: string; props: Record<string, unknown>; document?: Document };
+	page?: {
+		module: string;
+		props: Record<string, unknown>;
+		tiers?: readonly Record<string, unknown>[];
+		document?: Document;
+	};
 };
 
-type PageData = { moduleUrl?: string; props: Record<string, unknown> };
+type PageData = { moduleUrl?: string; props: Record<string, unknown>; tiers?: readonly Record<string, unknown>[] };
 type PageDataReader = (options: PageHydrationOptions, source?: Pick<Document, 'getElementById'>) => PageData;
 type PageStateSetter = (options: PageHydrationOptions, pageData: PageData) => void;
 
@@ -86,10 +91,7 @@ async function applyDirectHmrRender(
 	options: PageHydrationOptions,
 	nextPage: unknown,
 	readPageData: PageDataReader,
-	setPageState: (
-		options: PageHydrationOptions,
-		pageData: { moduleUrl?: string; props: Record<string, unknown> },
-	) => void,
+	setPageState: PageStateSetter,
 	generation: number,
 	isSuperseded: () => boolean,
 ): Promise<void> {
@@ -101,7 +103,7 @@ async function applyDirectHmrRender(
 	setPageState(options, pageData);
 	const runtime = getRuntime();
 	if (runtime.page) runtime.page.document = fetchedDocument;
-	activeRoot.render(options.createTree(nextPage, pageData.props));
+	activeRoot.render(options.createTree(nextPage, pageData.props, pageData.tiers));
 	console.log(`[ecopages] ${options.isMdx ? 'MDX' : 'React'} component updated`);
 }
 

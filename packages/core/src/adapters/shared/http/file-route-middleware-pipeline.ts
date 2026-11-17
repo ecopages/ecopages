@@ -1,8 +1,7 @@
-import { createRequire } from '../../../utils/locals-utils.ts';
-import type { FileRouteMiddleware, FileRouteMiddlewareContext, RequestLocals } from '../../../types/contracts.ts';
+import type { FileRouteMiddlewareContext } from '../../../types/contracts.ts';
 import type { PageCacheService } from '../../../page-cache/page-cache-service.ts';
 import { ApiResponseBuilder } from './api-response.ts';
-import { runMiddlewareChain } from './run-middleware-chain.ts';
+import { runMiddlewareChain, type MiddlewareHandler } from './run-middleware-chain.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 
 export const FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS = {
@@ -29,17 +28,18 @@ export class FileRouteMiddlewarePipeline {
 	 * Enforces the current middleware contract for file-routed pages.
 	 *
 	 * Middleware depends on request-scoped locals and therefore must not run when
-	 * the page is treated as statically cacheable.
+	 * the page is treated as statically cacheable. The Page itself must declare
+	 * `cache: 'dynamic'`: an app default of `'dynamic'` does not give its `props`
+	 * hook or layout factories the request.
 	 *
-	 * @param input Middleware list, effective cache strategy, and page path.
-	 * @throws LocalsAccessError When middleware is configured for a non-dynamic page.
+	 * @throws LocalsAccessError When middleware is configured for a Page that is not a Dynamic Page.
 	 */
 	assertValidConfiguration(input: {
-		middleware: FileRouteMiddleware[];
-		pageCacheStrategy: 'static' | 'dynamic' | { revalidate: number; tags?: string[] };
+		middleware: readonly MiddlewareHandler<FileRouteMiddlewareContext>[];
+		isDynamicPage: boolean;
 		filePath: string;
 	}): void {
-		if (input.middleware.length > 0 && input.pageCacheStrategy !== 'dynamic') {
+		if (input.middleware.length > 0 && !input.isDynamicPage) {
 			throw new LocalsAccessError(
 				FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS.middlewareRequiresDynamic(input.filePath),
 			);
@@ -58,7 +58,7 @@ export class FileRouteMiddlewarePipeline {
 	createContext(input: {
 		request: Request;
 		params: Record<string, string>;
-		locals: RequestLocals;
+		locals: Record<string, unknown>;
 	}): FileRouteMiddlewareContext {
 		const context: FileRouteMiddlewareContext = {
 			request: input.request,
@@ -69,7 +69,6 @@ export class FileRouteMiddlewarePipeline {
 				cache: this.cacheService,
 			},
 			locals: input.locals,
-			require: createRequire(() => context.locals as unknown as Record<string, unknown>),
 			json: (data, options) => {
 				if (options?.status) context.response.status(options.status);
 				if (options?.headers) context.response.headers(options.headers);
@@ -95,7 +94,7 @@ export class FileRouteMiddlewarePipeline {
 	 * @returns Response from middleware or final render stage.
 	 */
 	async run(input: {
-		middleware: FileRouteMiddleware[];
+		middleware: readonly MiddlewareHandler<FileRouteMiddlewareContext>[];
 		context: FileRouteMiddlewareContext;
 		renderResponse: () => Promise<Response>;
 	}): Promise<Response> {

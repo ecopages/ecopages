@@ -1,1 +1,1 @@
-export { BaseLayout } from './base-layout.kita';
+export { BaseLayout, requestInfoBaseLayout } from './base-layout.kita';

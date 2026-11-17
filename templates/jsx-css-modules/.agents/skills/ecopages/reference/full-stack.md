@@ -58,33 +58,31 @@ export const auth = betterAuth({
 `src/handlers/auth.server.ts`:
 
 ```typescript
-import type { ApiHandlerContext, FileRouteMiddleware } from '@ecopages/core';
+import { createMiddleware, type ApiHandlerContext } from '@ecopages/core';
 import { auth } from '@/lib/auth.server';
 
 export type Session = (typeof auth)['$Infer']['Session'];
 
-export const authMiddleware: FileRouteMiddleware = async (ctx, next) => {
+export const authMiddleware = createMiddleware(async (ctx, next) => {
 	const session = await auth.api.getSession({ headers: ctx.request.headers });
 	if (!session) {
 		return Response.redirect(new URL('/login', ctx.request.url));
 	}
-	ctx.locals.session = session;
-	return next();
-};
+	return next({ session });
+});
 
 export const authHandler = async (ctx: ApiHandlerContext) => auth.handler(ctx.request);
 ```
 
-Type the Locals the middleware sets, in `modules.d.ts`:
+Locals are typed only by the middleware that provides them; there is no global `RequestLocals` declaration. A Page reads `session` typed from its `middleware` list. A layout entry shared by several Pages annotates the locals it reads on its factory parameter, so a Page that does not list `authMiddleware` fails the type check:
 
 ```typescript
-import type { Session } from './src/handlers/auth.server';
+import type { Session } from '@/handlers/auth.server';
 
-declare module '@ecopages/core' {
-	interface RequestLocals {
-		session?: Session | null;
-	}
-}
+export const authenticatedLayout = {
+	component: BaseLayout,
+	props: ({ locals }: { locals: { session: Session } }) => ({ session: { user: locals.session.user } }),
+};
 ```
 
 Register the handler as Explicit Routes in `app.ts`:
@@ -116,7 +114,7 @@ export const authClient = createAuthClient({
 
 ## Protected Pages
 
-A Page with `middleware` must set `cache: 'dynamic'`, or the request fails. Declare `requires` for the Locals it reads, and read them from `locals` in `render`:
+A Page with `middleware` must set `cache: 'dynamic'`, or the request fails. Read the Locals in `props` and return what `render` needs; `render` receives no `locals`, and `requires` is removed. What `props` returns reaches the browser, so return the user, never the session token:
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -125,8 +123,8 @@ import { authMiddleware } from '@/handlers/auth.server';
 export default eco.page({
 	cache: 'dynamic',
 	middleware: [authMiddleware],
-	requires: ['session'] as const,
-	render: ({ locals }) => <h1>Hello {locals?.session?.user.name}</h1>,
+	props: ({ locals }) => ({ user: locals.session.user }),
+	render: ({ user }) => <h1>Hello {user.name}</h1>,
 });
 ```
 

@@ -157,6 +157,45 @@ describe('handlePageHmr without the router', () => {
 		expect(render).toHaveBeenCalledWith({ count: 2 });
 	});
 
+	it('renders the fetched document with its tiers', async () => {
+		const render = vi.fn();
+		vi.stubGlobal('window', {
+			__ECO_PAGES__: { react: { mountGeneration: 0, pageRoot: { render } } },
+			location: { href: 'http://localhost/page', pathname: '/page' },
+		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => ({ ok: true, status: 200, text: async () => '<html></html>' })),
+		);
+		vi.stubGlobal(
+			'DOMParser',
+			class {
+				parseFromString() {
+					return {};
+				}
+			},
+		);
+		const createTree = vi.fn((_page: unknown, _props: unknown, tiers: unknown) => tiers);
+		const options = {
+			Page: () => null,
+			hasRouter: false,
+			isMdx: false,
+			hmr: { importPath: '/page.js' },
+			createTree,
+		} as unknown as PageHydrationOptions;
+
+		await handlePageHmr(
+			options,
+			pageModuleUrl(),
+			0,
+			() => ({ props: { count: 2 }, tiers: [{ user: 'Ada' }] }),
+			vi.fn(),
+		);
+
+		expect(createTree).toHaveBeenCalledWith(expect.anything(), { count: 2 }, [{ user: 'Ada' }]);
+		expect(render).toHaveBeenCalledWith([{ user: 'Ada' }]);
+	});
+
 	it('drops an update that a newer one overtook while it fetched', async () => {
 		const render = vi.fn();
 		testGlobal.window = {

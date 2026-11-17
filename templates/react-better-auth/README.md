@@ -133,7 +133,7 @@ The Continue with GitHub button is shown only when both values are set. Otherwis
 
 All pages share a single `BaseLayout` that uses `AuthNav` — a client-side session-aware navigation component.
 
-- Pages with auth middleware (e.g. `/dashboard`) pass `locals.session` for instant SSR rendering.
+- Pages with auth middleware (e.g. `/dashboard`) read `locals.session` in the layout entry's `props` factory and in the page's `props`, which return only the user, so the nav renders signed in on the server and the session token never reaches the browser.
 - Pages without middleware (e.g. `/skills`) let `AuthNav` resolve the session client-side on hydration via `authClient.useSession()`.
 
 This ensures the nav always reflects the actual auth state, regardless of the page type.

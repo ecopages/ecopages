@@ -7,6 +7,7 @@
 @import './components/button.css';
 @import './components/diagram.css';
 @import './vendor/shiki.css';
+@import './components/copy-button.css';
 
 .rui-heading__title {
 	@apply font-heading font-extrabold;

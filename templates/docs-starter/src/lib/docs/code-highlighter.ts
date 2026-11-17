@@ -1,11 +1,8 @@
-import { createHighlighter } from 'shiki';
 import type { RadiantCodeTabItem } from '@/components/code-tabs/code-tabs.script';
-
-import { DOCS_SHIKI_THEMES } from './shiki-themes';
+import { highlightToHtml } from './pierre-highlight';
 
 const SHELL_LANG = 'shellscript';
 const DEFAULT_LANG = 'tsx';
-const PRELOADED_LANGS = [SHELL_LANG, DEFAULT_LANG, 'typescript', 'javascript', 'json', 'css', 'html', 'jsonc', 'mdx'];
 
 const LANG_BY_EXTENSION: Record<string, string> = {
 	ts: 'typescript',
@@ -21,11 +18,6 @@ const LANG_BY_EXTENSION: Record<string, string> = {
 };
 
 const SHELL_COMMAND = /^\s*(?:\$\s*)?(?:npm|npx|pnpm|pnpx|yarn|bun|bunx|deno|node|git|cd|curl|echo|ecopages)\b/;
-
-const highlighter = await createHighlighter({
-	themes: Object.values(DOCS_SHIKI_THEMES),
-	langs: PRELOADED_LANGS,
-});
 
 /**
  * Picks the language of a tab: an explicit `lang`, then the extension of a file-like label, then shell
@@ -46,7 +38,7 @@ export function inferTabLang(tab: { label: string; code: string; lang?: string }
 export type CodeTabSource = RadiantCodeTabItem;
 
 /**
- * Highlights one tab with the shared Shiki instance, wrapped in the figure that styles fenced blocks.
+ * Highlights one tab with Pierre, wrapped in the figure that styles fenced blocks.
  *
  * @remarks
  * Runs on the server only. The result is a rich tab: `html` is the markup and `content` the exact source
@@ -57,11 +49,7 @@ export function highlightCodeTab(
 	tab: Extract<RadiantCodeTabItem, { code: string }>,
 ): Extract<RadiantCodeTabItem, { html: string }> {
 	const lang = inferTabLang(tab);
-	const html = highlighter.codeToHtml(tab.code, {
-		lang: highlighter.getLoadedLanguages().includes(lang) ? lang : 'text',
-		themes: DOCS_SHIKI_THEMES,
-		defaultColor: false,
-	});
+	const html = highlightToHtml(tab.code, lang);
 
 	return {
 		id: tab.id,

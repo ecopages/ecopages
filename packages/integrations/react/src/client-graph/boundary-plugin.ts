@@ -13,13 +13,24 @@ import type {
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
 } from '@ecopages/core/integration';
-import { parseModuleSource, resolveProjectModulePath } from '@ecopages/core/build';
+import { parseModuleSource } from '@ecopages/core/build';
 import { parseDeclaredModules, toModuleBaseSpecifier } from './specifier-classification.ts';
 import { classifyClientGraphModule } from './module-classification.ts';
 import { transformClientGraphModule } from './boundary-plugin-transform.ts';
 import { inlineReadFileSyncCalls } from './boundary-plugin-read-file-inline.ts';
-import { scanForeignJsxReach, toRealPath, type ForeignJsxReach } from './foreign-jsx-reach.ts';
-import { isReactBoundaryVariant, rewriteForeignImports } from './foreign-boundary-rewrite.ts';
+import { resolveLocalModulePath, scanForeignJsxReach, toRealPath, type ForeignJsxReach } from './foreign-jsx-reach.ts';
+import {
+	isReactBoundaryVariant,
+	rewriteForeignImports,
+	type ForeignBoundaryRewriteOptions,
+} from './foreign-boundary-rewrite.ts';
+import {
+	createForeignStubSource,
+	FOREIGN_STUB_ID_PREFIX,
+	FOREIGN_STUB_SCHEME,
+	fromForeignStubSpecifier,
+} from './foreign-module.ts';
+import { FOREIGN_BOUNDARY_PACKAGE } from '../bundling/bootstrap-package-paths.ts';
 import {
 	createRequestedExportsPlan,
 	type PlannedModule,
@@ -168,11 +179,7 @@ async function resolveScanImport(
 	} catch {
 		return { kind: 'skip' };
 	}
-	const local = path.isAbsolute(specifier)
-		? fileSystem.exists(specifier)
-			? specifier
-			: undefined
-		: resolveProjectModulePath(projectRoot, importer, specifier, { preserveBarrel: true });
+	const local = resolveLocalModulePath(projectRoot, importer, specifier);
 	const id = resolved ? (resolved.external ? undefined : resolved.id) : local;
 	if (!resolved && !local) return { kind: 'unresolved' };
 	if (!id || id.startsWith('\0') || id.split('/').includes('node_modules')) return { kind: 'skip' };
@@ -351,6 +358,7 @@ function getForeignJsxReach(
 	context: ClientGraphBoundaryBuildContext,
 	projectRoot: string,
 	isForeignFile: (filePath: string) => boolean,
+	reactModuleSource: ReactModuleSource | undefined,
 ): ForeignJsxReach {
 	if (!context.foreignJsxReach) {
 		const reactEntryFiles = new Set([...getReactEntrypointFiles(context)].map(toRealPath));
@@ -359,9 +367,41 @@ function getForeignJsxReach(
 			reactEntryFiles,
 			otherEntryFiles: [...context.entrypointFiles].map(toRealPath).filter((file) => !reactEntryFiles.has(file)),
 			isForeignFile,
+			reactModuleSource,
 		});
 	}
 	return context.foreignJsxReach;
+}
+
+/** The stub scheme and its `\0` prefix hold no regular expression syntax, so they match as written. */
+const FOREIGN_STUB_SPECIFIER = new RegExp(`^${FOREIGN_STUB_SCHEME}`);
+const FOREIGN_STUB_ID = new RegExp(`^${FOREIGN_STUB_ID_PREFIX}`);
+
+/** The source of a module as React's graph compiles it, or `undefined` when React keeps it as it is. */
+export type ReactModuleSource = (filePath: string, source: string) => string | undefined;
+
+/**
+ * The foreign boundary rewrite as the reach scans apply it: to React's own modules, with the identity stubs.
+ *
+ * @remarks
+ * Without `foreignModuleOf` the rewrite only wraps bindings and keeps every import, so the scans read the
+ * original source.
+ */
+export function createReactModuleSource(options: {
+	projectRoot: string;
+	isForeignFile: (filePath: string) => boolean;
+	foreignModuleOf?: ForeignBoundaryRewriteOptions['foreignModuleOf'];
+}): ReactModuleSource | undefined {
+	const { foreignModuleOf } = options;
+	if (!foreignModuleOf) return undefined;
+	return (filePath, source) =>
+		options.isForeignFile(filePath)
+			? undefined
+			: rewriteForeignImports(source, filePath, {
+					projectRoot: options.projectRoot,
+					isForeignFile: options.isForeignFile,
+					foreignModuleOf,
+				});
 }
 
 /**
@@ -393,13 +433,15 @@ export function createForeignJsxScope(options: {
 	hostIntegrationName: string;
 	/** Name of the other JSX Integration that owns `filePath`; `undefined` when the file is not foreign. */
 	findForeignOwner: (filePath: string) => string | undefined;
+	/** How React's graph compiles a module, so the reach scan sees the imports React keeps. */
+	reactModuleSource?: ReactModuleSource;
 }): (build: EcoBuildPluginBuilder) => (sourcePath: string) => boolean {
 	const isForeignFile = (filePath: string) => options.findForeignOwner(filePath) !== undefined;
 	return (build) => (sourcePath) => {
 		const context = build.entrypoints ? buildContexts.get(build.entrypoints) : undefined;
 		const owner = options.findForeignOwner(sourcePath);
 		if (!context || context.configs.length === 0 || owner === undefined) return true;
-		const reach = getForeignJsxReach(context, options.projectRoot, isForeignFile);
+		const reach = getForeignJsxReach(context, options.projectRoot, isForeignFile, options.reactModuleSource);
 		const filePath = toRealPath(sourcePath);
 		const otherEntry = reach.others.get(filePath) ?? findForeignEntry(context, filePath);
 		if (otherEntry === undefined) return true;
@@ -472,7 +514,11 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 }
 
 /** The files React entries reach and the files other entries reach, by a static scan of the build's entries. */
-function getEntryReach(context: ClientGraphBoundaryBuildContext, projectRoot: string): AnyFileReach {
+function getEntryReach(
+	context: ClientGraphBoundaryBuildContext,
+	projectRoot: string,
+	reactModuleSource: ReactModuleSource | undefined,
+): AnyFileReach {
 	if (!context.entryReach) {
 		const reactEntryFiles = new Set([...getReactEntrypointFiles(context)].map(toRealPath));
 		const otherEntryFiles = [...context.entrypointFiles]
@@ -483,6 +529,7 @@ function getEntryReach(context: ClientGraphBoundaryBuildContext, projectRoot: st
 			reactEntryFiles,
 			otherEntryFiles,
 			isForeignFile: () => true,
+			reactModuleSource,
 		});
 		context.entryReach = {
 			reactEntryFiles,
@@ -513,11 +560,26 @@ export function createForeignBoundaryPlugin(options: {
 	isForeignFile: (filePath: string) => boolean;
 	/** Whether another module graph uses `filePath`, in a build whose entries cannot say. */
 	isSharedFile?: (filePath: string) => boolean;
+	/** See {@link ForeignBoundaryRewriteOptions.foreignModuleOf}. */
+	foreignModuleOf?: ForeignBoundaryRewriteOptions['foreignModuleOf'];
 }): EcoBuildPlugin {
+	const reactModuleSource = createReactModuleSource(options);
+	const { foreignModuleOf } = options;
 	return {
 		name: 'ecopages-react-foreign-boundary',
 		environments: ['browser'],
 		setup(build) {
+			if (foreignModuleOf) {
+				build.onResolve({ filter: FOREIGN_STUB_SPECIFIER }, (args) => ({ path: `\0${args.path}` }));
+				build.onLoad({ filter: FOREIGN_STUB_ID }, (loaded) => {
+					const filePath = fromForeignStubSpecifier(options.projectRoot, loaded.path.slice(1));
+					build.addWatchFile(filePath);
+					const module = foreignModuleOf(filePath);
+					if (!module)
+						throw new Error(`[ecopages] ${filePath} is no longer a module React can name by identity.`);
+					return { contents: createForeignStubSource(module, FOREIGN_BOUNDARY_PACKAGE), loader: 'js' };
+				});
+			}
 			build.onLoad({ filter: /\?eco-variant=[\w-]+$/, exclude: /^\0|\/node_modules\// }, (loaded) => {
 				const filePath = stripVariant(loaded).path;
 				build.addWatchFile(filePath);
@@ -531,7 +593,9 @@ export function createForeignBoundaryPlugin(options: {
 				if (options.isForeignFile(filePath)) return undefined;
 				const context = build.entrypoints ? buildContexts.get(build.entrypoints) : undefined;
 				const reach =
-					context && context.configs.length > 0 ? getEntryReach(context, options.projectRoot) : undefined;
+					context && context.configs.length > 0
+						? getEntryReach(context, options.projectRoot, reactModuleSource)
+						: undefined;
 				const inReactGraph =
 					!reach ||
 					isReactBoundaryVariant(id) ||
@@ -541,6 +605,8 @@ export function createForeignBoundaryPlugin(options: {
 				return rewriteForeignImports(code, filePath, {
 					projectRoot: options.projectRoot,
 					isForeignFile: options.isForeignFile,
+					foreignModuleOf,
+					watchFile: (file) => build.addWatchFile(file),
 					isSharedFile: reach
 						? (file) => reach.others.has(file) && reach.react.has(file)
 						: options.isSharedFile,

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type {
 	EcoComponent,
@@ -9,8 +8,8 @@ import type {
 } from '../../../types/contracts.ts';
 import { buildPreparedRenderOptions } from './route-prepared-options.builder.ts';
 
-describe('buildPreparedRenderOptions static locals guard', () => {
-	it('keeps the throwing proxy for ordinary static pages', () => {
+describe('buildPreparedRenderOptions static pages', () => {
+	it('gives a static page no locals and keeps them out of its page props', () => {
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<unknown>;
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const appConfig = {
@@ -36,6 +35,8 @@ describe('buildPreparedRenderOptions static locals guard', () => {
 			appConfig,
 		});
 
-		expect(() => Reflect.get(result.pageLocals as object, 'sessionUser')).toThrow(LocalsAccessError);
+		expect(result.locals).toBeUndefined();
+		expect(result.pageProps).toEqual({ params: {}, query: {} });
+		expect(result).not.toHaveProperty('pageLocals');
 	});
 });

@@ -11,6 +11,7 @@ import {
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
 } from '@ecopages/core/integration';
+import { findIntegrationForFile } from '@ecopages/core/build';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import type React from 'react';
@@ -228,6 +229,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			getMdxLoaderPlugin: this.getMdxLoaderPlugin,
 			ownedTemplateExtensions: this.extensions,
 			allTemplateExtensions: context.appConfig.templatesExt,
+			integrationOf: (filePath) => findIntegrationForFile(context.appConfig.integrations, filePath)?.name,
 		});
 		manager.registerStrategy(strategy);
 		manager.registerDevTransformContributor(

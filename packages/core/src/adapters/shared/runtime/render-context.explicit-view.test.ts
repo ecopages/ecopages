@@ -65,19 +65,23 @@ describe('explicit views rendered through real renderers', () => {
 		return view;
 	}
 
-	it('gives the view the handler locals, params and query', async () => {
+	it('gives the view the props the handler passed, params and query, and never the handler locals', async () => {
 		const { plugin } = await createPlugin();
-		const view = createView(({ locals, params, query }) => `<p>${locals.user}|${params.slug}|${query.page}</p>`);
+		const view = createView(
+			(props) =>
+				`<p>${props.user}|${props.params.slug}|${props.query.page}|${'locals' in props ? 'locals' : 'none'}</p>`,
+		);
 		const handler = {
 			...createRenderContext({ integrations: [plugin] }),
-			locals: { user: 'ada' },
+			locals: { user: 'ada', token: 'secret' },
 			params: { slug: 'intro' },
 			request: new Request('http://localhost:3000/posts/intro?page=2'),
 		};
 
-		const html = await (await handler.render(view, {})).text();
+		const html = await (await handler.render(view, { user: handler.locals.user })).text();
 
-		expect(html).toContain('<p>ada|intro|2</p>');
+		expect(html).toContain('<p>ada|intro|2|none</p>');
+		expect(html).not.toContain('secret');
 	});
 
 	it('runs the view metadata with the render props, params and no hook props', async () => {

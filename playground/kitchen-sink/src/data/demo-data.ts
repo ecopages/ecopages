@@ -43,8 +43,8 @@ export const showcasePatterns: ShowcasePattern[] = [
 		slug: 'route-middleware',
 		title: 'Page middleware and request locals',
 		summary:
-			'Request data is attached once and consumed by both the page and the layout through the same contract.',
-		highlights: ['cache: dynamic', 'requires', 'layout locals'],
+			'Request data is attached once and read by the page and handed to the layout through its props factory.',
+		highlights: ['cache: dynamic', 'props reads locals', 'layout props'],
 		stage: 'stable',
 		release: 'Runtime flow',
 	},

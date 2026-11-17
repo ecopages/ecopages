@@ -184,7 +184,7 @@ export class RadiantSearchBox extends RadiantElement<SearchBoxBindings> {
 	@state panel: SearchPanel = { ...EMPTY_PANEL };
 	@state recent: RecentSearch[] = [];
 
-	@query({ selector: 'input[data-rui-control]' })
+	@query('input[data-rui-control]')
 	declare private searchInput: HTMLInputElement | null;
 
 	private indexPromise?: Promise<SearchIndex>;

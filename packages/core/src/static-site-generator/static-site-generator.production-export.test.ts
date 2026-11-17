@@ -2,7 +2,15 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { EcoPageComponent } from '../types/eco-api-types.ts';
-import type { EcoComponent, GetMetadata, GetProps, HtmlTemplateProps } from '../types/contracts.ts';
+import type {
+	EcoComponent,
+	GetDynamicPageDependenciesContext,
+	GetMetadata,
+	GetProps,
+	HtmlTemplateProps,
+	StaticEcoPageComponent,
+} from '../types/contracts.ts';
+import { eco } from '../eco/eco.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 import { createAppRuntime } from '../config/assembly/app-runtime.ts';
@@ -174,7 +182,7 @@ describe('StaticSiteGenerator production export', () => {
 		fileSystem.write = (filePath, contents) => writes.push({ filePath, contents });
 		const routeFile = '/src/pages/blog/[slug].tsx';
 		type PageProps = { slug: string | string[] | undefined };
-		const Page = (({ slug }: PageProps) => `<p>${slug}</p>`) as EcoPageComponent<PageProps>;
+		const Page = (({ slug }: PageProps) => `<p>${slug}</p>`) as StaticEcoPageComponent<PageProps>;
 		Page.props = async ({ params }) => {
 			if (params.slug === 'broken') throw new Error('broken static props');
 			return { slug: params.slug };
@@ -238,7 +246,7 @@ describe('StaticSiteGenerator production export', () => {
 		fileSystem.ensureDir = () => {};
 		fileSystem.write = () => {};
 		const routeFile = '/src/pages/products/[slug].tsx';
-		const Page = (() => '<p>product</p>') as EcoPageComponent<Record<string, unknown>>;
+		const Page = (() => '<p>product</p>') as StaticEcoPageComponent<Record<string, unknown>>;
 		Page.resolveDependencies = async ({ props }) => {
 			if (!props.slug) throw new Error('a product needs its slug');
 			return { components: [] };
@@ -291,19 +299,20 @@ describe('StaticSiteGenerator production export', () => {
 		fileSystem.ensureDir = () => {};
 		fileSystem.write = () => {};
 		const routeFile = '/src/pages/products/[slug].tsx';
-		const Page = (() => '<p>product</p>') as EcoPageComponent<Record<string, unknown>>;
-		Page.cache = 'dynamic';
-		Page.paths = async () => [{ params: { slug: 'one' } }];
-		Page.props = async ({ params }) => ({ slug: params.slug });
-		const resolveDependencies = vi.fn(async ({ props }: { props: Record<string, unknown> }) => {
-			if (!props.slug) throw new Error('a product needs its slug');
+		const props = vi.fn(async ({ params }: { params: Record<string, unknown> }) => ({ slug: params.slug }));
+		const resolveDependencies = vi.fn(async ({ params }: GetDynamicPageDependenciesContext) => {
+			if (!params?.slug) throw new Error('a product needs its slug');
 			return { components: [] };
 		});
-		Page.resolveDependencies = resolveDependencies;
-		Page.config = {
-			integration: 'test-renderer',
+		const Page = eco.page({
 			identity: { id: 'product-entries', file: routeFile, integration: 'test-renderer' },
-		};
+			integration: 'test-renderer',
+			cache: 'dynamic',
+			paths: async () => [{ params: { slug: 'one' } }],
+			props,
+			dependencies: resolveDependencies,
+			render: () => '<p>product</p>',
+		});
 		class StaticExportRenderer extends TestIntegrationRenderer {
 			protected override async ensureIntegrationRuntimeActivated(): Promise<void> {}
 		}
@@ -339,7 +348,131 @@ describe('StaticSiteGenerator production export', () => {
 
 			expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('without request props'), expect.anything());
 			expect(resolveDependencies).toHaveBeenCalled();
-			expect(resolveDependencies.mock.calls.every(([{ props }]) => props.slug === 'one')).toBe(true);
+			expect(resolveDependencies.mock.calls.every(([context]) => context.params?.slug === 'one')).toBe(true);
+			expect(resolveDependencies.mock.calls.every(([context]) => !('props' in context))).toBe(true);
+			expect(props).not.toHaveBeenCalled();
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	test('builds a Dynamic Page with paths whose metadata reads props, without running either', async () => {
+		fileSystem.ensureDir = () => {};
+		fileSystem.write = () => {};
+		const routeFile = '/src/pages/posts/[slug].tsx';
+		const props = vi.fn(async ({ params }: { params: Record<string, unknown> }) => ({
+			post: { title: String(params.slug) },
+		}));
+		const metadata = vi.fn(({ props: pageProps }: { props: { post: { title: string } } }) => ({
+			title: pageProps.post.title,
+			description: 'Post',
+		}));
+		const Page = eco.page({
+			identity: { id: 'post-entries', file: routeFile, integration: 'test-renderer' },
+			integration: 'test-renderer',
+			cache: 'dynamic',
+			paths: async () => [{ params: { slug: 'one' } }],
+			props,
+			metadata,
+			render: () => '<p>post</p>',
+		});
+		class StaticExportRenderer extends TestIntegrationRenderer {
+			protected override async ensureIntegrationRuntimeActivated(): Promise<void> {}
+		}
+		const appConfig = createMockConfig();
+		const renderer = new StaticExportRenderer({ appConfig, assetProcessingService: testAssetService });
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const templateRoute = {
+			pathname: '/posts/[slug]',
+			kind: 'dynamic' as const,
+			role: 'page' as const,
+			filePath: routeFile,
+			paramNames: ['slug'],
+		};
+		const planProductionRoutes = vi.spyOn(renderer, 'planProductionRoutes');
+		vi.stubEnv('NODE_ENV', 'production');
+
+		try {
+			await new StaticSiteGenerator({ appConfig }).run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => []),
+					listDynamicPagePathExpansions: vi.fn(async () => [
+						{ pathname: '/posts/one', templateRoute, params: { slug: 'one' } },
+					]),
+					templateRoutes: [templateRoute],
+				},
+				baseUrl: 'https://example.com',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn((_filePath: string) => renderer),
+					getExplicitViewRenderer: vi.fn(() => null),
+				},
+			});
+
+			expect(planProductionRoutes).toHaveBeenCalled();
+			expect(props).not.toHaveBeenCalled();
+			expect(metadata).not.toHaveBeenCalled();
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	test('builds an exact Dynamic Page whose props reads locals, without running its props', async () => {
+		writes.length = 0;
+		fileSystem.ensureDir = () => {};
+		fileSystem.write = (filePath, contents) => writes.push({ filePath, contents });
+		const routeFile = '/src/pages/dashboard.tsx';
+		const props = vi.fn(async ({ locals }: { locals: { session?: { userId: string } | null } }) => {
+			if (!locals.session) throw new Error('dashboard props needs a session');
+			return { userId: locals.session.userId };
+		});
+		const Page = eco.page({
+			identity: { id: 'dashboard', file: routeFile, integration: 'test-renderer' },
+			integration: 'test-renderer',
+			cache: 'dynamic',
+			props,
+			render: () => '<p>dashboard</p>',
+		});
+		class StaticExportRenderer extends TestIntegrationRenderer {
+			protected override async ensureIntegrationRuntimeActivated(): Promise<void> {}
+		}
+		const appConfig = createMockConfig();
+		const renderer = new StaticExportRenderer({ appConfig, assetProcessingService: testAssetService });
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const templateRoute = {
+			pathname: '/dashboard',
+			kind: 'exact' as const,
+			role: 'page' as const,
+			filePath: routeFile,
+			paramNames: [],
+		};
+		const planProductionRoutes = vi.spyOn(renderer, 'planProductionRoutes');
+		vi.stubEnv('NODE_ENV', 'production');
+
+		try {
+			await new StaticSiteGenerator({ appConfig }).run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => [
+						{
+							requestUrl: 'https://example.com/dashboard',
+							pathname: '/dashboard',
+							templateRoute,
+							params: {},
+						},
+					]),
+					templateRoutes: [templateRoute],
+				},
+				baseUrl: 'https://example.com',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn((_filePath: string) => renderer),
+					getExplicitViewRenderer: vi.fn(() => null),
+				},
+			});
+
+			expect(planProductionRoutes).toHaveBeenCalled();
+			expect(props).not.toHaveBeenCalled();
+			expect(writes.some(({ filePath }) => filePath.includes('dashboard'))).toBe(false);
 		} finally {
 			vi.unstubAllEnvs();
 		}
@@ -349,16 +482,18 @@ describe('StaticSiteGenerator production export', () => {
 		fileSystem.ensureDir = () => {};
 		fileSystem.write = () => {};
 		const routeFile = '/src/pages/posts/[slug].tsx';
-		const Page = (() => '<p>post</p>') as EcoPageComponent<Record<string, unknown>>;
-		Page.cache = 'dynamic';
-		Page.props = async ({ params }) => {
-			if (params.slug === 'chart') throw new Error('chart data is unavailable');
-			return {};
-		};
-		Page.config = {
-			integration: 'test-renderer',
+		const props = vi.fn(async () => ({}));
+		const Page = eco.page({
 			identity: { id: 'post-entry', file: routeFile, integration: 'test-renderer' },
-		};
+			integration: 'test-renderer',
+			cache: 'dynamic',
+			props,
+			dependencies: async ({ params }) => {
+				if (params?.slug === 'chart') throw new Error('chart dependencies are unavailable');
+				return { components: [] };
+			},
+			render: () => '<p>post</p>',
+		});
 		class StaticExportRenderer extends TestIntegrationRenderer {
 			protected override async ensureIntegrationRuntimeActivated(): Promise<void> {}
 		}
@@ -401,6 +536,10 @@ describe('StaticSiteGenerator production export', () => {
 			expect((failure as AggregateError).errors.map(String)).toEqual([
 				'Error: Failed to generate route plan for /src/pages/posts/[slug].tsx {"slug":"chart"}',
 			]);
+			expect(String(((failure as AggregateError).errors[0] as Error).cause)).toContain(
+				'chart dependencies are unavailable',
+			);
+			expect(props).not.toHaveBeenCalled();
 		} finally {
 			vi.unstubAllEnvs();
 		}
@@ -414,14 +553,19 @@ describe('StaticSiteGenerator production export', () => {
 		const appConfig = createMockConfig();
 		const routeFile = '/src/pages/posts/[slug].tsx';
 		type PageProps = { slug: string | string[] | undefined };
-		const Page = (({ slug }: PageProps) => `<p>${slug}</p>`) as EcoPageComponent<PageProps>;
-		Page.cache = 'dynamic';
-		Page.paths = async () => [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }];
-		Page.props = async ({ params }) => ({ slug: params.slug });
-		Page.config = {
-			integration: 'test-renderer',
+		const props = vi.fn(async ({ params }: { params: Record<string, string | string[]> }) => ({
+			slug: params.slug,
+		}));
+		const resolveDependencies = vi.fn(async (_context: GetDynamicPageDependenciesContext) => ({ components: [] }));
+		const Page = eco.page<PageProps>({
 			identity: { id: 'dynamic-collection-page', file: routeFile, integration: 'test-renderer' },
-		};
+			integration: 'test-renderer',
+			cache: 'dynamic',
+			paths: async () => [{ params: { slug: 'plain' } }, { params: { slug: 'chart' } }],
+			props,
+			dependencies: resolveDependencies,
+			render: ({ slug }) => `<p>${slug}</p>`,
+		});
 
 		class StaticExportRenderer extends TestIntegrationRenderer {
 			protected override async ensureIntegrationRuntimeActivated(): Promise<void> {}
@@ -488,9 +632,13 @@ describe('StaticSiteGenerator production export', () => {
 
 		expect(planProductionRoutes).toHaveBeenCalledTimes(1);
 		expect(planProductionRoutes.mock.calls[0]?.[0]).toEqual([
-			{ routeFile, params: { slug: 'chart' } },
-			{ routeFile, params: { slug: 'plain' } },
+			{ routeFile, params: { slug: 'chart' }, skipPropsHook: true },
+			{ routeFile, params: { slug: 'plain' }, skipPropsHook: true },
 		]);
+		expect(resolveDependencies.mock.calls.map(([context]) => context.params)).toEqual(
+			expect.arrayContaining([{ slug: 'chart' }, { slug: 'plain' }]),
+		);
+		expect(props).not.toHaveBeenCalled();
 		expect(writes.some(({ filePath }) => filePath.includes('/posts/'))).toBe(false);
 	});
 

@@ -1,6 +1,6 @@
-import { createRequire } from '../../../utils/locals-utils.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { ApiResponseBuilder } from './api-response.ts';
+import { flattenMiddleware } from '../../../middleware/create-middleware.ts';
 import { runMiddlewareChain } from './run-middleware-chain.ts';
 import {
 	matchParsedSegmentPath,
@@ -39,12 +39,19 @@ export type ApiRoutes<TRequest extends Request = Request, TServer = unknown> = R
 	pattern: SegmentPattern<'api'>;
 }>;
 
+function validatedMiddleware<TRequest extends Request, TServer>(
+	handler: ApiHandler<string, TRequest, TServer>,
+): ApiHandler<string, TRequest, TServer> {
+	flattenMiddleware(handler.middleware, `route ${handler.method} ${handler.path}`);
+	return handler;
+}
+
 export function compileApiRoutes<TRequest extends Request = Request, TServer = unknown>(
 	handlers: readonly ApiHandler<string, TRequest, TServer>[],
 ): ApiRoutes<TRequest, TServer> {
 	return handlers
 		.map((handler) => ({
-			handler,
+			handler: validatedMiddleware(handler),
 			method: (handler.method || 'GET').toUpperCase(),
 			pattern: compileSegmentPattern(handler.path, 'api'),
 		}))
@@ -177,15 +184,13 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		params: PageParams,
 		serverInstance: TServer | undefined,
 	): ApiHandlerContext<TRequest, TServer> {
-		const locals: Record<string, unknown> = {};
 		return {
 			request,
 			params,
 			query: parseSearchParams(new URL(request.url).searchParams),
 			response: new ApiResponseBuilder(),
 			server: serverInstance as TServer,
-			locals,
-			require: createRequire((): Record<string, unknown> => locals),
+			locals: {},
 			services: {
 				cache: this.getCacheService(),
 			},
@@ -298,7 +303,10 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		context: ApiHandlerContext<TRequest, TServer>,
 		routeConfig: ApiHandler<string, TRequest, TServer>,
 	): Promise<Response> {
-		const middleware = routeConfig.middleware ?? [];
+		const middleware = flattenMiddleware<ApiHandlerContext<TRequest, TServer>>(
+			routeConfig.middleware,
+			`route ${routeConfig.method} ${routeConfig.path}`,
+		);
 		return runMiddlewareChain(middleware, context, async () => await routeConfig.handler(context));
 	}
 }

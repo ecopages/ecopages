@@ -11,7 +11,7 @@ import {
 } from '../api/build-error-contract.ts';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { onUpdated } from '@ecopages/radiant/decorators/on-updated';
-import { query } from '@ecopages/radiant/decorators/query';
+import { ref } from '@ecopages/radiant/decorators/ref';
 import { state } from '@ecopages/radiant/decorators/state';
 import '../apps/a11y-panel.tsx';
 import '../apps/deps-panel.tsx';
@@ -61,7 +61,7 @@ export class EcoDevToolbar extends RadiantElement {
 	/** Optional dock apps from the reference-toolbar internal registry (`window.__ECO_DEV_TOOLBAR_APPS__`). */
 	@state extensionApps: Array<{ id: string; label: string }> = [];
 
-	@query({ ref: 'legacyPanel' }) legacyPanel?: HTMLElement;
+	@ref('legacyPanel') legacyPanel?: HTMLElement;
 
 	private cleanupActiveApp: (() => void) | undefined;
 	private documentListenersWired = false;

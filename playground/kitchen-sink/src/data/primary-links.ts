@@ -53,6 +53,7 @@ export const primaryLinks: PrimaryLink[] = [
 	{ href: '/react-content', label: 'React MDX' },
 	{ href: '/posts/first-post', label: 'Content Post' },
 	{ href: '/react-lab', label: 'React page' },
+	{ href: '/react-script-app', label: 'React script' },
 	{ href: '/react-server-files', label: 'Server tree' },
 	{ href: '/react-server-metadata', label: 'Server metadata' },
 	{ href: '/postcss', label: 'PostCSS test' },

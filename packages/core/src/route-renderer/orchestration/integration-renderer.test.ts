@@ -36,6 +36,7 @@ import type {
 	IHmrManager,
 } from '../../types/contracts.ts';
 import type { EcoPageComponent } from '../../types/eco-api-types.ts';
+import type { DynamicEcoPageComponent } from '../../types/contracts.ts';
 import { MissingProductionServerModuleError } from '../../build/server/server-modules-manifest.ts';
 import {
 	TestIntegrationRenderer,
@@ -643,31 +644,58 @@ describe('IntegrationRenderer', () => {
 		});
 	});
 
-	it('keeps metadata active for route plans that skip the props hook', async () => {
-		const routeFile = path.resolve('/app/pages/products/[slug].tsx');
-		const metadata = vi.fn(async ({ params }: Parameters<GetMetadata>[0]) => ({
-			title: String(params.slug),
-			description: 'Route metadata',
-		}));
-		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
-		Page.metadata = metadata;
-		Page.config = {
-			integration: 'lit',
-			identity: { id: 'route-plan-metadata', file: routeFile, integration: 'lit' },
-		};
-		const renderer = new TestIntegrationRenderer({
-			appConfig: {
-				...testAppConfig,
-				integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
-			} as EcoPagesAppConfig,
-			assetProcessingService: testAssetService,
+	describe('route plans that skip the props hook', () => {
+		const routeFile = path.resolve('/app/pages/posts/[slug].tsx');
+
+		function plannerFor(Page: EcoPageComponent<Record<string, unknown>>) {
+			Page.config = {
+				integration: 'lit',
+				identity: { id: 'route-plan-metadata', file: routeFile, integration: 'lit' },
+			};
+			const renderer = new TestIntegrationRenderer({
+				appConfig: {
+					...testAppConfig,
+					integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
+				} as EcoPagesAppConfig,
+				assetProcessingService: testAssetService,
+			});
+			renderer.PageModule = { default: Page };
+			renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+			return renderer;
+		}
+
+		function pageWithPropsMetadata(cache?: 'dynamic') {
+			const metadata = vi.fn(async ({ props }: Parameters<GetMetadata>[0]) => ({
+				title: (props as { post: { title: string } }).post.title,
+				description: 'Post',
+			}));
+			const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+			Page.metadata = metadata;
+			if (cache) Object.assign(Page, { cache });
+			return { Page, metadata };
+		}
+
+		it('plans a Dynamic Page from paths without running metadata that reads props', async () => {
+			const { Page, metadata } = pageWithPropsMetadata('dynamic');
+			const renderer = plannerFor(Page);
+
+			const plan = await renderer.planProductionRoutes([{ routeFile, params: { slug: 'hello' } }]);
+
+			expect(plan).toBeDefined();
+			expect(metadata).not.toHaveBeenCalled();
 		});
-		renderer.PageModule = { default: Page };
-		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 
-		await renderer.planProductionRoutes([{ routeFile, params: { slug: 'existing-product' }, skipPropsHook: true }]);
+		it('does not run metadata when the caller skips the props hook', async () => {
+			const { Page, metadata } = pageWithPropsMetadata();
+			const renderer = plannerFor(Page);
 
-		expect(metadata).toHaveBeenCalledWith(expect.objectContaining({ params: { slug: 'existing-product' } }));
+			const plan = await renderer.planProductionRoutes([
+				{ routeFile, params: { slug: 'hello' }, skipPropsHook: true },
+			]);
+
+			expect(plan).toBeDefined();
+			expect(metadata).not.toHaveBeenCalled();
+		});
 	});
 
 	it('resolves the page dependencies of each render from its own props', async () => {
@@ -1426,25 +1454,20 @@ describe('IntegrationRenderer', () => {
 		expect(html).toContain('<main>Dynamic Title</main>');
 	});
 
-	it('keeps request locals off static layouts and guards static page access', async () => {
+	it('keeps request locals off a static page and its layouts', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
 		renderer.UseDocumentShellRender = true;
 
-		const PageIdx = (({ locals }: { locals?: object }) => {
-			try {
-				Reflect.get(locals as object, 'session');
-				return '<p>request locals were available</p>';
-			} catch (error) {
-				return `<p>${error instanceof Error ? error.message : String(error)}</p>`;
-			}
-		}) as EcoPageComponent<Record<string, unknown>>;
-		const Layout = (({ children, locals }: { children?: unknown; locals?: object }) =>
-			`<main data-layout-locals="${locals === undefined ? 'absent' : 'present'}">${String(children ?? '')}</main>`) as EcoComponent<{
+		const PageIdx = ((props: Record<string, unknown>) =>
+			`<p data-page-locals="${'locals' in props ? 'present' : 'absent'}">Page</p>`) as EcoPageComponent<
+			Record<string, unknown>
+		>;
+		const Layout = ((props: { children?: unknown }) =>
+			`<main data-layout-locals="${'locals' in props ? 'present' : 'absent'}">${String(props.children ?? '')}</main>`) as EcoComponent<{
 			children?: unknown;
-			locals?: object;
 		}>;
 		PageIdx.config = { layouts: [Layout] };
 
@@ -1461,30 +1484,37 @@ describe('IntegrationRenderer', () => {
 		});
 		const html = await new Response(result.body as BodyInit).text();
 
-		expect(html).toContain('data-layout-locals="absent"');
-		expect(html).toContain(
-			`[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: ${path.resolve('/app/pages/static-page.ts')}`,
-		);
+		expect(html).toContain('<main data-layout-locals="absent"><p data-page-locals="absent">Page</p></main>');
 	});
 
-	it('passes request locals to dynamic pages and layouts', async () => {
+	it('gives a dynamic page its locals only through what props returned, and a layout only through its factory', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
 		renderer.UseDocumentShellRender = true;
 
-		const PageIdx = (({ locals }: { locals?: { session?: { userId?: string } } }) =>
-			`<p data-page-user="${locals?.session?.userId ?? 'missing'}">Page</p>`) as EcoPageComponent<
+		const PageIdx = ((props: Record<string, unknown>) =>
+			`<p data-page-user="${String(props.user ?? 'missing')}" data-page-locals="${'locals' in props ? 'present' : 'absent'}">Page</p>`) as DynamicEcoPageComponent<
 			Record<string, unknown>
 		>;
-		const Layout = (({ children, locals }: { children?: unknown; locals?: { session?: { userId?: string } } }) =>
-			`<main data-layout-user="${locals?.session?.userId ?? 'missing'}">${String(children ?? '')}</main>`) as EcoComponent<{
+		const Layout = ((props: { children?: unknown; user?: string }) =>
+			`<main data-layout-locals="${'locals' in props ? 'present' : 'absent'}" data-layout-user="${props.user ?? 'missing'}">${String(props.children ?? '')}</main>`) as EcoComponent<{
 			children?: unknown;
-			locals?: { session?: { userId?: string } };
+			user?: string;
 		}>;
 		PageIdx.cache = 'dynamic';
-		PageIdx.config = { layouts: [Layout] };
+		const readUserId = (locals: object): string | undefined => {
+			const session: unknown = Reflect.get(locals, 'session');
+			return typeof session === 'object' && session !== null && 'userId' in session
+				? String(session.userId)
+				: undefined;
+		};
+		PageIdx.props = ({ locals }) => ({ user: readUserId(locals) });
+		PageIdx.config = {
+			layouts: [Layout],
+			layoutEntries: [{ component: Layout, props: ({ locals }) => ({ user: readUserId(locals) }) }],
+		};
 
 		renderer.PageModule = {
 			default: PageIdx,
@@ -1496,11 +1526,14 @@ describe('IntegrationRenderer', () => {
 			file: path.resolve('/app/pages/dynamic-page.ts'),
 			params: {},
 			query: {},
+			request: new Request('http://localhost/dynamic-page'),
 			locals: { session: { userId: 'u-1' } },
 		});
 		const html = await new Response(result.body as BodyInit).text();
 
-		expect(html).toContain('<main data-layout-user="u-1"><p data-page-user="u-1">Page</p></main>');
+		expect(html).toContain(
+			'<main data-layout-locals="absent" data-layout-user="u-1"><p data-page-user="u-1" data-page-locals="absent">Page</p></main>',
+		);
 	});
 
 	describe('renderExplicitView', () => {

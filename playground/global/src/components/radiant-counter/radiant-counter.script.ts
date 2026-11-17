@@ -1,4 +1,4 @@
-import { customElement, onEvent, onUpdated, prop, query, RadiantElement } from '@ecopages/radiant';
+import { customElement, onEvent, onUpdated, prop, RadiantElement, ref } from '@ecopages/radiant';
 
 export type RadiantCounterProps = {
 	count?: number;
@@ -7,7 +7,7 @@ export type RadiantCounterProps = {
 @customElement('radiant-counter')
 export class RadiantCounter extends RadiantElement {
 	@prop({ type: Number, reflect: true }) declare count: number;
-	@query({ ref: 'count' }) countText!: HTMLElement;
+	@ref('count') countText!: HTMLElement;
 	/**
 	 * This field is used to test the persistence of the element using the EcoRouter.
 	 */

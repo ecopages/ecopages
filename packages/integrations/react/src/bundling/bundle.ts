@@ -11,7 +11,9 @@ import {
 	createClientGraphBoundaryPlugin,
 	createForeignBoundaryPlugin,
 	createForeignJsxScope,
+	createReactModuleSource,
 } from '../client-graph/boundary-plugin.ts';
+import { createForeignModuleReader } from '../client-graph/foreign-module.ts';
 import {
 	findIntegrationForFile,
 	findJsxExtensionOwner,
@@ -59,14 +61,26 @@ export class BundleService {
 
 	constructor(config: BundleServiceConfig) {
 		this.config = config;
+		const projectRoot = config.appConfig?.absolutePaths?.projectDir ?? config.rootDir;
+		const integrations = config.appConfig?.integrations ?? [];
+		const isForeignFile = (filePath: string) => {
+			const owner = findIntegrationForFile(integrations, filePath);
+			return owner !== undefined && owner.name !== config.hostIntegrationName;
+		};
+		const foreignModuleOf = createForeignModuleReader({
+			rootDir: config.appConfig?.rootDir ?? config.rootDir,
+			integrationOf: (filePath) => findIntegrationForFile(integrations, filePath)?.name,
+		});
+		const reactModuleSource = createReactModuleSource({ projectRoot, isForeignFile, foreignModuleOf });
 		[this.foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(
 			config.appConfig,
 			config.hostIntegrationName,
 			{
 				name: 'react-renderer-foreign-jsx-override',
 				scope: createForeignJsxScope({
-					projectRoot: config.appConfig?.absolutePaths?.projectDir ?? config.rootDir,
+					projectRoot,
 					hostIntegrationName: config.hostIntegrationName,
+					reactModuleSource,
 					findForeignOwner: (filePath) => {
 						const owner = findJsxExtensionOwner(config.appConfig, filePath);
 						return owner === config.hostIntegrationName ? undefined : owner;
@@ -74,13 +88,7 @@ export class BundleService {
 				}),
 			},
 		);
-		this.foreignBoundaryPlugin = createForeignBoundaryPlugin({
-			projectRoot: config.appConfig?.absolutePaths?.projectDir ?? config.rootDir,
-			isForeignFile: (filePath) => {
-				const owner = findIntegrationForFile(config.appConfig?.integrations ?? [], filePath);
-				return owner !== undefined && owner.name !== config.hostIntegrationName;
-			},
-		});
+		this.foreignBoundaryPlugin = createForeignBoundaryPlugin({ projectRoot, isForeignFile, foreignModuleOf });
 	}
 
 	/**

@@ -4,19 +4,17 @@ import type {
 	LayoutProps,
 	EcoPagesElement,
 	EcoPageComponent,
-	FileRouteMiddleware,
-	RequestPageContext,
 } from '../types/contracts.ts';
-import type { CacheStrategy } from '../page-cache/cache.types.ts';
 import type {
 	ComponentOptions,
 	Eco,
 	HtmlOptions,
 	LayoutOptions,
-	PageOptionsBase,
+	PageOptions,
 	PagePropsFor,
 } from '../types/eco-api-types.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
+import { attachPageOptions } from './page-data-hooks.ts';
 
 /**
  * Creates a browser component that renders inline for every caller.
@@ -70,68 +68,28 @@ function layout<E = EcoPagesElement, P extends LayoutProps<E> = LayoutProps<E>>(
 	return createComponentFactory(options);
 }
 
-function page<T, E>(
-	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: FileRouteMiddleware[] },
-): EcoPageComponent<T> {
-	const {
-		layout: pageLayout,
-		dependencies: dependenciesInput,
-		render,
-		paths,
-		props,
-		metadata,
-		cache,
-		requires,
-		middleware,
-	} = options;
+function page<T, E>(options: PageOptions<T, E>): EcoPageComponent<T> {
+	const { layout: pageLayout, dependencies: dependenciesInput, render } = options;
 
 	const layoutEntries = normalizePageLayouts(pageLayout);
-	const resolveDependencies = typeof dependenciesInput === 'function' ? dependenciesInput : undefined;
 	const staticDependencies =
 		typeof dependenciesInput === 'function'
 			? mergeLayoutDependencies(undefined, layoutEntries)
 			: mergeLayoutDependencies(dependenciesInput, layoutEntries);
 
-	const pageComponent = createComponentFactory({
+	const componentOptions: ComponentOptions<PagePropsFor<T>, E> = {
 		identity: options.identity,
 		integration: options.integration,
 		dependencies: staticDependencies,
 		render,
-	} as ComponentOptions<PagePropsFor<T> & Partial<RequestPageContext>, E>) as EcoPageComponent<T>;
+	};
+	const pageComponent = createComponentFactory(componentOptions);
 
 	if (pageComponent.config) {
 		applyPageLayoutConfig(pageComponent.config, layoutEntries);
 	}
 
-	if (paths) {
-		pageComponent.paths = paths;
-	}
-
-	if (props) {
-		pageComponent.props = props;
-	}
-
-	if (metadata) {
-		pageComponent.metadata = metadata;
-	}
-
-	if (resolveDependencies) {
-		pageComponent.resolveDependencies = resolveDependencies;
-	}
-
-	if (cache) {
-		pageComponent.cache = cache;
-	}
-
-	if (requires) {
-		pageComponent.requires = requires;
-	}
-
-	if (middleware) {
-		pageComponent.middleware = middleware;
-	}
-
-	return pageComponent;
+	return attachPageOptions(pageComponent, options);
 }
 
 export const eco: Eco = {

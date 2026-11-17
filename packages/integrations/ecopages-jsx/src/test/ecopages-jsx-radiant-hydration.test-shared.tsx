@@ -36,7 +36,7 @@ export function defineCounterComponent(tagName: string) {
 		}
 	}
 
-	signal({ bind: true, hydrate: Number, initial: 1 })(TestCounter.prototype, 'count');
+	signal({ hydrate: Number, initial: 1 })(TestCounter.prototype, 'count');
 	customElement(tagName)(TestCounter);
 	return TestCounter;
 }
@@ -45,7 +45,7 @@ export function defineControllerComponent(identifier: string) {
 	class TestCounterController extends RadiantController<{ count: number }> {
 		constructor(host: Element) {
 			super(host);
-			this.createReactiveProp('count', { type: Number, bind: true });
+			this.createReactiveProp('count', { type: Number });
 		}
 
 		override render() {

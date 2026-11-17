@@ -2,12 +2,7 @@ import { describe, expectTypeOf, it } from 'vitest';
 import type { FileRouteMiddlewareContext, LayoutProps } from '../types/contracts.ts';
 import type { PropsOf, ResultOf } from '../types/eco-api-types.ts';
 import { eco } from './eco.ts';
-
-declare module '../types/contracts.ts' {
-	interface RequestLocals {
-		renderInferenceSession?: { userId: string } | null;
-	}
-}
+import { createMiddleware } from '../middleware/create-middleware.ts';
 
 type Props = { title: string };
 
@@ -57,21 +52,24 @@ describe('page props inference from props and render', () => {
 		});
 	});
 
-	it('narrows locals through requires while props still come from props', () => {
+	it('types the value a Dynamic Page reads from locals in props, never locals, in render', () => {
+		const readSession = (): { userId: string } | null => ({ userId: 'u1' });
+		const withSession = createMiddleware((_ctx, next) => next({ renderInferenceSession: readSession() }));
 		eco.page({
-			requires: 'renderInferenceSession',
-			props: async () => ({
-				title: 'x',
-			}),
-			render: ({ title, locals }) => `${title}${locals.renderInferenceSession.userId}`,
+			cache: 'dynamic',
+			middleware: [withSession],
+			props: async ({ locals }) => {
+				const session = locals.renderInferenceSession;
+				if (!session) throw new Error('no session');
+				return { userId: session.userId };
+			},
+			render: ({ userId }) => {
+				expectTypeOf(userId).toEqualTypeOf<string>();
+				return userId;
+			},
 		});
-		eco.page({
-			requires: ['renderInferenceSession'] as const,
-			render: ({ locals }: { locals: { renderInferenceSession: { userId: string } } }) =>
-				locals.renderInferenceSession.userId,
-		});
-		// @ts-expect-error without requires the local may be missing
-		eco.page({ render: ({ locals }) => locals.renderInferenceSession.userId });
+		// @ts-expect-error render has no locals
+		eco.page({ cache: 'dynamic', render: ({ locals }) => String(locals) });
 	});
 
 	it('accepts cache and middleware options beside inferred props', () => {

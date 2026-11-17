@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { eco } from '../../../eco/eco.ts';
-import type { LayoutPropsContext } from '../../../types/contracts.ts';
+import type { LayoutPropsContext, LayoutRequestContext } from '../../../types/contracts.ts';
 import {
 	resolveDocumentShellLayouts,
 	resolveLayoutEntryProps,
-	resolveLayoutShellProps,
+	resolveRenderLayouts,
 	resolvePageLayoutComponents,
 } from './layout-shell-props.service.ts';
 
@@ -14,19 +14,7 @@ describe('layout-shell-props.service', () => {
 		render: ({ children }) => `<layout>${children}</layout>`,
 	});
 
-	it('should resolve default layout shell props from locals', () => {
-		expect(
-			resolveLayoutShellProps({
-				params: { slug: 'post' },
-				query: { q: 'test' },
-				locals: { user: 'Ada' },
-			}),
-		).toEqual({
-			locals: { user: 'Ada' },
-		});
-	});
-
-	it('should merge layout entry prop factories over shell props', () => {
+	it('should resolve layout entry props from the factory only, without injecting locals', () => {
 		const entry = {
 			component: Layout,
 			props: (context: LayoutPropsContext) => ({
@@ -40,10 +28,37 @@ describe('layout-shell-props.service', () => {
 				query: {},
 				locals: { user: 'Ada' },
 			}),
-		).toEqual({
-			locals: { user: 'Ada' },
-			section: 'admin',
+		).toEqual({ section: 'admin' });
+	});
+
+	it("should give a factory the request's locals on a Dynamic Page", () => {
+		const locals = { user: 'Ada' };
+		const Page = eco.page({
+			cache: 'dynamic',
+			layout: { component: Layout, props: (context) => ({ same: context.locals === locals }) },
+			render: () => '',
 		});
+
+		expect(resolveLayoutEntryProps(Page.config!.layoutEntries![0]!, { locals })).toEqual({ same: true });
+	});
+
+	it('should give a factory empty locals when the render has none, as a Static Page renders', () => {
+		let received: unknown;
+		const entry = {
+			component: Layout,
+			props: (context: LayoutRequestContext) => {
+				received = context.locals;
+				return {};
+			},
+		};
+
+		resolveLayoutEntryProps(entry, { params: { slug: 'intro' } });
+
+		expect(received).toEqual({});
+	});
+
+	it('should give a layout entry without a factory no props', () => {
+		expect(resolveLayoutEntryProps({ component: Layout }, { locals: { user: 'Ada' } })).toEqual({});
 	});
 
 	it('should return an empty stack when layouts are missing', () => {
@@ -69,7 +84,6 @@ describe('layout-shell-props.service', () => {
 			{
 				component: Layout,
 				props: {
-					locals: { user: 'Ada' },
 					prose: false,
 					section: 'intro',
 				},
@@ -83,6 +97,30 @@ describe('layout-shell-props.service', () => {
 				layout: Layout,
 				locals: { user: 'Ada' },
 			}),
-		).toEqual([{ component: Layout, props: { locals: { user: 'Ada' } } }]);
+		).toEqual([{ component: Layout, props: {} }]);
+	});
+
+	it('should resolve the layouts of one render once, however many callers ask', () => {
+		let calls = 0;
+		const render = {};
+		const input = {
+			layoutEntries: [
+				{
+					component: Layout,
+					props: () => {
+						calls += 1;
+						return { call: calls };
+					},
+				},
+			],
+		};
+
+		const first = resolveRenderLayouts(render, input);
+		const second = resolveRenderLayouts(render, input);
+
+		expect(second).toBe(first);
+		expect(first).toEqual([{ component: Layout, props: { call: 1 } }]);
+		expect(calls).toBe(1);
+		expect(resolveRenderLayouts({}, input)[0]?.props).toEqual({ call: 2 });
 	});
 });

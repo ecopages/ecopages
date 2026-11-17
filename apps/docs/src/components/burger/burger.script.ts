@@ -8,7 +8,7 @@ import { BurgerEvents } from '@/components/burger/burger.events';
 
 @customElement('radiant-burger')
 export class RadiantBurger extends RadiantElement {
-	@query({ selector: 'button' }) burger!: HTMLButtonElement;
+	@query('button') burger!: HTMLButtonElement;
 
 	@onEvent({ selector: 'button', type: 'click' })
 	toggleMenu() {

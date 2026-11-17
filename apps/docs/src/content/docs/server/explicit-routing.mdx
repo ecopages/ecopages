@@ -171,24 +171,23 @@ const logMiddleware: Middleware = async (ctx, next) => {
 };
 ```
 
-### Extending Context with Middleware
+### Providing Locals with Middleware
 
-Middleware can extend the request context with additional properties (like session data, user info, etc.). Use the `EcoMiddleware` helper type to define middleware that adds properties to the context:
+Middleware can provide typed values (session data, user info, etc.) to the handlers after it. `createMiddleware` continues with `next(locals)`, and a guard answers by returning a `Response` without calling `next`:
 
 ```typescript
-import type { ApiHandlerContext, EcoMiddleware } from '@ecopages/core';
+import { createMiddleware } from '@ecopages/core';
 
-const authMiddleware: EcoMiddleware<ApiHandlerContext & { session: Session }> = async (ctx, next) => {
+const authMiddleware = createMiddleware(async (ctx, next) => {
 	const session = await getSession(ctx.request.headers);
 	if (!session) {
-		return Response.redirect('/login');
+		return Response.redirect(new URL('/login', ctx.request.url));
 	}
-	ctx.session = session; // Add session to context
-	return next();
-};
+	return next({ session });
+});
 ```
 
-The context type is **automatically inferred** from the middleware you provide - no need to manually specify it:
+Handlers read the value from `ctx.locals`, and its type is **automatically inferred** from the middleware you provide - no need to manually specify it:
 
 ```typescript
 import AdminDashboard from './src/views/admin-dashboard.tsx';
@@ -197,13 +196,13 @@ app.group(
 	'/admin',
 	(r) => {
 		r.get('/', async (ctx) => {
-			// ctx.session is fully typed automatically!
-			console.log(ctx.session.userId);
-			return ctx.render(AdminDashboard, { user: ctx.session.user });
+			// ctx.locals.session is fully typed automatically!
+			console.log(ctx.locals.session.userId);
+			return ctx.render(AdminDashboard, { user: ctx.locals.session.user });
 		});
 
 		r.post('/posts', async (ctx) => {
-			const post = await createPost({ authorId: ctx.session.userId });
+			const post = await createPost({ authorId: ctx.locals.session.userId });
 			return ctx.json(post);
 		});
 	},
@@ -211,7 +210,7 @@ app.group(
 );
 ```
 
-The extended context properties are fully type-safe across all handlers in the group.
+The locals are fully type-safe across all handlers in the group. A later middleware that provides the same key overrides an earlier one. Use `composeMiddleware(a, b, (ctx, next) => ...)` to chain stages; see [Request Locals](/docs/core/request-locals#compose-stages).
 
 ### Per-Route Middleware
 
@@ -221,7 +220,38 @@ app.post('/api/posts', createPost, {
 });
 ```
 
-In `app.get()` and its siblings the handler comes before `options`, so declare every middleware in the list as a `Middleware` or `EcoMiddleware` constant. One inline function in the `middleware` list makes the handler lose the context of every middleware in that list, constants included; the inline function itself is typed with the base context.
+In `app.get()` and its siblings the handler comes before `options`, and the handler still reads the locals the list provides. A plain `(ctx, next)` function in the list works and provides nothing, but declare it as a constant typed `Middleware`: written inline in `options`, its untyped parameters make TypeScript type the handler before it reads the list, so the handler sees no locals at all.
+
+```typescript
+import type { Middleware } from '@ecopages/core';
+
+// The inline function hides session from the handler: Property 'session' does not exist on type '{}'
+app.get('/me', (ctx) => ctx.json(ctx.locals.session), {
+	middleware: [authMiddleware, async (_ctx, next) => next()],
+});
+
+// Declared as a constant, it leaves session typed
+const passThrough: Middleware = async (_ctx, next) => next();
+app.get('/me', (ctx) => ctx.json(ctx.locals.session), {
+	middleware: [authMiddleware, passThrough],
+});
+```
+
+`defineGet` and the other handler factories take `middleware` before `handler` and have no such limit, so an inline function is fine there:
+
+```typescript
+import { defineGet } from '@ecopages/core';
+
+app.add(
+	defineGet({
+		path: '/me',
+		middleware: [authMiddleware, async (_ctx, next) => next()],
+		handler: (ctx) => ctx.json(ctx.locals.session),
+	}),
+);
+```
+
+A list typed as a plain array provides no reliable locals, so write the list inline in `middleware`, or declare it as a constant tuple.
 
 ## Request Validation
 
@@ -410,7 +440,7 @@ app.static('/posts', PostListView);
 app.static('/posts/:slug', PostView);
 ```
 
-Import the view and pass it to `app.static()`. Development reloads it through the app module loader; production reads the built module. A full explicit view uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's own page client plan. The props passed to the render are available to the view's `metadata`, and the render does not run the view's `props`. Handler renders (`ctx.render`) also pass the request's locals, route params and query to the view. Planning a dynamic explicit route resolves the renderer without calling `props`; `props` runs once with the slug's params before the view renders. Views must be the default export and define `paths` and `props`:
+Import the view and pass it to `app.static()`. Development reloads it through the app module loader; production reads the built module. A full explicit view uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's own page client plan. The props passed to the render are available to the view's `metadata`, and the render does not run the view's `props`. Handler renders (`ctx.render`) also pass the route params and query to the view. The view receives the props the handler passed and never `ctx.locals`; the locals reach only its layout entries' `props` factories. Planning a dynamic explicit route resolves the renderer without calling `props`; `props` runs once with the slug's params before the view renders. Views must be the default export and define `paths` and `props`:
 
 ```typescript
 // src/views/post-view.tsx
@@ -437,6 +467,8 @@ const PostView = eco.page({
 
 export default PostView;
 ```
+
+`app.static()` renders without a request, so a view it serves cannot declare `middleware`: the request fails with an error naming the route and the view file, and `ecopages build` fails the route. Put a guarded view in the pages directory, or render it with `ctx.render` from a handler that lists the middleware. A view with `cache: 'dynamic'` and neither `props` nor `middleware` still renders on every request.
 
 ## Views Outside pages/
 
@@ -500,16 +532,15 @@ import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
 import PostListView from './src/views/post-list.tsx';
 import PostView from './src/views/post-view.tsx';
-import type { ApiHandlerContext, EcoMiddleware } from '@ecopages/core';
+import { createMiddleware } from '@ecopages/core';
 
 const app = await createApp();
 
-const authMiddleware: EcoMiddleware<ApiHandlerContext & { session: Session }> = async (ctx, next) => {
+const authMiddleware = createMiddleware(async (ctx, next) => {
 	const session = await getSession(ctx.request.headers);
 	if (!session) throw HttpError.Unauthorized();
-	ctx.session = session;
-	return next();
-};
+	return next({ session });
+});
 
 app.static('/posts', PostListView);
 app.static('/posts/:slug', PostView);
@@ -529,7 +560,7 @@ app.group('/api/v1/admin', (r) => {
 		const post = await createPost({
 			title,
 			content,
-			authorId: ctx.session.userId // Fully typed from middleware!
+			authorId: ctx.locals.session.userId // Fully typed from middleware!
 		});
 		return ctx.json(post, { status: 201 });
 	}, {

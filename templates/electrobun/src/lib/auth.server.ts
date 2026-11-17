@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { FileRouteMiddleware } from '@ecopages/core';
+import { createMiddleware } from '@ecopages/core';
 import { fileSystem } from '@ecopages/file-system';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
@@ -107,22 +107,23 @@ export function readSession(headers: Headers) {
 /**
  * Rejects non-loopback hosts, reads the session and hands it to `onSession` or `onAnonymous`.
  */
-export async function withSession(
+export async function withSession<TSession, TAnonymous>(
 	ctx: { request: Request },
-	onSession: (session: Session) => Response | Promise<Response>,
-	onAnonymous: () => Response | Promise<Response>,
-): Promise<Response> {
+	onSession: (session: Session) => TSession | Promise<TSession>,
+	onAnonymous: () => TAnonymous | Promise<TAnonymous>,
+): Promise<Response | TSession | TAnonymous> {
 	if (!isLocalRequest(ctx.request)) return new Response('Invalid host', { status: 403 });
 	const session = await authRuntime.runPromise(readSession(ctx.request.headers));
 	return session ? onSession(session) : onAnonymous();
 }
 
-export const requireSession: FileRouteMiddleware = (ctx, next) =>
+export const requireSession = createMiddleware((ctx, next) =>
 	withSession(
 		ctx,
-		(session) => {
-			ctx.locals.workspace = { session, sidebarOpen: sidebarStartsOpen(ctx.request.headers.get('cookie') ?? '') };
-			return next();
-		},
+		(session) =>
+			next({
+				workspace: { session, sidebarOpen: sidebarStartsOpen(ctx.request.headers.get('cookie') ?? '') },
+			}),
 		() => Response.redirect(new URL('/', origin)),
-	);
+	),
+);

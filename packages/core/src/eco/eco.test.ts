@@ -309,11 +309,11 @@ describe('eco namespace', () => {
 	describe('eco.layout()', () => {
 		test('should create a route layout component with layout props', () => {
 			const Layout = eco.layout({
-				render: ({ children, locals }: LayoutProps<string>) =>
-					`<main data-user="${locals?.user ?? 'guest'}">${children}</main>`,
+				render: ({ children, user }: LayoutProps<string> & { user?: string }) =>
+					`<main data-user="${user ?? 'guest'}">${children}</main>`,
 			});
 
-			const result = Layout({ children: '<h1>Page</h1>', locals: { user: '123' } });
+			const result = Layout({ children: '<h1>Page</h1>', user: '123' });
 
 			expect(typeof Layout).toBe('function');
 			expect(result).toBe('<main data-user="123"><h1>Page</h1></main>');
@@ -555,6 +555,7 @@ describe('eco namespace', () => {
 		const paths = await Page.paths!({ appConfig: mockAppConfig, runtimeOrigin: '' });
 		expect(paths).toHaveLength(1);
 
+		if (Page.cache === 'dynamic') throw new Error('expected a Static Page');
 		const props = await Page.props!({
 			params: { slug: 'hello' },
 			appConfig: mockAppConfig,

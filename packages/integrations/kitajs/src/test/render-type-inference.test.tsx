@@ -113,11 +113,11 @@ describe('render-based type inference for pages, layouts and html (Kita)', () =>
 	});
 
 	it('checks an annotated page render against props', () => {
-		// @ts-expect-error render props disagree with the props return
 		eco.page({
 			props: async () => ({
 				title: 'x',
 			}),
+			// @ts-expect-error render props disagree with the props return
 			render: ({ title }: { title: number }) => <h1>{title}</h1>,
 		});
 	});

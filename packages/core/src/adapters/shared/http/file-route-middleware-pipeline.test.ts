@@ -1,17 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { FileRouteMiddleware } from '../../../types/contracts.ts';
+import { createMiddleware } from '../../../middleware/create-middleware.ts';
+import { flattenMiddleware } from '../../../middleware/create-middleware.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import {
 	FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS,
 	FileRouteMiddlewarePipeline,
 } from './file-route-middleware-pipeline.ts';
-
-declare module '../../../types/contracts.ts' {
-	interface RequestLocals {
-		user?: string;
-		first?: boolean;
-	}
-}
 
 describe('FileRouteMiddlewarePipeline', () => {
 	it('should reject middleware on non-dynamic pages', () => {
@@ -20,7 +15,7 @@ describe('FileRouteMiddlewarePipeline', () => {
 		expect(() =>
 			service.assertValidConfiguration({
 				middleware: [async (_ctx, next) => next()],
-				pageCacheStrategy: 'static',
+				isDynamicPage: false,
 				filePath: '/app/pages/index.tsx',
 			}),
 		).toThrowError(
@@ -40,8 +35,9 @@ describe('FileRouteMiddlewarePipeline', () => {
 
 		expect('render' in context).toBe(false);
 		expect('renderPartial' in context).toBe(false);
+		expect('require' in context).toBe(false);
 
-		expect(context.require('user', () => new Response('missing', { status: 500 }))).toBe('andee');
+		expect(context.locals).toEqual({ user: 'andee' });
 		expect(await context.html('<p>ok</p>').text()).toContain('<p>ok</p>');
 		expect(await context.json({ ok: true }).text()).toContain('{"ok":true}');
 	});
@@ -95,5 +91,50 @@ describe('FileRouteMiddlewarePipeline', () => {
 
 		expect(await response.text()).toBe('done');
 		expect(events).toEqual(['first:before', 'second', 'render', 'first:after']);
+	});
+
+	it('puts what a made middleware provides on locals before the render', async () => {
+		const service = new FileRouteMiddlewarePipeline(null);
+		const context = service.createContext({
+			request: new Request('http://localhost:3000/hello'),
+			params: {},
+			locals: {},
+		});
+		const auth = createMiddleware((_ctx, next) => next({ user: 'ada' }));
+		let seen: unknown;
+
+		await service.run({
+			middleware: flattenMiddleware([auth]),
+			context,
+			renderResponse: async () => {
+				seen = context.locals.user;
+				return new Response('done');
+			},
+		});
+
+		expect(seen).toBe('ada');
+	});
+
+	it('does not render when a made middleware answers', async () => {
+		const service = new FileRouteMiddlewarePipeline(null);
+		const context = service.createContext({
+			request: new Request('http://localhost:3000/hello'),
+			params: {},
+			locals: {},
+		});
+		const guard = createMiddleware(() => Response.redirect('http://localhost:3000/login', 302));
+		let rendered = false;
+
+		const response = await service.run({
+			middleware: flattenMiddleware([guard]),
+			context,
+			renderResponse: async () => {
+				rendered = true;
+				return new Response('done');
+			},
+		});
+
+		expect(response.status).toBe(302);
+		expect(rendered).toBe(false);
 	});
 });

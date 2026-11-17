@@ -11,7 +11,11 @@ const fixturesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '__f
 const j = jscodeshift.withParser('tsx');
 
 async function runTransform(source: string, fixturePath = 'fixture.tsx'): Promise<string | null> {
-	const result = transform({ path: fixturePath, source }, { jscodeshift: j }, {});
+	const result = transform(
+		{ path: fixturePath, source },
+		{ j, jscodeshift: j, stats: () => {}, report: () => {} },
+		{},
+	);
 	if (!result) {
 		return null;
 	}

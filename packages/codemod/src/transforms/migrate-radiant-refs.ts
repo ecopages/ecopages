@@ -1,7 +1,7 @@
 /**
  * Codemod: migrate-radiant-refs
  *
- * Moves `@ecopages/radiant` code across the ref/query split of the Radiant release after 0.10.0, which removed
+ * Moves `@ecopages/radiant` code across the ref/query split of Radiant 0.11.0, which removed
  * the `@query` options object, `cache`, the options form of `createQuery` and the `QueryConfig` type.
  *
  * Before:

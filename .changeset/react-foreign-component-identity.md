@@ -1,6 +1,0 @@
----
-'@ecopages/react': patch
-'@ecopages/core': patch
----
-
-Keep the modules of foreign Eco Components out of React islands. A React island that rendered an Eco Component another Integration owns bundled that Component's module and everything it imported, compiled with React's JSX runtime, even though React only keeps the Component's server HTML. A Radiant controller the Component rendered then shipped eagerly with the island, ignored `lazy`, and rendered `[object Object]` if it contained JSX. In React's browser build, an import or re-export of a file another Integration owns now takes the file's static Components, exports that are an `eco.*()` call, from a generated stub module that holds only their identities, whether the island imports the file directly, through a barrel, through `export *`, or from MDX. The Component's browser scripts reach the Page through its own `dependencies`. A value that is not statically a Component, such as a Component a function returns, still comes from the file, and so does a namespace import of a file that exports such values. Core leaves the plain-module Component imports of its attribution out of browser builds, where nothing reads them, and exports `readExportedComponentIdentities` from `@ecopages/core/build`.

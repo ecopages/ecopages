@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0
+
+### Minor Changes
+
+- [#1253](https://github.com/ecopages/ecopages/pull/1253) [`fd57e3d`](https://github.com/ecopages/ecopages/commit/fd57e3dfcc274148005994cc96ea4f6575c915cd) Thanks [@andeeplus](https://github.com/andeeplus)! - The `@ecopages/jsx`, `@ecopages/radiant` and `@ecopages/signals` peer and dependency ranges move to `^0.11.0` (`@ecopages/radiant-ui` and `@ecopages/radiant-themes` `^0.4.3` in the templates). Update them in your app with `pnpm add @ecopages/jsx@^0.11.0 @ecopages/radiant@^0.11.0 @ecopages/signals@^0.11.0`. Radiant 0.10.0 removed the `$name` companion bindings and the `bind` option on reactive members: read bindings from `this.$`, for example `{this.$.count}`. Radiant 0.11.0 replaces the `@query` options object with `@ref`, `@refAll`, `@query(selector)` and `@queryAll(selector)`, and scopes `data-ref` parts to the host that owns them. `npx @ecopages/codemod migrate-radiant-bindings` and `npx @ecopages/codemod migrate-radiant-refs` rewrite both.
+
+### Patch Changes
+
+- Updated dependencies [[`bfdcc19`](https://github.com/ecopages/ecopages/commit/bfdcc19a2bf016dacc07a9115a52acd6dd1db454), [`99047f0`](https://github.com/ecopages/ecopages/commit/99047f0421f426db290b717c4ffec4658948ccd8), [`374c6d7`](https://github.com/ecopages/ecopages/commit/374c6d7883e51c794bb1ea22fe69fb2634e48a96), [`be912d4`](https://github.com/ecopages/ecopages/commit/be912d46e41f3b4544e72e60ce67468988b40368), [`10ee483`](https://github.com/ecopages/ecopages/commit/10ee4831bf55fc3b2c91c805ded41a76b5c9de68)]:
+    - @ecopages/core@0.10.0
+    - @ecopages/mdx@0.10.0
+    - @ecopages/file-system@0.10.0
+
 ## 0.9.0
 
 ### Minor Changes

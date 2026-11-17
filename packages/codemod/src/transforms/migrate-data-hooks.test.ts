@@ -12,7 +12,7 @@ const j = jscodeshift.withParser('tsx');
 
 async function runTransform(source: string, report: (message: string) => void = () => {}): Promise<string | null> {
 	const fixturePath = 'fixture.tsx';
-	const result = transform({ path: fixturePath, source }, { jscodeshift: j, report } as never, {});
+	const result = transform({ path: fixturePath, source }, { j, jscodeshift: j, stats: () => {}, report }, {});
 	if (!result) {
 		return null;
 	}

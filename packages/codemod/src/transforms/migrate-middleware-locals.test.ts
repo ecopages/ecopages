@@ -21,7 +21,7 @@ async function runTransform(
 	report: (message: string) => void = () => {},
 	fixturePath = 'fixture.ts',
 ): Promise<string | null> {
-	const result = transform({ path: fixturePath, source }, { jscodeshift: j, report } as never, {});
+	const result = transform({ path: fixturePath, source }, { j, jscodeshift: j, stats: () => {}, report }, {});
 	if (!result) {
 		return null;
 	}
@@ -302,7 +302,11 @@ describe('migrate-middleware-locals refusals', () => {
 
 	it('indents rewritten lines the way the source does', () => {
 		const source = middleware('  ctx.locals.user = await load();\n  return next();');
-		const output = transform({ path: 'fixture.ts', source }, { jscodeshift: j, report: () => {} } as never, {});
+		const output = transform(
+			{ path: 'fixture.ts', source },
+			{ j, jscodeshift: j, stats: () => {}, report: () => {} },
+			{},
+		);
 		expect(output).toContain('next({');
 		expect(output).not.toMatch(/^\t/m);
 	});

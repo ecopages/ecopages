@@ -5,7 +5,7 @@
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/ecopages-jsx": "workspace:*",
-		"@ecopages/jsx": "^0.10.0",
-		"@ecopages/radiant": "^0.10.0"
+		"@ecopages/jsx": "^0.11.0",
+		"@ecopages/radiant": "^0.11.0"
 	}
 }

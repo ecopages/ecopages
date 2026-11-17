@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.0
+
+### Minor Changes
+
+- [#1245](https://github.com/ecopages/ecopages/pull/1245) [`374c6d7`](https://github.com/ecopages/ecopages/commit/374c6d7883e51c794bb1ea22fe69fb2634e48a96) Thanks [@andeeplus](https://github.com/andeeplus)! - A Layout no longer receives request `locals` as a prop. It renders with what its entry's `props` factory returns, so request data reaches a Layout only through `eco.page({ layout: { component, props: ({ locals, params, query }) => ({ ... }) } })`. The server runs each factory, renders every Layout tier from the result, and writes the same objects into the `__ECO_PAGE_DATA__` envelope as `tiers`. The browser composes the Layouts from `tiers` and runs no Layout factory, so a Layout cannot render differently in the browser than it did on the server, and a Layout receives nothing but what its factory returns. A document without `tiers` still falls back to running the factories. `EcoRouter` takes an optional `tierProps`, carries it through navigation, and keeps a Layout that two consecutive Pages share mounted, with its state, while it receives the new props. `composeLayoutPageTree` takes `tierProps`. `resolveLayoutShellProps` and `resolveLayoutContextFromShell` are removed.
+
+    To migrate a Layout that read `locals`, move the read into the factory of the Layout entry on the Pages that have request data, and return only what the browser may see, for example the user and not the session token. A Layout on a static page has no `locals`, so its props must be optional.
+
+### Patch Changes
+
+- Updated dependencies [[`bfdcc19`](https://github.com/ecopages/ecopages/commit/bfdcc19a2bf016dacc07a9115a52acd6dd1db454), [`99047f0`](https://github.com/ecopages/ecopages/commit/99047f0421f426db290b717c4ffec4658948ccd8), [`374c6d7`](https://github.com/ecopages/ecopages/commit/374c6d7883e51c794bb1ea22fe69fb2634e48a96), [`be912d4`](https://github.com/ecopages/ecopages/commit/be912d46e41f3b4544e72e60ce67468988b40368), [`95599dc`](https://github.com/ecopages/ecopages/commit/95599dcc4475b67176b344505b45526fa833698b), [`10ee483`](https://github.com/ecopages/ecopages/commit/10ee4831bf55fc3b2c91c805ded41a76b5c9de68)]:
+    - @ecopages/core@0.10.0
+    - @ecopages/react@0.10.0
+
 ## 0.9.0
 
 ### Patch Changes

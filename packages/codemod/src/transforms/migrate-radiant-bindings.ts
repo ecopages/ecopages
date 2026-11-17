@@ -46,12 +46,25 @@
  */
 
 import type { API, ASTPath, Collection, FileInfo, JSCodeshift, Options } from 'jscodeshift';
+import {
+	applyEdits,
+	type Edit,
+	isNode,
+	keyName,
+	lineOf,
+	type NodeLike,
+	type Offsets,
+	offsetsOf,
+	parseOptions,
+	RADIANT_SOURCE,
+	readRadiantImports,
+	removeNode,
+	stringValue,
+} from './source-edits.ts';
 
 export const parser = 'tsx';
 
 const TRANSFORM = 'migrate-radiant-bindings';
-
-const RADIANT_SOURCE = /^@ecopages\/radiant(\/|$)/;
 
 /** Base classes whose members had a companion when `bind` was omitted. */
 const AUTO_BIND_BASES = new Set(['RadiantElement', 'RadiantController', 'FormAssociatedElement']);
@@ -92,16 +105,6 @@ const CLASS_MEMBER_TYPES = new Set([
 ]);
 
 const FUNCTION_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration', 'ObjectMethod']);
-
-type Position = { line: number; column: number };
-
-type NodeLike = { type: string; loc?: { start: Position; end: Position } | null } & Record<string, unknown>;
-
-/** A replacement of the source text between two offsets. */
-type Edit = { start: number; end: number; text: string };
-
-/** Offsets of a node's bounds in the original source text. */
-type Offsets = { start: (node: NodeLike) => number; end: (node: NodeLike) => number };
 
 /**
  * How a member's `bind` option read: omitted (the host decides), a companion name, no companion, or unreadable.
@@ -149,67 +152,6 @@ type Context = {
 	report: (at: unknown, text: string) => void;
 };
 
-function isNode(value: unknown): value is NodeLike {
-	return typeof value === 'object' && value !== null && typeof (value as NodeLike).type === 'string';
-}
-
-function lineOf(node: unknown): number | undefined {
-	return isNode(node) ? node.loc?.start.line : undefined;
-}
-
-function keyName(node: NodeLike): string | undefined {
-	const key = node.key;
-	if (node.computed || !isNode(key)) return undefined;
-	if (key.type === 'Identifier') return key.name as string;
-	if (key.type === 'StringLiteral') return key.value as string;
-	return undefined;
-}
-
-function stringValue(node: unknown): string | undefined {
-	return isNode(node) && node.type === 'StringLiteral' ? (node.value as string) : undefined;
-}
-
-/**
- * Reads node offsets from their line and column.
- *
- * @remarks
- * Recast parses a copy of the source with its line endings normalized and its indentation re-measured, so the
- * parser's own `start` and `end` drift from the original text on CRLF or tab-indented files. Line and column
- * stay true when the source is parsed with a tab width of 1.
- */
-function offsetsOf(source: string): Offsets {
-	const lineStarts = [0];
-	for (let index = source.indexOf('\n'); index !== -1; index = source.indexOf('\n', index + 1)) {
-		lineStarts.push(index + 1);
-	}
-	const at = (position: Position) => lineStarts[position.line - 1] + position.column;
-	return {
-		start: (node) => at((node.loc as { start: Position }).start),
-		end: (node) => at((node.loc as { end: Position }).end),
-	};
-}
-
-function applyEdits(source: string, edits: Edit[]): string {
-	let result = source;
-	for (const edit of [...edits].sort((a, b) => b.start - a.start)) {
-		result = `${result.slice(0, edit.start)}${edit.text}${result.slice(edit.end)}`;
-	}
-	return result;
-}
-
-function readRadiantImports(j: JSCodeshift, root: Collection): Map<string, string> {
-	const imports = new Map<string, string>();
-	root.find(j.ImportDeclaration)
-		.filter((path) => RADIANT_SOURCE.test(String(path.node.source.value)))
-		.forEach((path) => {
-			for (const specifier of path.node.specifiers ?? []) {
-				if (specifier.type !== 'ImportSpecifier') continue;
-				imports.set(String(specifier.local?.name ?? specifier.imported.name), String(specifier.imported.name));
-			}
-		});
-	return imports;
-}
-
 /** Finds the property named `bind` in an options object, or why it cannot be read. */
 function readBind(options: unknown): { bind: Bind; property?: NodeLike } {
 	if (options === undefined) return { bind: { kind: 'auto' } };
@@ -249,24 +191,6 @@ function removeBind(ctx: Context, call: NodeLike, index: number, property: NodeL
 	if (index > 0) return { start: pos.end(args[index - 1]), end: pos.end(options), text: '' };
 	const trailingComma = /^\s*,/.exec(source.slice(pos.end(options)))?.[0].length ?? 0;
 	return { start: pos.start(options), end: pos.end(options) + trailingComma, text: '' };
-}
-
-/** Removes a class member with its leading comments, and its line when nothing else is on it. */
-function removeMember(ctx: Context, member: NodeLike): Edit {
-	const { pos, source } = ctx;
-	const comments = ((member.leadingComments ?? []) as NodeLike[]).filter(
-		(comment) => pos.start(comment) < pos.start(member),
-	);
-	let start = pos.start(comments.length > 0 ? comments[0] : member);
-	let end = pos.end(member);
-	const lineStart = source.lastIndexOf('\n', start - 1) + 1;
-	const lineEnd = source.indexOf('\n', end);
-	const restOfLine = source.slice(end, lineEnd === -1 ? undefined : lineEnd);
-	if (source.slice(lineStart, start).trim() === '' && restOfLine.trim() === '') {
-		start = lineStart;
-		end = lineEnd === -1 ? source.length : lineEnd + 1;
-	}
-	return { start, end, text: '' };
 }
 
 /**
@@ -747,7 +671,7 @@ function finishClass(ctx: Context, info: ClassInfo): void {
 	}
 	for (const [name, companion] of ctx.companions.get(info) ?? []) {
 		const own = info.declared.get(name);
-		if (companion && companion !== 'none' && own?.declare) ctx.edits.push(removeMember(ctx, own));
+		if (companion && companion !== 'none' && own?.declare) ctx.edits.push(removeNode(ctx.source, ctx.pos, own));
 	}
 	addBindingTypes(ctx, info);
 }
@@ -768,7 +692,7 @@ function reportBindingOptionImports(ctx: Context): void {
 
 export default function transform(file: FileInfo, api: API, _options: Options): string | null {
 	const j = api.jscodeshift;
-	const root = j(file.source, { tabWidth: 1 } as Options);
+	const root = j(file.source, parseOptions() as Options);
 	const messages: Array<{ line: number | undefined; text: string }> = [];
 	const ctx: Context = {
 		j,

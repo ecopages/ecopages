@@ -19,7 +19,21 @@ export const TRANSFORMS = {
 	'migrate-core-entrypoints': '@ecopages/core imports to the role-based entry points',
 	'migrate-middleware-locals': 'ctx.locals assignments of middleware to createMiddleware and next({ ... })',
 	'migrate-radiant-bindings': 'Radiant $name companion bindings and the bind option to this.$',
+	'migrate-radiant-refs': 'Radiant @query options to @ref, @refAll, @query(selector) and @queryAll(selector)',
 } as const;
+
+/**
+ * Notes printed after a transform runs, for the breaking changes it cannot see in the source.
+ */
+export const AFTER_RUN_NOTES: Partial<Record<keyof typeof TRANSFORMS, string>> = {
+	'migrate-radiant-refs': [
+		'NOTE: Radiant ref/query split',
+		'',
+		'@ref, @refAll, getRef, @onEvent({ ref }) and @bindTo({ ref }) now see only the data-ref parts their own host owns: an outer host no longer gets a nested host part of the same name, and @refAll and getRef(name, true) leave nested parts out. @onEvent({ ref }) no longer fires for a data-ref on the host element itself. This codemod cannot see either case.',
+		'',
+		'Check each host that renders another Radiant host inside it. Where the outer host read a part of the inner one, use @query(\'[data-ref="name"]\'), @onEvent({ selector }), @bindTo({ selector }) or host.querySelector(...), which still reach into nested hosts. Move a listener on the host element itself off @onEvent({ ref }).',
+	].join('\n'),
+};
 
 const USAGE = `Usage: ecopages-codemod <transform> [paths...] [jscodeshift options]
 
@@ -72,7 +86,10 @@ export function run(argv: string[]): number {
 	];
 
 	if (name !== 'migrate-middleware-locals') {
-		return spawnSync(process.execPath, args, { stdio: 'inherit' }).status ?? 1;
+		const status = spawnSync(process.execPath, args, { stdio: 'inherit' }).status ?? 1;
+		const note = AFTER_RUN_NOTES[name as keyof typeof TRANSFORMS];
+		if (note) process.stdout.write(`\n${note}\n`);
+		return status;
 	}
 
 	const reportDir = mkdtempSync(join(tmpdir(), 'ecopages-codemod-'));

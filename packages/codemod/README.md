@@ -16,14 +16,15 @@ Paths default to `src`. Extra flags pass through to jscodeshift, so `--dry --pri
 
 ## Transforms
 
-| Transform                   | Added in | Migrates                                                                                                                                                        |
-| --------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `migrate-radiant-bindings`  | 0.10.0   | `@ecopages/radiant` `$name` companion bindings and the `bind` option to `this.$` (Radiant 0.10.0)                                                               |
-| `migrate-data-hooks`        | 0.9.0    | `staticProps` and `staticPaths` of `eco.page()` to `props` and `paths`                                                                                          |
-| `migrate-to-eco-page`       | 0.3.0    | Module-level data exports and `Page.config` to `eco.page()`; runs the one above                                                                                 |
-| `migrate-to-eco-component`  | 0.3.0    | `Component.config` assignments to `eco.component()`                                                                                                             |
-| `migrate-core-entrypoints`  | 0.3.0    | Imports from `@ecopages/core` to the role-based entry points                                                                                                    |
-| `migrate-middleware-locals` | 0.10.0   | `ctx.locals` assignments of `FileRouteMiddleware` and `Middleware` to `createMiddleware` and `next({ ... })`, and `locals` read in a page's `render` to `props` |
+| Transform                   | Added in | Migrates                                                                                                                                                             |
+| --------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `migrate-radiant-refs`      | 0.10.0   | `@ecopages/radiant` `@query` options and `createQuery` options to `@ref`, `@refAll`, `@query(selector)` and `@queryAll(selector)` (the Radiant release after 0.10.0) |
+| `migrate-radiant-bindings`  | 0.10.0   | `@ecopages/radiant` `$name` companion bindings and the `bind` option to `this.$` (Radiant 0.10.0)                                                                    |
+| `migrate-data-hooks`        | 0.9.0    | `staticProps` and `staticPaths` of `eco.page()` to `props` and `paths`                                                                                               |
+| `migrate-to-eco-page`       | 0.3.0    | Module-level data exports and `Page.config` to `eco.page()`; runs the one above                                                                                      |
+| `migrate-to-eco-component`  | 0.3.0    | `Component.config` assignments to `eco.component()`                                                                                                                  |
+| `migrate-core-entrypoints`  | 0.3.0    | Imports from `@ecopages/core` to the role-based entry points                                                                                                         |
+| `migrate-middleware-locals` | 0.10.0   | `ctx.locals` assignments of `FileRouteMiddleware` and `Middleware` to `createMiddleware` and `next({ ... })`, and `locals` read in a page's `render` to `props`      |
 
 A transform leaves code it cannot rewrite safely unchanged and reports it, so the old API still fails loudly. Rename those by hand. Transforms leave already-migrated code unchanged, so running one twice is safe.
 
@@ -50,3 +51,30 @@ It rewrites, on classes that extend `RadiantElement`, `RadiantController` or `Fo
 - the binding shape into the type argument of `extends RadiantElement` or `extends RadiantController`, as `RadiantElement<{ count: number }>`, typed from the field's annotation or literal initializer. A type argument already there is extended, or intersected when it is a named type.
 
 It leaves the code as written and prints the file and line for the rest: `ReactiveBindingOption` imports, `defineReactiveBinding` and `shouldAutoBindReactiveMembers`, computed `this[...]` access to a `$` name, a companion written, destructured or read outside its class, a `bind` or options value that is not a literal, a member type it cannot tell, and `$name` reads in a class whose base is in another file. It edits only the text it changes, so the rest of the file keeps its formatting.
+
+### `migrate-radiant-refs`
+
+For the ref/query split, which is not released yet: it ships in the `@ecopages/radiant` release after 0.10.0. That release removes the `@query` options object, its `cache` option, the options form of `createQuery`, and the `QueryConfig` type. Run it when you upgrade to that release; it does not need Radiant installed:
+
+```bash
+npx @ecopages/codemod migrate-radiant-refs src
+```
+
+It rewrites each `@query` decorator, whether applied with `@` or called on `Class.prototype`, and each `createQuery` call, without renaming fields:
+
+| Before                                            | After                                                                                 |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `@query({ ref: 'menubar-root' }) menubarRoot`     | `@ref() menubarRoot`                                                                  |
+| `@query({ ref: 'root' }) rootTarget`              | `@ref('root') rootTarget`                                                             |
+| `@query({ ref: 'item', all: true }) items`        | `@refAll('item') items`                                                               |
+| `@query({ selector: 's' }) f`                     | `@query('s') f`                                                                       |
+| `@query({ selector: 's', all: true }) fs`         | `@queryAll('s') fs`                                                                   |
+| `createQuery(host, { selector: 's', all: true })` | `createQueryAll(host, 's')`                                                           |
+| `createQuery(host, { ref: 'x' })`                 | `createQuery(host, '[data-ref="x"]')`                                                 |
+| `cache: true` or `cache: false`                   | removed; `cache: true` is reported, since the field now reads the DOM on every access |
+
+`@ref` and `@refAll` take no name when the `ref` equals the field name as an attribute name, as Radiant derives it (`menubarRoot` finds `menubar-root`, `listboxID` finds `listbox-id`), and keep the name as written otherwise: `@query({ ref: 'rangeTrack' }) rangeTrack` becomes `@ref('rangeTrack')`, since a nameless `@ref` would look for `range-track`. `createQuery(host, { ref })` becomes the selector the options form built, which still reaches into nested hosts; use `getRef(name)` on the host instead if you want only the parts the host owns. The imports gain `ref`, `refAll`, `queryAll` and `createQueryAll` from the module that exports them (`@ecopages/radiant`, `@ecopages/radiant/decorators/ref`, `@ecopages/radiant/decorators/query` or `@ecopages/radiant/helpers/create-query`), and lose `query` and `createQuery` once nothing reads them.
+
+It leaves the code as written and prints the file and line for: `QueryConfig` imports; options it cannot read (a spread, a non-literal `all`, an options object held in a constant, both or neither of `selector` and `ref`, a `createQuery` ref that is not a plain string); `getReactiveMember(...).set(...)`, which is now read-only; a `@controller`, `registerController` or `replaceController` identifier with `:`, which now throws; a string `ref` attribute in JSX, which is now a type error and probably meant `data-ref`; and, in a file that registers controllers, a `data-hydration-key` without `:`, since a controller's hydration script is now keyed `id:field`.
+
+Two changes cannot be seen in the source, and the CLI prints them after the run. `@ref`, `@refAll`, `getRef`, `@onEvent({ ref })` and `@bindTo({ ref })` now see only the parts their own host owns, so an outer host no longer reads a nested host's part of the same name; reach into a nested host with `@query('[data-ref="name"]')`, `@onEvent({ selector })`, `@bindTo({ selector })` or `host.querySelector(...)`. `@onEvent({ ref })` no longer fires for a `data-ref` on the host element itself.

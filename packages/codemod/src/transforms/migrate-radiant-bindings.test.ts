@@ -70,6 +70,15 @@ describe('migrate-radiant-bindings', () => {
 		);
 	});
 
+	it('removes a declare that typed a companion, with its comment and its line', () => {
+		const source = `${header}class A extends RadiantElement<{ count: number }> {\n\t@state count = 0;\n\t/** The companion. */\n\tdeclare $count: unknown;\n\tread() {\n\t\treturn this.$count;\n\t}\n}\n`;
+		expect(runRaw(source)).toBe(
+			source
+				.replace('\t/** The companion. */\n\tdeclare $count: unknown;\n', '')
+				.replace('this.$count', 'this.$.count'),
+		);
+	});
+
 	it('does not add a type argument in a JavaScript file', () => {
 		const source = `${header}export class Plain extends RadiantElement {\n\t@state count = 0;\n\trender() {\n\t\treturn this.$count;\n\t}\n}\n`;
 		expect(runRaw(source, () => {}, 'plain.jsx')).toBe(source.replace('this.$count', 'this.$.count'));

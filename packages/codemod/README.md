@@ -16,15 +16,15 @@ Paths default to `src`. Extra flags pass through to jscodeshift, so `--dry --pri
 
 ## Transforms
 
-| Transform                   | Added in | Migrates                                                                                                                                                             |
-| --------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `migrate-radiant-refs`      | 0.10.0   | `@ecopages/radiant` `@query` options and `createQuery` options to `@ref`, `@refAll`, `@query(selector)` and `@queryAll(selector)` (the Radiant release after 0.10.0) |
-| `migrate-radiant-bindings`  | 0.10.0   | `@ecopages/radiant` `$name` companion bindings and the `bind` option to `this.$` (Radiant 0.10.0)                                                                    |
-| `migrate-data-hooks`        | 0.9.0    | `staticProps` and `staticPaths` of `eco.page()` to `props` and `paths`                                                                                               |
-| `migrate-to-eco-page`       | 0.3.0    | Module-level data exports and `Page.config` to `eco.page()`; runs the one above                                                                                      |
-| `migrate-to-eco-component`  | 0.3.0    | `Component.config` assignments to `eco.component()`                                                                                                                  |
-| `migrate-core-entrypoints`  | 0.3.0    | Imports from `@ecopages/core` to the role-based entry points                                                                                                         |
-| `migrate-middleware-locals` | 0.10.0   | `ctx.locals` assignments of `FileRouteMiddleware` and `Middleware` to `createMiddleware` and `next({ ... })`, and `locals` read in a page's `render` to `props`      |
+| Transform                   | Added in | Migrates                                                                                                                                                        |
+| --------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `migrate-radiant-refs`      | 0.10.0   | `@ecopages/radiant` `@query` options and `createQuery` options to `@ref`, `@refAll`, `@query(selector)` and `@queryAll(selector)` (Radiant 0.11.0)              |
+| `migrate-radiant-bindings`  | 0.10.0   | `@ecopages/radiant` `$name` companion bindings and the `bind` option to `this.$` (Radiant 0.10.0)                                                               |
+| `migrate-data-hooks`        | 0.9.0    | `staticProps` and `staticPaths` of `eco.page()` to `props` and `paths`                                                                                          |
+| `migrate-to-eco-page`       | 0.3.0    | Module-level data exports and `Page.config` to `eco.page()`; runs the one above                                                                                 |
+| `migrate-to-eco-component`  | 0.3.0    | `Component.config` assignments to `eco.component()`                                                                                                             |
+| `migrate-core-entrypoints`  | 0.3.0    | Imports from `@ecopages/core` to the role-based entry points                                                                                                    |
+| `migrate-middleware-locals` | 0.10.0   | `ctx.locals` assignments of `FileRouteMiddleware` and `Middleware` to `createMiddleware` and `next({ ... })`, and `locals` read in a page's `render` to `props` |
 
 A transform leaves code it cannot rewrite safely unchanged and reports it, so the old API still fails loudly. Rename those by hand. Transforms leave already-migrated code unchanged, so running one twice is safe.
 
@@ -54,7 +54,7 @@ It leaves the code as written and prints the file and line for the rest: `Reacti
 
 ### `migrate-radiant-refs`
 
-For the ref/query split, which is not released yet: it ships in the `@ecopages/radiant` release after 0.10.0. That release removes the `@query` options object, its `cache` option, the options form of `createQuery`, and the `QueryConfig` type. Run it when you upgrade to that release; it does not need Radiant installed:
+For the ref/query split of `@ecopages/radiant` 0.11.0, which removes the `@query` options object, its `cache` option, the options form of `createQuery`, and the `QueryConfig` type. Run it when you upgrade to 0.11.0; it does not need Radiant installed:
 
 ```bash
 npx @ecopages/codemod migrate-radiant-refs src

@@ -56,7 +56,8 @@
 		"transform:core-entrypoints": "jscodeshift -t src/transforms/migrate-core-entrypoints.ts --parser tsx",
 		"transform:radiant-bindings": "jscodeshift -t src/transforms/migrate-radiant-bindings.ts --parser tsx",
 		"transform:radiant-refs": "jscodeshift -t src/transforms/migrate-radiant-refs.ts --parser tsx",
-		"test": "vitest run --root ../.. --project shared-core packages/codemod"
+		"test": "vitest run --root ../.. --project shared-core packages/codemod",
+		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
 		"jscodeshift": "^17.3.0"

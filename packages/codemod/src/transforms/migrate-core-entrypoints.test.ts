@@ -5,7 +5,7 @@ import transform from './migrate-core-entrypoints.ts';
 const j = jscodeshift.withParser('tsx');
 
 function runTransform(source: string): string | null {
-	return transform({ path: 'fixture.tsx', source }, { jscodeshift: j }, {});
+	return transform({ path: 'fixture.tsx', source }, { j, jscodeshift: j, stats: () => {}, report: () => {} }, {});
 }
 
 describe('migrate-core-entrypoints', () => {

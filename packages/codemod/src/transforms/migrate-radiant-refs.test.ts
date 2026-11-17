@@ -11,7 +11,7 @@ const fixturesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '__f
 const j = jscodeshift.withParser('tsx');
 
 function runRaw(source: string, report: (message: string) => void = () => {}): string | null {
-	return transform({ path: 'fixture.tsx', source }, { jscodeshift: j, report } as never, {});
+	return transform({ path: 'fixture.tsx', source }, { j, jscodeshift: j, stats: () => {}, report }, {});
 }
 
 async function runTransform(source: string, report?: (message: string) => void): Promise<string | null> {

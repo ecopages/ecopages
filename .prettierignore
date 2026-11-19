@@ -13,3 +13,5 @@ scripts/agent-skills
 # Template build output (such as an Electrobun desktop build), gitignored by each template's own .gitignore, which
 # Prettier does not read. Not **/build: packages/core/src/build is source.
 templates/*/build/
+# Local bench output, gitignored in bench/results/.gitignore, which Prettier does not read.
+playground/kitchen-sink/bench/results/mitata-bench*.json

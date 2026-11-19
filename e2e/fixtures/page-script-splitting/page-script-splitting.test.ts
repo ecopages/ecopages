@@ -15,7 +15,9 @@ let assetsDir: string;
 
 function readPageScript(htmlFile: string): { name: string; source: string } {
 	const html = readFileSync(path.join(appDir, 'dist/client', htmlFile), 'utf8');
-	const match = html.match(/<script[^>]*src="\/assets\/([^"]+\.js)"[^>]*type="module"/);
+	const match = [...html.matchAll(/<script[^>]*src="\/assets\/([^"]+\.js)"[^>]*type="module"[^>]*>/g)].find(
+		([tag]) => !tag.includes('data-eco-global-script'),
+	);
 	if (!match?.[1]) {
 		throw new Error(`No Page script in ${htmlFile}`);
 	}

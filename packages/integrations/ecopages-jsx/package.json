@@ -41,6 +41,8 @@
 	"devDependencies": {
 		"@kitajs/html": "^4.2.13",
 		"@ecopages/core": "workspace:*",
+		"@ecopages/jsx": "^0.11.2",
+		"@ecopages/radiant": "^0.11.2",
 		"@ecopages/testing": "workspace:*",
 		"lit": "^3.3.3",
 		"react": "^19.2.6",

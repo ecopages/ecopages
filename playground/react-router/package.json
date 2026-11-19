@@ -13,7 +13,7 @@
 		"@ecopages/core": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/lightningcss-processor": "workspace:*",
-		"@ecopages/radiant": "^0.11.0",
+		"@ecopages/radiant": "^0.11.2",
 		"@ecopages/react": "workspace:*",
 		"@ecopages/react-router": "workspace:*",
 		"@tailwindcss/node": "^4.3.0",

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.1
+
+### Patch Changes
+
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.10.1
+    - @ecopages/file-system@0.10.1
+
 ## 0.10.0
 
 ### Minor Changes

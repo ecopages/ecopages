@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.1
+
+### Patch Changes
+
+- [#1261](https://github.com/ecopages/ecopages/pull/1261) [`ea6fb42`](https://github.com/ecopages/ecopages/commit/ea6fb42b90120d4dadafbef4ec7bd2a63b1206eb) Thanks [@andeeplus](https://github.com/andeeplus)! - Radiant hosts on server-rendered pages now hydrate in place instead of re-rendering on first connect: the Radiant hydrator head script is bundled and loaded as a module before custom-element scripts.
+- Updated dependencies []:
+    - @ecopages/core@0.10.1
+    - @ecopages/file-system@0.10.1
+    - @ecopages/mdx@0.10.1
+
 ## 0.10.0
 
 ### Minor Changes

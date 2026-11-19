@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.1
+
+### Patch Changes
+
+- Updated dependencies []:
+    - @ecopages/core@0.10.1
+    - @ecopages/react@0.10.1
+
 ## 0.10.0
 
 ### Minor Changes

@@ -25,3 +25,37 @@ export function registerRadiantSsrTests() {
 		}
 	});
 }
+
+/**
+ * Registers the check that the Ecopages JSX head bootstrap installs the Radiant hydrator in the browser.
+ *
+ * @remarks
+ * The Script HMR page loads no element script that imports `@ecopages/radiant/client/install-hydrator` itself, so
+ * the hydrator can only come from the integration's head script. A classic script holding the module's `import`
+ * statements throws on parse and leaves the hydrator gate closed, and Radiant hosts then re-render instead of
+ * hydrating in place.
+ */
+export function registerRadiantHydratorTests() {
+	test.describe('Radiant hydrator bootstrap @parity', () => {
+		test('the head script loads as a module and installs the hydrator', async ({ page }) => {
+			const pageErrors: string[] = [];
+			page.on('pageerror', (error) => pageErrors.push(error.message));
+
+			await page.goto('/script-hmr');
+
+			const hydratorScript = page.locator('head script[data-eco-script-id="ecopages-jsx-radiant-hydrator"]');
+			await expect(hydratorScript).toHaveAttribute('type', 'module');
+			await expect
+				.poll(() =>
+					page.evaluate(
+						() =>
+							(globalThis as Record<symbol, unknown>)[
+								Symbol.for('@ecopages/radiant.hydrator-installed')
+							] === true,
+					),
+				)
+				.toBe(true);
+			expect(pageErrors).toEqual([]);
+		});
+	});
+}

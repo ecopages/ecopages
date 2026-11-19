@@ -160,8 +160,9 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 			AssetFactory.createNodeModuleScript({
 				position: 'head',
 				importPath: RADIANT_INSTALL_HYDRATOR_FILEPATH,
-				bundle: false,
+				bundle: true,
 				attributes: {
+					type: 'module',
 					'data-eco-script-id': RADIANT_HYDRATOR_SCRIPT_ID,
 				},
 			}),

@@ -31,7 +31,7 @@ sources:
 | Renderer                  | `createEcopagesJsxRenderer(jsxConfig)` on `createIntegrationRenderer`; `jsxConfig` carries `mdxExtensions` and `radiantSsrEnabled` |
 | `bundlesPageDependencies` | `true`                                                                                                        |
 | `serverDom`               | `{ kind: 'complete' }` installing Radiant's light DOM when `radiant` is on (default); otherwise none          |
-| Global dependency         | with Radiant, `@ecopages/radiant/client/install-hydrator` as a head script, `bundle: false`, id `ecopages-jsx-radiant-hydrator` |
+| Global dependency         | with Radiant, `@ecopages/radiant/client/install-hydrator` as a bundled head module script (`bundle: true`, `type="module"`), id `ecopages-jsx-radiant-hydrator` |
 | Build plugins             | the `ecopages-jsx-mdx-loader` plugin when `mdx` is set; none otherwise                                        |
 | `prepareAssetDependencies`| tags page-owned content scripts into the app-wide client bundle                                               |
 | HMR                       | `EcopagesJsxHmrStrategy` plus `EcopagesJsxDevTransformContributor`                                            |

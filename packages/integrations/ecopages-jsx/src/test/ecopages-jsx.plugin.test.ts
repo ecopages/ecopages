@@ -157,8 +157,9 @@ test('EcopagesJsxPlugin installs the explicit Radiant hydrator bootstrap when Ra
 		source: 'node-module',
 		position: 'head',
 		importPath: RADIANT_INSTALL_HYDRATOR_FILEPATH,
-		bundle: false,
+		bundle: true,
 		attributes: {
+			type: 'module',
 			'data-eco-script-id': 'ecopages-jsx-radiant-hydrator',
 		},
 	});

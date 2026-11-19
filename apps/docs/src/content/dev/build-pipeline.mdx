@@ -15,7 +15,6 @@ sources:
   - packages/core/src/build/rolldown/ssr-script-entries-plugin.ts
   - packages/core/src/build/rolldown/file-role-grammar-plugin.ts
   - packages/core/src/utils/file-roles.ts
-  - packages/core/src/adapters/shared/runtime/unattached-scripts.ts
   - packages/core/src/assets/asset-processing-service/processors/stylesheet/stylesheet-module.ts
   - packages/core/src/build/server-bundle-deploy-manifest.ts
   - packages/core/src/build/server/page-module-import.service.ts
@@ -107,7 +106,6 @@ sequenceDiagram
     participant R as Rolldown server build
     participant G as file role grammar plugin
     participant S as ssr script entries plugin
-    participant U as findUnattachedScripts
     participant I as Integration compilePageModule
     E->>E: collectServerModuleEntries
     E->>R: one build, preserveModules, ssrScriptEntries
@@ -115,16 +113,14 @@ sequenceDiagram
     G-->>R: fail on a misplaced role segment
     R->>S: transform a module that lists ssr: true
     S-->>R: emitFile chunk for each literal src
-    R-->>E: output map and bundled project sources
-    E->>U: those sources
-    U-->>E: warning per unattached .script file
+    R-->>E: output map
     E->>I: HTML Page entries, compiled in process
     E->>E: write server-modules.json
 ```
 
 Pages of an Integration that implements `compilePageModule`, such as HTML Pages, stay out of the Rolldown graph. Each compiles in process and is stored as a `-html.json` record that the Integration's `reviveCompiledPageModule` restores at load time.
 
-The `ssr: true` scripts a declaration lists are entries of that same build: `createSsrScriptEntriesPlugin` (server builds with `ssrScriptEntries`) reads each literal `scripts: [{ src, ssr: true }]` in a module it transforms and emits `src`, relative to that module, with `emitFile`. A script therefore shares chunks with the rest of the build and every module is bundled once. A `src` that is not a string literal is not found. The file role grammar plugin (`createFileRoleGrammarPlugin`) runs in every build of project modules and fails one whose name puts a role segment anywhere but directly before a script extension, such as `card.server.kita.tsx`; installed packages are not checked ([Routing](/dev/routing) covers the roles). After the server build, `findUnattachedScripts` reads the same literal `scripts` declarations (`findDeclaredScripts`) in every project module of the build's closure and warns about each `.script` file under `srcDir` that none names. A script is also attached when an HTML Page or the Html shell loads it, when an attached script imports it (`scanModuleScript`, a static import walk rather than the browser build's module ids, since that build runs later), or when a server-build module imports it. Integrations are activated before the build so their `setup()` installs the process globals the emitted modules may need.
+The `ssr: true` scripts a declaration lists are entries of that same build: `createSsrScriptEntriesPlugin` (server builds with `ssrScriptEntries`) reads each literal `scripts: [{ src, ssr: true }]` in a module it transforms and emits `src`, relative to that module, with `emitFile`. A script therefore shares chunks with the rest of the build and every module is bundled once. A `src` that is not a string literal is not found. The file role grammar plugin (`createFileRoleGrammarPlugin`) runs in every build of project modules and fails one whose name puts a role segment anywhere but directly before a script extension, such as `card.server.kita.tsx`; installed packages are not checked ([Routing](/dev/routing) covers the roles). Integrations are activated before the build so their `setup()` installs the process globals the emitted modules may need.
 
 In production, `PageModuleImportService.importModule()` imports from this map whenever it exists. A missing key or file throws ``No compiled server module for <source>. Run `ecopages build`.`` Every key is the source path relative to the app root, the form `identity.file` already has.
 

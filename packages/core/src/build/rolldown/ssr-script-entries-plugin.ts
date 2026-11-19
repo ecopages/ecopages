@@ -64,11 +64,7 @@ function collectDeclaredScripts(value: unknown, scripts: DeclaredScript[]): void
  * Finds each string or `{ src }` entry of a literal `scripts: [...]` array, and any `{ src, ssr: true }` object.
  * A `src` that is computed at runtime is not found.
  */
-export function findDeclaredScripts(
-	file: string,
-	code: string,
-	lang: (typeof PARSER_LANGUAGES)[number],
-): DeclaredScript[] {
+function findDeclaredScripts(file: string, code: string, lang: (typeof PARSER_LANGUAGES)[number]): DeclaredScript[] {
 	const scripts: DeclaredScript[] = [];
 	collectDeclaredScripts(parseModuleSource(file, code, { sourceType: 'module', lang }).program, scripts);
 	return scripts;
@@ -77,7 +73,7 @@ export function findDeclaredScripts(
 /**
  * The parser language for a file name, or `undefined` when it is not a script module.
  */
-export function scriptModuleLanguage(file: string): (typeof PARSER_LANGUAGES)[number] | undefined {
+function scriptModuleLanguage(file: string): (typeof PARSER_LANGUAGES)[number] | undefined {
 	return PARSER_LANGUAGES.find((language) => file.endsWith(`.${language}`));
 }
 

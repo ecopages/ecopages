@@ -44,7 +44,7 @@
 		"@ecopages/core": "workspace:*",
 		"@tailwindcss/node": "^4.3.0",
 		"@tailwindcss/oxide": "^4.3.0",
-		"postcss": "^8.5.14",
+		"postcss": "^8.5.33",
 		"postcss-nested": "^8.0.1",
 		"tailwindcss": "^4.3.0"
 	},

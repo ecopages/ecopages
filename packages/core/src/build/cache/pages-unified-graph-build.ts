@@ -127,9 +127,9 @@ async function emitRolldownServerModules(
 	appConfig: EcoPagesAppConfig,
 	entryPaths: readonly string[],
 	outdir: string,
-): Promise<{ modules: Record<string, string>; sources: string[] }> {
+): Promise<Record<string, string>> {
 	if (entryPaths.length === 0) {
-		return { modules: {}, sources: [] };
+		return {};
 	}
 
 	const entryRecord: Record<string, string> = {};
@@ -167,8 +167,7 @@ async function emitRolldownServerModules(
 			);
 		}
 	}
-	const sources = [...new Set(Object.values(buildResult.dependencyGraph.entrypoints).flat())];
-	return { modules, sources };
+	return modules;
 }
 
 function assignProductionServerModules(appConfig: EcoPagesAppConfig, manifest: ProductionServerModulesManifest): void {
@@ -189,8 +188,6 @@ export async function emitProductionServerModules(options: {
 	staticRoutes?: readonly StaticRoute[];
 	errorPageLoaders?: ErrorPageLoaders;
 	outdir?: string;
-	/** Receives the project and package source files the server build bundled, after it succeeds. */
-	onServerSources?: (sources: readonly string[]) => void | Promise<void>;
 }): Promise<ProductionServerModulesManifest> {
 	const appConfig = options.appConfig;
 	requireBrowserBuildGlobalScriptResolution(appConfig);
@@ -208,8 +205,7 @@ export async function emitProductionServerModules(options: {
 	const rolldownEntries = collected.filter((entryPath) => isRolldownServerModuleEntry(entryPath, appConfig));
 	const htmlEntries = collected.filter((entryPath) => !isRolldownServerModuleEntry(entryPath, appConfig));
 
-	const { modules, sources } = await emitRolldownServerModules(appConfig, uniqueEntryPaths(rolldownEntries), outdir);
-	await options.onServerSources?.(sources);
+	const modules = await emitRolldownServerModules(appConfig, uniqueEntryPaths(rolldownEntries), outdir);
 
 	for (const htmlEntry of uniqueEntryPaths(htmlEntries)) {
 		const emitted = await emitCompiledPageModule(appConfig, htmlEntry, outdir);

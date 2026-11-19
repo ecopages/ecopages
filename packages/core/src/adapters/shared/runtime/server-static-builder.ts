@@ -36,7 +36,6 @@ import type { StaticSiteGenerator } from '../../../static-site-generator/static-
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 import { readEndpointHandlers, type EndpointRouteHandlerOptions } from '../http/endpoint-route-handler.ts';
-import { warnAboutUnattachedScripts } from './unattached-scripts.ts';
 import {
 	emitProductionServerModules,
 	shouldBuildPagesUnifiedGraph,
@@ -305,7 +304,6 @@ export class ServerStaticBuilder {
 				router: dependencies.router,
 				staticRoutes: dependencies.staticRoutes,
 				errorPageLoaders: dependencies.errorPageLoaders,
-				onServerSources: (sources) => warnAboutUnattachedScripts(this.appConfig, sources),
 			});
 		}
 

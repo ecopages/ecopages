@@ -608,13 +608,10 @@ async function buildRolldownInputOptions(
 		transform: buildRolldownTransformOptions(options),
 		resolve: options.conditions ? { conditionNames: options.conditions } : undefined,
 		treeshake: typeof options.treeshaking === 'boolean' ? options.treeshaking : true,
-		...(isEcopagesEnvEnabled('ECOPAGES_PROFILE_BUILD')
-			? {}
-			: {
-					checks: {
-						pluginTimings: false,
-					},
-				}),
+		checks: {
+			moduleLevelDirective: false,
+			...(isEcopagesEnvEnabled('ECOPAGES_PROFILE_BUILD') ? {} : { pluginTimings: false }),
+		},
 		experimental: {
 			nativeMagicString: true,
 		},

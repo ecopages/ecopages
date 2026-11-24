@@ -245,6 +245,31 @@ describe('RolldownBuildAdapter', () => {
 		expect(readFileSync(result.outputs[0]!.path, 'utf8')).toContain('server-secret');
 	});
 
+	test('bundles a module marked use client without a module-level directive warning', async () => {
+		writeFixture('widget.ts', "'use client';\nexport const widget = 'widget';\n");
+		const entrypoint = writeFixture(
+			'index.ts',
+			"import { widget } from './widget.ts';\nexport const answer = widget;\n",
+		);
+		const adapter = new RolldownBuildAdapter();
+
+		const result = await adapter.build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		assert.deepEqual(
+			(result.warnings ?? []).filter((warning) => warning.message.includes('use client')),
+			[],
+			'no warning about the use client directive',
+		);
+	});
+
 	test('builds a single entrypoint and reports outputs', async () => {
 		const entrypoint = writeFixture('index.ts', 'export const answer = 42;\n');
 		const adapter = new RolldownBuildAdapter();

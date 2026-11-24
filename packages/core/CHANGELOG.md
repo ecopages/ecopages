@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.3
+
+### Patch Changes
+
+- [#1268](https://github.com/ecopages/ecopages/pull/1268) [`8ca08ea`](https://github.com/ecopages/ecopages/commit/8ca08ea8648fcc067ee818e10d735b1018bb390c) Thanks [@andeeplus](https://github.com/andeeplus)! - Builds no longer warn about module-level directives such as `'use client'` in dependencies. Rolldown drops them in a browser bundle, where they have no meaning.
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.10.3
+    - @ecopages/file-system@0.10.3
+
 ## 0.10.2
 
 ### Patch Changes

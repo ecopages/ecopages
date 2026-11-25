@@ -1,5 +1,13 @@
 # @ecopages/lightningcss-processor
 
+## 0.10.3
+
+### Patch Changes
+
+- Updated dependencies [[`8ca08ea`](https://github.com/ecopages/ecopages/commit/8ca08ea8648fcc067ee818e10d735b1018bb390c)]:
+    - @ecopages/core@0.10.3
+    - @ecopages/file-system@0.10.3
+
 ## 0.10.2
 
 ### Patch Changes

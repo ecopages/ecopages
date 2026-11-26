@@ -229,10 +229,11 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		use: { ...chrome, baseURL: 'http://localhost:4643' },
 	},
 	{
-		name: 'template-ecofaster-dev-e2e',
-		testMatch: 'e2e/fixtures/templates/ecofaster.dev.test.e2e.ts',
+		name: 'template-eco-commerce-dev-e2e',
+		testMatch: 'e2e/fixtures/templates/eco-commerce*.dev.test.e2e.ts',
 		timeout: 60_000,
-		use: { ...chrome, appOptions: { source: 'templates/ecofaster' } },
+		workers: 2,
+		use: { ...chrome, appOptions: { source: 'templates/eco-commerce' } },
 	},
 	{
 		name: 'react-router-preview-e2e',

@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { assertTemplateAgentSkills } from './sync-template-agent-skills.ts';
+import { templateBuildOutputs } from './template-build-outputs.ts';
 
 type PackageJson = {
 	name?: string;
@@ -22,6 +23,7 @@ type TemplateManifest = {
 		source: string;
 		packageDirectory: string;
 		integrations: string[];
+		buildOutputs?: unknown;
 	}>;
 };
 
@@ -87,6 +89,7 @@ for (const template of manifest.templates) {
 		if (!template[field as keyof typeof template]) throw new Error(`Template ${template.id} is missing ${field}.`);
 	}
 	if (template.integrations.length === 0) throw new Error(`Template ${template.id} must list an integration.`);
+	templateBuildOutputs(template);
 	const templateRoot = path.join(templatesRoot, template.source);
 	const packagePath = path.join(templateRoot, template.packageDirectory, 'package.json');
 	if (!statSync(templateRoot).isDirectory()) throw new Error(`Missing template directory: ${template.source}`);

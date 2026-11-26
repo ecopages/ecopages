@@ -1,6 +1,6 @@
 /**
  * Root Vitest config: `shared-core` (node), `browser`, and one project per app or template that keeps its own `@` alias:
- * `docs`, `docs-starter`, `llm-wiki` and `ecofaster`.
+ * `docs`, `docs-starter`, `llm-wiki` and `eco-commerce`.
  */
 import { defineConfig, configDefaults } from 'vitest/config';
 
@@ -20,7 +20,7 @@ export default defineConfig({
 			'apps/docs/vitest.config.ts',
 			'templates/docs-starter/vitest.config.ts',
 			'templates/llm-wiki/app/vitest.config.ts',
-			'templates/ecofaster/vitest.config.ts',
+			'templates/eco-commerce/vitest.config.ts',
 			{
 				test: {
 					name: 'shared-core',

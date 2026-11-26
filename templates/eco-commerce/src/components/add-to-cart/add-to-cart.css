@@ -1,0 +1,23 @@
+.add-to-cart {
+	@apply flex flex-col gap-4;
+}
+
+.add-to-cart__variants {
+	@apply m-0 border-0 p-0;
+
+	legend {
+		@apply mb-2 text-sm font-medium;
+	}
+}
+
+.add-to-cart__row {
+	@apply flex flex-wrap items-end gap-3;
+}
+
+.add-to-cart__quantity {
+	@apply flex flex-col gap-1 text-sm;
+}
+
+.add-to-cart__spinner[hidden] {
+	display: none;
+}

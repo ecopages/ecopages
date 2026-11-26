@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { findPublishablePackageDirs, readJsonFile, writeJsonFile } from './package-utils.ts';
+import { templateBuildOutputs } from './template-build-outputs.ts';
 
 type PackageJson = {
 	name: string;
@@ -12,7 +13,7 @@ type PackageJson = {
 };
 
 type TemplateManifest = {
-	templates: Array<{ id: string; source: string; packageDirectory: string }>;
+	templates: Array<{ id: string; source: string; packageDirectory: string; buildOutputs?: unknown }>;
 };
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
@@ -25,6 +26,7 @@ const defaultTemplateIds = [
 	'react-postcss',
 	'lit-jsx',
 	'electrobun',
+	'eco-commerce',
 ];
 const dependencyBlocks = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
 const serverStopTimeoutMs = 10_000;
@@ -212,13 +214,11 @@ interface ServeSmoke {
 }
 
 interface TemplateSmoke {
-	artifact: string;
 	build: [command: string, args: string[]];
 	serve?: ServeSmoke;
 }
 
 const defaultTemplateSmoke: TemplateSmoke = {
-	artifact: 'dist/client/index.html',
 	build: ['npx', ['--no-install', 'ecopages', 'build']],
 };
 
@@ -228,7 +228,6 @@ const templateSmokes: Record<string, TemplateSmoke> = {
 		serve: { mode: 'preview', host: 'localhost', runtimeArgs: [], withoutSource: false },
 	},
 	electrobun: {
-		artifact: 'dist/server/manifest.json',
 		build: ['pnpm', ['run', 'build']],
 		serve: { mode: 'start', host: '127.0.0.1', runtimeArgs: ['--runtime', 'bun'], withoutSource: true },
 	},
@@ -279,19 +278,23 @@ async function smokeTemplate(templateId: string, workDir: string, tarballs: Map<
 	const projectDir = path.join(workDir, 'projects', templateId);
 	mkdirSync(projectDir, { recursive: true });
 	const label = (name: string) => `${templateId}: ${name}`;
-	const { artifact, build, serve } = templateSmokes[templateId] ?? defaultTemplateSmoke;
+	const { build, serve } = templateSmokes[templateId] ?? defaultTemplateSmoke;
+	const manifest = readJsonFile<TemplateManifest>(path.join(repoRoot, 'packages/ecopages/templates.json'));
+	const outputs = templateBuildOutputs(
+		manifest.templates.find((entry) => entry.id === templateId) ?? { id: templateId },
+	);
 
 	const steps: Array<[string, () => void | Promise<void>]> = [
 		['create project from tarballs', () => createProject(templateId, projectDir, tarballs)],
 		['pnpm install', () => void run('pnpm', ['install', '--no-frozen-lockfile'], projectDir)],
 		['every repository package comes from a tarball', () => assertInstalledFromTarballs(projectDir, tarballs)],
 		['ecopages build', () => void run(build[0], build[1], projectDir)],
-		[
-			`${artifact} exists`,
+		...outputs.map((output): [string, () => void] => [
+			`${output} exists`,
 			() => {
-				if (!existsSync(path.join(projectDir, artifact))) throw new Error(`${artifact} is missing`);
+				if (!existsSync(path.join(projectDir, output))) throw new Error(`${output} is missing`);
 			},
-		],
+		]),
 	];
 	if (serve) {
 		steps.push([

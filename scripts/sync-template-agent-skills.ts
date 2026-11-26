@@ -47,7 +47,7 @@ export const TEMPLATE_SKILL_PACKS: Record<string, TemplateSkillPackId[]> = {
 	'docs-starter': ['ecopages', 'radiant', 'radiant-ui'],
 	'blog-jsx': ['ecopages', 'radiant', 'radiant-ui'],
 	'llm-wiki': ['ecopages', 'radiant', 'radiant-ui'],
-	ecofaster: ['ecopages', 'radiant', 'radiant-ui'],
+	'eco-commerce': ['ecopages', 'radiant', 'radiant-ui'],
 	react: ['ecopages'],
 	'react-postcss': ['ecopages'],
 	'react-shadcn': ['ecopages'],

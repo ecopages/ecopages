@@ -1,13 +1,8 @@
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 import { RadiantElement, customElement } from '@ecopages/radiant';
-import { createAgentTool } from '@ecopages/radiant/helpers/create-agent-tool';
 import { toast } from '@ecopages/radiant-ui/toast';
-import { callAgentTool, hasModelContext, loadAgentToolDescriptors } from '../../lib/agents/agent-tool-client';
-
-/**
- * Tools a page component owns instead of this host: `add_to_cart` belongs to the product form.
- */
-const PAGE_OWNED_TOOLS = new Set(['add_to_cart']);
+import { describeCartTotals, hasModelContext } from '../../lib/agents/agent-tool-client';
+import { registerAgentTools } from '../../lib/agents/register-agent-tools';
 
 /**
  * Registers the storefront's WebMCP tools (the Shopify storefront set: catalog, cart, checkout and store questions)
@@ -29,21 +24,11 @@ export class StoreAgentTools extends RadiantElement {
 		void this.registerTools();
 	}
 
-	private async registerTools(): Promise<void> {
-		const descriptors = await loadAgentToolDescriptors().catch(() => []);
-		for (const descriptor of descriptors) {
-			if (PAGE_OWNED_TOOLS.has(descriptor.name)) continue;
-			createAgentTool(this, {
-				...descriptor,
-				execute: (input, { signal }) =>
-					callAgentTool(descriptor.name, input, signal, {
-						onCartChange: (totals) =>
-							toast.success('Your assistant updated the cart', {
-								description: `${totals.totalQuantity} item(s)${totals.subtotal ? `, ${totals.subtotal}` : ''}`,
-							}),
-					}),
-			});
-		}
+	private registerTools(): Promise<void> {
+		return registerAgentTools(this, 'store', {
+			onCartChange: (totals) =>
+				toast.success('Your assistant updated the cart', { description: describeCartTotals(totals) }),
+		});
 	}
 }
 

@@ -8,6 +8,7 @@
  * @module
  */
 
+import { POLICY_HANDLES } from '../../store-urls';
 import type { StorePolicy } from '../types';
 
 export interface DemoVariantSeed {
@@ -161,7 +162,7 @@ export const DEMO_COLLECTIONS: DemoCollectionSeed[] = [
  */
 export const DEMO_POLICIES: StorePolicy[] = [
 	{
-		handle: 'refund-policy',
+		handle: POLICY_HANDLES.refund,
 		type: 'refund_policy',
 		title: 'Returns and refunds',
 		body: [
@@ -172,7 +173,7 @@ export const DEMO_POLICIES: StorePolicy[] = [
 		].join('\n\n'),
 	},
 	{
-		handle: 'shipping-policy',
+		handle: POLICY_HANDLES.shipping,
 		type: 'shipping_policy',
 		title: 'Shipping',
 		body: [
@@ -182,7 +183,7 @@ export const DEMO_POLICIES: StorePolicy[] = [
 		].join('\n\n'),
 	},
 	{
-		handle: 'privacy-policy',
+		handle: POLICY_HANDLES.privacy,
 		type: 'privacy_policy',
 		title: 'Privacy',
 		body: [
@@ -192,7 +193,7 @@ export const DEMO_POLICIES: StorePolicy[] = [
 		].join('\n\n'),
 	},
 	{
-		handle: 'terms-of-service',
+		handle: POLICY_HANDLES.terms,
 		type: 'terms_of_service',
 		title: 'Terms of service',
 		body: [

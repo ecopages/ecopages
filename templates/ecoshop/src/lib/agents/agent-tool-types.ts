@@ -18,6 +18,8 @@ export interface StoreToolDescriptor {
 	description: string;
 	inputSchema: Record<string, unknown>;
 	annotations: { readOnlyHint?: boolean; consequentialHint?: boolean; untrustedContentHint?: boolean };
+	/** Which host registers it: the layout's `<store-agent-tools>` on every page (`store`), or the product page's `<cart-form>` (`product`). */
+	scope: 'store' | 'product';
 }
 
 /**

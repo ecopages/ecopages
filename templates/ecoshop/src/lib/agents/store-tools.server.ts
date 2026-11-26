@@ -1,79 +1,37 @@
-import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { CartInputError } from '@/lib/commerce/errors';
-import { type AgentPrice, formatMoney, toAgentPrice } from '@/lib/commerce/money';
-import {
-	type Cart,
-	type CommerceProvider,
-	DEFAULT_VARIANT_TITLE,
-	MAX_LINE_QUANTITY,
-	type Product,
-	type ProductSummary,
-	type ProductVariant,
-	type SelectedOption,
-} from '@/lib/commerce/types';
+import { formatMoney, toAgentPrice } from '@/lib/commerce/money';
+import { MAX_LINE_QUANTITY, type Product, type ProductSummary } from '@/lib/commerce/types';
 import { resolveUrl, storePaths } from '@/lib/store-urls';
-import type { StoreToolDescriptor, StoreToolResult } from './agent-tool-types';
+import type { StoreToolDescriptor } from './agent-tool-types';
+
+import {
+	type StoreTool,
+	type StoreToolContext,
+	type StoreToolOutcome,
+	type ToolSurface,
+	applyCartChange,
+	cartOutcome,
+	cartView,
+	currentCart,
+	define,
+	describeCart,
+	fail,
+	isOutcome,
+	lineProblem,
+	matches,
+	ok,
+	productHandleFrom,
+	productUrl,
+	relevance,
+	replacementQuantities,
+	searchTerms,
+	summaryView,
+	textToHtml,
+	variantView,
+} from './store-tool-support.server';
 
 export type { StoreToolDescriptor, StoreToolResult } from './agent-tool-types';
-
-/**
- * Where a tool runs. `page` is WebMCP in the shopper's browser, acting on the shopper's cart through
- * `/api/agent-tools`; `mcp` is the `/mcp` server, where a cart is named by its id.
- */
-export type ToolSurface = 'page' | 'mcp';
-
-export interface StoreToolContext {
-	provider: CommerceProvider;
-	origin: string;
-	surface: ToolSurface;
-	/** On a page, the shopper's cart from the cart cookie. Over `/mcp`, unused: the input names the cart. */
-	cartId: string | undefined;
-	/** On a product page, its handle: `get_product` and `show_variant` default to it, and `add_to_cart` requires it. */
-	currentProductHandle?: string;
-}
-
-export interface StoreToolOutcome {
-	result: StoreToolResult;
-	/** The cart id the shopper's cookie must hold from now on, when the call changed it. */
-	cartId?: string;
-	/** The cart after a change, so the caller can show its totals without reading it again. */
-	cart?: Cart;
-	/** A page to open once the result is returned. */
-	navigateTo?: string;
-}
-
-type StoreToolAnnotations = StoreToolDescriptor['annotations'] & {
-	idempotentHint?: boolean;
-	destructiveHint?: boolean;
-};
-
-interface StoreToolDefinition<Input extends z.ZodObject> {
-	name: string;
-	title: string;
-	description: string;
-	input: Input;
-	annotations: StoreToolAnnotations;
-	surfaces: ToolSurface[];
-	run(input: z.infer<Input>, context: StoreToolContext): Promise<StoreToolOutcome>;
-}
-
-/**
- * A tool with its input type erased, so tools of different inputs share one list. `run` parses its input.
- */
-export interface StoreTool {
-	name: string;
-	title: string;
-	description: string;
-	input: z.ZodObject;
-	annotations: StoreToolAnnotations;
-	surfaces: ToolSurface[];
-	run(input: unknown, context: StoreToolContext): Promise<StoreToolOutcome>;
-}
-
-function define<Input extends z.ZodObject>(tool: StoreToolDefinition<Input>): StoreTool {
-	return { ...tool, run: (input, context) => tool.run(tool.input.parse(input), context) };
-}
+export type { StoreTool, StoreToolContext, StoreToolOutcome, ToolSurface } from './store-tool-support.server';
 
 const PRODUCTS_PER_PAGE = 30;
 const MAX_LINE_ITEMS = 100;
@@ -98,238 +56,6 @@ const cartIdField = z
 	.min(1)
 	.optional()
 	.describe("On a store page, compared with the shopper's cart. Over /mcp, the cart to act on.");
-
-/* Views in the shapes Shopify's storefront tools return. */
-
-function productUrl(origin: string, handle: string, variantId?: string): string {
-	const path = storePaths.product(handle);
-	return resolveUrl(origin, variantId ? `${path}?variant=${encodeURIComponent(variantId)}` : path);
-}
-
-function summaryView(product: ProductSummary, origin: string) {
-	return {
-		id: product.id,
-		title: product.title,
-		handle: product.handle,
-		variant_id: product.defaultVariantId ?? '',
-		url: productUrl(origin, product.handle),
-		price_range: toAgentPrice(product.priceRange.min),
-		image: product.featuredImage ? resolveUrl(origin, product.featuredImage.url) : '',
-		available: product.availableForSale,
-		variant_count: product.variantCount,
-		options: product.options,
-		product_type: product.productType,
-		vendor: product.vendor,
-	};
-}
-
-function variantView(variant: ProductVariant) {
-	return {
-		id: variant.id,
-		title: variant.title,
-		options: variant.selectedOptions,
-		price: toAgentPrice(variant.price),
-		list_price: variant.compareAtPrice ? toAgentPrice(variant.compareAtPrice) : null,
-		availability: { available: variant.availableForSale },
-	};
-}
-
-type CartMessage = { type: 'error' | 'warning' | 'info'; code?: string; content: string; path?: string };
-
-/**
- * The id a page shows an agent for the shopper's cart: a revision of its lines, not the cart id.
- *
- * @remarks
- * The cart id grants access to the cart, which is why the cart cookie is `HttpOnly`, so a page never hands it to an
- * agent. The revision changes with every line and quantity, so `update_cart` and `cancel_cart` detect a stale cart
- * result on every provider, including Shopify, whose cart id stays the same as the cart changes.
- */
-function cartRevision(cart: Cart): string {
-	const lines = cart.lines.map((line) => [line.id, line.variantId, line.quantity]);
-	const digest = createHash('sha256').update(cart.id).update(JSON.stringify(lines)).digest('base64url');
-	return `rev_${digest.slice(0, 22)}`;
-}
-
-function cartView(cart: Cart | null, context: StoreToolContext, messages: CartMessage[] = []) {
-	const { origin } = context;
-	const subtotal: AgentPrice | null = cart ? toAgentPrice(cart.subtotal) : null;
-	return {
-		id: cart ? (context.surface === 'page' ? cartRevision(cart) : cart.id) : '',
-		item_count: cart?.totalQuantity ?? 0,
-		total_price: subtotal,
-		currency: cart?.subtotal.currencyCode ?? '',
-		totals: subtotal ? [{ type: 'subtotal', amount: subtotal.amount }] : [],
-		line_items: (cart?.lines ?? []).map((line) => ({
-			id: line.id,
-			item: {
-				id: line.variantId,
-				title: line.productTitle,
-				variant_title: line.variantTitle,
-				handle: line.productHandle,
-				url: productUrl(origin, line.productHandle, line.variantId),
-				image: line.image ? resolveUrl(origin, line.image.url) : '',
-				unit_price: toAgentPrice(line.unitPrice),
-			},
-			quantity: line.quantity,
-			line_price: toAgentPrice(line.totalPrice),
-		})),
-		...(messages.length ? { messages } : {}),
-	};
-}
-
-function ok(structured: Record<string, unknown>, text: string): StoreToolResult {
-	return { content: [{ type: 'text', text }], structuredContent: structured };
-}
-
-function fail(message: string, structured: Record<string, unknown> = { error: message }): StoreToolOutcome {
-	return {
-		result: {
-			content: [{ type: 'text', text: `Error: ${message}` }],
-			structuredContent: structured,
-			isError: true,
-		},
-	};
-}
-
-function describeCart(cart: ReturnType<typeof cartView>): string {
-	if (!cart.item_count) return 'The cart is empty.';
-	const lines = cart.line_items.map((line) => {
-		const variant = line.item.variant_title && line.item.variant_title !== DEFAULT_VARIANT_TITLE;
-		return `${line.quantity} x ${line.item.title}${variant ? ` (${line.item.variant_title})` : ''}`;
-	});
-	return `The cart holds ${cart.item_count} item(s): ${lines.join(', ')}. Subtotal ${cart.total_price?.display}.`;
-}
-
-/**
- * Turns plain text into escaped HTML paragraphs, for the `description.html` field Shopify's tools return.
- */
-function textToHtml(text: string): string {
-	const escape = (value: string) =>
-		value.replace(/&/gu, '&amp;').replace(/</gu, '&lt;').replace(/>/gu, '&gt;').replace(/"/gu, '&quot;');
-	return text
-		.split(/\n\s*\n/u)
-		.filter(Boolean)
-		.map((paragraph) => `<p>${escape(paragraph)}</p>`)
-		.join('');
-}
-
-/* Helpers that read the catalog and the cart. */
-
-function productHandleFrom(id: string | undefined, context: StoreToolContext): string | undefined {
-	if (!id) return context.currentProductHandle;
-	const path = /^(?:https?:\/\/[^/]+)?\/products\/([^/?#]+)/u.exec(id);
-	return path ? decodeURIComponent(path[1] ?? '') : id;
-}
-
-function matches(variant: ProductVariant, selected: SelectedOption[]): boolean {
-	return selected.every((option) =>
-		variant.selectedOptions.some(
-			(own) =>
-				own.name.toLowerCase() === option.name.toLowerCase() &&
-				own.value.toLowerCase() === option.value.toLowerCase(),
-		),
-	);
-}
-
-/**
- * Finds the cart a call acts on, or explains why it cannot.
- *
- * @remarks
- * On a page the cart is the shopper's, from the cookie; an `id` the agent sends is compared with its revision, so an
- * agent holding an old cart result cannot overwrite a cart the shopper has changed since. Over `/mcp` the `id` names
- * it.
- */
-async function currentCart(
-	id: string | undefined,
-	context: StoreToolContext,
-): Promise<{ cart: Cart | null; mismatch: boolean }> {
-	if (context.surface === 'mcp') return { cart: id ? await context.provider.getCart(id) : null, mismatch: false };
-	const cart = context.cartId ? await context.provider.getCart(context.cartId) : null;
-	return { cart, mismatch: Boolean(id) && (!cart || id !== cartRevision(cart)) };
-}
-
-function cartOutcome(cart: Cart, context: StoreToolContext): StoreToolOutcome {
-	const view = cartView(cart, context);
-	return { result: ok(view, describeCart(view)), cartId: cart.id, cart };
-}
-
-async function applyCartChange(change: () => Promise<Cart>): Promise<Cart | StoreToolOutcome> {
-	try {
-		return await change();
-	} catch (error) {
-		if (error instanceof CartInputError) return fail(error.message);
-		throw error;
-	}
-}
-
-const isOutcome = (value: Cart | StoreToolOutcome): value is StoreToolOutcome => 'result' in value;
-
-/**
- * The quantity changes that make a cart hold exactly `lines`: each listed variant at its quantity, every other line
- * at zero.
- */
-function replacementQuantities(lines: Array<{ item: { id: string }; quantity: number }>, cart: Cart | null) {
-	const target = new Map(lines.map((line) => [line.item.id, line.quantity]));
-	for (const line of cart?.lines ?? []) if (!target.has(line.variantId)) target.set(line.variantId, 0);
-	return [...target].map(([variantId, quantity]) => ({ variantId, quantity }));
-}
-
-/**
- * What is wrong with the lines an `update_cart` call lists: a variant listed twice, or a line id that no longer holds
- * the listed item because the cart changed since the agent read it.
- */
-function lineProblem(
-	lines: Array<{ id?: string; item: { id: string } }>,
-	cart: Cart | null,
-): { kind: 'repeated' | 'stale'; message: string } | undefined {
-	const variants = lines.map((line) => line.item.id);
-	const repeated = variants.find((variant, index) => variants.indexOf(variant) !== index);
-	if (repeated)
-		return { kind: 'repeated', message: `cart.line_items lists ${repeated} twice. List each variant once.` };
-	const known = new Map(cart?.lines.map((line) => [line.id, line.variantId]));
-	const unknown = lines.find((line) => line.id && known.get(line.id) !== line.item.id);
-	return unknown
-		? { kind: 'stale', message: `Line ${unknown.id} no longer holds that item. Read the cart again with get_cart.` }
-		: undefined;
-}
-
-/**
- * The words of a query worth matching: lower case, three letters or more, without common question words.
- */
-function searchTerms(query: string): string[] {
-	return query
-		.toLowerCase()
-		.split(/[^\p{L}\p{N}]+/u)
-		.filter((term) => term.length > 2 && !STOP_WORDS.has(term));
-}
-
-/**
- * Scores a policy paragraph by how many of the question's words it contains.
- */
-function relevance(paragraph: string, terms: string[]): number {
-	const text = paragraph.toLowerCase();
-	return terms.filter((term) => text.includes(term)).length;
-}
-
-const STOP_WORDS = new Set([
-	'what',
-	'your',
-	'you',
-	'the',
-	'and',
-	'for',
-	'how',
-	'can',
-	'are',
-	'does',
-	'with',
-	'this',
-	'that',
-	'there',
-	'about',
-	'have',
-	'offer',
-]);
 
 /* The tools. */
 
@@ -408,6 +134,7 @@ export const storeTools: StoreTool[] = [
 		}),
 		annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
 		surfaces: ['page', 'mcp'],
+		readOnlyOverMcp: true,
 		run: async (
 			{ collection, navigate, sort_by: sortBy = 'best-selling', page = 1 },
 			{ provider, origin, surface },
@@ -499,6 +226,7 @@ export const storeTools: StoreTool[] = [
 		}),
 		annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
 		surfaces: ['page', 'mcp'],
+		readOnlyOverMcp: true,
 		run: async ({ catalog }, context) => {
 			const handle = productHandleFrom(catalog.id, context);
 			if (!handle)
@@ -632,6 +360,8 @@ export const storeTools: StoreTool[] = [
 				]);
 				return { result: ok(view, `Nothing changed. ${describeCart(view)}`) };
 			}
+			const problem = lineProblem(request.line_items, null);
+			if (problem) return fail(problem.message);
 			const created = await applyCartChange(() =>
 				context.provider.setCartQuantities(
 					cart?.id,
@@ -723,7 +453,10 @@ export const storeTools: StoreTool[] = [
 			const emptied = await applyCartChange(() =>
 				context.provider.setCartQuantities(
 					cart.id,
-					cart.lines.map((line) => ({ variantId: line.variantId, quantity: 0 })),
+					[...new Set(cart.lines.map((line) => line.variantId))].map((variantId) => ({
+						variantId,
+						quantity: 0,
+					})),
 				),
 			);
 			if (isOutcome(emptied)) return emptied;
@@ -832,18 +565,20 @@ export const storeTools: StoreTool[] = [
 		input: lineItem,
 		annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
 		surfaces: ['page'],
+		scope: 'product',
 		run: async ({ item, quantity }, context) => {
 			if (!context.currentProductHandle)
 				return fail('add_to_cart works on a product page. Use create_cart or update_cart.');
 			const product = await context.provider.getProduct(context.currentProductHandle);
-			if (!product?.variants.some((variant) => variant.id === item.id)) {
+			const variant = product?.variants.find((entry) => entry.id === item.id || entry.id.endsWith(`/${item.id}`));
+			if (!variant) {
 				return fail(
 					`item.id is not a variant of the product on this page. Its variants: ${product?.variants.map((variant) => `${variant.id} (${variant.title})`).join(', ') ?? 'none'}.`,
 				);
 			}
 			const { cart } = await currentCart(undefined, context);
 			const added = await applyCartChange(() =>
-				context.provider.addToCart(cart?.id, [{ variantId: item.id, quantity }]),
+				context.provider.addToCart(cart?.id, [{ variantId: variant.id, quantity }]),
 			);
 			return isOutcome(added) ? added : cartOutcome(added, context);
 		},
@@ -861,7 +596,14 @@ export function storeToolDescriptors(surface: ToolSurface): StoreToolDescriptor[
 		.map((tool) => {
 			const { $schema: _schema, ...inputSchema } = z.toJSONSchema(tool.input, { io: 'input' });
 			const { idempotentHint: _idempotent, destructiveHint: _destructive, ...annotations } = tool.annotations;
-			return { name: tool.name, title: tool.title, description: tool.description, inputSchema, annotations };
+			return {
+				name: tool.name,
+				title: tool.title,
+				description: tool.description,
+				inputSchema,
+				annotations,
+				scope: tool.scope ?? 'store',
+			};
 		});
 }
 

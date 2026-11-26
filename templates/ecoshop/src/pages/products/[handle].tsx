@@ -10,9 +10,9 @@ import { buildProductJsonLd, serializeJsonLd } from '@/lib/agents/product-json-l
 import { CACHE_TAGS, CATALOG_REVALIDATE_SECONDS } from '@/lib/commerce/cache-tags';
 import { formatMoney, formatPriceRange } from '@/lib/commerce/money';
 import { getCommerce } from '@/lib/commerce/provider.server';
-import type { Product, StorePolicy } from '@/lib/commerce/types';
+import type { Product } from '@/lib/commerce/types';
 import { siteOrigin } from '@/lib/site-origin';
-import { storePaths } from '@/lib/store-urls';
+import { POLICY_HANDLES, storePaths } from '@/lib/store-urls';
 import { StoreLayout } from '@/layouts/store-layout/store-layout';
 import './product.css';
 
@@ -31,12 +31,19 @@ function compareAtPrice(product: Product): string | null {
 	return Number(first.compareAtPrice.amount) > Number(first.price.amount) ? formatMoney(first.compareAtPrice) : null;
 }
 
-type ProductPageProps = { product: Product; delivery: StorePolicy[] };
+type ProductPageProps = { product: Product };
 
 /**
- * The policy types whose first paragraph the page shows under the product form.
+ * The policies the "Shipping and returns" panel links to, by Shopify's standard handles.
  */
-const DELIVERY_POLICIES = new Set(['shipping_policy', 'refund_policy']);
+const DELIVERY_POLICIES = [
+	{ handle: POLICY_HANDLES.shipping, title: 'Shipping policy', summary: 'How and when your order ships.' },
+	{
+		handle: POLICY_HANDLES.refund,
+		title: 'Returns and refunds',
+		summary: 'How to return an item and get your money back.',
+	},
+];
 
 export default eco.page<ProductPageProps, JsxRenderable>({
 	layout: StoreLayout,
@@ -46,13 +53,9 @@ export default eco.page<ProductPageProps, JsxRenderable>({
 		return products.map((product) => ({ params: { handle: product.handle } }));
 	},
 	props: async ({ params }) => {
-		const commerce = getCommerce();
-		const [product, policies] = await Promise.all([
-			commerce.getProduct(String(params.handle)),
-			commerce.listPolicies(),
-		]);
+		const product = await getCommerce().getProduct(String(params.handle));
 		if (!product) throw HttpError.NotFound('Product not found');
-		return { product, delivery: policies.filter((policy) => DELIVERY_POLICIES.has(policy.type)) };
+		return { product };
 	},
 	metadata: ({ props }) => ({
 		title: props.product.title,
@@ -60,7 +63,7 @@ export default eco.page<ProductPageProps, JsxRenderable>({
 		url: storePaths.product(props.product.handle),
 		image: props.product.featuredImage?.url,
 	}),
-	render: ({ product, delivery }) => {
+	render: ({ product }) => {
 		const compareAt = compareAtPrice(product);
 
 		return (
@@ -94,18 +97,16 @@ export default eco.page<ProductPageProps, JsxRenderable>({
 							))}
 						</ul>
 					) : null}
-					{delivery.length ? (
-						<RuiDisclosure trigger="Shipping and returns" class="product__delivery">
-							{delivery.map((policy) => (
-								<p>
-									{policy.body.split(/\n\s*\n/u)[0]}{' '}
-									<a class="text-link" href={storePaths.policy(policy.handle)}>
-										{policy.title}
-									</a>
-								</p>
-							))}
-						</RuiDisclosure>
-					) : null}
+					<RuiDisclosure trigger="Shipping and returns" class="product__delivery">
+						{DELIVERY_POLICIES.map((policy) => (
+							<p>
+								{policy.summary}{' '}
+								<a class="text-link" href={storePaths.policy(policy.handle)}>
+									{policy.title}
+								</a>
+							</p>
+						))}
+					</RuiDisclosure>
 					<p class="product__alternate">
 						<a
 							class="text-link"

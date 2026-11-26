@@ -104,6 +104,9 @@ describe('tagsForTopic', () => {
 		['product_listings/update', [CACHE_TAGS.products]],
 		['collections/update', [CACHE_TAGS.collections]],
 		['collection_listings/remove', [CACHE_TAGS.collections]],
+		['inventory_levels/update', [CACHE_TAGS.products]],
+		['inventory_items/update', [CACHE_TAGS.products]],
+		['shop/update', [CACHE_TAGS.collections, CACHE_TAGS.policies]],
 		['orders/create', []],
 		['', []],
 	])('maps %s', (topic, tags) => {

@@ -1,9 +1,9 @@
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 import { RadiantElement, bindTo, customElement, onEvent, prop, query, state } from '@ecopages/radiant';
-import { createAgentTool } from '@ecopages/radiant/helpers/create-agent-tool';
 import '@ecopages/radiant-ui/radio-group';
 import { toast } from '@ecopages/radiant-ui/toast';
-import { callAgentTool, hasModelContext, loadAgentToolDescriptors } from '../../lib/agents/agent-tool-client';
+import { describeCartTotals, hasModelContext } from '../../lib/agents/agent-tool-client';
+import { registerAgentTools } from '../../lib/agents/register-agent-tools';
 import { CART_CHANGE_EVENT, type CartTotals } from '../../lib/cart/cart-events';
 
 type CartFormProps = {
@@ -52,7 +52,7 @@ export class CartForm extends RadiantElement {
 		this.selectVariantFromUrl();
 		if (!this.toolRegistered && this.productTitle && hasModelContext()) {
 			this.toolRegistered = true;
-			void this.registerAddToCart();
+			void this.registerProductTools();
 		}
 	}
 
@@ -67,27 +67,16 @@ export class CartForm extends RadiantElement {
 		if (radio && !radio.disabled) picker.value = variant;
 	}
 
-	private async registerAddToCart(): Promise<void> {
-		const descriptors = await loadAgentToolDescriptors().catch(() => []);
-		const descriptor = descriptors.find((entry) => entry.name === 'add_to_cart');
-		if (!descriptor) return;
-		createAgentTool(this, {
-			...descriptor,
-			description: this.productTitle
-				? `${descriptor.description} The product on this page is ${this.productTitle}.`
-				: descriptor.description,
-			execute: (input, { signal }) =>
-				callAgentTool('add_to_cart', input, signal, {
-					onCartChange: (totals) => this.announce('Your assistant added this to your cart', totals),
-				}),
+	private registerProductTools(): Promise<void> {
+		return registerAgentTools(this, 'product', {
+			describe: (description) => `${description} The product on this page is ${this.productTitle}.`,
+			onCartChange: (totals) => this.announce('Your assistant added this to your cart', totals),
 		});
 	}
 
 	private announce(title: string, totals: CartTotals): void {
 		this.status = '';
-		toast.success(title, {
-			description: `${totals.totalQuantity} item(s) in your cart${totals.subtotal ? `, ${totals.subtotal}` : ''}`,
-		});
+		toast.success(title, { description: describeCartTotals(totals) });
 	}
 
 	@onEvent({ selector: 'form', type: 'submit' })

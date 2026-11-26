@@ -18,6 +18,25 @@ export const storePaths = {
 } as const;
 
 /**
+ * The handles Shopify gives the standard policies, which the demo catalog uses too.
+ */
+export const POLICY_HANDLES = {
+	shipping: 'shipping-policy',
+	refund: 'refund-policy',
+	privacy: 'privacy-policy',
+	terms: 'terms-of-service',
+} as const;
+
+/**
+ * The product handle in a `/products/<handle>` path or URL, or its Markdown view `/products/<handle>/index.md`;
+ * `null` for any other path.
+ */
+export function productHandleFromPath(path: string): string | null {
+	const match = /^(?:https?:\/\/[^/]+)?\/products\/([^/?#]+)(?:\/|\/index\.md)?(?:[?#].*)?$/u.exec(path);
+	return match ? decodeURIComponent(match[1] ?? '') : null;
+}
+
+/**
  * Makes a URL absolute against the site origin: a storefront path, or a URL a provider returned, which may be
  * root-relative or already absolute.
  */

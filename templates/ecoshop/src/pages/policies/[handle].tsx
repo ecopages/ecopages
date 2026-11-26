@@ -1,7 +1,7 @@
 import { eco } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
-import { CATALOG_REVALIDATE_SECONDS } from '@/lib/commerce/cache-tags';
+import { CACHE_TAGS, CATALOG_REVALIDATE_SECONDS } from '@/lib/commerce/cache-tags';
 import { getCommerce } from '@/lib/commerce/provider.server';
 import type { StorePolicy } from '@/lib/commerce/types';
 import { storePaths } from '@/lib/store-urls';
@@ -12,7 +12,7 @@ import { StoreLayout } from '@/layouts/store-layout/store-layout';
  */
 export default eco.page<{ policy: StorePolicy }, JsxRenderable>({
 	layout: StoreLayout,
-	cache: { revalidate: CATALOG_REVALIDATE_SECONDS },
+	cache: { revalidate: CATALOG_REVALIDATE_SECONDS, tags: [CACHE_TAGS.policies] },
 	paths: async () => {
 		const policies = await getCommerce().listPolicies();
 		return policies.map((policy) => ({ params: { handle: policy.handle } }));

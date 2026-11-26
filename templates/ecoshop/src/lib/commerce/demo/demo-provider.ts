@@ -189,9 +189,14 @@ export function createDemoProvider(): CommerceProvider {
 
 	function applyLines(cartId: string | undefined, lines: CartLineQuantity[], mode: 'add' | 'set'): Cart {
 		const contents = (cartId && decodeCart(cartId)) || new Map<string, number>();
+		const listed = new Set<string>();
 		for (const { variantId, quantity } of lines) {
 			const entry = variantIndex.get(variantId);
 			if (!entry) throw new CartInputError(`Unknown variant: ${variantId}`);
+			if (mode === 'set' && listed.has(variantId)) {
+				throw new CartInputError(`${entry.product.title} (${entry.variant.title}) is listed twice.`);
+			}
+			listed.add(variantId);
 			const next = mode === 'add' ? (contents.get(variantId) ?? 0) + quantity : quantity;
 			if (next > MAX_LINE_QUANTITY) {
 				throw new CartInputError(`A cart line holds at most ${MAX_LINE_QUANTITY} of ${entry.product.title}.`);
@@ -206,7 +211,6 @@ export function createDemoProvider(): CommerceProvider {
 	}
 
 	return {
-		kind: 'demo',
 		getStore: async () => ({ name: DEMO_STORE.name, description: DEMO_STORE.description }),
 		listProducts: async (options) => take(products.map(toSummary), options),
 		searchProducts: async (query, options) => {

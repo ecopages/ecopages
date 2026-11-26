@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CART_CHANGE_EVENT } from '../cart/cart-events';
+import { NAVIGATE_EVENT } from '../navigation';
 import { callAgentTool, hasModelContext } from './agent-tool-client';
 
 type Captured = { url: string; init: RequestInit };
@@ -8,8 +9,8 @@ function stubPage(pathname: string, body: unknown) {
 	const captured: Captured[] = [];
 	const events: Array<{ type: string; detail: unknown }> = [];
 	const assign = vi.fn();
-	const reload = vi.fn();
-	vi.stubGlobal('location', { pathname, assign, reload });
+	const replace = vi.fn();
+	vi.stubGlobal('location', { pathname, href: `https://shop.test${pathname}`, assign, replace });
 	vi.stubGlobal('window', {
 		dispatchEvent: (event: CustomEvent) => {
 			events.push({ type: event.type, detail: event.detail });
@@ -23,7 +24,7 @@ function stubPage(pathname: string, body: unknown) {
 			return Response.json(body);
 		}),
 	);
-	return { captured, events, assign, reload };
+	return { captured, events, assign, replace };
 }
 
 afterEach(() => {
@@ -71,12 +72,15 @@ describe('callAgentTool', () => {
 
 		await callAgentTool('browse_store', { collection: 'home', navigate: true }, new AbortController().signal);
 
-		expect(page.assign).not.toHaveBeenCalled();
+		expect(page.events).toEqual([]);
 		vi.runAllTimers();
+		expect(page.events).toEqual([
+			{ type: NAVIGATE_EVENT, detail: { href: 'https://shop.test/collections/home', replace: undefined } },
+		]);
 		expect(page.assign).toHaveBeenCalledWith('https://shop.test/collections/home');
 	});
 
-	it('refreshes the cart page after a cart change', async () => {
+	it('opens the cart page again after a cart change', async () => {
 		vi.useFakeTimers();
 		const page = stubPage('/cart', {
 			result: { content: [{ type: 'text', text: 'ok' }], structuredContent: {} },
@@ -86,7 +90,11 @@ describe('callAgentTool', () => {
 		await callAgentTool('cancel_cart', {}, new AbortController().signal);
 		vi.runAllTimers();
 
-		expect(page.reload).toHaveBeenCalledOnce();
+		expect(page.events.at(-1)).toEqual({
+			type: NAVIGATE_EVENT,
+			detail: { href: 'https://shop.test/cart', replace: true },
+		});
+		expect(page.replace).toHaveBeenCalledWith('https://shop.test/cart');
 	});
 
 	it('leaves the cart page alone when a call changes nothing', async () => {
@@ -96,7 +104,7 @@ describe('callAgentTool', () => {
 		await callAgentTool('get_cart', {}, new AbortController().signal);
 		vi.runAllTimers();
 
-		expect(page.reload).not.toHaveBeenCalled();
+		expect(page.replace).not.toHaveBeenCalled();
 		expect(page.events).toEqual([]);
 	});
 

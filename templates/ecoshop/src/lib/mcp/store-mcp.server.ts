@@ -30,7 +30,8 @@ export function createStoreMcpServer({ provider, origin }: StoreMcpOptions): Mcp
 	);
 
 	for (const tool of storeTools.filter((entry) => entry.surfaces.includes('mcp'))) {
-		const { idempotentHint, readOnlyHint, destructiveHint = false } = tool.annotations;
+		const { idempotentHint, destructiveHint = false } = tool.annotations;
+		const readOnlyHint = tool.readOnlyOverMcp ?? tool.annotations.readOnlyHint;
 		server.registerTool(
 			tool.name,
 			{

@@ -57,6 +57,20 @@ export async function handleAgentToolCall(
 			subtotal: outcome.cart.totalQuantity > 0 ? formatMoney(outcome.cart.subtotal) : null,
 		};
 	}
-	if (outcome.navigateTo) body.navigateTo = outcome.navigateTo;
+	if (outcome.navigateTo) body.navigateTo = pathOnThisSite(outcome.navigateTo);
 	return Response.json(body, { headers });
+}
+
+/**
+ * Shortens a URL on {@link siteOrigin} to its path, so the page opens it on the host that serves it.
+ *
+ * @remarks
+ * Results carry absolute URLs for the agent, but a preview deployment or a test server is not on the configured
+ * origin, and the browser router opens only same-origin pages without a full load. A checkout on another host, such
+ * as Shopify's, stays absolute.
+ */
+function pathOnThisSite(url: string): string {
+	const target = new URL(url);
+	if (target.origin !== new URL(siteOrigin).origin) return url;
+	return `${target.pathname}${target.search}${target.hash}`;
 }

@@ -95,6 +95,62 @@ test.describe('ecoshop WebMCP tools', () => {
 		});
 	});
 
+	/**
+	 * @remarks
+	 * The first visit loads the product page in full: the dev server reloads open pages when a page first imports a
+	 * package it has not bundled yet, which would otherwise break the client navigation under test.
+	 */
+	test('after an agent adds to the cart, the cart page a client navigation opens shows the line', async ({
+		page,
+	}) => {
+		await page.goto('/products/field-shirt');
+		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
+		await page.goto('/cart');
+		await expect(page.locator('.cart-line')).toHaveCount(0);
+		await page.evaluate(() => Object.assign(window, { __samePage: true }));
+		await page.locator('a[href="/"]').first().click();
+		await page.locator('.product-card__link[href="/products/field-shirt"]').click();
+		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
+
+		await execute(page, 'add_to_cart', { item: { id: fieldShirtM }, quantity: 2 });
+		await expect(page.getByText('Your assistant added this to your cart', { exact: true })).toBeVisible();
+
+		await page.locator('.cart-link').click();
+		await expect(page).toHaveURL(/\/cart$/u);
+		await expect(page.locator('.cart-line')).toHaveCount(1);
+		await expect(page.locator('.cart-line input[type="number"]')).toHaveValue('2');
+		expect(await page.evaluate(() => (window as unknown as { __samePage?: boolean }).__samePage)).toBe(true);
+	});
+
+	test('a tool that opens a page goes through the router and keeps the tools registered', async ({ page }) => {
+		await page.goto('/products/field-shirt');
+		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
+		await page.evaluate(() => Object.assign(window, { __samePage: true }));
+
+		const result = await execute(page, 'browse_store', { collection: 'apparel', navigate: true });
+
+		expect(result.isError).toBeFalsy();
+		await expect(page).toHaveURL(/\/collections\/apparel$/u);
+		await expect.poll(() => toolNames(page)).not.toContain('add_to_cart');
+		expect(await toolNames(page)).toContain('search_catalog');
+		expect(await page.evaluate(() => (window as unknown as { __samePage?: boolean }).__samePage)).toBe(true);
+	});
+
+	test('an agent that empties the cart while the cart page is open refreshes it in place', async ({ page }) => {
+		await page.goto('/products/field-shirt');
+		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
+		await execute(page, 'add_to_cart', { item: { id: fieldShirtM }, quantity: 1 });
+		await page.locator('.cart-link').click();
+		await expect(page.locator('.cart-line')).toHaveCount(1);
+		await page.evaluate(() => Object.assign(window, { __samePage: true }));
+		const cart = await execute(page, 'get_cart', {});
+
+		await execute(page, 'cancel_cart', { id: cart.structuredContent.id });
+
+		await expect(page.locator('.cart-line')).toHaveCount(0);
+		expect(await page.evaluate(() => (window as unknown as { __samePage?: boolean }).__samePage)).toBe(true);
+	});
+
 	test('page tools follow a client navigation from a product page to the cart', async ({ page }) => {
 		await page.goto('/products/field-shirt');
 		await expect.poll(() => toolNames(page)).toContain('add_to_cart');

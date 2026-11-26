@@ -78,6 +78,15 @@ describe('store MCP server', () => {
 		]);
 	});
 
+	it('marks tools whose only change is opening a page as read-only over /mcp', async () => {
+		const { tools } = await client.listTools();
+		const hints = Object.fromEntries(tools.map((tool) => [tool.name, tool.annotations]));
+
+		expect(hints.browse_store).toMatchObject({ readOnlyHint: true });
+		expect(hints.get_product).toMatchObject({ readOnlyHint: true });
+		expect(hints.cancel_cart).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+	});
+
 	it('searches the catalog', async () => {
 		const result = await callTool('search_catalog', { catalog: { query: 'shirt' } });
 

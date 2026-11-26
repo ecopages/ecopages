@@ -30,18 +30,22 @@ Set both Shopify variables or neither: with one alone, `pnpm build` fails and ev
 
 Checkout is Shopify's own: the cart links to the cart's `checkoutUrl`.
 
+Setting the quantities of an existing cart (the cart page, `update_cart`, `cancel_cart`) reads the cart and the stock of the variants it keeps in one request, refuses a sold-out variant before writing, then writes the additions, and the updates and removals together, in one request each. Shopify runs every field of a mutation even after one fails, so the additions go first and alone: a refused addition changes nothing. Any addition Shopify accepts but holds none of, because of a stock warning, is refused.
+
 ## Revalidation webhook
 
-Catalog pages use `cache: { revalidate: 300, tags }`: the home and collection pages carry the `products` and `collections` tags, product pages `products`. `POST /api/revalidate` verifies Shopify's `X-Shopify-Hmac-Sha256` signature and invalidates the tags for the topic:
+Catalog pages use `cache: { revalidate: 300, tags }`: the home and collection pages carry the `products` and `collections` tags, product pages `products`, and policy pages `policies`. `POST /api/revalidate` verifies Shopify's `X-Shopify-Hmac-Sha256` signature and invalidates the tags for the topic:
 
-| Topics                                   | Tag invalidated |
-| ---------------------------------------- | --------------- |
-| `products/*`, `product_listings/*`       | `products`      |
-| `collections/*`, `collection_listings/*` | `collections`   |
+| Topics                                    | Tag invalidated           |
+| ----------------------------------------- | ------------------------- |
+| `products/*`, `product_listings/*`        | `products`                |
+| `inventory_levels/*`, `inventory_items/*` | `products`                |
+| `collections/*`, `collection_listings/*`  | `collections`             |
+| `shop/update`                             | `collections`, `policies` |
 
-In Shopify admin, under **Settings > Notifications > Webhooks** (or in your app's configuration), subscribe the `products/create`, `products/update`, `products/delete` and matching `collections/*` topics to `https://<your-domain>/api/revalidate` in JSON format, and set `SHOPIFY_WEBHOOK_SECRET` to the signing secret shown there. A request with a missing or wrong signature gets `401`.
+In Shopify admin, under **Settings > Notifications > Webhooks** (or in your app's configuration), subscribe the `products/*`, `collections/*`, `inventory_levels/update` and `shop/update` topics to `https://<your-domain>/api/revalidate` in JSON format, and set `SHOPIFY_WEBHOOK_SECRET` to the signing secret shown there. A request with a missing or wrong signature gets `401`.
 
-A tag names a kind of data, not one product, since a Page's Cache Strategy is the same for all its Params; an update re-renders every product page on its next request. Without a webhook, pages still refresh every 5 minutes. A stock change that Shopify reports only through `inventory_levels/*` is not mapped: availability on cached pages then follows that 5-minute window, while the cart and checkout always read live stock.
+A tag names a kind of data, not one product, since a Page's Cache Strategy is the same for all its Params; an update re-renders every product page on its next request. A stock change names an inventory item, not a product, so it re-renders every product page too. Shopify sends no webhook for a policy edit: `shop/update`, sent when the shop's settings change, re-renders the policy pages and the home page, and an edited policy otherwise shows within 5 minutes. Without a webhook, pages still refresh every 5 minutes.
 
 ## For agents
 
@@ -79,7 +83,7 @@ Over `/mcp` there is no shopper session, so `get_cart`, `update_cart`, `cancel_c
 [WebMCP](https://webmachinelearning.github.io/webmcp) lets a page offer tools to an agent running in the visitor's browser, so the agent acts in the visitor's session and the visible page instead of clicking through the DOM. This template follows the W3C Web Machine Learning Community Group draft at [webmachinelearning/webmcp@47e2b99](https://github.com/webmachinelearning/webmcp/tree/47e2b993ea9fd0599ffca3f58588eb3fd5f474f2) (2026-11-24): the entry point is `document.modelContext`, a tool is registered with `registerTool(tool, { signal })` and removed when its signal aborts.
 
 - **Registration.** Radiant hosts own the tools, through `createAgentTool` from `@ecopages/radiant`: `<store-agent-tools>` in the layout registers the storefront set and persists across client navigations, and the product form's `<cart-form>` registers `add_to_cart` while it is on the page. A client navigation away from a product page unregisters `add_to_cart`.
-- **Execution.** Each call runs on the server through `POST /api/agent-tools/<name>`, which validates the input against the shared schema, uses the cart cookie and the same provider as the pages. Input that fails the schema returns a tool error naming the field and changes nothing. A cart change updates the header count and shows a toast before the tool returns.
+- **Execution.** Each call runs on the server through `POST /api/agent-tools/<name>`, which validates the input against the shared schema, uses the cart cookie and the same provider as the pages. Input that fails the schema returns a tool error naming the field and changes nothing. A cart change updates the header count and shows a toast before the tool returns. A tool that opens a page of the store (`browse_store`, `get_product` and `show_variant` with `navigate`, the demo checkout) returns its result first, then opens the page through the browser router, so the storefront tools stay registered; the cart page fetches fresh after a cart change.
 - **Result size.** `search_catalog`, `get_product` and a full `browse_store` page can return more than the 1,500 characters Chrome recommends for a tool result, as Shopify's tools do; Radiant logs a warning once in development.
 - **Feature detection.** Where `document.modelContext` is missing nothing happens: no request, no registration, no log. No polyfill is bundled. To try the tools in a browser without WebMCP, load the [`@w3c/webmcp-polyfill`](https://www.npmjs.com/package/@w3c/webmcp-polyfill) in a local script, or inspect them with an extension that implements `document.modelContext`.
 - **Browser support** (November 2026): an origin trial in Chrome 149 and Edge 150, and `chrome://flags/#enable-webmcp-testing` for local development. Firefox and Safari have open standards positions. See the [implementation status](https://github.com/webmachinelearning/webmcp/blob/main/implementation-status.md).
@@ -160,7 +164,7 @@ pnpm start       # builds, then serves pages, endpoints and the MCP server
 
 `ecopages preview` serves only the static output, without endpoints; use `pnpm start` to try the cart and `/mcp` on a build. Rebrand by changing the seed colors at the top of `src/styles/tailwind.css` and the catalog in `src/lib/commerce/demo/catalog.ts`.
 
-In the Ecopages repository, the `template-ecoshop-dev-e2e` Playwright project covers the WebMCP tools end to end with a stand-in `document.modelContext`, and the cart without JavaScript.
+In the Ecopages repository, the `template-ecoshop-dev-e2e` Playwright project covers the WebMCP tools end to end with a stand-in `document.modelContext`, and the cart without JavaScript; `template-ecoshop-start-e2e` requests `/llms.txt`, `/api/cart`, `/mcp` and a signed `/api/revalidate` from a built store.
 
 The storefront's agent surfaces were inspired by [vercel/shop](https://github.com/vercel/shop).
 

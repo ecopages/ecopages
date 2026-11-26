@@ -91,6 +91,15 @@ describe('demo provider cart', () => {
 		);
 	});
 
+	it('refuses a variant listed twice when setting quantities', async () => {
+		await expect(
+			provider.setCartQuantities(undefined, [
+				{ variantId: fieldShirtM, quantity: 60 },
+				{ variantId: fieldShirtM, quantity: 60 },
+			]),
+		).rejects.toThrow(/listed twice/u);
+	});
+
 	it('treats a tampered cart id as no cart', async () => {
 		const forge = (entries: unknown) => `demo-cart.${Buffer.from(JSON.stringify(entries)).toString('base64url')}`;
 

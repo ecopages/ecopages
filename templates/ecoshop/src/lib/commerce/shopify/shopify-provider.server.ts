@@ -20,11 +20,12 @@ import {
 } from './normalize';
 import {
 	CART_CREATE_MUTATION,
-	CART_LINES_ADD_MUTATION,
 	CART_LINES_QUERY,
-	CART_LINES_REMOVE_MUTATION,
-	CART_LINES_UPDATE_MUTATION,
 	CART_QUERY,
+	CART_STATE_QUERY,
+	CART_CHANGE_FIELDS,
+	type CartChangeField,
+	cartChangeMutation,
 	COLLECTION_QUERY,
 	COLLECTIONS_QUERY,
 	PRODUCT_BY_ID_QUERY,
@@ -44,7 +45,46 @@ type CartMutationResult = {
 	warnings: Array<{ code: string; message: string }>;
 };
 
+type CartLineInput = { merchandiseId: string; quantity: number };
+
+/**
+ * Line changes, named by the variables of `cartChangeMutation`.
+ */
+type CartChange = { add: CartLineInput[]; update: Array<{ id: string; quantity: number }>; remove: string[] };
+
+/**
+ * The line changes that make a cart hold `lines`. A line already at its quantity is left alone.
+ */
+function planCartChange(cart: Cart, lines: CartLineQuantity[]): CartChange {
+	const remove: string[] = [];
+	const update: CartChange['update'] = [];
+	const add: CartLineInput[] = [];
+	for (const { variantId, quantity } of lines) {
+		const [first, ...duplicates] = cart.lines.filter((line) => line.variantId === variantId);
+		remove.push(...duplicates.map((line) => line.id));
+		if (!first) {
+			if (quantity > 0) add.push({ merchandiseId: variantId, quantity });
+		} else if (quantity === 0) remove.push(first.id);
+		else if (quantity !== first.quantity) update.push({ id: first.id, quantity });
+	}
+	return { add, update, remove };
+}
+
+/**
+ * How many of each added variant `cart` holds before the addition.
+ */
+function heldBefore(cart: Cart | null, add: CartLineInput[] = []): Map<string, number> {
+	const lines = cart?.lines ?? [];
+	return new Map(
+		add.map(({ merchandiseId }) => [
+			merchandiseId,
+			lines.filter((line) => line.variantId === merchandiseId).reduce((sum, line) => sum + line.quantity, 0),
+		]),
+	);
+}
+
 const CART_ID_PREFIX = 'gid://shopify/Cart/';
+
 const PRODUCT_ID_PREFIX = 'gid://shopify/Product/';
 
 type ShopifyPolicy = { handle: string; title: string; body: string };
@@ -111,11 +151,13 @@ function assertVariantIds(lines: CartLineQuantity[]): void {
  *
  * @remarks
  * An addition counts what `existing` already holds of the variant plus every requested entry for it, so repeating a
- * variant in one call cannot pass the cap. A set replaces the quantity, so each entry is checked on its own.
+ * variant in one call cannot pass the cap. A set replaces the quantity, so each entry is checked on its own, and a
+ * variant listed twice is refused, since Shopify would add the two entries up.
  */
 function assertWithinCap(lines: CartLineQuantity[], existing: Cart | null, mode: 'add' | 'set'): void {
 	const totals = new Map<string, number>();
 	for (const { variantId, quantity } of lines) {
+		if (mode === 'set' && totals.has(variantId)) throw new CartInputError(`${variantId} is listed twice.`);
 		const base =
 			mode === 'set'
 				? 0
@@ -135,9 +177,11 @@ function assertWithinCap(lines: CartLineQuantity[], existing: Cart | null, mode:
  * A commerce provider over the Shopify Storefront API.
  *
  * @remarks
- * `setCartQuantities` runs up to three cart mutations, because the Storefront API has no transaction: additions first,
- * then updates, then removals. An addition is the change most likely to be refused (an unknown or sold-out variant), so
- * a refused replacement leaves the existing lines in the cart.
+ * `setCartQuantities` on an existing cart reads it and the stock of every variant it keeps in one request, refuses a
+ * sold-out or unknown variant it would add before anything changes, then writes in at most two requests (see
+ * `changeCart`). A new cart is created in one request, refused afterwards when Shopify added nothing. `addToCart` reads
+ * the cart first for the line cap of 99. The Storefront API has no transaction or conditional write, so a change made
+ * elsewhere between the read and the write is not seen.
  */
 export function createShopifyProvider(options: StorefrontClientOptions): CommerceProvider {
 	const query = createStorefrontClient(options);
@@ -171,20 +215,96 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 		return toCart({ ...cart, lines: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } });
 	}
 
-	async function mutateCart(document: string, operation: string, variables: Record<string, unknown>): Promise<Cart> {
+	/**
+	 * Runs a cart mutation and refuses it when Shopify did: `userErrors` in any of its fields, or an added variant the
+	 * cart holds no more of than it did `before`.
+	 *
+	 * @remarks
+	 * Since API 2024-07 a sold-out variant comes back as a `warnings` entry, not a user error, and the cart holds no
+	 * more of it. A warning can also be about another line already in the cart, so only an addition that added nothing
+	 * refuses the change; the warnings explain why.
+	 */
+	async function runCartMutation(
+		document: string,
+		variables: Record<string, unknown>,
+		fields: readonly string[],
+		before: Map<string, number>,
+	): Promise<Cart> {
 		const data = await query<Record<string, CartMutationResult>>(document, variables);
-		const result = data[operation];
-		const refusals = [
-			...(result?.userErrors ?? []),
-			...(result?.warnings ?? []).filter((warning) => warning.code === 'MERCHANDISE_OUT_OF_STOCK'),
-		];
-		if (refusals.length) {
-			throw new CartInputError(refusals.map((problem) => problem.message).join('; '));
+		const results = fields.map((field) => data[field]);
+		const userErrors = results.flatMap((result) => result?.userErrors ?? []);
+		if (userErrors.length) throw new CartInputError(userErrors.map((problem) => problem.message).join('; '));
+		const last = results.at(-1)?.cart;
+		if (!last) throw new CommerceBackendError(`${fields.join(', ')} returned no cart`);
+		const cart = await completeCart(last);
+		const missing = [...before]
+			.filter(
+				([variantId, held]) =>
+					cart.lines
+						.filter((line) => line.variantId === variantId)
+						.reduce((sum, line) => sum + line.quantity, 0) <= held,
+			)
+			.map(([variantId]) => variantId);
+		if (missing.length) {
+			const reasons = results.flatMap((result) => result?.warnings ?? []).map((warning) => warning.message);
+			throw new CartInputError(reasons.length ? reasons.join('; ') : `Could not add ${missing.join(', ')}.`);
 		}
-		if (!result?.cart) {
-			throw new CommerceBackendError(`${operation} returned no cart`);
+		return cart;
+	}
+
+	/**
+	 * Reads a cart and which of `variants` are on sale. An id that is not a Shopify cart is no cart.
+	 */
+	async function readCartState(
+		cartId: string | undefined,
+		variants: string[],
+	): Promise<{ cart: Cart | null; unavailable: string[] }> {
+		if (!cartId?.startsWith(CART_ID_PREFIX)) return { cart: null, unavailable: [] };
+		const data = await query<{
+			cart: ShopifyCart | null;
+			variants: Array<{ id?: string; availableForSale?: boolean } | null>;
+		}>(CART_STATE_QUERY, { id: cartId, variants });
+		const onSale = new Set(
+			data.variants.flatMap((variant) => (variant?.id && variant.availableForSale ? [variant.id] : [])),
+		);
+		return {
+			cart: data.cart ? await completeCart(data.cart) : null,
+			unavailable: variants.filter((variantId) => !onSale.has(variantId)),
+		};
+	}
+
+	function sendCartChange(cart: Cart, change: Partial<CartChange>): Promise<Cart> {
+		const names = CART_CHANGE_FIELDS.map((entry) => entry.name).filter(
+			(name: CartChangeField) => (change[name]?.length ?? 0) > 0,
+		);
+		const variables = Object.fromEntries(names.map((name) => [name, change[name]]));
+		return runCartMutation(
+			cartChangeMutation(names),
+			{ cartId: cart.id, ...variables },
+			names,
+			heldBefore(cart, change.add),
+		);
+	}
+
+	/**
+	 * Applies a change in at most two requests: the additions, then the updates and removals together.
+	 *
+	 * @remarks
+	 * Shopify runs every field of a mutation even after one reports an error, so a refused addition sent with the
+	 * removals would still remove lines. Sent first and alone, a refused addition changes nothing. A refusal of the
+	 * second request comes after the additions are in the cart, and its message says so.
+	 */
+	async function changeCart(cart: Cart, { add, update, remove }: CartChange): Promise<Cart> {
+		const added = add.length ? await sendCartChange(cart, { add }) : cart;
+		if (!update.length && !remove.length) return added;
+		try {
+			return await sendCartChange(added, { update, remove });
+		} catch (error) {
+			if (!add.length || !(error instanceof CartInputError)) throw error;
+			throw new CartInputError(
+				`${error.message} The new items were added to the cart, and other lines may have changed.`,
+			);
 		}
-		return completeCart(result.cart);
 	}
 
 	/**
@@ -198,15 +318,14 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 		return data.cart ? completeCart(data.cart) : null;
 	}
 
-	const createCart = (lines: CartLineQuantity[]) =>
-		mutateCart(CART_CREATE_MUTATION, 'cartCreate', {
-			lines: lines
-				.filter((line) => line.quantity > 0)
-				.map((line) => ({ merchandiseId: line.variantId, quantity: line.quantity })),
-		});
+	const createCart = (lines: CartLineQuantity[]) => {
+		const add = lines
+			.filter((line) => line.quantity > 0)
+			.map((line) => ({ merchandiseId: line.variantId, quantity: line.quantity }));
+		return runCartMutation(CART_CREATE_MUTATION, { lines: add }, ['cartCreate'], heldBefore(null, add));
+	};
 
 	return {
-		kind: 'shopify',
 		getStore: async () => {
 			const data = await query<{ shop: { name: string; description: string | null } }>(SHOP_QUERY);
 			return { name: data.shop.name, description: data.shop.description ?? '' };
@@ -270,48 +389,28 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 		getCart,
 		addToCart: async (cartId, lines) => {
 			assertVariantIds(lines);
-			const existing = cartId ? await getCart(cartId) : null;
-			assertWithinCap(lines, existing, 'add');
-			if (!existing) return createCart(lines);
-			return mutateCart(CART_LINES_ADD_MUTATION, 'cartLinesAdd', {
-				cartId: existing.id,
-				lines: lines.map((line) => ({ merchandiseId: line.variantId, quantity: line.quantity })),
+			const cart = cartId ? await getCart(cartId) : null;
+			assertWithinCap(lines, cart, 'add');
+			if (!cart) return createCart(lines);
+			return sendCartChange(cart, {
+				add: lines.map((line) => ({ merchandiseId: line.variantId, quantity: line.quantity })),
 			});
 		},
 		setCartQuantities: async (cartId, lines) => {
 			assertVariantIds(lines);
 			assertWithinCap(lines, null, 'set');
-			const existing = cartId ? await getCart(cartId) : null;
-			if (!existing) return createCart(lines);
+			const wanted = lines.filter((line) => line.quantity > 0).map((line) => line.variantId);
+			const { cart, unavailable } = await readCartState(cartId, wanted);
+			if (!cart) return createCart(lines);
 
-			const removals: string[] = [];
-			const updates: Array<{ id: string; quantity: number }> = [];
-			const additions: Array<{ merchandiseId: string; quantity: number }> = [];
-			for (const { variantId, quantity } of lines) {
-				const [first, ...duplicates] = existing.lines.filter((line) => line.variantId === variantId);
-				removals.push(...duplicates.map((line) => line.id));
-				if (first && quantity === 0) removals.push(first.id);
-				else if (first) updates.push({ id: first.id, quantity });
-				else if (quantity > 0) additions.push({ merchandiseId: variantId, quantity });
+			const change = planCartChange(cart, lines);
+			const refused = change.add.filter((line) => unavailable.includes(line.merchandiseId));
+			if (refused.length) {
+				throw new CartInputError(
+					`These variants are sold out or do not exist: ${refused.map((line) => line.merchandiseId).join(', ')}.`,
+				);
 			}
-
-			let cart = existing;
-			if (additions.length) {
-				cart = await mutateCart(CART_LINES_ADD_MUTATION, 'cartLinesAdd', { cartId: cart.id, lines: additions });
-			}
-			if (updates.length) {
-				cart = await mutateCart(CART_LINES_UPDATE_MUTATION, 'cartLinesUpdate', {
-					cartId: cart.id,
-					lines: updates,
-				});
-			}
-			if (removals.length) {
-				cart = await mutateCart(CART_LINES_REMOVE_MUTATION, 'cartLinesRemove', {
-					cartId: cart.id,
-					lineIds: removals,
-				});
-			}
-			return cart;
+			return changeCart(cart, change);
 		},
 	};
 }

@@ -33,13 +33,33 @@ export function verifyShopifyHmac(rawBody: Uint8Array, signature: string | null,
 }
 
 /**
+ * The cache tags each resource's topics affect. Stock changes come as `inventory_levels/*` and `inventory_items/*`,
+ * which name an inventory item, not a product, so they invalidate every page tagged `products`.
+ */
+const TAGS_BY_RESOURCE = new Map<string, string[]>([
+	['products', [CACHE_TAGS.products]],
+	['product_listings', [CACHE_TAGS.products]],
+	['inventory_levels', [CACHE_TAGS.products]],
+	['inventory_items', [CACHE_TAGS.products]],
+	['collections', [CACHE_TAGS.collections]],
+	['collection_listings', [CACHE_TAGS.collections]],
+]);
+
+/**
+ * Topics whose tags differ from their resource's.
+ *
+ * @remarks
+ * Shopify has no webhook topic for a policy edit. `shop/update` ("occurs whenever a shop is updated") is the
+ * closest: it re-renders the policy pages, and the home page through `collections`, which shows the shop's name and
+ * description.
+ */
+const TAGS_BY_TOPIC = new Map<string, string[]>([['shop/update', [CACHE_TAGS.collections, CACHE_TAGS.policies]]]);
+
+/**
  * The cache tags a webhook topic affects. Topics outside the catalog affect none.
  */
 export function tagsForTopic(topic: string): string[] {
-	const resource = topic.split('/')[0];
-	if (resource === 'products' || resource === 'product_listings') return [CACHE_TAGS.products];
-	if (resource === 'collections' || resource === 'collection_listings') return [CACHE_TAGS.collections];
-	return [];
+	return TAGS_BY_TOPIC.get(topic) ?? TAGS_BY_RESOURCE.get(topic.split('/')[0] ?? '') ?? [];
 }
 
 /**

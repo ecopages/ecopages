@@ -1,5 +1,6 @@
 import { CART_CHANGE_EVENT, type CartTotals } from '../cart/cart-events';
-import { storePaths } from '../store-urls';
+import { navigateTo as navigate } from '../navigation';
+import { productHandleFromPath, storePaths } from '../store-urls';
 import type { AgentToolResponse, StoreToolDescriptor, StoreToolResult } from './agent-tool-types';
 
 /**
@@ -32,11 +33,10 @@ export function loadAgentToolDescriptors(): Promise<StoreToolDescriptor[]> {
 }
 
 /**
- * The handle of the product page the shopper is on, which `get_product`, `show_variant` and `add_to_cart` act on.
+ * The cart totals as a toast describes them, such as "2 item(s) in your cart, $136.00".
  */
-function currentProductHandle(): string | null {
-	const match = /^\/products\/([^/]+)\/?$/u.exec(location.pathname);
-	return match ? decodeURIComponent(match[1] ?? '') : null;
+export function describeCartTotals(totals: CartTotals): string {
+	return `${totals.totalQuantity} item(s) in your cart${totals.subtotal ? `, ${totals.subtotal}` : ''}`;
 }
 
 export interface AgentToolCallHooks {
@@ -49,9 +49,10 @@ export interface AgentToolCallHooks {
  *
  * @remarks
  * The header count follows a cart change before the result is returned, as WebMCP asks. A tool that opens another
- * page, or changes the cart while the cart page is open, returns its result first and then navigates, so the agent
- * receives it. A server error rejects, which reaches the agent as a tool error; input the schema refuses comes back
- * as a result with `isError`, naming the field, and changes nothing.
+ * page, or changes the cart while the cart page is open, returns its result first and then calls `navigateTo`, so
+ * the agent receives it; a page of this site opens through the browser router and the persisted hosts stay
+ * connected. A server error rejects, which reaches the agent as a tool error; input the schema refuses comes back as
+ * a result with `isError`, naming the field, and changes nothing.
  */
 export async function callAgentTool(
 	name: string,
@@ -59,7 +60,7 @@ export async function callAgentTool(
 	signal: AbortSignal,
 	hooks: AgentToolCallHooks = {},
 ): Promise<StoreToolResult> {
-	const product = currentProductHandle();
+	const product = productHandleFromPath(location.pathname);
 	const url = `${storePaths.agentTool(name)}${product ? `?product=${encodeURIComponent(product)}` : ''}`;
 	const response = await fetch(url, {
 		method: 'POST',
@@ -74,10 +75,9 @@ export async function callAgentTool(
 		window.dispatchEvent(new CustomEvent<CartTotals>(CART_CHANGE_EVENT, { detail: cart }));
 		hooks.onCartChange?.(cart, result);
 	}
-	const reloadCart = Boolean(cart) && location.pathname === storePaths.cart;
-	if (navigateTo || reloadCart) {
-		setTimeout(() => (navigateTo ? location.assign(navigateTo) : location.reload()), 0);
-	}
+	const refreshCart = Boolean(cart) && location.pathname === storePaths.cart;
+	if (navigateTo) setTimeout(() => navigate(navigateTo), 0);
+	else if (refreshCart) setTimeout(() => navigate(location.href, { replace: true }), 0);
 	return result;
 }
 

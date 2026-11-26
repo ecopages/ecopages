@@ -166,9 +166,12 @@ const CART = /* GraphQL */ `
 	${IMAGE}
 `;
 
-const CART_RESULT = /* GraphQL */ `
+/**
+ * The payload selection of a cart mutation, with `cartSelection` for its cart.
+ */
+const cartResult = (cartSelection: string) => /* GraphQL */ `
 	cart {
-		...CartFields
+		${cartSelection}
 	}
 	userErrors {
 		field
@@ -179,6 +182,8 @@ const CART_RESULT = /* GraphQL */ `
 		message
 	}
 `;
+
+const CART_RESULT = cartResult('...CartFields');
 
 export const SHOP_QUERY = /* GraphQL */ `
 	query Shop {
@@ -327,29 +332,51 @@ export const CART_CREATE_MUTATION = /* GraphQL */ `
 	${CART}
 `;
 
-export const CART_LINES_ADD_MUTATION = /* GraphQL */ `
-	mutation CartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
-		cartLinesAdd(cartId: $cartId, lines: $lines) {
-			${CART_RESULT}
+/**
+ * Reads a cart and whether variants it may add are on sale, in one request.
+ */
+export const CART_STATE_QUERY = /* GraphQL */ `
+	query CartState($id: ID!, $variants: [ID!]!) {
+		cart(id: $id) {
+			...CartFields
+		}
+		variants: nodes(ids: $variants) {
+			... on ProductVariant {
+				id
+				availableForSale
+			}
 		}
 	}
 	${CART}
 `;
 
-export const CART_LINES_UPDATE_MUTATION = /* GraphQL */ `
-	mutation CartLinesUpdate($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
-		cartLinesUpdate(cartId: $cartId, lines: $lines) {
-			${CART_RESULT}
-		}
-	}
-	${CART}
-`;
+/**
+ * The fields a `cartChangeMutation` request can carry, named by their variables. They run in this order, as GraphQL
+ * runs the fields of a mutation one after another.
+ */
+export const CART_CHANGE_FIELDS = [
+	{ name: 'add', variable: '$add: [CartLineInput!]!', field: 'cartLinesAdd(cartId: $cartId, lines: $add)' },
+	{
+		name: 'update',
+		variable: '$update: [CartLineUpdateInput!]!',
+		field: 'cartLinesUpdate(cartId: $cartId, lines: $update)',
+	},
+	{ name: 'remove', variable: '$remove: [ID!]!', field: 'cartLinesRemove(cartId: $cartId, lineIds: $remove)' },
+] as const;
 
-export const CART_LINES_REMOVE_MUTATION = /* GraphQL */ `
-	mutation CartLinesRemove($cartId: ID!, $lineIds: [ID!]!) {
-		cartLinesRemove(cartId: $cartId, lineIds: $lineIds) {
-			${CART_RESULT}
-		}
+export type CartChangeField = (typeof CART_CHANGE_FIELDS)[number]['name'];
+
+/**
+ * One mutation that applies the listed cart changes. Only the last field selects the whole cart, which is the cart
+ * after every change.
+ */
+export function cartChangeMutation(names: readonly CartChangeField[]): string {
+	const fields = CART_CHANGE_FIELDS.filter((entry) => names.includes(entry.name));
+	const selection = (index: number) => (index === fields.length - 1 ? CART_RESULT : cartResult('id'));
+	return /* GraphQL */ `
+	mutation CartChange($cartId: ID!, ${fields.map((entry) => entry.variable).join(', ')}) {
+		${fields.map((entry, index) => `${entry.name}: ${entry.field} {${selection(index)}}`).join('\n\t\t')}
 	}
 	${CART}
 `;
+}

@@ -7,18 +7,15 @@ import { CartLink } from '@/components/cart-count/cart-count';
 import { Logo } from '@/components/logo/logo';
 import { SearchForm } from '@/components/search-form';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { getCommerce } from '@/lib/commerce/provider.server';
-import { storePaths } from '@/lib/store-urls';
+import { usesDemoCatalog } from '@/lib/commerce/provider.server';
+import { POLICY_HANDLES, storePaths } from '@/lib/store-urls';
 import './store-layout.css';
 
-/**
- * Shopify's standard policy handles, which the demo catalog uses too.
- */
 const FOOTER_POLICIES: Array<[string, string]> = [
-	['shipping-policy', 'Shipping'],
-	['refund-policy', 'Returns'],
-	['privacy-policy', 'Privacy'],
-	['terms-of-service', 'Terms'],
+	[POLICY_HANDLES.shipping, 'Shipping'],
+	[POLICY_HANDLES.refund, 'Returns'],
+	[POLICY_HANDLES.privacy, 'Privacy'],
+	[POLICY_HANDLES.terms, 'Terms'],
 ];
 
 export const StoreLayout = eco.layout<JsxRenderable, LayoutProps<JsxRenderable>>({
@@ -41,7 +38,7 @@ export const StoreLayout = eco.layout<JsxRenderable, LayoutProps<JsxRenderable>>
 					</nav>
 				</div>
 			</header>
-			{getCommerce().kind === 'demo' ? (
+			{usesDemoCatalog() ? (
 				<div class="demo-banner">
 					<RuiAlert variant="info" layout="banner">
 						<RuiAlertDescription>

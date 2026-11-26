@@ -135,12 +135,18 @@ describe('store tools: catalog', () => {
 		});
 	});
 
-	it('accepts a product GID or URL path as the id', async () => {
+	it('accepts a product GID, URL path or Markdown URL as the id', async () => {
 		const byGid = await call('get_product', { catalog: { id: 'gid://ecoshop/Product/canvas-tote' } }, page());
 		const byPath = await call('get_product', { catalog: { id: '/products/canvas-tote' } }, page());
+		const byMarkdown = await call(
+			'get_product',
+			{ catalog: { id: `${ORIGIN}/products/canvas-tote/index.md` } },
+			page(),
+		);
 
 		expect(byGid.structured.handle).toBe('canvas-tote');
 		expect(byPath.structured.handle).toBe('canvas-tote');
+		expect(byMarkdown.structured.handle).toBe('canvas-tote');
 	});
 
 	it('shows a variant picked by a partial option selection', async () => {
@@ -172,6 +178,45 @@ describe('store tools: catalog', () => {
 });
 
 describe('store tools: the shopper cart on a page', () => {
+	it('empties a cart that holds two lines of one variant, listing the variant once', async () => {
+		const cartId = await cartWith([{ id: fieldShirtM, quantity: 2 }]);
+		const stored = await provider.getCart(cartId);
+		const doubled = { ...stored!, lines: [...stored!.lines, { ...stored!.lines[0]!, id: 'line-2' }] };
+		const sent: unknown[] = [];
+		const twoLines: CommerceProvider = {
+			...provider,
+			getCart: async () => doubled,
+			setCartQuantities: async (id, lines) => {
+				sent.push(lines);
+				return provider.setCartQuantities(id, lines);
+			},
+		};
+
+		const outcome = await call('cancel_cart', {}, { ...page(cartId), provider: twoLines });
+
+		expect(outcome.result.isError).toBeFalsy();
+		expect(sent).toEqual([[{ variantId: fieldShirtM, quantity: 0 }]]);
+	});
+
+	it('refuses a new cart that lists a variant twice', async () => {
+		const outcome = await call(
+			'create_cart',
+			{
+				cart: {
+					line_items: [
+						{ item: { id: fieldShirtM }, quantity: 60 },
+						{ item: { id: fieldShirtM }, quantity: 60 },
+					],
+				},
+			},
+			page(),
+		);
+
+		expect(outcome.result.isError).toBe(true);
+		expect(outcome.result.content[0]?.text).toContain(`lists ${fieldShirtM} twice`);
+		expect(outcome.cartId).toBeUndefined();
+	});
+
 	it('creates a cart only while the cart is empty', async () => {
 		const created = await call(
 			'create_cart',
@@ -255,6 +300,15 @@ describe('store tools: the shopper cart on a page', () => {
 		expect((outcome.structured as CartResult).line_items).toEqual([
 			expect.objectContaining({ quantity: 2, item: expect.objectContaining({ id: fieldShirtM }) }),
 		]);
+	});
+});
+
+describe('store tools: descriptors', () => {
+	it('marks add_to_cart as a product page tool and the rest as store tools', () => {
+		const scopes = Object.fromEntries(storeToolDescriptors('page').map((tool) => [tool.name, tool.scope]));
+
+		expect(scopes.add_to_cart).toBe('product');
+		expect(scopes.search_catalog).toBe('store');
 	});
 });
 
@@ -396,5 +450,19 @@ describe('store tools over /mcp: carts that do not exist', () => {
 
 		expect(outcome.navigateTo).toBeUndefined();
 		expect(outcome.structured).toMatchObject({ navigating_to: `${ORIGIN}/demo-checkout` });
+	});
+});
+
+describe('store tools: variant ids', () => {
+	it('accepts the numeric tail of a variant id in add_to_cart, as show_variant does', async () => {
+		const outcome = await call(
+			'add_to_cart',
+			{ item: { id: 'field-shirt-m' }, quantity: 1 },
+			page(undefined, 'field-shirt'),
+		);
+
+		expect((outcome.structured as CartResult).line_items).toEqual([
+			expect.objectContaining({ item: expect.objectContaining({ id: fieldShirtM }) }),
+		]);
 	});
 });

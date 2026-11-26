@@ -147,7 +147,6 @@ export interface ListOptions {
  * the provider: callers keep the id a mutation returns, since a provider may issue a new one.
  */
 export interface CommerceProvider {
-	readonly kind: 'shopify' | 'demo';
 	getStore(): Promise<StoreInfo>;
 	listProducts(options?: ListOptions): Promise<ProductSummary[]>;
 	searchProducts(query: string, options?: ListOptions): Promise<ProductSummary[]>;

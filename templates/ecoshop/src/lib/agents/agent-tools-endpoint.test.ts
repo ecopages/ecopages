@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readCartId } from '@/lib/cart/cart-cookie';
 import { createDemoProvider } from '@/lib/commerce/demo/demo-provider';
+import type { CommerceProvider } from '@/lib/commerce/types';
 import { siteOrigin } from '@/lib/site-origin';
 import { handleAgentToolCall, handleAgentToolList } from './agent-tools-endpoint.server';
 
@@ -68,10 +69,35 @@ describe('agent tools endpoint', () => {
 		expect(response.headers.get('set-cookie')).toBeNull();
 	});
 
-	it('tells the page where to navigate', async () => {
+	it('tells the page which path of this site to open, whatever host serves it', async () => {
 		const response = await call('browse_store', { collection: 'home', navigate: true });
 
-		expect(await response.json()).toMatchObject({ navigateTo: `${siteOrigin}/collections/home` });
+		const body = (await response.json()) as { navigateTo: string; result: { structuredContent: unknown } };
+		expect(body.navigateTo).toBe('/collections/home');
+		expect(body.result.structuredContent).toMatchObject({ url: `${siteOrigin}/collections/home` });
+	});
+
+	it("keeps the full URL of the provider's checkout", async () => {
+		const checkoutUrl = 'https://checkout.shop.test/cart/c/abc';
+		const offSite: CommerceProvider = {
+			...provider,
+			getCart: async (cartId) => {
+				const cart = await provider.getCart(cartId);
+				return cart && { ...cart, checkoutUrl };
+			},
+		};
+		const added = await call('create_cart', { cart: { line_items: [{ item: { id: fieldShirtM }, quantity: 1 }] } });
+		const response = await handleAgentToolCall(
+			new Request('https://shop.test/api/agent-tools/proceed_to_checkout', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', Cookie: cookieFrom(added) },
+				body: JSON.stringify({}),
+			}),
+			'proceed_to_checkout',
+			offSite,
+		);
+
+		expect(await response.json()).toMatchObject({ navigateTo: checkoutUrl });
 	});
 
 	it('refuses a call from another site', async () => {

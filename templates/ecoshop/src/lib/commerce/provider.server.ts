@@ -43,6 +43,13 @@ export function createCommerceProvider(env: CommerceEnv): CommerceProvider {
 	return config.kind === 'shopify' ? createShopifyProvider(config) : createDemoProvider();
 }
 
+/**
+ * Whether the store runs on the bundled demo catalog, which the layout announces with a banner.
+ */
+export function usesDemoCatalog(env: CommerceEnv = process.env): boolean {
+	return resolveCommerceConfig(env).kind === 'demo';
+}
+
 let provider: CommerceProvider | undefined;
 
 /**

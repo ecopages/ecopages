@@ -1,0 +1,70 @@
+{
+	"data": {
+		"product": {
+			"id": "gid://shopify/Product/8790000000001",
+			"handle": "harbor-jacket",
+			"title": "Harbor Jacket",
+			"vendor": "North Pier",
+			"availableForSale": true,
+			"priceRange": {
+				"minVariantPrice": { "amount": "149.0", "currencyCode": "EUR" },
+				"maxVariantPrice": { "amount": "159.0", "currencyCode": "EUR" }
+			},
+			"featuredImage": {
+				"url": "https://cdn.shopify.com/s/files/1/0000/0001/files/harbor-jacket.jpg?v=1",
+				"altText": "Harbor Jacket in navy",
+				"width": 1600,
+				"height": 2000
+			},
+			"description": "A waxed cotton jacket for wet harbour mornings.",
+			"productType": "Jackets",
+			"tags": ["outerwear", "waxed cotton"],
+			"options": [
+				{ "name": "Size", "optionValues": [{ "name": "M" }, { "name": "L" }] },
+				{ "name": "Color", "optionValues": [{ "name": "Navy" }] }
+			],
+			"variants": {
+				"nodes": [
+					{
+						"id": "gid://shopify/ProductVariant/4470000000001",
+						"title": "M / Navy",
+						"availableForSale": true,
+						"price": { "amount": "149.0", "currencyCode": "EUR" },
+						"compareAtPrice": null,
+						"selectedOptions": [
+							{ "name": "Size", "value": "M" },
+							{ "name": "Color", "value": "Navy" }
+						]
+					},
+					{
+						"id": "gid://shopify/ProductVariant/4470000000002",
+						"title": "L / Navy",
+						"availableForSale": false,
+						"price": { "amount": "159.0", "currencyCode": "EUR" },
+						"compareAtPrice": { "amount": "189.0", "currencyCode": "EUR" },
+						"selectedOptions": [
+							{ "name": "Size", "value": "L" },
+							{ "name": "Color", "value": "Navy" }
+						]
+					}
+				]
+			},
+			"images": {
+				"nodes": [
+					{
+						"url": "https://cdn.shopify.com/s/files/1/0000/0001/files/harbor-jacket.jpg?v=1",
+						"altText": "Harbor Jacket in navy",
+						"width": 1600,
+						"height": 2000
+					},
+					{
+						"url": "https://cdn.shopify.com/s/files/1/0000/0001/files/harbor-jacket-back.jpg?v=1",
+						"altText": null,
+						"width": 1600,
+						"height": 2000
+					}
+				]
+			}
+		}
+	}
+}

@@ -34,7 +34,7 @@ Four layers test Ecopages: Vitest in Node, Vitest in a real browser, Playwright 
 ```mermaid
 flowchart TD
   subgraph Layers
-    V["Vitest: shared-core, docs, docs-starter, llm-wiki"]
+    V["Vitest: shared-core, docs, docs-starter, llm-wiki, ecoshop"]
     B["Vitest browser project: *.test.browser.ts"]
     P["Playwright: *.test.e2e.ts against dev, preview and start servers"]
     S["Smoke scripts: build and start whole apps"]
@@ -76,14 +76,14 @@ flowchart TD
 
 ## Vitest
 
-`vitest.config.ts` at the root defines the projects. `pnpm run test:vitest` runs `shared-core`, `browser`, `docs`, `docs-starter` and `llm-wiki` with the browser headless; locally, Vitest uses half the cores so a commit hook leaves room for other checkouts.
+`vitest.config.ts` at the root defines the projects. `pnpm run test:vitest` runs `shared-core`, `browser`, `docs`, `docs-starter`, `llm-wiki` and `ecoshop` with the browser headless; locally, Vitest uses half the cores so a commit hook leaves room for other checkouts.
 
 | Project | Environment | What it holds |
 | --- | --- | --- |
 | `shared-core` | Node | Every `*.test.ts(x)` under `packages/core/src`, `codemod`, `ecopages`, `processors`, `integrations`, `file-system`, `react-router`, `dev-toolbar` and `__internals`, plus `scripts/`, `e2e/utils`, `e2e/playwright`, the `e2e/fixtures/*/*.test.ts` build-output tests and the kitchen-sink bench libraries. |
 | `browser` | Chromium through `@vitest/browser-playwright` | `*.test.browser.ts(x)` under `packages` and `apps`, and `templates/docs-starter`. The router packages (`browser-router`, `react-router`) test DOM behavior here. |
 | `docs` | Node | `apps/docs` scripts, lib and includes, with its own `@` alias and the Ecopages JSX runtime. |
-| `docs-starter`, `llm-wiki` | Node | The tests of those two templates, each with its own config. |
+| `docs-starter`, `llm-wiki`, `ecoshop` | Node | The tests of those three templates, each with its own config. |
 
 `packages/file-system` also has its own `pnpm test`, which runs the `shared-core` project filtered to that package. The Electrobun template has a `vitest.config.ts` with a `server` and a `browser` project; it runs from `smoke:templates`, not from the root.
 

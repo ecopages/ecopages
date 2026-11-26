@@ -1,0 +1,37 @@
+{
+	"data": {
+		"products": {
+			"nodes": [
+				{
+					"id": "gid://shopify/Product/8790000000002",
+					"handle": "oxford-shirt",
+					"title": "Oxford Shirt",
+					"vendor": "North Pier",
+					"availableForSale": true,
+					"priceRange": {
+						"minVariantPrice": { "amount": "79.0", "currencyCode": "EUR" },
+						"maxVariantPrice": { "amount": "79.0", "currencyCode": "EUR" }
+					},
+					"featuredImage": null
+				},
+				{
+					"id": "gid://shopify/Product/8790000000003",
+					"handle": "deck-shirt",
+					"title": "Deck Shirt",
+					"vendor": "North Pier",
+					"availableForSale": false,
+					"priceRange": {
+						"minVariantPrice": { "amount": "65.5", "currencyCode": "EUR" },
+						"maxVariantPrice": { "amount": "69.5", "currencyCode": "EUR" }
+					},
+					"featuredImage": {
+						"url": "https://cdn.shopify.com/s/files/1/0000/0001/files/deck-shirt.jpg?v=1",
+						"altText": null,
+						"width": 1200,
+						"height": 1500
+					}
+				}
+			]
+		}
+	}
+}

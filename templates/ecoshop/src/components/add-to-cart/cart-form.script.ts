@@ -1,0 +1,70 @@
+import type { JsxCustomElementAttributes } from '@ecopages/jsx';
+import { RadiantElement, bindTo, customElement, onEvent, prop, state } from '@ecopages/radiant';
+import { CART_CHANGE_EVENT, type CartTotals } from '../../lib/cart/cart-events';
+
+type CartFormProps = {
+	/** Status text after a successful submit. */
+	success?: string;
+};
+
+/**
+ * Enhances the cart form it wraps: posts it with `fetch`, reports the result in place and tells the header count.
+ *
+ * @remarks
+ * The form inside is a complete, working form, so it posts and redirects normally before this script loads or
+ * when JavaScript is off. When `fetch` itself fails, the request never reached the server, so the host falls back
+ * to that native submit; any answer from the server, even an error page, is reported in place instead, so a change
+ * is never posted twice.
+ */
+@customElement('cart-form')
+export class CartForm extends RadiantElement {
+	@prop({ type: String, defaultValue: 'Cart updated.' })
+	success!: string;
+
+	@state
+	@bindTo<string>({ ref: 'status', text: true })
+	protected status = '';
+
+	@state
+	@bindTo<boolean>([
+		{ ref: 'submit', bool: 'disabled' },
+		{ ref: 'submit', attr: 'aria-busy', map: (pending) => (pending ? 'true' : null) },
+	])
+	protected pending = false;
+
+	@onEvent({ selector: 'form', type: 'submit' })
+	async onSubmit(event: SubmitEvent) {
+		const form = event.target;
+		if (!(form instanceof HTMLFormElement)) return;
+		event.preventDefault();
+		if (this.pending) return;
+		this.pending = true;
+		this.status = '';
+		let response: Response;
+		try {
+			response = await fetch(form.action, {
+				method: 'POST',
+				headers: { Accept: 'application/json' },
+				body: new FormData(form, event.submitter),
+			});
+		} catch {
+			this.pending = false;
+			form.submit();
+			return;
+		}
+		const result = (await response.json().catch(() => null)) as (CartTotals & { error?: string }) | null;
+		this.pending = false;
+		if (!response.ok || !result) {
+			this.status = result?.error ?? 'The cart could not be updated. Reload the page and try again.';
+			return;
+		}
+		this.status = this.success;
+		window.dispatchEvent(new CustomEvent<CartTotals>(CART_CHANGE_EVENT, { detail: result }));
+	}
+}
+
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'cart-form': JsxCustomElementAttributes<CartForm, CartFormProps>;
+	}
+}

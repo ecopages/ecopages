@@ -18,6 +18,8 @@ const args = [
 	'docs-starter',
 	'--project',
 	'llm-wiki',
+	'--project',
+	'ecoshop',
 ];
 const result = spawnSync('pnpm', args, {
 	stdio: 'inherit',

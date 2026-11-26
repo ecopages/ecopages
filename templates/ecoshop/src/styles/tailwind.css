@@ -1,0 +1,51 @@
+@import 'tailwindcss';
+@import '@ecopages/radiant-ui/themes/default';
+@import '@ecopages/radiant-ui/alert/styles.css';
+@import '@ecopages/radiant-ui/badge/styles.css';
+@import '@ecopages/radiant-ui/button/styles.css';
+@import '@ecopages/radiant-ui/cycle-toggle/styles.css';
+@import '@ecopages/radiant-ui/input/styles.css';
+@import '@ecopages/radiant-ui/radio-group/styles.css';
+@import 'ecopages/css/view-transitions.css';
+
+/*
+ * Radiant Default derives every role from these seeds: a moss-green primary on warm, slightly tinted greys.
+ * Change the hues here to rebrand the store; components read the semantic roles, never these values.
+ */
+:root {
+	--rui-primary: oklch(48% 0.11 150);
+	--rui-neutral: oklch(62% calc(0.014 * var(--rui-neutral-tint)) 85);
+	--rui-radius-scale: 1;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* `muted` is secondary text, mixed from the background roles so it keeps its contrast in both modes. */
+@theme inline {
+	--font-display: var(--font-heading);
+	--color-muted: color-mix(in oklab, var(--on-background) 68%, var(--background));
+}
+
+body {
+	@apply bg-background text-on-background min-h-dvh flex flex-col antialiased font-sans;
+}
+
+@layer components {
+	.page-title {
+		@apply text-3xl font-semibold tracking-tight text-balance;
+		font-family: var(--font-display);
+	}
+
+	.section-title {
+		@apply text-xl font-semibold tracking-tight;
+		font-family: var(--font-display);
+	}
+
+	.lede {
+		@apply text-base text-muted max-w-prose;
+	}
+
+	.text-link {
+		@apply underline underline-offset-2 decoration-border hover:decoration-current;
+	}
+}

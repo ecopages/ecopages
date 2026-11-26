@@ -319,6 +319,30 @@ pnpm desktop:dev
 	defaultSelectedKey="npm"
 />
 
+**Shopify storefront** - Creates an Ecopages JSX and Radiant UI store on the Shopify Storefront API, with a cart that works without JavaScript, webhook revalidation, and an MCP server, `llms.txt` and Markdown product views for agents. It runs on a bundled demo catalog until Shopify credentials are set. <a href="https://github.com/ecopages/ecopages/tree/main/templates/ecoshop" target="_blank">ecoshop</a>.
+
+<CodeTabs
+	name="ecopages-ecoshop"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init ecoshop --template ecoshop && cd ecoshop && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init ecoshop --template ecoshop && cd ecoshop && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init ecoshop --template ecoshop && cd ecoshop && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
 ### Step-by-Step (Individual)
 
 #### 1) Basic starter

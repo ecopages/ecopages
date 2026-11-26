@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800" role="img" aria-label="Merino Beanie">
+<rect width="800" height="800" fill="#e3e7dc"/>
+<path d="M240 520 Q240 250 400 250 Q560 250 560 520 Z" fill="#5f7a4a"/><rect x="220" y="500" width="360" height="90" rx="20" fill="#4c6339"/><g stroke="#3c4f2d" stroke-width="6"><path d="M250 510 L250 580"/><path d="M280 510 L280 580"/><path d="M310 510 L310 580"/><path d="M340 510 L340 580"/><path d="M370 510 L370 580"/><path d="M400 510 L400 580"/><path d="M430 510 L430 580"/><path d="M460 510 L460 580"/><path d="M490 510 L490 580"/><path d="M520 510 L520 580"/><path d="M550 510 L550 580"/></g><circle cx="400" cy="235" r="34" fill="#4c6339"/>
+</svg>

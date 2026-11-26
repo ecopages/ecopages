@@ -92,3 +92,4 @@ A template is a package in the monorepo workspace, so it is built and tested wit
 3. Add its id to `TEMPLATE_SKILL_PACKS` and run `pnpm sync:template-skills`.
 4. Run `pnpm check:templates` and `pnpm smoke:templates`; add the id to `defaultTemplateIds` in `smoke-packed-templates.ts` if the release check should cover it.
 5. Update the list of ids in `packages/ecopages/README.md`.
+6. If the template has Vitest tests, give it a `vitest.config.ts` with its own project name, then add that config to the root `vitest.config.ts` and the project to the `test:vitest` script and `scripts/test-vitest-windows.ts`, and list it in [Testing](/dev/testing).

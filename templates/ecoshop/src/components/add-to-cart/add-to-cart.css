@@ -1,0 +1,65 @@
+@layer components {
+	cart-form {
+		@apply block;
+	}
+
+	.add-to-cart {
+		@apply flex flex-col gap-5;
+	}
+
+	.variant-picker {
+		@apply flex flex-col gap-2;
+	}
+
+	.variant-picker__legend {
+		@apply text-sm font-medium mb-2;
+	}
+
+	.variant-picker__options {
+		@apply flex flex-wrap gap-2;
+	}
+
+	.variant-option {
+		@apply relative inline-flex items-baseline gap-2 min-w-12 px-3.5 py-2 rounded-full border border-border text-sm cursor-pointer justify-center transition-colors;
+	}
+
+	.variant-option input {
+		@apply absolute inset-0 opacity-0 cursor-pointer;
+	}
+
+	.variant-option:hover {
+		@apply bg-surface-container-low;
+	}
+
+	.variant-option:has(input:checked) {
+		@apply border-primary bg-primary text-on-primary;
+	}
+
+	.variant-option:has(input:focus-visible) {
+		@apply outline-2 outline-offset-2 outline-focus-ring;
+	}
+
+	.variant-option:has(input:disabled) {
+		@apply cursor-not-allowed text-muted line-through bg-transparent;
+	}
+
+	.variant-option__price {
+		@apply text-xs opacity-80 tabular-nums;
+	}
+
+	.add-to-cart__row {
+		@apply flex gap-3;
+	}
+
+	.add-to-cart__quantity .rui-input {
+		@apply w-20 text-center;
+	}
+
+	.add-to-cart__submit {
+		@apply flex-1;
+	}
+
+	.add-to-cart__status {
+		@apply text-sm min-h-5;
+	}
+}

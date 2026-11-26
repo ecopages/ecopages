@@ -34,7 +34,7 @@ Four layers test Ecopages: Vitest in Node, Vitest in a real browser, Playwright 
 ```mermaid
 flowchart TD
   subgraph Layers
-    V["Vitest: shared-core, docs, docs-starter, llm-wiki"]
+    V["Vitest: shared-core, docs, docs-starter, llm-wiki, ecoshop"]
     B["Vitest browser project: *.test.browser.ts"]
     P["Playwright: *.test.e2e.ts against dev, preview and start servers"]
     S["Smoke scripts: build and start whole apps"]
@@ -76,14 +76,14 @@ flowchart TD
 
 ## Vitest
 
-`vitest.config.ts` at the root defines the projects. `pnpm run test:vitest` runs `shared-core`, `browser`, `docs`, `docs-starter` and `llm-wiki` with the browser headless; locally, Vitest uses half the cores so a commit hook leaves room for other checkouts.
+`vitest.config.ts` at the root defines the projects. `pnpm run test:vitest` runs `shared-core`, `browser`, `docs`, `docs-starter`, `llm-wiki` and `ecoshop` with the browser headless; locally, Vitest uses half the cores so a commit hook leaves room for other checkouts.
 
 | Project | Environment | What it holds |
 | --- | --- | --- |
 | `shared-core` | Node | Every `*.test.ts(x)` under `packages/core/src`, `codemod`, `ecopages`, `processors`, `integrations`, `file-system`, `react-router`, `dev-toolbar` and `__internals`, plus `scripts/`, `e2e/utils`, `e2e/playwright`, the `e2e/fixtures/*/*.test.ts` build-output tests and the kitchen-sink bench libraries. |
 | `browser` | Chromium through `@vitest/browser-playwright` | `*.test.browser.ts(x)` under `packages` and `apps`, and `templates/docs-starter`. The router packages (`browser-router`, `react-router`) test DOM behavior here. |
 | `docs` | Node | `apps/docs` scripts, lib and includes, with its own `@` alias and the Ecopages JSX runtime. |
-| `docs-starter`, `llm-wiki` | Node | The tests of those two templates, each with its own config. |
+| `docs-starter`, `llm-wiki`, `ecoshop` | Node | The tests of those three templates, each with its own config. |
 
 `packages/file-system` also has its own `pnpm test`, which runs the `shared-core` project filtered to that package. The Electrobun template has a `vitest.config.ts` with a `server` and a `browser` project; it runs from `smoke:templates`, not from the root.
 
@@ -105,6 +105,7 @@ Two contracts keep third-party-shaped extension points honest.
 | Group | Projects | What they run |
 | --- | --- | --- |
 | Fixtures in `e2e/fixtures` | `browser-router-*`, `core-hmr-*`, `endpoints-only-e2e`, `html-pages-*`, `response-headers-*`, `react-production-start-*`, `react-router-*`, `react-lazy-first-load-e2e`, `css-modules-dev-e2e`, `web-workers-*`, `imported-views-*`, `browser-module-identity-dev-e2e`, `react-direct-hmr-dev-e2e`, `recipe-*` | Small purpose-built apps, under `ecopages dev`, `preview` or `start` as the project name says. |
+| Templates | `template-ecoshop-dev-e2e`, `template-ecoshop-start-e2e` | An official template copied from `templates/<id>` by the worker app fixture. For `ecoshop`, the dev project drives its WebMCP tools through a stand-in `document.modelContext` and its cart without JavaScript; the start project requests `/llms.txt`, `/api/cart`, `/mcp` and a signed `/api/revalidate` from a built store. |
 | Playground apps | `cross-integration-*`, `eco-blog-e2e` | The kitchen-sink playground (`playground/kitchen-sink/e2e`) and `playground/eco-blog`: every Integration on one site. The suffix names the mode: `dev`, `preview`, `fresh-dev` (a copy with no `.eco`), `moved-start`, `hmr-node`, and the Bun cells `bun-parity` and `bun-build`. |
 
 Dev projects that edit sources use the worker app fixture (`e2e/app-fixture.ts`): a private copy of the app per worker with its own `ecopages dev` server, so tests mutate files in parallel without sharing edits. `serve: 'moved-start'` builds in one folder, renames it and runs `ecopages start`, which is how the moved-build projects check that `dist/` holds no absolute path. Preview projects build in the `webServer` command before the server starts. Kitchen-sink tests are tagged: `@parity` is the one spec the Bun cell runs, `@content` and `@stress` mark the specs `test:e2e:pr` keeps, and `test:gate` runs the `@stress` specs after the Vitest projects.

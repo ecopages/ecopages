@@ -150,6 +150,16 @@
 			"source": "llm-wiki",
 			"packageDirectory": "app",
 			"integrations": ["ecopages-jsx", "mdx"]
+		},
+		{
+			"id": "ecoshop",
+			"displayName": "Ecoshop",
+			"description": "A Shopify storefront with a demo catalog, a cart and an MCP server for agents.",
+			"category": "application",
+			"order": 90,
+			"source": "ecoshop",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "radiant-ui"]
 		}
 	]
 }

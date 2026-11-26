@@ -1,0 +1,5 @@
+@layer components {
+	.product-gallery__image {
+		@apply w-full rounded-xl bg-surface-container-low object-cover aspect-square;
+	}
+}

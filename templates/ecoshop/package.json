@@ -1,0 +1,35 @@
+{
+	"name": "@ecopages/template-ecoshop",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "pnpm run build && ecopages start",
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"preview": "ecopages preview",
+		"dev:watch": "ecopages dev:watch",
+		"test": "vitest run",
+		"typecheck": "ecopages types && tsc --noEmit"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.32.2",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@ecopages/browser-router": "workspace:*",
+		"@ecopages/core": "workspace:*",
+		"@ecopages/ecopages-jsx": "workspace:*",
+		"@ecopages/jsx": "^0.12.0",
+		"@ecopages/lightningcss-processor": "workspace:*",
+		"@ecopages/radiant": "^0.12.0",
+		"@ecopages/radiant-ui": "^0.6.2",
+		"@ecopages/signals": "^0.12.0",
+		"@tailwindcss/node": "^4.0.0",
+		"@tailwindcss/oxide": "^4.0.0",
+		"@types/node": "^24.12.4",
+		"ecopages": "workspace:*",
+		"tailwindcss": "^4.0.0",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.10"
+	}
+}

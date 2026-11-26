@@ -1,0 +1,53 @@
+{
+	"data": {
+		"collection": {
+			"id": "gid://shopify/Collection/4100000000001",
+			"handle": "outerwear",
+			"title": "Outerwear",
+			"description": "Layers for weather.",
+			"products": {
+				"nodes": [
+					{
+						"id": "gid://shopify/Product/8790000000001",
+						"handle": "harbor-jacket",
+						"title": "Harbor Jacket",
+						"vendor": "North Pier",
+						"availableForSale": true,
+						"priceRange": {
+							"minVariantPrice": {
+								"amount": "149.0",
+								"currencyCode": "EUR"
+							},
+							"maxVariantPrice": {
+								"amount": "159.0",
+								"currencyCode": "EUR"
+							}
+						},
+						"featuredImage": null,
+						"productType": "Jackets",
+						"options": [
+							{
+								"name": "Size",
+								"optionValues": [
+									{
+										"name": "M"
+									},
+									{
+										"name": "L"
+									}
+								]
+							}
+						],
+						"selectedOrFirstAvailableVariant": {
+							"id": "gid://shopify/ProductVariant/4470000000001",
+							"availableForSale": true
+						},
+						"variantsCount": {
+							"count": 2
+						}
+					}
+				]
+			}
+		}
+	}
+}

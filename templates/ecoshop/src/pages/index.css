@@ -1,0 +1,33 @@
+@layer components {
+	.home {
+		@apply flex flex-col gap-14;
+	}
+
+	.home-hero {
+		@apply flex flex-col gap-3 pt-4;
+	}
+
+	.home-hero .page-title {
+		@apply text-4xl sm:text-5xl;
+	}
+
+	.home-section {
+		@apply flex flex-col gap-5 scroll-mt-24;
+	}
+
+	.collection-list {
+		@apply grid gap-4 sm:grid-cols-3;
+	}
+
+	.collection-tile {
+		@apply flex h-full flex-col gap-1 rounded-lg bg-surface-container-low p-5 transition-colors hover:bg-surface-container;
+	}
+
+	.collection-tile__title {
+		@apply font-semibold;
+	}
+
+	.collection-tile__description {
+		@apply text-sm text-muted;
+	}
+}

@@ -15,6 +15,7 @@ const seoFiles = [
 	'blog-jsx/src/includes/seo.tsx',
 	'blog-react/src/includes/seo.tsx',
 	'lit-jsx/src/includes/seo.kita.tsx',
+	'ecoshop/src/includes/seo.tsx',
 ];
 
 const configFiles = [
@@ -28,6 +29,8 @@ const configFiles = [
 	'docs-starter/eco.config.ts',
 	'blog-jsx/app.ts',
 	'blog-react/app.ts',
+	'ecoshop/eco.config.ts',
+	'ecoshop/app.ts',
 ];
 
 const read = (relativePath: string) => readFileSync(path.join(templatesRoot, relativePath), 'utf8');

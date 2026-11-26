@@ -1,0 +1,66 @@
+@layer components {
+	.cart {
+		@apply flex flex-col gap-8;
+	}
+
+	.cart__content {
+		@apply grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start;
+	}
+
+	.cart__lines {
+		@apply flex flex-col divide-y divide-border border-y border-border;
+	}
+
+	.cart-line {
+		@apply grid grid-cols-[5rem_1fr_auto] items-center gap-x-4 gap-y-3 py-5 sm:grid-cols-[6rem_1fr_auto_auto_6rem];
+	}
+
+	.cart-line__image {
+		@apply row-span-2 size-20 rounded-md bg-surface-container-low object-cover sm:row-span-1 sm:size-24;
+	}
+
+	.cart-line__info {
+		@apply flex flex-col gap-0.5;
+	}
+
+	.cart-line__title {
+		@apply font-medium hover:underline underline-offset-2;
+	}
+
+	.cart-line__variant,
+	.cart-line__unit {
+		@apply text-sm text-muted;
+	}
+
+	.cart-line__form {
+		@apply col-start-2 flex items-center gap-2 sm:col-start-auto;
+	}
+
+	.cart-line__form .rui-input {
+		@apply w-16 text-center;
+	}
+
+	.cart-line__total {
+		@apply text-right tabular-nums font-medium;
+	}
+
+	.cart__summary {
+		@apply flex flex-col gap-4 rounded-xl bg-surface-container-low p-6 lg:sticky lg:top-24;
+	}
+
+	.cart__subtotal {
+		@apply flex justify-between text-lg font-semibold tabular-nums;
+	}
+
+	.cart__note {
+		@apply text-sm text-muted;
+	}
+
+	.cart__checkout {
+		@apply w-full;
+	}
+
+	.cart__empty {
+		@apply flex flex-col items-start gap-4;
+	}
+}

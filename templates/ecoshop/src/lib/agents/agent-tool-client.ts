@@ -15,13 +15,19 @@ let descriptors: Promise<StoreToolDescriptor[]> | undefined;
  * The page tools, fetched once per page load and shared by every host that registers some of them.
  *
  * @remarks
- * Only a browser with `document.modelContext` calls this, so other visitors never download the schemas.
+ * Only a browser with `document.modelContext` calls this, so other visitors never download the schemas. A failed
+ * request is not cached, so the next host to connect tries again.
  */
 export function loadAgentToolDescriptors(): Promise<StoreToolDescriptor[]> {
-	descriptors ??= fetch(storePaths.agentTools, { headers: { Accept: 'application/json' } }).then((response) => {
-		if (!response.ok) throw new Error(`The store tools could not be loaded (${response.status}).`);
-		return response.json() as Promise<StoreToolDescriptor[]>;
-	});
+	descriptors ??= fetch(storePaths.agentTools, { headers: { Accept: 'application/json' } })
+		.then((response) => {
+			if (!response.ok) throw new Error(`The store tools could not be loaded (${response.status}).`);
+			return response.json() as Promise<StoreToolDescriptor[]>;
+		})
+		.catch((error: unknown) => {
+			descriptors = undefined;
+			throw error;
+		});
 	return descriptors;
 }
 

@@ -118,6 +118,7 @@ test.describe('ecoshop WebMCP tools', () => {
 		expect(result.content[0]?.text).toMatch(/quantity/u);
 		const cart = await execute(page, 'get_cart', {});
 		expect(cart.structuredContent).toMatchObject({ item_count: 0 });
+		await expect(page.locator('cart-count')).toBeHidden();
 	});
 });
 
@@ -133,7 +134,9 @@ test('without WebMCP, no tool is registered and nothing is logged', async ({ pag
 	});
 
 	await page.goto('/products/field-shirt');
-	await page.waitForLoadState('networkidle');
+	await page.waitForFunction(() =>
+		Boolean(customElements.get('store-agent-tools') && customElements.get('cart-form')),
+	);
 
 	expect(await page.evaluate(() => 'modelContext' in document)).toBe(false);
 	expect(toolRequests).toEqual([]);

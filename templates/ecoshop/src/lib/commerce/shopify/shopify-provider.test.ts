@@ -4,7 +4,7 @@ import cartFixture from './__fixtures__/cart.json';
 import collectionFixture from './__fixtures__/collection.json';
 import productFixture from './__fixtures__/product.json';
 import searchFixture from './__fixtures__/products-search.json';
-import { createShopifyProvider } from './shopify-provider.server';
+import { createShopifyProvider, htmlToText } from './shopify-provider.server';
 
 type RecordedCall = { url: string; headers: Headers; operation: string; variables: Record<string, unknown> };
 
@@ -342,5 +342,70 @@ describe('Shopify provider pagination', () => {
 		});
 		expect(result?.variants.map((variant) => variant.id)).toContain(extra.id);
 		expect(result?.variants).toHaveLength(3);
+	});
+});
+
+describe('Shopify provider store information', () => {
+	it('reads a product by its GID', async () => {
+		const { provider, calls } = providerWith([productFixture]);
+
+		const product = await provider.getProduct('gid://shopify/Product/8790000000001');
+
+		expect(calls[0]).toMatchObject({
+			operation: 'ProductById',
+			variables: { id: 'gid://shopify/Product/8790000000001' },
+		});
+		expect(product?.handle).toBe('harbor-jacket');
+	});
+
+	it('has no default variant when the first one is sold out', async () => {
+		const { provider } = providerWith([searchFixture]);
+
+		const [, deckShirt] = await provider.searchProducts('shirt');
+
+		expect(deckShirt?.defaultVariantId).toBeNull();
+		expect(deckShirt?.options).toEqual([{ name: 'Size', values: ['M', 'L'] }]);
+	});
+
+	it('lists the shop policies as plain text', async () => {
+		const { provider, calls } = providerWith([
+			{
+				data: {
+					shop: {
+						refundPolicy: {
+							handle: 'refund-policy',
+							title: 'Refund policy',
+							body: '<p>Returns within <strong>30 days</strong>.</p><p>Free &amp; easy.</p>',
+						},
+						shippingPolicy: null,
+						privacyPolicy: null,
+						termsOfService: { handle: 'terms-of-service', title: 'Terms', body: '<p>Be kind.</p>' },
+					},
+				},
+			},
+		]);
+
+		const policies = await provider.listPolicies();
+
+		expect(calls[0]?.operation).toBe('ShopPolicies');
+		expect(policies).toEqual([
+			{
+				handle: 'refund-policy',
+				type: 'refund_policy',
+				title: 'Refund policy',
+				body: 'Returns within 30 days.\n\nFree & easy.',
+			},
+			{ handle: 'terms-of-service', type: 'terms_of_service', title: 'Terms', body: 'Be kind.' },
+		]);
+	});
+});
+
+describe('htmlToText', () => {
+	it('drops scripts and styles and decodes entities once', () => {
+		expect(
+			htmlToText(
+				'<style>p{}</style><p>We&rsquo;re &#8220;kind&#8221; &amp;lt;3</p><script>alert(1)</script><br>Bye',
+			),
+		).toBe('We\u2019re \u201Ckind\u201D &lt;3\n\nBye');
 	});
 });

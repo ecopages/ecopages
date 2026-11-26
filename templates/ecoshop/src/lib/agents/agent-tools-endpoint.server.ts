@@ -1,4 +1,4 @@
-import { cartCookie, readCartId } from '@/lib/cart/cart-cookie';
+import { cartCookieFor, readCartId } from '@/lib/cart/cart-cookie';
 import { formatMoney } from '@/lib/commerce/money';
 import type { CommerceProvider } from '@/lib/commerce/types';
 import { isSameOriginRequest } from '@/lib/http/same-origin';
@@ -23,8 +23,8 @@ export async function handleAgentToolList(): Promise<Response> {
  *
  * @remarks
  * The browser does no validation of its own: `inputSchema` is advisory for an agent, so the input is checked here,
- * where it is authoritative. `?product=<handle>` names the product of the calling page, which `get_product` and
- * `show_variant` default to.
+ * where it is authoritative. `?product=<handle>` names the product of the calling page: `get_product` and
+ * `show_variant` default to it, and `add_to_cart` requires it.
  */
 export async function handleAgentToolCall(
 	request: Request,
@@ -50,15 +50,11 @@ export async function handleAgentToolCall(
 
 	const headers = new Headers({ 'Cache-Control': 'no-store' });
 	const body: AgentToolResponse = { result: outcome.result };
-	if (outcome.cartId) {
-		const secure = new URL(request.url).protocol === 'https:' || new URL(siteOrigin).protocol === 'https:';
-		headers.set('Set-Cookie', cartCookie(outcome.cartId, secure));
-	}
-	if (outcome.cartChanged && outcome.cartId) {
-		const cart = await provider.getCart(outcome.cartId);
+	if (outcome.cartId) headers.set('Set-Cookie', cartCookieFor(outcome.cartId, request));
+	if (outcome.cart) {
 		body.cart = {
-			totalQuantity: cart?.totalQuantity ?? 0,
-			subtotal: cart && cart.totalQuantity > 0 ? formatMoney(cart.subtotal) : null,
+			totalQuantity: outcome.cart.totalQuantity,
+			subtotal: outcome.cart.totalQuantity > 0 ? formatMoney(outcome.cart.subtotal) : null,
 		};
 	}
 	if (outcome.navigateTo) body.navigateTo = outcome.navigateTo;

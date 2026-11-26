@@ -34,7 +34,7 @@ function compareAtPrice(product: Product): string | null {
 type ProductPageProps = { product: Product; delivery: StorePolicy[] };
 
 /**
- * The first paragraph of the shipping and returns policies, shown under the product form.
+ * The policy types whose first paragraph the page shows under the product form.
  */
 const DELIVERY_POLICIES = new Set(['shipping_policy', 'refund_policy']);
 

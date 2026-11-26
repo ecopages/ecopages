@@ -29,7 +29,7 @@ export async function buildLlmsTxt(provider: CommerceProvider, origin: string): 
 			)
 				.map((tool) => tool.name)
 				.join(', ')}. Checkout happens on the checkout URL the cart returns.`,
-			"- WebMCP: in a browser that supports it, every page registers the same tools with `document.modelContext`, acting on the shopper's own cart.",
+			"- WebMCP: in a browser that supports it, every page registers these tools with `document.modelContext`, plus show_variant, and add_to_cart on product pages, acting on the shopper's own cart.",
 			`- [Search](${url(storePaths.search())}): add \`?q=\` with keywords for an HTML results page.`,
 		].join('\n'),
 		[

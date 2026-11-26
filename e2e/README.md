@@ -38,7 +38,7 @@ Kitchen-sink HMR uses one app copy per worker, so source-mutating tests can run 
 
 ## Add coverage
 
-Add the spec beside its fixture and add the project to the explicit array in `playwright.config.ts`. Put docs site browser checks in the docs config. Use `e2e/app-fixture.ts` when a dev test mutates source files or needs a private dev server; use `webServer` for shared static and preview servers.
+Add the spec beside its fixture and add the project to the explicit array in `playwright.config.ts`. An official template has no fixture folder: its spec sits in `e2e/fixtures/templates/<id>.<mode>.test.e2e.ts` and its project points `appOptions.source` at `templates/<id>`, as `template-ecoshop-dev-e2e` does. Put docs site browser checks in the docs config. Use `e2e/app-fixture.ts` when a dev test mutates source files or needs a private dev server; use `webServer` for shared static and preview servers.
 
 `react-lazy-first-load-e2e` (`explicitGraph`, no router) and kitchen-sink `content-lazy.test.e2e.ts` pin first hydration when a `React.lazy` chunk fails: the server HTML is restored once React drops the page root, and the chunk is not retried; a Page-level error boundary keeps the rest of the Page and shows the fallback.
 

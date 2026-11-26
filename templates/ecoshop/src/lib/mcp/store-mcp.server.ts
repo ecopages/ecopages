@@ -30,19 +30,14 @@ export function createStoreMcpServer({ provider, origin }: StoreMcpOptions): Mcp
 	);
 
 	for (const tool of storeTools.filter((entry) => entry.surfaces.includes('mcp'))) {
-		const {
-			idempotentHint,
-			readOnlyHint,
-			untrustedContentHint: _untrusted,
-			consequentialHint: _consequential,
-		} = tool.annotations;
+		const { idempotentHint, readOnlyHint, destructiveHint = false } = tool.annotations;
 		server.registerTool(
 			tool.name,
 			{
 				title: tool.title,
 				description: tool.description,
 				inputSchema: tool.input,
-				annotations: { readOnlyHint, idempotentHint, destructiveHint: false, openWorldHint: false },
+				annotations: { readOnlyHint, idempotentHint, destructiveHint, openWorldHint: false },
 			},
 			async (input) => {
 				const { result } = await runStoreTool(tool.name, input, {

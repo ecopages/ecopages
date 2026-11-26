@@ -156,6 +156,13 @@ describe('store MCP server', () => {
 		expect(result.content[0]?.text).toMatch(/catalog\.id/u);
 	});
 
+	it('reports an unknown product as a tool error', async () => {
+		const result = await callTool('get_product', { catalog: { id: 'missing' } });
+
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toMatch(/No product/u);
+	});
+
 	it('returns a product with its variants', async () => {
 		const result = await callTool('get_product', { catalog: { id: 'steel-bottle' } });
 

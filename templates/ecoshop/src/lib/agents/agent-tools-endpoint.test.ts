@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readCartId } from '@/lib/cart/cart-cookie';
 import { createDemoProvider } from '@/lib/commerce/demo/demo-provider';
+import { siteOrigin } from '@/lib/site-origin';
 import { handleAgentToolCall, handleAgentToolList } from './agent-tools-endpoint.server';
 
 const provider = createDemoProvider();
@@ -70,7 +71,7 @@ describe('agent tools endpoint', () => {
 	it('tells the page where to navigate', async () => {
 		const response = await call('browse_store', { collection: 'home', navigate: true });
 
-		expect(await response.json()).toMatchObject({ navigateTo: 'http://localhost:3000/collections/home' });
+		expect(await response.json()).toMatchObject({ navigateTo: `${siteOrigin}/collections/home` });
 	});
 
 	it('refuses a call from another site', async () => {

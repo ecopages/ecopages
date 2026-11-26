@@ -40,7 +40,6 @@ export const AddToCart = eco.component<{ product: Product }, JsxRenderable>({
 							<RuiRadioGroup
 								name="variantId"
 								value={firstAvailable?.id ?? ''}
-								label={pickerLabel}
 								class="variant-picker__options"
 							>
 								{product.variants.map((variant) => (

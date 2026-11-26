@@ -9,7 +9,7 @@ import { CART_CHANGE_EVENT, type CartTotals } from '../../lib/cart/cart-events';
 type CartFormProps = {
 	/** Toast title after a successful add. */
 	success?: string;
-	/** The product's title, which the `add_to_cart` tool names for the agent. */
+	/** The product's title. A form with one is the product form, which offers `add_to_cart` to an agent. */
 	productTitle?: string;
 };
 
@@ -50,7 +50,7 @@ export class CartForm extends RadiantElement {
 
 	protected override onConnected(): void {
 		this.selectVariantFromUrl();
-		if (!this.toolRegistered && hasModelContext()) {
+		if (!this.toolRegistered && this.productTitle && hasModelContext()) {
 			this.toolRegistered = true;
 			void this.registerAddToCart();
 		}

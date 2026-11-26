@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { CartInputError } from '@/lib/commerce/errors';
 import { type AgentPrice, formatMoney, toAgentPrice } from '@/lib/commerce/money';
@@ -28,7 +29,7 @@ export interface StoreToolContext {
 	surface: ToolSurface;
 	/** On a page, the shopper's cart from the cart cookie. Over `/mcp`, unused: the input names the cart. */
 	cartId: string | undefined;
-	/** On a product page, its handle, which `get_product` and `show_variant` default to. */
+	/** On a product page, its handle: `get_product` and `show_variant` default to it, and `add_to_cart` requires it. */
 	currentProductHandle?: string;
 }
 
@@ -36,22 +37,43 @@ export interface StoreToolOutcome {
 	result: StoreToolResult;
 	/** The cart id the shopper's cookie must hold from now on, when the call changed it. */
 	cartId?: string;
-	cartChanged?: boolean;
+	/** The cart after a change, so the caller can show its totals without reading it again. */
+	cart?: Cart;
 	/** A page to open once the result is returned. */
 	navigateTo?: string;
 }
 
-interface StoreTool<Input extends z.ZodObject = z.ZodObject> {
+type StoreToolAnnotations = StoreToolDescriptor['annotations'] & {
+	idempotentHint?: boolean;
+	destructiveHint?: boolean;
+};
+
+interface StoreToolDefinition<Input extends z.ZodObject> {
 	name: string;
 	title: string;
 	description: string;
 	input: Input;
-	annotations: StoreToolDescriptor['annotations'] & { idempotentHint?: boolean; destructiveHint?: boolean };
+	annotations: StoreToolAnnotations;
 	surfaces: ToolSurface[];
 	run(input: z.infer<Input>, context: StoreToolContext): Promise<StoreToolOutcome>;
 }
 
-const define = <Input extends z.ZodObject>(tool: StoreTool<Input>): StoreTool => tool as unknown as StoreTool;
+/**
+ * A tool with its input type erased, so tools of different inputs share one list. `run` parses its input.
+ */
+export interface StoreTool {
+	name: string;
+	title: string;
+	description: string;
+	input: z.ZodObject;
+	annotations: StoreToolAnnotations;
+	surfaces: ToolSurface[];
+	run(input: unknown, context: StoreToolContext): Promise<StoreToolOutcome>;
+}
+
+function define<Input extends z.ZodObject>(tool: StoreToolDefinition<Input>): StoreTool {
+	return { ...tool, run: (input, context) => tool.run(tool.input.parse(input), context) };
+}
 
 const PRODUCTS_PER_PAGE = 30;
 const MAX_LINE_ITEMS = 100;
@@ -114,10 +136,25 @@ function variantView(variant: ProductVariant) {
 
 type CartMessage = { type: 'error' | 'warning' | 'info'; code?: string; content: string; path?: string };
 
-function cartView(cart: Cart | null, origin: string, messages: CartMessage[] = []) {
+/**
+ * The id a page shows an agent for the shopper's cart: a revision of its lines, not the cart id.
+ *
+ * @remarks
+ * The cart id grants access to the cart, which is why the cart cookie is `HttpOnly`, so a page never hands it to an
+ * agent. The revision changes with every line and quantity, so `update_cart` and `cancel_cart` detect a stale cart
+ * result on every provider, including Shopify, whose cart id stays the same as the cart changes.
+ */
+function cartRevision(cart: Cart): string {
+	const lines = cart.lines.map((line) => [line.id, line.variantId, line.quantity]);
+	const digest = createHash('sha256').update(cart.id).update(JSON.stringify(lines)).digest('base64url');
+	return `rev_${digest.slice(0, 22)}`;
+}
+
+function cartView(cart: Cart | null, context: StoreToolContext, messages: CartMessage[] = []) {
+	const { origin } = context;
 	const subtotal: AgentPrice | null = cart ? toAgentPrice(cart.subtotal) : null;
 	return {
-		id: cart?.id ?? '',
+		id: cart ? (context.surface === 'page' ? cartRevision(cart) : cart.id) : '',
 		item_count: cart?.totalQuantity ?? 0,
 		total_price: subtotal,
 		currency: cart?.subtotal.currencyCode ?? '',
@@ -163,6 +200,19 @@ function describeCart(cart: ReturnType<typeof cartView>): string {
 	return `The cart holds ${cart.item_count} item(s): ${lines.join(', ')}. Subtotal ${cart.total_price?.display}.`;
 }
 
+/**
+ * Turns plain text into escaped HTML paragraphs, for the `description.html` field Shopify's tools return.
+ */
+function textToHtml(text: string): string {
+	const escape = (value: string) =>
+		value.replace(/&/gu, '&amp;').replace(/</gu, '&lt;').replace(/>/gu, '&gt;').replace(/"/gu, '&quot;');
+	return text
+		.split(/\n\s*\n/u)
+		.filter(Boolean)
+		.map((paragraph) => `<p>${escape(paragraph)}</p>`)
+		.join('');
+}
+
 /* Helpers that read the catalog and the cart. */
 
 function productHandleFrom(id: string | undefined, context: StoreToolContext): string | undefined {
@@ -185,8 +235,9 @@ function matches(variant: ProductVariant, selected: SelectedOption[]): boolean {
  * Finds the cart a call acts on, or explains why it cannot.
  *
  * @remarks
- * On a page the cart is the shopper's, from the cookie; an `id` the agent sends is only compared with it, so an agent
- * holding an old cart result cannot overwrite a cart the shopper has changed since. Over `/mcp` the `id` names it.
+ * On a page the cart is the shopper's, from the cookie; an `id` the agent sends is compared with its revision, so an
+ * agent holding an old cart result cannot overwrite a cart the shopper has changed since. Over `/mcp` the `id` names
+ * it.
  */
 async function currentCart(
 	id: string | undefined,
@@ -194,13 +245,12 @@ async function currentCart(
 ): Promise<{ cart: Cart | null; mismatch: boolean }> {
 	if (context.surface === 'mcp') return { cart: id ? await context.provider.getCart(id) : null, mismatch: false };
 	const cart = context.cartId ? await context.provider.getCart(context.cartId) : null;
-	return { cart, mismatch: Boolean(id && cart && id !== cart.id) || Boolean(id && !cart) };
+	return { cart, mismatch: Boolean(id) && (!cart || id !== cartRevision(cart)) };
 }
 
-function cartOutcome(cart: Cart, before: Cart | null, origin: string, messages: CartMessage[] = []): StoreToolOutcome {
-	const view = cartView(cart, origin, messages);
-	const changed = cart.id !== before?.id || cart.totalQuantity !== before?.totalQuantity;
-	return { result: ok(view, describeCart(view)), cartId: cart.id, cartChanged: changed };
+function cartOutcome(cart: Cart, context: StoreToolContext): StoreToolOutcome {
+	const view = cartView(cart, context);
+	return { result: ok(view, describeCart(view)), cartId: cart.id, cart };
 }
 
 async function applyCartChange(change: () => Promise<Cart>): Promise<Cart | StoreToolOutcome> {
@@ -213,6 +263,45 @@ async function applyCartChange(change: () => Promise<Cart>): Promise<Cart | Stor
 }
 
 const isOutcome = (value: Cart | StoreToolOutcome): value is StoreToolOutcome => 'result' in value;
+
+/**
+ * The quantity changes that make a cart hold exactly `lines`: each listed variant at its quantity, every other line
+ * at zero.
+ */
+function replacementQuantities(lines: Array<{ item: { id: string }; quantity: number }>, cart: Cart | null) {
+	const target = new Map(lines.map((line) => [line.item.id, line.quantity]));
+	for (const line of cart?.lines ?? []) if (!target.has(line.variantId)) target.set(line.variantId, 0);
+	return [...target].map(([variantId, quantity]) => ({ variantId, quantity }));
+}
+
+/**
+ * What is wrong with the lines an `update_cart` call lists: a variant listed twice, or a line id that no longer holds
+ * the listed item because the cart changed since the agent read it.
+ */
+function lineProblem(
+	lines: Array<{ id?: string; item: { id: string } }>,
+	cart: Cart | null,
+): { kind: 'repeated' | 'stale'; message: string } | undefined {
+	const variants = lines.map((line) => line.item.id);
+	const repeated = variants.find((variant, index) => variants.indexOf(variant) !== index);
+	if (repeated)
+		return { kind: 'repeated', message: `cart.line_items lists ${repeated} twice. List each variant once.` };
+	const known = new Map(cart?.lines.map((line) => [line.id, line.variantId]));
+	const unknown = lines.find((line) => line.id && known.get(line.id) !== line.item.id);
+	return unknown
+		? { kind: 'stale', message: `Line ${unknown.id} no longer holds that item. Read the cart again with get_cart.` }
+		: undefined;
+}
+
+/**
+ * The words of a query worth matching: lower case, three letters or more, without common question words.
+ */
+function searchTerms(query: string): string[] {
+	return query
+		.toLowerCase()
+		.split(/[^\p{L}\p{N}]+/u)
+		.filter((term) => term.length > 2 && !STOP_WORDS.has(term));
+}
 
 /**
  * Scores a policy paragraph by how many of the question's words it contains.
@@ -264,7 +353,7 @@ export const storeTools: StoreTool[] = [
 		surfaces: ['page', 'mcp'],
 		run: async ({ catalog }, { provider, origin }) => {
 			const limit = catalog.pagination?.limit ?? 5;
-			const terms = catalog.query.toLowerCase().split(/\s+/u);
+			const terms = searchTerms(catalog.query);
 			const [products, collections, policies] = await Promise.all([
 				provider.searchProducts(catalog.query, { limit }),
 				provider.listCollections({ limit: 100 }),
@@ -344,7 +433,7 @@ export const storeTools: StoreTool[] = [
 					? {
 							title: 'All products',
 							products: await provider.listProducts({ limit: 250 }),
-							path: storePaths.search(''),
+							path: '/',
 						}
 					: await provider.getCollection(collection, { limit: 250 }).then((entry) =>
 							entry
@@ -412,7 +501,10 @@ export const storeTools: StoreTool[] = [
 		surfaces: ['page', 'mcp'],
 		run: async ({ catalog }, context) => {
 			const handle = productHandleFrom(catalog.id, context);
-			if (!handle) return fail('Pass catalog.id: this page shows no product.');
+			if (!handle)
+				return fail(
+					context.surface === 'page' ? 'Pass catalog.id: this page shows no product.' : 'Pass catalog.id.',
+				);
 			const product: Product | null = await context.provider.getProduct(handle);
 			if (!product) return fail(`No product "${handle}".`);
 
@@ -428,7 +520,7 @@ export const storeTools: StoreTool[] = [
 				id: product.id,
 				title: product.title,
 				handle: product.handle,
-				description: { html: product.description },
+				description: { html: textToHtml(product.description) },
 				vendor: product.vendor,
 				type: product.productType,
 				tags: product.tags,
@@ -512,7 +604,7 @@ export const storeTools: StoreTool[] = [
 			const { cart } = await currentCart(id, context);
 			if (context.surface === 'mcp' && !cart)
 				return fail('No cart with that id. It may have expired; create_cart starts a new one.');
-			const view = cartView(cart, context.origin);
+			const view = cartView(cart, context);
 			return { result: ok(view, describeCart(view)) };
 		},
 	}),
@@ -520,23 +612,18 @@ export const storeTools: StoreTool[] = [
 		name: 'create_cart',
 		title: 'Create the cart',
 		description:
-			"Put items in the shopper's cart while it is empty. When the cart already has items nothing changes, and the result is that cart with an error message; use update_cart then. Repeating the call leaves the cart as it is.",
+			"Put items in the shopper's cart while it is empty. When the cart already has items nothing changes, and the result is that cart with an error message; use update_cart then. Over /mcp every call starts a new cart.",
 		input: z.object({
 			cart: z.object({
 				line_items: z.array(lineItem).min(1).max(MAX_LINE_ITEMS).describe('The items the new cart holds.'),
 			}),
 		}),
-		annotations: {
-			readOnlyHint: false,
-			consequentialHint: false,
-			idempotentHint: true,
-			untrustedContentHint: true,
-		},
+		annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
 		surfaces: ['page', 'mcp'],
 		run: async ({ cart: request }, context) => {
 			const { cart } = await currentCart(undefined, context);
 			if (cart && cart.totalQuantity > 0) {
-				const view = cartView(cart, context.origin, [
+				const view = cartView(cart, context, [
 					{
 						type: 'error',
 						code: 'cart_not_empty',
@@ -551,7 +638,7 @@ export const storeTools: StoreTool[] = [
 					request.line_items.map((line) => ({ variantId: line.item.id, quantity: line.quantity })),
 				),
 			);
-			return isOutcome(created) ? created : cartOutcome(created, cart, context.origin);
+			return isOutcome(created) ? created : cartOutcome(created, context);
 		},
 	}),
 	define({
@@ -580,6 +667,7 @@ export const storeTools: StoreTool[] = [
 			readOnlyHint: false,
 			consequentialHint: false,
 			idempotentHint: true,
+			destructiveHint: true,
 			untrustedContentHint: true,
 		},
 		surfaces: ['page', 'mcp'],
@@ -587,31 +675,25 @@ export const storeTools: StoreTool[] = [
 			if (context.surface === 'mcp' && !id) return fail('Pass id, the cart id that create_cart returned.');
 			const { cart, mismatch } = await currentCart(id, context);
 			const stale = (content: string) => {
-				const view = cartView(cart, context.origin, [{ type: 'error', code: 'cart_changed', content }]);
+				const view = cartView(cart, context, [{ type: 'error', code: 'cart_changed', content }]);
 				return { result: ok(view, `Nothing changed. ${describeCart(view)}`) };
 			};
 			if (mismatch) return stale('The cart changed since that result. Read it again with get_cart.');
 			if (context.surface === 'mcp' && !cart)
 				return fail('No cart with that id. It may have expired; create_cart starts a new one.');
-			if (!request.line_items) {
-				const view = cartView(cart, context.origin);
+			if (!request.line_items || (!cart && request.line_items.length === 0)) {
+				const view = cartView(cart, context);
 				return { result: ok(view, describeCart(view)) };
 			}
-			const known = new Set(cart?.lines.map((line) => line.id));
-			const unknownLine = request.line_items.find((line) => line.id && !known.has(line.id));
-			if (unknownLine)
-				return stale(`Line ${unknownLine.id} is no longer in the cart. Read it again with get_cart.`);
+			const problem = lineProblem(request.line_items, cart);
+			if (problem?.kind === 'repeated') return fail(problem.message);
+			if (problem) return stale(problem.message);
 
-			const target = new Map<string, number>();
-			for (const line of request.line_items) target.set(line.item.id, line.quantity);
-			for (const line of cart?.lines ?? []) if (!target.has(line.variantId)) target.set(line.variantId, 0);
+			const lines = request.line_items;
 			const updated = await applyCartChange(() =>
-				context.provider.setCartQuantities(
-					cart?.id,
-					[...target].map(([variantId, quantity]) => ({ variantId, quantity })),
-				),
+				context.provider.setCartQuantities(cart?.id, replacementQuantities(lines, cart)),
 			);
-			return isOutcome(updated) ? updated : cartOutcome(updated, cart, context.origin);
+			return isOutcome(updated) ? updated : cartOutcome(updated, context);
 		},
 	}),
 	define({
@@ -619,11 +701,21 @@ export const storeTools: StoreTool[] = [
 		title: 'Empty the cart',
 		description: 'Remove every item from the cart in one step, for a shopper who wants to start over.',
 		input: z.object({ id: cartIdField }),
-		annotations: { readOnlyHint: false, consequentialHint: false },
+		annotations: { readOnlyHint: false, consequentialHint: false, destructiveHint: true },
 		surfaces: ['page', 'mcp'],
 		run: async ({ id }, context) => {
 			if (context.surface === 'mcp' && !id) return fail('Pass id, the cart id that create_cart returned.');
-			const { cart } = await currentCart(id, context);
+			const { cart, mismatch } = await currentCart(id, context);
+			if (mismatch) {
+				const view = cartView(cart, context, [
+					{
+						type: 'error',
+						code: 'cart_changed',
+						content: 'The cart changed since that result. Read it again with get_cart.',
+					},
+				]);
+				return { result: ok(view, `Nothing changed. ${describeCart(view)}`) };
+			}
 			const previous = cart?.totalQuantity ?? 0;
 			if (!cart || previous === 0) {
 				return { result: ok({ cleared: true, previous_item_count: 0 }, 'The cart was already empty.') };
@@ -641,7 +733,7 @@ export const storeTools: StoreTool[] = [
 					`Removed ${previous} item(s); the cart is empty.`,
 				),
 				cartId: emptied.id,
-				cartChanged: true,
+				cart: emptied,
 			};
 		},
 	}),
@@ -658,8 +750,10 @@ export const storeTools: StoreTool[] = [
 			const { cart } = await currentCart(id, context);
 			if (!cart || cart.totalQuantity === 0) return fail('The cart is empty. Add items with create_cart first.');
 			const url = resolveUrl(context.origin, cart.checkoutUrl);
+			const shown = new URL(url);
+			if (context.surface === 'page') shown.search = '';
 			const structured = {
-				navigating_to: url,
+				navigating_to: shown.href,
 				item_count: cart.totalQuantity,
 				total_price: toAgentPrice(cart.subtotal),
 			};
@@ -690,10 +784,7 @@ export const storeTools: StoreTool[] = [
 		annotations: { readOnlyHint: true, untrustedContentHint: true },
 		surfaces: ['page', 'mcp'],
 		run: async ({ ask }, { provider, origin }) => {
-			const terms = ask.query
-				.toLowerCase()
-				.split(/[^a-z0-9]+/u)
-				.filter((term) => term.length > 2 && !STOP_WORDS.has(term));
+			const terms = searchTerms(ask.query);
 			const policies = await provider.listPolicies();
 			const sections = policies
 				.map((policy) => {
@@ -754,7 +845,7 @@ export const storeTools: StoreTool[] = [
 			const added = await applyCartChange(() =>
 				context.provider.addToCart(cart?.id, [{ variantId: item.id, quantity }]),
 			);
-			return isOutcome(added) ? added : cartOutcome(added, cart, context.origin);
+			return isOutcome(added) ? added : cartOutcome(added, context);
 		},
 	}),
 ];

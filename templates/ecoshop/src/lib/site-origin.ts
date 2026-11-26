@@ -2,7 +2,7 @@ import { resolveUrl } from './store-urls';
 
 /**
  * The site's public origin: `eco.config.ts` (`baseUrl`), canonical links, JSON-LD, `/llms.txt`, MCP results and
- * the trusted origin of the cart and MCP endpoints all read it.
+ * the trusted origin of the cart, agent tool and MCP endpoints all read it.
  *
  * @remarks
  * Resolves `ECOPAGES_BASE_URL` (also set by `--base-url`) and falls back to the dev server origin, mirroring

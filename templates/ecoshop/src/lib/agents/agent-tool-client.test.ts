@@ -89,6 +89,17 @@ describe('callAgentTool', () => {
 		expect(page.reload).toHaveBeenCalledOnce();
 	});
 
+	it('leaves the cart page alone when a call changes nothing', async () => {
+		vi.useFakeTimers();
+		const page = stubPage('/cart', { result: { content: [{ type: 'text', text: 'ok' }], structuredContent: {} } });
+
+		await callAgentTool('get_cart', {}, new AbortController().signal);
+		vi.runAllTimers();
+
+		expect(page.reload).not.toHaveBeenCalled();
+		expect(page.events).toEqual([]);
+	});
+
 	it('rejects when the store cannot run the tool', async () => {
 		stubPage('/', {});
 		vi.stubGlobal(

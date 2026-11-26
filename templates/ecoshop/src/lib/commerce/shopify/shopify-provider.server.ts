@@ -57,6 +57,24 @@ const POLICY_FIELDS: Array<[string, StorePolicyType]> = [
 ];
 
 /**
+ * Named entities common in Shopify policy text. `&amp;` is decoded last, so `&amp;lt;` stays `&lt;`.
+ */
+const NAMED_ENTITIES: Record<string, string> = {
+	nbsp: ' ',
+	rsquo: '\u2019',
+	lsquo: '\u2018',
+	rdquo: '\u201D',
+	ldquo: '\u201C',
+	mdash: '\u2014',
+	ndash: '\u2013',
+	hellip: '\u2026',
+	lt: '<',
+	gt: '>',
+	quot: '"',
+	apos: "'",
+};
+
+/**
  * Turns a policy's HTML body into the plain text the storefront renders and agents read.
  *
  * @remarks
@@ -68,12 +86,10 @@ export function htmlToText(html: string): string {
 		.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/giu, '')
 		.replace(/<\/(p|div|li|h[1-6])>|<br\s*\/?>/giu, '\n\n')
 		.replace(/<[^>]+>/gu, '')
-		.replace(/&nbsp;/gu, ' ')
+		.replace(/&#(\d+);/gu, (_match, code: string) => String.fromCodePoint(Number(code)))
+		.replace(/&#x([0-9a-f]+);/giu, (_match, code: string) => String.fromCodePoint(Number.parseInt(code, 16)))
+		.replace(/&([a-z]+);/gu, (match, name: string) => NAMED_ENTITIES[name] ?? match)
 		.replace(/&amp;/gu, '&')
-		.replace(/&lt;/gu, '<')
-		.replace(/&gt;/gu, '>')
-		.replace(/&quot;/gu, '"')
-		.replace(/&#39;/gu, "'")
 		.split(/\n\s*\n/u)
 		.map((paragraph) => paragraph.replace(/\s+/gu, ' ').trim())
 		.filter(Boolean)

@@ -5,7 +5,7 @@ import { type Cart, type CommerceProvider, MAX_LINE_QUANTITY } from '@/lib/comme
 import { isSameOriginRequest } from '@/lib/http/same-origin';
 import { siteOrigin } from '@/lib/site-origin';
 import { storePaths } from '@/lib/store-urls';
-import { cartCookie, readCartId } from './cart-cookie';
+import { cartCookieFor, readCartId } from './cart-cookie';
 import type { CartTotals } from './cart-events';
 
 /**
@@ -85,8 +85,7 @@ export async function handleCartPost(request: Request, provider: CommerceProvide
 		return json ? Response.json({ error: error.message }, { status: 422 }) : noticeRedirect('refused');
 	}
 
-	const secure = new URL(request.url).protocol === 'https:' || new URL(siteOrigin).protocol === 'https:';
-	const headers = new Headers({ 'Set-Cookie': cartCookie(cart.id, secure), 'Cache-Control': 'no-store' });
+	const headers = new Headers({ 'Set-Cookie': cartCookieFor(cart.id, request), 'Cache-Control': 'no-store' });
 	if (json) return Response.json(totals(cart), { headers });
 	headers.set('Location', storePaths.cart);
 	return new Response(null, { status: 303, headers });

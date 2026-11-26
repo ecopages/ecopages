@@ -17,7 +17,6 @@ import './store-layout.css';
 const FOOTER_POLICIES: Array<[string, string]> = [
 	['shipping-policy', 'Shipping'],
 	['refund-policy', 'Returns'],
-	['faq', 'FAQ'],
 	['privacy-policy', 'Privacy'],
 	['terms-of-service', 'Terms'],
 ];

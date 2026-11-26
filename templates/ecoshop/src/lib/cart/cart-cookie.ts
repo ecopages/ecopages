@@ -1,3 +1,5 @@
+import { siteOrigin } from '@/lib/site-origin';
+
 export const CART_COOKIE = 'ecoshop_cart';
 
 const THIRTY_DAYS = 60 * 60 * 24 * 30;
@@ -28,4 +30,13 @@ export function readCartId(headers: Headers): string | undefined {
  */
 export function cartCookie(cartId: string, secure: boolean): string {
 	return `${CART_COOKIE}=${encodeURIComponent(cartId)}; Path=/; Max-Age=${THIRTY_DAYS}; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
+}
+
+/**
+ * The `Set-Cookie` value for a response to `request`: `Secure` when the request or the configured site origin is
+ * https, so the cookie stays secure behind a TLS-terminating proxy.
+ */
+export function cartCookieFor(cartId: string, request: Request): string {
+	const secure = new URL(request.url).protocol === 'https:' || new URL(siteOrigin).protocol === 'https:';
+	return cartCookie(cartId, secure);
 }

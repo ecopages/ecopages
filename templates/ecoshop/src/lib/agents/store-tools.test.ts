@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDemoProvider } from '@/lib/commerce/demo/demo-provider';
+import type { CommerceProvider } from '@/lib/commerce/types';
 import { runStoreTool, storeToolDescriptors, storeTools, type StoreToolContext } from './store-tools.server';
 
 const ORIGIN = 'https://shop.test';
@@ -100,11 +101,17 @@ describe('store tools: catalog', () => {
 		]);
 	});
 
-	it('navigates to a collection only when asked', async () => {
-		const outcome = await call('browse_store', { collection: 'apparel', navigate: true }, page());
+	it('navigates to a collection only when asked, and only on a page', async () => {
+		const asked = await call('browse_store', { collection: 'apparel', navigate: true }, page());
+		const notAsked = await call('browse_store', { collection: 'apparel' }, page());
+		const overMcp = await call('browse_store', { collection: 'apparel', navigate: true }, mcp);
 
-		expect(outcome.navigateTo).toBe(`${ORIGIN}/collections/apparel`);
-		expect(outcome.structured.navigated).toBe(true);
+		expect(asked.navigateTo).toBe(`${ORIGIN}/collections/apparel`);
+		expect(asked.structured.navigated).toBe(true);
+		for (const outcome of [notAsked, overMcp]) {
+			expect(outcome.navigateTo).toBeUndefined();
+			expect(outcome.structured.navigated).toBe(false);
+		}
 	});
 
 	it('reads the current page product and narrows variants by options', async () => {
@@ -244,7 +251,7 @@ describe('store tools: the shopper cart on a page', () => {
 			page(undefined, 'field-shirt'),
 		);
 
-		expect(outcome.cartChanged).toBe(true);
+		expect(outcome.cart?.totalQuantity).toBe(2);
 		expect((outcome.structured as CartResult).line_items).toEqual([
 			expect.objectContaining({ quantity: 2, item: expect.objectContaining({ id: fieldShirtM }) }),
 		]);
@@ -301,6 +308,93 @@ describe('store tools over /mcp', () => {
 		const outcome = await call('get_cart', {}, mcp);
 
 		expect(outcome.result.isError).toBe(true);
-		expect(outcome.result.content[0]?.text).toMatch(/id/u);
+		expect(outcome.result.content[0]?.text).toMatch(/Pass id/u);
+	});
+});
+
+describe('store tools: the cart a page shows an agent', () => {
+	it('shows a revision, never the cart id', async () => {
+		const cartId = await cartWith([{ id: tote, quantity: 1 }]);
+
+		const read = await call('get_cart', {}, page(cartId));
+
+		expect((read.structured as CartResult).id).toMatch(/^rev_/u);
+		expect(JSON.stringify(read.result)).not.toContain(cartId);
+	});
+
+	it('detects a stale result when the provider keeps the cart id, as Shopify does', async () => {
+		const stableIds: CommerceProvider = {
+			...provider,
+			getCart: async (id) => {
+				const cart = await provider.getCart(id);
+				return cart ? { ...cart, id: 'stable-cart' } : null;
+			},
+		};
+		const first = await cartWith([{ id: tote, quantity: 1 }]);
+		const context = (cartId: string): StoreToolContext => ({ ...page(cartId), provider: stableIds });
+		const read = (await call('get_cart', {}, context(first))).structured as CartResult;
+		const changed = await cartWith([{ id: tote, quantity: 2 }]);
+
+		const outcome = await call('cancel_cart', { id: read.id }, context(changed));
+
+		expect(outcome.cartId).toBeUndefined();
+		expect((outcome.structured as CartResult).messages).toContainEqual(
+			expect.objectContaining({ code: 'cart_changed' }),
+		);
+	});
+
+	it('refuses a line id that no longer holds the listed item', async () => {
+		const cartId = await cartWith([{ id: tote, quantity: 1 }]);
+		const read = (await call('get_cart', {}, page(cartId))).structured as CartResult;
+		const toteLine = read.line_items[0]?.id;
+
+		const outcome = await call(
+			'update_cart',
+			{ id: read.id, cart: { line_items: [{ id: toteLine, item: { id: fieldShirtM }, quantity: 1 }] } },
+			page(cartId),
+		);
+
+		expect(outcome.cartId).toBeUndefined();
+		expect((outcome.structured as CartResult).messages).toContainEqual(
+			expect.objectContaining({ code: 'cart_changed' }),
+		);
+	});
+
+	it('refuses an id when the shopper has no cart', async () => {
+		const outcome = await call('update_cart', { id: 'rev_old', cart: { line_items: [] } }, page());
+
+		expect((outcome.structured as CartResult).messages).toContainEqual(
+			expect.objectContaining({ code: 'cart_changed' }),
+		);
+	});
+
+	it('adds on top of what the cart holds', async () => {
+		const cartId = await cartWith([{ id: fieldShirtM, quantity: 1 }]);
+
+		const outcome = await call(
+			'add_to_cart',
+			{ item: { id: fieldShirtM }, quantity: 2 },
+			page(cartId, 'field-shirt'),
+		);
+
+		expect((outcome.structured as CartResult).line_items).toEqual([expect.objectContaining({ quantity: 3 })]);
+	});
+});
+
+describe('store tools over /mcp: carts that do not exist', () => {
+	it('reports an unknown cart id', async () => {
+		const outcome = await call('get_cart', { id: 'demo-cart.unknown' }, mcp);
+
+		expect(outcome.result.isError).toBe(true);
+		expect(outcome.result.content[0]?.text).toMatch(/No cart with that id/u);
+	});
+
+	it('returns the checkout URL without navigating', async () => {
+		const created = await call('create_cart', { cart: { line_items: [{ item: { id: tote }, quantity: 1 }] } }, mcp);
+
+		const outcome = await call('proceed_to_checkout', { id: (created.structured as CartResult).id }, mcp);
+
+		expect(outcome.navigateTo).toBeUndefined();
+		expect(outcome.structured).toMatchObject({ navigating_to: `${ORIGIN}/demo-checkout` });
 	});
 });

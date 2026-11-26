@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800" role="img" aria-label="Field Shirt, back view">
+<rect width="800" height="800" fill="#e7e2d3"/>
+<path d="M290 190 L360 175 Q400 185 440 175 L510 190 L600 270 L550 330 L510 300 L510 630 L290 630 L290 300 L250 330 L200 270 Z" fill="#7c8a5c" stroke="#4f5a39" stroke-width="8" stroke-linejoin="round"/>
+<path d="M300 260 L500 260" stroke="#4f5a39" stroke-width="6"/>
+<path d="M340 260 Q400 300 460 260" fill="none" stroke="#4f5a39" stroke-width="6"/>
+<path d="M300 560 L500 560" stroke="#4f5a39" stroke-width="5" stroke-dasharray="14 10"/>
+</svg>

@@ -1,6 +1,8 @@
 import { eco, type LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiAlert, RuiAlertDescription } from '@ecopages/radiant-ui/alert';
+import { RuiToaster } from '@ecopages/radiant-ui/toast';
+import { StoreAgentToolsHost } from '@/components/agent-tools/store-agent-tools';
 import { CartLink } from '@/components/cart-count/cart-count';
 import { Logo } from '@/components/logo/logo';
 import { SearchForm } from '@/components/search-form';
@@ -8,6 +10,17 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { getCommerce } from '@/lib/commerce/provider.server';
 import { storePaths } from '@/lib/store-urls';
 import './store-layout.css';
+
+/**
+ * Shopify's standard policy handles, which the demo catalog uses too.
+ */
+const FOOTER_POLICIES: Array<[string, string]> = [
+	['shipping-policy', 'Shipping'],
+	['refund-policy', 'Returns'],
+	['faq', 'FAQ'],
+	['privacy-policy', 'Privacy'],
+	['terms-of-service', 'Terms'],
+];
 
 export const StoreLayout = eco.layout<JsxRenderable, LayoutProps<JsxRenderable>>({
 	dependencies: {
@@ -44,6 +57,11 @@ export const StoreLayout = eco.layout<JsxRenderable, LayoutProps<JsxRenderable>>
 			</main>
 			<footer class="store-footer">
 				<div class="store-footer__inner">
+					<nav aria-label="Store policies" class="store-footer__policies">
+						{FOOTER_POLICIES.map(([handle, title]) => (
+							<a href={storePaths.policy(handle)}>{title}</a>
+						))}
+					</nav>
 					<p>
 						Built with{' '}
 						<a class="text-link" href="https://ecopages.app">
@@ -55,11 +73,13 @@ export const StoreLayout = eco.layout<JsxRenderable, LayoutProps<JsxRenderable>>
 						For agents:{' '}
 						<a href={storePaths.llms} data-eco-reload>
 							llms.txt
-						</a>{' '}
-						and the MCP server at <code>{storePaths.mcp}</code>.
+						</a>
+						, the MCP server at <code>{storePaths.mcp}</code>, and WebMCP tools on every page.
 					</p>
 				</div>
 			</footer>
+			<RuiToaster position="bottom-end" />
+			<StoreAgentToolsHost />
 		</body>
 	),
 });

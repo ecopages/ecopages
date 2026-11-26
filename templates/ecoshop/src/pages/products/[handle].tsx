@@ -1,13 +1,16 @@
 import { eco } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
+import { RuiChip } from '@ecopages/radiant-ui/chip';
+import { RuiDisclosure } from '@ecopages/radiant-ui/disclosure';
 import { AddToCart } from '@/components/add-to-cart/add-to-cart';
-import { ProductImage } from '@/components/product-image';
+import { ProductGallery } from '@/components/product-gallery/product-gallery';
+import { StoreBreadcrumb } from '@/components/store-breadcrumb';
 import { buildProductJsonLd, serializeJsonLd } from '@/lib/agents/product-json-ld';
 import { CACHE_TAGS, CATALOG_REVALIDATE_SECONDS } from '@/lib/commerce/cache-tags';
 import { formatMoney, formatPriceRange } from '@/lib/commerce/money';
 import { getCommerce } from '@/lib/commerce/provider.server';
-import type { Product } from '@/lib/commerce/types';
+import type { Product, StorePolicy } from '@/lib/commerce/types';
 import { siteOrigin } from '@/lib/site-origin';
 import { storePaths } from '@/lib/store-urls';
 import { StoreLayout } from '@/layouts/store-layout/store-layout';
@@ -28,7 +31,14 @@ function compareAtPrice(product: Product): string | null {
 	return Number(first.compareAtPrice.amount) > Number(first.price.amount) ? formatMoney(first.compareAtPrice) : null;
 }
 
-export default eco.page<{ product: Product }, JsxRenderable>({
+type ProductPageProps = { product: Product; delivery: StorePolicy[] };
+
+/**
+ * The first paragraph of the shipping and returns policies, shown under the product form.
+ */
+const DELIVERY_POLICIES = new Set(['shipping_policy', 'refund_policy']);
+
+export default eco.page<ProductPageProps, JsxRenderable>({
 	layout: StoreLayout,
 	cache: { revalidate: CATALOG_REVALIDATE_SECONDS, tags: [CACHE_TAGS.products] },
 	paths: async () => {
@@ -36,9 +46,13 @@ export default eco.page<{ product: Product }, JsxRenderable>({
 		return products.map((product) => ({ params: { handle: product.handle } }));
 	},
 	props: async ({ params }) => {
-		const product = await getCommerce().getProduct(String(params.handle));
+		const commerce = getCommerce();
+		const [product, policies] = await Promise.all([
+			commerce.getProduct(String(params.handle)),
+			commerce.listPolicies(),
+		]);
 		if (!product) throw HttpError.NotFound('Product not found');
-		return { product };
+		return { product, delivery: policies.filter((policy) => DELIVERY_POLICIES.has(policy.type)) };
 	},
 	metadata: ({ props }) => ({
 		title: props.product.title,
@@ -46,31 +60,17 @@ export default eco.page<{ product: Product }, JsxRenderable>({
 		url: storePaths.product(props.product.handle),
 		image: props.product.featuredImage?.url,
 	}),
-	render: ({ product }) => {
-		const [primary, ...more] = product.images;
+	render: ({ product, delivery }) => {
 		const compareAt = compareAtPrice(product);
 
 		return (
 			<article class="product">
 				<div class="product__gallery">
-					<ProductImage
-						image={primary ?? null}
-						alt={product.title}
-						sizes="(min-width: 64rem) 36rem, 100vw"
-						eager
-						class="product__image"
-					/>
-					{more.map((image) => (
-						<ProductImage
-							image={image}
-							alt={product.title}
-							sizes="(min-width: 64rem) 36rem, 100vw"
-							class="product__image"
-						/>
-					))}
+					<ProductGallery images={product.images} title={product.title} />
 				</div>
 				<div class="product__details">
 					<header class="flex flex-col gap-2">
+						<StoreBreadcrumb trail={[{ label: 'Shop', href: '/' }]} current={product.title} />
 						{product.vendor ? <p class="product__vendor">{product.vendor}</p> : null}
 						<h1 class="page-title">{product.title}</h1>
 						<p class="product__price">
@@ -85,6 +85,27 @@ export default eco.page<{ product: Product }, JsxRenderable>({
 					</header>
 					<AddToCart product={product} />
 					{product.description ? <p class="product__description">{product.description}</p> : null}
+					{product.tags.length ? (
+						<ul class="product__tags" aria-label="Tags">
+							{product.tags.map((tag) => (
+								<li>
+									<RuiChip variant="muted">{tag}</RuiChip>
+								</li>
+							))}
+						</ul>
+					) : null}
+					{delivery.length ? (
+						<RuiDisclosure trigger="Shipping and returns" class="product__delivery">
+							{delivery.map((policy) => (
+								<p>
+									{policy.body.split(/\n\s*\n/u)[0]}{' '}
+									<a class="text-link" href={storePaths.policy(policy.handle)}>
+										{policy.title}
+									</a>
+								</p>
+							))}
+						</RuiDisclosure>
+					) : null}
 					<p class="product__alternate">
 						<a
 							class="text-link"

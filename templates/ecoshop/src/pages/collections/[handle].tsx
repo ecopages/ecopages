@@ -2,6 +2,7 @@ import { eco } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ProductGrid } from '@/components/product-card/product-card';
+import { StoreBreadcrumb } from '@/components/store-breadcrumb';
 import { CACHE_TAGS, CATALOG_REVALIDATE_SECONDS } from '@/lib/commerce/cache-tags';
 import { getCommerce } from '@/lib/commerce/provider.server';
 import type { CollectionWithProducts } from '@/lib/commerce/types';
@@ -30,11 +31,7 @@ export default eco.page<CollectionWithProducts, JsxRenderable>({
 	render: ({ collection, products }) => (
 		<div class="flex flex-col gap-8">
 			<header class="flex flex-col gap-2">
-				<nav aria-label="Breadcrumb" class="text-sm text-muted">
-					<a class="text-link" href="/#collections">
-						Collections
-					</a>
-				</nav>
+				<StoreBreadcrumb trail={[{ label: 'Collections', href: '/#collections' }]} current={collection.title} />
 				<h1 class="page-title">{collection.title}</h1>
 				{collection.description ? <p class="lede">{collection.description}</p> : null}
 			</header>

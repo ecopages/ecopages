@@ -12,6 +12,9 @@ import {
 	type SelectedOption,
 } from '@/lib/commerce/types';
 import { resolveUrl, storePaths } from '@/lib/store-urls';
+import type { StoreToolDescriptor, StoreToolResult } from './agent-tool-types';
+
+export type { StoreToolDescriptor, StoreToolResult } from './agent-tool-types';
 
 /**
  * Where a tool runs. `page` is WebMCP in the shopper's browser, acting on the shopper's cart through
@@ -29,15 +32,6 @@ export interface StoreToolContext {
 	currentProductHandle?: string;
 }
 
-/**
- * A tool result in the MCP `CallToolResult` shape that Shopify's storefront tools also return.
- */
-export interface StoreToolResult {
-	content: Array<{ type: 'text'; text: string }>;
-	structuredContent: Record<string, unknown>;
-	isError?: true;
-}
-
 export interface StoreToolOutcome {
 	result: StoreToolResult;
 	/** The cart id the shopper's cookie must hold from now on, when the call changed it. */
@@ -45,17 +39,6 @@ export interface StoreToolOutcome {
 	cartChanged?: boolean;
 	/** A page to open once the result is returned. */
 	navigateTo?: string;
-}
-
-/**
- * The part of a tool an agent sees: what `/mcp` lists and what the page registers with `document.modelContext`.
- */
-export interface StoreToolDescriptor {
-	name: string;
-	title: string;
-	description: string;
-	inputSchema: Record<string, unknown>;
-	annotations: { readOnlyHint?: boolean; consequentialHint?: boolean; untrustedContentHint?: boolean };
 }
 
 interface StoreTool<Input extends z.ZodObject = z.ZodObject> {
@@ -759,6 +742,14 @@ export const storeTools: StoreTool[] = [
 		annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
 		surfaces: ['page'],
 		run: async ({ item, quantity }, context) => {
+			if (!context.currentProductHandle)
+				return fail('add_to_cart works on a product page. Use create_cart or update_cart.');
+			const product = await context.provider.getProduct(context.currentProductHandle);
+			if (!product?.variants.some((variant) => variant.id === item.id)) {
+				return fail(
+					`item.id is not a variant of the product on this page. Its variants: ${product?.variants.map((variant) => `${variant.id} (${variant.title})`).join(', ') ?? 'none'}.`,
+				);
+			}
 			const { cart } = await currentCart(undefined, context);
 			const added = await applyCartChange(() =>
 				context.provider.addToCart(cart?.id, [{ variantId: item.id, quantity }]),

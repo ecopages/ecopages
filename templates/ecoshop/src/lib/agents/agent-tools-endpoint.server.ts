@@ -1,20 +1,10 @@
 import { cartCookie, readCartId } from '@/lib/cart/cart-cookie';
-import type { CartTotals } from '@/lib/cart/cart-events';
 import { formatMoney } from '@/lib/commerce/money';
 import type { CommerceProvider } from '@/lib/commerce/types';
 import { isSameOriginRequest } from '@/lib/http/same-origin';
 import { siteOrigin } from '@/lib/site-origin';
-import { findStoreTool, runStoreTool, storeToolDescriptors, type StoreToolResult } from './store-tools.server';
-
-/**
- * What a page tool call answers: the tool result for the agent, the cart totals for the header count when the cart
- * changed, and a page to open after the result is returned.
- */
-export interface AgentToolResponse {
-	result: StoreToolResult;
-	cart?: CartTotals;
-	navigateTo?: string;
-}
+import type { AgentToolResponse } from './agent-tool-types';
+import { findStoreTool, runStoreTool, storeToolDescriptors } from './store-tools.server';
 
 /**
  * Lists the tools a storefront page registers with WebMCP.

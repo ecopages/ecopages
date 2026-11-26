@@ -7,8 +7,12 @@
 		@apply grid gap-4;
 	}
 
-	.product__image {
-		@apply w-full rounded-xl bg-surface-container-low object-cover aspect-square;
+	.product__tags {
+		@apply flex flex-wrap gap-2;
+	}
+
+	.product__delivery p {
+		@apply text-sm leading-relaxed my-2;
 	}
 
 	.product__details {

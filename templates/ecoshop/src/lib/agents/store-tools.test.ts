@@ -251,9 +251,29 @@ describe('store tools: the shopper cart on a page', () => {
 	});
 });
 
+describe('store tools: add_to_cart scope', () => {
+	it('refuses a variant of another product and works only on a product page', async () => {
+		const otherProduct = await call(
+			'add_to_cart',
+			{ item: { id: tote }, quantity: 1 },
+			page(undefined, 'field-shirt'),
+		);
+		const noProduct = await call('add_to_cart', { item: { id: tote }, quantity: 1 }, page());
+
+		expect(otherProduct.result.isError).toBe(true);
+		expect(otherProduct.result.content[0]?.text).toMatch(/not a variant of the product on this page/u);
+		expect(noProduct.result.isError).toBe(true);
+		expect(otherProduct.cartId).toBeUndefined();
+	});
+});
+
 describe('store tools: input validation', () => {
 	it('names the invalid field and changes nothing', async () => {
-		const outcome = await call('add_to_cart', { item: { id: fieldShirtM }, quantity: 0 }, page());
+		const outcome = await call(
+			'add_to_cart',
+			{ item: { id: fieldShirtM }, quantity: 0 },
+			page(undefined, 'field-shirt'),
+		);
 
 		expect(outcome.result.isError).toBe(true);
 		expect(outcome.result.content[0]?.text).toMatch(/quantity/u);

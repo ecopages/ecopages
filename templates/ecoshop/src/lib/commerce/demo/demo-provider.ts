@@ -69,7 +69,15 @@ function toProduct(seed: DemoProductSeed): Product {
 			max: fromCents(Math.max(...cents), DEMO_STORE.currencyCode),
 		},
 		featuredImage: image,
-		images: [image],
+		images: [
+			image,
+			...(seed.extraImages ?? []).map((extra) => ({
+				url: `/demo/${extra.file}`,
+				altText: extra.alt,
+				width: 800,
+				height: 800,
+			})),
+		],
 		defaultVariantId: variants.find((variant) => variant.availableForSale)?.id ?? null,
 		variantCount: variants.length,
 	};

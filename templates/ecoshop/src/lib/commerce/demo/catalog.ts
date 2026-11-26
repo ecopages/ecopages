@@ -25,6 +25,8 @@ export interface DemoProductSeed {
 	description: string;
 	options: { name: string; values: string[] }[];
 	variants: DemoVariantSeed[];
+	/** Extra views after `<handle>.svg`, as `src/public/demo/` file names. */
+	extraImages?: { file: string; alt: string }[];
 }
 
 export interface DemoCollectionSeed {
@@ -54,6 +56,7 @@ export const DEMO_PRODUCTS: DemoProductSeed[] = [
 			'A button-down shirt in organic cotton twill. Reinforced elbows, two chest pockets and a relaxed cut for long days outside.',
 		options: [{ name: 'Size', values: ['S', 'M', 'L'] }],
 		variants: sizes(['S', 'M', 'L'], '68.00'),
+		extraImages: [{ file: 'field-shirt-back.svg', alt: 'Field Shirt, back view' }],
 	},
 	{
 		handle: 'linen-overshirt',

@@ -1,6 +1,6 @@
 # Ecoshop template
 
-A Shopify storefront built with Ecopages JSX and [Radiant UI](https://radiant-ui.ecopages.app), made to be used by shoppers and by AI agents. Catalog pages are cached and revalidated by tag, the cart works without JavaScript, and agents can browse and fill a cart through an MCP server.
+A Shopify storefront built with Ecopages JSX, [Radiant](https://radiant.ecopages.app) and [Radiant UI](https://radiant-ui.ecopages.app), made to be used by shoppers and by AI agents. Catalog pages are cached and revalidated by tag, the cart works without JavaScript, and agents can browse and fill a cart through WebMCP in the shopper's browser or through an MCP server.
 
 Without Shopify credentials it runs on a bundled demo catalog, so `pnpm dev`, `pnpm build` and CI work offline.
 
@@ -47,20 +47,55 @@ A tag names a kind of data, not one product, since a Page's Cache Strategy is th
 
 | Surface                       | What it serves                                                                                   |
 | ----------------------------- | ------------------------------------------------------------------------------------------------ |
-| `/mcp`                        | MCP server (Streamable HTTP, stateless) with the tools below                                     |
+| WebMCP, on every page         | The storefront tools, registered with `document.modelContext`, acting on the shopper's own cart  |
+| `/mcp`                        | MCP server (Streamable HTTP, stateless) with the same tools, carts named by id                   |
 | `/llms.txt`                   | The store, its collections, its products and how to shop it ([llmstxt.org](https://llmstxt.org)) |
 | `/products/<handle>/index.md` | A product as Markdown, with its variant ids                                                      |
+| `/policies/<handle>`          | Shipping, returns, privacy, terms and FAQ pages, which `ask_business` answers from               |
 | Product pages                 | schema.org `Product` JSON-LD with an `AggregateOffer`                                            |
 
-MCP tools. Each describes its result with an output schema, and the SDK validates the arguments of every tool that takes some:
+### The tools
 
-- `search_products` — `{ query, limit? }`: matching products with handle, title, price and URL.
-- `get_product` — `{ handle }`: description, options and variants with their ids.
-- `list_collections` — collections with their URLs.
-- `update_cart` — `{ cartId?, lines: [{ variantId, quantity }] }`: sets quantities (0 removes), creating a cart when there is no `cartId`. Returns the cart id and checkout URL.
-- `get_cart` — `{ cartId }`.
+One module, `src/lib/agents/store-tools.server.ts`, defines every tool: its name, description, input schema (Zod, served as JSON Schema) and what it runs against the `CommerceProvider`. WebMCP and `/mcp` both use it. The names and the input and output shapes follow the tools Shopify registers on its storefronts, so an agent that shops a Shopify store works here unchanged. Prices are `{ amount, currency, display }` with `amount` in minor units, as Shopify returns them.
 
-Agents cannot pay: they hand the shopper the `checkoutUrl`.
+| Tool                  | Page | `/mcp` | What it does                                                                                       |
+| --------------------- | :--: | :----: | -------------------------------------------------------------------------------------------------- |
+| `search_catalog`      | yes  |  yes   | `{ catalog: { query, pagination? } }`: products, collections and policy pages, plus the search URL |
+| `browse_store`        | yes  |  yes   | Lists collections, or a collection's products sorted and paged; `navigate` opens the page          |
+| `get_product`         | yes  |  yes   | Variants, options, prices and available combinations; defaults to the product on the page          |
+| `show_variant`        | yes  |   no   | Opens a product page with a variant selected, from an id or partial options                        |
+| `get_cart`            | yes  |  yes   | The cart with its line ids and subtotal                                                            |
+| `create_cart`         | yes  |  yes   | `{ cart: { line_items } }`: fills an empty cart; a cart with items is left unchanged               |
+| `update_cart`         | yes  |  yes   | Sets the cart to exactly the listed lines; refuses a stale cart id or line id                      |
+| `cancel_cart`         | yes  |  yes   | Empties the cart                                                                                   |
+| `proceed_to_checkout` | yes  |  yes   | Opens the provider's checkout; over `/mcp` it returns the URL                                      |
+| `ask_business`        | yes  |  yes   | `{ ask: { query } }`: answers from the store's policies and FAQ, with links                        |
+| `add_to_cart`         | yes  |   no   | Product pages only: adds a variant of that product to the cart                                     |
+
+Over `/mcp` there is no shopper session, so `get_cart`, `update_cart`, `cancel_cart` and `proceed_to_checkout` take the cart `id` that `create_cart` returned. On a page they act on the shopper's cart, and an `id` the agent passes is only compared with it. Agents cannot pay: checkout is the provider's page, where the shopper confirms.
+
+### WebMCP
+
+[WebMCP](https://webmachinelearning.github.io/webmcp) lets a page offer tools to an agent running in the visitor's browser, so the agent acts in the visitor's session and the visible page instead of clicking through the DOM. This template follows the W3C Web Machine Learning Community Group draft at [webmachinelearning/webmcp@47e2b99](https://github.com/webmachinelearning/webmcp/tree/47e2b993ea9fd0599ffca3f58588eb3fd5f474f2) (2026-11-24): the entry point is `document.modelContext`, a tool is registered with `registerTool(tool, { signal })` and removed when its signal aborts.
+
+- **Registration.** Radiant hosts own the tools, through `createAgentTool` from `@ecopages/radiant`: `<store-agent-tools>` in the layout registers the storefront set and persists across client navigations, and the product form's `<cart-form>` registers `add_to_cart` while it is on the page. A client navigation away from a product page unregisters `add_to_cart`.
+- **Execution.** Each call runs on the server through `POST /api/agent-tools/<name>`, which validates the input against the shared schema, uses the cart cookie and the same provider as the pages. Input that fails the schema returns a tool error naming the field and changes nothing. A cart change updates the header count and shows a toast before the tool returns.
+- **Feature detection.** Where `document.modelContext` is missing nothing happens: no request, no registration, no log. No polyfill is bundled. To try the tools in a browser without WebMCP, load the [`@w3c/webmcp-polyfill`](https://www.npmjs.com/package/@w3c/webmcp-polyfill) in a local script, or inspect them with an extension that implements `document.modelContext`.
+- **Browser support** (November 2026): an origin trial in Chrome 149 and Edge 150, and `chrome://flags/#enable-webmcp-testing` for local development. Firefox and Safari have open standards positions. See the [implementation status](https://github.com/webmachinelearning/webmcp/blob/main/implementation-status.md).
+- **Declarative forms.** The form attributes (`toolname`, `tooldescription`) are a separate explainer and are not in the specification draft above, so the template does not use them.
+
+#### Differences from Shopify's storefront tools
+
+The tool set was compared on 2026-11-26 with [Shopify's WebMCP documentation](https://shopify.dev/docs/api/web-mcp) and with the tools a live Liquid storefront registers. The descriptions are this template's own.
+
+- `manage_orders` is not offered: the template has no customer accounts.
+- `get_ucp_profile` is not offered: the template serves no `/.well-known/ucp` profile.
+- The checkout tools (`get_checkout`, `update_checkout`, `complete_checkout`, `navigate_checkout`, `navigate_to_storefront`) are registered by Shopify's own checkout pages, which a connected store's `proceed_to_checkout` opens. The demo checkout has none.
+- `search_catalog` returns no articles, since the template has no blog; its `pages` are the policy pages.
+- `browse_store` sorts by best-selling (the provider's order), price or title; it has no creation-date sort.
+- `get_cart`, `cancel_cart` and `proceed_to_checkout` accept an optional `id`, which `/mcp` needs. The cart totals have a subtotal and no total, since shipping and taxes are set at checkout.
+- `add_to_cart` is an addition for product pages.
+- Shopify does not publish its tool definitions as a package that a headless storefront could install, so they are defined here, against the `CommerceProvider`, which also lets them run on the demo catalog.
 
 ### Connect Claude Code
 
@@ -88,15 +123,23 @@ To explore the tools by hand, run `npx @modelcontextprotocol/inspector` and conn
 
 The endpoint refuses browser requests whose `Origin` is another site, so a web page cannot drive it through a visitor's browser. It has no authentication: every tool is either public catalog data or a cart reached by its id.
 
+## Interface
+
+Interactive behaviour lives in Radiant hosts (`cart-form`, `cart-count`, `store-agent-tools`, `theme-toggle`). The UI uses Radiant UI's button, input, badge, alert, radio group (variant picker), carousel (product images), disclosure (shipping and returns), breadcrumb, chip (tags), toast (cart feedback) and cycle toggle. Two places keep native controls on purpose, because the cart must work without JavaScript:
+
+- The quantity is a native number input: Radiant UI's number field names its input only once its script runs, so a post without JavaScript would lose the quantity.
+- The variant picker carries a hidden default `variantId`: the radio group's host checks the selected radio only once its script runs.
+
 ## Structure
 
 - `src/lib/commerce/` — the `CommerceProvider` interface, the Shopify provider (GraphQL over `fetch`), the demo provider and its catalog, and provider selection
 - `src/lib/cart/` — the cart cookie and the `/api/cart` handler
+- `src/lib/agents/` — the shared tool definitions, the `/api/agent-tools` handler, the browser tool client, `/llms.txt`, Markdown views and JSON-LD
 - `src/lib/mcp/` — the MCP server and its Streamable HTTP handler
-- `src/lib/agents/` — `/llms.txt`, Markdown views and JSON-LD
 - `src/lib/webhooks/` — webhook verification and tag mapping
-- `src/pages/` — the home, `collections/[handle]`, `products/[handle]`, `search` and `cart` Pages, and the `api/cart`, `api/revalidate` and `mcp` Endpoints
-- `src/components/add-to-cart/` — the product form and the `cart-form` host that enhances it
+- `src/pages/` — the home, `collections/[handle]`, `products/[handle]`, `policies/[handle]`, `search` and `cart` Pages, and the `api/cart`, `api/agent-tools`, `api/revalidate` and `mcp` Endpoints
+- `src/components/add-to-cart/` — the product form and the `cart-form` host that enhances it and registers `add_to_cart`
+- `src/components/agent-tools/` — the `<store-agent-tools>` host that registers the storefront tools
 - `src/components/cart-count/` — the header cart link and its live count
 - `app.ts` and `src/handlers/agents.server.ts` — the `/llms.txt` and Markdown routes, which end in a file extension and so are Explicit Routes
 - `.agents/skills` — Ecopages, Radiant and Radiant UI skill packs; see [AGENTS.md](./AGENTS.md)
@@ -106,13 +149,15 @@ The demo cart keeps no server state: its id encodes its lines, so it survives re
 ## Test and build
 
 ```bash
-pnpm test        # providers, cart endpoint, webhook, agent documents and the MCP server over HTTP
+pnpm test        # providers, cart endpoint, webhook, tools, agent documents and the MCP server over HTTP
 pnpm typecheck
 pnpm build
 pnpm start       # builds, then serves pages, endpoints and the MCP server
 ```
 
 `ecopages preview` serves only the static output, without endpoints; use `pnpm start` to try the cart and `/mcp` on a build. Rebrand by changing the seed colors at the top of `src/styles/tailwind.css` and the catalog in `src/lib/commerce/demo/catalog.ts`.
+
+The WebMCP tools are covered end to end by the `template-ecoshop-dev-e2e` Playwright project at the repository root, which injects a stand-in `document.modelContext`.
 
 The storefront's agent surfaces were inspired by [vercel/shop](https://github.com/vercel/shop).
 

@@ -94,7 +94,8 @@ The tool set was compared on 2026-11-26 with [Shopify's WebMCP documentation](ht
 - The checkout tools (`get_checkout`, `update_checkout`, `complete_checkout`, `navigate_checkout`, `navigate_to_storefront`) are registered by Shopify's own checkout pages, which a connected store's `proceed_to_checkout` opens. The demo checkout has none.
 - `search_catalog` returns no articles, since the template has no blog; its `pages` are the policy pages.
 - `ask_business` answers from the store's policies: with a Shopify store, the refund, shipping, privacy and terms policies the Storefront API publishes; the demo catalog also has an FAQ. Shopify's own tool also reads FAQ pages and its Ask knowledge base. It accepts `ask.context` and does not use it.
-- `browse_store` sorts by price or title. `best-selling` keeps the provider's order: Shopify's best-selling order for `all`, and the collection's own order for a collection. It has no creation-date sort.
+- `browse_store` sorts by price or title. `best-selling` keeps the provider's order: Shopify's best-selling order for `all`, and the collection's own order for a collection. It has no creation-date sort, and it sorts and pages the first 250 products of a collection.
+- The stale-cart check runs before the change: a shopper edit that lands between the check and the write is overwritten, since neither the Storefront API nor the demo cart offers a conditional write.
 - `get_cart`, `cancel_cart` and `proceed_to_checkout` accept an optional `id`, which `/mcp` needs. The cart totals have a subtotal and no total, since shipping and taxes are set at checkout.
 - `add_to_cart` is an addition for product pages.
 - Shopify does not publish its tool definitions as a package that a headless storefront could install, so they are defined here, against the `CommerceProvider`, which also lets them run on the demo catalog.

@@ -133,6 +133,11 @@ function assertWithinCap(lines: CartLineQuantity[], existing: Cart | null, mode:
 
 /**
  * A commerce provider over the Shopify Storefront API.
+ *
+ * @remarks
+ * `setCartQuantities` runs up to three cart mutations, because the Storefront API has no transaction: additions first,
+ * then updates, then removals. An addition is the change most likely to be refused (an unknown or sold-out variant), so
+ * a refused replacement leaves the existing lines in the cart.
  */
 export function createShopifyProvider(options: StorefrontClientOptions): CommerceProvider {
 	const query = createStorefrontClient(options);
@@ -291,11 +296,8 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			}
 
 			let cart = existing;
-			if (removals.length) {
-				cart = await mutateCart(CART_LINES_REMOVE_MUTATION, 'cartLinesRemove', {
-					cartId: cart.id,
-					lineIds: removals,
-				});
+			if (additions.length) {
+				cart = await mutateCart(CART_LINES_ADD_MUTATION, 'cartLinesAdd', { cartId: cart.id, lines: additions });
 			}
 			if (updates.length) {
 				cart = await mutateCart(CART_LINES_UPDATE_MUTATION, 'cartLinesUpdate', {
@@ -303,8 +305,11 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 					lines: updates,
 				});
 			}
-			if (additions.length) {
-				cart = await mutateCart(CART_LINES_ADD_MUTATION, 'cartLinesAdd', { cartId: cart.id, lines: additions });
+			if (removals.length) {
+				cart = await mutateCart(CART_LINES_REMOVE_MUTATION, 'cartLinesRemove', {
+					cartId: cart.id,
+					lineIds: removals,
+				});
 			}
 			return cart;
 		},

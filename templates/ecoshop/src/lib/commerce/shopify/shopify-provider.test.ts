@@ -159,8 +159,8 @@ describe('Shopify provider cart', () => {
 		const otherVariant = 'gid://shopify/ProductVariant/4470000000009';
 		const { provider, calls } = providerWith([
 			cartFixture,
-			cartResult('cartLinesRemove'),
 			cartResult('cartLinesAdd'),
+			cartResult('cartLinesRemove'),
 		]);
 
 		await provider.setCartQuantities(cart.id, [
@@ -168,9 +168,27 @@ describe('Shopify provider cart', () => {
 			{ variantId: otherVariant, quantity: 1 },
 		]);
 
-		expect(calls.map((call) => call.operation)).toEqual(['Cart', 'CartLinesRemove', 'CartLinesAdd']);
-		expect(calls[1]?.variables).toEqual({ cartId: cart.id, lineIds: [cart.lines.nodes[0]?.id] });
-		expect(calls[2]?.variables).toEqual({ cartId: cart.id, lines: [{ merchandiseId: otherVariant, quantity: 1 }] });
+		expect(calls.map((call) => call.operation)).toEqual(['Cart', 'CartLinesAdd', 'CartLinesRemove']);
+		expect(calls[1]?.variables).toEqual({ cartId: cart.id, lines: [{ merchandiseId: otherVariant, quantity: 1 }] });
+		expect(calls[2]?.variables).toEqual({ cartId: cart.id, lineIds: [cart.lines.nodes[0]?.id] });
+	});
+
+	it('keeps the existing lines when an addition in a replacement is refused', async () => {
+		const otherVariant = 'gid://shopify/ProductVariant/4470000000009';
+		const { provider, calls } = providerWith([
+			cartFixture,
+			cartResult('cartLinesAdd', [
+				{ field: ['lines', '0', 'merchandiseId'], message: 'The merchandise does not exist' },
+			]),
+		]);
+
+		await expect(
+			provider.setCartQuantities(cart.id, [
+				{ variantId: jacketM, quantity: 0 },
+				{ variantId: otherVariant, quantity: 1 },
+			]),
+		).rejects.toBeInstanceOf(CartInputError);
+		expect(calls.map((call) => call.operation)).toEqual(['Cart', 'CartLinesAdd']);
 	});
 
 	it('sets the quantity of a line already in the cart', async () => {
@@ -261,14 +279,14 @@ describe('Shopify provider cart', () => {
 		};
 		const { provider, calls } = providerWith([
 			twoLines,
-			cartResult('cartLinesRemove'),
 			cartResult('cartLinesUpdate'),
+			cartResult('cartLinesRemove'),
 		]);
 
 		await provider.setCartQuantities(cart.id, [{ variantId: jacketM, quantity: 4 }]);
 
-		expect(calls[1]?.variables).toEqual({ cartId: cart.id, lineIds: [duplicate.id] });
-		expect(calls[2]?.variables).toEqual({ cartId: cart.id, lines: [{ id: cart.lines.nodes[0]?.id, quantity: 4 }] });
+		expect(calls[1]?.variables).toEqual({ cartId: cart.id, lines: [{ id: cart.lines.nodes[0]?.id, quantity: 4 }] });
+		expect(calls[2]?.variables).toEqual({ cartId: cart.id, lineIds: [duplicate.id] });
 	});
 
 	it('refuses an addition that takes a line past the quantity cap', async () => {

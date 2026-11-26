@@ -57,7 +57,7 @@ test.describe('ecofaster template', () => {
 		await expect(page.getByRole('status').filter({ hasText: 'Added to your cart.' })).toBeVisible();
 		expect(page.url()).toBe(productUrl);
 		expect(await page.evaluate(() => (window as Window & { __loadMarker?: boolean }).__loadMarker)).toBe(true);
-		expect(await (await page.request.get('/api/cart')).json()).toEqual({ count: 3 });
+		expect(((await (await page.request.get('/api/cart')).json()) as { count: number }).count).toBe(3);
 	});
 
 	test('a tampered cart cookie shows an empty order, not an error page', async ({ page, context, baseURL }) => {

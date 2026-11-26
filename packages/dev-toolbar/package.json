@@ -32,8 +32,8 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@ecopages/jsx": "^0.11.2",
-		"@ecopages/radiant": "^0.11.2",
+		"@ecopages/jsx": "^0.12.0",
+		"@ecopages/radiant": "^0.12.0",
 		"axe-core": "^4.10.3"
 	},
 	"devDependencies": {

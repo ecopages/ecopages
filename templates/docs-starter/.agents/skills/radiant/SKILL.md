@@ -8,8 +8,9 @@ description: >-
     bindings, @bindTo paint onto existing DOM, or when to use plain reactive
     reads versus this.$ / this.bindings / this.bind(...). Also use when updating
     docs, examples, or playground code so the output follows Radiant's shared
-    reactive host model, and when rendering @ecopages/jsx without a host using
-    signals.
+    reactive host model, when rendering @ecopages/jsx without a host using
+    signals, and when offering page actions to browser agents as WebMCP tools
+    with @agentTool, createAgentTool or registerAgentTool.
 ---
 
 # Radiant Reactive Host Author
@@ -25,24 +26,27 @@ Use `llms.txt` for a compact map, then the full docs for API details.
 ## When to use this skill
 
 - Creating or editing a `RadiantElement` or `RadiantController`
-- Choosing `@prop` / `@state` / `@signal`, or `@customElement` / `@controller`
+- Choosing `@prop` / `@state` / `@signal` / `@fromStore`, or `@customElement` / `@controller`
 - Choosing plain reads (`this.count`) vs JSX bindings (`this.$.count`) vs `@bindTo`
 - Wiring SSR, hydration, host rendering, or slotted content
 - Reviewing docs or examples so they teach the Radiant model, not React habits
 - Rendering `@ecopages/jsx` with `createRoot(...)` and signals, without a host
+- Offering a host method or page action to a browser agent as a WebMCP tool (`@agentTool`, `createAgentTool`, `registerAgentTool`)
 
 ## Import paths
 
-| Surface                                                                                       | From                                        |
-| --------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Hosts, `@customElement`, `@controller`, common host decorators                                | `@ecopages/radiant`                         |
-| `createContext`, `@provideContext`, `@consumeContext`, `@contextSelector`, `@onContextUpdate` | `@ecopages/radiant/context`                 |
-| SSR helpers                                                                                   | `@ecopages/radiant/server/*`                |
-| `renderToString`, `withServerCustomElementRenderHook`, SSR scope helpers                      | `@ecopages/jsx/server`                      |
-| Client hydrator for SSR pages                                                                 | `@ecopages/radiant/client/install-hydrator` |
-| `isServer`                                                                                    | `@ecopages/radiant/is-server`               |
-| `JSX_PROPS`, `JsxRenderable` (types)                                                          | `@ecopages/jsx`                             |
-| `setDevWarningsEnabled`                                                                       | `@ecopages/jsx/jsx-dev-runtime`             |
+| Surface                                                                                       | From                                                                                           |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Hosts, `@customElement`, `@controller`, common host decorators                                | `@ecopages/radiant`                                                                            |
+| `createContext`, `@provideContext`, `@consumeContext`, `@contextSelector`, `@onContextUpdate` | `@ecopages/radiant/context`                                                                    |
+| SSR helpers                                                                                   | `@ecopages/radiant/server/*`                                                                   |
+| `renderToString`, `withServerCustomElementRenderHook`, SSR scope helpers                      | `@ecopages/jsx/server`                                                                         |
+| Client hydrator for SSR pages                                                                 | `@ecopages/radiant/client/install-hydrator`                                                    |
+| `isServer`                                                                                    | `@ecopages/radiant/is-server`                                                                  |
+| `JSX_PROPS`, `JsxRenderable` (types)                                                          | `@ecopages/jsx`                                                                                |
+| `setDevWarningsEnabled`                                                                       | `@ecopages/jsx/jsx-dev-runtime`                                                                |
+| `@agentTool` (experimental)                                                                   | `@ecopages/radiant/decorators/agent-tool`                                                      |
+| `createAgentTool`, `registerAgentTool` (experimental)                                         | `@ecopages/radiant/helpers/create-agent-tool`, `@ecopages/radiant/helpers/register-agent-tool` |
 
 ## Host choice
 
@@ -57,12 +61,12 @@ Three paint paths. They are not interchangeable:
 
 - `this.count` — raw reactive read; tracked in `render()`; drives host rerenders
 - `this.$.count` / `this.bindings.count` / `this.bind('count')` — JSX binding; patches a leaf the host's own `render()` / `hydrate()` created
-- `@bindTo(...)` — copy a `@prop` / `@state` / `@signal` field onto existing DOM (the host, or a `ref` / `selector` descendant). Sit it on the field. Do not `@query` a node only to write into it.
+- `@bindTo(...)` — copy a `@prop` / `@state` / `@signal` / `@fromStore` field onto existing DOM (the host, or a `ref` / `selector` descendant). Sit it on the field. Do not `@query` a node only to write into it.
 
-Use a **plain read** when the value shapes render logic (branches, comparisons, list shape, slot fallback, `class` / `style` composition, handlers). Use a **JSX binding** for leaf text, whole attribute values, boolean attrs (`hidden={this.$.closed}`, or `bool:name` for a non-standard one), and `prop:*` in `render()`. Use **`@bindTo`** for the same leaf writes when the host does not own that DOM. Never use a JSX binding as a raw value in control flow. `@onUpdated` is a procedure (focus, timers, joined ARIA), not a paint API.
+Use a **plain read** when the value shapes render logic (branches, comparisons, list shape, slot fallback, `class` / `style` composition, handlers). Use a **JSX binding** for leaf text, whole attribute values, boolean attrs (`hidden={this.$.closed}`, or `bool:name` for a non-standard one), and `prop:*` in `render()`. Use **`@bindTo`** for the same leaf writes when the host does not own that DOM. Pick one form per field: a `@state`, `@prop` or `@fromStore` field both bound with `this.$` and read in `render()`, or one that re-runs `render()` 30 times in a second, logs a development warning once per class and field (for a hot field that shapes structure, derive a coarser field for `render()`). Never use a JSX binding as a raw value in control flow. `@onUpdated` is a procedure (focus, timers, joined ARIA), not a paint API.
 
 ```tsx
-<article class={this.isExpanded ? 'user-card user-card--expanded' : 'user-card'} data={{ state: this.$.isExpanded }}>
+<article class={this.isExpanded ? 'user-card user-card--expanded' : 'user-card'}>
 	<h2>{this.$.name}</h2>
 </article>
 ```
@@ -81,15 +85,16 @@ open = false;
 
 Read only the modules relevant to the task. Each file is one level deep from this entry.
 
-| Module                                                     | Read when                                                                                                                                 |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| [reference/reactive-model.md](reference/reactive-model.md) | Bindings vs plain reads vs `@bindTo`, attribute rules (`bool:`, `false`, `class`), derived `.map`, class/style                            |
-| [reference/hosts.md](reference/hosts.md)                   | Element vs controller, public props vs internal bindings types, children and named regions                                                |
-| [reference/decorators.md](reference/decorators.md)         | `@prop` / `@attr` / `@state` / `@signal`, field types, `@bindTo`, `@query`, `@onEvent`, `@onUpdated`, `@bound`, `@debounce`               |
-| [reference/context.md](reference/context.md)               | Provide/consume, `@contextSelector` vs `@onContextUpdate`, manual `ContextRequestEvent` and other protocol libraries, context field types |
-| [reference/ssr.md](reference/ssr.md)                       | Server entrypoints, hydrate modes, nested and page-level hydration, render scope                                                          |
-| [reference/authoring.md](reference/authoring.md)           | Authoring rules, development warnings, review checklist, output shape                                                                     |
-| [reference/jsx-signals.md](reference/jsx-signals.md)       | `@ecopages/jsx` with `createRoot` and signals, no host: render once, computed keyed lists, signals in attributes                          |
+| Module                                                     | Read when                                                                                                                                          |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [reference/reactive-model.md](reference/reactive-model.md) | Bindings vs plain reads vs `@bindTo`, attribute rules (`bool:`, `false`, `class`), derived `.map` and store paths, class/style                     |
+| [reference/hosts.md](reference/hosts.md)                   | Element vs controller, public props vs internal bindings types, children and named regions                                                         |
+| [reference/decorators.md](reference/decorators.md)         | `@prop` / `@attr` / `@state` / `@signal` / `@fromStore`, field types, `@bindTo`, `@query`, `@ref`, `@onEvent`, `@onUpdated`, `@bound`, `@debounce` |
+| [reference/context.md](reference/context.md)               | Provide/consume, `@contextSelector` vs `@onContextUpdate`, manual `ContextRequestEvent` and other protocol libraries, context field types          |
+| [reference/ssr.md](reference/ssr.md)                       | Server entrypoints, hydrate modes, nested and page-level hydration, render scope                                                                   |
+| [reference/authoring.md](reference/authoring.md)           | Authoring rules, development warnings, review checklist, output shape                                                                              |
+| [reference/jsx-signals.md](reference/jsx-signals.md)       | `@ecopages/jsx` with `createRoot` and signals, no host: render once, computed keyed lists, signals in attributes, `ref` callbacks, external stores |
+| [reference/agent-tools.md](reference/agent-tools.md)       | Experimental WebMCP tools: `@agentTool`, `createAgentTool`, `registerAgentTool`, unique names, `parse`, annotations, security                      |
 
 ## Critical rules
 
@@ -98,10 +103,10 @@ Read only the modules relevant to the task. Each file is one level deep from thi
 3. Reassign arrays and objects; in-place mutation does not trigger updates.
 4. Omit the `Bindings` generic unless the host uses `this.$`, `this.bindings`, or `this.bind(...)`.
 5. `@bindTo` copies a reactive field onto existing DOM. Missing nodes and non-reactive fields are skipped. Two write kinds, or both `ref` and `selector`, throw at decoration.
-6. `@query` is a live element handle (focus, observers, third-party APIs) — not a way to copy a field into a node.
+6. `@ref` (a `data-ref` part the host owns) and `@query` (a selector, which reaches into nested hosts) are live element handles (focus, observers, third-party APIs) — not a way to copy a field into a node.
 7. Import context from `@ecopages/radiant/context`, not the root entry.
 8. Radiant SSR is light-DOM only. Prefer explicit `mode: 'plain'` or `mode: 'hydrate'`. In hydrate mode, define a parent host on the client too: a host inside a parent host's view stays inert until the parent hydrates.
-9. Type decorated fields as the decorator checks them ([field types](reference/decorators.md#field-types)): prefer an initializer, never `declare` a decorated field, and treat a `@query` field as `T | null` (`T[]` with `all: true`), guarding each use.
+9. Type decorated fields as the decorator checks them ([field types](reference/decorators.md#field-types)): prefer an initializer, never `declare` a decorated field, and treat a `@query` or `@ref` field as `T | null` (`@queryAll` and `@refAll` fields as `T[]`), guarding each use.
 10. A view hands a render-owning host its children as one value: `{this.slotted}` places them (`{this.slotted ?? fallback}` for a fallback), and a named region is a property (`<x-card header={<h2 />}>`). `<slot>` is an ordinary element. Change children in the parent view, not with DOM APIs, and define custom elements before rendering views that use them ([children](reference/hosts.md#children)).
 11. Declare public props with `declare readonly [JSX_PROPS]?: Props` and render the class directly (`<UserCard name="Ada" />`). `@prop` HTML attributes are kebab-case (`minWidth` is `min-width`); JSX keeps camelCase. Keep internal `@state` `protected` or `private`.
 

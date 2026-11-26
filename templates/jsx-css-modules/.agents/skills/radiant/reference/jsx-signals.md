@@ -45,6 +45,9 @@ createRoot(document.querySelector('#app') as HTMLElement).render(
 - Delegate row events: one `on:click` on the list container, reading the row from `event.target.closest(...)`, instead of a handler per row.
 - For a source with its own notifications but no `get()`/`subscribe(...)`, wrap it with `createSubscribableJsxValue({ getValue, subscribe })`.
 - A same-tag element at the same position is kept when its bound attributes change (a spread gaining or losing `aria-describedby` keeps focus and caret). Give elements that must stay distinct a `key`. A custom element's dropped spread key is set to `undefined`. A JSX-attached listener cannot be removed with `removeEventListener(type, yourHandler)`.
+- `ref={(node) => ...}` on any element is called with the node once it is in the page and with `null` when it leaves; return a function to clean up instead. Attaches run child before parent, as in React 19; a ref never runs on the server.
+- A function in a child or attribute position renders nothing and warns in development. Pass a signal or a binding, or call the function yourself.
+- A store you do not own (Zustand, Redux, `useSyncExternalStore`) becomes a read-only signal with `fromExternalStore(store, select)` from `@ecopages/signals`; in a host, use `@fromStore`.
 - Install `@ecopages/signals` explicitly: `@ecopages/jsx` lists it as a peer dependency.
 
 ## Inside a Radiant host

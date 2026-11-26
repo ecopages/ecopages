@@ -29,6 +29,10 @@ CREATE TABLE `products` (
 	`name` text NOT NULL,
 	`description` text NOT NULL,
 	`price_cents` integer NOT NULL,
+	`compare_at_cents` integer,
+	`material` text NOT NULL,
+	`finishes` text NOT NULL,
+	`badge` text,
 	`position` integer NOT NULL,
 	`subcategory_id` integer NOT NULL,
 	FOREIGN KEY (`subcategory_id`) REFERENCES `subcategories`(`id`) ON UPDATE no action ON DELETE no action

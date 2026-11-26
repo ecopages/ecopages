@@ -82,15 +82,17 @@ async function writeCatalog({ filePath, migrationsFolder, sizeName }: OpenCatalo
  *
  * @remarks
  * Seeds when the file is missing or was seeded with another size or generator version, so changing
- * `CATALOG_SIZE` takes effect on the next start. Pending migrations run on every open.
+ * `CATALOG_SIZE` takes effect on the next start. Pending migrations run on every open. The file holds only
+ * generated data, so one whose migrations fail, such as a file written by an older schema, is regenerated
+ * rather than repaired.
  */
 export async function openCatalogDatabase(options: OpenCatalogDatabaseOptions): Promise<CatalogDatabase> {
 	if (fileSystem.exists(options.filePath)) {
 		const existing = connect(options.filePath);
-		await migrate(existing.db, { migrationsFolder: options.migrationsFolder });
-		if (await isSeededWith(existing.db, options.sizeName)) {
-			return { db: existing.db, close: () => existing.client.close() };
-		}
+		const current = await migrate(existing.db, { migrationsFolder: options.migrationsFolder })
+			.then(() => isSeededWith(existing.db, options.sizeName))
+			.catch(() => false);
+		if (current) return { db: existing.db, close: () => existing.client.close() };
 		existing.client.close();
 	}
 

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { CATALOG_SIZES, generateCatalog, resolveCatalogSize } from './generator.ts';
+import { FINISHES } from './taxonomy.ts';
 
 describe('generateCatalog', () => {
 	test('returns the same catalog for the same size', () => {
@@ -55,10 +56,37 @@ describe('generateCatalog', () => {
 	});
 });
 
+describe('product traits', () => {
+	const { products } = generateCatalog(CATALOG_SIZES.medium);
+
+	test('names the material each product is made of', () => {
+		expect(products.every((product) => product.name.toLowerCase().includes(product.material))).toBe(true);
+	});
+
+	test('offers three distinct finishes per product', () => {
+		for (const product of products) {
+			const finishes = product.finishes.split(',');
+			expect(new Set(finishes).size).toBe(3);
+			expect(finishes.every((finish) => FINISHES.includes(finish))).toBe(true);
+		}
+	});
+
+	test('marks some products new and some on sale, a sale price below the price it replaces', () => {
+		const onSale = products.filter((product) => product.badge === 'sale');
+
+		expect(onSale.length).toBeGreaterThan(0);
+		expect(products.some((product) => product.badge === 'new')).toBe(true);
+		expect(onSale.every((product) => product.compareAtCents! > product.priceCents)).toBe(true);
+		expect(products.filter((product) => product.badge !== 'sale').every((p) => p.compareAtCents === null)).toBe(
+			true,
+		);
+	});
+});
+
 describe('resolveCatalogSize', () => {
-	test('defaults to the small preset', () => {
-		expect(resolveCatalogSize(undefined)).toEqual({ name: 'small', size: CATALOG_SIZES.small });
-		expect(resolveCatalogSize('')).toEqual({ name: 'small', size: CATALOG_SIZES.small });
+	test('defaults to the medium preset', () => {
+		expect(resolveCatalogSize(undefined)).toEqual({ name: 'medium', size: CATALOG_SIZES.medium });
+		expect(resolveCatalogSize('')).toEqual({ name: 'medium', size: CATALOG_SIZES.medium });
 	});
 
 	test('reads a preset name in any case', () => {

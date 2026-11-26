@@ -44,6 +44,12 @@ export const products = sqliteTable(
 		name: text('name').notNull(),
 		description: text('description').notNull(),
 		priceCents: integer('price_cents').notNull(),
+		/** The price before a sale; set only for products on sale. */
+		compareAtCents: integer('compare_at_cents'),
+		material: text('material').notNull(),
+		/** The finishes a visitor can pick, comma-separated; the first is the default. */
+		finishes: text('finishes').notNull(),
+		badge: text('badge', { enum: ['new', 'sale'] }),
 		position: integer('position').notNull(),
 		subcategoryId: integer('subcategory_id')
 			.notNull()

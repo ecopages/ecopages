@@ -1,7 +1,7 @@
 {
 	"version": "6",
 	"dialect": "sqlite",
-	"id": "7a16eeff-dac0-42c0-88fc-49e7ea95ebca",
+	"id": "dcceef8b-28dd-443f-a072-2d09c12b65b5",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"tables": {
 		"catalog_meta": {
@@ -181,6 +181,34 @@
 					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
+					"autoincrement": false
+				},
+				"compare_at_cents": {
+					"name": "compare_at_cents",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"material": {
+					"name": "material",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"finishes": {
+					"name": "finishes",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"badge": {
+					"name": "badge",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
 					"autoincrement": false
 				},
 				"position": {

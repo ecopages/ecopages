@@ -281,6 +281,21 @@ describe('Shopify provider cart', () => {
 		expect(calls.map((call) => call.operation)).toEqual(['Cart']);
 	});
 
+	it('counts a variant repeated in one addition against the cap', async () => {
+		const held = {
+			data: { cart: { ...cart, lines: { ...cart.lines, nodes: [{ ...cart.lines.nodes[0]!, quantity: 98 }] } } },
+		};
+		const { provider, calls } = providerWith([held]);
+
+		await expect(
+			provider.addToCart(cart.id, [
+				{ variantId: jacketM, quantity: 1 },
+				{ variantId: jacketM, quantity: 1 },
+			]),
+		).rejects.toThrow(/at most 99/u);
+		expect(calls.map((call) => call.operation)).toEqual(['Cart']);
+	});
+
 	it('reads every page of a long cart', async () => {
 		const secondLine = { ...cart.lines.nodes[0]!, id: 'gid://shopify/CartLine/page-2', quantity: 1 };
 		const firstPage = {

@@ -48,17 +48,27 @@ function assertVariantIds(lines: CartLineQuantity[]): void {
 }
 
 /**
- * Refuses a change that would take a line past {@link MAX_LINE_QUANTITY}: the new quantity plus what `existing`
- * already holds of that variant, when adding.
+ * Refuses a change that would take a line past {@link MAX_LINE_QUANTITY}.
+ *
+ * @remarks
+ * An addition counts what `existing` already holds of the variant plus every requested entry for it, so repeating a
+ * variant in one call cannot pass the cap. A set replaces the quantity, so each entry is checked on its own.
  */
-function assertWithinCap(lines: CartLineQuantity[], existing: Cart | null): void {
+function assertWithinCap(lines: CartLineQuantity[], existing: Cart | null, mode: 'add' | 'set'): void {
+	const totals = new Map<string, number>();
 	for (const { variantId, quantity } of lines) {
-		const held = (existing?.lines ?? [])
-			.filter((line) => line.variantId === variantId)
-			.reduce((sum, line) => sum + line.quantity, 0);
-		if (held + quantity > MAX_LINE_QUANTITY) {
+		const base =
+			mode === 'set'
+				? 0
+				: (totals.get(variantId) ??
+					(existing?.lines ?? [])
+						.filter((line) => line.variantId === variantId)
+						.reduce((sum, line) => sum + line.quantity, 0));
+		const total = base + quantity;
+		if (total > MAX_LINE_QUANTITY) {
 			throw new CartInputError(`A cart line holds at most ${MAX_LINE_QUANTITY} of one variant.`);
 		}
+		totals.set(variantId, total);
 	}
 }
 
@@ -185,7 +195,7 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 		addToCart: async (cartId, lines) => {
 			assertVariantIds(lines);
 			const existing = cartId ? await getCart(cartId) : null;
-			assertWithinCap(lines, existing);
+			assertWithinCap(lines, existing, 'add');
 			if (!existing) return createCart(lines);
 			return mutateCart(CART_LINES_ADD_MUTATION, 'cartLinesAdd', {
 				cartId: existing.id,
@@ -194,7 +204,7 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 		},
 		setCartQuantities: async (cartId, lines) => {
 			assertVariantIds(lines);
-			assertWithinCap(lines, null);
+			assertWithinCap(lines, null, 'set');
 			const existing = cartId ? await getCart(cartId) : null;
 			if (!existing) return createCart(lines);
 

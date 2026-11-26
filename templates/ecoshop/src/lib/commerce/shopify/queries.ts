@@ -41,6 +41,37 @@ const PRODUCT_SUMMARY = /* GraphQL */ `
 	${IMAGE}
 `;
 
+/**
+ * The most nodes one connection page returns, the Storefront API's maximum. Longer variant and cart-line lists
+ * are read page by page.
+ */
+export const PAGE_SIZE = 250;
+
+const PAGE_INFO = /* GraphQL */ `
+	fragment PageInfoFields on PageInfo {
+		hasNextPage
+		endCursor
+	}
+`;
+
+const VARIANT = /* GraphQL */ `
+	fragment VariantFields on ProductVariant {
+		id
+		title
+		availableForSale
+		price {
+			...MoneyFields
+		}
+		compareAtPrice {
+			...MoneyFields
+		}
+		selectedOptions {
+			name
+			value
+		}
+	}
+`;
+
 const PRODUCT = /* GraphQL */ `
 	fragment ProductFields on Product {
 		...ProductSummaryFields
@@ -53,21 +84,12 @@ const PRODUCT = /* GraphQL */ `
 				name
 			}
 		}
-		variants(first: 100) {
+		variants(first: ${PAGE_SIZE}) {
 			nodes {
-				id
-				title
-				availableForSale
-				price {
-					...MoneyFields
-				}
-				compareAtPrice {
-					...MoneyFields
-				}
-				selectedOptions {
-					name
-					value
-				}
+				...VariantFields
+			}
+			pageInfo {
+				...PageInfoFields
 			}
 		}
 		images(first: 10) {
@@ -77,6 +99,39 @@ const PRODUCT = /* GraphQL */ `
 		}
 	}
 	${PRODUCT_SUMMARY}
+	${VARIANT}
+	${PAGE_INFO}
+`;
+
+const CART_LINE = /* GraphQL */ `
+	fragment CartLineFields on BaseCartLine {
+		id
+		quantity
+		cost {
+			amountPerQuantity {
+				...MoneyFields
+			}
+			totalAmount {
+				...MoneyFields
+			}
+		}
+		merchandise {
+			... on ProductVariant {
+				id
+				title
+				image {
+					...ImageFields
+				}
+				product {
+					handle
+					title
+					featuredImage {
+						...ImageFields
+					}
+				}
+			}
+		}
+	}
 `;
 
 const CART = /* GraphQL */ `
@@ -89,37 +144,17 @@ const CART = /* GraphQL */ `
 				...MoneyFields
 			}
 		}
-		lines(first: 100) {
+		lines(first: ${PAGE_SIZE}) {
 			nodes {
-				id
-				quantity
-				cost {
-					amountPerQuantity {
-						...MoneyFields
-					}
-					totalAmount {
-						...MoneyFields
-					}
-				}
-				merchandise {
-					... on ProductVariant {
-						id
-						title
-						image {
-							...ImageFields
-						}
-						product {
-							handle
-							title
-							featuredImage {
-								...ImageFields
-							}
-						}
-					}
-				}
+				...CartLineFields
+			}
+			pageInfo {
+				...PageInfoFields
 			}
 		}
 	}
+	${CART_LINE}
+	${PAGE_INFO}
 	${MONEY}
 	${IMAGE}
 `;
@@ -167,6 +202,24 @@ export const PRODUCT_QUERY = /* GraphQL */ `
 	${PRODUCT}
 `;
 
+export const PRODUCT_VARIANTS_QUERY = /* GraphQL */ `
+	query ProductVariants($handle: String!, $after: String!) {
+		product(handle: $handle) {
+			variants(first: ${PAGE_SIZE}, after: $after) {
+				nodes {
+					...VariantFields
+				}
+				pageInfo {
+					...PageInfoFields
+				}
+			}
+		}
+	}
+	${VARIANT}
+	${PAGE_INFO}
+	${MONEY}
+`;
+
 export const COLLECTIONS_QUERY = /* GraphQL */ `
 	query Collections($first: Int!) {
 		collections(first: $first) {
@@ -204,6 +257,25 @@ export const CART_QUERY = /* GraphQL */ `
 		}
 	}
 	${CART}
+`;
+
+export const CART_LINES_QUERY = /* GraphQL */ `
+	query CartLines($id: ID!, $after: String!) {
+		cart(id: $id) {
+			lines(first: ${PAGE_SIZE}, after: $after) {
+				nodes {
+					...CartLineFields
+				}
+				pageInfo {
+					...PageInfoFields
+				}
+			}
+		}
+	}
+	${CART_LINE}
+	${PAGE_INFO}
+	${MONEY}
+	${IMAGE}
 `;
 
 export const CART_CREATE_MUTATION = /* GraphQL */ `

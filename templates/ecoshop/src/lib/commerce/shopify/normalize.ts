@@ -7,6 +7,28 @@
 
 import type { Cart, Image, Money, Product, ProductSummary } from '../types';
 
+export interface ShopifyPageInfo {
+	hasNextPage: boolean;
+	endCursor: string | null;
+}
+
+/**
+ * One page of a Storefront API connection.
+ */
+export interface ShopifyConnection<T> {
+	nodes: T[];
+	pageInfo: ShopifyPageInfo;
+}
+
+export interface ShopifyVariant {
+	id: string;
+	title: string;
+	availableForSale: boolean;
+	price: Money;
+	compareAtPrice: Money | null;
+	selectedOptions: Array<{ name: string; value: string }>;
+}
+
 export interface ShopifyProductSummary {
 	id: string;
 	handle: string;
@@ -22,16 +44,7 @@ export interface ShopifyProduct extends ShopifyProductSummary {
 	productType: string;
 	tags: string[];
 	options: Array<{ name: string; optionValues: Array<{ name: string }> }>;
-	variants: {
-		nodes: Array<{
-			id: string;
-			title: string;
-			availableForSale: boolean;
-			price: Money;
-			compareAtPrice: Money | null;
-			selectedOptions: Array<{ name: string; value: string }>;
-		}>;
-	};
+	variants: ShopifyConnection<ShopifyVariant>;
 	images: { nodes: Image[] };
 }
 
@@ -52,7 +65,7 @@ export interface ShopifyCart {
 	checkoutUrl: string;
 	totalQuantity: number;
 	cost: { subtotalAmount: Money };
-	lines: { nodes: ShopifyCartLine[] };
+	lines: ShopifyConnection<ShopifyCartLine>;
 }
 
 export function toProductSummary(product: ShopifyProductSummary): ProductSummary {
@@ -77,14 +90,7 @@ export function toProduct(product: ShopifyProduct): Product {
 			name: option.name,
 			values: option.optionValues.map((value) => value.name),
 		})),
-		variants: product.variants.nodes.map((variant) => ({
-			id: variant.id,
-			title: variant.title,
-			availableForSale: variant.availableForSale,
-			price: variant.price,
-			compareAtPrice: variant.compareAtPrice,
-			selectedOptions: variant.selectedOptions,
-		})),
+		variants: product.variants.nodes,
 		images: product.images.nodes,
 	};
 }

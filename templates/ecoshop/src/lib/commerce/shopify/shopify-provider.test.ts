@@ -256,7 +256,9 @@ describe('Shopify provider cart', () => {
 
 	it('sets one line and removes duplicate lines of the same variant', async () => {
 		const duplicate = { ...cart.lines.nodes[0]!, id: 'gid://shopify/CartLine/duplicate' };
-		const twoLines = { data: { cart: { ...cart, lines: { nodes: [...cart.lines.nodes, duplicate] } } } };
+		const twoLines = {
+			data: { cart: { ...cart, lines: { ...cart.lines, nodes: [...cart.lines.nodes, duplicate] } } },
+		};
 		const { provider, calls } = providerWith([
 			twoLines,
 			cartResult('cartLinesRemove'),
@@ -267,5 +269,63 @@ describe('Shopify provider cart', () => {
 
 		expect(calls[1]?.variables).toEqual({ cartId: cart.id, lineIds: [duplicate.id] });
 		expect(calls[2]?.variables).toEqual({ cartId: cart.id, lines: [{ id: cart.lines.nodes[0]?.id, quantity: 4 }] });
+	});
+
+	it('refuses an addition that takes a line past the quantity cap', async () => {
+		const full = {
+			data: { cart: { ...cart, lines: { ...cart.lines, nodes: [{ ...cart.lines.nodes[0]!, quantity: 99 }] } } },
+		};
+		const { provider, calls } = providerWith([full]);
+
+		await expect(provider.addToCart(cart.id, [{ variantId: jacketM, quantity: 1 }])).rejects.toThrow(/at most 99/u);
+		expect(calls.map((call) => call.operation)).toEqual(['Cart']);
+	});
+
+	it('reads every page of a long cart', async () => {
+		const secondLine = { ...cart.lines.nodes[0]!, id: 'gid://shopify/CartLine/page-2', quantity: 1 };
+		const firstPage = {
+			data: { cart: { ...cart, lines: { ...cart.lines, pageInfo: { hasNextPage: true, endCursor: 'c1' } } } },
+		};
+		const secondPage = {
+			data: { cart: { lines: { nodes: [secondLine], pageInfo: { hasNextPage: false, endCursor: null } } } },
+		};
+		const { provider, calls } = providerWith([firstPage, secondPage]);
+
+		const result = await provider.getCart(cart.id);
+
+		expect(calls[1]).toMatchObject({ operation: 'CartLines', variables: { id: cart.id, after: 'c1' } });
+		expect(result?.lines.map((line) => line.id)).toEqual([cart.lines.nodes[0]?.id, secondLine.id]);
+	});
+});
+
+describe('Shopify provider pagination', () => {
+	it('reads every page of a product with many variants', async () => {
+		const product = productFixture.data.product;
+		const extra = {
+			...product.variants.nodes[0]!,
+			id: 'gid://shopify/ProductVariant/page-2',
+			availableForSale: true,
+		};
+		const firstPage = {
+			data: {
+				product: {
+					...product,
+					variants: { ...product.variants, pageInfo: { hasNextPage: true, endCursor: 'v1' } },
+				},
+			},
+		};
+		const secondPage = {
+			data: { product: { variants: { nodes: [extra], pageInfo: { hasNextPage: false, endCursor: null } } } },
+		};
+		const { provider, calls } = providerWith([firstPage, secondPage]);
+
+		const result = await provider.getProduct('harbor-jacket');
+
+		expect(calls[1]).toMatchObject({
+			operation: 'ProductVariants',
+			variables: { handle: 'harbor-jacket', after: 'v1' },
+		});
+		expect(result?.variants.map((variant) => variant.id)).toContain(extra.id);
+		expect(result?.variants).toHaveLength(3);
 	});
 });

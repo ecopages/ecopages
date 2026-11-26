@@ -12,9 +12,8 @@ type CartFormProps = {
  *
  * @remarks
  * The form inside is a complete, working form, so it posts and redirects normally before this script loads or
- * when JavaScript is off. When `fetch` itself fails, the request never reached the server, so the host falls back
- * to that native submit; any answer from the server, even an error page, is reported in place instead, so a change
- * is never posted twice.
+ * when JavaScript is off. Once the host has sent a change it never posts it again: a failed `fetch` may still have
+ * reached the server, so every failure is reported in place and the shopper decides whether to retry.
  */
 @customElement('cart-form')
 export class CartForm extends RadiantElement {
@@ -49,7 +48,7 @@ export class CartForm extends RadiantElement {
 			});
 		} catch {
 			this.pending = false;
-			form.submit();
+			this.status = 'The store could not be reached. Check your cart before trying again.';
 			return;
 		}
 		const result = (await response.json().catch(() => null)) as (CartTotals & { error?: string }) | null;

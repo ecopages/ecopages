@@ -1,9 +1,12 @@
 import { CartInputError, CommerceBackendError } from '../errors';
-import type { Cart, CartLineQuantity, Collection, CommerceProvider } from '../types';
+import { type Cart, type CartLineQuantity, type Collection, type CommerceProvider, MAX_LINE_QUANTITY } from '../types';
 import {
 	type ShopifyCart,
+	type ShopifyCartLine,
+	type ShopifyConnection,
 	type ShopifyProduct,
 	type ShopifyProductSummary,
+	type ShopifyVariant,
 	toCart,
 	toProduct,
 	toProductSummary,
@@ -11,12 +14,14 @@ import {
 import {
 	CART_CREATE_MUTATION,
 	CART_LINES_ADD_MUTATION,
+	CART_LINES_QUERY,
 	CART_LINES_REMOVE_MUTATION,
 	CART_LINES_UPDATE_MUTATION,
 	CART_QUERY,
 	COLLECTION_QUERY,
 	COLLECTIONS_QUERY,
 	PRODUCT_QUERY,
+	PRODUCT_VARIANTS_QUERY,
 	PRODUCTS_QUERY,
 	SHOP_QUERY,
 } from './queries';
@@ -43,10 +48,54 @@ function assertVariantIds(lines: CartLineQuantity[]): void {
 }
 
 /**
+ * Refuses a change that would take a line past {@link MAX_LINE_QUANTITY}: the new quantity plus what `existing`
+ * already holds of that variant, when adding.
+ */
+function assertWithinCap(lines: CartLineQuantity[], existing: Cart | null): void {
+	for (const { variantId, quantity } of lines) {
+		const held = (existing?.lines ?? [])
+			.filter((line) => line.variantId === variantId)
+			.reduce((sum, line) => sum + line.quantity, 0);
+		if (held + quantity > MAX_LINE_QUANTITY) {
+			throw new CartInputError(`A cart line holds at most ${MAX_LINE_QUANTITY} of one variant.`);
+		}
+	}
+}
+
+/**
  * A commerce provider over the Shopify Storefront API.
  */
 export function createShopifyProvider(options: StorefrontClientOptions): CommerceProvider {
 	const query = createStorefrontClient(options);
+
+	/**
+	 * Reads the pages after the first one of a connection, so a long variant list or cart is never cut short.
+	 */
+	async function remainingNodes<T>(
+		first: ShopifyConnection<T>,
+		nextPage: (after: string) => Promise<ShopifyConnection<T> | null>,
+	): Promise<T[]> {
+		const nodes = [...first.nodes];
+		let pageInfo = first.pageInfo;
+		while (pageInfo.hasNextPage && pageInfo.endCursor) {
+			const page = await nextPage(pageInfo.endCursor);
+			if (!page) break;
+			nodes.push(...page.nodes);
+			pageInfo = page.pageInfo;
+		}
+		return nodes;
+	}
+
+	async function completeCart(cart: ShopifyCart): Promise<Cart> {
+		const nodes = await remainingNodes<ShopifyCartLine>(cart.lines, async (after) => {
+			const data = await query<{ cart: { lines: ShopifyConnection<ShopifyCartLine> } | null }>(CART_LINES_QUERY, {
+				id: cart.id,
+				after,
+			});
+			return data.cart?.lines ?? null;
+		});
+		return toCart({ ...cart, lines: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } });
+	}
 
 	async function mutateCart(document: string, operation: string, variables: Record<string, unknown>): Promise<Cart> {
 		const data = await query<Record<string, CartMutationResult>>(document, variables);
@@ -61,7 +110,7 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 		if (!result?.cart) {
 			throw new CommerceBackendError(`${operation} returned no cart`);
 		}
-		return toCart(result.cart);
+		return completeCart(result.cart);
 	}
 
 	/**
@@ -72,7 +121,7 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 	async function getCart(cartId: string): Promise<Cart | null> {
 		if (!cartId.startsWith(CART_ID_PREFIX)) return null;
 		const data = await query<{ cart: ShopifyCart | null }>(CART_QUERY, { id: cartId });
-		return data.cart ? toCart(data.cart) : null;
+		return data.cart ? completeCart(data.cart) : null;
 	}
 
 	const createCart = (lines: CartLineQuantity[]) =>
@@ -105,7 +154,18 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 		},
 		getProduct: async (handle) => {
 			const data = await query<{ product: ShopifyProduct | null }>(PRODUCT_QUERY, { handle });
-			return data.product ? toProduct(data.product) : null;
+			if (!data.product) return null;
+			const variants = await remainingNodes<ShopifyVariant>(data.product.variants, async (after) => {
+				const page = await query<{ product: { variants: ShopifyConnection<ShopifyVariant> } | null }>(
+					PRODUCT_VARIANTS_QUERY,
+					{ handle, after },
+				);
+				return page.product?.variants ?? null;
+			});
+			return toProduct({
+				...data.product,
+				variants: { nodes: variants, pageInfo: data.product.variants.pageInfo },
+			});
 		},
 		listCollections: async (list) => {
 			const data = await query<{ collections: { nodes: Collection[] } }>(COLLECTIONS_QUERY, {
@@ -125,6 +185,7 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 		addToCart: async (cartId, lines) => {
 			assertVariantIds(lines);
 			const existing = cartId ? await getCart(cartId) : null;
+			assertWithinCap(lines, existing);
 			if (!existing) return createCart(lines);
 			return mutateCart(CART_LINES_ADD_MUTATION, 'cartLinesAdd', {
 				cartId: existing.id,
@@ -133,6 +194,7 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 		},
 		setCartQuantities: async (cartId, lines) => {
 			assertVariantIds(lines);
+			assertWithinCap(lines, null);
 			const existing = cartId ? await getCart(cartId) : null;
 			if (!existing) return createCart(lines);
 

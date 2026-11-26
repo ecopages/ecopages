@@ -5,7 +5,10 @@
 			"checkoutUrl": "https://north-pier.myshopify.com/cart/c/Z2NwLWV1cm9wZS13ZXN0NDowMUhYWVo?key=4c1f7e2b9a",
 			"totalQuantity": 2,
 			"cost": {
-				"subtotalAmount": { "amount": "298.0", "currencyCode": "EUR" }
+				"subtotalAmount": {
+					"amount": "298.0",
+					"currencyCode": "EUR"
+				}
 			},
 			"lines": {
 				"nodes": [
@@ -13,8 +16,14 @@
 						"id": "gid://shopify/CartLine/9a1b2c3d-0001?cart=Z2NwLWV1cm9wZS13ZXN0NDowMUhYWVo",
 						"quantity": 2,
 						"cost": {
-							"amountPerQuantity": { "amount": "149.0", "currencyCode": "EUR" },
-							"totalAmount": { "amount": "298.0", "currencyCode": "EUR" }
+							"amountPerQuantity": {
+								"amount": "149.0",
+								"currencyCode": "EUR"
+							},
+							"totalAmount": {
+								"amount": "298.0",
+								"currencyCode": "EUR"
+							}
 						},
 						"merchandise": {
 							"id": "gid://shopify/ProductVariant/4470000000001",
@@ -32,7 +41,11 @@
 							}
 						}
 					}
-				]
+				],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				}
 			}
 		}
 	}

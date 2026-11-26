@@ -16,6 +16,14 @@ const SEARCH_PAGE_LIMIT = 60;
 /** Longest query read, so a pasted essay does not become a database scan pattern. */
 const MAX_QUERY_LENGTH = 80;
 
+/** Most rows `?limit=` may ask for; the `search_catalog` agent tool offers the same bound. */
+export const MAX_SUGGESTION_LIMIT = 24;
+
+function readLimit(limit: QueryValue): number {
+	const value = Number(firstQueryValue(limit));
+	return Number.isInteger(value) && value >= 1 && value <= MAX_SUGGESTION_LIMIT ? value : SUGGESTION_LIMIT;
+}
+
 function normalizeQuery(query: QueryValue): string {
 	return (firstQueryValue(query) ?? '').trim().slice(0, MAX_QUERY_LENGTH);
 }
@@ -26,9 +34,9 @@ function normalizeQuery(query: QueryValue): string {
  * @remarks
  * The catalog only changes on regeneration, so a browser or CDN may reuse an answer for a minute.
  */
-export async function searchSuggestionsAction(db: CatalogDb, query: QueryValue): Promise<Response> {
+export async function searchSuggestionsAction(db: CatalogDb, query: QueryValue, limit?: QueryValue): Promise<Response> {
 	const term = normalizeQuery(query);
-	const products = term.length >= MIN_SUGGESTION_QUERY ? await searchProducts(db, term, SUGGESTION_LIMIT) : [];
+	const products = term.length >= MIN_SUGGESTION_QUERY ? await searchProducts(db, term, readLimit(limit)) : [];
 	const body: SearchSuggestionsResponse = { query: term, results: products.map(toSearchSuggestion) };
 	return Response.json(body, { headers: { 'cache-control': 'public, max-age=60' } });
 }

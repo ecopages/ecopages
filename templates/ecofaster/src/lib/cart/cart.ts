@@ -9,9 +9,23 @@ export type Cart = {
 
 export const EMPTY_CART: Cart = { lines: [] };
 
-/** The body of a JSON cart response, read by the header count and the add-to-cart button. */
+/** One cart line as the JSON cart responses and the agent tools report it. */
+export type CartSummaryLine = {
+	productId: number;
+	/** The product's slug. */
+	product: string;
+	name: string;
+	url: string;
+	quantity: number;
+	price: string;
+	subtotal: string;
+};
+
+/** The body of a JSON cart response: the header count, the add-to-cart button and the agent tools read it. */
 export type CartSummary = {
 	count: number;
+	lines: CartSummaryLine[];
+	total: string;
 };
 
 /**

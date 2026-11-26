@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { openTestCatalog } from '../db/catalog-database.fixture.ts';
 import { addToCartAction, cartSummaryAction, updateCartAction, type CartActionDeps } from './cart-actions.server.ts';
 import { CART_COOKIE, encodeCart, readCart } from './cart-cookie.server.ts';
-import { addToCart, EMPTY_CART, MAX_LINES, MAX_QUANTITY } from './cart.ts';
+import { addToCart, EMPTY_CART, MAX_LINES, MAX_QUANTITY, type CartSummary } from './cart.ts';
 import { getOrder } from './order.server.ts';
 
 const secret = 'test-secret-that-is-at-least-32-characters';
@@ -58,7 +58,7 @@ describe('cart actions', () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(await response.json()).toEqual({ count: 3 });
+		expect(((await response.json()) as CartSummary).count).toBe(3);
 		expect(response.headers.get('set-cookie')).toContain(`${CART_COOKIE}=`);
 	});
 
@@ -184,8 +184,21 @@ describe('cart actions', () => {
 
 		const response = await cartSummaryAction(new Request(`${origin}/api/cart`, { headers: { cookie } }), deps());
 
-		expect(await response.json()).toEqual({ count: 3 });
+		expect(((await response.json()) as CartSummary).count).toBe(3);
 		expect(response.headers.get('cache-control')).toBe('no-store');
+	});
+
+	test('the summary lists each line with its product, link and prices', async () => {
+		const cookie = `${CART_COOKIE}=${encodeCart(addToCart(EMPTY_CART, 1, 2), secret)}`;
+
+		const response = await cartSummaryAction(new Request(`${origin}/api/cart`, { headers: { cookie } }), deps());
+		const summary = (await response.json()) as CartSummary;
+
+		expect(summary.lines).toHaveLength(1);
+		expect(summary.lines[0]).toMatchObject({ productId: 1, quantity: 2 });
+		expect(summary.lines[0]?.url).toBe(`/products/${summary.lines[0]?.product}`);
+		expect(summary.lines[0]?.subtotal).toMatch(/^\$\d/u);
+		expect(summary.total).toBe(summary.lines[0]?.subtotal);
 	});
 
 	test('the order skips products that no longer exist and totals the rest', async () => {

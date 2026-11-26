@@ -2,7 +2,7 @@ import { getProductsByIds } from '../catalog/queries.server.ts';
 import type { CatalogDb } from '../db/catalog-database.server.ts';
 import { readCart, serializeCartCookie } from './cart-cookie.server.ts';
 import { addToCart, cartCount, MAX_LINES, MAX_QUANTITY, setQuantity, type Cart, type CartSummary } from './cart.ts';
-import { getOrder } from './order.server.ts';
+import { getOrder, toCartSummary } from './order.server.ts';
 
 export type CartActionDeps = {
 	db: CatalogDb;
@@ -48,8 +48,8 @@ async function respondWithCart(request: Request, cart: Cart, deps: CartActionDep
 	});
 	if (wantsJson(request)) {
 		headers.set('cache-control', 'no-store');
-		const { count } = await getOrder(deps.db, cart);
-		return Response.json({ count } satisfies CartSummary, { headers });
+		const summary = toCartSummary(await getOrder(deps.db, cart));
+		return Response.json(summary satisfies CartSummary, { headers });
 	}
 	headers.set('location', ORDER_PATH);
 	return new Response(null, { status: 303, headers });
@@ -129,6 +129,6 @@ export async function updateCartAction(request: Request, deps: CartActionDeps): 
  * Counts the lines the order page lists, so the header and `/order` agree.
  */
 export async function cartSummaryAction(request: Request, deps: CartActionDeps): Promise<Response> {
-	const { count } = await getOrder(deps.db, readCart(request, deps.secret));
-	return Response.json({ count } satisfies CartSummary, { headers: { 'cache-control': 'no-store' } });
+	const summary = toCartSummary(await getOrder(deps.db, readCart(request, deps.secret)));
+	return Response.json(summary satisfies CartSummary, { headers: { 'cache-control': 'no-store' } });
 }

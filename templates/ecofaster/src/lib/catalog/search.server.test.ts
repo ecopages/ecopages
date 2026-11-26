@@ -34,6 +34,17 @@ describe('search', () => {
 		expect(response.headers.get('cache-control')).toContain('max-age=');
 	});
 
+	test('the typeahead honours a limit within its bounds and ignores one outside them', async () => {
+		const read = async (limit: string) =>
+			((await (await searchSuggestionsAction(database.db, 'chair', limit)).json()) as SearchSuggestionsResponse)
+				.results.length;
+
+		expect(await read('2')).toBe(2);
+		expect(await read('12')).toBe(12);
+		expect(await read('500')).toBe(SUGGESTION_LIMIT);
+		expect(await read('abc')).toBe(SUGGESTION_LIMIT);
+	});
+
 	test('the search page lists every match for the query', async () => {
 		const page = await getSearchResults(database.db, 'chair');
 

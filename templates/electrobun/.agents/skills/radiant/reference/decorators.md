@@ -17,15 +17,15 @@
 
 ## Reactive data
 
-- `@prop(...)` — public custom-element API: attribute conversion, reflection, optional bindings. The attribute is the kebab-case property name (`minWidth` is `min-width`, `max_width` is `max-width`); `attribute` sets another name, kept as written, so make it lowercase when authors write it in HTML. An authored attribute is read at upgrade and stays on the host; `reflect: true` only adds writing property changes back to it. Pass `transform` to override default converters (`type: Array` is JSON). `fromProperty` normalizes JS/JSX writes; `toAttribute` returning `null` or `''` omits the reflected attribute. `attribute: false` makes a prop property-only (no observed attribute, never reflected or serialized by SSR; `reflect: true` with it throws): use it for a live object such as a class instance, which a lossy JSON attribute would replace. Development SSR warns when a prop that keeps its attribute holds a class instance, function or cycle.
+- `@prop(...)` — public custom-element API: attribute conversion and reflection. The attribute is the kebab-case property name (`minWidth` is `min-width`, `max_width` is `max-width`); `attribute` sets another name, kept as written, so make it lowercase when authors write it in HTML. An authored attribute is read at upgrade and stays on the host; `reflect: true` only adds writing property changes back to it. Pass `transform` to override default converters (`type: Array` is JSON). `fromProperty` normalizes JS/JSX writes; `toAttribute` returning `null` or `''` omits the reflected attribute. `attribute: false` makes a prop property-only (no observed attribute, never reflected or serialized by SSR; `reflect: true` with it throws): use it for a live object such as a class instance, which a lossy JSON attribute would replace. Development SSR warns when a prop that keeps its attribute holds a class instance or cycle, or a function nested in an object or array; a function value itself gets the skip warning.
 - `@attr(...)` — a field bound to a host attribute, read from and written to it; `source` names the attribute; it defaults to the kebab-case field name, as for `@prop`. Use it for `data-*` / `aria-*` configuration on a controller or an HTML-authored host, and `@prop` for a custom element's property API.
 - `@state` — internal mutable UI state
-- Upgrade safety: outside code may assign a `@prop` before the element is defined and the value is adopted (it wins over an authored attribute), so never defer a definition. `@state` and `@signal` are internal: a pre-upgrade value is discarded and development builds warn. A pre-upgrade value that shadows a class accessor (`get`/`set`, `accessor` field, MobX `@observable accessor`) also warns. Declare public input with `@prop`.
+- `@fromStore(store, select?, options?)` — read-only field over a Zustand, Redux, or `useSyncExternalStore` store. Same arguments as `fromExternalStore`. Assignment throws; writes stay on the store. Declare the field without an initializer (`count!: number`); one is ignored and warns in development. When the store arrives through context, `registerReactiveMember` in `@onContextUpdate` instead.
+- Upgrade safety: outside code may assign a `@prop` before the element is defined and the value is adopted (it wins over an authored attribute), so never defer a definition. `@state`, `@signal` and `@fromStore` are internal: a pre-upgrade value is discarded and development builds warn. A pre-upgrade value that shadows a class accessor (`get`/`set`, `accessor` field, MobX `@observable accessor`) also warns. Declare public input with `@prop`.
 - `@signal` or `@signal(options)` — signal-backed host state / signal interop
 
 `@signal` options:
 
-- `bind` — JSX binding companion (`true`, or a custom name string)
 - `initial` — default when the field initializer is omitted
 - `source` — existing shared `WritableSignal` or `(host) => WritableSignal`
 - `hydrate` — attribute type constant for SSR hydration via keyed JSON script
@@ -37,18 +37,18 @@ Bare `@signal` (no parentheses) creates a host-owned signal with defaults.
 Under standard decorators the declared field type is the source of truth. Options that carry a value (`defaultValue`, `initial`, `transform`, `converter`, `type`, and `source` on `@signal`) must agree with it, and a mismatch is a compile error on the decorator. Prefer an initializer so TypeScript infers the type (`@prop({ type: Number }) count = 0`). Write the type for a string literal union, for a field with no initializer (`?`, or `!` when a decorator or a default supplies the value) and for fields a decorator installs.
 
 - A decorated field cannot be `declare` (TS1206) or `accessor`.
-- `@query`: `T | null`, or `T[]` with `all: true` (`all` must be a literal). A single-element query is `null` when nothing matches, so guard it with `?.` or an early return; use `!` only where the host's own markup always renders the node.
+- `@query` and `@ref`: `T | null`. `@queryAll` and `@refAll`: `T[]`. A wrong field type does not compile. A single-element field is `null` when nothing matches, so guard it with `?.` or an early return; use `!` only where the host's own markup always renders the node.
 - `@prop` and `@attr`: the `type` constant must fit the field (`String` a `string`, `Number` a `number`, `Boolean` a `boolean`, `Array` an array, `Object` a non-array object; `null` and `undefined` always fit; a union of parsed types fits none). A parser owns the value type instead, so `type` is not checked against the field: `transform.fromAttribute` on `@prop`, `converter.fromAttribute` on `@attr`. Pass the parser inline or with `satisfies`.
 - `@attr` without `type` or a parser holds the raw string, so the field is `string | null | undefined` (a string literal union fits). A number or boolean field needs `type` or a parser.
 - `defaultValue: null` and a `defaultValue` next to a parser do not throw. Without a parser, a `defaultValue` that does not match `type` throws at class definition on `@prop` and when a host is constructed on `@attr`.
 - A field typed by the host class's own type parameter (`value: V` with `V extends string`) does not compile with a `type` constant. On `@prop` pass a parser that keeps the raw value; on `@attr` omit `type`.
-- `@signal`: `WritableSignal<T>`, with `initial` a `T` and `source` a `WritableSignal<T>` or a function returning one. `@event`: `EventEmitter<Detail>`, not optional. Context decorators: [context.md](context.md).
+- `@signal`: `WritableSignal<T>`, with `initial` a `T` and `source` a `WritableSignal<T>` or a function returning one. `@fromStore`: the selected value, or the whole snapshot without `select`. `@event`: `EventEmitter<Detail>`, not optional. Context decorators: [context.md](context.md).
 - `@bindTo`: `map` receives the field type, and on a `@signal` field declared `WritableSignal<T>` the value `T`, so leave the parameter unannotated.
 - Legacy decorators (`experimentalDecorators`) are supported but never see the field type, so none of this is checked there, and `@bindTo`'s `map` sees `unknown` unless you write `@bindTo<number>(...)`, with the whole field type, `undefined` included (`@bindTo<WritableSignal<number>>(...)` on a `@signal` field).
 - A library that exports a shared decorator (`export const count = prop({ type: Number })`) can emit declarations: `ValueFieldDecorator`, `BoundedFieldDecorator` and the host types they name are exported from `@ecopages/radiant`, and `ContextHostLike` from `@ecopages/radiant/context`.
 
 ```ts
-import { RadiantElement, customElement, prop, ref, refAll } from '@ecopages/radiant';
+import { RadiantElement, customElement, prop, query, queryAll, ref, refAll } from '@ecopages/radiant';
 
 @customElement('search-box')
 export class SearchBox extends RadiantElement {
@@ -75,10 +75,12 @@ Avoid updating the same watched property inside its own `@onUpdated(...)` unless
 
 ## DOM queries
 
-- `@ref(name?)`, `@refAll(name?)` — the `data-ref` parts this host owns. Without a name the part name is the field name as an attribute name (`menubarRoot` finds `data-ref="menubar-root"`). A part inside a nested host belongs to that host.
-- `@query(selector)`, `@queryAll(selector)` — descendants matching a CSS selector, nested hosts included.
+- `@query(selector)` and `@queryAll(selector)` — first match or `null`, and an array of every match, on a `RadiantElement` or a `RadiantController`; read live with no cache, and unscoped (they reach into nested hosts)
+- `@ref(...)` / `@refAll(...)` — the `data-ref` parts this host owns, scoped so a nested host's same-named part is left out
 
-All four work on a `RadiantElement` or a `RadiantController` and query the DOM on every read: `@ref` and `@query` give `T | null`, `@refAll` and `@queryAll` give `T[]`. Prefer `@ref` over broad selectors, and use `@query('[data-ref="x"]')` to reach a nested host's part. Field types and null-safe use: see [Field types](#field-types).
+Prefer `@ref` over a broad selector for the host's own markup. A part belongs to the nearest enclosing Element Host (once upgraded) or attached Controller Host, so a nested host's same-named part is skipped; a selector is unscoped. `@query(options)`, `cache` and `all: true` no longer exist. Field types and null-safe use: see [Field types](#field-types).
+
+`@ref()` reads `data-ref` named after the field (`menubarRoot` finds `menubar-root`, `listboxID` finds `listbox-id`); `@ref('l1234')` uses the name as written; `@ref({ required: true })` and `@ref('name', { required: true })` warn once in development when the part is missing after first connect. `@refAll` returns every owned part in document order. Both read live, are `null` / `[]` before connect, and cannot decorate a `#private` field under standard decorators. Prefer them over a broad selector for parts of the host's own markup; `@query(selector)` stays the way to reach into another host.
 
 Use `@query` for a live element handle (focus, observers, third-party APIs). If a `@query` exists only so you can copy a field into `.textContent` / `.setAttribute` / `toggleAttribute`, use `@bindTo` instead. If the host owns `render()` and the node is a leaf in that view, use `this.$`.
 

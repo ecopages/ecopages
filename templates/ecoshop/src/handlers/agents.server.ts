@@ -1,0 +1,29 @@
+import type { ApiHandlerContext } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
+import { buildLlmsTxt } from '@/lib/agents/llms-txt';
+import { buildProductMarkdown } from '@/lib/agents/product-markdown';
+import { CATALOG_REVALIDATE_SECONDS } from '@/lib/commerce/cache-tags';
+import { getCommerce } from '@/lib/commerce/provider.server';
+import { siteOrigin } from '@/lib/site-origin';
+
+const cacheControl = `public, max-age=${CATALOG_REVALIDATE_SECONDS}`;
+
+/**
+ * Serves `/llms.txt`.
+ */
+export async function llmsTxtHandler(): Promise<Response> {
+	return new Response(await buildLlmsTxt(getCommerce(), siteOrigin), {
+		headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': cacheControl },
+	});
+}
+
+/**
+ * Serves a product's Markdown view at `/products/:handle/index.md`.
+ */
+export async function productMarkdownHandler({ params }: ApiHandlerContext): Promise<Response> {
+	const product = await getCommerce().getProduct(String(params.handle));
+	if (!product) throw HttpError.NotFound('Product not found');
+	return new Response(buildProductMarkdown(product, siteOrigin), {
+		headers: { 'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': cacheControl },
+	});
+}

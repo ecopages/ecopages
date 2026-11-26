@@ -1,0 +1,5 @@
+@layer components {
+	.error500__stack {
+		@apply max-h-80 overflow-x-auto whitespace-pre-wrap rounded-lg bg-surface-container-low p-4 font-mono text-xs;
+	}
+}

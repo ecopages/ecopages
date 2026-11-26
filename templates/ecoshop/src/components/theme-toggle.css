@@ -1,0 +1,18 @@
+theme-toggle {
+	display: inline-flex;
+	width: fit-content;
+	flex: 0 0 auto;
+	vertical-align: middle;
+}
+
+.theme-toggle__item-content {
+	display: inline-flex;
+	flex-direction: row;
+	align-items: center;
+	gap: var(--spacing-inline, var(--space-inline));
+	white-space: nowrap;
+}
+
+.theme-toggle__item-content > svg {
+	flex: 0 0 auto;
+}

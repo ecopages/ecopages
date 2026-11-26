@@ -44,11 +44,11 @@ With server rendering, a view rendered on the server does not register its eleme
 
 Read only the modules relevant to the task. Each file is one level deep from this entry.
 
-| Module                                               | Read when                                                                                                          |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [reference/composition.md](reference/composition.md) | Views vs hosts, named regions, childless views, light-DOM targets, attribute forwarding, ARIA                      |
-| [reference/forms.md](reference/forms.md)             | `RuiField` / `RuiForm`, `rui-change`, multi-value `value`, form-associated controls                                |
-| [reference/theming.md](reference/theming.md)         | Radiant Default and Radiant Themes, dark mode, token packs, semantic roles vs palette steps, selective stylesheets |
+| Module                                               | Read when                                                                                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [reference/composition.md](reference/composition.md) | Views vs hosts, named regions, childless views, light-DOM targets, attribute forwarding, ARIA                                                           |
+| [reference/forms.md](reference/forms.md)             | `RuiField` / `RuiForm`, `input` / `change`, nested values, native validity, `connect`, `RuiFieldWarning`, multi-value `value`, form-associated controls |
+| [reference/theming.md](reference/theming.md)         | Radiant Default and Radiant Themes, dark mode, token packs, semantic roles vs palette steps, selective stylesheets                                      |
 
 ## Critical rules
 
@@ -57,7 +57,7 @@ Read only the modules relevant to the task. Each file is one level deep from thi
 3. Style against semantic roles and system tokens, never raw palette steps or ad-hoc Tailwind colour scales.
 4. Compose with `Rui*` views and Composition Helpers. Pass named regions as helpers or view props (`RuiDialogTitle`, `trigger`, `primary`), never `slot="name"`.
 5. Do not pass children to views whose element renders its own content (`RuiMeter`, `RuiToc`, `RuiToast`, `RuiToaster`, `RuiDateInput`, `RuiCalendar`, `RuiSeparator`, and the date-field / date-range-picker parts that forward to them). It is a type error.
-6. Read multi-value controls as `string[]` (`number[]` for `rui-slider`) and listen for the bubbling `rui-change` event.
+6. Read multi-value controls as `string[]` (`number[]` for `rui-slider`) and listen for the native `input` and `change` events, reading the value from the control.
 7. In HTML, write host attributes in kebab-case (`<rui-sidebar min-width="200">`); JSX keeps the camelCase prop (`<RuiSidebar minWidth={200} />`).
 8. Use native HTML for links, tables, and landmarks. Those are not shipped as widgets.
 9. Author new reactive hosts with the Radiant skill. This pack covers consuming Radiant UI, not replacing `@ecopages/radiant`.

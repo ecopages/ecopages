@@ -41,6 +41,7 @@ Do not treat bindings as raw values. If logic needs a boolean, string, or number
 
 - A boolean on a standard HTML boolean attribute (`hidden`, `disabled`, `checked`, `open`, ...) binds by presence, with or without `attr:`: `true` writes it empty, `false` removes it. It is never written as `"false"`. A non-empty string such as `hidden="until-found"` is written as given.
 - Any other attribute writes `false` as `"false"` (`aria-expanded`, `data-open`). `null` and `undefined` remove it.
+- A signal or binding follows these rules for each value it holds, the same as a static value: a boolean binds by presence, any other value binds as that value written statically would. Binding a boolean attribute never re-runs `render()`.
 - `bool:name` binds any attribute by presence, such as a custom element's boolean attribute: `<x-panel bool:expanded={this.$.open} />`. It takes `boolean | null | undefined`.
 - `attr:name` forces a string attribute and `prop:name` forces a property, for example on a custom element.
 - Write `class`, never `className`: on a native element `className` is a type error and is not rendered.
@@ -55,7 +56,7 @@ Do not treat bindings as raw values. If logic needs a boolean, string, or number
 open = false;
 ```
 
-Exactly one of `attr`, `bool`, `prop`, or `text`. `ref` and `selector` are mutually exclusive; omit both to patch the host. Sit `@bindTo` on a `@prop` / `@state` / `@signal` field. Missing nodes and non-reactive fields are skipped. Two write kinds, or both `ref` and `selector`, throw when the decorator is applied.
+Exactly one of `attr`, `bool`, `prop`, or `text`. `ref` and `selector` are mutually exclusive; omit both to patch the host. Sit `@bindTo` on a `@prop` / `@state` / `@signal` / `@fromStore` field. Missing nodes and non-reactive fields are skipped. Two write kinds, or both `ref` and `selector`, throw when the decorator is applied.
 
 `@onUpdated` does not replace this. Use it for procedures (focus, timers, joined ARIA, derived state).
 
@@ -79,7 +80,8 @@ Rules:
 
 - member access inline in JSX is fine for simple object keys
 - hoist `map` to a field initializer or cached host field — each `.map(...)` in `render()` creates a new derived binding
-- object props are shallow — projections update on whole-object replacement, not in-place nested mutation
+- a `createStore(...)` member binds by path: `this.$.media.position` patches when that path changes, a missing key is added, or `media` is replaced, without re-running `render()`; keep fast-changing values (a playhead, a level meter) in one store and bind their paths
+- plain object props are shallow — projections update on whole-object replacement, not in-place nested mutation
 - bracket lookups need `map`: `this.$.preference.map((p) => THEME_CONFIG[p].label)`, never `THEME_CONFIG[this.$.preference]`
 
 ## Class and style
@@ -95,9 +97,10 @@ Use bindings confidently for child text, whole `data-*` / `aria-*` values, boole
 - Value controls host render logic → plain read
 - Value only feeds a stable JSX output position → binding
 - Value copies onto existing DOM the host does not `render()` → `@bindTo`
+- One field, one form: binding a `@state`, `@prop` or `@fromStore` field with `this.$` and also reading it in `render()` re-renders anyway; in development it warns once per class and field, as does a field that re-runs `render()` 30 times in a second (bind it with `this.$` if it fills one node; if it shapes a branch or list, derive a coarser field for `render()` and keep the fast value in bindings)
 
 ```tsx
-<article class={this.isExpanded ? 'user-card user-card--expanded' : 'user-card'} data={{ state: this.$.isExpanded }}>
+<article class={this.isExpanded ? 'user-card user-card--expanded' : 'user-card'}>
 	<h2>{this.$.name}</h2>
 </article>
 ```

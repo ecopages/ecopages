@@ -94,19 +94,43 @@ describe('PrefetchManager', () => {
 		});
 	});
 
+	describe('Cache-Control', () => {
+		const noStore = async () =>
+			new Response(HTML, { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' } });
+
+		it('does not keep a prefetched page the server marks no-store', async () => {
+			fetchSpy.mockImplementation(noStore);
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+
+			await prefetchManager.prefetch(new URL(destination('no-store'), window.location.href).href);
+
+			expect(getCachedNavigationHtml(destination('no-store'))).toBeNull();
+		});
+
+		it('prefetches a no-store page once, so its extra request is not repeated on every hover', async () => {
+			fetchSpy.mockImplementation(noStore);
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('no-store-once'), window.location.href).href;
+
+			await prefetchManager.prefetch(href);
+			await prefetchManager.prefetch(href);
+
+			expect(requestedTests()).toEqual(['no-store-once']);
+		});
+	});
+
 	describe('visited pages', () => {
 		beforeEach(() => {
 			vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 		});
 
-		it('caches the visited page without fetching it again', () => {
-			const here = new URL(window.location.href);
+		it('does not prefetch a link to a page the router already navigated to', async () => {
 			const visited = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('visited'), window.location.href).href;
 
-			visited.cacheVisitedPage(here.href, '<html><body>visited</body></html>');
-			vi.advanceTimersByTime(5_000);
+			visited.markVisited(href);
+			await visited.prefetch(href);
 
-			expect(getCachedNavigationHtml(here)).toBe('<html><body>visited</body></html>');
 			expect(fetchSpy).not.toHaveBeenCalled();
 		});
 	});

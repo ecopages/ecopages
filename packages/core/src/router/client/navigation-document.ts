@@ -53,6 +53,23 @@ export function invalidateNavigationHtml(href: string | URL): void {
 }
 
 /**
+ * Reports whether a response's `Cache-Control` forbids serving its body without asking the server again.
+ *
+ * @remarks
+ * `no-store` and an unqualified `no-cache` forbid reuse. The navigation cache never revalidates, so a
+ * response that must be revalidated on every use cannot come from it. `max-age=0` and `must-revalidate`
+ * alone do not: a static page is sent that way and is meant to be reused for the session. A qualified
+ * `no-cache="field"` only covers the named header fields and leaves the body reusable.
+ */
+function forbidsReuse(headers: Headers): boolean {
+	const directives = (headers.get('Cache-Control') ?? '').toLowerCase().split(',');
+	return directives.some((directive) => {
+		const name = directive.trim();
+		return name === 'no-store' || name === 'no-cache';
+	});
+}
+
+/**
  * Parses a fetched document with an absolute base URL for relative assets.
  *
  * @remarks
@@ -81,7 +98,9 @@ export function parseNavigationDocument(html: string, finalUrl: URL): Document {
  * @remarks
  * The requested fragment is restored after redirects because fragments are not
  * sent in HTTP requests. Cached HTML is shared by browser-router prefetch and
- * both navigation runtimes.
+ * both navigation runtimes. A response with `Cache-Control: no-store` or an unqualified `no-cache` is parsed
+ * and returned but not cached, and any copy held for its URLs is dropped, so the next navigation to that URL
+ * fetches it again.
  */
 export async function fetchNavigationPage(
 	href: string | URL,
@@ -116,7 +135,12 @@ export async function fetchNavigationPage(
 		if (requestedUrl.hash) {
 			finalUrl.hash = requestedUrl.hash;
 		}
-		cacheNavigationHtml(requestedUrl, html, finalUrl);
+		if (forbidsReuse(response.headers)) {
+			invalidateNavigationHtml(requestedUrl);
+			invalidateNavigationHtml(finalUrl);
+		} else {
+			cacheNavigationHtml(requestedUrl, html, finalUrl);
+		}
 	}
 
 	return {

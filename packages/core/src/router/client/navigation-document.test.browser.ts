@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	clearNavigationHtmlCache,
 	fetchNavigationPage,
+	getCachedNavigationHtml,
 	invalidateNavigationHtml,
 	parseNavigationDocument,
 } from './navigation-document.ts';
@@ -99,6 +100,101 @@ describe('shared navigation document loading', () => {
 
 		expect(await fetchNavigationPage('https://example.test/missing')).toBeNull();
 		expect(await fetchNavigationPage('https://example.test/data')).toBeNull();
+	});
+
+	describe('Cache-Control', () => {
+		function htmlResponse(cacheControl: string | null): Response {
+			const headers = new Headers({ 'Content-Type': 'text/html' });
+			if (cacheControl !== null) headers.set('Cache-Control', cacheControl);
+			return new Response('<html><head></head><body></body></html>', { headers });
+		}
+
+		it.each([
+			'no-store',
+			'no-store, must-revalidate',
+			'private, no-cache',
+			'public, NO-STORE',
+			'no-cache',
+			'max-age=60,no-store',
+		])('fetches a page answered with "%s" again on each navigation', async (cacheControl) => {
+			const fetchMock = vi.fn(async () => htmlResponse(cacheControl));
+			vi.stubGlobal('fetch', fetchMock);
+
+			await fetchNavigationPage('https://example.test/order');
+			expect(getCachedNavigationHtml('https://example.test/order')).toBeNull();
+			await fetchNavigationPage('https://example.test/order');
+
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
+
+		it.each([
+			null,
+			'public, max-age=0, must-revalidate',
+			'public, max-age=60, stale-while-revalidate=120',
+			'private',
+			'no-cache="set-cookie"',
+			'public, no-cache="set-cookie, authorization", max-age=60',
+		])('reuses a page answered with %j', async (cacheControl) => {
+			const fetchMock = vi.fn(async () => htmlResponse(cacheControl));
+			vi.stubGlobal('fetch', fetchMock);
+
+			await fetchNavigationPage('https://example.test/about');
+			await fetchNavigationPage('https://example.test/about');
+
+			expect(fetchMock).toHaveBeenCalledOnce();
+		});
+
+		it('drops the copy it holds when the page turns to no-store', async () => {
+			const fetchMock = vi
+				.fn()
+				.mockImplementationOnce(async () => htmlResponse(null))
+				.mockImplementation(async () => htmlResponse('no-store'));
+			vi.stubGlobal('fetch', fetchMock);
+
+			await fetchNavigationPage('https://example.test/order');
+			await fetchNavigationPage('https://example.test/order', { bypassCache: true });
+
+			expect(getCachedNavigationHtml('https://example.test/order')).toBeNull();
+		});
+
+		it('drops the copy held under the URL a page redirected from when it turns to no-store', async () => {
+			const fetchMock = vi.fn(async () => {
+				const response = htmlResponse(fetchMock.mock.calls.length === 1 ? null : 'no-store');
+				Object.defineProperty(response, 'url', { value: 'https://example.test/orders/current' });
+				return response;
+			});
+			vi.stubGlobal('fetch', fetchMock);
+
+			await fetchNavigationPage('https://example.test/order');
+			await fetchNavigationPage('https://example.test/orders/current', { bypassCache: true });
+
+			expect(getCachedNavigationHtml('https://example.test/order')).toBeNull();
+			expect(getCachedNavigationHtml('https://example.test/orders/current')).toBeNull();
+		});
+
+		it('fetches a no-store page again whatever fragment the visitor asks for', async () => {
+			const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+			vi.stubGlobal('fetch', fetchMock);
+
+			await fetchNavigationPage('https://example.test/order#a');
+			await fetchNavigationPage('https://example.test/order#b');
+
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
+
+		it('stores the page again once its response allows reuse', async () => {
+			const fetchMock = vi
+				.fn()
+				.mockImplementationOnce(async () => htmlResponse('no-store'))
+				.mockImplementation(async () => htmlResponse('public, max-age=60'));
+			vi.stubGlobal('fetch', fetchMock);
+
+			await fetchNavigationPage('https://example.test/page');
+			await fetchNavigationPage('https://example.test/page');
+			await fetchNavigationPage('https://example.test/page');
+
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
 	});
 
 	it('adds a temporary base only when the page has none', () => {

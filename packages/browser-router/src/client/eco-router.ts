@@ -117,7 +117,7 @@ export class EcoRouter {
 						new URL(request.finalHref ?? request.href, window.location.origin),
 						request.direction ?? 'forward',
 						request.document,
-						{ html: request.html, isStaleNavigation, isSupersededNavigation },
+						{ isStaleNavigation, isSupersededNavigation },
 					);
 				} finally {
 					complete();
@@ -148,9 +148,6 @@ export class EcoRouter {
 		});
 		getEcoNavigationRuntime(window).adoptDocumentOwner(document, 'browser-router');
 
-		// Cache the initial page for instant back-navigation
-		const initialHtml = document.documentElement.outerHTML;
-		this.prefetchManager?.cacheVisitedPage(window.location.href, initialHtml);
 		this.started = true;
 		schedulePageLoad(
 			document,

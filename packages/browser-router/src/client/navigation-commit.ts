@@ -10,7 +10,6 @@ import { resolveNavigationReloadDecision } from './navigation-commit-reload.ts';
 import { syncDocumentElementAttributes } from './document-element-sync.ts';
 
 export type NavigationCommitOptions = {
-	html?: string;
 	isStaleNavigation?: () => boolean;
 	isSupersededNavigation?: () => boolean;
 	allowFullDocumentFallback?: boolean;
@@ -127,7 +126,7 @@ export class NavigationCommit {
 				}),
 			afterLifecycle: () => {
 				this.prefetchManager?.observeLinks();
-				if (options.html) this.prefetchManager?.cacheVisitedPage(url.href, options.html);
+				this.prefetchManager?.markVisited(url.href);
 			},
 		});
 

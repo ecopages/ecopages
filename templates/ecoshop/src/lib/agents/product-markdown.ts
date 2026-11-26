@@ -25,7 +25,7 @@ export function buildProductMarkdown(product: Product, origin: string): string {
 	];
 	const buy = [
 		`Product page: ${resolveUrl(origin, storePaths.product(product.handle))}`,
-		`Agents: call the MCP tool update_cart at ${resolveUrl(origin, storePaths.mcp)} with a variant id above, then open the returned checkout URL.`,
+		`Agents: call the MCP tool create_cart at ${resolveUrl(origin, storePaths.mcp)} with a variant id above, then proceed_to_checkout and hand the shopper the checkout URL.`,
 	];
 
 	return `${[

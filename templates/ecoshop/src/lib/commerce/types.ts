@@ -48,13 +48,16 @@ export interface ProductSummary {
 	availableForSale: boolean;
 	priceRange: { min: Money; max: Money };
 	featuredImage: Image | null;
+	productType: string;
+	options: ProductOption[];
+	/** The variant to buy when the shopper names no option: the first available one, or `null` when none is. */
+	defaultVariantId: string | null;
+	variantCount: number;
 }
 
 export interface Product extends ProductSummary {
 	description: string;
-	productType: string;
 	tags: string[];
-	options: ProductOption[];
 	variants: ProductVariant[];
 	images: Image[];
 }
@@ -107,6 +110,22 @@ export interface StoreInfo {
 }
 
 /**
+ * The kinds of store information an agent can ask about, named as Shopify's `ask_business` tool links them.
+ */
+export type StorePolicyType = 'refund_policy' | 'shipping_policy' | 'privacy_policy' | 'terms_of_service' | 'faq';
+
+/**
+ * A published policy or FAQ page, as plain text.
+ */
+export interface StorePolicy {
+	handle: string;
+	type: StorePolicyType;
+	title: string;
+	/** Plain text; paragraphs are separated by a blank line. */
+	body: string;
+}
+
+/**
  * The title Shopify gives the only variant of a product without options; the storefront hides it.
  */
 export const DEFAULT_VARIANT_TITLE = 'Default Title';
@@ -132,7 +151,11 @@ export interface CommerceProvider {
 	getStore(): Promise<StoreInfo>;
 	listProducts(options?: ListOptions): Promise<ProductSummary[]>;
 	searchProducts(query: string, options?: ListOptions): Promise<ProductSummary[]>;
-	getProduct(handle: string): Promise<Product | null>;
+	/**
+	 * Reads a product by handle or by the provider's product GID.
+	 */
+	getProduct(handleOrId: string): Promise<Product | null>;
+	listPolicies(): Promise<StorePolicy[]>;
 	listCollections(options?: ListOptions): Promise<Collection[]>;
 	getCollection(handle: string, options?: ListOptions): Promise<CollectionWithProducts | null>;
 	getCart(cartId: string): Promise<Cart | null>;

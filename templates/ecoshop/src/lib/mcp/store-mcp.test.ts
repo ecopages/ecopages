@@ -62,27 +62,31 @@ afterAll(async () => {
 });
 
 describe('store MCP server', () => {
-	it('lists the storefront tools', async () => {
+	it('lists the shared storefront tools that need no browser', async () => {
 		const { tools } = await client.listTools();
 
 		expect(tools.map((tool) => tool.name).sort()).toEqual([
+			'ask_business',
+			'browse_store',
+			'cancel_cart',
+			'create_cart',
 			'get_cart',
 			'get_product',
-			'list_collections',
-			'search_products',
+			'proceed_to_checkout',
+			'search_catalog',
 			'update_cart',
 		]);
 	});
 
 	it('searches the catalog', async () => {
-		const result = await callTool('search_products', { query: 'shirt' });
+		const result = await callTool('search_catalog', { catalog: { query: 'shirt' } });
 
 		expect(result.isError).toBeFalsy();
 		expect(result.structuredContent?.products).toEqual([
 			expect.objectContaining({
 				handle: 'field-shirt',
 				title: 'Field Shirt',
-				price: '$68.00',
+				price_range: { amount: 6800, currency: 'USD', display: '$68.00' },
 				url: `${ORIGIN}/products/field-shirt`,
 			}),
 			expect.objectContaining({ handle: 'linen-overshirt' }),
@@ -90,45 +94,48 @@ describe('store MCP server', () => {
 		]);
 	});
 
-	it('creates a cart and reads it back', async () => {
+	it('creates a cart and reads it back by id', async () => {
 		const variantId = 'gid://ecoshop/ProductVariant/field-shirt-m';
-		const updated = await callTool('update_cart', { lines: [{ variantId, quantity: 2 }] });
-		const cart = updated.structuredContent?.cart as { id: string; checkoutUrl: string } | undefined;
+		const created = await callTool('create_cart', {
+			cart: { line_items: [{ item: { id: variantId }, quantity: 2 }] },
+		});
+		const id = created.structuredContent?.id as string;
 
-		expect(updated.isError).toBeFalsy();
-		expect(cart?.id).toEqual(expect.any(String));
-		expect(cart?.checkoutUrl).toBe(`${ORIGIN}/demo-checkout`);
+		expect(created.isError).toBeFalsy();
+		expect(id).toEqual(expect.any(String));
 
-		const read = await callTool('get_cart', { cartId: cart?.id });
-		expect(read.structuredContent?.cart).toMatchObject({
-			id: cart?.id,
-			lines: [expect.objectContaining({ variantId, quantity: 2 })],
+		const checkout = await callTool('proceed_to_checkout', { id });
+		expect(checkout.structuredContent).toMatchObject({ navigating_to: `${ORIGIN}/demo-checkout`, item_count: 2 });
+
+		const read = await callTool('get_cart', { id });
+		expect(read.structuredContent).toMatchObject({
+			id,
+			line_items: [expect.objectContaining({ quantity: 2, item: expect.objectContaining({ id: variantId }) })],
 		});
 	});
 
-	it('changes the cart named by its id', async () => {
-		const first = await callTool('update_cart', {
-			lines: [{ variantId: 'gid://ecoshop/ProductVariant/canvas-tote', quantity: 1 }],
+	it('replaces the lines of the cart named by its id', async () => {
+		const created = await callTool('create_cart', {
+			cart: { line_items: [{ item: { id: 'gid://ecoshop/ProductVariant/canvas-tote' }, quantity: 1 }] },
 		});
-		const cartId = (first.structuredContent?.cart as { id: string } | undefined)?.id;
+		const id = created.structuredContent?.id as string;
 
-		const second = await callTool('update_cart', {
-			cartId,
-			lines: [{ variantId: 'gid://ecoshop/ProductVariant/beeswax-wraps', quantity: 3 }],
+		const updated = await callTool('update_cart', {
+			id,
+			cart: { line_items: [{ item: { id: 'gid://ecoshop/ProductVariant/beeswax-wraps' }, quantity: 3 }] },
 		});
 
-		expect(second.structuredContent?.cart).toMatchObject({
-			totalQuantity: 4,
-			lines: [
-				expect.objectContaining({ productTitle: 'Canvas Tote', quantity: 1 }),
-				expect.objectContaining({ productTitle: 'Beeswax Wraps', quantity: 3 }),
+		expect(updated.structuredContent).toMatchObject({
+			item_count: 3,
+			line_items: [
+				expect.objectContaining({ quantity: 3, item: expect.objectContaining({ title: 'Beeswax Wraps' }) }),
 			],
 		});
 	});
 
 	it('reports a sold-out variant as a tool error', async () => {
-		const result = await callTool('update_cart', {
-			lines: [{ variantId: 'gid://ecoshop/ProductVariant/linen-overshirt-l', quantity: 1 }],
+		const result = await callTool('create_cart', {
+			cart: { line_items: [{ item: { id: 'gid://ecoshop/ProductVariant/linen-overshirt-l' }, quantity: 1 }] },
 		});
 
 		expect(result.isError).toBe(true);
@@ -136,35 +143,34 @@ describe('store MCP server', () => {
 	});
 
 	it('names the missing field when the input is invalid', async () => {
+		const result = await callTool('search_catalog', {});
+
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toMatch(/catalog/u);
+	});
+
+	it('names the product id when get_product has none', async () => {
 		const result = await callTool('get_product', {});
 
 		expect(result.isError).toBe(true);
-		expect(result.content[0]?.text).toMatch(/handle/u);
-	});
-
-	it('reports an unknown product as a tool error', async () => {
-		const result = await callTool('get_product', { handle: 'missing' });
-
-		expect(result.isError).toBe(true);
-		expect(result.content[0]?.text).toMatch(/No product/u);
+		expect(result.content[0]?.text).toMatch(/catalog\.id/u);
 	});
 
 	it('returns a product with its variants', async () => {
-		const result = await callTool('get_product', { handle: 'steel-bottle' });
+		const result = await callTool('get_product', { catalog: { id: 'steel-bottle' } });
 
 		expect(result.structuredContent).toMatchObject({
 			handle: 'steel-bottle',
-			markdownUrl: `${ORIGIN}/products/steel-bottle/index.md`,
 			images: [`${ORIGIN}/demo/steel-bottle.svg`],
 			variants: [
-				expect.objectContaining({ title: '500 ml', price: '$24.00', available: true }),
-				expect.objectContaining({ title: '750 ml', price: '$29.00' }),
+				expect.objectContaining({ title: '500 ml', price: expect.objectContaining({ display: '$24.00' }) }),
+				expect.objectContaining({ title: '750 ml', price: expect.objectContaining({ display: '$29.00' }) }),
 			],
 		});
 	});
 
 	it('lists collections with their URLs', async () => {
-		const result = await callTool('list_collections', {});
+		const result = await callTool('browse_store', {});
 
 		expect(result.structuredContent?.collections).toContainEqual(
 			expect.objectContaining({ handle: 'home', url: `${ORIGIN}/collections/home` }),

@@ -112,6 +112,13 @@
 						"height": 2000
 					}
 				]
+			},
+			"selectedOrFirstAvailableVariant": {
+				"id": "gid://shopify/ProductVariant/4470000000001",
+				"availableForSale": true
+			},
+			"variantsCount": {
+				"count": 2
 			}
 		}
 	}

@@ -36,6 +36,20 @@ const PRODUCT_SUMMARY = /* GraphQL */ `
 		featuredImage {
 			...ImageFields
 		}
+		productType
+		options {
+			name
+			optionValues {
+				name
+			}
+		}
+		selectedOrFirstAvailableVariant {
+			id
+			availableForSale
+		}
+		variantsCount {
+			count
+		}
 	}
 	${MONEY}
 	${IMAGE}
@@ -76,14 +90,7 @@ const PRODUCT = /* GraphQL */ `
 	fragment ProductFields on Product {
 		...ProductSummaryFields
 		description
-		productType
 		tags
-		options {
-			name
-			optionValues {
-				name
-			}
-		}
 		variants(first: ${PAGE_SIZE}) {
 			nodes {
 				...VariantFields
@@ -200,6 +207,39 @@ export const PRODUCT_QUERY = /* GraphQL */ `
 		}
 	}
 	${PRODUCT}
+`;
+
+export const PRODUCT_BY_ID_QUERY = /* GraphQL */ `
+	query ProductById($id: ID!) {
+		product(id: $id) {
+			...ProductFields
+		}
+	}
+	${PRODUCT}
+`;
+
+export const SHOP_POLICIES_QUERY = /* GraphQL */ `
+	query ShopPolicies {
+		shop {
+			refundPolicy {
+				...PolicyFields
+			}
+			shippingPolicy {
+				...PolicyFields
+			}
+			privacyPolicy {
+				...PolicyFields
+			}
+			termsOfService {
+				...PolicyFields
+			}
+		}
+	}
+	fragment PolicyFields on ShopPolicy {
+		handle
+		title
+		body
+	}
 `;
 
 export const PRODUCT_VARIANTS_QUERY = /* GraphQL */ `

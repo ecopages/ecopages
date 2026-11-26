@@ -1,5 +1,12 @@
 import { CartInputError, CommerceBackendError } from '../errors';
-import { type Cart, type CartLineQuantity, type Collection, type CommerceProvider, MAX_LINE_QUANTITY } from '../types';
+import {
+	type Cart,
+	type CartLineQuantity,
+	type Collection,
+	type CommerceProvider,
+	MAX_LINE_QUANTITY,
+	type StorePolicyType,
+} from '../types';
 import {
 	type ShopifyCart,
 	type ShopifyCartLine,
@@ -20,9 +27,11 @@ import {
 	CART_QUERY,
 	COLLECTION_QUERY,
 	COLLECTIONS_QUERY,
+	PRODUCT_BY_ID_QUERY,
 	PRODUCT_QUERY,
 	PRODUCT_VARIANTS_QUERY,
 	PRODUCTS_QUERY,
+	SHOP_POLICIES_QUERY,
 	SHOP_QUERY,
 } from './queries';
 import { createStorefrontClient, type StorefrontClientOptions } from './storefront-client.server';
@@ -36,6 +45,40 @@ type CartMutationResult = {
 };
 
 const CART_ID_PREFIX = 'gid://shopify/Cart/';
+const PRODUCT_ID_PREFIX = 'gid://shopify/Product/';
+
+type ShopifyPolicy = { handle: string; title: string; body: string };
+
+const POLICY_FIELDS: Array<[string, StorePolicyType]> = [
+	['refundPolicy', 'refund_policy'],
+	['shippingPolicy', 'shipping_policy'],
+	['privacyPolicy', 'privacy_policy'],
+	['termsOfService', 'terms_of_service'],
+];
+
+/**
+ * Turns a policy's HTML body into the plain text the storefront renders and agents read.
+ *
+ * @remarks
+ * Policies are the merchant's own content, but the storefront renders text, never store HTML, so a pasted script
+ * or style can never run on the page.
+ */
+export function htmlToText(html: string): string {
+	return html
+		.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/giu, '')
+		.replace(/<\/(p|div|li|h[1-6])>|<br\s*\/?>/giu, '\n\n')
+		.replace(/<[^>]+>/gu, '')
+		.replace(/&nbsp;/gu, ' ')
+		.replace(/&amp;/gu, '&')
+		.replace(/&lt;/gu, '<')
+		.replace(/&gt;/gu, '>')
+		.replace(/&quot;/gu, '"')
+		.replace(/&#39;/gu, "'")
+		.split(/\n\s*\n/u)
+		.map((paragraph) => paragraph.replace(/\s+/gu, ' ').trim())
+		.filter(Boolean)
+		.join('\n\n');
+}
 const VARIANT_ID_PREFIX = 'gid://shopify/ProductVariant/';
 
 /**
@@ -162,9 +205,12 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			});
 			return data.products.nodes.map(toProductSummary);
 		},
-		getProduct: async (handle) => {
-			const data = await query<{ product: ShopifyProduct | null }>(PRODUCT_QUERY, { handle });
+		getProduct: async (handleOrId) => {
+			const data = handleOrId.startsWith(PRODUCT_ID_PREFIX)
+				? await query<{ product: ShopifyProduct | null }>(PRODUCT_BY_ID_QUERY, { id: handleOrId })
+				: await query<{ product: ShopifyProduct | null }>(PRODUCT_QUERY, { handle: handleOrId });
 			if (!data.product) return null;
+			const { handle } = data.product;
 			const variants = await remainingNodes<ShopifyVariant>(data.product.variants, async (after) => {
 				const page = await query<{ product: { variants: ShopifyConnection<ShopifyVariant> } | null }>(
 					PRODUCT_VARIANTS_QUERY,
@@ -190,6 +236,15 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			if (!data.collection) return null;
 			const { products, ...collection } = data.collection;
 			return { collection, products: products.nodes.map(toProductSummary) };
+		},
+		listPolicies: async () => {
+			const data = await query<{ shop: Record<string, ShopifyPolicy | null> }>(SHOP_POLICIES_QUERY);
+			return POLICY_FIELDS.flatMap(([field, type]) => {
+				const policy = data.shop[field];
+				return policy
+					? [{ handle: policy.handle, type, title: policy.title, body: htmlToText(policy.body) }]
+					: [];
+			});
 		},
 		getCart,
 		addToCart: async (cartId, lines) => {

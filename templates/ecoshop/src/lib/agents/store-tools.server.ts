@@ -1,0 +1,810 @@
+import { z } from 'zod';
+import { CartInputError } from '@/lib/commerce/errors';
+import { type AgentPrice, formatMoney, toAgentPrice } from '@/lib/commerce/money';
+import {
+	type Cart,
+	type CommerceProvider,
+	DEFAULT_VARIANT_TITLE,
+	MAX_LINE_QUANTITY,
+	type Product,
+	type ProductSummary,
+	type ProductVariant,
+	type SelectedOption,
+} from '@/lib/commerce/types';
+import { resolveUrl, storePaths } from '@/lib/store-urls';
+
+/**
+ * Where a tool runs. `page` is WebMCP in the shopper's browser, acting on the shopper's cart through
+ * `/api/agent-tools`; `mcp` is the `/mcp` server, where a cart is named by its id.
+ */
+export type ToolSurface = 'page' | 'mcp';
+
+export interface StoreToolContext {
+	provider: CommerceProvider;
+	origin: string;
+	surface: ToolSurface;
+	/** On a page, the shopper's cart from the cart cookie. Over `/mcp`, unused: the input names the cart. */
+	cartId: string | undefined;
+	/** On a product page, its handle, which `get_product` and `show_variant` default to. */
+	currentProductHandle?: string;
+}
+
+/**
+ * A tool result in the MCP `CallToolResult` shape that Shopify's storefront tools also return.
+ */
+export interface StoreToolResult {
+	content: Array<{ type: 'text'; text: string }>;
+	structuredContent: Record<string, unknown>;
+	isError?: true;
+}
+
+export interface StoreToolOutcome {
+	result: StoreToolResult;
+	/** The cart id the shopper's cookie must hold from now on, when the call changed it. */
+	cartId?: string;
+	cartChanged?: boolean;
+	/** A page to open once the result is returned. */
+	navigateTo?: string;
+}
+
+/**
+ * The part of a tool an agent sees: what `/mcp` lists and what the page registers with `document.modelContext`.
+ */
+export interface StoreToolDescriptor {
+	name: string;
+	title: string;
+	description: string;
+	inputSchema: Record<string, unknown>;
+	annotations: { readOnlyHint?: boolean; consequentialHint?: boolean; untrustedContentHint?: boolean };
+}
+
+interface StoreTool<Input extends z.ZodObject = z.ZodObject> {
+	name: string;
+	title: string;
+	description: string;
+	input: Input;
+	annotations: StoreToolDescriptor['annotations'] & { idempotentHint?: boolean; destructiveHint?: boolean };
+	surfaces: ToolSurface[];
+	run(input: z.infer<Input>, context: StoreToolContext): Promise<StoreToolOutcome>;
+}
+
+const define = <Input extends z.ZodObject>(tool: StoreTool<Input>): StoreTool => tool as unknown as StoreTool;
+
+const PRODUCTS_PER_PAGE = 30;
+const MAX_LINE_ITEMS = 100;
+const MAX_OPTION_COMBINATIONS = 50;
+
+/* Schemas shared by several tools. */
+
+const selectedOption = z.object({
+	name: z.string().describe('Option name, such as "Size".'),
+	value: z.string().describe('Option value, such as "M".'),
+});
+
+const lineItem = z.object({
+	item: z.object({
+		id: z.string().min(1).describe('ProductVariant id: variant_id from search, variants[].id from get_product.'),
+	}),
+	quantity: z.number().int().min(1).max(MAX_LINE_QUANTITY).describe('How many of this item the line holds.'),
+});
+
+const cartIdField = z
+	.string()
+	.min(1)
+	.optional()
+	.describe("On a store page, compared with the shopper's cart. Over /mcp, the cart to act on.");
+
+/* Views in the shapes Shopify's storefront tools return. */
+
+function productUrl(origin: string, handle: string, variantId?: string): string {
+	const path = storePaths.product(handle);
+	return resolveUrl(origin, variantId ? `${path}?variant=${encodeURIComponent(variantId)}` : path);
+}
+
+function summaryView(product: ProductSummary, origin: string) {
+	return {
+		id: product.id,
+		title: product.title,
+		handle: product.handle,
+		variant_id: product.defaultVariantId ?? '',
+		url: productUrl(origin, product.handle),
+		price_range: toAgentPrice(product.priceRange.min),
+		image: product.featuredImage ? resolveUrl(origin, product.featuredImage.url) : '',
+		available: product.availableForSale,
+		variant_count: product.variantCount,
+		options: product.options,
+		product_type: product.productType,
+		vendor: product.vendor,
+	};
+}
+
+function variantView(variant: ProductVariant) {
+	return {
+		id: variant.id,
+		title: variant.title,
+		options: variant.selectedOptions,
+		price: toAgentPrice(variant.price),
+		list_price: variant.compareAtPrice ? toAgentPrice(variant.compareAtPrice) : null,
+		availability: { available: variant.availableForSale },
+	};
+}
+
+type CartMessage = { type: 'error' | 'warning' | 'info'; code?: string; content: string; path?: string };
+
+function cartView(cart: Cart | null, origin: string, messages: CartMessage[] = []) {
+	const subtotal: AgentPrice | null = cart ? toAgentPrice(cart.subtotal) : null;
+	return {
+		id: cart?.id ?? '',
+		item_count: cart?.totalQuantity ?? 0,
+		total_price: subtotal,
+		currency: cart?.subtotal.currencyCode ?? '',
+		totals: subtotal ? [{ type: 'subtotal', amount: subtotal.amount }] : [],
+		line_items: (cart?.lines ?? []).map((line) => ({
+			id: line.id,
+			item: {
+				id: line.variantId,
+				title: line.productTitle,
+				variant_title: line.variantTitle,
+				handle: line.productHandle,
+				url: productUrl(origin, line.productHandle, line.variantId),
+				image: line.image ? resolveUrl(origin, line.image.url) : '',
+				unit_price: toAgentPrice(line.unitPrice),
+			},
+			quantity: line.quantity,
+			line_price: toAgentPrice(line.totalPrice),
+		})),
+		...(messages.length ? { messages } : {}),
+	};
+}
+
+function ok(structured: Record<string, unknown>, text: string): StoreToolResult {
+	return { content: [{ type: 'text', text }], structuredContent: structured };
+}
+
+function fail(message: string, structured: Record<string, unknown> = { error: message }): StoreToolOutcome {
+	return {
+		result: {
+			content: [{ type: 'text', text: `Error: ${message}` }],
+			structuredContent: structured,
+			isError: true,
+		},
+	};
+}
+
+function describeCart(cart: ReturnType<typeof cartView>): string {
+	if (!cart.item_count) return 'The cart is empty.';
+	const lines = cart.line_items.map((line) => {
+		const variant = line.item.variant_title && line.item.variant_title !== DEFAULT_VARIANT_TITLE;
+		return `${line.quantity} x ${line.item.title}${variant ? ` (${line.item.variant_title})` : ''}`;
+	});
+	return `The cart holds ${cart.item_count} item(s): ${lines.join(', ')}. Subtotal ${cart.total_price?.display}.`;
+}
+
+/* Helpers that read the catalog and the cart. */
+
+function productHandleFrom(id: string | undefined, context: StoreToolContext): string | undefined {
+	if (!id) return context.currentProductHandle;
+	const path = /^(?:https?:\/\/[^/]+)?\/products\/([^/?#]+)/u.exec(id);
+	return path ? decodeURIComponent(path[1] ?? '') : id;
+}
+
+function matches(variant: ProductVariant, selected: SelectedOption[]): boolean {
+	return selected.every((option) =>
+		variant.selectedOptions.some(
+			(own) =>
+				own.name.toLowerCase() === option.name.toLowerCase() &&
+				own.value.toLowerCase() === option.value.toLowerCase(),
+		),
+	);
+}
+
+/**
+ * Finds the cart a call acts on, or explains why it cannot.
+ *
+ * @remarks
+ * On a page the cart is the shopper's, from the cookie; an `id` the agent sends is only compared with it, so an agent
+ * holding an old cart result cannot overwrite a cart the shopper has changed since. Over `/mcp` the `id` names it.
+ */
+async function currentCart(
+	id: string | undefined,
+	context: StoreToolContext,
+): Promise<{ cart: Cart | null; mismatch: boolean }> {
+	if (context.surface === 'mcp') return { cart: id ? await context.provider.getCart(id) : null, mismatch: false };
+	const cart = context.cartId ? await context.provider.getCart(context.cartId) : null;
+	return { cart, mismatch: Boolean(id && cart && id !== cart.id) || Boolean(id && !cart) };
+}
+
+function cartOutcome(cart: Cart, before: Cart | null, origin: string, messages: CartMessage[] = []): StoreToolOutcome {
+	const view = cartView(cart, origin, messages);
+	const changed = cart.id !== before?.id || cart.totalQuantity !== before?.totalQuantity;
+	return { result: ok(view, describeCart(view)), cartId: cart.id, cartChanged: changed };
+}
+
+async function applyCartChange(change: () => Promise<Cart>): Promise<Cart | StoreToolOutcome> {
+	try {
+		return await change();
+	} catch (error) {
+		if (error instanceof CartInputError) return fail(error.message);
+		throw error;
+	}
+}
+
+const isOutcome = (value: Cart | StoreToolOutcome): value is StoreToolOutcome => 'result' in value;
+
+/**
+ * Scores a policy paragraph by how many of the question's words it contains.
+ */
+function relevance(paragraph: string, terms: string[]): number {
+	const text = paragraph.toLowerCase();
+	return terms.filter((term) => text.includes(term)).length;
+}
+
+const STOP_WORDS = new Set([
+	'what',
+	'your',
+	'you',
+	'the',
+	'and',
+	'for',
+	'how',
+	'can',
+	'are',
+	'does',
+	'with',
+	'this',
+	'that',
+	'there',
+	'about',
+	'have',
+	'offer',
+]);
+
+/* The tools. */
+
+export const storeTools: StoreTool[] = [
+	define({
+		name: 'search_catalog',
+		title: 'Search the catalog',
+		description:
+			'Search the store for products, collections and pages by keywords. Each product carries variant_id, its first available variant, which create_cart and update_cart take. Read-only: it never changes the cart.',
+		input: z.object({
+			catalog: z.object({
+				query: z.string().trim().min(1).max(200).describe('Search keywords.'),
+				pagination: z
+					.object({
+						limit: z.number().int().min(1).max(10).default(5).describe('Results per type, 1 to 10.'),
+					})
+					.optional(),
+			}),
+		}),
+		annotations: { readOnlyHint: true, untrustedContentHint: true },
+		surfaces: ['page', 'mcp'],
+		run: async ({ catalog }, { provider, origin }) => {
+			const limit = catalog.pagination?.limit ?? 5;
+			const terms = catalog.query.toLowerCase().split(/\s+/u);
+			const [products, collections, policies] = await Promise.all([
+				provider.searchProducts(catalog.query, { limit }),
+				provider.listCollections({ limit: 100 }),
+				provider.listPolicies(),
+			]);
+			const structured = {
+				products: products.map((product) => summaryView(product, origin)),
+				collections: collections
+					.filter((collection) => terms.some((term) => collection.title.toLowerCase().includes(term)))
+					.slice(0, limit)
+					.map((collection) => ({
+						title: collection.title,
+						handle: collection.handle,
+						url: resolveUrl(origin, storePaths.collection(collection.handle)),
+					})),
+				articles: [],
+				pages: policies
+					.filter((policy) => relevance(`${policy.title} ${policy.body}`, terms) > 0)
+					.slice(0, limit)
+					.map((policy) => ({
+						title: policy.title,
+						url: resolveUrl(origin, storePaths.policy(policy.handle)),
+					})),
+				search_url: resolveUrl(origin, storePaths.search(catalog.query)),
+			};
+			return {
+				result: ok(
+					structured,
+					products.length
+						? `Found ${products.length} product(s): ${products.map((product) => product.title).join(', ')}.`
+						: `No products match "${catalog.query}".`,
+				),
+			};
+		},
+	}),
+	define({
+		name: 'browse_store',
+		title: 'Browse collections',
+		description:
+			'Without a collection handle, list the store collections. With one, list its products, 30 per page; "all" lists every product. Set navigate to true to also open the collection page in the browser. Does not change the cart.',
+		input: z.object({
+			collection: z.string().min(1).optional().describe('Collection handle, or "all". Omit to list collections.'),
+			navigate: z
+				.boolean()
+				.optional()
+				.describe('Open the collection page in the browser. Needs a collection handle.'),
+			sort_by: z
+				.enum(['best-selling', 'price-ascending', 'price-descending', 'title-ascending', 'title-descending'])
+				.optional()
+				.describe('Sort order; best-selling by default.'),
+			page: z.number().int().min(1).optional().describe('Page number, from 1.'),
+		}),
+		annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
+		surfaces: ['page', 'mcp'],
+		run: async (
+			{ collection, navigate, sort_by: sortBy = 'best-selling', page = 1 },
+			{ provider, origin, surface },
+		) => {
+			if (!collection) {
+				const collections = await provider.listCollections({ limit: 100 });
+				const list = collections.map((entry) => ({
+					title: entry.title,
+					handle: entry.handle,
+					url: resolveUrl(origin, storePaths.collection(entry.handle)),
+					description: entry.description,
+				}));
+				return {
+					result: ok(
+						{ collections: list },
+						`The store has ${list.length} collection(s): ${list.map((entry) => entry.title).join(', ')}.`,
+					),
+				};
+			}
+
+			const found =
+				collection === 'all'
+					? {
+							title: 'All products',
+							products: await provider.listProducts({ limit: 250 }),
+							path: storePaths.search(''),
+						}
+					: await provider.getCollection(collection, { limit: 250 }).then((entry) =>
+							entry
+								? {
+										title: entry.collection.title,
+										products: entry.products,
+										path: storePaths.collection(collection),
+									}
+								: null,
+						);
+			if (!found)
+				return fail(
+					`No collection with handle "${collection}". Call browse_store without a collection to list them.`,
+				);
+
+			const sorted = [...found.products];
+			const price = (product: ProductSummary) => Number(product.priceRange.min.amount);
+			if (sortBy === 'price-ascending') sorted.sort((a, b) => price(a) - price(b));
+			if (sortBy === 'price-descending') sorted.sort((a, b) => price(b) - price(a));
+			if (sortBy === 'title-ascending') sorted.sort((a, b) => a.title.localeCompare(b.title));
+			if (sortBy === 'title-descending') sorted.sort((a, b) => b.title.localeCompare(a.title));
+			const products = sorted.slice((page - 1) * PRODUCTS_PER_PAGE, page * PRODUCTS_PER_PAGE);
+			const url = resolveUrl(origin, found.path);
+			const navigated = Boolean(navigate) && surface === 'page';
+			return {
+				result: ok(
+					{
+						products: products.map((product) => summaryView(product, origin)),
+						collection_title: found.title,
+						page,
+						sort_by: sortBy,
+						navigated,
+						url,
+					},
+					`${found.title}: ${products.length} product(s) on page ${page}.${navigated ? ` Opening ${url}.` : ''}`,
+				),
+				...(navigated ? { navigateTo: url } : {}),
+			};
+		},
+	}),
+	define({
+		name: 'get_product',
+		title: 'Get a product',
+		description:
+			'Read a product: description, options, variants with their ids, prices and availability. Defaults to the product of the current page. Pass selected_options to narrow the variants. Set navigate to true to also open the product page. Does not change the cart.',
+		input: z.object({
+			catalog: z
+				.object({
+					id: z
+						.string()
+						.min(1)
+						.optional()
+						.describe(
+							'Product id, handle or /products/<handle> path. Defaults to the current page product.',
+						),
+					navigate: z.boolean().optional().describe('Open the product page in the browser.'),
+					selected_options: z
+						.array(selectedOption)
+						.optional()
+						.describe('Known option choices that narrow the variants.'),
+				})
+				.default({}),
+		}),
+		annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
+		surfaces: ['page', 'mcp'],
+		run: async ({ catalog }, context) => {
+			const handle = productHandleFrom(catalog.id, context);
+			if (!handle) return fail('Pass catalog.id: this page shows no product.');
+			const product: Product | null = await context.provider.getProduct(handle);
+			if (!product) return fail(`No product "${handle}".`);
+
+			const selected = catalog.selected_options ?? [];
+			const candidates = product.variants.filter((variant) => matches(variant, selected));
+			const complete = selected.length > 0 && selected.length === product.options.length;
+			const combinations = candidates
+				.filter((variant) => variant.availableForSale)
+				.map((variant) => variant.selectedOptions);
+			const url = productUrl(context.origin, product.handle);
+			const navigated = Boolean(catalog.navigate) && context.surface === 'page';
+			const structured = {
+				id: product.id,
+				title: product.title,
+				handle: product.handle,
+				description: { html: product.description },
+				vendor: product.vendor,
+				type: product.productType,
+				tags: product.tags,
+				url,
+				price_range: { min: toAgentPrice(product.priceRange.min), max: toAgentPrice(product.priceRange.max) },
+				available: product.availableForSale,
+				options: product.options,
+				variants: (complete ? candidates.slice(0, 1) : candidates).map(variantView),
+				available_options: combinations.slice(0, MAX_OPTION_COMBINATIONS),
+				available_options_count: combinations.length,
+				available_options_truncated: combinations.length > MAX_OPTION_COMBINATIONS,
+				...(selected.length ? { available_options_filter: selected } : {}),
+				images: product.images.map((image) => resolveUrl(context.origin, image.url)),
+				navigated,
+			};
+			return {
+				result: ok(
+					structured,
+					`${product.title}, ${formatMoney(product.priceRange.min)}, ${product.availableForSale ? 'in stock' : 'sold out'}. ${candidates.length} matching variant(s).`,
+				),
+				...(navigated ? { navigateTo: url } : {}),
+			};
+		},
+	}),
+	define({
+		name: 'show_variant',
+		title: 'Show a variant',
+		description:
+			'Open a product page in the browser with a variant selected: an exact variant_id, or partial selected_options, which pick the first available match. Does not change the cart; take the variant id from get_product for that.',
+		input: z.object({
+			catalog: z.object({
+				handle: z.string().min(1).optional().describe('Product handle. Defaults to the current page product.'),
+				variant_id: z.string().min(1).optional().describe('ProductVariant id from get_product variants[].id.'),
+				selected_options: z
+					.array(selectedOption)
+					.optional()
+					.describe('Partial option choices, such as only the color.'),
+			}),
+		}),
+		annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
+		surfaces: ['page'],
+		run: async ({ catalog }, context) => {
+			const handle = catalog.handle ?? context.currentProductHandle;
+			if (!handle) return fail('Pass catalog.handle: this page shows no product.');
+			const product = await context.provider.getProduct(handle);
+			if (!product) return fail(`No product "${handle}".`);
+			const selected = catalog.selected_options ?? [];
+			const variant = catalog.variant_id
+				? product.variants.find(
+						(entry) => entry.id === catalog.variant_id || entry.id.endsWith(`/${catalog.variant_id}`),
+					)
+				: (product.variants.find((entry) => entry.availableForSale && matches(entry, selected)) ??
+					product.variants.find((entry) => matches(entry, selected)));
+			if (!variant) return fail(`No variant of ${product.title} matches.`);
+			const url = productUrl(context.origin, product.handle, variant.id);
+			return {
+				result: ok(
+					{
+						handle: product.handle,
+						variant_id: variant.id,
+						url,
+						navigated: true,
+						selected_options: variant.selectedOptions,
+					},
+					`Opening ${product.title} (${variant.title}).`,
+				),
+				navigateTo: url,
+			};
+		},
+	}),
+	define({
+		name: 'get_cart',
+		title: 'Get the cart',
+		description:
+			"Read the shopper's cart: its id, every line with its line id, titles, variant id, unit and line price, and the subtotal. update_cart starts from this result.",
+		input: z.object({ id: cartIdField }),
+		annotations: { readOnlyHint: true, untrustedContentHint: true },
+		surfaces: ['page', 'mcp'],
+		run: async ({ id }, context) => {
+			if (context.surface === 'mcp' && !id) return fail('Pass id, the cart id that create_cart returned.');
+			const { cart } = await currentCart(id, context);
+			if (context.surface === 'mcp' && !cart)
+				return fail('No cart with that id. It may have expired; create_cart starts a new one.');
+			const view = cartView(cart, context.origin);
+			return { result: ok(view, describeCart(view)) };
+		},
+	}),
+	define({
+		name: 'create_cart',
+		title: 'Create the cart',
+		description:
+			"Put items in the shopper's cart while it is empty. When the cart already has items nothing changes, and the result is that cart with an error message; use update_cart then. Repeating the call leaves the cart as it is.",
+		input: z.object({
+			cart: z.object({
+				line_items: z.array(lineItem).min(1).max(MAX_LINE_ITEMS).describe('The items the new cart holds.'),
+			}),
+		}),
+		annotations: {
+			readOnlyHint: false,
+			consequentialHint: false,
+			idempotentHint: true,
+			untrustedContentHint: true,
+		},
+		surfaces: ['page', 'mcp'],
+		run: async ({ cart: request }, context) => {
+			const { cart } = await currentCart(undefined, context);
+			if (cart && cart.totalQuantity > 0) {
+				const view = cartView(cart, context.origin, [
+					{
+						type: 'error',
+						code: 'cart_not_empty',
+						content: 'The cart already has items. Use update_cart to change it.',
+					},
+				]);
+				return { result: ok(view, `Nothing changed. ${describeCart(view)}`) };
+			}
+			const created = await applyCartChange(() =>
+				context.provider.setCartQuantities(
+					cart?.id,
+					request.line_items.map((line) => ({ variantId: line.item.id, quantity: line.quantity })),
+				),
+			);
+			return isOutcome(created) ? created : cartOutcome(created, cart, context.origin);
+		},
+	}),
+	define({
+		name: 'update_cart',
+		title: 'Update the cart',
+		description:
+			'Set the cart to exactly the listed lines: a listed line takes the given quantity, an unlisted line is removed, and an empty list empties the cart. Send the lines from the latest cart result; when the cart changed since, nothing changes and an error message explains it.',
+		input: z.object({
+			id: cartIdField,
+			cart: z.object({
+				line_items: z
+					.array(
+						lineItem.extend({
+							id: z
+								.string()
+								.optional()
+								.describe('Line id from a cart result, for a line already in the cart.'),
+						}),
+					)
+					.max(MAX_LINE_ITEMS)
+					.optional()
+					.describe('Every line the cart holds afterwards. Omit to leave the lines as they are.'),
+			}),
+		}),
+		annotations: {
+			readOnlyHint: false,
+			consequentialHint: false,
+			idempotentHint: true,
+			untrustedContentHint: true,
+		},
+		surfaces: ['page', 'mcp'],
+		run: async ({ id, cart: request }, context) => {
+			if (context.surface === 'mcp' && !id) return fail('Pass id, the cart id that create_cart returned.');
+			const { cart, mismatch } = await currentCart(id, context);
+			const stale = (content: string) => {
+				const view = cartView(cart, context.origin, [{ type: 'error', code: 'cart_changed', content }]);
+				return { result: ok(view, `Nothing changed. ${describeCart(view)}`) };
+			};
+			if (mismatch) return stale('The cart changed since that result. Read it again with get_cart.');
+			if (context.surface === 'mcp' && !cart)
+				return fail('No cart with that id. It may have expired; create_cart starts a new one.');
+			if (!request.line_items) {
+				const view = cartView(cart, context.origin);
+				return { result: ok(view, describeCart(view)) };
+			}
+			const known = new Set(cart?.lines.map((line) => line.id));
+			const unknownLine = request.line_items.find((line) => line.id && !known.has(line.id));
+			if (unknownLine)
+				return stale(`Line ${unknownLine.id} is no longer in the cart. Read it again with get_cart.`);
+
+			const target = new Map<string, number>();
+			for (const line of request.line_items) target.set(line.item.id, line.quantity);
+			for (const line of cart?.lines ?? []) if (!target.has(line.variantId)) target.set(line.variantId, 0);
+			const updated = await applyCartChange(() =>
+				context.provider.setCartQuantities(
+					cart?.id,
+					[...target].map(([variantId, quantity]) => ({ variantId, quantity })),
+				),
+			);
+			return isOutcome(updated) ? updated : cartOutcome(updated, cart, context.origin);
+		},
+	}),
+	define({
+		name: 'cancel_cart',
+		title: 'Empty the cart',
+		description: 'Remove every item from the cart in one step, for a shopper who wants to start over.',
+		input: z.object({ id: cartIdField }),
+		annotations: { readOnlyHint: false, consequentialHint: false },
+		surfaces: ['page', 'mcp'],
+		run: async ({ id }, context) => {
+			if (context.surface === 'mcp' && !id) return fail('Pass id, the cart id that create_cart returned.');
+			const { cart } = await currentCart(id, context);
+			const previous = cart?.totalQuantity ?? 0;
+			if (!cart || previous === 0) {
+				return { result: ok({ cleared: true, previous_item_count: 0 }, 'The cart was already empty.') };
+			}
+			const emptied = await applyCartChange(() =>
+				context.provider.setCartQuantities(
+					cart.id,
+					cart.lines.map((line) => ({ variantId: line.variantId, quantity: 0 })),
+				),
+			);
+			if (isOutcome(emptied)) return emptied;
+			return {
+				result: ok(
+					{ cleared: true, previous_item_count: previous },
+					`Removed ${previous} item(s); the cart is empty.`,
+				),
+				cartId: emptied.id,
+				cartChanged: true,
+			};
+		},
+	}),
+	define({
+		name: 'proceed_to_checkout',
+		title: 'Go to checkout',
+		description:
+			"Check the cart has items, then open the store's checkout in the browser, where the shopper pays. Over /mcp it returns the checkout URL to hand to the shopper.",
+		input: z.object({ id: cartIdField }),
+		annotations: { readOnlyHint: false, consequentialHint: false },
+		surfaces: ['page', 'mcp'],
+		run: async ({ id }, context) => {
+			if (context.surface === 'mcp' && !id) return fail('Pass id, the cart id that create_cart returned.');
+			const { cart } = await currentCart(id, context);
+			if (!cart || cart.totalQuantity === 0) return fail('The cart is empty. Add items with create_cart first.');
+			const url = resolveUrl(context.origin, cart.checkoutUrl);
+			const structured = {
+				navigating_to: url,
+				item_count: cart.totalQuantity,
+				total_price: toAgentPrice(cart.subtotal),
+			};
+			return context.surface === 'page'
+				? { result: ok(structured, `Opening checkout for ${cart.totalQuantity} item(s).`), navigateTo: url }
+				: { result: ok(structured, `Checkout for ${cart.totalQuantity} item(s): ${url}`) };
+		},
+	}),
+	define({
+		name: 'ask_business',
+		title: 'Ask the store',
+		description:
+			"Ask about the store's policies and services: returns and refunds, shipping, privacy, terms, contact details, or FAQ topics such as gift wrapping. One question per call, in the shopper's words. Read-only; for products and prices use search_catalog.",
+		input: z.object({
+			ask: z.object({
+				query: z.string().trim().min(1).max(10_000).describe("The shopper's question."),
+				context: z
+					.object({
+						intent: z.string().optional(),
+						address_country: z.string().optional(),
+						address_region: z.string().optional(),
+						language: z.string().optional(),
+					})
+					.optional()
+					.describe('Optional buyer context; send only what the question needs.'),
+			}),
+		}),
+		annotations: { readOnlyHint: true, untrustedContentHint: true },
+		surfaces: ['page', 'mcp'],
+		run: async ({ ask }, { provider, origin }) => {
+			const terms = ask.query
+				.toLowerCase()
+				.split(/[^a-z0-9]+/u)
+				.filter((term) => term.length > 2 && !STOP_WORDS.has(term));
+			const policies = await provider.listPolicies();
+			const sections = policies
+				.map((policy) => {
+					const paragraphs = policy.body
+						.split(/\n\s*\n/u)
+						.map((paragraph) => ({ paragraph, score: relevance(paragraph, terms) }))
+						.filter((entry) => entry.score > 0)
+						.sort((a, b) => b.score - a.score);
+					return { policy, paragraphs, score: paragraphs[0]?.score ?? 0 };
+				})
+				.filter((section) => section.score > 0)
+				.sort((a, b) => b.score - a.score)
+				.slice(0, 3);
+			const link = (policy: (typeof policies)[number]) => ({
+				type: policy.type,
+				url: resolveUrl(origin, storePaths.policy(policy.handle)),
+				title: policy.title,
+			});
+			const plain = sections.length
+				? sections
+						.map(({ policy, paragraphs }) =>
+							[
+								`${policy.title} (${resolveUrl(origin, storePaths.policy(policy.handle))}):`,
+								...paragraphs.slice(0, 2).map((entry) => entry.paragraph),
+							].join('\n'),
+						)
+						.join('\n\n')
+				: 'The store has no published information about that. Its policies are linked below.';
+			return {
+				result: ok(
+					{
+						answer: { plain },
+						links: (sections.length ? sections.map((section) => section.policy) : policies).map(link),
+					},
+					plain,
+				),
+			};
+		},
+	}),
+	define({
+		name: 'add_to_cart',
+		title: 'Add to cart',
+		description:
+			"Add a variant of the product on this page to the shopper's cart, on top of what the cart holds. Take the variant id from get_product. Returns the whole cart.",
+		input: lineItem,
+		annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
+		surfaces: ['page'],
+		run: async ({ item, quantity }, context) => {
+			const { cart } = await currentCart(undefined, context);
+			const added = await applyCartChange(() =>
+				context.provider.addToCart(cart?.id, [{ variantId: item.id, quantity }]),
+			);
+			return isOutcome(added) ? added : cartOutcome(added, cart, context.origin);
+		},
+	}),
+];
+
+const byName = new Map(storeTools.map((tool) => [tool.name, tool]));
+
+/**
+ * The tools of a surface as an agent sees them, with the input schema in JSON Schema.
+ */
+export function storeToolDescriptors(surface: ToolSurface): StoreToolDescriptor[] {
+	return storeTools
+		.filter((tool) => tool.surfaces.includes(surface))
+		.map((tool) => {
+			const { $schema: _schema, ...inputSchema } = z.toJSONSchema(tool.input, { io: 'input' });
+			const { idempotentHint: _idempotent, destructiveHint: _destructive, ...annotations } = tool.annotations;
+			return { name: tool.name, title: tool.title, description: tool.description, inputSchema, annotations };
+		});
+}
+
+/**
+ * The definition a surface runs, or `undefined` when the surface has no tool by that name.
+ */
+export function findStoreTool(name: string, surface: ToolSurface): StoreTool | undefined {
+	const tool = byName.get(name);
+	return tool?.surfaces.includes(surface) ? tool : undefined;
+}
+
+/**
+ * Validates an agent's input against the tool's schema and runs it.
+ *
+ * @remarks
+ * Input that fails the schema is a tool error naming each invalid field, and the tool does not run, so nothing
+ * changes. A provider failure that is not a cart refusal propagates.
+ */
+export async function runStoreTool(name: string, input: unknown, context: StoreToolContext): Promise<StoreToolOutcome> {
+	const tool = findStoreTool(name, context.surface);
+	if (!tool) return fail(`No tool named "${name}" here.`);
+	const parsed = tool.input.safeParse(input ?? {});
+	if (!parsed.success) {
+		const issues = parsed.error.issues.map((issue) => `${issue.path.join('.') || 'input'}: ${issue.message}`);
+		return fail(`Invalid input. ${issues.join('; ')}`, { error: 'invalid_input', issues });
+	}
+	return tool.run(parsed.data, context);
+}

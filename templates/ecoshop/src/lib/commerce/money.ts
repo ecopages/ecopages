@@ -24,6 +24,27 @@ export function formatPriceRange(range: { min: Money; max: Money }, locale = 'en
 }
 
 /**
+ * A price for an agent, as Shopify's storefront tools return it: the amount in the currency's minor units, its ISO
+ * code, and the display string.
+ */
+export interface AgentPrice {
+	amount: number;
+	currency: string;
+	display: string;
+}
+
+export function toAgentPrice(money: Money): AgentPrice {
+	const digits =
+		new Intl.NumberFormat('en-US', { style: 'currency', currency: money.currencyCode }).resolvedOptions()
+			.maximumFractionDigits ?? 2;
+	return {
+		amount: Math.round(Number(money.amount) * 10 ** digits),
+		currency: money.currencyCode,
+		display: formatMoney(money),
+	};
+}
+
+/**
  * Converts a decimal amount string to integer cents.
  *
  * @remarks

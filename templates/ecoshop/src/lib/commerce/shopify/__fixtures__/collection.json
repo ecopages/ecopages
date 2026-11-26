@@ -14,10 +14,37 @@
 						"vendor": "North Pier",
 						"availableForSale": true,
 						"priceRange": {
-							"minVariantPrice": { "amount": "149.0", "currencyCode": "EUR" },
-							"maxVariantPrice": { "amount": "159.0", "currencyCode": "EUR" }
+							"minVariantPrice": {
+								"amount": "149.0",
+								"currencyCode": "EUR"
+							},
+							"maxVariantPrice": {
+								"amount": "159.0",
+								"currencyCode": "EUR"
+							}
 						},
-						"featuredImage": null
+						"featuredImage": null,
+						"productType": "Jackets",
+						"options": [
+							{
+								"name": "Size",
+								"optionValues": [
+									{
+										"name": "M"
+									},
+									{
+										"name": "L"
+									}
+								]
+							}
+						],
+						"selectedOrFirstAvailableVariant": {
+							"id": "gid://shopify/ProductVariant/4470000000001",
+							"availableForSale": true
+						},
+						"variantsCount": {
+							"count": 2
+						}
 					}
 				]
 			}

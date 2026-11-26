@@ -37,13 +37,15 @@ export interface ShopifyProductSummary {
 	availableForSale: boolean;
 	priceRange: { minVariantPrice: Money; maxVariantPrice: Money };
 	featuredImage: Image | null;
+	productType: string;
+	options: Array<{ name: string; optionValues: Array<{ name: string }> }>;
+	selectedOrFirstAvailableVariant: { id: string; availableForSale: boolean } | null;
+	variantsCount: { count: number } | null;
 }
 
 export interface ShopifyProduct extends ShopifyProductSummary {
 	description: string;
-	productType: string;
 	tags: string[];
-	options: Array<{ name: string; optionValues: Array<{ name: string }> }>;
 	variants: ShopifyConnection<ShopifyVariant>;
 	images: { nodes: Image[] };
 }
@@ -77,6 +79,15 @@ export function toProductSummary(product: ShopifyProductSummary): ProductSummary
 		availableForSale: product.availableForSale,
 		priceRange: { min: product.priceRange.minVariantPrice, max: product.priceRange.maxVariantPrice },
 		featuredImage: product.featuredImage,
+		productType: product.productType,
+		options: product.options.map((option) => ({
+			name: option.name,
+			values: option.optionValues.map((value) => value.name),
+		})),
+		defaultVariantId: product.selectedOrFirstAvailableVariant?.availableForSale
+			? product.selectedOrFirstAvailableVariant.id
+			: null,
+		variantCount: product.variantsCount?.count ?? 0,
 	};
 }
 
@@ -84,12 +95,7 @@ export function toProduct(product: ShopifyProduct): Product {
 	return {
 		...toProductSummary(product),
 		description: product.description,
-		productType: product.productType,
 		tags: product.tags,
-		options: product.options.map((option) => ({
-			name: option.name,
-			values: option.optionValues.map((value) => value.name),
-		})),
 		variants: product.variants.nodes,
 		images: product.images.nodes,
 	};

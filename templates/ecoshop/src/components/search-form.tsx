@@ -17,7 +17,7 @@ export function SearchForm({
 	class?: string;
 }): JsxRenderable {
 	return (
-		<form role="search" action={storePaths.search} method="get" class={cx('search-form', className)}>
+		<form role="search" action={storePaths.search()} method="get" class={cx('search-form', className)}>
 			<label class="sr-only" for={id}>
 				Search products
 			</label>

@@ -14,7 +14,7 @@ import {
 	DEFAULT_VARIANT_TITLE,
 	MAX_LINE_QUANTITY,
 } from '../types';
-import { DEMO_COLLECTIONS, DEMO_PRODUCTS, DEMO_STORE, type DemoProductSeed } from './catalog';
+import { DEMO_COLLECTIONS, DEMO_POLICIES, DEMO_PRODUCTS, DEMO_STORE, type DemoProductSeed } from './catalog';
 
 const CART_PREFIX = 'demo-cart.';
 
@@ -70,12 +70,27 @@ function toProduct(seed: DemoProductSeed): Product {
 		},
 		featuredImage: image,
 		images: [image],
+		defaultVariantId: variants.find((variant) => variant.availableForSale)?.id ?? null,
+		variantCount: variants.length,
 	};
 }
 
 function toSummary(product: Product): ProductSummary {
-	const { id, handle, title, vendor, availableForSale, priceRange, featuredImage } = product;
-	return { id, handle, title, vendor, availableForSale, priceRange, featuredImage };
+	const { id, handle, title, vendor, availableForSale, priceRange, featuredImage, productType, options } = product;
+	const { defaultVariantId, variantCount } = product;
+	return {
+		id,
+		handle,
+		title,
+		vendor,
+		availableForSale,
+		priceRange,
+		featuredImage,
+		productType,
+		options,
+		defaultVariantId,
+		variantCount,
+	};
 }
 
 function take<T>(items: T[], options?: ListOptions): T[] {
@@ -194,7 +209,9 @@ export function createDemoProvider(): CommerceProvider {
 			});
 			return take(matches.map(toSummary), options);
 		},
-		getProduct: async (handle) => productsByHandle.get(handle) ?? null,
+		getProduct: async (handleOrId) =>
+			productsByHandle.get(handleOrId.replace(/^gid:\/\/ecoshop\/Product\//u, '')) ?? null,
+		listPolicies: async () => DEMO_POLICIES,
 		listCollections: async (options) => take(collections, options),
 		getCollection: async (handle, options) => {
 			const collection = collections.find((entry) => entry.handle === handle);

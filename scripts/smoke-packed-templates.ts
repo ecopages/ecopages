@@ -23,6 +23,7 @@ const defaultTemplateIds = [
 	'lit-jsx',
 	'electrobun',
 	'eco-commerce',
+	'ecoshop',
 ];
 const dependencyBlocks = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
 const serverStopTimeoutMs = 10_000;
@@ -225,6 +226,10 @@ const templateSmokes: Record<string, TemplateSmoke> = {
 		build: ['pnpm', ['run', 'build']],
 		serve: { mode: 'start', host: '127.0.0.1', runtimeArgs: ['--runtime', 'bun'], withoutSource: true },
 	},
+	ecoshop: {
+		...defaultTemplateSmoke,
+		serve: { mode: 'start', host: '127.0.0.1', runtimeArgs: [], withoutSource: false },
+	},
 };
 
 /**
@@ -306,7 +311,7 @@ async function smokeTemplate(templateId: string, workDir: string, tarballs: Map<
 
 /**
  * Builds and packs every public package, installs the requested templates from those tarballs, builds
- * them and serves the builds for `html` and `electrobun`. Exits non-zero when any step fails.
+ * them and serves the builds for `html`, `electrobun` and `ecoshop`. Exits non-zero when any step fails.
  *
  * @remarks
  * This is the slow, network-using release check, run locally or before a release. CI runs it only for

@@ -196,6 +196,27 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		use: { ...chrome, baseURL: 'http://localhost:4640' },
 	},
 	{
+		name: 'template-ecoshop-start-e2e',
+		testMatch: 'e2e/fixtures/templates/ecoshop.start.test.e2e.ts',
+		fullyParallel: false,
+		timeout: 120_000,
+		use: {
+			...chrome,
+			appOptions: {
+				source: 'templates/ecoshop',
+				serve: 'moved-start',
+				env: { SHOPIFY_WEBHOOK_SECRET: 'whsec-ecoshop-e2e' },
+			},
+		},
+	},
+	{
+		name: 'template-ecoshop-dev-e2e',
+		testMatch: 'e2e/fixtures/templates/ecoshop.dev.test.e2e.ts',
+		fullyParallel: false,
+		timeout: 60_000,
+		use: { ...chrome, appOptions: { source: 'templates/ecoshop' } },
+	},
+	{
 		name: 'recipe-auth-gate-dev-e2e',
 		testMatch: 'e2e/fixtures/recipes/auth-gate.dev.test.e2e.ts',
 		timeout: 60_000,

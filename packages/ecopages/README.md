@@ -50,7 +50,7 @@ ecopages init my-site --template jsx
 ecopages init my-site --from github:acme/my-template#v1.0.0
 ```
 
-The official template IDs are `jsx`, `jsx-postcss`, `jsx-css-modules`, `html`, `react`, `react-postcss`, `react-shadcn`, `lit-jsx`, `radiant`, `blog-jsx`, `blog-react`, `docs-starter`, `react-better-auth`, `electrobun`, `llm-wiki`, and `eco-commerce`.
+The official template IDs are `jsx`, `jsx-postcss`, `jsx-css-modules`, `html`, `react`, `react-postcss`, `react-shadcn`, `lit-jsx`, `radiant`, `blog-jsx`, `blog-react`, `docs-starter`, `react-better-auth`, `electrobun`, `llm-wiki`, `eco-commerce`, and `ecoshop`.
 
 ## Environment & Runtime Options
 

@@ -1,0 +1,41 @@
+@layer components {
+	.product {
+		@apply grid gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start;
+	}
+
+	.product__gallery {
+		@apply grid gap-4;
+	}
+
+	.product__tags {
+		@apply flex flex-wrap gap-2;
+	}
+
+	.product__delivery p {
+		@apply text-sm leading-relaxed my-2;
+	}
+
+	.product__details {
+		@apply flex flex-col gap-8 lg:sticky lg:top-24;
+	}
+
+	.product__vendor {
+		@apply text-sm uppercase tracking-wide text-muted;
+	}
+
+	.product__price {
+		@apply flex items-baseline gap-3 text-xl tabular-nums;
+	}
+
+	.product__compare-at {
+		@apply text-base text-muted;
+	}
+
+	.product__description {
+		@apply leading-relaxed max-w-prose;
+	}
+
+	.product__alternate {
+		@apply text-sm text-muted;
+	}
+}

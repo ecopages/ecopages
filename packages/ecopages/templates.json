@@ -168,6 +168,16 @@
 				"dist/client/collections/living/seating/lounge-chairs/page/2.html",
 				"dist/client/products/basil-brass-lounge-chair.html"
 			]
+		},
+		{
+			"id": "ecoshop",
+			"displayName": "Ecoshop",
+			"description": "A Shopify storefront with a demo catalog, a cart and an MCP server for agents.",
+			"category": "application",
+			"order": 90,
+			"source": "ecoshop",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "radiant-ui"]
 		}
 	]
 }

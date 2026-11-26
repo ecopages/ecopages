@@ -6,7 +6,8 @@ import type { AgentToolExecuteOptions } from '@ecopages/radiant/helpers/register
 import { toast } from '@ecopages/radiant-ui/toast';
 import { dispatchCartChange } from '@/lib/storefront/cart-events';
 import type { CartJson } from '@/lib/storefront/json';
-import { isToolError, postCartChange, readToolInput, type ToolError } from '@/lib/webmcp/catalog-tools';
+import { isStoreError, postCartChange, type StoreError } from '@/lib/browser/store-api';
+import { readToolInput } from '@/lib/webmcp/catalog-tools';
 import { addToCartTool, selectVariantTool } from '@/lib/webmcp/definitions';
 
 /**
@@ -28,6 +29,8 @@ export class AddToCartElement extends RadiantElement {
 
 	@ref() form!: HTMLFormElement | null;
 
+	@query('input[name="quantity"]') quantity!: HTMLInputElement | null;
+
 	/**
 	 * @remarks
 	 * `data-enhanced` marks the moment the form is sent with `fetch`; until then a click submits the plain form.
@@ -36,7 +39,6 @@ export class AddToCartElement extends RadiantElement {
 	protected override onConnected(): void {
 		this.toggleAttribute('data-enhanced', true);
 	}
-	@query('input[name="quantity"]') quantity!: HTMLInputElement | null;
 
 	private variantInputs(): HTMLInputElement[] {
 		return Array.from(this.querySelectorAll<HTMLInputElement>('input[name="variantId"]'));
@@ -58,16 +60,23 @@ export class AddToCartElement extends RadiantElement {
 		event.preventDefault();
 		const variant = this.selectedVariant();
 		const quantity = Number(this.quantity?.value) || 1;
-		if (variant && !this.pending) void this.add(variant.value, quantity);
+		if (variant) void this.add(variant.value, quantity);
 	}
 
-	/** Adds `quantity` units of a variant, keeping the header and a toast in step. */
-	async add(variantId: string, quantity: number, signal?: AbortSignal): Promise<CartJson | ToolError> {
+	/**
+	 * Adds `quantity` units of a variant, keeping the header and a toast in step.
+	 *
+	 * @remarks
+	 * One add at a time, from the form or an agent: a second call while one is in flight is refused, so the
+	 * header's optimistic count never stacks two guesses.
+	 */
+	async add(variantId: string, quantity: number, signal?: AbortSignal): Promise<CartJson | StoreError> {
+		if (this.pending) return { error: 'Another addition to the cart is still on its way.' };
 		this.pending = true;
 		dispatchCartChange({ delta: quantity });
 		const result = await postCartChange('/cart/add', { variantId, quantity }, { fetch, signal });
 		this.pending = false;
-		if (isToolError(result)) {
+		if (isStoreError(result)) {
 			dispatchCartChange({ delta: -quantity });
 			toast.error(result.error);
 			return result;
@@ -78,7 +87,7 @@ export class AddToCartElement extends RadiantElement {
 	}
 
 	/** Checks a finish radio, as a click on it would. */
-	selectVariant(value: string): { variantId: string; title: string } | ToolError {
+	selectVariant(value: string): { variantId: string; title: string } | StoreError {
 		const input = this.findVariant(value);
 		if (!input) return { error: `variant: no finish named "${value}" on this product` };
 		input.click();
@@ -88,16 +97,16 @@ export class AddToCartElement extends RadiantElement {
 	@agentTool(addToCartTool)
 	addToCartTool(input: unknown, { signal }: AgentToolExecuteOptions) {
 		const values = readToolInput(addToCartTool, input);
-		if (isToolError(values)) return values;
-		const variant = typeof values.variant === 'string' ? this.findVariant(values.variant) : this.selectedVariant();
-		if (!variant) return { error: `variant: no finish named "${String(values.variant)}" on this product` };
-		return this.add(variant.value, typeof values.quantity === 'number' ? values.quantity : 1, signal);
+		if (isStoreError(values)) return values;
+		const variant = values.variant === undefined ? this.selectedVariant() : this.findVariant(values.variant);
+		if (!variant) return { error: `variant: no finish named "${values.variant}" on this product` };
+		return this.add(variant.value, values.quantity ?? 1, signal);
 	}
 
 	@agentTool(selectVariantTool)
 	selectVariantTool(input: unknown) {
 		const values = readToolInput(selectVariantTool, input);
-		return isToolError(values) ? values : this.selectVariant(String(values.variant));
+		return isStoreError(values) ? values : this.selectVariant(values.variant);
 	}
 }
 

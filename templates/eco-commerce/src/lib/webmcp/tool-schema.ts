@@ -4,7 +4,7 @@ export type StringProperty = PropertyBase & {
 	type: 'string';
 	minLength?: number;
 	maxLength?: number;
-	enum?: string[];
+	enum?: readonly string[];
 };
 export type IntegerProperty = PropertyBase & { type: 'integer'; minimum: number; maximum: number };
 export type BooleanProperty = PropertyBase & { type: 'boolean' };
@@ -22,12 +22,32 @@ export type ToolProperty = StringProperty | IntegerProperty | BooleanProperty | 
  */
 export type ToolInputSchema = {
 	type: 'object';
-	properties: Record<string, ToolProperty>;
-	required: string[];
+	properties: Readonly<Record<string, ToolProperty>>;
+	required: readonly string[];
 	additionalProperties: false;
 };
 
-export type ToolInputResult = { ok: true; value: Record<string, unknown> } | { ok: false; error: string };
+type PropertyValue<P extends ToolProperty> = P extends { type: 'string'; enum: readonly (infer Choice)[] }
+	? Choice
+	: P extends { type: 'string' }
+		? string
+		: P extends { type: 'integer' }
+			? number
+			: P extends { type: 'boolean' }
+				? boolean
+				: string[];
+
+type RequiredName<S extends ToolInputSchema> = S['required'][number] & keyof S['properties'];
+
+/** The values a schema accepts: its required fields, and its other fields as optional ones. */
+export type ToolInput<S extends ToolInputSchema> = {
+	[Name in RequiredName<S>]: PropertyValue<S['properties'][Name]>;
+} & {
+	[Name in Exclude<keyof S['properties'], RequiredName<S>>]?: PropertyValue<S['properties'][Name]>;
+};
+
+export type ToolInputResult<S extends ToolInputSchema> =
+	{ ok: true; value: ToolInput<S> } | { ok: false; error: string };
 
 function checkString(name: string, property: StringProperty, value: unknown): string | null {
 	if (typeof value !== 'string') return `${name}: expected a string`;
@@ -85,9 +105,10 @@ function readObject(input: unknown): Record<string, unknown> | null {
  * Checks a tool call's input against its schema; the error names the first field that fails.
  *
  * @remarks
- * Accepts the input as an object or a JSON string, since agents differ in which they send.
+ * Accepts the input as an object or a JSON string, since agents differ in which they send. The checks above are
+ * what make the final cast to {@link ToolInput} true.
  */
-export function validateToolInput(schema: ToolInputSchema, input: unknown): ToolInputResult {
+export function validateToolInput<S extends ToolInputSchema>(schema: S, input: unknown): ToolInputResult<S> {
 	const object = readObject(input);
 	if (!object) return { ok: false, error: 'input: expected an object' };
 
@@ -102,5 +123,5 @@ export function validateToolInput(schema: ToolInputSchema, input: unknown): Tool
 		const error = checkProperty(name, property, object[name]);
 		if (error) return { ok: false, error };
 	}
-	return { ok: true, value: object };
+	return { ok: true, value: object as ToolInput<S> };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { browseStore, getCart, getProduct, postCartChange, readToolInput, searchCatalog } from './catalog-tools.ts';
+import { browseStore, getCart, getProduct, openProduct, readToolInput, searchCatalog } from './catalog-tools.ts';
 import { addToCartTool, filterProductsTool } from './definitions.ts';
 
 function fakeFetch(body: unknown, status = 200) {
@@ -41,48 +41,27 @@ describe('catalog tools', () => {
 		expect(fetch).toHaveBeenCalledWith('/api/browse?collection=kitchen', expect.anything());
 	});
 
-	test('get_product opens the product page only when asked', async () => {
+	test('get_product reads the product, and open_product also shows its page', async () => {
 		const fetch = fakeFetch({ url: '/products/alder-oak-stool', title: 'Alder oak stool' });
 		const navigate = vi.fn(async () => {});
 
-		await getProduct({ product: 'alder-oak-stool' }, { fetch, navigate });
+		expect(await getProduct({ product: 'alder-oak-stool' }, { fetch })).toMatchObject({ title: 'Alder oak stool' });
 		expect(navigate).not.toHaveBeenCalled();
 
-		await getProduct({ product: 'alder-oak-stool', open: true }, { fetch, navigate });
+		await openProduct({ product: 'alder-oak-stool' }, { fetch, navigate });
 		expect(navigate).toHaveBeenCalledWith('/products/alder-oak-stool');
 	});
 
-	test('a refusal from the store reaches the agent as its error', async () => {
-		const fetch = fakeFetch({ error: 'Your cart is full.' }, 409);
+	test('open_product leaves the page where it is when the store does not have the product', async () => {
+		const navigate = vi.fn(async () => {});
 
-		expect(await postCartChange('/cart/add', { variantId: '1:oak', quantity: 1 }, { fetch })).toEqual({
-			error: 'Your cart is full.',
-		});
-	});
+		const result = await openProduct(
+			{ product: 'no-such-stool' },
+			{ fetch: fakeFetch({ error: 'Not found' }, 404), navigate },
+		);
 
-	test('a cart change posts the same form fields the page forms send', async () => {
-		const fetch = fakeFetch({ itemCount: 2, lines: [], subtotal: '$0.00' });
-
-		await postCartChange('/cart/update', { variantId: '7:sand', quantity: 2 }, { fetch });
-
-		const [url, init] = fetch.mock.calls[0]!;
-		expect(url).toBe('/cart/update');
-		expect(init?.body).toBeInstanceOf(FormData);
-		expect(Object.fromEntries((init!.body as FormData).entries())).toEqual({ variantId: '7:sand', quantity: '2' });
-	});
-
-	test('calls fetch detached, as the browser fetch requires', async () => {
-		const strictFetch = vi.fn(function (this: unknown) {
-			if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation');
-			return Promise.resolve(Response.json({ itemCount: 0, lines: [], subtotal: '$0.00' }));
-		}) as unknown as typeof fetch;
-
-		expect(await getCart({}, { fetch: strictFetch })).toMatchObject({ itemCount: 0 });
-		expect(
-			await postCartChange('/cart/add', { variantId: '1:oak', quantity: 1 }, { fetch: strictFetch }),
-		).toMatchObject({
-			itemCount: 0,
-		});
+		expect(result).toEqual({ error: 'Not found' });
+		expect(navigate).not.toHaveBeenCalled();
 	});
 
 	test('add_to_cart and filter_products check their bounds and enums', () => {

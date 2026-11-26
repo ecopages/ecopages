@@ -1,7 +1,10 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { DEFAULT_BUILD_OUTPUTS, templateBuildOutputs } from './template-build-outputs.ts';
+import {
+	DEFAULT_BUILD_OUTPUTS,
+	findTemplate,
+	readTemplateManifest,
+	templateBuildOutputs,
+} from './template-manifest.ts';
 
 describe('templateBuildOutputs', () => {
 	test('defaults to the client index page', () => {
@@ -15,16 +18,19 @@ describe('templateBuildOutputs', () => {
 	});
 
 	test('rejects a declaration that is not a non-empty list of paths under dist', () => {
-		for (const buildOutputs of [[], 'dist/client/index.html', ['src/pages/index.tsx'], [1]]) {
+		for (const buildOutputs of [[], 'dist/client/index.html', ['src/pages/index.tsx'], ['dist/../src/x'], [1]]) {
 			expect(() => templateBuildOutputs({ id: 'x', buildOutputs })).toThrow(/buildOutputs/u);
 		}
 	});
 
 	test('every entry in the official manifest declares valid outputs', () => {
-		const manifest = JSON.parse(
-			readFileSync(path.resolve(import.meta.dirname, '../packages/ecopages/templates.json'), 'utf8'),
-		) as { templates: Array<{ id: string; buildOutputs?: unknown }> };
+		for (const template of readTemplateManifest().templates) {
+			expect(templateBuildOutputs(template).length).toBeGreaterThan(0);
+		}
+	});
 
-		for (const template of manifest.templates) expect(templateBuildOutputs(template).length).toBeGreaterThan(0);
+	test('findTemplate refuses an id the manifest does not list', () => {
+		expect(findTemplate(readTemplateManifest(), 'eco-commerce').source).toBe('eco-commerce');
+		expect(() => findTemplate(readTemplateManifest(), 'no-such-template')).toThrow(/no-such-template/u);
 	});
 });

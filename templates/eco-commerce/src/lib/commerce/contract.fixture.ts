@@ -183,6 +183,18 @@ export function describeCommerceBackendContract(name: string, open: () => Promis
 			expect((await backend.cart.getCart(`${added.token}x`)).lines).toEqual([]);
 		});
 
+		test('removing a line from a cart that does not exist changes nothing and asks for no cookie', async () => {
+			const { subcategory } = await firstSubcategory();
+			const card = (await backend.catalog.listProducts({ subcategory: subcategory.handle })).items[0]!;
+			const variant = (await backend.catalog.getProduct(card.handle))!.variants[0]!;
+
+			expect(await backend.cart.updateItem(null, { variantId: variant.id, quantity: 0 })).toMatchObject({
+				ok: true,
+				token: null,
+				cart: { lines: [], itemCount: 0 },
+			});
+		});
+
 		test('a cart refuses a variant the catalog does not have, and an empty token is an empty cart', async () => {
 			const refused = await backend.cart.addItem(null, { variantId: 'no-such-variant', quantity: 1 });
 

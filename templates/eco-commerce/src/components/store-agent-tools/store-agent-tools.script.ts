@@ -2,8 +2,14 @@ import { RadiantElement, customElement, prop } from '@ecopages/radiant';
 import { agentTool } from '@ecopages/radiant/decorators/agent-tool';
 import type { AgentToolExecuteOptions } from '@ecopages/radiant/helpers/register-agent-tool';
 import { navigate } from '@/lib/browser/navigation';
-import { browseStore, getCart, getProduct, searchCatalog } from '@/lib/webmcp/catalog-tools';
-import { browseStoreTool, getCartTool, getProductTool, searchCatalogTool } from '@/lib/webmcp/definitions';
+import { browseStore, getCart, getProduct, openProduct, searchCatalog } from '@/lib/webmcp/catalog-tools';
+import {
+	browseStoreTool,
+	getCartTool,
+	getProductTool,
+	openProductTool,
+	searchCatalogTool,
+} from '@/lib/webmcp/definitions';
 
 /**
  * `<store-agent-tools>`: the WebMCP tools every page offers, registered while the element is on the page.
@@ -32,7 +38,12 @@ export class StoreAgentToolsElement extends RadiantElement {
 
 	@agentTool(getProductTool)
 	getProduct(input: unknown, { signal }: AgentToolExecuteOptions) {
-		return getProduct(input, { fetch, signal, navigate });
+		return getProduct(input, { fetch, signal });
+	}
+
+	@agentTool(openProductTool)
+	openProduct(input: unknown, { signal }: AgentToolExecuteOptions) {
+		return openProduct(input, { fetch, signal, navigate });
 	}
 
 	@agentTool(getCartTool)

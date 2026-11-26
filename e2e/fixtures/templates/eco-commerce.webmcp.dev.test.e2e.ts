@@ -47,7 +47,7 @@ function callTool(page: Page, name: string, input: unknown): Promise<Record<stri
 	] as const) as Promise<Record<string, unknown>>;
 }
 
-const SITE_TOOLS = ['browse_store', 'get_cart', 'get_product', 'search_catalog'];
+const SITE_TOOLS = ['browse_store', 'get_cart', 'get_product', 'open_product', 'search_catalog'];
 
 async function openProduct(page: Page): Promise<void> {
 	await page.goto(SUBCATEGORY);
@@ -80,7 +80,7 @@ test.describe('WebMCP tools', () => {
 		expect(result).toMatchObject({ level: 'category', category: { handle: 'seating' } });
 	});
 
-	test('an agent adds two to the cart from a product page and the header updates without a page load', async ({
+	test('an agent adds two to the cart from a product page, after a call with an invalid quantity changed nothing', async ({
 		page,
 	}) => {
 		await openProduct(page);
@@ -90,6 +90,11 @@ test.describe('WebMCP tools', () => {
 		await page.evaluate(() => {
 			(window as Window & { __loadMarker?: boolean }).__loadMarker = true;
 		});
+
+		expect(await callTool(page, 'add_to_cart', { quantity: 500 })).toEqual({
+			error: 'quantity: expected an integer from 1 to 99',
+		});
+		expect((await (await page.request.get('/api/cart')).json()).itemCount).toBe(0);
 
 		const result = await callTool(page, 'add_to_cart', { quantity: 2 });
 
@@ -116,7 +121,7 @@ test.describe('WebMCP tools', () => {
 	test('page tools follow client navigation from a product page to the order page', async ({ page }) => {
 		await openProduct(page);
 		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
-		await callTool(page, 'add_to_cart', {});
+		expect(await callTool(page, 'add_to_cart', {})).toMatchObject({ itemCount: 1 });
 
 		await page.evaluate(() =>
 			(
@@ -131,14 +136,20 @@ test.describe('WebMCP tools', () => {
 		expect(await toolNames(page)).not.toContain('add_to_cart');
 	});
 
-	test('a call that fails its schema returns an error naming the field and changes nothing', async ({ page }) => {
-		await openProduct(page);
-		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
+	test('on the order page an agent changes a line quantity and then removes the line', async ({ page }) => {
+		const [first] = (await (await page.request.get('/api/products?in=lounge-chairs&pageSize=1')).json()).items;
+		const { variants } = await (await page.request.get(`/api/products/${first.handle}`)).json();
+		await page.request.post('/cart/add', { form: { variantId: variants[0].id, quantity: '1' } });
+		await page.goto('/order');
+		await expect.poll(() => toolNames(page)).toContain('update_cart_line');
 
-		expect(await callTool(page, 'add_to_cart', { quantity: 500 })).toEqual({
-			error: 'quantity: expected an integer from 1 to 99',
-		});
-		expect((await (await page.request.get('/api/cart')).json()).itemCount).toBe(0);
+		const updated = await callTool(page, 'update_cart_line', { variantId: variants[0].id, quantity: 3 });
+
+		expect(updated).toMatchObject({ itemCount: 3 });
+		await expect(page.getByRole('spinbutton', { name: `Quantity of ${first.title}` })).toHaveValue('3');
+
+		expect(await callTool(page, 'remove_cart_line', { variantId: variants[0].id })).toMatchObject({ itemCount: 0 });
+		await expect(page.getByRole('main').getByText('Your cart is empty.')).toBeVisible();
 	});
 
 	test('filter_products changes the listing and returns its first page', async ({ page }) => {
@@ -161,16 +172,17 @@ test.describe('WebMCP tools', () => {
 	});
 });
 
-test('without document.modelContext no tool is registered and nothing is logged', async ({ page }) => {
+test('without document.modelContext no tool is registered and no error is logged', async ({ page }) => {
 	const problems: string[] = [];
 	page.on('console', (message) => {
-		if (message.type() === 'error' || message.type() === 'warning') problems.push(message.text());
+		if (message.type() === 'error') problems.push(message.text());
 	});
 	page.on('pageerror', (error) => problems.push(error.message));
 
 	await openProduct(page);
-	await expect(page.locator('add-to-cart')).toBeVisible();
+	await expect(page.locator('add-to-cart[data-enhanced]')).toBeAttached();
+	await page.waitForFunction(() => customElements.get('store-agent-tools') !== undefined);
 
 	expect(await page.evaluate(() => 'modelContext' in document)).toBe(false);
-	expect(problems.filter((text) => /tool|modelContext/i.test(text))).toEqual([]);
+	expect(problems).toEqual([]);
 });

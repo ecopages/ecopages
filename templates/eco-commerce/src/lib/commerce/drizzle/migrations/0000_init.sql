@@ -12,6 +12,7 @@ CREATE TABLE `carts` (
 	`updated_at` integer NOT NULL
 );
 --> statement-breakpoint
+CREATE INDEX `carts_updated_at_idx` ON `carts` (`updated_at`);--> statement-breakpoint
 CREATE TABLE `catalog_meta` (
 	`key` text PRIMARY KEY NOT NULL,
 	`value` text NOT NULL

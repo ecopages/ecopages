@@ -1,6 +1,7 @@
 import { RadiantElement, bindTo, customElement, onEvent, state } from '@ecopages/radiant';
 import { CART_CHANGE_EVENT, OPEN_CART_EVENT, type CartChangeDetail } from '@/lib/storefront/cart-events';
 import type { CartJson } from '@/lib/storefront/json';
+import { getJson, isStoreError } from '@/lib/browser/store-api';
 
 function describeCart(count: number): string {
 	return count === 1 ? 'Cart, 1 item' : `Cart, ${count} items`;
@@ -49,10 +50,8 @@ export class CartLinkElement extends RadiantElement {
 	}
 
 	private async refresh(): Promise<void> {
-		const response = await fetch('/api/cart', { headers: { accept: 'application/json' } }).catch(() => null);
-		if (!response?.ok) return;
-		const cart = (await response.json()) as CartJson;
-		this.count = cart.itemCount;
+		const cart = await getJson<CartJson>('/api/cart', { fetch });
+		if (!isStoreError(cart)) this.count = cart.itemCount;
 	}
 }
 

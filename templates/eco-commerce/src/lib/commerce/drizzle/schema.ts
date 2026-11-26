@@ -65,10 +65,14 @@ export const catalogMeta = sqliteTable('catalog_meta', {
 });
 
 /** A visitor's cart; its id travels in a signed cookie. */
-export const carts = sqliteTable('carts', {
-	id: text('id').primaryKey(),
-	updatedAt: integer('updated_at').notNull(),
-});
+export const carts = sqliteTable(
+	'carts',
+	{
+		id: text('id').primaryKey(),
+		updatedAt: integer('updated_at').notNull(),
+	},
+	(table) => [index('carts_updated_at_idx').on(table.updatedAt)],
+);
 
 /** One variant in a cart. Changes are applied to these rows one operation at a time, never by replacing the cart. */
 export const cartLines = sqliteTable(

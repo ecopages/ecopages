@@ -1,71 +1,21 @@
+import { getJson, isStoreError, type StoreApiDeps, type StoreError } from '../browser/store-api.ts';
 import type { BrowseJson, CartJson, ProductDetailsJson, ProductListJson } from '../storefront/json.ts';
-import { browseStoreTool, getCartTool, getProductTool, searchCatalogTool, type ToolDefinition } from './definitions.ts';
-import { validateToolInput } from './tool-schema.ts';
-
-/**
- * What a tool returns when it could not act; the agent reads `error`, which names the field at fault.
- *
- * @remarks
- * A tool returns this instead of throwing: WebMCP hands the agent only the name of a rejection
- * (`OperationError`), so a thrown message, such as which field failed, would not reach it.
- */
-export type ToolError = { error: string };
-
-export type ToolDeps = {
-	fetch: typeof fetch;
-	signal?: AbortSignal;
-};
-
-export function isToolError(value: unknown): value is ToolError {
-	return typeof value === 'object' && value !== null && typeof (value as ToolError).error === 'string';
-}
+import { browseStoreTool, getCartTool, getProductTool, openProductTool, searchCatalogTool } from './definitions.ts';
+import { validateToolInput, type ToolInput, type ToolInputSchema } from './tool-schema.ts';
 
 /** Validates the input against the tool's schema, returning the values or the error naming the field. */
-export function readToolInput(tool: ToolDefinition, input: unknown): Record<string, unknown> | ToolError {
+export function readToolInput<S extends ToolInputSchema>(
+	tool: { inputSchema: S },
+	input: unknown,
+): ToolInput<S> | StoreError {
 	const result = validateToolInput(tool.inputSchema, input);
 	return result.ok ? result.value : { error: result.error };
 }
 
-async function readJson<T>(response: Response): Promise<T | ToolError> {
-	const body = (await response.json().catch(() => null)) as (T & Partial<ToolError>) | null;
-	if (!response.ok)
-		return { error: typeof body?.error === 'string' ? body.error : `The store answered ${response.status}.` };
-	return body ?? { error: 'The store sent an unreadable answer.' };
-}
-
-/**
- * @remarks
- * `deps.fetch` is called detached from `deps`: the browser's `fetch` throws "Illegal invocation" when its
- * receiver is any object other than the window.
- */
-export function getJson<T>(url: string, { fetch: send, signal }: ToolDeps): Promise<T | ToolError> {
-	return send(url, { headers: { accept: 'application/json' }, signal })
-		.then((response) => readJson<T>(response))
-		.catch(() => ({ error: 'The store could not be reached.' }));
-}
-
-/** Posts a cart change through the same Endpoint and form fields the page's forms use. */
-export async function postCartChange(
-	action: '/cart/add' | '/cart/update',
-	fields: { variantId: string; quantity: number },
-	{ fetch: send, signal }: ToolDeps,
-): Promise<CartJson | ToolError> {
-	const body = new FormData();
-	body.set('variantId', fields.variantId);
-	body.set('quantity', String(fields.quantity));
-	const response = await send(action, {
-		method: 'POST',
-		body,
-		headers: { accept: 'application/json' },
-		signal,
-	}).catch(() => null);
-	return response ? readJson<CartJson>(response) : { error: 'The store could not be reached.' };
-}
-
-export async function searchCatalog(input: unknown, deps: ToolDeps): Promise<ProductListJson | ToolError> {
+export async function searchCatalog(input: unknown, deps: StoreApiDeps): Promise<ProductListJson | StoreError> {
 	const values = readToolInput(searchCatalogTool, input);
-	if (isToolError(values)) return values;
-	const params = new URLSearchParams({ q: String(values.query), pageSize: String(values.limit ?? 6) });
+	if (isStoreError(values)) return values;
+	const params = new URLSearchParams({ q: values.query, pageSize: String(values.limit ?? 6) });
 	return getJson<ProductListJson>(`/api/products?${params}`, deps);
 }
 
@@ -73,10 +23,10 @@ export async function searchCatalog(input: unknown, deps: ToolDeps): Promise<Pro
 export async function browseStore(
 	input: unknown,
 	place: { collection?: string; category?: string },
-	deps: ToolDeps,
-): Promise<BrowseJson | ToolError> {
+	deps: StoreApiDeps,
+): Promise<BrowseJson | StoreError> {
 	const values = readToolInput(browseStoreTool, input);
-	if (isToolError(values)) return values;
+	if (isStoreError(values)) return values;
 	const named = values.collection !== undefined || values.category !== undefined;
 	const target = named ? { collection: values.collection, category: values.category } : place;
 	const params = new URLSearchParams();
@@ -85,22 +35,32 @@ export async function browseStore(
 	return getJson<BrowseJson>(`/api/browse?${params}`, deps);
 }
 
-export async function getProduct(
+async function readProduct(
+	tool: typeof getProductTool | typeof openProductTool,
 	input: unknown,
-	deps: ToolDeps & { navigate: (url: string) => Promise<void> },
-): Promise<ProductDetailsJson | ToolError> {
-	const values = readToolInput(getProductTool, input);
-	if (isToolError(values)) return values;
-	const details = await getJson<ProductDetailsJson>(
-		`/api/products/${encodeURIComponent(String(values.product))}`,
-		deps,
-	);
-	if (!isToolError(details) && values.open === true) await deps.navigate(details.url);
+	deps: StoreApiDeps,
+): Promise<ProductDetailsJson | StoreError> {
+	const values = readToolInput(tool, input);
+	if (isStoreError(values)) return values;
+	return getJson<ProductDetailsJson>(`/api/products/${encodeURIComponent(values.product)}`, deps);
+}
+
+export function getProduct(input: unknown, deps: StoreApiDeps): Promise<ProductDetailsJson | StoreError> {
+	return readProduct(getProductTool, input, deps);
+}
+
+/** Shows the product page once its details resolve, so an unknown handle leaves the page where it is. */
+export async function openProduct(
+	input: unknown,
+	deps: StoreApiDeps & { navigate: (url: string) => Promise<void> },
+): Promise<ProductDetailsJson | StoreError> {
+	const details = await readProduct(openProductTool, input, deps);
+	if (!isStoreError(details)) await deps.navigate(details.url);
 	return details;
 }
 
-export async function getCart(input: unknown, deps: ToolDeps): Promise<CartJson | ToolError> {
+export async function getCart(input: unknown, deps: StoreApiDeps): Promise<CartJson | StoreError> {
 	const values = readToolInput(getCartTool, input);
-	if (isToolError(values)) return values;
+	if (isStoreError(values)) return values;
 	return getJson<CartJson>('/api/cart', deps);
 }

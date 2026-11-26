@@ -1,6 +1,7 @@
 import type { ProductRow } from '../schema.ts';
 import { pick, shuffle, type Random } from './random.ts';
 import { FINISHES, MATERIALS, MODEL_NAMES, type SubcategorySeed } from './taxonomy.ts';
+import { slugify } from '../slug.ts';
 
 /** Share of products marked new, and of products on sale. */
 const NEW_SHARE = 0.12;
@@ -8,14 +9,6 @@ const SALE_SHARE = 0.15;
 
 /** Finishes a product offers: at least two, so the product page always has a choice. */
 const FINISHES_PER_PRODUCT = 3;
-
-export function slugify(value: string): string {
-	return value
-		.toLowerCase()
-		.normalize('NFKD')
-		.replace(/[^a-z0-9]+/gu, '-')
-		.replace(/^-+|-+$/gu, '');
-}
 
 function capitalize(value: string): string {
 	return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;

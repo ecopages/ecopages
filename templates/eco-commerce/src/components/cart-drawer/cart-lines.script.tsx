@@ -3,6 +3,7 @@ import { RadiantElement, customElement, prop } from '@ecopages/radiant';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { RuiNumberField, RuiNumberFieldGroup, RuiNumberFieldInput } from '@ecopages/radiant-ui/number-field';
 import type { CartJson } from '@/lib/storefront/json';
+import { LIMITS } from '@/lib/limits';
 
 export type CartLinesProps = { cart?: CartJson | null };
 
@@ -38,7 +39,7 @@ export class CartLinesElement extends RadiantElement {
 							</div>
 							<RuiNumberField
 								minValue={1}
-								maxValue={99}
+								maxValue={LIMITS.quantity}
 								value={line.quantity}
 								label={`Quantity of ${line.title}`}
 								data-variant-id={line.variantId}

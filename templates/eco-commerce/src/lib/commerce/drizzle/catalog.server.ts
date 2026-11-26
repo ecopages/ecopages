@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, lte, min, ne } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, lte, ne } from 'drizzle-orm';
 import type { CatalogBackend } from '../backend.ts';
 import type { CategoryDetail, Place, Product, ProductCard, StoreTree, SubcategorySummary } from '../types.ts';
 import type { CatalogDb } from './database.server.ts';
@@ -23,9 +23,13 @@ function groupBy<T, K>(rows: T[], key: (row: T) => K): Map<K, T[]> {
  * Every subcategory with its product count and the image of its first product.
  *
  * @remarks
- * One grouped query for the whole tree, so the home page costs three queries however large the catalog is.
+ * One grouped query for the whole tree, or for one category's subcategories, so a page costs the same few
+ * queries however large the catalog is. The thumbnail query reads `products_subcategory_idx`.
  */
-async function subcategorySummaries(db: CatalogDb): Promise<Map<number, SubcategorySummary & { categoryId: number }>> {
+async function subcategorySummaries(
+	db: CatalogDb,
+	categoryId?: number,
+): Promise<Map<number, SubcategorySummary & { categoryId: number }>> {
 	const rows = await db
 		.select({
 			id: subcategories.id,
@@ -33,16 +37,26 @@ async function subcategorySummaries(db: CatalogDb): Promise<Map<number, Subcateg
 			name: subcategories.name,
 			categoryId: subcategories.categoryId,
 			productCount: count(products.id),
-			firstPosition: min(products.position),
 		})
 		.from(subcategories)
 		.leftJoin(products, eq(products.subcategoryId, subcategories.id))
+		.where(categoryId === undefined ? undefined : eq(subcategories.categoryId, categoryId))
 		.groupBy(subcategories.id)
 		.orderBy(asc(subcategories.position));
-	const firstProducts = await db
-		.select({ subcategoryId: products.subcategoryId, slug: products.slug })
-		.from(products)
-		.where(eq(products.position, 0));
+	const firstProducts = rows.length
+		? await db
+				.select({ subcategoryId: products.subcategoryId, slug: products.slug })
+				.from(products)
+				.where(
+					and(
+						inArray(
+							products.subcategoryId,
+							rows.map((row) => row.id),
+						),
+						eq(products.position, 0),
+					),
+				)
+		: [];
 	const thumbnails = new Map(firstProducts.map((row) => [row.subcategoryId, thumbnailUrl(row.slug)]));
 	return new Map(
 		rows.map((row) => [
@@ -93,9 +107,7 @@ async function findCategory(
 async function getCategory(db: CatalogDb, collection: string, category: string): Promise<CategoryDetail | null> {
 	const parents = await findCategory(db, collection, category);
 	if (!parents) return null;
-	const summaries = [...(await subcategorySummaries(db)).values()].filter(
-		(row) => row.categoryId === parents.categoryId,
-	);
+	const summaries = [...(await subcategorySummaries(db, parents.categoryId)).values()];
 	const previews = summaries.length
 		? await db
 				.select({ ...productCardColumns, subcategoryId: products.subcategoryId })
@@ -176,8 +188,8 @@ export function createDrizzleCatalog(getDb: () => Promise<CatalogDb>): CatalogBa
 			const db = await getDb();
 			const parents = await findCategory(db, collection, category);
 			if (!parents) return null;
-			const summary = [...(await subcategorySummaries(db)).values()].find(
-				(row) => row.categoryId === parents.categoryId && row.handle === subcategory,
+			const summary = [...(await subcategorySummaries(db, parents.categoryId)).values()].find(
+				(row) => row.handle === subcategory,
 			);
 			if (!summary) return null;
 			const { categoryId: _, ...rest } = summary;

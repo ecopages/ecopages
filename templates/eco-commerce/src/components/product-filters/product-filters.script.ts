@@ -6,14 +6,22 @@ import { agentTool } from '@ecopages/radiant/decorators/agent-tool';
 import type { AgentToolExecuteOptions } from '@ecopages/radiant/helpers/register-agent-tool';
 import { navigate } from '@/lib/browser/navigation';
 import type { ProductListJson } from '@/lib/storefront/json';
-import { listingUrl, parseListingQuery, type ListingFilters, type QueryValue } from '@/lib/storefront/listing-query';
-import { getJson, isToolError, readToolInput } from '@/lib/webmcp/catalog-tools';
+import {
+	listingApiUrl,
+	listingUrl,
+	parseListingQuery,
+	type ListingFilters,
+	type QueryValue,
+} from '@/lib/storefront/listing-query';
+import { getJson, isStoreError } from '@/lib/browser/store-api';
+import { readToolInput } from '@/lib/webmcp/catalog-tools';
 import { filterProductsTool } from '@/lib/webmcp/definitions';
 
 function readForm(form: HTMLFormElement): ListingFilters {
+	const data = new FormData(form);
 	const query: Record<string, QueryValue> = {};
-	for (const key of new Set(new FormData(form).keys())) {
-		query[key] = new FormData(form).getAll(key).filter((value): value is string => typeof value === 'string');
+	for (const key of new Set(data.keys())) {
+		query[key] = data.getAll(key).filter((value): value is string => typeof value === 'string');
 	}
 	return parseListingQuery(query);
 }
@@ -45,21 +53,20 @@ export class ProductFiltersElement extends RadiantElement {
 	@agentTool(filterProductsTool)
 	async filterProducts(input: unknown, { signal }: AgentToolExecuteOptions) {
 		const values = readToolInput(filterProductsTool, input);
-		if (isToolError(values) || !this.form)
-			return isToolError(values) ? values : { error: 'The filters are not on this page.' };
+		if (isStoreError(values)) return values;
+		if (!this.form) return { error: 'The filters are not on this page.' };
 		const current = readForm(this.form);
 		const next: ListingFilters = {
 			...current,
-			material: (values.materials as string[] | undefined) ?? current.material,
-			finish: (values.finishes as string[] | undefined) ?? current.finish,
-			min: (values.minPrice as number | undefined) ?? current.min,
-			max: (values.maxPrice as number | undefined) ?? current.max,
-			sort: (values.sort as ListingFilters['sort'] | undefined) ?? current.sort,
+			material: values.materials ?? current.material,
+			finish: values.finishes ?? current.finish,
+			min: values.minPrice ?? current.min,
+			max: values.maxPrice ?? current.max,
+			sort: values.sort ?? current.sort,
 			page: 1,
 		};
-		const url = listingUrl(next);
-		await navigate(url);
-		return getJson<ProductListJson>(url.replace('/search', '/api/products'), { fetch, signal });
+		await navigate(listingUrl(next));
+		return getJson<ProductListJson>(listingApiUrl(next), { fetch, signal });
 	}
 }
 

@@ -68,7 +68,7 @@ export async function browseCatalogAction(
 	return result instanceof Response ? result : Response.json(result, { headers: CATALOG_CACHE });
 }
 
-/** `GET /api/products/<handle>`: a product's details and variants, for the `get_product` agent tool. */
+/** `GET /api/products/<handle>`: a product's details and variants, for the `get_product` and `open_product` agent tools. */
 export async function productDetailsAction(catalog: CatalogBackend, handle: string): Promise<Response> {
 	const product = await catalog.getProduct(handle);
 	if (!product) return notFound(`No product "${handle}".`);

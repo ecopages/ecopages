@@ -3,34 +3,39 @@ import type { CartBackend } from '../backend.ts';
 import type { Cart, CartLine, CartToken, CartUpdate } from '../types.ts';
 import { decodeCartToken, encodeCartToken, newCartId } from './cart-token.server.ts';
 import type { CatalogDb } from './database.server.ts';
-import { money, parseVariantId, thumbnailUrl, variantId as toVariantId } from './mappers.ts';
+import { LIMITS } from '../../limits.ts';
+import { findFinish, money, parseVariantId, thumbnailUrl } from './mappers.ts';
 import { cartLines, carts, products } from './schema.ts';
 
-/** Distinct variants a cart holds. */
-export const MAX_LINES = 50;
-
-export const MAX_QUANTITY = 99;
+const { cartLines: MAX_LINES, quantity: MAX_QUANTITY } = LIMITS;
 
 /** Carts untouched for this long are removed when a new cart starts. */
-const CART_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+const CART_LIFETIME_MS = LIMITS.cartLifetimeSeconds * 1000;
 
-const CART_FULL = `Your cart is full: it holds up to ${MAX_LINES} products and ${MAX_QUANTITY} of each.`;
+const CART_FULL = `Your cart is full: it holds up to ${MAX_LINES} product options and ${MAX_QUANTITY} of each.`;
 
-/** Resolves a cart's lines against the catalog; a line whose product or finish no longer exists is left out. */
-async function readCart(db: CatalogDb, cartId: string | null): Promise<Cart> {
-	const lines = cartId
+/**
+ * A cart's stored lines resolved against the catalog: the lines it can still sell, and the variant ids of those
+ * whose product or finish no longer exists.
+ */
+async function resolveLines(db: CatalogDb, cartId: string | null): Promise<{ lines: CartLine[]; missing: string[] }> {
+	const stored = cartId
 		? await db.select().from(cartLines).where(eq(cartLines.cartId, cartId)).orderBy(asc(cartLines.position))
 		: [];
-	const ids = lines.flatMap((line) => parseVariantId(line.variantId)?.productId ?? []);
+	const ids = stored.flatMap((line) => parseVariantId(line.variantId)?.productId ?? []);
 	const rows = ids.length ? await db.select().from(products).where(inArray(products.id, ids)) : [];
 	const byId = new Map(rows.map((row) => [row.id, row]));
 
-	const cartLinesOut: CartLine[] = [];
-	for (const line of lines) {
+	const lines: CartLine[] = [];
+	const missing: string[] = [];
+	for (const line of stored) {
 		const product = byId.get(parseVariantId(line.variantId)?.productId ?? -1);
-		const finish = product?.finishes.split(',').find((name) => toVariantId(product.id, name) === line.variantId);
-		if (!product || !finish) continue;
-		cartLinesOut.push({
+		const finish = product && findFinish(product, line.variantId);
+		if (!product || !finish) {
+			missing.push(line.variantId);
+			continue;
+		}
+		lines.push({
 			variantId: line.variantId,
 			productId: String(product.id),
 			handle: product.slug,
@@ -42,11 +47,28 @@ async function readCart(db: CatalogDb, cartId: string | null): Promise<Cart> {
 			subtotal: money(product.priceCents * line.quantity),
 		});
 	}
+	return { lines, missing };
+}
+
+/** A cart as the visitor sees it; a line whose product or finish no longer exists is left out. */
+async function readCart(db: CatalogDb, cartId: string | null): Promise<Cart> {
+	const { lines } = await resolveLines(db, cartId);
 	return {
-		lines: cartLinesOut,
-		itemCount: cartLinesOut.reduce((total, line) => total + line.quantity, 0),
-		subtotal: money(cartLinesOut.reduce((total, line) => total + line.subtotal.amount, 0)),
+		lines,
+		itemCount: lines.reduce((total, line) => total + line.quantity, 0),
+		subtotal: money(lines.reduce((total, line) => total + line.subtotal.amount, 0)),
 	};
+}
+
+/**
+ * Deletes the lines the catalog can no longer sell, before a change counts the cart's lines against
+ * `LIMITS.cartLines`, so a line the visitor cannot see never takes a place in the cart.
+ */
+async function dropMissingLines(db: CatalogDb, cartId: string): Promise<void> {
+	const { missing } = await resolveLines(db, cartId);
+	if (missing.length > 0) {
+		await db.delete(cartLines).where(and(eq(cartLines.cartId, cartId), inArray(cartLines.variantId, missing)));
+	}
 }
 
 async function variantExists(db: CatalogDb, id: string): Promise<boolean> {
@@ -56,20 +78,39 @@ async function variantExists(db: CatalogDb, id: string): Promise<boolean> {
 		.select({ id: products.id, finishes: products.finishes })
 		.from(products)
 		.where(eq(products.id, parsed.productId));
-	return Boolean(row?.finishes.split(',').some((finish) => toVariantId(row.id, finish) === id));
+	return Boolean(row && findFinish(row, id));
 }
 
-/** The cart id behind a token, creating a cart when the token names none that exists. */
+/** Marks the cart behind `cartId` as just changed; resolves `false` when no such cart exists. */
+async function touchCart(db: CatalogDb, cartId: string | null): Promise<boolean> {
+	if (!cartId) return false;
+	const updated = await db.update(carts).set({ updatedAt: Date.now() }).where(eq(carts.id, cartId)).returning();
+	return updated.length > 0;
+}
+
+/**
+ * The cart id behind a token, creating a cart when the token names none that exists.
+ *
+ * @remarks
+ * Starting a cart also removes the carts nobody changed for `LIMITS.cartLifetimeSeconds`, which the cookie no longer
+ * names either.
+ */
 async function ensureCart(db: CatalogDb, cartId: string | null): Promise<string> {
+	if (cartId && (await touchCart(db, cartId))) return cartId;
 	const now = Date.now();
-	if (cartId) {
-		const updated = await db.update(carts).set({ updatedAt: now }).where(eq(carts.id, cartId)).returning();
-		if (updated.length > 0) return cartId;
-	}
 	await db.delete(carts).where(lt(carts.updatedAt, now - CART_LIFETIME_MS));
 	const id = newCartId();
 	await db.insert(carts).values({ id, updatedAt: now });
 	return id;
+}
+
+/**
+ * The cart a change applies to: an existing or new cart for an add, and only an existing one for a removal, so
+ * removing from a cart the visitor never had starts none.
+ */
+async function cartFor(db: CatalogDb, existing: string | null, quantity: number): Promise<string | null> {
+	if (quantity > 0) return ensureCart(db, existing);
+	return existing && (await touchCart(db, existing)) ? existing : null;
 }
 
 type Operation = { kind: 'add' | 'set'; variantId: string; quantity: number };
@@ -123,7 +164,10 @@ export function createDatabaseCart(getDb: () => Promise<CatalogDb>, getSecret: (
 			return { ok: false, reason: 'unknown-variant', message: 'That product option is not in the catalog.' };
 		}
 		const secret = getSecret();
-		const cartId = await ensureCart(db, decodeCartToken(token, secret));
+		const existing = decodeCartToken(token, secret);
+		const cartId = await cartFor(db, existing, quantity);
+		if (!cartId) return { ok: true, token: null, cart: await readCart(db, null) };
+		if (quantity > 0) await dropMissingLines(db, cartId);
 		if (!(await applyOperation(db, cartId, operation))) {
 			return { ok: false, reason: 'cart-full', message: CART_FULL };
 		}

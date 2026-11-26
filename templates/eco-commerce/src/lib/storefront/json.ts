@@ -64,5 +64,3 @@ export type CartJson = {
 	lines: CartLineJson[];
 	subtotal: string;
 };
-
-export type ErrorJson = { error: string };

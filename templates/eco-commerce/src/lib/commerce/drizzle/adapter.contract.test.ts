@@ -1,4 +1,4 @@
-import { describeCommerceBackendContract } from '../contract.ts';
+import { describeCommerceBackendContract } from '../contract.fixture.ts';
 import { createDrizzleBackend } from './adapter.server.ts';
 import { openTestCatalog } from './database.fixture.ts';
 

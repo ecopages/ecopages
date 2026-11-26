@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { assertTemplateAgentSkills } from './sync-template-agent-skills.ts';
-import { templateBuildOutputs } from './template-build-outputs.ts';
+import { readTemplateManifest, templateBuildOutputs } from './template-manifest.ts';
 
 type PackageJson = {
 	name?: string;
@@ -12,24 +12,8 @@ type PackageJson = {
 	optionalDependencies?: Record<string, string>;
 };
 
-type TemplateManifest = {
-	templates: Array<{
-		id: string;
-		displayName: string;
-		description: string;
-		category: string;
-		order: number;
-		default?: boolean;
-		source: string;
-		packageDirectory: string;
-		integrations: string[];
-		buildOutputs?: unknown;
-	}>;
-};
-
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const templatesRoot = path.join(repoRoot, 'templates');
-const manifestPath = path.join(repoRoot, 'packages/ecopages/templates.json');
 const latestCompatibleExternalRanges: Record<string, string> = {
 	'@ecopages/jsx': '^0.12.0',
 	'@ecopages/radiant': '^0.12.0',
@@ -55,7 +39,7 @@ function collectPackageJsonPaths(root: string): string[] {
 	return paths;
 }
 
-const manifest = readJson<TemplateManifest>(manifestPath);
+const manifest = readTemplateManifest();
 const templateDirectories = readdirSync(templatesRoot, { withFileTypes: true })
 	.filter((entry) => entry.isDirectory())
 	.map((entry) => entry.name)

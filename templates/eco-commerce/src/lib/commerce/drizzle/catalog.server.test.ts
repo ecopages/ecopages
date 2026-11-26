@@ -54,15 +54,19 @@ describe('drizzle catalog on the small seed', () => {
 	});
 
 	test('a finish filter keeps the products that offer one of the finishes', async () => {
-		const all = await catalog.listProducts({ subcategory: 'lounge-chairs' });
+		const all = await catalog.listProducts({ subcategory: 'lounge-chairs', pageSize: 96 });
 		const finish = all.facets.finishes[0]!;
 
-		const filtered = await catalog.listProducts({ subcategory: 'lounge-chairs', finishes: [finish] });
-
-		for (const item of filtered.items) {
+		const filtered = await catalog.listProducts({ subcategory: 'lounge-chairs', finishes: [finish], pageSize: 96 });
+		const offering = [];
+		for (const item of all.items) {
 			const product = await catalog.getProduct(item.handle);
-			expect(product?.variants.map((variant) => variant.title)).toContain(finish);
+			if (product?.variants.some((variant) => variant.title === finish)) offering.push(item.handle);
 		}
+
+		expect(offering.length).toBeGreaterThan(0);
+		expect(offering.length).toBeLessThan(all.items.length);
+		expect(filtered.items.map((item) => item.handle)).toEqual(offering);
 	});
 
 	test('a listing of an unknown subcategory is empty', async () => {

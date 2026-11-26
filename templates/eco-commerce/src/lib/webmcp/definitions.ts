@@ -1,3 +1,4 @@
+import { LIMITS } from '../limits.ts';
 import { SORTS } from '../storefront/listing-query.ts';
 import type { ToolInputSchema } from './tool-schema.ts';
 
@@ -17,14 +18,18 @@ export type ToolDefinition = {
 	annotations: { readOnlyHint: boolean; consequentialHint: boolean };
 };
 
-const READ_ONLY = { readOnlyHint: true, consequentialHint: false };
-const CHANGES_PAGE_OR_CART = { readOnlyHint: false, consequentialHint: false };
-const MAX_QUANTITY = 99;
-const NO_INPUT: ToolInputSchema = { type: 'object', properties: {}, required: [], additionalProperties: false };
+const READ_ONLY = { readOnlyHint: true, consequentialHint: false } as const;
+const CHANGES_PAGE_OR_CART = { readOnlyHint: false, consequentialHint: false } as const;
+const NO_INPUT = {
+	type: 'object',
+	properties: {},
+	required: [],
+	additionalProperties: false,
+} as const satisfies ToolInputSchema;
 
 const handle = (description: string) => ({ type: 'string', description, minLength: 1, maxLength: 120 }) as const;
 const quantity = (description: string) =>
-	({ type: 'integer', description, minimum: 1, maximum: MAX_QUANTITY }) as const;
+	({ type: 'integer', description, minimum: 1, maximum: LIMITS.quantity }) as const;
 const variantId = {
 	type: 'string',
 	description: "The line's variantId, as get_cart returns it.",
@@ -32,7 +37,7 @@ const variantId = {
 	maxLength: 64,
 } as const;
 
-export const searchCatalogTool: ToolDefinition = {
+export const searchCatalogTool = {
 	name: 'search_catalog',
 	title: 'Search the catalog',
 	description: 'Finds products whose name contains the query. Returns names, prices and page links.',
@@ -42,18 +47,23 @@ export const searchCatalogTool: ToolDefinition = {
 			query: {
 				type: 'string',
 				description: 'Words in the product name, such as "oak chair".',
-				minLength: 2,
-				maxLength: 80,
+				minLength: LIMITS.minSearchTerm,
+				maxLength: LIMITS.maxSearchTerm,
 			},
-			limit: { type: 'integer', description: 'Most products to return. Default 6.', minimum: 1, maximum: 24 },
+			limit: {
+				type: 'integer',
+				description: 'Most products to return. Default 6.',
+				minimum: 1,
+				maximum: LIMITS.maxListSize,
+			},
 		},
 		required: ['query'],
 		additionalProperties: false,
 	},
 	annotations: READ_ONLY,
-};
+} as const satisfies ToolDefinition;
 
-export const browseStoreTool: ToolDefinition = {
+export const browseStoreTool = {
 	name: 'browse_store',
 	title: 'Browse the store',
 	description:
@@ -68,42 +78,51 @@ export const browseStoreTool: ToolDefinition = {
 		additionalProperties: false,
 	},
 	annotations: READ_ONLY,
-};
+} as const satisfies ToolDefinition;
 
-export const getProductTool: ToolDefinition = {
+export const getProductTool = {
 	name: 'get_product',
 	title: 'Get a product',
-	description:
-		"Returns a product's details and variants by its handle. With open set to true, also shows the product page.",
+	description: "Returns a product's details and variants by its handle.",
 	inputSchema: {
 		type: 'object',
-		properties: {
-			product: handle('Product handle, as search_catalog or browse_store return it.'),
-			open: { type: 'boolean', description: 'Show the product page to the visitor. Default false.' },
-		},
+		properties: { product: handle('Product handle, as search_catalog or browse_store return it.') },
 		required: ['product'],
 		additionalProperties: false,
 	},
 	annotations: READ_ONLY,
-};
+} as const satisfies ToolDefinition;
 
-export const getCartTool: ToolDefinition = {
+export const openProductTool = {
+	name: 'open_product',
+	title: 'Show a product',
+	description: "Shows a product's page to the visitor, by its handle, and returns the product's details.",
+	inputSchema: {
+		type: 'object',
+		properties: { product: handle('Product handle, as search_catalog or browse_store return it.') },
+		required: ['product'],
+		additionalProperties: false,
+	},
+	annotations: CHANGES_PAGE_OR_CART,
+} as const satisfies ToolDefinition;
+
+export const getCartTool = {
 	name: 'get_cart',
 	title: 'Read the cart',
 	description: "Returns the visitor's cart: each line's product, option, quantity and subtotal, and the total.",
 	inputSchema: NO_INPUT,
 	annotations: READ_ONLY,
-};
+} as const satisfies ToolDefinition;
 
-export const openCartTool: ToolDefinition = {
+export const openCartTool = {
 	name: 'open_cart',
 	title: 'Show the cart',
 	description: 'Opens the cart drawer so the visitor sees the cart, and returns the cart.',
 	inputSchema: NO_INPUT,
 	annotations: READ_ONLY,
-};
+} as const satisfies ToolDefinition;
 
-export const filterProductsTool: ToolDefinition = {
+export const filterProductsTool = {
 	name: 'filter_products',
 	title: 'Filter and sort products',
 	description:
@@ -131,9 +150,9 @@ export const filterProductsTool: ToolDefinition = {
 		additionalProperties: false,
 	},
 	annotations: CHANGES_PAGE_OR_CART,
-};
+} as const satisfies ToolDefinition;
 
-export const selectVariantTool: ToolDefinition = {
+export const selectVariantTool = {
 	name: 'select_variant',
 	title: 'Choose a finish',
 	description: 'Selects a finish of the product on this page, as the visitor would. Returns the selected variant.',
@@ -151,9 +170,9 @@ export const selectVariantTool: ToolDefinition = {
 		additionalProperties: false,
 	},
 	annotations: CHANGES_PAGE_OR_CART,
-};
+} as const satisfies ToolDefinition;
 
-export const addToCartTool: ToolDefinition = {
+export const addToCartTool = {
 	name: 'add_to_cart',
 	title: 'Add this product to the cart',
 	description: "Adds the product on this page, in the selected finish, to the visitor's cart. Returns the cart.",
@@ -172,9 +191,9 @@ export const addToCartTool: ToolDefinition = {
 		additionalProperties: false,
 	},
 	annotations: CHANGES_PAGE_OR_CART,
-};
+} as const satisfies ToolDefinition;
 
-export const updateCartLineTool: ToolDefinition = {
+export const updateCartLineTool = {
 	name: 'update_cart_line',
 	title: "Change a cart line's quantity",
 	description: 'Sets the quantity of a line already in the cart. Returns the cart.',
@@ -185,12 +204,12 @@ export const updateCartLineTool: ToolDefinition = {
 		additionalProperties: false,
 	},
 	annotations: CHANGES_PAGE_OR_CART,
-};
+} as const satisfies ToolDefinition;
 
-export const removeCartLineTool: ToolDefinition = {
+export const removeCartLineTool = {
 	name: 'remove_cart_line',
 	title: 'Remove a cart line',
 	description: 'Removes a line from the cart. Returns the cart.',
 	inputSchema: { type: 'object', properties: { variantId }, required: ['variantId'], additionalProperties: false },
 	annotations: CHANGES_PAGE_OR_CART,
-};
+} as const satisfies ToolDefinition;

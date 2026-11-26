@@ -4,10 +4,9 @@ import { RuiButton } from '@ecopages/radiant-ui/button';
 import { RuiNumberField, RuiNumberFieldGroup, RuiNumberFieldInput } from '@ecopages/radiant-ui/number-field';
 import { formatMoney } from '@/lib/commerce/money';
 import type { Cart } from '@/lib/commerce/types';
+import { LIMITS } from '@/lib/limits';
 import { productUrl } from '@/lib/storefront/urls';
 import './order-lines.css';
-
-const MAX_QUANTITY = 99;
 
 /**
  * The order page's lines: per line, a quantity form and a remove form, both plain posts to `/cart/update`.
@@ -39,7 +38,7 @@ export const OrderLines = eco.component<{ cart: Cart }, JsxRenderable>({
 							</label>
 							<RuiNumberField
 								minValue={1}
-								maxValue={MAX_QUANTITY}
+								maxValue={LIMITS.quantity}
 								value={line.quantity}
 								label={`Quantity of ${line.title}`}
 							>

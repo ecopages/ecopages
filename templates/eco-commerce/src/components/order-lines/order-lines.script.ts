@@ -5,7 +5,8 @@ import type { AgentToolExecuteOptions } from '@ecopages/radiant/helpers/register
 import { reloadCurrentPage } from '@/lib/browser/navigation';
 import { dispatchCartChange } from '@/lib/storefront/cart-events';
 import type { CartJson } from '@/lib/storefront/json';
-import { isToolError, postCartChange, readToolInput, type ToolError } from '@/lib/webmcp/catalog-tools';
+import { isStoreError, postCartChange, type StoreError } from '@/lib/browser/store-api';
+import { readToolInput } from '@/lib/webmcp/catalog-tools';
 import { removeCartLineTool, updateCartLineTool } from '@/lib/webmcp/definitions';
 
 /**
@@ -17,9 +18,9 @@ import { removeCartLineTool, updateCartLineTool } from '@/lib/webmcp/definitions
  */
 @customElement('order-lines')
 export class OrderLinesElement extends RadiantElement {
-	async setQuantity(variantId: string, quantity: number, signal?: AbortSignal): Promise<CartJson | ToolError> {
+	async setQuantity(variantId: string, quantity: number, signal?: AbortSignal): Promise<CartJson | StoreError> {
 		const result = await postCartChange('/cart/update', { variantId, quantity }, { fetch, signal });
-		if (isToolError(result)) return result;
+		if (isStoreError(result)) return result;
 		dispatchCartChange({ cart: result });
 		await reloadCurrentPage();
 		return result;
@@ -28,15 +29,13 @@ export class OrderLinesElement extends RadiantElement {
 	@agentTool(updateCartLineTool)
 	updateCartLineTool(input: unknown, { signal }: AgentToolExecuteOptions) {
 		const values = readToolInput(updateCartLineTool, input);
-		return isToolError(values)
-			? values
-			: this.setQuantity(String(values.variantId), Number(values.quantity), signal);
+		return isStoreError(values) ? values : this.setQuantity(values.variantId, values.quantity, signal);
 	}
 
 	@agentTool(removeCartLineTool)
 	removeCartLineTool(input: unknown, { signal }: AgentToolExecuteOptions) {
 		const values = readToolInput(removeCartLineTool, input);
-		return isToolError(values) ? values : this.setQuantity(String(values.variantId), 0, signal);
+		return isStoreError(values) ? values : this.setQuantity(values.variantId, 0, signal);
 	}
 }
 

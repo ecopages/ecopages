@@ -90,7 +90,8 @@ async function seed(
  *
  * @remarks
  * The rename is atomic, so a reader never sees a half-seeded database. Two processes that seed at once, such
- * as a dev server and a build, each write their own temporary file; the last rename wins with identical content.
+ * as a dev server and a build, each write their own temporary file. A process that finds a current catalog
+ * already in place when its own seed is done keeps that file, which may hold carts by then, and drops its own.
  */
 async function writeCatalogFile(filePath: string, options: OpenCatalogDatabaseOptions): Promise<void> {
 	fileSystem.ensureDir(path.dirname(filePath));
@@ -105,13 +106,52 @@ async function writeCatalogFile(filePath: string, options: OpenCatalogDatabaseOp
 		client.close();
 		if (!seeded) fileSystem.remove(temporaryPath);
 	}
+	if (await holdsCurrentCatalog(filePath, options)) {
+		fileSystem.remove(temporaryPath);
+		return;
+	}
 	fileSystem.rename(temporaryPath, filePath);
 }
 
+async function holdsCurrentCatalog(filePath: string, options: OpenCatalogDatabaseOptions): Promise<boolean> {
+	if (!fileSystem.exists(filePath)) return false;
+	const { client, db } = connect(path.toFileUrl(filePath).href);
+	try {
+		return await isCurrent(db, options);
+	} finally {
+		client.close();
+	}
+}
+
+/** SQLite errors that mean another connection holds the file, not that the file is stale. */
+const LOCK_ERRORS = new Set(['SQLITE_BUSY', 'SQLITE_LOCKED']);
+
+function errorCode(error: unknown): unknown {
+	return error instanceof Error ? (error as Error & { code?: unknown }).code : undefined;
+}
+
+/** Whether `error`, or the error a Drizzle wrapper keeps as its `cause`, is a lock held by another connection. */
+function isLockError(error: unknown): boolean {
+	const cause = error instanceof Error ? error.cause : undefined;
+	return [errorCode(error), errorCode(cause)].some((code) => typeof code === 'string' && LOCK_ERRORS.has(code));
+}
+
+/**
+ * Whether a local file holds the current schema and catalog.
+ *
+ * @remarks
+ * A migration that fails because the file was written by another schema makes the file stale, so it is
+ * regenerated. A lock held by another process is rethrown instead: regenerating then would drop the carts of a
+ * file that is fine.
+ */
 async function isCurrent(db: CatalogDb, options: OpenCatalogDatabaseOptions): Promise<boolean> {
-	return migrate(db, { migrationsFolder: options.migrationsFolder })
-		.then(() => isSeededWith(db, options.sizeName))
-		.catch(() => false);
+	try {
+		await migrate(db, { migrationsFolder: options.migrationsFolder });
+	} catch (error) {
+		if (isLockError(error)) throw error;
+		return false;
+	}
+	return isSeededWith(db, options.sizeName);
 }
 
 /**

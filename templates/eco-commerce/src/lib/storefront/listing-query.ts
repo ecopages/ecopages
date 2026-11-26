@@ -1,4 +1,5 @@
 import type { ProductQuery, ProductSort } from '../commerce/types.ts';
+import { LIMITS } from '../limits.ts';
 
 /** A URL Query value as the request carries it: missing, once, or repeated. */
 export type QueryValue = string | string[] | undefined;
@@ -29,9 +30,6 @@ export const SORTS: Array<{ value: ProductSort; label: string }> = [
 	{ value: 'name', label: 'Name' },
 ];
 
-/** Longest search term read, so a pasted essay does not become a database scan pattern. */
-const MAX_TERM_LENGTH = 80;
-
 export function firstQueryValue(value: QueryValue): string | undefined {
 	return Array.isArray(value) ? value[0] : value;
 }
@@ -56,7 +54,7 @@ export function parseListingQuery(query: Record<string, QueryValue>): ListingFil
 	const page = Number(firstQueryValue(query.page));
 	const scope = firstQueryValue(query.in)?.trim();
 	const filters: ListingFilters = {
-		q: (firstQueryValue(query.q) ?? '').trim().slice(0, MAX_TERM_LENGTH),
+		q: (firstQueryValue(query.q) ?? '').trim().slice(0, LIMITS.maxSearchTerm),
 		material: list(query.material),
 		finish: list(query.finish),
 		sort: isSort(sort) ? sort : 'featured',
@@ -83,8 +81,8 @@ export function toProductQuery(filters: ListingFilters): ProductQuery {
 	};
 }
 
-/** The search page URL for filters, leaving defaults out so equal filters give equal URLs. */
-export function listingUrl(filters: ListingFilters): string {
+/** The query string for `filters`, leaving defaults out so equal filters give equal URLs. */
+function listingParams(filters: ListingFilters): URLSearchParams {
 	const params = new URLSearchParams();
 	if (filters.q) params.set('q', filters.q);
 	if (filters.in) params.set('in', filters.in);
@@ -94,6 +92,15 @@ export function listingUrl(filters: ListingFilters): string {
 	if (filters.max !== undefined) params.set('max', String(filters.max));
 	if (filters.sort !== 'featured') params.set('sort', filters.sort);
 	if (filters.page > 1) params.set('page', String(filters.page));
-	const search = params.toString();
+	return params;
+}
+
+export function listingUrl(filters: ListingFilters): string {
+	const search = listingParams(filters).toString();
 	return search ? `/search?${search}` : '/search';
+}
+
+/** The `GET /api/products` URL that returns the same listing as `listingUrl(filters)`, as JSON. */
+export function listingApiUrl(filters: ListingFilters): string {
+	return `/api/products?${listingParams(filters)}`;
 }

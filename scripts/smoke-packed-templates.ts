@@ -5,15 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { findPublishablePackageDirs, readJsonFile, writeJsonFile } from './package-utils.ts';
-import { templateBuildOutputs } from './template-build-outputs.ts';
+import { findTemplate, readTemplateManifest, templateBuildOutputs } from './template-manifest.ts';
 
 type PackageJson = {
 	name: string;
 	[key: string]: unknown;
-};
-
-type TemplateManifest = {
-	templates: Array<{ id: string; source: string; packageDirectory: string; buildOutputs?: unknown }>;
 };
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
@@ -105,9 +101,7 @@ function packPackages(tarballsDir: string): Map<string, string> {
  * sharp install scripts, and `minimumReleaseAge: 0` lets a template depend on a just-published release.
  */
 function createProject(templateId: string, projectDir: string, tarballs: Map<string, string>): void {
-	const manifest = readJsonFile<TemplateManifest>(path.join(repoRoot, 'packages/ecopages/templates.json'));
-	const template = manifest.templates.find((entry) => entry.id === templateId);
-	if (!template) throw new Error(`Unknown template "${templateId}".`);
+	const template = findTemplate(readTemplateManifest(), templateId);
 
 	const sourceDir = path.join(repoRoot, 'templates', template.source, template.packageDirectory);
 	cpSync(sourceDir, projectDir, {
@@ -279,10 +273,7 @@ async function smokeTemplate(templateId: string, workDir: string, tarballs: Map<
 	mkdirSync(projectDir, { recursive: true });
 	const label = (name: string) => `${templateId}: ${name}`;
 	const { build, serve } = templateSmokes[templateId] ?? defaultTemplateSmoke;
-	const manifest = readJsonFile<TemplateManifest>(path.join(repoRoot, 'packages/ecopages/templates.json'));
-	const outputs = templateBuildOutputs(
-		manifest.templates.find((entry) => entry.id === templateId) ?? { id: templateId },
-	);
+	const outputs = templateBuildOutputs(findTemplate(readTemplateManifest(), templateId));
 
 	const steps: Array<[string, () => void | Promise<void>]> = [
 		['create project from tarballs', () => createProject(templateId, projectDir, tarballs)],

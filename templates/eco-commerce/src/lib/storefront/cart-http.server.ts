@@ -1,12 +1,10 @@
 import type { CartBackend } from '../commerce/backend.ts';
 import type { CartToken, CartUpdate } from '../commerce/types.ts';
+import { LIMITS } from '../limits.ts';
 import type { CartJson } from './json.ts';
 import { cartJson } from './to-json.ts';
 
 export const CART_COOKIE = 'store_cart';
-
-/** Thirty days, in seconds. */
-const CART_MAX_AGE = 60 * 60 * 24 * 30;
 
 const ORDER_PATH = '/order';
 
@@ -31,7 +29,13 @@ export function readCartToken(request: Request): CartToken {
 }
 
 export function serializeCartCookie(token: string, { secure }: { secure: boolean }): string {
-	const attributes = [`${CART_COOKIE}=${token}`, 'Path=/', `Max-Age=${CART_MAX_AGE}`, 'HttpOnly', 'SameSite=Lax'];
+	const attributes = [
+		`${CART_COOKIE}=${token}`,
+		'Path=/',
+		`Max-Age=${LIMITS.cartLifetimeSeconds}`,
+		'HttpOnly',
+		'SameSite=Lax',
+	];
 	if (secure) attributes.push('Secure');
 	return attributes.join('; ');
 }
@@ -63,7 +67,9 @@ function reject(request: Request, status: number, message: string): Response {
 
 function respond(request: Request, update: CartUpdate, deps: CartHttpDeps): Response {
 	if (!update.ok) return reject(request, update.reason === 'cart-full' ? 409 : 400, update.message);
-	const headers = new Headers({ 'set-cookie': serializeCartCookie(update.token, { secure: deps.secureCookie }) });
+	const headers = new Headers();
+	if (update.token !== null)
+		headers.set('set-cookie', serializeCartCookie(update.token, { secure: deps.secureCookie }));
 	if (wantsJson(request)) {
 		headers.set('cache-control', 'no-store');
 		return Response.json(cartJson(update.cart) satisfies CartJson, { headers });

@@ -3,8 +3,9 @@ import type { ProductPage, ProductQuery } from '../types.ts';
 import type { CatalogDb } from './database.server.ts';
 import { productCardColumns, toProductCard } from './mappers.ts';
 import { products, subcategories } from './schema.ts';
+import { emptyProductPage } from '../product-page.ts';
 
-export const DEFAULT_PAGE_SIZE = 24;
+const DEFAULT_PAGE_SIZE = 24;
 const MAX_PAGE_SIZE = 96;
 
 function escapeLike(value: string): string {
@@ -90,7 +91,7 @@ async function facets(db: CatalogDb, scope: SQL[]): Promise<ProductPage['facets'
 export async function listProducts(db: CatalogDb, query: ProductQuery): Promise<ProductPage> {
 	const pageSize = Math.min(Math.max(query.pageSize ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
 	const scope = await scopeConditions(db, query);
-	if (!scope) return { items: [], total: 0, page: 1, pageCount: 0, facets: { materials: [], finishes: [] } };
+	if (!scope) return emptyProductPage();
 
 	const where = and(...scope, ...filterConditions(query));
 	const [{ total } = { total: 0 }] = await db.select({ total: count() }).from(products).where(where);

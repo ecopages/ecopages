@@ -18,6 +18,7 @@ sources:
   - packages/core/src/processor-contract.ts
   - packages/__internals/testing/src/
   - scripts/smoke-start.ts
+  - scripts/smoke-templates.ts
   - scripts/smoke-packed-templates.ts
   - scripts/test-vitest-windows.ts
   - scripts/check-portability.ts
@@ -117,7 +118,7 @@ Dev projects that edit sources use the worker app fixture (`e2e/app-fixture.ts`)
 | Script | What it does |
 | --- | --- |
 | `smoke:start` (`scripts/smoke-start.ts`) | Builds a fixture app (`playground/explicit-routes`), runs `ecopages start` under Node and checks that `/` answers 200. Plain Node, so it runs on Windows too. |
-| `smoke:templates` | Builds every template (and runs the Electrobun template's own tests) and checks the files listed in its `buildOutputs` in `templates.json`, `dist/client/index.html` by default. |
+| `smoke:templates` (`scripts/smoke-templates.ts`) | Builds every template (and runs the Electrobun template's own tests) and checks the files listed in its `buildOutputs` in `templates.json`, `dist/client/index.html` by default. |
 | `smoke:recipes` | Runs `ecopages build` in every recipe fixture. |
 | `smoke:packed` (`scripts/smoke-packed-templates.ts`) | Packs the publishable packages, installs each template against the tarballs and runs it. Not part of CI's job list; run it before a release. |
 

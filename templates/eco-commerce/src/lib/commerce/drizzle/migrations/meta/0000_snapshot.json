@@ -1,7 +1,7 @@
 {
 	"version": "6",
 	"dialect": "sqlite",
-	"id": "e2849d1b-aa1d-4f10-a3a9-5af4dc0a1aad",
+	"id": "f68c806a-f7c4-406b-801a-b7b43dee234e",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"tables": {
 		"cart_lines": {
@@ -75,7 +75,13 @@
 					"autoincrement": false
 				}
 			},
-			"indexes": {},
+			"indexes": {
+				"carts_updated_at_idx": {
+					"name": "carts_updated_at_idx",
+					"columns": ["updated_at"],
+					"isUnique": false
+				}
+			},
 			"foreignKeys": {},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},

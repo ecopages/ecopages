@@ -1,9 +1,9 @@
 import type { Money, Place, ProductCard, ProductVariant } from '../types.ts';
 import { products } from './schema.ts';
-import { slugify } from './seed/product-generator.ts';
+import { slugify } from './slug.ts';
 
 /** The generated catalog prices everything in US dollars. */
-export const CURRENCY = 'usd';
+const CURRENCY = 'usd';
 
 /** The columns a product card needs, for `select()`. */
 export const productCardColumns = {
@@ -64,4 +64,9 @@ export function parseVariantId(id: string): { productId: number; finish: string 
 
 export function toVariants(productId: number, finishes: string): ProductVariant[] {
 	return finishes.split(',').map((finish) => ({ id: variantId(productId, finish), title: finish }));
+}
+
+/** The finish a variant id names on this product row, or `undefined` when the product has no such finish. */
+export function findFinish(row: { id: number; finishes: string }, id: string): string | undefined {
+	return toVariants(row.id, row.finishes).find((variant) => variant.id === id)?.title;
 }

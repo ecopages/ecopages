@@ -13,7 +13,10 @@ import type {
 	SubcategoryDetail,
 } from './types.ts';
 
-/** Catalog reads. Every method resolves `null` for a handle the catalog does not have. */
+/**
+ * Catalog reads. The `get*` methods resolve `null` for a handle the catalog does not have; `getRelatedProducts`
+ * resolves `[]` and `listProducts` an empty page.
+ */
 export interface CatalogBackend {
 	getStoreTree(): Promise<StoreTree>;
 	getCollection(collection: string): Promise<CollectionDetail | null>;
@@ -30,7 +33,7 @@ export interface CatalogBackend {
 }
 
 /**
- * Cart operations. A change returns the new token for the cookie, or why it was refused.
+ * Cart operations. A change returns the token for the cookie, or why it was refused.
  *
  * @remarks
  * A quantity of 0 in `updateItem` removes the line.
@@ -45,10 +48,10 @@ export interface CartBackend {
  * The boundary between the storefront and where the catalog and carts live.
  *
  * @remarks
- * Pages, Endpoints and agent tools reach data only through this interface, from `getCommerceBackend()`. The
- * default adapter, in `drizzle/`, reads SQLite (or another libSQL database); a remote adapter, such as one for
- * Medusa's Store API, implements the same methods. `src/lib/commerce/contract.ts` is the test suite an adapter
- * must pass.
+ * Pages and Endpoints reach data only through this interface, from `getCommerceBackend()`; agent tools run in
+ * the browser and call those Endpoints. The default adapter, in `drizzle/`, reads SQLite (or another libSQL
+ * database); a remote adapter, such as one for Medusa's Store API, implements the same methods.
+ * `contract.fixture.ts` is the test suite an adapter must pass.
  */
 export interface CommerceBackend {
 	catalog: CatalogBackend;

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { CommerceBackend } from '../commerce/backend.ts';
+import { LIMITS } from '../limits.ts';
 import type { ProductListJson } from './json.ts';
 import { getSearchPage, productListAction } from './product-list.server.ts';
 import { openTestBackend } from './test-backend.fixture.ts';
@@ -44,6 +45,8 @@ describe('product listing', () => {
 
 		const filtered = await list({ in: 'lounge-chairs', material, sort: 'price-asc' });
 
+		expect(filtered.items.length).toBeGreaterThan(0);
+		expect(filtered.items.length).toBeLessThan(all.items.length);
 		expect(filtered.items.every((item) => item.material === material)).toBe(true);
 		expect(filtered.url).toBe(`/search?in=lounge-chairs&material=${material}&sort=price-asc`);
 	});
@@ -53,7 +56,18 @@ describe('product listing', () => {
 		const empty = await getSearchPage(backend.catalog, {});
 
 		expect(page.filters.q).toBe('chair');
+		expect(page.results.items.length).toBeGreaterThan(0);
 		expect(page.results.items.every((item) => item.title.toLowerCase().includes('chair'))).toBe(true);
 		expect(empty.results.total).toBe(0);
+	});
+
+	test('?pageSize= shortens the list, and a size past the most a short list may hold is ignored', async () => {
+		const broad = 'le';
+		const short = await list({ q: broad, pageSize: '2' });
+		const tooLarge = await list({ q: broad, pageSize: String(LIMITS.maxListSize + 1) });
+
+		expect(short.items).toHaveLength(2);
+		expect(tooLarge.total).toBeGreaterThan(LIMITS.maxListSize + 1);
+		expect(tooLarge.items).toHaveLength((await list({ q: broad })).items.length);
 	});
 });

@@ -132,6 +132,13 @@ export type Cart = {
  */
 export type CartToken = string | null;
 
+/**
+ * The result of a cart change.
+ *
+ * @remarks
+ * `token` is what the cart cookie should hold from now on; `null` when no cart exists, such as after removing a
+ * line from a cart the visitor never had, so the caller leaves the cookie as it is.
+ */
 export type CartUpdate =
-	| { ok: true; cart: Cart; token: string }
+	| { ok: true; cart: Cart; token: CartToken }
 	| { ok: false; reason: 'unknown-variant' | 'cart-full' | 'invalid-quantity'; message: string };

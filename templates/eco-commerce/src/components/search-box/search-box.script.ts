@@ -2,11 +2,11 @@ import '@ecopages/radiant-ui/combobox';
 import '@ecopages/radiant-ui/listbox';
 import { RadiantElement, bindTo, customElement, debounce, onEvent, query, ref, state } from '@ecopages/radiant';
 import { navigate } from '@/lib/browser/navigation';
+import { LIMITS } from '@/lib/limits';
 import type { ProductJson, ProductListJson } from '@/lib/storefront/json';
 import { listingUrl, parseListingQuery } from '@/lib/storefront/listing-query';
+import { getJson, isStoreError } from '@/lib/browser/store-api';
 
-/** Shortest term looked up; the server answers shorter ones with nothing. */
-const MIN_TERM_LENGTH = 2;
 const SUGGESTION_COUNT = 6;
 
 /**
@@ -55,7 +55,7 @@ export class SearchBoxElement extends RadiantElement {
 	private lookUp(): void {
 		const term = this.input?.value.trim() ?? '';
 		this.pending?.abort();
-		if (term.length < MIN_TERM_LENGTH) {
+		if (term.length < LIMITS.minSearchTerm) {
 			this.results = [];
 			return;
 		}
@@ -68,13 +68,8 @@ export class SearchBoxElement extends RadiantElement {
 		const controller = new AbortController();
 		this.pending = controller;
 		const params = new URLSearchParams({ q: term, pageSize: String(SUGGESTION_COUNT) });
-		const response = await fetch(`/api/products?${params}`, {
-			signal: controller.signal,
-			headers: { accept: 'application/json' },
-		}).catch(() => null);
-		if (!response?.ok || controller.signal.aborted) return;
-		const body = (await response.json().catch(() => null)) as ProductListJson | null;
-		if (!body || controller.signal.aborted) return;
+		const body = await getJson<ProductListJson>(`/api/products?${params}`, { fetch, signal: controller.signal });
+		if (isStoreError(body) || controller.signal.aborted) return;
 		this.answers.set(term, body.items);
 		this.results = body.items;
 		requestAnimationFrame(() => this.reopenWithResults());

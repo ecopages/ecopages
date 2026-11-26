@@ -11,6 +11,7 @@ import {
 import { RadioChoices } from '@/components/radio-choices';
 import { RuiSpinner } from '@ecopages/radiant-ui/spinner';
 import type { ProductVariant } from '@/lib/commerce/types';
+import { LIMITS } from '@/lib/limits';
 import './add-to-cart.css';
 
 export type AddToCartProps = {
@@ -44,7 +45,7 @@ export const AddToCart = eco.component<AddToCartProps, JsxRenderable>({
 				<div class="add-to-cart__row">
 					<label class="add-to-cart__quantity">
 						<span>Quantity</span>
-						<RuiNumberField minValue={1} maxValue={99} defaultValue={1} label="Quantity">
+						<RuiNumberField minValue={1} maxValue={LIMITS.quantity} defaultValue={1} label="Quantity">
 							<RuiNumberFieldGroup>
 								<RuiNumberFieldDecrementButton />
 								<RuiNumberFieldInput name="quantity" value="1" />

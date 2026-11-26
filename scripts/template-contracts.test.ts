@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, test, vi } from 'vitest';
+import { readTemplateManifest } from './template-manifest.ts';
 
 const templatesRoot = path.resolve(import.meta.dirname, '../templates');
 
@@ -39,9 +40,7 @@ describe('official template contracts', () => {
 	});
 
 	test('the getting-started skill reference names every official template id', () => {
-		const manifest = JSON.parse(
-			readFileSync(path.resolve(import.meta.dirname, '../packages/ecopages/templates.json'), 'utf8'),
-		) as { templates: Array<{ id: string }> };
+		const manifest = readTemplateManifest();
 		const reference = readFileSync(
 			path.resolve(import.meta.dirname, '../apps/docs/src/public/skill/reference/getting-started.md'),
 			'utf8',

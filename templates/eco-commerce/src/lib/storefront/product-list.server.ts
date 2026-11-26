@@ -1,22 +1,25 @@
 import type { CatalogBackend } from '../commerce/backend.ts';
 import type { ProductPage } from '../commerce/types.ts';
-import { parseListingQuery, toProductQuery, type ListingFilters, type QueryValue } from './listing-query.ts';
+import { emptyProductPage } from '../commerce/product-page.ts';
+import { LIMITS } from '../limits.ts';
+import {
+	firstQueryValue,
+	parseListingQuery,
+	toProductQuery,
+	type ListingFilters,
+	type QueryValue,
+} from './listing-query.ts';
 import { productListJson } from './to-json.ts';
-
-/** Most rows `?pageSize=` may ask for; the typeahead and the agent tools ask for a few. */
-export const MAX_JSON_PAGE_SIZE = 24;
-
-/** Shortest search term the typeahead looks up; one letter matches most of the catalog. */
-export const MIN_SEARCH_TERM = 2;
 
 export type SearchPageProps = {
 	filters: ListingFilters;
 	results: ProductPage;
 };
 
+/** Reads `?pageSize=`; a size outside 1 to `LIMITS.maxListSize` falls back to the listing default. */
 function readPageSize(value: QueryValue): number | undefined {
-	const size = Number(Array.isArray(value) ? value[0] : value);
-	return Number.isInteger(size) && size >= 1 && size <= MAX_JSON_PAGE_SIZE ? size : undefined;
+	const size = Number(firstQueryValue(value));
+	return Number.isInteger(size) && size >= 1 && size <= LIMITS.maxListSize ? size : undefined;
 }
 
 /** What the search page renders for a URL Query. A request with no term and no scope lists nothing. */
@@ -26,10 +29,7 @@ export async function getSearchPage(
 ): Promise<SearchPageProps> {
 	const filters = parseListingQuery(query);
 	if (!filters.q && !filters.in) {
-		return {
-			filters,
-			results: { items: [], total: 0, page: 1, pageCount: 0, facets: { materials: [], finishes: [] } },
-		};
+		return { filters, results: emptyProductPage() };
 	}
 	return { filters, results: await catalog.listProducts(toProductQuery(filters)) };
 }
@@ -43,9 +43,9 @@ export async function getSearchPage(
  */
 export async function productListAction(catalog: CatalogBackend, query: Record<string, QueryValue>): Promise<Response> {
 	const filters = parseListingQuery(query);
-	const tooShort = !filters.in && filters.q.length < MIN_SEARCH_TERM;
+	const tooShort = !filters.in && filters.q.length < LIMITS.minSearchTerm;
 	const page = tooShort
-		? { items: [], total: 0, page: 1, pageCount: 0, facets: { materials: [], finishes: [] } }
+		? emptyProductPage()
 		: await catalog.listProducts({ ...toProductQuery(filters), pageSize: readPageSize(query.pageSize) });
 	return Response.json(productListJson(page, filters), { headers: { 'cache-control': 'public, max-age=60' } });
 }

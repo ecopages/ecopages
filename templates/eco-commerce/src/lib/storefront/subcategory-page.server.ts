@@ -29,7 +29,7 @@ export async function loadSubcategoryPage(
 
 /** Params of the listing pages after the first, up to `pagesPerSubcategory` pages per subcategory. */
 export async function listListingPagePaths(
-	catalog: CatalogBackend,
+	catalog: Pick<CatalogBackend, 'listCatalogPaths'>,
 	pagesPerSubcategory: number,
 ): Promise<Array<SubcategoryParams & { page: string }>> {
 	const { subcategories } = await catalog.listCatalogPaths();

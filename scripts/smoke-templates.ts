@@ -1,11 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { templateBuildOutputs } from './template-build-outputs.ts';
-
-type TemplateManifest = {
-	templates: Array<{ id: string; source: string; packageDirectory: string; buildOutputs?: unknown }>;
-};
+import { readTemplateManifest, templateBuildOutputs } from './template-manifest.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
 
@@ -25,13 +21,11 @@ function run(command: string[], cwd: string): void {
  * Builds every official template in turn and checks the files its build must emit.
  *
  * @remarks
- * The expected files come from each manifest entry's `buildOutputs` (see `template-build-outputs.ts`), so a
+ * The expected files come from each manifest entry's `buildOutputs` (see `template-manifest.ts`), so a
  * template can require pages beyond `dist/client/index.html`. Pass template ids to check a subset.
  */
 function main(): void {
-	const manifest = JSON.parse(
-		readFileSync(path.join(repoRoot, 'packages/ecopages/templates.json'), 'utf8'),
-	) as TemplateManifest;
+	const manifest = readTemplateManifest();
 	const wanted = process.argv.slice(2);
 	const templates = manifest.templates.filter((template) => wanted.length === 0 || wanted.includes(template.id));
 	const failures: string[] = [];

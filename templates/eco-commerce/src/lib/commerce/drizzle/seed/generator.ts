@@ -1,6 +1,7 @@
 import type { CategoryRow, CollectionRow, ProductRow, SubcategoryRow } from '../schema.ts';
 import type { CatalogSize } from './catalog-size.ts';
-import { generateProduct, shuffledNamePairs, slugify } from './product-generator.ts';
+import { slugify } from '../slug.ts';
+import { generateProduct, shuffledNamePairs } from './product-generator.ts';
 import { createRandom } from './random.ts';
 import { MATERIALS, MODEL_NAMES, TAXONOMY } from './taxonomy.ts';
 

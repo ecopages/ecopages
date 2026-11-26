@@ -103,9 +103,12 @@ test.describe('eco-commerce template', () => {
 		await material.check({ force: true });
 
 		await expect(page).toHaveURL(new RegExp(`/search\\?in=lounge-chairs&material=${value}$`));
-		const titles = await page.locator('.product-card__title').allTextContents();
-		expect(titles.length).toBeGreaterThan(0);
-		expect(titles.every((title) => title.toLowerCase().includes(value))).toBe(true);
+		await expect
+			.poll(async () => {
+				const titles = await page.locator('.product-card__title').allTextContents();
+				return titles.length > 0 && titles.every((title) => title.toLowerCase().includes(value));
+			})
+			.toBe(true);
 	});
 
 	test('the header count goes up when a visitor adds a product, without a page load', async ({ page }) => {
@@ -158,14 +161,70 @@ test.describe('eco-commerce template', () => {
 		await expect(page.locator('cart-link [data-ref="count"]')).toBeHidden();
 	});
 
+	test('two quantity changes in the drawer reach the store in order, and the drawer shows the last', async ({
+		page,
+	}) => {
+		const title = await openFirstProduct(page);
+		await waitForIslands(page, 'add-to-cart', 'cart-link', 'cart-drawer', 'rui-toaster');
+		await page.getByRole('button', { name: 'Add to cart' }).click();
+		await expect(page.getByText('Added to your cart.').first()).toBeVisible();
+		await page.locator('cart-link a').click();
+		const quantity = page.getByRole('dialog', { name: 'Your cart' }).getByRole('spinbutton', {
+			name: `Quantity of ${title}`,
+		});
+		await expect(quantity).toHaveValue('1');
+
+		let firstIntercepted!: () => void;
+		const firstHeld = new Promise<void>((resolve) => (firstIntercepted = resolve));
+		let releaseFirst!: () => void;
+		const firstReleased = new Promise<void>((resolve) => (releaseFirst = resolve));
+		let held = false;
+		await page.route('**/cart/update', async (route) => {
+			if (!held) {
+				held = true;
+				firstIntercepted();
+				await firstReleased;
+			}
+			await route.fulfill({ response: await route.fetch() });
+		});
+
+		await quantity.fill('2');
+		await quantity.press('Tab');
+		await firstHeld;
+		await quantity.fill('3');
+		await quantity.press('Tab');
+		releaseFirst();
+
+		await expect.poll(async () => (await cartJson(page)).itemCount).toBe(3);
+		await expect(quantity).toHaveValue('3');
+		await expect(page.locator('cart-link [data-ref="count"]')).toHaveText('3');
+	});
+
 	test('a product the visitor opened shows under "Recently viewed" on the next product page', async ({ page }) => {
 		const first = await openFirstProduct(page);
+		await page.waitForFunction((title) => localStorage.getItem('store:recently-viewed')?.includes(title), first);
 		await page.goto(SUBCATEGORY);
 		await page.locator('.product-card').nth(1).click();
 
 		const strip = page.getByRole('region', { name: 'Recently viewed' });
 		await strip.scrollIntoViewIfNeeded();
 		await expect(strip.getByRole('link', { name: first })).toBeVisible();
+	});
+
+	test('a refused addition takes the header count back and says why', async ({ page }) => {
+		const [first] = (await (await page.request.get('/api/products?in=lounge-chairs&pageSize=1')).json()).items;
+		const { variants } = await (await page.request.get(`/api/products/${first.handle}`)).json();
+		await page.request.post('/cart/add', { form: { variantId: variants[0].id, quantity: '99' } });
+		await openFirstProduct(page);
+		const count = page.locator('cart-link [data-ref="count"]');
+		await expect(count).toHaveText('99');
+
+		await waitForIslands(page, 'add-to-cart', 'cart-link', 'rui-toaster');
+		await page.getByRole('button', { name: 'Add to cart' }).click();
+
+		await expect(page.getByText(/Your cart is full/u).first()).toBeVisible();
+		await expect(count).toHaveText('99');
+		expect((await cartJson(page)).itemCount).toBe(99);
 	});
 
 	test('two tabs that add different products at the same moment both land in the cart', async ({ context }) => {

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { CommerceBackend } from '../commerce/backend.ts';
+import type { CartUpdate } from '../commerce/types.ts';
 import {
 	addToCartAction,
 	CART_COOKIE,
@@ -24,6 +25,12 @@ function post(
 	if (init.cookie) headers.set('cookie', init.cookie);
 	if (init.fetchSite) headers.set('sec-fetch-site', init.fetchSite);
 	return new Request(`${origin}${pathname}`, { method: 'POST', headers, body: new URLSearchParams(fields) });
+}
+
+/** The token a setup change returned; a refused change fails the test instead of leaving an empty cart. */
+function tokenOf(update: CartUpdate): string {
+	if (!update.ok || !update.token) throw new Error(update.ok ? 'The change started no cart.' : update.message);
+	return update.token;
 }
 
 /** The cookie header a browser sends next, carrying what the response set. */
@@ -88,7 +95,7 @@ describe('cart HTTP', () => {
 
 	test('refuses an addition past the cart limit with the reason', async () => {
 		const full = await backend.cart.updateItem(null, { variantId, quantity: 99 });
-		const cookie = full.ok ? `${CART_COOKIE}=${full.token}` : '';
+		const cookie = `${CART_COOKIE}=${tokenOf(full)}`;
 
 		const response = await addToCartAction(
 			post('/cart/add', { variantId }, { accept: 'application/json', cookie }),
@@ -99,9 +106,16 @@ describe('cart HTTP', () => {
 		expect(((await response.json()) as { error: string }).error).toMatch(/full/u);
 	});
 
+	test('removing a line without a cart sets no cookie', async () => {
+		const response = await updateCartAction(post('/cart/update', { variantId, quantity: '0' }), deps());
+
+		expect(response.status).toBe(303);
+		expect(response.headers.get('set-cookie')).toBeNull();
+	});
+
 	test('updating a quantity to zero removes the line', async () => {
 		const added = await backend.cart.addItem(null, { variantId, quantity: 1 });
-		const cookie = added.ok ? `${CART_COOKIE}=${added.token}` : '';
+		const cookie = `${CART_COOKIE}=${tokenOf(added)}`;
 
 		const response = await updateCartAction(post('/cart/update', { variantId, quantity: '0' }, { cookie }), deps());
 
@@ -114,7 +128,7 @@ describe('cart HTTP', () => {
 
 	test('a tampered cart cookie reads as an empty cart', async () => {
 		const added = await backend.cart.addItem(null, { variantId, quantity: 1 });
-		const [payload] = added.ok ? added.token.split('.') : [''];
+		const [payload] = tokenOf(added).split('.');
 		const request = new Request(`${origin}/api/cart`, { headers: { cookie: `${CART_COOKIE}=${payload}.forged` } });
 
 		const summary = (await (await cartSummaryAction(request, deps())).json()) as CartJson;
@@ -124,7 +138,7 @@ describe('cart HTTP', () => {
 
 	test('the summary lists each line with its product, option, link and prices', async () => {
 		const added = await backend.cart.addItem(null, { variantId, quantity: 2 });
-		const cookie = added.ok ? `${CART_COOKIE}=${added.token}` : '';
+		const cookie = `${CART_COOKIE}=${tokenOf(added)}`;
 
 		const response = await cartSummaryAction(new Request(`${origin}/api/cart`, { headers: { cookie } }), deps());
 		const summary = (await response.json()) as CartJson;

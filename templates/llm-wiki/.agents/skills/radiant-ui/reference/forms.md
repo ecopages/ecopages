@@ -40,7 +40,7 @@ Native `input`, `textarea` and `select` controls count: `required`, `type="email
 - HTML attribute: comma-separated tokens (`value="ca,tx"`); an empty selection omits it.
 - JS property: always `string[]` (`[]` when empty).
 - `Rui*` views: `string | readonly string[] | undefined`; a string is parsed as CSV.
-- `input` and `change` carry no detail; read `host.value`.
+- The form controls dispatch `input` and `change` with no detail; read `host.value`. `rui-table` is not a form control and keeps `rui-change`, with `{ value: string[] }` in `detail`.
 
 `rui-slider` is the numeric variant: attribute `50` or `25,75`, property `number[]`, view `number | readonly number[]`. Two numbers put it in range mode.
 

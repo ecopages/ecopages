@@ -1,0 +1,25 @@
+.product-grid {
+	@apply m-0 grid list-none gap-4 p-0;
+	grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+}
+
+.product-card {
+	@apply flex h-full flex-col gap-1 rounded-lg p-2 text-sm no-underline;
+
+	&:hover,
+	&:focus-visible {
+		@apply bg-surface-container-low;
+	}
+}
+
+.product-card__image {
+	@apply mb-1 aspect-square h-auto w-full rounded-md;
+}
+
+.product-card__name {
+	@apply font-medium leading-snug;
+}
+
+.product-card__price {
+	@apply tabular-nums text-on-surface-container;
+}

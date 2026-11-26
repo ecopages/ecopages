@@ -1,0 +1,36 @@
+{
+	"name": "@ecopages/template-ecofaster",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"start": "ecopages build && ecopages start",
+		"db:generate": "drizzle-kit generate",
+		"test": "vitest run",
+		"typecheck": "ecopages types && tsc --noEmit"
+	},
+	"dependencies": {
+		"@ecopages/file-system": "workspace:*",
+		"@libsql/client": "^0.17.4",
+		"drizzle-orm": "^0.45.1"
+	},
+	"devDependencies": {
+		"@ecopages/browser-router": "workspace:*",
+		"@ecopages/core": "workspace:*",
+		"@ecopages/ecopages-jsx": "workspace:*",
+		"@ecopages/jsx": "^0.11.2",
+		"@ecopages/lightningcss-processor": "workspace:*",
+		"@ecopages/radiant": "^0.11.2",
+		"@ecopages/radiant-ui": "^0.4.3",
+		"@ecopages/signals": "^0.11.2",
+		"@tailwindcss/node": "^4.0.0",
+		"@tailwindcss/oxide": "^4.0.0",
+		"@types/node": "^24.12.4",
+		"drizzle-kit": "^0.31.11",
+		"ecopages": "workspace:*",
+		"tailwindcss": "^4.0.0",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.10"
+	}
+}

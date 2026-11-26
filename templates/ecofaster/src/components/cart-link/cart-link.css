@@ -1,0 +1,25 @@
+cart-link {
+	@apply ml-auto shrink-0;
+}
+
+.cart-link {
+	@apply inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium no-underline;
+
+	&:hover {
+		@apply bg-surface-container;
+	}
+}
+
+.cart-link__count {
+	@apply tabular-nums;
+
+	&[hidden] {
+		display: none;
+	}
+}
+
+@media (max-width: 40rem) {
+	.cart-link__label {
+		@apply sr-only;
+	}
+}

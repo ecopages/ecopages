@@ -1885,6 +1885,67 @@ importers:
         specifier: ^4.4.3
         version: 4.5.4
 
+  templates/ecofaster:
+    dependencies:
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../packages/file-system
+      '@libsql/client':
+        specifier: ^0.17.4
+        version: 0.17.4
+      drizzle-orm:
+        specifier: ^0.45.1
+        version: 0.45.2(@libsql/client@0.17.4)(bun-types@1.4.2)(kysely@0.29.5)
+    devDependencies:
+      '@ecopages/browser-router':
+        specifier: workspace:*
+        version: link:../../packages/browser-router
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ecopages/ecopages-jsx':
+        specifier: workspace:*
+        version: link:../../packages/integrations/ecopages-jsx
+      '@ecopages/jsx':
+        specifier: ^0.11.2
+        version: 0.11.2(@ecopages/signals@0.11.2)
+      '@ecopages/lightningcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/lightningcss-processor
+      '@ecopages/radiant':
+        specifier: ^0.11.2
+        version: 0.11.2(@ecopages/jsx@0.11.2(@ecopages/signals@0.11.2))(@ecopages/signals@0.11.2)
+      '@ecopages/radiant-ui':
+        specifier: ^0.4.3
+        version: 0.4.3(@ecopages/jsx@0.11.2(@ecopages/signals@0.11.2))(@ecopages/radiant@0.11.2(@ecopages/jsx@0.11.2(@ecopages/signals@0.11.2))(@ecopages/signals@0.11.2))(@ecopages/signals@0.11.2)
+      '@ecopages/signals':
+        specifier: ^0.11.2
+        version: 0.11.2
+      '@tailwindcss/node':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@tailwindcss/oxide':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@types/node':
+        specifier: ^24.12.4
+        version: 24.13.3
+      drizzle-kit:
+        specifier: ^0.31.11
+        version: 0.31.11
+      ecopages:
+        specifier: workspace:*
+        version: link:../../packages/ecopages
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.3.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.11(@types/node@24.13.3)(@vitest/browser-playwright@4.1.11)(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))
+
   templates/electrobun:
     dependencies:
       '@ecopages/core':

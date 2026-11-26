@@ -1,0 +1,46 @@
+.search-box {
+	@apply relative block w-full max-w-md;
+}
+
+.search-box__form {
+	@apply m-0;
+}
+
+.search-box__suggestions {
+	@apply absolute inset-x-0 top-full z-50 mt-1 block;
+
+	&:empty {
+		display: none;
+	}
+}
+
+.search-suggestions__list,
+.search-suggestions__empty {
+	@apply m-0 rounded-md border border-border bg-surface p-1 shadow-lg;
+}
+
+.search-suggestions__list {
+	@apply list-none;
+}
+
+.search-suggestions__empty {
+	@apply px-3 py-2 text-sm text-on-surface-container;
+}
+
+.search-suggestions__item {
+	@apply grid items-center gap-3 rounded px-2 py-1.5 text-sm no-underline;
+	grid-template-columns: 2.5rem 1fr auto;
+
+	img {
+		@apply rounded;
+	}
+
+	&:hover,
+	&:focus-visible {
+		@apply bg-surface-container;
+	}
+}
+
+.search-suggestions__price {
+	@apply tabular-nums text-on-surface-container;
+}

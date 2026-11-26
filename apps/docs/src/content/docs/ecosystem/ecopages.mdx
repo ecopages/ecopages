@@ -319,6 +319,30 @@ pnpm desktop:dev
 	defaultSelectedKey="npm"
 />
 
+**Ecofaster catalog** - Creates a product catalog on Ecopages JSX, Radiant UI, Drizzle and SQLite: static listing pages, revalidating product pages, a search typeahead, and a cart in a signed cookie that works without JavaScript. The catalog is generated on first run; `CATALOG_SIZE` picks its size. <a href="https://github.com/ecopages/ecopages/tree/main/templates/ecofaster" target="_blank">ecofaster</a>.
+
+<CodeTabs
+	name="ecopages-ecofaster"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init my-catalog --template ecofaster && cd my-catalog && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init my-catalog --template ecofaster && cd my-catalog && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init my-catalog --template ecofaster && cd my-catalog && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
 ### Step-by-Step (Individual)
 
 #### 1) Basic starter

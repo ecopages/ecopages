@@ -150,6 +150,16 @@
 			"source": "llm-wiki",
 			"packageDirectory": "app",
 			"integrations": ["ecopages-jsx", "mdx"]
+		},
+		{
+			"id": "ecofaster",
+			"displayName": "Ecofaster",
+			"description": "A fast product catalog with static listings, search, and a cart in a signed cookie, on Drizzle and SQLite.",
+			"category": "application",
+			"order": 85,
+			"source": "ecofaster",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "radiant-ui"]
 		}
 	]
 }

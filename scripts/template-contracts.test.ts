@@ -12,6 +12,7 @@ const seoFiles = [
 	'react/src/includes/seo.tsx',
 	'react-shadcn/src/includes/seo.tsx',
 	'react-better-auth/src/includes/seo.tsx',
+	'ecofaster/src/includes/seo.tsx',
 	'blog-jsx/src/includes/seo.tsx',
 	'blog-react/src/includes/seo.tsx',
 	'lit-jsx/src/includes/seo.kita.tsx',

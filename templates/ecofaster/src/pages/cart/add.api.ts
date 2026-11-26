@@ -1,0 +1,7 @@
+import { definePost } from '@ecopages/core';
+import { addToCartAction } from '@/lib/cart/cart-actions.server';
+import { getCartDeps } from '@/lib/cart/cart-deps.server';
+
+export const POST = definePost({
+	handler: async ({ request }) => addToCartAction(request, await getCartDeps()),
+});

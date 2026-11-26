@@ -1,0 +1,52 @@
+.order-lines {
+	@apply m-0 flex list-none flex-col divide-y divide-border p-0;
+}
+
+.order-line {
+	@apply grid items-center gap-4 py-4;
+	grid-template-columns: 5rem 1fr;
+
+	img {
+		@apply rounded-md;
+	}
+
+	@media (min-width: 48rem) {
+		grid-template-columns: 5rem 1fr auto auto 7rem;
+	}
+}
+
+.order-line__remove {
+	@apply m-0;
+}
+
+.order-line__product {
+	@apply flex flex-col gap-1;
+
+	a {
+		@apply font-medium;
+	}
+}
+
+.order-line__unit {
+	@apply text-sm text-on-surface-container;
+}
+
+.order-line__quantity {
+	@apply col-span-2 flex items-center gap-2 md:col-span-1;
+}
+
+.order-line__input {
+	@apply w-16 rounded-md border border-border bg-background px-2 py-1 tabular-nums;
+}
+
+.order-line__subtotal {
+	@apply col-span-2 text-right tabular-nums md:col-span-1;
+}
+
+.order-total {
+	@apply mt-4 flex items-baseline justify-end gap-4 border-t border-border pt-4 text-lg;
+}
+
+.order-note {
+	@apply mt-6 text-right text-sm text-on-surface-container;
+}

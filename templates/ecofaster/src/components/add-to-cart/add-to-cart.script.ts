@@ -4,19 +4,25 @@ import { dispatchCartChange } from '@/lib/cart/cart-events';
 
 type AddToCartStatus = 'idle' | 'pending' | 'added' | 'error';
 
-const STATUS_MESSAGES: Record<AddToCartStatus, string> = {
-	idle: '',
-	pending: 'Adding to your cart…',
-	added: 'Added to your cart.',
-	error: 'That did not work. Try again.',
-};
+const PENDING_MESSAGE = 'Adding to your cart…';
+const ADDED_MESSAGE = 'Added to your cart.';
+const FAILED_MESSAGE = 'That did not work. Try again.';
+
+/** The JSON error a refused cart change carries, such as a full cart. */
+type CartError = { error?: unknown };
+
+async function readError(response: Response | null): Promise<string> {
+	const body = (await response?.json().catch(() => null)) as CartError | null;
+	return typeof body?.error === 'string' ? body.error : FAILED_MESSAGE;
+}
 
 /**
  * `<add-to-cart>`: sends the add-to-cart form with `fetch`, so the page stays put and the header count updates.
  *
  * @remarks
  * The form inside is a plain `POST /cart/add`, which works without JavaScript. With it, the header count goes up
- * by one right away and then takes the server's total; a failed request takes the change back.
+ * by one right away and then takes the server's total; a refused or failed request takes the change back and
+ * shows the server's reason, such as a full cart.
  */
 @customElement('add-to-cart')
 export class AddToCartElement extends RadiantElement {
@@ -24,9 +30,12 @@ export class AddToCartElement extends RadiantElement {
 	@bindTo<AddToCartStatus>([
 		{ attr: 'data-status' },
 		{ ref: 'submit', bool: 'disabled', map: (status) => status === 'pending' },
-		{ ref: 'status', text: true, map: (status) => STATUS_MESSAGES[status] },
 	])
 	protected status: AddToCartStatus = 'idle';
+
+	@state
+	@bindTo<string>({ ref: 'status', text: true })
+	protected message = '';
 
 	@ref() form!: HTMLFormElement | null;
 
@@ -40,6 +49,7 @@ export class AddToCartElement extends RadiantElement {
 
 	private async send(form: HTMLFormElement): Promise<void> {
 		this.status = 'pending';
+		this.message = PENDING_MESSAGE;
 		dispatchCartChange({ delta: 1 });
 
 		const response = await fetch(form.action, {
@@ -51,10 +61,12 @@ export class AddToCartElement extends RadiantElement {
 
 		if (!summary) {
 			dispatchCartChange({ delta: -1 });
+			this.message = response?.ok ? FAILED_MESSAGE : await readError(response);
 			this.status = 'error';
 			return;
 		}
 		dispatchCartChange({ count: summary.count });
+		this.message = ADDED_MESSAGE;
 		this.status = 'added';
 	}
 }

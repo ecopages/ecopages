@@ -71,7 +71,7 @@ To use your own data, replace the generator call in `src/lib/db/catalog-database
 
 ## The cart
 
-The cart is a list of product ids and quantities in an `HttpOnly`, `SameSite=Lax` cookie, signed with HMAC-SHA256. A cookie whose signature does not match reads as an empty cart. The signing key includes the catalog size and generator version, so regenerating the catalog empties existing carts instead of pointing their ids at other products. Cart posts a browser sends from another site (`Sec-Fetch-Site: cross-site`) are refused. There are no accounts and no checkout.
+The cart is a list of product ids and quantities in an `HttpOnly`, `SameSite=Lax` cookie, signed with HMAC-SHA256. A cookie whose signature does not match reads as an empty cart. The signing key includes the catalog size and generator version, so regenerating the catalog empties existing carts instead of pointing their ids at other products. Cart posts a browser sends from another site (`Sec-Fetch-Site: cross-site`) are refused. A cart holds up to 50 products and 99 of each; an addition past that is refused with the reason. Because the whole cart lives in the cookie, two tabs that change it at the same moment each send the cart they started from, and the last response wins; a cart that must merge concurrent changes belongs in a server-side store. There are no accounts and no checkout.
 
 - Without JavaScript, "Add to cart" is a form that posts to `/cart/add`, which answers with a redirect to `/order`. Quantities on `/order` are forms that post to `/cart/update`.
 - With JavaScript, `<add-to-cart>` sends the same form with `fetch`; the header count moves at once and then takes the server's total.

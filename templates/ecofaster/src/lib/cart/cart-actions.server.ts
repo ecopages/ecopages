@@ -1,7 +1,7 @@
 import { getProductsByIds } from '../catalog/queries.server.ts';
 import type { CatalogDb } from '../db/catalog-database.server.ts';
 import { readCart, serializeCartCookie } from './cart-cookie.server.ts';
-import { addToCart, setQuantity, type Cart, type CartSummary } from './cart.ts';
+import { addToCart, cartCount, MAX_LINES, MAX_QUANTITY, setQuantity, type Cart, type CartSummary } from './cart.ts';
 import { getOrder } from './order.server.ts';
 
 export type CartActionDeps = {
@@ -91,11 +91,26 @@ async function readCartForm(
 	return { productId, quantity };
 }
 
-/** `POST /cart/add`: adds `quantity` (default 1) units of `productId`. */
+/**
+ * `POST /cart/add`: adds `quantity` (default 1) units of `productId`.
+ *
+ * @remarks
+ * Answers 409 when the cart limits leave nothing to add, so the button does not report an addition that did not
+ * happen.
+ */
 export async function addToCartAction(request: Request, deps: CartActionDeps): Promise<Response> {
 	const change = await readCartForm(request, deps.db, 1);
 	if (change instanceof Response) return change;
-	const cart = addToCart(readCart(request, deps.secret), change.productId, change.quantity);
+	if (change.quantity === 0) return reject(request, 400, 'Add at least one unit.');
+	const current = readCart(request, deps.secret);
+	const cart = addToCart(current, change.productId, change.quantity);
+	if (cartCount(cart) === cartCount(current)) {
+		return reject(
+			request,
+			409,
+			`Your cart is full: it holds up to ${MAX_LINES} products and ${MAX_QUANTITY} of each.`,
+		);
+	}
 	return respondWithCart(request, cart, deps);
 }
 

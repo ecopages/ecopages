@@ -32,15 +32,15 @@ describe('store tool definitions', () => {
 });
 
 describe('the input an agent sends a host', () => {
-	it('is the schema parsed, with its defaults applied', () => {
-		const parse = agentToolConfig(getProductTool).parse;
+	it('is the schema parsed, with its defaults applied', async () => {
+		const parse = await agentToolConfig(getProductTool).parse;
 
 		expect(parse?.({})).toEqual({ catalog: {} });
 		expect(parse?.({ catalog: { id: 'field-shirt' } })).toEqual({ catalog: { id: 'field-shirt' } });
 	});
 
-	it('is refused with the field named, so the agent can correct the call', () => {
-		const parse = agentToolConfig(addToCartTool).parse;
+	it('is refused with the field named, so the agent can correct the call', async () => {
+		const parse = await agentToolConfig(addToCartTool).parse;
 
 		expect(() => parse?.({ item: { id: fieldShirtM }, quantity: 0 })).toThrow(/^Invalid input\. quantity: /u);
 		expect(() => readToolInput(addToCartTool, { quantity: 1 })).toThrow(/item/u);

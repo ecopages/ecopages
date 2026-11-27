@@ -15,10 +15,10 @@ type PackageJson = {
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const templatesRoot = path.join(repoRoot, 'templates');
 const latestCompatibleExternalRanges: Record<string, string> = {
-	'@ecopages/jsx': '^0.12.0',
-	'@ecopages/radiant': '^0.12.0',
-	'@ecopages/radiant-ui': '^0.6.2',
-	'@ecopages/signals': '^0.12.0',
+	'@ecopages/jsx': '^0.13.0',
+	'@ecopages/radiant': '^0.13.0',
+	'@ecopages/radiant-ui': '^0.7.0',
+	'@ecopages/signals': '^0.13.0',
 };
 
 function readJson<T>(filePath: string): T {

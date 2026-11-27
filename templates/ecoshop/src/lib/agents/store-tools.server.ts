@@ -5,6 +5,7 @@ import type { Product, ProductSummary, ProductVariant } from '@/lib/commerce/typ
 import { resolveUrl, storePaths } from '@/lib/store-urls';
 import { describeUcpProfile, readUcpProfile } from '@/lib/ucp/ucp.server';
 import {
+	type ToolInput,
 	addToCartTool,
 	askBusinessTool,
 	browseStoreTool,
@@ -30,12 +31,13 @@ import {
 	fitToPageResult,
 	pageSummaryView,
 	pageVariantView,
+	PAGE_TITLE_CHARACTERS,
 	PAGE_RESULT_CHARACTERS,
 	resultSize,
-	cartView,
+	cartResult,
+	changedQuantities,
 	currentCart,
 	define,
-	describeCart,
 	fail,
 	isOutcome,
 	lineProblem,
@@ -44,13 +46,13 @@ import {
 	productHandleFrom,
 	productUrl,
 	relevance,
-	replacementQuantities,
 	searchTerms,
 	summaryView,
 	textToHtml,
 	variantView,
 } from './store-tool-support.server';
 
+import type { StoreToolResult } from './agent-tool-types';
 export type { StoreToolResult } from './agent-tool-types';
 export type { StoreTool, StoreToolContext, StoreToolOutcome } from './store-tool-support.server';
 export type { ToolSurface } from './store-tool-definitions';
@@ -62,10 +64,13 @@ const PRODUCTS_PER_PAGE = 30;
 const PAGE_PRODUCTS_PER_PAGE = 3;
 const PAGE_RELATED_LIMIT = 3;
 const PAGE_DESCRIPTION_CHARACTERS = 240;
+const PAGE_OPTIONS = 3;
+const PAGE_OPTION_VALUES = 8;
 
 /**
  * How much of an answer `ask_business` gives a page, as policies and characters a paragraph, from most to least: the
- * first that fits `PAGE_RESULT_CHARACTERS` is used, and the last when none does.
+ * first that fits `PAGE_RESULT_CHARACTERS` is used. The last gives the policy's title and link only, and when even
+ * that does not fit (a very long handle) the title without the link.
  */
 const PAGE_ANSWER_SIZES: Array<{ policies: number; characters: number }> = [
 	{ policies: 2, characters: 280 },
@@ -73,8 +78,195 @@ const PAGE_ANSWER_SIZES: Array<{ policies: number; characters: number }> = [
 	{ policies: 1, characters: 280 },
 	{ policies: 1, characters: 140 },
 	{ policies: 1, characters: 70 },
+	{ policies: 1, characters: 0 },
 ];
 const MAX_OPTION_COMBINATIONS = 50;
+
+/**
+ * The options of a product as a page shows them, from all of them (level 0) to none (level 2 and over). A name or a
+ * value is never clipped, since an agent passes them back as `selected_options`; what does not fit is left out and
+ * flagged.
+ */
+function pageOptions(options: Product['options'], level: number) {
+	if (level === 0) return { options };
+	if (level === 1) {
+		return {
+			options: options.slice(0, PAGE_OPTIONS).map((option) => ({
+				name: option.name,
+				values: option.values.slice(0, PAGE_OPTION_VALUES),
+			})),
+			options_truncated: true,
+		};
+	}
+	return { options_omitted: true };
+}
+
+/**
+ * The store's collections as a tool lists them: with their descriptions over `/mcp`, and as many as fit on a page.
+ */
+async function collectionsResult({ provider, origin, surface }: StoreToolContext) {
+	const collections = await provider.listCollections({ limit: 100 });
+	const describeCollections = (shown: typeof collections) => {
+		const list = shown.map((entry) => ({
+			title: surface === 'page' ? clipText(entry.title, PAGE_TITLE_CHARACTERS) : entry.title,
+			handle: entry.handle,
+			url: resolveUrl(origin, storePaths.collection(entry.handle)),
+			...(surface === 'page' ? {} : { description: entry.description }),
+		}));
+		return ok(
+			{ collections: list },
+			`The store has ${collections.length} collection(s): ${list.map((entry) => entry.title).join(', ')}${list.length < collections.length ? ', and more' : ''}.`,
+		);
+	};
+	const shown =
+		surface === 'page'
+			? fitToPageResult(collections, (list) => resultSize(describeCollections(list)))
+			: collections;
+	return describeCollections(shown);
+}
+
+/**
+ * What `browse_store` tells about one page of products of a collection or of the whole store.
+ */
+interface BrowseListing {
+	title: string;
+	url: string;
+	start: number;
+	page: number;
+	sortBy: string;
+	pageSize: number;
+	navigated: boolean;
+	/** The products the provider returned, one more than a page when another follows. */
+	found: ProductSummary[];
+}
+
+function browseResult(
+	listing: BrowseListing,
+	shown: ProductSummary[],
+	{ origin, surface }: StoreToolContext,
+	bare: boolean,
+): StoreToolResult {
+	const { title, url, start, page, sortBy, pageSize, navigated, found } = listing;
+	const hasMore = found.length > shown.length;
+	const opening = bare ? ' Opening the collection.' : ` Opening ${url}.`;
+	return ok(
+		{
+			products: shown.map((product) =>
+				surface === 'page' ? pageSummaryView(product, origin, !bare) : summaryView(product, origin),
+			),
+			collection_title: title,
+			page,
+			offset: start,
+			sort_by: sortBy,
+			navigated,
+			...(bare ? {} : { url }),
+			page_size: pageSize,
+			has_more: hasMore,
+			...(hasMore ? { next_offset: start + shown.length } : {}),
+		},
+		`${title}: ${shown.length} product(s) from ${start}.${navigated ? opening : ''}`,
+	);
+}
+
+async function browseProducts(
+	collection: string,
+	{ navigate, sort_by: sortBy = 'best-selling', page = 1, offset }: ToolInput<typeof browseStoreTool>,
+	context: StoreToolContext,
+): Promise<StoreToolOutcome> {
+	const { provider, origin, surface } = context;
+	const pageSize = surface === 'page' ? PAGE_PRODUCTS_PER_PAGE : PRODUCTS_PER_PAGE;
+	const start = offset ?? (page - 1) * pageSize;
+	const listing = { limit: pageSize + 1, offset: start, sort: sortBy };
+	const found =
+		collection === 'all'
+			? { title: 'All products', products: await provider.listProducts(listing), path: '/' }
+			: await provider.getCollection(collection, listing).then((entry) =>
+					entry
+						? {
+								title: entry.collection.title,
+								products: entry.products,
+								path: storePaths.collection(collection),
+							}
+						: null,
+				);
+	if (!found) {
+		return fail(`No collection with handle "${collection}". Call browse_store without a collection to list them.`);
+	}
+
+	const url = resolveUrl(origin, found.path);
+	const navigated = Boolean(navigate) && surface === 'page';
+	const details: BrowseListing = {
+		title: surface === 'page' ? clipText(found.title, PAGE_TITLE_CHARACTERS) : found.title,
+		url,
+		start,
+		page,
+		sortBy,
+		pageSize,
+		navigated,
+		found: found.products,
+	};
+	const listed = found.products.slice(0, pageSize);
+	const shown =
+		surface === 'page'
+			? fitToPageResult(listed, (list) => resultSize(browseResult(details, list, context, false)))
+			: listed;
+	const bare =
+		surface === 'page' && resultSize(browseResult(details, shown, context, false)) > PAGE_RESULT_CHARACTERS;
+	return {
+		result: browseResult(details, shown, context, bare),
+		...(navigated ? { navigateTo: url } : {}),
+	};
+}
+
+/**
+ * What `get_product` tells a page about a product, with as many of its variants and options as fit.
+ */
+interface ProductPage {
+	product: Product;
+	/** The variants that match what the agent asked for. */
+	listed: ProductVariant[];
+	name: string;
+	url: string;
+	summary: string;
+	navigated: boolean;
+}
+
+/**
+ * The page result of `get_product`: from everything it can say (level 0) to the least (level 3: no options, no
+ * description and no address), the first level that fits `PAGE_RESULT_CHARACTERS` with at least one variant.
+ */
+function productPageResult({ product, listed, name, url, summary, navigated }: ProductPage): StoreToolResult {
+	const describe = (shown: ProductVariant[], level: number) =>
+		ok(
+			{
+				title: name,
+				handle: product.handle,
+				description: level < 3 ? clipText(product.description, PAGE_DESCRIPTION_CHARACTERS) : '',
+				...(level < 3 ? { url } : {}),
+				price: formatPriceRange(product.priceRange),
+				available: product.availableForSale,
+				...pageOptions(product.options, level),
+				variants: shown.map(pageVariantView),
+				...(shown.length < listed.length
+					? {
+							variants_not_shown: listed.length - shown.length,
+							hint: 'Pass selected_options to narrow the variants.',
+						}
+					: {}),
+				navigated,
+			},
+			summary,
+		);
+	const attempts = [0, 1, 2, 3].map((level) =>
+		describe(
+			fitToPageResult(listed, (list) => resultSize(describe(list, level))),
+			level,
+		),
+	);
+	return (
+		attempts.find((result) => resultSize(result) <= PAGE_RESULT_CHARACTERS) ?? attempts[3] ?? describe(listed, 3)
+	);
+}
 
 /* The tools. */
 
@@ -87,17 +279,17 @@ export const storeTools: StoreTool[] = [
 			provider.listCollections({ limit: 100 }),
 			provider.listPolicies(),
 		]);
-		const related = surface === 'page' ? Math.min(limit, PAGE_RELATED_LIMIT) : limit;
-		const describeResult = (shown: ProductSummary[]) => {
+		const describeResult = (shown: ProductSummary[], related: number, bare = false) => {
 			const structured = {
 				products: shown.map((product) =>
-					surface === 'page' ? pageSummaryView(product, origin) : summaryView(product, origin),
+					surface === 'page' ? pageSummaryView(product, origin, !bare) : summaryView(product, origin),
 				),
 				collections: collections
 					.filter((collection) => terms.some((term) => collection.title.toLowerCase().includes(term)))
 					.slice(0, related)
 					.map((collection) => ({
-						title: collection.title,
+						title:
+							surface === 'page' ? clipText(collection.title, PAGE_TITLE_CHARACTERS) : collection.title,
 						handle: collection.handle,
 						url: resolveUrl(origin, storePaths.collection(collection.handle)),
 					})),
@@ -106,91 +298,33 @@ export const storeTools: StoreTool[] = [
 					.filter((policy) => relevance(`${policy.title} ${policy.body}`, terms) > 0)
 					.slice(0, related)
 					.map((policy) => ({
-						title: policy.title,
+						title: surface === 'page' ? clipText(policy.title, PAGE_TITLE_CHARACTERS) : policy.title,
 						url: resolveUrl(origin, storePaths.policy(policy.handle)),
 					})),
-				search_url: resolveUrl(origin, storePaths.search(catalog.query)),
+				...(bare ? {} : { search_url: resolveUrl(origin, storePaths.search(catalog.query)) }),
 				...(shown.length < products.length ? { products_not_shown: products.length - shown.length } : {}),
 			};
 			const text = products.length
 				? `Found ${products.length} product(s)${shown.length < products.length ? `, ${shown.length} shown to keep the result short; search again with a narrower query for the rest` : ''}.`
-				: `No products match "${catalog.query}".`;
+				: `No products match "${surface === 'page' ? clipText(catalog.query, PAGE_TITLE_CHARACTERS) : catalog.query}".`;
 			return ok(structured, text);
 		};
-		const shown =
-			surface === 'page' ? fitToPageResult(products, (list) => resultSize(describeResult(list))) : products;
-		return { result: describeResult(shown) };
+		if (surface !== 'page') return { result: describeResult(products, limit) };
+		/** From the most a page shows to the least: the related collections and pages go first, then the links. */
+		const attempts = [PAGE_RELATED_LIMIT, 2, 1, 0].map((related) => {
+			const count = Math.min(limit, related);
+			const shown = fitToPageResult(products, (list) => resultSize(describeResult(list, count)));
+			return describeResult(shown, count);
+		});
+		const fitting = attempts.find((result) => resultSize(result) <= PAGE_RESULT_CHARACTERS);
+		return {
+			result: fitting ?? describeResult(products.slice(0, 1), 0, true),
+		};
 	}),
-	define(
-		browseStoreTool,
-		async ({ collection, navigate, sort_by: sortBy = 'best-selling', page = 1 }, { provider, origin, surface }) => {
-			if (!collection) {
-				const collections = await provider.listCollections({ limit: 100 });
-				const describeCollections = (shown: typeof collections) => {
-					const list = shown.map((entry) => ({
-						title: entry.title,
-						handle: entry.handle,
-						url: resolveUrl(origin, storePaths.collection(entry.handle)),
-						...(surface === 'page' ? {} : { description: entry.description }),
-					}));
-					return ok(
-						{ collections: list },
-						`The store has ${collections.length} collection(s): ${list.map((entry) => entry.title).join(', ')}${list.length < collections.length ? ', and more' : ''}.`,
-					);
-				};
-				const shown =
-					surface === 'page'
-						? fitToPageResult(collections, (list) => resultSize(describeCollections(list)))
-						: collections;
-				return { result: describeCollections(shown) };
-			}
-
-			const pageSize = surface === 'page' ? PAGE_PRODUCTS_PER_PAGE : PRODUCTS_PER_PAGE;
-			const listing = { limit: pageSize + 1, offset: (page - 1) * pageSize, sort: sortBy };
-			const found =
-				collection === 'all'
-					? {
-							title: 'All products',
-							products: await provider.listProducts(listing),
-							path: '/',
-						}
-					: await provider.getCollection(collection, listing).then((entry) =>
-							entry
-								? {
-										title: entry.collection.title,
-										products: entry.products,
-										path: storePaths.collection(collection),
-									}
-								: null,
-						);
-			if (!found)
-				return fail(
-					`No collection with handle "${collection}". Call browse_store without a collection to list them.`,
-				);
-
-			const products = found.products.slice(0, pageSize);
-			const hasMore = found.products.length > pageSize;
-			const url = resolveUrl(origin, found.path);
-			const navigated = Boolean(navigate) && surface === 'page';
-			return {
-				result: ok(
-					{
-						products: products.map((product) =>
-							surface === 'page' ? pageSummaryView(product, origin) : summaryView(product, origin),
-						),
-						collection_title: found.title,
-						page,
-						sort_by: sortBy,
-						navigated,
-						url,
-						page_size: pageSize,
-						has_more: hasMore,
-					},
-					`${found.title}: ${products.length} product(s) on page ${page}.${navigated ? ` Opening ${url}.` : ''}`,
-				),
-				...(navigated ? { navigateTo: url } : {}),
-			};
-		},
+	define(browseStoreTool, async (input, context) =>
+		input.collection
+			? browseProducts(input.collection, input, context)
+			: { result: await collectionsResult(context) },
 	),
 	define(getProductTool, async ({ catalog }, context) => {
 		const handle = productHandleFrom(catalog.id, context);
@@ -209,32 +343,12 @@ export const storeTools: StoreTool[] = [
 			.map((variant) => variant.selectedOptions);
 		const url = productUrl(context.origin, product.handle);
 		const navigated = Boolean(catalog.navigate) && context.surface === 'page';
-		const summary = `${product.title}, ${formatMoney(product.priceRange.min)}, ${product.availableForSale ? 'in stock' : 'sold out'}. ${candidates.length} matching variant(s).`;
+		const name = context.surface === 'page' ? clipText(product.title, PAGE_TITLE_CHARACTERS) : product.title;
+		const summary = `${name}, ${formatMoney(product.priceRange.min)}, ${product.availableForSale ? 'in stock' : 'sold out'}. ${candidates.length} matching variant(s).`;
 		if (context.surface === 'page') {
 			const listed = complete ? candidates.slice(0, 1) : candidates;
-			const describeProduct = (shown: ProductVariant[]) =>
-				ok(
-					{
-						title: product.title,
-						handle: product.handle,
-						description: clipText(product.description, PAGE_DESCRIPTION_CHARACTERS),
-						url,
-						price: formatPriceRange(product.priceRange),
-						available: product.availableForSale,
-						options: product.options,
-						variants: shown.map(pageVariantView),
-						...(shown.length < listed.length
-							? {
-									variants_not_shown: listed.length - shown.length,
-									hint: 'Pass selected_options to narrow the variants.',
-								}
-							: {}),
-						navigated,
-					},
-					summary,
-				);
-			const shown = fitToPageResult(listed, (list) => resultSize(describeProduct(list)));
-			return { result: describeProduct(shown), ...(navigated ? { navigateTo: url } : {}) };
+			const result = productPageResult({ product, listed, name, url, summary, navigated });
+			return { result, ...(navigated ? { navigateTo: url } : {}) };
 		}
 		const structured = {
 			id: product.id,
@@ -286,25 +400,28 @@ export const storeTools: StoreTool[] = [
 			navigateTo: url,
 		};
 	}),
-	define(getCartTool, async ({ id }, context) => {
+	define(getCartTool, async ({ id, offset, limit }, context) => {
 		if (context.surface === 'mcp' && !id) return fail('Pass id, the cart id that create_cart returned.');
 		const { cart } = await currentCart(id, context);
 		if (context.surface === 'mcp' && !cart)
 			return fail('No cart with that id. It may have expired; create_cart starts a new one.');
-		const view = cartView(cart, context);
-		return { result: ok(view, describeCart(view)) };
+		return { result: cartResult(cart, context, { window: { offset, limit } }) };
 	}),
 	define(createCartTool, async ({ cart: request }, context) => {
 		const { cart } = await currentCart(undefined, context);
 		if (cart && cart.totalQuantity > 0) {
-			const view = cartView(cart, context, [
-				{
-					type: 'error',
-					code: 'cart_not_empty',
-					content: 'The cart already has items. Use update_cart to change it.',
-				},
-			]);
-			return { result: ok(view, `Nothing changed. ${describeCart(view)}`) };
+			return {
+				result: cartResult(cart, context, {
+					prefix: 'Nothing changed. ',
+					messages: [
+						{
+							type: 'error',
+							code: 'cart_not_empty',
+							content: 'The cart already has items. Use update_cart to change it.',
+						},
+					],
+				}),
+			};
 		}
 		const problem = lineProblem(request.line_items, null);
 		if (problem) return fail(problem.message);
@@ -319,24 +436,23 @@ export const storeTools: StoreTool[] = [
 	define(updateCartTool, async ({ id, cart: request }, context) => {
 		if (context.surface === 'mcp' && !id) return fail('Pass id, the cart id that create_cart returned.');
 		const { cart, mismatch } = await currentCart(id, context);
-		const stale = (content: string) => {
-			const view = cartView(cart, context, [{ type: 'error', code: 'cart_changed', content }]);
-			return { result: ok(view, `Nothing changed. ${describeCart(view)}`) };
-		};
+		const stale = (content: string) => ({
+			result: cartResult(cart, context, {
+				prefix: 'Nothing changed. ',
+				messages: [{ type: 'error', code: 'cart_changed', content }],
+			}),
+		});
 		if (mismatch) return stale('The cart changed since that result. Read it again with get_cart.');
 		if (context.surface === 'mcp' && !cart)
 			return fail('No cart with that id. It may have expired; create_cart starts a new one.');
-		if (!request.line_items || (!cart && request.line_items.length === 0)) {
-			const view = cartView(cart, context);
-			return { result: ok(view, describeCart(view)) };
-		}
+		if (!request.line_items?.length) return { result: cartResult(cart, context) };
 		const problem = lineProblem(request.line_items, cart);
 		if (problem?.kind === 'repeated') return fail(problem.message);
 		if (problem) return stale(problem.message);
 
 		const lines = request.line_items;
 		const updated = await applyCartChange(() =>
-			context.provider.setCartQuantities(cart?.id, replacementQuantities(lines, cart)),
+			context.provider.setCartQuantities(cart?.id, changedQuantities(lines)),
 		);
 		return isOutcome(updated) ? updated : cartOutcome(updated, context);
 	}),
@@ -344,14 +460,18 @@ export const storeTools: StoreTool[] = [
 		if (context.surface === 'mcp' && !id) return fail('Pass id, the cart id that create_cart returned.');
 		const { cart, mismatch } = await currentCart(id, context);
 		if (mismatch) {
-			const view = cartView(cart, context, [
-				{
-					type: 'error',
-					code: 'cart_changed',
-					content: 'The cart changed since that result. Read it again with get_cart.',
-				},
-			]);
-			return { result: ok(view, `Nothing changed. ${describeCart(view)}`) };
+			return {
+				result: cartResult(cart, context, {
+					prefix: 'Nothing changed. ',
+					messages: [
+						{
+							type: 'error',
+							code: 'cart_changed',
+							content: 'The cart changed since that result. Read it again with get_cart.',
+						},
+					],
+				}),
+			};
 		}
 		const previous = cart?.totalQuantity ?? 0;
 		if (!cart || previous === 0) {
@@ -406,22 +526,28 @@ export const storeTools: StoreTool[] = [
 			})
 			.filter((section) => section.score > 0)
 			.sort((a, b) => b.score - a.score);
-		const link = (policy: (typeof policies)[number]) => ({
+		const link = (policy: (typeof policies)[number], compact: boolean, withUrl: boolean) => ({
 			type: policy.type,
-			url: resolveUrl(origin, storePaths.policy(policy.handle)),
-			title: policy.title,
+			...(withUrl ? { url: resolveUrl(origin, storePaths.policy(policy.handle)) } : {}),
+			title: compact ? clipText(policy.title, PAGE_TITLE_CHARACTERS) : policy.title,
 		});
 		/**
-		 * The answer from the best `sectionCount` policies, each with `paragraphCount` paragraphs cut to `clip`
-		 * characters when a limit is given.
+		 * The answer from the best `sectionCount` policies, each with `paragraphCount` paragraphs. A compact answer
+		 * clips the headings, cuts the paragraphs to `clip` characters and links only the policies it quotes.
 		 */
-		const answer = (sectionCount: number, paragraphCount: number, clip?: number) => {
+		const answer = (
+			sectionCount: number,
+			paragraphCount: number,
+			compact: boolean,
+			clip?: number,
+			withUrls = true,
+		) => {
 			const sections = ranked.slice(0, sectionCount);
 			const plain = sections.length
 				? sections
 						.map(({ policy, paragraphs }) =>
 							[
-								`${policy.title} (${resolveUrl(origin, storePaths.policy(policy.handle))}):`,
+								`${compact ? clipText(policy.title, PAGE_TITLE_CHARACTERS) : policy.title}${withUrls ? ` (${resolveUrl(origin, storePaths.policy(policy.handle))})` : ''}:`,
 								...paragraphs
 									.slice(0, paragraphCount)
 									.map((entry) => (clip ? clipText(entry.paragraph, clip) : entry.paragraph)),
@@ -431,14 +557,16 @@ export const storeTools: StoreTool[] = [
 				: 'The store has no published information about that. Its policies are linked below.';
 			const linked = (sections.length ? sections.map((section) => section.policy) : policies).slice(
 				0,
-				clip ? sectionCount + 1 : undefined,
+				compact ? sectionCount + 1 : undefined,
 			);
-			return ok({ answer: { plain }, links: linked.map(link) }, plain);
+			return ok({ answer: { plain }, links: linked.map((policy) => link(policy, compact, withUrls)) }, plain);
 		};
-		if (surface !== 'page') return { result: answer(3, 2) };
-		const attempts = PAGE_ANSWER_SIZES.map(({ policies: count, characters }) => answer(count, 1, characters));
+		if (surface !== 'page') return { result: answer(3, 2, false) };
+		const attempts = PAGE_ANSWER_SIZES.map(({ policies: count, characters }) =>
+			answer(count, characters ? 1 : 0, true, characters || undefined),
+		);
 		const fitting = attempts.find((result) => resultSize(result) <= PAGE_RESULT_CHARACTERS);
-		return { result: fitting ?? answer(1, 1, PAGE_ANSWER_SIZES[PAGE_ANSWER_SIZES.length - 1]?.characters) };
+		return { result: fitting ?? answer(1, 0, true, undefined, false) };
 	}),
 	define(addToCartTool, async ({ item, quantity }, context) => {
 		if (!context.currentProductHandle)

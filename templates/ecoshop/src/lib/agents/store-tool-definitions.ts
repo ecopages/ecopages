@@ -133,6 +133,16 @@ export const browseStoreTool = defineSpec({
 		),
 		sort_by: z.optional(z.enum(PRODUCT_SORTS).check(z.describe('Sort order; best-selling by default.'))),
 		page: z.optional(z.int().check(z.minimum(1), z.maximum(MAX_PAGE), z.describe('Page number, from 1.'))),
+		offset: z.optional(
+			z
+				.int()
+				.check(
+					z.minimum(0),
+					z.describe(
+						'Products to skip, which a page number does not give; use next_offset of the last result.',
+					),
+				),
+		),
 	}),
 	annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
 	surfaces: ['page', 'mcp'],
@@ -196,8 +206,21 @@ export const getCartTool = defineSpec({
 	name: 'get_cart',
 	title: 'Get the cart',
 	description:
-		"Read the shopper's cart: its id, every line with its line id, titles, variant id, unit and line price, and the subtotal. update_cart starts from this result.",
-	input: z.object({ id: cartIdField }),
+		"Read the shopper's cart: its id, its lines with their line ids, titles, variant ids and line prices, and the subtotal. On a page a long cart comes a few lines at a time: pass offset (the next_offset of the last result) to read on. update_cart starts from this result.",
+	input: z.object({
+		id: cartIdField,
+		offset: z.optional(
+			z
+				.int()
+				.check(
+					z.minimum(0),
+					z.describe('The first line to show, from 0. Only a page paginates; /mcp returns every line.'),
+				),
+		),
+		limit: z.optional(
+			z.int().check(z.minimum(1), z.maximum(100), z.describe('Most lines to show. A page may show fewer.')),
+		),
+	}),
 	annotations: { readOnlyHint: true, untrustedContentHint: true },
 	surfaces: ['page', 'mcp'],
 });
@@ -218,11 +241,20 @@ export const createCartTool = defineSpec({
 	surfaces: ['page', 'mcp'],
 });
 
+/**
+ * Changes the lines it is sent and leaves the others as they are.
+ *
+ * @remarks
+ * A page shows a long cart a few lines at a time (`get_cart` with `offset`), so an agent may know only some of its
+ * lines. If an unlisted line were removed, an agent that sends the page it read would empty the rest of the cart by
+ * accident. Changing only what is sent is the safer design, and removing is explicit: a quantity of 0, or
+ * `cancel_cart` for all of it. It holds over `/mcp` too, so the tool means the same on both.
+ */
 export const updateCartTool = defineSpec({
 	name: 'update_cart',
 	title: 'Update the cart',
 	description:
-		'Set the cart to exactly the listed lines: a listed line takes the given quantity, an unlisted line is removed, and an empty list empties the cart. Send the lines from the latest cart result; when the cart changed since, nothing changes and an error message explains it.',
+		'Change the quantity of the listed lines: a line takes the quantity given, and 0 removes it. A line you do not list stays as it is, so a long cart can be changed a few lines at a time; cancel_cart empties it. Send line ids from the latest cart result; when the cart changed since, nothing changes and an error message explains it.',
 	input: z.object({
 		id: cartIdField,
 		cart: z.object({
@@ -235,11 +267,18 @@ export const updateCartTool = defineSpec({
 									.string()
 									.check(z.describe('Line id from a cart result, for a line already in the cart.')),
 							),
+							quantity: z
+								.int()
+								.check(
+									z.minimum(0),
+									z.maximum(MAX_LINE_QUANTITY),
+									z.describe('The quantity the line holds afterwards; 0 removes it.'),
+								),
 						}),
 					)
 					.check(
 						z.maxLength(MAX_LINE_ITEMS),
-						z.describe('Every line the cart holds afterwards. Omit to leave the lines as they are.'),
+						z.describe('The lines to change. Omit to leave the cart as it is.'),
 					),
 			),
 		}),

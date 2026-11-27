@@ -245,7 +245,7 @@ describe('store tools: the shopper cart on a page', () => {
 		);
 	});
 
-	it('replaces the cart with exactly the listed lines', async () => {
+	it('changes the listed lines and keeps the ones it is not sent, and 0 removes a line', async () => {
 		const cartId = await cartWith([
 			{ id: fieldShirtM, quantity: 1 },
 			{ id: tote, quantity: 1 },
@@ -261,7 +261,20 @@ describe('store tools: the shopper cart on a page', () => {
 
 		expect((after.structured as CartResult).line_items).toEqual([
 			expect.objectContaining({ quantity: 3, item: expect.objectContaining({ id: fieldShirtM }) }),
+			expect.objectContaining({ quantity: 1, item: expect.objectContaining({ id: tote }) }),
 		]);
+
+		const toteLine = (after.structured as CartResult).line_items.find((line) => line.item.id === tote);
+		const removed = await call(
+			'update_cart',
+			{
+				id: (after.structured as CartResult).id,
+				cart: { line_items: [{ id: toteLine?.id, item: { id: tote }, quantity: 0 }] },
+			},
+			page(after.cartId),
+		);
+
+		expect((removed.structured as CartResult).line_items.map((line) => line.item.id)).toEqual([fieldShirtM]);
 	});
 
 	it('changes nothing when the cart changed since the agent read it', async () => {
@@ -827,5 +840,385 @@ describe('store tools: cart and answer results on a page', () => {
 		expect(plain.match(/\(https?:/gu)).toHaveLength(3);
 		expect(plain).toContain('Returns paragraph 1.');
 		expect(plain.length).toBeGreaterThan(2500);
+	});
+});
+
+describe('store tools: a long cart on a page', () => {
+	const variants = [
+		'gid://ecoshop/ProductVariant/field-shirt-s',
+		'gid://ecoshop/ProductVariant/field-shirt-m',
+		'gid://ecoshop/ProductVariant/field-shirt-l',
+		'gid://ecoshop/ProductVariant/trail-tee-s',
+		'gid://ecoshop/ProductVariant/trail-tee-m',
+		'gid://ecoshop/ProductVariant/trail-tee-l',
+		'gid://ecoshop/ProductVariant/canvas-tote',
+		'gid://ecoshop/ProductVariant/steel-bottle-500-ml',
+		'gid://ecoshop/ProductVariant/steel-bottle-750-ml',
+		'gid://ecoshop/ProductVariant/merino-beanie-charcoal',
+	];
+
+	/**
+	 * A provider whose cart has `count` lines with long titles, which the demo catalog is too small to make.
+	 */
+	const cartOf = (count: number): { provider: CommerceProvider; cartId: string } => {
+		const lines = Array.from({ length: count }, (_, index) => ({
+			id: `gid://shopify/CartLine/${'a'.repeat(40)}${index}?cart=${'k'.repeat(30)}`,
+			quantity: index + 1,
+			variantId: `gid://shopify/ProductVariant/${4470000000000 + index}`,
+			variantTitle: `A variant title that is long ${index}`.repeat(4),
+			productHandle: `product-${index}`,
+			productTitle: `A product with a very long title ${index} `.repeat(8),
+			unitPrice: { amount: '10.00', currencyCode: 'USD' },
+			totalPrice: { amount: '10.00', currencyCode: 'USD' },
+			image: null,
+		}));
+		const cart = {
+			id: 'gid://shopify/Cart/long',
+			checkoutUrl: '/checkout',
+			totalQuantity: lines.length,
+			subtotal: { amount: '10.00', currencyCode: 'USD' },
+			lines,
+		};
+		return { provider: { ...provider, getCart: async () => cart }, cartId: cart.id };
+	};
+
+	it.each([1, 10, 50])('fits a cart of %i lines, and every line can be read by paging', async (count) => {
+		const { provider: long, cartId } = cartOf(count);
+		const seen: string[] = [];
+		let offset: number | undefined;
+
+		for (let step = 0; step < count + 1; step += 1) {
+			const { result, structured } = await call('get_cart', offset === undefined ? {} : { offset }, {
+				...page(cartId),
+				provider: long,
+			});
+			expect(resultSize(result)).toBeLessThanOrEqual(1500);
+			seen.push(...(structured.line_items as Array<{ id: string }>).map((line) => line.id));
+			if (!structured.has_more) break;
+			offset = structured.next_offset as number;
+		}
+
+		expect(seen).toHaveLength(count);
+		expect(new Set(seen).size).toBe(count);
+	});
+
+	it('says how many lines there are and where to read on', async () => {
+		const { provider: long, cartId } = cartOf(10);
+
+		const { structured, result } = await call('get_cart', {}, { ...page(cartId), provider: long });
+
+		expect(structured).toMatchObject({ line_count: 10, offset: 0, has_more: true });
+		expect(structured.next_offset).toBeGreaterThan(0);
+		expect(result.content[0]?.text).toMatch(/10 lines in all; get_cart with offset \d+ shows the rest/u);
+	});
+
+	it('shows fewer lines when asked for fewer, and starts where it is told', async () => {
+		const { provider: long, cartId } = cartOf(10);
+
+		const { structured } = await call('get_cart', { offset: 4, limit: 1 }, { ...page(cartId), provider: long });
+
+		expect(structured).toMatchObject({ offset: 4, has_more: true, next_offset: 5 });
+		expect((structured.line_items as unknown[]).length).toBe(1);
+	});
+
+	it('keeps the lines it did not show when update_cart changes the ones it is sent', async () => {
+		const created = await call(
+			'create_cart',
+			{
+				cart: {
+					line_items: variants
+						.map((id) => ({ item: { id }, quantity: 1 }))
+						.filter((line) => !line.item.id.includes('linen')),
+				},
+			},
+			page(),
+		);
+		const view = created.structured as CartResult & { line_count: number; has_more?: boolean };
+		const first = view.line_items[0];
+
+		const updated = await call(
+			'update_cart',
+			{ id: view.id, cart: { line_items: [{ id: first?.id, item: { id: first?.item.id ?? '' }, quantity: 2 }] } },
+			page(created.cartId),
+		);
+
+		const after = updated.structured as CartResult & { line_count: number };
+		expect(after.line_count).toBe(view.line_count);
+		expect(resultSize(updated.result)).toBeLessThanOrEqual(1500);
+		expect(after.item_count).toBe(view.item_count + 1);
+	});
+
+	it('returns the whole cart over /mcp, whatever its length', async () => {
+		const created = await call(
+			'create_cart',
+			{ cart: { line_items: variants.map((id) => ({ item: { id }, quantity: 1 })) } },
+			mcp,
+		);
+
+		expect((created.structured as CartResult).line_items).toHaveLength(variants.length);
+		expect(created.structured).not.toHaveProperty('has_more');
+	});
+});
+
+describe('store tools: titles and headings that run on', () => {
+	const longTitle = `${'A title that goes on and on '.repeat(11)}end`;
+	const longHandle = `${'a-handle-that-is-long-'.repeat(8)}end`;
+
+	const crowded = async (): Promise<CommerceProvider> => {
+		const product = await provider.getProduct('field-shirt');
+		const [summary] = await provider.listProducts({ limit: 1 });
+		if (!product || !summary) throw new Error('The demo catalog has the Field Shirt.');
+		const longProduct = { ...product, title: longTitle, handle: longHandle };
+		const longSummary = { ...summary, title: longTitle, handle: longHandle };
+		return {
+			...provider,
+			getProduct: async () => longProduct,
+			listProducts: async (options) =>
+				Array.from({ length: 40 }, (_, index) => ({
+					...longSummary,
+					id: `p${index}`,
+					handle: `${longHandle}-${index}`,
+				})).slice(options?.offset ?? 0, (options?.offset ?? 0) + (options?.limit ?? 24)),
+			searchProducts: async (_query, options) =>
+				Array.from({ length: options?.limit ?? 5 }, (_, index) => ({
+					...longSummary,
+					id: `p${index}`,
+					handle: `${longHandle}-${index}`,
+				})),
+			listCollections: async () =>
+				Array.from({ length: 12 }, (_, index) => ({
+					id: `c${index}`,
+					handle: `${longHandle}-${index}`,
+					title: longTitle,
+					description: longTitle,
+				})),
+			getCollection: async (_handle, options) => ({
+				collection: { id: 'c', handle: longHandle, title: longTitle, description: '' },
+				products: Array.from({ length: 40 }, (_, index) => ({
+					...longSummary,
+					id: `p${index}`,
+					handle: `${longHandle}-${index}`,
+				})).slice(options?.offset ?? 0, (options?.offset ?? 0) + (options?.limit ?? 24)),
+			}),
+			listPolicies: async () =>
+				['refund_policy', 'shipping_policy', 'privacy_policy'].map((type, index) => ({
+					handle: `${longHandle}-${index}`,
+					type: type as 'refund_policy',
+					title: `${longTitle} returns and refunds`,
+					body: `Returns come first. ${'Returns and refunds are taken within thirty days. '.repeat(30)}`,
+				})),
+		};
+	};
+
+	it('fits every page result when a title is 300 characters and a handle is 180', async () => {
+		const long = await crowded();
+		const context = { ...page(undefined, longHandle), provider: long };
+
+		const results = await Promise.all([
+			runStoreTool('search_catalog', { catalog: { query: 'title returns', pagination: { limit: 10 } } }, context),
+			runStoreTool('get_product', { catalog: { id: longHandle } }, context),
+			runStoreTool('browse_store', {}, context),
+			runStoreTool('browse_store', { collection: 'all' }, context),
+			runStoreTool('browse_store', { collection: 'some-collection' }, context),
+			runStoreTool('ask_business', { ask: { query: 'returns and refunds' } }, context),
+		]);
+
+		for (const { result } of results) expect(resultSize(result)).toBeLessThanOrEqual(1500);
+	});
+
+	it('still reaches every product of a long listing by following next_offset', async () => {
+		const long = await crowded();
+		const handles: string[] = [];
+		let offset: number | undefined;
+
+		for (let step = 0; step < 60; step += 1) {
+			const { result, structured } = await call(
+				'browse_store',
+				offset === undefined ? { collection: 'all' } : { collection: 'all', offset },
+				{ ...page(), provider: long },
+			);
+			expect(resultSize(result)).toBeLessThanOrEqual(1500);
+			handles.push(...(structured.products as Array<{ handle: string }>).map((product) => product.handle));
+			if (!structured.has_more) break;
+			offset = structured.next_offset as number;
+		}
+
+		expect(handles).toHaveLength(40);
+		expect(new Set(handles).size).toBe(40);
+	});
+
+	it('clips the heading and gives the link when no paragraph fits', async () => {
+		const long = await crowded();
+
+		const { result } = await runStoreTool(
+			'ask_business',
+			{ ask: { query: 'returns and refunds' } },
+			{ ...page(), provider: long },
+		);
+
+		const links = result.structuredContent.links as Array<{ title: string; url: string }>;
+		expect(links[0]?.title.length).toBeLessThanOrEqual(63);
+		expect(links[0]?.url).toContain(longHandle);
+		expect(resultSize(result)).toBeLessThanOrEqual(1500);
+	});
+
+	it('leaves the titles whole over /mcp', async () => {
+		const long = await crowded();
+
+		const { structured } = await call(
+			'search_catalog',
+			{ catalog: { query: 'title' } },
+			{ ...mcp, provider: long },
+		);
+
+		expect((structured.products as Array<{ title: string }>)[0]?.title).toBe(longTitle);
+	});
+});
+
+describe('store tools: results that run on in every part', () => {
+	const productWith = async (options: Array<{ name: string; values: string[] }>) => {
+		const product = await provider.getProduct('field-shirt');
+		if (!product) throw new Error('The demo catalog has the Field Shirt.');
+		return { ...product, options };
+	};
+
+	it('returns the option names and values whole, as an agent passes them back as selected_options', async () => {
+		const name = 'An option name of seventy characters, which is longer than a title clip'.slice(0, 70);
+		const value = 'A value of seventy characters, which is longer than a title clip, too!'.slice(0, 70);
+		const product = await productWith([{ name, values: [value] }]);
+
+		const { structured } = await call(
+			'get_product',
+			{ catalog: { id: 'field-shirt' } },
+			{ ...page(), provider: { ...provider, getProduct: async () => product } },
+		);
+
+		expect(structured.options).toEqual([{ name, values: [value] }]);
+	});
+
+	it('leaves out the options, and says so, when they would not fit with even one variant', async () => {
+		const wide = Array.from({ length: 3 }, (_, option) => ({
+			name: `Option ${option}`,
+			values: Array.from({ length: 8 }, (_, value) =>
+				`${'A long value '.repeat(5)}${option}${value}`.slice(0, 60),
+			),
+		}));
+		const product = await productWith(wide);
+
+		const { result, structured } = await call(
+			'get_product',
+			{ catalog: { id: 'field-shirt' } },
+			{ ...page(), provider: { ...provider, getProduct: async () => product } },
+		);
+
+		expect(resultSize(result)).toBeLessThanOrEqual(1500);
+		expect(structured.options_omitted ?? structured.options_truncated).toBe(true);
+		expect(structured.variants).not.toHaveLength(0);
+	});
+
+	it('shrinks the messages of a cart when one line with long titles still does not fit', async () => {
+		const line = (index: number) => ({
+			id: `gid://shopify/CartLine/${index}`,
+			quantity: 1,
+			variantId: `gid://shopify/ProductVariant/${index}`,
+			variantTitle: 'A variant title that is long '.repeat(4),
+			productHandle: `product-${index}`,
+			productTitle: 'A long product title '.repeat(15),
+			unitPrice: { amount: '10.00', currencyCode: 'USD' },
+			totalPrice: { amount: '10.00', currencyCode: 'USD' },
+			image: null,
+		});
+		const lines = [line(1), line(2), line(3)];
+		const cart = {
+			id: 'gid://shopify/Cart/long',
+			checkoutUrl: '/checkout',
+			totalQuantity: 3,
+			subtotal: { amount: '30.00', currencyCode: 'USD' },
+			lines,
+			messages: lines.map((entry) => ({
+				type: 'warning' as const,
+				code: 'quantity_reduced',
+				content: `${entry.productTitle}: only 1 in stock, so the cart holds 1 instead of 2.`,
+				variantId: entry.variantId,
+				wanted: 2,
+			})),
+		};
+
+		const { result } = await runStoreTool(
+			'create_cart',
+			{ cart: { line_items: lines.map((entry) => ({ item: { id: entry.variantId }, quantity: 2 })) } },
+			{ ...page(), provider: { ...provider, setCartQuantities: async () => cart } },
+		);
+
+		expect(resultSize(result)).toBeLessThanOrEqual(1500);
+		expect(result.structuredContent.line_items).toHaveLength(1);
+	});
+
+	it('gives the heading alone when the link of a policy would not fit, as with a handle that percent-encodes long', async () => {
+		const crowded: CommerceProvider = {
+			...provider,
+			listPolicies: async () => [
+				{
+					handle: '\u754c'.repeat(180),
+					type: 'refund_policy',
+					title: 'Returns and refunds',
+					body: 'Returns are taken within thirty days.',
+				},
+			],
+		};
+
+		const { result } = await runStoreTool(
+			'ask_business',
+			{ ask: { query: 'returns refunds' } },
+			{ ...page(), provider: crowded },
+		);
+
+		expect(resultSize(result)).toBeLessThanOrEqual(1500);
+		expect(result.content[0]?.text).toContain('Returns and refunds');
+	});
+
+	it('drops the links of a product whose handle percent-encodes long', async () => {
+		const [summary] = await provider.listProducts({ limit: 1 });
+		if (!summary) throw new Error('The demo catalog has products.');
+		const long = { ...summary, handle: '\u754c'.repeat(180) };
+		const crowded: CommerceProvider = {
+			...provider,
+			searchProducts: async () => [long],
+			listProducts: async () => [long],
+		};
+
+		const searched = await runStoreTool(
+			'search_catalog',
+			{ catalog: { query: 'shirt' } },
+			{ ...page(), provider: crowded },
+		);
+		const browsed = await runStoreTool('browse_store', { collection: 'all' }, { ...page(), provider: crowded });
+
+		expect(resultSize(searched.result)).toBeLessThanOrEqual(1500);
+		expect(resultSize(browsed.result)).toBeLessThanOrEqual(1500);
+	});
+});
+
+describe('store tools: a collection whose handle percent-encodes long', () => {
+	it('fits a browse that opens it, without the address in the text', async () => {
+		const [summary] = await provider.listProducts({ limit: 1 });
+		if (!summary) throw new Error('The demo catalog has products.');
+		const handle = '\u754c'.repeat(180);
+		const crowded: CommerceProvider = {
+			...provider,
+			getCollection: async () => ({
+				collection: { id: 'c', handle, title: 'Everything', description: '' },
+				products: [summary],
+			}),
+		};
+
+		const { result, navigateTo } = await runStoreTool(
+			'browse_store',
+			{ collection: handle, navigate: true },
+			{ ...page(), provider: crowded },
+		);
+
+		expect(resultSize(result)).toBeLessThanOrEqual(1500);
+		expect(navigateTo).toContain('/collections/');
 	});
 });

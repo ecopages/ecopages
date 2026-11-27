@@ -53,6 +53,7 @@ describe('store tools: names and surfaces', () => {
 			'proceed_to_checkout',
 			'ask_business',
 			'add_to_cart',
+			'get_ucp_profile',
 		]);
 	});
 });

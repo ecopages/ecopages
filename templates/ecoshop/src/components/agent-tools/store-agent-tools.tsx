@@ -3,10 +3,13 @@ import type { JsxRenderable } from '@ecopages/jsx';
 
 /**
  * The host that offers the store's tools to an agent in the shopper's browser, through WebMCP.
+ *
+ * @remarks
+ * `ucp` is set for a connected Shopify store, which adds `get_ucp_profile`.
  */
-export const StoreAgentToolsHost = eco.component<{}, JsxRenderable>({
+export const StoreAgentToolsHost = eco.component<{ ucp?: boolean }, JsxRenderable>({
 	dependencies: {
 		scripts: ['./store-agent-tools.script.ts'],
 	},
-	render: () => <store-agent-tools data-eco-persist="store-agent-tools" hidden />,
+	render: ({ ucp = false }) => <store-agent-tools bool:ucp={ucp} data-eco-persist="store-agent-tools" hidden />,
 });

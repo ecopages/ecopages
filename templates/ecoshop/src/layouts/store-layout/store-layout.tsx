@@ -75,7 +75,7 @@ export const StoreLayout = eco.layout<JsxRenderable, LayoutProps<JsxRenderable>>
 				</div>
 			</footer>
 			<RuiToaster position="bottom-end" />
-			<StoreAgentToolsHost />
+			<StoreAgentToolsHost ucp={!usesDemoCatalog()} />
 		</body>
 	),
 });

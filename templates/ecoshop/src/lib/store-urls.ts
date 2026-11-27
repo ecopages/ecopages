@@ -13,6 +13,8 @@ export const storePaths = {
 	agentTool: (name: string) => `/api/agent-tools/${encodeURIComponent(name)}`,
 	demoCheckout: '/demo-checkout',
 	mcp: '/mcp',
+	ucpProfile: '/.well-known/ucp',
+	ucpMcp: '/api/ucp/mcp',
 	llms: '/llms.txt',
 } as const;
 

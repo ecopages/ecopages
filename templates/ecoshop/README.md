@@ -49,14 +49,15 @@ A tag names a kind of data, not one product, since a Page's Cache Strategy is th
 
 ## For agents
 
-| Surface                       | What it serves                                                                                   |
-| ----------------------------- | ------------------------------------------------------------------------------------------------ |
-| WebMCP, on every page         | The storefront tools, registered with `document.modelContext`, acting on the shopper's own cart  |
-| `/mcp`                        | MCP server (Streamable HTTP, stateless) with the same tools, carts named by id                   |
-| `/llms.txt`                   | The store, its collections, its products and how to shop it ([llmstxt.org](https://llmstxt.org)) |
-| `/products/<handle>/index.md` | A product as Markdown, with its variant ids                                                      |
-| `/policies/<handle>`          | Shipping, returns, privacy, terms and FAQ pages, which `ask_business` answers from               |
-| Product pages                 | schema.org `Product` JSON-LD with an `AggregateOffer`                                            |
+| Surface                            | What it serves                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| WebMCP, on every page              | The storefront tools, registered with `document.modelContext`, acting on the shopper's own cart  |
+| `/mcp`                             | MCP server (Streamable HTTP, stateless) with the same tools, carts named by id                   |
+| `/.well-known/ucp`, `/api/ucp/mcp` | The connected Shopify store's UCP profile and endpoint, forwarded (a Shopify store only)         |
+| `/llms.txt`                        | The store, its collections, its products and how to shop it ([llmstxt.org](https://llmstxt.org)) |
+| `/products/<handle>/index.md`      | A product as Markdown, with its variant ids                                                      |
+| `/policies/<handle>`               | Shipping, returns, privacy, terms and FAQ pages, which `ask_business` answers from               |
+| Product pages                      | schema.org `Product` JSON-LD with an `AggregateOffer`                                            |
 
 ### The tools
 
@@ -75,6 +76,7 @@ One module, `src/lib/agents/store-tool-definitions.ts`, defines every tool: its 
 | `proceed_to_checkout` | yes  |  yes   | Opens the provider's checkout; over `/mcp` it returns the URL                                                                     |
 | `ask_business`        | yes  |  yes   | `{ ask: { query } }`: answers from the store's policies and FAQ, with links                                                       |
 | `add_to_cart`         | yes  |   no   | Product pages only: adds a variant of that product to the cart                                                                    |
+| `get_ucp_profile`     | yes  |   no   | A connected Shopify store only: the store's UCP profile (see below)                                                               |
 
 Over `/mcp` there is no shopper session, so `get_cart`, `update_cart`, `cancel_cart` and `proceed_to_checkout` take the cart `id` that `create_cart` returned. On a page they act on the shopper's cart. There the `id` a cart result carries is a revision of its lines, not the cart id, which grants access to the cart and stays in the `HttpOnly` cookie: an `update_cart` or `cancel_cart` call with an older revision changes nothing. Agents cannot pay: checkout is the provider's page, where the shopper confirms.
 
@@ -104,6 +106,13 @@ The tool set was compared on 2026-11-26 with [Shopify's WebMCP documentation](ht
 - `get_cart`, `cancel_cart` and `proceed_to_checkout` accept an optional `id`, which `/mcp` needs. The cart totals have a subtotal and no total, since shipping and taxes are set at checkout.
 - `add_to_cart` is an addition for product pages.
 - Shopify does not publish its tool definitions as a package that a headless storefront could install, so they are defined here, against the `CommerceProvider`, which also lets them run on the demo catalog.
+
+### UCP
+
+Shopify serves the [Universal Commerce Protocol](https://shopify.dev/docs/agents/catalog/storefront-mcp) (UCP) from every storefront: a profile at `/.well-known/ucp` and an MCP endpoint at `/api/ucp/mcp` for catalog, cart and checkout. A UCP client expects those, so this template forwards them rather than reimplementing UCP over its own tools, whose names and shapes follow Shopify's WebMCP tools.
+
+- **With Shopify credentials set,** `/.well-known/ucp` serves the connected store's profile with its `/api/ucp/mcp` URL replaced by this site's, and `POST /api/ucp/mcp` forwards the client's JSON-RPC request to the store's own endpoint and returns the answer unchanged. The client sends its own `meta.ucp-agent.profile`, as the store requires; nothing is added. The destination is fixed to the connected store, a foreign `Origin` is refused, and a body over 256 kB is refused. Pages register `get_ucp_profile` with WebMCP, which returns that same profile.
+- **On the demo catalog,** there is no store to forward to: both URLs answer 404, `get_ucp_profile` is not registered, and the `/mcp` server above is the agent surface.
 
 ### Connect Claude Code
 
@@ -144,6 +153,7 @@ Interactive behaviour lives in Radiant hosts (`cart-form`, `cart-count`, `store-
 - `src/lib/cart/` — the cart cookie and the `/api/cart` handler
 - `src/lib/agents/` — the shared tool definitions and what they run, the `/api/agent-tools` handler, the browser tool client, `/llms.txt`, Markdown views and JSON-LD
 - `src/lib/mcp/` — the MCP server and its Streamable HTTP handler
+- `src/lib/ucp/` — the forwarded UCP profile and endpoint of a connected Shopify store
 - `src/lib/webhooks/` — webhook verification and tag mapping
 - `src/pages/` — the home, `collections/[handle]`, `products/[handle]`, `policies/[handle]`, `search` and `cart` Pages, and the `api/cart`, `api/agent-tools`, `api/revalidate` and `mcp` Endpoints
 - `src/components/add-to-cart/` — the product form and the `cart-form` host that enhances it and owns `add_to_cart` and `show_variant`

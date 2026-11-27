@@ -1,7 +1,9 @@
 import * as z from 'zod/mini';
+import { CommerceBackendError } from '@/lib/commerce/errors';
 import { formatMoney, toAgentPrice } from '@/lib/commerce/money';
 import type { Product, ProductSummary } from '@/lib/commerce/types';
 import { resolveUrl, storePaths } from '@/lib/store-urls';
+import { readUcpProfile } from '@/lib/ucp/ucp.server';
 import {
 	addToCartTool,
 	askBusinessTool,
@@ -10,6 +12,7 @@ import {
 	createCartTool,
 	getCartTool,
 	getProductTool,
+	getUcpProfileTool,
 	invalidInputMessage,
 	proceedToCheckoutTool,
 	searchCatalogTool,
@@ -388,6 +391,17 @@ export const storeTools: StoreTool[] = [
 			context.provider.addToCart(cart?.id, [{ variantId: variant.id, quantity }]),
 		);
 		return isOutcome(added) ? added : cartOutcome(added, context);
+	}),
+	define(getUcpProfileTool, async (_input, { origin }) => {
+		try {
+			const profile = await readUcpProfile(origin);
+			if (!profile)
+				return fail('This store runs on the demo catalog and has no UCP profile. Use the /mcp server.');
+			return { result: ok(profile, JSON.stringify(profile)) };
+		} catch (error) {
+			if (error instanceof CommerceBackendError) return fail(error.message);
+			throw error;
+		}
 	}),
 ];
 

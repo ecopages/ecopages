@@ -307,6 +307,16 @@ export const addToCartTool = defineSpec({
 	surfaces: ['page'],
 });
 
+export const getUcpProfileTool = defineSpec({
+	name: 'get_ucp_profile',
+	title: 'Get the UCP profile',
+	description:
+		"Read the store's Universal Commerce Protocol profile: the capabilities it supports, such as catalog and cart, and the endpoint that serves them. Offered only when the store is a connected Shopify store.",
+	input: z.object({}),
+	annotations: { readOnlyHint: true, untrustedContentHint: true },
+	surfaces: ['page'],
+});
+
 /**
  * Every tool, in the order a store lists them.
  */
@@ -322,6 +332,7 @@ export const storeToolSpecs: StoreToolSpec[] = [
 	proceedToCheckoutTool,
 	askBusinessTool,
 	addToCartTool,
+	getUcpProfileTool,
 ];
 
 /**

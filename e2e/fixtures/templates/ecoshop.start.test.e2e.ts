@@ -72,6 +72,15 @@ test('the MCP server lists its tools and runs one', async ({ request }) => {
 	expect(get.status()).toBe(405);
 });
 
+test('the demo catalog has no UCP profile or endpoint, and says to use /mcp', async ({ request }) => {
+	const profile = await request.get('/.well-known/ucp');
+	const endpoint = await request.post('/api/ucp/mcp', { data: { jsonrpc: '2.0', id: 1, method: 'tools/list' } });
+
+	expect(profile.status()).toBe(404);
+	expect(endpoint.status()).toBe(404);
+	expect(((await endpoint.json()) as { error: string }).error).toMatch(/\/mcp/u);
+});
+
 test('the revalidation webhook invalidates a tag for a valid signature and refuses another', async ({ request }) => {
 	const body = JSON.stringify({ id: 1, handle: 'field-shirt' });
 	const sign = (secret: string) => createHmac('sha256', secret).update(body, 'utf8').digest('base64');

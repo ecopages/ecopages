@@ -13,7 +13,7 @@ export const CartDrawer = eco.component<{}, JsxRenderable>({
 		<cart-drawer data-eco-persist="cart-drawer">
 			<RuiDialog title="Your cart" class="cart-drawer">
 				<cart-lines />
-				<RuiButton href="/order" variant="filled" data-eco-reload class="cart-drawer__order">
+				<RuiButton href="/order" variant="filled" class="cart-drawer__order">
 					Review order
 				</RuiButton>
 			</RuiDialog>
